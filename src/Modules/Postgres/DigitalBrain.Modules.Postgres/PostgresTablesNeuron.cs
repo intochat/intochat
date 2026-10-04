@@ -42,11 +42,10 @@ internal sealed class PostgresTablesNeuron(
         }
     }
 
-    public async Task<string[]> ReadLegacyTables()
-    {
-        await RequireOpen();
-        return state.State.Tables.ToArray();
-    }
+    // Answers even when retired: an adoption may find the index retired by a crashed uninstall
+    // while the legacy app still reads Installed, and Transfer no-ops on tables whose state the
+    // retire already cleared — refusing here would wedge the adoption retry forever.
+    public Task<string[]> ReadLegacyTables() => Task.FromResult(state.State.Tables.ToArray());
 
     public Task RequireOpen()
     {
