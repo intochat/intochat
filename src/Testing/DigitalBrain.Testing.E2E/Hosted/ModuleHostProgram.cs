@@ -30,7 +30,7 @@ builder.AddDigitalBrainServer(server =>
     {
         foreach (var type in ModuleHostChannel.ReadModules(builder.Configuration))
         {
-            server.AddModule(type);
+            server.AddModule(ModuleHostChannel.CreateModule(type));
         }
     }
 });

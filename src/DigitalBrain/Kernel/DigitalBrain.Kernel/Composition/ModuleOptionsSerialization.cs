@@ -15,11 +15,12 @@ public static class ModuleOptionsSerialization
     // DigitalBrain:Modules:{Name}:Options, so a host's own configuration (env, args, files)
     // overrides a code-declared default by standard precedence — no side channel.
     public static ModuleDefinition Compile<TModule, TOptions>(TOptions options)
-        where TModule : IModule<TOptions> where TOptions : class, IModuleOptions, new()
+        where TModule : Module<TOptions>, new() where TOptions : class, IModuleOptions, new()
     {
         ArgumentNullException.ThrowIfNull(options);
         options.Validate();
-        return new ModuleDefinition(typeof(TModule), FlattenOptions(options, ModuleIdentity.Get(typeof(TModule))));
+        var module = new TModule();
+        return new ModuleDefinition(module, FlattenOptions(options, module.Id.ToString()));
     }
 
     public static Dictionary<string, string?> FlattenOptions<TOptions>(TOptions options, string moduleName)

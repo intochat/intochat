@@ -16,9 +16,9 @@ public sealed class ModuleOptionsFacts
         public void Validate() { if (!Endpoint.IsAbsoluteUri) { throw new ArgumentException("Endpoint must be absolute."); } }
     }
 
-    private sealed class FakeModule : IModule<FakeOptions>
+    private sealed class FakeModule() : Module<FakeOptions>(new(nameof(FakeModule)))
     {
-        public void Configure(ISiloBuilder silo) { }
+        public override void Configure(ISiloBuilder silo) { }
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public sealed class ModuleOptionsFacts
     {
         var options = new FakeOptions { Endpoint = new("https://x.example/api"), Flag = true, Bindings = { ["a"] = "1" } };
         var definition = ModuleOptionsSerialization.Compile<FakeModule, FakeOptions>(options);
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(definition.Configuration).Build();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(definition.Settings).Build();
         var bound = configuration.GetModuleOptions<FakeOptions>(nameof(FakeModule));
         Assert.Equal(options.Endpoint, bound.Endpoint);
         Assert.True(bound.Flag);
@@ -61,7 +61,7 @@ public sealed class ModuleOptionsFacts
     public void TheModuleListBindsBesideAnOptionsKeyUnderTheSameSection()
     {
         var options = ModuleOptionsSerialization.Compile<FakeModule, FakeOptions>(new() { Flag = true });
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(options.Configuration)
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(options.Settings)
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 [DigitalBrainConfiguration.ModulesSectionName + ":0"] = "First.Module, First",
@@ -75,7 +75,7 @@ public sealed class ModuleOptionsFacts
     public void PopulateCopiesBoundOptionsOntoAnExistingInstance()
     {
         var definition = ModuleOptionsSerialization.Compile<FakeModule, FakeOptions>(new() { Flag = true, Endpoint = new("https://x.example/") });
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(definition.Configuration).Build();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(definition.Settings).Build();
         var target = new FakeOptions();
         configuration.PopulateModuleOptions(nameof(FakeModule), target);
         Assert.True(target.Flag);
@@ -98,7 +98,7 @@ public sealed class ModuleOptionsFacts
     [InlineData(DigitalBrainConfiguration.ModulesSectionName + ":A__B:Options")]
     public void OnlyTheOptionsKeyShapeIsExemptFromHostOwnedSettings(string key)
     {
-        var definition = new ModuleDefinition(typeof(FakeModule), new Dictionary<string, string?> { [key] = "x" });
+        var definition = new ModuleDefinition(new FakeModule(), new Dictionary<string, string?> { [key] = "x" });
         Assert.Throws<ArgumentException>(() => ModuleSettingsValidation.ValidatePublicSettings([definition]));
     }
 
@@ -108,5 +108,5 @@ public sealed class ModuleOptionsFacts
     [InlineData(DigitalBrainConfiguration.ModulesSectionName + ":X:Options:Bindings:a:0")]
     public void FlattenedOptionKeysArePublicSettings(string key)
         => ModuleSettingsValidation.ValidatePublicSettings(
-            [new(typeof(FakeModule), new Dictionary<string, string?> { [key] = "x" })]);
+            [new(new FakeModule(), new Dictionary<string, string?> { [key] = "x" })]);
 }

@@ -9,10 +9,9 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.Assistant;
 
-[ModuleId("assistant")]
-public sealed class AssistantModule : IModule, IHttpModule
+public sealed class AssistantModule() : Module(new ModuleId("assistant")), IHttpModule
 {
-    public void Configure(ISiloBuilder silo)
+    public override void Configure(ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IAgentToolFactory, WorkspaceFormTools>());

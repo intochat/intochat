@@ -14,8 +14,7 @@ using Orleans.Hosting;
 namespace DigitalBrain.Supabase;
 
 [ModuleHosting("DigitalBrain.Supabase.Aspire.Hosting.SupabaseModuleHosting, DigitalBrain.Modules.Supabase.Aspire.Hosting")]
-[ModuleId("supabase")]
-public sealed class SupabaseModule : IModule<SupabaseModuleOptions>, IHttpModule
+public sealed class SupabaseModule() : Module<SupabaseModuleOptions>(new ModuleId("supabase")), IHttpModule
 {
     public const string ConnectionName = "supabase";
     public const string ProviderName = "Npgsql";
@@ -26,7 +25,7 @@ public sealed class SupabaseModule : IModule<SupabaseModuleOptions>, IHttpModule
         TableEndpoints.Map(endpoints);
     }
 
-    public void Configure(ISiloBuilder builder)
+    public override void Configure(ISiloBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         var services = builder.Services;

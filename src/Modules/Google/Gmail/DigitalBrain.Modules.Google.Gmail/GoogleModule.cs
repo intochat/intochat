@@ -17,15 +17,14 @@ using Orleans.Hosting;
 namespace DigitalBrain.Google.Gmail;
 
 [ModuleHosting("DigitalBrain.Google.Gmail.GmailModuleHosting, DigitalBrain.Modules.Google.Gmail.Aspire.Hosting")]
-[ModuleId("gmail")]
-public sealed class GmailModule : IModule<GmailModuleOptions>, IHttpModule
+public sealed class GmailModule() : Module<GmailModuleOptions>(new ModuleId("gmail")), IHttpModule
 {
     public static IntegrationDefinition Integration { get; } = IntegrationDefinition.For("gmail", "Gmail")
         .RequiresSecret("ClientId")
         .RequiresSecret("ClientSecret")
         .RequiresSetting("PublicOrigin");
 
-    public void Configure(ISiloBuilder silo)
+    public override void Configure(ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
         var services = silo.Services;

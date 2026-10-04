@@ -42,7 +42,7 @@ public static class ModuleTest
             });
             foreach (var definition in modules)
             {
-                host.Configuration.AddInMemoryCollection(definition.Configuration);
+                host.Configuration.AddInMemoryCollection(definition.Settings);
             }
             host.Configuration.AddInMemoryCollection(options.Execution.PrivateConfiguration);
         });

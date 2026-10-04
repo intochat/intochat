@@ -102,11 +102,23 @@ public sealed class BoundaryFacts
     public void ModuleOptionsContainNoCredentialMembers()
     {
         var options = ProductionArchitecture.Types.Where(type => !type.IsAbstract)
-            .SelectMany(type => type.GetInterfaces())
-            .Where(type => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IModule<>))
-            .Select(type => type.GetGenericArguments()[0]).Distinct().ToArray();
+            .Select(ModuleOptionsType)
+            .Where(type => type is not null)
+            .Select(type => type!)
+            .Distinct().ToArray();
         Assert.NotEmpty(options);
         Assert.Empty(options.SelectMany(ContractRules.CredentialMembers));
+    }
+
+    // Module options are the generic argument of a concrete module's Module<TOptions> base.
+    private static Type? ModuleOptionsType(Type type)
+    {
+        for (var current = type.BaseType; current is not null; current = current.BaseType)
+        {
+            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(DigitalBrain.Contracts.Module<>))
+            { return current.GetGenericArguments()[0]; }
+        }
+        return null;
     }
 
     [Fact]

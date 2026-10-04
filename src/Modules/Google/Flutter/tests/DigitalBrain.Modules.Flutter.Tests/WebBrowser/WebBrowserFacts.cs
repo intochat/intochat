@@ -15,7 +15,7 @@ public sealed class WebBrowserFacts
 {
     private const string Session = "0123456789abcdef0123456789abcdef";
     private static Task<ModuleBrain> Start(Provider provider) => ModuleTest.Create().WithModule<FlutterModule>()
-        .RequireModules([typeof(PlaywrightModule)])
+        .RequireModules([new PlaywrightModule()])
         .ConfigureSilo(silo => silo.Services.AddSingleton<IBrowserSessionProvider>(provider))
         .StartAsync(TestContext.Current.CancellationToken);
 

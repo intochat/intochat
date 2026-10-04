@@ -9,14 +9,13 @@ using Orleans.Hosting;
 namespace DigitalBrain.Microsoft.GitHub;
 
 [ModuleHosting("DigitalBrain.Microsoft.GitHub.GitHubModuleHosting, DigitalBrain.Modules.Microsoft.GitHub.Aspire.Hosting")]
-[ModuleId("github")]
-public sealed class GitHubModule : IModule<GitHubModuleOptions>
+public sealed class GitHubModule() : Module<GitHubModuleOptions>(new ModuleId("github"))
 {
     public static IntegrationDefinition Integration { get; } = IntegrationDefinition.For("github", "GitHub")
         .RequiresSecret("PrivateKeyPem")
         .RequiresSetting("AppId");
 
-    public void Configure(ISiloBuilder builder)
+    public override void Configure(ISiloBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.Services.AddOptions<GitHubRepositoriesOptions>()

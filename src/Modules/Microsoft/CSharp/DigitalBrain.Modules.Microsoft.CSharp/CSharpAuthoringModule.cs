@@ -10,10 +10,9 @@ using Orleans.Hosting;
 namespace DigitalBrain.Microsoft.CSharp;
 
 [ModuleHosting("DigitalBrain.Microsoft.CSharp.CSharpAuthoringModuleHosting, DigitalBrain.Modules.Microsoft.CSharp.Aspire.Hosting")]
-[ModuleId("csharp-authoring")]
-public sealed class CSharpAuthoringModule : IModule, IHttpModule
+public sealed class CSharpAuthoringModule() : Module(new ModuleId("csharp-authoring")), IHttpModule
 {
-    public void Configure(ISiloBuilder builder)
+    public override void Configure(ISiloBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.Services.AddCSharpAuthoring();

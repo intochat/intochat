@@ -215,8 +215,29 @@ This task is one compilation unit: interface swap + 21 module classes + the Kern
   - `DigitalBrainServerBuilder.AddModule(Module module)` replaces `AddModule(Type)` and `AddModule<TModule>()` gains `where TModule : Module, new()` → `AddModule(new TModule())`; internal store becomes `Dictionary<string, Module>` keyed `module.Id.ToString()` with `StringComparer.OrdinalIgnoreCase`, `TryAdd` failure message unchanged; `SelectModules` returns `Module[]` and drops the null-factory check (there is no factory).
   - Generic constraints repo-wide change from `class, IModule, new()` to `Module, new()` — `ModuleConfiguration<TModule>`, `BrainCompositionBuilder.WithModule<TModule>`, `ModuleTestBuilder.WithModule<TModule>`, `E2ETestBuilder.WithModule<TModule>`.
 
-- [ ] **Step 1: Switch the Kernel composition machinery** to the `Produces` shapes above. Where `ModuleIdentity.Get(typeof(TModule))` appears, replace with a constructed instance's `.Id.ToString()`.
-- [ ] **Step 2: Migrate the 21 module classes.** Pattern (before → after):
+> **Deviations (recorded 2026-10-05, executor):**
+> - `BrainCompositionBuilder.RequireModules` and `ModuleTestBuilder.RequireModules` now take
+>   `IEnumerable<Module>` instead of `IEnumerable<Type>` (modules are instances; callers construct
+>   one). The two call sites (`WebBrowserFacts`, `AssistantStreamFacts`) were updated to `[new X()]`.
+>   This also removes the last non-generic `Activator.CreateInstance(moduleType)` from the
+>   composition machinery.
+> - `ModuleOptionsSlot.For` now detects the options type by walking base types for `Module<>`
+>   (the base class) instead of `GetInterfaces()` for `IModule<>`.
+> - `CompositionFacts.NonModuleTypeFailsImmediately` was deleted: `ModuleDefinition` now takes a
+>   `Module` instance, so "a non-module type" is unrepresentable (a compile error), and there is no
+>   runtime guard left to test.
+> - `ModuleHostChannel.CreateModule` reconstructs a module from its serialized type in the
+>   cross-process E2E runtime host; that process boundary genuinely needs reflection and is outside
+>   the composition machinery the spec's Activator deletion targets. Recorded, not improvised.
+> - `ModuleInventory` was left `IReadOnlyList<Type>` (unchanged): it is fed `ModuleDefinition.ModuleType`
+>   and its consumers (registry, integration discovery, script contracts) key by assembly/type, not
+>   by module instance. Listed in the plan as possibly needing a change; none was required.
+> - `CompositionBoundaryFacts.SampleModule`/`BoundaryModule` keep their `[ModuleId]` attributes
+>   until Task 5, because `DigitalBrainBuilder.WithModule(Type)` (Aspire.Hosting) still reads the
+>   attribute; the same instance-based migration applies to them once Task 5 deletes that overload.
+
+- [x] **Step 1: Switch the Kernel composition machinery** to the `Produces` shapes above. Where `ModuleIdentity.Get(typeof(TModule))` appears, replace with a constructed instance's `.Id.ToString()`.
+- [x] **Step 2: Migrate the 21 module classes.** Pattern (before → after):
 
 ```csharp
 // before
@@ -232,9 +253,9 @@ public sealed class ClickHouseModule() : Module<ClickHouseModuleOptions>(new Mod
 ```
 
 A module with an explicit constructor body keeps it and chains `: base(new ModuleId("…"))` instead.
-- [ ] **Step 3: Update `DigitalBrainServerBuilder` and sweep remaining compile errors.** Build in dependency order and fix by the same substitutions only: `dotnet build src/DigitalBrain/DigitalBrain.Contracts && dotnet build src/DigitalBrain/Kernel/DigitalBrain.Kernel && dotnet build src/Aspire/DigitalBrain.Aspire.Server && dotnet build src/DigitalBrain/OS/DigitalBrain.OS && dotnet build src/Testing/DigitalBrain.Testing.E2E`
-- [ ] **Step 4: Run the kernel and OS suites** — `dotnet test src/DigitalBrain/Kernel/tests/DigitalBrain.Kernel.Tests.Unit` and `dotnet test src/DigitalBrain/OS/tests/DigitalBrain.OS.Tests.Unit`. Expected: PASS except facts that assert the old attribute/tuple shapes (`OsCatalogFacts`, `ProductCompositionFacts` lines using `ModuleIdentity.Get`) — update those asserts to `module.Id.ToString()` over catalog instances in Task 4; if they fail here, note and proceed to Task 4 within the same session, but do not commit red.
-- [ ] **Step 5: Commit** (with Task 4 if the suites interlock) — `refactor: a module is an instance that knows its id; IModule is gone`
+- [x] **Step 3: Update `DigitalBrainServerBuilder` and sweep remaining compile errors.** Build in dependency order and fix by the same substitutions only: `dotnet build src/DigitalBrain/DigitalBrain.Contracts && dotnet build src/DigitalBrain/Kernel/DigitalBrain.Kernel && dotnet build src/Aspire/DigitalBrain.Aspire.Server && dotnet build src/DigitalBrain/OS/DigitalBrain.OS && dotnet build src/Testing/DigitalBrain.Testing.E2E`
+- [x] **Step 4: Run the kernel and OS suites** — `dotnet test src/DigitalBrain/Kernel/tests/DigitalBrain.Kernel.Tests.Unit` and `dotnet test src/DigitalBrain/OS/tests/DigitalBrain.OS.Tests.Unit`. Expected: PASS except facts that assert the old attribute/tuple shapes (`OsCatalogFacts`, `ProductCompositionFacts` lines using `ModuleIdentity.Get`) — update those asserts to `module.Id.ToString()` over catalog instances in Task 4; if they fail here, note and proceed to Task 4 within the same session, but do not commit red.
+- [x] **Step 5: Commit** (with Task 4 if the suites interlock) — `refactor: a module is an instance that knows its id; IModule is gone`
 
 ---
 
@@ -248,7 +269,7 @@ A module with an explicit constructor body keeps it and chains `: base(new Modul
 - Consumes: `Module`, `DigitalBrainServerBuilder.AddModule(Module)` (Task 3).
 - Produces: `OsCatalog.Modules : IReadOnlyList<Module>` — later tasks and tests iterate instances.
 
-- [ ] **Step 1: Update the catalog**
+- [x] **Step 1: Update the catalog**
 
 ```csharp
 public static IReadOnlyList<Module> Modules { get; } =
@@ -268,7 +289,7 @@ public static DigitalBrainServerBuilder AddOperatingSystem(this DigitalBrainServ
 ```
 
 Update the class comment: modules describe themselves on the instance (id in the constructor), the catalog lists instances.
-- [ ] **Step 2: Add the duplicate-id fact** (Review Focus 1) to `OsCatalogFacts`:
+- [x] **Step 2: Add the duplicate-id fact** (Review Focus 1) to `OsCatalogFacts`:
 
 ```csharp
 [Fact]
@@ -280,9 +301,9 @@ public void No_two_catalog_modules_share_an_id_even_by_case()
 ```
 
 And a `DigitalBrainServerBuilder` fact (in `DigitalBrain.OS.Tests.Unit` or the Aspire server's suite): registering two modules whose ids differ only by case throws `InvalidOperationException`.
-- [ ] **Step 3: Update existing facts** — replace `OsCatalog.Modules.Select(ModuleIdentity.Get)` with `OsCatalog.Modules.Select(m => m.Id.ToString())`; `ProductCompositionFacts` hosting-coverage checks keep working against `module.GetType()` until Task 5 replaces attribute probing.
-- [ ] **Step 4: Run** `dotnet test src/DigitalBrain/OS/tests/DigitalBrain.OS.Tests.Unit` → PASS.
-- [ ] **Step 5: Commit** — `refactor: the catalog is instances; the instance is the descriptor`
+- [x] **Step 3: Update existing facts** — replace `OsCatalog.Modules.Select(ModuleIdentity.Get)` with `OsCatalog.Modules.Select(m => m.Id.ToString())`; `ProductCompositionFacts` hosting-coverage checks keep working against `module.GetType()` until Task 5 replaces attribute probing.
+- [x] **Step 4: Run** `dotnet test src/DigitalBrain/OS/tests/DigitalBrain.OS.Tests.Unit` → PASS.
+- [x] **Step 5: Commit** — `refactor: the catalog is instances; the instance is the descriptor`
 
 ---
 

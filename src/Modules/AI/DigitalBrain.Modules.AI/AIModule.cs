@@ -15,14 +15,13 @@ namespace DigitalBrain.AI;
 
 [ModuleDeployment("DigitalBrain.AI.AIDeployment, DigitalBrain.Modules.AI.Deployment")]
 [ModuleHosting("DigitalBrain.AI.Aspire.Hosting.AIModuleHosting, DigitalBrain.Modules.AI.Aspire.Hosting")]
-[ModuleId("ai")]
-public sealed class AIModule : IModule<AIOptions>
+public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai"))
 {
     public const string McpServersKey = AIOptions.SectionName + ":McpServers";
 
     public static IntegrationDefinition[] Integrations => AiIntegrations.Definitions;
 
-    public void Configure(ISiloBuilder builder)
+    public override void Configure(ISiloBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
 

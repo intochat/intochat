@@ -15,10 +15,9 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.Compute;
 
-[ModuleId("compute")]
-public sealed class ComputeModule : IModule, IHttpModule
+public sealed class ComputeModule() : Module(new ModuleId("compute")), IHttpModule
 {
-    public void Configure(ISiloBuilder silo)
+    public override void Configure(ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
         var services = silo.Services;

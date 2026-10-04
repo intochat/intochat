@@ -76,9 +76,9 @@ public sealed class RuntimeSignalFacts
         Assert.Equal("healthy", firstActivation.Key);
     }
 
-    public sealed class RuntimeFixtureModule : IModule
+    public sealed class RuntimeFixtureModule() : Module(new(nameof(RuntimeFixtureModule)))
     {
-        public void Configure(ISiloBuilder silo) { }
+        public override void Configure(ISiloBuilder silo) { }
     }
 }
 

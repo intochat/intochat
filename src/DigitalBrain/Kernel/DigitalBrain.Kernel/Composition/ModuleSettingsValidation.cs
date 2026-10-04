@@ -9,7 +9,7 @@ public static class ModuleSettingsValidation
 
     public static void ValidatePublicSettings(IReadOnlyList<ModuleDefinition> modules)
     {
-        foreach (var key in modules.SelectMany(m => m.Configuration.Keys))
+        foreach (var key in modules.SelectMany(m => m.Settings.Keys))
         {
             if (ModuleOptionsSerialization.IsOptionsKey(key)) { continue; }
             if (string.IsNullOrWhiteSpace(key) || key.Contains("__", StringComparison.Ordinal)

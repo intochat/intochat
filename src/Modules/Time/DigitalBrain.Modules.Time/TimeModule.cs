@@ -10,12 +10,11 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.Time;
 
-[ModuleId("time")]
-public sealed class TimeModule : IModule
+public sealed class TimeModule() : Module(new ModuleId("time"))
 {
     public const string MinimumReminderPeriodKey = "DigitalBrain:Time:MinimumReminderPeriod";
 
-    public void Configure(ISiloBuilder silo)
+    public override void Configure(ISiloBuilder silo)
     {
         silo.AddTime();
         // Test and local development may accelerate reminders; production keeps the Orleans default.

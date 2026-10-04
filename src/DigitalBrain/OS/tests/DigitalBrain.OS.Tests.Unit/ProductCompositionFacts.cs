@@ -19,10 +19,10 @@ public sealed class ProductCompositionFacts
     {
         foreach (var module in DigitalBrain.OS.OsCatalog.Modules)
         {
-            if (module.IsDefined(typeof(ModuleHostingAttribute), inherit: false))
+            if (module.GetType().IsDefined(typeof(ModuleHostingAttribute), inherit: false))
             {
-                Assert.True(ModuleHostingResolution.Resolve(module) is not null,
-                    $"{module.FullName}'s [ModuleHosting] did not resolve.");
+                Assert.True(ModuleHostingResolution.Resolve(module.GetType()) is not null,
+                    $"{module.GetType().FullName}'s [ModuleHosting] did not resolve.");
             }
         }
     }
@@ -37,9 +37,9 @@ public sealed class ProductCompositionFacts
         // Composition truth lives in the OS catalog; the AppHost only hosts infrastructure,
         // so its module annotations are the hosted subset of the catalog.
         var catalogModules = DigitalBrain.OS.OsCatalog.Modules
-            .Select(DigitalBrain.Contracts.ModuleIdentity.Get).Order().ToArray();
+            .Select(module => module.Id.ToString()).Order().ToArray();
         var referenceModules = ReferenceBrain.Create().BuildComposition().Modules
-            .Select(module => DigitalBrain.Contracts.ModuleIdentity.Get(module.ModuleType)).Order().ToArray();
+            .Select(module => module.Id.ToString()).Order().ToArray();
         Assert.Equal(catalogModules, referenceModules);
         Assert.All(productModules, module => Assert.Contains(module, catalogModules));
         Assert.Contains("qdrant", productModules);

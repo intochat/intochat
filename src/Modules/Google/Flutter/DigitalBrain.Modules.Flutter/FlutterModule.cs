@@ -10,10 +10,9 @@ using Orleans.Hosting;
 namespace DigitalBrain.Flutter;
 
 [ModuleHosting("DigitalBrain.Flutter.Aspire.Hosting.FlutterModuleHosting, DigitalBrain.Modules.Flutter.Aspire.Hosting")]
-[ModuleId("flutter")]
-public sealed class FlutterModule : IModule<FlutterModuleOptions>, IHttpModule
+public sealed class FlutterModule() : Module<FlutterModuleOptions>(new ModuleId("flutter")), IHttpModule
 {
-    public void Configure(ISiloBuilder silo)
+    public override void Configure(ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
         silo.Services.AddOptions<FlutterModuleOptions>().Configure<IConfiguration>(

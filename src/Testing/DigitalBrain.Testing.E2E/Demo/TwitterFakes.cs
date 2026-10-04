@@ -29,9 +29,9 @@ public sealed record Posted([property: Id(0)] string From, [property: Id(1)] str
 
 public sealed record TweetWebhook(string Account, string Text);
 
-public sealed class TestTwitterModule : IModule, IHttpModule
+public sealed class TestTwitterModule() : Module(new ModuleId("twitter")), IHttpModule
 {
-    public void Configure(ISiloBuilder builder) { }
+    public override void Configure(ISiloBuilder builder) { }
 
     public void Configure(IEndpointRouteBuilder endpoints)
         => endpoints.MapPost("/twitter/webhook", async (TweetWebhook tweet, IGrainFactory grains) =>

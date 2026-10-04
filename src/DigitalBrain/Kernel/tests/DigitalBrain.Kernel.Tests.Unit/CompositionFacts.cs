@@ -23,29 +23,25 @@ public sealed class CompositionFacts
     public void DefinitionCopiesConfigurationAndDeduplicatesIdenticalModules()
     {
         var values = new Dictionary<string, string?> { ["Feature:Enabled"] = "false" };
-        var first = new ModuleDefinition(typeof(ExampleModule), values);
+        var first = new ModuleDefinition(new ExampleModule(), values);
         values["Feature:Enabled"] = "true";
-        Assert.Equal("false", first.Configuration["Feature:Enabled"]);
-        Assert.Single(ModuleComposition.Resolve([first, new(typeof(ExampleModule), new Dictionary<string, string?> { ["Feature:Enabled"] = "false" })]));
+        Assert.Equal("false", first.Settings["Feature:Enabled"]);
+        Assert.Single(ModuleComposition.Resolve([first, new(new ExampleModule(), new Dictionary<string, string?> { ["Feature:Enabled"] = "false" })]));
     }
 
     [Fact]
     public void ConflictingDefinitionsFail()
     {
-        var first = new ModuleDefinition(typeof(ExampleModule), new Dictionary<string, string?> { ["Value"] = "1" });
-        var second = new ModuleDefinition(typeof(ExampleModule), new Dictionary<string, string?> { ["Value"] = "2" });
+        var first = new ModuleDefinition(new ExampleModule(), new Dictionary<string, string?> { ["Value"] = "1" });
+        var second = new ModuleDefinition(new ExampleModule(), new Dictionary<string, string?> { ["Value"] = "2" });
         Assert.Throws<InvalidOperationException>(() => ModuleComposition.Resolve([first, second]));
     }
 
     [Fact]
-    public void NonModuleTypeFailsImmediately()
-        => Assert.Throws<ArgumentException>(() => new ModuleDefinition(typeof(string)));
-
-    [Fact]
     public void DistinctModulesCannotDisagreeOnSharedSettings()
     {
-        var first = new ModuleDefinition(typeof(Dependency), new Dictionary<string, string?> { ["Shared:Value"] = "first" });
-        var second = new ModuleDefinition(typeof(Dependent), new Dictionary<string, string?> { ["Shared:Value"] = "second" });
+        var first = new ModuleDefinition(new Dependency(), new Dictionary<string, string?> { ["Shared:Value"] = "first" });
+        var second = new ModuleDefinition(new Dependent(), new Dictionary<string, string?> { ["Shared:Value"] = "second" });
         Assert.Throws<InvalidOperationException>(() => ModuleComposition.Resolve([first, second]));
     }
 
@@ -65,7 +61,7 @@ public sealed class CompositionFacts
             o => { captured = o; o.Endpoint = "chosen"; });
         var snapshot = draft.Build();
         captured!.Endpoint = "mutated";
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(Assert.Single(snapshot.Modules).Configuration).Build();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(Assert.Single(snapshot.Modules).Settings).Build();
         Assert.Equal("chosen", configuration.GetModuleOptions<ExampleOptions>(nameof(ExampleModule)).Endpoint);
     }
 
@@ -83,7 +79,7 @@ public sealed class CompositionFacts
     {
         var draft = new BrainCompositionBuilder().WithModule<ExampleModule, ExampleOptions>(o => { o.Endpoint = "first"; o.Delay = 5; });
         draft.ConfigureModule<ExampleModule, ExampleOptions>(o => o.Endpoint = null);
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(Assert.Single(draft.Build().Modules).Configuration).Build();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(Assert.Single(draft.Build().Modules).Settings).Build();
         var options = configuration.GetModuleOptions<ExampleOptions>(nameof(ExampleModule));
         Assert.Null(options.Endpoint);
         Assert.Equal(5, options.Delay);
@@ -97,7 +93,7 @@ public sealed class CompositionFacts
             o => { o.Endpoint = "old"; o.Enabled = true; o.Delay = 250; });
         // A later configuration source (a host's env, args, or files) wins over the compiled defaults.
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(Assert.Single(application.Build().Modules).Configuration)
+            .AddInMemoryCollection(Assert.Single(application.Build().Modules).Settings)
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 [DigitalBrainConfiguration.ModuleOptionsSection(nameof(ExampleModule)) + ":Endpoint"] = null,
@@ -129,11 +125,11 @@ public sealed class CompositionFacts
     [InlineData("Provider:PrivateKeyPem")]
     public void HarnessAndCredentialKeysCannotBePublicSettings(string key)
         => Assert.Throws<ArgumentException>(() => ModuleSettingsValidation.ValidatePublicSettings(
-            [new(typeof(ExampleModule), new Dictionary<string, string?> { [key] = "override" })]));
+            [new(new ExampleModule(), new Dictionary<string, string?> { [key] = "override" })]));
 
     public sealed class Marker;
-    public sealed class OtherModule : IModule { public void Configure(ISiloBuilder silo) { } }
-    public sealed class ExampleModule : IModule<ExampleOptions> { public void Configure(ISiloBuilder silo) { } }
+    public sealed class OtherModule() : Module(new(nameof(OtherModule))) { public override void Configure(ISiloBuilder silo) { } }
+    public sealed class ExampleModule() : Module<ExampleOptions>(new(nameof(ExampleModule))) { public override void Configure(ISiloBuilder silo) { } }
     public sealed class ExampleOptions : IModuleOptions
     {
         public string? Endpoint { get; set; }
@@ -142,13 +138,13 @@ public sealed class CompositionFacts
         public string Name { get; set; } = "keep";
         public void Validate() => ArgumentOutOfRangeException.ThrowIfNegative(Delay);
     }
-    public sealed class Dependency : IModule
+    public sealed class Dependency() : Module(new(nameof(Dependency)))
     {
-        public void Configure(ISiloBuilder silo) => silo.Services.AddSingleton<Marker>();
+        public override void Configure(ISiloBuilder silo) => silo.Services.AddSingleton<Marker>();
     }
-    public sealed class Dependent : IModule<DependentOptions>
+    public sealed class Dependent() : Module<DependentOptions>(new(nameof(Dependent)))
     {
-        public void Configure(ISiloBuilder silo)
+        public override void Configure(ISiloBuilder silo)
         {
             if (!silo.Services.Any(s => s.ServiceType == typeof(Marker)))
             { throw new InvalidOperationException("Dependency was not configured before dependent."); }

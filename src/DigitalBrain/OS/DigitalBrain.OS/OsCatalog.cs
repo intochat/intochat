@@ -1,35 +1,36 @@
 using DigitalBrain.Aspire.Server;
+using DigitalBrain.Contracts;
 
 namespace DigitalBrain.OS;
 
 // The one place the operating system's module composition is named. Modules describe
-// themselves ([ModuleId], [ModuleHosting], [ModuleDeployment]); the catalog only lists them,
+// themselves on the instance (the id in the constructor); the catalog only lists them,
 // and every host of the OS registers modules through it. A distribution is a diff against
 // this composition, not a copy of it.
 public static class OsCatalog
 {
-    public static IReadOnlyList<Type> Modules { get; } =
+    public static IReadOnlyList<Module> Modules { get; } =
     [
-        typeof(DigitalBrain.AI.AIModule),
-        typeof(DigitalBrain.ClickHouse.ClickHouseModule),
-        typeof(DigitalBrain.Apps.AppsModule),
-        typeof(DigitalBrain.Assistant.AssistantModule),
-        typeof(DigitalBrain.Compute.ComputeModule),
-        typeof(DigitalBrain.Registry.RegistryModule),
-        typeof(DigitalBrain.Specs.SpecsModule),
-        typeof(DigitalBrain.Files.FilesModule),
-        typeof(DigitalBrain.Flutter.FlutterModule),
-        typeof(DigitalBrain.Google.Gmail.GmailModule),
-        typeof(DigitalBrain.Microsoft.Aspire.AspireModule),
-        typeof(DigitalBrain.Microsoft.CSharp.CSharpAuthoringModule),
-        typeof(DigitalBrain.Microsoft.CSharp.CSharpModule),
-        typeof(DigitalBrain.Microsoft.GitHub.GitHubModule),
-        typeof(DigitalBrain.Microsoft.Playwright.PlaywrightModule),
-        typeof(DigitalBrain.Postgres.PostgresModule),
-        typeof(DigitalBrain.Qdrant.QdrantModule),
-        typeof(DigitalBrain.Salesforce.SalesforceModule),
-        typeof(DigitalBrain.Supabase.SupabaseModule),
-        typeof(DigitalBrain.Time.TimeModule),
+        new DigitalBrain.AI.AIModule(),
+        new DigitalBrain.ClickHouse.ClickHouseModule(),
+        new DigitalBrain.Apps.AppsModule(),
+        new DigitalBrain.Assistant.AssistantModule(),
+        new DigitalBrain.Compute.ComputeModule(),
+        new DigitalBrain.Registry.RegistryModule(),
+        new DigitalBrain.Specs.SpecsModule(),
+        new DigitalBrain.Files.FilesModule(),
+        new DigitalBrain.Flutter.FlutterModule(),
+        new DigitalBrain.Google.Gmail.GmailModule(),
+        new DigitalBrain.Microsoft.Aspire.AspireModule(),
+        new DigitalBrain.Microsoft.CSharp.CSharpAuthoringModule(),
+        new DigitalBrain.Microsoft.CSharp.CSharpModule(),
+        new DigitalBrain.Microsoft.GitHub.GitHubModule(),
+        new DigitalBrain.Microsoft.Playwright.PlaywrightModule(),
+        new DigitalBrain.Postgres.PostgresModule(),
+        new DigitalBrain.Qdrant.QdrantModule(),
+        new DigitalBrain.Salesforce.SalesforceModule(),
+        new DigitalBrain.Supabase.SupabaseModule(),
+        new DigitalBrain.Time.TimeModule(),
     ];
 
     public static DigitalBrainServerBuilder AddOperatingSystem(this DigitalBrainServerBuilder server)

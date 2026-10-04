@@ -10,8 +10,7 @@ namespace DigitalBrain.Qdrant;
 
 [ModuleDeployment("DigitalBrain.Qdrant.QdrantDeployment, DigitalBrain.Modules.Qdrant.Deployment")]
 [ModuleHosting("DigitalBrain.Qdrant.Aspire.Hosting.QdrantModuleHosting, DigitalBrain.Modules.Qdrant.Aspire.Hosting")]
-[ModuleId("qdrant")]
-public sealed class QdrantModule : IModule<QdrantModuleOptions>
+public sealed class QdrantModule() : Module<QdrantModuleOptions>(new ModuleId("qdrant"))
 {
     public const string ConnectionName = "qdrant";
 
@@ -19,7 +18,7 @@ public sealed class QdrantModule : IModule<QdrantModuleOptions>
         => !string.IsNullOrWhiteSpace(configuration.GetConnectionString(ConnectionName));
 
     // Without a connection IVectorStore is served from memory, so search still works; nothing survives a restart.
-    public void Configure(ISiloBuilder silo)
+    public override void Configure(ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
         silo.Services.TryAddSingleton(_ => QdrantConnection.CreateClient(

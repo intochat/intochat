@@ -4,10 +4,9 @@ using global::Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
 namespace DigitalBrain.Microsoft.Playwright;
 
-[ModuleId("playwright")]
-public sealed class PlaywrightModule : IModule
+public sealed class PlaywrightModule() : Module(new ModuleId("playwright"))
 {
-    public void Configure(ISiloBuilder silo) => silo.AddPlaywright();
+    public override void Configure(ISiloBuilder silo) => silo.AddPlaywright();
 }
 public static class PlaywrightHosting
 {

@@ -11,12 +11,11 @@ namespace DigitalBrain.ClickHouse;
 
 [ModuleDeployment("DigitalBrain.ClickHouse.ClickHouseDeployment, DigitalBrain.Modules.ClickHouse.Deployment")]
 [ModuleHosting("DigitalBrain.ClickHouse.Aspire.Hosting.ClickHouseModuleHosting, DigitalBrain.Modules.ClickHouse.Aspire.Hosting")]
-[ModuleId("clickhouse")]
-public sealed class ClickHouseModule : IModule<ClickHouseModuleOptions>
+public sealed class ClickHouseModule() : Module<ClickHouseModuleOptions>(new ModuleId("clickhouse"))
 {
     public const string DriverProviderName = "ClickHouse";
 
-    public void Configure(ISiloBuilder builder)
+    public override void Configure(ISiloBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         var services = builder.Services;

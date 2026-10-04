@@ -6,7 +6,7 @@ public sealed class BrainCompositionBuilder
     private readonly Dictionary<Type, ModuleDraft> _modules = [];
 
     public BrainCompositionBuilder WithModule<TModule>(Action<ModuleConfiguration<TModule>>? configure = null)
-        where TModule : class, IModule, new()
+        where TModule : Module, new()
     {
         Declare<TModule>(out var draft);
         configure?.Invoke(new(draft));
@@ -15,7 +15,7 @@ public sealed class BrainCompositionBuilder
 
     public BrainCompositionBuilder WithModule<TModule, TOptions>(Action<TOptions>? configureOptions = null,
         Action<ModuleConfiguration<TModule>>? configure = null)
-        where TModule : class, IModule<TOptions>, new() where TOptions : class, IModuleOptions, new()
+        where TModule : Module<TOptions>, new() where TOptions : class, IModuleOptions, new()
     {
         Declare<TModule>(out var draft);
         if (configureOptions is not null) { draft.Options!.Edit(configureOptions); }
@@ -24,16 +24,16 @@ public sealed class BrainCompositionBuilder
     }
 
     // Adds missing module requirements; explicitly declared modules keep their configuration.
-    public BrainCompositionBuilder RequireModules(IEnumerable<Type> modules)
+    public BrainCompositionBuilder RequireModules(IEnumerable<Module> modules)
     {
         ArgumentNullException.ThrowIfNull(modules);
-        foreach (var module in modules.Where(module => !_modules.ContainsKey(module)))
-        { _modules.Add(module, new ModuleDraft(module)); }
+        foreach (var module in modules.Where(module => !_modules.ContainsKey(module.GetType())))
+        { _modules.Add(module.GetType(), new ModuleDraft(module)); }
         return this;
     }
 
     public BrainCompositionBuilder ConfigureModule<TModule>(Action<ModuleConfiguration<TModule>> configure)
-        where TModule : class, IModule, new()
+        where TModule : Module, new()
     {
         ArgumentNullException.ThrowIfNull(configure);
         configure(new(RequireDeclared<TModule>()));
@@ -41,7 +41,7 @@ public sealed class BrainCompositionBuilder
     }
 
     public BrainCompositionBuilder ConfigureModule<TModule, TOptions>(Action<TOptions> configureOptions)
-        where TModule : class, IModule<TOptions>, new() where TOptions : class, IModuleOptions, new()
+        where TModule : Module<TOptions>, new() where TOptions : class, IModuleOptions, new()
     {
         ArgumentNullException.ThrowIfNull(configureOptions);
         RequireDeclared<TModule>().Options!.Edit(configureOptions);
@@ -55,11 +55,11 @@ public sealed class BrainCompositionBuilder
         return new(modules, _modules.Values.SelectMany(m => m.LocalServices).ToArray());
     }
 
-    private void Declare<TModule>(out ModuleDraft draft) where TModule : class, IModule, new()
+    private void Declare<TModule>(out ModuleDraft draft) where TModule : Module, new()
     {
         if (_modules.ContainsKey(typeof(TModule)))
         { throw new InvalidOperationException($"{typeof(TModule).Name} is already declared. Use ConfigureModule to change it."); }
-        draft = new ModuleDraft(typeof(TModule));
+        draft = new ModuleDraft(new TModule());
         _modules.Add(typeof(TModule), draft);
     }
 

@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Testing.E2E;
@@ -21,4 +22,9 @@ internal static class ModuleHostChannel
         var names = System.Text.Json.JsonSerializer.Deserialize<string[]>(configuration[ModuleTypesKey] ?? "[]")!;
         return [.. names.Select(name => Type.GetType(name, throwOnError: true)!)];
     }
+
+    // The relaunched runtime reconstructs each selected module from its serialized type name; the
+    // process runs against the test assembly's closure, so the type is already loaded and its
+    // parameterless constructor is the same door every other composition uses.
+    public static Module CreateModule(Type type) => (Module)Activator.CreateInstance(type)!;
 }

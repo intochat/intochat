@@ -12,7 +12,7 @@ public sealed class E2ETestBuilder
     private bool _started;
 
     public E2ETestBuilder WithModule<TModule>(Action<ModuleConfiguration<TModule>>? configure = null)
-        where TModule : class, IModule, new()
+        where TModule : Module, new()
     {
         EnsureMutable();
         using var scope = BrowserConfiguration.Begin(_browser);
@@ -23,7 +23,7 @@ public sealed class E2ETestBuilder
 
     public E2ETestBuilder WithModule<TModule, TOptions>(Action<TOptions>? configureOptions = null,
         Action<ModuleConfiguration<TModule>>? configure = null)
-        where TModule : class, IModule<TOptions>, new() where TOptions : class, IModuleOptions, new()
+        where TModule : Module<TOptions>, new() where TOptions : class, IModuleOptions, new()
     {
         EnsureMutable();
         using var scope = BrowserConfiguration.Begin(_browser);
@@ -33,7 +33,7 @@ public sealed class E2ETestBuilder
     }
 
     public E2ETestBuilder ConfigureModule<TModule, TOptions>(Action<TOptions> configureOptions)
-        where TModule : class, IModule<TOptions>, new() where TOptions : class, IModuleOptions, new()
+        where TModule : Module<TOptions>, new() where TOptions : class, IModuleOptions, new()
     {
         EnsureMutable();
         using var scope = BrowserConfiguration.Begin(_browser);
@@ -43,7 +43,7 @@ public sealed class E2ETestBuilder
     }
 
     public E2ETestBuilder ConfigureModule<TModule>(Action<ModuleConfiguration<TModule>> configure)
-        where TModule : class, IModule, new()
+        where TModule : Module, new()
     {
         EnsureMutable();
         using var scope = BrowserConfiguration.Begin(_browser);

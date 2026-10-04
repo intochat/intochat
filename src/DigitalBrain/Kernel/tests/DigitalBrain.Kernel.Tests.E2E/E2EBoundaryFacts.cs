@@ -80,9 +80,9 @@ public sealed class E2EBoundaryFacts
     }
 }
 
-public sealed class BoundaryModule : IModule<BoundaryOptions>
+public sealed class BoundaryModule() : Module<BoundaryOptions>(new ModuleId(nameof(BoundaryModule)))
 {
-    public void Configure(ISiloBuilder silo) { }
+    public override void Configure(ISiloBuilder silo) { }
 }
 
 public sealed class BoundaryOptions : IModuleOptions { public string? Label { get; set; } public void Validate() { } }

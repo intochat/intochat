@@ -14,7 +14,7 @@ public sealed class E2ETestBuilder<TAppHost> where TAppHost : class
     private bool _started;
 
     public E2ETestBuilder<TAppHost> ConfigureModule<TModule, TOptions>(Action<TOptions> configureOptions)
-        where TModule : class, IModule<TOptions>, new() where TOptions : class, IModuleOptions, new()
+        where TModule : Module<TOptions>, new() where TOptions : class, IModuleOptions, new()
     {
         EnsureMutable();
         ArgumentNullException.ThrowIfNull(configureOptions);
@@ -24,7 +24,7 @@ public sealed class E2ETestBuilder<TAppHost> where TAppHost : class
         _browser = scope.Options;
         edited.Validate();
         _moduleOptions[typeof(TModule)] = edited;
-        var id = ModuleIdentity.Get(typeof(TModule));
+        var id = new TModule().Id.ToString();
         var prefix = DigitalBrainConfiguration.ModuleSection(id) + ":";
         foreach (var key in _optionOverrides.Keys.Where(key => key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).ToArray())
         { _optionOverrides.Remove(key); }

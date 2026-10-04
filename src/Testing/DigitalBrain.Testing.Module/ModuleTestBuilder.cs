@@ -5,6 +5,7 @@ using DigitalBrain.Kernel;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 using Orleans.Hosting;
+using ModuleContract = DigitalBrain.Contracts.Module;
 
 namespace DigitalBrain.Testing.Module;
 
@@ -15,7 +16,7 @@ public sealed class ModuleTestBuilder
     private bool _started;
 
     public ModuleTestBuilder WithModule<TModule>(Action<ModuleConfiguration<TModule>>? configure = null)
-        where TModule : class, IModule, new()
+        where TModule : ModuleContract, new()
     {
         EnsureMutable();
         _composition.WithModule(configure);
@@ -23,27 +24,27 @@ public sealed class ModuleTestBuilder
     }
     public ModuleTestBuilder WithModule<TModule, TOptions>(Action<TOptions>? configureOptions = null,
         Action<ModuleConfiguration<TModule>>? configure = null)
-        where TModule : class, IModule<TOptions>, new() where TOptions : class, IModuleOptions, new()
+        where TModule : Module<TOptions>, new() where TOptions : class, IModuleOptions, new()
     {
         EnsureMutable();
         _composition.WithModule(configureOptions, configure);
         return this;
     }
-    public ModuleTestBuilder RequireModules(IEnumerable<Type> modules)
+    public ModuleTestBuilder RequireModules(IEnumerable<ModuleContract> modules)
     {
         EnsureMutable();
         _composition.RequireModules(modules);
         return this;
     }
     public ModuleTestBuilder ConfigureModule<TModule>(Action<ModuleConfiguration<TModule>> configure)
-        where TModule : class, IModule, new()
+        where TModule : ModuleContract, new()
     {
         EnsureMutable();
         _composition.ConfigureModule(configure);
         return this;
     }
     public ModuleTestBuilder ConfigureModule<TModule, TOptions>(Action<TOptions> configureOptions)
-        where TModule : class, IModule<TOptions>, new() where TOptions : class, IModuleOptions, new()
+        where TModule : Module<TOptions>, new() where TOptions : class, IModuleOptions, new()
     {
         EnsureMutable();
         _composition.ConfigureModule<TModule, TOptions>(configureOptions);

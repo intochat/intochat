@@ -11,10 +11,9 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.Apps;
 
-[ModuleId("apps")]
-public sealed class AppsModule : IModule, IHttpModule
+public sealed class AppsModule() : Module(new ModuleId("apps")), IHttpModule
 {
-    public void Configure(ISiloBuilder silo)
+    public override void Configure(ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
         silo.Services.TryAddSingleton(TimeProvider.System);

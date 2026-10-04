@@ -147,9 +147,9 @@ public sealed class ObservedRegistryFacts
             TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken)).Single(done);
 }
 
-public sealed class RegistryFixtureModule : IModule
+public sealed class RegistryFixtureModule() : Module(new ModuleId(nameof(RegistryFixtureModule)))
 {
-    public void Configure(ISiloBuilder silo) { }
+    public override void Configure(ISiloBuilder silo) { }
 }
 
 [Alias("test.registry-clock"), Description("Schedule alarms and wake up at a requested time.")]

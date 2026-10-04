@@ -5,10 +5,9 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.Specs;
 
-[ModuleId("specs")]
-public sealed class SpecsModule : IModule
+public sealed class SpecsModule() : Module(new ModuleId("specs"))
 {
-    public void Configure(ISiloBuilder silo)
+    public override void Configure(ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
         silo.Services.TryAddSingleton(TimeProvider.System);

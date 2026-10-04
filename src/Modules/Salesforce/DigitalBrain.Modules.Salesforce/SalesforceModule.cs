@@ -12,14 +12,13 @@ using Microsoft.Extensions.Options;
 namespace DigitalBrain.Salesforce;
 
 [ModuleHosting("DigitalBrain.Salesforce.Aspire.Hosting.SalesforceModuleHosting, DigitalBrain.Modules.Salesforce.Aspire.Hosting")]
-[ModuleId("salesforce")]
-public sealed class SalesforceModule : IModule<SalesforceModuleOptions>, IHttpModule
+public sealed class SalesforceModule() : Module<SalesforceModuleOptions>(new ModuleId("salesforce")), IHttpModule
 {
     public const string OAuthConfigurationRoot = SalesforceOAuthOptions.SectionName;
 
     public static readonly Uri DefaultMcpEndpoint = new("https://api.salesforce.com/platform/mcp/v1/platform/sobject-all");
 
-    public void Configure(ISiloBuilder silo)
+    public override void Configure(ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
         var services = silo.Services;

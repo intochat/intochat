@@ -38,7 +38,7 @@ public sealed class AssistantStreamFacts
     {
         PrivateConfiguration = new Dictionary<string, string?> { [IntegrationDefinition.Key("openai", "ApiKey")] = "test-no-network" },
     }).WithModule<AssistantModule>()
-        .RequireModules([typeof(DigitalBrain.Apps.AppsModule), typeof(DigitalBrain.AI.AIModule), typeof(DigitalBrain.Compute.ComputeModule), typeof(DigitalBrain.Flutter.FlutterModule)])
+        .RequireModules([new DigitalBrain.Apps.AppsModule(), new DigitalBrain.AI.AIModule(), new DigitalBrain.Compute.ComputeModule(), new DigitalBrain.Flutter.FlutterModule()])
         .ConfigureSilo(silo =>
         {
             silo.Services.AddSingleton<StreamScenarioRunner>();

@@ -29,7 +29,7 @@ internal static class ModuleHttpEdge
             [DigitalBrainNames.MasterKeyConfigurationKey] = masterKey,
             [Platform.Identity.Configuration.AuthOptions.PostureKey] = nameof(Platform.Identity.Configuration.IdentityPosture.Open),
         });
-        foreach (var definition in modules) { builder.Configuration.AddInMemoryCollection(definition.Configuration); }
+        foreach (var definition in modules) { builder.Configuration.AddInMemoryCollection(definition.Settings); }
         builder.Configuration.AddInMemoryCollection(options.Execution.PrivateConfiguration);
         builder.WebHost.UseUrls("http://127.0.0.1:0");
 
@@ -61,7 +61,7 @@ internal static class ModuleHttpEdge
         app.UsePlatformHttp();
         foreach (var definition in modules)
         {
-            if (definition.CreateModule() is IHttpModule http) { http.Configure(app); }
+            if (definition.Module is IHttpModule http) { http.Configure(app); }
         }
         app.MapDigitalBrainPlatform();
         await app.StartAsync(cancellationToken);

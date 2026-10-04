@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -5,23 +6,16 @@ namespace DigitalBrain.Aspire.Server;
 
 public sealed class DigitalBrainServerBuilder
 {
-    private readonly Dictionary<string, Func<IModule>> _modules = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Module> _modules = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<Action<IServiceCollection>> _serviceActions = [];
     internal bool AzureStorage { get; private set; }
-    public DigitalBrainServerBuilder AddModule<TModule>() where TModule : class, IModule, new()
-        => AddModule(typeof(TModule));
-    public DigitalBrainServerBuilder AddModule(Type moduleType)
+    public DigitalBrainServerBuilder AddModule<TModule>() where TModule : Module, new()
+        => AddModule(new TModule());
+    public DigitalBrainServerBuilder AddModule(Module module)
     {
-        ArgumentNullException.ThrowIfNull(moduleType);
-        if (!typeof(IModule).IsAssignableFrom(moduleType) || moduleType.IsAbstract || moduleType.GetConstructor(Type.EmptyTypes) is null)
-        { throw new ArgumentException("Select a concrete module with a public parameterless constructor.", nameof(moduleType)); }
-        return AddModule(Contracts.ModuleIdentity.Get(moduleType), () => (IModule)Activator.CreateInstance(moduleType)!);
-    }
-    public DigitalBrainServerBuilder AddModule(string id, Func<IModule> create)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(id);
-        ArgumentNullException.ThrowIfNull(create);
-        if (!_modules.TryAdd(id, create)) { throw new InvalidOperationException($"Module '{id}' is already registered."); }
+        ArgumentNullException.ThrowIfNull(module);
+        var id = module.Id.ToString();
+        if (!_modules.TryAdd(id, module)) { throw new InvalidOperationException($"Module '{id}' is already registered."); }
         return this;
     }
     // A composition carries the host services it cannot run without (the OS carries its apps);
@@ -42,10 +36,10 @@ public sealed class DigitalBrainServerBuilder
 
     // Registered modules run; configuration can only subtract (Enabled=false) — and a
     // configuration that affirms a module this server never registered is a deployment bug.
-    internal IModule[] SelectModules(IConfiguration configuration)
+    internal Module[] SelectModules(IConfiguration configuration)
     {
         // Configuration keys are case-insensitive, so the ids match that way too.
-        var sections = configuration.GetSection(Contracts.DigitalBrainConfiguration.ModulesSectionName).GetChildren().ToArray();
+        var sections = configuration.GetSection(DigitalBrainConfiguration.ModulesSectionName).GetChildren().ToArray();
         var registered = _modules.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var section in sections)
         {
@@ -54,7 +48,6 @@ public sealed class DigitalBrainServerBuilder
         }
         var disabled = sections.Where(section => section.GetValue<bool?>("Enabled") == false)
             .Select(section => section.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        return _modules.Where(pair => !disabled.Contains(pair.Key))
-            .Select(pair => pair.Value() ?? throw new InvalidOperationException($"Factory for '{pair.Key}' returned null.")).ToArray();
+        return _modules.Where(pair => !disabled.Contains(pair.Key)).Select(pair => pair.Value).ToArray();
     }
 }

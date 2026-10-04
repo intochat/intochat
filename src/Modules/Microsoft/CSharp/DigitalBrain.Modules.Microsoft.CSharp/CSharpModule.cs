@@ -13,10 +13,9 @@ namespace DigitalBrain.Microsoft.CSharp;
 
 [ModuleDeployment("DigitalBrain.Microsoft.CSharp.CSharpDeployment, DigitalBrain.Modules.Microsoft.CSharp.Deployment")]
 [ModuleHosting("DigitalBrain.Microsoft.CSharp.CSharpModuleHosting, DigitalBrain.Modules.Microsoft.CSharp.Aspire.Hosting")]
-[ModuleId("csharp")]
-public sealed class CSharpModule : IModule<CSharpOptions>, IHttpModule
+public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp")), IHttpModule
 {
-    public void Configure(ISiloBuilder builder)
+    public override void Configure(ISiloBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.AddIncomingGrainCallFilter<CSharpAppBindingGuard>();

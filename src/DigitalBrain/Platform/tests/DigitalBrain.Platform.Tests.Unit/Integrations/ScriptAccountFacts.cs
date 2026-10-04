@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using DigitalBrain.Contracts.Integrations;
 using DigitalBrain.Kernel;
 using DigitalBrain.Platform.Contracts.Integrations;
@@ -26,10 +27,10 @@ public sealed class ScriptAccountFacts
         await Assert.ThrowsAsync<ArgumentException>(() => accounts.Request("missing"));
     }
 
-    public sealed class PostgresKindModule : IModule
+    public sealed class PostgresKindModule() : Module(new ModuleId(nameof(PostgresKindModule)))
     {
         public static IntegrationDefinition Integration { get; } = IntegrationDefinition.For("postgres", "Postgres");
 
-        public void Configure(ISiloBuilder silo) { }
+        public override void Configure(ISiloBuilder silo) { }
     }
 }

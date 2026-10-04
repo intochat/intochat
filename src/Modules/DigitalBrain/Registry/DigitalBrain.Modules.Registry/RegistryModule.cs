@@ -8,11 +8,10 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.Registry;
 
-[ModuleId("registry")]
-public sealed class RegistryModule : IModule
+public sealed class RegistryModule() : Module(new ModuleId("registry"))
 {
     public const string Key = IRegistry.Key;
-    public void Configure(ISiloBuilder silo)
+    public override void Configure(ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
         silo.Services.TryAddSingleton<NeuronTypes>();

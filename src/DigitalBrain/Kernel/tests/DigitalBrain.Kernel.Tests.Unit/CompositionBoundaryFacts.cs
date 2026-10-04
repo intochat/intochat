@@ -18,12 +18,12 @@ namespace DigitalBrain.Kernel.Tests.Unit;
 public sealed class CompositionBoundaryFacts
 {
     [ModuleId("sample")]
-    private sealed class SampleModule : IModule
-    { public void Configure(ISiloBuilder silo) { } }
+    private sealed class SampleModule() : Module(new ModuleId("sample"))
+    { public override void Configure(ISiloBuilder silo) { } }
 
     [ModuleId("module")]
-    private sealed class BoundaryModule : IModule
-    { public void Configure(ISiloBuilder silo) { } }
+    private sealed class BoundaryModule() : Module(new ModuleId("module"))
+    { public override void Configure(ISiloBuilder silo) { } }
 
     [Fact]
     public void TwoBrainsHaveDistinctResourcesAndModuleNodes()
@@ -39,15 +39,14 @@ public sealed class CompositionBoundaryFacts
     }
 
     [Fact]
-    public void UnknownSelectionIsRejectedBeforeAnyFactoryRuns()
+    public void UnknownSelectionIsRejectedBeforeAnyModuleConfigures()
     {
         var builder = WebApplication.CreateBuilder();
         builder.Configuration[DigitalBrainConfiguration.ModuleSection("a") + ":Enabled"] = "true";
         builder.Configuration[DigitalBrainConfiguration.ModuleSection("z") + ":Enabled"] = "true";
-        var created = 0;
-        Assert.Throws<InvalidOperationException>(() => builder.AddDigitalBrainServer(server =>
-            server.AddModule("a", () => { created++; return new StatefulModule(); })));
-        Assert.Equal(0, created);
+        var module = new AModule();
+        Assert.Throws<InvalidOperationException>(() => builder.AddDigitalBrainServer(server => server.AddModule(module)));
+        Assert.Equal(0, module.SiloConfigurations);
     }
 
     [Fact]
@@ -58,21 +57,19 @@ public sealed class CompositionBoundaryFacts
     }
 
     [Fact]
-    public async Task SiloAndHttpConfigurationUseTheSameInstanceAndUnselectedFactoriesDoNotRun()
+    public async Task SiloAndHttpConfigurationUseTheSameInstanceAndUnselectedModulesDoNotRun()
     {
         var builder = WebApplication.CreateBuilder();
         builder.Configuration[DigitalBrainConfiguration.ModuleSection("unused") + ":Enabled"] = "false";
         var instance = new StatefulModule();
-        var created = 0;
-        builder.AddDigitalBrainServer(server => server
-            .AddModule("module", () => { created++; return instance; })
-            .AddModule("unused", () => throw new InvalidOperationException("Disabled")));
+        var unused = new UnusedModule();
+        builder.AddDigitalBrainServer(server => server.AddModule(instance).AddModule(unused));
         await using var app = builder.Build();
         app.MapDigitalBrainModules();
-        Assert.Equal(1, created);
         Assert.Equal(1, instance.SiloConfigurations);
         Assert.Equal(1, instance.HttpConfigurations);
-        Assert.Same(instance, Assert.Single(app.Services.GetServices<IModule>()));
+        Assert.Equal(0, unused.SiloConfigurations);
+        Assert.Same(instance, Assert.Single(app.Services.GetServices<Module>()));
     }
 
     [Fact]
@@ -133,11 +130,21 @@ public sealed class CompositionBoundaryFacts
     }
 
     private sealed record Entry : IIntentUsageEntry;
-    public sealed class StatefulModule : IModule, IHttpModule
+    private sealed class AModule() : Module(new ModuleId("a"))
+    {
+        public int SiloConfigurations { get; private set; }
+        public override void Configure(ISiloBuilder silo) => SiloConfigurations++;
+    }
+    private sealed class UnusedModule() : Module(new ModuleId("unused"))
+    {
+        public int SiloConfigurations { get; private set; }
+        public override void Configure(ISiloBuilder silo) => SiloConfigurations++;
+    }
+    public sealed class StatefulModule() : Module(new ModuleId("stateful")), IHttpModule
     {
         public int SiloConfigurations { get; private set; }
         public int HttpConfigurations { get; private set; }
-        public void Configure(ISiloBuilder silo) => SiloConfigurations++;
+        public override void Configure(ISiloBuilder silo) => SiloConfigurations++;
         public void Configure(IEndpointRouteBuilder endpoints) => HttpConfigurations++;
     }
 }

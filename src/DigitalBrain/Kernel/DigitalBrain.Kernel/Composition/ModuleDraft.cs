@@ -1,23 +1,24 @@
+using DigitalBrain.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Kernel;
 
 internal sealed class ModuleDraft
 {
-    public Type Type { get; }
+    public Module Module { get; }
     public ModuleOptionsSlot? Options { get; private init; }
     public List<Action<IServiceCollection>> LocalServices { get; } = [];
 
-    public ModuleDraft(Type type)
+    public ModuleDraft(Module module)
     {
-        Type = type;
-        Options = ModuleOptionsSlot.For(type);
+        Module = module;
+        Options = ModuleOptionsSlot.For(module.GetType());
     }
 
-    public ModuleDefinition Compile() => Options?.Compile() ?? new(Type);
+    public ModuleDefinition Compile() => Options?.Compile() ?? new ModuleDefinition(Module);
     public ModuleDraft Copy()
     {
-        var copy = new ModuleDraft(Type) { Options = Options?.Clone() };
+        var copy = new ModuleDraft(Module) { Options = Options?.Clone() };
         copy.LocalServices.AddRange(LocalServices);
         return copy;
     }

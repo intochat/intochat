@@ -8,10 +8,9 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.Files;
 
-[ModuleId("files")]
-public sealed class FilesModule : IModule, IHttpModule
+public sealed class FilesModule() : Module(new ModuleId("files")), IHttpModule
 {
-    public void Configure(ISiloBuilder silo)
+    public override void Configure(ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
         silo.Services.TryAddSingleton<IAssetBlobStore, AzureAssetBlobStore>();

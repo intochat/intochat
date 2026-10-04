@@ -22,24 +22,24 @@ using Xunit;
 
 namespace DigitalBrain.Platform.Tests.Unit.Integrations;
 
-public sealed class FakeGoogleModule : IModule
+public sealed class FakeGoogleModule() : Module(new ModuleId(nameof(FakeGoogleModule)))
 {
     public static IntegrationDefinition Integration { get; } = IntegrationDefinition.For("google", "Google")
         .RequiresSecret("ClientId")
         .RequiresSecret("ClientSecret")
         .RequiresSetting("RedirectPath");
 
-    public void Configure(ISiloBuilder silo) { }
+    public override void Configure(ISiloBuilder silo) { }
 }
 
-public sealed class FakeRivalGoogleModule : IModule
+public sealed class FakeRivalGoogleModule() : Module(new ModuleId(nameof(FakeRivalGoogleModule)))
 {
     public static IntegrationDefinition Integration { get; } = IntegrationDefinition.For("google", "Rival Google");
 
-    public void Configure(ISiloBuilder silo) { }
+    public override void Configure(ISiloBuilder silo) { }
 }
 
-public sealed class FakeAiModule : IModule
+public sealed class FakeAiModule() : Module(new ModuleId(nameof(FakeAiModule)))
 {
     public static IntegrationDefinition[] Integrations { get; } =
     [
@@ -47,7 +47,7 @@ public sealed class FakeAiModule : IModule
         IntegrationDefinition.For("anthropic", "Anthropic").RequiresSecret("ApiKey"),
     ];
 
-    public void Configure(ISiloBuilder silo) { }
+    public override void Configure(ISiloBuilder silo) { }
 }
 
 public sealed class RegistrationFacts
