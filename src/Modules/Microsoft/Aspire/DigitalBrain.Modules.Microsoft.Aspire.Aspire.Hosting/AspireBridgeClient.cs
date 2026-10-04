@@ -179,12 +179,12 @@ internal sealed class AspireBridgeClient(
                 using var response = await brain.PostAsJsonAsync(AspireBridgeRoutes.ResourceSync, sync, stoppingToken).ConfigureAwait(false);
                 // A refusal is a bug on the silo, not a brain that is still booting; a silent
                 // retry here once hid an enforcement denial behind four-minute command timeouts.
+                // Surface it and move on so the command stream still gets served.
                 if (!response.IsSuccessStatusCode)
                 {
                     logger.LogWarning("The brain refused the resource sync ({Status}): {Detail}",
                         (int)response.StatusCode, await response.Content.ReadAsStringAsync(stoppingToken).ConfigureAwait(false));
                 }
-                response.EnsureSuccessStatusCode();
                 return;
             }
             catch (Exception error) when (error is HttpRequestException or TaskCanceledException && !stoppingToken.IsCancellationRequested)
