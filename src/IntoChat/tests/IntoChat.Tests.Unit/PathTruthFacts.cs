@@ -50,7 +50,7 @@ public sealed class PathTruthFacts
         Assert.Equal(docker, profile);
         // The host registers the OS catalog wholesale, so the deployment's enabled set must
         // name exactly the catalog's modules.
-        var registered = DigitalBrain.OS.OsCatalog.Modules.Select(entry => entry.Id).Order().ToArray();
+        var registered = DigitalBrain.OS.OsCatalog.Modules.Select(DigitalBrain.Contracts.ModuleIdentity.Get).Order().ToArray();
         Assert.Equal(docker, registered);
     }
 }
