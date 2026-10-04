@@ -46,7 +46,7 @@ public sealed class OsShippedAppFacts
     public void TheOperatingSystemCompositionWiresItsAppsIntoTheHost()
     {
         var builder = global::Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
-        DigitalBrain.Aspire.Server.DigitalBrainRuntimeHostingExtensions.AddDigitalBrainServer(builder, server => server.AddOperatingSystem());
+        DigitalBrain.Aspire.Server.ServerHostingExtensions.AddDigitalBrainServer(builder, server => server.AddOperatingSystem());
         using var provider = builder.Services.BuildServiceProvider();
         Assert.Equal(PackageId.Create("os", "settings"), provider.GetRequiredService<IOptions<BuiltInSettingsOptions>>().Value.Package);
         Assert.Contains(provider.GetRequiredService<IOptions<OsAppsOptions>>().Value.Apps,

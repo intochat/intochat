@@ -1,11 +1,13 @@
 using Aspire.Hosting;
 using DigitalBrain.AI;
+using DigitalBrain.AI.Aspire.Hosting;
 using DigitalBrain.AI.FoundryLocal;
 using DigitalBrain.AI.Ollama;
 using DigitalBrain.AI.OpenAI;
 using DigitalBrain.AI.OpenRouter;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.ClickHouse;
+using DigitalBrain.ClickHouse.Aspire.Hosting;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Aspire.Hosting;
 using DigitalBrain.Google.Gmail;
@@ -13,15 +15,19 @@ using DigitalBrain.Microsoft.Aspire;
 using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Microsoft.GitHub;
 using DigitalBrain.Postgres;
+using DigitalBrain.Postgres.Aspire.Hosting;
 using DigitalBrain.Qdrant;
+using DigitalBrain.Qdrant.Aspire.Hosting;
 using DigitalBrain.Salesforce;
+using DigitalBrain.Salesforce.Aspire.Hosting;
 using DigitalBrain.Supabase;
+using DigitalBrain.Supabase.Aspire.Hosting;
 using IntoChat;
 
 var builder = DistributedApplication.CreateBuilder(args);
 var digitalBrain = builder.AddDigitalBrain(ProductSurfaceResources.Modules, serviceId: "intochat", options: new() { UseAzureStorage = true, Dashboard = true })
     .WithHttpIdentity(new("intochat.session", "IntoChat.v1", IntoChatConfiguration.ProtectionContainerName))
-    .WithHosting<DigitalBrain.AI.Aspire.Hosting.AIModuleHosting, AIOptions>(ai =>
+    .WithHosting<AIModuleHosting, AIOptions>(ai =>
     {
         ai.WithLlm<IGpt56Luna>();
         ai.WithDefaultLlm<IDeepSeekV41Flash>();
@@ -29,17 +35,17 @@ var digitalBrain = builder.AddDigitalBrain(ProductSurfaceResources.Modules, serv
         ai.WithVoiceToText<IWhisperLargeV3Turbo>();
         ai.WithTavilySearch();
     })
-    .WithHosting<DigitalBrain.Qdrant.Aspire.Hosting.QdrantModuleHosting, QdrantModuleOptions>(qdrant => qdrant.WithHostedQdrant())
-    .WithHosting<DigitalBrain.ClickHouse.Aspire.Hosting.ClickHouseModuleHosting, ClickHouseModuleOptions>(database => database.WithClickHouse())
-    .WithHosting<DigitalBrain.Supabase.Aspire.Hosting.SupabaseModuleHosting, SupabaseModuleOptions>(database => database.WithConnection("supabase"))
-    .WithHosting<DigitalBrain.Postgres.Aspire.Hosting.PostgresModuleHosting, PostgresModuleOptions>(database => database.WithPostgres(options => options.DatabaseName = "digitalbrain"))
-    .WithHosting<DigitalBrain.Google.Gmail.GmailModuleHosting, GmailModuleOptions>(gmail => gmail.WithGmail())
-    .WithHosting<DigitalBrain.Salesforce.Aspire.Hosting.SalesforceModuleHosting, SalesforceModuleOptions>(salesforce => salesforce.WithHostedMcp())
-    .WithHosting<DigitalBrain.Microsoft.GitHub.GitHubModuleHosting>()
-    .WithHosting<DigitalBrain.Flutter.Aspire.Hosting.FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp())
-    .WithHosting<DigitalBrain.Microsoft.Aspire.AspireModuleHosting>()
-    .WithHosting<DigitalBrain.Microsoft.CSharp.CSharpModuleHosting>()
-    .WithHosting<DigitalBrain.Microsoft.CSharp.CSharpAuthoringModuleHosting>();
+    .WithHosting<QdrantModuleHosting, QdrantModuleOptions>(qdrant => qdrant.WithHostedQdrant())
+    .WithHosting<ClickHouseModuleHosting, ClickHouseModuleOptions>(database => database.WithClickHouse())
+    .WithHosting<SupabaseModuleHosting, SupabaseModuleOptions>(database => database.WithConnection("supabase"))
+    .WithHosting<PostgresModuleHosting, PostgresModuleOptions>(database => database.WithPostgres(options => options.DatabaseName = "digitalbrain"))
+    .WithHosting<GmailModuleHosting, GmailModuleOptions>(gmail => gmail.WithGmail())
+    .WithHosting<SalesforceModuleHosting, SalesforceModuleOptions>(salesforce => salesforce.WithHostedMcp())
+    .WithHosting<GitHubModuleHosting>()
+    .WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp())
+    .WithHosting<AspireModuleHosting>()
+    .WithHosting<CSharpModuleHosting>()
+    .WithHosting<CSharpAuthoringModuleHosting>();
 
 var cookieProtection = digitalBrain.AddBlobContainer(IntoChatConfiguration.ProtectionContainerName);
 

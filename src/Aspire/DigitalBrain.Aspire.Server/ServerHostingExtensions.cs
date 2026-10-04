@@ -14,7 +14,7 @@ using Orleans.Storage;
 
 namespace DigitalBrain.Aspire.Server;
 
-public static class DigitalBrainRuntimeHostingExtensions
+public static class ServerHostingExtensions
 {
     public static IHostApplicationBuilder AddDigitalBrainServer(this IHostApplicationBuilder builder, Action<DigitalBrainServerBuilder> configure)
     {
