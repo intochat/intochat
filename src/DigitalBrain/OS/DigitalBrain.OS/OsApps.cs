@@ -112,16 +112,12 @@ internal sealed class OsBootService(
             await app.Upgrade(new(Guid.NewGuid(), new(package, published))).WaitAsync(cancellationToken);
         }
 
-        // With the replacement ensured, retire the package it replaces. Read-before-write keeps
-        // this idempotent across at-least-once activations; a throw lands in the caller's catch
-        // and retries next activation while the replacement is already current.
+        // With the replacement ensured, adopt the package it replaces: the App grain owns the
+        // whole transition (storage ownership transfer + retire) and no-ops when the legacy app
+        // is gone, so at-least-once activations retry a failed retire harmlessly.
         if (osApp.Replaces is { } legacy)
         {
-            var legacyApp = grains.GetGrain<IApp>(activated.BrainId + "/packages/" + legacy);
-            if ((await legacyApp.Read().WaitAsync(cancellationToken)).Status == AppStatus.Installed)
-            {
-                await legacyApp.Uninstall(new(Guid.NewGuid())).WaitAsync(cancellationToken);
-            }
+            await grains.GetGrain<IAppAdoption>(activated.BrainId + "/packages/" + package).Adopt(legacy).WaitAsync(cancellationToken);
         }
     }
 }
