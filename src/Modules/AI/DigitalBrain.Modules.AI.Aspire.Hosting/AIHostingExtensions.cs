@@ -58,11 +58,7 @@ public static partial class AIHostingExtensions
                 $"{marker.FullName} is not a catalogued transcription model. "
                 + $"Known models: {string.Join(", ", TranscriptionModel.All.Select(static m => m.Marker.Name))}.");
 
-        var voice = module.DigitalBrainBuilder.GetOrAddState(brain => new VoiceToTextHostingState(brain, module.Resource), out var added);
-        if (added)
-        {
-            module.AddProjection(voice);
-        }
+        var voice = module.GetOrAddProjection(brain => new VoiceToTextHostingState(brain, module.Resource));
 
         // A hosted transcription model needs its provider key like any other model.
         // WithLlm/WithEmbedding get this through AddModel; voice has its own
@@ -89,11 +85,7 @@ public static partial class AIHostingExtensions
     private static AIHostingState State(DigitalBrainModuleBuilder<DigitalBrain.AI.Aspire.Hosting.AIModuleHosting> module)
     {
         ArgumentNullException.ThrowIfNull(module);
-        var state = module.DigitalBrainBuilder.GetOrAddState(brain => new AIHostingState(brain, module.Resource), out var added);
-        if (added)
-        {
-            module.AddProjection(state);
-        }
+        var state = module.GetOrAddProjection(brain => new AIHostingState(brain, module.Resource));
 
         return state;
     }

@@ -8,7 +8,6 @@ public sealed class DigitalBrainServerBuilder
     private readonly Dictionary<string, Func<IModule>> _modules = new(StringComparer.Ordinal);
     private readonly List<Action<IServiceCollection>> _serviceActions = [];
     internal bool AzureStorage { get; private set; }
-    internal bool Dashboard { get; private set; }
     public DigitalBrainServerBuilder AddModule<TModule>() where TModule : class, IModule, new()
         => AddModule(typeof(TModule));
     public DigitalBrainServerBuilder AddModule(Type moduleType)
@@ -40,7 +39,7 @@ public sealed class DigitalBrainServerBuilder
     }
 
     public DigitalBrainServerBuilder UseAzureStorage() { AzureStorage = true; return this; }
-    public DigitalBrainServerBuilder WithDashboard() { Dashboard = true; return this; }
+
     // Registered modules run; configuration can only subtract (Enabled=false) — and a
     // configuration that affirms a module this server never registered is a deployment bug.
     internal IModule[] SelectModules(IConfiguration configuration)

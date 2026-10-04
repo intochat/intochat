@@ -29,8 +29,8 @@ public sealed class CompositionBoundaryFacts
     public void TwoBrainsHaveDistinctResourcesAndModuleNodes()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        var first = builder.AddDigitalBrain("first", persistentStorage: false, options: new() { UseAzureStorage = true }).WithModule(typeof(SampleModule));
-        var second = builder.AddDigitalBrain("second", persistentStorage: false, options: new() { UseAzureStorage = true }).WithModule(typeof(SampleModule));
+        var first = builder.AddDigitalBrain("first", options: new() { UseAzureStorage = true, PersistentStorage = false }).WithModule(typeof(SampleModule));
+        var second = builder.AddDigitalBrain("second", options: new() { UseAzureStorage = true, PersistentStorage = false }).WithModule(typeof(SampleModule));
         Assert.NotSame(first.GetOrAddModuleNode("sample").Resource, second.GetOrAddModuleNode("sample").Resource);
         var names = builder.Resources.Select(r => r.Name).ToArray();
         Assert.Equal(names.Length, names.Distinct(StringComparer.OrdinalIgnoreCase).Count());

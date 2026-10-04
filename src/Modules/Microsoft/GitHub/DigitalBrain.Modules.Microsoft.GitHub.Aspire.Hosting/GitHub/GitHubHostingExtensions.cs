@@ -35,11 +35,7 @@ public static class GitHubHostingExtensions
         {
             throw new ArgumentException("The GitHub hosting binding must use at most 80 letters, digits or hyphens.", nameof(bindingId));
         }
-        var state = module.DigitalBrainBuilder.GetOrAddState(static _ => new GitHubHostingState(), out var added);
-        if (added)
-        {
-            module.AddProjection(state);
-        }
+        var state = module.GetOrAddProjection(static _ => new GitHubHostingState());
         state.Add(bindingId, endpointId ?? bindingId, new GitHubProjection(module.DigitalBrainBuilder, bindingId, appId,
             installationId, repositoryId, repositoryOwner, repositoryName, endpointId ?? bindingId, apiHost, mcpEndpoint));
         return module;

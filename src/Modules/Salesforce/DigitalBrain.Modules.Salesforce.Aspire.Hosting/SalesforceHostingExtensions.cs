@@ -13,11 +13,7 @@ public static class SalesforceHostingExtensions
         Uri? publicOrigin = null)
     {
         ArgumentNullException.ThrowIfNull(module);
-        var state = module.DigitalBrainBuilder.GetOrAddState(brain => new SalesforceHostingState(brain, module.Resource), out var added);
-        if (added)
-        {
-            module.AddProjection(state);
-        }
+        var state = module.GetOrAddProjection(brain => new SalesforceHostingState(brain, module.Resource));
 
         state.Enable(publicOrigin);
         return module;

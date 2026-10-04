@@ -29,7 +29,7 @@ public static class SiloHosts
     {
         var hosts = Find(resources).Where(r => serverName is null || r.Name == serverName).ToArray();
         return hosts.Length == 1 ? hosts[0]
-            : throw new InvalidOperationException("Select exactly one brain server with ServerResourceName.");
+            : throw new InvalidOperationException($"Expected exactly one silo host{(serverName is null ? "" : $" named '{serverName}'")}, found {hosts.Length}.");
     }
 
     public static bool IsSiloHost(IResource resource)

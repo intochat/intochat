@@ -16,7 +16,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // IntoChat is a distribution of the operating system: the composition is the OS's, and what
 // is IntoChat's own is branding, shipped apps and configuration.
-builder.AddDigitalBrainServer(server => server.UseAzureStorage().WithDashboard().AddOperatingSystem());
+builder.AddDigitalBrainServer(server => server.UseAzureStorage().AddOperatingSystem());
 builder.AddDigitalBrainPlatform();
 // Vendors ship through configuration: DigitalBrain:ShippedApps:{publisher}:Path names a
 // directory of app folders. The image carries no vendor content of its own.
@@ -27,7 +27,6 @@ var app = builder.Build();
 app.UsePlatformHttp();
 app.MapDigitalBrainModules();
 app.MapDigitalBrainPlatform();
-app.MapDigitalBrainDashboard();
 
 
 app.Run();

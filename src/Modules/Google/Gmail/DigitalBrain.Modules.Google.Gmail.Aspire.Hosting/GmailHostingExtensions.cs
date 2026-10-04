@@ -23,11 +23,7 @@ public static class GmailHostingExtensions
         Uri? publicOrigin = null)
     {
         ArgumentNullException.ThrowIfNull(module);
-        var state = module.DigitalBrainBuilder.GetOrAddState(brain => new GmailHostingState(brain, module.Resource), out var added);
-        if (added)
-        {
-            module.AddProjection(state);
-        }
+        var state = module.GetOrAddProjection(brain => new GmailHostingState(brain, module.Resource));
 
         state.Enable(publicOrigin);
         return module;

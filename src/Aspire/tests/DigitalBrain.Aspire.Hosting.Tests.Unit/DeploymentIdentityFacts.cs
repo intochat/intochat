@@ -50,9 +50,9 @@ public sealed class DeploymentIdentityFacts
     public void BlobContainerIdentityDoesNotInheritTheAspireResourcePrefix()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        var original = builder.AddDigitalBrain("Modules", persistentStorage: false, options: new() { UseAzureStorage = true })
+        var original = builder.AddDigitalBrain("Modules", options: new() { UseAzureStorage = true, PersistentStorage = false })
             .AddBlobContainer("cookie-protection");
-        var renamed = builder.AddDigitalBrain("Renamed", persistentStorage: false, options: new() { UseAzureStorage = true })
+        var renamed = builder.AddDigitalBrain("Renamed", options: new() { UseAzureStorage = true, PersistentStorage = false })
             .AddBlobContainer("cookie-protection");
         Assert.Equal("Modules-cookie-protection", original.Resource.Name);
         Assert.Equal("Renamed-cookie-protection", renamed.Resource.Name);
@@ -110,7 +110,7 @@ public sealed class DeploymentIdentityFacts
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
         builder.Configuration["Orleans:ClusterId"] = "new-run";
-        var brain = builder.AddDigitalBrain("renamed-resource", serviceId: "existing-data");
+        var brain = builder.AddDigitalBrain("renamed-resource", new DigitalBrainHostingOptions { ServiceId = "existing-data" });
         Assert.Equal("existing-data", brain.ServiceId);
         Assert.Equal("new-run", brain.ClusterId);
         Assert.Equal("default-service", builder.AddDigitalBrain("default-service").ServiceId);
@@ -120,8 +120,8 @@ public sealed class DeploymentIdentityFacts
     public void MultipleServersRequireExplicitSelectionAndResolveTheirOwnBrain()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        var first = builder.AddDigitalBrain("first", serviceId: "first-data", options: new() { UseAzureStorage = true, ClusterId = "first-run" });
-        var second = builder.AddDigitalBrain("second", serviceId: "second-data", options: new() { UseAzureStorage = true, ClusterId = "second-run" });
+        var first = builder.AddDigitalBrain("first", new DigitalBrainHostingOptions { ServiceId = "first-data", UseAzureStorage = true, ClusterId = "first-run" });
+        var second = builder.AddDigitalBrain("second", new DigitalBrainHostingOptions { ServiceId = "second-data", UseAzureStorage = true, ClusterId = "second-run" });
         builder.AddExecutable("first-server", "dotnet", ".").WithReference(first);
         builder.AddExecutable("second-server", "dotnet", ".").WithReference(second);
         Assert.Throws<InvalidOperationException>(() => SiloHosts.Select(builder.Resources));

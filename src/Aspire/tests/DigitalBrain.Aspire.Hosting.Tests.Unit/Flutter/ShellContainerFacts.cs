@@ -13,7 +13,7 @@ public sealed class ShellContainerFacts
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
         builder.Configuration["DigitalBrain:Flutter:Hosting:WebContainer"] = "true";
-        builder.AddDigitalBrain("modules", persistentStorage: false)
+        builder.AddDigitalBrain("modules", new DigitalBrainHostingOptions { PersistentStorage = false })
             .WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunWebApp());
 
         var shell = Assert.Single(builder.Resources, resource => resource.Annotations.OfType<BrainBrowserAnnotation>().Any());

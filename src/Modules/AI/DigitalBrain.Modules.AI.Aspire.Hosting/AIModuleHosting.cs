@@ -31,8 +31,7 @@ public static partial class AIHostingExtensions
         if (options.Default.Transcription is { Length: > 0 } nameOfVoice)
         {
             var model = TranscriptionModel.FindByMarkerName(nameOfVoice) ?? throw new InvalidOperationException("Unknown transcription marker.");
-            var voice = brain.GetOrAddState(b => new VoiceToTextHostingState(b, module.Resource), out var added);
-            if (added) { module.AddProjection(voice); }
+            var voice = module.GetOrAddProjection(b => new VoiceToTextHostingState(b, module.Resource));
             if (!model.IsLocal) { state.EnsureProviderApiKey(model.Provider); }
             voice.SetModel(model);
         }

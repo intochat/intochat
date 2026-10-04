@@ -22,11 +22,7 @@ public static class SupabaseHostingExtensions
 
     private static SupabaseHostingState State(DigitalBrainModuleBuilder<DigitalBrain.Supabase.Aspire.Hosting.SupabaseModuleHosting> module)
     {
-        var state = module.DigitalBrainBuilder.GetOrAddState(brain => new SupabaseHostingState(brain, module.Resource), out var added);
-        if (added)
-        {
-            module.AddProjection(state);
-        }
+        var state = module.GetOrAddProjection(brain => new SupabaseHostingState(brain, module.Resource));
 
         return state;
     }

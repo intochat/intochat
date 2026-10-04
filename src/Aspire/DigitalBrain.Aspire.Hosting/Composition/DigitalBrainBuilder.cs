@@ -16,6 +16,8 @@ public sealed class DigitalBrainBuilder
     public DigitalBrainBuilder WithModule(Type moduleType, IReadOnlyDictionary<string, string?>? settings = null)
     {
         ArgumentNullException.ThrowIfNull(moduleType);
+        if (!moduleType.IsDefined(typeof(ModuleIdAttribute), inherit: false))
+        { throw new ArgumentException($"{moduleType.FullName} carries no [ModuleId]; only modules compose.", nameof(moduleType)); }
         return Register(ModuleIdentity.Get(moduleType), ModuleHostingResolution.Resolve(moduleType), settings);
     }
 
@@ -93,8 +95,6 @@ public sealed class DigitalBrainBuilder
         GrainState = grainState;
     }
 
-    internal bool Dashboard { get; init; }
-
     public string Name { get; }
     public string ServiceId { get; internal init; } = null!;
     public string ClusterId { get; internal init; } = null!;
@@ -165,9 +165,6 @@ public sealed class DigitalBrainBuilder
     internal bool HasResource(string name)
         => ApplicationBuilder.Resources.Any(resource =>
             string.Equals(resource.Name, name, StringComparison.OrdinalIgnoreCase));
-
-    public IResourceBuilder<DigitalBrainModuleResource> GetOrAddModuleNode(Type moduleType)
-        => GetOrAddModuleNode(DigitalBrainHostingNames.ForModule(moduleType));
 
     public IResourceBuilder<DigitalBrainModuleResource> GetOrAddModuleNode(string displayName)
     {

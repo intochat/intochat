@@ -44,13 +44,7 @@ public static class ShellHostingExtensions
 
     private static ShellHostingState GetOrCreateState(DigitalBrainModuleBuilder<DigitalBrain.Flutter.Aspire.Hosting.FlutterModuleHosting> module)
     {
-        var state = module.DigitalBrainBuilder.GetOrAddState(
-            static brain => new ShellHostingState(brain),
-            out var added);
-        if (added)
-        {
-            module.AddProjection(state);
-        }
+        var state = module.GetOrAddProjection(static brain => new ShellHostingState(brain));
 
         return state;
     }

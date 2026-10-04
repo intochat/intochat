@@ -28,8 +28,7 @@ internal static class PostgresHostingExtensions
 
     private static PostgresHostingState State(DigitalBrainModuleBuilder<DigitalBrain.Postgres.Aspire.Hosting.PostgresModuleHosting> module)
     {
-        var state = module.DigitalBrainBuilder.GetOrAddState(brain => new PostgresHostingState(brain, module.Resource), out var added);
-        if (added) { module.AddProjection(state); }
+        var state = module.GetOrAddProjection(brain => new PostgresHostingState(brain, module.Resource));
         return state;
     }
 

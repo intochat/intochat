@@ -20,11 +20,7 @@ public static class ClickHouseHostingExtensions
 
     private static ClickHouseHostingState State(DigitalBrainModuleBuilder<DigitalBrain.ClickHouse.Aspire.Hosting.ClickHouseModuleHosting> module)
     {
-        var state = module.DigitalBrainBuilder.GetOrAddState(static brain => new ClickHouseHostingState(brain), out var added);
-        if (added)
-        {
-            module.AddProjection(state);
-        }
+        var state = module.GetOrAddProjection(static brain => new ClickHouseHostingState(brain));
 
         return state;
     }

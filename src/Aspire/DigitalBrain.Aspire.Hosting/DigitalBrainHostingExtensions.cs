@@ -19,15 +19,13 @@ public static class DigitalBrainHostingExtensions
             .AddBlobContainer(brain.ResourceName(name), blobContainerName: name);
     }
 
-    public static DigitalBrainBuilder AddDigitalBrain(this IDistributedApplicationBuilder builder, string name, bool persistentStorage = true, string? dataVolume = null, string? serviceId = null, DigitalBrainHostingOptions? options = null)
+    public static DigitalBrainBuilder AddDigitalBrain(this IDistributedApplicationBuilder builder, string name, DigitalBrainHostingOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         options ??= new();
-        var persist = persistentStorage && builder.Configuration.GetValue(DigitalBrainHostingNames.PersistentStorageKey, true);
-        if (serviceId is not null && options.ServiceId is not null && serviceId != options.ServiceId)
-        { throw new ArgumentException("Specify one consistent service ID.", nameof(serviceId)); }
-        var resolvedServiceId = options.ServiceId ?? serviceId ?? builder.Configuration["Orleans:ServiceId"] ?? name;
+        var persist = options.PersistentStorage && builder.Configuration.GetValue(DigitalBrainHostingNames.PersistentStorageKey, true);
+        var resolvedServiceId = options.ServiceId ?? builder.Configuration["Orleans:ServiceId"] ?? name;
         ArgumentException.ThrowIfNullOrWhiteSpace(resolvedServiceId);
 
         var resource = builder.AddResource(new DigitalBrainResource(name))
@@ -50,7 +48,7 @@ public static class DigitalBrainHostingExtensions
         if (!options.UseAzureStorage)
         {
             orleans.WithDevelopmentClustering().WithMemoryGrainStorage(DigitalBrainNames.DefaultGrainStorage).WithMemoryReminders();
-            var memory = new DigitalBrainBuilder(builder, name, resource, orleans, null, null) { Dashboard = options.Dashboard, ServiceId = resolvedServiceId, ClusterId = clusterId };
+            var memory = new DigitalBrainBuilder(builder, name, resource, orleans, null, null) { ServiceId = resolvedServiceId, ClusterId = clusterId };
             memory.AddProjection(MasterKey.Provision(builder, name));
             if (AuthPosture.Provision(builder) is { } memoryPosture) { memory.AddProjection(memoryPosture); }
             return memory;
@@ -61,7 +59,7 @@ public static class DigitalBrainHostingExtensions
             {
                 emulator.WithArgs("--silent");
                 if (persist) { emulator.WithLifetime(ContainerLifetime.Persistent); }
-                if (dataVolume is not null) { emulator.WithDataVolume(dataVolume); }
+                if (options.DataVolume is not null) { emulator.WithDataVolume(options.DataVolume); }
                 else if (persist) { emulator.WithDataVolume(); }
             })
             .WithParentRelationship(resource);
@@ -70,7 +68,7 @@ public static class DigitalBrainHostingExtensions
         var grainState = storage.AddBlobs($"{name}-{DigitalBrainNames.GrainState}");
         orleans.WithClustering(clustering).WithReminders(reminders)
             .WithGrainStorage(DigitalBrainNames.DefaultGrainStorage, grainState);
-        var brain = new DigitalBrainBuilder(builder, name, resource, orleans, storage, grainState) { Dashboard = options.Dashboard, ServiceId = resolvedServiceId, ClusterId = clusterId, ClusteringResourceName = clustering.Resource.Name, Clustering = clustering, Reminders = reminders };
+        var brain = new DigitalBrainBuilder(builder, name, resource, orleans, storage, grainState) { ServiceId = resolvedServiceId, ClusterId = clusterId, ClusteringResourceName = clustering.Resource.Name, Clustering = clustering, Reminders = reminders };
         brain.AddProjection(MasterKey.Provision(builder, name));
         if (AuthPosture.Provision(builder) is { } posture) { brain.AddProjection(posture); }
         storage.WithParentRelationship(brain.GetOrAddModuleNode(DigitalBrainHostingNames.Kernel));
@@ -124,16 +122,6 @@ public static class DigitalBrainHostingExtensions
         foreach (var projection in brain.Projections)
         {
             projection.Apply(builder);
-        }
-
-        if (brain.Dashboard)
-        {
-            builder.WithUrlForEndpoint("http", endpoint => new ResourceUrlAnnotation
-            {
-                Url = DigitalBrainNames.OrleansDashboardPath,
-                DisplayText = "Orleans Dashboard",
-                Endpoint = endpoint,
-            });
         }
 
         return builder;

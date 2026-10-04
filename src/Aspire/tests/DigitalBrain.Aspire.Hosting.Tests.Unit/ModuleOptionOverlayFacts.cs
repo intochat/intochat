@@ -29,7 +29,7 @@ public sealed class ModuleOptionOverlayFacts
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
         builder.Configuration["DigitalBrain:Modules:example:ReplaceOptions"] = "true";
         builder.Configuration["DigitalBrain:Modules:example:Options:Endpoint"] = "fixture";
-        var brain = builder.AddDigitalBrain("modules", persistentStorage: false)
+        var brain = builder.AddDigitalBrain("modules", new DigitalBrainHostingOptions { PersistentStorage = false })
             .WithModule(typeof(ExampleModule), settings: HostingModuleOptions.Flatten(new OverlaidOptions
             {
                 Endpoint = "production",
@@ -46,7 +46,7 @@ public sealed class ModuleOptionOverlayFacts
     public void FlatteningOmitsDefaultsSoDeploymentCodeDoesNotPinThem()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        var brain = builder.AddDigitalBrain("modules", persistentStorage: false)
+        var brain = builder.AddDigitalBrain("modules", new DigitalBrainHostingOptions { PersistentStorage = false })
             .WithModule(typeof(ExampleModule), settings: HostingModuleOptions.Flatten(new OverlaidOptions { Endpoint = "production" }, "example"));
         var configuration = brain.GetModuleConfiguration("example");
         Assert.Equal("production", configuration["DigitalBrain:Modules:example:Options:Endpoint"]);
@@ -62,9 +62,9 @@ public sealed class ModuleOptionOverlayFacts
         builder.Configuration["DigitalBrain:Modules:postgres:Options:Hosting:Enabled"] = "true";
         builder.Configuration["DigitalBrain:Brains:first:Modules:postgres:Options:ConnectionName"] = "first-db";
         builder.Configuration["DigitalBrain:Brains:second:Modules:postgres:Options:ConnectionName"] = "second-db";
-        var first = builder.AddDigitalBrain("first", persistentStorage: false, options: new() { UseAzureStorage = true })
+        var first = builder.AddDigitalBrain("first", options: new() { UseAzureStorage = true, PersistentStorage = false })
             .WithHosting<DigitalBrain.Postgres.Aspire.Hosting.PostgresModuleHosting>();
-        var second = builder.AddDigitalBrain("second", persistentStorage: false, options: new() { UseAzureStorage = true })
+        var second = builder.AddDigitalBrain("second", options: new() { UseAzureStorage = true, PersistentStorage = false })
             .WithHosting<DigitalBrain.Postgres.Aspire.Hosting.PostgresModuleHosting>();
         Assert.Equal("first-db", first.GetModuleConfiguration("postgres")["DigitalBrain:Modules:postgres:Options:ConnectionName"]);
         Assert.Equal("second-db", second.GetModuleConfiguration("postgres")["DigitalBrain:Modules:postgres:Options:ConnectionName"]);
@@ -86,7 +86,7 @@ public sealed class ModuleOptionOverlayFacts
             ],
             DisableDashboard = true,
         });
-        var brain = builder.AddDigitalBrain("modules", persistentStorage: false, options: new() { UseAzureStorage = true })
+        var brain = builder.AddDigitalBrain("modules", options: new() { UseAzureStorage = true, PersistentStorage = false })
             .WithModule(typeof(OverlaidModule), settings: HostingModuleOptions.Flatten(new OverlaidOptions { Endpoint = "declared", Delay = 42 }, "OverlaidModule"));
 
         var options = HostingModuleOptions.GetModuleOptions<OverlaidOptions>(brain.GetModuleConfiguration("OverlaidModule"), "OverlaidModule");

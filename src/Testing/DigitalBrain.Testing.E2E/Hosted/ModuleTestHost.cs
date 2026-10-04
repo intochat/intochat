@@ -22,7 +22,7 @@ internal static class ModuleTestHost
         return AspireTestSession.StartAsync(execution, builder =>
         {
             builder.Configuration["Orleans:ClusterId"] = identity;
-            var brain = builder.AddDigitalBrain("modules", persistentStorage: false, dataVolume: durableStorageKey, serviceId: durableStorageKey ?? identity, options: new() { UseAzureStorage = true });
+            var brain = builder.AddDigitalBrain("modules", new DigitalBrainHostingOptions { PersistentStorage = false, DataVolume = durableStorageKey, ServiceId = durableStorageKey ?? identity, UseAzureStorage = true });
             brain.AddModules(modules);
             builder.AddExecutable("runtime", "dotnet", launch.WorkingDirectory, launch.Arguments)
                 .WithEnvironment("DigitalBrain__Testing__ModuleTypes", System.Text.Json.JsonSerializer.Serialize(modules.Select(m => m.ModuleType.AssemblyQualifiedName)))

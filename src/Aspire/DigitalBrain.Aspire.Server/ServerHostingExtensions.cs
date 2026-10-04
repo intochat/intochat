@@ -10,7 +10,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Orleans.Configuration;
-using Orleans.Dashboard;
 using Orleans.Storage;
 
 namespace DigitalBrain.Aspire.Server;
@@ -61,23 +60,8 @@ public static class ServerHostingExtensions
                 module.Configure(silo);
                 silo.Services.AddSingleton(module);
             }
-            if (definition.Dashboard)
-            {
-                silo.AddDashboard(options =>
-            {
-                options.CounterUpdateIntervalMs = 5000;
-                options.HistoryLength = 200;
-            });
-            }
         });
         return builder;
-    }
-
-    public static WebApplication MapDigitalBrainDashboard(this WebApplication app)
-    {
-        if (app.Services.GetRequiredService<DigitalBrainServerBuilder>().Dashboard)
-        { app.MapOrleansDashboard(DigitalBrainNames.OrleansDashboardPath); }
-        return app;
     }
 
     private sealed class AccessPolicyValidation(IServiceProvider services) : IHostedService
@@ -102,7 +86,7 @@ public static class ServerHostingExtensions
         var clustering = configuration.GetConnectionString(DigitalBrainNames.Clustering);
         if (string.IsNullOrWhiteSpace(clustering))
         {
-            if (configuration.GetSection(StandaloneOptions.SectionName).Get<StandaloneOptions>()?.Standalone == true)
+            if (configuration.GetValue<bool>("DigitalBrain:Standalone"))
             {
                 throw new InvalidOperationException(
                     $"Missing connection string '{DigitalBrainNames.Clustering}'. "

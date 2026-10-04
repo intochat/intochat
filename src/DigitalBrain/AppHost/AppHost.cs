@@ -25,7 +25,7 @@ using DigitalBrain.Supabase.Aspire.Hosting;
 using IntoChat;
 
 var builder = DistributedApplication.CreateBuilder(args);
-var digitalBrain = builder.AddDigitalBrain(ProductSurfaceResources.Modules, serviceId: "intochat", options: new() { UseAzureStorage = true, Dashboard = true })
+var digitalBrain = builder.AddDigitalBrain(ProductSurfaceResources.Modules, new DigitalBrainHostingOptions { ServiceId = "intochat", UseAzureStorage = true })
     .WithHttpIdentity(new("intochat.session", "IntoChat.v1", IntoChatConfiguration.ProtectionContainerName))
     .WithHosting<AIModuleHosting, AIOptions>(ai =>
     {
