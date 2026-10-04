@@ -2,8 +2,8 @@ using DigitalBrain;
 using DigitalBrain.Contracts;
 using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Testing;
-using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Testing.Module;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace DigitalBrain.Kernel.Tests.Unit.Brain;
