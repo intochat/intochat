@@ -9,6 +9,8 @@ await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var package = PackageId.Parse(brain.Setting("Package")!);
 var revision = brain.Setting("Revision")!;
 var failures = 0;
+// Mirrors the app's own derivation: preferences live under the brain scope when one exists.
+string Prefs(string scope) => brain.Setting("BrainScope") is { Length: > 0 } brainScope ? brainScope + "/settings" : scope + "/app";
 
 await Scenario("Opening settings composes the surface and answers the defaults", async (app, scope) =>
 {
@@ -27,8 +29,8 @@ await Scenario("Opening settings composes the surface and answers the defaults",
 await Scenario("Typed values are the preferences", async (app, scope) =>
 {
     await Ask(app, "open", "");
-    await brain.Get<ITextField>(scope + "/app/display-name").SetValue("Ada");
-    await brain.Get<ITextField>(scope + "/app/theme").SetValue("dark");
+    await brain.Get<ITextField>(Prefs(scope) + "/display-name").SetValue("Ada");
+    await brain.Get<ITextField>(Prefs(scope) + "/theme").SetValue("dark");
 
     var preferences = JsonDocument.Parse(await Ask(app, "read", "")).RootElement.GetProperty("preferences");
 
@@ -39,15 +41,36 @@ await Scenario("Typed values are the preferences", async (app, scope) =>
 await Scenario("Preferences survive reopening", async (app, scope) =>
 {
     await Ask(app, "open", "");
-    await brain.Get<ITextField>(scope + "/app/display-name").SetValue("Ada");
-    await brain.Get<ITextField>(scope + "/app/theme").SetValue("light");
+    await brain.Get<ITextField>(Prefs(scope) + "/display-name").SetValue("Ada");
+    await brain.Get<ITextField>(Prefs(scope) + "/theme").SetValue("light");
 
     var preferences = JsonDocument.Parse(await Ask(app, "open", "")).RootElement.GetProperty("preferences");
 
     if (preferences.GetProperty("displayName").GetString() != "Ada" || preferences.GetProperty("theme").GetString() != "light")
     { throw new InvalidOperationException("Reopening lost the preferences."); }
-    if ((await brain.Get<ITextField>(scope + "/app/display-name").Read()).Value != "Ada")
+    if ((await brain.Get<ITextField>(Prefs(scope) + "/display-name").Read()).Value != "Ada")
     { throw new InvalidOperationException("The field no longer holds the display name."); }
+});
+
+await Scenario("Preferences survive a reinstall under a different package identity", async (app, scope) =>
+{
+    await Ask(app, "open", "");
+    await brain.Get<ITextField>(Prefs(scope) + "/display-name").SetValue("Grace");
+    await app.Uninstall(new UninstallApp(Guid.NewGuid()));
+
+    // A second install at a different app key: brain-keyed preferences carry over; without a
+    // brain scope each install is its own world and carrying over is not promised.
+    var secondScope = (brain.Setting("BrainScope") is { } owner ? owner + "/" : "") + $"specs/{package}@{revision}/{Guid.NewGuid():N}";
+    var second = brain.Get<IApp>(secondScope + "/app");
+    await second.Install(new InstallApp(Guid.NewGuid(), new(package, revision), new Dictionary<string, string>()));
+    try
+    {
+        var preferences = JsonDocument.Parse(await Ask(second, "open", "")).RootElement.GetProperty("preferences");
+        var expected = brain.Setting("BrainScope") is { Length: > 0 } ? "Grace" : "";
+        if (preferences.GetProperty("displayName").GetString() != expected)
+        { throw new InvalidOperationException("Preferences did not survive the reinstall."); }
+    }
+    finally { try { await second.Uninstall(new UninstallApp(Guid.NewGuid())); } catch (Exception) { } }
 });
 
 return failures == 0 ? 0 : 1;

@@ -383,7 +383,13 @@ internal sealed class App(
     // and brain.Setting("Account__" + slot) for each connected account.
     private Dictionary<string, string> Configuration(IReadOnlyDictionary<string, string> settings, IReadOnlyDictionary<string, string> accounts)
     {
-        var values = new Dictionary<string, string>(StringComparer.Ordinal) { ["App"] = this.GetPrimaryKeyString() };
+        var values = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["App"] = this.GetPrimaryKeyString(),
+            // The brain is ambient identity: durable state an app keys by it survives the app
+            // being renamed, reinstalled or forked.
+            ["Brain"] = Snapshot.BrainScopeId ?? "",
+        };
         foreach (var (name, value) in settings) { values[name] = value; }
         foreach (var (name, id) in accounts) { values["Account__" + name] = id; }
         return values;

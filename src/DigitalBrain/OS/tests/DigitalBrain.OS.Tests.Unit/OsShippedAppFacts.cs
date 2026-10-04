@@ -30,6 +30,19 @@ public sealed class OsShippedAppFacts
     }
 
     [Fact]
+    public void EveryOsProgramAndTestsFileCompilesAgainstCurrentContracts()
+    {
+        foreach (var app in Source.Load())
+        {
+            var sources = new Dictionary<string, string> { [PackageContent.TestsPath] = app.Content.File(PackageContent.TestsPath)! };
+            if (!string.IsNullOrEmpty(app.Content.Source)) { sources[PackageContent.SourcePath] = app.Content.Source; }
+            foreach (var (path, program) in app.Content.Programs()) { sources[path] = program; }
+            var result = new DigitalBrain.Microsoft.CSharp.CSharpScriptCheck().Check(sources);
+            Assert.True(result.Success, $"{app.Package}: {string.Join("; ", result.Errors.Select(error => $"{error.File}:{error.Line} {error.Message}"))}");
+        }
+    }
+
+    [Fact]
     public void AMalformedManifestEntryFailsAtParseNamingTheValue()
     {
         var package = Assert.ThrowsAny<Exception>(() => OsApp.Parse("os-settings"));

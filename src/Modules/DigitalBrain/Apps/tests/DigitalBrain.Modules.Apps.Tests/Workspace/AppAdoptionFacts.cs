@@ -69,6 +69,21 @@ public sealed class AppAdoptionFacts
         Assert.Equal(AppStatus.Installed, (await legacyApp.Read()).Status);
     }
 
+    [Fact]
+    public async Task DeployedScriptsLearnTheBrainScopeSoAppsCanKeyDurableStateByIt()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await PackageBrain.StartAsync(ct);
+        var revision = await Publish(brain, Replacement);
+        Caller.As("alice");
+        await brain.AuthorizeCallerAsync();
+        var scope = DigitalBrain.Kernel.Enforcement.BrainScope.CurrentId();
+        var app = brain.Get<IApp>(scope + "/packages/" + Replacement);
+        var installed = await app.Install(new(Guid.NewGuid(), new(Replacement, revision.Id), new Dictionary<string, string>()));
+        var settings = RecordingCSharpFile.ConfiguredSettings[installed.CSharpFiles.First()];
+        Assert.Equal(scope, settings["Brain"]);
+    }
+
     private static async Task<PackageRevision> Publish(PackageBrain brain, PackageId id)
     {
         Caller.As(id.Owner);
