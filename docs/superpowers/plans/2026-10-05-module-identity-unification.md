@@ -41,7 +41,7 @@
 **Interfaces:**
 - Produces: `readonly record struct ModuleId` with `ModuleId(string value)` ctor, `string Value`, `ToString()`, case-insensitive equality. `DigitalBrainConfiguration.ModuleSection(ModuleId)`, `ModuleOptionsSection(ModuleId)`, `BrainModuleOptionsSection(string brainName, ModuleId)` overloads; the existing `string` overloads remain and delegate through `new ModuleId(id)`, so the grammar now validates at every boundary.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```csharp
 namespace DigitalBrain.Kernel.Tests.Unit;
@@ -69,9 +69,9 @@ public sealed class ModuleIdFacts
 }
 ```
 
-- [ ] **Step 2: Run to verify they fail** — `dotnet test src/DigitalBrain/Kernel/tests/DigitalBrain.Kernel.Tests.Unit --filter ModuleIdFacts` → compile error (`ModuleId` not defined).
+- [x] **Step 2: Run to verify they fail** — `dotnet test src/DigitalBrain/Kernel/tests/DigitalBrain.Kernel.Tests.Unit --filter ModuleIdFacts` → compile error (`ModuleId` not defined).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```csharp
 namespace DigitalBrain.Contracts;
@@ -108,8 +108,8 @@ public static string BrainModuleOptionsSection(string brainName, string moduleId
     => BrainModuleOptionsSection(brainName, new ModuleId(moduleId));
 ```
 
-- [ ] **Step 4: Run tests** — same filter → PASS. Also `dotnet build src/DigitalBrain/DigitalBrain.Contracts`.
-- [ ] **Step 5: Commit** — `feat: ModuleId owns the module name grammar`
+- [x] **Step 4: Run tests** — same filter → PASS. Also `dotnet build src/DigitalBrain/DigitalBrain.Contracts`.
+- [x] **Step 5: Commit** — `feat: ModuleId owns the module name grammar`
 
 ---
 
@@ -123,7 +123,18 @@ public static string BrainModuleOptionsSection(string brainName, string moduleId
 - Consumes: `ModuleId` (Task 1), `IModuleOptions` (existing), `ISiloBuilder` from Orleans.Core.Abstractions (Contracts already references it — verify before coding; if `ISiloBuilder` turns out to live in a Server-only assembly, STOP and surface it: the relocation leg of the spec depends on this fact).
 - Produces: `public abstract class Module { protected Module(ModuleId id); public ModuleId Id { get; } public abstract void Configure(ISiloBuilder silo); }` and `public abstract class Module<TOptions> : Module where TOptions : class, IModuleOptions, new()` with the same ctor.
 
-- [ ] **Step 1: Write the failing test**
+> **Deviation (recorded 2026-10-05, executor):** the pre-coding verification found the premise false:
+> `Orleans.Hosting.ISiloBuilder` is defined in `Microsoft.Orleans.Runtime` (verified for the resolved
+> `10.3.1` and for `10.1.1-preview.1`/`10.2.2`), not `Orleans.Core.Abstractions`. It is reachable only
+> through `Microsoft.Orleans.Server`. Per the plan's own STOP instruction this was surfaced and the
+> design owner chose to add `Microsoft.Orleans.Runtime` (10.3.1, pinned in `Directory.Packages.props`)
+> to `DigitalBrain.Contracts` — the least change that keeps every Task 3–9 code shape verbatim. The
+> spec §2 text ("`ISiloBuilder` is defined in Orleans.Core.Abstractions, which Contracts already
+> references") is thereby factually wrong and is amended in Task 10; the boundary decision (module
+> declaration in Contracts; runtime in Kernel) is unchanged, but Contracts now also carries the
+> Orleans.Runtime assembly reference.
+
+- [x] **Step 1: Write the failing test**
 
 ```csharp
 public sealed class ModuleFacts
@@ -138,8 +149,8 @@ public sealed class ModuleFacts
 }
 ```
 
-- [ ] **Step 2: Run to verify it fails** — compile error.
-- [ ] **Step 3: Implement**
+- [x] **Step 2: Run to verify it fails** — compile error.
+- [x] **Step 3: Implement**
 
 ```csharp
 using Orleans.Hosting;
@@ -159,8 +170,8 @@ public abstract class Module<TOptions> : Module where TOptions : class, IModuleO
 }
 ```
 
-- [ ] **Step 4: Run tests** → PASS.
-- [ ] **Step 5: Commit** — `feat: Module is an object that knows its name`
+- [x] **Step 4: Run tests** → PASS.
+- [x] **Step 5: Commit** — `feat: Module is an object that knows its name`
 
 ---
 
