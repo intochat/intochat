@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>IntoChat's own apps: the in-tree third-party vendor proving the public package surface suffices.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="../Apps/**/*" LogicalName="IntoChat.ShippedApps/%(RecursiveDir)%(Filename)%(Extension)" Link="Apps/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

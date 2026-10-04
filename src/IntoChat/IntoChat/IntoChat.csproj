@@ -12,11 +12,9 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../IntoChat.ServiceDefaults/IntoChat.ServiceDefaults.csproj" />
+    <ProjectReference Include="../IntoChat.Apps/IntoChat.Apps.csproj" />
     <ProjectReference Include="../../DigitalBrain/OS/DigitalBrain.OS/DigitalBrain.OS.csproj" />
     <ProjectReference Include="../../DigitalBrain/Sdk/DigitalBrain.Sdk/DigitalBrain.Sdk.csproj" />
     <ProjectReference Include="../../DigitalBrain/Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <EmbeddedResource Include="../Apps/**/*" LogicalName="IntoChat.ShippedApps/%(RecursiveDir)%(Filename)%(Extension)" Link="ShippedApps/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>
