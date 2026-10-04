@@ -76,6 +76,17 @@ public sealed class AspireTestSession : IAsyncDisposable
         var ct = deadline.Token;
         var lifetime = new TestSessionLifetime(options);
         var stage = "builder";
+        // A slow boot must name its stage: the timings print into the test output, so a
+        // 15-minute fixture says whether the containers, the shell compile or the bundle
+        // re-target ate the time.
+        var bootWatch = System.Diagnostics.Stopwatch.StartNew();
+        var stageWatch = System.Diagnostics.Stopwatch.StartNew();
+        void Advance(string next)
+        {
+            Console.WriteLine($"[aspire-boot] {stage}: {stageWatch.Elapsed.TotalSeconds:F1}s");
+            stage = next;
+            stageWatch.Restart();
+        }
         try
         {
             // Module hosts explicitly use the consuming test assembly's Aspire metadata.
@@ -97,8 +108,9 @@ public sealed class AspireTestSession : IAsyncDisposable
             {
                 [$"Logging:LogLevel:{builder.Environment.ApplicationName}.Resources"] = "Warning",
             });
+            builder.Configuration.AddInMemoryCollection(options.HostConfiguration);
             builder.Services.AddLogging(logging => logging.SetMinimumLevel(LogLevel.Warning));
-            stage = "topology";
+            Advance("topology");
             declareTopology?.Invoke(builder);
             var hosts = SiloHosts.Find(builder.Resources);
             var selectedHost = SiloHosts.Select(builder.Resources, options.ServerResourceName);
@@ -128,21 +140,27 @@ public sealed class AspireTestSession : IAsyncDisposable
                     }));
                 }
                 // The AppHost publishes a fixed port. A testing builder also copies launchSettings ports,
-                // so clear both or every session binds the same endpoint.
+                // so clear both or every session binds the same endpoint. The endpoint also stays
+                // unproxied: the proxy buffers the Aspire bridge's SSE command stream, so commands
+                // from the brain to the AppHost would never arrive on a proxied endpoint. The silo
+                // binds every interface because sandbox scripts dial back through the container
+                // gateway (host.docker.internal), which on Linux is not the loopback.
                 foreach (var http in resource.Annotations.OfType<EndpointAnnotation>())
                 {
                     if (!string.Equals(http.Name, SiloHosts.HttpEndpointName, StringComparison.Ordinal)) { continue; }
                     http.Port = null;
                     http.TargetPort = null;
+                    http.IsProxied = false;
+                    http.TargetHost = "0.0.0.0";
                 }
             }
-            stage = "build";
+            Advance("build");
             var app = await builder.BuildAsync(ct).ConfigureAwait(false);
             lifetime.Own("application", app);
             var session = new AspireTestSession(app, lifetime, options, selectedBrain, selectedHost.Name);
-            stage = "start";
+            Advance("start");
             await app.StartAsync(ct).WaitAsync(ct).ConfigureAwait(false);
-            stage = "readiness";
+            Advance("readiness");
             foreach (var host in hosts)
             { await app.ResourceNotifications.WaitForResourceHealthyAsync(host.Name, ct).ConfigureAwait(false); }
             var browser = builder.Resources.SelectMany(r => r.Annotations.OfType<BrainBrowserAnnotation>()
@@ -154,35 +172,28 @@ public sealed class AspireTestSession : IAsyncDisposable
                 if (!browser[0].Path.StartsWith('/') || browser[0].Path.StartsWith("//", StringComparison.Ordinal)
                     || browser[0].Path.Contains('\\'))
                 { throw new InvalidOperationException("Browser navigation must be relative to the advertised endpoint."); }
+                // The session's kernel URL rides in the page address, so concurrent hosts
+                // never share served state and the compiled bundle stays session-agnostic.
                 session.BrowserEndpoint = new Uri(app.GetEndpoint(browser[0].Name, browser[0].Endpoint), browser[0].Path);
                 session.BrowserReadySelector = browser[0].ReadySelector;
             }
-            stage = "client";
+            Advance("client");
             await session.ConnectAsync(ct).ConfigureAwait(false);
             lifetime.Own("client", new AsyncAction(session.ReleaseClientAsync));
             session.HttpClient = app.CreateHttpClient(selectedHost.Name, SiloHosts.HttpEndpointName);
             lifetime.Own("http", new AsyncAction(() => { session.HttpClient.Dispose(); return ValueTask.CompletedTask; }));
-            if (session.BrowserEndpoint is not null
-                && options.ResourceEnvironment.ContainsKey("DigitalBrain__Testing__ReferenceComposition"))
+            if (session.BrowserEndpoint is { } pageAddress)
             {
-                stage = "reference-browser-bundle";
-                // Sequential suites reuse Flutter's build directory. A cached bundle can answer
-                // health probes while still targeting the previous suite's now-stopped runtime.
-                using var probe = new HttpClient();
-                var runtimeEndpoint = session.HttpClient.BaseAddress!.GetLeftPart(UriPartial.Authority);
-                while (true)
-                {
-                    using var response = await probe.GetAsync(new Uri(session.BrowserEndpoint, "/main.dart.js"), ct).ConfigureAwait(false);
-                    if (response.IsSuccessStatusCode
-                        && (await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false)).Contains(runtimeEndpoint, StringComparison.Ordinal))
-                    { break; }
-                    await Task.Delay(TimeSpan.FromSeconds(1), ct).ConfigureAwait(false);
-                }
+                var uiBase = Uri.EscapeDataString(session.HttpClient.BaseAddress!.GetLeftPart(UriPartial.Authority) + "/");
+                session.BrowserEndpoint = new Uri(pageAddress
+                    + (string.IsNullOrEmpty(pageAddress.Query) ? "?" : "&") + "uiBase=" + uiBase);
             }
+            Console.WriteLine($"[aspire-boot] {stage}: {stageWatch.Elapsed.TotalSeconds:F1}s; total {bootWatch.Elapsed.TotalSeconds:F1}s");
             return session;
         }
         catch (Exception error)
         {
+            Console.WriteLine($"[aspire-boot] failed in {stage} after {stageWatch.Elapsed.TotalSeconds:F1}s; total {bootWatch.Elapsed.TotalSeconds:F1}s");
             try { options.Diagnostics?.Invoke(new(stage, "Startup failed; releasing owned resources.")); } catch { }
             try { await lifetime.DisposeAsync().ConfigureAwait(false); }
             catch (Exception cleanup) { throw new AggregateException($"Startup failed at '{stage}' and rollback failed.", error, cleanup); }

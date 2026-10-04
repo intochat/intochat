@@ -16,17 +16,21 @@ public static class E2ETest
         options.Validate();
         var browser = Resolve(browserOptions);
         var identity = NewIdentity();
-        var args = ComposeHostArguments(optionOverrides, identity);
+        var args = ComposeHostArguments(optionOverrides, identity, options.HostConfiguration);
         var session = await AspireTestSession.StartAsync<TAppHost>(args, WithArtifacts(options, identity), cancellationToken).ConfigureAwait(false);
         return await ReadyAsync(new E2EBrain(session, browser), brain => brain.StartBrowserAsync(cancellationToken)).ConfigureAwait(false);
     }
 
-    private static IReadOnlyList<string> ComposeHostArguments(IReadOnlyDictionary<string, string?> optionOverrides, string identity)
+    private static IReadOnlyList<string> ComposeHostArguments(IReadOnlyDictionary<string, string?> optionOverrides, string identity,
+        IReadOnlyDictionary<string, string?> hostConfiguration)
         =>
         [
             $"{DigitalBrainHostingNames.PersistentStorageKey}=false",
             $"Orleans:ClusterId={identity}",
             .. optionOverrides.Select(pair => $"{pair.Key}={pair.Value}"),
+            // Arguments reach the AppHost builder before its program composes modules; adding to
+            // builder.Configuration afterwards would miss hosting-layer binds like the Flutter host.
+            .. hostConfiguration.Select(pair => $"{pair.Key}={pair.Value}"),
         ];
 
     internal static async Task<E2EBrain> StartModulesAsync(IReadOnlyList<ModuleDefinition> modules,

@@ -30,10 +30,14 @@ public class ReferenceBrainFixture : SharedBrainFixture, IAsyncLifetime
         => ReferenceBrain.Create()
             .ConfigureModule<AIModule, AIOptions>(ai => ai.WithModelEndpoint(AiProvider.OpenAI, Model.Endpoint))
             .ConfigureModule<FlutterModule, FlutterModuleOptions>(flutter => flutter.RunWebApp())
+            // The baked-bundle container: concurrent fixtures must not share flutter's mutable
+            // build directory, which the dev web server does.
+            .WithHostConfiguration("DigitalBrain:Flutter:Hosting:WebContainer", "true")
             .WithBrowser(new() { PrimarySession = false, AssertionTimeout = TimeSpan.FromMinutes(2) })
-            // The one shared boot compiles the web shell; a cold CI runner needs well over the
-            // default three minutes.
-            .WithStartupTimeout(TimeSpan.FromMinutes(20))
+            // A warm boot serves the content-tagged shell image in seconds; fifteen minutes
+            // covers a cold runner's one-time in-docker Flutter compile and container pulls.
+            // A boot that needs longer is starved or broken - fail it and say so.
+            .WithStartupTimeout(TimeSpan.FromMinutes(15))
             .WithResourceEnvironment(new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 ["OTEL_EXPORTER_OTLP_ENDPOINT"] = Collector.Endpoint.AbsoluteUri,
