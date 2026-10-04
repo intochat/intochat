@@ -9,8 +9,8 @@
     <EmbeddedResource Include="../Apps/**/*" LogicalName="DigitalBrain.OS.Apps/%(RecursiveDir)%(Filename)%(Extension)" Link="Apps/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="IntoChat.Tests.E2E" />
-    <InternalsVisibleTo Include="IntoChat.Tests.Unit" />
+    <InternalsVisibleTo Include="DigitalBrain.OS.Tests.E2E" />
+    <InternalsVisibleTo Include="DigitalBrain.OS.Tests.Unit" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../../Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />

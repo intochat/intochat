@@ -11,9 +11,9 @@ using DigitalBrain.Qdrant;
 using DigitalBrain.Salesforce;
 using DigitalBrain.Supabase;
 
-namespace IntoChat.Tests.E2E;
+namespace DigitalBrain.OS.Tests.E2E;
 
-internal static class IntoChatE2ETest
+internal static class ProductE2E
 {
     // Port 1 is deliberately unserved: unused provider calls fail instead of reaching live services.
     private static readonly Uri UnconfiguredProvider = new("http://127.0.0.1:1/");

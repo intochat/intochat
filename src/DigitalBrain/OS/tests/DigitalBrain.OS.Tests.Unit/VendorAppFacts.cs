@@ -1,9 +1,9 @@
 using DigitalBrain.Apps;
 
-namespace IntoChat.Tests.Unit.ShippedApps;
+namespace DigitalBrain.OS.Tests.Unit;
 
 // Package scenarios execute through their tests.cs publish gate.
-public sealed class ShippedAppFacts
+public sealed class VendorAppFacts
 {
     private static string FindRepositoryRoot()
     {

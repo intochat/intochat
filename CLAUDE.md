@@ -97,7 +97,7 @@ renderable palette v1 / UiPart; run-token tightening.
   Run module E2E suites alongside their module's unit suite; compile live-gated scenarios when
   their credentials are unavailable. IntoChat E2E contains composition, shipped-content routes,
   and the live-gated product golden journeys only. The former 18-minute monolith is dissolved.
-- `src/IntoChat/tests/IntoChat.Tests.Unit` covers host composition and wiring; module behavior
+- `src/DigitalBrain/OS/tests/DigitalBrain.OS.Tests.Unit` covers host composition and wiring; module behavior
   belongs in the module's test project. Packaging manifests are checked as one parsed module set.
 - Flutter shell: `flutter analyze` and `flutter test` from `src/Modules/Google/Flutter/app/shell`.
   Wire-shape changes in C# records must be mirrored in the Dart screens in the same change.

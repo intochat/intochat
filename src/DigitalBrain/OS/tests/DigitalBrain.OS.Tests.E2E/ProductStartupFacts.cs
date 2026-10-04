@@ -1,7 +1,7 @@
 using DigitalBrain.Flutter;
-namespace IntoChat.Tests.E2E.Composition;
+namespace DigitalBrain.OS.Tests.E2E;
 
-public sealed class ApplicationStartupFacts(IntoChatHostFixture host)
+public sealed class ProductStartupFacts(ProductHostFixture host)
 {
     [Fact]
     public async Task IntoChatHealthReturnsOk()

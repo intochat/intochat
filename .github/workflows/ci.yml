@@ -78,7 +78,8 @@ jobs:
   dotnet-e2e:
     name: 'E2E: ${{ matrix.suite }}'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The os suite runs the reference-brain facts and the product-host facts in one serial assembly.
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -88,9 +89,6 @@ jobs:
             browser: true
           - suite: os
             project: src/DigitalBrain/OS/tests/DigitalBrain.OS.Tests.E2E
-            browser: true
-          - suite: intochat
-            project: src/IntoChat/tests/IntoChat.Tests.E2E
             browser: true
           - suite: aspire-hosting
             project: src/Aspire/tests/DigitalBrain.Aspire.Hosting.Tests.E2E

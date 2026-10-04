@@ -3,7 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace IntoChat.Tests.Unit;
+namespace DigitalBrain.OS.Tests.Unit;
 
 // Branding is configuration, so these facts pin the host's config to the sections the modules
 // actually bind: AssistantModule reads the top-level "Assistant" section, FlutterModule binds

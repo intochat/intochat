@@ -11,7 +11,7 @@ using DigitalBrain.Supabase.Tables;
 using DigitalBrain.Testing.E2E;
 using Npgsql;
 
-namespace IntoChat.Tests.E2E.Agent;
+namespace DigitalBrain.OS.Tests.E2E;
 
 // Golden journeys J1 and J2a from the product spec section 10, run against a live model. The suite
 // is gated by DIGITALBRAIN_E2E_LIVE_MODEL (gate G-7): without the flag and an API key it skips
@@ -103,7 +103,7 @@ public sealed class GoldenJourneyFacts
         var key = Environment.GetEnvironmentVariable("DIGITALBRAIN_E2E_MODEL_API_KEY");
         Assert.False(string.IsNullOrWhiteSpace(key), "Live model verification requires DIGITALBRAIN_E2E_MODEL_API_KEY.");
         var endpoint = new Uri(Environment.GetEnvironmentVariable("DIGITALBRAIN_E2E_MODEL_ENDPOINT") ?? "https://api.openai.com/v1/");
-        return await IntoChatE2ETest.Create(key!)
+        return await ProductE2E.Create(key!)
             .ConfigureModule<AIModule, AIOptions>(ai => ai.WithModelEndpoint(AiProvider.OpenAI, endpoint))
             .StartAsync(ct);
     }

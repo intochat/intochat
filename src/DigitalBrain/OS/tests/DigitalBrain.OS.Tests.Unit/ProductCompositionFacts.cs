@@ -5,11 +5,11 @@ using Aspire.Hosting.Testing;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Testing.E2E;
 
-namespace IntoChat.Tests.Unit;
+namespace DigitalBrain.OS.Tests.Unit;
 
 // Builds the real AppHost model without starting any resource. The CSharp module owns
 // compilation and authoring; the product uses the same connector set as the reference composition.
-public sealed class CompositionFacts
+public sealed class ProductCompositionFacts
 {
     // The hosting assemblies all sit in this test's output (via the AppHost reference), so a
     // [ModuleHosting] string that resolves to null here is a stale attribute, not an absent

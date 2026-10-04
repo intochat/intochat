@@ -1,16 +1,16 @@
 using System.Net;
 using System.Text.Json;
 
-namespace IntoChat.Tests.E2E.Apps;
+namespace DigitalBrain.OS.Tests.E2E;
 
 // The built-in assistant and settings are plain neurons that every IntoChat host serves.
-public sealed class BuiltInAppRoutesFacts(IntoChatHostFixture host) : BrainFact(host)
+public sealed class BuiltInAppRoutesFacts(ProductHostFixture host) : BrainFact(host)
 {
     [Fact(Timeout = 2_100_000)]
     public async Task InstalledCustomerResearcherOpensThroughTheGenericRouteInItsBrain()
     {
         var ct = TestContext.Current.CancellationToken;
-        await IntoChatE2ETest.WaitUntilShippedAsync(Brain, "intochat/customer-researcher", ct, TimeSpan.FromMinutes(30));
+        await ProductE2E.WaitUntilShippedAsync(Brain, "intochat/customer-researcher", ct, TimeSpan.FromMinutes(30));
         using var person = await People.SignedIn(Brain.HttpClient, "app-open-" + Guid.NewGuid().ToString("N"), ct);
         var scope = "/brains/" + person.Workspace;
         await People.Send(person.Client, HttpMethod.Post, scope + "/packages/intochat/customer-researcher", new { }, ct);
@@ -34,7 +34,7 @@ public sealed class BuiltInAppRoutesFacts(IntoChatHostFixture host) : BrainFact(
         var brain = Brain;
         // Settings installs from the shipped package; its verification runs in the background
         // since the host booted and on a cold CI sandbox takes most of this fact's budget.
-        await IntoChatE2ETest.WaitUntilShippedAsync(brain, "os/settings", ct, TimeSpan.FromMinutes(30));
+        await ProductE2E.WaitUntilShippedAsync(brain, "os/settings", ct, TimeSpan.FromMinutes(30));
 
         using var activated = await brain.HttpClient.PostAsync("/brains/personal/built-in/activate", null, ct);
         using var settings = await brain.HttpClient.PostAsync("/brains/personal/built-in/settings/open", null, ct);

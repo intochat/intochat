@@ -63,12 +63,6 @@
   <Folder Name="/DigitalBrain/Sdk/tests/">
     <Project Path="src/DigitalBrain/Sdk/tests/DigitalBrain.Sdk.Tests.Unit/DigitalBrain.Sdk.Tests.Unit.csproj" />
   </Folder>
-  <Folder Name="/IntoChat/">
-  </Folder>
-  <Folder Name="/IntoChat/tests/">
-    <Project Path="src/IntoChat/tests/IntoChat.Tests.E2E/IntoChat.Tests.E2E.csproj" />
-    <Project Path="src/IntoChat/tests/IntoChat.Tests.Unit/IntoChat.Tests.Unit.csproj" />
-  </Folder>
   <Folder Name="/Modules/" />
   <Folder Name="/Modules/AI/">
     <Project Path="src/Modules/AI/DigitalBrain.Modules.AI.Aspire.Hosting/DigitalBrain.Modules.AI.Aspire.Hosting.csproj" />
