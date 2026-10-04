@@ -53,20 +53,20 @@ public sealed class CompositionBoundaryFacts
     [Fact]
     public void DuplicateRegistrationIsRejected()
     {
-        var server = new DigitalBrainServerBuilder().AddModule<StatefulModule>("module");
-        Assert.Throws<InvalidOperationException>(() => server.AddModule<StatefulModule>("module"));
+        var server = new DigitalBrainServerBuilder().AddModule<StatefulModule>();
+        Assert.Throws<InvalidOperationException>(server.AddModule<StatefulModule>);
     }
 
     [Fact]
     public async Task SiloAndHttpConfigurationUseTheSameInstanceAndUnselectedFactoriesDoNotRun()
     {
         var builder = WebApplication.CreateBuilder();
-        builder.Configuration["DigitalBrain:Modules:module:Enabled"] = "true";
+        builder.Configuration["DigitalBrain:Modules:unused:Enabled"] = "false";
         var instance = new StatefulModule();
         var created = 0;
         builder.AddDigitalBrainServer(server => server
             .AddModule("module", () => { created++; return instance; })
-            .AddModule("unused", () => throw new InvalidOperationException("Not selected")));
+            .AddModule("unused", () => throw new InvalidOperationException("Disabled")));
         await using var app = builder.Build();
         app.MapDigitalBrainModules();
         Assert.Equal(1, created);

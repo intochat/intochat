@@ -4,6 +4,7 @@
     <PackageReference Include="Microsoft.Orleans.Sdk" />
     <ProjectReference Include="../../../Testing/DigitalBrain.Testing.Module/DigitalBrain.Testing.Module.csproj" />
     <ProjectReference Include="../../DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />
     <None Update="Identity/LegacyState/*.orleans" CopyToOutputDirectory="PreserveNewest" />
     <ProjectReference Include="../../../Modules/Postgres/DigitalBrain.Modules.Postgres.Aspire.Hosting/DigitalBrain.Modules.Postgres.Aspire.Hosting.csproj" />
     <ProjectReference Include="../../../Modules/Postgres/DigitalBrain.Modules.Postgres/DigitalBrain.Modules.Postgres.csproj" />

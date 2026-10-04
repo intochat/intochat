@@ -9,8 +9,15 @@ public sealed class DigitalBrainServerBuilder
     private readonly List<Action<IServiceCollection>> _serviceActions = [];
     internal bool AzureStorage { get; private set; }
     internal bool Dashboard { get; private set; }
-    public DigitalBrainServerBuilder AddModule<TModule>(string id) where TModule : class, IModule, new()
-        => AddModule(id, static () => new TModule());
+    public DigitalBrainServerBuilder AddModule<TModule>() where TModule : class, IModule, new()
+        => AddModule(typeof(TModule));
+    public DigitalBrainServerBuilder AddModule(Type moduleType)
+    {
+        ArgumentNullException.ThrowIfNull(moduleType);
+        if (!typeof(IModule).IsAssignableFrom(moduleType) || moduleType.IsAbstract || moduleType.GetConstructor(Type.EmptyTypes) is null)
+        { throw new ArgumentException("Select a concrete module with a public parameterless constructor.", nameof(moduleType)); }
+        return AddModule(Contracts.ModuleIdentity.Get(moduleType), () => (IModule)Activator.CreateInstance(moduleType)!);
+    }
     public DigitalBrainServerBuilder AddModule(string id, Func<IModule> create)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -34,15 +41,19 @@ public sealed class DigitalBrainServerBuilder
 
     public DigitalBrainServerBuilder UseAzureStorage() { AzureStorage = true; return this; }
     public DigitalBrainServerBuilder WithDashboard() { Dashboard = true; return this; }
+    // Registered modules run; configuration can only subtract (Enabled=false) — and a
+    // configuration that affirms a module this server never registered is a deployment bug.
     internal IModule[] SelectModules(IConfiguration configuration)
     {
-        var ids = configuration.GetSection("DigitalBrain:Modules").GetChildren()
-            .Where(section => section.GetValue<bool>("Enabled")).Select(section => section.Key).ToArray();
-        foreach (var id in ids)
+        var sections = configuration.GetSection("DigitalBrain:Modules").GetChildren().ToArray();
+        foreach (var section in sections)
         {
-            if (!_modules.ContainsKey(id))
-            { throw new InvalidOperationException($"Selected module '{id}' is not registered in this server."); }
+            if (section.GetValue<bool?>("Enabled") == true && !_modules.ContainsKey(section.Key))
+            { throw new InvalidOperationException($"Selected module '{section.Key}' is not registered in this server."); }
         }
-        return ids.Select(id => _modules[id]() ?? throw new InvalidOperationException($"Factory for '{id}' returned null.")).ToArray();
+        var disabled = sections.Where(section => section.GetValue<bool?>("Enabled") == false)
+            .Select(section => section.Key).ToHashSet(StringComparer.Ordinal);
+        return _modules.Where(pair => !disabled.Contains(pair.Key))
+            .Select(pair => pair.Value() ?? throw new InvalidOperationException($"Factory for '{pair.Key}' returned null.")).ToArray();
     }
 }
