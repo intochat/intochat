@@ -25,8 +25,8 @@ public static class E2ETest
         IReadOnlyDictionary<string, string?> hostConfiguration)
         =>
         [
-            $"{DigitalBrainHostingNames.PersistentStorageKey}=false",
-            $"Orleans:ClusterId={identity}",
+            $"{DigitalBrainHostingOptions.PersistentStorageKey}=false",
+            $"{DigitalBrainHostingOptions.ClusterIdKey}={identity}",
             .. optionOverrides.Select(pair => $"{pair.Key}={pair.Value}"),
             // Arguments reach the AppHost builder before its program composes modules; adding to
             // builder.Configuration afterwards would miss hosting-layer binds like the Flutter host.

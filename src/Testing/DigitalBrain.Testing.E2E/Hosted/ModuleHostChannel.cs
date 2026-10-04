@@ -10,8 +10,6 @@ internal static class ModuleHostChannel
     public const string ModuleTypesKey = "DigitalBrain:Testing:ModuleTypes";
     public const string ReferenceCompositionKey = "DigitalBrain:Testing:ReferenceComposition";
 
-    public static string EnvironmentName(string key) => key.Replace(":", "__", StringComparison.Ordinal);
-
     public static string SerializeModules(IEnumerable<Kernel.ModuleDefinition> modules)
         => System.Text.Json.JsonSerializer.Serialize(modules.Select(module => module.ModuleType.AssemblyQualifiedName));
 

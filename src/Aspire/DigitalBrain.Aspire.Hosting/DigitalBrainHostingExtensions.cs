@@ -24,8 +24,8 @@ public static class DigitalBrainHostingExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         options ??= new();
-        var persist = options.PersistentStorage && builder.Configuration.GetValue(DigitalBrainHostingNames.PersistentStorageKey, true);
-        var resolvedServiceId = options.ServiceId ?? builder.Configuration["Orleans:ServiceId"] ?? name;
+        var persist = options.PersistentStorage && builder.Configuration.GetValue(DigitalBrainHostingOptions.PersistentStorageKey, true);
+        var resolvedServiceId = options.ServiceId ?? builder.Configuration[DigitalBrainHostingOptions.ServiceIdKey] ?? name;
         ArgumentException.ThrowIfNullOrWhiteSpace(resolvedServiceId);
 
         var resource = builder.AddResource(new DigitalBrainResource(name))
@@ -38,7 +38,7 @@ public static class DigitalBrainHostingExtensions
                 Properties = [new(CustomResourceKnownProperties.Source, "DigitalBrain modules")],
             });
         // Cluster membership may change between runs; persistence identity must not.
-        var clusterId = options.ClusterId ?? builder.Configuration["Orleans:ClusterId"]
+        var clusterId = options.ClusterId ?? builder.Configuration[DigitalBrainHostingOptions.ClusterIdKey]
             ?? (builder.Environment.IsDevelopment() ? $"digitalbrain-{Guid.NewGuid():N}" : resolvedServiceId);
         ArgumentException.ThrowIfNullOrWhiteSpace(clusterId);
         var orleans = builder
@@ -115,7 +115,7 @@ public static class DigitalBrainHostingExtensions
         brain.Identity?.Apply(builder);
 
         foreach (var pair in brain.Settings)
-        { builder.WithEnvironment(pair.Key.Replace(":", "__", StringComparison.Ordinal), pair.Value ?? ""); }
+        { builder.WithEnvironment(EnvironmentKeys.For(pair.Key), pair.Value ?? ""); }
 
         WaitUntilHealthy(builder, brain.StartupDependencies);
 

@@ -112,7 +112,7 @@ public sealed class DeploymentIdentityFacts
     public void ClusterChangesDoNotMovePersistentState()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        builder.Configuration["Orleans:ClusterId"] = "new-run";
+        builder.Configuration[DigitalBrainHostingOptions.ClusterIdKey] = "new-run";
         var brain = builder.AddDigitalBrain("renamed-resource", new DigitalBrainHostingOptions { ServiceId = "existing-data" });
         Assert.Equal("existing-data", brain.ServiceId);
         Assert.Equal("new-run", brain.ClusterId);

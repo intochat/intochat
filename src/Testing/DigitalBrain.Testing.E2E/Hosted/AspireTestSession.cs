@@ -122,7 +122,7 @@ public sealed class AspireTestSession : IAsyncDisposable
                 resource.Annotations.Add(new EnvironmentCallbackAnnotation(context =>
                 {
                     foreach (var (key, value) in TestLogging.QuietDefaults)
-                    { context.EnvironmentVariables[key.Replace(":", "__")] = value!; }
+                    { context.EnvironmentVariables[DigitalBrain.Aspire.Hosting.EnvironmentKeys.For(key)] = value!; }
                 }));
             }
             foreach (var resource in hosts)

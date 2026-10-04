@@ -48,7 +48,7 @@ public static class SalesforceHostingExtensions
                 .WithDescription(
                     "Consumer key (client ID) from your existing Salesforce "
                     + "[External Client App](https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/create-external-client-app.html). "
-                    + "Register http://localhost:5080/integrations/salesforce/callback, enable PKCE and JWT access tokens, and allow mcp_api and refresh_token.",
+                    + "Register <your deployment origin>/integrations/salesforce/callback, enable PKCE and JWT access tokens, and allow mcp_api and refresh_token.",
                     enableMarkdown: true)
                 .WithParentRelationship(module);
             _consumerSecret ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("salesforce-consumer-secret"), secret: true)

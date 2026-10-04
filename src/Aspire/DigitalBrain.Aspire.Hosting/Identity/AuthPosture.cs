@@ -19,6 +19,6 @@ internal static class AuthPosture
     private sealed class Projection(string posture) : DigitalBrainModuleProjection
     {
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
-            => builder.WithEnvironment(Key.Replace(":", "__", StringComparison.Ordinal), posture);
+            => builder.WithEnvironment(EnvironmentKeys.For(Key), posture);
     }
 }

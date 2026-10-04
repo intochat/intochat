@@ -30,7 +30,7 @@ internal static class HttpIdentityProjection
             (nameof(IdentityHostOptions.ProtectionContainerName), identity.ProtectionContainerName),
         })
         {
-            resource.WithEnvironment(IdentityHostOptions.Key(name).Replace(":", "__", StringComparison.Ordinal), value);
+            resource.WithEnvironment(EnvironmentKeys.For(IdentityHostOptions.Key(name)), value);
         }
     }
 }
