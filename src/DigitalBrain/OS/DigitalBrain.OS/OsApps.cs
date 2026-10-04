@@ -16,10 +16,29 @@ namespace DigitalBrain.OS;
 public sealed class OsAppsOptions
 {
     public IList<string> Apps { get; } = [];
+
+    // New package id -> the legacy id it replaces; the boot loop uninstalls the legacy app
+    // once its replacement is installed.
+    public IDictionary<string, string> Replaces { get; } = new Dictionary<string, string>();
 }
 
 public static class OsAppsHosting
 {
+    // The operating system names and ships its own apps; a distribution's configure only adds.
+    public static IServiceCollection AddOperatingSystemApps(this IServiceCollection services, Action<OsAppsOptions>? configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.AddShippedApps(typeof(OsCatalog).Assembly, "DigitalBrain.OS.Apps/", publisher: "os");
+        services.Configure<OsAppsOptions>(os =>
+        {
+            os.Apps.Add("os/settings");
+            os.Apps.Add("os/assistant");
+            os.Replaces["os/settings"] = "intochat/settings";
+        });
+        services.Configure<BuiltInSettingsOptions>(options => options.Package ??= PackageId.Create("os", "settings"));
+        return services.AddOperatingSystemBoot(configure);
+    }
+
     public static IServiceCollection AddOperatingSystemBoot(this IServiceCollection services, Action<OsAppsOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);

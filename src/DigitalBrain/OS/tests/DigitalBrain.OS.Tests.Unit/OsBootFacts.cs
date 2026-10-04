@@ -62,6 +62,53 @@ public sealed class OsBootFacts
         Assert.Equal(AppStatus.Installed, upgraded.Status);
     }
 
+    [Fact(Timeout = 60_000)]
+    public async Task AnUnpublishedOsAppIsSkippedAndPickedUpOnTheNextActivation()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var hello = PackageId.Create("os", "hello");
+        var later = PackageId.Create("os", "later");
+        await using var brain = await ModuleTest.Create()
+            .WithModule<AppsModule>()
+            .ConfigureSilo(silo => silo.Services.AddOperatingSystemBoot(os =>
+            {
+                os.Apps.Add(hello.ToString());
+                os.Apps.Add(later.ToString());
+            }))
+            .StartAsync(ct);
+
+        Stamp("os");
+        await brain.AuthorizeCallerAsync();
+        var content = new PackageContent(new("Hello", "Shows hello world", [new("open", "Open")], [], Runtime: "prompt"), "");
+        var published = await brain.Get<IPackage>(hello.ToString()).Commit(new(Guid.NewGuid(), null, content, "Initial"));
+        await brain.Get<IPackage>(hello.ToString()).Publish(new(Guid.NewGuid(), published.Id));
+
+        var scope = BrainScope.Create("acct", "home").Id;
+        StampBrainOwner();
+        await brain.AuthorizeCallerAsync();
+        var neuron = brain.Get<IBrain>(scope);
+        await neuron.Establish(new("home", "acct"));
+        await WaitForAsync(brain.Get<IApp>(scope + "/packages/" + hello), snapshot => snapshot.Status == AppStatus.Installed, ct);
+        Assert.Equal(AppStatus.NotInstalled, (await brain.Get<IApp>(scope + "/packages/" + later).Read()).Status);
+
+        Stamp("os");
+        var laterRevision = await brain.Get<IPackage>(later.ToString()).Commit(new(Guid.NewGuid(), null, content, "Initial"));
+        await brain.Get<IPackage>(later.ToString()).Publish(new(Guid.NewGuid(), laterRevision.Id));
+        StampBrainOwner();
+        await brain.DeactivateAsync(neuron, ct);
+        await neuron.Read();
+        await WaitForAsync(brain.Get<IApp>(scope + "/packages/" + later), snapshot => snapshot.Status == AppStatus.Installed, ct);
+    }
+
+    private static void StampBrainOwner() => CallerContextStamper.Stamp(new()
+    {
+        PrincipalId = "acct",
+        AccountId = "acct",
+        BrainId = "home",
+        Kind = CallerKind.User,
+        StampedBy = TrustedEdge.AuthenticatedHttp,
+    });
+
     // The boot behavior reacts to a signal, so the facts wait for the state it converges on.
     private static async Task<AppSnapshot> WaitForAsync(IApp app, Func<AppSnapshot, bool> done, CancellationToken ct)
     {

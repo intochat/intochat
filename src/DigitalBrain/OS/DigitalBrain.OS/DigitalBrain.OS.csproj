@@ -4,6 +4,9 @@
     <Description>The operating system: the named module composition and the boot behavior that starts the OS apps when a brain activates.</Description>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="../Apps/**/*" LogicalName="DigitalBrain.OS.Apps/%(RecursiveDir)%(Filename)%(Extension)" Link="Apps/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../../Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />
     <ProjectReference Include="../../Kernel/DigitalBrain.Kernel/DigitalBrain.Kernel.csproj" />
   </ItemGroup>
