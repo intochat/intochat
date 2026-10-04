@@ -77,8 +77,8 @@ app.authoring.json optional stable scenario IDs and scenario-to-source associati
   A module declares `IModule<TOptions>`: options are ordinary configuration — code-declared values
   compile to flat keys under `DigitalBrain:Modules:{Name}:Options:{Property}`, so the AppHost's own
   configuration (args, env, files) overrides any option by standard precedence and tests need no
-  side channel; `Validate()` runs at compile and at bind; no secrets in options (credential-shaped
-  names are refused at compile). Modules also ship `IntegrationDefinition`s; their registrations are deployment-scoped
+  side channel; `Validate()` runs at compile and at bind; no secrets in options — credentials
+  belong to the integrations registration (a design rule, reviewed, not name-sniffed). Modules also ship `IntegrationDefinition`s; their registrations are deployment-scoped
   `[PlatformOnly]` neurons seeded from `DigitalBrain:Integrations:{id}:{Field}` (catalog:
   `GET /integrations`). A user's connectors are integration accounts, per brain, under
   `/brains/{id}/integrations/accounts`.

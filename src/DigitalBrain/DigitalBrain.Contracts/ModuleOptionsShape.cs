@@ -2,19 +2,20 @@ using System.Reflection;
 using System.Text.Json.Serialization;
 namespace DigitalBrain.Contracts;
 
+// Module options are plain configuration, projected as env a dashboard can show. Secrets belong
+// to the integrations registration — a design rule the integration contracts carry, not a name
+// heuristic this type could guess at.
 public static class ModuleOptionsShape
 {
     public static void Validate<T>()
     {
         foreach (var property in typeof(T).GetProperties())
         {
-            var name = property.Name;
-            if (name.Contains("Secret", StringComparison.OrdinalIgnoreCase)
-                || new[] { "Password", "ApiKey", "PrivateKeyPem", "AccessToken", "RefreshToken" }.Any(suffix => name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)))
-            { throw new ArgumentException($"{typeof(T).Name}.{name} looks like a credential; credentials belong to the integrations registration, not module options."); }
+            // A writable property the serializer skips would silently drop configuration on the
+            // flatten/bind round trip.
             if (property.SetMethod is { IsPublic: true }
                 && property.GetCustomAttribute<JsonIgnoreAttribute>() is { Condition: not JsonIgnoreCondition.Never })
-            { throw new ArgumentException($"{typeof(T).Name}.{name} is writable but excluded from module options serialization."); }
+            { throw new ArgumentException($"{typeof(T).Name}.{property.Name} is writable but excluded from module options serialization."); }
         }
     }
 }
