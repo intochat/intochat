@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 #
-# Hosted product kernel image.
+# The operating system image.
 # Production pushes use SDK PublishContainer from .github/workflows/deploy.yml (single
 # digitalbrain-kernel image). This Dockerfile is the local/smoke equivalent and must stay in
 # step with the product AppHost profile.
@@ -43,7 +43,6 @@ COPY src/IntoChat/Apps /app/shipped/intochat
 ENV ASPNETCORE_ENVIRONMENT=Production \
     ASPNETCORE_URLS=http://0.0.0.0:8080 \
     DOTNET_EnableDiagnostics=0 \
-    IntoChat__Hosted__Enabled=true \
     DigitalBrain__Standalone=true \
     DigitalBrain__ShippedApps__intochat__Path=/app/shipped/intochat
 

@@ -14,8 +14,10 @@ public sealed class DeploymentIdentityFacts
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
         builder.Configuration["DigitalBrain:Identity:CookieName"] = "custom.session";
+        builder.Configuration["DigitalBrain:Identity:ProtectionApplicationName"] = "IntoChat.v1";
+        builder.Configuration["DigitalBrain:Identity:ProtectionContainerName"] = "intochat-protection-v1";
         var brain = builder.AddDigitalBrain("memory", options: new() { UseAzureStorage = true })
-            .WithHttpIdentity(new("intochat.session", "IntoChat.v1", "intochat-protection-v1"));
+            .WithHttpIdentity();
         var server = builder.AddExecutable("server", "unused", ".").WithReference(brain);
         var client = builder.AddExecutable("mcp", "unused", ".").WithReference(brain.AsClient(shareHttpIdentity: true));
         foreach (var resource in new[] { server.Resource, client.Resource })

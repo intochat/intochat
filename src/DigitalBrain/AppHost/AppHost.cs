@@ -22,11 +22,10 @@ using DigitalBrain.Salesforce;
 using DigitalBrain.Salesforce.Aspire.Hosting;
 using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Aspire.Hosting;
-using IntoChat;
 
 var builder = DistributedApplication.CreateBuilder(args);
 var digitalBrain = builder.AddDigitalBrain(ProductSurfaceResources.Modules, new DigitalBrainHostingOptions { ServiceId = "intochat", UseAzureStorage = true })
-    .WithHttpIdentity(new("intochat.session", "IntoChat.v1", IntoChatConfiguration.ProtectionContainerName))
+    .WithHttpIdentity()
     .WithHosting<AIModuleHosting, AIOptions>(ai =>
     {
         ai.WithLlm<IGpt56Luna>();
@@ -47,7 +46,7 @@ var digitalBrain = builder.AddDigitalBrain(ProductSurfaceResources.Modules, new 
     .WithHosting<CSharpModuleHosting>()
     .WithHosting<CSharpAuthoringModuleHosting>();
 
-var cookieProtection = digitalBrain.AddBlobContainer(IntoChatConfiguration.ProtectionContainerName);
+var cookieProtection = digitalBrain.AddBlobContainer(digitalBrain.Identity!.ProtectionContainerName);
 
 var intoChatApps = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "IntoChat", "Apps"));
 

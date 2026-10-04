@@ -26,5 +26,4 @@
   <ItemGroup>
     <ProjectReference Include="../../Modules/Postgres/DigitalBrain.Modules.Postgres.Aspire.Hosting/DigitalBrain.Modules.Postgres.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
   </ItemGroup>
-  <ItemGroup><Compile Include="../OS/DigitalBrain.OS/Configuration/IntoChatConfiguration.cs" Link="IntoChatConfiguration.cs" /></ItemGroup>
 </Project>
