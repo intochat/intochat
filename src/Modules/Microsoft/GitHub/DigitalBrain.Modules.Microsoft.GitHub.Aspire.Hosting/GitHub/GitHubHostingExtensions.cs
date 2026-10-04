@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using DigitalBrain.Platform.Contracts.Integrations;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
@@ -84,30 +85,30 @@ public static class GitHubHostingExtensions
             _webhookSecret ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName($"github-{id}-webhook-secret"), secret: true)
                 .WithDescription("GitHub webhook HMAC secret (at least 16 characters). Forward only /integrations/github/webhook through HTTPS.")
                 .WithParentRelationship(microsoft);
-            var root = $"DigitalBrain:Microsoft:GitHub:Repositories:{id}";
+            var root = $"{GitHubModuleOptions.RepositoriesSectionName}:{id}";
             builder
-                .WithEnvironment(EnvironmentKeys.For(root, "AppId"), appId.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                .WithEnvironment(EnvironmentKeys.For(root, "InstallationId"), installationId.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                .WithEnvironment(EnvironmentKeys.For(root, "RepositoryId"), repositoryId.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                .WithEnvironment(EnvironmentKeys.For(root, "RepoOwner"), repoOwner)
-                .WithEnvironment(EnvironmentKeys.For(root, "RepoName"), repoName)
-                .WithEnvironment(EnvironmentKeys.For(root, "EndpointId"), endpointId)
-                .WithEnvironment(EnvironmentKeys.For(root, "PrivateKeyPem"), _privateKey)
-                .WithEnvironment(EnvironmentKeys.For(root, "WebhookSecret"), _webhookSecret);
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "AppId"), appId.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "InstallationId"), installationId.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "RepositoryId"), repositoryId.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "RepoOwner"), repoOwner)
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "RepoName"), repoName)
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "EndpointId"), endpointId)
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "PrivateKeyPem"), _privateKey)
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "WebhookSecret"), _webhookSecret);
             if (SeedsIntegration)
             {
                 const string integrationRoot = IntegrationDefinition.SectionName + ":github";
                 builder
-                    .WithEnvironment(EnvironmentKeys.For(integrationRoot, "AppId"), appId.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                    .WithEnvironment(EnvironmentKeys.For(integrationRoot, "PrivateKeyPem"), _privateKey);
+                    .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(integrationRoot, "AppId"), appId.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                    .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(integrationRoot, "PrivateKeyPem"), _privateKey);
             }
             if (apiHost is not null)
             {
-                builder.WithEnvironment(EnvironmentKeys.For(root, "ApiHost"), apiHost.AbsoluteUri);
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "ApiHost"), apiHost.AbsoluteUri);
             }
             if (mcpEndpoint is not null)
             {
-                builder.WithEnvironment(EnvironmentKeys.For(root, "McpEndpoint"), mcpEndpoint.AbsoluteUri);
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "McpEndpoint"), mcpEndpoint.AbsoluteUri);
             }
         }
     }

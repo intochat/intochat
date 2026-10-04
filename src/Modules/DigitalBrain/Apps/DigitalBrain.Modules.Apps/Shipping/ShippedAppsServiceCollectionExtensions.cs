@@ -8,6 +8,9 @@ namespace DigitalBrain.Apps;
 public static class ShippedAppsServiceCollectionExtensions
 {
     public const string ConfigurationSection = "DigitalBrain:ShippedApps";
+    // The startup-shipping switch lives on the module's public surface so hosts and fixtures can
+    // name it; ShippedAppPublisher (internal) is its reader.
+    public const string ShipOnStartupKey = "DigitalBrain:Apps:ShipOnStartup";
 
     public static IServiceCollection AddShippedApps(this IServiceCollection services, Assembly assembly, string resourcePrefix, string publisher)
     {

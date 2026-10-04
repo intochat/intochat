@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Platform.Identity.Configuration;
@@ -30,7 +31,7 @@ internal static class HttpIdentityProjection
             (nameof(IdentityHostOptions.ProtectionContainerName), identity.ProtectionContainerName),
         })
         {
-            resource.WithEnvironment(EnvironmentKeys.For(IdentityHostOptions.Key(name)), value);
+            resource.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(IdentityHostOptions.Key(name)), value);
         }
     }
 }

@@ -27,7 +27,7 @@ internal static class ModuleHttpEdge
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             [DigitalBrainNames.MasterKeyConfigurationKey] = masterKey,
-            ["DigitalBrain:Auth:Posture"] = "Open",
+            [Platform.Identity.Configuration.AuthOptions.PostureKey] = nameof(Platform.Identity.Configuration.IdentityPosture.Open),
         });
         foreach (var definition in modules) { builder.Configuration.AddInMemoryCollection(definition.Configuration); }
         builder.Configuration.AddInMemoryCollection(options.Execution.PrivateConfiguration);

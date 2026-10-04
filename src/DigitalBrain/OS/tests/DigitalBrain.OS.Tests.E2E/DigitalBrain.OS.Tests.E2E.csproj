@@ -4,7 +4,7 @@
     <PackageReference Include="Microsoft.Playwright" />
     <ProjectReference Include="../../../../Testing/DigitalBrain.Testing.E2E/DigitalBrain.Testing.E2E.csproj" />
     <ProjectReference Include="../../DigitalBrain.OS/DigitalBrain.OS.csproj" />
-    <ProjectReference Include="../../../AppHost/DigitalBrain.AppHost.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="../../../AppHost/DigitalBrain.AppHost/DigitalBrain.AppHost.csproj" IsAspireProjectResource="false" />
     <None Update="testconfig.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -91,6 +91,6 @@ was absent from this checkout. `CLAUDE.md` supplied the four-word model and pers
 
 Both project test commands built successfully and passed against the local Aspire
 Postgres instance: Postgres 50/50 and CustomerResearcher 12/12, with no skipped tests.
-`aspire run --detach` from `src/DigitalBrain/AppHost` started successfully.
+`aspire run --detach` from `src/DigitalBrain/AppHost/DigitalBrain.AppHost` started successfully.
 All running resources reported Healthy. The configured sandbox, rebuild helpers,
 and Azure environment remained NotStarted.

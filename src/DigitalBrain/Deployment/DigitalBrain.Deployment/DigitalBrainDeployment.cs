@@ -19,6 +19,11 @@ namespace DigitalBrain.Deployment;
 public static class DigitalBrainDeployment
 {
     internal const string RuntimeHttpPort = "8080";
+    // The deployment decides where the runtime finds its vault; no runtime project reads the key,
+    // only the container images document it, so the deployment is the key's owner.
+    private static readonly string KeyVaultUriEnvironmentVariable =
+        Contracts.DigitalBrainConfiguration.EnvironmentName("DigitalBrain:KeyVault:Uri");
+
     private const string KeyVaultSecretsUser = "4633458b-17de-408a-b874-0445c86b69e6";
     private const string StorageBlobDataContributor = "ba92f5b4-2d11-453d-a403-e96b0029c9fe";
     private const string StorageTableDataContributor = "0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3";
@@ -75,7 +80,7 @@ public static class DigitalBrainDeployment
         var cloudOnlyEnvironment = new Dictionary<string, (Input<string> Value, bool Secret)>(StringComparer.Ordinal)
         {
             ["AZURE_CLIENT_ID"] = (foundation.RuntimeIdentityClientId, false),
-            ["DigitalBrain__KeyVault__Uri"] = (foundation.KeyVaultUri, false),
+            [KeyVaultUriEnvironmentVariable] = (foundation.KeyVaultUri, false),
             // A local manifest carries a throwaway cluster id; the cloud cluster keeps one across deployments.
             ["Orleans__ClusterId"] = (options.Name, false),
             ["Orleans__ServiceId"] = (options.Name, false),

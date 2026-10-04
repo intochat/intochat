@@ -30,4 +30,6 @@ public sealed class CSharpDeploymentSettings
     public string? RunTokenKey { get; set; }
     // Production: the Azure Container Apps session pool management endpoint. Set, it replaces the Aspire sandbox.
     public string? SessionPoolEndpoint { get; set; }
+    // Development: the allocated csharp-sandbox endpoint the AppHost projects for direct health probes.
+    public string? SandboxProbeUrl { get; set; }
 }

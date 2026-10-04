@@ -3,6 +3,7 @@ using DigitalBrain.AI.Interactions;
 using DigitalBrain.AI.Metering;
 using DigitalBrain.Compute;
 using DigitalBrain.Contracts;
+using DigitalBrain.Platform.Contracts.Integrations;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,11 +16,11 @@ namespace DigitalBrain.AI;
 
 internal static class AIClients
 {
-    internal const string ConfigurationRoot = "DigitalBrain:AI";
-    internal const string DefaultModelKey = $"{ConfigurationRoot}:Default:Model";
-    internal const string DefaultEmbeddingKey = $"{ConfigurationRoot}:Default:Embedding";
-    internal const string DefaultTranscriptionKey = $"{ConfigurationRoot}:Default:Transcription";
-    internal const string DefaultImageKey = $"{ConfigurationRoot}:Default:Image";
+    internal const string ConfigurationRoot = AIOptions.SectionName;
+    internal const string DefaultModelKey = AIOptions.DefaultModelKey;
+    internal const string DefaultEmbeddingKey = AIOptions.DefaultEmbeddingKey;
+    internal const string DefaultTranscriptionKey = AIOptions.DefaultTranscriptionKey;
+    internal const string DefaultImageKey = AIOptions.DefaultImageKey;
     private const string TelemetrySource = "DigitalBrain.AI";
 
     private static readonly IReadOnlyDictionary<AiProvider, ILlmProviderFactory> Factories =
@@ -156,7 +157,7 @@ internal static class AIClients
         => LLMModel.All.FirstOrDefault(model => Factories[model.Provider].IsConfigured(configuration, credentials))
             ?? throw new InvalidOperationException(
                 "No LLM provider is configured. Register a provider through POST /integrations/{id}/registration "
-                + $"(or seed just DigitalBrain:Integrations:openai:ApiKey; the endpoint defaults to the provider's hosted one), supply an Ollama endpoint, or pin {DefaultModelKey}.");
+                + $"(or seed just {IntegrationDefinition.Key(AiIntegrations.IdOf(AiProvider.OpenAI), AiIntegrations.ApiKeyField)}; the endpoint defaults to the provider's hosted one), supply an Ollama endpoint, or pin {DefaultModelKey}.");
 
     private static IEmbeddingGenerator<string, Embedding<float>> DefaultEmbeddingGenerator(IServiceProvider provider)
     {

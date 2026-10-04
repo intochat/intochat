@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using DigitalBrain.Platform.Contracts.Integrations;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
@@ -69,15 +70,15 @@ public static class GmailHostingExtensions
                 .WithParentRelationship(module);
 
             builder
-                .WithEnvironment(EnvironmentKeys.For(Root, "ClientId"), _clientId)
-                .WithEnvironment(EnvironmentKeys.For(Root, "ClientSecret"), _clientSecret);
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(Root, "ClientId"), _clientId)
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(Root, "ClientSecret"), _clientSecret);
             if (_publicOrigin is { } origin)
             {
-                builder.WithEnvironment(EnvironmentKeys.For(Root, "PublicOrigin"), origin.AbsoluteUri);
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(Root, "PublicOrigin"), origin.AbsoluteUri);
             }
             else
             {
-                builder.WithEnvironment(EnvironmentKeys.For(Root, "PublicOrigin"), builder.GetEndpoint("http"));
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(Root, "PublicOrigin"), builder.GetEndpoint("http"));
             }
         }
     }

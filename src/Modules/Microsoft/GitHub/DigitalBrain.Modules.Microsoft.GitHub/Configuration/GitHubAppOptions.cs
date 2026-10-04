@@ -3,7 +3,7 @@ namespace DigitalBrain.Microsoft.GitHub;
 // Contains credentials. Do not serialize or log this options instance.
 public sealed class GitHubAppOptions
 {
-    public const string SectionName = "DigitalBrain:Microsoft:GitHub:App";
+    public const string SectionName = GitHubModuleOptions.AppSectionName;
     public string ClientId { get; set; } = "";
     public string ClientSecret { get; set; } = "";
     public string AppId { get; set; } = "";

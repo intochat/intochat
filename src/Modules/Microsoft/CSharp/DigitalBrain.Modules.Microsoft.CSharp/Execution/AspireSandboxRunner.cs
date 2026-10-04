@@ -79,7 +79,7 @@ internal sealed class AspireSandboxRunner(HttpClient http, IGrainFactory grains,
         // from deployment configuration plus a live health probe stays truthful.
         var address = resources.FirstOrDefault(resource => resource.Name == CSharpSandbox.ResourceName)
                 ?.Urls.FirstOrDefault(url => url.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
-            ?? configuration["DigitalBrain:CSharp:SandboxProbeUrl"];
+            ?? configuration[$"{CSharpDeploymentSettings.SectionName}:{nameof(CSharpDeploymentSettings.SandboxProbeUrl)}"];
         if (address is not { Length: > 0 }) { return null; }
         var probed = new Uri(address.TrimEnd('/') + "/");
         using var probe = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

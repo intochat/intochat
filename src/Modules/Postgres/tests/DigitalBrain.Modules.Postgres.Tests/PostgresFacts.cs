@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using DigitalBrain.Postgres;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -54,7 +55,7 @@ public sealed class PostgresFacts
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["DigitalBrain:Modules:postgres:Options:ConnectionName"] = "analytics",
+                [DigitalBrainConfiguration.ModuleOptionsSection("postgres") + ":ConnectionName"] = "analytics",
                 ["ConnectionStrings:analytics"] = "Host=localhost;Database=analytics;Username=reader",
                 ["ConnectionStrings:supabase"] = "Host=localhost;Database=supabase;Username=reader",
             }).Build();

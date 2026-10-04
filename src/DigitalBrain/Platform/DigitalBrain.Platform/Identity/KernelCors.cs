@@ -10,7 +10,8 @@ namespace DigitalBrain.Platform.Identity;
 // also admits its localhost/127.0.0.1 aliases at the same port for local browser hosting.
 internal static class KernelCors
 {
-    public const string AllowedOriginConfigurationKey = "DigitalBrain:Cors:AllowedOrigin";
+    public const string AllowedOriginConfigurationKey =
+        KernelCorsOptions.SectionName + ":" + nameof(KernelCorsOptions.AllowedOrigin);
 
     private const string PolicyName = "shell";
 

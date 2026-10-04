@@ -1,5 +1,7 @@
 using System.Text.Json;
 using DigitalBrain.Client;
+using DigitalBrain.Contracts;
+using DigitalBrain.Contracts.Edge.V1;
 using DigitalBrain.Contracts.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Microsoft.CSharp;
@@ -50,7 +52,7 @@ public sealed class ScriptEdgeFacts
         await brain.AuthorizeCallerAsync();
         await brain.Get<IAppBindingTestHost>("bound-app").Start("reused-file");
         Orleans.Runtime.RequestContext.Clear();
-        var currentToken = sandbox.Requests.Last(FakeSandbox.IsStart).Body!["environment"]!["DigitalBrain__Token"]!.GetValue<string>();
+        var currentToken = sandbox.Requests.Last(FakeSandbox.IsStart).Body!["environment"]![DigitalBrainConfiguration.EnvironmentName(ScriptEdgeProtocol.TokenSetting)]!.GetValue<string>();
         var run = brain.SiloServices.GetRequiredService<RunTokens>().Validate(currentToken)!;
         await brain.Get<ICSharpFileEdge>("reused-file").Subscribed(run.Run, brain.Get<IPinger>("pinger").GetGrainId().ToString(), nameof(Pinged));
         var edge = brain.SiloServices.GetRequiredService<ScriptEdge>();
@@ -78,7 +80,7 @@ public sealed class ScriptEdgeFacts
             await brain.AuthorizeCallerAsync();
             await host.Start(file);
             Orleans.Runtime.RequestContext.Clear();
-            var token = sandbox.Requests.Last(FakeSandbox.IsStart).Body!["environment"]!["DigitalBrain__Token"]!.GetValue<string>();
+            var token = sandbox.Requests.Last(FakeSandbox.IsStart).Body!["environment"]![DigitalBrainConfiguration.EnvironmentName(ScriptEdgeProtocol.TokenSetting)]!.GetValue<string>();
             Assert.Equal("alice App AppProxy stable-app", (await edge.InvokeAsync(token, Call("Caller"), ct))!.Value.GetString());
         }
         var standalone = brain.Get<ICSharpFile>("standalone");
@@ -100,7 +102,7 @@ public sealed class ScriptEdgeFacts
         await using var host = builder.Build();
         host.MapScriptEdge();
         await host.StartAsync(ct);
-        await using var client = await DigitalBrainClient.ConnectAsync(["--DigitalBrain:Edge=" + host.Urls.Single(), "--DigitalBrain:Token=" + token], ct);
+        await using var client = await DigitalBrainClient.ConnectAsync(["--" + ScriptEdgeProtocol.EdgeSetting + "=" + host.Urls.Single(), "--" + ScriptEdgeProtocol.TokenSetting + "=" + token], ct);
         var error = await Assert.ThrowsAnyAsync<InvalidOperationException>(() => client.Get<IPinger>("pinger").RefuseCapacity());
         Assert.Equal(DigitalBrain.Sdk.Capacity.CapacityUnavailableException.RefusalMessage, error.Message);
         await host.StopAsync(ct);
@@ -353,7 +355,7 @@ public sealed class ScriptEdgeFacts
     }
 
     private static string LatestToken(FakeSandbox sandbox)
-        => sandbox.Requests.Last(FakeSandbox.IsStart).Body!["environment"]!["DigitalBrain__Token"]!.GetValue<string>();
+        => sandbox.Requests.Last(FakeSandbox.IsStart).Body!["environment"]![DigitalBrainConfiguration.EnvironmentName(ScriptEdgeProtocol.TokenSetting)]!.GetValue<string>();
 
     private static async Task Eventually(Func<bool> condition, CancellationToken ct)
     {
@@ -374,7 +376,7 @@ public sealed class ScriptEdgeFacts
         await file.Write("Console.WriteLine(1);", ct);
         try { await file.Start(ct); }
         finally { Orleans.Runtime.RequestContext.Clear(); }
-        return sandbox.Requests.Last(FakeSandbox.IsStart).Body!["environment"]!["DigitalBrain__Token"]!.GetValue<string>();
+        return sandbox.Requests.Last(FakeSandbox.IsStart).Body!["environment"]![DigitalBrainConfiguration.EnvironmentName(ScriptEdgeProtocol.TokenSetting)]!.GetValue<string>();
     }
 
     // The test's own IPinger stands in for an installed module contract.

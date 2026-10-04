@@ -1,3 +1,5 @@
+using DigitalBrain.Contracts;
+
 namespace DigitalBrain.Flutter.Aspire.Hosting;
 
 public static class ShellNames
@@ -6,7 +8,8 @@ public static class ShellNames
     public const string UIBaseEnvironmentVariable = "DIGITALBRAIN_UI_BASE";
     public const string ShellEnvironmentVariable = "DIGITALBRAIN_SHELL";
     public const string ChatEnvironmentVariable = "DIGITALBRAIN_CHAT";
-    public const string OwnerEnvironmentVariable = "DigitalBrain__Owner";
+    public const string OwnerKey = "DigitalBrain:Owner";
+    public static readonly string OwnerEnvironmentVariable = DigitalBrainConfiguration.EnvironmentName(OwnerKey);
     public const string FlutterCommandEnvironmentVariable = "FLUTTER_COMMAND";
     public const string DefaultShellName = "desk";
     public const string DefaultChatName = "main";

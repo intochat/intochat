@@ -61,9 +61,9 @@ public sealed class IdentityHostingFacts
     public void DeploymentCookieOverridesHostDefaultsRegardlessOfWhenIdentityIsRegistered(bool registerFirst)
     {
         var builder = WebApplication.CreateBuilder();
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["DigitalBrain:Identity:CookieName"] = "host.session" });
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { [IdentityHostOptions.Key(nameof(IdentityHostOptions.CookieName))] = "host.session" });
         if (registerFirst) { builder.Services.AddIdentity(); }
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["DigitalBrain:Identity:CookieName"] = "deployment.session" });
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { [IdentityHostOptions.Key(nameof(IdentityHostOptions.CookieName))] = "deployment.session" });
         if (!registerFirst) { builder.Services.AddIdentity(); }
         using var provider = builder.Services.BuildServiceProvider();
         Assert.Equal("deployment.session", provider.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
@@ -113,7 +113,7 @@ public sealed class IdentityHostingFacts
         builder.Configuration[AuthOptions.PostureKey] = "Secured";
         builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Username))] = "bootstrap";
         builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Password))] = "bootstrap-password";
-        builder.Configuration["DigitalBrain:Cors:AllowedOrigin"] = "http://localhost:27880";
+        builder.Configuration[KernelCors.AllowedOriginConfigurationKey] = "http://localhost:27880";
         builder.Services.AddSingleton<IDigitalBrain>(brain);
         builder.Services.AddIdentity();
         builder.Services.Configure<IdentityHostOptions>(options => options.CookieName = "another-host.session");

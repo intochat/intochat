@@ -13,13 +13,15 @@ namespace DigitalBrain.Time;
 [ModuleId("time")]
 public sealed class TimeModule : IModule
 {
+    public const string MinimumReminderPeriodKey = "DigitalBrain:Time:MinimumReminderPeriod";
+
     public void Configure(ISiloBuilder silo)
     {
         silo.AddTime();
         // Test and local development may accelerate reminders; production keeps the Orleans default.
         silo.Services.AddOptions<ReminderOptions>().Configure<IConfiguration>((options, configuration) =>
         {
-            if (TimeSpan.TryParse(configuration["DigitalBrain:Time:MinimumReminderPeriod"], out var period) && period > TimeSpan.Zero)
+            if (TimeSpan.TryParse(configuration[MinimumReminderPeriodKey], out var period) && period > TimeSpan.Zero)
             { options.MinimumReminderPeriod = period; }
         });
     }

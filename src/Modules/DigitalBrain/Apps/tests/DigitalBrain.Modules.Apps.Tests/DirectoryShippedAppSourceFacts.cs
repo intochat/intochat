@@ -46,7 +46,7 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
         Write("echo/app.json", Manifest);
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["DigitalBrain:ShippedApps:vendor:Path"] = _root,
+            [ShippedAppsServiceCollectionExtensions.ConfigurationSection + ":vendor:Path"] = _root,
         }).Build();
         var services = new ServiceCollection().AddShippedApps(configuration);
         using var provider = services.BuildServiceProvider();

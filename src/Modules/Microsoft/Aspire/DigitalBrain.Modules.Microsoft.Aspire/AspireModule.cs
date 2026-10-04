@@ -13,7 +13,7 @@ namespace DigitalBrain.Microsoft.Aspire;
 [ModuleId("aspire")]
 public sealed class AspireModule : IModule<AspireOptions>, IHttpModule
 {
-    public const string ConfigurationRoot = "DigitalBrain:Microsoft:Aspire";
+    public const string ConfigurationRoot = AspireOptions.ConfigurationRoot;
 
     public void Configure(ISiloBuilder builder)
     {

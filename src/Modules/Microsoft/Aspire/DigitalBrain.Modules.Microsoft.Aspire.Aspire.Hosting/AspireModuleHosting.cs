@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using System.Security.Cryptography;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
@@ -22,7 +23,7 @@ public sealed class AspireModuleHosting : IDigitalBrainModuleHosting
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
         {
             ArgumentNullException.ThrowIfNull(builder);
-            builder.WithEnvironment(EnvironmentKeys.For("DigitalBrain:Microsoft:Aspire", "BridgeKey"), bridgeKey);
+            builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(AspireOptions.ConfigurationRoot, "BridgeKey"), bridgeKey);
         }
     }
 }

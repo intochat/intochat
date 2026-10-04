@@ -1,4 +1,5 @@
 using Aspire.Hosting;
+using DigitalBrain.Contracts;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Aspire.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -38,6 +39,7 @@ public sealed class CSharpModuleHosting : IDigitalBrainModuleHosting
     private sealed class SandboxProbeProjection(EndpointReference endpoint) : DigitalBrainModuleProjection
     {
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
-            => builder.WithEnvironment("DigitalBrain__CSharp__SandboxProbeUrl", endpoint);
+            => builder.WithEnvironment(
+                DigitalBrainConfiguration.EnvironmentName(CSharpDeploymentSettings.SectionName, nameof(CSharpDeploymentSettings.SandboxProbeUrl)), endpoint);
     }
 }

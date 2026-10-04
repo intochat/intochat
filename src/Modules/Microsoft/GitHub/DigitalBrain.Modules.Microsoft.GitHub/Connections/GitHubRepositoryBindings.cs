@@ -5,7 +5,6 @@ namespace DigitalBrain.Microsoft.GitHub;
 
 internal sealed class GitHubRepositoryBindings
 {
-    internal const string ConfigurationRoot = "DigitalBrain:Microsoft:GitHub:Repositories";
     private readonly ConcurrentDictionary<string, GitHubRepositoryBinding> _bindings;
     internal GitHubRepositoryBindings(IEnumerable<GitHubRepositoryBinding> bindings)
     {

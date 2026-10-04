@@ -25,11 +25,7 @@ public static class ModuleOptionsSerialization
 
     public static Dictionary<string, string?> FlattenOptions<TOptions>(TOptions options, string moduleName)
         where TOptions : class
-    {
-        var keys = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-        Flatten(JsonSerializer.SerializeToNode(options), OptionsKey(moduleName), keys);
-        return keys;
-    }
+        => DigitalBrainConfiguration.Flatten(options!, OptionsKey(moduleName));
 
     public static TOptions GetModuleOptions<TOptions>(this IConfiguration configuration, string moduleName)
         where TOptions : class, IModuleOptions, new()
@@ -44,7 +40,7 @@ public static class ModuleOptionsSerialization
     public static string[] SelectedModuleNames(this IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-        return configuration.GetSection("DigitalBrain:Modules").Get<string[]>() ?? [];
+        return configuration.GetSection(DigitalBrainConfiguration.ModulesSectionName).Get<string[]>() ?? [];
     }
 
     // Copies the bound options onto an instance the options system already created: every public read-write property.
@@ -66,24 +62,6 @@ public static class ModuleOptionsSerialization
             && options.Equals("Options", StringComparison.OrdinalIgnoreCase)
             && name.Length > 0 && !name.Contains("__", StringComparison.Ordinal) && !int.TryParse(name, out _);
 
-    private static void Flatten(JsonNode? node, string prefix, Dictionary<string, string?> into)
-    {
-        switch (node)
-        {
-            case JsonObject members:
-                foreach (var (name, value) in members) { Flatten(value, $"{prefix}:{name}", into); }
-                break;
-            case JsonArray items:
-                for (var i = 0; i < items.Count; i++) { Flatten(items[i], $"{prefix}:{i}", into); }
-                break;
-            case JsonValue value:
-                into[prefix] = value.GetValueKind() == JsonValueKind.String ? value.GetValue<string>() : value.ToJsonString();
-                break;
-            case null:
-                into[prefix] = null;
-                break;
-        }
-    }
 
-    public static string OptionsKey(string moduleName) => $"DigitalBrain:Modules:{moduleName}{OptionsKeySuffix}";
+    public static string OptionsKey(string moduleName) => DigitalBrainConfiguration.ModuleOptionsSection(moduleName);
 }

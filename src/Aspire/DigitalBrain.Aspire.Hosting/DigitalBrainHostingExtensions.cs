@@ -118,7 +118,7 @@ public static class DigitalBrainHostingExtensions
         brain.Identity?.Apply(builder);
 
         foreach (var pair in brain.Settings)
-        { builder.WithEnvironment(EnvironmentKeys.For(pair.Key), pair.Value ?? ""); }
+        { builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(pair.Key), pair.Value ?? ""); }
 
         WaitUntilHealthy(builder, brain.StartupDependencies);
 

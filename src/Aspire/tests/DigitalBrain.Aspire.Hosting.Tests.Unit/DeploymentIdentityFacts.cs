@@ -26,9 +26,9 @@ public sealed class DeploymentIdentityFacts
             var values = new Dictionary<string, object>();
             var context = new EnvironmentCallbackContext(builder.ExecutionContext, resource, values, TestContext.Current.CancellationToken);
             foreach (var annotation in resource.Annotations.OfType<EnvironmentCallbackAnnotation>()) { await annotation.Callback(context); }
-            Assert.Equal("custom.session", values["DigitalBrain__Identity__CookieName"]);
-            Assert.Equal("IntoChat.v1", values["DigitalBrain__Identity__ProtectionApplicationName"]);
-            Assert.Equal("intochat-protection-v1", values["DigitalBrain__Identity__ProtectionContainerName"]);
+            Assert.Equal("custom.session", values[DigitalBrainConfiguration.EnvironmentName(IdentityHostOptions.Key(nameof(IdentityHostOptions.CookieName)))]);
+            Assert.Equal("IntoChat.v1", values[DigitalBrainConfiguration.EnvironmentName(IdentityHostOptions.Key(nameof(IdentityHostOptions.ProtectionApplicationName)))]);
+            Assert.Equal("intochat-protection-v1", values[DigitalBrainConfiguration.EnvironmentName(IdentityHostOptions.Key(nameof(IdentityHostOptions.ProtectionContainerName)))]);
             Assert.Contains("ConnectionStrings__" + DigitalBrainNames.GrainState, values.Keys);
         }
     }
@@ -46,7 +46,7 @@ public sealed class DeploymentIdentityFacts
         var context = new EnvironmentCallbackContext(builder.ExecutionContext, client.Resource, values, TestContext.Current.CancellationToken);
         foreach (var annotation in client.Resource.Annotations.OfType<EnvironmentCallbackAnnotation>())
         { await annotation.Callback(context); }
-        Assert.Equal(expected, values["DigitalBrain__Auth__Posture"]);
+        Assert.Equal(expected, values[DigitalBrainConfiguration.EnvironmentName(AuthOptions.PostureKey)]);
     }
 
     [Fact]

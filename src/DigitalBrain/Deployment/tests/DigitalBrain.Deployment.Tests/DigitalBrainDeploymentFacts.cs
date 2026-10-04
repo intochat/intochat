@@ -10,7 +10,7 @@ namespace DigitalBrain.Deployment.Tests;
 [Collection(nameof(DigitalBrainDeploymentFacts))]
 public sealed class DigitalBrainDeploymentFacts
 {
-    private const string Manifest = """
+    private static readonly string Manifest = $$"""
         {
           "resources": {
             "storage": { "type": "azure.bicep.v0", "path": "storage.module.bicep" },
@@ -21,7 +21,7 @@ public sealed class DigitalBrainDeploymentFacts
             "brain": {
               "type": "project.v0",
               "env": {
-                "DigitalBrain__Modules__0": "Some.Module, Some.Assembly",
+                "{{Contracts.DigitalBrainConfiguration.EnvironmentName(Contracts.DigitalBrainConfiguration.ModulesSectionName)}}__0": "Some.Module, Some.Assembly",
                 "HTTP_PORTS": "{brain.bindings.http.targetPort}",
                 "PublicOrigin": "{brain.bindings.http.url}",
                 "ConnectionStrings__clustering": "{clustering.connectionString}",

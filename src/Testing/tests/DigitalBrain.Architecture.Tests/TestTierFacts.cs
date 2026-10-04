@@ -22,6 +22,9 @@ public sealed class TestTierFacts
             var name = Path.GetFileNameWithoutExtension(project);
             if (name.Contains(".Tests.", StringComparison.Ordinal))
             {
+                // <Module>.Tests.Hosting is the module's Aspire composition tier: it builds the
+                // application model and reads annotations, never a running brain.
+                if (name.EndsWith(".Tests.Hosting", StringComparison.Ordinal)) { continue; }
                 if (!baseline.Remove(name)) { offenders.Add(name); }
                 continue;
             }
@@ -44,6 +47,15 @@ public sealed class TestTierFacts
         foreach (var project in ModuleTestProjects())
         {
             var name = Path.GetFileNameWithoutExtension(project);
+            if (name.EndsWith(".Tests.Hosting", StringComparison.Ordinal))
+            {
+                // The composition tier must stay model-only: no in-process brain, no product boot.
+                var booting = References(project)
+                    .Where(reference => reference is "DigitalBrain.Testing.Module" or "DigitalBrain.Testing.E2E")
+                    .ToArray();
+                if (booting.Length > 0) { offenders.Add($"{name} -> {string.Join(", ", booting)}"); }
+                continue;
+            }
             var hosting = References(project)
                 .Where(reference => reference is "DigitalBrain.Aspire.Server" || reference.EndsWith(".Aspire.Hosting", StringComparison.Ordinal))
                 .ToArray();
@@ -60,7 +72,7 @@ public sealed class TestTierFacts
     [Fact]
     public void TheEndToEndTierBelongsToTheProduct()
     {
-        string[] productScope = ["DigitalBrain.Kernel.Tests.E2E", "DigitalBrain.Platform.Tests.E2E", "DigitalBrain.Aspire.Hosting.Tests.E2E", "DigitalBrain.OS.Tests.E2E"];
+        string[] productScope = ["DigitalBrain.Kernel.Tests.E2E", "DigitalBrain.Platform.Tests.E2E", "DigitalBrain.Aspire.Hosting.Tests.E2E", "DigitalBrain.OS.Tests.E2E", "DigitalBrain.OS.Tests.Unit"];
         var baseline = Baseline().LegacyEndToEndReferencers.ToHashSet(StringComparer.Ordinal);
         var offenders = new List<string>();
         foreach (var project in TestProjects())
@@ -68,8 +80,7 @@ public sealed class TestTierFacts
             if (!References(project).Contains("DigitalBrain.Testing.E2E", StringComparer.Ordinal)) { continue; }
             var name = Path.GetFileNameWithoutExtension(project);
             var relative = Relative(project);
-            if (relative.StartsWith("src/IntoChat/", StringComparison.Ordinal)
-                || relative.StartsWith("src/Testing/", StringComparison.Ordinal)
+            if (relative.StartsWith("src/Testing/", StringComparison.Ordinal)
                 || productScope.Contains(name, StringComparer.Ordinal))
             { continue; }
             if (!baseline.Remove(name)) { offenders.Add(name); }
@@ -90,8 +101,7 @@ public sealed class TestTierFacts
             "ReferenceBrain" + ".Create(",
             "E2ETest" + ".Create(",
             "E2ETest" + ".For<",
-            "IntoChatE2ETest" + ".Create(",
-            "DistributedApplication" + "TestingBuilder",
+            "ProductE2E" + ".Create(",
         ];
         // Paths: a Windows checkout can carry different directory casing than the git index.
         var baseline = Baseline().LegacyFullStackBootFacts.ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -100,7 +110,10 @@ public sealed class TestTierFacts
         {
             if (file.Split(Path.DirectorySeparatorChar).Any(part => part is "obj" or "bin")) { continue; }
             var source = File.ReadAllText(file);
-            if (!boots.Any(token => source.Contains(token, StringComparison.Ordinal))) { continue; }
+            // Building a composition or application model is not a boot; a boot starts it.
+            if (!source.Contains(".StartAsync(", StringComparison.Ordinal)) { continue; }
+            var builders = boots.Append("DistributedApplication" + "TestingBuilder");
+            if (!builders.Any(token => source.Contains(token, StringComparison.Ordinal))) { continue; }
             var relative = Relative(file);
             if (!baseline.Remove(relative)) { offenders.Add(relative); }
         }

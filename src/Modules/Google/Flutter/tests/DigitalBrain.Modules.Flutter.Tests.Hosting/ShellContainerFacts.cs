@@ -13,7 +13,7 @@ public sealed class ShellContainerFacts
     public void WebContainerConfigurationServesTheBakedBundleInsteadOfTheDevServer()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        builder.Configuration["DigitalBrain:Flutter:Hosting:WebContainer"] = "true";
+        builder.Configuration[FlutterHostOptions.WebContainerKey] = "true";
         builder.AddDigitalBrain("modules", new DigitalBrainHostingOptions { PersistentStorage = false })
             .WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunWebApp());
 

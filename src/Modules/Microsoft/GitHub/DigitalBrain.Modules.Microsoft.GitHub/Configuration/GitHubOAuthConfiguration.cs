@@ -8,7 +8,6 @@ internal sealed class GitHubOAuthConfiguration(IOptions<GitHubAppOptions> option
     internal GitHubOAuthConfiguration(IConfiguration configuration)
         : this(Options.Create(configuration.GetSection(GitHubAppOptions.SectionName).Get<GitHubAppOptions>() ?? new())) { }
 
-    internal const string Root = "DigitalBrain:Microsoft:GitHub:App";
     internal string ClientId => options.Value.ClientId ?? "";
     internal string ClientSecret => options.Value.ClientSecret ?? "";
     internal long AppId => options.Value.ParsedAppId;

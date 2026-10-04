@@ -38,7 +38,7 @@ public static class ModuleTest
             host.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 [DigitalBrainNames.MasterKeyConfigurationKey] = masterKey,
-                ["DigitalBrain:Auth:Posture"] = "Open",
+                [Platform.Identity.Configuration.AuthOptions.PostureKey] = nameof(Platform.Identity.Configuration.IdentityPosture.Open),
             });
             foreach (var definition in modules)
             {

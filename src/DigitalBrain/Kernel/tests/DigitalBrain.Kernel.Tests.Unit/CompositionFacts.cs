@@ -100,8 +100,8 @@ public sealed class CompositionFacts
             .AddInMemoryCollection(Assert.Single(application.Build().Modules).Configuration)
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["DigitalBrain:Modules:ExampleModule:Options:Endpoint"] = null,
-                ["DigitalBrain:Modules:ExampleModule:Options:Enabled"] = "false",
+                [DigitalBrainConfiguration.ModuleOptionsSection(nameof(ExampleModule)) + ":Endpoint"] = null,
+                [DigitalBrainConfiguration.ModuleOptionsSection(nameof(ExampleModule)) + ":Enabled"] = "false",
             }).Build();
         var applied = configuration.GetModuleOptions<ExampleOptions>(nameof(ExampleModule));
         Assert.Null(applied.Endpoint);
@@ -123,9 +123,9 @@ public sealed class CompositionFacts
     [Theory]
     [InlineData("Orleans:ClusterId")]
     [InlineData("ConnectionStrings:storage")]
-    [InlineData("DigitalBrain:Testing:AnyKey")]
-    [InlineData("DigitalBrain:Modules:0")]
-    [InlineData("DigitalBrain:AI:OpenAI:ApiKey")]
+    [InlineData(ModuleSettingsValidation.TestingSectionPrefix + "AnyKey")]
+    [InlineData(DigitalBrainConfiguration.ModulesSectionName + ":0")]
+    [InlineData("AI:OpenAI:ApiKey")]
     [InlineData("Provider:PrivateKeyPem")]
     public void HarnessAndCredentialKeysCannotBePublicSettings(string key)
         => Assert.Throws<ArgumentException>(() => ModuleSettingsValidation.ValidatePublicSettings(

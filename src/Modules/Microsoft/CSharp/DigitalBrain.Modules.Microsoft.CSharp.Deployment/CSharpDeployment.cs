@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using DigitalBrain.Deployment;
 using Pulumi;
 using Pulumi.AzureNative.App;
@@ -100,8 +101,11 @@ public sealed class CSharpDeployment : IDigitalBrainModuleDeployment
         // Run tokens must verify on every silo, so the key is generated once and kept in state and Key Vault.
         var runTokenKey = new RandomId(name + "-run-token-key", new RandomIdArgs { ByteLength = 32 },
             new CustomResourceOptions { AdditionalSecretOutputs = ["hex", "b64Std", "b64Url", "dec"] });
-        context.SetRuntimeEnvironment("DigitalBrain__CSharp__SessionPoolEndpoint", pool.PoolManagementEndpoint);
-        context.SetRuntimeEnvironment("DigitalBrain__CSharp__EdgeUrl", foundation.RuntimeUrl);
-        context.SetRuntimeEnvironment("DigitalBrain__CSharp__RunTokenKey", runTokenKey.B64Std, secret: true);
+        context.SetRuntimeEnvironment(DigitalBrainConfiguration.EnvironmentName(
+            CSharpDeploymentSettings.SectionName, nameof(CSharpDeploymentSettings.SessionPoolEndpoint)), pool.PoolManagementEndpoint);
+        context.SetRuntimeEnvironment(DigitalBrainConfiguration.EnvironmentName(
+            CSharpDeploymentSettings.SectionName, nameof(CSharpDeploymentSettings.EdgeUrl)), foundation.RuntimeUrl);
+        context.SetRuntimeEnvironment(DigitalBrainConfiguration.EnvironmentName(
+            CSharpDeploymentSettings.SectionName, nameof(CSharpDeploymentSettings.RunTokenKey)), runTokenKey.B64Std, secret: true);
     }
 }

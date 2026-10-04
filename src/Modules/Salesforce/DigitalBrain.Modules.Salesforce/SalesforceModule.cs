@@ -15,7 +15,7 @@ namespace DigitalBrain.Salesforce;
 [ModuleId("salesforce")]
 public sealed class SalesforceModule : IModule<SalesforceModuleOptions>, IHttpModule
 {
-    public const string OAuthConfigurationRoot = "DigitalBrain:Salesforce:OAuth";
+    public const string OAuthConfigurationRoot = SalesforceOAuthOptions.SectionName;
 
     public static readonly Uri DefaultMcpEndpoint = new("https://api.salesforce.com/platform/mcp/v1/platform/sobject-all");
 

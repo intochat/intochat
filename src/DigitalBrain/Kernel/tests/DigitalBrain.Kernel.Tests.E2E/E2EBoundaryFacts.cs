@@ -19,7 +19,7 @@ public sealed class E2EBoundaryFacts
         Assert.True(options.Telemetry.EnableSensitiveData);
         Assert.Equal("http://localhost:12345/v1/", options.OpenAI.Endpoint);
         Assert.Empty(options.Hosting.Llms);
-        Assert.Equal("true", configured.OptionOverrides["DigitalBrain:Modules:ai:ReplaceOptions"]);
+        Assert.Equal("true", configured.OptionOverrides[DigitalBrainConfiguration.ModuleSection("ai") + ":ReplaceOptions"]);
     }
 
     [Fact]

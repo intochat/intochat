@@ -6,6 +6,10 @@ namespace DigitalBrain.Microsoft.GitHub;
 // the private key and webhook secret parameters on the DigitalBrain:Microsoft:GitHub:Repositories configuration path.
 public sealed class GitHubModuleOptions : IModuleOptions
 {
+    public const string SectionName = "DigitalBrain:Microsoft:GitHub";
+    public const string AppSectionName = SectionName + ":App";
+    public const string RepositoriesSectionName = SectionName + ":Repositories";
+
     public Dictionary<string, GitHubRepositoryDeclaration> Repositories { get; set; } = new(StringComparer.Ordinal);
 
     public GitHubModuleOptions WithGitHubRepositories(IReadOnlyDictionary<string, GitHubRepositoryDeclaration> repositories)

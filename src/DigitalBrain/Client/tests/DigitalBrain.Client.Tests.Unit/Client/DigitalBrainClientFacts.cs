@@ -10,6 +10,6 @@ public sealed class DigitalBrainClientFacts
     {
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => DigitalBrainClient.ConnectAsync([], TestContext.Current.CancellationToken));
 
-        Assert.Contains("DigitalBrain:Edge", error.Message, StringComparison.Ordinal);
+        Assert.Contains(Contracts.Edge.V1.ScriptEdgeProtocol.EdgeSetting, error.Message, StringComparison.Ordinal);
     }
 }

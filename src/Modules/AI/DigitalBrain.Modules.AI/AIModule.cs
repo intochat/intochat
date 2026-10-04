@@ -18,7 +18,7 @@ namespace DigitalBrain.AI;
 [ModuleId("ai")]
 public sealed class AIModule : IModule<AIOptions>
 {
-    public const string McpServersKey = "DigitalBrain:AI:McpServers";
+    public const string McpServersKey = AIOptions.SectionName + ":McpServers";
 
     public static IntegrationDefinition[] Integrations => AiIntegrations.Definitions;
 

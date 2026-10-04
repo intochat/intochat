@@ -25,6 +25,9 @@ internal sealed partial class AppDraftNeuron(
     IContractVocabulary? vocabulary = null)
     : Neuron<AppDraftState>(store), IAppDraft
 {
+    internal const string AuthorModelKey = "DigitalBrain:Apps:AuthorModel";
+    internal const string BuilderModelKey = "DigitalBrain:Apps:BuilderModel";
+
     private const int MaxAuthorRetries = 2;
     private const int MaxBuildAttempts = 3;
     private const int MaxBuilderRounds = 12;
@@ -38,8 +41,8 @@ internal sealed partial class AppDraftNeuron(
         return DigitalBrain.Kernel.Enforcement.NeuronAccess.PublicOperation;
     }
     private string Owner => DraftId.Split('/')[0];
-    private string AuthorModel => configuration["DigitalBrain:Apps:AuthorModel"] ?? nameof(IGpt56Luna);
-    private string BuilderModel => configuration["DigitalBrain:Apps:BuilderModel"] ?? nameof(IGpt56Luna);
+    private string AuthorModel => configuration[AuthorModelKey] ?? nameof(IGpt56Luna);
+    private string BuilderModel => configuration[BuilderModelKey] ?? nameof(IGpt56Luna);
     // A csharp app is only offered where this host may run it.
     private string[] Runtimes => policy.AvailableRuntimes;
     private string RuntimeDescriptions => string.Join("\n\n", runtimes.Select(runtime => runtime.AuthoringDescription)

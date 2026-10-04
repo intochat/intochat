@@ -8,7 +8,7 @@ public static class GitHubConfigurationHostingExtensions
     public static DigitalBrainModuleBuilder<DigitalBrain.Microsoft.GitHub.GitHubModuleHosting> WithConfiguredGitHubApp(
         this DigitalBrainModuleBuilder<DigitalBrain.Microsoft.GitHub.GitHubModuleHosting> module, IConfiguration configuration)
     {
-        var options = configuration.GetSection("DigitalBrain:Microsoft:GitHub:App").Get<GitHubAppHostingOptions>();
+        var options = configuration.GetSection(GitHubModuleOptions.AppSectionName).Get<GitHubAppHostingOptions>();
         if (options is not null)
         {
             ArgumentNullException.ThrowIfNull(options.PublicOrigin);

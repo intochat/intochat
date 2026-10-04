@@ -2,16 +2,21 @@ using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.AI.FoundryLocal;
 using DigitalBrain.Aspire.Hosting;
+using DigitalBrain.Contracts;
+using DigitalBrain.Platform.Contracts.Integrations;
 
 namespace DigitalBrain.AI.Aspire.Hosting;
 
 public static partial class AIHostingExtensions
 {
-    private const string TavilyApiKeyEnvironmentKey = "DigitalBrain__Integrations__tavily__ApiKey";
-    private const string TavilyEnabledEnvironmentKey = "DigitalBrain__AI__Tavily__Enabled";
+    // "tavily" mirrors the module's internal AiIntegrations.TavilyId.
+    private static readonly string TavilyApiKeyEnvironmentKey =
+        DigitalBrainConfiguration.EnvironmentName(IntegrationDefinition.Key("tavily", "ApiKey"));
+    private static readonly string TavilyEnabledEnvironmentKey =
+        DigitalBrainConfiguration.EnvironmentName(AIOptions.TavilyEnabledKey);
     private const string TavilyApiKeyDescription = "API key for Tavily web search. Sign up at [Tavily](https://www.tavily.com/) and copy your API key from your account dashboard. Paste it here to enable web search for DigitalBrain agents.";
-    private const string EnableSensitiveDataEnvironmentKey =
-        "DigitalBrain__AI__Telemetry__EnableSensitiveData";
+    private static readonly string EnableSensitiveDataEnvironmentKey =
+        DigitalBrainConfiguration.EnvironmentName(AIOptions.TelemetryEnableSensitiveDataKey);
 
     public static DigitalBrainModuleBuilder<DigitalBrain.AI.Aspire.Hosting.AIModuleHosting> WithLlm<TModel>(this DigitalBrainModuleBuilder<DigitalBrain.AI.Aspire.Hosting.AIModuleHosting> module)
         where TModel : ILLM

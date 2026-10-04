@@ -1,7 +1,12 @@
+using DigitalBrain.Contracts;
+
 namespace DigitalBrain.Kernel;
 
 public static class ModuleSettingsValidation
 {
+    // The test harness's reserved configuration section: host-owned, never a module's to set.
+    public const string TestingSectionPrefix = "DigitalBrain:Testing:";
+
     public static void ValidatePublicSettings(IReadOnlyList<ModuleDefinition> modules)
     {
         foreach (var key in modules.SelectMany(m => m.Configuration.Keys))
@@ -10,8 +15,8 @@ public static class ModuleSettingsValidation
             if (string.IsNullOrWhiteSpace(key) || key.Contains("__", StringComparison.Ordinal)
                 || key.StartsWith("Orleans:", StringComparison.OrdinalIgnoreCase)
                 || key.StartsWith("ConnectionStrings:", StringComparison.OrdinalIgnoreCase)
-                || key.StartsWith("DigitalBrain:Testing:", StringComparison.OrdinalIgnoreCase)
-                || key.StartsWith("DigitalBrain:Modules:", StringComparison.OrdinalIgnoreCase))
+                || key.StartsWith(TestingSectionPrefix, StringComparison.OrdinalIgnoreCase)
+                || key.StartsWith(DigitalBrainConfiguration.ModulesSectionName + ":", StringComparison.OrdinalIgnoreCase))
             { throw new ArgumentException("Module configuration cannot override host-owned settings.", nameof(modules)); }
             if (IsCredentialName(key))
             { throw new ArgumentException("Credentials require private configuration transport.", nameof(modules)); }

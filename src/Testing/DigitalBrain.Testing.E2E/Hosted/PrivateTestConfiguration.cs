@@ -18,8 +18,8 @@ internal sealed class PrivateTestConfiguration : IAsyncDisposable
             if (string.IsNullOrWhiteSpace(key) || key.Contains("__", StringComparison.Ordinal)
                 || key.StartsWith("Orleans:", StringComparison.OrdinalIgnoreCase)
                 || key.StartsWith("ConnectionStrings:", StringComparison.OrdinalIgnoreCase)
-                || key.StartsWith("DigitalBrain:Testing:", StringComparison.OrdinalIgnoreCase)
-                || key.StartsWith("DigitalBrain:Modules:", StringComparison.OrdinalIgnoreCase))
+                || key.StartsWith(Kernel.ModuleSettingsValidation.TestingSectionPrefix, StringComparison.OrdinalIgnoreCase)
+                || key.StartsWith(Contracts.DigitalBrainConfiguration.ModulesSectionName + ":", StringComparison.OrdinalIgnoreCase))
             { throw new ArgumentException("Private settings cannot override host-owned configuration."); }
         }
         var directory = Path.Combine(Path.GetTempPath(), "digitalbrain-test-" + Guid.NewGuid().ToString("N"));

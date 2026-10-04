@@ -1,4 +1,5 @@
 using DigitalBrain.Platform.Contracts.Integrations;
+using DigitalBrain.Platform.Identity.Configuration;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -27,9 +28,9 @@ public sealed class AgentModelsHttpFacts
                 PrivateConfiguration = new Dictionary<string, string?>
                 {
                     [IntegrationDefinition.Key("openai", "ApiKey")] = apiKey,
-                    ["DigitalBrain:Auth:Posture"] = "Secured",
-                    ["DigitalBrain:Auth:Username"] = "owner",
-                    ["DigitalBrain:Auth:Password"] = "catalog-test-password",
+                    [AuthOptions.PostureKey] = "Secured",
+                    [AuthOptions.Key(nameof(AuthOptions.Username))] = "owner",
+                    [AuthOptions.Key(nameof(AuthOptions.Password))] = "catalog-test-password",
                 },
             })
             .ConfigureSilo(silo => silo.Services.Configure<AIOptions>(ai => ai.WithLlm<IGpt56Luna>()))

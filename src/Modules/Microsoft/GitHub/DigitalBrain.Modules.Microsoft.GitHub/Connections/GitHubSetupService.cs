@@ -6,7 +6,6 @@ internal sealed class GitHubSetupService(
     IOptions<GitHubAppOptions> options, GitHubRepositoryBindings bindings, IGrainFactory grains,
     GitHubInstallationTokens tokens, IGitHubRepositorySource source, GitHubAppRegistration registration)
 {
-    internal const string AppRoot = "DigitalBrain:Microsoft:GitHub:App";
     public async Task<GitHubSetupResult> ResolveAsync(
         string repositoryUrl, CancellationToken cancellationToken = default, RepositoryView? localView = null)
     {

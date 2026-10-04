@@ -24,6 +24,12 @@ using DigitalBrain.Salesforce.Aspire.Hosting;
 using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Aspire.Hosting;
 
+// The AppHost owns its deployment keys: the published ports and the vendor's shipped-apps
+// binding (the path leaf under ShippedAppsServiceCollectionExtensions.ConfigurationSection).
+const string UiPortKey = "DigitalBrain:Http:UiPort";
+const string McpPortKey = "DigitalBrain:Http:McpPort";
+const string IntoChatShippedAppsPathKey = "DigitalBrain:ShippedApps:intochat:Path";
+
 var builder = DistributedApplication.CreateBuilder(args);
 var digitalBrain = builder.AddDigitalBrain("Modules", new DigitalBrainHostingOptions { ServiceId = "intochat", UseAzureStorage = true })
     .WithHttpIdentity()
@@ -49,21 +55,21 @@ var digitalBrain = builder.AddDigitalBrain("Modules", new DigitalBrainHostingOpt
 
 var cookieProtection = digitalBrain.AddBlobContainer(digitalBrain.Identity!.ProtectionContainerName);
 
-var intoChatApps = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "IntoChat", "Apps"));
+var intoChatApps = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "..", "IntoChat", "Apps"));
 
 var runtime = builder.AddProject<Projects.DigitalBrain_OS>("IntoChat")
     .WithReference(digitalBrain)
-    .WithEnvironment("DigitalBrain__ShippedApps__intochat__Path", intoChatApps)
+    .WithEnvironment(DigitalBrain.Contracts.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsPathKey), intoChatApps)
     .WaitFor(cookieProtection)
     .WithHttpEndpoint(
-        port: builder.Configuration.GetValue("DigitalBrain:Http:UiPort", 5080),
+        port: builder.Configuration.GetValue(UiPortKey, 5080),
         name: "http",
         isProxied: false)
     .WithHttpHealthCheck("/health", endpointName: "http");
 
 builder.AddProject<Projects.DigitalBrain_Mcp>("digitalbrain-mcp")
     .WithReference(digitalBrain.AsClient(shareHttpIdentity: true))
-    .WithHttpEndpoint(port: builder.Configuration.GetValue("DigitalBrain:Http:McpPort", 5081), name: "http", isProxied: false)
+    .WithHttpEndpoint(port: builder.Configuration.GetValue(McpPortKey, 5081), name: "http", isProxied: false)
     .WithHttpHealthCheck("/health", endpointName: "http")
     .WaitFor(runtime);
 

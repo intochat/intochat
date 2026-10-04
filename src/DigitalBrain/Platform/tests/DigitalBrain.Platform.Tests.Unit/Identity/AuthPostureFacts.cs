@@ -68,8 +68,8 @@ public sealed class AuthPostureFacts
             PrivateConfiguration = new Dictionary<string, string?>
             {
                 [AuthOptions.PostureKey] = "Secured",
-                ["DigitalBrain:Auth:Username"] = "ops",
-                ["DigitalBrain:Auth:Password"] = "a-long-operator-password",
+                [AuthOptions.Key(nameof(AuthOptions.Username))] = "ops",
+                [AuthOptions.Key(nameof(AuthOptions.Password))] = "a-long-operator-password",
             },
         }).StartAsync(ct);
         var builder = WebApplication.CreateBuilder();

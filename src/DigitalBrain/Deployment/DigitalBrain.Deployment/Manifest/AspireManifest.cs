@@ -7,6 +7,9 @@ namespace DigitalBrain.Deployment;
 // resource it runs, and the brain runtime's environment written as {resource.path} expressions.
 public sealed partial class AspireManifest
 {
+    private static readonly string ModulesEnvironmentPrefix =
+        Contracts.DigitalBrainConfiguration.EnvironmentName(Contracts.DigitalBrainConfiguration.ModulesSectionName) + "__";
+
     private readonly Dictionary<string, JsonElement> _resources;
 
     private AspireManifest(Dictionary<string, JsonElement> resources) => _resources = resources;
@@ -43,9 +46,9 @@ public sealed partial class AspireManifest
 
     // The brain runtime is the project that loads modules; its environment carries DigitalBrain__Modules__N.
     public string Runtime => _resources.Where(resource => resource.Value.GetProperty("type").GetString() == "project.v0"
-            && resource.Value.TryGetProperty("env", out var env) && env.TryGetProperty("DigitalBrain__Modules__0", out _))
+            && resource.Value.TryGetProperty("env", out var env) && env.TryGetProperty(ModulesEnvironmentPrefix + "0", out _))
         .Select(resource => resource.Key).SingleOrDefault()
-        ?? throw new InvalidOperationException("The manifest has no brain runtime project (one whose env loads DigitalBrain__Modules__0).");
+        ?? throw new InvalidOperationException($"The manifest has no brain runtime project (one whose env loads {ModulesEnvironmentPrefix}0).");
 
     public IReadOnlyDictionary<string, string> Environment(string resource)
         => Resource(resource).TryGetProperty("env", out var env)
@@ -81,7 +84,7 @@ public sealed partial class AspireManifest
     private static partial Regex Reference();
 
     public IReadOnlyList<string> Modules(string runtime)
-        => [.. Environment(runtime).Where(variable => variable.Key.StartsWith("DigitalBrain__Modules__", StringComparison.Ordinal))
-            .OrderBy(variable => int.Parse(variable.Key["DigitalBrain__Modules__".Length..], System.Globalization.CultureInfo.InvariantCulture))
+        => [.. Environment(runtime).Where(variable => variable.Key.StartsWith(ModulesEnvironmentPrefix, StringComparison.Ordinal))
+            .OrderBy(variable => int.Parse(variable.Key[ModulesEnvironmentPrefix.Length..], System.Globalization.CultureInfo.InvariantCulture))
             .Select(variable => variable.Value)];
 }

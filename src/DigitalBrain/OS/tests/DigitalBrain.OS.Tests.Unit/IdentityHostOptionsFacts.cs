@@ -1,3 +1,4 @@
+using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.OS.Tests.Unit;
@@ -20,9 +21,9 @@ public sealed class IdentityHostOptionsFacts
     {
         using var configuration = new ConfigurationManager();
         configuration.AddJsonFile(Path.Combine(AppContext.BaseDirectory, "appsettings.json"));
-        Assert.Equal("intochat.session", configuration["DigitalBrain:Identity:CookieName"]);
-        Assert.Equal("IntoChat.v1", configuration["DigitalBrain:Identity:ProtectionApplicationName"]);
-        Assert.Equal("intochat-protection-v1", configuration["DigitalBrain:Identity:ProtectionContainerName"]);
+        Assert.Equal("intochat.session", configuration[IdentityHostOptions.Key(nameof(IdentityHostOptions.CookieName))]);
+        Assert.Equal("IntoChat.v1", configuration[IdentityHostOptions.Key(nameof(IdentityHostOptions.ProtectionApplicationName))]);
+        Assert.Equal("intochat-protection-v1", configuration[IdentityHostOptions.Key(nameof(IdentityHostOptions.ProtectionContainerName))]);
     }
 
     // The orchestrated deployment (AppHost) and the standalone image (OS appsettings) each state
@@ -33,12 +34,17 @@ public sealed class IdentityHostOptionsFacts
     {
         var root = FindRepositoryRoot();
         using var appHost = new ConfigurationManager();
-        appHost.AddJsonFile(Path.Combine(root, "src", "DigitalBrain", "AppHost", "appsettings.json"));
+        appHost.AddJsonFile(Path.Combine(root, "src", "DigitalBrain", "AppHost", "DigitalBrain.AppHost", "appsettings.json"));
         using var image = new ConfigurationManager();
         image.AddJsonFile(Path.Combine(root, "src", "DigitalBrain", "OS", "DigitalBrain.OS", "appsettings.json"));
-        foreach (var key in new[] { "CookieName", "ProtectionApplicationName", "ProtectionContainerName" })
+        foreach (var key in new[]
         {
-            Assert.Equal(image["DigitalBrain:Identity:" + key], appHost["DigitalBrain:Identity:" + key]);
+            nameof(IdentityHostOptions.CookieName),
+            nameof(IdentityHostOptions.ProtectionApplicationName),
+            nameof(IdentityHostOptions.ProtectionContainerName),
+        })
+        {
+            Assert.Equal(image[IdentityHostOptions.Key(key)], appHost[IdentityHostOptions.Key(key)]);
         }
     }
 }

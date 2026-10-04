@@ -13,7 +13,8 @@ namespace DigitalBrain.Kernel.Tests.E2E;
 public sealed class ContentCaptureFacts
 {
     private const string OrdinaryContent = "Show active leads";
-    private const string EnableSensitiveKey = "DigitalBrain__AI__Telemetry__EnableSensitiveData";
+    private static readonly string EnableSensitiveKey =
+        Contracts.DigitalBrainConfiguration.EnvironmentName(AIOptions.TelemetryEnableSensitiveDataKey);
 
     [Theory(Timeout = 300_000)]
     [InlineData(true)]
@@ -26,7 +27,7 @@ public sealed class ContentCaptureFacts
         await using var brain = await CaptureTest.CreateAsync(model, collector, new Dictionary<string, string>
         {
             ["ASPNETCORE_ENVIRONMENT"] = "Production",
-            ["DigitalBrain__Testing__Enabled"] = "true",
+            [Contracts.DigitalBrainConfiguration.EnvironmentName(ModuleSettingsValidation.TestingSectionPrefix + "Enabled")] = "true",
             ["IntoChat__Profile"] = "developer",
             [EnableSensitiveKey] = enabled ? "true" : "false",
             // An ambient SDK setting cannot override the explicit module setting.

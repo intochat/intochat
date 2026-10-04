@@ -33,6 +33,8 @@ public sealed class RepositoryLayoutFacts
             {
                 var include = reference.Attribute("Include")!.Value;
                 if (include.Contains('@', StringComparison.Ordinal)) { continue; }
+                // The OS references its modules by glob; the catalog facts check that closure.
+                if (include.Contains('*', StringComparison.Ordinal)) { continue; }
                 Assert.True(File.Exists(Path.Combine(root, directory, include.Replace('\\', '/'))), $"Broken project reference: {path} -> {include}");
             }
             foreach (var property in project.Descendants().Where(element => element.Name.LocalName is "RootNamespace" or "AssemblyName" or "PackageId"))

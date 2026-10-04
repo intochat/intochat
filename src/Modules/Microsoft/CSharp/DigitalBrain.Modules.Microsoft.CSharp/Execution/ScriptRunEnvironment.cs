@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Contracts;
+using DigitalBrain.Contracts.Edge.V1;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,8 +20,8 @@ internal sealed class ScriptRunEnvironment(RunTokens tokens, IOptions<CSharpDepl
     {
         var environment = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["DigitalBrain__Edge"] = EdgeUrl(),
-            ["DigitalBrain__Token"] = tokens.Issue(fileId, runId),
+            [DigitalBrainConfiguration.EnvironmentName(ScriptEdgeProtocol.EdgeSetting)] = EdgeUrl(),
+            [DigitalBrainConfiguration.EnvironmentName(ScriptEdgeProtocol.TokenSetting)] = tokens.Issue(fileId, runId),
         };
         foreach (var (name, value) in settings) { environment["CSharpFile__Settings__" + name] = value; }
         if (trigger is not null) { environment["CSharpFile__Trigger"] = JsonSerializer.Serialize(trigger, trigger.GetType(), JsonSerializerOptions.Web); }

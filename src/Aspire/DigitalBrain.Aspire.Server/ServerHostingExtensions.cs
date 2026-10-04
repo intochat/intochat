@@ -16,6 +16,9 @@ namespace DigitalBrain.Aspire.Server;
 
 public static class ServerHostingExtensions
 {
+    // A standalone container affirms it so a missing clustering connection fails loudly.
+    public const string StandaloneKey = "DigitalBrain:Standalone";
+
     public static IHostApplicationBuilder AddDigitalBrainServer(this IHostApplicationBuilder builder, Action<DigitalBrainServerBuilder> configure)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -86,7 +89,7 @@ public static class ServerHostingExtensions
         var clustering = configuration.GetConnectionString(DigitalBrainNames.Clustering);
         if (string.IsNullOrWhiteSpace(clustering))
         {
-            if (configuration.GetValue<bool>("DigitalBrain:Standalone"))
+            if (configuration.GetValue<bool>(StandaloneKey))
             {
                 throw new InvalidOperationException(
                     $"Missing connection string '{DigitalBrainNames.Clustering}'. "

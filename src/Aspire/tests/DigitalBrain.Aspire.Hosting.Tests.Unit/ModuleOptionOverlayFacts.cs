@@ -27,8 +27,8 @@ public sealed class ModuleOptionOverlayFacts
     public void ReplacementOptionsRemoveCodeDeclaredCollectionsAndRestoreTypeDefaults()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        builder.Configuration["DigitalBrain:Modules:example:ReplaceOptions"] = "true";
-        builder.Configuration["DigitalBrain:Modules:example:Options:Endpoint"] = "fixture";
+        builder.Configuration[DigitalBrainConfiguration.ModuleSection("example") + ":ReplaceOptions"] = "true";
+        builder.Configuration[DigitalBrainConfiguration.ModuleOptionsSection("example") + ":Endpoint"] = "fixture";
         var brain = builder.AddDigitalBrain("modules", new DigitalBrainHostingOptions { PersistentStorage = false })
             .WithModule(typeof(ExampleModule), settings: HostingModuleOptions.Flatten(new OverlaidOptions
             {
@@ -49,24 +49,24 @@ public sealed class ModuleOptionOverlayFacts
         var brain = builder.AddDigitalBrain("modules", new DigitalBrainHostingOptions { PersistentStorage = false })
             .WithModule(typeof(ExampleModule), settings: HostingModuleOptions.Flatten(new OverlaidOptions { Endpoint = "production" }, "example"));
         var configuration = brain.GetModuleConfiguration("example");
-        Assert.Equal("production", configuration["DigitalBrain:Modules:example:Options:Endpoint"]);
+        Assert.Equal("production", configuration[DigitalBrainConfiguration.ModuleOptionsSection("example") + ":Endpoint"]);
         // Delay was left at its default: the deployment never decided it, so the silo's own
         // configuration must stay free to.
-        Assert.Null(configuration["DigitalBrain:Modules:example:Options:Delay"]);
+        Assert.Null(configuration[DigitalBrainConfiguration.ModuleOptionsSection("example") + ":Delay"]);
     }
 
     [Fact]
     public void TwoBrainsScopeInfrastructureAndAllowIndependentConfiguration()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        builder.Configuration["DigitalBrain:Brains:first:Modules:scoped:Options:ConnectionName"] = "first-db";
-        builder.Configuration["DigitalBrain:Brains:second:Modules:scoped:Options:ConnectionName"] = "second-db";
+        builder.Configuration[DigitalBrainConfiguration.BrainModuleOptionsSection("first", "scoped") + ":ConnectionName"] = "first-db";
+        builder.Configuration[DigitalBrainConfiguration.BrainModuleOptionsSection("second", "scoped") + ":ConnectionName"] = "second-db";
         var first = builder.AddDigitalBrain("first", options: new() { UseAzureStorage = true, PersistentStorage = false })
             .WithHosting<ScopedServerHosting>();
         var second = builder.AddDigitalBrain("second", options: new() { UseAzureStorage = true, PersistentStorage = false })
             .WithHosting<ScopedServerHosting>();
-        Assert.Equal("first-db", first.GetModuleConfiguration("scoped")["DigitalBrain:Modules:scoped:Options:ConnectionName"]);
-        Assert.Equal("second-db", second.GetModuleConfiguration("scoped")["DigitalBrain:Modules:scoped:Options:ConnectionName"]);
+        Assert.Equal("first-db", first.GetModuleConfiguration("scoped")[DigitalBrainConfiguration.ModuleOptionsSection("scoped") + ":ConnectionName"]);
+        Assert.Equal("second-db", second.GetModuleConfiguration("scoped")[DigitalBrainConfiguration.ModuleOptionsSection("scoped") + ":ConnectionName"]);
         var names = builder.Resources.Select(r => r.Name).ToArray();
         Assert.Equal(names.Length, names.Distinct(StringComparer.OrdinalIgnoreCase).Count());
         Assert.Contains("first-scoped-server", names);
@@ -87,8 +87,8 @@ public sealed class ModuleOptionOverlayFacts
         {
             Args =
             [
-                "DigitalBrain:Modules:OverlaidModule:Options:Endpoint=from-args",
-                "DigitalBrain:Modules:OverlaidModule:Options:Bindings:extra=added",
+                DigitalBrainConfiguration.ModuleOptionsSection("OverlaidModule") + ":Endpoint=from-args",
+                DigitalBrainConfiguration.ModuleOptionsSection("OverlaidModule") + ":Bindings:extra=added",
             ],
             DisableDashboard = true,
         });

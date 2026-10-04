@@ -7,7 +7,7 @@ namespace DigitalBrain.AI.WebSearch;
 
 public sealed class TavilyWebSearch : IWebSearch
 {
-    public const string EnabledConfigurationKey = "DigitalBrain:AI:Tavily:Enabled";
+    public const string EnabledConfigurationKey = AIOptions.TavilyEnabledKey;
 
     private static readonly Uri SearchEndpoint = new("https://api.tavily.com/search");
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);

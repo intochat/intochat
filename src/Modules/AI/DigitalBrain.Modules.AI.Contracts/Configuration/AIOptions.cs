@@ -7,6 +7,14 @@ namespace DigitalBrain.AI;
 public sealed class AIOptions : IModuleOptions
 {
     public const string SectionName = "DigitalBrain:AI";
+    public const string DefaultModelKey = SectionName + ":Default:Model";
+    public const string DefaultEmbeddingKey = SectionName + ":Default:Embedding";
+    public const string DefaultTranscriptionKey = SectionName + ":Default:Transcription";
+    public const string DefaultImageKey = SectionName + ":Default:Image";
+    public const string OllamaSectionName = SectionName + ":Ollama";
+    public const string OllamaEndpointKey = OllamaSectionName + ":Endpoint";
+    public const string TavilyEnabledKey = SectionName + ":Tavily:Enabled";
+    public const string TelemetryEnableSensitiveDataKey = SectionName + ":Telemetry:EnableSensitiveData";
     public AIDefaultOptions Default { get; set; } = new();
     public AITelemetryOptions Telemetry { get; set; } = new();
     public AIProviderOptions OpenAI { get; set; } = new();

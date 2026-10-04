@@ -1,3 +1,5 @@
+using DigitalBrain.Contracts;
+using DigitalBrain.Contracts.Edge.V1;
 using DigitalBrain.Microsoft.CSharp.Sandbox;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -15,7 +17,7 @@ public sealed class SandboxRunsFacts : IDisposable
         var ct = TestContext.Current.CancellationToken;
         var runs = Runs();
 
-        var started = await runs.StartAsync("run-1", new("Console.WriteLine(1);", new() { ["DigitalBrain__Edge"] = "http://edge.test/" }), ct);
+        var started = await runs.StartAsync("run-1", new("Console.WriteLine(1);", new() { [DigitalBrainConfiguration.EnvironmentName(ScriptEdgeProtocol.EdgeSetting)] = "http://edge.test/" }), ct);
 
         Assert.Equal(RunStatuses.Running, started.Status);
         var work = Path.Combine(_workRoot, "run-1");
@@ -23,7 +25,7 @@ public sealed class SandboxRunsFacts : IDisposable
         Assert.Contains("/brain/client.csproj", await File.ReadAllTextAsync(Path.Combine(work, "Directory.Build.props"), ct), StringComparison.Ordinal);
         var launch = Assert.Single(_launcher.Launches);
         Assert.Equal(work, launch.WorkDirectory);
-        Assert.Equal("http://edge.test/", launch.Environment["DigitalBrain__Edge"]);
+        Assert.Equal("http://edge.test/", launch.Environment[DigitalBrainConfiguration.EnvironmentName(ScriptEdgeProtocol.EdgeSetting)]);
     }
 
     [Fact]

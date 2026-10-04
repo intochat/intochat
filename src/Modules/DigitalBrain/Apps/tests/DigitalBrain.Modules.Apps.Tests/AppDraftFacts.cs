@@ -337,8 +337,8 @@ public sealed class AppDraftFacts
         {
             PrivateConfiguration = new Dictionary<string, string?>
             {
-                ["DigitalBrain:Apps:AuthorModel"] = IScriptedLLM.ModelPrefix + "author",
-                ["DigitalBrain:Apps:BuilderModel"] = IScriptedLLM.ModelPrefix + "builder",
+                [AppDraftNeuron.AuthorModelKey] = IScriptedLLM.ModelPrefix + "author",
+                [AppDraftNeuron.BuilderModelKey] = IScriptedLLM.ModelPrefix + "builder",
             },
         })
         .ConfigureSilo(silo =>

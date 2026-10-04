@@ -25,7 +25,7 @@ public sealed class E2ETestBuilder<TAppHost> where TAppHost : class
         edited.Validate();
         _moduleOptions[typeof(TModule)] = edited;
         var id = ModuleIdentity.Get(typeof(TModule));
-        var prefix = $"DigitalBrain:Modules:{id}:";
+        var prefix = DigitalBrainConfiguration.ModuleSection(id) + ":";
         foreach (var key in _optionOverrides.Keys.Where(key => key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).ToArray())
         { _optionOverrides.Remove(key); }
         _optionOverrides[prefix + "ReplaceOptions"] = "true";

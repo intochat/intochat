@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using DigitalBrain.AI;
 using DigitalBrain.AI.FoundryLocal;
 using DigitalBrain.AI.Ollama;
@@ -83,10 +84,10 @@ public static class ReferenceBrain
                 // Use the authenticated reference host without product-owned shipped content.
                 ResourceEnvironment = new Dictionary<string, string>(StringComparer.Ordinal)
                 {
-                    [DigitalBrain.Aspire.Hosting.EnvironmentKeys.For(ModuleHostChannel.ReferenceCompositionKey)] = "true",
+                    [DigitalBrainConfiguration.EnvironmentName(ModuleHostChannel.ReferenceCompositionKey)] = "true",
                     // The OS composition now ships its own apps; reference suites keep startup
                     // shipping off for time — the product golden journeys ship and verify them.
-                    ["DigitalBrain__Apps__ShipOnStartup"] = "false",
+                    [DigitalBrainConfiguration.EnvironmentName(ShippedAppsServiceCollectionExtensions.ShipOnStartupKey)] = "false",
                 },
                 PrivateConfiguration = Merge(new Dictionary<string, string?>
                 {

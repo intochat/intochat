@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Aspire.Hosting;
@@ -101,7 +102,7 @@ public static class ShellHostingExtensions
 
             // The dev web server below compiles in the shared source directory, so concurrent
             // AppHosts (parallel E2E suites) must not use it: they race on one build/ and a
-            // losing server dies. E2E fixtures set DigitalBrain:Flutter:Hosting:WebContainer.
+            // losing server dies. E2E fixtures set FlutterHostOptions.WebContainerKey.
 
             var launch = FlutterHostLaunch.Resolve(kind, packageRoot, options, appHost.Configuration);
 
@@ -285,7 +286,7 @@ public static class ShellHostingExtensions
                     .OnBeforeResourceStarted((_, _, ct) => File.WriteAllTextAsync(
                         configPath, ShellServedConfig.Payload(kernelEndpoint.Url, shellName, chatName), ct));
                 builder.WithEnvironment(
-                    EnvironmentKeys.For("DigitalBrain:Cors", "AllowedOrigin"),
+                    DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Platform.Identity.Configuration.KernelCorsOptions.SectionName, nameof(DigitalBrain.Platform.Identity.Configuration.KernelCorsOptions.AllowedOrigin)),
                     _shellContainer.GetEndpoint(ShellNames.HttpEndpointName));
                 _uiBaseBound = true;
                 return;
@@ -305,7 +306,7 @@ public static class ShellHostingExtensions
             if (_flutterKind == FlutterHostKind.Web)
             {
                 builder.WithEnvironment(
-                    EnvironmentKeys.For("DigitalBrain:Cors", "AllowedOrigin"),
+                    DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Platform.Identity.Configuration.KernelCorsOptions.SectionName, nameof(DigitalBrain.Platform.Identity.Configuration.KernelCorsOptions.AllowedOrigin)),
                     _flutterHost.GetEndpoint(ShellNames.HttpEndpointName));
                 // The kernel endpoint must not be compiled into the bundle: a baked define
                 // differs every session and forces a full release recompile per boot. The dev

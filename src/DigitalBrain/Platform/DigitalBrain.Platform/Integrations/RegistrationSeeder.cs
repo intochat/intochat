@@ -17,7 +17,7 @@ internal sealed class RegistrationSeeder(
 
     public async Task SeedAsync(CancellationToken cancellationToken)
     {
-        if (configuration.GetValue<bool>("DigitalBrain:Identity:Migration:Maintenance")) { return; }
+        if (configuration.GetValue<bool>(Identity.Directory.IdentityMigrationOptions.MaintenanceKey)) { return; }
         foreach (var definition in definitions)
         {
             cancellationToken.ThrowIfCancellationRequested();

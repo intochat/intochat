@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 
@@ -19,6 +20,6 @@ internal static class AuthPosture
     private sealed class Projection(string posture) : DigitalBrainModuleProjection
     {
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
-            => builder.WithEnvironment(EnvironmentKeys.For(Key), posture);
+            => builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(Key), posture);
     }
 }

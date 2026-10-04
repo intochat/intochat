@@ -42,8 +42,8 @@ public sealed class CompositionBoundaryFacts
     public void UnknownSelectionIsRejectedBeforeAnyFactoryRuns()
     {
         var builder = WebApplication.CreateBuilder();
-        builder.Configuration["DigitalBrain:Modules:a:Enabled"] = "true";
-        builder.Configuration["DigitalBrain:Modules:z:Enabled"] = "true";
+        builder.Configuration[DigitalBrainConfiguration.ModuleSection("a") + ":Enabled"] = "true";
+        builder.Configuration[DigitalBrainConfiguration.ModuleSection("z") + ":Enabled"] = "true";
         var created = 0;
         Assert.Throws<InvalidOperationException>(() => builder.AddDigitalBrainServer(server =>
             server.AddModule("a", () => { created++; return new StatefulModule(); })));
@@ -61,7 +61,7 @@ public sealed class CompositionBoundaryFacts
     public async Task SiloAndHttpConfigurationUseTheSameInstanceAndUnselectedFactoriesDoNotRun()
     {
         var builder = WebApplication.CreateBuilder();
-        builder.Configuration["DigitalBrain:Modules:unused:Enabled"] = "false";
+        builder.Configuration[DigitalBrainConfiguration.ModuleSection("unused") + ":Enabled"] = "false";
         var instance = new StatefulModule();
         var created = 0;
         builder.AddDigitalBrainServer(server => server

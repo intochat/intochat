@@ -48,14 +48,14 @@ public sealed class DigitalBrainBuilder
         { throw new ArgumentException("Module IDs contain only ASCII letters, digits, and hyphens.", nameof(id)); }
         if (_modules.Contains(id, StringComparer.Ordinal)) { throw new InvalidOperationException($"Module '{id}' is already selected."); }
         if (hosting is not null && hosting.Id != id) { throw new ArgumentException("The hosting adapter belongs to another module.", nameof(hosting)); }
-        var replaceOptions = ApplicationBuilder.Configuration.GetValue<bool>($"DigitalBrain:Modules:{id}:ReplaceOptions");
+        var replaceOptions = ApplicationBuilder.Configuration.GetValue<bool>(DigitalBrainConfiguration.ModuleSection(id) + ":ReplaceOptions");
         var values = new Dictionary<string, string?>(replaceOptions ? [] : settings ?? new Dictionary<string, string?>(), StringComparer.OrdinalIgnoreCase);
-        foreach (var pair in ApplicationBuilder.Configuration.GetSection($"DigitalBrain:Modules:{id}:Options").AsEnumerable())
+        foreach (var pair in ApplicationBuilder.Configuration.GetSection(DigitalBrainConfiguration.ModuleOptionsSection(id)).AsEnumerable())
         { if (pair.Value is not null) { values[pair.Key] = pair.Value; } }
-        var scopedPrefix = $"DigitalBrain:Brains:{Name}:Modules:{id}:Options";
+        var scopedPrefix = DigitalBrainConfiguration.BrainModuleOptionsSection(Name, id);
         foreach (var pair in ApplicationBuilder.Configuration.GetSection(scopedPrefix).AsEnumerable())
         {
-            if (pair.Value is not null) { values[$"DigitalBrain:Modules:{id}:Options" + pair.Key[scopedPrefix.Length..]] = pair.Value; }
+            if (pair.Value is not null) { values[DigitalBrainConfiguration.ModuleOptionsSection(id) + pair.Key[scopedPrefix.Length..]] = pair.Value; }
         }
         _compiledConfiguration[id] = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
         _modules.Add(id);

@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using DigitalBrain.Platform.Contracts.Integrations;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
@@ -77,23 +78,23 @@ public static partial class AIHostingExtensions
             {
                 builder
                     .WithAnnotation(new WaitAnnotation(resource.Resource, WaitType.WaitUntilHealthy, exitCode: 0))
-                    .WithEnvironment("DigitalBrain__AI__Ollama__Endpoint", resource.Resource.Parent.UriExpression)
-                    .WithEnvironment($"DigitalBrain__AI__Ollama__{marker.Name}__Model", resource.Resource.ModelName);
+                    .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(AIOptions.OllamaEndpointKey), resource.Resource.Parent.UriExpression)
+                    .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(AIOptions.OllamaSectionName, $"{marker.Name}:Model"), resource.Resource.ModelName);
             }
 
             foreach (var (provider, apiKey) in _providerApiKeys)
             {
-                builder.WithEnvironment(EnvironmentKeys.For(IntegrationDefinition.Key(provider.ToString().ToLowerInvariant(), "ApiKey")), apiKey);
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(IntegrationDefinition.Key(provider.ToString().ToLowerInvariant(), "ApiKey")), apiKey);
             }
 
             if (_defaultLlmMarker is { } llmMarker)
             {
-                builder.WithEnvironment("DigitalBrain__AI__Default__Model", llmMarker.Name);
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(AIOptions.DefaultModelKey), llmMarker.Name);
             }
 
             if (_defaultEmbeddingMarker is { } embeddingMarker)
             {
-                builder.WithEnvironment("DigitalBrain__AI__Default__Embedding", embeddingMarker.Name);
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(AIOptions.DefaultEmbeddingKey), embeddingMarker.Name);
             }
         }
 
@@ -178,9 +179,10 @@ public static partial class AIHostingExtensions
         DigitalBrainBuilder brain,
         IResourceBuilder<DigitalBrainModuleResource> module) : DigitalBrainModuleProjection
     {
-        // One key for every transcription model, matching Default__Model and
-        // Default__Embedding. The provider on the model picks the implementation.
-        private const string TranscriptionEnvironmentKey = "DigitalBrain__AI__Default__Transcription";
+        // One key for every transcription model, matching the default model and
+        // embedding keys. The provider on the model picks the implementation.
+        private static readonly string TranscriptionEnvironmentKey =
+            DigitalBrainConfiguration.EnvironmentName(AIOptions.DefaultTranscriptionKey);
         private TranscriptionModel? _model;
         private IResourceBuilder<FoundryLocalModelResource>? _whisper;
 

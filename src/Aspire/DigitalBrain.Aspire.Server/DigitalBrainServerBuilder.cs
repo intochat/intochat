@@ -45,7 +45,7 @@ public sealed class DigitalBrainServerBuilder
     internal IModule[] SelectModules(IConfiguration configuration)
     {
         // Configuration keys are case-insensitive, so the ids match that way too.
-        var sections = configuration.GetSection("DigitalBrain:Modules").GetChildren().ToArray();
+        var sections = configuration.GetSection(Contracts.DigitalBrainConfiguration.ModulesSectionName).GetChildren().ToArray();
         var registered = _modules.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var section in sections)
         {

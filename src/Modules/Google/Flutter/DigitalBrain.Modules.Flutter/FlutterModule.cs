@@ -17,7 +17,7 @@ public sealed class FlutterModule : IModule<FlutterModuleOptions>, IHttpModule
     {
         ArgumentNullException.ThrowIfNull(silo);
         silo.Services.AddOptions<FlutterModuleOptions>().Configure<IConfiguration>(
-            static (options, configuration) => configuration.GetSection("DigitalBrain:Modules:flutter:Options").Bind(options));
+            static (options, configuration) => configuration.PopulateModuleOptions("flutter", options));
     }
 
     public void Configure(IEndpointRouteBuilder endpoints)

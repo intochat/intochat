@@ -4,6 +4,7 @@ using DigitalBrain.Aspire.Server;
 using DigitalBrain.Contracts;
 using DigitalBrain.Platform.Contracts.Identity;
 using DigitalBrain.Platform.Identity;
+using DigitalBrain.Platform.Identity.Configuration;
 using DigitalBrain.Platform.Identity.Directory;
 using DigitalBrain.Platform.Secrets;
 using Microsoft.AspNetCore.Builder;
@@ -28,8 +29,8 @@ internal static class MigrationWorker
         builder.Logging.SetMinimumLevel(LogLevel.Error);
         var maintenance = mode is "seed" or "rollback" or "inspect" or "checkpoint-interrupt" or "interrupt" or "migrate" or "retry";
         builder.Configuration[AuthOptions.PostureKey] = "Secured";
-        builder.Configuration["DigitalBrain:Identity:Migration:Maintenance"] = maintenance.ToString();
-        builder.Configuration["DigitalBrain:MasterKey"] ??= Environment.GetEnvironmentVariable("IDENTITY_TEST_KEY");
+        builder.Configuration[IdentityMigrationOptions.MaintenanceKey] = maintenance.ToString();
+        builder.Configuration[DigitalBrainNames.MasterKeyConfigurationKey] ??= Environment.GetEnvironmentVariable("IDENTITY_TEST_KEY");
         var connection = Environment.GetEnvironmentVariable("IDENTITY_TEST_STORAGE")!;
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Services.AddKeyedSingleton(DigitalBrainNames.GrainState, new BlobServiceClient(connection));

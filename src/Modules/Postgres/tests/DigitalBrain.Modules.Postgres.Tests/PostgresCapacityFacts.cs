@@ -49,7 +49,7 @@ public sealed class PostgresCapacityFacts
             .ConfigureSilo(silo =>
             {
                 silo.Configuration["ConnectionStrings:postgres"] = "Host=localhost;Database=sample;Username=reader";
-                silo.Configuration["DigitalBrain:Capacity:Postgres:AdminConnection"] = "Host=localhost;Database=postgres;Username=admin;Password=admin";
+                silo.Configuration[PostgresModuleOptions.AdminConnectionKey] = "Host=localhost;Database=postgres;Username=admin;Password=admin";
                 silo.Services.AddSingleton<ICapacityProvisioner>(new DockerPostgresProvisioner(
                     "Host=localhost;Database=postgres;Username=admin;Password=admin", (_, _, _) => Task.CompletedTask));
             }).StartAsync(ct);

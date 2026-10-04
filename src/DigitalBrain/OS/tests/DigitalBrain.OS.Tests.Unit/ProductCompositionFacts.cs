@@ -53,7 +53,8 @@ public sealed class ProductCompositionFacts
         {
             await callback.Callback(context);
         }
-        Assert.Equal("IDeepSeekV41Flash", environment["DigitalBrain__Modules__ai__Options__Default__Model"]);
-        Assert.True(environment.ContainsKey("DigitalBrain__Integrations__openrouter__ApiKey"));
+        Assert.Equal("IDeepSeekV41Flash", environment[DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ModuleOptionsSection("ai") + ":Default:Model")]);
+        Assert.True(environment.ContainsKey(DigitalBrainConfiguration.EnvironmentName(
+            DigitalBrain.Platform.Contracts.Integrations.IntegrationDefinition.Key("openrouter", "ApiKey"))));
     }
 }

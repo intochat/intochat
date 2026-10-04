@@ -21,7 +21,7 @@ public sealed class ModuleSelectionFacts
     {
         var server = new DigitalBrainServerBuilder().AddModule(typeof(SampleModule));
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(
-            new Dictionary<string, string?> { ["DigitalBrain:Modules:sample:Enabled"] = "false" }).Build();
+            new Dictionary<string, string?> { [DigitalBrainConfiguration.ModuleSection("sample") + ":Enabled"] = "false" }).Build();
         Assert.Empty(server.SelectModules(configuration));
     }
 
@@ -30,7 +30,7 @@ public sealed class ModuleSelectionFacts
     {
         var server = new DigitalBrainServerBuilder().AddModule(typeof(SampleModule));
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(
-            new Dictionary<string, string?> { ["DigitalBrain:Modules:Sample:Enabled"] = "false" }).Build();
+            new Dictionary<string, string?> { [DigitalBrainConfiguration.ModuleSection("Sample") + ":Enabled"] = "false" }).Build();
         Assert.Empty(server.SelectModules(configuration));
     }
 
@@ -39,7 +39,7 @@ public sealed class ModuleSelectionFacts
     {
         var server = new DigitalBrainServerBuilder().AddModule(typeof(SampleModule));
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(
-            new Dictionary<string, string?> { ["DigitalBrain:Modules:SAMPLE:Enabled"] = "true" }).Build();
+            new Dictionary<string, string?> { [DigitalBrainConfiguration.ModuleSection("SAMPLE") + ":Enabled"] = "true" }).Build();
         Assert.Single(server.SelectModules(configuration));
     }
 
@@ -48,7 +48,7 @@ public sealed class ModuleSelectionFacts
     {
         var server = new DigitalBrainServerBuilder().AddModule(typeof(SampleModule));
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(
-            new Dictionary<string, string?> { ["DigitalBrain:Modules:ghost:Enabled"] = "true" }).Build();
+            new Dictionary<string, string?> { [DigitalBrainConfiguration.ModuleSection("ghost") + ":Enabled"] = "true" }).Build();
         Assert.Throws<InvalidOperationException>(() => server.SelectModules(configuration));
     }
 

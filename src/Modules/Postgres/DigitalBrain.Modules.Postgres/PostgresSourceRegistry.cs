@@ -11,7 +11,7 @@ internal static class PostgresCapacityKind
     public const string Kind = "postgres";
     public const string PlatformOrigin = "platform";
     public const string DatabasePrefix = "db:";
-    public const string AdminConnectionKey = "DigitalBrain:Capacity:Postgres:AdminConnection";
+    public const string AdminConnectionKey = PostgresModuleOptions.AdminConnectionKey;
 
     // A table pinned before origins existed (Origin == null) lives in the platform source.
     public static string OriginOrPlatform(string? origin) => string.IsNullOrEmpty(origin) ? PlatformOrigin : origin;

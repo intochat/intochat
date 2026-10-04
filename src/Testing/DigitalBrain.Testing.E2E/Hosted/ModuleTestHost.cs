@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using System.Reflection;
 using Aspire.Hosting;
 using DigitalBrain.Aspire.Hosting;
@@ -25,7 +26,7 @@ internal static class ModuleTestHost
             var brain = builder.AddDigitalBrain("modules", new DigitalBrainHostingOptions { PersistentStorage = false, DataVolume = durableStorageKey, ServiceId = durableStorageKey ?? identity, UseAzureStorage = true });
             brain.AddModules(modules);
             builder.AddExecutable("runtime", "dotnet", launch.WorkingDirectory, launch.Arguments)
-                .WithEnvironment(DigitalBrain.Aspire.Hosting.EnvironmentKeys.For(ModuleHostChannel.ModuleTypesKey), ModuleHostChannel.SerializeModules(modules))
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(ModuleHostChannel.ModuleTypesKey), ModuleHostChannel.SerializeModules(modules))
                 .WithReference(brain)
                 .WithHttpEndpoint(name: "http", env: "ASPNETCORE_HTTP_PORTS")
                 .WithHttpHealthCheck(ModuleHostEndpoints.Health);

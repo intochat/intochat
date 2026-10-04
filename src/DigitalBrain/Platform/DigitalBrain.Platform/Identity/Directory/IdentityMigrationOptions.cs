@@ -10,6 +10,7 @@ namespace DigitalBrain.Platform.Identity.Directory;
 public sealed class IdentityMigrationOptions
 {
     public const string SectionName = "DigitalBrain:Identity:Migration";
+    public const string MaintenanceKey = SectionName + ":" + nameof(Maintenance);
     public bool Maintenance { get; set; }
     public string? SourceSnapshotId { get; set; }
     // Complete grant-store inventory from the stopped source snapshot, including grant-only brains.

@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Aspire.Hosting;
@@ -23,7 +24,7 @@ public static class SalesforceHostingExtensions
         DigitalBrainBuilder brain,
         IResourceBuilder<DigitalBrainModuleResource> module) : DigitalBrainModuleProjection
     {
-        private const string OAuthRoot = "DigitalBrain:Salesforce:OAuth";
+        private const string OAuthRoot = SalesforceOAuthOptions.SectionName;
 
         private bool _enabled;
         private Uri? _publicOrigin;
@@ -59,15 +60,15 @@ public static class SalesforceHostingExtensions
                 .WithParentRelationship(module);
 
             builder
-                .WithEnvironment(EnvironmentKeys.For(OAuthRoot, "ConsumerKey"), _consumerKey)
-                .WithEnvironment(EnvironmentKeys.For(OAuthRoot, "ConsumerSecret"), _consumerSecret);
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(OAuthRoot, "ConsumerKey"), _consumerKey)
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(OAuthRoot, "ConsumerSecret"), _consumerSecret);
             if (_publicOrigin is { } origin)
             {
-                builder.WithEnvironment(EnvironmentKeys.For(OAuthRoot, "PublicOrigin"), origin.AbsoluteUri);
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(OAuthRoot, "PublicOrigin"), origin.AbsoluteUri);
             }
             else
             {
-                builder.WithEnvironment(EnvironmentKeys.For(OAuthRoot, "PublicOrigin"), builder.GetEndpoint("http"));
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(OAuthRoot, "PublicOrigin"), builder.GetEndpoint("http"));
             }
         }
     }

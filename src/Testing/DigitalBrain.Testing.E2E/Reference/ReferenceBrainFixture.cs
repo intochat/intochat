@@ -32,7 +32,7 @@ public class ReferenceBrainFixture : SharedBrainFixture, IAsyncLifetime
             .ConfigureModule<FlutterModule, FlutterModuleOptions>(flutter => flutter.RunWebApp())
             // The baked-bundle container: concurrent fixtures must not share flutter's mutable
             // build directory, which the dev web server does.
-            .WithHostConfiguration("DigitalBrain:Flutter:Hosting:WebContainer", "true")
+            .WithHostConfiguration(Flutter.Aspire.Hosting.FlutterHostOptions.WebContainerKey, "true")
             .WithBrowser(new() { PrimarySession = false, AssertionTimeout = TimeSpan.FromMinutes(2) })
             // A warm boot serves the content-tagged shell image in seconds; fifteen minutes
             // covers a cold runner's one-time in-docker Flutter compile and container pulls.

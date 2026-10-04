@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using DigitalBrain.Platform.Contracts.Integrations;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
@@ -63,17 +64,17 @@ public static class GitHubAppHostingExtensions
                 .WithDescription("GitHub App HMAC webhook secret, at least 16 characters.");
             _clientSecret ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("github-app-client-secret"), secret: true)
                 .WithDescription("GitHub App OAuth client secret; user tokens are only used during authorization.");
-            const string root = "DigitalBrain:Microsoft:GitHub:App";
+            const string root = GitHubModuleOptions.AppSectionName;
             const string IntegrationRoot = IntegrationDefinition.SectionName + ":github";
-            builder.WithEnvironment(EnvironmentKeys.For(root, "AppId"), appId.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                .WithEnvironment(EnvironmentKeys.For(IntegrationRoot, "AppId"), appId.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                .WithEnvironment(EnvironmentKeys.For(root, "Slug"), slug)
-                .WithEnvironment(EnvironmentKeys.For(root, "ClientId"), clientId)
-                .WithEnvironment(EnvironmentKeys.For(root, "PublicOrigin"), publicOrigin.AbsoluteUri)
-                .WithEnvironment(EnvironmentKeys.For(root, "PublicWebhookUrl"), publicWebhookUrl.AbsoluteUri)
-                .WithEnvironment(EnvironmentKeys.For(IntegrationRoot, "PrivateKeyPem"), _privateKey)
-                .WithEnvironment(EnvironmentKeys.For(root, "WebhookSecret"), _webhookSecret)
-                .WithEnvironment(EnvironmentKeys.For(root, "ClientSecret"), _clientSecret);
+            builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "AppId"), appId.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(IntegrationRoot, "AppId"), appId.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "Slug"), slug)
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "ClientId"), clientId)
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "PublicOrigin"), publicOrigin.AbsoluteUri)
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "PublicWebhookUrl"), publicWebhookUrl.AbsoluteUri)
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(IntegrationRoot, "PrivateKeyPem"), _privateKey)
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "WebhookSecret"), _webhookSecret)
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "ClientSecret"), _clientSecret);
         }
     }
 }

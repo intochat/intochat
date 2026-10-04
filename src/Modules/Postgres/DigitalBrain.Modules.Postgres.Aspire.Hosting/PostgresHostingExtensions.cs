@@ -1,6 +1,7 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Aspire.Hosting;
+using DigitalBrain.Contracts;
 using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Postgres.Aspire.Hosting;
@@ -84,7 +85,7 @@ internal static class PostgresHostingExtensions
                 {
                     var server = _server.Resource;
                     builder.WithEnvironment(context =>
-                        context.EnvironmentVariables["DigitalBrain__Capacity__Postgres__AdminConnection"] = server.ConnectionStringExpression);
+                        context.EnvironmentVariables[DigitalBrainConfiguration.EnvironmentName(PostgresModuleOptions.AdminConnectionKey)] = server.ConnectionStringExpression);
                 }
             }
             else if (_connection is not null)
