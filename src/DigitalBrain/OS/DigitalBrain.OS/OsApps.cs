@@ -61,12 +61,13 @@ internal sealed class OsBootService(
     {
         if (options.Value.Apps.Count == 0) { return; }
         var apps = options.Value.Apps.Select(PackageId.Parse).ToArray();
+        var replaces = options.Value.Replaces.ToDictionary(pair => PackageId.Parse(pair.Key), pair => PackageId.Parse(pair.Value));
         using var activations = signals.Subscribe<Activated>();
         await foreach (var activated in activations.Reader.ReadAllAsync(stoppingToken))
         {
             foreach (var package in apps)
             {
-                try { await EnsureCurrentAsync(activated, package, stoppingToken); }
+                try { await EnsureCurrentAsync(activated, package, replaces, stoppingToken); }
                 catch (Exception error) when (error is not OperationCanceledException)
                 {
                     // One app failing must not keep Settings from starting; the next
@@ -77,7 +78,8 @@ internal sealed class OsBootService(
         }
     }
 
-    private async Task EnsureCurrentAsync(Activated activated, PackageId package, CancellationToken cancellationToken)
+    private async Task EnsureCurrentAsync(
+        Activated activated, PackageId package, IReadOnlyDictionary<PackageId, PackageId> replaces, CancellationToken cancellationToken)
     {
         // The brain's (owner, name) pair is the scope identity the kernel derives everywhere
         // from the caller; the install must land in the activated brain's own scope.
@@ -100,6 +102,18 @@ internal sealed class OsBootService(
         else if (snapshot.Revision is { } installed && installed.Revision != published)
         {
             await app.Upgrade(new(Guid.NewGuid(), new(package, published))).WaitAsync(cancellationToken);
+        }
+
+        // With the replacement ensured, retire the package it replaces. Read-before-write keeps
+        // this idempotent across at-least-once activations; a throw lands in the caller's catch
+        // and retries next activation while the replacement is already current.
+        if (replaces.TryGetValue(package, out var legacy))
+        {
+            var legacyApp = grains.GetGrain<IApp>(activated.BrainId + "/packages/" + legacy);
+            if ((await legacyApp.Read().WaitAsync(cancellationToken)).Status == AppStatus.Installed)
+            {
+                await legacyApp.Uninstall(new(Guid.NewGuid())).WaitAsync(cancellationToken);
+            }
         }
     }
 }

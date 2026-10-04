@@ -100,6 +100,76 @@ public sealed class OsBootFacts
         await WaitForAsync(brain.Get<IApp>(scope + "/packages/" + later), snapshot => snapshot.Status == AppStatus.Installed, ct);
     }
 
+    [Fact(Timeout = 60_000)]
+    public async Task ALegacyAppIsUninstalledOnceItsReplacementIsInstalled()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var legacy = PackageId.Create("intochat", "hello");
+        var replacement = PackageId.Create("os", "hello");
+        await using var brain = await ModuleTest.Create()
+            .WithModule<AppsModule>()
+            .ConfigureSilo(silo => silo.Services.AddOperatingSystemBoot(os =>
+            {
+                os.Apps.Add(replacement.ToString());
+                os.Replaces[replacement.ToString()] = legacy.ToString();
+            }))
+            .StartAsync(ct);
+
+        var content = new PackageContent(new("Hello", "Shows hello world", [new("open", "Open")], [], Runtime: "prompt"), "");
+        foreach (var package in new[] { legacy, replacement })
+        {
+            Stamp(package.Owner);
+            await brain.AuthorizeCallerAsync();
+            var revision = await brain.Get<IPackage>(package.ToString()).Commit(new(Guid.NewGuid(), null, content, "Initial"));
+            await brain.Get<IPackage>(package.ToString()).Publish(new(Guid.NewGuid(), revision.Id));
+        }
+
+        var scope = BrainScope.Create("acct", "home").Id;
+        StampBrainOwner();
+        await brain.AuthorizeCallerAsync();
+        var neuron = brain.Get<IBrain>(scope);
+        await neuron.Establish(new("home", "acct"));
+        // The old distribution installed the legacy app before the OS took ownership.
+        var legacyApp = brain.Get<IApp>(scope + "/packages/" + legacy);
+        var legacyPublished = (await brain.Get<IPackage>(legacy.ToString()).Read()).Published;
+        if ((await legacyApp.Read()).Status != AppStatus.Installed)
+        { await legacyApp.Install(new(Guid.NewGuid(), new(legacy, legacyPublished!), new Dictionary<string, string>())); }
+
+        await brain.DeactivateAsync(neuron, ct);
+        await neuron.Read();
+        await WaitForAsync(brain.Get<IApp>(scope + "/packages/" + replacement), snapshot => snapshot.Status == AppStatus.Installed, ct);
+        await WaitForAsync(legacyApp, snapshot => snapshot.Status != AppStatus.Installed, ct);
+    }
+
+    [Fact(Timeout = 60_000)]
+    public async Task AReplacementWithNoLegacyInstallIsANoOp()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var legacy = PackageId.Create("intochat", "hello");
+        var replacement = PackageId.Create("os", "hello");
+        await using var brain = await ModuleTest.Create()
+            .WithModule<AppsModule>()
+            .ConfigureSilo(silo => silo.Services.AddOperatingSystemBoot(os =>
+            {
+                os.Apps.Add(replacement.ToString());
+                os.Replaces[replacement.ToString()] = legacy.ToString();
+            }))
+            .StartAsync(ct);
+
+        Stamp("os");
+        await brain.AuthorizeCallerAsync();
+        var content = new PackageContent(new("Hello", "Shows hello world", [new("open", "Open")], [], Runtime: "prompt"), "");
+        var revision = await brain.Get<IPackage>(replacement.ToString()).Commit(new(Guid.NewGuid(), null, content, "Initial"));
+        await brain.Get<IPackage>(replacement.ToString()).Publish(new(Guid.NewGuid(), revision.Id));
+
+        var scope = BrainScope.Create("acct", "home").Id;
+        StampBrainOwner();
+        await brain.AuthorizeCallerAsync();
+        await brain.Get<IBrain>(scope).Establish(new("home", "acct"));
+        await WaitForAsync(brain.Get<IApp>(scope + "/packages/" + replacement), snapshot => snapshot.Status == AppStatus.Installed, ct);
+        Assert.Equal(AppStatus.NotInstalled, (await brain.Get<IApp>(scope + "/packages/" + legacy).Read()).Status);
+    }
+
     private static void StampBrainOwner() => CallerContextStamper.Stamp(new()
     {
         PrincipalId = "acct",
