@@ -20,16 +20,10 @@ builder.AddServiceDefaults();
 // IntoChat is a distribution of the operating system: the composition is the OS's, and what
 // is IntoChat's own is branding, shipped apps and configuration.
 builder.AddDigitalBrainServer(server => server.UseAzureStorage().WithDashboard().AddOperatingSystem());
-builder.Services.AddOperatingSystemBoot(os => os.Apps.Add("intochat/settings"));
 builder.AddDigitalBrainPlatform();
-builder.Services.Configure<AssistantOptions>(options =>
-{
-    options.DisplayName = "IntoChat assistant";
-    options.Instructions = "You are the IntoChat workspace assistant. Customer Researcher stores results in Postgres public.customer_research; filter its workspace column to the current workspace id.";
-});
+// FlutterModuleOptions has no configuration binding in the silo, so the shell title is code.
 builder.Services.Configure<DigitalBrain.Flutter.FlutterModuleOptions>(options => options.AssistantTitle = "IntoChat");
-builder.Services.AddShippedApps(typeof(Program).Assembly, "IntoChat.ShippedApps/", publisher: "intochat");
-builder.Services.Configure<BuiltInSettingsOptions>(options => options.Package = PackageId.Create("intochat", "settings"));
+builder.Services.AddShippedApps(typeof(IntoChatApps).Assembly, "IntoChat.ShippedApps/", publisher: "intochat");
 
 var app = builder.Build();
 

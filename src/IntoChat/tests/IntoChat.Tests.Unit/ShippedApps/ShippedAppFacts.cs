@@ -5,10 +5,10 @@ namespace IntoChat.Tests.Unit.ShippedApps;
 // Package scenarios execute through their tests.cs publish gate.
 public sealed class ShippedAppFacts
 {
-    private static readonly EmbeddedShippedAppSource Source = new(typeof(IntoChatConfiguration).Assembly, "IntoChat.ShippedApps/", "intochat");
+    private static readonly EmbeddedShippedAppSource Source = new(typeof(IntoChatApps).Assembly, "IntoChat.ShippedApps/", "intochat");
     [Fact]
     public void EveryFirstPartyPackageShips()
-        => Assert.Equal(["assistant", "customer-researcher", "group-chat", "settings", "word-count"], Source.Load().Select(app => app.Package.Name).Order());
+        => Assert.Equal(["customer-researcher", "group-chat", "word-count"], Source.Load().Select(app => app.Package.Name).Order());
 
     [Fact]
     public void EveryShippedProgramAndTestsFileCompilesAgainstCurrentContracts()

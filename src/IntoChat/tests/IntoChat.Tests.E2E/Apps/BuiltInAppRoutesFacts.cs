@@ -34,7 +34,7 @@ public sealed class BuiltInAppRoutesFacts(IntoChatHostFixture host) : BrainFact(
         var brain = Brain;
         // Settings installs from the shipped package; its verification runs in the background
         // since the host booted and on a cold CI sandbox takes most of this fact's budget.
-        await IntoChatE2ETest.WaitUntilShippedAsync(brain, "intochat/settings", ct, TimeSpan.FromMinutes(30));
+        await IntoChatE2ETest.WaitUntilShippedAsync(brain, "os/settings", ct, TimeSpan.FromMinutes(30));
 
         using var activated = await brain.HttpClient.PostAsync("/brains/personal/built-in/activate", null, ct);
         using var settings = await brain.HttpClient.PostAsync("/brains/personal/built-in/settings/open", null, ct);
@@ -45,7 +45,7 @@ public sealed class BuiltInAppRoutesFacts(IntoChatHostFixture host) : BrainFact(
         Assert.Equal(HttpStatusCode.OK, settings.StatusCode);
         Assert.Equal(HttpStatusCode.OK, assistant.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
-        var genericSettings = await People.Send(brain.HttpClient, HttpMethod.Post, "/brains/personal/apps/intochat%2Fsettings/open", new { }, ct);
+        var genericSettings = await People.Send(brain.HttpClient, HttpMethod.Post, "/brains/personal/apps/os%2Fsettings/open", new { }, ct);
         Assert.EndsWith("/window", genericSettings.GetProperty("id").GetString());
         Assert.Equal("Settings", genericSettings.GetProperty("title").GetString());
         Assert.False(string.IsNullOrEmpty(genericSettings.GetProperty("surface").GetString()));

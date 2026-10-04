@@ -38,7 +38,7 @@ apphost.out.log
 apphost.err.log
 *.log
 # Locally saved application sources and compiled artifacts.
-src/IntoChat/IntoChat/applications/
+src/DigitalBrain/OS/DigitalBrain.OS.Host/applications/
 .test-results/
 # Scratch source bundles produced by file-application tests.
 .agent-facade-tests/

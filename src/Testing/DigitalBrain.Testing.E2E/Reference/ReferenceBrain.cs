@@ -84,6 +84,9 @@ public static class ReferenceBrain
                 ResourceEnvironment = new Dictionary<string, string>(StringComparer.Ordinal)
                 {
                     ["DigitalBrain__Testing__ReferenceComposition"] = "true",
+                    // The OS composition now ships its own apps; reference suites keep startup
+                    // shipping off for time — the product golden journeys ship and verify them.
+                    ["DigitalBrain__Apps__ShipOnStartup"] = "false",
                 },
                 PrivateConfiguration = Merge(new Dictionary<string, string?>
                 {

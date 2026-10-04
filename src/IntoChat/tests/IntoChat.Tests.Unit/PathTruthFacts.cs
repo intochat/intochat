@@ -26,7 +26,7 @@ public sealed class PathTruthFacts
     [Fact]
     public void TheBrowserModuleSelectedByTheAppHostShipsWithTheRuntime()
     {
-        using var dependencies = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "IntoChat.deps.json")));
+        using var dependencies = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "DigitalBrain.OS.Host.deps.json")));
         Assert.Contains(dependencies.RootElement.GetProperty("libraries").EnumerateObject(),
             library => library.Name.StartsWith("DigitalBrain.Modules.Microsoft.Playwright/", StringComparison.Ordinal));
     }
@@ -35,9 +35,9 @@ public sealed class PathTruthFacts
     public void ContainerModuleListsAgreeAndResolve()
     {
         const string prefix = "DigitalBrain__Modules__";
-        var docker = Regex.Matches(Read("src/IntoChat/IntoChat/Dockerfile"), "DigitalBrain__Modules__([a-z-]+)__Enabled=\"true\"")
+        var docker = Regex.Matches(Read("src/DigitalBrain/OS/DigitalBrain.OS.Host/Dockerfile"), "DigitalBrain__Modules__([a-z-]+)__Enabled=\"true\"")
             .Select(match => match.Groups[1].Value).Order().ToArray();
-        var profile = XDocument.Load(PathInRepo("src/IntoChat/IntoChat/Properties/PublishProfiles/Container.pubxml"))
+        var profile = XDocument.Load(PathInRepo("src/DigitalBrain/OS/DigitalBrain.OS.Host/Properties/PublishProfiles/Container.pubxml"))
             .Descendants("ContainerEnvironmentVariable")
             .Where(entry => entry.Attribute("Include")!.Value.StartsWith(prefix, StringComparison.Ordinal))
             .Select(entry =>

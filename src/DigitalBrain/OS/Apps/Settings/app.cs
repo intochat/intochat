@@ -11,8 +11,11 @@ using DigitalBrain.Flutter.TextField;
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
-var displayName = brain.Get<ITextField>(appKey + "/display-name");
-var theme = brain.Get<ITextField>(appKey + "/theme");
+// Preferences are the brain's, not the installation's: keyed by the brain scope they survive
+// the app being renamed, reinstalled or forked. Only the derived UI stays app-keyed.
+var prefsRoot = brain.Setting("Brain") is { Length: > 0 } brainScope ? brainScope + "/settings" : appKey;
+var displayName = brain.Get<ITextField>(prefsRoot + "/display-name");
+var theme = brain.Get<ITextField>(prefsRoot + "/theme");
 
 await using var invocations = await brain.SubscribeAsync<AppInvoked>(app, brain.Stopping);
 foreach (var missed in await app.Pending()) { await app.Respond(await Answer(missed.Id, missed.Operation)); }
@@ -38,7 +41,7 @@ async Task Compose()
     await displayName.Configure("Display name", "text");
     await theme.Configure("Theme (system, light or dark)", "text");
     var main = brain.Get<ILayout>(appKey + "/main");
-    await main.Set(new("column", [new("textfield", appKey + "/display-name"), new("textfield", appKey + "/theme")]),
+    await main.Set(new("column", [new("textfield", prefsRoot + "/display-name"), new("textfield", prefsRoot + "/theme")]),
         (await main.Read()).Revision);
     var surface = brain.Get<ISurface>(appKey + "/surface");
     await surface.Set(new("Settings", [new("layout", appKey + "/main")]), (await surface.Read()).Revision);

@@ -17,7 +17,7 @@ namespace DigitalBrain.Apps;
 internal sealed class App(
     [PersistentState("app", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<AppState> store,
     TimeProvider clock, AppRequirements requirements, ModuleInventory modules)
-    : Neuron<AppState>(store), IApp
+    : Neuron<AppState>(store), IApp, IAppAdoption, IAppStorageHandover
 {
     public override NeuronAccess Access(string operation)
     {
@@ -97,6 +97,34 @@ internal sealed class App(
             LifecycleReceipts = [.. Snapshot.LifecycleReceipts, new(request.OperationId, CommandHash(request), "")],
         });
         return Describe(Snapshot);
+    }
+
+    // Adoption: retire the package this installed app supersedes, carrying its Postgres table
+    // ownership over (physical names unchanged). Requiring the replacement to be installed first
+    // makes the ordering a contract, not a convention; a legacy that is not installed is a no-op,
+    // so at-least-once activations retry a failed retire harmlessly.
+    public async Task Adopt(PackageId legacy)
+    {
+        await Resume();
+        RequireInstalled();
+        var legacyKey = BrainScope.CurrentId() + "/packages/" + legacy;
+        var legacyApp = GrainFactory.GetGrain<IApp>(legacyKey);
+        if ((await legacyApp.Read()).Status != AppStatus.Installed) { return; }
+        if (modules.ContractAssemblies().Contains(typeof(IPostgresTable).Assembly))
+        {
+            await GrainFactory.GetGrain<IPostgresStorageMigration>("table-owners-v1").Ensure();
+            var owner = JsonSerializer.Serialize(new[] { BrainScope.CurrentId(), this.GetPrimaryKeyString() });
+            var owners = await GrainFactory.GetGrain<IAppStorageHandover>(legacyKey).ReadStorageOwners();
+            await GrainFactory.GetGrain<IPostgresAppStorage>(owner).Migrate(owners);
+        }
+        // The legacy index's own retire no-ops on tables whose ownership has moved.
+        await legacyApp.Uninstall(new(Guid.NewGuid()));
+    }
+
+    public async Task<string[]> ReadStorageOwners()
+    {
+        await BackfillStorageFiles();
+        return [this.GetPrimaryKeyString(), .. Snapshot.StorageFiles];
     }
 
     public async Task<AppSnapshot> Configure(ConfigureApp request)
@@ -355,7 +383,13 @@ internal sealed class App(
     // and brain.Setting("Account__" + slot) for each connected account.
     private Dictionary<string, string> Configuration(IReadOnlyDictionary<string, string> settings, IReadOnlyDictionary<string, string> accounts)
     {
-        var values = new Dictionary<string, string>(StringComparer.Ordinal) { ["App"] = this.GetPrimaryKeyString() };
+        var values = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["App"] = this.GetPrimaryKeyString(),
+            // The brain is ambient identity: durable state an app keys by it survives the app
+            // being renamed, reinstalled or forked.
+            ["Brain"] = Snapshot.BrainScopeId ?? "",
+        };
         foreach (var (name, value) in settings) { values[name] = value; }
         foreach (var (name, id) in accounts) { values["Account__" + name] = id; }
         return values;

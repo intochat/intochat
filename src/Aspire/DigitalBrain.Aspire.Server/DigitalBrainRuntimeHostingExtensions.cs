@@ -26,6 +26,7 @@ public static class DigitalBrainRuntimeHostingExtensions
         ArgumentNullException.ThrowIfNull(configure);
         var definition = new DigitalBrainServerBuilder();
         configure(definition);
+        definition.ApplyServiceActions(builder.Services);
         builder.Services.AddSingleton(definition);
         builder.Services.AddHostedService<AccessPolicyValidation>();
         if (definition.AzureStorage)
