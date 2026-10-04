@@ -15,6 +15,7 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.Google.Gmail;
 
+[ModuleHosting("DigitalBrain.Google.Gmail.GmailModuleHosting, DigitalBrain.Modules.Google.Gmail.Aspire.Hosting")]
 [ModuleId("gmail")]
 public sealed class GmailModule : IModule<GmailModuleOptions>, IHttpModule
 {

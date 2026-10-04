@@ -6,6 +6,7 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.Flutter;
 
+[ModuleHosting("DigitalBrain.Flutter.Aspire.Hosting.FlutterModuleHosting, DigitalBrain.Modules.Flutter.Aspire.Hosting")]
 [ModuleId("flutter")]
 public sealed class FlutterModule : IModule<FlutterModuleOptions>, IHttpModule
 {

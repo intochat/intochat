@@ -7,6 +7,7 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.Microsoft.GitHub;
 
+[ModuleHosting("DigitalBrain.Microsoft.GitHub.GitHubModuleHosting, DigitalBrain.Modules.Microsoft.GitHub.Aspire.Hosting")]
 [ModuleId("github")]
 public sealed class GitHubModule : IModule<GitHubModuleOptions>
 {

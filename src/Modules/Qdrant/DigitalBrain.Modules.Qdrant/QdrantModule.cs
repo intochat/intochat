@@ -8,6 +8,7 @@ using Orleans.Hosting;
 namespace DigitalBrain.Qdrant;
 
 [ModuleDeployment("DigitalBrain.Qdrant.QdrantDeployment, DigitalBrain.Modules.Qdrant.Deployment")]
+[ModuleHosting("DigitalBrain.Qdrant.Aspire.Hosting.QdrantModuleHosting, DigitalBrain.Modules.Qdrant.Aspire.Hosting")]
 [ModuleId("qdrant")]
 public sealed class QdrantModule : IModule<QdrantModuleOptions>
 {

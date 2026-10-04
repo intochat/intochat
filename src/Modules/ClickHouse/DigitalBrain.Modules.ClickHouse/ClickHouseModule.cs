@@ -9,6 +9,7 @@ using Orleans.Hosting;
 namespace DigitalBrain.ClickHouse;
 
 [ModuleDeployment("DigitalBrain.ClickHouse.ClickHouseDeployment, DigitalBrain.Modules.ClickHouse.Deployment")]
+[ModuleHosting("DigitalBrain.ClickHouse.Aspire.Hosting.ClickHouseModuleHosting, DigitalBrain.Modules.ClickHouse.Aspire.Hosting")]
 [ModuleId("clickhouse")]
 public sealed class ClickHouseModule : IModule<ClickHouseModuleOptions>
 {

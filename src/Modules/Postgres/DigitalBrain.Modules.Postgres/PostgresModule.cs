@@ -3,6 +3,7 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.Postgres;
 
+[ModuleHosting("DigitalBrain.Postgres.Aspire.Hosting.PostgresModuleHosting, DigitalBrain.Modules.Postgres.Aspire.Hosting")]
 [ModuleId("postgres")]
 public sealed class PostgresModule : IModule<PostgresModuleOptions>
 {

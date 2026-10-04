@@ -12,6 +12,7 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.Supabase;
 
+[ModuleHosting("DigitalBrain.Supabase.Aspire.Hosting.SupabaseModuleHosting, DigitalBrain.Modules.Supabase.Aspire.Hosting")]
 [ModuleId("supabase")]
 public sealed class SupabaseModule : IModule<SupabaseModuleOptions>, IHttpModule
 {

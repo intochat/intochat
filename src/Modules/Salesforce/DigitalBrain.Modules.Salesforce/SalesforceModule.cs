@@ -10,6 +10,7 @@ using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Salesforce;
 
+[ModuleHosting("DigitalBrain.Salesforce.Aspire.Hosting.SalesforceModuleHosting, DigitalBrain.Modules.Salesforce.Aspire.Hosting")]
 [ModuleId("salesforce")]
 public sealed class SalesforceModule : IModule<SalesforceModuleOptions>, IHttpModule
 {
