@@ -14,13 +14,13 @@ public sealed class MasterKeyHostingFacts
     public async Task Referencing_a_brain_supplies_the_same_master_key_to_each_runtime_but_not_clients()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        builder.Configuration[$"Parameters:modules-{DigitalBrainHostingNames.MasterKeyParameter}"] = "hosting test master key";
+        builder.Configuration[$"Parameters:modules-{MasterKey.ParameterName}"] = "hosting test master key";
         var brain = builder.AddDigitalBrain("modules", options: new() { UseAzureStorage = true, PersistentStorage = false });
         var first = builder.AddExecutable("first", "unused", ".").WithReference(brain);
         var second = builder.AddExecutable("second", "unused", ".").WithReference(brain);
         var client = builder.AddExecutable("client", "unused", ".").WithReference(brain.AsClient());
 
-        var parameter = builder.Resources.OfType<ParameterResource>().Single(resource => resource.Name == $"modules-{DigitalBrainHostingNames.MasterKeyParameter}");
+        var parameter = builder.Resources.OfType<ParameterResource>().Single(resource => resource.Name == $"modules-{MasterKey.ParameterName}");
         var expected = await parameter.GetValueAsync(TestContext.Current.CancellationToken);
         var firstEnvironment = await EnvironmentOf(builder, first.Resource);
         var secondEnvironment = await EnvironmentOf(builder, second.Resource);
@@ -33,7 +33,7 @@ public sealed class MasterKeyHostingFacts
     public void AConfiguredLegacyMasterKeyMustBeMigratedExplicitly()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        builder.Configuration[$"Parameters:{DigitalBrainHostingNames.MasterKeyParameter}"] = "existing key must survive";
+        builder.Configuration[$"Parameters:{MasterKey.ParameterName}"] = "existing key must survive";
         Assert.Throws<InvalidOperationException>(() => builder.AddDigitalBrain("upgraded"));
     }
 
@@ -58,7 +58,7 @@ public sealed class MasterKeyHostingFacts
         });
         builder.AddDigitalBrain("modules", options: new() { UseAzureStorage = true, PersistentStorage = false });
 
-        var parameter = builder.Resources.OfType<ParameterResource>().Single(resource => resource.Name == $"modules-{DigitalBrainHostingNames.MasterKeyParameter}");
+        var parameter = builder.Resources.OfType<ParameterResource>().Single(resource => resource.Name == $"modules-{MasterKey.ParameterName}");
         Assert.True(parameter.Secret);
         Assert.Null(parameter.Default);
     }

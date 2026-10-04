@@ -11,6 +11,9 @@ namespace DigitalBrain.Aspire.Hosting;
 
 public static class DigitalBrainHostingExtensions
 {
+    private const string OrleansResourceSuffix = "digitalbrain";
+    private const string KernelModuleNode = "Kernel";
+
     public static IResourceBuilder<AzureBlobStorageContainerResource> AddBlobContainer(this DigitalBrainBuilder brain, string name)
     {
         ArgumentNullException.ThrowIfNull(brain);
@@ -42,7 +45,7 @@ public static class DigitalBrainHostingExtensions
             ?? (builder.Environment.IsDevelopment() ? $"digitalbrain-{Guid.NewGuid():N}" : resolvedServiceId);
         ArgumentException.ThrowIfNullOrWhiteSpace(clusterId);
         var orleans = builder
-            .AddOrleans($"{name}-{DigitalBrainHostingNames.Orleans}")
+            .AddOrleans($"{name}-{OrleansResourceSuffix}")
             .WithClusterId(clusterId)
             .WithServiceId(resolvedServiceId);
         if (!options.UseAzureStorage)
@@ -71,7 +74,7 @@ public static class DigitalBrainHostingExtensions
         var brain = new DigitalBrainBuilder(builder, name, resource, orleans, storage, grainState) { ServiceId = resolvedServiceId, ClusterId = clusterId, ClusteringResourceName = clustering.Resource.Name, Clustering = clustering, Reminders = reminders };
         brain.AddProjection(MasterKey.Provision(builder, name));
         if (AuthPosture.Provision(builder) is { } posture) { brain.AddProjection(posture); }
-        storage.WithParentRelationship(brain.GetOrAddModuleNode(DigitalBrainHostingNames.Kernel));
+        storage.WithParentRelationship(brain.GetOrAddModuleNode(KernelModuleNode));
         brain.RequireHealthyBeforeStart(storage.Resource);
         brain.RequireHealthyBeforeStart(clustering.Resource);
         brain.RequireHealthyBeforeStart(reminders.Resource);
