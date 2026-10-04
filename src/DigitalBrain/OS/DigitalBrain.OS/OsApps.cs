@@ -13,13 +13,23 @@ namespace DigitalBrain.OS;
 // The operating system's first-party apps: package ids ("owner/name") that every brain carries,
 // installed at the published revision when the brain activates and upgraded when a new revision
 // ships. The list is deployment configuration; a distribution names its own.
+// One OS app: the package the brain carries, and optionally the legacy package it replaces.
+// Parsing happens where the entry is written, so a typo names its own value.
+public sealed record OsApp(PackageId Package, PackageId? Replaces = null)
+{
+    public static OsApp Parse(string package, string? replaces = null)
+        => new(ParseId(package), replaces is null ? null : ParseId(replaces));
+
+    private static PackageId ParseId(string value)
+    {
+        try { return PackageId.Parse(value); }
+        catch (Exception error) { throw new FormatException($"Not a package id: '{value}'.", error); }
+    }
+}
+
 public sealed class OsAppsOptions
 {
-    public IList<string> Apps { get; } = [];
-
-    // New package id -> the legacy id it replaces; the boot loop uninstalls the legacy app
-    // once its replacement is installed.
-    public IDictionary<string, string> Replaces { get; } = new Dictionary<string, string>();
+    public IList<OsApp> Apps { get; } = [];
 }
 
 public static class OsAppsHosting
@@ -31,9 +41,8 @@ public static class OsAppsHosting
         services.AddShippedApps(typeof(OsCatalog).Assembly, "DigitalBrain.OS.Apps/", publisher: "os");
         services.Configure<OsAppsOptions>(os =>
         {
-            os.Apps.Add("os/settings");
-            os.Apps.Add("os/assistant");
-            os.Replaces["os/settings"] = "intochat/settings";
+            os.Apps.Add(new(PackageId.Create("os", "settings"), PackageId.Parse("intochat/settings")));
+            os.Apps.Add(new(PackageId.Create("os", "assistant")));
         });
         services.Configure<BuiltInSettingsOptions>(options => options.Package ??= PackageId.Create("os", "settings"));
         return services.AddOperatingSystemBoot(configure);
@@ -60,27 +69,26 @@ internal sealed class OsBootService(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (options.Value.Apps.Count == 0) { return; }
-        var apps = options.Value.Apps.Select(PackageId.Parse).ToArray();
-        var replaces = options.Value.Replaces.ToDictionary(pair => PackageId.Parse(pair.Key), pair => PackageId.Parse(pair.Value));
+        var apps = options.Value.Apps.ToArray();
         using var activations = signals.Subscribe<Activated>();
         await foreach (var activated in activations.Reader.ReadAllAsync(stoppingToken))
         {
-            foreach (var package in apps)
+            foreach (var app in apps)
             {
-                try { await EnsureCurrentAsync(activated, package, replaces, stoppingToken); }
+                try { await EnsureCurrentAsync(activated, app, stoppingToken); }
                 catch (Exception error) when (error is not OperationCanceledException)
                 {
                     // One app failing must not keep Settings from starting; the next
                     // activation retries.
-                    logger.LogWarning(error, "OS app {Package} did not start in brain {Brain}.", package, activated.BrainId);
+                    logger.LogWarning(error, "OS app {Package} did not start in brain {Brain}.", app.Package, activated.BrainId);
                 }
             }
         }
     }
 
-    private async Task EnsureCurrentAsync(
-        Activated activated, PackageId package, IReadOnlyDictionary<PackageId, PackageId> replaces, CancellationToken cancellationToken)
+    private async Task EnsureCurrentAsync(Activated activated, OsApp osApp, CancellationToken cancellationToken)
     {
+        var package = osApp.Package;
         // The brain's (owner, name) pair is the scope identity the kernel derives everywhere
         // from the caller; the install must land in the activated brain's own scope.
         CallerContextStamper.Stamp(new CallerContext
@@ -107,7 +115,7 @@ internal sealed class OsBootService(
         // With the replacement ensured, retire the package it replaces. Read-before-write keeps
         // this idempotent across at-least-once activations; a throw lands in the caller's catch
         // and retries next activation while the replacement is already current.
-        if (replaces.TryGetValue(package, out var legacy))
+        if (osApp.Replaces is { } legacy)
         {
             var legacyApp = grains.GetGrain<IApp>(activated.BrainId + "/packages/" + legacy);
             if ((await legacyApp.Read().WaitAsync(cancellationToken)).Status == AppStatus.Installed)

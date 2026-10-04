@@ -18,7 +18,7 @@ public sealed class OsBootFacts
         var package = PackageId.Create("os", "hello");
         await using var brain = await ModuleTest.Create()
             .WithModule<AppsModule>()
-            .ConfigureSilo(silo => silo.Services.AddOperatingSystemBoot(os => os.Apps.Add(package.ToString())))
+            .ConfigureSilo(silo => silo.Services.AddOperatingSystemBoot(os => os.Apps.Add(new(package))))
             .StartAsync(ct);
 
         Stamp("os");
@@ -72,8 +72,8 @@ public sealed class OsBootFacts
             .WithModule<AppsModule>()
             .ConfigureSilo(silo => silo.Services.AddOperatingSystemBoot(os =>
             {
-                os.Apps.Add(hello.ToString());
-                os.Apps.Add(later.ToString());
+                os.Apps.Add(new(hello));
+                os.Apps.Add(new(later));
             }))
             .StartAsync(ct);
 
@@ -110,8 +110,7 @@ public sealed class OsBootFacts
             .WithModule<AppsModule>()
             .ConfigureSilo(silo => silo.Services.AddOperatingSystemBoot(os =>
             {
-                os.Apps.Add(replacement.ToString());
-                os.Replaces[replacement.ToString()] = legacy.ToString();
+                os.Apps.Add(new(replacement, legacy));
             }))
             .StartAsync(ct);
 
@@ -151,8 +150,7 @@ public sealed class OsBootFacts
             .WithModule<AppsModule>()
             .ConfigureSilo(silo => silo.Services.AddOperatingSystemBoot(os =>
             {
-                os.Apps.Add(replacement.ToString());
-                os.Replaces[replacement.ToString()] = legacy.ToString();
+                os.Apps.Add(new(replacement, legacy));
             }))
             .StartAsync(ct);
 

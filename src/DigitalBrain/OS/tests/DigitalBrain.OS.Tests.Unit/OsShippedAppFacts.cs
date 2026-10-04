@@ -19,11 +19,23 @@ public sealed class OsShippedAppFacts
     public void AddOperatingSystemAppsNamesItsOwnManifestAndADeploymentOnlyAdds()
     {
         var services = new ServiceCollection();
-        services.AddOperatingSystemApps(os => os.Apps.Add("intochat/customer-researcher"));
+        services.AddOperatingSystemApps(os => os.Apps.Add(OsApp.Parse("intochat/customer-researcher")));
         using var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<OsAppsOptions>>().Value;
-        Assert.Equal(["os/settings", "os/assistant", "intochat/customer-researcher"], options.Apps);
+        Assert.Equal(["os/settings", "os/assistant", "intochat/customer-researcher"],
+            options.Apps.Select(app => app.Package.ToString()));
+        Assert.Equal(PackageId.Parse("intochat/settings"),
+            options.Apps.Single(app => app.Package.ToString() == "os/settings").Replaces);
         Assert.Equal(PackageId.Create("os", "settings"), provider.GetRequiredService<IOptions<BuiltInSettingsOptions>>().Value.Package);
+    }
+
+    [Fact]
+    public void AMalformedManifestEntryFailsAtParseNamingTheValue()
+    {
+        var package = Assert.ThrowsAny<Exception>(() => OsApp.Parse("os-settings"));
+        Assert.Contains("os-settings", package.Message);
+        var replaces = Assert.ThrowsAny<Exception>(() => OsApp.Parse("os/settings", "intochat settings"));
+        Assert.Contains("intochat settings", replaces.Message);
     }
 
     [Fact]
