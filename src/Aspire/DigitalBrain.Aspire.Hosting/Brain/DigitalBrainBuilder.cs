@@ -13,8 +13,33 @@ public sealed class DigitalBrainBuilder
     public IConfiguration GetModuleConfiguration(string id)
         => _compiledConfiguration.TryGetValue(id, out var configuration) ? configuration : ApplicationBuilder.Configuration;
 
-    public DigitalBrainBuilder WithModule(string id, IDigitalBrainModuleHosting? hosting = null,
-        IReadOnlyDictionary<string, string?>? settings = null)
+    public DigitalBrainBuilder WithModule(Type moduleType, IReadOnlyDictionary<string, string?>? settings = null)
+    {
+        ArgumentNullException.ThrowIfNull(moduleType);
+        return Register(ModuleIdentity.Get(moduleType), ModuleHostingResolution.Resolve(moduleType), settings);
+    }
+
+    public DigitalBrainBuilder WithHosting(IDigitalBrainModuleHosting hosting, IReadOnlyDictionary<string, string?>? settings = null)
+    {
+        ArgumentNullException.ThrowIfNull(hosting);
+        return Register(hosting.Id, hosting, settings);
+    }
+
+    public DigitalBrainBuilder WithHosting<THosting>() where THosting : IDigitalBrainModuleHosting, new()
+        => WithHosting(new THosting());
+
+    public DigitalBrainBuilder WithHosting<THosting, TOptions>(Action<TOptions>? configure = null)
+        where THosting : IDigitalBrainModuleHosting, new() where TOptions : class, DigitalBrain.Contracts.IModuleOptions, new()
+    {
+        var hosting = new THosting();
+        var options = new TOptions();
+        configure?.Invoke(options);
+        options.Validate();
+        return WithHosting(hosting, HostingModuleOptions.Flatten(options, hosting.Id));
+    }
+
+    private DigitalBrainBuilder Register(string id, IDigitalBrainModuleHosting? hosting,
+        IReadOnlyDictionary<string, string?>? settings)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         if (id.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '-'))
@@ -47,18 +72,6 @@ public sealed class DigitalBrainBuilder
         Identity = identity;
         return this;
     }
-    public DigitalBrainBuilder WithModule<THosting>() where THosting : IDigitalBrainModuleHosting, new()
-    { var hosting = new THosting(); return WithModule(hosting.Id, hosting); }
-    public DigitalBrainBuilder WithModule<THosting, TOptions>(Action<TOptions>? configure = null)
-        where THosting : IDigitalBrainModuleHosting, new() where TOptions : class, DigitalBrain.Contracts.IModuleOptions, new()
-    {
-        var hosting = new THosting();
-        var options = new TOptions();
-        configure?.Invoke(options);
-        options.Validate();
-        return WithModule(hosting.Id, hosting, HostingModuleOptions.Flatten(options, hosting.Id));
-    }
-
     private readonly List<string> _modules = [];
     private readonly List<DigitalBrainModuleProjection> _projections = [];
     private readonly List<IResource> _startupDependencies = [];

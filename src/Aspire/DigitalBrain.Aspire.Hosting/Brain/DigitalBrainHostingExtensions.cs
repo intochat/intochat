@@ -116,13 +116,6 @@ public static class DigitalBrainHostingExtensions
         }
         brain.Identity?.Apply(builder, brain);
 
-        for (var index = 0; index < brain.Modules.Count; index++)
-        {
-            var module = brain.Modules[index];
-            builder.WithEnvironment(
-                $"DigitalBrain__Modules__{module}__Enabled", "true");
-        }
-
         foreach (var pair in brain.Settings)
         { builder.WithEnvironment(pair.Key.Replace(":", "__", StringComparison.Ordinal), pair.Value ?? ""); }
 

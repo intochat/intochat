@@ -16,7 +16,7 @@ public sealed class PostgresAspireHostingFacts
     {
         var builder = CreateBuilder();
         var brain = builder.AddDigitalBrain("brain", persistentStorage: false, options: new() { UseAzureStorage = true });
-        brain.WithModule("postgres", new PostgresModuleHosting(), Definition(enabled: true, persistent).Configuration);
+        brain.WithHosting(new PostgresModuleHosting(), Definition(enabled: true, persistent).Configuration);
         var consumer = builder.AddExecutable("consumer", "unused", ".").WithReference(brain);
 
         var server = Assert.Single(builder.Resources.OfType<PostgresServerResource>());
@@ -38,7 +38,7 @@ public sealed class PostgresAspireHostingFacts
         var builder = CreateBuilder();
         builder.Configuration["ConnectionStrings:reporting"] = "Host=external;Database=analytics;Username=reader;Password=test-only";
         var brain = builder.AddDigitalBrain("brain", persistentStorage: false, options: new() { UseAzureStorage = true })
-            .WithModule<PostgresModuleHosting, PostgresModuleOptions>(module => module.WithPostgres().WithConnection("reporting"));
+            .WithHosting<PostgresModuleHosting, PostgresModuleOptions>(module => module.WithPostgres().WithConnection("reporting"));
         var consumer = builder.AddExecutable("consumer", "unused", ".").WithReference(brain);
 
         Assert.Empty(builder.Resources.OfType<PostgresServerResource>());
@@ -53,7 +53,7 @@ public sealed class PostgresAspireHostingFacts
     {
         var builder = CreateBuilder();
         var brain = builder.AddDigitalBrain("brain", persistentStorage: false, options: new() { UseAzureStorage = true })
-            .WithModule<PostgresModuleHosting, PostgresModuleOptions>(module => module.WithConnection("reporting").WithPostgres(options =>
+            .WithHosting<PostgresModuleHosting, PostgresModuleOptions>(module => module.WithConnection("reporting").WithPostgres(options =>
             {
                 options.DatabaseName = "analytics";
                 options.PersistentStorage = false;
@@ -75,7 +75,7 @@ public sealed class PostgresAspireHostingFacts
     {
         var builder = CreateBuilder();
         var brain = builder.AddDigitalBrain("brain", persistentStorage: false, options: new() { UseAzureStorage = true });
-        brain.WithModule("postgres", new PostgresModuleHosting(), Definition(enabled: true, persistent: false).Configuration);
+        brain.WithHosting(new PostgresModuleHosting(), Definition(enabled: true, persistent: false).Configuration);
         var hosting = new PostgresModuleHosting();
         hosting.Configure(brain);
         builder.AddExecutable("consumer", "unused", ".").WithReference(brain);
@@ -87,10 +87,12 @@ public sealed class PostgresAspireHostingFacts
     }
 
     [Fact]
-    public void ExplicitAdapterMustMatchTheSelectedModule()
+    public void AModuleTypeResolvesItsHostingAdapterFromTheAttribute()
     {
-        var brain = CreateBuilder().AddDigitalBrain("brain", persistentStorage: false, options: new() { UseAzureStorage = true });
-        Assert.Throws<ArgumentException>(() => brain.WithModule("other", new PostgresModuleHosting()));
+        var builder = CreateBuilder();
+        var brain = builder.AddDigitalBrain("brain", persistentStorage: false, options: new() { UseAzureStorage = true });
+        brain.WithModule(typeof(PostgresModule), Definition(enabled: true, persistent: false).Configuration);
+        Assert.Single(builder.Resources.OfType<PostgresServerResource>());
     }
 
     [Fact]
@@ -98,7 +100,7 @@ public sealed class PostgresAspireHostingFacts
     {
         var builder = CreateBuilder();
         var brain = builder.AddDigitalBrain("brain", persistentStorage: false, options: new() { UseAzureStorage = true });
-        brain.WithModule("postgres", new PostgresModuleHosting(), Definition(enabled: true, persistent: false).Configuration);
+        brain.WithHosting(new PostgresModuleHosting(), Definition(enabled: true, persistent: false).Configuration);
         var consumer = builder.AddExecutable("consumer", "unused", ".").WithReference(brain);
         var environment = await EnvironmentOf(builder, consumer.Resource);
         Assert.Contains("DigitalBrain__Capacity__Postgres__AdminConnection", environment.Keys);
@@ -110,7 +112,7 @@ public sealed class PostgresAspireHostingFacts
         var builder = CreatePublishBuilder();
         builder.Configuration["Parameters:postgres-connection"] = "Host=azure;Database=digitalbrain;Username=app;Password=test-only";
         var brain = builder.AddDigitalBrain("brain", persistentStorage: false, options: new() { UseAzureStorage = true });
-        brain.WithModule("postgres", new PostgresModuleHosting(), Definition(enabled: true, persistent: false).Configuration);
+        brain.WithHosting(new PostgresModuleHosting(), Definition(enabled: true, persistent: false).Configuration);
         var consumer = builder.AddExecutable("consumer", "unused", ".").WithReference(brain);
 
         Assert.Empty(builder.Resources.OfType<PostgresServerResource>());

@@ -17,12 +17,20 @@ namespace DigitalBrain.Kernel.Tests.Unit;
 
 public sealed class CompositionBoundaryFacts
 {
+    [ModuleId("sample")]
+    private sealed class SampleModule : IModule
+    { public void Configure(ISiloBuilder silo) { } }
+
+    [ModuleId("module")]
+    private sealed class BoundaryModule : IModule
+    { public void Configure(ISiloBuilder silo) { } }
+
     [Fact]
     public void TwoBrainsHaveDistinctResourcesAndModuleNodes()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        var first = builder.AddDigitalBrain("first", persistentStorage: false, options: new() { UseAzureStorage = true }).WithModule("sample");
-        var second = builder.AddDigitalBrain("second", persistentStorage: false, options: new() { UseAzureStorage = true }).WithModule("sample");
+        var first = builder.AddDigitalBrain("first", persistentStorage: false, options: new() { UseAzureStorage = true }).WithModule(typeof(SampleModule));
+        var second = builder.AddDigitalBrain("second", persistentStorage: false, options: new() { UseAzureStorage = true }).WithModule(typeof(SampleModule));
         Assert.NotSame(first.GetOrAddModuleNode("sample").Resource, second.GetOrAddModuleNode("sample").Resource);
         var names = builder.Resources.Select(r => r.Name).ToArray();
         Assert.Equal(names.Length, names.Distinct(StringComparer.OrdinalIgnoreCase).Count());
@@ -82,9 +90,9 @@ public sealed class CompositionBoundaryFacts
     public void DefaultAppHostDoesNotProvisionAzureAndRejectsDuplicatesBeforeAReferenceExists()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        var brain = builder.AddDigitalBrain("brain").WithModule("module");
+        var brain = builder.AddDigitalBrain("brain").WithModule(typeof(BoundaryModule));
         Assert.Empty(builder.Resources.OfType<AzureStorageResource>());
-        Assert.Throws<InvalidOperationException>(() => brain.WithModule("module"));
+        Assert.Throws<InvalidOperationException>(() => brain.WithModule(typeof(BoundaryModule)));
         Assert.Throws<InvalidOperationException>(() => brain.AddBlobContainer("requires-azure"));
     }
 
