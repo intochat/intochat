@@ -11,19 +11,28 @@ public static class HostingModuleOptions
         value.Validate();
         return value;
     }
-    internal static Dictionary<string, string?> Flatten<T>(T options, string id)
+    internal static Dictionary<string, string?> Flatten<T>(T options, string id) where T : new()
     {
         ModuleOptionsShape.Validate<T>();
+        // Only values the deployment actually decided become configuration: a leaf equal to
+        // the type's default is omitted, so it cannot pin the silo's own configuration.
+        var defaults = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        Collect(JsonSerializer.SerializeToElement(new T()), $"DigitalBrain:Modules:{id}:Options", defaults);
+        var declared = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        Collect(JsonSerializer.SerializeToElement(options), $"DigitalBrain:Modules:{id}:Options", declared);
         var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-        Walk(JsonSerializer.SerializeToElement(options), $"DigitalBrain:Modules:{id}:Options");
+        foreach (var pair in declared)
+        {
+            if (!defaults.TryGetValue(pair.Key, out var fallback) || fallback != pair.Value) { values[pair.Key] = pair.Value; }
+        }
         return values;
-        void Walk(JsonElement element, string path)
+        static void Collect(JsonElement element, string path, Dictionary<string, string?> into)
         {
             if (element.ValueKind == JsonValueKind.Object)
-            { foreach (var property in element.EnumerateObject()) { Walk(property.Value, path + ":" + property.Name); } }
+            { foreach (var property in element.EnumerateObject()) { Collect(property.Value, path + ":" + property.Name, into); } }
             else if (element.ValueKind == JsonValueKind.Array)
-            { var index = 0; foreach (var value in element.EnumerateArray()) { Walk(value, path + ":" + index++); } }
-            else { values[path] = element.ValueKind == JsonValueKind.Null ? null : element.ToString(); }
+            { var index = 0; foreach (var value in element.EnumerateArray()) { Collect(value, path + ":" + index++, into); } }
+            else { into[path] = element.ValueKind == JsonValueKind.Null ? null : element.ToString(); }
         }
     }
 }

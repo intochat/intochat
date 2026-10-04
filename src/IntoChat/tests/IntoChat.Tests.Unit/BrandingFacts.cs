@@ -6,8 +6,8 @@ using Microsoft.Extensions.Options;
 namespace IntoChat.Tests.Unit;
 
 // Branding is configuration, so these facts pin the host's config to the sections the modules
-// actually bind: AssistantModule reads the top-level "Assistant" section, FlutterModuleOptions
-// has no silo binding and must be configured in Program.cs. Keys that bind to nothing are a
+// actually bind: AssistantModule reads the top-level "Assistant" section, FlutterModule binds
+// its options from DigitalBrain:Modules:flutter:Options. Keys that bind to nothing are a
 // silent branding regression.
 public sealed class BrandingFacts
 {
@@ -41,10 +41,11 @@ public sealed class BrandingFacts
     }
 
     [Fact]
-    public void TheHostConfiguresTheShellAssistantTitleInCodeBecauseFlutterHasNoConfigBinding()
+    public void TheHostAppSettingsCarryTheShellTitleWhereTheFlutterModuleBindsIt()
     {
-        var program = File.ReadAllText(HostPath("Program.cs"));
-        Assert.Contains("FlutterModuleOptions", program);
-        Assert.Contains("AssistantTitle = \"IntoChat\"", program);
+        var configuration = new ConfigurationBuilder().AddJsonFile(HostPath("appsettings.json")).Build();
+        var options = new DigitalBrain.Flutter.FlutterModuleOptions();
+        configuration.GetSection("DigitalBrain:Modules:flutter:Options").Bind(options);
+        Assert.Equal("IntoChat", options.AssistantTitle);
     }
 }

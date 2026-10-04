@@ -43,6 +43,19 @@ public sealed class ModuleOptionOverlayFacts
     }
 
     [Fact]
+    public void FlatteningOmitsDefaultsSoDeploymentCodeDoesNotPinThem()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        var brain = builder.AddDigitalBrain("modules", persistentStorage: false)
+            .WithModule(typeof(ExampleModule), settings: HostingModuleOptions.Flatten(new OverlaidOptions { Endpoint = "production" }, "example"));
+        var configuration = brain.GetModuleConfiguration("example");
+        Assert.Equal("production", configuration["DigitalBrain:Modules:example:Options:Endpoint"]);
+        // Delay was left at its default: the deployment never decided it, so the silo's own
+        // configuration must stay free to.
+        Assert.Null(configuration["DigitalBrain:Modules:example:Options:Delay"]);
+    }
+
+    [Fact]
     public void TwoBrainsScopeInfrastructureAndAllowIndependentConfiguration()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });

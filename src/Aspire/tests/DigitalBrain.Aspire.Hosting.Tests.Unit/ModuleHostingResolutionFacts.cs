@@ -23,6 +23,15 @@ public sealed class ModuleHostingResolutionFacts
         => Assert.Null(ModuleHostingResolution.Resolve(typeof(AbsentHostingModule)));
 
     [Fact]
+    public void AMissingTypeInAPresentAssemblyIsAnErrorNotASilentNull()
+        => Assert.Throws<InvalidOperationException>(() => ModuleHostingResolution.Resolve(typeof(StaleHostingModule)));
+
+    [ModuleId("stale")]
+    [ModuleHosting("DigitalBrain.Postgres.Aspire.Hosting.NoSuchHosting, DigitalBrain.Modules.Postgres.Aspire.Hosting")]
+    private sealed class StaleHostingModule : IModule
+    { public void Configure(Orleans.Hosting.ISiloBuilder silo) { } }
+
+    [Fact]
     public void AHostingTypeThatIsNotAnAdapterIsAnError()
         => Assert.Throws<InvalidOperationException>(() => ModuleHostingResolution.Resolve(typeof(WrongHostingModule)));
 

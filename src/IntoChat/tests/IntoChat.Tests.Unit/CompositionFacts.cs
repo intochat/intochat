@@ -11,6 +11,22 @@ namespace IntoChat.Tests.Unit;
 // compilation and authoring; the product uses the same connector set as the reference composition.
 public sealed class CompositionFacts
 {
+    // The hosting assemblies all sit in this test's output (via the AppHost reference), so a
+    // [ModuleHosting] string that resolves to null here is a stale attribute, not an absent
+    // deployment.
+    [Fact]
+    public void EveryCatalogHostingAttributeResolvesWhereItsAssemblyIsPresent()
+    {
+        foreach (var module in DigitalBrain.OS.OsCatalog.Modules)
+        {
+            if (module.IsDefined(typeof(ModuleHostingAttribute), inherit: false))
+            {
+                Assert.True(ModuleHostingResolution.Resolve(module) is not null,
+                    $"{module.FullName}'s [ModuleHosting] did not resolve.");
+            }
+        }
+    }
+
     [Fact]
     public async Task ProductMatchesTheReferenceCompositionModuleSet()
     {

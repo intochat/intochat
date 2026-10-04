@@ -26,6 +26,24 @@ public sealed class ModuleSelectionFacts
     }
 
     [Fact]
+    public void DisablingIgnoresCaseLikeAnyOtherConfigurationKey()
+    {
+        var server = new DigitalBrainServerBuilder().AddModule(typeof(SampleModule));
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?> { ["DigitalBrain:Modules:Sample:Enabled"] = "false" }).Build();
+        Assert.Empty(server.SelectModules(configuration));
+    }
+
+    [Fact]
+    public void AffirmingARegisteredModuleInAnotherCaseIsNotAnError()
+    {
+        var server = new DigitalBrainServerBuilder().AddModule(typeof(SampleModule));
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?> { ["DigitalBrain:Modules:SAMPLE:Enabled"] = "true" }).Build();
+        Assert.Single(server.SelectModules(configuration));
+    }
+
+    [Fact]
     public void EnablingAnUnknownModuleIsAnError()
     {
         var server = new DigitalBrainServerBuilder().AddModule(typeof(SampleModule));

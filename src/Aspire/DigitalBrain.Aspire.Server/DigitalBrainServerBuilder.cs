@@ -45,14 +45,16 @@ public sealed class DigitalBrainServerBuilder
     // configuration that affirms a module this server never registered is a deployment bug.
     internal IModule[] SelectModules(IConfiguration configuration)
     {
+        // Configuration keys are case-insensitive, so the ids match that way too.
         var sections = configuration.GetSection("DigitalBrain:Modules").GetChildren().ToArray();
+        var registered = _modules.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var section in sections)
         {
-            if (section.GetValue<bool?>("Enabled") == true && !_modules.ContainsKey(section.Key))
+            if (section.GetValue<bool?>("Enabled") == true && !registered.Contains(section.Key))
             { throw new InvalidOperationException($"Selected module '{section.Key}' is not registered in this server."); }
         }
         var disabled = sections.Where(section => section.GetValue<bool?>("Enabled") == false)
-            .Select(section => section.Key).ToHashSet(StringComparer.Ordinal);
+            .Select(section => section.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
         return _modules.Where(pair => !disabled.Contains(pair.Key))
             .Select(pair => pair.Value() ?? throw new InvalidOperationException($"Factory for '{pair.Key}' returned null.")).ToArray();
     }
