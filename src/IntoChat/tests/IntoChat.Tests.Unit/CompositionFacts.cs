@@ -18,9 +18,14 @@ public sealed class CompositionFacts
             ["Parameters:Modules-digitalbrain-master-key=synthetic-composition-test-key-32chars"], TestContext.Current.CancellationToken);
         var productModules = appHost.Resources.SelectMany(resource => resource.Annotations.OfType<BrainModuleAnnotation>())
             .Select(module => module.ModuleId).Order().ToArray();
+        // Composition truth lives in the OS catalog; the AppHost only hosts infrastructure,
+        // so its module annotations are the hosted subset of the catalog.
+        var catalogModules = DigitalBrain.OS.OsCatalog.Modules
+            .Select(DigitalBrain.Contracts.ModuleIdentity.Get).Order().ToArray();
         var referenceModules = ReferenceBrain.Create().BuildComposition().Modules
-            .Select(module => DigitalBrain.Kernel.ModuleIdentity.Get(module.ModuleType)).Order().ToArray();
-        Assert.Equal(referenceModules, productModules);
+            .Select(module => DigitalBrain.Contracts.ModuleIdentity.Get(module.ModuleType)).Order().ToArray();
+        Assert.Equal(catalogModules, referenceModules);
+        Assert.All(productModules, module => Assert.Contains(module, catalogModules));
         Assert.Contains("qdrant", productModules);
         Assert.DoesNotContain("memory", productModules);
         Assert.Contains(appHost.Resources, resource => resource.Name == "Modules-openrouter-api-key"

@@ -33,7 +33,7 @@ builder.AddDigitalBrainServer(server =>
         foreach (var name in names)
         {
             var type = Type.GetType(name, throwOnError: true)!;
-            server.AddModule(DigitalBrain.Kernel.ModuleIdentity.Get(type), () => (DigitalBrain.Kernel.IModule)Activator.CreateInstance(type)!);
+            server.AddModule(type);
         }
     }
 });
