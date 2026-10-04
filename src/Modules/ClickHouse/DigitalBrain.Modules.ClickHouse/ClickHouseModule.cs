@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using ClickHouse.Driver;
 using DigitalBrain.Kernel;
 using Microsoft.Extensions.Configuration;

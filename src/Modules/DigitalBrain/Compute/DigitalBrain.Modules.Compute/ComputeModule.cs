@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using DigitalBrain.Compute.Allowances;
 using DigitalBrain.Compute.Billing;
 using DigitalBrain.Compute.Ledger;

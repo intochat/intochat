@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Kernel;
 using DigitalBrain.Kernel.AspNetCore;

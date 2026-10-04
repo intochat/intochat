@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.Kernel;
 using DigitalBrain.Kernel.AspNetCore;

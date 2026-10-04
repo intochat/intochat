@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Kernel;
 namespace DigitalBrain.Testing.E2E;

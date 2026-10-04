@@ -1,3 +1,4 @@
+using DigitalBrain.Contracts;
 using System.Reflection;
 using DigitalBrain.Kernel;
 using Pulumi;

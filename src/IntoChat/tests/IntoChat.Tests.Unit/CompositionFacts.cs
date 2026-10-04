@@ -1,4 +1,5 @@
 extern alias AppHost;
+using DigitalBrain.Contracts;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
 using DigitalBrain.Aspire.Hosting;
