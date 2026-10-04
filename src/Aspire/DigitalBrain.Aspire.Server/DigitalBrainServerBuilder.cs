@@ -1,10 +1,12 @@
 using DigitalBrain.Kernel;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 namespace DigitalBrain.Aspire.Server;
 
 public sealed class DigitalBrainServerBuilder
 {
     private readonly Dictionary<string, Func<IModule>> _modules = new(StringComparer.Ordinal);
+    private readonly List<Action<IServiceCollection>> _serviceActions = [];
     internal bool AzureStorage { get; private set; }
     internal bool Dashboard { get; private set; }
     public DigitalBrainServerBuilder AddModule<TModule>(string id) where TModule : class, IModule, new()
@@ -16,6 +18,20 @@ public sealed class DigitalBrainServerBuilder
         if (!_modules.TryAdd(id, create)) { throw new InvalidOperationException($"Module '{id}' is already registered."); }
         return this;
     }
+    // A composition carries the host services it cannot run without (the OS carries its apps);
+    // the hosting extension applies these to the host's service collection.
+    public DigitalBrainServerBuilder ConfigureServices(Action<IServiceCollection> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        _serviceActions.Add(configure);
+        return this;
+    }
+
+    internal void ApplyServiceActions(IServiceCollection services)
+    {
+        foreach (var action in _serviceActions) { action(services); }
+    }
+
     public DigitalBrainServerBuilder UseAzureStorage() { AzureStorage = true; return this; }
     public DigitalBrainServerBuilder WithDashboard() { Dashboard = true; return this; }
     internal IModule[] SelectModules(IConfiguration configuration)

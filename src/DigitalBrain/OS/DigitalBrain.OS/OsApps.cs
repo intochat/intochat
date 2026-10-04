@@ -34,15 +34,31 @@ public sealed class OsAppsOptions
 
 public static class OsAppsHosting
 {
+    private sealed class OsAppsRegistered;
+
     // The operating system names and ships its own apps; a distribution's configure only adds.
+    // Idempotent: the composition wires this itself, and a host calling it again is a no-op
+    // apart from its own configure delegate.
     public static IServiceCollection AddOperatingSystemApps(this IServiceCollection services, Action<OsAppsOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
+        if (services.Any(descriptor => descriptor.ServiceType == typeof(OsAppsRegistered)))
+        {
+            if (configure is not null) { services.Configure(configure); }
+            return services;
+        }
+        services.AddSingleton<OsAppsRegistered>();
         services.AddShippedApps(typeof(OsCatalog).Assembly, "DigitalBrain.OS.Apps/", publisher: "os");
         services.Configure<OsAppsOptions>(os =>
         {
-            os.Apps.Add(new(PackageId.Create("os", "settings"), PackageId.Parse("intochat/settings")));
-            os.Apps.Add(new(PackageId.Create("os", "assistant")));
+            // Idempotent so a host that both composes the OS and wires the apps explicitly
+            // does not boot each app twice.
+            void Add(OsApp app)
+            {
+                if (!os.Apps.Any(existing => existing.Package == app.Package)) { os.Apps.Add(app); }
+            }
+            Add(new(PackageId.Create("os", "settings"), PackageId.Parse("intochat/settings")));
+            Add(new(PackageId.Create("os", "assistant")));
         });
         services.Configure<BuiltInSettingsOptions>(options => options.Package ??= PackageId.Create("os", "settings"));
         return services.AddOperatingSystemBoot(configure);

@@ -43,6 +43,27 @@ public sealed class OsShippedAppFacts
     }
 
     [Fact]
+    public void TheOperatingSystemCompositionWiresItsAppsIntoTheHost()
+    {
+        var builder = global::Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
+        DigitalBrain.Aspire.Server.DigitalBrainRuntimeHostingExtensions.AddDigitalBrainServer(builder, server => server.AddOperatingSystem());
+        using var provider = builder.Services.BuildServiceProvider();
+        Assert.Equal(PackageId.Create("os", "settings"), provider.GetRequiredService<IOptions<BuiltInSettingsOptions>>().Value.Package);
+        Assert.Contains(provider.GetRequiredService<IOptions<OsAppsOptions>>().Value.Apps,
+            app => app.Package.ToString() == "os/settings");
+    }
+
+    [Fact]
+    public void RegisteringTheOsAppsTwiceDoesNotDuplicateTheManifest()
+    {
+        var services = new ServiceCollection();
+        services.AddOperatingSystemApps();
+        services.AddOperatingSystemApps();
+        using var provider = services.BuildServiceProvider();
+        Assert.Equal(2, provider.GetRequiredService<IOptions<OsAppsOptions>>().Value.Apps.Count);
+    }
+
+    [Fact]
     public void AMalformedManifestEntryFailsAtParseNamingTheValue()
     {
         var package = Assert.ThrowsAny<Exception>(() => OsApp.Parse("os-settings"));

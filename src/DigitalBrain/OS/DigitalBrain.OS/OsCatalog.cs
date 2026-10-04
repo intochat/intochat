@@ -39,6 +39,8 @@ public static class OsCatalog
         {
             server.AddModule(id, () => (Kernel.IModule)Activator.CreateInstance(module)!);
         }
+        // The OS is the composition plus its apps; a distribution cannot forget them.
+        server.ConfigureServices(services => services.AddOperatingSystemApps());
         return server;
     }
 }
