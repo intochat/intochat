@@ -197,9 +197,9 @@ public sealed class RegistrationFacts
         var ct = TestContext.Current.CancellationToken;
         var seeded = new Dictionary<string, string?>
         {
-            ["DigitalBrain:Integrations:google:ClientId"] = Canary + "-id",
-            ["DigitalBrain:Integrations:google:ClientSecret"] = Canary,
-            ["DigitalBrain:Integrations:google:RedirectPath"] = "/callback",
+            [IntegrationDefinition.Key("google", "ClientId")] = Canary + "-id",
+            [IntegrationDefinition.Key("google", "ClientSecret")] = Canary,
+            [IntegrationDefinition.Key("google", "RedirectPath")] = "/callback",
         };
         await using var brain = await StartAsync(ct, seeded);
         var google = Registration(brain, "google");

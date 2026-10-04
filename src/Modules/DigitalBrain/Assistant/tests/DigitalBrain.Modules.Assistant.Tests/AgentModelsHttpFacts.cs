@@ -1,3 +1,4 @@
+using DigitalBrain.Platform.Contracts.Integrations;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -25,7 +26,7 @@ public sealed class AgentModelsHttpFacts
             {
                 PrivateConfiguration = new Dictionary<string, string?>
                 {
-                    ["DigitalBrain:Integrations:openai:ApiKey"] = apiKey,
+                    [IntegrationDefinition.Key("openai", "ApiKey")] = apiKey,
                     ["DigitalBrain:Auth:Posture"] = "Secured",
                     ["DigitalBrain:Auth:Username"] = "owner",
                     ["DigitalBrain:Auth:Password"] = "catalog-test-password",

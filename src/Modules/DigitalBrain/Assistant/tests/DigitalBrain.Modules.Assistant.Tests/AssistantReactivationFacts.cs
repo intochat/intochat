@@ -1,3 +1,4 @@
+using DigitalBrain.Platform.Contracts.Integrations;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.Assistant;
@@ -21,7 +22,7 @@ public sealed class AssistantReactivationFacts
         var runner = new StreamScenarioRunner();
         await using var brain = await ModuleTest.Create().WithExecution(new TestExecutionOptions
         {
-            PrivateConfiguration = new Dictionary<string, string?> { ["DigitalBrain:Integrations:openai:ApiKey"] = "test-no-network" },
+            PrivateConfiguration = new Dictionary<string, string?> { [IntegrationDefinition.Key("openai", "ApiKey")] = "test-no-network" },
         }).WithModule<AssistantModule>().RequireModules([typeof(DigitalBrain.Apps.AppsModule), typeof(DigitalBrain.AI.AIModule), typeof(DigitalBrain.Compute.ComputeModule), typeof(DigitalBrain.Flutter.FlutterModule)])
             .ConfigureSilo(silo => silo.Services.AddSingleton<IAgentTurnRunner>(runner)
                 .Configure<AIOptions>(options =>

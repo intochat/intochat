@@ -1,3 +1,4 @@
+using DigitalBrain.Platform.Contracts.Integrations;
 using System.Text;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
@@ -19,7 +20,7 @@ public sealed class AssistantFeatureFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithExecution(new TestExecutionOptions
         {
-            PrivateConfiguration = new Dictionary<string, string?> { ["DigitalBrain:Integrations:openai:ApiKey"] = "test-no-network" },
+            PrivateConfiguration = new Dictionary<string, string?> { [IntegrationDefinition.Key("openai", "ApiKey")] = "test-no-network" },
         })
             .WithModule<AssistantModule>().RequireModules([typeof(DigitalBrain.Apps.AppsModule), typeof(DigitalBrain.AI.AIModule), typeof(DigitalBrain.Compute.ComputeModule), typeof(DigitalBrain.Flutter.FlutterModule)])
             .WithModule<SpecsModule>()

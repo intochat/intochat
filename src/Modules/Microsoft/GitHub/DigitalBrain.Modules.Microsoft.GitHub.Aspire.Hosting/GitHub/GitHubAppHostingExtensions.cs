@@ -1,3 +1,4 @@
+using DigitalBrain.Platform.Contracts.Integrations;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Aspire.Hosting;
@@ -63,7 +64,7 @@ public static class GitHubAppHostingExtensions
             _clientSecret ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("github-app-client-secret"), secret: true)
                 .WithDescription("GitHub App OAuth client secret; user tokens are only used during authorization.");
             const string root = "DigitalBrain:Microsoft:GitHub:App";
-            const string IntegrationRoot = "DigitalBrain:Integrations:github";
+            const string IntegrationRoot = IntegrationDefinition.SectionName + ":github";
             builder.WithEnvironment(EnvironmentKeys.For(root, "AppId"), appId.ToString(System.Globalization.CultureInfo.InvariantCulture))
                 .WithEnvironment(EnvironmentKeys.For(IntegrationRoot, "AppId"), appId.ToString(System.Globalization.CultureInfo.InvariantCulture))
                 .WithEnvironment(EnvironmentKeys.For(root, "Slug"), slug)

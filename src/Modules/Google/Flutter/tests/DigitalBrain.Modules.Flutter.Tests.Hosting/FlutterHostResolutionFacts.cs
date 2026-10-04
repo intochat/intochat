@@ -1,6 +1,7 @@
 using DigitalBrain.Flutter.Aspire.Hosting;
 
-namespace DigitalBrain.Aspire.Hosting.Tests.Unit.Flutter;
+namespace DigitalBrain.Modules.Flutter.Tests.Hosting;
+
 
 public sealed class FlutterHostResolutionFacts
 {

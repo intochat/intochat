@@ -59,19 +59,25 @@ public sealed class ModuleOptionOverlayFacts
     public void TwoBrainsScopeInfrastructureAndAllowIndependentConfiguration()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        builder.Configuration["DigitalBrain:Modules:postgres:Options:Hosting:Enabled"] = "true";
-        builder.Configuration["DigitalBrain:Brains:first:Modules:postgres:Options:ConnectionName"] = "first-db";
-        builder.Configuration["DigitalBrain:Brains:second:Modules:postgres:Options:ConnectionName"] = "second-db";
+        builder.Configuration["DigitalBrain:Brains:first:Modules:scoped:Options:ConnectionName"] = "first-db";
+        builder.Configuration["DigitalBrain:Brains:second:Modules:scoped:Options:ConnectionName"] = "second-db";
         var first = builder.AddDigitalBrain("first", options: new() { UseAzureStorage = true, PersistentStorage = false })
-            .WithHosting<DigitalBrain.Postgres.Aspire.Hosting.PostgresModuleHosting>();
+            .WithHosting<ScopedServerHosting>();
         var second = builder.AddDigitalBrain("second", options: new() { UseAzureStorage = true, PersistentStorage = false })
-            .WithHosting<DigitalBrain.Postgres.Aspire.Hosting.PostgresModuleHosting>();
-        Assert.Equal("first-db", first.GetModuleConfiguration("postgres")["DigitalBrain:Modules:postgres:Options:ConnectionName"]);
-        Assert.Equal("second-db", second.GetModuleConfiguration("postgres")["DigitalBrain:Modules:postgres:Options:ConnectionName"]);
+            .WithHosting<ScopedServerHosting>();
+        Assert.Equal("first-db", first.GetModuleConfiguration("scoped")["DigitalBrain:Modules:scoped:Options:ConnectionName"]);
+        Assert.Equal("second-db", second.GetModuleConfiguration("scoped")["DigitalBrain:Modules:scoped:Options:ConnectionName"]);
         var names = builder.Resources.Select(r => r.Name).ToArray();
         Assert.Equal(names.Length, names.Distinct(StringComparer.OrdinalIgnoreCase).Count());
-        Assert.Contains("first-postgres-server", names);
-        Assert.Contains("second-postgres-server", names);
+        Assert.Contains("first-scoped-server", names);
+        Assert.Contains("second-scoped-server", names);
+    }
+
+    private sealed class ScopedServerHosting : IDigitalBrainModuleHosting
+    {
+        public string Id => "scoped";
+        public void Configure(DigitalBrainBuilder brain)
+            => brain.ApplicationBuilder.AddContainer(brain.ResourceName("scoped-server"), "scoped/server");
     }
 
     [Fact]

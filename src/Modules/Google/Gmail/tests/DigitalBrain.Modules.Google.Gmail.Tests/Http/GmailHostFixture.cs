@@ -1,3 +1,4 @@
+using DigitalBrain.Platform.Contracts.Integrations;
 using DigitalBrain.Google.Gmail;
 using DigitalBrain.Testing.Module;
 using Xunit;
@@ -33,9 +34,9 @@ public sealed class GmailHostFixture : IAsyncLifetime
 
     internal static Dictionary<string, string?> ConfiguredRegistration(TokenEndpointStub stub) => new()
     {
-        ["DigitalBrain:Integrations:gmail:ClientId"] = "integration-client",
-        ["DigitalBrain:Integrations:gmail:ClientSecret"] = "integration-secret",
-        ["DigitalBrain:Integrations:gmail:PublicOrigin"] = stub.Origin.AbsoluteUri,
+        [IntegrationDefinition.Key("gmail", "ClientId")] = "integration-client",
+        [IntegrationDefinition.Key("gmail", "ClientSecret")] = "integration-secret",
+        [IntegrationDefinition.Key("gmail", "PublicOrigin")] = stub.Origin.AbsoluteUri,
     };
 }
 

@@ -64,8 +64,8 @@ public sealed class AppAuthFacts
         var seeds = new Dictionary<string, string?>();
         if (privateKeyPem is not null)
         {
-            seeds["DigitalBrain:Integrations:github:PrivateKeyPem"] = privateKeyPem;
-            seeds["DigitalBrain:Integrations:github:AppId"] = appId;
+            seeds[IntegrationDefinition.Key("github", "PrivateKeyPem")] = privateKeyPem;
+            seeds[IntegrationDefinition.Key("github", "AppId")] = appId;
         }
 
         return ModuleTest.Create()

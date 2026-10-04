@@ -1,3 +1,4 @@
+using DigitalBrain.Platform.Contracts.Integrations;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Aspire.Hosting;
@@ -95,7 +96,7 @@ public static class GitHubHostingExtensions
                 .WithEnvironment(EnvironmentKeys.For(root, "WebhookSecret"), _webhookSecret);
             if (SeedsIntegration)
             {
-                const string integrationRoot = "DigitalBrain:Integrations:github";
+                const string integrationRoot = IntegrationDefinition.SectionName + ":github";
                 builder
                     .WithEnvironment(EnvironmentKeys.For(integrationRoot, "AppId"), appId.ToString(System.Globalization.CultureInfo.InvariantCulture))
                     .WithEnvironment(EnvironmentKeys.For(integrationRoot, "PrivateKeyPem"), _privateKey);

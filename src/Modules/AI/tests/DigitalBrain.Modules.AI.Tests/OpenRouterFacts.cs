@@ -14,7 +14,7 @@ public sealed class OpenRouterFacts
         await using var brain = await ModuleTest.Create().WithRegistrations(new TestExecutionOptions
         {
             PrivateConfiguration = new Dictionary<string, string?>
-            { ["DigitalBrain:Integrations:openrouter:ApiKey"] = "test-only" },
+            { [IntegrationDefinition.Key("openrouter", "ApiKey")] = "test-only" },
         }).WithModule<AIModule>()
             .ConfigureSilo(silo => silo.Services.Configure<AIOptions>(options =>
                 options.Default.Model = nameof(IDeepSeekV41Flash))).StartAsync(ct);

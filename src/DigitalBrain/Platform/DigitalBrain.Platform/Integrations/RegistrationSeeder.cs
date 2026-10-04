@@ -35,7 +35,7 @@ internal sealed class RegistrationSeeder(
     private async Task SeedOneAsync(IntegrationDefinition definition)
     {
         var values = definition.AllFields
-            .Select(field => (Field: field, Value: configuration[$"DigitalBrain:Integrations:{definition.Id}:{field}"]))
+            .Select(field => (Field: field, Value: configuration[definition.Key(field)]))
             .Where(pair => !string.IsNullOrWhiteSpace(pair.Value))
             .ToDictionary(pair => pair.Field, pair => pair.Value!, StringComparer.Ordinal);
         if (values.Count == 0)

@@ -14,9 +14,11 @@ public static class DigitalBrainClientHostingExtensions
     {
         // Every DigitalBrain client carries the process defaults; hosts cannot forget them.
         builder.AddServiceDefaults();
-        if (useAzureClustering) { builder.AddKeyedAzureTableServiceClient(DigitalBrainNames.Clustering); }
+        if (useAzureClustering)
+        {
+            builder.AddKeyedAzureTableServiceClient(DigitalBrainNames.Clustering);
+        }
         builder.UseOrleansClient(client => client.AddDigitalBrain());
         return builder;
     }
-
 }

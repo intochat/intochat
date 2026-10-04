@@ -1,3 +1,4 @@
+using DigitalBrain.Platform.Contracts.Integrations;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Aspire.Hosting;
@@ -33,7 +34,7 @@ public static class GmailHostingExtensions
         DigitalBrainBuilder brain,
         IResourceBuilder<DigitalBrainModuleResource> module) : DigitalBrainModuleProjection
     {
-        private const string Root = "DigitalBrain:Integrations:gmail";
+        private const string Root = IntegrationDefinition.SectionName + ":gmail";
 
         private bool _enabled;
         private Uri? _publicOrigin;

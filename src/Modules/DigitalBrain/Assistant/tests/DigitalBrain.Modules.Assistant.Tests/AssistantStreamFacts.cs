@@ -1,3 +1,4 @@
+using DigitalBrain.Platform.Contracts.Integrations;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -35,7 +36,7 @@ public sealed class AssistantStreamFacts
 
     private static async Task<ModuleBrain> StartBrain(CancellationToken ct) => await ModuleTest.Create().WithExecution(new TestExecutionOptions
     {
-        PrivateConfiguration = new Dictionary<string, string?> { ["DigitalBrain:Integrations:openai:ApiKey"] = "test-no-network" },
+        PrivateConfiguration = new Dictionary<string, string?> { [IntegrationDefinition.Key("openai", "ApiKey")] = "test-no-network" },
     }).WithModule<AssistantModule>()
         .RequireModules([typeof(DigitalBrain.Apps.AppsModule), typeof(DigitalBrain.AI.AIModule), typeof(DigitalBrain.Compute.ComputeModule), typeof(DigitalBrain.Flutter.FlutterModule)])
         .ConfigureSilo(silo =>

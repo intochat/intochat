@@ -1,3 +1,4 @@
+using DigitalBrain.Platform.Contracts.Integrations;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -37,8 +38,8 @@ public sealed class HostedAgentFacts
             {
                 PrivateConfiguration = new Dictionary<string, string?>
                 {
-                    [$"DigitalBrain:Integrations:{provider.ToLowerInvariant()}:ApiKey"] = "test-only",
-                    [$"DigitalBrain:Integrations:{provider.ToLowerInvariant()}:Endpoint"] = endpoint.Url,
+                    [IntegrationDefinition.Key(provider.ToLowerInvariant(), "ApiKey")] = "test-only",
+                    [IntegrationDefinition.Key(provider.ToLowerInvariant(), "Endpoint")] = endpoint.Url,
                 },
             }).StartAsync(ct);
         var agent = brain.Get<IAgent>("hosted-assistant");

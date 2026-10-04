@@ -7,6 +7,14 @@ public sealed record IntegrationDefinition(string Id, string DisplayName, string
     private static readonly Regex SafeId = new("^[a-z][a-z0-9.-]*$", RegexOptions.Compiled | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
     private static readonly Regex SafeField = new("^[A-Za-z][A-Za-z0-9]*$", RegexOptions.Compiled | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
 
+    // The configuration home of every integration's deployment values; one key shape,
+    // spelled here and nowhere else.
+    public const string SectionName = "DigitalBrain:Integrations";
+
+    public static string Key(string id, string field) => $"{SectionName}:{id}:{field}";
+
+    public string Key(string field) => Key(Id, field);
+
     public static IntegrationDefinition For(string id, string displayName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);

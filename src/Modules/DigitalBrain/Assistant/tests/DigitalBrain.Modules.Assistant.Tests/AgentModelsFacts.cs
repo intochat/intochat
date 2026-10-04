@@ -1,3 +1,4 @@
+using DigitalBrain.Platform.Contracts.Integrations;
 using System.Text.Json;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
@@ -120,8 +121,8 @@ public sealed class AgentModelsFacts
                 PrivateConfiguration = apiKey is null ? new Dictionary<string, string?>() : new Dictionary<string, string?>
                 {
                     ["Assistant:Model"] = model,
-                    ["DigitalBrain:Integrations:openai:ApiKey"] = apiKey,
-                    ["DigitalBrain:Integrations:openai:Endpoint"] = endpoint ?? "https://api.openai.com/v1",
+                    [IntegrationDefinition.Key("openai", "ApiKey")] = apiKey,
+                    [IntegrationDefinition.Key("openai", "Endpoint")] = endpoint ?? "https://api.openai.com/v1",
                 },
             })
             .ConfigureSilo(silo => silo.Services.Configure(configure))

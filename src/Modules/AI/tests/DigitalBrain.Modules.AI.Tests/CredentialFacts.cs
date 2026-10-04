@@ -73,7 +73,7 @@ public sealed class CredentialFacts
         await using var brain = await ModuleTest.Create()
             .WithRegistrations(new TestExecutionOptions
             {
-                PrivateConfiguration = new Dictionary<string, string?> { ["DigitalBrain:Integrations:openai:ApiKey"] = Canary },
+                PrivateConfiguration = new Dictionary<string, string?> { [IntegrationDefinition.Key("openai", "ApiKey")] = Canary },
             })
             .WithModule<AIModule>().StartAsync(ct);
 

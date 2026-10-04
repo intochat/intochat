@@ -19,8 +19,8 @@ public sealed class CSharpModuleHosting : IDigitalBrainModuleHosting
         if (string.IsNullOrWhiteSpace(options.SourceRoot)) { return; }
         var sandboxProject = Path.Combine(options.SourceRoot, CSharpSandbox.SourceProject);
         var sandbox = brain.ApplicationBuilder.AddDockerfile(CSharpSandbox.ResourceName, sandboxProject)
-            // The tag is the image's identity: unchanged sources reuse the image outright.
-            .WithImageTag(ContentTag.Of(sandboxProject))
+            // Image identity is the docker layer cache's job: the Dockerfile and .dockerignore
+            // define the inputs, and an unchanged-source rebuild is a cache hit.
             .WithHttpEndpoint(targetPort: CSharpSandbox.Port, name: "http")
             .WithHttpHealthCheck("/health")
             .WithBindMount(options.SourceRoot, CSharpSandbox.SourceMount, isReadOnly: true)

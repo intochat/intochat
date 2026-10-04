@@ -9,14 +9,29 @@ public sealed class ModuleHostingResolutionFacts
     [Fact]
     public void AModuleWithAHostingAttributeResolvesItsAdapter()
     {
-        var hosting = ModuleHostingResolution.Resolve(typeof(DigitalBrain.Postgres.PostgresModule));
+        var hosting = ModuleHostingResolution.Resolve(typeof(HostedModule));
         Assert.NotNull(hosting);
-        Assert.Equal("postgres", hosting!.Id);
+        Assert.Equal("hosted", hosting!.Id);
+    }
+
+    [ModuleId("hosted")]
+    [ModuleHosting("DigitalBrain.Aspire.Hosting.Tests.Unit.ModuleHostingResolutionFacts+HostedAdapter, DigitalBrain.Aspire.Hosting.Tests.Unit")]
+    private sealed class HostedModule : IModule
+    { public void Configure(Orleans.Hosting.ISiloBuilder silo) { } }
+
+    public sealed class HostedAdapter : IDigitalBrainModuleHosting
+    {
+        public string Id => "hosted";
+        public void Configure(DigitalBrainBuilder brain) { }
     }
 
     [Fact]
     public void AModuleWithoutInfrastructureResolvesToNoAdapter()
-        => Assert.Null(ModuleHostingResolution.Resolve(typeof(DigitalBrain.Time.TimeModule)));
+        => Assert.Null(ModuleHostingResolution.Resolve(typeof(PlainModule)));
+
+    [ModuleId("plain")]
+    private sealed class PlainModule : IModule
+    { public void Configure(Orleans.Hosting.ISiloBuilder silo) { } }
 
     [Fact]
     public void AnAbsentHostingAssemblyMeansNoAdapterRatherThanAFailure()
@@ -27,7 +42,7 @@ public sealed class ModuleHostingResolutionFacts
         => Assert.Throws<InvalidOperationException>(() => ModuleHostingResolution.Resolve(typeof(StaleHostingModule)));
 
     [ModuleId("stale")]
-    [ModuleHosting("DigitalBrain.Postgres.Aspire.Hosting.NoSuchHosting, DigitalBrain.Modules.Postgres.Aspire.Hosting")]
+    [ModuleHosting("DigitalBrain.Aspire.Hosting.Tests.Unit.NoSuchHosting, DigitalBrain.Aspire.Hosting.Tests.Unit")]
     private sealed class StaleHostingModule : IModule
     { public void Configure(Orleans.Hosting.ISiloBuilder silo) { } }
 

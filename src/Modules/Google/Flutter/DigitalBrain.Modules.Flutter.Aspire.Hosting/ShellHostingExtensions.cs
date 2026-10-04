@@ -187,8 +187,8 @@ public static class ShellHostingExtensions
 
             _shellContainer = appHost
                 .AddDockerfile(resourceName, workspaceRoot, Path.GetRelativePath(workspaceRoot, dockerfile))
-                // The tag is the bundle's identity: unchanged sources reuse the image outright.
-                .WithImageTag(ContentTag.Of(workspaceRoot))
+                // Image identity is the docker layer cache's job: the Dockerfile and app/.dockerignore
+                // define the inputs, and an unchanged-source rebuild is a cache hit.
                 .WithHttpEndpoint(targetPort: 80, name: ShellNames.HttpEndpointName)
                 .WithHttpHealthCheck("/")
                 .WithBindMount(_servedConfigPath, ShellServedConfig.ContainerPath, isReadOnly: true)

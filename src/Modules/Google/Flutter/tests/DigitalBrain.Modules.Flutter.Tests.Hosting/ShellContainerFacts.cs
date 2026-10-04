@@ -1,10 +1,11 @@
 using System.Text.Json;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
+using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Aspire.Hosting;
 
-namespace DigitalBrain.Aspire.Hosting.Tests.Unit.Flutter;
+namespace DigitalBrain.Modules.Flutter.Tests.Hosting;
 
 public sealed class ShellContainerFacts
 {
@@ -20,11 +21,9 @@ public sealed class ShellContainerFacts
         Assert.IsType<ContainerResource>(shell, exactMatch: false);
         Assert.DoesNotContain(builder.Resources, resource => resource is ExecutableResource executable
             && executable.Command.Contains("flutter", StringComparison.OrdinalIgnoreCase));
-        // The tag is the bundle's content identity, never a per-session mint.
-        var packageRoot = ShellHostingExtensions.ResolveFlutterWorkingDirectory(AppContext.BaseDirectory, configured: null);
-        var workspaceRoot = Path.GetFullPath(Path.Combine(FlutterHostLaunch.ResolveWebPackageDirectory(packageRoot)!, ".."));
+        // The tag is stable across sessions: staleness is the docker layer cache's job.
         var image = Assert.Single(shell.Annotations.OfType<ContainerImageAnnotation>());
-        Assert.Equal(ContentTag.Of(workspaceRoot), image.Tag);
+        Assert.Equal("latest", image.Tag);
     }
 
     [Fact]
@@ -51,5 +50,7 @@ public sealed class ShellContainerFacts
         var workspaceRoot = Path.GetFullPath(Path.Combine(shellDirectory, ".."));
         Assert.True(File.Exists(Path.Combine(workspaceRoot, "pubspec.yaml")),
             $"'{workspaceRoot}' is not the pub workspace root the docker build context expects.");
+        Assert.True(File.Exists(Path.Combine(workspaceRoot, ".dockerignore")),
+            $"No .dockerignore at '{workspaceRoot}' — local build output would bust the layer cache every run.");
     }
 }

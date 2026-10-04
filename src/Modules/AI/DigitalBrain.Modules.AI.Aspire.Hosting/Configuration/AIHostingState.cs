@@ -1,3 +1,4 @@
+using DigitalBrain.Platform.Contracts.Integrations;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.AI.FoundryLocal;
@@ -82,7 +83,7 @@ public static partial class AIHostingExtensions
 
             foreach (var (provider, apiKey) in _providerApiKeys)
             {
-                builder.WithEnvironment(EnvironmentKeys.For($"DigitalBrain:Integrations:{provider.ToString().ToLowerInvariant()}", "ApiKey"), apiKey);
+                builder.WithEnvironment(EnvironmentKeys.For(IntegrationDefinition.Key(provider.ToString().ToLowerInvariant(), "ApiKey")), apiKey);
             }
 
             if (_defaultLlmMarker is { } llmMarker)
