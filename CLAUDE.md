@@ -93,7 +93,7 @@ renderable palette v1 / UiPart; run-token tightening.
   never see.
 - Build/tests per project (never the `.slnx` — Windows handshake bug):
   `dotnet test src/<path-to-test-project>`. After changes: build, run the relevant unit suites,
-  and smoke with `aspire run` from `src/IntoChat/IntoChat.AppHost` (all resources Healthy).
+  and smoke with `aspire run` from `src/DigitalBrain/AppHost` (all resources Healthy).
   Run module E2E suites alongside their module's unit suite; compile live-gated scenarios when
   their credentials are unavailable. IntoChat E2E contains composition, shipped-content routes,
   and the live-gated product golden journeys only. The former 18-minute monolith is dissolved.

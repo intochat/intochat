@@ -4,8 +4,8 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../../Testing/DigitalBrain.Testing.Module/DigitalBrain.Testing.Module.csproj" />
-    <ProjectReference Include="../../../DigitalBrain/OS/DigitalBrain.OS.Host/DigitalBrain.OS.Host.csproj" />
-    <ProjectReference Include="../../IntoChat.AppHost/IntoChat.AppHost.csproj" IsAspireProjectResource="false" Aliases="AppHost" />
+    <ProjectReference Include="../../../DigitalBrain/OS/DigitalBrain.OS/DigitalBrain.OS.csproj" />
+    <ProjectReference Include="../../../DigitalBrain/AppHost/DigitalBrain.AppHost.csproj" IsAspireProjectResource="false" Aliases="AppHost" />
     <ProjectReference Include="../../../Testing/DigitalBrain.Testing.E2E/DigitalBrain.Testing.E2E.csproj" />
   </ItemGroup>
 </Project>

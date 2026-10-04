@@ -1,14 +1,26 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
-    <IsPackable>true</IsPackable>
-    <Description>The operating system: the named module composition and the boot behavior that starts the OS apps when a brain activates.</Description>
+    <!-- Local runs write grain state under this folder. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);.digitalbrain/**</DefaultItemExcludes>
+    <NoWarn>$(NoWarn);CA2007</NoWarn>
+    <DisableMSBuildAssemblyCopyCheck>true</DisableMSBuildAssemblyCopyCheck>
+    <Description>The operating system: the named module composition, the OS apps, and the host that runs them.</Description>
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="../Apps/**/*" LogicalName="DigitalBrain.OS.Apps/%(RecursiveDir)%(Filename)%(Extension)" Link="Apps/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.Orleans.Client" />
+    <InternalsVisibleTo Include="IntoChat.Tests.E2E" />
+    <InternalsVisibleTo Include="IntoChat.Tests.Unit" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../../Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />
     <ProjectReference Include="../../Kernel/DigitalBrain.Kernel/DigitalBrain.Kernel.csproj" />
+    <ProjectReference Include="../../Sdk/DigitalBrain.Sdk/DigitalBrain.Sdk.csproj" />
+    <ProjectReference Include="../../Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
+    <ProjectReference Include="../../../IntoChat/IntoChat.ServiceDefaults/IntoChat.ServiceDefaults.csproj" />
+    <ProjectReference Include="../../../IntoChat/IntoChat.Apps/IntoChat.Apps.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../../Modules/AI/DigitalBrain.Modules.AI/DigitalBrain.Modules.AI.csproj" />

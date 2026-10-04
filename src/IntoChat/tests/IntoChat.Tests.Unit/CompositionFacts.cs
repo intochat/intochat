@@ -13,7 +13,7 @@ public sealed class CompositionFacts
     [Fact]
     public async Task ProductMatchesTheReferenceCompositionModuleSet()
     {
-        await using var appHost = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.IntoChat_AppHost>(
+        await using var appHost = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.DigitalBrain_AppHost>(
             ["Parameters:Modules-digitalbrain-master-key=synthetic-composition-test-key-32chars"], TestContext.Current.CancellationToken);
         var productModules = appHost.Resources.SelectMany(resource => resource.Annotations.OfType<BrainModuleAnnotation>())
             .Select(module => module.ModuleId).Order().ToArray();

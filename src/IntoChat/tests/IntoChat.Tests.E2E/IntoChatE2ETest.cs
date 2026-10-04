@@ -42,8 +42,8 @@ internal static class IntoChatE2ETest
         }
     }
 
-    public static E2ETestBuilder<Projects.IntoChat_AppHost> Create(string modelApiKey = "fixture-key", Dictionary<string, string?>? privateConfiguration = null)
-        => E2ETest.For<Projects.IntoChat_AppHost>()
+    public static E2ETestBuilder<Projects.DigitalBrain_AppHost> Create(string modelApiKey = "fixture-key", Dictionary<string, string?>? privateConfiguration = null)
+        => E2ETest.For<Projects.DigitalBrain_AppHost>()
             .ConfigureModule<AIModule, AIOptions>(ai => ai.WithoutLocalModels().WithoutVoiceToText().WithoutWebSearch()
                 .WithDefaultLlm<IGpt56Luna>().WithModelEndpoint(AiProvider.OpenAI, new(UnconfiguredProvider, "v1/")))
             .ConfigureModule<QdrantModule, QdrantModuleOptions>(qdrant => qdrant.Host = false)

@@ -9,6 +9,7 @@
     <Project Path="src/Aspire/tests/DigitalBrain.Aspire.Hosting.Tests.Unit/DigitalBrain.Aspire.Hosting.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/DigitalBrain/">
+    <Project Path="src/DigitalBrain/AppHost/DigitalBrain.AppHost.csproj" />
     <Project Path="src/DigitalBrain/DigitalBrain.Contracts/DigitalBrain.Contracts.csproj" />
     <Project Path="src/DigitalBrain/DigitalBrain/DigitalBrain.csproj" />
   </Folder>
@@ -42,7 +43,6 @@
   </Folder>
   <Folder Name="/DigitalBrain/OS/">
     <Project Path="src/DigitalBrain/OS/DigitalBrain.OS/DigitalBrain.OS.csproj" />
-    <Project Path="src/DigitalBrain/OS/DigitalBrain.OS.Host/DigitalBrain.OS.Host.csproj" />
   </Folder>
   <Folder Name="/DigitalBrain/OS/tests/">
     <Project Path="src/DigitalBrain/OS/tests/DigitalBrain.OS.Tests.E2E/DigitalBrain.OS.Tests.E2E.csproj" />
@@ -63,7 +63,6 @@
     <Project Path="src/DigitalBrain/Sdk/tests/DigitalBrain.Sdk.Tests.Unit/DigitalBrain.Sdk.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/IntoChat/">
-    <Project Path="src/IntoChat/IntoChat.AppHost/IntoChat.AppHost.csproj" />
     <Project Path="src/IntoChat/IntoChat.ServiceDefaults/IntoChat.ServiceDefaults.csproj" />
     <Project Path="src/IntoChat/IntoChat.Apps/IntoChat.Apps.csproj" />
   </Folder>
@@ -71,6 +70,7 @@
     <Project Path="src/IntoChat/tests/IntoChat.Tests.E2E/IntoChat.Tests.E2E.csproj" />
     <Project Path="src/IntoChat/tests/IntoChat.Tests.Unit/IntoChat.Tests.Unit.csproj" />
   </Folder>
+  <Folder Name="/Modules/" />
   <Folder Name="/Modules/AI/">
     <Project Path="src/Modules/AI/DigitalBrain.Modules.AI.Aspire.Hosting/DigitalBrain.Modules.AI.Aspire.Hosting.csproj" />
     <Project Path="src/Modules/AI/DigitalBrain.Modules.AI.Contracts/DigitalBrain.Modules.AI.Contracts.csproj" />
@@ -89,6 +89,7 @@
   <Folder Name="/Modules/ClickHouse/tests/">
     <Project Path="src/Modules/ClickHouse/tests/DigitalBrain.Modules.ClickHouse.Tests/DigitalBrain.Modules.ClickHouse.Tests.csproj" />
   </Folder>
+  <Folder Name="/Modules/DigitalBrain/" />
   <Folder Name="/Modules/DigitalBrain/Apps/">
     <Project Path="src/Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps.Contracts/DigitalBrain.Modules.Apps.Contracts.csproj" />
     <Project Path="src/Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps.Testing/DigitalBrain.Modules.Apps.Testing.csproj" />
@@ -132,6 +133,7 @@
   <Folder Name="/Modules/Files/tests/">
     <Project Path="src/Modules/Files/tests/DigitalBrain.Modules.Files.Tests/DigitalBrain.Modules.Files.Tests.csproj" />
   </Folder>
+  <Folder Name="/Modules/Google/" />
   <Folder Name="/Modules/Google/Flutter/">
     <Project Path="src/Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Aspire.Hosting/DigitalBrain.Modules.Flutter.Aspire.Hosting.csproj" />
     <Project Path="src/Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Contracts/DigitalBrain.Modules.Flutter.Contracts.csproj" />
@@ -149,6 +151,7 @@
   <Folder Name="/Modules/Google/Gmail/tests/">
     <Project Path="src/Modules/Google/Gmail/tests/DigitalBrain.Modules.Google.Gmail.Tests/DigitalBrain.Modules.Google.Gmail.Tests.csproj" />
   </Folder>
+  <Folder Name="/Modules/Microsoft/" />
   <Folder Name="/Modules/Microsoft/Aspire/">
     <Project Path="src/Modules/Microsoft/Aspire/DigitalBrain.Modules.Microsoft.Aspire.Aspire.Hosting/DigitalBrain.Modules.Microsoft.Aspire.Aspire.Hosting.csproj" />
     <Project Path="src/Modules/Microsoft/Aspire/DigitalBrain.Modules.Microsoft.Aspire.Contracts/DigitalBrain.Modules.Microsoft.Aspire.Contracts.csproj" />

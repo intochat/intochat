@@ -6,8 +6,8 @@
     <Using Include="System.Net" />
     <Using Include="DigitalBrain" />
     <ProjectReference Include="../../../Testing/DigitalBrain.Testing.E2E/DigitalBrain.Testing.E2E.csproj" />
-    <ProjectReference Include="../../IntoChat.AppHost/IntoChat.AppHost.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../../../DigitalBrain/OS/DigitalBrain.OS.Host/DigitalBrain.OS.Host.csproj" />
+    <ProjectReference Include="../../../DigitalBrain/AppHost/DigitalBrain.AppHost.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="../../../DigitalBrain/OS/DigitalBrain.OS/DigitalBrain.OS.csproj" />
     <None Update="testconfig.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

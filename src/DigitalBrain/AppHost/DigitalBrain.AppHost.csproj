@@ -8,8 +8,8 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../Aspire/DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../../DigitalBrain/OS/DigitalBrain.OS.Host/DigitalBrain.OS.Host.csproj" ReferenceOutputAssembly="false" />
-    <ProjectReference Include="../../DigitalBrain/Mcp/DigitalBrain.Mcp/DigitalBrain.Mcp.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../OS/DigitalBrain.OS/DigitalBrain.OS.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../Mcp/DigitalBrain.Mcp/DigitalBrain.Mcp.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../../Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Aspire.Hosting/DigitalBrain.Modules.Flutter.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
   </ItemGroup>
   <ItemGroup>
@@ -26,5 +26,5 @@
   <ItemGroup>
     <ProjectReference Include="../../Modules/Postgres/DigitalBrain.Modules.Postgres.Aspire.Hosting/DigitalBrain.Modules.Postgres.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
   </ItemGroup>
-  <ItemGroup><Compile Include="../../DigitalBrain/OS/DigitalBrain.OS.Host/Configuration/IntoChatConfiguration.cs" Link="IntoChatConfiguration.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../OS/DigitalBrain.OS/Configuration/IntoChatConfiguration.cs" Link="IntoChatConfiguration.cs" /></ItemGroup>
 </Project>

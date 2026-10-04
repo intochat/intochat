@@ -6,7 +6,7 @@
 # step with the product AppHost profile.
 #
 # Build (repo root):
-#   docker build -f src/DigitalBrain/OS/DigitalBrain.OS.Host/Dockerfile -t vhorbachov/digitalbrain-kernel:local .
+#   docker build -f src/DigitalBrain/OS/DigitalBrain.OS/Dockerfile -t vhorbachov/digitalbrain-kernel:local .
 #
 # No secrets are baked into this image. Managed identity + Key Vault are injected at run/deploy:
 #
@@ -25,7 +25,7 @@ WORKDIR /src
 COPY nuget.config Directory.Build.props Directory.Packages.props DigitalBrain.slnx global.json ./
 COPY src/ ./src/
 
-RUN dotnet publish src/DigitalBrain/OS/DigitalBrain.OS.Host/DigitalBrain.OS.Host.csproj \
+RUN dotnet publish src/DigitalBrain/OS/DigitalBrain.OS/DigitalBrain.OS.csproj \
       -c Release \
       -r linux-x64 \
       --self-contained false \
@@ -67,4 +67,4 @@ ENV ASPNETCORE_ENVIRONMENT=Production \
 EXPOSE 8080
 
 USER $APP_UID
-ENTRYPOINT ["dotnet", "/app/silo/DigitalBrain.OS.Host.dll"]
+ENTRYPOINT ["dotnet", "/app/silo/DigitalBrain.OS.dll"]

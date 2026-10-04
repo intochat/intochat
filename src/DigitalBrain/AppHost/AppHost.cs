@@ -53,7 +53,7 @@ var digitalBrain = builder.AddDigitalBrain(ProductSurfaceResources.Modules, serv
 
 var cookieProtection = digitalBrain.AddBlobContainer(IntoChatConfiguration.ProtectionContainerName);
 
-var runtime = builder.AddProject<Projects.DigitalBrain_OS_Host>(ProductSurfaceResources.IntoChat)
+var runtime = builder.AddProject<Projects.DigitalBrain_OS>(ProductSurfaceResources.IntoChat)
     .WithReference(digitalBrain)
     .WaitFor(cookieProtection)
     .WithHttpEndpoint(
