@@ -142,13 +142,16 @@ public sealed class AspireTestSession : IAsyncDisposable
                 // The AppHost publishes a fixed port. A testing builder also copies launchSettings ports,
                 // so clear both or every session binds the same endpoint. The endpoint also stays
                 // unproxied: the proxy buffers the Aspire bridge's SSE command stream, so commands
-                // from the brain to the AppHost would never arrive on a proxied endpoint.
+                // from the brain to the AppHost would never arrive on a proxied endpoint. The silo
+                // binds every interface because sandbox scripts dial back through the container
+                // gateway (host.docker.internal), which on Linux is not the loopback.
                 foreach (var http in resource.Annotations.OfType<EndpointAnnotation>())
                 {
                     if (!string.Equals(http.Name, SiloHosts.HttpEndpointName, StringComparison.Ordinal)) { continue; }
                     http.Port = null;
                     http.TargetPort = null;
                     http.IsProxied = false;
+                    http.TargetHost = "0.0.0.0";
                 }
             }
             Advance("build");

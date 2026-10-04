@@ -7,8 +7,8 @@
     "src/DigitalBrain/Kernel/tests/DigitalBrain.Kernel.Tests.E2E/E2EBoundaryFacts.cs",
     "src/DigitalBrain/Kernel/tests/DigitalBrain.Kernel.Tests.E2E/TraceBudgetFacts.cs",
     "src/DigitalBrain/Platform/tests/DigitalBrain.Platform.Tests.E2E/MigrationLifecycleFacts.cs",
-    "src/IntoChat/Tests/IntoChat.Tests.E2E/Agent/GoldenJourneyFacts.cs",
-    "src/IntoChat/Tests/IntoChat.Tests.Unit/CompositionFacts.cs",
+    "src/IntoChat/tests/IntoChat.Tests.E2E/Agent/GoldenJourneyFacts.cs",
+    "src/IntoChat/tests/IntoChat.Tests.Unit/CompositionFacts.cs",
     "src/DigitalBrain/OS/tests/DigitalBrain.OS.Tests.E2E/CSharpFileContainerFacts.cs"
   ]
 }

@@ -93,7 +93,8 @@ public sealed class TestTierFacts
             "IntoChatE2ETest" + ".Create(",
             "DistributedApplication" + "TestingBuilder",
         ];
-        var baseline = Baseline().LegacyFullStackBootFacts.ToHashSet(StringComparer.Ordinal);
+        // Paths: a Windows checkout can carry different directory casing than the git index.
+        var baseline = Baseline().LegacyFullStackBootFacts.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var offenders = new List<string>();
         foreach (var file in Directory.EnumerateFiles(Path.Combine(Root, "src"), "*Facts.cs", SearchOption.AllDirectories))
         {
