@@ -4,6 +4,8 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);.digitalbrain/**</DefaultItemExcludes>
     <NoWarn>$(NoWarn);CA2007</NoWarn>
     <DisableMSBuildAssemblyCopyCheck>true</DisableMSBuildAssemblyCopyCheck>
+    <AssemblyName>DigitalBrain.OS.Host</AssemblyName>
+    <RootNamespace>DigitalBrain.OS.Host</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Orleans.Client" />
@@ -11,10 +13,10 @@
     <InternalsVisibleTo Include="IntoChat.Tests.Unit" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../IntoChat.ServiceDefaults/IntoChat.ServiceDefaults.csproj" />
-    <ProjectReference Include="../IntoChat.Apps/IntoChat.Apps.csproj" />
-    <ProjectReference Include="../../DigitalBrain/OS/DigitalBrain.OS/DigitalBrain.OS.csproj" />
-    <ProjectReference Include="../../DigitalBrain/Sdk/DigitalBrain.Sdk/DigitalBrain.Sdk.csproj" />
-    <ProjectReference Include="../../DigitalBrain/Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
+    <ProjectReference Include="../../../IntoChat/IntoChat.ServiceDefaults/IntoChat.ServiceDefaults.csproj" />
+    <ProjectReference Include="../../../IntoChat/IntoChat.Apps/IntoChat.Apps.csproj" />
+    <ProjectReference Include="../DigitalBrain.OS/DigitalBrain.OS.csproj" />
+    <ProjectReference Include="../../Sdk/DigitalBrain.Sdk/DigitalBrain.Sdk.csproj" />
+    <ProjectReference Include="../../Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
   </ItemGroup>
 </Project>
