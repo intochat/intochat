@@ -21,6 +21,17 @@ public sealed class WorkspaceFacts
     }
 
     [Fact]
+    public async Task ModuleOptionsReachTheSiloThroughConfiguration()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create()
+            .WithModule<FlutterModule, FlutterModuleOptions>(options => options.AssistantTitle = "IntoChat")
+            .StartAsync(ct);
+        var firstRun = (await brain.Get<IWorkspace>("owner/a").Read()).FirstRun;
+        Assert.Equal("IntoChat", Assert.IsType<FirstRunState>(firstRun).AssistantTitle);
+    }
+
+    [Fact]
     public async Task WindowReferenceIsOneTypedNeuronReference()
     {
         var ct = TestContext.Current.CancellationToken;

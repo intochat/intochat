@@ -21,8 +21,6 @@ builder.AddServiceDefaults();
 // is IntoChat's own is branding, shipped apps and configuration.
 builder.AddDigitalBrainServer(server => server.UseAzureStorage().WithDashboard().AddOperatingSystem());
 builder.AddDigitalBrainPlatform();
-// FlutterModuleOptions has no configuration binding in the silo, so the shell title is code.
-builder.Services.Configure<DigitalBrain.Flutter.FlutterModuleOptions>(options => options.AssistantTitle = "IntoChat");
 builder.Services.AddShippedApps(typeof(IntoChatApps).Assembly, "IntoChat.ShippedApps/", publisher: "intochat");
 
 var app = builder.Build();
