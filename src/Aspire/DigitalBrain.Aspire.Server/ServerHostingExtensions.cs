@@ -1,3 +1,4 @@
+using DigitalBrain.ServiceDefaults;
 using Azure.Data.Tables;
 using DigitalBrain;
 using DigitalBrain.Client.Orleans;
@@ -19,6 +20,8 @@ public static class ServerHostingExtensions
     public static IHostApplicationBuilder AddDigitalBrainServer(this IHostApplicationBuilder builder, Action<DigitalBrainServerBuilder> configure)
     {
         ArgumentNullException.ThrowIfNull(builder);
+        // Every DigitalBrain server carries the process defaults; hosts cannot forget them.
+        builder.AddServiceDefaults();
 
         if (builder.Configuration[DigitalBrainNames.ConfigurationFileKey] is { Length: > 0 } configurationFile)
         { builder.Configuration.AddJsonFile(configurationFile, optional: false, reloadOnChange: false); }

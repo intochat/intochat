@@ -16,7 +16,6 @@ var builder = WebApplication.CreateBuilder(args);
 var referenceComposition = builder.Configuration.GetValue<bool>("DigitalBrain:Testing:ReferenceComposition");
 if (referenceComposition)
 {
-    builder.AddReferenceTelemetry();
     builder.Configuration["DigitalBrain:Identity:CookieName"] ??= "digitalbrain.reference.session";
 }
 builder.AddDigitalBrainServer(server =>

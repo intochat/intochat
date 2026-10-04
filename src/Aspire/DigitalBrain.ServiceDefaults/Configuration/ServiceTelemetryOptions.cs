@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Configuration;
 
-namespace IntoChat.ServiceDefaults;
+namespace DigitalBrain.ServiceDefaults;
 
 public sealed class ServiceTelemetryOptions
 {

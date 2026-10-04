@@ -16,7 +16,6 @@
     <ProjectReference Include="../../../Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />
     <ProjectReference Include="../../Sdk/DigitalBrain.Sdk/DigitalBrain.Sdk.csproj" />
     <ProjectReference Include="../../Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
-    <ProjectReference Include="../../../IntoChat/IntoChat.ServiceDefaults/IntoChat.ServiceDefaults.csproj" />
     <ProjectReference Include="../../../IntoChat/IntoChat.Apps/IntoChat.Apps.csproj" />
   </ItemGroup>
   <ItemGroup>

@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/Aspire/">
+    <Project Path="src/Aspire/DigitalBrain.ServiceDefaults/DigitalBrain.ServiceDefaults.csproj" />
     <Project Path="src/Aspire/DigitalBrain.Aspire.Client/DigitalBrain.Aspire.Client.csproj" />
     <Project Path="src/Aspire/DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" />
     <Project Path="src/Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />
@@ -63,7 +64,6 @@
     <Project Path="src/DigitalBrain/Sdk/tests/DigitalBrain.Sdk.Tests.Unit/DigitalBrain.Sdk.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/IntoChat/">
-    <Project Path="src/IntoChat/IntoChat.ServiceDefaults/IntoChat.ServiceDefaults.csproj" />
     <Project Path="src/IntoChat/IntoChat.Apps/IntoChat.Apps.csproj" />
   </Folder>
   <Folder Name="/IntoChat/tests/">

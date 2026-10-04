@@ -12,11 +12,9 @@ using DigitalBrain.Platform;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.Sdk;
 using IntoChat;
-using IntoChat.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.AddServiceDefaults();
 // IntoChat is a distribution of the operating system: the composition is the OS's, and what
 // is IntoChat's own is branding, shipped apps and configuration.
 builder.AddDigitalBrainServer(server => server.UseAzureStorage().WithDashboard().AddOperatingSystem());
@@ -25,7 +23,6 @@ builder.Services.AddShippedApps(typeof(IntoChatApps).Assembly, "IntoChat.Shipped
 
 var app = builder.Build();
 
-app.MapDefaultEndpoints();
 app.UsePlatformHttp();
 app.MapDigitalBrainModules();
 app.MapDigitalBrainPlatform();
