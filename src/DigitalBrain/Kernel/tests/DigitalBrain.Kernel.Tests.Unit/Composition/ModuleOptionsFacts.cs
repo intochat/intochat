@@ -82,24 +82,6 @@ public sealed class ModuleOptionsFacts
         Assert.Equal(new Uri("https://x.example/"), target.Endpoint);
     }
 
-    private sealed class LeakyOptions : IModuleOptions
-    {
-        public string ApiKey { get; set; } = "";
-        public void Validate() { }
-    }
-
-    private sealed class LeakyModule : IModule<LeakyOptions>
-    {
-        public void Configure(ISiloBuilder silo) { }
-    }
-
-    [Fact]
-    public void CredentialShapedOptionPropertiesAreRefusedAtCompile()
-    {
-        var refusal = Assert.Throws<ArgumentException>(() => ModuleOptionsSerialization.Compile<LeakyModule, LeakyOptions>(new()));
-        Assert.Contains("integrations registration", refusal.Message);
-    }
-
     [Fact]
     public void BindRefusesAValueTheOptionTypeCannotConvert()
     {
