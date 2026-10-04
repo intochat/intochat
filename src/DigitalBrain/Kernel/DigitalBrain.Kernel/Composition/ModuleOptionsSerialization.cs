@@ -18,7 +18,6 @@ public static class ModuleOptionsSerialization
         where TModule : IModule<TOptions> where TOptions : class, IModuleOptions, new()
     {
         ArgumentNullException.ThrowIfNull(options);
-        ModuleOptionsShape.Validate<TOptions>();
         options.Validate();
         return new ModuleDefinition(typeof(TModule), FlattenOptions(options, ModuleIdentity.Get(typeof(TModule))));
     }
