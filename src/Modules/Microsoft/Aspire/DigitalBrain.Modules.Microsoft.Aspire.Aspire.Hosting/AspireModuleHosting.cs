@@ -7,10 +7,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Microsoft.Aspire;
 
-public sealed class AspireModuleHosting : IDigitalBrainModuleHosting
+public sealed class AspireModuleHosting : ModuleHosting<DigitalBrain.Microsoft.Aspire.AspireModule>
 {
-    public string Id => "aspire";
-    public void Configure(DigitalBrainBuilder brain)
+    public override void Configure(DigitalBrainBuilder brain)
     {
         ArgumentNullException.ThrowIfNull(brain);
         var bridgeKey = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));

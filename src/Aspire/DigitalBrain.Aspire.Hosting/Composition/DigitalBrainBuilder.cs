@@ -13,18 +13,17 @@ public sealed class DigitalBrainBuilder
     public IConfiguration GetModuleConfiguration(string id)
         => _compiledConfiguration.TryGetValue(id, out var configuration) ? configuration : ApplicationBuilder.Configuration;
 
-    public DigitalBrainBuilder WithModule(Type moduleType, IReadOnlyDictionary<string, string?>? settings = null)
+    public DigitalBrainBuilder WithModule(Module module, IDigitalBrainModuleHosting? hosting = null,
+        IReadOnlyDictionary<string, string?>? settings = null)
     {
-        ArgumentNullException.ThrowIfNull(moduleType);
-        if (!moduleType.IsDefined(typeof(ModuleIdAttribute), inherit: false))
-        { throw new ArgumentException($"{moduleType.FullName} carries no [ModuleId]; only modules compose.", nameof(moduleType)); }
-        return Register(ModuleIdentity.Get(moduleType), ModuleHostingResolution.Resolve(moduleType), settings);
+        ArgumentNullException.ThrowIfNull(module);
+        return Register(module.Id, hosting, settings);
     }
 
     public DigitalBrainBuilder WithHosting(IDigitalBrainModuleHosting hosting, IReadOnlyDictionary<string, string?>? settings = null)
     {
         ArgumentNullException.ThrowIfNull(hosting);
-        return Register(hosting.Id, hosting, settings);
+        return Register(hosting.Module, hosting, settings);
     }
 
     public DigitalBrainBuilder WithHosting<THosting>() where THosting : IDigitalBrainModuleHosting, new()
@@ -37,17 +36,14 @@ public sealed class DigitalBrainBuilder
         var options = new TOptions();
         configure?.Invoke(options);
         options.Validate();
-        return WithHosting(hosting, HostingModuleOptions.Flatten(options, hosting.Id));
+        return WithHosting(hosting, HostingModuleOptions.Flatten(options, hosting.Module.ToString()));
     }
 
-    private DigitalBrainBuilder Register(string id, IDigitalBrainModuleHosting? hosting,
+    private DigitalBrainBuilder Register(ModuleId id, IDigitalBrainModuleHosting? hosting,
         IReadOnlyDictionary<string, string?>? settings)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(id);
-        if (id.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '-'))
-        { throw new ArgumentException("Module IDs contain only ASCII letters, digits, and hyphens.", nameof(id)); }
-        if (_modules.Contains(id, StringComparer.Ordinal)) { throw new InvalidOperationException($"Module '{id}' is already selected."); }
-        if (hosting is not null && hosting.Id != id) { throw new ArgumentException("The hosting adapter belongs to another module.", nameof(hosting)); }
+        var moduleId = id.ToString();
+        if (_modules.Contains(moduleId, StringComparer.Ordinal)) { throw new InvalidOperationException($"Module '{moduleId}' is already selected."); }
         var replaceOptions = ApplicationBuilder.Configuration.GetValue<bool>(DigitalBrainConfiguration.ModuleSection(id) + ":ReplaceOptions");
         var values = new Dictionary<string, string?>(replaceOptions ? [] : settings ?? new Dictionary<string, string?>(), StringComparer.OrdinalIgnoreCase);
         foreach (var pair in ApplicationBuilder.Configuration.GetSection(DigitalBrainConfiguration.ModuleOptionsSection(id)).AsEnumerable())
@@ -57,10 +53,10 @@ public sealed class DigitalBrainBuilder
         {
             if (pair.Value is not null) { values[DigitalBrainConfiguration.ModuleOptionsSection(id) + pair.Key[scopedPrefix.Length..]] = pair.Value; }
         }
-        _compiledConfiguration[id] = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
-        _modules.Add(id);
-        Resource.WithAnnotation(new BrainModuleAnnotation(id));
-        GetOrAddModuleNode(id);
+        _compiledConfiguration[moduleId] = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+        _modules.Add(moduleId);
+        Resource.WithAnnotation(new BrainModuleAnnotation(moduleId));
+        GetOrAddModuleNode(moduleId);
         foreach (var pair in values) { _settings[pair.Key] = pair.Value; }
         hosting?.Configure(this);
         return this;

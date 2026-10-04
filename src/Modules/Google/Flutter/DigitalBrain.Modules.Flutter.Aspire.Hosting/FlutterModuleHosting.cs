@@ -3,10 +3,9 @@ using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Flutter.Aspire.Hosting;
 
-public sealed class FlutterModuleHosting : IDigitalBrainModuleHosting
+public sealed class FlutterModuleHosting : ModuleHosting<DigitalBrain.Flutter.FlutterModule>
 {
-    public string Id => "flutter";
-    public void Configure(DigitalBrainBuilder brain)
+    public override void Configure(DigitalBrainBuilder brain)
     {
         var options = brain.GetModuleConfiguration("flutter").GetModuleOptions<FlutterModuleOptions>("flutter").Hosting;
         var module = new DigitalBrainModuleBuilder<DigitalBrain.Flutter.Aspire.Hosting.FlutterModuleHosting>(brain);

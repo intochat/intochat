@@ -372,7 +372,7 @@ public static class ModuleHostingScan
 
 (`Assembly.Load` of an *already-referenced* assembly name here is dependency walking from a known root, not soft-reference magic — the catches only skip trimmed facades.)
 
-- [ ] **Step 1: Write the failing scan facts**
+- [x] **Step 1: Write the failing scan facts**
 
 ```csharp
 public sealed class ModuleHostingScanFacts
@@ -395,11 +395,27 @@ public sealed class ModuleHostingScanFacts
 ```
 
 (Adjust the adapter namespace to the file's actual one.)
-- [ ] **Step 2: Run to verify failure**, then implement the interface change, `ModuleHosting<TModule>`, the scanner, and migrate all 12 adapters. Delete `ModuleHostingResolution.cs`, `WithModule(Type)`, the `Register` id-grammar check (now `ModuleId`'s job — `Register` takes `ModuleId id`), and the `hosting.Id != id` guard.
-- [ ] **Step 3: Rewrite the Testing bridge** — `ModuleHostingAdapters.AddModules` resolves adapters once via `ModuleHostingScan.Resolve(Assembly.GetEntryAssembly()!, typeof(ModuleHostingAdapters).Assembly)` and for each `ModuleDefinition` calls the (now adapter-explicit) registration: `brain.Register(definition.Module.Id, adapters.GetValueOrDefault(definition.Module.Id), definition.Settings)` — expose the needed overload as `public DigitalBrainBuilder WithModule(Module module, IDigitalBrainModuleHosting? hosting, IReadOnlyDictionary<string,string?>? settings)` if `Register` stays private.
-- [ ] **Step 4: Rewire `ProductCompositionFacts`** — "every catalog module that has infrastructure has an adapter" now asserts via `ModuleHostingScan.Resolve` over the test assembly's references instead of `IsDefined(typeof(ModuleHostingAttribute))`.
-- [ ] **Step 5: Run** `dotnet test src/Aspire/tests/DigitalBrain.Aspire.Hosting.Tests.Unit`, `dotnet test src/DigitalBrain/OS/tests/DigitalBrain.OS.Tests.Unit`, and one module hosting suite (`dotnet test src/Modules/Postgres/tests/DigitalBrain.Modules.Postgres.Tests.Hosting`) → PASS.
-- [ ] **Step 6: Commit** — `refactor: hosting claims its module through the generic parameter`
+
+> **Deviations (recorded 2026-10-05, executor):**
+> - Every `*.Aspire.Hosting` csproj gained its module's runtime `ProjectReference` (11 projects) so
+>   `typeof(XModule)` is in scope; none had it transitively via Contracts.
+> - `DigitalBrainBuilder` gained the plan-suggested public
+>   `WithModule(Module module, IDigitalBrainModuleHosting? hosting = null, IReadOnlyDictionary<string,string?>? settings = null)`.
+> - `ModuleHostingResolutionFacts.cs` was deleted with its subject; `ModuleHostingScanFacts.cs` (created)
+>   replaces it. The Aspire.Hosting test project gained a Postgres hosting `ProjectReference` for the
+>   scanner fact.
+> - `ProductCompositionFacts`'s attribute-coverage fact became
+>   `EveryReferencedHostingAdapterBelongsToACatalogModule` (scanner over the test assembly's
+>   references); the Postgres hosting fact that asserted attribute resolution became
+>   `A_hosting_adapter_claims_its_module_through_the_generic_parameter`.
+> - `DigitalBrainModuleBuilder<TModule>` reads `new TModule().Module.ToString()` (was `.Id`).
+> - `CompositionBoundaryFacts`'s `[ModuleId]` attributes were removed and its calls moved to
+>   `WithModule(new X())`, per Task 5.
+- [x] **Step 2: Run to verify failure**, then implement the interface change, `ModuleHosting<TModule>`, the scanner, and migrate all 12 adapters. Delete `ModuleHostingResolution.cs`, `WithModule(Type)`, the `Register` id-grammar check (now `ModuleId`'s job — `Register` takes `ModuleId id`), and the `hosting.Id != id` guard.
+- [x] **Step 3: Rewrite the Testing bridge** — `ModuleHostingAdapters.AddModules` resolves adapters once via `ModuleHostingScan.Resolve(Assembly.GetEntryAssembly()!, typeof(ModuleHostingAdapters).Assembly)` and for each `ModuleDefinition` calls the (now adapter-explicit) registration: `brain.Register(definition.Module.Id, adapters.GetValueOrDefault(definition.Module.Id), definition.Settings)` — expose the needed overload as `public DigitalBrainBuilder WithModule(Module module, IDigitalBrainModuleHosting? hosting, IReadOnlyDictionary<string,string?>? settings)` if `Register` stays private.
+- [x] **Step 4: Rewire `ProductCompositionFacts`** — "every catalog module that has infrastructure has an adapter" now asserts via `ModuleHostingScan.Resolve` over the test assembly's references instead of `IsDefined(typeof(ModuleHostingAttribute))`.
+- [x] **Step 5: Run** `dotnet test src/Aspire/tests/DigitalBrain.Aspire.Hosting.Tests.Unit`, `dotnet test src/DigitalBrain/OS/tests/DigitalBrain.OS.Tests.Unit`, and one module hosting suite (`dotnet test src/Modules/Postgres/tests/DigitalBrain.Modules.Postgres.Tests.Hosting`) → PASS.
+- [x] **Step 6: Commit** — `refactor: hosting claims its module through the generic parameter`
 
 ---
 

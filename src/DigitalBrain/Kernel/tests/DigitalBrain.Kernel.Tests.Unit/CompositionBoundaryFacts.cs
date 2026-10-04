@@ -17,11 +17,9 @@ namespace DigitalBrain.Kernel.Tests.Unit;
 
 public sealed class CompositionBoundaryFacts
 {
-    [ModuleId("sample")]
     private sealed class SampleModule() : Module(new ModuleId("sample"))
     { public override void Configure(ISiloBuilder silo) { } }
 
-    [ModuleId("module")]
     private sealed class BoundaryModule() : Module(new ModuleId("module"))
     { public override void Configure(ISiloBuilder silo) { } }
 
@@ -29,8 +27,8 @@ public sealed class CompositionBoundaryFacts
     public void TwoBrainsHaveDistinctResourcesAndModuleNodes()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        var first = builder.AddDigitalBrain("first", options: new() { UseAzureStorage = true, PersistentStorage = false }).WithModule(typeof(SampleModule));
-        var second = builder.AddDigitalBrain("second", options: new() { UseAzureStorage = true, PersistentStorage = false }).WithModule(typeof(SampleModule));
+        var first = builder.AddDigitalBrain("first", options: new() { UseAzureStorage = true, PersistentStorage = false }).WithModule(new SampleModule());
+        var second = builder.AddDigitalBrain("second", options: new() { UseAzureStorage = true, PersistentStorage = false }).WithModule(new SampleModule());
         Assert.NotSame(first.GetOrAddModuleNode("sample").Resource, second.GetOrAddModuleNode("sample").Resource);
         var names = builder.Resources.Select(r => r.Name).ToArray();
         Assert.Equal(names.Length, names.Distinct(StringComparer.OrdinalIgnoreCase).Count());
@@ -87,9 +85,9 @@ public sealed class CompositionBoundaryFacts
     public void DefaultAppHostDoesNotProvisionAzureAndRejectsDuplicatesBeforeAReferenceExists()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        var brain = builder.AddDigitalBrain("brain").WithModule(typeof(BoundaryModule));
+        var brain = builder.AddDigitalBrain("brain").WithModule(new BoundaryModule());
         Assert.Empty(builder.Resources.OfType<AzureStorageResource>());
-        Assert.Throws<InvalidOperationException>(() => brain.WithModule(typeof(BoundaryModule)));
+        Assert.Throws<InvalidOperationException>(() => brain.WithModule(new BoundaryModule()));
         Assert.Throws<InvalidOperationException>(() => brain.AddBlobContainer("requires-azure"));
     }
 

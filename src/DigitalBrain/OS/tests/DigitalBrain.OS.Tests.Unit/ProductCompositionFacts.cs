@@ -12,19 +12,16 @@ namespace DigitalBrain.OS.Tests.Unit;
 public sealed class ProductCompositionFacts
 {
     // The hosting assemblies all sit in this test's output (via the AppHost reference), so a
-    // [ModuleHosting] string that resolves to null here is a stale attribute, not an absent
-    // deployment.
+    // hosting adapter referenced here but claiming an id outside the catalog is stale, and a
+    // catalog module with an adapter in scope must resolve through the same scan the host uses.
     [Fact]
-    public void EveryCatalogHostingAttributeResolvesWhereItsAssemblyIsPresent()
+    public void EveryReferencedHostingAdapterBelongsToACatalogModule()
     {
-        foreach (var module in DigitalBrain.OS.OsCatalog.Modules)
-        {
-            if (module.GetType().IsDefined(typeof(ModuleHostingAttribute), inherit: false))
-            {
-                Assert.True(ModuleHostingResolution.Resolve(module.GetType()) is not null,
-                    $"{module.GetType().FullName}'s [ModuleHosting] did not resolve.");
-            }
-        }
+        var adapters = ModuleHostingScan.Resolve(typeof(ProductCompositionFacts).Assembly);
+        var catalogIds = DigitalBrain.OS.OsCatalog.Modules.Select(module => module.Id).ToHashSet();
+        Assert.All(adapters.Keys, id => Assert.Contains(id, catalogIds));
+        Assert.Contains(new ModuleId("postgres"), adapters.Keys);
+        Assert.Contains(new ModuleId("qdrant"), adapters.Keys);
     }
 
     [Fact]

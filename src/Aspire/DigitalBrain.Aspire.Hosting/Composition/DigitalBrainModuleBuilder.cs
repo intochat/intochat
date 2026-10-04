@@ -5,7 +5,7 @@ namespace DigitalBrain.Aspire.Hosting;
 public sealed class DigitalBrainModuleBuilder<TModule>
     where TModule : IDigitalBrainModuleHosting, new()
 {
-    private static readonly string ModuleId = new TModule().Id;
+    private static readonly string ModuleId = new TModule().Module.ToString();
 
     public DigitalBrainModuleBuilder(DigitalBrainBuilder digitalBrainBuilder) => DigitalBrainBuilder = digitalBrainBuilder;
 

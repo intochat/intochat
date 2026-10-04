@@ -3,10 +3,9 @@ using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.AI.Aspire.Hosting;
 
-public sealed class AIModuleHosting : IDigitalBrainModuleHosting
+public sealed class AIModuleHosting : ModuleHosting<DigitalBrain.AI.AIModule>
 {
-    public string Id => "ai";
-    public void Configure(DigitalBrainBuilder brain)
+    public override void Configure(DigitalBrainBuilder brain)
         => AIHostingExtensions.ConfigureDeclaration(brain,
             brain.GetModuleConfiguration("ai").GetModuleOptions<AIOptions>("ai"));
 }

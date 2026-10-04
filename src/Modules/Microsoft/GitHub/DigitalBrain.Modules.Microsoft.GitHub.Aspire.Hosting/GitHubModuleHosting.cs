@@ -3,10 +3,9 @@ using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Microsoft.GitHub;
 
-public sealed class GitHubModuleHosting : IDigitalBrainModuleHosting
+public sealed class GitHubModuleHosting : ModuleHosting<DigitalBrain.Microsoft.GitHub.GitHubModule>
 {
-    public string Id => "github";
-    public void Configure(DigitalBrainBuilder brain)
+    public override void Configure(DigitalBrainBuilder brain)
     {
         var repositories = brain.GetModuleConfiguration("github").GetModuleOptions<GitHubModuleOptions>("github").Repositories;
         var module = new DigitalBrainModuleBuilder<DigitalBrain.Microsoft.GitHub.GitHubModuleHosting>(brain);

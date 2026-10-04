@@ -10,7 +10,7 @@ public sealed class ModuleSelectionFacts
     [Fact]
     public void ARegisteredModuleRunsWithoutAnyConfiguration()
     {
-        var server = new DigitalBrainServerBuilder().AddModule(typeof(SampleModule));
+        var server = new DigitalBrainServerBuilder().AddModule<SampleModule>();
         var modules = server.SelectModules(new ConfigurationBuilder().Build());
         Assert.Single(modules);
         Assert.IsType<SampleModule>(modules[0]);
@@ -19,7 +19,7 @@ public sealed class ModuleSelectionFacts
     [Fact]
     public void ADisabledModuleStaysOut()
     {
-        var server = new DigitalBrainServerBuilder().AddModule(typeof(SampleModule));
+        var server = new DigitalBrainServerBuilder().AddModule<SampleModule>();
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(
             new Dictionary<string, string?> { [DigitalBrainConfiguration.ModuleSection("sample") + ":Enabled"] = "false" }).Build();
         Assert.Empty(server.SelectModules(configuration));
@@ -28,7 +28,7 @@ public sealed class ModuleSelectionFacts
     [Fact]
     public void DisablingIgnoresCaseLikeAnyOtherConfigurationKey()
     {
-        var server = new DigitalBrainServerBuilder().AddModule(typeof(SampleModule));
+        var server = new DigitalBrainServerBuilder().AddModule<SampleModule>();
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(
             new Dictionary<string, string?> { [DigitalBrainConfiguration.ModuleSection("Sample") + ":Enabled"] = "false" }).Build();
         Assert.Empty(server.SelectModules(configuration));
@@ -37,7 +37,7 @@ public sealed class ModuleSelectionFacts
     [Fact]
     public void AffirmingARegisteredModuleInAnotherCaseIsNotAnError()
     {
-        var server = new DigitalBrainServerBuilder().AddModule(typeof(SampleModule));
+        var server = new DigitalBrainServerBuilder().AddModule<SampleModule>();
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(
             new Dictionary<string, string?> { [DigitalBrainConfiguration.ModuleSection("SAMPLE") + ":Enabled"] = "true" }).Build();
         Assert.Single(server.SelectModules(configuration));
@@ -46,13 +46,12 @@ public sealed class ModuleSelectionFacts
     [Fact]
     public void EnablingAnUnknownModuleIsAnError()
     {
-        var server = new DigitalBrainServerBuilder().AddModule(typeof(SampleModule));
+        var server = new DigitalBrainServerBuilder().AddModule<SampleModule>();
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(
             new Dictionary<string, string?> { [DigitalBrainConfiguration.ModuleSection("ghost") + ":Enabled"] = "true" }).Build();
         Assert.Throws<InvalidOperationException>(() => server.SelectModules(configuration));
     }
 
-    [ModuleId("sample")]
-    public sealed class SampleModule : IModule
-    { public void Configure(Orleans.Hosting.ISiloBuilder silo) { } }
+    public sealed class SampleModule() : Module(new ModuleId("sample"))
+    { public override void Configure(Orleans.Hosting.ISiloBuilder silo) { } }
 }

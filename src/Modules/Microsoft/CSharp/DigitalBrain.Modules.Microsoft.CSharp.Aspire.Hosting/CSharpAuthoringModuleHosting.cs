@@ -2,8 +2,7 @@ using DigitalBrain.Aspire.Hosting;
 
 namespace DigitalBrain.Microsoft.CSharp;
 
-public sealed class CSharpAuthoringModuleHosting : IDigitalBrainModuleHosting
+public sealed class CSharpAuthoringModuleHosting : ModuleHosting<DigitalBrain.Microsoft.CSharp.CSharpAuthoringModule>
 {
-    public string Id => "csharp-authoring";
-    public void Configure(DigitalBrainBuilder brain) => ArgumentNullException.ThrowIfNull(brain);
+    public override void Configure(DigitalBrainBuilder brain) => ArgumentNullException.ThrowIfNull(brain);
 }

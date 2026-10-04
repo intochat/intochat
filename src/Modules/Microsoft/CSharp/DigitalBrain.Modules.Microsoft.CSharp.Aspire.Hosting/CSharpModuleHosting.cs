@@ -7,10 +7,9 @@ using Microsoft.Extensions.Configuration;
 namespace DigitalBrain.Microsoft.CSharp;
 
 // Declares the sandbox stopped: the brain starts it through IAspire when the first script runs.
-public sealed class CSharpModuleHosting : IDigitalBrainModuleHosting
+public sealed class CSharpModuleHosting : ModuleHosting<DigitalBrain.Microsoft.CSharp.CSharpModule>
 {
-    public string Id => "csharp";
-    public void Configure(DigitalBrainBuilder brain)
+    public override void Configure(DigitalBrainBuilder brain)
     {
         ArgumentNullException.ThrowIfNull(brain);
         var options = brain.GetModuleConfiguration("csharp").GetModuleOptions<CSharpOptions>("csharp");

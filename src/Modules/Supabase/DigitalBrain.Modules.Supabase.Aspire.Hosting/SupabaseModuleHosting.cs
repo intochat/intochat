@@ -5,10 +5,9 @@ using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Supabase.Aspire.Hosting;
 
-public sealed class SupabaseModuleHosting : IDigitalBrainModuleHosting
+public sealed class SupabaseModuleHosting : ModuleHosting<DigitalBrain.Supabase.SupabaseModule>
 {
-    public string Id => "supabase";
-    public void Configure(DigitalBrainBuilder brain)
+    public override void Configure(DigitalBrainBuilder brain)
     {
         var options = brain.GetModuleConfiguration("supabase").GetModuleOptions<SupabaseModuleOptions>("supabase");
         var module = new DigitalBrainModuleBuilder<DigitalBrain.Supabase.Aspire.Hosting.SupabaseModuleHosting>(brain);

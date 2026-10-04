@@ -3,10 +3,9 @@ using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.ClickHouse.Aspire.Hosting;
 
-public sealed class ClickHouseModuleHosting : IDigitalBrainModuleHosting
+public sealed class ClickHouseModuleHosting : ModuleHosting<DigitalBrain.ClickHouse.ClickHouseModule>
 {
-    public string Id => "clickhouse";
-    public void Configure(DigitalBrainBuilder brain)
+    public override void Configure(DigitalBrainBuilder brain)
     {
         var options = brain.GetModuleConfiguration("clickhouse").GetModuleOptions<ClickHouseModuleOptions>("clickhouse");
         if (options.Hosting.Enabled)

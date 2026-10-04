@@ -5,10 +5,9 @@ using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Qdrant.Aspire.Hosting;
 
-public sealed class QdrantModuleHosting : IDigitalBrainModuleHosting
+public sealed class QdrantModuleHosting : ModuleHosting<DigitalBrain.Qdrant.QdrantModule>
 {
-    public string Id => "qdrant";
-    public void Configure(DigitalBrainBuilder brain)
+    public override void Configure(DigitalBrainBuilder brain)
     {
         ArgumentNullException.ThrowIfNull(brain);
         var options = brain.GetModuleConfiguration("qdrant").GetModuleOptions<QdrantModuleOptions>("qdrant");

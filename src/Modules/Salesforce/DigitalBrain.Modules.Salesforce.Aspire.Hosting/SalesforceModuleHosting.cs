@@ -2,10 +2,9 @@ using DigitalBrain.Aspire.Hosting;
 
 namespace DigitalBrain.Salesforce.Aspire.Hosting;
 
-public sealed class SalesforceModuleHosting : IDigitalBrainModuleHosting
+public sealed class SalesforceModuleHosting : ModuleHosting<DigitalBrain.Salesforce.SalesforceModule>
 {
-    public string Id => "salesforce";
-    public void Configure(DigitalBrainBuilder brain)
+    public override void Configure(DigitalBrainBuilder brain)
     {
         var options = brain.GetModuleConfiguration("salesforce").GetModuleOptions<SalesforceModuleOptions>("salesforce");
         if (options.HostMcp)

@@ -3,10 +3,9 @@ using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Postgres.Aspire.Hosting;
 
-public sealed class PostgresModuleHosting : IDigitalBrainModuleHosting
+public sealed class PostgresModuleHosting : ModuleHosting<DigitalBrain.Postgres.PostgresModule>
 {
-    public string Id => "postgres";
-    public void Configure(DigitalBrainBuilder brain)
+    public override void Configure(DigitalBrainBuilder brain)
     {
         ArgumentNullException.ThrowIfNull(brain);
         var options = brain.GetModuleConfiguration("postgres").GetModuleOptions<PostgresModuleOptions>("postgres");

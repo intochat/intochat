@@ -1,7 +1,9 @@
+using DigitalBrain.Contracts;
+
 namespace DigitalBrain.Aspire.Hosting;
 
 public interface IDigitalBrainModuleHosting
 {
-    string Id { get; }
+    ModuleId Module { get; }
     void Configure(DigitalBrainBuilder brain);
 }

@@ -7,13 +7,14 @@ namespace DigitalBrain.Aspire.Hosting.Tests.Unit;
 
 public sealed class ModuleOptionOverlayFacts
 {
-    [ModuleId("example")]
-    private sealed class ExampleModule : DigitalBrain.Kernel.IModule
-    { public void Configure(Orleans.Hosting.ISiloBuilder silo) { } }
+    private sealed class ExampleModule() : Module(new ModuleId("example"))
+    { public override void Configure(Orleans.Hosting.ISiloBuilder silo) { } }
 
-    [ModuleId("OverlaidModule")]
-    private sealed class OverlaidModule : DigitalBrain.Kernel.IModule
-    { public void Configure(Orleans.Hosting.ISiloBuilder silo) { } }
+    private sealed class OverlaidModule() : Module(new ModuleId("OverlaidModule"))
+    { public override void Configure(Orleans.Hosting.ISiloBuilder silo) { } }
+
+    private sealed class ScopedModule() : Module(new ModuleId("scoped"))
+    { public override void Configure(Orleans.Hosting.ISiloBuilder silo) { } }
 
     public sealed class OverlaidOptions : IModuleOptions
     {
@@ -30,7 +31,7 @@ public sealed class ModuleOptionOverlayFacts
         builder.Configuration[DigitalBrainConfiguration.ModuleSection("example") + ":ReplaceOptions"] = "true";
         builder.Configuration[DigitalBrainConfiguration.ModuleOptionsSection("example") + ":Endpoint"] = "fixture";
         var brain = builder.AddDigitalBrain("modules", new DigitalBrainHostingOptions { PersistentStorage = false })
-            .WithModule(typeof(ExampleModule), settings: HostingModuleOptions.Flatten(new OverlaidOptions
+            .WithModule(new ExampleModule(), settings: HostingModuleOptions.Flatten(new OverlaidOptions
             {
                 Endpoint = "production",
                 Delay = 42,
@@ -47,7 +48,7 @@ public sealed class ModuleOptionOverlayFacts
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
         var brain = builder.AddDigitalBrain("modules", new DigitalBrainHostingOptions { PersistentStorage = false })
-            .WithModule(typeof(ExampleModule), settings: HostingModuleOptions.Flatten(new OverlaidOptions { Endpoint = "production" }, "example"));
+            .WithModule(new ExampleModule(), settings: HostingModuleOptions.Flatten(new OverlaidOptions { Endpoint = "production" }, "example"));
         var configuration = brain.GetModuleConfiguration("example");
         Assert.Equal("production", configuration[DigitalBrainConfiguration.ModuleOptionsSection("example") + ":Endpoint"]);
         // Delay was left at its default: the deployment never decided it, so the silo's own
@@ -73,10 +74,9 @@ public sealed class ModuleOptionOverlayFacts
         Assert.Contains("second-scoped-server", names);
     }
 
-    private sealed class ScopedServerHosting : IDigitalBrainModuleHosting
+    private sealed class ScopedServerHosting : ModuleHosting<ScopedModule>
     {
-        public string Id => "scoped";
-        public void Configure(DigitalBrainBuilder brain)
+        public override void Configure(DigitalBrainBuilder brain)
             => brain.ApplicationBuilder.AddContainer(brain.ResourceName("scoped-server"), "scoped/server");
     }
 
@@ -93,7 +93,7 @@ public sealed class ModuleOptionOverlayFacts
             DisableDashboard = true,
         });
         var brain = builder.AddDigitalBrain("modules", options: new() { UseAzureStorage = true, PersistentStorage = false })
-            .WithModule(typeof(OverlaidModule), settings: HostingModuleOptions.Flatten(new OverlaidOptions { Endpoint = "declared", Delay = 42 }, "OverlaidModule"));
+            .WithModule(new OverlaidModule(), settings: HostingModuleOptions.Flatten(new OverlaidOptions { Endpoint = "declared", Delay = 42 }, "OverlaidModule"));
 
         var options = HostingModuleOptions.GetModuleOptions<OverlaidOptions>(brain.GetModuleConfiguration("OverlaidModule"), "OverlaidModule");
         Assert.Equal("from-args", options.Endpoint);
