@@ -17,7 +17,10 @@ public sealed class CSharpModuleHosting : IDigitalBrainModuleHosting
         // the sandbox; only a host without any repository (the session-pool path) has none.
         if (string.IsNullOrWhiteSpace(options.SourceRoot)) { options.SourceRoot = RepositoryRoot.Find(); }
         if (string.IsNullOrWhiteSpace(options.SourceRoot)) { return; }
-        var sandbox = brain.ApplicationBuilder.AddDockerfile(CSharpSandbox.ResourceName, Path.Combine(options.SourceRoot, CSharpSandbox.SourceProject))
+        var sandboxProject = Path.Combine(options.SourceRoot, CSharpSandbox.SourceProject);
+        var sandbox = brain.ApplicationBuilder.AddDockerfile(CSharpSandbox.ResourceName, sandboxProject)
+            // The tag is the image's identity: unchanged sources reuse the image outright.
+            .WithImageTag(ContentTag.Of(sandboxProject))
             .WithHttpEndpoint(targetPort: CSharpSandbox.Port, name: "http")
             .WithHttpHealthCheck("/health")
             .WithBindMount(options.SourceRoot, CSharpSandbox.SourceMount, isReadOnly: true)

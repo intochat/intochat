@@ -34,10 +34,10 @@ public class ReferenceBrainFixture : SharedBrainFixture, IAsyncLifetime
             // build directory, which the dev web server does.
             .WithHostConfiguration("DigitalBrain:Flutter:Hosting:WebContainer", "true")
             .WithBrowser(new() { PrimarySession = false, AssertionTimeout = TimeSpan.FromMinutes(2) })
-            // The bundle no longer bakes the runtime endpoint, so a warm boot serves the cached
-            // shell; eight minutes covers a cold runner's one-time compile and container pulls.
-            // A boot that needs longer is starved or broken - fail it fast and say so.
-            .WithStartupTimeout(TimeSpan.FromMinutes(8))
+            // A warm boot serves the content-tagged shell image in seconds; fifteen minutes
+            // covers a cold runner's one-time in-docker Flutter compile and container pulls.
+            // A boot that needs longer is starved or broken - fail it and say so.
+            .WithStartupTimeout(TimeSpan.FromMinutes(15))
             .WithResourceEnvironment(new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 ["OTEL_EXPORTER_OTLP_ENDPOINT"] = Collector.Endpoint.AbsoluteUri,

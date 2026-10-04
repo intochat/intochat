@@ -20,6 +20,11 @@ public sealed class ShellContainerFacts
         Assert.IsType<ContainerResource>(shell, exactMatch: false);
         Assert.DoesNotContain(builder.Resources, resource => resource is ExecutableResource executable
             && executable.Command.Contains("flutter", StringComparison.OrdinalIgnoreCase));
+        // The tag is the bundle's content identity, never a per-session mint.
+        var packageRoot = ShellHostingExtensions.ResolveFlutterWorkingDirectory(AppContext.BaseDirectory, configured: null);
+        var workspaceRoot = Path.GetFullPath(Path.Combine(FlutterHostLaunch.ResolveWebPackageDirectory(packageRoot)!, ".."));
+        var image = Assert.Single(shell.Annotations.OfType<ContainerImageAnnotation>());
+        Assert.Equal(ContentTag.Of(workspaceRoot), image.Tag);
     }
 
     [Fact]

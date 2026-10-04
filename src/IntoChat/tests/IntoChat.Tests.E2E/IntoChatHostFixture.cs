@@ -14,7 +14,7 @@ public sealed class IntoChatHostFixture : ReferenceBrainFixture
             .ConfigureModule<FlutterModule, FlutterModuleOptions>(flutter => flutter.RunWebApp())
             .WithHostConfiguration("DigitalBrain:Flutter:Hosting:WebContainer", "true")
             .WithBrowser(new() { PrimarySession = false, AssertionTimeout = TimeSpan.FromMinutes(2) })
-            .WithStartupTimeout(TimeSpan.FromMinutes(8))
+            .WithStartupTimeout(TimeSpan.FromMinutes(15))
             .WithResourceEnvironment(new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 ["OTEL_EXPORTER_OTLP_ENDPOINT"] = Collector.Endpoint.AbsoluteUri,

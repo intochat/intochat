@@ -193,6 +193,8 @@ public static class ShellHostingExtensions
 
             _shellContainer = appHost
                 .AddDockerfile(resourceName, workspaceRoot, Path.GetRelativePath(workspaceRoot, dockerfile))
+                // The tag is the bundle's identity: unchanged sources reuse the image outright.
+                .WithImageTag(ContentTag.Of(workspaceRoot))
                 .WithHttpEndpoint(targetPort: 80, name: ShellNames.HttpEndpointName)
                 .WithHttpHealthCheck("/")
                 .WithBindMount(_servedConfigPath, ShellServedConfig.ContainerPath, isReadOnly: true)
