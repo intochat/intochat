@@ -105,6 +105,10 @@ public static class ShellHostingExtensions
                 return;
             }
 
+            // The dev web server below compiles in the shared source directory, so concurrent
+            // AppHosts (parallel E2E suites) must not use it: they race on one build/ and a
+            // losing server dies. E2E fixtures set DigitalBrain:Flutter:Hosting:WebContainer.
+
             var launch = FlutterHostLaunch.Resolve(kind, packageRoot, options, appHost.Configuration);
 
             var host = appHost

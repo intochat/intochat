@@ -50,7 +50,10 @@ internal sealed class ShippedAppPublisher(AppPublishing publishing, IEnumerable<
                     StampedBy = TrustedEdge.Platform,
                 });
                 try { await Ship(app).WaitAsync(stoppingToken); }
-                catch (Exception error) when (error is not OperationCanceledException)
+                // Only the host's own shutdown stops shipping; a downstream cancellation or
+                // timeout is this package's failure, not the process's.
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { throw; }
+                catch (Exception error)
                 { logger.LogError(error, "Shipping {Package} failed.", app.Package); }
             }
         }

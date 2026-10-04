@@ -42,6 +42,10 @@ abstract final class DigitalBrainHostEnv {
     if (fromDefine.isNotEmpty) {
       return fromDefine;
     }
+    final fromQuery = surface.queryUiBase();
+    if (fromQuery != null) {
+      return fromQuery;
+    }
     final servedValue = servedConfig[uiBaseVariable] ?? '';
     if (servedValue.isNotEmpty) {
       return servedValue;

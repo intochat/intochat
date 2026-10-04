@@ -30,6 +30,9 @@ public class ReferenceBrainFixture : SharedBrainFixture, IAsyncLifetime
         => ReferenceBrain.Create()
             .ConfigureModule<AIModule, AIOptions>(ai => ai.WithModelEndpoint(AiProvider.OpenAI, Model.Endpoint))
             .ConfigureModule<FlutterModule, FlutterModuleOptions>(flutter => flutter.RunWebApp())
+            // The baked-bundle container: concurrent fixtures must not share flutter's mutable
+            // build directory, which the dev web server does.
+            .WithHostConfiguration("DigitalBrain:Flutter:Hosting:WebContainer", "true")
             .WithBrowser(new() { PrimarySession = false, AssertionTimeout = TimeSpan.FromMinutes(2) })
             // The bundle no longer bakes the runtime endpoint, so a warm boot serves the cached
             // shell; eight minutes covers a cold runner's one-time compile and container pulls.

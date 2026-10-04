@@ -38,14 +38,9 @@ internal sealed class AspireBridgeClient(
         try
         {
             var host = await WaitForAnyRunningAsync(hosts, stoppingToken).ConfigureAwait(false);
-            // The endpoint proxy does not hold a streaming response open, which would turn the
-            // command stream into a two-second reconnect loop; the AppHost dials the silo's own
-            // port directly and only falls back to the proxied URL when there is none.
-            var endpoint = host.GetEndpoint(SiloHosts.HttpEndpointName);
-            var targetPort = await new HostUrlExpression(endpoint).ResolveAsync(stoppingToken).ConfigureAwait(false);
             using var brain = new HttpClient
             {
-                BaseAddress = new Uri(targetPort ?? endpoint.Url),
+                BaseAddress = await ResolveSiloUrlAsync(host.GetEndpoint(SiloHosts.HttpEndpointName), stoppingToken).ConfigureAwait(false),
                 Timeout = Timeout.InfiniteTimeSpan,
             };
             brain.DefaultRequestHeaders.Add(AspireBridgeRoutes.KeyHeader, bridgeKey);
@@ -55,23 +50,32 @@ internal sealed class AspireBridgeClient(
                 ServeCommandsAsync(brain, stoppingToken)).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
+        catch (Exception error)
+        {
+            // The bridge is plumbing: without it, brain-issued resource commands time out with
+            // "No Aspire AppHost is connected". It must never stop the AppHost itself (the
+            // hosting default for a failed BackgroundService is StopHost).
+            logger.LogError(error, "The Aspire bridge stopped; the brain cannot command resources.");
+        }
     }
 
-    private sealed class HostUrlExpression(EndpointReference endpoint)
+    // The endpoint proxy does not hold a streaming response open, which would turn the command
+    // stream into a two-second reconnect loop; the AppHost dials the silo's own port directly.
+    // A dynamically allocated endpoint resolves TargetPort to a DCP placeholder, not a number,
+    // so anything non-numeric falls back to the proxied URL, which the heartbeat keeps alive.
+    private static async Task<Uri> ResolveSiloUrlAsync(EndpointReference endpoint, CancellationToken cancellationToken)
     {
-        public async Task<string?> ResolveAsync(CancellationToken cancellationToken)
+        try
         {
-            try
+            var port = await ReferenceExpression.Create($"{endpoint.Property(EndpointProperty.TargetPort)}")
+                .GetValueAsync(cancellationToken).ConfigureAwait(false);
+            if (int.TryParse(port, out var number) && number is > 0 and <= 65535)
             {
-                var port = await ReferenceExpression.Create($"{endpoint.Property(EndpointProperty.TargetPort)}")
-                    .GetValueAsync(cancellationToken).ConfigureAwait(false);
-                return string.IsNullOrWhiteSpace(port) ? null : $"http://localhost:{port}";
-            }
-            catch (InvalidOperationException)
-            {
-                return null;
+                return new Uri($"http://localhost:{number}");
             }
         }
+        catch (InvalidOperationException) { }
+        return new Uri(endpoint.Url);
     }
 
     private async Task<IResourceWithEndpoints> WaitForAnyRunningAsync(IReadOnlyList<IResourceWithEndpoints> hosts, CancellationToken stoppingToken)
@@ -173,6 +177,13 @@ internal sealed class AspireBridgeClient(
             try
             {
                 using var response = await brain.PostAsJsonAsync(AspireBridgeRoutes.ResourceSync, sync, stoppingToken).ConfigureAwait(false);
+                // A refusal is a bug on the silo, not a brain that is still booting; a silent
+                // retry here once hid an enforcement denial behind four-minute command timeouts.
+                if (!response.IsSuccessStatusCode)
+                {
+                    logger.LogWarning("The brain refused the resource sync ({Status}): {Detail}",
+                        (int)response.StatusCode, await response.Content.ReadAsStringAsync(stoppingToken).ConfigureAwait(false));
+                }
                 response.EnsureSuccessStatusCode();
                 return;
             }
@@ -186,11 +197,14 @@ internal sealed class AspireBridgeClient(
 
     private async Task ExecuteCommandAsync(HttpClient brain, AspireBridgeCommand command, CancellationToken stoppingToken)
     {
+        logger.LogInformation("Executing {Command} on {Resource} for the brain.", command.Command, command.Resource);
         AspireBridgeCommandResult result;
         try
         {
             var executed = await commands.ExecuteCommandAsync(command.Resource, command.Command, stoppingToken).ConfigureAwait(false);
             result = new(executed.Success, executed.Message);
+            logger.LogInformation("{Command} on {Resource} finished: {Outcome}.", command.Command, command.Resource,
+                executed.Success ? "success" : executed.Message);
         }
         catch (Exception error) when (!stoppingToken.IsCancellationRequested)
         {

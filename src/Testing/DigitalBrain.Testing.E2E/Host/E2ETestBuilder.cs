@@ -95,6 +95,15 @@ public sealed class E2ETestBuilder
         return this;
     }
 
+    public E2ETestBuilder WithHostConfiguration(string key, string? value)
+    {
+        EnsureMutable();
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        var merged = new Dictionary<string, string?>(_execution.HostConfiguration, StringComparer.OrdinalIgnoreCase) { [key] = value };
+        _execution = _execution with { HostConfiguration = merged };
+        return this;
+    }
+
     public BrainComposition BuildComposition()
     {
         var composition = _composition.Build();

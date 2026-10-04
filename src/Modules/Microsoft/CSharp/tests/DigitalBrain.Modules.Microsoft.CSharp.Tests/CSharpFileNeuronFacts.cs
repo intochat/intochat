@@ -138,6 +138,20 @@ public sealed class CSharpFileNeuronFacts
     }
 
     [Fact]
+    public async Task ASandboxThatFailsToStartSurfacesTheFailureInsteadOfWaitingOutTheDeadline()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Brain(new FakeSandbox(), ct);
+        await brain.Get<IFakeAspireProbe>(new CSharpOptions().AspireApplication).FailStarts();
+        var file = brain.Get<ICSharpFile>("workspace/doomed");
+        await file.Write("Console.WriteLine(1);", ct);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => file.Start(ct));
+
+        Assert.Contains("failed to start", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task RejectsStartWithoutSourceAndInvalidInput()
     {
         var ct = TestContext.Current.CancellationToken;

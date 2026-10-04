@@ -43,6 +43,33 @@ public sealed class ShippedAppPublisherFacts
         Assert.Equal(initial.Published, (await first.Read()).Published);
     }
 
+    [Fact]
+    public async Task ADownstreamCancellationFailsThePackageWithoutStoppingThePublisher()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // A sandbox-start deadline surfaces as a cancellation that is not the host's shutdown;
+        // the publisher logs it as that package's failure and keeps the host alive.
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
+            .ConfigureSilo(silo => silo.Services.AddSingleton<ITestScriptRunner>(new CancelledRunner())).StartAsync(ct);
+        var publishing = new AppPublishing(brain.SiloServices.GetRequiredService<IDigitalBrain>(), new AppAuthoringPolicy([], new Sandbox()));
+        using var publisher = new ShippedAppPublisher(publishing,
+            [new Source("first")], new StartedLifetime(), new ConfigurationBuilder().AddInMemoryCollection(
+                new Dictionary<string, string?> { [ShippedAppPublisher.ShipOnStartupKey] = "true" }).Build(),
+            NullLogger<ShippedAppPublisher>.Instance);
+        await publisher.StartAsync(ct);
+
+        await publisher.ExecuteTask!.WaitAsync(ct);
+
+        Assert.True(publisher.ExecuteTask.IsCompletedSuccessfully);
+        Assert.Null((await brain.Get<IPackage>("first/echo").Read()).Published);
+    }
+
+    private sealed class CancelledRunner : ITestScriptRunner
+    {
+        public Task<AppTestRun> RunAsync(PackageRevisionRef revision, string tests, CancellationToken cancellationToken)
+            => throw new OperationCanceledException("The C# sandbox did not start.");
+    }
+
     private sealed class Source(string publisher) : IShippedAppSource
     {
         public string Publisher => publisher;

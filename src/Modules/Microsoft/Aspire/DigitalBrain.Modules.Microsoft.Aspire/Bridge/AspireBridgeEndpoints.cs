@@ -26,10 +26,17 @@ internal static class AspireBridgeEndpoints
             await grains.GetGrain<IAspireResourceReporter>(options.Value.ApplicationName).Report(resource);
             return TypedResults.NoContent();
         });
-        bridge.MapPost("resources/sync", async (AspireResource[] resources, IGrainFactory grains, IOptions<AspireOptions> options) =>
+        bridge.MapPost("resources/sync", async Task<IResult> (AspireResource[] resources, IGrainFactory grains, IOptions<AspireOptions> options) =>
         {
-            await grains.GetGrain<IAspireResourceReporter>(options.Value.ApplicationName).ReportMany(resources);
-            return TypedResults.NoContent();
+            try
+            {
+                await grains.GetGrain<IAspireResourceReporter>(options.Value.ApplicationName).ReportMany(resources);
+                return TypedResults.NoContent();
+            }
+            catch (Exception error)
+            {
+                return TypedResults.Problem(error.ToString());
+            }
         });
     }
 

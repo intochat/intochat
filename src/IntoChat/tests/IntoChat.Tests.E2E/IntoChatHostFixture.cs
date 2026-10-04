@@ -12,6 +12,7 @@ public sealed class IntoChatHostFixture : ReferenceBrainFixture
         => IntoChatE2ETest.Create()
             .ConfigureModule<AIModule, AIOptions>(ai => ai.WithModelEndpoint(AiProvider.OpenAI, Model.Endpoint))
             .ConfigureModule<FlutterModule, FlutterModuleOptions>(flutter => flutter.RunWebApp())
+            .WithHostConfiguration("DigitalBrain:Flutter:Hosting:WebContainer", "true")
             .WithBrowser(new() { PrimarySession = false, AssertionTimeout = TimeSpan.FromMinutes(2) })
             .WithStartupTimeout(TimeSpan.FromMinutes(8))
             .WithResourceEnvironment(new Dictionary<string, string>(StringComparer.Ordinal)

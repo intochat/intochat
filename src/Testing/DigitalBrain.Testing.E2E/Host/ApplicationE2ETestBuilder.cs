@@ -65,6 +65,17 @@ public sealed class E2ETestBuilder<TAppHost> where TAppHost : class
         return this;
     }
 
+    // Hosting-layer configuration for the AppHost builder itself (not a resource), such as
+    // DigitalBrain:Flutter:Hosting:WebContainer.
+    public E2ETestBuilder<TAppHost> WithHostConfiguration(string key, string? value)
+    {
+        EnsureMutable();
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        var merged = new Dictionary<string, string?>(_execution.HostConfiguration, StringComparer.OrdinalIgnoreCase) { [key] = value };
+        _execution = _execution with { HostConfiguration = merged };
+        return this;
+    }
+
     public E2ETestBuilder<TAppHost> WithBrowser(BrowserOptions browser)
     {
         EnsureMutable();

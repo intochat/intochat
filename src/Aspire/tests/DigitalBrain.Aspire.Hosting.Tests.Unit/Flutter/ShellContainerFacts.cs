@@ -1,10 +1,27 @@
 using System.Text.Json;
+using Aspire.Hosting;
+using Aspire.Hosting.ApplicationModel;
+using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Aspire.Hosting;
 
 namespace DigitalBrain.Aspire.Hosting.Tests.Unit.Flutter;
 
 public sealed class ShellContainerFacts
 {
+    [Fact]
+    public void WebContainerConfigurationServesTheBakedBundleInsteadOfTheDevServer()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        builder.Configuration["DigitalBrain:Flutter:Hosting:WebContainer"] = "true";
+        builder.AddDigitalBrain("modules", persistentStorage: false)
+            .WithModule<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunWebApp());
+
+        var shell = Assert.Single(builder.Resources, resource => resource.Annotations.OfType<BrainBrowserAnnotation>().Any());
+        Assert.IsType<ContainerResource>(shell, exactMatch: false);
+        Assert.DoesNotContain(builder.Resources, resource => resource is ExecutableResource executable
+            && executable.Command.Contains("flutter", StringComparison.OrdinalIgnoreCase));
+    }
+
     [Fact]
     public void ServedConfigCarriesTheHostVariablesTheShellResolves()
     {
