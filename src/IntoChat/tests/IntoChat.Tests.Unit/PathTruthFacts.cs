@@ -1,6 +1,4 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
-using System.Xml.Linq;
 
 namespace IntoChat.Tests.Unit;
 
@@ -29,28 +27,5 @@ public sealed class PathTruthFacts
         using var dependencies = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "DigitalBrain.OS.deps.json")));
         Assert.Contains(dependencies.RootElement.GetProperty("libraries").EnumerateObject(),
             library => library.Name.StartsWith("DigitalBrain.Modules.Microsoft.Playwright/", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public void ContainerModuleListsAgreeAndResolve()
-    {
-        const string prefix = "DigitalBrain__Modules__";
-        var docker = Regex.Matches(Read("src/DigitalBrain/OS/DigitalBrain.OS/Dockerfile"), "DigitalBrain__Modules__([a-z-]+)__Enabled=\"true\"")
-            .Select(match => match.Groups[1].Value).Order().ToArray();
-        var profile = XDocument.Load(PathInRepo("src/DigitalBrain/OS/DigitalBrain.OS/Properties/PublishProfiles/Container.pubxml"))
-            .Descendants("ContainerEnvironmentVariable")
-            .Where(entry => entry.Attribute("Include")!.Value.StartsWith(prefix, StringComparison.Ordinal))
-            .Select(entry =>
-            {
-                Assert.Equal("true", entry.Attribute("Value")!.Value);
-                return entry.Attribute("Include")!.Value[prefix.Length..^"__Enabled".Length];
-            }).Order().ToArray();
-        Assert.NotEmpty(docker);
-        Assert.Equal(docker.Length, docker.Distinct().Count());
-        Assert.Equal(docker, profile);
-        // The host registers the OS catalog wholesale, so the deployment's enabled set must
-        // name exactly the catalog's modules.
-        var registered = DigitalBrain.OS.OsCatalog.Modules.Select(DigitalBrain.Contracts.ModuleIdentity.Get).Order().ToArray();
-        Assert.Equal(docker, registered);
     }
 }

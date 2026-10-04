@@ -37,32 +37,13 @@ WORKDIR /app
 
 COPY --from=build /out/silo /app/silo
 
-# Product module set checked against AppHost composition by the host unit suite.
+# The image enables the OS catalog; configuration may disable modules
+# (DigitalBrain__Modules__{id}__Enabled=false).
 ENV ASPNETCORE_ENVIRONMENT=Production \
     ASPNETCORE_URLS=http://0.0.0.0:8080 \
     DOTNET_EnableDiagnostics=0 \
     IntoChat__Hosted__Enabled=true \
-    DigitalBrain__Standalone=true \
-    DigitalBrain__Modules__ai__Enabled="true" \
-    DigitalBrain__Modules__clickhouse__Enabled="true" \
-    DigitalBrain__Modules__supabase__Enabled="true" \
-    DigitalBrain__Modules__time__Enabled="true" \
-    DigitalBrain__Modules__gmail__Enabled="true" \
-    DigitalBrain__Modules__salesforce__Enabled="true" \
-    DigitalBrain__Modules__github__Enabled="true" \
-    DigitalBrain__Modules__flutter__Enabled="true" \
-    DigitalBrain__Modules__compute__Enabled="true" \
-    DigitalBrain__Modules__registry__Enabled="true" \
-    DigitalBrain__Modules__apps__Enabled="true" \
-    DigitalBrain__Modules__qdrant__Enabled="true" \
-    DigitalBrain__Modules__files__Enabled="true" \
-    DigitalBrain__Modules__postgres__Enabled="true" \
-    DigitalBrain__Modules__assistant__Enabled="true" \
-    DigitalBrain__Modules__playwright__Enabled="true" \
-    DigitalBrain__Modules__specs__Enabled="true" \
-    DigitalBrain__Modules__aspire__Enabled="true" \
-    DigitalBrain__Modules__csharp__Enabled="true" \
-    DigitalBrain__Modules__csharp-authoring__Enabled="true"
+    DigitalBrain__Standalone=true
 
 EXPOSE 8080
 
