@@ -4,15 +4,9 @@ using DigitalBrain.Apps;
 namespace DigitalBrain.Apps;
 
 // App folders are embedded by the host under its configured resource prefix.
-// app.json is the manifest, app.cs the script of a csharp app, every other file travels with the package.
-
-
 public sealed class EmbeddedShippedAppSource(System.Reflection.Assembly assembly, string resourcePrefix, string publisher) : IShippedAppSource
 {
     public string Publisher => publisher;
-    private const string ManifestFile = "app.json";
-    private const string ScriptFile = "app.cs";
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     public IReadOnlyList<ShippedApp> Load()
     {
@@ -30,10 +24,19 @@ public sealed class EmbeddedShippedAppSource(System.Reflection.Assembly assembly
             if (!folders.TryGetValue(folder, out var files)) { folders[folder] = files = new(StringComparer.Ordinal); }
             files[relative[(slash + 1)..]] = reader.ReadToEnd().Replace("\r\n", "\n", StringComparison.Ordinal);
         }
-        return [.. folders.Select(folder => ToApp(folder.Key, folder.Value))];
+        return [.. folders.Select(folder => ShippedAppFolder.ToApp(publisher, folder.Key, folder.Value))];
     }
+}
 
-    private ShippedApp ToApp(string folder, IReadOnlyDictionary<string, string> files)
+// A shipped app folder is the same shape wherever it comes from: app.json is the manifest,
+// app.cs the script of a csharp app, every other file travels with the package.
+internal static class ShippedAppFolder
+{
+    private const string ManifestFile = "app.json";
+    private const string ScriptFile = "app.cs";
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+
+    internal static ShippedApp ToApp(string publisher, string folder, IReadOnlyDictionary<string, string> files)
     {
         var manifestText = files.GetValueOrDefault(ManifestFile) ?? throw new InvalidDataException($"Shipped app {folder} has no {ManifestFile}.");
         var manifest = JsonSerializer.Deserialize<AppJson>(manifestText, Json) ?? throw new InvalidDataException($"{folder}/{ManifestFile} is empty.");
@@ -46,7 +49,7 @@ public sealed class EmbeddedShippedAppSource(System.Reflection.Assembly assembly
                 Runtime: manifest.Runtime),
             files.GetValueOrDefault(ScriptFile) ?? "",
             files.Where(file => file.Key is not ManifestFile and not ScriptFile).ToDictionary(StringComparer.Ordinal));
-        return new(PackageId.Create(Publisher, manifest.Name), content);
+        return new(PackageId.Create(publisher, manifest.Name), content);
     }
 
     private sealed record AppJson(string Name, string Title, string Description, string Runtime, IReadOnlyList<OperationJson> Operations, IReadOnlyList<SettingJson> Settings);

@@ -36,6 +36,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:11.0.0-rc.1 AS final
 WORKDIR /app
 
 COPY --from=build /out/silo /app/silo
+COPY src/IntoChat/Apps /app/shipped/intochat
 
 # The image enables the OS catalog; configuration may disable modules
 # (DigitalBrain__Modules__{id}__Enabled=false).
@@ -43,7 +44,8 @@ ENV ASPNETCORE_ENVIRONMENT=Production \
     ASPNETCORE_URLS=http://0.0.0.0:8080 \
     DOTNET_EnableDiagnostics=0 \
     IntoChat__Hosted__Enabled=true \
-    DigitalBrain__Standalone=true
+    DigitalBrain__Standalone=true \
+    DigitalBrain__ShippedApps__intochat__Path=/app/shipped/intochat
 
 EXPOSE 8080
 

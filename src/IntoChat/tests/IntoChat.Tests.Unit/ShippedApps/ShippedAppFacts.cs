@@ -5,7 +5,19 @@ namespace IntoChat.Tests.Unit.ShippedApps;
 // Package scenarios execute through their tests.cs publish gate.
 public sealed class ShippedAppFacts
 {
-    private static readonly EmbeddedShippedAppSource Source = new(typeof(IntoChatApps).Assembly, "IntoChat.ShippedApps/", "intochat");
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "DigitalBrain.slnx")))
+        {
+            directory = directory.Parent;
+        }
+        return directory?.FullName
+            ?? throw new InvalidOperationException($"Repository root (DigitalBrain.slnx) was not found above {AppContext.BaseDirectory}.");
+    }
+
+    private static readonly DirectoryShippedAppSource Source =
+        new(Path.Combine(FindRepositoryRoot(), "src", "IntoChat", "Apps"), "intochat");
     [Fact]
     public void EveryFirstPartyPackageShips()
         => Assert.Equal(["customer-researcher", "group-chat", "word-count"], Source.Load().Select(app => app.Package.Name).Order());

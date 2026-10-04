@@ -16,7 +16,6 @@
     <ProjectReference Include="../../../Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />
     <ProjectReference Include="../../Sdk/DigitalBrain.Sdk/DigitalBrain.Sdk.csproj" />
     <ProjectReference Include="../../Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
-    <ProjectReference Include="../../../IntoChat/IntoChat.Apps/IntoChat.Apps.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- The OS is the composition of every module in the repo; OsCatalog names them in code

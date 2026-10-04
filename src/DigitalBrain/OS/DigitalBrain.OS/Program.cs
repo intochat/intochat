@@ -11,7 +11,6 @@ using DigitalBrain.OS;
 using DigitalBrain.Platform;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.Sdk;
-using IntoChat;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,7 +18,9 @@ var builder = WebApplication.CreateBuilder(args);
 // is IntoChat's own is branding, shipped apps and configuration.
 builder.AddDigitalBrainServer(server => server.UseAzureStorage().WithDashboard().AddOperatingSystem());
 builder.AddDigitalBrainPlatform();
-builder.Services.AddShippedApps(typeof(IntoChatApps).Assembly, "IntoChat.ShippedApps/", publisher: "intochat");
+// Vendors ship through configuration: DigitalBrain:ShippedApps:{publisher}:Path names a
+// directory of app folders. The image carries no vendor content of its own.
+builder.Services.AddShippedApps(builder.Configuration);
 
 var app = builder.Build();
 

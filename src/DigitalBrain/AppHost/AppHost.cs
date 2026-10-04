@@ -49,8 +49,11 @@ var digitalBrain = builder.AddDigitalBrain(ProductSurfaceResources.Modules, serv
 
 var cookieProtection = digitalBrain.AddBlobContainer(IntoChatConfiguration.ProtectionContainerName);
 
+var intoChatApps = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "IntoChat", "Apps"));
+
 var runtime = builder.AddProject<Projects.DigitalBrain_OS>(ProductSurfaceResources.IntoChat)
     .WithReference(digitalBrain)
+    .WithEnvironment("DigitalBrain__ShippedApps__intochat__Path", intoChatApps)
     .WaitFor(cookieProtection)
     .WithHttpEndpoint(
         port: ProductSurfaceResources.UiHttpPort,
