@@ -1,3 +1,4 @@
+using DigitalBrain.Platform.Identity.Configuration;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -65,9 +66,9 @@ public sealed class SessionCookieFacts
     private static async Task<WebApplication> Host(bool mcp, DirectoryInfo keys, ModuleBrain brain)
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { ApplicationName = mcp ? "DigitalBrain.Mcp" : "IntoChat" });
-        builder.Configuration["DigitalBrain:Auth:Posture"] = "Secured";
-        builder.Configuration["DigitalBrain:Identity:CookieName"] = "intochat.session";
-        builder.Configuration["DigitalBrain:Identity:ProtectionApplicationName"] = "IntoChat.v1";
+        builder.Configuration[AuthOptions.PostureKey] = "Secured";
+        builder.Configuration[IdentityHostOptions.Key(nameof(IdentityHostOptions.CookieName))] = "intochat.session";
+        builder.Configuration[IdentityHostOptions.Key(nameof(IdentityHostOptions.ProtectionApplicationName))] = "IntoChat.v1";
         builder.Services.AddSingleton<IDigitalBrain>(brain);
         builder.Services.AddSingleton(brain.Grains);
         if (mcp) { builder.Services.AddDigitalBrainMcp(); }

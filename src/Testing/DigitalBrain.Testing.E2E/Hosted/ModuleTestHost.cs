@@ -25,7 +25,7 @@ internal static class ModuleTestHost
             var brain = builder.AddDigitalBrain("modules", new DigitalBrainHostingOptions { PersistentStorage = false, DataVolume = durableStorageKey, ServiceId = durableStorageKey ?? identity, UseAzureStorage = true });
             brain.AddModules(modules);
             builder.AddExecutable("runtime", "dotnet", launch.WorkingDirectory, launch.Arguments)
-                .WithEnvironment("DigitalBrain__Testing__ModuleTypes", System.Text.Json.JsonSerializer.Serialize(modules.Select(m => m.ModuleType.AssemblyQualifiedName)))
+                .WithEnvironment(ModuleHostChannel.EnvironmentName(ModuleHostChannel.ModuleTypesKey), ModuleHostChannel.SerializeModules(modules))
                 .WithReference(brain)
                 .WithHttpEndpoint(name: "http", env: "ASPNETCORE_HTTP_PORTS")
                 .WithHttpHealthCheck(ModuleHostEndpoints.Health);

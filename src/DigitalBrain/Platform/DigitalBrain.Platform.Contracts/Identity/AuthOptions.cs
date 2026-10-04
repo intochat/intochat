@@ -13,7 +13,9 @@ public enum IdentityPosture
 public sealed class AuthOptions
 {
     public const string SectionName = "DigitalBrain:Auth";
-    public const string PostureKey = "DigitalBrain:Auth:Posture";
+    public const string PostureKey = SectionName + ":" + nameof(Posture);
+
+    public static string Key(string property) => SectionName + ":" + property;
 
     public IdentityPosture? Posture { get; set; }
     public string? Username { get; set; }

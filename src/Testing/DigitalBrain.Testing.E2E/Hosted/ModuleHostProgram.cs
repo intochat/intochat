@@ -13,10 +13,10 @@ using Microsoft.Extensions.DependencyInjection;
 // Entry point for the module runtime process that ModuleTestHost launches. It runs against the
 // test assembly's dependency closure, so every selected module assembly is already resolvable.
 var builder = WebApplication.CreateBuilder(args);
-var referenceComposition = builder.Configuration.GetValue<bool>("DigitalBrain:Testing:ReferenceComposition");
+var referenceComposition = ModuleHostChannel.IsReferenceComposition(builder.Configuration);
 if (referenceComposition)
 {
-    builder.Configuration["DigitalBrain:Identity:CookieName"] ??= "digitalbrain.reference.session";
+    builder.Configuration[DigitalBrain.Platform.Identity.Configuration.IdentityHostOptions.Key(nameof(DigitalBrain.Platform.Identity.Configuration.IdentityHostOptions.CookieName))] ??= "digitalbrain.reference.session";
 }
 builder.AddDigitalBrainServer(server =>
 {
@@ -28,10 +28,8 @@ builder.AddDigitalBrainServer(server =>
     }
     else
     {
-        var names = System.Text.Json.JsonSerializer.Deserialize<string[]>(builder.Configuration["DigitalBrain:Testing:ModuleTypes"] ?? "[]")!;
-        foreach (var name in names)
+        foreach (var type in ModuleHostChannel.ReadModules(builder.Configuration))
         {
-            var type = Type.GetType(name, throwOnError: true)!;
             server.AddModule(type);
         }
     }

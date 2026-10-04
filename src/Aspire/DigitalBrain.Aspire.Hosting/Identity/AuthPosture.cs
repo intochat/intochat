@@ -8,7 +8,7 @@ namespace DigitalBrain.Aspire.Hosting;
 // posture itself. The AppHost's own configuration overrides the run-mode default.
 internal static class AuthPosture
 {
-    private const string Key = "DigitalBrain:Auth:Posture";
+    private const string Key = DigitalBrain.Platform.Identity.Configuration.AuthOptions.PostureKey;
 
     public static DigitalBrainModuleProjection? Provision(IDistributedApplicationBuilder builder)
     {

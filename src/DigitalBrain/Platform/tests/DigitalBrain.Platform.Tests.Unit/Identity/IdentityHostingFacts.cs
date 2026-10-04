@@ -111,8 +111,8 @@ public sealed class IdentityHostingFacts
         await using var brain = await ModuleTest.Create().StartAsync(ct);
         var builder = WebApplication.CreateBuilder();
         builder.Configuration[AuthOptions.PostureKey] = "Secured";
-        builder.Configuration["DigitalBrain:Auth:Username"] = "bootstrap";
-        builder.Configuration["DigitalBrain:Auth:Password"] = "bootstrap-password";
+        builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Username))] = "bootstrap";
+        builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Password))] = "bootstrap-password";
         builder.Configuration["DigitalBrain:Cors:AllowedOrigin"] = "http://localhost:27880";
         builder.Services.AddSingleton<IDigitalBrain>(brain);
         builder.Services.AddIdentity();

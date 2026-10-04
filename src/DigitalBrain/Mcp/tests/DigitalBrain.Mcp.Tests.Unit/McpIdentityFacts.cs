@@ -1,3 +1,4 @@
+using DigitalBrain.Platform.Identity.Configuration;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
@@ -74,11 +75,11 @@ public sealed class McpIdentityFacts
     private static async Task<WebApplication> Start(string? posture, bool deny = false, bool credentials = false)
     {
         var builder = WebApplication.CreateBuilder();
-        builder.Configuration["DigitalBrain:Auth:Posture"] = posture;
+        builder.Configuration[AuthOptions.PostureKey] = posture;
         if (credentials)
         {
-            builder.Configuration["DigitalBrain:Auth:Username"] = "operator";
-            builder.Configuration["DigitalBrain:Auth:Password"] = "test-password";
+            builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Username))] = "operator";
+            builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Password))] = "test-password";
         }
         builder.Services.AddDigitalBrainMcp();
         builder.Services.AddSingleton<IBrainAccess>(new Access(!deny));

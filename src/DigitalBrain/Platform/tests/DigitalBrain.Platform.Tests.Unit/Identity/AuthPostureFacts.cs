@@ -31,7 +31,7 @@ public sealed class AuthPostureFacts
         var ct = TestContext.Current.CancellationToken;
         var builder = WebApplication.CreateBuilder();
         builder.Configuration[AuthOptions.PostureKey] = "Secured";
-        builder.Configuration["DigitalBrain:Auth:Username"] = "ops";
+        builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Username))] = "ops";
         builder.Services.AddIdentity();
         await using var app = builder.Build();
         app.Urls.Add("http://127.0.0.1:0");
@@ -74,8 +74,8 @@ public sealed class AuthPostureFacts
         }).StartAsync(ct);
         var builder = WebApplication.CreateBuilder();
         builder.Configuration[AuthOptions.PostureKey] = "Secured";
-        builder.Configuration["DigitalBrain:Auth:Username"] = "ops";
-        builder.Configuration["DigitalBrain:Auth:Password"] = "a-long-operator-password";
+        builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Username))] = "ops";
+        builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Password))] = "a-long-operator-password";
         builder.Services.AddSingleton<IDigitalBrain>(brain);
         builder.Services.AddIdentity();
         await using var app = builder.Build();

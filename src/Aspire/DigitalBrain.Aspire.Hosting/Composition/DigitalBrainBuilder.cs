@@ -68,10 +68,10 @@ public sealed class DigitalBrainBuilder
 
     private readonly Dictionary<string, string?> _settings = new(StringComparer.OrdinalIgnoreCase);
     internal IReadOnlyDictionary<string, string?> Settings => _settings;
-    public HttpIdentity? Identity { get; private set; }
+    public DigitalBrain.Platform.Identity.Configuration.IdentityHostOptions? Identity { get; private set; }
     public DigitalBrainBuilder WithHttpIdentity()
     {
-        Identity = HttpIdentity.FromConfiguration(ApplicationBuilder.Configuration);
+        Identity = HttpIdentityProjection.FromConfiguration(ApplicationBuilder.Configuration);
         return this;
     }
     private readonly List<string> _modules = [];

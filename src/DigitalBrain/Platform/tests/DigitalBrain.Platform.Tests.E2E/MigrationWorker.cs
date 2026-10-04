@@ -27,7 +27,7 @@ internal static class MigrationWorker
         var builder = WebApplication.CreateBuilder([]);
         builder.Logging.SetMinimumLevel(LogLevel.Error);
         var maintenance = mode is "seed" or "rollback" or "inspect" or "checkpoint-interrupt" or "interrupt" or "migrate" or "retry";
-        builder.Configuration["DigitalBrain:Auth:Posture"] = "Secured";
+        builder.Configuration[AuthOptions.PostureKey] = "Secured";
         builder.Configuration["DigitalBrain:Identity:Migration:Maintenance"] = maintenance.ToString();
         builder.Configuration["DigitalBrain:MasterKey"] ??= Environment.GetEnvironmentVariable("IDENTITY_TEST_KEY");
         var connection = Environment.GetEnvironmentVariable("IDENTITY_TEST_STORAGE")!;

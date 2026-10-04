@@ -1,3 +1,4 @@
+using DigitalBrain.Platform.Identity.Configuration;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Aspire.Hosting;
@@ -13,9 +14,9 @@ public sealed class DeploymentIdentityFacts
     public async Task RuntimeAndHttpClientReceiveTheSameOverriddenSessionIdentity()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        builder.Configuration["DigitalBrain:Identity:CookieName"] = "custom.session";
-        builder.Configuration["DigitalBrain:Identity:ProtectionApplicationName"] = "IntoChat.v1";
-        builder.Configuration["DigitalBrain:Identity:ProtectionContainerName"] = "intochat-protection-v1";
+        builder.Configuration[IdentityHostOptions.Key(nameof(IdentityHostOptions.CookieName))] = "custom.session";
+        builder.Configuration[IdentityHostOptions.Key(nameof(IdentityHostOptions.ProtectionApplicationName))] = "IntoChat.v1";
+        builder.Configuration[IdentityHostOptions.Key(nameof(IdentityHostOptions.ProtectionContainerName))] = "intochat-protection-v1";
         var brain = builder.AddDigitalBrain("memory", options: new() { UseAzureStorage = true })
             .WithHttpIdentity();
         var server = builder.AddExecutable("server", "unused", ".").WithReference(brain);
@@ -38,7 +39,7 @@ public sealed class DeploymentIdentityFacts
     public async Task ClientsReceiveTheDeclaredAuthPosture(string? configured, string expected)
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        if (configured is not null) { builder.Configuration["DigitalBrain:Auth:Posture"] = configured; }
+        if (configured is not null) { builder.Configuration[AuthOptions.PostureKey] = configured; }
         var brain = builder.AddDigitalBrain("memory");
         var client = builder.AddExecutable("client", "unused", ".").WithReference(brain.AsClient());
         var values = new Dictionary<string, object>();

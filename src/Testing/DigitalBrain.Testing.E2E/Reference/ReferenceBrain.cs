@@ -83,7 +83,7 @@ public static class ReferenceBrain
                 // Use the authenticated reference host without product-owned shipped content.
                 ResourceEnvironment = new Dictionary<string, string>(StringComparer.Ordinal)
                 {
-                    ["DigitalBrain__Testing__ReferenceComposition"] = "true",
+                    [ModuleHostChannel.EnvironmentName(ModuleHostChannel.ReferenceCompositionKey)] = "true",
                     // The OS composition now ships its own apps; reference suites keep startup
                     // shipping off for time — the product golden journeys ship and verify them.
                     ["DigitalBrain__Apps__ShipOnStartup"] = "false",
