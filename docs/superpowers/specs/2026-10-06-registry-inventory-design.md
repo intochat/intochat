@@ -69,7 +69,34 @@ public sealed record NeuronRecord(
   not support inventory") rather than returning an empty lie. Verifying the default
   (Postgres-backed) storage supports the query is implementation step one.
 
-## Consumers
+## Task 0 findings — gate blocked on branch `os`
+
+Non-brain-scoped deployment keys (`integration/*`, platform singletons and migration
+keys such as `table-owners-v1`) are excluded from both Persisted and Active. A key must
+prove membership in the ambient brain by exact scope parsing; textual prefix matching
+is insufficient. Existing address parsing recognizes the scope itself, `/` and `:`
+delimiters, and `connection/{escaped-scope}/{connector}/{connection}`. This decision
+does not classify opaque, brain-owned keys as deployment infrastructure.
+
+The storage assumption above is not true in this checkout: production grain state uses
+Azure Blob storage, not Postgres. Blob names are
+`{stateName}-{grainType}/{grainKey}.json`; the brain is not a leading blob-name prefix.
+The existing provider cannot express the specified all-types brain-prefix query. A
+container scan followed by filtering is technically possible, but changes the ratified
+query strategy and is not implemented. Orleans memory storage used by ModuleTest exposes
+only point read/write/delete operations, with no supported catalog enumeration.
+
+The key audit also found standalone C# file keys are a one-way hash of scope and file ID;
+their brain cannot be recovered from the key. Time's reminder grain currently has type
+id `reminder`, not `timer.reminder`, and stores registrations in the Orleans reminder
+service, not default grain storage. Therefore starting a reminder does not create the
+state row assumed by Tasks 5–6. No new state or workaround has been added.
+
+See [the Task 0 report](../plans/2026-10-06-registry-inventory-gate.md) for evidence,
+the executed read-only probe, and options requiring a revised ratification. Tasks 1–7
+remain unstarted; this records the failed gate, not a replacement design.
+
+## Consumers (planned)
 
 - **Assistant**: inventory tools ("list neurons", "what reminders exist", "what is active")
   compose `IRegistry` with the existing `IRegistryResourceProvider` enrichment seam —

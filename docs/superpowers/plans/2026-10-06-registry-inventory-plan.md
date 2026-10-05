@@ -3,6 +3,20 @@
 Spec: `docs/superpowers/specs/2026-10-06-registry-inventory-design.md`. Branch `os`.
 Each task is TDD (facts first), per-project builds/tests, never the .slnx.
 
+## Execution status
+
+- [ ] Task 0 — **BLOCKED**: read-only provider probe exited 1; production is Azure Blob,
+  not Postgres, and ModuleTest memory storage has no enumeration API. Key audit also
+  found opaque C# keys and reminders outside the grain-state catalog.
+  [Evidence and options](2026-10-06-registry-inventory-gate.md).
+- [ ] Task 1 — not started (gate)
+- [ ] Task 2 — not started (gate)
+- [ ] Task 3 — not started (gate)
+- [ ] Task 4 — not started (gate)
+- [ ] Task 5 — not started (gate)
+- [ ] Task 6 — not started (gate)
+- [ ] Task 7 — not started (gate; no completion-suite or Aspire claim)
+
 ## Task 0 — Feasibility gate: the storage catalog is queryable
 
 Confirm the default grain storage can answer "all state rows whose grain key belongs to
