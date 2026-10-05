@@ -74,7 +74,7 @@ app.authoring.json optional stable scenario IDs and scenario-to-source associati
   `src/IntoChat/Apps/`).
 - **Module contract:** a module ships contracts + signals + connector + fakes (Testing package) +
   renderables. Modules never ship step definitions or test-only methods on production interfaces.
-  A module is a `Module` / `Module<TOptions>` subclass (Contracts) whose `ModuleId` is passed to
+  A module is a `Module` / `Module<TOptions>` subclass (in the module runtime assembly) whose `ModuleId` is passed to
   the base constructor — no attributes, no reflection; the catalog (`OsCatalog`) holds instances,
   and hosting/deployment adapters claim their module through `ModuleHosting<TModule>` /
   `ModuleDeployment<TModule>` generic parameters, discovered by scanning referenced assemblies.
@@ -96,9 +96,14 @@ renderable palette v1 / UiPart; run-token tightening.
 
 ## Working in this repo
 
-- Layout: Kernel = the privileged ring of projects under `DigitalBrain/Kernel/`; Core
-  (`DigitalBrain.Kernel`) = the neuron runtime; Platform (phase 2) = the credential ring scripts can
-  never see.
+- Layout: three framework rings, one per consumer. `DigitalBrain` = the vocabulary (the four
+  words plus every script/client-facing contract; what `ScriptContracts` ships into the sandbox
+  and what module `*.Contracts` projects and the Clients reference — never Orleans hosting).
+  `DigitalBrain.Framework` (`DigitalBrain/Framework/`) = what module authors build on: neuron
+  runtime, module declaration, http surface, sdk helpers, and the platform-facing interfaces.
+  `DigitalBrain.Platform` = the credential-ring implementation scripts can never see
+  (`[PlatformAssembly]`-marked); only host composers reference it. Script visibility is enforced
+  at runtime (contract discovery + `[PlatformOnly]`), the project graph mirrors it.
 - Build/tests per project (never the `.slnx` — Windows handshake bug):
   `dotnet test src/<path-to-test-project>`. After changes: build, run the relevant unit suites,
   and smoke with `aspire run` from `src/DigitalBrain/AppHost/DigitalBrain.AppHost` (all resources Healthy).

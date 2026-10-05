@@ -1,5 +1,10 @@
 # Module identity: one mechanism, one ring, one grammar
 
+> Superseded in part by [2026-10-05-framework-restructuring](2026-10-05-framework-restructuring.md):
+> `DigitalBrain.Contracts` dissolved into the `DigitalBrain` vocabulary and `DigitalBrain.Framework`
+> (ex-Kernel); `Module`/`Configure(ISiloBuilder)` now lives in the Framework, `ModuleId` and
+> `IModuleOptions` in the vocabulary. The module-identity decisions below stand.
+
 Ratified 2026-10-05 (implemented on branch `os`; §7 as amended by the execution rulings noted
 inline). Amends the 2026-10-04 module self-description design. That design's goals
 stand — one source per fact, the catalog is the composition, the AppHost speaks only
