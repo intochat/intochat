@@ -34,7 +34,28 @@ internal sealed class AppService(
         ArgumentNullException.ThrowIfNull(request);
         var target = PackageId.Create(CallerContextStamper.Require().PrincipalId, request.Name ?? source.Name);
         var revision = await Resolve(new(source.Owner, source.Name, request.Revision), preferPublished: true);
-        return await Package(target).Fork(new(request.OperationId ?? Guid.NewGuid(), revision));
+        var forked = await Package(target).Fork(new(request.OperationId ?? Guid.NewGuid(), revision));
+        await Materialize(target, forked);
+        return forked;
+    }
+
+    // A fork is yours to edit the moment it exists: the revision materializes as a live app
+    // in your brain — red history forks as a red app, ready to revisit.
+    private async Task Materialize(PackageId target, PackageSnapshot forked)
+    {
+        var app = App(target);
+        if ((await app.Read()).Status == AppStatus.Installed || forked.Head is null) { return; }
+        var content = (await Package(target).ReadRevision(forked.Head)).Content;
+        await app.Create(new(Guid.NewGuid(), content.Manifest.Title, content.Manifest.Description, content.Manifest.RuntimeName));
+        await app.SaveManifest(content.Manifest, Guid.NewGuid());
+        var programs = content.Programs();
+        foreach (var (path, text) in content.Files ?? new Dictionary<string, string>())
+        {
+            if (path == AppDocumentCodec.Path || string.IsNullOrWhiteSpace(text)) { continue; }
+            if (programs.ContainsKey(path)) { await app.WriteBehavior(path, text, Guid.NewGuid()); }
+            else { await app.WriteFile(path, text, Guid.NewGuid()); }
+        }
+        if (AppDocumentCodec.Read(content).Document is { } document) { await app.SaveDocument(document, Guid.NewGuid()); }
     }
 
     public async Task<PackageSnapshot> Pull(PackageId id, PullAppRequest request)

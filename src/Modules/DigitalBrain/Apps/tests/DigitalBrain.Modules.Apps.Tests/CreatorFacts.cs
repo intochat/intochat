@@ -64,6 +64,60 @@ public sealed class CreatorFacts
     }
 
     [Fact]
+    public async Task PublishStaysTheGateWhateverTheAppsOwnVerdictsClaim()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runner = new ScriptedTestRunner();
+        await using var brain = await StartAsync(ct, runner);
+        await brain.Get<IScriptedLLM>("author").Script([Authored(Spec)]);
+        await brain.Get<IScriptedLLM>("builder").Script([Built("// still red", "Whisper.")]);
+        runner.BySourceMarker["// still red"] = (1, "dbtest:fail It shouts\tStill whispering.");
+        StampAlice();
+        var creator = brain.SiloServices.GetRequiredService<CreatorService>();
+        var packaging = brain.SiloServices.GetRequiredService<LiveAppPackaging>();
+        var package = PackageId.Parse("alice/shouter");
+        var app = brain.Get<IApp>(Scope() + "/packages/" + package);
+        await creator.Author(app, "Shout back.", ct);
+        await creator.Implement(app, null, ct);
+        await packaging.RunScenarios(app, package, null, ct);
+
+        // Tampered or stale app-side verdicts change nothing: the gate reads the verification.
+        await app.RecordVerdicts([new("It shouts", true, "", null)], Guid.NewGuid());
+        var head = (await brain.Get<IPackage>(package.ToString()).Read()).Head!;
+
+        await Assert.ThrowsAnyAsync<InvalidOperationException>(
+            () => brain.Get<IPackage>(package.ToString()).Publish(new(Guid.NewGuid(), head)));
+    }
+
+    [Fact]
+    public async Task AForkMaterializesAsALiveAppEvenWhenItsHistoryIsRed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await StartAsync(ct);
+        StampAlice();
+        var source = PackageId.Parse("alice/tracker");
+        var tracker = PackageSamples.Tracker();
+        await brain.Get<IPackage>(source.ToString()).Commit(new(Guid.NewGuid(), null, tracker, "red history"));
+        CallerContextStamper.Stamp(new CallerContext
+        {
+            PrincipalId = "bob",
+            AccountId = "account-bob",
+            BrainId = "workspace-bob",
+            Kind = CallerKind.User,
+            StampedBy = TrustedEdge.AuthenticatedHttp,
+        });
+        var service = brain.SiloServices.GetRequiredService<AppService>();
+
+        await service.Fork(source, new(null, null, null));
+
+        var app = brain.Get<IApp>(BrainScope.Create("account-bob", "workspace-bob").Id + "/packages/bob/tracker");
+        Assert.Equal(AppStatus.Installed, (await app.Read()).Status);
+        var content = await app.ReadContent();
+        Assert.Equal("// watches the feed", content.Files["behaviors/track.cs"]);
+        Assert.Equal("Tracker", content.Manifest.Title);
+    }
+
+    [Fact]
     public async Task AnImplementationWithoutTestsIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
