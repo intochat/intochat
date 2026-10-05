@@ -29,6 +29,15 @@
 4. **Legacy `DigitalBrain:AI:*` keys in an environment after migration**: would be silently ignored, reviving config as dead weight. Pinned in Task 9: the runtime refuses to start when the legacy section is present (one guard, one test).
 5. **An options type whose `Validate()` throws during `Flatten`/`Compile` with defaults**: `Compile` calls `Validate()` on code-declared options; a validation requiring external facts breaks composition at startup. Pinned in Task 8: `AIOptions.Validate()` with defaults is a no-op test.
 
+## Status (2026-10-05)
+
+Tasks 1–7 are implemented and committed (`21deb6bb8` … `fc3219c0d`): `ModuleId`, `Module` in
+Contracts, the 21-module migration, instance catalog, `ModuleHosting<TModule>` +
+`ModuleHostingScan`, `ModuleDeployment<TModule>` + scan-based `Discover`, attributes deleted.
+Remaining: Tasks 8–12. A repo-wide audit found the AI diseases in other modules too, so the
+grammar/purity work now covers **every module**, not just AI — Tasks 10 and 11 below carry the
+inventory.
+
 ---
 
 ### Task 1: `ModuleId` — the typed identity and grammar owner
@@ -572,10 +581,93 @@ internal static void Register(IServiceCollection services)
 
 ---
 
-### Task 10: Full verification and ratification
+### Task 10: Hosting declarations leave the options — every module
+
+The AI pattern (Task 8) generalizes: three more modules carry hosting declarations inside their
+`IModuleOptions`, flattened through configuration and re-read by their adapter. Each moves onto
+the adapter via the `WithHosting<THosting>(Action<THosting> configure)` overload Task 8 added,
+one module per commit, same shape as `AIModuleHosting`.
+
+**Inventory (verify each with `grep -n "Hosting" <module>.Contracts/Configuration/*.cs` before
+editing — if a `Hosting` member turns out to be consumed silo-side, it is not a hosting
+declaration; leave it and note the deviation):**
+
+- **ClickHouse**: `ClickHouseModuleOptions.Hosting.Seeds` (and the `Validate()` seed check —
+  moves with it); AppHost's `database.WithClickHouse()` configures the adapter instead.
+  Files: `src/Modules/ClickHouse/DigitalBrain.Modules.ClickHouse.Contracts/Configuration/ClickHouseModuleOptions.cs`,
+  `…ClickHouse.Aspire.Hosting/ClickHouseModuleHosting.cs`, AppHost line 45, ClickHouse test suites.
+  Also re-assess `ClickHouseModuleOptions.ResolveConnection(IConfiguration)` against the
+  Validate law: an options method taking `IConfiguration` is the same impurity — move the
+  resolution to the consumer that owns the configuration.
+- **Flutter**: `FlutterModuleOptions.Hosting` (`Kind`, `ResourceName`, `ShellName`, `ChatName`)
+  and the whole `Validate()` body (it validates only hosting values). `flutter.RunDesktopApp()`
+  becomes an adapter method. Files:
+  `src/Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Contracts/Configuration/FlutterModuleOptions.cs`,
+  `…Flutter.Aspire.Hosting/FlutterModuleHosting.cs` + `ShellHostingExtensions.cs`, AppHost line 51.
+- **Postgres**: the `Options:Hosting:DatabaseName` key shape
+  (`PostgresAspireHostingFacts` pins it; `database.WithPostgres(options => options.DatabaseName = …)`)
+  — the database name is a provisioning decision; it moves to `PostgresModuleHosting` as a typed
+  property. Files: `src/Modules/Postgres/DigitalBrain.Modules.Postgres.Contracts/Configuration/PostgresModuleOptions.cs`,
+  `…Postgres.Aspire.Hosting/PostgresModuleHosting.cs`, AppHost line 47,
+  `src/Modules/Postgres/tests/DigitalBrain.Modules.Postgres.Tests.Hosting/PostgresAspireHostingFacts.cs`.
+
+Per module: (1) failing fact — adapter configured typed provisions the same resources the
+options-driven path did (assert via the module's existing hosting facts); (2) move the
+declaration, delete the options member and its `Validate()` lines; (3) run that module's unit +
+hosting suites and `dotnet build src/DigitalBrain/AppHost/DigitalBrain.AppHost`; (4) commit
+`refactor: <module> hosting declaration is typed on the adapter`.
+
+---
+
+### Task 11: Every module joins the one grammar — private roots die
+
+Module-owned configuration outside `DigitalBrain:Modules:{id}:Options` migrates in. Audit
+inventory (re-grep before editing: `grep -rn '"DigitalBrain:' src/Modules --include=*.cs | grep -v obj | grep -v Tests`):
+
+| Module | Legacy root/keys | Target |
+|---|---|---|
+| AI | `DigitalBrain:Workspace` (`AIWorkspaceOptions.SectionName`) | `…Modules:ai:Options:Workspace:*` (fold into Task 9's key move if executed together) |
+| CSharp | `DigitalBrain:CSharp` (`CSharpOptions.SectionName`, `CSharpDeploymentSettings` reads it) | `…Modules:csharp:Options:*`; deployment-owned values read the same section via `AIKeys`-style grammar-derived class `CSharpKeys` |
+| GitHub | `DigitalBrain:Microsoft:GitHub` (`GitHubModuleOptions.SectionName`) | `…Modules:github:Options:*` |
+| Salesforce | `DigitalBrain:Salesforce:OAuth` (`SalesforceOAuthOptions.SectionName`) | `…Modules:salesforce:Options:OAuth:*` |
+| Aspire | `DigitalBrain:Microsoft:Aspire` (`AspireOptions.ConfigurationRoot`) | `…Modules:aspire:Options:*` (use the module's actual id from its constructor) |
+| Apps | `DigitalBrain:Apps:AuthorModel`, `:BuilderModel`, `:ShipOnStartup`, `DigitalBrain:ShippedApps` (+ AppHost `IntoChatShippedAppsPathKey`) | `…Modules:apps:Options:*` (ShippedApps keys included; update AppHost literal) |
+| Time | `DigitalBrain:Time:MinimumReminderPeriod` | `…Modules:time:Options:MinimumReminderPeriod` |
+| Flutter (hosting ring) | `DigitalBrain:Flutter:Hosting` (`FlutterHostOptions`) | dissolves into Task 10's typed adapter declaration; any residue → `…Modules:flutter:Options:*` |
+
+**Decision rows — confirm owner with the user if unclear, do not guess silently:**
+- Postgres `DigitalBrain:Capacity:Postgres:AdminConnection`: module-owned (→ postgres options) or a platform capacity contract (stays, documented as platform-owned). Recommend platform-owned: it is seeded by deployment for the capacity ring, not read as a module option.
+- Flutter `ShellNames.OwnerKey = "DigitalBrain:Owner"`: brain/platform-scoped identity, likely not a module option — document, don't move, unless investigation shows only Flutter reads it.
+
+**Out of scope (ring-owned, not module options — do not touch):** Platform identity/auth/cors
+(`DigitalBrain:Auth`, `:Identity*`, `:Cors`), host keys (`:Standalone`,
+`:Hosting:PersistentStorage`, `:Http:*`, `:KeyVault:Uri`, `:MasterKey`, `:ConfigurationFile`,
+`:Edge`/`:Token`, `:Testing:*`), and the sandbox process's own `Sandbox` root
+(`SandboxOptions` — a separate executable with its own configuration domain).
+
+**Mechanics per module (one commit each, smallest first — Time, then Aspire, GitHub,
+Salesforce, Apps, CSharp):**
+1. Failing fact: value under the new section binds; value under the legacy root is refused.
+2. Replace the `SectionName`/key constants with a grammar-derived `<Module>Keys` class (the
+   `AIKeys` shape from Task 9: `DigitalBrainConfiguration.ModuleOptionsSection(new ModuleId("<id>")) + ":…"`).
+3. Migrate every consumer, `appsettings*.json`, pubxml/Dockerfile env forms (`DigitalBrain__…`).
+4. Legacy guard: extend one shared check — add the legacy root to a static list in a new
+   `src/DigitalBrain/OS/DigitalBrain.OS/LegacyConfigurationGuard.cs` run at server startup
+   (beside `AddOperatingSystem`), throwing the migration message naming old → new section; the
+   AI guard from Task 9 moves into this list too, so there is exactly one guard mechanism.
+5. Shrink `src/Testing/tests/DigitalBrain.Architecture.Tests/ConfigurationKeyOwners.json` as
+   each file stops carrying raw literals — the ratchet is the enforcement that this never
+   regresses.
+6. Add one new architecture fact: within `src/Modules/**`, every `"DigitalBrain:`-prefixed
+   literal outside the baseline starts with `DigitalBrain:Modules:` — pinning "no module is
+   exempt from the grammar" permanently.
+
+---
+
+### Task 12: Full verification and ratification
 
 - [ ] **Step 1: Build every ring**: Contracts, Kernel, Aspire.Server, Aspire.Hosting, OS, Deployment, Testing, Testing.E2E, AppHost.
-- [ ] **Step 2: Run the suites**: Kernel unit, Kernel E2E, OS unit, Architecture, Aspire.Hosting unit, Deployment, AI module suites, Postgres hosting suite (representative module), IntoChat E2E composition/routes.
+- [ ] **Step 2: Run the suites**: Kernel unit, Kernel E2E, OS unit, Architecture, Aspire.Hosting unit, Deployment, AI module suites, every module suite touched by Tasks 10–11 (ClickHouse, Flutter, Postgres, CSharp, GitHub, Salesforce, Apps, Time, Aspire), IntoChat E2E composition/routes.
 - [ ] **Step 3: Smoke**: `aspire run` from `src/DigitalBrain/AppHost/DigitalBrain.AppHost` — all resources Healthy; exercise one AI call if credentials are available, else confirm the AI module composes.
 - [ ] **Step 4: Ratify** — mark `docs/superpowers/specs/2026-10-05-module-identity-amendment.md` header "Ratified <date>"; update `CLAUDE.md`'s module-contract paragraph (module options under the one grammar, `Module` abstract class, no attributes) in the same commit.
 - [ ] **Step 5: Commit** — `docs: ratify module identity unification`
@@ -587,3 +679,4 @@ internal static void Register(IServiceCollection services)
 - **Spec coverage**: §1 ModuleId → Task 1; §2 Module in Contracts → Tasks 2–3; §3 catalog instances → Task 4; §4 generic claims → Tasks 5–6; §5 scans → Tasks 5–6; §6 Validate law → Task 8; §7 one grammar → Task 9; Deleted list → Tasks 3, 5, 6, 7, 8, 9.
 - **Known open point for the executor**: Task 6's coverage rule (what exactly fails loudly when a composed module lacks a deployment contributor) preserves today's semantics — attribute-present-implies-resolvable becomes contributor-referenced-implies-used plus the manifest-level coverage check; if the Deployment test project reveals a different existing guarantee, match it, don't invent one.
 - **Type consistency**: `ModuleDefinition(Module, Settings)` (Task 3) is what Task 5's Testing bridge consumes; `ModuleHostingScan.Resolve(params Assembly[])` (Task 5) mirrors Task 6's `Discover`; `AIKeys` (Task 9) replaces constants Task 8 still references at its end — executor order is 8 then 9 as written.
+- **2026-10-05 scope extension**: Tasks 10–11 added after the repo-wide audit; execution order is 8 → 9 → 10 → 11 → 12. Task 10 depends on Task 8's `WithHosting<THosting>(Action<THosting>)` overload; Task 11's shared `LegacyConfigurationGuard` absorbs Task 9's AI-only guard (if Task 9 ran first, refactor its guard into the list when Task 11 lands).

@@ -18,75 +18,9 @@ public static partial class AIHostingExtensions
     private static readonly string EnableSensitiveDataEnvironmentKey =
         DigitalBrainConfiguration.EnvironmentName(AIOptions.TelemetryEnableSensitiveDataKey);
 
-    public static DigitalBrainModuleBuilder<DigitalBrain.AI.Aspire.Hosting.AIModuleHosting> WithLlm<TModel>(this DigitalBrainModuleBuilder<DigitalBrain.AI.Aspire.Hosting.AIModuleHosting> module)
-        where TModel : ILLM
-    {
-        ArgumentNullException.ThrowIfNull(module);
-        State(module).AddLlm(typeof(TModel));
-        return module;
-    }
-
-    public static DigitalBrainModuleBuilder<DigitalBrain.AI.Aspire.Hosting.AIModuleHosting> WithEmbedding<TModel>(this DigitalBrainModuleBuilder<DigitalBrain.AI.Aspire.Hosting.AIModuleHosting> module)
-        where TModel : IEmbedding
-    {
-        ArgumentNullException.ThrowIfNull(module);
-        State(module).AddEmbedding(typeof(TModel));
-        return module;
-    }
-
-    public static DigitalBrainModuleBuilder<DigitalBrain.AI.Aspire.Hosting.AIModuleHosting> WithDefaultLlm<TModel>(this DigitalBrainModuleBuilder<DigitalBrain.AI.Aspire.Hosting.AIModuleHosting> module)
-        where TModel : ILLM
-    {
-        ArgumentNullException.ThrowIfNull(module);
-        State(module).SetDefaultLlm(typeof(TModel));
-        return module;
-    }
-
-    public static DigitalBrainModuleBuilder<DigitalBrain.AI.Aspire.Hosting.AIModuleHosting> WithDefaultEmbedding<TModel>(this DigitalBrainModuleBuilder<DigitalBrain.AI.Aspire.Hosting.AIModuleHosting> module)
-        where TModel : IEmbedding
-    {
-        ArgumentNullException.ThrowIfNull(module);
-        State(module).SetDefaultEmbedding(typeof(TModel));
-        return module;
-    }
-
-    // Speech-to-text, local or hosted. ITranscription constrains the marker, so a
-    // marker of the wrong kind is a compile error rather than a runtime lookup miss.
-    public static DigitalBrainModuleBuilder<DigitalBrain.AI.Aspire.Hosting.AIModuleHosting> WithVoiceToText<TModel>(
-        this DigitalBrainModuleBuilder<DigitalBrain.AI.Aspire.Hosting.AIModuleHosting> module)
-        where TModel : ITranscription
-    {
-        ArgumentNullException.ThrowIfNull(module);
-        var marker = typeof(TModel);
-        var whisper = TranscriptionModel.FindByMarker(marker)
-            ?? throw new NotSupportedException(
-                $"{marker.FullName} is not a catalogued transcription model. "
-                + $"Known models: {string.Join(", ", TranscriptionModel.All.Select(static m => m.Marker.Name))}.");
-
-        var voice = module.GetOrAddProjection(brain => new VoiceToTextHostingState(brain, module.Resource));
-
-        // A hosted transcription model needs its provider key like any other model.
-        // WithLlm/WithEmbedding get this through AddModel; voice has its own
-        // projection, so without this an AppHost that pins a hosted model without
-        // also registering a chat model of the same provider ships no key, and the
-        // endpoint answers 503 forever with no host-side way to fix it.
-        if (!whisper.IsLocal)
-        {
-            State(module).EnsureProviderApiKey(whisper.Provider);
-        }
-
-        voice.SetModel(whisper);
-        return module;
-    }
-
-    public static DigitalBrainModuleBuilder<DigitalBrain.AI.Aspire.Hosting.AIModuleHosting> WithTavilySearch(
-        this DigitalBrainModuleBuilder<DigitalBrain.AI.Aspire.Hosting.AIModuleHosting> module)
-    {
-        ArgumentNullException.ThrowIfNull(module);
-        State(module).EnableTavilySearch();
-        return module;
-    }
-
+    // The declaration API is the typed AIOptions extension family (WithLlm<TModel> and
+    // friends): typed at the declaration site, carried by configuration — the one value
+    // channel — and resolved loudly once at bind in ConfigureDeclaration.
     private static AIHostingState State(DigitalBrainModuleBuilder<DigitalBrain.AI.Aspire.Hosting.AIModuleHosting> module)
     {
         ArgumentNullException.ThrowIfNull(module);

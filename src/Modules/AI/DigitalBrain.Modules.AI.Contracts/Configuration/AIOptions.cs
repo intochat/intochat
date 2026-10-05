@@ -39,13 +39,9 @@ public sealed class AIOptions : IModuleOptions
         _ => throw new NotSupportedException($"{provider} has no hosted provider settings."),
     };
 
-    public void Validate()
-    {
-        if (Hosting.Llms.Any(name => LLMModel.FindByMarkerName(name) is null))
-        { throw new ArgumentException("Unknown LLM marker in the module declaration."); }
-        if (Hosting.Embeddings.Any(name => EmbeddingModel.FindByMarkerName(name) is null))
-        { throw new ArgumentException("Unknown embedding marker in the module declaration."); }
-    }
+    // Options validate only their own values; marker names are the hosting ring's
+    // question, resolved loudly once at bind in AIModuleHosting.
+    public void Validate() { }
 
     // The declared topology and defaults arrive as the module's options.
 

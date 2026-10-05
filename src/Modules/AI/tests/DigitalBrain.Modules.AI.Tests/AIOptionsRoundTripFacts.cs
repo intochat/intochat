@@ -15,7 +15,7 @@ public sealed class AIOptionsRoundTripFacts
         options.Ollama.Models["Gemma"] = new AIModelOptions { Model = "gemma:2b" };
         options.OpenRouter.Endpoint = "https://openrouter.ai/api/v1";
         var definition = ModuleOptionsSerialization.Compile<AIModule, AIOptions>(options);
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(definition.Configuration).Build();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(definition.Settings).Build();
 
         var bound = configuration.GetModuleOptions<AIOptions>("ai");
 
