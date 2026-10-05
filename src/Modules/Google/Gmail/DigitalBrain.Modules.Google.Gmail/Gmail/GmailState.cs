@@ -1,4 +1,4 @@
-using DigitalBrain.Contracts.Types;
+using DigitalBrain.Types;
 
 namespace DigitalBrain.Google.Gmail;
 

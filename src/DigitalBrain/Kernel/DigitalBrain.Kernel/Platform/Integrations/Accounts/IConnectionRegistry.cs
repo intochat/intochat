@@ -1,5 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Contracts;
+using DigitalBrain.Kernel;
 
 namespace DigitalBrain.Kernel.Platform.Integrations.Accounts;
 

@@ -2,7 +2,6 @@ using DigitalBrain;
 using DigitalBrain.AI.Metering;
 using DigitalBrain.Assistant;
 using DigitalBrain.Compute;
-using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
 using Xunit;
 

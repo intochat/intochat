@@ -1,5 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Contracts;
+using DigitalBrain.Kernel;
 using DigitalBrain.Microsoft.Aspire;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;

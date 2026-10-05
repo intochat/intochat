@@ -1,6 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
-using DigitalBrain.Contracts.Edge.V1;
+using DigitalBrain.Edge.V1;
 
 namespace DigitalBrain.Client;
 

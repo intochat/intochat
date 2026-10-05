@@ -3,8 +3,8 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Apps.Signals;
-using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Kernel.Platform.Identity;
@@ -25,7 +25,7 @@ internal sealed class App(
         var caller = CallerContextStamper.Require();
         var addressScope = NeuronAccess.ForBrainKey(key).Scope;
         var creating = operation == nameof(Install) && Snapshot.BrainScopeId is null && Snapshot.Revision is null && Snapshot.Receipts.Count == 0;
-        if (caller.Kind == DigitalBrain.Contracts.Enforcement.CallerKind.App && caller.AppId != key
+        if (caller.Kind == DigitalBrain.Enforcement.CallerKind.App && caller.AppId != key
             && caller.AppId != Snapshot.InstallerAppId && !creating)
         { throw new UnauthorizedAccessException("An app cannot address another installed app."); }
         return new(Snapshot.BrainScopeId ?? addressScope ?? (creating ? BrainScope.CurrentId() : null));
@@ -59,7 +59,7 @@ internal sealed class App(
             await Persist(Snapshot with
             {
                 BrainScopeId = BrainScope.CurrentId(),
-                InstallerAppId = installer.Kind == DigitalBrain.Contracts.Enforcement.CallerKind.App ? installer.AppId : null,
+                InstallerAppId = installer.Kind == DigitalBrain.Enforcement.CallerKind.App ? installer.AppId : null,
             });
         }
         await Resume();

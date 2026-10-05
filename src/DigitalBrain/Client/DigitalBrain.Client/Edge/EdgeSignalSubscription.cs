@@ -3,8 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Channels;
 using DigitalBrain;
-using DigitalBrain.Contracts;
-using DigitalBrain.Contracts.Edge.V1;
+using DigitalBrain.Edge.V1;
 
 namespace DigitalBrain.Client;
 

@@ -1,5 +1,4 @@
 using DigitalBrain;
-using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
 using Orleans.Runtime;
 

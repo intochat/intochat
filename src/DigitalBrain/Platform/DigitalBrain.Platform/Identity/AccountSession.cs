@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
-using DigitalBrain.Contracts.Enforcement;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.AspNetCore.Builder;

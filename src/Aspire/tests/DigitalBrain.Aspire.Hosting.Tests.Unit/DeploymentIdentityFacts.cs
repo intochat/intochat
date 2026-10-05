@@ -2,7 +2,8 @@ using DigitalBrain.Platform.Identity.Configuration;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Aspire.Hosting;
-using DigitalBrain.Contracts;
+using DigitalBrain;
+using DigitalBrain.Kernel;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -132,6 +133,6 @@ public sealed class DeploymentIdentityFacts
         Assert.Same(second, selected);
         Assert.Equal("second-data", selected.ServiceId);
         Assert.Equal("second-run", selected.ClusterId);
-        Assert.Equal(second.ResourceName(DigitalBrain.Contracts.DigitalBrainNames.Clustering), selected.ClusteringResourceName);
+        Assert.Equal(second.ResourceName(DigitalBrain.DigitalBrainNames.Clustering), selected.ClusteringResourceName);
     }
 }

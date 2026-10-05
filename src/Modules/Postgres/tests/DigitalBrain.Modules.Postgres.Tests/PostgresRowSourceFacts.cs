@@ -1,4 +1,4 @@
-using DigitalBrain.Contracts.Data;
+using DigitalBrain.Data;
 using DigitalBrain.Postgres;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;

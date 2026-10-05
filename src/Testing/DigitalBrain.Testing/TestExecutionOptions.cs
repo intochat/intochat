@@ -22,7 +22,7 @@ public sealed record TestExecutionOptions
                 || key.StartsWith("Orleans:", StringComparison.OrdinalIgnoreCase)
                 || key.StartsWith("ConnectionStrings:", StringComparison.OrdinalIgnoreCase)
                 || key.StartsWith(Kernel.ModuleSettingsValidation.TestingSectionPrefix, StringComparison.OrdinalIgnoreCase)
-                || key.StartsWith(Contracts.DigitalBrainConfiguration.ModulesSectionName + ":", StringComparison.OrdinalIgnoreCase))
+                || key.StartsWith(DigitalBrainConfiguration.ModulesSectionName + ":", StringComparison.OrdinalIgnoreCase))
             { throw new ArgumentException("Private settings cannot override host-owned configuration."); }
         }
         foreach (var timeout in new[] { StartupTimeout, AssertionTimeout, CleanupTimeout })

@@ -1,6 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Contracts;
-using DigitalBrain.Contracts.Enforcement;
+using DigitalBrain.Enforcement;
 
 namespace DigitalBrain.Compute;
 

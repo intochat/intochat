@@ -6,7 +6,7 @@ using DigitalBrain.Platform.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddDigitalBrainClient(useAzureClustering: true);
-builder.AddKeyedAzureBlobServiceClient(DigitalBrain.Contracts.DigitalBrainNames.GrainState);
+builder.AddKeyedAzureBlobServiceClient(DigitalBrain.DigitalBrainNames.GrainState);
 builder.Services.AddCookieProtection();
 builder.Services.AddDigitalBrainMcp();
 

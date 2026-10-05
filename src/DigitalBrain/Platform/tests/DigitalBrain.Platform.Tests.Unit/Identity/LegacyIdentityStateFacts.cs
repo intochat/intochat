@@ -1,5 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Contracts;
+using DigitalBrain.Kernel;
 using DigitalBrain.Kernel.Platform.Identity;
 using DigitalBrain.Platform.Identity.Directory;
 using DigitalBrain.Platform.Identity.Grants;

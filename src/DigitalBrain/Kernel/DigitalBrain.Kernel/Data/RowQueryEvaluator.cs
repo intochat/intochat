@@ -1,5 +1,5 @@
 using System.Globalization;
-using DigitalBrain.Contracts.Data;
+using DigitalBrain.Data;
 
 namespace DigitalBrain.Kernel.Data;
 

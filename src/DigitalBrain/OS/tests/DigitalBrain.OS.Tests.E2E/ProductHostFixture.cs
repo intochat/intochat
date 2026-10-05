@@ -1,6 +1,7 @@
 using DigitalBrain.AI;
 using DigitalBrain.Apps;
-using DigitalBrain.Contracts;
+using DigitalBrain;
+using DigitalBrain.Kernel;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Aspire.Hosting;
 

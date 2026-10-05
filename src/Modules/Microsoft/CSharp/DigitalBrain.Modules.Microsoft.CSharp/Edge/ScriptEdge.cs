@@ -3,9 +3,9 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Client;
-using DigitalBrain.Contracts;
-using DigitalBrain.Contracts.Edge.V1;
-using DigitalBrain.Contracts.Enforcement;
+using DigitalBrain.Kernel;
+using DigitalBrain.Edge.V1;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
 
 namespace DigitalBrain.Microsoft.CSharp;

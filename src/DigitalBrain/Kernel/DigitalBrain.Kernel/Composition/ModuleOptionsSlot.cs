@@ -1,5 +1,6 @@
 using System.Text.Json;
-using DigitalBrain.Contracts;
+using DigitalBrain;
+using DigitalBrain.Kernel;
 
 namespace DigitalBrain.Kernel;
 

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using DigitalBrain;
-using DigitalBrain.Contracts;
-using DigitalBrain.Contracts.Enforcement;
+using DigitalBrain.Kernel;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
 
 namespace DigitalBrain.Postgres;

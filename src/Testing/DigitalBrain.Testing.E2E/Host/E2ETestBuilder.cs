@@ -1,4 +1,4 @@
-using DigitalBrain.Contracts;
+using DigitalBrain;
 using DigitalBrain.Kernel;
 
 namespace DigitalBrain.Testing.E2E;

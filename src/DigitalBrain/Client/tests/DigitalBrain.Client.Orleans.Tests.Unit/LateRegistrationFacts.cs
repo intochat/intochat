@@ -1,5 +1,4 @@
 using DigitalBrain;
-using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
 using DigitalBrain.Testing.Module;
 using Orleans;

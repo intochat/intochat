@@ -1,7 +1,6 @@
 using System.Text;
 using System.Text.Json;
 using DigitalBrain;
-using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
 using DigitalBrain.Kernel.Platform.Auth;
 using DigitalBrain.Salesforce.Signals;

@@ -1,5 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Contracts;
+using DigitalBrain.Kernel;
 using DigitalBrain.Flutter;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

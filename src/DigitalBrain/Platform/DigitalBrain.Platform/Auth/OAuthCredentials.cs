@@ -1,6 +1,6 @@
-using DigitalBrain.Contracts.Enforcement;
-using DigitalBrain.Contracts.Types;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Types;
 using DigitalBrain.Kernel.Platform.Auth;
 using DigitalBrain.Kernel.Platform.Secrets;
 using DigitalBrain.Kernel.Types;

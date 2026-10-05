@@ -1,4 +1,5 @@
 using DigitalBrain.Kernel;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Platform.Capacity;
 using DigitalBrain.Kernel.Platform.Identity;

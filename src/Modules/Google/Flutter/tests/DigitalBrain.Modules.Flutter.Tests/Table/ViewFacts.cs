@@ -1,4 +1,4 @@
-using DigitalBrain.Contracts.Data;
+using DigitalBrain.Data;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Chart;
 using DigitalBrain.Flutter.Table;

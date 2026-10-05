@@ -1,7 +1,7 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Aspire.Hosting;
-using DigitalBrain.Contracts;
+using DigitalBrain;
 using DigitalBrain.Kernel;
 using DigitalBrain.Postgres;
 using DigitalBrain.Postgres.Aspire.Hosting;

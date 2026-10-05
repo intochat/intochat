@@ -1,6 +1,6 @@
-using DigitalBrain.Contracts;
-using DigitalBrain.Aspire.Server;
+using DigitalBrain;
 using DigitalBrain.Kernel;
+using DigitalBrain.Aspire.Server;
 using DigitalBrain.OS;
 using DigitalBrain.Platform;
 using DigitalBrain.Platform.Identity;

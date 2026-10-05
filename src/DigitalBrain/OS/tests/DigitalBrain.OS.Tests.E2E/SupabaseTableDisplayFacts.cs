@@ -1,5 +1,6 @@
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Workspace;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Kernel.Platform.Identity;
 using DigitalBrain.Supabase.Tables;

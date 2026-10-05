@@ -1,5 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Contracts;
+using DigitalBrain.Kernel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 

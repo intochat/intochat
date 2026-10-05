@@ -1,7 +1,6 @@
 using DigitalBrain;
-using DigitalBrain.Contracts;
-using DigitalBrain.Flutter.VoiceInput.Signals;
 using DigitalBrain.Kernel;
+using DigitalBrain.Flutter.VoiceInput.Signals;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 

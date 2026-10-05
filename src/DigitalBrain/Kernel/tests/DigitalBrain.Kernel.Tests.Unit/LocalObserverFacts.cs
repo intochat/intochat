@@ -1,4 +1,4 @@
-using DigitalBrain.Contracts.Signals;
+using DigitalBrain.Signals;
 using Microsoft.Extensions.Logging.Abstractions;
 using Orleans.Runtime;
 

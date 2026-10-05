@@ -1,4 +1,4 @@
-using DigitalBrain.Contracts.Types;
+using DigitalBrain.Types;
 using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Tables;
 using DigitalBrain.Supabase.Tables.Signals;

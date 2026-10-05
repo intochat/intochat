@@ -1,4 +1,4 @@
-using DigitalBrain.Contracts.Types;
+using DigitalBrain.Types;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Form;
 using DigitalBrain.Kernel.Types;

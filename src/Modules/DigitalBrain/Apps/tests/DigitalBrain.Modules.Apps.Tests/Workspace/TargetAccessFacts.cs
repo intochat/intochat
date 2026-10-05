@@ -1,5 +1,5 @@
 using DigitalBrain.Apps;
-using DigitalBrain.Contracts.Enforcement;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
 
 namespace DigitalBrain.Modules.Apps.Tests.Workspace;
@@ -13,9 +13,9 @@ public sealed class TargetAccessFacts
         CallerContextStamper.Stamp(new() { PrincipalId = "owner", AccountId = "owner", BrainId = "alice", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
         try
         {
-            var foreign = brain.Get<DigitalBrain.Contracts.Integrations.IConnectionRequests>(BrainScope.Create("owner", "bob").Id);
+            var foreign = brain.Get<DigitalBrain.Integrations.IConnectionRequests>(BrainScope.Create("owner", "bob").Id);
             await Assert.ThrowsAsync<UnauthorizedAccessException>(foreign.ListPending);
-            var own = brain.Get<DigitalBrain.Contracts.Integrations.IConnectionRequests>(BrainScope.CurrentId());
+            var own = brain.Get<DigitalBrain.Integrations.IConnectionRequests>(BrainScope.CurrentId());
             Assert.Empty(await own.ListPending());
         }
         finally { Caller.Clear(); }

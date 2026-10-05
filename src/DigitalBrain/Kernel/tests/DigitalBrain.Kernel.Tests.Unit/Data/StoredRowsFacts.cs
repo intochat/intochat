@@ -1,4 +1,4 @@
-using DigitalBrain.Contracts.Data;
+using DigitalBrain.Data;
 using DigitalBrain.Testing.Module;
 using Xunit;
 

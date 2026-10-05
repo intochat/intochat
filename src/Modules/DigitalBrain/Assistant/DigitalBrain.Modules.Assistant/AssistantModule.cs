@@ -1,6 +1,6 @@
-using DigitalBrain.Contracts;
-using DigitalBrain.AI.Agents;
+using DigitalBrain;
 using DigitalBrain.Kernel;
+using DigitalBrain.AI.Agents;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;

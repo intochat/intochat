@@ -25,7 +25,6 @@ public sealed class CSharpScriptCheck
         global using System.Threading.Tasks;
         global using DigitalBrain.Client;
         global using DigitalBrain;
-        global using DigitalBrain.Contracts;
         """;
 
     private static readonly CSharpParseOptions Parse = new(LanguageVersion.Preview);

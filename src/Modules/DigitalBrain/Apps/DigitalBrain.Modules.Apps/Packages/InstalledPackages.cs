@@ -1,4 +1,5 @@
 using DigitalBrain.Apps;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
 
 namespace DigitalBrain.Apps;

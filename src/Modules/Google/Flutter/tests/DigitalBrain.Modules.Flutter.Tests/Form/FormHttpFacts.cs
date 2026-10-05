@@ -1,8 +1,9 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using DigitalBrain.Contracts.Types;
+using DigitalBrain.Types;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Form;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Testing;
 using Xunit;

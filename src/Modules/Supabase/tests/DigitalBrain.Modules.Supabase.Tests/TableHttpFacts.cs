@@ -1,9 +1,9 @@
 using System.Reflection;
 using DigitalBrain;
-using DigitalBrain.Contracts;
-using DigitalBrain.Contracts.Enforcement;
-using DigitalBrain.Flutter.Workspace;
+using DigitalBrain.Kernel;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Tables;
 using Microsoft.AspNetCore.Builder;

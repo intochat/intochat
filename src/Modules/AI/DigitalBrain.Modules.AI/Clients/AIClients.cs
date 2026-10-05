@@ -2,7 +2,7 @@ using DigitalBrain;
 using DigitalBrain.AI.Interactions;
 using DigitalBrain.AI.Metering;
 using DigitalBrain.Compute;
-using DigitalBrain.Contracts;
+using DigitalBrain.Kernel;
 using DigitalBrain.Kernel.Platform.Integrations;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;

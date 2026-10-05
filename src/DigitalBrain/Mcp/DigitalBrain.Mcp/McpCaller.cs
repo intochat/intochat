@@ -1,5 +1,5 @@
 using System.ComponentModel;
-using DigitalBrain.Contracts.Enforcement;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Configuration;

@@ -1,5 +1,6 @@
 using DigitalBrain.Aspire.Server;
-using DigitalBrain.Contracts;
+using DigitalBrain;
+using DigitalBrain.Kernel;
 
 namespace DigitalBrain.OS;
 

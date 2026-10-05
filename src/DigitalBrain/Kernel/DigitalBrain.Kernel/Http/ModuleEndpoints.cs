@@ -14,7 +14,7 @@ public static class ModuleEndpoints
         {
             Predicate = static registration => registration.Tags.Contains("live"),
         }).AllowAnonymous();
-        foreach (var module in app.Services.GetServices<DigitalBrain.Contracts.Module>())
+        foreach (var module in app.Services.GetServices<Module>())
         {
             if (module is IHttpModule http) { http.Configure(app); }
         }

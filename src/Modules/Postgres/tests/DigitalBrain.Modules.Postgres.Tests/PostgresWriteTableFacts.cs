@@ -1,5 +1,5 @@
 using System.Text.Json;
-using DigitalBrain.Contracts.Enforcement;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Postgres;
 using DigitalBrain.Kernel.Capacity;

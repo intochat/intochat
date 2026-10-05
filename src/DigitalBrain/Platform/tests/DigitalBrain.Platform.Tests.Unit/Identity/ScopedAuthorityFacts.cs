@@ -1,3 +1,4 @@
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Kernel.Platform.Identity;
 using DigitalBrain.Platform.Identity.Authority;
@@ -15,7 +16,7 @@ public sealed class ScopedAuthorityFacts
     public async Task RegistrationResumesAfterProvisioningFailsWithoutAllocatingAnotherAccount()
     {
         await using var brain = await ModuleTest.Create().ConfigureSilo(silo =>
-            silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrain.Contracts.DigitalBrainNames.DefaultGrainStorage,
+            silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrain.DigitalBrainNames.DefaultGrainStorage,
                 (services, _) => new FailOnceStorage(new OrleansGrainStorageSerializer(services.GetRequiredService<Serializer>()))))
             .StartAsync(TestContext.Current.CancellationToken);
         var principal = brain.Get<IPrincipal>("recoverable");
@@ -57,13 +58,13 @@ public sealed class ScopedAuthorityFacts
         await using var brain = await ModuleTest.Create().StartAsync(TestContext.Current.CancellationToken);
         var authority = brain.Get<IBrainAuthority>(BrainScope.Create("account", "brain").Id);
         await authority.EnsureMember(new Member { PrincipalId = "alice", AccountId = "account", BrainId = "brain", DisplayName = "Alice", Role = MemberRole.Owner });
-        var caller = new DigitalBrain.Contracts.Enforcement.CallerContext
+        var caller = new DigitalBrain.Enforcement.CallerContext
         {
             PrincipalId = "alice",
             AccountId = "account",
             BrainId = "brain",
-            Kind = DigitalBrain.Contracts.Enforcement.CallerKind.User,
-            StampedBy = DigitalBrain.Contracts.Enforcement.TrustedEdge.AuthenticatedHttp
+            Kind = DigitalBrain.Enforcement.CallerKind.User,
+            StampedBy = DigitalBrain.Enforcement.TrustedEdge.AuthenticatedHttp
         };
         var grant = new Grant { AppId = "app", WorkspaceId = "brain", SemanticTypeId = "person.email", Mode = GrantMode.Always };
         await authority.GrantAsOwner(caller, grant);

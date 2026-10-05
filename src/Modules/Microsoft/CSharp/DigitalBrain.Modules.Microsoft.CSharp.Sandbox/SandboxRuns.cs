@@ -54,7 +54,6 @@ internal sealed partial class SandboxRuns(IScriptLauncher launcher, IOptions<San
           <ItemGroup>
             <ProjectReference Include="{clientProject}" />
             <Using Include="DigitalBrain" />
-            <Using Include="DigitalBrain.Contracts" />
             <Using Include="DigitalBrain.Client" />
           </ItemGroup>
         </Project>

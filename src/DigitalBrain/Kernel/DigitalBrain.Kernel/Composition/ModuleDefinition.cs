@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
-using DigitalBrain.Contracts;
+using DigitalBrain;
+using DigitalBrain.Kernel;
 using Orleans.Hosting;
 
 namespace DigitalBrain.Kernel;

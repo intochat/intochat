@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using DigitalBrain;
-using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
 using DigitalBrain.Specs.Signals;
 using Microsoft.Extensions.DependencyInjection;

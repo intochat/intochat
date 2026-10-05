@@ -1,5 +1,5 @@
 using System.Text.Json.Serialization;
-using DigitalBrain.Contracts;
+using DigitalBrain;
 using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Supabase;

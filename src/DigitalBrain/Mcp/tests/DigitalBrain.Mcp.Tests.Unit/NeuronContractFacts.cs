@@ -1,5 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Contracts;
+using DigitalBrain.Kernel;
 using DigitalBrain.Mcp;
 using DigitalBrain.Kernel.Platform.Integrations;
 

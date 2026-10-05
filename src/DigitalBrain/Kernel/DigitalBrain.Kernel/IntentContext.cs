@@ -1,4 +1,3 @@
-using DigitalBrain.Contracts;
 namespace DigitalBrain.Kernel;
 
 public sealed class IntentContext : IDisposable

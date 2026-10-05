@@ -1,7 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.AI.Metering;
 using DigitalBrain.Compute;
-using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
 
 namespace DigitalBrain.Assistant;

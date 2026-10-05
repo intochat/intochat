@@ -1,5 +1,4 @@
 using DigitalBrain;
-using DigitalBrain.Contracts;
 namespace DigitalBrain.Time.Timers.Signals;
 
 [GenerateSerializer, Alias("time.timer-tick")]

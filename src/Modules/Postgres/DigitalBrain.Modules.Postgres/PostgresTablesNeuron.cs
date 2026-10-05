@@ -1,7 +1,7 @@
 using System.Text.Json;
 using DigitalBrain;
-using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
 using Orleans.Runtime;
 
@@ -113,7 +113,7 @@ internal sealed class PostgresLifecycleGuard : IIncomingGrainCallFilter
             if (scope.Length != 2 || scope[0] != BrainScope.CurrentId())
             { throw new UnauthorizedAccessException("This storage belongs to another brain."); }
             var storageCaller = CallerContextStamper.Require();
-            if (!CallerContextStamper.IsTrusted(storageCaller) || (context.InterfaceMethod.Name == nameof(IPostgresAppStorage.ReadTables) && storageCaller.Kind == DigitalBrain.Contracts.Enforcement.CallerKind.App))
+            if (!CallerContextStamper.IsTrusted(storageCaller) || (context.InterfaceMethod.Name == nameof(IPostgresAppStorage.ReadTables) && storageCaller.Kind == DigitalBrain.Enforcement.CallerKind.App))
             { throw new UnauthorizedAccessException("Only trusted host code may access app storage."); }
             if (context.InterfaceMethod.Name == nameof(IPostgresAppStorage.Migrate)
                 && (context.SourceId?.Type.ToString() != "apps.app" || context.SourceId?.Key.ToString() != scope[1]))
@@ -139,7 +139,7 @@ internal sealed class PostgresLifecycleGuard : IIncomingGrainCallFilter
         }
         if (contract == typeof(IPostgresStorageMigration)
             && context.SourceId?.Type.ToString() != "apps.app"
-            && (!CallerContextStamper.TryGet(out var caller) || caller.Kind != DigitalBrain.Contracts.Enforcement.CallerKind.Platform))
+            && (!CallerContextStamper.TryGet(out var caller) || caller.Kind != DigitalBrain.Enforcement.CallerKind.Platform))
         { throw new UnauthorizedAccessException("Only platform startup or Apps may prepare storage migration."); }
         if (contract == typeof(IPostgresTables) || contract == typeof(IPostgresTableLifetime))
         {

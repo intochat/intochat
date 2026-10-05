@@ -1,11 +1,11 @@
 using DigitalBrain.Client;
 using DigitalBrain.Client.Orleans;
-using DigitalBrain.Contracts;
+using DigitalBrain;
 using DigitalBrain.Kernel;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 using Orleans.Hosting;
-using ModuleContract = DigitalBrain.Contracts.Module;
+using ModuleContract = DigitalBrain.Kernel.Module;
 
 namespace DigitalBrain.Testing.Module;
 

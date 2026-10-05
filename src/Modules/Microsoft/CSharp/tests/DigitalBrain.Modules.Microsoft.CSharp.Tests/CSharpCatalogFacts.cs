@@ -1,6 +1,5 @@
 using System.Reflection;
 using DigitalBrain;
-using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
 using DigitalBrain.Microsoft.CSharp;
 

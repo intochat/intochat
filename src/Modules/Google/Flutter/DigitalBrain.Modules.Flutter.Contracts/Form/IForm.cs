@@ -1,6 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Contracts;
-using DigitalBrain.Contracts.Types;
+using DigitalBrain.Types;
 using Orleans;
 using Orleans.Concurrency;
 

@@ -1,6 +1,6 @@
-using DigitalBrain.Contracts;
-using DigitalBrain.AI.Agents;
+using DigitalBrain;
 using DigitalBrain.Kernel;
+using DigitalBrain.AI.Agents;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;

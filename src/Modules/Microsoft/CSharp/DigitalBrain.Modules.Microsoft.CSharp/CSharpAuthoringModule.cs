@@ -1,5 +1,6 @@
-using DigitalBrain.Contracts;
+using DigitalBrain;
 using DigitalBrain.Kernel;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;

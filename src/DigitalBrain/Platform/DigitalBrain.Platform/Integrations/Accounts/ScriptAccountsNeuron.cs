@@ -1,7 +1,6 @@
 using DigitalBrain;
-using DigitalBrain.Contracts;
-using DigitalBrain.Contracts.Integrations;
 using DigitalBrain.Kernel;
+using DigitalBrain.Integrations;
 using DigitalBrain.Kernel.Platform.Integrations;
 using Orleans.Concurrency;
 

@@ -1,6 +1,7 @@
 using DigitalBrain;
-using DigitalBrain.Contracts;
-using DigitalBrain.Contracts.Enforcement;
+using DigitalBrain.Kernel;
+using DigitalBrain.Enforcement;
+using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Kernel.Platform.Integrations;
 
 namespace DigitalBrain.Google.Gmail;

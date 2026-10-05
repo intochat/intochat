@@ -1,5 +1,5 @@
 using System.Reflection;
-using DigitalBrain.Contracts.Types;
+using DigitalBrain.Types;
 using DigitalBrain.Flutter.TextField;
 using DigitalBrain.Kernel.Types;
 

@@ -3,7 +3,6 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.AI.Agents.Signals;
-using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

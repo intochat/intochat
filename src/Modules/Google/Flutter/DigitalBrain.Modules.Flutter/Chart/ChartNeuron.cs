@@ -1,10 +1,9 @@
 using System.Globalization;
 using DigitalBrain;
-using DigitalBrain.Contracts;
-using DigitalBrain.Contracts.Data;
+using DigitalBrain.Kernel;
+using DigitalBrain.Data;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Chart.Signals;
-using DigitalBrain.Kernel;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 

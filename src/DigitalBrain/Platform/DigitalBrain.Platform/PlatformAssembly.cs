@@ -1,4 +1,4 @@
 using DigitalBrain;
-using DigitalBrain.Contracts;
+using DigitalBrain.Kernel;
 
 [assembly: PlatformAssembly]

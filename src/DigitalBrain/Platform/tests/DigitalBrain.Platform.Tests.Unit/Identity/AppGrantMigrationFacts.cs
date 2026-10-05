@@ -1,4 +1,4 @@
-using DigitalBrain.Contracts.Enforcement;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Kernel.Platform.Identity;
 using DigitalBrain.Platform.Identity.Authority;
@@ -50,7 +50,7 @@ public sealed class AppGrantMigrationFacts
     public async Task AGrantMoveWhoseSavedResponseWasLostResumesWithoutRestoringLaterRevocations()
     {
         await using var brain = await ModuleTest.Create().ConfigureSilo(silo =>
-            silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrain.Contracts.DigitalBrainNames.DefaultGrainStorage,
+            silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrain.DigitalBrainNames.DefaultGrainStorage,
                 (services, _) => new LostMigrationResponse(new OrleansGrainStorageSerializer(services.GetRequiredService<Serializer>()))))
             .StartAsync(TestContext.Current.CancellationToken);
         var authority = brain.Get<IBrainAuthority>(BrainScope.Create("account", "brain").Id);

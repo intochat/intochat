@@ -1,4 +1,4 @@
-using DigitalBrain.Contracts;
+using DigitalBrain;
 using DigitalBrain.Kernel;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;

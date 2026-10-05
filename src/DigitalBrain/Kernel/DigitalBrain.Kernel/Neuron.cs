@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
 using System.Reflection;
 using DigitalBrain;
-using DigitalBrain.Contracts;
-using DigitalBrain.Contracts.Signals;
+using DigitalBrain.Kernel;
+using DigitalBrain.Signals;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

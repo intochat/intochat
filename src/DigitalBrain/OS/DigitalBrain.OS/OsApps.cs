@@ -1,7 +1,7 @@
 using DigitalBrain.Apps;
-using DigitalBrain.Contracts.Enforcement;
-using DigitalBrain.Kernel;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Kernel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

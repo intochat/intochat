@@ -1,3 +1,4 @@
+using ArchUnitNET.Fluent;
 using ArchUnitNET.xUnitV3;
 using DigitalBrain.Kernel;
 using DigitalBrain.Kernel.Platform.Identity;
@@ -12,18 +13,19 @@ public sealed class BoundaryFacts
 {
     private static readonly string[] KernelLayers =
     [
-        "DigitalBrain", "DigitalBrain.Contracts", "DigitalBrain.Kernel.Platform", "DigitalBrain.Client", "DigitalBrain.Client.Orleans",
-        "DigitalBrain.Kernel", "DigitalBrain.Kernel", "DigitalBrain.Kernel", "DigitalBrain.Platform"
+        "DigitalBrain", "DigitalBrain.Client", "DigitalBrain.Client.Orleans",
+        "DigitalBrain.Kernel", "DigitalBrain.Platform"
     ];
 
     [Theory]
+    [InlineData("DigitalBrain", "DigitalBrain.Kernel")]
     [InlineData("DigitalBrain.Kernel", "DigitalBrain.Client")]
     [InlineData("DigitalBrain.Kernel", "DigitalBrain.Client.Orleans")]
-    [InlineData("DigitalBrain.Kernel", "DigitalBrain.Kernel.Platform")]
-    [InlineData("DigitalBrain.Client", "DigitalBrain.Kernel.Platform")]
-    [InlineData("DigitalBrain.Client.Orleans", "DigitalBrain.Kernel.Platform")]
+    [InlineData("DigitalBrain.Kernel", "DigitalBrain.Platform")]
+    [InlineData("DigitalBrain.Client", "DigitalBrain.Platform")]
+    [InlineData("DigitalBrain.Client.Orleans", "DigitalBrain.Platform")]
     public void CoreBoundariesDoNotInvert(string source, string forbidden)
-        => Types().That().ResideInAssembly(ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == source)).Should().NotDependOnAny(Types().That().ResideInAssembly(ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == forbidden)))
+        => ArchRuleDefinition.Types().That().ResideInAssembly(ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == source)).Should().NotDependOnAny(ArchRuleDefinition.Types().That().ResideInAssembly(ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == forbidden)))
             .Check(ProductionArchitecture.Graph.Value);
 
     [Fact]
@@ -33,12 +35,12 @@ public sealed class BoundaryFacts
         foreach (var (name, index) in KernelLayers.Select((name, index) => (name, index)))
         {
             var assembly = Assert.Single(ProductionArchitecture.Assemblies, assembly => assembly.GetName().Name == name);
-            var layer = Types().That().ResideInAssembly(assembly);
+            var layer = ArchRuleDefinition.Types().That().ResideInAssembly(assembly);
             Assert.NotEmpty(layer.GetObjects(architecture));
             foreach (var forbidden in ProductionArchitecture.Assemblies.Where(candidate =>
                 !KernelLayers.Take(index + 1).Contains(candidate.GetName().Name)))
             {
-                Types().That().ResideInAssembly(assembly).Should().NotDependOnAny(Types().That().ResideInAssembly(forbidden))
+                ArchRuleDefinition.Types().That().ResideInAssembly(assembly).Should().NotDependOnAny(ArchRuleDefinition.Types().That().ResideInAssembly(forbidden))
                     .Because("kernel layers only depend on inward layers, never feature modules").Check(architecture);
             }
         }
@@ -48,12 +50,12 @@ public sealed class BoundaryFacts
     public void FeatureModulesNeverDependOnTheCredentialImplementation()
     {
         var architecture = ProductionArchitecture.Graph.Value;
-        var platform = Types().That().ResideInAssembly("DigitalBrain.Platform");
+        var platform = ArchRuleDefinition.Types().That().ResideInAssembly("DigitalBrain.Platform");
         var modules = ProductionArchitecture.Assemblies.Where(assembly => !KernelLayers.Contains(assembly.GetName().Name)).ToArray();
         Assert.NotEmpty(modules);
         foreach (var assembly in modules)
         {
-            Types().That().ResideInAssembly(assembly).Should().NotDependOnAny(platform).Check(architecture);
+            ArchRuleDefinition.Types().That().ResideInAssembly(assembly).Should().NotDependOnAny(platform).Check(architecture);
         }
     }
 
@@ -69,8 +71,8 @@ public sealed class BoundaryFacts
         {
             foreach (var implementation in runtime)
             {
-                Types().That().ResideInAssembly(contract).Should()
-                    .NotDependOnAny(Types().That().ResideInAssembly(implementation))
+                ArchRuleDefinition.Types().That().ResideInAssembly(contract).Should()
+                    .NotDependOnAny(ArchRuleDefinition.Types().That().ResideInAssembly(implementation))
                     .Check(ProductionArchitecture.Graph.Value);
             }
         }
@@ -86,7 +88,7 @@ public sealed class BoundaryFacts
         Assert.Contains(typeof(IGrantStore), contracts);
         foreach (var contract in contracts)
         {
-            Interfaces().That().Are(contract).Should().ResideInAssembly(typeof(ISecrets).Assembly)
+            ArchRuleDefinition.Interfaces().That().Are(contract).Should().ResideInAssembly(typeof(ISecrets).Assembly)
                 .Check(ProductionArchitecture.Graph.Value);
         }
     }
@@ -115,7 +117,7 @@ public sealed class BoundaryFacts
     {
         for (var current = type.BaseType; current is not null; current = current.BaseType)
         {
-            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(DigitalBrain.Contracts.Module<>))
+            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(DigitalBrain.Kernel.Module<>))
             { return current.GetGenericArguments()[0]; }
         }
         return null;

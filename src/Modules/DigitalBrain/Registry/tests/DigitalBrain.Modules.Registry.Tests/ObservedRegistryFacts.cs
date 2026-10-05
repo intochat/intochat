@@ -1,8 +1,7 @@
 using System.ComponentModel;
 using DigitalBrain;
-using DigitalBrain.Contracts;
-using DigitalBrain.Contracts.Signals;
 using DigitalBrain.Kernel;
+using DigitalBrain.Signals;
 using DigitalBrain.Kernel.Platform.Integrations;
 using DigitalBrain.Registry;
 using DigitalBrain.Time;

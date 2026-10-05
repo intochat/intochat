@@ -21,7 +21,7 @@ public sealed class DigitalBrainDeploymentFacts
             "brain": {
               "type": "project.v0",
               "env": {
-                "{{Contracts.DigitalBrainConfiguration.EnvironmentName(Contracts.DigitalBrainConfiguration.ModulesSectionName)}}__0": "Some.Module, Some.Assembly",
+                "{{DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ModulesSectionName)}}__0": "Some.Module, Some.Assembly",
                 "HTTP_PORTS": "{brain.bindings.http.targetPort}",
                 "PublicOrigin": "{brain.bindings.http.url}",
                 "ConnectionStrings__clustering": "{clustering.connectionString}",
@@ -91,7 +91,7 @@ public sealed class DigitalBrainDeploymentFacts
 
     private sealed class VectorsDeployment : IDigitalBrainModuleDeployment
     {
-        public DigitalBrain.Contracts.ModuleId Module { get; } = new("vectors");
+        public DigitalBrain.ModuleId Module { get; } = new("vectors");
         public void Deploy(ModuleDeploymentContext context) => context.Provide("vectors", "bindings.grpc.url", "https://vectors.internal");
     }
 }

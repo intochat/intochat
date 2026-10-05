@@ -1,4 +1,4 @@
-using DigitalBrain.Contracts;
+using DigitalBrain;
 using DigitalBrain.Kernel;
 using DigitalBrain.Kernel.Vectors;
 using Microsoft.Extensions.AI;

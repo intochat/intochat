@@ -1,6 +1,6 @@
-using DigitalBrain.Contracts;
-using DigitalBrain.Flutter.Workspace;
+using DigitalBrain;
 using DigitalBrain.Kernel;
+using DigitalBrain.Flutter.Workspace;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

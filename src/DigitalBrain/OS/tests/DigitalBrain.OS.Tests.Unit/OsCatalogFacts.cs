@@ -1,5 +1,6 @@
 using DigitalBrain.Aspire.Server;
-using DigitalBrain.Contracts;
+using DigitalBrain;
+using DigitalBrain.Kernel;
 using DigitalBrain.OS;
 
 namespace DigitalBrain.OS.Tests.Unit;

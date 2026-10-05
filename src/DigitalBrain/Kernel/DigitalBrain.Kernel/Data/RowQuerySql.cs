@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
-using DigitalBrain.Contracts.Data;
+using DigitalBrain.Data;
 
 namespace DigitalBrain.Kernel.Data;
 

@@ -1,5 +1,6 @@
-using DigitalBrain.Contracts;
-using DigitalBrain.Contracts.Edge.V1;
+using DigitalBrain;
+using DigitalBrain.Kernel;
+using DigitalBrain.Edge.V1;
 using DigitalBrain.Microsoft.CSharp.Sandbox;
 using Microsoft.Extensions.Options;
 using Xunit;

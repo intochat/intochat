@@ -1,6 +1,5 @@
 using System.Runtime.CompilerServices;
 using DigitalBrain;
-using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
 using Microsoft.Extensions.AI;
 

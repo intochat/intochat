@@ -3,7 +3,7 @@ namespace DigitalBrain.Flutter.Aspire.Hosting;
 public sealed class FlutterHostOptions
 {
     public static readonly string SectionName =
-        DigitalBrain.Contracts.DigitalBrainConfiguration.ModuleSection(new DigitalBrain.Contracts.ModuleId("flutter")) + ":Hosting";
+        DigitalBrain.DigitalBrainConfiguration.ModuleSection(new DigitalBrain.ModuleId("flutter")) + ":Hosting";
     public static readonly string WebContainerKey = SectionName + ":WebContainer";
 
     // Read in the AppHost process, which the OS-side LegacyConfigurationGuard never sees;

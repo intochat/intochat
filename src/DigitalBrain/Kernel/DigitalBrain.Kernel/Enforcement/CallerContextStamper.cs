@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
-using DigitalBrain.Contracts.Enforcement;
+using DigitalBrain.Enforcement;
+using DigitalBrain.Kernel.Enforcement;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Kernel.Enforcement;

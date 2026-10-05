@@ -1,4 +1,5 @@
 using DigitalBrain.Kernel;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Kernel.Platform.Integrations.Accounts;
 using DigitalBrain.Kernel.Integrations.Accounts;
@@ -35,7 +36,7 @@ internal static class AccountEndpoints
         });
 
         group.MapGet("/requests", async (IGrainFactory grains) =>
-            Results.Ok(await grains.GetGrain<DigitalBrain.Contracts.Integrations.IConnectionRequests>(CurrentScope().Id).ListPending()));
+            Results.Ok(await grains.GetGrain<DigitalBrain.Integrations.IConnectionRequests>(CurrentScope().Id).ListPending()));
 
         group.MapPost("/connect", async (ConnectAccountInput input, IGrainFactory grains, CancellationToken cancellationToken) =>
         {

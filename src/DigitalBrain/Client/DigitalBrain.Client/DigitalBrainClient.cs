@@ -1,5 +1,5 @@
 using System.Net.Http.Headers;
-using DigitalBrain.Contracts.Edge.V1;
+using DigitalBrain.Edge.V1;
 using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Client;

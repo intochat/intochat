@@ -1,6 +1,6 @@
 using DigitalBrain.Client;
 using DigitalBrain.Client.Orleans;
-using DigitalBrain.Contracts;
+using DigitalBrain;
 using DigitalBrain.ServiceDefaults;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Hosting;

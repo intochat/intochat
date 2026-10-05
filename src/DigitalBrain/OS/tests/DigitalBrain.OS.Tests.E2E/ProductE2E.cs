@@ -67,7 +67,7 @@ internal static class ProductE2E
                 // host (IntoChatHostFixture) pays that once; private hosts opt out by default.
                 ResourceEnvironment = new Dictionary<string, string>(StringComparer.Ordinal)
                 {
-                    [Contracts.DigitalBrainConfiguration.EnvironmentName(ShippedAppsServiceCollectionExtensions.ShipOnStartupKey)] = "false",
+                    [DigitalBrainConfiguration.EnvironmentName(ShippedAppsServiceCollectionExtensions.ShipOnStartupKey)] = "false",
                 },
                 PrivateConfiguration = Merge(new Dictionary<string, string?>
                 {

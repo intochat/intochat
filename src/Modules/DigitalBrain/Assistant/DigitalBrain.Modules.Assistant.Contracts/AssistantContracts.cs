@@ -1,7 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
-using DigitalBrain.Contracts;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Chat;
 using Orleans.Concurrency;

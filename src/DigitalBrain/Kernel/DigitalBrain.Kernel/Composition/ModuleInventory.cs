@@ -20,15 +20,14 @@ public sealed class ModuleInventory
     public IReadOnlyList<Assembly> ContractAssemblies()
         => [.. Types.Select(module => module.Assembly).Distinct()
             .SelectMany(ContractAssembliesOf)
-            .Prepend(typeof(Contracts.DigitalBrainNames).Assembly)
             .Prepend(typeof(INeuron).Assembly)
-            .Where(assembly => !Contracts.PlatformAssemblyAttribute.IsPlatform(assembly))
+            .Where(assembly => !PlatformAssemblyAttribute.IsPlatform(assembly))
             .Distinct()];
 
     public static IReadOnlyList<Assembly> ContractAssembliesOf(Assembly module)
     {
         ArgumentNullException.ThrowIfNull(module);
-        if (Contracts.PlatformAssemblyAttribute.IsPlatform(module)) { return []; }
+        if (PlatformAssemblyAttribute.IsPlatform(module)) { return []; }
         var contracts = module.GetReferencedAssemblies()
             .Where(reference => reference.Name == module.GetName().Name + ".Contracts")
             .Select(Assembly.Load).ToArray();

@@ -1,5 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Contracts;
+using DigitalBrain.Kernel;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Testing.Module;
 using Microsoft.AspNetCore.Builder;

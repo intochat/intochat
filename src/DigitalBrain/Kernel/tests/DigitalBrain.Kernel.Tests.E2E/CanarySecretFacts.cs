@@ -74,7 +74,7 @@ public sealed class CanarySecretFacts(ReferenceBrainFixture host)
         const string workspace = "form-canary";
         var scope = Scope(Owner, workspace);
         var form = brain.Get<DigitalBrain.Flutter.Form.IForm>(scope + "/apps/forms/intake");
-        await form.Define(new("Intake", [new("password", "Password", DigitalBrain.Contracts.Types.FieldKind.Secret)]));
+        await form.Define(new("Intake", [new("password", "Password", DigitalBrain.Types.FieldKind.Secret)]));
 
         using var seeded = await brain.HttpClient.PostAsJsonAsync(
             $"/secrets/{Owner}",

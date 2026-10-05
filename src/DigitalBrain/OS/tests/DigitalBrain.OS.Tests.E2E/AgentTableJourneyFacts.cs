@@ -6,6 +6,7 @@ using DigitalBrain.AI.Agents;
 using DigitalBrain.Assistant;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Workspace;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Kernel.Platform.Identity;
 using DigitalBrain.Testing.E2E.Workspace;

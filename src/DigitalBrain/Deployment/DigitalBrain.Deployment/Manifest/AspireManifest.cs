@@ -8,7 +8,7 @@ namespace DigitalBrain.Deployment;
 public sealed partial class AspireManifest
 {
     private static readonly string ModulesEnvironmentPrefix =
-        Contracts.DigitalBrainConfiguration.EnvironmentName(Contracts.DigitalBrainConfiguration.ModulesSectionName) + "__";
+        DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ModulesSectionName) + "__";
 
     private readonly Dictionary<string, JsonElement> _resources;
 
@@ -91,11 +91,11 @@ public sealed partial class AspireManifest
 
     // The composed module ids the runtime's environment already carries under the one grammar:
     // DigitalBrain__Modules__{id}__… keys. The numeric type-name array is legacy and is not an id.
-    public IReadOnlyList<Contracts.ModuleId> ComposedModuleIds(string runtime)
+    public IReadOnlyList<ModuleId> ComposedModuleIds(string runtime)
         => [.. Environment(runtime).Keys
             .Where(key => key.StartsWith(ModulesEnvironmentPrefix, StringComparison.Ordinal))
             .Select(key => key[ModulesEnvironmentPrefix.Length..].Split("__", 2)[0])
             .Where(id => id.Length > 0 && !int.TryParse(id, out _))
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Select(id => new Contracts.ModuleId(id))];
+            .Select(id => new ModuleId(id))];
 }

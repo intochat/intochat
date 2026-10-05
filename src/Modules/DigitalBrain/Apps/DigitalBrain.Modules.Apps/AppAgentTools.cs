@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using DigitalBrain;
 using DigitalBrain.AI.Agents;
-using DigitalBrain.Contracts;
+using DigitalBrain.Kernel;
 using Microsoft.Extensions.AI;
 
 namespace DigitalBrain.Apps;

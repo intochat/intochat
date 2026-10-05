@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using DigitalBrain;
-using DigitalBrain.Contracts;
+using DigitalBrain.Kernel;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.AspNetCore.Builder;

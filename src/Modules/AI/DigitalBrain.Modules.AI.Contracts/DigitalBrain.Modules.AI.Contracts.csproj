@@ -9,6 +9,6 @@
     <PackageReference Include="Microsoft.Extensions.AI.Abstractions" />
     <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
     <!-- Neuron interfaces and signals use the Kernel wire vocabulary. -->
-    <ProjectReference Include="../../../DigitalBrain/DigitalBrain.Contracts/DigitalBrain.Contracts.csproj" />
+    <ProjectReference Include="../../../DigitalBrain/DigitalBrain/DigitalBrain.csproj" />
   </ItemGroup>
 </Project>

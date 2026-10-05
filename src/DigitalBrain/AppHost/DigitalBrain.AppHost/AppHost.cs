@@ -59,7 +59,7 @@ var intoChatApps = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..",
 
 var runtime = builder.AddProject<Projects.DigitalBrain_OS>("IntoChat")
     .WithReference(digitalBrain)
-    .WithEnvironment(DigitalBrain.Contracts.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsPathKey), intoChatApps)
+    .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsPathKey), intoChatApps)
     .WaitFor(cookieProtection)
     .WithHttpEndpoint(
         port: builder.Configuration.GetValue(UiPortKey, 5080),

@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Slider;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Kernel.Platform.Identity;
 

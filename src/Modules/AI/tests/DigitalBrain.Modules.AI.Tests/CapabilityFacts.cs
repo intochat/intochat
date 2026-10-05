@@ -1,7 +1,8 @@
 using DigitalBrain;
 using DigitalBrain.AI;
-using DigitalBrain.Contracts;
-using DigitalBrain.Contracts.Enforcement;
+using DigitalBrain.Kernel;
+using DigitalBrain.Enforcement;
+using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Kernel.Platform.Integrations;
 using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;

@@ -1,7 +1,8 @@
 using DigitalBrain;
-using DigitalBrain.Contracts;
-using DigitalBrain.Contracts.Enforcement;
-using DigitalBrain.Contracts.Types;
+using DigitalBrain.Kernel;
+using DigitalBrain.Enforcement;
+using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Types;
 
 namespace DigitalBrain.Kernel.Platform.Secrets;
 

@@ -1,5 +1,4 @@
 using DigitalBrain;
-using DigitalBrain.Contracts;
 
 namespace DigitalBrain.Supabase.Tables.Signals;
 

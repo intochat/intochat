@@ -1,5 +1,5 @@
 using Aspire.Hosting;
-using DigitalBrain.Contracts;
+using DigitalBrain;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Aspire.Hosting;
 using Microsoft.Extensions.Configuration;

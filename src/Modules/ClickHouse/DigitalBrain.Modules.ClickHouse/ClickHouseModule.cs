@@ -1,6 +1,6 @@
-using DigitalBrain.Contracts;
-using ClickHouse.Driver;
+using DigitalBrain;
 using DigitalBrain.Kernel;
+using ClickHouse.Driver;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;

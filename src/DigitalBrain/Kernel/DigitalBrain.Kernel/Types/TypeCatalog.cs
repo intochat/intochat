@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
-using DigitalBrain.Contracts.Types;
+using DigitalBrain.Types;
 using DigitalBrain.Kernel.Types;
 
 namespace DigitalBrain.Kernel.Types;

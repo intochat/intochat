@@ -1,7 +1,8 @@
 using System.Collections.Concurrent;
 using DigitalBrain;
-using DigitalBrain.Contracts;
-using DigitalBrain.Contracts.Enforcement;
+using DigitalBrain.Kernel;
+using DigitalBrain.Enforcement;
+using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Kernel.Platform.Integrations;
 using Microsoft.Extensions.Logging;
 

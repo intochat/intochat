@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using DigitalBrain;
-using DigitalBrain.Contracts;
+using DigitalBrain.Kernel;
 using Orleans;
 using Orleans.Runtime;
 

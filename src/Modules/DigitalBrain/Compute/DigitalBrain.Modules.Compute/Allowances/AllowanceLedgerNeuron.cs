@@ -1,7 +1,7 @@
 using DigitalBrain;
-using DigitalBrain.Contracts;
-using DigitalBrain.Contracts.Enforcement;
 using DigitalBrain.Kernel;
+using DigitalBrain.Enforcement;
+using DigitalBrain.Kernel.Enforcement;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Compute.Allowances;

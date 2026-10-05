@@ -1,8 +1,8 @@
-using DigitalBrain.Contracts;
+using DigitalBrain;
+using DigitalBrain.Kernel;
 using System.Reflection;
 using Aspire.Hosting;
 using DigitalBrain.Aspire.Hosting;
-using DigitalBrain.Kernel;
 
 namespace DigitalBrain.Testing.E2E;
 

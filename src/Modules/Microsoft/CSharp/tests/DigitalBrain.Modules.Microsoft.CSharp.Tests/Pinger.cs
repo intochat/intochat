@@ -1,6 +1,6 @@
 using DigitalBrain;
-using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;

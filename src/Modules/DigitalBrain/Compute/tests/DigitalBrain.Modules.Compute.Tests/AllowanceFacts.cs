@@ -2,7 +2,8 @@ using DigitalBrain.Compute;
 using DigitalBrain.Compute.Allowances;
 using DigitalBrain.Compute.Billing;
 using DigitalBrain.Compute.Metering;
-using DigitalBrain.Contracts.Enforcement;
+using DigitalBrain.Enforcement;
+using DigitalBrain.Kernel.Enforcement;
 
 namespace DigitalBrain.Modules.Compute.Tests;
 

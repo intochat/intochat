@@ -1,6 +1,6 @@
-using DigitalBrain.Contracts.Enforcement;
-using DigitalBrain.Kernel;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Kernel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -20,7 +20,7 @@ public static class BrainHosting
         silo.Services.TryAddSingleton<ICallFilter, CallFilter>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, NeuronCallFilter>());
         silo.Services.TryAddSingleton<LocalSignalHub>();
-        silo.Services.TryAddSingleton<DigitalBrain.Contracts.Signals.ILocalSignalHub>(sp => sp.GetRequiredService<LocalSignalHub>());
+        silo.Services.TryAddSingleton<DigitalBrain.Signals.ILocalSignalHub>(sp => sp.GetRequiredService<LocalSignalHub>());
         silo.Services.AddOptions<ObserverOptions>().Validate(options => options.Lease > TimeSpan.Zero, "Observer lease must be positive.").ValidateOnStart();
         return silo;
     }

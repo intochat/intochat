@@ -1,7 +1,8 @@
 using System.Text;
 using DigitalBrain;
-using DigitalBrain.Contracts;
-using DigitalBrain.Contracts.Enforcement;
+using DigitalBrain.Kernel;
+using DigitalBrain.Enforcement;
+using DigitalBrain.Kernel.Enforcement;
 using Orleans.Concurrency;
 
 // Orleans aliases retain the original wire identities across the SDK namespace rename.

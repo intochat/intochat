@@ -1,6 +1,7 @@
 using DigitalBrain.Files;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Collection;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Kernel.Platform.Identity;
 using DigitalBrain.Testing.Module;

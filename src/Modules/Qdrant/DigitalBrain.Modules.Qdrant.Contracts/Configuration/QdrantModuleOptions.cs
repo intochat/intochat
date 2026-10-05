@@ -1,4 +1,4 @@
-using DigitalBrain.Contracts;
+using DigitalBrain;
 namespace DigitalBrain.Qdrant;
 
 public sealed class QdrantModuleOptions : IModuleOptions

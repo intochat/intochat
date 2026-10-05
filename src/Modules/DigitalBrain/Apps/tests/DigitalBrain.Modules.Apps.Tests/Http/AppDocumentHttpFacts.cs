@@ -2,7 +2,8 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using DigitalBrain.Apps;
-using DigitalBrain.Contracts;
+using DigitalBrain;
+using DigitalBrain.Kernel;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Modules.Apps.Tests.Http;

@@ -2,8 +2,8 @@ namespace DigitalBrain.Kernel.Tests.Unit;
 
 public sealed class ModuleFacts
 {
-    private sealed class ExampleOptions : DigitalBrain.Contracts.IModuleOptions { public void Validate() { } }
-    private sealed class ExampleModule() : DigitalBrain.Contracts.Module<ExampleOptions>(new("example"))
+    private sealed class ExampleOptions : DigitalBrain.IModuleOptions { public void Validate() { } }
+    private sealed class ExampleModule() : DigitalBrain.Kernel.Module<ExampleOptions>(new("example"))
     { public override void Configure(Orleans.Hosting.ISiloBuilder silo) { } }
 
     [Fact]

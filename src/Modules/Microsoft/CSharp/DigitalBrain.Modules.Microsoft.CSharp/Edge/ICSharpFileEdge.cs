@@ -1,4 +1,5 @@
-using DigitalBrain.Contracts.Enforcement;
+using DigitalBrain.Enforcement;
+using DigitalBrain.Kernel.Enforcement;
 using Orleans.Metadata;
 
 namespace DigitalBrain.Microsoft.CSharp;

@@ -1,4 +1,4 @@
-using DigitalBrain.Contracts;
+using DigitalBrain;
 using DigitalBrain.Kernel;
 using DigitalBrain.Time.Reminders;
 using DigitalBrain.Time.Timers;

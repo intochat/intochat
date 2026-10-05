@@ -1,7 +1,6 @@
 using DigitalBrain;
-using DigitalBrain.Contracts;
-using DigitalBrain.Contracts.Data;
 using DigitalBrain.Kernel;
+using DigitalBrain.Data;
 using Orleans.Concurrency;
 
 namespace DigitalBrain.Kernel.Data;

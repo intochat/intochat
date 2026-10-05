@@ -1,6 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Apps;
-using DigitalBrain.Contracts;
+using DigitalBrain.Kernel;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;

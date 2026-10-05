@@ -1,4 +1,5 @@
-using DigitalBrain.Contracts;
+using DigitalBrain;
+using DigitalBrain.Kernel;
 namespace DigitalBrain.Kernel;
 
 public sealed class BrainCompositionBuilder

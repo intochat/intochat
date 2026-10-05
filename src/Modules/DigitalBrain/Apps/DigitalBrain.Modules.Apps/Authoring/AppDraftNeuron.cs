@@ -4,7 +4,6 @@ using DigitalBrain;
 using DigitalBrain.AI;
 using DigitalBrain.AI.OpenAI;
 using DigitalBrain.Apps;
-using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
 using DigitalBrain.Microsoft.CSharp;
 using Microsoft.Extensions.Configuration;
@@ -26,9 +25,9 @@ internal sealed partial class AppDraftNeuron(
     : Neuron<AppDraftState>(store), IAppDraft
 {
     internal static readonly string AuthorModelKey =
-        DigitalBrain.Contracts.DigitalBrainConfiguration.ModuleOptionsSection(new DigitalBrain.Contracts.ModuleId("apps")) + ":AuthorModel";
+        DigitalBrain.DigitalBrainConfiguration.ModuleOptionsSection(new DigitalBrain.ModuleId("apps")) + ":AuthorModel";
     internal static readonly string BuilderModelKey =
-        DigitalBrain.Contracts.DigitalBrainConfiguration.ModuleOptionsSection(new DigitalBrain.Contracts.ModuleId("apps")) + ":BuilderModel";
+        DigitalBrain.DigitalBrainConfiguration.ModuleOptionsSection(new DigitalBrain.ModuleId("apps")) + ":BuilderModel";
 
     private const int MaxAuthorRetries = 2;
     private const int MaxBuildAttempts = 3;

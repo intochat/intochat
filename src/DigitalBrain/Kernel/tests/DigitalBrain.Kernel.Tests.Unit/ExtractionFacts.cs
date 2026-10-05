@@ -1,6 +1,5 @@
 using System.Reflection;
 using DigitalBrain;
-using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
 using Xunit;
 
@@ -19,7 +18,7 @@ public sealed class ExtractionFacts
 
         Assert.Equal("DigitalBrain", typeof(INeuron).Assembly.GetName().Name);
         Assert.Equal(
-            ["Activated", "BrainSnapshot", "EstablishBrain", "IBrain", "IDigitalBrain", "INeuron", "INeuronObserver", "ISignalSubscription`1", "Signal"],
+            ["Activated", "BrainSnapshot", "DigitalBrainConfiguration", "DigitalBrainNames", "EstablishBrain", "IBrain", "IDigitalBrain", "IIntentUsageEntry", "IModuleOptions", "INeuron", "INeuronObserver", "ISignalSubscription`1", "IntentUsageBatch", "ModuleId", "PlatformAssemblyAttribute", "PlatformOnlyAttribute", "Signal"],
             exported);
     }
 
@@ -28,7 +27,7 @@ public sealed class ExtractionFacts
     {
         var assemblies = new ModuleInventory([]).ContractAssemblies().Select(assembly => assembly.GetName().Name).Order(StringComparer.Ordinal).ToArray();
 
-        Assert.Equal(["DigitalBrain", "DigitalBrain.Contracts"], assemblies);
+        Assert.Equal(["DigitalBrain"], assemblies);
         Assert.DoesNotContain(new ModuleInventory([]).ContractAssemblies(), PlatformAssemblyAttribute.IsPlatform);
     }
 }

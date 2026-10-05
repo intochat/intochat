@@ -1,4 +1,4 @@
-using DigitalBrain.Contracts;
+using DigitalBrain;
 using DigitalBrain.Kernel;
 using global::Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;

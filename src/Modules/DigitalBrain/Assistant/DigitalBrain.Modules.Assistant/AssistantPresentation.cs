@@ -3,6 +3,7 @@ using DigitalBrain.AI;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Chat;
 using DigitalBrain.Flutter.Workspace;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Apps;
-using DigitalBrain.Contracts;
+using DigitalBrain.Kernel;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;

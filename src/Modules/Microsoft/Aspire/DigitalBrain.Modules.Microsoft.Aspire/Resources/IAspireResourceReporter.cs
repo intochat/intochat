@@ -1,4 +1,5 @@
-using DigitalBrain.Contracts;
+using DigitalBrain;
+using DigitalBrain.Kernel;
 using Orleans.Metadata;
 
 namespace DigitalBrain.Microsoft.Aspire;

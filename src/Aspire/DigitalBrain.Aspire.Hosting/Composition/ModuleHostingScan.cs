@@ -1,5 +1,6 @@
 using System.Reflection;
-using DigitalBrain.Contracts;
+using DigitalBrain;
+using DigitalBrain.Kernel;
 
 namespace DigitalBrain.Aspire.Hosting;
 
