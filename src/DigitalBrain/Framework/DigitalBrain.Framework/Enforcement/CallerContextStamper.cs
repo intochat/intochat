@@ -55,5 +55,5 @@ public static class CallerContextStamper
     };
 }
 
-[GenerateSerializer]
+[GenerateSerializer, Alias("DigitalBrain.Kernel.Enforcement.UntrustedCallerException")]
 public sealed class UntrustedCallerException(string message) : Exception(message);

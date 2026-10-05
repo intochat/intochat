@@ -33,7 +33,7 @@ internal sealed class AppRequirements(ModuleInventory inventory)
             if (available.Contains(reference)) { continue; }
             // These are the support projects supplied by the script environment, not optional modules.
             if (reference is "DigitalBrain" or "DigitalBrain.Client" or "DigitalBrain.Client"
-                or "DigitalBrain.Framework" or "DigitalBrain.Framework") { continue; }
+                or "DigitalBrain.Framework") { continue; }
             const string prefix = "DigitalBrain.Modules.";
             const string suffix = ".Contracts";
             if (reference.StartsWith(prefix, StringComparison.Ordinal) && reference.EndsWith(suffix, StringComparison.Ordinal))
