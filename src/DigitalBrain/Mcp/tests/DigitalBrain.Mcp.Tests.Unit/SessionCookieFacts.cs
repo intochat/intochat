@@ -44,7 +44,7 @@ public sealed class SessionCookieFacts
         // Membership in the selected route is insufficient for a raw foreign key.
         foreach (var (contract, key, expectedError) in new[]
         {
-            (typeof(IApp).FullName!, BrainScope.Create("someone", "else").Id + "/packages/alice/example", true),
+            (typeof(IApp).FullName!, BrainScope.Create("someone", "else").Id + "/apps/example", true),
             (typeof(IApp).FullName!, IApp.Key(aliceBrain, "example"), false),
         })
         {

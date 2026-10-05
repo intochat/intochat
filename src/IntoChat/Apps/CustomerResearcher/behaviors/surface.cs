@@ -19,17 +19,20 @@ var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 
 await foreach (var invoked in app.Invocations(brain, brain.Stopping))
-{ if (invoked.Operation == "open") { await app.Respond(await OpenAsync(invoked.InvocationId)); } }
+{ if (invoked.Operation == "open") { await app.Respond(await OpenAsync(invoked.InvocationId, invoked.Input == "docked")); } }
 return;
 
-async Task<AppResponse> OpenAsync(Guid id)
+// Docked: the shell renders the surface in its side panel, so no workspace window opens.
+async Task<AppResponse> OpenAsync(Guid id, bool docked)
 {
     await ComposeAsync();
     var surface = new UiChildRef(UIVocabulary.SurfaceType, appKey + "/surface");
-    var installed = appKey.IndexOf("/packages/", StringComparison.Ordinal);
-    var workspace = appKey[..(installed >= 0 ? installed : appKey.LastIndexOf('/', StringComparison.Ordinal))];
-    await brain.Get<IWorkspace>(workspace)
-        .EnsureOpenAsync("customer-researcher", "Customer Researcher", WindowReference.For(surface), CancellationToken.None);
+    if (!docked)
+    {
+        var workspace = appKey[..appKey.IndexOf("/apps/", StringComparison.Ordinal)];
+        await brain.Get<IWorkspace>(workspace)
+            .EnsureOpenAsync("customer-researcher", "Customer Researcher", WindowReference.For(surface), CancellationToken.None);
+    }
     return new AppResponse(id, JsonSerializer.Serialize(new { id = "customer-researcher", title = "Customer Researcher", surface = surface.Name }), null);
 }
 

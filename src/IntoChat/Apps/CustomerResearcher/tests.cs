@@ -5,6 +5,7 @@
 using System.Text.Json;
 using DigitalBrain.AI.Scripted;
 using DigitalBrain.Apps;
+using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Microsoft.Playwright;
 
@@ -39,6 +40,23 @@ async Task<(IScriptedLLM Model, IScriptedBrowser Browser)> Scripted()
     }, new Dictionary<string, string>());
     return (brain.Get<IScriptedLLM>(scope + "/model"), brain.Get<IScriptedBrowser>(scope + "/browser"));
 }
+
+await Scenario("Opening docked answers the surface without a window", async () =>
+{
+    await Scripted();
+    var workspace = brain.Get<IWorkspace>(appKey[..appKey.IndexOf("/apps/", StringComparison.Ordinal)]);
+    var before = (await workspace.Read()).Windows.Count(window => window.Id == "customer-researcher" && window.IsOpen);
+    var docked = JsonDocument.Parse(await app.Ask("open", "docked")).RootElement;
+    var surface = await brain.Get<ISurface>(docked.GetProperty("surface").GetString()!).Read();
+    if (surface.Definition.Title != "Customer Researcher" || surface.Definition.Children.Length == 0)
+    { throw new InvalidOperationException("The docked surface is not composed."); }
+    var after = (await workspace.Read()).Windows.Count(window => window.Id == "customer-researcher" && window.IsOpen);
+    if (after != before) { throw new InvalidOperationException("A docked open opened a workspace window."); }
+    // The floating open, by contrast, lands in this brain's own workspace.
+    await app.Ask("open", "");
+    if (!(await workspace.Read()).Windows.Any(window => window.Id == "customer-researcher" && window.IsOpen))
+    { throw new InvalidOperationException("A floating open opened no window in the brain's workspace."); }
+});
 
 await Scenario("Opening the researcher composes its surface", async () =>
 {

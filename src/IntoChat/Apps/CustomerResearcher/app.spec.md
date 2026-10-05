@@ -22,6 +22,11 @@ Scratch scenario installs may supply scripted/<key> as Model to run deterministi
 Invoking "open" answers a window whose surface is named and titled "Customer Researcher", with the
 company field, the research and stop buttons, the status text and the browser paired to its driver.
 
+## Scenario: Opening docked answers the surface without a window
+
+Invoking "open" with the input "docked" answers the same composed "Customer Researcher" surface but
+opens no window in the workspace: the shell shows it in its side panel instead.
+
 ## Scenario: Stopping an idle researcher is safe
 
 Invoking "stop" with nothing running answers "Stopped." and does not fail.

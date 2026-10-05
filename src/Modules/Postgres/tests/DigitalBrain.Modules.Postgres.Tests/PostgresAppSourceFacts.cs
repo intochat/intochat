@@ -16,7 +16,7 @@ public sealed class PostgresAppSourceFacts
     [Fact]
     public void DiscoveredAppStorageHasExplicitOpenArgumentsRatherThanAWindowTableId()
     {
-        var resource = new PostgresAppTableResource("workspace/packages/intochat/customer-researcher", "workspace/packages/intochat/customer-researcher/table",
+        var resource = new PostgresAppTableResource("workspace/apps/customer-researcher", "workspace/apps/customer-researcher/table",
             "db:research", new("db_results", new([new("name", "text")], ["name"]), 1));
         var descriptor = JsonSerializer.SerializeToElement(PostgresAppResources.Describe(resource));
         Assert.False(descriptor.TryGetProperty("tableId", out _));

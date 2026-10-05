@@ -22,7 +22,7 @@ public sealed class TableWindowToolFacts
         var tools = brain.SiloServices.GetServices<IAgentToolFactory>().SelectMany(factory => factory.Create(() => new("workspace", "run", "call")));
         var tool = tools.Single(tool => tool.Name == name);
         var result = JsonSerializer.SerializeToElement(await tool.InvokeAsync(new AIFunctionArguments(new Dictionary<string, object?>
-        { ["tableId"] = "workspace/packages/intochat/customer-researcher/table" }), ct));
+        { ["tableId"] = "workspace/apps/customer-researcher/table" }), ct));
         Assert.True(result.GetProperty("isError").GetBoolean());
         Assert.Equal("table_window_required", result.GetProperty("code").GetString());
         Assert.Contains("discover_capabilities", result.GetProperty("message").GetString());

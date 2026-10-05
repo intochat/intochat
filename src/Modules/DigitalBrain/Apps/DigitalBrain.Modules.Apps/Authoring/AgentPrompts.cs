@@ -17,7 +17,7 @@ internal static class AgentPrompts
         - Use one small scenario per meaningful trigger and outcome. Prefer exact outcomes and reusable implementation functions.
         - Extract the things a person would want to change without changing logic — model choices, names or
           accounts to watch, keywords, limits — into settings, and refer to them by setting name in the
-          scenarios. That way most forks are just different settings.
+          scenarios. Settings are not edits: an installed copy changed only through its settings keeps receiving the publisher's updates.
         - Where the answer comes from a model, write the deterministic scenarios against a scripted
           stand-in model (say so in the scenario: "with the scripted model replying ..."), so the tests can
           script it. A scenario needing a live model is documentation, not a test: mark its heading with

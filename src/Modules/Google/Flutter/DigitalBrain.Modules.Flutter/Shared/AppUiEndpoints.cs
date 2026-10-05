@@ -111,7 +111,7 @@ internal static class AppUiEndpoints
     }
 
     private static bool OwnsUi(string scope, string name) =>
-        new[] { "/apps/", "/images/", "/applications/", "/packages/" }.Any(area => name.StartsWith(scope + area, StringComparison.Ordinal));
+        new[] { "/apps/", "/images/", "/applications/" }.Any(area => name.StartsWith(scope + area, StringComparison.Ordinal));
 
     private static byte[] DecodeAudio(string? base64)
     {
