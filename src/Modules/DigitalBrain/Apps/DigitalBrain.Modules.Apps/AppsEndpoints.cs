@@ -28,6 +28,7 @@ internal static class AppsEndpoints
         {
             var scope = BrainScope.CurrentId();
             var names = await brain.Get<IAppIndex>(scope).List().WaitAsync(ct);
+            var listings = await brain.Get<IMarketplace>(IMarketplace.Key).List().WaitAsync(ct);
             var items = new List<object>();
             foreach (var name in names)
             {
@@ -40,6 +41,16 @@ internal static class AppsEndpoints
                     status = snapshot.Status.ToString(),
                     version = snapshot.Version,
                     operations = snapshot.Manifest.Operations.Select(operation => operation.Name).ToArray(),
+                    icon = snapshot.Manifest.Icon,
+                    publishedVersion = snapshot.PublishedVersion,
+                    origin = snapshot.Origin is { } origin
+                        ? new { publisher = origin.Publisher, name = origin.Name, version = origin.Version }
+                        : null,
+                    edited = snapshot.Edited,
+                    // The same rule as AppInstaller.Entry: an unedited copy whose publisher listed a newer version.
+                    updateAvailable = snapshot.Origin is { } source && !snapshot.Edited
+                        && listings.FirstOrDefault(listing => listing.Publisher == source.Publisher && listing.Name == source.Name) is { } listed
+                        && AppVersions.Compare(listed.Version, source.Version) > 0,
                 });
             }
             return Results.Ok(items);
@@ -82,6 +93,18 @@ internal static class AppsEndpoints
             return Results.Ok(View(await App(brain, name).Rollback(request.Version)));
         }));
 
+        apps.MapPost("/{name}/publish", (string name, IDigitalBrain brain) => Respond(async ()
+            => Results.Ok(View(await App(brain, name).Publish()))));
+
+        apps.MapPost("/{name}/update", (string name, [FromServices] AppInstaller installer, CancellationToken ct) => Respond(async ()
+            => Results.Ok(View(await installer.Update(name, ct)))));
+
+        apps.MapGet("/{name}/icon", (string name, IDigitalBrain brain, CancellationToken ct) => Respond(async () =>
+        {
+            var snapshot = await App(brain, name).Read().WaitAsync(ct);
+            return Icon(snapshot.Manifest.Icon, snapshot.Files, name);
+        }));
+
         apps.MapPost("/{name}/ask", (string name, AskRequest? request, IDigitalBrain brain, CancellationToken ct)
             => Respond(() => Ask(App(brain, name), request?.Operation ?? "ask", request?.Input ?? "{}", ct)));
 
@@ -107,7 +130,23 @@ internal static class AppsEndpoints
     private static IApp App(IDigitalBrain brain, string name) => brain.Get<IApp>(Key(name));
 
     // The wire view: the snapshot plus status as a string the shell can switch on.
-    private static object View(AppSnapshot snapshot) => new
+    // An icon is a bundle file the manifest names; the shell renders it by its content type.
+    internal static IResult Icon(string? path, IReadOnlyDictionary<string, string> files, string app)
+    {
+        if (path is null || !files.TryGetValue(path, out var content))
+        { return Results.NotFound(new { error = $"{app} has no icon." }); }
+        var type = Path.GetExtension(path).ToLowerInvariant() switch
+        {
+            ".svg" => "image/svg+xml",
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".webp" => "image/webp",
+            _ => "text/plain",
+        };
+        return Results.Text(content, type);
+    }
+
+    internal static object View(AppSnapshot snapshot) => new
     {
         name = snapshot.Name,
         manifest = snapshot.Manifest,
@@ -120,6 +159,9 @@ internal static class AppsEndpoints
         activity = snapshot.Activity,
         versions = snapshot.Versions,
         verdicts = snapshot.Verdicts,
+        publishedVersion = snapshot.PublishedVersion,
+        origin = snapshot.Origin,
+        edited = snapshot.Edited,
     };
 
     private static async Task<IResult> Ask(IApp app, string operation, string input, CancellationToken ct)
@@ -146,11 +188,12 @@ internal static class AppsEndpoints
         }
     }
 
-    private static async Task<IResult> Respond(Func<Task<IResult>> handler)
+    internal static async Task<IResult> Respond(Func<Task<IResult>> handler)
     {
         try { return await handler(); }
         catch (InvalidOperationException error) { return Results.Conflict(new { error = error.Message }); }
-        catch (KeyNotFoundException error) { return Results.NotFound(new { error = error.Message }); }
+catch (UnauthorizedAccessException error) { return Results.Json(new { error = error.Message }, statusCode: 403); }
+                catch (KeyNotFoundException error) { return Results.NotFound(new { error = error.Message }); }
         catch (Exception error) when (error is ArgumentException or InvalidDataException)
         { return Results.UnprocessableEntity(new { error = error.Message }); }
     }

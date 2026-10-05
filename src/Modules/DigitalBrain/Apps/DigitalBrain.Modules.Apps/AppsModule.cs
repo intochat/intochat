@@ -37,5 +37,6 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
         endpoints.MapGet("/session/capabilities", static (IServiceProvider services) =>
             Results.Ok(new { developerMode = services.GetService<IScriptSandbox>()?.CanRun == true }));
         AppsEndpoints.Map(endpoints);
+        MarketplaceEndpoints.Map(endpoints);
     }
 }
