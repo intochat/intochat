@@ -11,7 +11,7 @@ public sealed class OsShippedAppFacts
     [Fact]
     public void TheOperatingSystemShipsSettings()
     {
-        Assert.Equal(["settings"], Source.Load().Select(app => app.Name).Order());
+        Assert.Equal(["assistant", "settings"], Source.Load().Select(app => app.Name).Order());
     }
 
     [Fact]
