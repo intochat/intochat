@@ -16,7 +16,6 @@ internal static class PackageHash
         operations = content.Manifest.Operations.Select(operation => new[] { operation.Name, operation.Description }),
         settings = content.Manifest.Settings.Select(setting => new[] { setting.Name, setting.Description, setting.DefaultValue }),
         runtime = content.Manifest.RuntimeName,
-        source = content.Source,
         files = new SortedDictionary<string, string>(content.Files?.ToDictionary() ?? [], StringComparer.Ordinal),
     });
 

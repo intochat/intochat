@@ -86,7 +86,8 @@ public sealed class AppRequirementFacts
         await brain.AuthorizeCallerAsync();
         var package = brain.Get<IPackage>(request.Revision.Package.ToString());
         var current = await package.ReadRevision(request.Revision.Revision);
-        var next = await package.Commit(brain.Commit(current.Id, current.Content with { Source = "#:project /brain/DigitalBrain.Modules.Postgres.Contracts.csproj\n// upgraded" }));
+        var next = await package.Commit(brain.Commit(current.Id, new PackageContent(current.Content.Manifest,
+            "#:project /brain/DigitalBrain.Modules.Postgres.Contracts.csproj\n// upgraded", current.Content.Files)));
         Caller.Clear();
 
         var error = await Assert.ThrowsAnyAsync<InvalidOperationException>(() => app.Upgrade(new(Guid.NewGuid(), new(request.Revision.Package, next.Id))));
@@ -114,8 +115,8 @@ public sealed class AppRequirementFacts
         Caller.As("alice");
         await brain.AuthorizeCallerAsync();
         var id = PackageId.Parse("alice/requirements");
-        var content = PackageSamples.Researcher("Research") with { Source = source };
-        if (tests is not null) { content = content with { Files = new Dictionary<string, string> { [PackageContent.TestsPath] = tests } }; }
+        var content = new PackageContent(PackageSamples.Researcher("Research").Manifest, source);
+        if (tests is not null) { content = content with { Files = new Dictionary<string, string>(content.Files ?? []) { [PackageContent.TestsPath] = tests } }; }
         var revision = await brain.Get<IPackage>(id.ToString()).Commit(brain.Commit(null, content));
         Caller.Clear();
         return (brain.Get<IApp>("requirements/" + Guid.NewGuid().ToString("N")), new(Guid.NewGuid(), new(id, revision.Id), new Dictionary<string, string>()));

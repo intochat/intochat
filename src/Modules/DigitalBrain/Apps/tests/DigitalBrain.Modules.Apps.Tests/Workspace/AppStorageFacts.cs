@@ -43,7 +43,7 @@ public sealed class AppStorageFacts
         Assert.Equal("\"original row\"", (await table.Read(key))!.Single(v => v.Column == "value").Json);
         Caller.As("alice");
         await brain.AuthorizeCallerAsync();
-        var next = await brain.Get<IPackage>(package.ToString()).Commit(new(Guid.NewGuid(), revision.Id, content with { Source = "// upgraded" }, "Upgrade"));
+        var next = await brain.Get<IPackage>(package.ToString()).Commit(new(Guid.NewGuid(), revision.Id, new PackageContent(content.Manifest, "// upgraded", content.Files), "Upgrade"));
         await app.Upgrade(new(Guid.NewGuid(), new(package, next.Id)));
         AsApp(BrainScope.CurrentId() + "/apps/stable-storage-install");
         Assert.Equal("\"original row\"", (await table.Read(key))!.Single(v => v.Column == "value").Json);

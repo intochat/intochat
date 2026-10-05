@@ -49,7 +49,7 @@ public sealed class VendorAppFacts
             "/brain/src/Modules/Postgres/DigitalBrain.Modules.Postgres.Contracts/DigitalBrain.Modules.Postgres.Contracts.csproj",
         ];
         var researcher = Source.Load().Single(app => app.Package.Name == "customer-researcher");
-        Assert.True(string.IsNullOrEmpty(researcher.Content.Source), "The researcher still carries a legacy app.cs.");
+        Assert.Null(researcher.Content.File(PackageContent.SourcePath));
         Assert.Equal(["behaviors/controls.cs", "behaviors/research.cs", "behaviors/surface.cs"], researcher.Content.Programs().Keys);
         var sources = researcher.Content.Programs().Values.Append(researcher.Content.File(PackageContent.TestsPath)!);
         Assert.All(sources, source =>

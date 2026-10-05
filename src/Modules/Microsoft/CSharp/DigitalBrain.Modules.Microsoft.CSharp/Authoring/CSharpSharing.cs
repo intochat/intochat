@@ -29,7 +29,7 @@ public sealed class CSharpSharing(IDigitalBrain brain, CSharpToolService files)
     }
 
     private static bool SameContent(PackageContent published, PackageContent candidate)
-        => published.Source == candidate.Source && published.Manifest.Title == candidate.Manifest.Title
+        => published.File(PackageContent.SourcePath) == candidate.File(PackageContent.SourcePath) && published.Manifest.Title == candidate.Manifest.Title
             && published.Manifest.Description == candidate.Manifest.Description
             && (published.Manifest.Accounts ?? []).SequenceEqual(candidate.Manifest.Accounts ?? []);
 

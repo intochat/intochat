@@ -39,7 +39,6 @@ internal sealed class AppPublishing(IDigitalBrain brain, AppAuthoringPolicy poli
     private static string Canonical(PackageContent content) => JsonSerializer.Serialize(new
     {
         content.Manifest,
-        content.Source,
         files = new SortedDictionary<string, string>(content.Files?.ToDictionary() ?? [], StringComparer.Ordinal),
     }, Json);
 }

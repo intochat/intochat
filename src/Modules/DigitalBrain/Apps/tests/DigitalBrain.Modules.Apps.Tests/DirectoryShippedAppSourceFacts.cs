@@ -32,7 +32,7 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
         Assert.Equal("vendor/echo", app.Package.ToString());
         // Line endings normalize exactly as the embedded source does, so content hashes agree
         // across checkouts.
-        Assert.Equal("// program\nreturn;\n", app.Content.Source);
+        Assert.Equal("// program\nreturn;\n", app.Content.File(PackageContent.SourcePath));
         Assert.Equal("// behavior\n", app.Content.File("behaviors/extra.cs"));
     }
 

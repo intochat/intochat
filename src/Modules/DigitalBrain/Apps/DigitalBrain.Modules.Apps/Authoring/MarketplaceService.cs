@@ -20,7 +20,6 @@ internal sealed class MarketplaceService(IDigitalBrain brain, AppPublishing publ
         var content = (await brain.Get<IPackage>(id.ToString()).ReadRevision(revision.Revision)).Content;
         var verification = await brain.Get<IAppVerification>(IAppVerification.Key(revision)).Read();
         var files = new Dictionary<string, string>(content.Files ?? new Dictionary<string, string>());
-        if (!string.IsNullOrEmpty(content.Source)) { files[PackageContent.SourcePath] = content.Source; }
         return new(revision, content.Manifest.RuntimeName, files,
             content.File(PackageContent.SpecPath), content.File(PackageContent.TestsPath), verification,
             content.Manifest, AppDocumentCodec.Read(content), AppSpecVocabulary.Read(content.Manifest, vocabulary),

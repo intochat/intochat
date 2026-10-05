@@ -130,7 +130,6 @@ internal sealed partial class AppDraftNeuron(
             : Snapshot.Published ?? Snapshot.SourceRevision;
         var content = source is null ? null : (await GrainFactory.GetGrain<IPackage>(source.Package.ToString()).ReadRevision(source.Revision)).Content;
         var files = new Dictionary<string, string>(content?.Files ?? new Dictionary<string, string>());
-        if (!string.IsNullOrEmpty(content?.Source)) { files[PackageContent.SourcePath] = content.Source; }
         var current = Snapshot.Document is { } document
             ? Snapshot.VerifiedDocumentHash == AppDocumentCodec.Hash(document) && Snapshot.Status == AppDraftStatus.Published
             : Snapshot.Status == AppDraftStatus.Published;

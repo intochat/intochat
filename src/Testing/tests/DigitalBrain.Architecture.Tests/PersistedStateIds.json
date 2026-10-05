@@ -654,7 +654,7 @@
   },
   "DigitalBrain.Apps.PackageContent": {
     "Manifest": 0,
-    "Source": 1,
+    "\u003Cretired:1\u003E": 1,
     "Files": 2
   },
   "DigitalBrain.Apps.PackageDirectoryState": {

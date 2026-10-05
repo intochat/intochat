@@ -40,7 +40,6 @@ internal static partial class PackageRules
         Require(!accounts.Any(account => manifest.Settings.Any(setting => string.Equals(setting.Name, account.Name, StringComparison.OrdinalIgnoreCase))),
             "Account slots and settings cannot share a name.");
         Require(RuntimeName().IsMatch(manifest.RuntimeName), "A runtime name is lowercase words joined by hyphens.");
-        Require(content.Source is not null && System.Text.Encoding.UTF8.GetByteCount(content.Source) <= MaxCodeBytes, "Source is at most 128 KiB.");
         Require(manifest.RuntimeName != PackageManifest.CSharpRuntime || content.Programs().Count > 0,
             "A csharp app needs at least one script: its source or a behaviors/*.cs file.");
         // Mirror ICSharpFile.Write's limits, so an install never starts some behaviors and then
@@ -54,7 +53,7 @@ internal static partial class PackageRules
         Require(files.Count <= MaxFiles && files.All(file => file.Key.Length <= 128 && FilePath().IsMatch(file.Key) && !file.Key.Contains("..", StringComparison.Ordinal) && file.Value is not null),
             "A package has at most 64 files with relative paths of letters, digits, dots, hyphens and single slashes.");
         Require(files.Keys.Distinct(StringComparer.OrdinalIgnoreCase).Count() == files.Count, "File paths must differ by more than letter case.");
-        Require(System.Text.Encoding.UTF8.GetByteCount(content.Source ?? "") + files.Values.Sum(System.Text.Encoding.UTF8.GetByteCount) <= MaxCodeBytes * 4,
+        Require(files.Values.Sum(System.Text.Encoding.UTF8.GetByteCount) <= MaxCodeBytes * 4,
             "A package is at most 512 KiB of text.");
     }
 

@@ -128,7 +128,7 @@ public sealed class AppFacts
         Assert.Equal("research", Assert.Single(installed.Operations).Name);
         var file = File(installed);
         Assert.Equal(CSharpFileStatus.Running, file.Status);
-        Assert.Equal(revision.Content.Source, file.Source);
+        Assert.Equal(revision.Content.File(PackageContent.SourcePath), file.Source);
         Assert.Equal(key, file.Settings["App"]);
         Assert.Equal("bullets", file.Settings["style"]);
     }
@@ -165,7 +165,7 @@ public sealed class AppFacts
         Assert.Equal(configured.CSharpFiles, repeated.CSharpFiles);
         Assert.NotEqual(installed.CSharpFiles.Single(), configured.CSharpFiles.Single());
         Assert.True(RecordingCSharpFile.Deleted.ContainsKey(installed.CSharpFiles.Single()));
-        Assert.Equal(revision.Content.Source, File(configured).Source);
+        Assert.Equal(revision.Content.File(PackageContent.SourcePath), File(configured).Source);
         Assert.Equal("brief", File(configured).Settings["style"]);
     }
 
@@ -224,7 +224,7 @@ public sealed class AppFacts
 
         Assert.Equal(second.Id, upgraded.Revision!.Revision);
         Assert.Equal("bullets", upgraded.Settings["style"]);
-        Assert.Equal(second.Content.Source, File(upgraded).Source);
+        Assert.Equal(second.Content.File(PackageContent.SourcePath), File(upgraded).Source);
         Caller.As("bob");
         await brain.AuthorizeCallerAsync();
         await brain.Get<IPackage>("bob/researcher").Fork(new(Guid.NewGuid(), new(Researcher, second.Id)));

@@ -22,7 +22,7 @@ public sealed class PackageCommitFacts
         var snapshot = await package.Read();
         Assert.Equal(first.Id, snapshot.Head);
         Assert.Equal(first.Id, Assert.Single(snapshot.History).Id);
-        Assert.Equal(content.Source, (await package.ReadRevision(first.Id)).Content.Source);
+        Assert.Equal(content.File(PackageContent.SourcePath), (await package.ReadRevision(first.Id)).Content.File(PackageContent.SourcePath));
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public sealed class PackageCommitFacts
             valid with { Manifest = valid.Manifest with { Accounts = [new PackageConnection("twitter", "twitter", "Watch"), new PackageConnection("twitter", "gmail", "Duplicate")] } },
             valid with { Manifest = valid.Manifest with { Accounts = [new PackageConnection("style", "twitter", "Collides with a setting")] } },
             valid with { Manifest = valid.Manifest with { Accounts = [new PackageConnection("twitter", "invalid source", "Bad source")] } },
-            valid with { Source = "" },
+            valid with { Files = new Dictionary<string, string>((valid.Files ?? []).Where(f => f.Key != PackageContent.SourcePath)) },
         })
         {
             await Assert.ThrowsAsync<ArgumentException>(() => brain.Get<IPackage>("alice/researcher").Commit(brain.Commit(null, invalid)));
