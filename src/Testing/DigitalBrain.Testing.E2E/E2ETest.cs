@@ -6,7 +6,6 @@ namespace DigitalBrain.Testing.E2E;
 
 public static class E2ETest
 {
-    public static E2ETestBuilder Create() => new();
     public static E2ETestBuilder<TAppHost> For<TAppHost>() where TAppHost : class => new();
 
     internal static async Task<E2EBrain> StartAsync<TAppHost>(IReadOnlyDictionary<string, string?> optionOverrides,
@@ -32,17 +31,6 @@ public static class E2ETest
             // builder.Configuration afterwards would miss hosting-layer binds like the Flutter host.
             .. hostConfiguration.Select(pair => $"{pair.Key}={pair.Value}"),
         ];
-
-    internal static async Task<E2EBrain> StartModulesAsync(IReadOnlyList<ModuleDefinition> modules,
-        TestExecutionOptions options, BrowserOptions browserOptions, string? durableStorageKey, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        options.Validate();
-        var browser = Resolve(browserOptions);
-        var identity = NewIdentity();
-        var session = await ModuleTestHost.StartAsync(modules, WithArtifacts(options, identity), identity, durableStorageKey, cancellationToken).ConfigureAwait(false);
-        return await ReadyAsync(new E2EBrain(session, browser), brain => brain.StartBrowserAsync(cancellationToken)).ConfigureAwait(false);
-    }
 
     private static string NewIdentity() => "test-" + Guid.NewGuid().ToString("N");
 

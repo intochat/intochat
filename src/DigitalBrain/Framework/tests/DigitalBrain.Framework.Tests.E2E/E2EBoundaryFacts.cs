@@ -62,16 +62,6 @@ public sealed class E2EBoundaryFacts
         }
     }
 
-    [Fact]
-    public async Task LocalServiceSubstitutionIsRejectedBeforeStartup()
-        => await Assert.ThrowsAsync<NotSupportedException>(() => E2ETest.Create()
-            .WithModule<BoundaryModule>(module => module.ConfigureLocalServices(_ => { }))
-            .StartAsync(TestContext.Current.CancellationToken));
-
-    [Fact]
-    public async Task AnEmptyCompositionIsRejectedBeforeStartup()
-        => await Assert.ThrowsAsync<ArgumentException>(() => E2ETest.Create()
-            .StartAsync(TestContext.Current.CancellationToken));
 
     private sealed class OwnedHost : IAsyncDisposable
     {
