@@ -37,6 +37,7 @@ internal sealed class AppNeuron(
         next.Version = "0.1.0";
         next.Status = AppStatusV2.Drafted;
         Record(next);
+        await GrainFactory.GetGrain<IAppIndex>(BrainId()).Track(Name());
         await Persist(next);
         return Describe(Snapshot);
     }
@@ -235,6 +236,7 @@ internal sealed class AppNeuron(
         var behaviors = next.Files.Keys.Where(AppFiles.IsBehavior).ToArray();
         next.StorageFiles = Deployable()?.Keys(this.GetPrimaryKeyString(), next.ProgramGeneration, behaviors) ?? [];
         Record(next);
+        await GrainFactory.GetGrain<IAppIndex>(BrainId()).Track(Name());
         await Persist(next);
         foreach (var path in behaviors) { await DeployBehavior(path, next.Files[path], swap: false); }
         return Describe(Snapshot);
@@ -249,6 +251,7 @@ internal sealed class AppNeuron(
             foreach (var hook in storageHooks)
             { await hook.OnRetired(Snapshot.BrainScopeId ?? "", this.GetPrimaryKeyString(), Snapshot.StorageFiles, CancellationToken.None); }
         }
+        await GrainFactory.GetGrain<IAppIndex>(BrainId()).Untrack(Name());
         await Persist(new AppStateV2 { BrainScopeId = Snapshot.BrainScopeId });
     }
 
