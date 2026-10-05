@@ -33,7 +33,10 @@ public sealed class SessionCookieFacts
         using var response = await client.PostAsJsonAsync(mcp.Urls.Single() + "/mcp",
             new { jsonrpc = "2.0", id = 1, method = "tools/call", @params = new { name = "neurons_context", arguments = new { } } }, ct);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("alice", await response.Content.ReadAsStringAsync(ct));
+        var context = await response.Content.ReadAsStringAsync(ct);
+        Assert.Contains("alice", context);
+        var selected = JsonDocument.Parse(Result(context).GetProperty("content")[0].GetProperty("text").GetString()!).RootElement;
+        var aliceBrain = BrainScope.Create(selected.GetProperty("accountId").GetString()!, selected.GetProperty("brainId").GetString()!).Id;
         using var denied = await client.PostAsJsonAsync(mcp.Urls.Single() + "/brains/foreign/mcp",
             new { jsonrpc = "2.0", id = 2, method = "tools/call", @params = new { name = "neurons_context", arguments = new { } } }, ct);
         Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
@@ -42,7 +45,7 @@ public sealed class SessionCookieFacts
         foreach (var (contract, key, expectedError) in new[]
         {
             (typeof(IApp).FullName!, BrainScope.Create("someone", "else").Id + "/packages/alice/example", true),
-            (typeof(DigitalBrain.Apps.IApp).FullName!, "alice/apps/example", false),
+            (typeof(IApp).FullName!, IApp.Key(aliceBrain, "example"), false),
         })
         {
             using var invocation = await client.PostAsJsonAsync(mcp.Urls.Single() + "/mcp",
@@ -63,6 +66,9 @@ public sealed class SessionCookieFacts
             Assert.Equal(expectedError, result.RootElement.GetProperty("result").TryGetProperty("isError", out var error) && error.GetBoolean());
         }
     }
+
+    private static JsonElement Result(string sse)
+        => JsonDocument.Parse(sse.Split('\n').Single(line => line.StartsWith("data: ", StringComparison.Ordinal))[6..]).RootElement.GetProperty("result");
 
     private static async Task<WebApplication> Host(bool mcp, DirectoryInfo keys, ModuleBrain brain)
     {
