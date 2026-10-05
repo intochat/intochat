@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <ProjectReference Include="../../../../Time/DigitalBrain.Modules.Time/DigitalBrain.Modules.Time.csproj" />
     <ProjectReference Include="../../../Apps/DigitalBrain.Modules.Apps/DigitalBrain.Modules.Apps.csproj" />
     <ProjectReference Include="../../../../AI/DigitalBrain.Modules.AI/DigitalBrain.Modules.AI.csproj" />
     <ProjectReference Include="../../../Compute/DigitalBrain.Modules.Compute/DigitalBrain.Modules.Compute.csproj" />

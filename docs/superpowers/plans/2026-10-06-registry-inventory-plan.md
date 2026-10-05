@@ -13,7 +13,7 @@ builds/tests, never the .slnx.
 - [x] Task 2 — Platform federation + census service (RED: missing DI registrations; GREEN: Platform 136/136, real census across two brains and deactivation)
 - [x] Task 3 — Providers over existing aggregates (RED: absent providers; GREEN: Apps 117/117, Platform 137/137, CSharp 89 passed/1 live skip, Postgres 74 passed/3 live skips)
 - [x] Task 4 — Time: reminder/timer listing + provider (RED: missing provider; GREEN: Time 19/19, Architecture 35/35; existing Start/Stop contracts implement Set/Arm lifecycle intent)
-- [ ] Task 5 — Assistant tools
+- [x] Task 5 — Assistant tools (RED: tools absent from scripted conversations; GREEN: Assistant 80/80)
 - [ ] Task 6 — Coverage rule in docs + closure
 
 ## Task 1 — Framework contracts
