@@ -9,7 +9,7 @@ internal sealed class ScriptedTestRunner : ITestScriptRunner
 {
     public ConcurrentDictionary<string, (int ExitCode, string Logs)> BySourceMarker { get; } = new(StringComparer.Ordinal);
 
-    public Task<AppTestRun> RunAsync(PackageRevisionRef revision, string tests, CancellationToken cancellationToken)
+    public Task<AppTestRun> RunAsync(string appKey, string tests, CancellationToken cancellationToken)
     {
         var scripted = BySourceMarker.FirstOrDefault(pair => tests.Contains(pair.Key, StringComparison.Ordinal));
         return Task.FromResult(scripted.Key is { Length: > 0 }

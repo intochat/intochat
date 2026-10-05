@@ -7,7 +7,7 @@ namespace DigitalBrain.Apps;
 // or test replaces the service to run tests elsewhere.
 public interface ITestScriptRunner
 {
-    Task<AppTestRun> RunAsync(PackageRevisionRef revision, string tests, CancellationToken cancellationToken);
+    Task<AppTestRun> RunAsync(string appKey, string tests, CancellationToken cancellationToken);
 }
 
 internal sealed class CSharpFileTestRunner(IGrainFactory grains, TimeProvider clock) : ITestScriptRunner
@@ -18,18 +18,17 @@ internal sealed class CSharpFileTestRunner(IGrainFactory grains, TimeProvider cl
     private const string PassLine = "dbtest:pass ";
     private const string FailLine = "dbtest:fail ";
 
-    public async Task<AppTestRun> RunAsync(PackageRevisionRef revision, string tests, CancellationToken cancellationToken)
+    public async Task<AppTestRun> RunAsync(string appKey, string tests, CancellationToken cancellationToken)
     {
         // The tests run as an ordinary sandbox script: same token, edge and contract limits as any
-        // app script. The script creates its own scratch installations from the revision handed here.
-        var file = grains.GetGrain<ICSharpFile>($"specs/{revision.Package}@{revision.Revision}/{Guid.NewGuid():N}");
+        // app script. The script creates its own scratch installations from the app handed here.
+        var file = grains.GetGrain<ICSharpFile>($"specs/{appKey}/{Guid.NewGuid():N}");
         try
         {
             await file.Write(tests, cancellationToken);
             var settings = new Dictionary<string, string>
             {
-                ["Package"] = revision.Package.ToString(),
-                ["Revision"] = revision.Revision,
+                ["App"] = appKey,
             };
             if (DigitalBrain.Framework.Enforcement.CallerContextStamper.TryGet(out _))
             { settings["BrainScope"] = DigitalBrain.Framework.Enforcement.BrainScope.CurrentId(); }

@@ -118,7 +118,7 @@ public sealed class ShippedAppPublisherFacts
 
     private sealed class CancelledRunner : ITestScriptRunner
     {
-        public Task<AppTestRun> RunAsync(PackageRevisionRef revision, string tests, CancellationToken cancellationToken)
+        public Task<AppTestRun> RunAsync(string appKey, string tests, CancellationToken cancellationToken)
             => throw new OperationCanceledException("The C# sandbox did not start.");
     }
 
