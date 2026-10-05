@@ -125,6 +125,32 @@ public sealed class AppCreatorFacts
     }
 
     [Fact]
+    public async Task ABuilderReplyWithEmptyOperationsKeepsTheAuthoredOnes()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await StartAsync(ct);
+        await brain.Get<IScriptedLLM>("author").Script([Authored(Spec)]);
+        await brain.Get<IScriptedLLM>("builder").Script([System.Text.Json.JsonSerializer.Serialize(new
+        {
+            operations = Array.Empty<object>(),
+            settings = new[] { new { name = "Model", description = "Who answers.", @default = "IGemma4" } },
+            files = new Dictionary<string, string> { ["tests.cs"] = "// t" },
+        })]);
+        var creator = brain.SiloServices.GetRequiredService<Creator>();
+        var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
+        await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
+        var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
+        await using var changes = await brain.SubscribeAsync<AppChanged>(app, ct);
+
+        await creator.Implement(digitalBrain, IApp.Key(Brain, "shouter"), null);
+
+        await foreach (var change in changes.ReadAllAsync(ct)) { if (change.Status == AppStatus.Live) { break; } }
+        var live = await app.Read();
+        Assert.Contains(live.Manifest.Operations, operation => operation.Name == "ask");
+        Assert.Equal("IGemma4", live.Settings["Model"]);
+    }
+
+    [Fact]
     public async Task ABuilderThatCallsAToolGetsItsResultAndStillImplements()
     {
         var ct = TestContext.Current.CancellationToken;

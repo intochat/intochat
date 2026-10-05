@@ -92,7 +92,7 @@ internal sealed class Creator(
             if (built.Operations is { Length: > 0 } || built.Settings is { Count: > 0 })
             {
                 await app.SaveManifest(new(snapshot.Manifest.Title, snapshot.Manifest.Description,
-                    built.Operations ?? snapshot.Manifest.Operations,
+                    built.Operations is { Length: > 0 } ? built.Operations : snapshot.Manifest.Operations,
                     [.. (built.Settings ?? []).Select(setting => new AppSetting(setting.Name, setting.Description ?? "", setting.Default ?? ""))],
                     snapshot.Manifest.Slots), Guid.NewGuid());
             }
