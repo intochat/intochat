@@ -8,6 +8,11 @@ namespace DigitalBrain.Apps.Tests.Apps;
 
 public sealed class AppVerifyFacts
 {
+    // A live scenario talks to real services, so no test can report it; it never gates.
+    [Fact]
+    public void ALiveScenarioIsOutsideTheCheckableSet()
+        => Assert.Equal(["Echoes"], AppVerifyJob.Scenarios("## Scenario: Echoes\nIt echoes.\n## Scenario: Echoes the internet (live)\nIt really does."));
+
     private const string Brain = "app-verify-facts";
 
     private static AppManifest Manifest() =>

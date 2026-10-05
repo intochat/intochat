@@ -59,7 +59,8 @@ internal static class AppVerifyJob
         foreach (var raw in (spec ?? "").Split('\n'))
         {
             var line = raw.Trim();
-            if (line.StartsWith("## Scenario:", StringComparison.Ordinal))
+            // A "(live)" scenario talks to real services; no test reports it, so it never gates.
+            if (line.StartsWith("## Scenario:", StringComparison.Ordinal) && !line.EndsWith("(live)", StringComparison.Ordinal))
             { names.Add(line["## Scenario:".Length..].Trim()); }
         }
         return names;
