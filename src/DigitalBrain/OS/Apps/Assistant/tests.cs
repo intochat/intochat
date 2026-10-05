@@ -4,6 +4,7 @@
 using System.Text.Json;
 using DigitalBrain.AI.Scripted;
 using DigitalBrain.Apps;
+using DigitalBrain.Flutter.Card;
 using DigitalBrain.Flutter.Surface;
 
 // Scripted models play the provider; each scenario starts its own conversation so turns never mix.
@@ -63,6 +64,15 @@ await Scenario("A message is answered in the transcript", async () =>
     if (turn.GetProperty("user").GetString() != "hello" || turn.GetProperty("assistant").GetString() != "Hi! How can I help?"
         || turn.GetProperty("status").GetString() != "done")
     { throw new InvalidOperationException("The turn was " + turn.GetRawText()); }
+});
+
+await Scenario("A plain answer leaves nothing behind but its turn", async () =>
+{
+    await Scripted("Just words.");
+    await app.Ask("send", "say something");
+    var turn = (await SettledTranscript(1))[0];
+    var step = await brain.Get<ICard>(appKey + "/turn-" + turn.GetProperty("runId").GetString() + "-step-1").Read();
+    if (step.Title.Length > 0) { throw new InvalidOperationException("A text piece was stored as its own card: " + step.Title); }
 });
 
 await Scenario("The tools a turn uses appear in the transcript", async () =>

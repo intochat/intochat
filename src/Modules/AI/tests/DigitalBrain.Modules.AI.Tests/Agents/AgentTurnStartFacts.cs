@@ -117,6 +117,32 @@ public sealed class AgentTurnStartFacts
         finally { release.TrySetResult(); Orleans.Runtime.RequestContext.Clear(); }
     }
 
+    // A second message while the conversation's turn still runs is refused, never interleaved.
+    [Fact]
+    public async Task ASecondTurnInTheSameConversationIsRefusedWhileOneRuns()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new StubChatClient(async (_, _, _) =>
+        {
+            await release.Task;
+            return new ChatResponse(new ChatMessage(ChatRole.Assistant, "done"));
+        });
+        await using var brain = await Start(client, ct);
+        StampUser();
+        try
+        {
+            var scope = BrainScope.CurrentId();
+            var execution = brain.Get<IAgentExecution>(scope + "/apps/assistant/execution");
+            var conversation = scope + "/apps/assistant/conversations/main";
+            await execution.Start(new(conversation, "", "", [], "first"));
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() => execution.Start(new(conversation, "", "", [], "second")))
+                .WaitAsync(TimeSpan.FromSeconds(5), ct);
+        }
+        finally { release.TrySetResult(); Orleans.Runtime.RequestContext.Clear(); }
+    }
+
     // Every signal of the run, ending with its completion or failure.
     private static async Task<List<Signal>> UntilEnd(LocalSignalHub.Subscription<Signal> signals, string runId, CancellationToken ct)
     {

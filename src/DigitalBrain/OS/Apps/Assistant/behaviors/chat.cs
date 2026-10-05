@@ -82,8 +82,14 @@ async Task SendClicks()
         var draft = brain.Get<ITextField>(Name("draft"));
         var message = (await draft.Read()).Value.Trim();
         if (message.Length is < 1 or > 32000) { continue; }
-        await draft.SetValue("");
-        await Send(message);
+        // A refusal (a turn still running) keeps the message in the draft and says why; the button
+        // keeps working either way.
+        try
+        {
+            await Send(message);
+            await draft.SetValue("");
+        }
+        catch (Exception error) { await brain.Get<IText>(Name("status")).Set(error.Message); }
     }
 }
 
@@ -97,6 +103,9 @@ async Task Progress()
 {
     await foreach (var step in brain.On<AgentTurnProgressed>(execution, brain.Stopping))
     {
+        // Text arrives piece by piece; the answer is the conversation's, set when the turn settles,
+        // so a piece is never stored as a card of its own.
+        if (step.Kind == "text") { await brain.Get<IText>(Name("status")).Set("Working…"); continue; }
         var stepKey = Name($"turn-{step.RunId}-step-{step.Sequence}");
         var (title, body) = step.Kind switch
         {

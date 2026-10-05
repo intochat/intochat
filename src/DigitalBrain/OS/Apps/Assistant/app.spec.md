@@ -20,6 +20,11 @@ Invoking "open" with "docked" answers id "assistant-docked", the same surface an
 After sending "hello", the transcript's only turn shows "hello" and the model's answer, and its
 status is done.
 
+## Scenario: A plain answer leaves nothing behind but its turn
+
+A turn answered without tools keeps no step cards: the answer streams into the turn itself, so
+a long reply never leaves one stored card per piece of text.
+
 ## Scenario: The tools a turn uses appear in the transcript
 
 When the model calls a tool before answering, the turn's steps show that tool's call and result

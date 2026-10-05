@@ -17,7 +17,7 @@ public sealed class OsAssistantAppFacts
         Assert.Contains("behaviors/chat.cs", bundle.Files.Keys);
         var scenarios = bundle.Spec.Split('\n').Where(line => line.StartsWith("## Scenario:", StringComparison.Ordinal))
             .Select(line => line["## Scenario:".Length..].Trim()).ToArray();
-        Assert.Equal(5, scenarios.Length);
+        Assert.Equal(6, scenarios.Length);
         Assert.All(scenarios, scenario => Assert.Contains($"Scenario(\"{scenario}\"", bundle.Files[AppFiles.TestsPath], StringComparison.Ordinal));
     }
 }
