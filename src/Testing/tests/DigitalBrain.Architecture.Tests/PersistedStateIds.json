@@ -1752,6 +1752,12 @@
     "Payload": 2
   },
   "DigitalBrain.Framework.Enforcement.UntrustedCallerException": {},
+  "DigitalBrain.Framework.NeuronRecord": {
+    "Domain": 0,
+    "TypeId": 1,
+    "Key": 2,
+    "Display": 3
+  },
   "DigitalBrain.Framework.NeuronType": {
     "Id": 0,
     "ModuleId": 1,
@@ -1849,6 +1855,11 @@
   "DigitalBrain.Framework.RegistryDiscoveryError": {
     "Provider": 0,
     "Message": 1
+  },
+  "DigitalBrain.Framework.RegistryInventory": {
+    "Records": 0,
+    "Domains": 1,
+    "Errors": 2
   },
   "DigitalBrain.Google.Gmail.GmailConnected": {
     "EmailAddress": 0

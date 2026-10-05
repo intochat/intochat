@@ -9,7 +9,7 @@ builds/tests, never the .slnx.
 ## Execution status
 
 - [x] Gate — storage-catalog grounding disproved; design revised to federation. Closed.
-- [ ] Task 1 — Framework contracts
+- [x] Task 1 — Framework contracts (RED: 2 missing-shape facts; GREEN: Framework 116/116, Architecture 35/35)
 - [ ] Task 2 — Platform federation + census service
 - [ ] Task 3 — Providers over existing aggregates (Apps, Connections, CSharp, Postgres)
 - [ ] Task 4 — Time: reminder/timer listing + provider
