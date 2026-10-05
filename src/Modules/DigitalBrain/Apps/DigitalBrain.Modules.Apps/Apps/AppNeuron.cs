@@ -271,6 +271,11 @@ internal sealed class AppNeuron(
         { throw new InvalidOperationException("Publishing needs a signed-in publisher."); }
         if (BrainScope.Create(caller.AccountId, caller.BrainId).Id != BrainId())
         { throw new UnauthorizedAccessException("Only the brain that owns an app can publish it."); }
+        // A listing is one app: the same name from another of the publisher's brains is refused,
+        // never a silent takeover of what installers already trust.
+        if (await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).Read(caller.PrincipalId, Name()) is { } listed
+            && BrainScope.Create(listed.PublisherAccountId, listed.PublisherBrainId).Id != BrainId())
+        { throw new InvalidOperationException($"{caller.PrincipalId}/{Name()} is already published from another brain."); }
         var next = Snapshot.Clone();
         var manifest = next.Manifest!;
         next.PublishedVersion = next.Version;
@@ -373,7 +378,10 @@ internal sealed class AppNeuron(
     public async Task Delete()
     {
         if (Snapshot.Manifest is null) { return; }
-        if (Snapshot.Publisher is { } publisher)
+        // Only this app's own listing comes down with it.
+        if (Snapshot.Publisher is { } publisher
+            && await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).Read(publisher, Name()) is { } listed
+            && BrainScope.Create(listed.PublisherAccountId, listed.PublisherBrainId).Id == BrainId())
         { await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).Remove(publisher, Name()); }
         if (Deployable() is { } deployable && Snapshot.StorageFiles.Length > 0)
         {

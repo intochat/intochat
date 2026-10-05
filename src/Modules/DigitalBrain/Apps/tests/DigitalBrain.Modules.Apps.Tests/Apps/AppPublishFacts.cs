@@ -162,4 +162,34 @@ public sealed class AppPublishFacts
         Assert.NotNull(await Marketplace(brain).Read("intochat", "echo"));
         Caller.Clear();
     }
+
+    // One person, two brains, one app name: the listing stays with the brain that published it
+    // first, and that brain can still delete its app.
+    [Fact]
+    public async Task ASiblingBrainCannotTakeOverAListingAndTheOwnerCanStillDelete()
+    {
+        await using var brain = await Start();
+        var first = await GreenApp(brain, "intochat");
+        Owner.Stamp("intochat");
+        await first.Publish();
+        Caller.Clear();
+        var siblingScope = DigitalBrain.Framework.Enforcement.BrainScope.Create("account-intochat", "second").Id;
+        var sibling = brain.Get<IApp>(IApp.Key(siblingScope, "echo"));
+        await sibling.Create(Manifest(), Spec);
+        await sibling.BeginBuild(null);
+        await sibling.CompleteBuild(await sibling.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["behaviors/echo.cs"] = "// b" }, null);
+        await sibling.RecordVerdicts([new("Echoes", true, "ok"), new("Quiet", true, "ok")], green: true);
+        DigitalBrain.Framework.Enforcement.CallerContextStamper.Stamp(new DigitalBrain.Enforcement.CallerContext
+        {
+            PrincipalId = "intochat", AccountId = "account-intochat", BrainId = "second",
+            Kind = DigitalBrain.Enforcement.CallerKind.Platform, StampedBy = DigitalBrain.Enforcement.TrustedEdge.Platform,
+        });
+
+        await Assert.ThrowsAsync<InvalidOperationException>(sibling.Publish);
+        Caller.Clear();
+
+        Assert.Equal("intochat", (await Marketplace(brain).Read("intochat", "echo"))!.PublisherBrainId);
+        await first.Delete();
+        Assert.Null(await Marketplace(brain).Read("intochat", "echo"));
+    }
 }
