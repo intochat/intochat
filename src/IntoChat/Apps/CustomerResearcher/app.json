@@ -2,15 +2,35 @@
   "name": "customer-researcher",
   "title": "Customer Researcher",
   "description": "Research companies live in a driven browser and save verified findings to a Postgres table.",
-  "runtime": "csharp",
+  "version": "1.0.0",
   "operations": [
-    { "name": "open", "description": "Open the researcher window and answer its surface." },
-    { "name": "research", "description": "Research a company by name, location or website and answer the outcome." },
-    { "name": "stop", "description": "Stop the running research." },
-    { "name": "result", "description": "Answer the stored research row for a company query, or null." }
+    {
+      "name": "open",
+      "description": "Open the researcher window and answer its surface."
+    },
+    {
+      "name": "research",
+      "description": "Research a company by name, location or website and answer the outcome."
+    },
+    {
+      "name": "stop",
+      "description": "Stop the running research."
+    },
+    {
+      "name": "result",
+      "description": "Answer the stored research row for a company query, or null."
+    }
   ],
   "settings": [
-    { "name": "Model", "description": "Uses the host default LLM. Scenario tests may override with scripted/<key>.", "default": "" },
-    { "name": "Browser", "description": "The browser driver: empty for the window's own driven browser, or scripted/<key>.", "default": "" }
+    {
+      "name": "Model",
+      "description": "Uses the host default LLM. Scenario tests may override with scripted/<key>.",
+      "default": ""
+    },
+    {
+      "name": "Browser",
+      "description": "The browser driver: empty for the window's own driven browser, or scripted/<key>.",
+      "default": ""
+    }
   ]
 }

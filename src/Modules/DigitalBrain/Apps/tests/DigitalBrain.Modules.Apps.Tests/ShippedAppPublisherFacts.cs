@@ -12,10 +12,13 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DigitalBrain.Modules.Apps.Tests;
 
+// Shipped apps are bundles the host verifies once and imports at startup: a green bundle
+// lands as a live app in the publisher's brain, a red one stays out, and an unchanged
+// version is a no-op.
 public sealed class ShippedAppPublisherFacts
 {
     [Fact]
-    public async Task SourcesPublishUnderTheirOwnIdentityAndUnchangedContentDoesNotCreateAnotherRevision()
+    public async Task AGreenBundleImportsOnceARedOneStaysOutAndABumpedVersionReimports()
     {
         var ct = TestContext.Current.CancellationToken;
         var runner = new ScriptedTestRunner();
@@ -23,11 +26,13 @@ public sealed class ShippedAppPublisherFacts
         runner.BySourceMarker["failing"] = (1, "dbtest:fail Echo\tWrong answer");
         await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
             .ConfigureSilo(silo => silo.Services.AddSingleton<ITestScriptRunner>(runner)).StartAsync(ct);
-        var sources = new IShippedAppSource[] { new Source("first"), new Source("second"), new Source("red") };
-        var publishing = new AppPublishing(brain.SiloServices.GetRequiredService<IDigitalBrain>(), new AppAuthoringPolicy([], new Sandbox()));
+        var versions = new Dictionary<string, string> { ["first"] = "1.0.0", ["red"] = "1.0.0" };
+        var sources = new IShippedAppSource[] { new Source("first", versions), new Source("red", versions, tests: "failing") };
         async Task Ship(string selection)
         {
-            var content = new ShippedAppPublisher(publishing,
+            var content = new ShippedAppPublisher(
+                brain.SiloServices.GetRequiredService<IDigitalBrain>(),
+                brain.SiloServices.GetRequiredService<ITestScriptRunner>(),
                 sources, new ConfigurationBuilder().AddInMemoryCollection(
                     new Dictionary<string, string?> { [ShippedAppPublisher.ShipOnStartupKey] = selection }).Build(),
                 NullLogger<ShippedAppPublisher>.Instance);
@@ -36,30 +41,40 @@ public sealed class ShippedAppPublisherFacts
             await publisher.StartAsync(ct);
             await publisher.ExecuteTask!.WaitAsync(ct);
         }
+
         await Ship("false");
-        var first = brain.Get<IPackage>("first/echo");
-        Assert.Null((await first.Read()).Head);
+        var first = brain.Get<IAppV2>("first/apps/echo");
+        Assert.Equal(AppStatusV2.Drafted, (await first.Read()).Status);
+
         await Ship("true");
-        var initial = await first.Read();
-        Assert.NotNull(initial.Published);
-        Assert.NotNull((await brain.Get<IPackage>("second/echo").Read()).Published);
-        Assert.Null((await brain.Get<IPackage>("red/echo").Read()).Published);
+        var imported = await first.Read();
+        Assert.Equal(AppStatusV2.Live, imported.Status);
+        Assert.Equal("1.0.0", imported.Version);
+        // The imported copy is green: it can be exported onward.
+        Assert.Equal("1.0.0", (await first.Export()).Version);
+        Assert.Equal(AppStatusV2.Drafted, (await brain.Get<IAppV2>("red/apps/echo").Read()).Status);
+
+        // Same version again: no new history entry.
+        var before = (await first.Read()).Versions.Length;
         await Ship("true");
-        Assert.Equal(initial.Head, (await first.Read()).Head);
-        Assert.Equal(initial.Published, (await first.Read()).Published);
+        Assert.Equal(before, (await first.Read()).Versions.Length);
+
+        // A bumped version re-imports.
+        versions["first"] = "1.1.0";
+        await Ship("true");
+        Assert.Equal("1.1.0", (await first.Read()).Version);
     }
 
     [Fact]
     public async Task ADownstreamCancellationFailsThePackageWithoutStoppingThePublisher()
     {
         var ct = TestContext.Current.CancellationToken;
-        // A sandbox-start deadline surfaces as a cancellation that is not the host's shutdown;
-        // the publisher logs it as that package's failure and keeps the host alive.
         await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
             .ConfigureSilo(silo => silo.Services.AddSingleton<ITestScriptRunner>(new CancelledRunner())).StartAsync(ct);
-        var publishing = new AppPublishing(brain.SiloServices.GetRequiredService<IDigitalBrain>(), new AppAuthoringPolicy([], new Sandbox()));
-        var content = new ShippedAppPublisher(publishing,
-            [new Source("first")], new ConfigurationBuilder().AddInMemoryCollection(
+        var content = new ShippedAppPublisher(
+            brain.SiloServices.GetRequiredService<IDigitalBrain>(),
+            brain.SiloServices.GetRequiredService<ITestScriptRunner>(),
+            [new Source("first", new() { ["first"] = "1.0.0" })], new ConfigurationBuilder().AddInMemoryCollection(
                 new Dictionary<string, string?> { [ShippedAppPublisher.ShipOnStartupKey] = "true" }).Build(),
             NullLogger<ShippedAppPublisher>.Instance);
         await using var services = PublisherServices(content);
@@ -69,7 +84,7 @@ public sealed class ShippedAppPublisherFacts
         await publisher.ExecuteTask!.WaitAsync(ct);
 
         Assert.True(publisher.ExecuteTask.IsCompletedSuccessfully);
-        Assert.Null((await brain.Get<IPackage>("first/echo").Read()).Published);
+        Assert.Equal(AppStatusV2.Drafted, (await brain.Get<IAppV2>("first/apps/echo").Read()).Status);
     }
 
     [Fact]
@@ -122,21 +137,12 @@ public sealed class ShippedAppPublisherFacts
             => throw new OperationCanceledException("The C# sandbox did not start.");
     }
 
-    private sealed class Source(string publisher) : IShippedAppSource
+    private sealed class Source(string publisher, Dictionary<string, string> versions, string tests = "passing") : IShippedAppSource
     {
         public string Publisher => publisher;
-        public IReadOnlyList<ShippedApp> Load() =>
-        [new(PackageId.Create(publisher, "echo"), new(new("Echo", "Echo input", [new("ask", "Echo")], [], Runtime: "prompt"), "",
-            new Dictionary<string, string> { [PackageContent.TestsPath] = publisher == "red" ? "failing" : "passing" }))];
-    }
-
-    private sealed class Sandbox : IScriptSandbox
-    {
-        public bool CanRun => true;
-        public string AuthoringDescription => "Script sandbox";
-        public Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken)
-            => Task.FromResult(new ScriptContractCatalog([], [], ""));
-        public ScriptCompilationCheck Check(IReadOnlyDictionary<string, string> files) => new(true, []);
+        public IReadOnlyList<AppBundle> Load() =>
+        [new("echo", versions[publisher], new("Echo", "Echo input", [new("ask", "Echo")], [], []),
+            "## Scenario: Echo\nEchoes.", new() { [AppFiles.TestsPath] = tests })];
     }
 
     private sealed class StartedLifetime : IHostApplicationLifetime

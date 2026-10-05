@@ -18,7 +18,7 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
     }
 
     private const string Manifest = """
-        {"name":"echo","title":"Echo","description":"Echoes.","runtime":"csharp","operations":[],"settings":[]}
+        {"name":"echo","title":"Echo","description":"Echoes.","version":"1.0.0","operations":[],"settings":[]}
         """;
 
     [Fact]
@@ -29,11 +29,11 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
         Write("echo/behaviors/extra.cs", "// behavior\n");
         var source = new DirectoryShippedAppSource(_root, "vendor");
         var app = Assert.Single(source.Load());
-        Assert.Equal("vendor/echo", app.Package.ToString());
+        Assert.Equal("echo", app.Name);
         // Line endings normalize exactly as the embedded source does, so content hashes agree
-        // across checkouts.
-        Assert.Equal("// program\nreturn;\n", app.Content.File(PackageContent.SourcePath));
-        Assert.Equal("// behavior\n", app.Content.File("behaviors/extra.cs"));
+        // across checkouts. A legacy top-level app.cs lands under behaviors/.
+        Assert.Equal("// program\nreturn;\n", app.Files["behaviors/app.cs"]);
+        Assert.Equal("// behavior\n", app.Files["behaviors/extra.cs"]);
     }
 
     [Fact]
@@ -52,6 +52,6 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
         using var provider = services.BuildServiceProvider();
         var source = Assert.Single(provider.GetServices<IShippedAppSource>());
         Assert.Equal("vendor", source.Publisher);
-        Assert.Equal("vendor/echo", Assert.Single(source.Load()).Package.ToString());
+        Assert.Equal("echo", Assert.Single(source.Load()).Name);
     }
 }

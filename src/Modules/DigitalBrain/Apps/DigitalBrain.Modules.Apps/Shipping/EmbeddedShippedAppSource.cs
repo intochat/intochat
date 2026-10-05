@@ -8,7 +8,7 @@ public sealed class EmbeddedShippedAppSource(System.Reflection.Assembly assembly
 {
     public string Publisher => publisher;
 
-    public IReadOnlyList<ShippedApp> Load()
+    public IReadOnlyList<AppBundle> Load()
     {
         var folders = new SortedDictionary<string, Dictionary<string, string>>(StringComparer.Ordinal);
         foreach (var resource in assembly.GetManifestResourceNames())
@@ -24,35 +24,40 @@ public sealed class EmbeddedShippedAppSource(System.Reflection.Assembly assembly
             if (!folders.TryGetValue(folder, out var files)) { folders[folder] = files = new(StringComparer.Ordinal); }
             files[relative[(slash + 1)..]] = reader.ReadToEnd().Replace("\r\n", "\n", StringComparison.Ordinal);
         }
-        return [.. folders.Select(folder => ShippedAppFolder.ToApp(publisher, folder.Key, folder.Value))];
+        return [.. folders.Select(folder => ShippedAppFolder.ToBundle(folder.Key, folder.Value))];
     }
 }
 
 // A shipped app folder is the same shape wherever it comes from: app.json is the manifest,
-// app.cs the script of a csharp app, every other file travels with the package.
+// app.spec.md the spec, a legacy top-level app.cs becomes behaviors/app.cs, every other
+// file travels in the bundle.
 internal static class ShippedAppFolder
 {
     private const string ManifestFile = "app.json";
-    private const string ScriptFile = "app.cs";
+    private const string LegacyScriptFile = "app.cs";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
-    internal static ShippedApp ToApp(string publisher, string folder, IReadOnlyDictionary<string, string> files)
+    internal static AppBundle ToBundle(string folder, IReadOnlyDictionary<string, string> files)
     {
         var manifestText = files.GetValueOrDefault(ManifestFile) ?? throw new InvalidDataException($"Shipped app {folder} has no {ManifestFile}.");
         var manifest = JsonSerializer.Deserialize<AppJson>(manifestText, Json) ?? throw new InvalidDataException($"{folder}/{ManifestFile} is empty.");
-        var content = new PackageContent(
-            new PackageManifest(
+        var bundleFiles = files
+            .Where(file => file.Key is not ManifestFile and not LegacyScriptFile and not AppFiles.SpecPath)
+            .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
+        if (files.TryGetValue(LegacyScriptFile, out var script)) { bundleFiles[AppFiles.BehaviorsPrefix + LegacyScriptFile] = script; }
+        return new(manifest.Name, manifest.Version ?? "1.0.0",
+            new AppManifest(
                 manifest.Title,
                 manifest.Description,
-                [.. manifest.Operations.Select(operation => new PackageOperation(operation.Name, operation.Description))],
-                [.. manifest.Settings.Select(setting => new PackageSetting(setting.Name, setting.Description, setting.Default))],
-                Runtime: manifest.Runtime),
-            files.GetValueOrDefault(ScriptFile) ?? "",
-            files.Where(file => file.Key is not ManifestFile and not ScriptFile).ToDictionary(StringComparer.Ordinal));
-        return new(PackageId.Create(publisher, manifest.Name), content);
+                [.. manifest.Operations.Select(operation => new AppOperation(operation.Name, operation.Description))],
+                [.. manifest.Settings.Select(setting => new AppSetting(setting.Name, setting.Description, setting.Default))],
+                [.. (manifest.Slots ?? []).Select(slot => new AppSlot(slot.Name, slot.Connector))]),
+            files.GetValueOrDefault(AppFiles.SpecPath, ""),
+            bundleFiles);
     }
 
-    private sealed record AppJson(string Name, string Title, string Description, string Runtime, IReadOnlyList<OperationJson> Operations, IReadOnlyList<SettingJson> Settings);
+    private sealed record AppJson(string Name, string Title, string Description, IReadOnlyList<OperationJson> Operations, IReadOnlyList<SettingJson> Settings, string? Version = null, IReadOnlyList<SlotJson>? Slots = null);
     private sealed record OperationJson(string Name, string Description);
     private sealed record SettingJson(string Name, string Description, string Default);
+    private sealed record SlotJson(string Name, string Connector);
 }

@@ -7,12 +7,12 @@ public sealed class DirectoryShippedAppSource(string path, string publisher) : I
 {
     public string Publisher => publisher;
 
-    public IReadOnlyList<ShippedApp> Load()
+    public IReadOnlyList<AppBundle> Load()
     {
         var root = new DirectoryInfo(path);
         if (!root.Exists) { throw new DirectoryNotFoundException($"Shipped app directory '{path}' for publisher '{publisher}' does not exist."); }
         return [.. root.EnumerateDirectories().OrderBy(folder => folder.Name, StringComparer.Ordinal)
-            .Select(folder => ShippedAppFolder.ToApp(publisher, folder.Name, ReadFolder(folder)))];
+            .Select(folder => ShippedAppFolder.ToBundle(folder.Name, ReadFolder(folder)))];
     }
 
     private static Dictionary<string, string> ReadFolder(DirectoryInfo folder)

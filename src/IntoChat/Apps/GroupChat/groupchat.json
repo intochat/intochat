@@ -1,7 +1,0 @@
-{
-  "brief": "prompts/brief.md",
-  "participants": [
-    { "name": "Luna", "instructions": "prompts/luna.md" },
-    { "name": "Gemma", "instructions": "prompts/gemma.md" }
-  ]
-}
