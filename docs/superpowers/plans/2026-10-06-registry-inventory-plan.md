@@ -1,106 +1,101 @@
-# IRegistry implementation plan
+# IRegistry implementation plan (federation revision)
 
-Spec: `docs/superpowers/specs/2026-10-06-registry-inventory-design.md`. Branch `os`.
-Each task is TDD (facts first), per-project builds/tests, never the .slnx.
+Spec: `docs/superpowers/specs/2026-10-06-registry-inventory-design.md` (the 2026-10-06
+federation revision — the storage-catalog design it replaces was disproved by the Task 0
+gate, evidence in `2026-10-06-registry-inventory-gate.md`; that gate's outcome is final,
+do not re-probe storage). Branch `os`. Each task is TDD (facts first), per-project
+builds/tests, never the .slnx.
 
 ## Execution status
 
-- [ ] Task 0 — **BLOCKED**: read-only provider probe exited 1; production is Azure Blob,
-  not Postgres, and ModuleTest memory storage has no enumeration API. Key audit also
-  found opaque C# keys and reminders outside the grain-state catalog.
-  [Evidence and options](2026-10-06-registry-inventory-gate.md).
-- [ ] Task 1 — not started (gate)
-- [ ] Task 2 — not started (gate)
-- [ ] Task 3 — not started (gate)
-- [ ] Task 4 — not started (gate)
-- [ ] Task 5 — not started (gate)
-- [ ] Task 6 — not started (gate)
-- [ ] Task 7 — not started (gate; no completion-suite or Aspire claim)
+- [x] Gate — storage-catalog grounding disproved; design revised to federation. Closed.
+- [ ] Task 1 — Framework contracts
+- [ ] Task 2 — Platform federation + census service
+- [ ] Task 3 — Providers over existing aggregates (Apps, Connections, CSharp, Postgres)
+- [ ] Task 4 — Time: reminder/timer listing + provider
+- [ ] Task 5 — Assistant tools
+- [ ] Task 6 — Coverage rule in docs + closure
 
-## Task 0 — Feasibility gate: the storage catalog is queryable
+## Task 1 — Framework contracts
 
-Confirm the default grain storage can answer "all state rows whose grain key belongs to
-brain X", with exact-delimiter scope matching (not textual prefix). Locate the storage
-provider in use (Postgres-backed after table-owners-v1; memory storage in ModuleTest
-clusters) and write a throwaway probe or a first failing fact proving a prefix query is
-expressible for both. If the production storage cannot express it, STOP and report —
-the whole design leans on this.
+In `src/DigitalBrain/Framework/DigitalBrain.Framework/Discovery/`:
+- `IRegistry` with `Persisted(typeId?)` / `Active(typeId?)` returning `RegistryInventory`.
+- `RegistryInventory` (`registry.inventory`, ids 0..2: Records, Domains, Errors — reuse
+  the existing `RegistryDiscoveryError` shape) and `NeuronRecord`
+  (`registry.neuron-record`, ids 0..3: Domain, TypeId, Key, Display).
+- `IRegistryInventoryProvider { string Domain; Persisted(typeId?, ct); Active(typeId?, ct) }`
+  beside the existing `IRegistryResourceProvider` (sibling interface — do not overload
+  capability discovery with inventory).
+- Facts: serialization identity rows in the architecture baseline; concrete arrays.
 
-Also inventory the key conventions actually in use: `BrainScope`-prefixed keys vs the
-exceptions (deployment-scoped neurons like `integration/...`, platform singletons).
-Decide and record in the spec how non-brain-scoped keys are handled: excluded from
-Persisted/Active results (recommended — they are deployment infrastructure, not brain
-contents).
+## Task 2 — Platform federation + census service
 
-## Task 1 — Framework contract
+- `PlatformRegistry : IRegistry` in `src/DigitalBrain/Platform/.../Discovery/`:
+  requires the ambient kernel-stamped caller (brain is never a parameter); fans out to
+  all registered `IRegistryInventoryProvider`s; concatenates Records; fills `Domains`
+  with every provider asked; a provider exception becomes a named entry in `Errors`,
+  never a failed union; `typeId` filter passed through to providers.
+  Register `TryAddSingleton<IRegistry, PlatformRegistry>()` in PlatformHosting.
+- `IActivationCensus` (Framework-declared, Platform-implemented over
+  `IManagementGrain.GetDetailedGrainStatistics()`): `Task<ActivationRecord[]>
+  Activations(string grainTypeId, CancellationToken)` — raw type+key pairs, no brain
+  filtering (providers map keys to brains; only they can). Platform-facing service,
+  never script-visible, never exposed as a user surface.
+- Facts (ModuleTest, real grains): union across two fake providers; one throwing
+  provider lands in Errors while the other's records survive; Domains lists both;
+  unauthenticated caller refused; typeId filter reaches providers.
 
-`src/DigitalBrain/Framework/DigitalBrain.Framework/Discovery/IRegistry.cs`:
-`IRegistry` + `NeuronRecord` exactly as the spec defines (alias `registry.neuron-record`,
-ids 0..2). No implementation in Framework. Facts: serialization identity of NeuronRecord
-(architecture suite baseline row).
+## Task 3 — Providers over existing aggregates (zero new state)
 
-## Task 2 — Platform implementation: Persisted
+One provider per domain, each a read view over state that already exists:
+- **Apps** (`Domain="apps"`): installed apps from the per-brain `IApps` index; each
+  installed app's script files from `AppState.StorageFiles` (Display: package id /
+  file path). Active: intersect `StorageFiles` + app keys with the census.
+- **Connections** (`Domain="connections"`): the per-brain connection registry
+  (Display: connector/connection id; no credentials, no SecretRefs in records).
+- **CSharp** (`Domain="csharp"`): standalone files from its existing per-brain file
+  index (verify one exists; if CSharp has no standalone-file index, limit the provider
+  to what it authoritatively knows and say so in the provider's doc comment — do NOT
+  build a new index in this task).
+- **Postgres** (`Domain="postgres"`): tables from the ownership state it already keeps.
+- Facts per provider: two brains see only their own; records match the aggregate's
+  truth after install/uninstall (Apps), connect/disconnect (Connections).
 
-`src/DigitalBrain/Platform/DigitalBrain.Platform/Discovery/PlatformRegistry.cs`
-implementing `IRegistry`:
-- Require ambient `CallerContext`; derive the brain scope from it; brain is never a parameter.
-- Query the grain storage for the scope; map rows to `NeuronRecord` (grain type id, key,
-  contract name via the shared contract catalog from #147 — unknown types map to the raw
-  type id, never dropped).
-- `typeId` filter applied server-side.
-- Loud failure when the composed storage cannot answer the query.
-Register in `PlatformHosting` as `TryAddSingleton<IRegistry, PlatformRegistry>()`.
-Facts (ModuleTest, real grains): two brains each persist neurons → each sees only its own;
-typeId filter works; a deployment-scoped neuron (integration registration) appears in
-neither; unauthenticated caller is refused.
+## Task 4 — Time: reminder/timer listing + provider
 
-## Task 3 — Platform implementation: Active
-
-Same class: `IManagementGrain.GetDetailedGrainStatistics()` census, map each activation's
-grain identity to (typeId, key), apply the same brain-scope parse + filter + typeId filter.
-Never persisted; computed per call.
-Facts: activate a neuron in brain A and one in brain B → A's Active lists only its own;
-a neuron that persisted but was deactivated appears in Persisted and not in Active
-(force deactivation or use idle collection in test cluster); census errors surface as
-exceptions, not empty results.
-
-## Task 4 — Guard the key convention
-
-The brain-scope key convention is now load-bearing. Add an architecture/OS fact that
-asserts the scope-parsing rules used by PlatformRegistry against representative real keys
-(app keys, csharp file keys, connection keys, reminder keys, integration keys) so a future
-key-format change fails a test instead of silently mis-scoping inventory.
+Time is the one domain without a listing. Add the minimal per-brain index it needs for
+its own UX anyway: reminders/timers self-register on Set/Arm and unregister on
+cancel/final-fire, grain-side (the `IApp.Track` pattern — track before persist,
+idempotent by key, read-model discipline: a missed index write stales the list, never
+strands the reminder). State: concrete arrays, `[Alias]`, stable `[Id(n)]`.
+Provider (`Domain="time"`): Persisted from the index with schedule Display ("standup —
+fires 09:00"); Active via census intersection with its own keys.
+Facts: set two reminders in brain A, one in brain B — each lists its own with schedule;
+cancel removes; a reaped-and-reactivated reminder still lists (durable intent, not
+activation).
 
 ## Task 5 — Assistant tools
 
-Extend the Assistant's discovery tooling with registry tools backed by injected
-`IRegistry`:
-- `list_neurons` (persisted, optional type filter), `list_active_neurons`.
-- Compose with existing `discover_capabilities` enrichment: when the user asks "which
-  reminders are there", the tool lists persisted `timer.reminder` records and may enrich
-  via the domain's provider/neuron reads. Enrichment stays optional.
-Facts: scripted-LLM conversation asking for inventory gets grounded results from two
-seeded neurons; brain isolation holds through the tool path.
+- `list_neurons` (Persisted, optional type filter) and `list_active_neurons` over
+  injected `IRegistry`; answers attribute records to domains and surface `Errors` and
+  `Domains` so the model can say "Time did not answer" instead of "no reminders."
+- Compose with existing capability discovery for rich follow-ups; no new neuron state.
+- Facts: scripted-LLM conversation over seeded reminders + an installed app returns
+  grounded, brain-isolated inventory; a throwing provider is reported, not hidden.
 
-## Task 6 — Time module enrichment (first consumer proof)
+## Task 6 — Coverage rule + closure
 
-Minimal proof that rich status composes: reminders' own state answers "armed / next fire"
-when the assistant asks (direct contract read from the tool or a small
-IRegistryResourceProvider in Time — pick the cheaper; do NOT build a reminder index
-neuron, existence comes from the Registry now).
-Facts: set two reminders, ask the assistant tool, see both with schedule detail.
-
-## Task 7 — Docs and closure
-
-- CLAUDE.md: one sentence in the module-contract area: "the Framework's IRegistry answers
-  what exists (storage catalog) and what is active (runtime census) per brain; modules
-  inject it; nothing mirrors these catalogs."
-- Spec self-review; update the 2026-10-06 spec with Task 0's key-handling decision.
-- Run: Framework, Platform, Architecture, Assistant, Time, OS unit suites; both E2E
-  suites; `aspire run` smoke (all resources Healthy).
+- CLAUDE.md module contract, one sentence: a module that owns enumerable per-brain
+  state ships its `IRegistryInventoryProvider`; the Framework's `IRegistry` federates
+  them — nothing mirrors domain state.
+- Spec self-review; update spec with any implementation rulings (e.g. CSharp index
+  reality from Task 3).
+- Run: Framework, Platform, Architecture, Apps, Time, Assistant, CSharp, Postgres, OS
+  unit suites; both E2E suites; `aspire run` smoke (all resources Healthy).
 
 ## Out of scope (do not build)
 
-Script-facing IRegistry access; `/brains/{id}/registry` HTTP + shell screen; kernel
-existence signals; any inventory/index neuron; per-module provider coverage mandates;
-cross-brain or deployment-wide inventory surfaces.
+Storage scans or key-grammar parsing (gate-rejected); any Registry-owned persisted
+state; script-facing IRegistry; `/brains/{id}/registry` HTTP + shell screen; kernel
+existence signals; Flutter windows / GroupChat providers (follow-ups); census as a
+user-facing surface.
