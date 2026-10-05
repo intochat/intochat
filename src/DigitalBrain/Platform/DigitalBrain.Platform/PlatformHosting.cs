@@ -1,10 +1,10 @@
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Platform.Capacity;
-using DigitalBrain.Kernel.Platform.Identity;
-using DigitalBrain.Kernel.Platform.Integrations;
-using DigitalBrain.Kernel.Platform.Integrations.Accounts;
+using DigitalBrain.Framework.Platform.Identity;
+using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Framework.Platform.Integrations.Accounts;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Directory;
 using DigitalBrain.Platform.Identity.Grants;
@@ -29,8 +29,8 @@ public static class PlatformHosting
         services.AddOptions<IdentityMigrationOptions>().BindConfiguration(IdentityMigrationOptions.SectionName);
         services.TryAddSingleton<DeploymentStorageIdentity>();
         silo.AddStartupTask<IdentityMigrationStartup>();
-        services.TryAddSingleton<DigitalBrain.Kernel.Platform.Auth.ITokenHandoff, Auth.TokenHandoff>();
-        services.TryAddSingleton<DigitalBrain.Kernel.Platform.Auth.IOAuthCredentials, Auth.OAuthCredentials>();
+        services.TryAddSingleton<DigitalBrain.Framework.Platform.Auth.ITokenHandoff, Auth.TokenHandoff>();
+        services.TryAddSingleton<DigitalBrain.Framework.Platform.Auth.IOAuthCredentials, Auth.OAuthCredentials>();
         services.AddMasterKeyWrapper();
         services.TryAddSingleton<IReadOnlyList<IntegrationDefinition>>(provider =>
             IntegrationDiscovery.Collect(provider.GetRequiredService<ModuleInventory>().Types));

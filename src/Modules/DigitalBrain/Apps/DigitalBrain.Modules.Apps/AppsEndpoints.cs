@@ -1,9 +1,9 @@
 using System.Text.Json;
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Kernel.Http;
+using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Http;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;

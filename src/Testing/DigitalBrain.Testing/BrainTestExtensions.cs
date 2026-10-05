@@ -1,7 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Client;
 using DigitalBrain.Client.Orleans;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 
 namespace DigitalBrain.Testing;
 

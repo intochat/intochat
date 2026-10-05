@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using Azure;
 using Azure.Storage.Blobs;
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Files;

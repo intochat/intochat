@@ -2,7 +2,7 @@ using DigitalBrain.ServiceDefaults;
 using Azure.Data.Tables;
 using DigitalBrain;
 using DigitalBrain.Client.Orleans;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
@@ -70,8 +70,8 @@ public static class ServerHostingExtensions
     {
         public Task StartAsync(CancellationToken cancellationToken)
         {
-            _ = services.GetRequiredService<DigitalBrain.Kernel.Enforcement.IBrainAccess>();
-            if (!services.GetServices<DigitalBrain.Kernel.Enforcement.ICallFilterStage>().Any())
+            _ = services.GetRequiredService<DigitalBrain.Framework.Enforcement.IBrainAccess>();
+            if (!services.GetServices<DigitalBrain.Framework.Enforcement.ICallFilterStage>().Any())
             { throw new InvalidOperationException("Register an authorization policy or AddDigitalBrainPlatform before starting the server."); }
             return Task.CompletedTask;
         }

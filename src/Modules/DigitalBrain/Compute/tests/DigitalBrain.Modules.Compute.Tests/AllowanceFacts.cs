@@ -3,7 +3,7 @@ using DigitalBrain.Compute.Allowances;
 using DigitalBrain.Compute.Billing;
 using DigitalBrain.Compute.Metering;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 
 namespace DigitalBrain.Modules.Compute.Tests;
 

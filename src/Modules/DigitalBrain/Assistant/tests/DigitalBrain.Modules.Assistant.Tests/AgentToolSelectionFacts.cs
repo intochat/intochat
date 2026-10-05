@@ -2,7 +2,7 @@ using DigitalBrain.AI.Agents;
 using DigitalBrain.Apps;
 using DigitalBrain.Assistant;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Registry;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;

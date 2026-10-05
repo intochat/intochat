@@ -4,7 +4,7 @@ using DigitalBrain.Apps;
 using DigitalBrain.Aspire.Server;
 using DigitalBrain.Assistant;
 using DigitalBrain.Compute;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.OS;
 using DigitalBrain.Platform;
 using DigitalBrain.Platform.Identity;

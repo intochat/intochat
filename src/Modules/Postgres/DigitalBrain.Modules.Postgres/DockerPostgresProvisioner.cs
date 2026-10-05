@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
-using DigitalBrain.Kernel.Capacity;
+using DigitalBrain.Framework.Capacity;
 using Npgsql;
 
 namespace DigitalBrain.Postgres;

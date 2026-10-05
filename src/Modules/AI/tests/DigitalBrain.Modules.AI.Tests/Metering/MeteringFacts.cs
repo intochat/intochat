@@ -3,7 +3,7 @@ using DigitalBrain;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Metering;
 using DigitalBrain.Compute;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Microsoft.Extensions.AI;
 using Xunit;
 

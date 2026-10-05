@@ -3,7 +3,7 @@ using Aspire.Hosting;
 using DigitalBrain;
 using DigitalBrain.Client;
 using DigitalBrain.Client.Orleans;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Microsoft.Playwright;
 using Orleans;
 

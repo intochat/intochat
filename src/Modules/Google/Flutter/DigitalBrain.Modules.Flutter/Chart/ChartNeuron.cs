@@ -1,6 +1,6 @@
 using System.Globalization;
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Data;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Chart.Signals;

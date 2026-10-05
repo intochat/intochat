@@ -1,8 +1,8 @@
 using System.Reflection;
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Tables;

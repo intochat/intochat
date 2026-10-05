@@ -26,7 +26,7 @@ public sealed class ScenarioSupportFacts
         await brain.AuthorizeCallerAsync();
         var id = PackageId.Parse("alice/invocation-support");
         var revision = await brain.Get<IPackage>(id.ToString()).Commit(brain.Commit(null, new(new("Test", "", [new("ask", "Ask")], []), "// source")));
-        var app = brain.Get<IApp>(DigitalBrain.Kernel.Enforcement.BrainScope.CurrentId() + "/apps/scenario-invocations");
+        var app = brain.Get<IApp>(DigitalBrain.Framework.Enforcement.BrainScope.CurrentId() + "/apps/scenario-invocations");
         await app.Install(new(Guid.NewGuid(), new(id, revision.Id), new Dictionary<string, string>()));
         var pending = await app.Invoke(new(Guid.NewGuid(), "ask", "before subscription"));
         await using var invocations = app.Invocations(brain.Brain, ct).GetAsyncEnumerator(ct);

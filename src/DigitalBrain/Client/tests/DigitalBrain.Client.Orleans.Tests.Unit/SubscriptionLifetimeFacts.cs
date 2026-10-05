@@ -1,4 +1,4 @@
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;

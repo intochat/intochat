@@ -1,4 +1,4 @@
-using DigitalBrain.Kernel.Platform.Integrations;
+using DigitalBrain.Framework.Platform.Integrations;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -27,7 +27,7 @@ public sealed class AssistantStreamFacts
         await using var brain = await StartBrain(ct);
         var context = new StepContext("stream-refusal/applications/assistant", brain.Grains, brain.SiloServices, ct);
         var app = App(context);
-        foreach (var message in new[] { DigitalBrain.Kernel.Capacity.CapacityUnavailableException.RefusalMessage, "Cannot install this app. Missing modules: Postgres." })
+        foreach (var message in new[] { DigitalBrain.Framework.Capacity.CapacityUnavailableException.RefusalMessage, "Cannot install this app. Missing modules: Postgres." })
         {
             var events = await Collect(app, new("one", Guid.NewGuid().ToString("N"), "refuse:" + message, "owner"), ct);
             Assert.Equal(message, Assert.Single(events, item => Type(item) == "RUN_ERROR").GetProperty("message").GetString());

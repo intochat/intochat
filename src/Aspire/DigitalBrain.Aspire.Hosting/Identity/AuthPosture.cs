@@ -1,5 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 

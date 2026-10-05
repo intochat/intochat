@@ -1,9 +1,9 @@
 using DigitalBrain;
 using DigitalBrain.AI;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Kernel.Platform.Integrations;
+using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;

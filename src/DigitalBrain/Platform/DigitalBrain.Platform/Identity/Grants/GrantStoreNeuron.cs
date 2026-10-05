@@ -1,6 +1,6 @@
 using DigitalBrain;
-using DigitalBrain.Kernel;
-using DigitalBrain.Kernel.Platform.Identity;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Identity;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Platform.Identity.Grants;

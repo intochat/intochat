@@ -1,5 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Tables;
 using Microsoft.Extensions.DependencyInjection;

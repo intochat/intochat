@@ -4,7 +4,7 @@ using DigitalBrain.Types;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Form;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Testing;
 using Xunit;
 

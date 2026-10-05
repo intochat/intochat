@@ -1,6 +1,6 @@
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Kernel.Platform.Integrations;
+using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.AI;

@@ -1,10 +1,10 @@
 using ArchUnitNET.Fluent;
 using ArchUnitNET.xUnitV3;
-using DigitalBrain.Kernel;
-using DigitalBrain.Kernel.Platform.Identity;
-using DigitalBrain.Kernel.Platform.Integrations;
-using DigitalBrain.Kernel.Platform.Integrations.Accounts;
-using DigitalBrain.Kernel.Platform.Secrets;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Identity;
+using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Framework.Platform.Integrations.Accounts;
+using DigitalBrain.Framework.Platform.Secrets;
 using static ArchUnitNET.Fluent.ArchRuleDefinition;
 
 namespace DigitalBrain.Architecture.Tests;
@@ -14,14 +14,14 @@ public sealed class BoundaryFacts
     private static readonly string[] KernelLayers =
     [
         "DigitalBrain", "DigitalBrain.Client", "DigitalBrain.Client.Orleans",
-        "DigitalBrain.Kernel", "DigitalBrain.Platform"
+        "DigitalBrain.Framework", "DigitalBrain.Platform"
     ];
 
     [Theory]
-    [InlineData("DigitalBrain", "DigitalBrain.Kernel")]
-    [InlineData("DigitalBrain.Kernel", "DigitalBrain.Client")]
-    [InlineData("DigitalBrain.Kernel", "DigitalBrain.Client.Orleans")]
-    [InlineData("DigitalBrain.Kernel", "DigitalBrain.Platform")]
+    [InlineData("DigitalBrain", "DigitalBrain.Framework")]
+    [InlineData("DigitalBrain.Framework", "DigitalBrain.Client")]
+    [InlineData("DigitalBrain.Framework", "DigitalBrain.Client.Orleans")]
+    [InlineData("DigitalBrain.Framework", "DigitalBrain.Platform")]
     [InlineData("DigitalBrain.Client", "DigitalBrain.Platform")]
     [InlineData("DigitalBrain.Client.Orleans", "DigitalBrain.Platform")]
     public void CoreBoundariesDoNotInvert(string source, string forbidden)
@@ -94,8 +94,8 @@ public sealed class BoundaryFacts
     }
 
     internal static bool IsCredentialContract(Type type) => type.IsInterface && (
-        InNamespace(type, "DigitalBrain.Kernel.Platform.Secrets") || InNamespace(type, "DigitalBrain.Kernel.Platform.Identity")
-        || InNamespace(type, "DigitalBrain.Kernel.Platform.Integrations"));
+        InNamespace(type, "DigitalBrain.Framework.Platform.Secrets") || InNamespace(type, "DigitalBrain.Framework.Platform.Identity")
+        || InNamespace(type, "DigitalBrain.Framework.Platform.Integrations"));
 
     private static bool InNamespace(Type type, string name) =>
         type.Namespace == name || type.Namespace?.StartsWith(name + ".", StringComparison.Ordinal) == true;
@@ -117,7 +117,7 @@ public sealed class BoundaryFacts
     {
         for (var current = type.BaseType; current is not null; current = current.BaseType)
         {
-            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(DigitalBrain.Kernel.Module<>))
+            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(DigitalBrain.Framework.Module<>))
             { return current.GetGenericArguments()[0]; }
         }
         return null;

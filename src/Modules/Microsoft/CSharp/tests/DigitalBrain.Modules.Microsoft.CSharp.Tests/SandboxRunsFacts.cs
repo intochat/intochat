@@ -1,5 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Edge.V1;
 using DigitalBrain.Microsoft.CSharp.Sandbox;
 using Microsoft.Extensions.Options;

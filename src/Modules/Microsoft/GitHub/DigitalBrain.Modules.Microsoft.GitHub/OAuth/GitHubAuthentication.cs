@@ -1,4 +1,4 @@
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OAuth;
 using Microsoft.AspNetCore.Http;

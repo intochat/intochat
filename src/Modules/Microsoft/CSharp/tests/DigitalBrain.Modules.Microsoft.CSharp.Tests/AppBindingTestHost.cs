@@ -1,5 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp;
 using Orleans.Runtime;
 
@@ -14,8 +14,8 @@ public interface IAppBindingTestHost : INeuron
 [GrainType("apps.app")]
 public sealed class AppBindingTestHost : Neuron, IAppBindingTestHost
 {
-    public override DigitalBrain.Kernel.Enforcement.NeuronAccess Access(string operation)
-        => DigitalBrain.Kernel.Enforcement.NeuronAccess.PublicOperation;
+    public override DigitalBrain.Framework.Enforcement.NeuronAccess Access(string operation)
+        => DigitalBrain.Framework.Enforcement.NeuronAccess.PublicOperation;
     public Task Bind(string file, string? overrideApp = null)
         => GrainFactory.GetGrain<ICSharpAppBinding>(file).BindApp(overrideApp ?? this.GetPrimaryKeyString());
     public async Task Start(string file)

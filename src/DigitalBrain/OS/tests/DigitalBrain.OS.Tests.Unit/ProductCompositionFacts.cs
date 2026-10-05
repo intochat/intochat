@@ -1,6 +1,6 @@
 extern alias AppHost;
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
 using DigitalBrain.Aspire.Hosting;
@@ -53,6 +53,6 @@ public sealed class ProductCompositionFacts
         }
         Assert.Equal("IDeepSeekV41Flash", environment[DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ModuleOptionsSection("ai") + ":Default:Model")]);
         Assert.True(environment.ContainsKey(DigitalBrainConfiguration.EnvironmentName(
-            DigitalBrain.Kernel.Platform.Integrations.IntegrationDefinition.Key("openrouter", "ApiKey"))));
+            DigitalBrain.Framework.Platform.Integrations.IntegrationDefinition.Key("openrouter", "ApiKey"))));
     }
 }

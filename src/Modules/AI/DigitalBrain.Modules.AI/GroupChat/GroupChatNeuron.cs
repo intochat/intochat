@@ -1,7 +1,7 @@
 using System.Text;
 using DigitalBrain;
 using DigitalBrain.AI.GroupChat.Signals;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Orleans.Runtime;
 
 namespace DigitalBrain.AI.GroupChat;

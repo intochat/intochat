@@ -1796,6 +1796,90 @@
     "Reference": 2,
     "IsOpen": 3
   },
+  "DigitalBrain.Framework.BrainState": {
+    "Name": 0,
+    "OwnerAccountId": 1,
+    "EstablishedAt": 2
+  },
+  "DigitalBrain.Framework.Capacity.CapacityUnavailableException": {},
+  "DigitalBrain.Framework.Data.StoredRowsState": {
+    "Columns": 0,
+    "Rows": 1
+  },
+  "DigitalBrain.Framework.DocumentIndexState": {
+    "Ids": 0
+  },
+  "DigitalBrain.Framework.DocumentState": {
+    "Written": 0,
+    "Version": 1,
+    "Payload": 2
+  },
+  "DigitalBrain.Framework.Enforcement.UntrustedCallerException": {},
+  "DigitalBrain.Framework.Platform.Identity.Account": {
+    "AccountId": 0,
+    "Name": 1,
+    "OwnerPrincipalId": 2,
+    "CreatedAt": 3
+  },
+  "DigitalBrain.Framework.Platform.Identity.Grant": {
+    "AppId": 0,
+    "SemanticTypeId": 1,
+    "Mode": 2,
+    "WorkspaceId": 3,
+    "ConversationId": 4,
+    "GrantedAt": 5,
+    "Revoked": 6
+  },
+  "DigitalBrain.Framework.Platform.Identity.Invitation": {
+    "Code": 0,
+    "AccountId": 1,
+    "WorkspaceId": 2,
+    "Role": 3,
+    "Email": 4,
+    "CreatedAt": 5,
+    "Accepted": 6
+  },
+  "DigitalBrain.Framework.Platform.Identity.Member": {
+    "PrincipalId": 0,
+    "AccountId": 1,
+    "BrainId": 2,
+    "Role": 3,
+    "DisplayName": 4,
+    "JoinedAt": 5
+  },
+  "DigitalBrain.Framework.Platform.Integrations.Accounts.AccountDisconnected": {},
+  "DigitalBrain.Framework.Platform.Integrations.Accounts.AccountNotConfiguredException": {},
+  "DigitalBrain.Framework.Platform.Integrations.Accounts.AccountProbeResult": {},
+  "DigitalBrain.Framework.Platform.Integrations.Accounts.AccountStatusChanged": {},
+  "DigitalBrain.Framework.Platform.Integrations.Accounts.ConnectAccount": {
+    "IntegrationId": 0,
+    "ConnectionId": 1,
+    "Label": 2,
+    "Value": 3,
+    "SecretReference": 4
+  },
+  "DigitalBrain.Framework.Platform.Integrations.Accounts.IntegrationAccount": {
+    "Id": 0,
+    "IntegrationId": 1,
+    "WorkspaceId": 2,
+    "Credential": 3,
+    "Status": 4,
+    "LastProbedAt": 5
+  },
+  "DigitalBrain.Framework.Platform.Integrations.ConfigureRegistration": {
+    "Values": 0
+  },
+  "DigitalBrain.Framework.Platform.Integrations.RegistrationChanged": {},
+  "DigitalBrain.Framework.Platform.Integrations.RegistrationSnapshot": {
+    "IntegrationId": 0,
+    "Status": 1,
+    "MissingFields": 2,
+    "Settings": 3,
+    "Revision": 4
+  },
+  "DigitalBrain.Framework.Platform.Integrations.ReleasedRegistration": {
+    "Values": 0
+  },
   "DigitalBrain.Google.Gmail.GmailConnected": {
     "EmailAddress": 0
   },
@@ -1851,90 +1935,6 @@
   "DigitalBrain.Integrations.IntegrationKind": {
     "Id": 0,
     "DisplayName": 1
-  },
-  "DigitalBrain.Kernel.BrainState": {
-    "Name": 0,
-    "OwnerAccountId": 1,
-    "EstablishedAt": 2
-  },
-  "DigitalBrain.Kernel.Capacity.CapacityUnavailableException": {},
-  "DigitalBrain.Kernel.Data.StoredRowsState": {
-    "Columns": 0,
-    "Rows": 1
-  },
-  "DigitalBrain.Kernel.DocumentIndexState": {
-    "Ids": 0
-  },
-  "DigitalBrain.Kernel.DocumentState": {
-    "Written": 0,
-    "Version": 1,
-    "Payload": 2
-  },
-  "DigitalBrain.Kernel.Enforcement.UntrustedCallerException": {},
-  "DigitalBrain.Kernel.Platform.Identity.Account": {
-    "AccountId": 0,
-    "Name": 1,
-    "OwnerPrincipalId": 2,
-    "CreatedAt": 3
-  },
-  "DigitalBrain.Kernel.Platform.Identity.Grant": {
-    "AppId": 0,
-    "SemanticTypeId": 1,
-    "Mode": 2,
-    "WorkspaceId": 3,
-    "ConversationId": 4,
-    "GrantedAt": 5,
-    "Revoked": 6
-  },
-  "DigitalBrain.Kernel.Platform.Identity.Invitation": {
-    "Code": 0,
-    "AccountId": 1,
-    "WorkspaceId": 2,
-    "Role": 3,
-    "Email": 4,
-    "CreatedAt": 5,
-    "Accepted": 6
-  },
-  "DigitalBrain.Kernel.Platform.Identity.Member": {
-    "PrincipalId": 0,
-    "AccountId": 1,
-    "BrainId": 2,
-    "Role": 3,
-    "DisplayName": 4,
-    "JoinedAt": 5
-  },
-  "DigitalBrain.Kernel.Platform.Integrations.Accounts.AccountDisconnected": {},
-  "DigitalBrain.Kernel.Platform.Integrations.Accounts.AccountNotConfiguredException": {},
-  "DigitalBrain.Kernel.Platform.Integrations.Accounts.AccountProbeResult": {},
-  "DigitalBrain.Kernel.Platform.Integrations.Accounts.AccountStatusChanged": {},
-  "DigitalBrain.Kernel.Platform.Integrations.Accounts.ConnectAccount": {
-    "IntegrationId": 0,
-    "ConnectionId": 1,
-    "Label": 2,
-    "Value": 3,
-    "SecretReference": 4
-  },
-  "DigitalBrain.Kernel.Platform.Integrations.Accounts.IntegrationAccount": {
-    "Id": 0,
-    "IntegrationId": 1,
-    "WorkspaceId": 2,
-    "Credential": 3,
-    "Status": 4,
-    "LastProbedAt": 5
-  },
-  "DigitalBrain.Kernel.Platform.Integrations.ConfigureRegistration": {
-    "Values": 0
-  },
-  "DigitalBrain.Kernel.Platform.Integrations.RegistrationChanged": {},
-  "DigitalBrain.Kernel.Platform.Integrations.RegistrationSnapshot": {
-    "IntegrationId": 0,
-    "Status": 1,
-    "MissingFields": 2,
-    "Settings": 3,
-    "Revision": 4
-  },
-  "DigitalBrain.Kernel.Platform.Integrations.ReleasedRegistration": {
-    "Values": 0
   },
   "DigitalBrain.Microsoft.Aspire.AspireResource": {
     "Name": 0,

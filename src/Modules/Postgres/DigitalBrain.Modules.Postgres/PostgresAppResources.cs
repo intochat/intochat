@@ -2,7 +2,7 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain.Apps;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 
 namespace DigitalBrain.Postgres;
 

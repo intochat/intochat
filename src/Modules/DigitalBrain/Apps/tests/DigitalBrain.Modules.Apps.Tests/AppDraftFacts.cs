@@ -2,7 +2,7 @@ using DigitalBrain.AI;
 using DigitalBrain.AI.Scripted;
 using DigitalBrain.Apps;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;

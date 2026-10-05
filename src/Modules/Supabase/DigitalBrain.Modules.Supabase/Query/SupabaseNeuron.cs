@@ -1,4 +1,4 @@
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Concurrency;
 

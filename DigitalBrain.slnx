@@ -23,12 +23,12 @@
   <Folder Name="/DigitalBrain/Deployment/tests/">
     <Project Path="src/DigitalBrain/Deployment/tests/DigitalBrain.Deployment.Tests/DigitalBrain.Deployment.Tests.csproj" />
   </Folder>
-  <Folder Name="/DigitalBrain/Kernel/">
-    <Project Path="src/DigitalBrain/Kernel/DigitalBrain.Kernel/DigitalBrain.Kernel.csproj" />
+  <Folder Name="/DigitalBrain/Framework/">
+    <Project Path="src/DigitalBrain/Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
   </Folder>
-  <Folder Name="/DigitalBrain/Kernel/tests/">
-    <Project Path="src/DigitalBrain/Kernel/tests/DigitalBrain.Kernel.Tests.E2E/DigitalBrain.Kernel.Tests.E2E.csproj" />
-    <Project Path="src/DigitalBrain/Kernel/tests/DigitalBrain.Kernel.Tests.Unit/DigitalBrain.Kernel.Tests.Unit.csproj" />
+  <Folder Name="/DigitalBrain/Framework/tests/">
+    <Project Path="src/DigitalBrain/Framework/tests/DigitalBrain.Framework.Tests.E2E/DigitalBrain.Framework.Tests.E2E.csproj" />
+    <Project Path="src/DigitalBrain/Framework/tests/DigitalBrain.Framework.Tests.Unit/DigitalBrain.Framework.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/DigitalBrain/Mcp/">
     <Project Path="src/DigitalBrain/Mcp/DigitalBrain.Mcp/DigitalBrain.Mcp.csproj" />

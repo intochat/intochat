@@ -1,8 +1,8 @@
 using System.Text;
 using System.Text.Json;
 using DigitalBrain;
-using DigitalBrain.Kernel;
-using DigitalBrain.Kernel.Platform.Auth;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Auth;
 using DigitalBrain.Salesforce.Signals;
 using Orleans.Concurrency;
 using Orleans.Runtime;

@@ -3,7 +3,7 @@ using DigitalBrain;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Media;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Button;
 using DigitalBrain.Flutter.Button.Signals;
@@ -29,9 +29,9 @@ internal sealed partial class AssistantNeuron(
     private string Key => this.GetPrimaryKeyString();
     // The model catalog is deployment-wide and already secret-free; the HTTP posture is its
     // gate. Everything else belongs to the assistant's own workspace.
-    public override DigitalBrain.Kernel.Enforcement.NeuronAccess Access(string operation)
+    public override DigitalBrain.Framework.Enforcement.NeuronAccess Access(string operation)
         => operation is nameof(Models)
-            ? DigitalBrain.Kernel.Enforcement.NeuronAccess.PublicOperation
+            ? DigitalBrain.Framework.Enforcement.NeuronAccess.PublicOperation
             : new(Workspace);
     private ITextField Draft => GrainFactory.GetGrain<ITextField>(UiParts.NameOf(Key, AssistantSurface.DraftPart));
     public Task<AssistantState> Read() => Task.FromResult(Snapshot);

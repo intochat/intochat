@@ -1,9 +1,9 @@
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Types;
-using DigitalBrain.Kernel.Platform.Secrets;
+using DigitalBrain.Framework.Platform.Secrets;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Platform.Secrets;

@@ -1,9 +1,9 @@
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Kernel.Platform.Auth;
-using DigitalBrain.Kernel.Platform.Integrations;
+using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Platform.Auth;
+using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -47,7 +47,7 @@ public sealed class GmailModule() : Module<GmailModuleOptions>(new ModuleId("gma
             await grains.GetGrain<IGmail>(push.EmailAddress).AcceptWatchPush(push);
             return Results.Accepted();
         });
-        endpoints.MapGet("/google/gmail/oauth/callback", async (string? code, GmailRegistration registration, IGrainFactory grains, DigitalBrain.Kernel.Platform.Identity.IIdentity identity) =>
+        endpoints.MapGet("/google/gmail/oauth/callback", async (string? code, GmailRegistration registration, IGrainFactory grains, DigitalBrain.Framework.Platform.Identity.IIdentity identity) =>
         {
             if (string.IsNullOrWhiteSpace(code))
             {

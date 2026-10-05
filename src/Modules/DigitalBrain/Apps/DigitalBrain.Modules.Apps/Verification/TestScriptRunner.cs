@@ -31,8 +31,8 @@ internal sealed class CSharpFileTestRunner(IGrainFactory grains, TimeProvider cl
                 ["Package"] = revision.Package.ToString(),
                 ["Revision"] = revision.Revision,
             };
-            if (DigitalBrain.Kernel.Enforcement.CallerContextStamper.TryGet(out _))
-            { settings["BrainScope"] = DigitalBrain.Kernel.Enforcement.BrainScope.CurrentId(); }
+            if (DigitalBrain.Framework.Enforcement.CallerContextStamper.TryGet(out _))
+            { settings["BrainScope"] = DigitalBrain.Framework.Enforcement.BrainScope.CurrentId(); }
             await file.Configure(settings, cancellationToken);
             var snapshot = await file.Start(cancellationToken);
             var deadline = clock.GetUtcNow() + RunDeadline;

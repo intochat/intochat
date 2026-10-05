@@ -1,4 +1,4 @@
-using DigitalBrain.Kernel.Platform.Integrations;
+using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Orleans.Runtime;

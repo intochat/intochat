@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using DigitalBrain.Kernel.Vectors;
+using DigitalBrain.Framework.Vectors;
 using Google.Protobuf.Collections;
 using Qdrant.Client;
 using Qdrant.Client.Grpc;

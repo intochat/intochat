@@ -1,6 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Apps.Signals;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Registry;
 using Orleans.Runtime;
 
@@ -20,7 +20,7 @@ internal sealed class Apps(
     ModuleInventory modules)
     : Neuron<InstalledAppsState>(store), IApps
 {
-    public override DigitalBrain.Kernel.Enforcement.NeuronAccess Access(string operation) => new(this.GetPrimaryKeyString());
+    public override DigitalBrain.Framework.Enforcement.NeuronAccess Access(string operation) => new(this.GetPrimaryKeyString());
 
     public async Task<PackageId[]> List()
     {

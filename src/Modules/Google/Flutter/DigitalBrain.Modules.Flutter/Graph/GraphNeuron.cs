@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Graph.Signals;
 using Orleans.Concurrency;

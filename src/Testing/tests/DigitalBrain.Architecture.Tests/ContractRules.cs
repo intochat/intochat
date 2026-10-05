@@ -1,5 +1,5 @@
 using System.Reflection;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 
 namespace DigitalBrain.Architecture.Tests;
 

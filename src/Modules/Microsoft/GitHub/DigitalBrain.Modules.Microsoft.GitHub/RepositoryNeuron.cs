@@ -1,5 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.GitHub.Signals;
 using Orleans.Concurrency;
 using Orleans.Runtime;

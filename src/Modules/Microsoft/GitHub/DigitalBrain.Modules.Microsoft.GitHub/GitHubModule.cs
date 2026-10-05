@@ -1,6 +1,6 @@
 using DigitalBrain;
-using DigitalBrain.Kernel;
-using DigitalBrain.Kernel.Platform.Integrations;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Orleans.Hosting;

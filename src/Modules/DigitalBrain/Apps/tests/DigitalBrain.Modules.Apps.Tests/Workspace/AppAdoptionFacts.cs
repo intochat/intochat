@@ -18,7 +18,7 @@ public sealed class AppAdoptionFacts
         var replacementRevision = await Publish(brain, Replacement);
         Caller.As("alice");
         await brain.AuthorizeCallerAsync();
-        var scope = DigitalBrain.Kernel.Enforcement.BrainScope.CurrentId();
+        var scope = DigitalBrain.Framework.Enforcement.BrainScope.CurrentId();
         var legacyApp = brain.Get<IApp>(scope + "/packages/" + Legacy);
         await legacyApp.Install(new(Guid.NewGuid(), new(Legacy, legacyRevision.Id), new Dictionary<string, string>()));
         var replacementApp = brain.Get<IApp>(scope + "/packages/" + Replacement);
@@ -41,7 +41,7 @@ public sealed class AppAdoptionFacts
         var replacementRevision = await Publish(brain, Replacement);
         Caller.As("alice");
         await brain.AuthorizeCallerAsync();
-        var scope = DigitalBrain.Kernel.Enforcement.BrainScope.CurrentId();
+        var scope = DigitalBrain.Framework.Enforcement.BrainScope.CurrentId();
         var replacementApp = brain.Get<IApp>(scope + "/packages/" + Replacement);
         await replacementApp.Install(new(Guid.NewGuid(), new(Replacement, replacementRevision.Id), new Dictionary<string, string>()));
 
@@ -59,7 +59,7 @@ public sealed class AppAdoptionFacts
         var legacyRevision = await Publish(brain, Legacy);
         Caller.As("alice");
         await brain.AuthorizeCallerAsync();
-        var scope = DigitalBrain.Kernel.Enforcement.BrainScope.CurrentId();
+        var scope = DigitalBrain.Framework.Enforcement.BrainScope.CurrentId();
         var legacyApp = brain.Get<IApp>(scope + "/packages/" + Legacy);
         await legacyApp.Install(new(Guid.NewGuid(), new(Legacy, legacyRevision.Id), new Dictionary<string, string>()));
 
@@ -77,7 +77,7 @@ public sealed class AppAdoptionFacts
         var revision = await Publish(brain, Replacement);
         Caller.As("alice");
         await brain.AuthorizeCallerAsync();
-        var scope = DigitalBrain.Kernel.Enforcement.BrainScope.CurrentId();
+        var scope = DigitalBrain.Framework.Enforcement.BrainScope.CurrentId();
         var app = brain.Get<IApp>(scope + "/packages/" + Replacement);
         var installed = await app.Install(new(Guid.NewGuid(), new(Replacement, revision.Id), new Dictionary<string, string>()));
         var settings = RecordingCSharpFile.ConfiguredSettings[installed.CSharpFiles.First()];

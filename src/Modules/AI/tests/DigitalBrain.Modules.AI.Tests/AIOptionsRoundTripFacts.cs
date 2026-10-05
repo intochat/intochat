@@ -1,5 +1,5 @@
 using DigitalBrain.AI;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Microsoft.Extensions.Configuration;
 using Xunit;
 

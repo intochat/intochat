@@ -1,4 +1,4 @@
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Compute.Ledger;
@@ -8,7 +8,7 @@ namespace DigitalBrain.Compute.Ledger;
 [GrainType("compute-cost-ledger")]
 internal sealed class CostLedgerNeuron : Neuron, ICostLedger
 {
-    public override DigitalBrain.Kernel.Enforcement.NeuronAccess Access(string operation)
+    public override DigitalBrain.Framework.Enforcement.NeuronAccess Access(string operation)
         => AccountAccess.For(this.GetPrimaryKeyString());
 
     private ILedgerStore? store;

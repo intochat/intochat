@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Specs.Signals;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Runtime;

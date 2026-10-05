@@ -1,6 +1,6 @@
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Kernel.Platform.Identity;
+using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Platform.Identity.Authority;
 using DigitalBrain.Platform.Identity.Grants;
 using DigitalBrain.Testing.Module;

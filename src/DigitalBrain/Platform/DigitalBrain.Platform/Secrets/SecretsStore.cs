@@ -1,5 +1,5 @@
 using DigitalBrain.Types;
-using DigitalBrain.Kernel.Types;
+using DigitalBrain.Framework.Types;
 
 namespace DigitalBrain.Platform.Secrets;
 

@@ -1,7 +1,7 @@
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Compute.Allowances;
@@ -25,9 +25,9 @@ internal sealed class AllowanceLedgerNeuron : Neuron<AllowanceLedgerState>, IAll
 {
     // AuthorizeAsync is the enforcement pipeline's own consultation: it arrives from inside
     // other grains' filters and stays on the internal path, never re-entering authorization.
-    public override DigitalBrain.Kernel.Enforcement.NeuronAccess Access(string operation)
+    public override DigitalBrain.Framework.Enforcement.NeuronAccess Access(string operation)
         => operation == nameof(AuthorizeAsync)
-            ? DigitalBrain.Kernel.Enforcement.NeuronAccess.Unclassified
+            ? DigitalBrain.Framework.Enforcement.NeuronAccess.Unclassified
             : AccountAccess.For(this.GetPrimaryKeyString());
 
     private readonly IPersistentState<AllowanceLedgerState> store;

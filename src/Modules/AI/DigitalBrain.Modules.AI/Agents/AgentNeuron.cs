@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.AI.Agents.Signals;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Orleans.Runtime;

@@ -1,5 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Testing.E2E;
@@ -12,7 +12,7 @@ internal static class ModuleHostChannel
     public const string ModuleTypesKey = "DigitalBrain:Testing:ModuleTypes";
     public const string ReferenceCompositionKey = "DigitalBrain:Testing:ReferenceComposition";
 
-    public static string SerializeModules(IEnumerable<Kernel.ModuleDefinition> modules)
+    public static string SerializeModules(IEnumerable<Framework.ModuleDefinition> modules)
         => System.Text.Json.JsonSerializer.Serialize(modules.Select(module => module.ModuleType.AssemblyQualifiedName));
 
     public static bool IsReferenceComposition(IConfiguration configuration)

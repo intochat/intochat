@@ -1,7 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.AI.Metering;
 using DigitalBrain.Compute;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 
 namespace DigitalBrain.Assistant;
 

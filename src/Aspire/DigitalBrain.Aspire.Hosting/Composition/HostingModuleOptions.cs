@@ -1,6 +1,6 @@
 using System.Text.Json;
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Aspire.Hosting;

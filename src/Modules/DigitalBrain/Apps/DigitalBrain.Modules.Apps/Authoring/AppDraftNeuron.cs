@@ -4,7 +4,7 @@ using DigitalBrain;
 using DigitalBrain.AI;
 using DigitalBrain.AI.OpenAI;
 using DigitalBrain.Apps;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -36,10 +36,10 @@ internal sealed partial class AppDraftNeuron(
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     private string DraftId => this.GetPrimaryKeyString();
-    public override DigitalBrain.Kernel.Enforcement.NeuronAccess Access(string operation)
+    public override DigitalBrain.Framework.Enforcement.NeuronAccess Access(string operation)
     {
         RequireOwner();
-        return DigitalBrain.Kernel.Enforcement.NeuronAccess.PublicOperation;
+        return DigitalBrain.Framework.Enforcement.NeuronAccess.PublicOperation;
     }
     private string Owner => DraftId.Split('/')[0];
     private string AuthorModel => configuration[AuthorModelKey] ?? nameof(IGpt56Luna);

@@ -1,6 +1,6 @@
 using DigitalBrain;
-using DigitalBrain.Kernel;
-using DigitalBrain.Kernel.Platform.Integrations;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Integrations;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.AI.FoundryLocal;

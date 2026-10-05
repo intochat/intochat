@@ -8,7 +8,7 @@ using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Metering;
 using DigitalBrain.Compute;
 using DigitalBrain.Compute.Usage;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -121,7 +121,7 @@ public sealed class AssistantTurnExecution(IServiceProvider services, IGrainFact
                 outcome = AgentRunOutcome.Cancelled;
                 activity.CancelPending();
             }
-            catch (Exception error) when (error.Message == DigitalBrain.Kernel.Capacity.CapacityUnavailableException.RefusalMessage
+            catch (Exception error) when (error.Message == DigitalBrain.Framework.Capacity.CapacityUnavailableException.RefusalMessage
                 || DigitalBrain.Apps.AppRequirementsException.IsRefusal(error.Message))
             {
                 outcome = AgentRunOutcome.Failed;

@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using DigitalBrain;
 using DigitalBrain.AI.Scripted;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Orleans.Runtime;
 
 namespace DigitalBrain.AI;

@@ -1,8 +1,8 @@
 using DigitalBrain;
 using DigitalBrain.Apps.Signals;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Apps;

@@ -1,8 +1,8 @@
 using System.Text.Json;
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Postgres;
@@ -18,7 +18,7 @@ internal sealed record PostgresTableState
 }
 
 [GrainType("postgres.table")]
-internal sealed partial class PostgresTableNeuron(IPostgresTableProvider provider, DigitalBrain.Kernel.Capacity.ICapacity capacity,
+internal sealed partial class PostgresTableNeuron(IPostgresTableProvider provider, DigitalBrain.Framework.Capacity.ICapacity capacity,
     [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<PostgresTableState> state) : Neuron, IPostgresTable, IPostgresTableLifetime, IPostgresTableOwnership
 {
     public override NeuronAccess Access(string operation)

@@ -1,4 +1,4 @@
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Registry;
 using Microsoft.Extensions.DependencyInjection;

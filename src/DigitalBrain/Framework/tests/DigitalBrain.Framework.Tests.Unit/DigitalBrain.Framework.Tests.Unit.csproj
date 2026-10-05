@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>DigitalBrain.Framework.Tests.Unit</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Update="Identity/LegacyState/*.orleans" CopyToOutputDirectory="PreserveNewest" />
+    <PackageReference Include="Microsoft.Orleans.Sdk" />
+    <ProjectReference Include="../../../../Testing/DigitalBrain.Testing.Module/DigitalBrain.Testing.Module.csproj" />
+    <ProjectReference Include="../../../Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
+    <ProjectReference Include="../../../../Aspire/DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" />
+  </ItemGroup>
+  <ItemGroup><ProjectReference Include="../../DigitalBrain.Framework/DigitalBrain.Framework.csproj" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="Sdk/Types/TypeCatalog.v0.json" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../Client/DigitalBrain.Client/DigitalBrain.Client.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../../Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" /></ItemGroup>
+</Project>

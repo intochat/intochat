@@ -1,8 +1,8 @@
 using System.Text.Json;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Postgres;
-using DigitalBrain.Kernel.Capacity;
+using DigitalBrain.Framework.Capacity;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Orleans;
@@ -486,7 +486,7 @@ public interface IPostgresLifecycleTestApp : DigitalBrain.INeuron
 }
 
 [GrainType("apps.app")]
-public sealed class PostgresLifecycleTestApp : DigitalBrain.Kernel.Neuron, IPostgresLifecycleTestApp
+public sealed class PostgresLifecycleTestApp : DigitalBrain.Framework.Neuron, IPostgresLifecycleTestApp
 {
     public override NeuronAccess Access(string operation) => NeuronAccess.PublicOperation;
     public Task Migrate(string[] files)

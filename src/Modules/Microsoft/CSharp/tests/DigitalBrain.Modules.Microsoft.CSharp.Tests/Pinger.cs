@@ -1,7 +1,7 @@
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
@@ -32,7 +32,7 @@ public sealed record Ignored([property: Id(0)] int Number) : Signal;
 public sealed class Pinger : Neuron, IPinger
 {
     public override NeuronAccess Access(string operation) => NeuronAccess.PublicOperation;
-    public Task RefuseCapacity() => throw new DigitalBrain.Kernel.Capacity.CapacityUnavailableException();
+    public Task RefuseCapacity() => throw new DigitalBrain.Framework.Capacity.CapacityUnavailableException();
     public async Task Ping(int number)
     {
         await PublishAsync(new Ignored(number));

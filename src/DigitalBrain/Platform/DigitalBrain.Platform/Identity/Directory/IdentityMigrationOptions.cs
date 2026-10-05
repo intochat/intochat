@@ -1,4 +1,4 @@
-using DigitalBrain.Kernel.Platform.Identity;
+using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Platform.Identity.Authority;
 using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.Extensions.Options;

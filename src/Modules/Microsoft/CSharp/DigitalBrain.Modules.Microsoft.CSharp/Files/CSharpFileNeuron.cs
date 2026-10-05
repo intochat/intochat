@@ -3,10 +3,10 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using DigitalBrain;
 using DigitalBrain.Client;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Edge.V1;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using Orleans.Runtime;
 using Orleans.Timers;
 

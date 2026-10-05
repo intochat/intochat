@@ -1,6 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Compute;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;

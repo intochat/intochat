@@ -1,6 +1,6 @@
 using System.Text.Json;
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Registry;
 
 namespace DigitalBrain.Microsoft.CSharp;

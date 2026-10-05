@@ -1,12 +1,12 @@
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Kernel;
-using DigitalBrain.Kernel.Platform.Identity;
-using DigitalBrain.Kernel.Platform.Integrations;
-using DigitalBrain.Kernel.Platform.Secrets;
+using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Identity;
+using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Framework.Platform.Secrets;
 using DigitalBrain.Platform.Identity.Authority;
 using DigitalBrain.Platform.Secrets;
-using DigitalBrain.Kernel.Capacity;
+using DigitalBrain.Framework.Capacity;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Platform.Tests.Unit;

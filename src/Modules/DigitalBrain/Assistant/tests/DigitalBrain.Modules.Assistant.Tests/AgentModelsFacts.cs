@@ -1,4 +1,4 @@
-using DigitalBrain.Kernel.Platform.Integrations;
+using DigitalBrain.Framework.Platform.Integrations;
 using System.Text.Json;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;

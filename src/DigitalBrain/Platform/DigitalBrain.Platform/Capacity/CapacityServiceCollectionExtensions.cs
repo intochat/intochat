@@ -1,4 +1,4 @@
-using DigitalBrain.Kernel.Capacity;
+using DigitalBrain.Framework.Capacity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 

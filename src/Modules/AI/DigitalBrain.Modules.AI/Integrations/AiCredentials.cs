@@ -1,9 +1,9 @@
 using System.Collections.Concurrent;
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Kernel.Platform.Integrations;
+using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.AI;

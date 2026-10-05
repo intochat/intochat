@@ -1,8 +1,8 @@
 using System.Text.Json;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Postgres;
-using DigitalBrain.Kernel.Capacity;
+using DigitalBrain.Framework.Capacity;
 using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Tables;
 using DigitalBrain.Supabase.Windows;

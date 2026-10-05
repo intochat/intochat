@@ -3,7 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.AspNetCore.Authentication;
@@ -23,13 +23,13 @@ public sealed class IdentityHostingFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var directory = brain.Get<DigitalBrain.Kernel.Platform.Identity.IIdentityDirectory>(DigitalBrain.Kernel.Platform.Identity.IdentityGrains.Directory);
+        var directory = brain.Get<DigitalBrain.Framework.Platform.Identity.IIdentityDirectory>(DigitalBrain.Framework.Platform.Identity.IdentityGrains.Directory);
         var alice = await directory.RegisterAsync("alice", "correct-password", "Alice", ct);
         await directory.RegisterAsync("bob", "correct-password", "Bob", ct);
         var builder = WebApplication.CreateBuilder();
         builder.Configuration[AuthOptions.PostureKey] = "Secured";
         builder.Services.AddSingleton<IDigitalBrain>(brain);
-        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Kernel.Enforcement.IBrainAccess>());
+        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Framework.Enforcement.IBrainAccess>());
         builder.Services.AddIdentity();
         await using var app = builder.Build();
         app.Urls.Add("http://127.0.0.1:0");
@@ -42,7 +42,7 @@ public sealed class IdentityHostingFacts
         var target = new { alice.AccountId, alice.BrainId };
         using var denied = await client.PostAsJsonAsync("/identity/session/brain", target, ct);
         Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
-        await directory.ShareBrainAsync(alice.AccountId, alice.BrainId, "bob", "Bob", DigitalBrain.Kernel.Platform.Identity.MemberRole.Member, ct);
+        await directory.ShareBrainAsync(alice.AccountId, alice.BrainId, "bob", "Bob", DigitalBrain.Framework.Platform.Identity.MemberRole.Member, ct);
         using var selected = await client.PostAsJsonAsync("/identity/session/brain", target, ct);
         selected.EnsureSuccessStatusCode();
         using var session = JsonDocument.Parse(await client.GetStringAsync("/identity/session", ct));

@@ -1,9 +1,9 @@
 using System.Security.Cryptography;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Kernel.Platform.Secrets;
+using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Platform.Secrets;
 using DigitalBrain.Platform.Secrets;
-using DigitalBrain.Kernel.Types;
+using DigitalBrain.Framework.Types;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -35,7 +35,7 @@ public sealed class SecretsFacts
         var store = MasterKeyStore("first master key");
         store.Set(state, "api.key", "API key", Canary);
 
-        Assert.Throws<InvalidOperationException>(() => store.Resolve(state, DigitalBrain.Kernel.Types.SecretReferences.For("other", "api.key", "API key", true)));
+        Assert.Throws<InvalidOperationException>(() => store.Resolve(state, DigitalBrain.Framework.Types.SecretReferences.For("other", "api.key", "API key", true)));
     }
 
     [Fact]

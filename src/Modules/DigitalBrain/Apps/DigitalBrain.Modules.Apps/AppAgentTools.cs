@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using DigitalBrain;
 using DigitalBrain.AI.Agents;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Microsoft.Extensions.AI;
 
 namespace DigitalBrain.Apps;
@@ -20,7 +20,7 @@ internal sealed class AppAgentTools(IDigitalBrain brain) : IAgentToolSource
         var package = PackageId.Parse(resource[..separator]);
         var selectedRevision = resource[(separator + 1)..];
         var scope = context().ScopeId;
-        if (scope != DigitalBrain.Kernel.Enforcement.BrainScope.CurrentId())
+        if (scope != DigitalBrain.Framework.Enforcement.BrainScope.CurrentId())
         { throw new UnauthorizedAccessException("An app tool must use the caller's current brain."); }
         var app = await brain.Get<IApp>(scope + "/packages/" + package).Read().WaitAsync(ct);
         if (app.Status != AppStatus.Installed || app.UninstallPending || app.Revision is not { } revision)

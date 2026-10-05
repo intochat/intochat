@@ -19,5 +19,5 @@
   <ItemGroup>
     <EmbeddedResource Include="instructions.md" LogicalName="instructions.md" />
   </ItemGroup>
-  <ItemGroup><ProjectReference Include="../../../../DigitalBrain/Kernel/DigitalBrain.Kernel/DigitalBrain.Kernel.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../../DigitalBrain/Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" /></ItemGroup>
 </Project>

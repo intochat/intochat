@@ -53,7 +53,7 @@ public sealed class PackedCompositionFacts
                 if (packageId == "DigitalBrain" || packageId.EndsWith(".Contracts", StringComparison.Ordinal))
                 { Assert.True(id == "DigitalBrain" || id.EndsWith(".Contracts", StringComparison.Ordinal), $"Contract package {packageId} depends on implementation {id}."); }
                 if (packageId is "DigitalBrain.Client" or "DigitalBrain.Client.Orleans")
-                { Assert.DoesNotContain(id, new[] { "DigitalBrain.Kernel", "DigitalBrain.Platform", "DigitalBrain.Kernel", "DigitalBrain.Aspire.Server" }); }
+                { Assert.DoesNotContain(id, new[] { "DigitalBrain.Framework", "DigitalBrain.Platform", "DigitalBrain.Framework", "DigitalBrain.Aspire.Server" }); }
             }
         }
         var consumer = Path.Combine(scratch, "consumer");

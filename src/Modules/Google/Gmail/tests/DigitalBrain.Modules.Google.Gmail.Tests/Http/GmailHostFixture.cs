@@ -1,4 +1,4 @@
-using DigitalBrain.Kernel.Platform.Integrations;
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Google.Gmail;
 using DigitalBrain.Testing.Module;
 using Xunit;

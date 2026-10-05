@@ -9,7 +9,7 @@
     <InternalsVisibleTo Include="DigitalBrain.Modules.Microsoft.Aspire.Aspire.Hosting" />
     <InternalsVisibleTo Include="DigitalBrain.Modules.Microsoft.Aspire.Tests" />
     <ProjectReference Include="../DigitalBrain.Modules.Microsoft.Aspire.Contracts/DigitalBrain.Modules.Microsoft.Aspire.Contracts.csproj" />
-    <ProjectReference Include="../../../../DigitalBrain/Kernel/DigitalBrain.Kernel/DigitalBrain.Kernel.csproj" />
+    <ProjectReference Include="../../../../DigitalBrain/Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
   </ItemGroup>
-  <ItemGroup><ProjectReference Include="../../../../DigitalBrain/Kernel/DigitalBrain.Kernel/DigitalBrain.Kernel.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../../DigitalBrain/Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" /></ItemGroup>
 </Project>

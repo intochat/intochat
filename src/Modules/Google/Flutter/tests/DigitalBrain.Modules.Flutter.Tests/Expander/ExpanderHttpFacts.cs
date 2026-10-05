@@ -5,7 +5,7 @@ using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Expander;
 using DigitalBrain.Flutter.Expander.Signals;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Testing;
 using Xunit;
 

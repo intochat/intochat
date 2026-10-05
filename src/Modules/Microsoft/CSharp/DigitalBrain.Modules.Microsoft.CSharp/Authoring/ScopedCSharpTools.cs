@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Reflection;
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp;
 using ModelContextProtocol.Server;
 

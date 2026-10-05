@@ -3,11 +3,11 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Apps.Signals;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Microsoft.CSharp;
-using DigitalBrain.Kernel.Platform.Identity;
+using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Postgres;
 using Orleans.Runtime;
 

@@ -1,5 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.AI;
 using DigitalBrain.AI.FoundryLocal;
 using DigitalBrain.AI.Ollama;
@@ -16,8 +16,8 @@ using DigitalBrain.Microsoft.Aspire;
 using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Microsoft.GitHub;
 using DigitalBrain.Microsoft.Playwright;
-using DigitalBrain.Kernel.Platform.Integrations;
-using DigitalBrain.Kernel.Platform.Secrets;
+using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Framework.Platform.Secrets;
 using DigitalBrain.Postgres;
 using DigitalBrain.Qdrant;
 using DigitalBrain.Registry;

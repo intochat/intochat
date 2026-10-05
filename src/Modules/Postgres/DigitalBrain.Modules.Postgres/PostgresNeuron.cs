@@ -1,4 +1,4 @@
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Orleans.Concurrency;
 
 namespace DigitalBrain.Postgres;

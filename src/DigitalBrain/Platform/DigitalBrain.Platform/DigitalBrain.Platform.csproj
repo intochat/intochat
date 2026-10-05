@@ -10,7 +10,7 @@
     <PackageReference Include="Microsoft.Orleans.Sdk" />
     <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" />
   </ItemGroup>
-  <ItemGroup><ProjectReference Include="../../Kernel/DigitalBrain.Kernel/DigitalBrain.Kernel.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" /></ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="DigitalBrain.Platform.Tests.Unit" /><InternalsVisibleTo Include="DigitalBrain.Platform.Tests.E2E" /></ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="DigitalBrain.Testing.Module" /></ItemGroup>
 </Project>

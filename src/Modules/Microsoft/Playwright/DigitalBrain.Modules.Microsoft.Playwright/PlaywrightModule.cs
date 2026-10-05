@@ -1,5 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using global::Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
 namespace DigitalBrain.Microsoft.Playwright;

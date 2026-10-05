@@ -3,8 +3,8 @@ using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.AI.FoundryLocal;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain;
-using DigitalBrain.Kernel;
-using DigitalBrain.Kernel.Platform.Integrations;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Integrations;
 
 namespace DigitalBrain.AI.Aspire.Hosting;
 

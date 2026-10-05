@@ -1,7 +1,7 @@
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Integrations;
-using DigitalBrain.Kernel.Platform.Integrations;
+using DigitalBrain.Framework.Platform.Integrations;
 using Orleans.Concurrency;
 
 namespace DigitalBrain.Platform.Integrations.Accounts;

@@ -1,7 +1,7 @@
 using Aspire.Hosting;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Orleans.Hosting;
 
 namespace DigitalBrain.Aspire.Hosting.Tests.Unit;

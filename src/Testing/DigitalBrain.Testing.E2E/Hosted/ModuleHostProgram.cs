@@ -1,5 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Aspire.Server;
 using DigitalBrain.OS;
 using DigitalBrain.Platform;

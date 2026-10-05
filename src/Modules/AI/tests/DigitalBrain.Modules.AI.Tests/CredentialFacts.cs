@@ -4,7 +4,7 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain.AI;
 using DigitalBrain.AI.OpenAI;
-using DigitalBrain.Kernel.Platform.Integrations;
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Testing;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;

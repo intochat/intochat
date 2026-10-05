@@ -1,8 +1,8 @@
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Kernel.Platform.Secrets;
+using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Platform.Secrets;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Runtime;
 
@@ -16,9 +16,9 @@ internal sealed class GmailNeuron(
     // The connector's inbound edge: the webhook and OAuth-callback endpoints are the gates,
     // and both operations validate their payloads, so any trusted caller may deliver them.
     // Everything else keeps the default brain-scope rule.
-    public override DigitalBrain.Kernel.Enforcement.NeuronAccess Access(string operation)
+    public override DigitalBrain.Framework.Enforcement.NeuronAccess Access(string operation)
         => operation is nameof(AcceptWatchPush) or nameof(AcceptAuthorizationCode)
-            ? DigitalBrain.Kernel.Enforcement.NeuronAccess.PublicOperation
+            ? DigitalBrain.Framework.Enforcement.NeuronAccess.PublicOperation
             : base.Access(operation);
 
     public Task AcceptWatchPush(GmailWatchPush push)

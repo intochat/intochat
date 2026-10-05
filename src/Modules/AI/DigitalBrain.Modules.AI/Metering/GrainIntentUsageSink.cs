@@ -1,6 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Compute;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Orleans;
 
 namespace DigitalBrain.AI.Metering;

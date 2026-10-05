@@ -1,8 +1,8 @@
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Kernel.Platform.Identity;
+using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Platform.Identity.Authority;
 using Microsoft.Extensions.Options;
 using Orleans.Runtime;

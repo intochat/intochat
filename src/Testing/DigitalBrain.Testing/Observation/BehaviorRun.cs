@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Orleans;
 using Orleans.Runtime;
 

@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using ModelContextProtocol;
 
 namespace DigitalBrain.Salesforce;

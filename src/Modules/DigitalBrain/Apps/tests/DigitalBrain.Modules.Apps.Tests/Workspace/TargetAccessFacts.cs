@@ -1,6 +1,6 @@
 using DigitalBrain.Apps;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 
 namespace DigitalBrain.Modules.Apps.Tests.Workspace;
 

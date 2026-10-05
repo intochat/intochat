@@ -72,7 +72,7 @@ public sealed class TestTierFacts
     [Fact]
     public void TheEndToEndTierBelongsToTheProduct()
     {
-        string[] productScope = ["DigitalBrain.Kernel.Tests.E2E", "DigitalBrain.Platform.Tests.E2E", "DigitalBrain.Aspire.Hosting.Tests.E2E", "DigitalBrain.OS.Tests.E2E", "DigitalBrain.OS.Tests.Unit"];
+        string[] productScope = ["DigitalBrain.Framework.Tests.E2E", "DigitalBrain.Platform.Tests.E2E", "DigitalBrain.Aspire.Hosting.Tests.E2E", "DigitalBrain.OS.Tests.E2E", "DigitalBrain.OS.Tests.Unit"];
         var baseline = Baseline().LegacyEndToEndReferencers.ToHashSet(StringComparer.Ordinal);
         var offenders = new List<string>();
         foreach (var project in TestProjects())

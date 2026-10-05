@@ -1,5 +1,5 @@
 using DigitalBrain.Types;
-using DigitalBrain.Kernel.Types;
+using DigitalBrain.Framework.Types;
 using DigitalBrain.Supabase.Tables;
 
 namespace DigitalBrain.Supabase;

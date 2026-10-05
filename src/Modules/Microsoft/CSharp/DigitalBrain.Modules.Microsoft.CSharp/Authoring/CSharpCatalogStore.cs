@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Orleans;
 
 namespace DigitalBrain.Microsoft.CSharp;

@@ -1,9 +1,9 @@
 using DigitalBrain;
 using DigitalBrain.AI.GroupChat;
 using DigitalBrain.Apps;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Microsoft.CSharp;
 
 namespace DigitalBrain.Apps;

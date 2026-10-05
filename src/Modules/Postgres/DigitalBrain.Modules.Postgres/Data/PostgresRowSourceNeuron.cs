@@ -1,6 +1,6 @@
 using DigitalBrain.Data;
-using DigitalBrain.Kernel;
-using DigitalBrain.Kernel.Data;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Data;
 using Orleans.Concurrency;
 
 namespace DigitalBrain.Postgres;

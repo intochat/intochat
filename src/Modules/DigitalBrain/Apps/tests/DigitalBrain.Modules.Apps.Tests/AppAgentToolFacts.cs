@@ -2,7 +2,7 @@ using System.Text.Json;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.Apps;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 

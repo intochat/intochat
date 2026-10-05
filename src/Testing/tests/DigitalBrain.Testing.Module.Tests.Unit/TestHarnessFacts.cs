@@ -1,5 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Testing.Module;
 using Xunit;
 namespace DigitalBrain.Testing.Module.Tests.Unit;

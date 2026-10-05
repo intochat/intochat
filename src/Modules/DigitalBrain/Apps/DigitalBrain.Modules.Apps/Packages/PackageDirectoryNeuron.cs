@@ -1,6 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Apps.Signals;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Apps;
@@ -11,9 +11,9 @@ internal sealed class PackageDirectoryNeuron(
     TimeProvider clock)
     : Neuron<PackageDirectoryState>(store), IPackageDirectory
 {
-    public override DigitalBrain.Kernel.Enforcement.NeuronAccess Access(string operation)
+    public override DigitalBrain.Framework.Enforcement.NeuronAccess Access(string operation)
         => operation is nameof(List) or nameof(Refresh)
-            ? DigitalBrain.Kernel.Enforcement.NeuronAccess.PublicOperation : base.Access(operation);
+            ? DigitalBrain.Framework.Enforcement.NeuronAccess.PublicOperation : base.Access(operation);
 
     public Task<IReadOnlyList<PackageListing>> List()
         => Task.FromResult<IReadOnlyList<PackageListing>>(Snapshot.Listings.Values.OrderBy(listing => listing.Package.ToString(), StringComparer.Ordinal).ToArray());

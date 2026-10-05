@@ -2,9 +2,9 @@ using DigitalBrain;
 using DigitalBrain.Assistant;
 using DigitalBrain.Compute;
 using DigitalBrain.Compute.Usage;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Testing.Module;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -20,8 +20,8 @@ public sealed class ComputeUsageRouteFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<ComputeModule>().StartAsync(ct);
-        await brain.Get<DigitalBrain.Kernel.Platform.Identity.IIdentityDirectory>(DigitalBrain.Kernel.Platform.Identity.IdentityGrains.Directory)
-            .ShareBrainAsync("account", "own", "owner", "Owner", DigitalBrain.Kernel.Platform.Identity.MemberRole.Owner, ct);
+        await brain.Get<DigitalBrain.Framework.Platform.Identity.IIdentityDirectory>(DigitalBrain.Framework.Platform.Identity.IdentityGrains.Directory)
+            .ShareBrainAsync("account", "own", "owner", "Owner", DigitalBrain.Framework.Platform.Identity.MemberRole.Owner, ct);
         var store = brain.SiloServices.GetRequiredService<IUsageStore>();
         await store.AppendAsync("account", "foreign", "first", "{}", ct);
         await store.AppendAsync("account", "foreign", "second", "{}", ct);

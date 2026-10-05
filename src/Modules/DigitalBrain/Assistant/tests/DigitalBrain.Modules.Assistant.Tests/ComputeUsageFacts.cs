@@ -2,7 +2,7 @@ using DigitalBrain;
 using DigitalBrain.AI.Metering;
 using DigitalBrain.Assistant;
 using DigitalBrain.Compute;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Xunit;
 
 namespace DigitalBrain.Modules.Assistant.Tests;

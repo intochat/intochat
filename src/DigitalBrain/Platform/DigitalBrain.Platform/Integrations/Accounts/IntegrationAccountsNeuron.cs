@@ -1,12 +1,12 @@
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Types;
-using DigitalBrain.Kernel.Platform.Integrations.Accounts;
-using DigitalBrain.Kernel.Platform.Secrets;
+using DigitalBrain.Framework.Platform.Integrations.Accounts;
+using DigitalBrain.Framework.Platform.Secrets;
 using DigitalBrain.Platform.Secrets;
-using DigitalBrain.Kernel.Types;
+using DigitalBrain.Framework.Types;
 using Orleans;
 using Orleans.Runtime;
 

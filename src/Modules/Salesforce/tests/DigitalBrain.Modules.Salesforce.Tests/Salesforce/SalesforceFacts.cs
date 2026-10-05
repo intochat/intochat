@@ -1,11 +1,11 @@
 using System.Text.Json;
 using DigitalBrain.Platform.Auth;
-using DigitalBrain.Kernel.Platform.Auth;
-using DigitalBrain.Kernel.Platform.Secrets;
+using DigitalBrain.Framework.Platform.Auth;
+using DigitalBrain.Framework.Platform.Secrets;
 using DigitalBrain.Platform.Secrets;
 using DigitalBrain.Salesforce;
 using DigitalBrain.Salesforce.Signals;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;

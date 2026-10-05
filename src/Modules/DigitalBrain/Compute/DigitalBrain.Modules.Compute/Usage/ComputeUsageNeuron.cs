@@ -1,6 +1,6 @@
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework;
 using Orleans;
 using Orleans.Runtime;
 

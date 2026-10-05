@@ -1,5 +1,5 @@
-using DigitalBrain.Kernel.Platform.Integrations;
-using DigitalBrain.Kernel.Platform.Secrets;
+using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Framework.Platform.Secrets;
 using DigitalBrain.Platform.Secrets;
 using DigitalBrain.Testing;
 using DigitalBrain.Testing.Module;

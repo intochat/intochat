@@ -4,8 +4,8 @@ using DigitalBrain.AI;
 using DigitalBrain.AI.Metering;
 using DigitalBrain.Assistant;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Kernel.Platform.Identity;
+using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Testing.E2E.Agent;
 using DigitalBrain.Testing.E2E.Workspace;
 

@@ -1,11 +1,11 @@
 using DigitalBrain;
 using DigitalBrain.Apps;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Microsoft.CSharp;
-using DigitalBrain.Kernel.Platform.Integrations.Accounts;
-using DigitalBrain.Kernel.Integrations.Accounts;
+using DigitalBrain.Framework.Platform.Integrations.Accounts;
+using DigitalBrain.Framework.Integrations.Accounts;
 
 namespace DigitalBrain.Apps;
 

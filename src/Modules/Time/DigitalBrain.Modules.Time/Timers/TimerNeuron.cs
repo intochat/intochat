@@ -1,4 +1,4 @@
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Time.Timers.Signals;
 using Orleans.Runtime;
 namespace DigitalBrain.Time.Timers;

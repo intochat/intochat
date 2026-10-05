@@ -1,9 +1,9 @@
 using System.Globalization;
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Types;
 using DigitalBrain.Flutter.Form.Signals;
-using DigitalBrain.Kernel.Types;
+using DigitalBrain.Framework.Types;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 

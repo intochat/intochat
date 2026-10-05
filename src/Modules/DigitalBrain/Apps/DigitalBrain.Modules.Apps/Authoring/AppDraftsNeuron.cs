@@ -1,6 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Apps;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Apps;
@@ -12,11 +12,11 @@ internal sealed class AppDraftsNeuron(
     : Neuron<AppDraftsState>(store), IAppDrafts
 {
     private const int MaxEntries = 100;
-    public override DigitalBrain.Kernel.Enforcement.NeuronAccess Access(string operation)
+    public override DigitalBrain.Framework.Enforcement.NeuronAccess Access(string operation)
     {
-        if (DigitalBrain.Kernel.Enforcement.CallerContextStamper.Require().PrincipalId != this.GetPrimaryKeyString())
+        if (DigitalBrain.Framework.Enforcement.CallerContextStamper.Require().PrincipalId != this.GetPrimaryKeyString())
         { throw new UnauthorizedAccessException("This draft index belongs to another person."); }
-        return DigitalBrain.Kernel.Enforcement.NeuronAccess.PublicOperation;
+        return DigitalBrain.Framework.Enforcement.NeuronAccess.PublicOperation;
     }
 
     public Task Record(string draftId, string title, AppDraftStatus status)

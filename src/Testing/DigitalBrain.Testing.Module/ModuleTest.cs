@@ -1,7 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Client;
 using DigitalBrain.Client.Orleans;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Platform;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,7 +16,7 @@ public static class ModuleTest
     public static ModuleTestBuilder Create() => new();
     internal static async Task<ModuleBrain> StartAsync(ModuleOptions? options = null, CancellationToken cancellationToken = default)
     {
-        Orleans.Runtime.RequestContext.Remove(DigitalBrain.Kernel.Enforcement.CallerContextStamper.RequestContextKey);
+        Orleans.Runtime.RequestContext.Remove(DigitalBrain.Framework.Enforcement.CallerContextStamper.RequestContextKey);
         options ??= new();
         options.Execution.Validate();
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

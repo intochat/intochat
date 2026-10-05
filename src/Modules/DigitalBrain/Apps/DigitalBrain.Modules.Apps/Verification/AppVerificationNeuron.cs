@@ -1,6 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Apps.Signals;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Apps;
@@ -19,9 +19,9 @@ internal sealed class AppVerificationNeuron(
     TimeProvider clock, AppRequirements requirements)
     : Neuron<AppVerificationState>(store), IAppVerification
 {
-    public override DigitalBrain.Kernel.Enforcement.NeuronAccess Access(string operation)
+    public override DigitalBrain.Framework.Enforcement.NeuronAccess Access(string operation)
         => operation is nameof(Read) or nameof(Verify)
-            ? DigitalBrain.Kernel.Enforcement.NeuronAccess.PublicOperation : base.Access(operation);
+            ? DigitalBrain.Framework.Enforcement.NeuronAccess.PublicOperation : base.Access(operation);
 
     public async Task<AppVerification> Verify()
     {

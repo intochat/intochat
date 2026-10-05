@@ -1,9 +1,9 @@
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Types;
-using DigitalBrain.Kernel.Platform.Integrations.Accounts;
-using DigitalBrain.Kernel.Platform.Secrets;
-using DigitalBrain.Kernel.Types;
+using DigitalBrain.Framework.Platform.Integrations.Accounts;
+using DigitalBrain.Framework.Platform.Secrets;
+using DigitalBrain.Framework.Types;
 using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Platform.Integrations.Accounts;

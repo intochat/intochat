@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Tables;

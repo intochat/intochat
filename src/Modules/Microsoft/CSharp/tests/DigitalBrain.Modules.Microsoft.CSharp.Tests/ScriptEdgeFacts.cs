@@ -1,12 +1,12 @@
 using System.Text.Json;
 using DigitalBrain.Client;
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Edge.V1;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Microsoft.CSharp;
-using DigitalBrain.Kernel.Platform.Integrations;
+using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
@@ -105,7 +105,7 @@ public sealed class ScriptEdgeFacts
         await host.StartAsync(ct);
         await using var client = await DigitalBrainClient.ConnectAsync(["--" + ScriptEdgeProtocol.EdgeSetting + "=" + host.Urls.Single(), "--" + ScriptEdgeProtocol.TokenSetting + "=" + token], ct);
         var error = await Assert.ThrowsAnyAsync<InvalidOperationException>(() => client.Get<IPinger>("pinger").RefuseCapacity());
-        Assert.Equal(DigitalBrain.Kernel.Capacity.CapacityUnavailableException.RefusalMessage, error.Message);
+        Assert.Equal(DigitalBrain.Framework.Capacity.CapacityUnavailableException.RefusalMessage, error.Message);
         await host.StopAsync(ct);
     }
 
@@ -200,11 +200,11 @@ public sealed class ScriptEdgeFacts
     [Fact]
     public void PlatformOnlyContractsAreNotInTheScriptCatalog()
     {
-        var contracts = new ScriptContracts([typeof(IPinger).Assembly, typeof(DigitalBrain.Kernel.Platform.Secrets.ISecrets).Assembly]);
+        var contracts = new ScriptContracts([typeof(IPinger).Assembly, typeof(DigitalBrain.Framework.Platform.Secrets.ISecrets).Assembly]);
 
         Assert.Equal(typeof(IPinger), contracts.Find(typeof(IPinger).FullName!));
-        Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Kernel.Platform.Secrets.ISecrets).FullName!));
-        Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Kernel.Platform.Integrations.IIntegrationRegistration).FullName!));
+        Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Framework.Platform.Secrets.ISecrets).FullName!));
+        Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegrationRegistration).FullName!));
         Assert.Throws<ArgumentException>(() => contracts.Find(typeof(IPlatformOnlyPinger).FullName!));
     }
 
@@ -227,7 +227,7 @@ public sealed class ScriptEdgeFacts
     {
         var contracts = new ScriptContracts([
             typeof(DigitalBrain.Data.IRowSource).Assembly,
-            typeof(DigitalBrain.Kernel.Platform.Integrations.Accounts.IConnectionRegistry).Assembly,
+            typeof(DigitalBrain.Framework.Platform.Integrations.Accounts.IConnectionRegistry).Assembly,
         ]);
 
         Assert.Equal(typeof(DigitalBrain.Data.IRowSource), contracts.Find(typeof(DigitalBrain.Data.IRowSource).FullName!));
@@ -237,25 +237,25 @@ public sealed class ScriptEdgeFacts
         Assert.Equal(
             typeof(DigitalBrain.Integrations.IConnectionRequests),
             contracts.Find(typeof(DigitalBrain.Integrations.IConnectionRequests).FullName!));
-        Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Kernel.Platform.Integrations.Accounts.IConnectionRegistry).FullName!));
+        Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Framework.Platform.Integrations.Accounts.IConnectionRegistry).FullName!));
     }
 
     [Fact]
     public void ThePlatformAssemblyIsNeverAContractsAssemblyOfAComposedModule()
     {
-        var inventory = new DigitalBrain.Kernel.ModuleInventory([typeof(DigitalBrain.Platform.PlatformHosting)]);
+        var inventory = new DigitalBrain.Framework.ModuleInventory([typeof(DigitalBrain.Platform.PlatformHosting)]);
 
         Assert.DoesNotContain(typeof(DigitalBrain.Platform.PlatformHosting).Assembly, inventory.ContractAssemblies());
-        Assert.Empty(DigitalBrain.Kernel.ModuleInventory.ContractAssembliesOf(typeof(DigitalBrain.Platform.PlatformHosting).Assembly));
+        Assert.Empty(DigitalBrain.Framework.ModuleInventory.ContractAssembliesOf(typeof(DigitalBrain.Platform.PlatformHosting).Assembly));
     }
 
     [Fact]
     public void TheIntegrationRegistrationContractIsAbsentFromTheScriptCatalogBecauseReleaseReliesOnThat()
     {
-        var contracts = new ScriptContracts([typeof(DigitalBrain.Kernel.Platform.Integrations.IIntegrationRegistration).Assembly]);
+        var contracts = new ScriptContracts([typeof(DigitalBrain.Framework.Platform.Integrations.IIntegrationRegistration).Assembly]);
 
-        Assert.True(DigitalBrain.PlatformOnlyAttribute.AppliesTo(typeof(DigitalBrain.Kernel.Platform.Integrations.IIntegrationRegistration)));
-        Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Kernel.Platform.Integrations.IIntegrationRegistration).FullName!));
+        Assert.True(DigitalBrain.PlatformOnlyAttribute.AppliesTo(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegrationRegistration)));
+        Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegrationRegistration).FullName!));
     }
 
     [Fact]
@@ -264,7 +264,7 @@ public sealed class ScriptEdgeFacts
         var ct = TestContext.Current.CancellationToken;
         var sandbox = new FakeSandbox();
         await using var brain = await SandboxBrain.StartAsync(sandbox, ct, silo => silo.Services.AddSingleton(
-            new ScriptContracts([typeof(IPinger).Assembly, typeof(DigitalBrain.Kernel.Platform.Secrets.ISecrets).Assembly])));
+            new ScriptContracts([typeof(IPinger).Assembly, typeof(DigitalBrain.Framework.Platform.Secrets.ISecrets).Assembly])));
         var token = await StartAsAlice(brain, sandbox, "workspace-a/attacker", ct);
         var edge = brain.SiloServices.GetRequiredService<ScriptEdge>();
         var forged = JsonSerializer.SerializeToElement(new
@@ -278,9 +278,9 @@ public sealed class ScriptEdgeFacts
         });
 
         await Assert.ThrowsAsync<ArgumentException>(() => edge.InvokeAsync(token,
-            (typeof(DigitalBrain.Kernel.Platform.Integrations.IIntegrationRegistration).FullName!, "integration/openai", "Release", [forged]), ct));
+            (typeof(DigitalBrain.Framework.Platform.Integrations.IIntegrationRegistration).FullName!, "integration/openai", "Release", [forged]), ct));
         await Assert.ThrowsAsync<ArgumentException>(() => edge.InvokeAsync(token,
-            (typeof(DigitalBrain.Kernel.Platform.Secrets.ISecrets).FullName!, "owner", "Resolve", [forged, forged]), ct));
+            (typeof(DigitalBrain.Framework.Platform.Secrets.ISecrets).FullName!, "owner", "Resolve", [forged, forged]), ct));
         await Assert.ThrowsAsync<ArgumentException>(() => edge.OpenSignalsAsync(token, typeof(IPlatformOnlyPinger).FullName!, "x", "Pinged", ct));
     }
 

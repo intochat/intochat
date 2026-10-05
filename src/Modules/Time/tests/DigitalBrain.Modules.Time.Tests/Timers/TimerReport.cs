@@ -1,5 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Time.Timers;
 using DigitalBrain.Time.Timers.Signals;
 

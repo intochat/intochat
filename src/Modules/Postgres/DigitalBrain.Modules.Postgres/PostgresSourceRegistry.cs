@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using DigitalBrain.Kernel.Capacity;
+using DigitalBrain.Framework.Capacity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;

@@ -1,6 +1,6 @@
 using DigitalBrain.Apps;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Registry;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Runtime;
