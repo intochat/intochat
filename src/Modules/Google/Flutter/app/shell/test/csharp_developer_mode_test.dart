@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:digitalbrain_flutter_shell/workspace/home/home_screen.dart';
 import 'package:digitalbrain_flutter_shell/workspace/workspace_app.dart';
 import 'package:digitalbrain_flutter_shell/workspace/workspace_store.dart';
 
@@ -15,8 +16,6 @@ void main() {
     )..developerMode = developerMode;
     await tester.pumpWidget(WorkspaceApp(store: store));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Applications'));
-    await tester.pumpAndSettle();
   }
 
   testWidgets('the C# files launcher entry is hidden when the server says no', (
@@ -26,7 +25,7 @@ void main() {
     expect(find.text('C# files'), findsNothing);
     expect(find.text('Files'), findsNothing);
     expect(find.text('Image Editor'), findsNothing);
-    expect(find.text('Assistant'), findsWidgets);
+    expect(find.byType(HomeScreen), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     tester.view.resetPhysicalSize();
     tester.view.resetDevicePixelRatio();

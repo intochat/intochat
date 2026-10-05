@@ -292,6 +292,8 @@ class WorkspacePreferences {
   bool assistantRight = false;
   bool reducedMotion = false;
   bool compactDensity = false;
+  // The installed app shown in the side panel.
+  String dock = 'assistant';
   Map<String, dynamic> toJson() => {
     'defaultModelProfile': defaultModelProfile,
     'displayName': displayName,
@@ -301,6 +303,7 @@ class WorkspacePreferences {
     'assistantRight': assistantRight,
     'reducedMotion': reducedMotion,
     'compactDensity': compactDensity,
+    'dock': dock,
   };
   WorkspacePreferences();
   factory WorkspacePreferences.fromJson(Map<String, dynamic> json) =>
@@ -312,7 +315,8 @@ class WorkspacePreferences {
         ..dockTop = json['dockTop'] == true
         ..assistantRight = json['assistantRight'] == true
         ..reducedMotion = json['reducedMotion'] == true
-        ..compactDensity = json['compactDensity'] == true;
+        ..compactDensity = json['compactDensity'] == true
+        ..dock = _text(json['dock'], 'assistant');
 }
 
 /// In-memory project projection. Call save after changing a mutable record.

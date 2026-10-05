@@ -1,6 +1,5 @@
 import 'dart:ui';
 
-import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:flutter/material.dart';
 
 import 'workspace_store.dart';
@@ -9,8 +8,6 @@ class WorkspaceIslands extends StatelessWidget {
   const WorkspaceIslands({
     super.key,
     required this.store,
-    this.apps = const [],
-    required this.onLaunch,
     required this.onRestore,
     required this.onNewWorkspace,
     required this.onSavedWork,
@@ -18,14 +15,16 @@ class WorkspaceIslands extends StatelessWidget {
     required this.onSettings,
     this.onCompute,
     this.onSwitchAccount,
-    this.onApps,
+    required this.onHome,
+    this.home = false,
   });
   final WorkspaceStore store;
-  final List<InstalledAppSummary> apps;
-  final ValueChanged<String> onLaunch, onRestore;
+  final ValueChanged<String> onRestore;
   final VoidCallback onNewWorkspace, onSavedWork, onSearch, onSettings;
   final VoidCallback? onCompute;
-  final VoidCallback? onSwitchAccount, onApps;
+  final VoidCallback? onSwitchAccount;
+  final VoidCallback onHome;
+  final bool home;
   Widget island(BuildContext context, Widget child) => ClipRRect(
     borderRadius: BorderRadius.circular(19),
     child: BackdropFilter(
@@ -55,7 +54,6 @@ class WorkspaceIslands extends StatelessWidget {
   );
   IconData appIcon(String kind) => switch (kind) {
     'csharp' => Icons.code,
-    'assistant' => Icons.assistant_outlined,
     'table' => Icons.table_chart_outlined,
     _ => Icons.web_asset_outlined,
   };
@@ -205,64 +203,14 @@ class WorkspaceIslands extends StatelessWidget {
                   );
                 },
               ),
-            PopupMenuButton<String>(
-              tooltip: 'Applications',
-              position: PopupMenuPosition.over,
-              icon: const Icon(Icons.apps_rounded, size: 23),
-              onSelected: (value) {
-                if (value == 'manage-apps') {
-                  onApps?.call();
-                } else {
-                  onLaunch(value);
-                }
-              },
-              itemBuilder: (_) => [
-                for (final entry in [
-                  (
-                    id: 'assistant',
-                    title: 'Assistant',
-                    description: 'Chat or talk with the assistant',
-                    icon: Icons.assistant_outlined,
-                  ),
-                  if (store.developerMode)
-                    (
-                      id: 'csharp',
-                      title: 'C# files',
-                      description: 'Write and run single-file C# apps',
-                      icon: Icons.code,
-                    ),
-                  for (final app in apps.where(
-                    (app) => app.operations.contains('open'),
-                  ))
-                    (
-                      id: app.id,
-                      title: app.title,
-                      description: app.description,
-                      icon: Icons.web_asset_outlined,
-                    ),
-                ])
-                  PopupMenuItem(
-                    value: entry.id,
-                    child: ListTile(
-                      leading: Icon(entry.icon),
-                      title: Text(entry.title),
-                      subtitle: Text(entry.description),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                  ),
-                if (onApps != null) ...[
-                  const PopupMenuDivider(),
-                  const PopupMenuItem(
-                    value: 'manage-apps',
-                    child: ListTile(
-                      leading: Icon(Icons.extension_outlined),
-                      title: Text('Apps'),
-                      subtitle: Text('Browse and manage apps'),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                  ),
-                ],
-              ],
+            IconButton(
+              tooltip: 'Home',
+              onPressed: onHome,
+              icon: Icon(
+                Icons.apps_rounded,
+                size: 23,
+                color: home ? Theme.of(context).colorScheme.primary : null,
+              ),
             ),
             IconButton(
               tooltip: 'Search',

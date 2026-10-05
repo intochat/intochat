@@ -140,8 +140,6 @@ void main() {
         WorkspaceApp(store: store, programmingClient: client),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Applications'));
-      await tester.pumpAndSettle();
       await tester.tap(find.text('Customer Researcher'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);

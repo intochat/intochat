@@ -24,6 +24,8 @@ class FirstRunClient extends http.BaseClient {
     final application = applicationResponse(request);
     if (application != null) {
       value = application;
+    } else if (request.url.path.endsWith('/marketplace')) {
+      value = const <Object>[];
     } else if (request.url.path.endsWith('/apps')) {
       value = const <Object>[];
     } else if (request.url.path.contains('/conversations/')) {

@@ -49,7 +49,7 @@ void main() {
       await tester.pumpWidget(WorkspaceApp(store: store));
       await tester.pumpAndSettle();
       expect(find.text('Your projects'), findsNothing);
-      expect(find.byTooltip('Applications'), findsOneWidget);
+      expect(find.byTooltip('Home'), findsOneWidget);
       expect(find.byTooltip('Compute'), findsOneWidget);
       expect(find.text('Compute'), findsNothing);
       expect(store.currentProject.title, 'Personal');

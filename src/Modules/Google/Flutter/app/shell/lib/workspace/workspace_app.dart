@@ -18,7 +18,7 @@ import 'compute_usage_panel.dart';
 import 'compute_usage_history.dart';
 import 'workspace_islands.dart';
 import 'csharp/csharp_manager.dart';
-import 'apps/apps_screen.dart';
+import 'home/home_screen.dart';
 
 class WorkspaceApp extends StatefulWidget {
   const WorkspaceApp({
@@ -156,7 +156,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   final _navigator = GlobalKey<NavigatorState>();
   late final WorkspaceRouteBridge _routes;
   late final Uri _initialLocation;
-  bool _ready = false, _directory = false, _mobileWork = false;
+  bool _ready = false, _directory = false, _mobileWork = false, _home = true;
   String _query = '';
   @override
   void initState() {
@@ -461,6 +461,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   }
 
   Future<void> _open(WorkspaceArtifact a) async {
+    if (_home) setState(() => _home = false);
     final destination = store.currentProject;
     if (a.kind == 'app') {
       if (a.data['app'] == 'csharp' && !store.developerMode) return;
@@ -732,6 +733,37 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     await _open(project.artifacts.firstWhere((a) => a.id == choice.$1));
   }
 
+  // Home stands in for the desktop until something opens; the Home island brings it back.
+  Widget _main(BuildContext context) => _home ? _homeScreen() : _work(context);
+
+  Widget _homeScreen() {
+    final client = widget.programmingClient;
+    final project = store.currentProject;
+    return HomeScreen(
+      key: ValueKey('${client?.workspaceIdentity}/${project.id}'),
+      workspaceId: project.id,
+      request: client?.jsonRequest,
+      loadIcon: client?.readBytes,
+      localApps: [
+        if (store.developerMode)
+          const LocalApp(id: 'csharp', title: 'C# files', icon: Icons.code),
+      ],
+      onLaunchLocal: _launchApp,
+      onOpen: _openApplication,
+      dock: store.settings.dock,
+      onDock: (name) {
+        store.settings.dock = name;
+        store.save();
+        setState(() {});
+      },
+      onAppsChanged: () {
+        _apps.remove(project.id);
+        _appsLoading.remove(project.id);
+        _loadApps(project.id);
+      },
+    );
+  }
+
   Widget _work(BuildContext context) => WorkspaceDesktop(
     key: ValueKey('desktop-${store.currentProject.id}'),
     store: store,
@@ -771,7 +803,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
             Expanded(
               child: IndexedStack(
                 index: _mobileWork ? 1 : 0,
-                children: [chat, _work(context)],
+                children: [chat, _main(context)],
               ),
             ),
           ],
@@ -804,7 +836,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
                 ),
               ),
             ),
-          Expanded(child: _work(context)),
+          Expanded(child: _main(context)),
         ],
       );
     },
@@ -918,8 +950,8 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   );
   Widget _islands(BuildContext context) => WorkspaceIslands(
     store: store,
-    apps: _apps[store.currentProject.id] ?? const [],
-    onLaunch: _launchApp,
+    onHome: () => setState(() => _home = !_home),
+    home: _home,
     onRestore: (id) =>
         _open(store.currentProject.artifacts.firstWhere((a) => a.id == id)),
     onNewWorkspace: () async {
@@ -968,7 +1000,6 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       }
     },
     onSwitchAccount: widget.onSwitchAccount,
-    onApps: widget.programmingClient == null ? null : _openApps,
     onSavedWork: () => _projectFiles(context),
     onSearch: () => _search(context),
     onCompute: widget.programmingClient == null
@@ -981,33 +1012,6 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       ),
     ),
   );
-
-  void _openApps() {
-    final client = widget.programmingClient;
-    if (client == null) return;
-    final workspaceId = store.currentProject.id;
-    _navigator.currentState
-        ?.push<void>(
-          MaterialPageRoute<void>(
-            builder: (_) => AppsScreen(
-              key: ValueKey('${client.workspaceIdentity}/$workspaceId'),
-              workspaceId: workspaceId,
-              request: client.jsonRequest,
-              onOpen: (id) async {
-                _navigator.currentState?.pop();
-                await _openApplication(id);
-              },
-              onClose: () => _navigator.currentState?.pop(),
-            ),
-          ),
-        )
-        .whenComplete(() {
-          if (!mounted) return;
-          _apps.remove(workspaceId);
-          _appsLoading.remove(workspaceId);
-          _loadApps(workspaceId);
-        });
-  }
 
   void _openCompute(BuildContext context) {
     final client = widget.programmingClient;
@@ -1107,6 +1111,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       }
       if (opened['surface'] is Map) opened['kind'] = 'surface';
       _accept(opened, project: project);
+      setState(() => _home = false);
       if (store.currentProject.id == project.id) {
         store.openArtifact(result['id'] as String, placement: 'floating');
       }
@@ -1122,7 +1127,10 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   Future<void> _launchApp(String appId) async {
     switch (appId) {
       case 'csharp':
-        if (store.developerMode) store.launchLocalApp(appId);
+        if (store.developerMode) {
+          store.launchLocalApp(appId);
+          setState(() => _home = false);
+        }
       default:
         await _openApplication(appId);
     }
