@@ -24,11 +24,13 @@ using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Aspire.Hosting;
 using Microsoft.Extensions.Configuration;
 
-// The AppHost owns its deployment keys: the published ports and the vendor's shipped-apps
-// binding (the path leaf under ShippedAppsServiceCollectionExtensions.ConfigurationSection).
+// The AppHost owns its deployment keys: the published ports, the seeded IntoChat publisher
+// account, and the vendor's shipped-apps binding (leaves under
+// ShippedAppsServiceCollectionExtensions.ConfigurationSection).
 const string UiPortKey = "DigitalBrain:Http:UiPort";
 const string McpPortKey = "DigitalBrain:Http:McpPort";
-const string IntoChatShippedAppsPathKey = "DigitalBrain:Modules:apps:Shipped:intochat:Path";
+const string IntoChatAccountKey = "DigitalBrain:Auth:Accounts:0";
+const string IntoChatShippedAppsKey = "DigitalBrain:Modules:apps:Shipped:intochat";
 
 var builder = DistributedApplication.CreateBuilder(args);
 var digitalBrain = builder.AddDigitalBrain("Modules", new DigitalBrainHostingOptions { ServiceId = "intochat", UseAzureStorage = true })
@@ -59,7 +61,14 @@ var intoChatApps = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..",
 
 var runtime = builder.AddProject<Projects.DigitalBrain_OS>("IntoChat")
     .WithReference(digitalBrain)
-    .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsPathKey), intoChatApps)
+    .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntoChatAccountKey + ":Username"), "intochat")
+    .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntoChatAccountKey + ":DisplayName"), "IntoChat")
+    // Development switching only; an Open host already acts as its owner without a login.
+    .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntoChatAccountKey + ":Password"),
+        builder.Configuration[IntoChatAccountKey + ":Password"] ?? "intochat-development")
+    .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsKey + ":Path"), intoChatApps)
+    .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsKey + ":Account"), "intochat")
+    .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsKey + ":Writable"), "true")
     .WaitFor(cookieProtection)
     .WithHttpEndpoint(
         port: builder.Configuration.GetValue(UiPortKey, 5080),

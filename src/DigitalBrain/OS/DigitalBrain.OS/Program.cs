@@ -16,8 +16,9 @@ LegacyConfigurationGuard.Check(builder.Configuration);
 // is IntoChat's own is branding, shipped apps and configuration.
 builder.AddDigitalBrainServer(server => server.UseAzureStorage().AddOperatingSystem());
 builder.AddDigitalBrainPlatform();
-// Vendors ship through configuration: DigitalBrain:Modules:apps:Shipped:{publisher}:Path names a
-// directory of app folders. The image carries no vendor content of its own.
+// Vendors ship through configuration: DigitalBrain:Modules:apps:Shipped:{source}:Path names a
+// directory of app folders and :Account the publisher account that owns them. The image carries
+// no vendor content of its own.
 builder.Services.AddShippedApps(builder.Configuration);
 
 var app = builder.Build();
