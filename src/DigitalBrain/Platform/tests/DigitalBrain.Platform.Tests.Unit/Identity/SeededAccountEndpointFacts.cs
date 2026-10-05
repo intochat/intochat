@@ -5,11 +5,11 @@ using DigitalBrain;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Configuration;
 using DigitalBrain.Platform.Identity.Directory;
+using DigitalBrain.Testing.Module;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using DigitalBrain.Testing.Module;
 using Xunit;
 
 namespace DigitalBrain.Platform.Tests.Unit.Identity;

@@ -18,8 +18,11 @@ public sealed class AgentTurnStartFacts
 {
     private static void StampUser() => CallerContextStamper.Stamp(new CallerContext
     {
-        PrincipalId = "owner", AccountId = "owner", BrainId = "research",
-        Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp,
+        PrincipalId = "owner",
+        AccountId = "owner",
+        BrainId = "research",
+        Kind = CallerKind.User,
+        StampedBy = TrustedEdge.AuthenticatedHttp,
     });
 
     private static Task<ModuleBrain> Start(IChatClient client, CancellationToken ct) => ModuleTest.Create().WithModule<AIModule>()

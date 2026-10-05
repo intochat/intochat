@@ -181,8 +181,11 @@ public sealed class AppPublishFacts
         await sibling.RecordVerdicts([new("Echoes", true, "ok"), new("Quiet", true, "ok")], green: true);
         DigitalBrain.Framework.Enforcement.CallerContextStamper.Stamp(new DigitalBrain.Enforcement.CallerContext
         {
-            PrincipalId = "intochat", AccountId = "account-intochat", BrainId = "second",
-            Kind = DigitalBrain.Enforcement.CallerKind.Platform, StampedBy = DigitalBrain.Enforcement.TrustedEdge.Platform,
+            PrincipalId = "intochat",
+            AccountId = "account-intochat",
+            BrainId = "second",
+            Kind = DigitalBrain.Enforcement.CallerKind.Platform,
+            StampedBy = DigitalBrain.Enforcement.TrustedEdge.Platform,
         });
 
         await Assert.ThrowsAsync<InvalidOperationException>(sibling.Publish);

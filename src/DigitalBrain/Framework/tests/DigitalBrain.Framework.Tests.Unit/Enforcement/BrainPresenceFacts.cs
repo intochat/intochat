@@ -19,8 +19,11 @@ public sealed class BrainPresenceFacts
         using var activations = brain.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<Activated>();
         CallerContextStamper.Stamp(new CallerContext
         {
-            PrincipalId = "owner", AccountId = "owner", BrainId = "owner",
-            Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp,
+            PrincipalId = "owner",
+            AccountId = "owner",
+            BrainId = "owner",
+            Kind = CallerKind.User,
+            StampedBy = TrustedEdge.AuthenticatedHttp,
         });
         try
         {

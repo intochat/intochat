@@ -204,8 +204,8 @@ internal static class AppsEndpoints
     {
         try { return await handler(); }
         catch (InvalidOperationException error) { return Results.Conflict(new { error = error.Message }); }
-catch (UnauthorizedAccessException error) { return Results.Json(new { error = error.Message }, statusCode: 403); }
-                catch (KeyNotFoundException error) { return Results.NotFound(new { error = error.Message }); }
+        catch (UnauthorizedAccessException error) { return Results.Json(new { error = error.Message }, statusCode: 403); }
+        catch (KeyNotFoundException error) { return Results.NotFound(new { error = error.Message }); }
         catch (Exception error) when (error is ArgumentException or InvalidDataException)
         { return Results.UnprocessableEntity(new { error = error.Message }); }
     }
