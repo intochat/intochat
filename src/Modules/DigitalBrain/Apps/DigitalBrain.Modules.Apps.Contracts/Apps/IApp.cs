@@ -31,6 +31,9 @@ public interface IApp : INeuron
     // The published version's bundle, readable by anyone: a published app is public by definition.
     Task<AppBundle> ExportPublished();
     [ResponseTimeout("00:10:00")] Task<AppSnapshot> Import(AppBundle bundle);
+    // An update: the bundle's program replaces this one in place. Settings, connections and the
+    // app's stored data stay; behaviors the bundle lacks stop.
+    [ResponseTimeout("00:10:00")] Task<AppSnapshot> Replace(AppBundle bundle);
     // Install records where the copy came from; recording it again (after an update) also
     // clears Edited, because the program is the publisher's again.
     Task RecordOrigin(AppOrigin origin);

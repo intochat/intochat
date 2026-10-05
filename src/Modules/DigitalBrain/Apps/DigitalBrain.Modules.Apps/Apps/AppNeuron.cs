@@ -297,11 +297,7 @@ internal sealed class AppNeuron(
     public async Task<AppSnapshot> Import(AppBundle bundle)
     {
         ArgumentNullException.ThrowIfNull(bundle);
-        if (bundle.Name != Name() || string.IsNullOrWhiteSpace(bundle.Name)
-            || bundle.Name.Any(c => !char.IsAsciiLetterLower(c) && !char.IsAsciiDigit(c) && c != '-'))
-        { throw new InvalidDataException($"'{bundle.Name}' is not a valid app name: lowercase letters, digits and dashes, matching the key."); }
-        if (bundle.Version.Split('.') is not { Length: 3 } parts || parts.Any(part => !part.All(char.IsAsciiDigit) || part.Length == 0))
-        { throw new InvalidDataException($"'{bundle.Version}' is not a version of the form major.minor.patch."); }
+        RequireBundleFor(bundle);
         if (Snapshot.Manifest is not null)
         { throw new InvalidOperationException($"You already have an app named {Name()}."); }
         var next = Snapshot.Clone();
@@ -320,6 +316,47 @@ internal sealed class AppNeuron(
         await Persist(next);
         foreach (var path in behaviors) { await DeployBehavior(path, next.Files[path], swap: false); }
         return Describe(Snapshot);
+    }
+
+    public async Task<AppSnapshot> Replace(AppBundle bundle)
+    {
+        ArgumentNullException.ThrowIfNull(bundle);
+        RequireCreated();
+        RequireBundleFor(bundle);
+        var appKey = this.GetPrimaryKeyString();
+        var existing = Snapshot.Files.Keys.Where(AppFiles.IsBehavior).ToHashSet(StringComparer.Ordinal);
+        var removed = existing.Where(path => !bundle.Files.ContainsKey(path)).ToArray();
+        var removedKeys = Deployable()?.Keys(appKey, Snapshot.ProgramGeneration, removed) ?? [];
+        // Only the removed behaviors' files stop. The storage hooks are not told: their OnRetired
+        // retires everything the app owns, and an update keeps the app's data.
+        if (Deployable() is { } runtime && removedKeys.Length > 0)
+        { await runtime.Retire(appKey, removedKeys, CancellationToken.None); }
+        var next = Snapshot.Clone();
+        next.Manifest = bundle.Manifest;
+        next.Spec = bundle.Spec;
+        next.Files = new(bundle.Files, StringComparer.Ordinal);
+        foreach (var setting in bundle.Manifest.Settings)
+        { if (!next.Settings.ContainsKey(setting.Name)) { next.Settings[setting.Name] = setting.Default; } }
+        var behaviors = next.Files.Keys.Where(AppFiles.IsBehavior).ToArray();
+        var keys = Deployable()?.Keys(appKey, next.ProgramGeneration, behaviors) ?? [];
+        next.StorageFiles = [.. next.StorageFiles.Except(removedKeys, StringComparer.Ordinal).Concat(keys).Distinct(StringComparer.Ordinal)];
+        next.DeployedFiles = [.. next.DeployedFiles.Except(removedKeys, StringComparer.Ordinal)];
+        foreach (var path in removed) { next.BehaviorErrors.Remove(path); }
+        next.Version = bundle.Version;
+        next.Status = AppStatus.Live;
+        Record(next);
+        await Persist(next);
+        foreach (var path in behaviors) { await DeployBehavior(path, next.Files[path], swap: existing.Contains(path)); }
+        return Describe(Snapshot);
+    }
+
+    private void RequireBundleFor(AppBundle bundle)
+    {
+        if (bundle.Name != Name() || string.IsNullOrWhiteSpace(bundle.Name)
+            || bundle.Name.Any(c => !char.IsAsciiLetterLower(c) && !char.IsAsciiDigit(c) && c != '-'))
+        { throw new InvalidDataException($"'{bundle.Name}' is not a valid app name: lowercase letters, digits and dashes, matching the key."); }
+        if (bundle.Version.Split('.') is not { Length: 3 } parts || parts.Any(part => !part.All(char.IsAsciiDigit) || part.Length == 0))
+        { throw new InvalidDataException($"'{bundle.Version}' is not a version of the form major.minor.patch."); }
     }
 
     public async Task RecordOrigin(AppOrigin origin)
