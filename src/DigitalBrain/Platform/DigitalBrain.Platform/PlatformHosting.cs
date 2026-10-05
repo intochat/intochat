@@ -28,6 +28,7 @@ public static class PlatformHosting
         services.AddSingleton<PlatformRegistration>();
         services.TryAddSingleton<IRegistry, Discovery.PlatformRegistry>();
         services.TryAddSingleton<IActivationCensus, Discovery.ActivationCensus>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IRegistryInventoryProvider, Discovery.ConnectionsInventoryProvider>());
         services.AddIdentity();
         services.AddShippedContentPublishing();
         services.AddOptions<IdentityMigrationOptions>().BindConfiguration(IdentityMigrationOptions.SectionName);

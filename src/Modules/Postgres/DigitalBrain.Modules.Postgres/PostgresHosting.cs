@@ -34,6 +34,7 @@ public static class PostgresHosting
         services.TryAddSingleton<IPostgresSourceRegistry>(provider => provider.GetRequiredService<PostgresSourceRegistry>());
         services.AddSingleton<IIntegrationStartup>(provider => provider.GetRequiredService<PostgresSourceRegistry>());
         services.TryAddSingleton<PostgresAppResources>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IRegistryInventoryProvider, PostgresInventoryProvider>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Framework.IRegistryResourceProvider, PostgresRegistryResources>());
         services.AddSingleton<ICapacityConfiguredSource>(provider =>
             new PostgresConfiguredSource(active: !provider.GetRequiredService<IOptions<PostgresModuleOptions>>().Value.ProvisionPerBrain));

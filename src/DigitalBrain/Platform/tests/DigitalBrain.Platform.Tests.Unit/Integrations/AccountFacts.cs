@@ -24,6 +24,33 @@ public sealed class AccountFacts : IDisposable
     private const string Owner = "owner-1";
     private const string Canary = "canary-connection-4b8e12";
 
+    [Fact]
+    public async Task InventoryListsOnlyTheAmbientBrainsConnectionsWithoutSecrets()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await StartAsync(ct);
+        foreach (var name in new[] { "one", "two" })
+        {
+            CallerContextStamper.Stamp(UserCaller() with { BrainId = name });
+            await brain.AuthorizeCallerAsync();
+            await brain.Get<IConnectionRegistry>(BrainScope.CurrentId()).Connect(new()
+            { IntegrationId = "webresearch", ConnectionId = name, Value = Canary }, ct);
+        }
+        var provider = brain.SiloServices.GetServices<IRegistryInventoryProvider>().Single(p => p.Domain == "connections");
+        foreach (var name in new[] { "one", "two" })
+        {
+            CallerContextStamper.Stamp(UserCaller() with { BrainId = name });
+            var record = Assert.Single(await provider.Persisted(null, ct));
+            Assert.Equal("webresearch/" + name, record.Display);
+            Assert.Equal(BrainScope.CurrentId(), record.Key);
+            Assert.Equal(record, Assert.Single(await provider.Active(null, ct)));
+            Assert.DoesNotContain(Canary, System.Text.Json.JsonSerializer.Serialize(record), StringComparison.Ordinal);
+            Assert.DoesNotContain("secret://", System.Text.Json.JsonSerializer.Serialize(record), StringComparison.Ordinal);
+            await brain.Get<IConnectionRegistry>(BrainScope.CurrentId()).Disconnect(name, ct);
+            Assert.Empty(await provider.Persisted(null, ct));
+        }
+    }
+
     public AccountFacts() => CallerContextStamper.Stamp(UserCaller());
 
     public void Dispose() => Orleans.Runtime.RequestContext.Clear();

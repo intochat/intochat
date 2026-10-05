@@ -11,7 +11,7 @@ builds/tests, never the .slnx.
 - [x] Gate — storage-catalog grounding disproved; design revised to federation. Closed.
 - [x] Task 1 — Framework contracts (RED: 2 missing-shape facts; GREEN: Framework 116/116, Architecture 35/35)
 - [x] Task 2 — Platform federation + census service (RED: missing DI registrations; GREEN: Platform 136/136, real census across two brains and deactivation)
-- [ ] Task 3 — Providers over existing aggregates (Apps, Connections, CSharp, Postgres)
+- [x] Task 3 — Providers over existing aggregates (RED: absent providers; GREEN: Apps 117/117, Platform 137/137, CSharp 89 passed/1 live skip, Postgres 74 passed/3 live skips)
 - [ ] Task 4 — Time: reminder/timer listing + provider
 - [ ] Task 5 — Assistant tools
 - [ ] Task 6 — Coverage rule in docs + closure

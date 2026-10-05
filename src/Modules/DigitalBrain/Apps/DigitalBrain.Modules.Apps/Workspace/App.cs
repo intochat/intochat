@@ -17,7 +17,7 @@ namespace DigitalBrain.Apps;
 internal sealed class App(
     [PersistentState("app", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<AppState> store,
     TimeProvider clock, AppRequirements requirements, ModuleInventory modules)
-    : Neuron<AppState>(store), IApp, IAppAdoption, IAppStorageHandover
+    : Neuron<AppState>(store), IApp, IAppAdoption, IAppStorageHandover, IAppInventoryView
 {
     public override NeuronAccess Access(string operation)
     {
@@ -36,6 +36,17 @@ internal sealed class App(
     private const int MaxPayloadLength = 64 * 1024;
 
     public Task<AppSnapshot> Read() => Task.FromResult(Describe(Snapshot));
+
+    public Task<NeuronRecord[]> Inventory()
+    {
+        if (Snapshot.Status != AppStatus.Installed || Snapshot.PendingUninstall is not null || Snapshot.Revision is null)
+        { return Task.FromResult<NeuronRecord[]>([]); }
+        var package = Snapshot.Revision.Package.ToString();
+        var paths = Snapshot.ScriptPaths.ToDictionary(path => FileKey(Snapshot.ProgramGeneration, path));
+        return Task.FromResult<NeuronRecord[]>([new("apps", "apps.app", this.GetPrimaryKeyString(), package),
+            .. Snapshot.StorageFiles.Select(key => new NeuronRecord("apps", "microsoft.csharp.file", key,
+                package + " / " + paths.GetValueOrDefault(key, key)))]);
+    }
 
     public async Task<AppSnapshot> AbandonStorage(AbandonAppStorage request)
     {
