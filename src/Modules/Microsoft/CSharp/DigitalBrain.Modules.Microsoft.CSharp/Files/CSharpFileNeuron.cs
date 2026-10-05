@@ -55,7 +55,7 @@ internal sealed partial class CSharpFileNeuron(
         if (Snapshot.AppBrain != BrainScope.CurrentId())
         { throw new UnauthorizedAccessException("This behavior belongs to another brain."); }
         if (method is nameof(Write) or nameof(Configure) or nameof(Start) or nameof(Arm) or nameof(Stop) or nameof(Delete)
-            && (source?.Type.ToString() != "apps.app" || source?.Key.ToString() != app))
+            && (source?.Type.ToString() != DigitalBrain.AppGrainType.Name || source?.Key.ToString() != app))
         { throw new UnauthorizedAccessException("Only the owning Apps grain may change a bound behavior."); }
     }
 

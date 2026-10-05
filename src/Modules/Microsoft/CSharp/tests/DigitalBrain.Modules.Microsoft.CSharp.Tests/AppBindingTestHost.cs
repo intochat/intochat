@@ -12,7 +12,7 @@ public interface IAppBindingTestHost : INeuron
     Task Start(string file);
 }
 
-[GrainType("apps.app")]
+[GrainType(DigitalBrain.AppGrainType.Name)]
 public sealed class AppBindingTestHost : Neuron, IAppBindingTestHost
 {
     public override DigitalBrain.Framework.Enforcement.NeuronAccess Access(string operation)

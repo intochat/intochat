@@ -116,7 +116,7 @@ internal sealed class PostgresLifecycleGuard : IIncomingGrainCallFilter
             if (!CallerContextStamper.IsTrusted(storageCaller) || (context.InterfaceMethod.Name == nameof(IPostgresAppStorage.ReadTables) && storageCaller.Kind == DigitalBrain.Enforcement.CallerKind.App))
             { throw new UnauthorizedAccessException("Only trusted host code may access app storage."); }
             if (context.InterfaceMethod.Name == nameof(IPostgresAppStorage.Migrate)
-                && (context.SourceId?.Type.ToString() != "apps.app" || context.SourceId?.Key.ToString() != scope[1]))
+                && (context.SourceId?.Type.ToString() != DigitalBrain.AppGrainType.Name || context.SourceId?.Key.ToString() != scope[1]))
             { throw new UnauthorizedAccessException("Only the owning Apps grain may migrate storage."); }
         }
         if (contract == typeof(IPostgresLegacyOwner) || contract == typeof(IPostgresTableOwnership))
@@ -138,14 +138,14 @@ internal sealed class PostgresLifecycleGuard : IIncomingGrainCallFilter
             { throw new UnauthorizedAccessException("Only Postgres may migrate table ownership."); }
         }
         if (contract == typeof(IPostgresStorageMigration)
-            && context.SourceId?.Type.ToString() != "apps.app"
+            && context.SourceId?.Type.ToString() != DigitalBrain.AppGrainType.Name
             && (!CallerContextStamper.TryGet(out var caller) || caller.Kind != DigitalBrain.Enforcement.CallerKind.Platform))
         { throw new UnauthorizedAccessException("Only platform startup or Apps may prepare storage migration."); }
         if (contract == typeof(IPostgresTables) || contract == typeof(IPostgresTableLifetime))
         {
             var source = context.SourceId;
             var expected = contract == typeof(IPostgresTableLifetime) ? "postgres.tables"
-                : context.InterfaceMethod.Name == nameof(IPostgresTables.Retire) ? "apps.app" : "postgres.table";
+                : context.InterfaceMethod.Name == nameof(IPostgresTables.Retire) ? DigitalBrain.AppGrainType.Name : "postgres.table";
             if (source is null || source.Value.Type.ToString() != expected)
             { throw new UnauthorizedAccessException("Only the owning module may change table lifetime."); }
             var owner = contract == typeof(IPostgresTables) ? context.TargetId.Key.ToString()

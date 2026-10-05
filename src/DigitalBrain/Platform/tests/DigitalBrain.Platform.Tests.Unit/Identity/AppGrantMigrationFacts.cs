@@ -125,7 +125,7 @@ public interface IAppGrantMigrationTestHost : IGrainWithStringKey
     Task Migrate(string[] files, string? app = null, string? authority = null);
 }
 
-[GrainType("apps.app")]
+[GrainType(DigitalBrain.AppGrainType.Name)]
 public sealed class AppGrantMigrationTestHost : Grain, IAppGrantMigrationTestHost
 {
     public Task Migrate(string[] files, string? app = null, string? authority = null)

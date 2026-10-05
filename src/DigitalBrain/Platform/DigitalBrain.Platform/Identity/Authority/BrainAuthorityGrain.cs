@@ -39,7 +39,7 @@ internal sealed class BrainAuthorityGrain(
         {
             var source = context.SourceId;
             var caller = CallerContextStamper.Require();
-            if (!CallerContextStamper.IsTrusted(caller) || source?.Type.ToString() != "apps.app"
+            if (!CallerContextStamper.IsTrusted(caller) || source?.Type.ToString() != DigitalBrain.AppGrainType.Name
                 || source?.Key.ToString() != (string)context.Request.GetArgument(0)!
                 || BrainScope.Create(caller.AccountId, caller.BrainId).Id != this.GetPrimaryKeyString())
             { throw new UnauthorizedAccessException("Only the originating Apps grain may migrate grants in its current brain."); }
