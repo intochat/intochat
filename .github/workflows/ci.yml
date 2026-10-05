@@ -84,8 +84,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - suite: kernel
-            project: src/DigitalBrain/Kernel/tests/DigitalBrain.Kernel.Tests.E2E
+          - suite: framework
+            project: src/DigitalBrain/Framework/tests/DigitalBrain.Framework.Tests.E2E
             browser: true
           - suite: os
             project: src/DigitalBrain/OS/tests/DigitalBrain.OS.Tests.E2E
