@@ -43,8 +43,7 @@ internal static class ProductE2E
     // shipped content a product fixture turns back on.
     public static E2ETestBuilder<Projects.DigitalBrain_AppHost> Create(string modelApiKey = "fixture-key", Dictionary<string, string?>? privateConfiguration = null)
         => ReferenceBrain.Create(modelApiKey, privateConfiguration)
-            .WithResourceEnvironment(new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                [DigitalBrainConfiguration.EnvironmentName(Platform.Identity.Configuration.IdentityHostOptions.Key(nameof(Platform.Identity.Configuration.IdentityHostOptions.CookieName)))] = "intochat.session",
-            });
+            .WithHostConfiguration(Platform.Identity.Configuration.IdentityHostOptions.Key(nameof(Platform.Identity.Configuration.IdentityHostOptions.CookieName)), "intochat.session")
+            .WithHostConfiguration(Platform.Identity.Configuration.IdentityHostOptions.Key(nameof(Platform.Identity.Configuration.IdentityHostOptions.ProtectionApplicationName)), "IntoChat.v1")
+            .WithHostConfiguration(Platform.Identity.Configuration.IdentityHostOptions.Key(nameof(Platform.Identity.Configuration.IdentityHostOptions.ProtectionContainerName)), "intochat-protection-v1");
 }

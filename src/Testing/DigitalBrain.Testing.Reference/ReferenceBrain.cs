@@ -48,8 +48,6 @@ public static class ReferenceBrain
                 ResourceEnvironment = new Dictionary<string, string>(StringComparer.Ordinal)
                 {
                     [DigitalBrainConfiguration.EnvironmentName(ShippedAppsServiceCollectionExtensions.ShipOnStartupKey)] = "false",
-                    // Reference facts own their session; the product's cookie stays the product's.
-                    [DigitalBrainConfiguration.EnvironmentName(IdentityHostOptions.Key(nameof(IdentityHostOptions.CookieName)))] = "digitalbrain.reference.session",
                 },
                 PrivateConfiguration = Merge(new Dictionary<string, string?>
                 {
@@ -60,7 +58,14 @@ public static class ReferenceBrain
                     ["Parameters:modules-salesforce-consumer-key"] = "fixture-client",
                     ["Parameters:modules-salesforce-consumer-secret"] = "fixture-secret",
                 }, privateConfiguration),
-            });
+            })
+            // Reference facts own their session end to end: the AppHost projects these identity
+            // keys to the runtime AND names the protection container from them, so they must land
+            // in the AppHost's own configuration, not just a resource's environment. After
+            // WithExecution, which replaces the execution record wholesale.
+            .WithHostConfiguration(IdentityHostOptions.Key(nameof(IdentityHostOptions.CookieName)), "digitalbrain.reference.session")
+            .WithHostConfiguration(IdentityHostOptions.Key(nameof(IdentityHostOptions.ProtectionApplicationName)), new IdentityHostOptions().ProtectionApplicationName)
+            .WithHostConfiguration(IdentityHostOptions.Key(nameof(IdentityHostOptions.ProtectionContainerName)), new IdentityHostOptions().ProtectionContainerName);
 
     internal static Dictionary<string, string?> Merge(Dictionary<string, string?> defaults, Dictionary<string, string?>? extra)
     {
