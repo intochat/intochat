@@ -2546,6 +2546,15 @@
     "ReminderId": 0,
     "ObservedAt": 1
   },
+  "DigitalBrain.Time.TimeInventoryState": {
+    "Schedules": 0
+  },
+  "DigitalBrain.Time.TimeSchedule": {
+    "TypeId": 0,
+    "Key": 1,
+    "Due": 2,
+    "Period": 3
+  },
   "DigitalBrain.Time.Timers.Signals.TimerTick": {
     "TimerId": 0,
     "ObservedAt": 1

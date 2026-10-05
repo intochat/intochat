@@ -4,19 +4,21 @@ using Orleans.Runtime;
 namespace DigitalBrain.Time.Timers;
 
 [GrainType("timer")]
-internal sealed class TimerNeuron(TimeProvider time) : Neuron, ITimer
+internal sealed class TimerNeuron(TimeProvider time, TimeInventoryWriter inventory) : Neuron, ITimer
 {
     private static readonly TimeSpan MaximumDelay = TimeSpan.FromMilliseconds(uint.MaxValue - 1);
     private IGrainTimer? _timer;
     private object? _schedule;
+    private ITimeInventory? _inventory;
 
-    public Task Start(TimeSpan dueTime, TimeSpan? period = null)
+    public async Task Start(TimeSpan dueTime, TimeSpan? period = null)
     {
         if (dueTime < TimeSpan.Zero || dueTime > MaximumDelay)
         { throw new ArgumentOutOfRangeException(nameof(dueTime)); }
         if (period is { } interval && (interval <= TimeSpan.Zero || interval > MaximumDelay))
         { throw new ArgumentOutOfRangeException(nameof(period)); }
 
+        _inventory = await inventory.Track(new("timer", this.GetPrimaryKeyString(), time.GetUtcNow() + dueTime, period));
         var schedule = new object();
         var next = this.RegisterGrainTimer(
             (_, ct) => TickAsync(schedule, period is null, ct),
@@ -33,16 +35,15 @@ internal sealed class TimerNeuron(TimeProvider time) : Neuron, ITimer
         _schedule = schedule;
         // KeepAlive extends lifetime on ticks; a long initial delay also needs protection.
         DelayDeactivation(Timeout.InfiniteTimeSpan);
-        return Task.CompletedTask;
     }
 
-    public Task Stop()
+    public async Task Stop()
     {
         _schedule = null;
         _timer?.Dispose();
         _timer = null;
         DelayDeactivation(TimeSpan.Zero);
-        return Task.CompletedTask;
+        await inventory.Remove(_inventory, "timer", this.GetPrimaryKeyString());
     }
 
     private async Task TickAsync(object schedule, bool once, CancellationToken ct)
