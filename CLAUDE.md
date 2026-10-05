@@ -48,7 +48,7 @@ behaviors/*.cs   the implementation: one script per concern
 - **Tests are the publish gate.** `AppVerifyJob` imports the bundle into a scratch copy in the same
   brain and runs `tests.cs` through `ITestScriptRunner` (default: an ordinary sandbox script), which
   drives the copy through real contracts (`IApp`, `IScriptedLLM`, …) and prints one
-  `dbtest:pass <name>` / `dbtest:fail <name>	<message>` (or `dbtest:json <AppScenarioVerdict>`) line
+  `dbtest:pass <name>` / `dbtest:fail <name>\t<message>` (or `dbtest:json <AppScenarioVerdict>`) line
   per scenario. Every `## Scenario:` heading needs a verdict except "(live)" ones, which talk to real
   services. Green requires exit 0 AND ≥1 scenario AND all passed — silence never passes. Tests play
   the connector (scripted models — `scripted/<key>` also drives whole agent turns — real timers);
