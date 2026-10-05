@@ -29,14 +29,14 @@ The full ratified standard: `docs/superpowers/specs/2026-09-29-programmable-brai
 
 ## The self-programming model
 
-A user app is a **package** (`IPackage`, keyed `owner/name`) with git semantics — commit, fork,
-pull, proposals, publish — containing:
+A user app is an **app neuron** (`IApp`, keyed `{brainScope}/apps/{name}`) in a real brain owned by a
+real account. It holds its version history (last 20), settings, connections and verdicts, and contains:
 
 ```
+app.json         manifest: title, description, icon file, operations, settings, account slots
 app.spec.md      the program, in free natural language; "## Scenario: <name>" headings
-tests.cs         thin deterministic checks using AppScenarioSuite and scratch installs
-behaviors/*.cs   the implementation: one script per concern (plus legacy single Source as app.cs)
-app.authoring.json optional stable scenario IDs and scenario-to-source associations
+tests.cs         thin deterministic checks that drive a scratch copy and print dbtest lines
+behaviors/*.cs   the implementation: one script per concern
 ```
 
 - **Spec is the program.** The Author agent turns a request into `app.spec.md`; the Builder agent
@@ -45,17 +45,16 @@ app.authoring.json optional stable scenario IDs and scenario-to-source associati
   publish gate or the signal path. There is no step vocabulary or sentence grammar — **the type
   system is the grammar**: a scenario is expressible exactly when its test compiles against the
   installed contracts (`ScriptContracts` exposes the composed modules' contracts assemblies).
-- **Tests are the publish gate.** `IAppVerification` runs `tests.cs` through `ITestScriptRunner`
-  (default: an ordinary sandbox script). The script installs GUID-scoped scratch apps, drives them
-  through real contracts (`IApp`, `IScriptedLLM`, `IGroupChat`, …), prints one
-  `dbtest:json <AppScenarioVerdict>` line per scenario and exits non-zero on failure. Legacy
-  `dbtest:pass <name>` / `dbtest:fail <name>\t<message>` remains supported. Structured documents
-  require exactly one result for every non-live scenario; results bind to stable scenario IDs.
-  Green requires exit 0 AND ≥1 scenario AND all passed — silence never passes. Tests play
-  the connector (scripted models, real timers); never a live model in the gate. `Publish` refuses
-  any revision carrying a spec or tests until its verification is green. Verification runs
-  scripts for every runtime, so it needs the host's C# sandbox (composing `CSharpModule` in a
-  repository declares it).
+- **Tests are the publish gate.** `AppVerifyJob` imports the bundle into a scratch copy in the same
+  brain and runs `tests.cs` through `ITestScriptRunner` (default: an ordinary sandbox script), which
+  drives the copy through real contracts (`IApp`, `IScriptedLLM`, …) and prints one
+  `dbtest:pass <name>` / `dbtest:fail <name>	<message>` (or `dbtest:json <AppScenarioVerdict>`) line
+  per scenario. Every `## Scenario:` heading needs a verdict except "(live)" ones, which talk to real
+  services. Green requires exit 0 AND ≥1 scenario AND all passed — silence never passes. Tests play
+  the connector (scripted models — `scripted/<key>` also drives whole agent turns — real timers);
+  never a live model in the gate. `IApp.Publish` refuses any version that is not green; Export
+  likewise. Verification runs scripts for every runtime, so it needs the host's C# sandbox
+  (composing `CSharpModule` in a repository declares it).
 - **Subscriptions are code, durability is the brain's.** A script's `brain.On<T>(source)` registers
   a durable, grain-side subscription on its `ICSharpFile` with a buffered watermark (64/subscription,
   oldest dropped). Processes are caches: idle scripts are reaped, a signal for a reaped script
@@ -64,14 +63,19 @@ app.authoring.json optional stable scenario IDs and scenario-to-source associati
   handlers dedup through neuron state. Derived state (a window arrangement, a summary) is re-derived
   wholesale, never incrementally patched. `Arm`/`Trigger` (run-per-signal with
   `brain.Trigger<T>()`) still exists for single-trigger files.
-- **Install is per brain** (`IApp`): settings plus account slots bound to the installer's own
-  connected accounts — a shared email summarizer runs against each user's Gmail. Each
-  `behaviors/*.cs` becomes its own `ICSharpFile`; failure isolation is per behavior. The host binds
-  these files to the installed `IApp` identity, shared across scenarios and generations. Standalone
-  files retain file identity. Upgrade/reconfigure migrates legacy file-owned Postgres tables without
-  changing their physical names or pinned origins. First-party
-  apps ship through the same commit→verify→publish pipeline (`ShippedAppPublisher`, folders under
-  `src/IntoChat/Apps/`).
+- **Publish, Marketplace, Install.** An owner publishes a green version; `IMarketplace` (one
+  constant-key neuron, readable by every signed-in user) lists published versions. Install copies the
+  published bundle into the installer's brain and records its `Origin`; settings and account slots bind
+  to the installer's own connections. An installed copy offers "Update available" when its origin
+  publishes a newer version, until the copy's program is edited (settings are not edits) — then it is
+  simply the installer's own app. Updates replace the program in place and keep the app's data.
+  Install is the only way an app crosses brains. Each `behaviors/*.cs` becomes its own `ICSharpFile`
+  bound to the installed `IApp`; failure isolation is per behavior. First-party apps are owned by
+  seeded accounts (`os`, `intochat`; `DigitalBrain:Auth:Accounts`): shipped folders
+  (`src/IntoChat/Apps/`, the OS's embedded apps) are verified and published in their publisher's
+  brain at startup, and a writable development source syncs published versions back to its folder.
+  Brains install the OS defaults (`os/settings`, `os/assistant`) through the same Install path; the
+  Assistant is an ordinary app over the platform's agent runner.
 - **Module contract:** a module ships contracts + signals + connector + fakes (Testing package) +
   renderables. Modules never ship step definitions or test-only methods on production interfaces.
   A module that owns enumerable per-brain state ships its `IRegistryInventoryProvider`; the Framework's `IRegistry` federates them — nothing mirrors domain state.
