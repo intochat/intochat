@@ -1,12 +1,27 @@
+import 'dart:convert';
+
 import 'package:http/http.dart' as http;
+
+const assistantSummary = {
+  'name': 'assistant',
+  'title': 'Assistant',
+  'description': 'Chat with your brain',
+  'status': 'Live',
+  'version': '1.0.0',
+  'operations': ['open'],
+};
 
 /// A surface composed entirely from generic declared primitives.
 Map<String, dynamic>? applicationResponse(http.BaseRequest request) {
   final segments = request.url.pathSegments;
   if (segments.length < 2 || segments.first != 'brains') return null;
-  final root = '${segments[1]}/applications/assistant';
-  if (request.url.path.endsWith('/applications/assistant/start')) {
+  final root = '${segments[1]}/apps/assistant';
+  if (request.url.path.endsWith('/apps/assistant/ask') &&
+      request is http.Request &&
+      (jsonDecode(request.body) as Map)['input'] == 'docked') {
     return {
+      'id': '$root/docked',
+      'title': 'Assistant',
       'surface': {'kind': 'surface', 'name': '$root/surface'},
     };
   }

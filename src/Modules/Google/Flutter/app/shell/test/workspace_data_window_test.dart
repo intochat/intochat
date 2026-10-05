@@ -1,3 +1,4 @@
+import 'package:digitalbrain_flutter_shell/workspace/home/home_screen.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -155,44 +156,12 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Connect to open applications.'), findsOneWidget);
+      expect(
+        tester.widget<HomeScreen>(find.byType(HomeScreen)).workspaceId,
+        store.currentProject.id,
+      );
       await tester.pumpWidget(const SizedBox());
       store.dispose();
-    },
-  );
-  testWidgets(
-    'history recovery retains identical requests from distinct runs',
-    (tester) async {
-      final store = WorkspaceStore(persistence: MemoryPersistence());
-      store.currentConversation.threadId = 'thread';
-      final api = WorkspaceClient()
-        ..history = [
-          {
-            'runId': 'one',
-            'userText': 'Repeated request',
-            'assistantText': 'First answer',
-            'resultIds': [],
-          },
-          {
-            'runId': 'two',
-            'userText': 'Repeated request',
-            'assistantText': 'Second answer',
-            'resultIds': [],
-          },
-        ];
-      final client = DigitalBrainUiClient(
-        baseUri: Uri.parse('http://test'),
-        httpClient: api,
-      );
-      await tester.pumpWidget(
-        WorkspaceApp(store: store, programmingClient: client),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('Repeated request'), findsNWidgets(2));
-      expect(find.text('First answer'), findsOneWidget);
-      expect(find.text('Second answer'), findsOneWidget);
-      await tester.pumpWidget(const SizedBox());
-      await api.events.close();
     },
   );
   testWidgets(

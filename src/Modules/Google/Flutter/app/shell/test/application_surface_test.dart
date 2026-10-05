@@ -19,12 +19,7 @@ void main() {
         final workspace = request.url.pathSegments[1];
         final kind = request.url.queryParameters['kind'];
         final Object response;
-        if (request.url.path.endsWith('/start')) {
-          starts.add(workspace);
-          response = {
-            'surface': {'kind': 'surface', 'name': '$workspace/root'},
-          };
-        } else if (kind == 'surface') {
+        if (kind == 'surface') {
           response = {
             'definition': {
               'children': [
@@ -49,6 +44,10 @@ void main() {
           client: client,
           workspace: workspace,
           application: 'assistant',
+          start: () async {
+            starts.add(workspace);
+            return {'kind': 'surface', 'name': '$workspace/root'};
+          },
         ),
       ),
     );
@@ -76,15 +75,6 @@ void main() {
     final client = DigitalBrainUiClient(
       baseUri: Uri.parse('http://test'),
       httpClient: MockClient((request) async {
-        if (request.url.path.endsWith('/start')) {
-          if (++attempts == 1) return http.Response('Unavailable', 503);
-          return http.Response(
-            jsonEncode({
-              'surface': {'kind': 'text', 'name': 'ready'},
-            }),
-            200,
-          );
-        }
         return http.Response(jsonEncode({'markdown': 'Ready'}), 200);
       }),
     );
@@ -95,6 +85,10 @@ void main() {
             client: client,
             workspace: 'one',
             application: 'assistant',
+            start: () async {
+              if (++attempts == 1) throw StateError('Unavailable');
+              return {'kind': 'text', 'name': 'ready'};
+            },
           ),
         ),
       ),

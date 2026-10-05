@@ -17,6 +17,7 @@ class WorkspaceIslands extends StatelessWidget {
     this.onSwitchAccount,
     required this.onHome,
     this.home = false,
+    this.sidePanel = true,
   });
   final WorkspaceStore store;
   final ValueChanged<String> onRestore;
@@ -25,6 +26,8 @@ class WorkspaceIslands extends StatelessWidget {
   final VoidCallback? onSwitchAccount;
   final VoidCallback onHome;
   final bool home;
+  // The side-panel toggle shows only when an app is docked.
+  final bool sidePanel;
   Widget island(BuildContext context, Widget child) => ClipRRect(
     borderRadius: BorderRadius.circular(19),
     child: BackdropFilter(
@@ -139,8 +142,9 @@ class WorkspaceIslands extends StatelessWidget {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (sidePanel)
             IconButton(
-              tooltip: 'Assistant',
+              tooltip: 'Side panel',
               onPressed: store.toggleChat,
               icon: Icon(
                 Icons.chat_bubble_outline,
@@ -299,8 +303,8 @@ class WorkspaceIslands extends StatelessWidget {
                   value: 'assistant',
                   child: Text(
                     store.settings.assistantRight
-                        ? 'Assistant on left'
-                        : 'Assistant on right',
+                        ? 'Side panel on left'
+                        : 'Side panel on right',
                   ),
                 ),
                 const PopupMenuItem(value: 'settings', child: Text('Settings')),

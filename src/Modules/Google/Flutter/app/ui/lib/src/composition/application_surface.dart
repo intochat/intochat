@@ -4,21 +4,21 @@ import 'neuron_view.dart';
 
 import 'package:flutter/material.dart';
 
-/// Starts an application and renders the surface it declares. The shell supplies
-/// platform renderers; the application owns the component tree.
+/// Renders the surface an application declares. The host decides how the application is
+/// started; the application owns the component tree.
 class ApplicationSurface extends StatefulWidget {
   const ApplicationSurface({
     super.key,
     required this.client,
     required this.workspace,
     required this.application,
+    required this.start,
     this.onActivate,
-    this.startArguments = const {},
   });
 
   final DigitalBrainUiClient client;
   final String workspace, application;
-  final Map<String, dynamic> startArguments;
+  final Future<Map<String, dynamic>> Function() start;
   final ValueChanged<Map<String, dynamic>>? onActivate;
 
   @override
@@ -28,15 +28,7 @@ class ApplicationSurface extends StatefulWidget {
 class _ApplicationSurfaceState extends State<ApplicationSurface> {
   late Future<Map<String, dynamic>> _surface = _start();
 
-  Future<Map<String, dynamic>> _start() async {
-    final result = await widget.client.jsonRequest(
-      'POST',
-      '/brains/${Uri.encodeComponent(widget.workspace)}/applications/'
-          '${Uri.encodeComponent(widget.application)}/start',
-      widget.startArguments,
-    );
-    return Map<String, dynamic>.from((result as Map)['surface'] as Map);
-  }
+  Future<Map<String, dynamic>> _start() => widget.start();
 
   @override
   void didUpdateWidget(ApplicationSurface oldWidget) {

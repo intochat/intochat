@@ -27,7 +27,7 @@ class FirstRunClient extends http.BaseClient {
     } else if (request.url.path.endsWith('/marketplace')) {
       value = const <Object>[];
     } else if (request.url.path.endsWith('/apps')) {
-      value = const <Object>[];
+      value = const [assistantSummary];
     } else if (request.url.path.contains('/conversations/')) {
       value = {'revision': 1, 'activeRunId': null, 'turns': <Object>[]};
     } else {

@@ -156,7 +156,12 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   final _navigator = GlobalKey<NavigatorState>();
   late final WorkspaceRouteBridge _routes;
   late final Uri _initialLocation;
-  bool _ready = false, _directory = false, _mobileWork = false, _home = true;
+  bool _ready = false, _directory = false, _mobileWork = false;
+  // Null follows the desktop: Home when nothing is open, the desktop when windows are.
+  // Opening something or the Home island makes it an explicit choice.
+  bool? _homeChoice;
+  bool get _home =>
+      _homeChoice ?? store.currentProject.presentation.openArtifactIds.isEmpty;
   String _query = '';
   @override
   void initState() {
@@ -461,7 +466,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   }
 
   Future<void> _open(WorkspaceArtifact a) async {
-    if (_home) setState(() => _home = false);
+    if (_home) setState(() => _homeChoice = false);
     final destination = store.currentProject;
     if (a.kind == 'app') {
       if (a.data['app'] == 'csharp' && !store.developerMode) return;
@@ -776,25 +781,41 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     ),
   );
 
+  // The side panel holds whichever installed app the person docked, if it can open.
+  String? get _dockedApp {
+    final name = store.settings.dock;
+    final apps = _apps[store.currentProject.id];
+    if (widget.programmingClient == null || name.isEmpty || apps == null) {
+      return null;
+    }
+    return apps.any((app) => app.id == name && app.operations.contains('open'))
+        ? name
+        : null;
+  }
+
   Widget _workspace(BuildContext context) => LayoutBuilder(
     builder: (context, c) {
       final mobile = c.maxWidth < 760;
       final client = widget.programmingClient;
-      final chat = client == null
-          ? const Center(child: Text('Connect to open applications.'))
-          : ApplicationSurface(
-              key: ValueKey(store.currentProject.id),
-              client: client,
-              workspace: store.currentProject.id,
-              onActivate: (result) => _accept(result),
-              application: 'assistant',
-            );
+      final docked = _dockedApp;
+      if (docked == null) return _main(context);
+      // _dockedApp is non-null only with a client.
+      final api = client!;
+      final project = store.currentProject;
+      final panel = ApplicationSurface(
+        key: ValueKey('${project.id}/$docked'),
+        client: api,
+        workspace: project.id,
+        application: docked,
+        start: () => api.openDockedApp(project.id, docked),
+        onActivate: (result) => _accept(result),
+      );
       if (mobile) {
         return Column(
           children: [
             SegmentedButton<bool>(
               segments: const [
-                ButtonSegment(value: false, label: Text('Assistant')),
+                ButtonSegment(value: false, label: Text('Side panel')),
                 ButtonSegment(value: true, label: Text('Workspace')),
               ],
               selected: {_mobileWork},
@@ -803,7 +824,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
             Expanded(
               child: IndexedStack(
                 index: _mobileWork ? 1 : 0,
-                children: [chat, _main(context)],
+                children: [panel, _main(context)],
               ),
             ),
           ],
@@ -820,7 +841,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
         children: [
           Offstage(
             offstage: store.currentProject.presentation.chatCollapsed,
-            child: SizedBox(width: width, child: chat),
+            child: SizedBox(width: width, child: panel),
           ),
           if (!store.currentProject.presentation.chatCollapsed)
             MouseRegion(
@@ -950,8 +971,9 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   );
   Widget _islands(BuildContext context) => WorkspaceIslands(
     store: store,
-    onHome: () => setState(() => _home = !_home),
+    onHome: () => setState(() => _homeChoice = !_home),
     home: _home,
+    sidePanel: _dockedApp != null,
     onRestore: (id) =>
         _open(store.currentProject.artifacts.firstWhere((a) => a.id == id)),
     onNewWorkspace: () async {
@@ -1097,13 +1119,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     if (client == null) return;
     final project = store.currentProject;
     try {
-      final result = application == 'assistant'
-          ? await client.jsonRequest(
-              'POST',
-              '/brains/${Uri.encodeComponent(project.id)}/applications/assistant/open',
-              arguments,
-            )
-          : await client.openApp(project.id, application, arguments);
+      final result = await client.openApp(project.id, application, arguments);
       if (!mounted) return;
       final opened = Map<String, dynamic>.from(result as Map);
       if (opened['surface'] is String) {
@@ -1111,7 +1127,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       }
       if (opened['surface'] is Map) opened['kind'] = 'surface';
       _accept(opened, project: project);
-      setState(() => _home = false);
+      setState(() => _homeChoice = false);
       if (store.currentProject.id == project.id) {
         store.openArtifact(result['id'] as String, placement: 'floating');
       }
@@ -1129,7 +1145,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       case 'csharp':
         if (store.developerMode) {
           store.launchLocalApp(appId);
-          setState(() => _home = false);
+          setState(() => _homeChoice = false);
         }
       default:
         await _openApplication(appId);

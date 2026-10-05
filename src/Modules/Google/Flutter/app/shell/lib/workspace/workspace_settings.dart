@@ -351,7 +351,7 @@ class _WorkspaceSettingsState extends State<WorkspaceSettings> {
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Assistant on the right'),
+              title: const Text('Side panel on the right'),
               value: prefs.assistantRight,
               onChanged: (v) {
                 prefs.assistantRight = v;
