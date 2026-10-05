@@ -48,20 +48,30 @@ public sealed class BrainRouteIsolationFacts(ReferenceBrainFixture host)
         var aliceLedger = brain.Get<DigitalBrain.Compute.IAllowanceLedger>(alicePerson.Account);
         await aliceLedger.GrantAsync(new DigitalBrain.Compute.Allowance
         {
-            AllowanceId = "budget", AccountId = alicePerson.Account, BrainId = aliceBrain,
+            AllowanceId = "budget",
+            AccountId = alicePerson.Account,
+            BrainId = aliceBrain,
             Level = DigitalBrain.Compute.ApprovalLevel.StandingBudget,
             Scope = DigitalBrain.Compute.AllowanceScope.Always,
-            LimitCompute = 100m, PriceBookVersion = new DigitalBrain.Compute.PriceBook().Version,
+            LimitCompute = 100m,
+            PriceBookVersion = new DigitalBrain.Compute.PriceBook().Version,
             GrantedAt = DateTimeOffset.UtcNow,
         }, ct);
         var reserved = await aliceLedger.AuthorizeAsync(new CallRequest
         {
             Caller = new CallerContext
             {
-                PrincipalId = alicePerson.Account, AccountId = alicePerson.Account, BrainId = aliceBrain,
-                Kind = CallerKind.Assistant, StampedBy = TrustedEdge.AuthenticatedHttp, IntentId = "private-charge",
+                PrincipalId = alicePerson.Account,
+                AccountId = alicePerson.Account,
+                BrainId = aliceBrain,
+                Kind = CallerKind.Assistant,
+                StampedBy = TrustedEdge.AuthenticatedHttp,
+                IntentId = "private-charge",
             },
-            TargetNeuron = "neuron", Operation = "chat", EstimatedCompute = 7m, HasSideEffects = true,
+            TargetNeuron = "neuron",
+            Operation = "chat",
+            EstimatedCompute = 7m,
+            HasSideEffects = true,
         }, ct);
         Assert.True(reserved.Allowed, reserved.Explanation);
         await aliceLedger.SettleAsync(reserved.ReservationId!, 7m, DigitalBrain.Compute.FailureClass.None, ct);

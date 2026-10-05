@@ -26,10 +26,16 @@ public sealed class BillingFacts
     {
         var settled = new AllowanceReservation
         {
-            ReservationId = "intent-1:neuron:chat", AllowanceId = "budget",
-            ReservedCompute = 5m, SettledCompute = 3m, Settled = true,
-            OccurredAt = Now, IntentId = "intent-1", BrainId = "brain-1",
-            AppId = "app-1", Operation = "chat",
+            ReservationId = "intent-1:neuron:chat",
+            AllowanceId = "budget",
+            ReservedCompute = 5m,
+            SettledCompute = 3m,
+            Settled = true,
+            OccurredAt = Now,
+            IntentId = "intent-1",
+            BrainId = "brain-1",
+            AppId = "app-1",
+            Operation = "chat",
         };
         var meter = RecurringMeters.Accrue("brain-1", "storage.gb_month", 2m, "gb_month", Now);
         var statement = StatementBuilder.Build("account", "2026-09", [settled], [meter], new PriceBook(), Now);
@@ -71,8 +77,16 @@ public sealed class BillingFacts
     {
         static AllowanceReservation Reservation(string id, bool settled, decimal compute, DateTimeOffset at) => new()
         {
-            ReservationId = id, AllowanceId = "budget", ReservedCompute = 5m, SettledCompute = compute,
-            Settled = settled, OccurredAt = at, IntentId = id, BrainId = "brain-1", AppId = "app-1", Operation = "chat",
+            ReservationId = id,
+            AllowanceId = "budget",
+            ReservedCompute = 5m,
+            SettledCompute = compute,
+            Settled = settled,
+            OccurredAt = at,
+            IntentId = id,
+            BrainId = "brain-1",
+            AppId = "app-1",
+            Operation = "chat",
         };
         var statement = StatementBuilder.Build("account", "2026-09",
         [
