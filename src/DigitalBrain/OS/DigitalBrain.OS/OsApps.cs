@@ -11,10 +11,9 @@ using Orleans;
 
 namespace DigitalBrain.OS;
 
-// The operating system's first-party apps: names every brain carries, imported from the "os"
-// brain's shipped copy when the brain activates and re-imported when a new version ships.
-// The list is deployment configuration; a distribution names its own.
-public sealed record OsApp(string Name);
+// The operating system's default apps: Marketplace entries every new brain installs. The list
+// is deployment configuration; a distribution names its own.
+public sealed record OsApp(string Publisher, string Name);
 
 public sealed class OsAppsOptions
 {
@@ -47,8 +46,9 @@ public static class OsAppsHosting
         services.Configure<OsAppsOptions>(os =>
         {
             // Idempotent so a host that both composes the OS and wires the apps explicitly
-            // does not boot each app twice.
-            if (!os.Apps.Any(existing => existing.Name == "settings")) { os.Apps.Add(new("settings")); }
+            // does not install a default twice.
+            foreach (var app in new[] { new OsApp("os", "settings"), new OsApp("os", "assistant") })
+            { if (!os.Apps.Contains(app)) { os.Apps.Add(app); } }
         });
         return services.AddOperatingSystemBoot(configure);
     }
@@ -63,12 +63,11 @@ public static class OsAppsHosting
 }
 
 // The OS boots in the system's own language: the brain neuron publishes Activated, and this
-// behavior reacts by ensuring the OS apps are present and current — exporting the "os" brain's
-// verified copy and importing it into the activated brain, the same path any shared app takes.
-// Delivery is at-least-once and Activated repeats on every activation, so every step reads
-// before it writes; an app that has not shipped yet is simply picked up on the next activation.
+// behavior installs every default the brain does not have yet, through the same Marketplace
+// Install anyone uses. A present app is the person's, never replaced here; newer versions are
+// offered as updates. A default not yet published is picked up on a later activation.
 internal sealed class OsBootService(
-    LocalSignalHub signals, IGrainFactory grains, IPublisherDirectory publishers, IOptions<OsAppsOptions> options, ILogger<OsBootService> logger)
+    LocalSignalHub signals, IGrainFactory grains, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsBootService> logger)
     : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -80,21 +79,21 @@ internal sealed class OsBootService(
         {
             foreach (var app in apps)
             {
-                try { await EnsureCurrentAsync(activated, app.Name, stoppingToken); }
+                try { await EnsureInstalledAsync(activated, app, stoppingToken); }
                 catch (Exception error) when (error is not OperationCanceledException)
                 {
-                    // One app failing must not keep Settings from starting; the next
+                    // One default failing must not keep the others from installing; the next
                     // activation retries.
-                    logger.LogWarning(error, "OS app {App} did not start in brain {Brain}.", app.Name, activated.BrainId);
+                    logger.LogWarning(error, "Default app {Publisher}/{App} did not install in brain {Brain}.", app.Publisher, app.Name, activated.BrainId);
                 }
             }
         }
     }
 
-    private async Task EnsureCurrentAsync(Activated activated, string name, CancellationToken cancellationToken)
+    private async Task EnsureInstalledAsync(Activated activated, OsApp app, CancellationToken cancellationToken)
     {
         // The brain's (owner, name) pair is the scope identity the kernel derives everywhere
-        // from the caller; the import must land in the activated brain's own scope.
+        // from the caller; the install must land in the activated brain's own scope.
         CallerContextStamper.Stamp(new CallerContext
         {
             PrincipalId = "os",
@@ -103,26 +102,15 @@ internal sealed class OsBootService(
             Kind = CallerKind.Platform,
             StampedBy = TrustedEdge.Platform,
         });
-        var os = await publishers.Resolve("os", cancellationToken);
-        var shipped = grains.GetGrain<IApp>(IApp.Key(os.ScopeId, name));
-        var source = await shipped.Read().WaitAsync(cancellationToken);
-        if (source.Manifest.Title.Length == 0) { return; }
-        var app = grains.GetGrain<IApp>(IApp.Key(activated.BrainId, name));
-        var snapshot = await app.Read().WaitAsync(cancellationToken);
-        if (snapshot.Manifest.Title.Length > 0 && snapshot.Version == source.Version) { return; }
-        var bundle = await shipped.Export().WaitAsync(cancellationToken);
-        if (snapshot.Manifest.Title.Length > 0)
+        var listing = await grains.GetGrain<IMarketplace>(IMarketplace.Key).Read(app.Publisher, app.Name).WaitAsync(cancellationToken);
+        if (listing is null)
         {
-            // An upgrade keeps what the person chose; only the program is replaced.
-            var settings = snapshot.Settings;
-            var connections = snapshot.Connections;
-            await app.Delete().WaitAsync(cancellationToken);
-            await app.Import(bundle).WaitAsync(cancellationToken);
-            await app.Configure(new(settings, StringComparer.Ordinal), new(connections, StringComparer.Ordinal)).WaitAsync(cancellationToken);
+            logger.LogDebug("Default app {Publisher}/{App} is not in the Marketplace yet.", app.Publisher, app.Name);
+            return;
         }
-        else
-        {
-            await app.Import(bundle).WaitAsync(cancellationToken);
-        }
+        // The publisher's own brain already owns its apps.
+        if (BrainScope.Create(listing.PublisherAccountId, listing.PublisherBrainId).Id == activated.BrainId) { return; }
+        if ((await grains.GetGrain<IApp>(IApp.Key(activated.BrainId, app.Name)).Read().WaitAsync(cancellationToken)).Manifest.Title.Length > 0) { return; }
+        await installer.Install(app.Publisher, app.Name, cancellationToken);
     }
 }

@@ -18,10 +18,10 @@ public sealed class OsShippedAppFacts
     public void AddOperatingSystemAppsNamesItsOwnManifestAndADeploymentOnlyAdds()
     {
         var services = new ServiceCollection();
-        services.AddOperatingSystemApps(os => os.Apps.Add(new("customer-researcher")));
+        services.AddOperatingSystemApps(os => os.Apps.Add(new("intochat", "customer-researcher")));
         using var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<OsAppsOptions>>().Value;
-        Assert.Equal(["settings", "customer-researcher"], options.Apps.Select(app => app.Name));
+        Assert.Equal(["os/settings", "os/assistant", "intochat/customer-researcher"], options.Apps.Select(app => app.Publisher + "/" + app.Name));
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public sealed class OsShippedAppFacts
         var builder = global::Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
         DigitalBrain.Aspire.Server.ServerHostingExtensions.AddDigitalBrainServer(builder, server => server.AddOperatingSystem());
         using var provider = builder.Services.BuildServiceProvider();
-        Assert.Contains(provider.GetRequiredService<IOptions<OsAppsOptions>>().Value.Apps, app => app.Name == "settings");
+        Assert.Contains(provider.GetRequiredService<IOptions<OsAppsOptions>>().Value.Apps, app => app.Publisher == "os" && app.Name == "settings");
     }
 
     [Fact]
@@ -51,6 +51,6 @@ public sealed class OsShippedAppFacts
         services.AddOperatingSystemApps();
         services.AddOperatingSystemApps();
         using var provider = services.BuildServiceProvider();
-        Assert.Single(provider.GetRequiredService<IOptions<OsAppsOptions>>().Value.Apps);
+        Assert.Equal(2, provider.GetRequiredService<IOptions<OsAppsOptions>>().Value.Apps.Count);
     }
 }

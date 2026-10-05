@@ -13,97 +13,126 @@ namespace DigitalBrain.OS.Tests.Unit;
 
 public sealed class OsBootFacts
 {
+    private static readonly string OsScope = BrainScope.Create("account-os", "os").Id;
+
     [Fact(Timeout = 60_000)]
-    public async Task EstablishingABrainImportsTheOsAppsAndReactivationUpgradesThem()
+    public async Task EstablishingABrainInstallsThePublishedDefaultsWithTheirOrigin()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create()
-            .WithModule<AppsModule>()
-            .ConfigureSilo(silo => { silo.Services.RemoveAll<DigitalBrain.Apps.IDeployableRuntime>(); silo.Services.AddOperatingSystemBoot(os => os.Apps.Add(new("hello"))); })
-            .StartAsync(ct);
-        var os = await RegisterOs(brain, ct);
+        await using var brain = await Boot(ct, new OsApp("os", "hello"));
+        var released = await SeedPublished(brain, "hello");
 
-        var source = await SeedGreen(brain, os, "hello");
-        var first = (await source.Read()).Version;
-
-        var scope = BrainScope.Create("acct", "home").Id;
-        StampBrainOwner();
-        await brain.AuthorizeCallerAsync();
-        var neuron = brain.Get<IBrain>(scope);
-        await neuron.Establish(new("home", "acct"));
-        var app = brain.Get<IApp>(IApp.Key(scope, "hello"));
-        var installed = await WaitForAsync(app, snapshot => snapshot.Status == AppStatus.Live, ct);
-        Assert.Equal(first, installed.Version);
-
-        // A new green version on the os side re-imports on the next activation, keeping settings.
-        await app.Configure(new() { ["Greeting"] = "mine" }, new());
-        Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
-        await source.SaveSpec("## Scenario: Greets\nIt greets twice.", Guid.NewGuid());
-        await source.RecordVerdicts([new("Greets", true, "ok")], green: true);
-        var next = (await source.Read()).Version;
-        Assert.NotEqual(first, next);
-        StampBrainOwner();
-        await brain.DeactivateAsync(neuron, ct);
-        await neuron.Read();
-        var upgraded = await WaitForAsync(app, snapshot => snapshot.Version == next, ct);
-        Assert.Equal(AppStatus.Live, upgraded.Status);
-        Assert.Equal("mine", upgraded.Settings["Greeting"]);
+        var scope = await Establish(brain);
+        var installed = await WaitForAsync(brain.Get<IApp>(IApp.Key(scope, "hello")), snapshot => snapshot.Status == AppStatus.Live, ct);
+        Assert.Equal(released, installed.Version);
+        Assert.Equal("os", installed.Origin!.Publisher);
     }
 
     [Fact(Timeout = 60_000)]
-    public async Task AnUnshippedOsAppIsSkippedAndPickedUpOnTheNextActivation()
+    public async Task ANewPublishedVersionIsOfferedNotForcedOnReactivation()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create()
-            .WithModule<AppsModule>()
-            .ConfigureSilo(silo =>
-            {
-                silo.Services.RemoveAll<DigitalBrain.Apps.IDeployableRuntime>();
-                silo.Services.AddOperatingSystemBoot(os =>
-                {
-                    os.Apps.Add(new("hello"));
-                    os.Apps.Add(new("later"));
-                });
-            })
-            .StartAsync(ct);
-        var os = await RegisterOs(brain, ct);
+        await using var brain = await Boot(ct, new OsApp("os", "hello"));
+        var source = brain.Get<IApp>(IApp.Key(OsScope, "hello"));
+        var released = await SeedPublished(brain, "hello");
+        var scope = await Establish(brain);
+        var app = brain.Get<IApp>(IApp.Key(scope, "hello"));
+        await WaitForAsync(app, snapshot => snapshot.Status == AppStatus.Live, ct);
 
-        await SeedGreen(brain, os, "hello");
+        Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
+        await source.SaveSpec("## Scenario: Greets\nIt greets twice.", Guid.NewGuid());
+        await source.RecordVerdicts([new("Greets", true, "ok")], green: true);
+        StampOs();
+        await source.Publish();
 
-        var scope = BrainScope.Create("acct", "home").Id;
         StampBrainOwner();
-        await brain.AuthorizeCallerAsync();
         var neuron = brain.Get<IBrain>(scope);
-        await neuron.Establish(new("home", "acct"));
+        await brain.DeactivateAsync(neuron, ct);
+        await neuron.Read();
+        await Task.Delay(500, ct);
+        Assert.Equal(released, (await app.Read()).Version);
+    }
+
+    [Fact(Timeout = 60_000)]
+    public async Task ADefaultMissingFromTheMarketplaceIsSkippedAndInstalledOnALaterActivation()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Boot(ct, new OsApp("os", "hello"), new OsApp("os", "later"));
+        await SeedPublished(brain, "hello");
+
+        var scope = await Establish(brain);
         await WaitForAsync(brain.Get<IApp>(IApp.Key(scope, "hello")), snapshot => snapshot.Status == AppStatus.Live, ct);
         Assert.Equal(AppStatus.Drafted, (await brain.Get<IApp>(IApp.Key(scope, "later")).Read()).Status);
 
-        await SeedGreen(brain, os, "later");
+        await SeedPublished(brain, "later");
         StampBrainOwner();
+        var neuron = brain.Get<IBrain>(scope);
         await brain.DeactivateAsync(neuron, ct);
         await neuron.Read();
         await WaitForAsync(brain.Get<IApp>(IApp.Key(scope, "later")), snapshot => snapshot.Status == AppStatus.Live, ct);
     }
 
-    private static async Task<PublisherBrain> RegisterOs(ModuleBrain brain, CancellationToken ct)
+    [Fact(Timeout = 60_000)]
+    public async Task ADefaultThePersonAlreadyHasIsLeftAlone()
     {
-        await brain.Get<IIdentityDirectory>(IdentityGrains.Directory).RegisterAsync("os", "os-development-password", "DigitalBrain OS", ct);
-        return await brain.SiloServices.GetRequiredService<IPublisherDirectory>().Resolve("os", ct);
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Boot(ct, new OsApp("os", "hello"));
+        await SeedPublished(brain, "hello");
+        var scope = BrainScope.Create("acct", "home").Id;
+        Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
+        var own = brain.Get<IApp>(IApp.Key(scope, "hello"));
+        await own.Create(new("My hello", "mine", [], [], []), "## Scenario: Mine\nMine.");
+
+        await Establish(brain);
+        await Task.Delay(500, ct);
+        var after = await own.Read();
+        Assert.Equal("My hello", after.Manifest.Title);
+        Assert.Null(after.Origin);
     }
 
-    // The "os" account's copy: created, built and recorded green so Export is allowed.
-    // Seeding plays the platform: an unstamped call rides the trusted internal path.
-    private static async Task<IApp> SeedGreen(ModuleBrain brain, PublisherBrain os, string name)
+    private static Task<ModuleBrain> Boot(CancellationToken ct, params OsApp[] defaults) => ModuleTest.Create()
+        .WithModule<AppsModule>()
+        .ConfigureSilo(silo =>
+        {
+            silo.Services.RemoveAll<DigitalBrain.Apps.IDeployableRuntime>();
+            silo.Services.AddOperatingSystemBoot(os => { foreach (var app in defaults) { os.Apps.Add(app); } });
+        })
+        .StartAsync(ct);
+
+    private static async Task<string> Establish(ModuleBrain brain)
+    {
+        var scope = BrainScope.Create("acct", "home").Id;
+        StampBrainOwner();
+        await brain.AuthorizeCallerAsync();
+        await brain.Get<IBrain>(scope).Establish(new("home", "acct"));
+        return scope;
+    }
+
+    // The os account's copy: created, built, recorded green and published. Building plays the
+    // platform (unstamped); publishing speaks for the os account.
+    private static async Task<string> SeedPublished(ModuleBrain brain, string name)
     {
         Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
-        var source = brain.Get<IApp>(IApp.Key(os.ScopeId, name));
+        var source = brain.Get<IApp>(IApp.Key(OsScope, name));
         await source.Create(new("Hello", "Shows hello world", [new("open", "Open")], [new("Greeting", "what to say", "hello")], []),
             "## Scenario: Greets\nIt greets.");
         await source.BeginBuild(null);
         await source.CompleteBuild(await source.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["behaviors/hello.cs"] = "// b" }, null);
         await source.RecordVerdicts([new("Greets", true, "ok")], green: true);
-        return source;
+        StampOs();
+        var published = await source.Publish();
+        Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
+        return published.Version;
     }
+
+    private static void StampOs() => CallerContextStamper.Stamp(new()
+    {
+        PrincipalId = "os",
+        AccountId = "account-os",
+        BrainId = "os",
+        Kind = CallerKind.Platform,
+        StampedBy = TrustedEdge.Platform,
+    });
 
     private static void StampBrainOwner() => CallerContextStamper.Stamp(new()
     {
