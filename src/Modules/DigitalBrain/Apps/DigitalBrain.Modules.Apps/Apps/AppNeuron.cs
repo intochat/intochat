@@ -22,6 +22,10 @@ internal sealed class AppNeuron(
     private const int MaxPayloadLength = 64 * 1024;
     private const int MaxReceipts = 64;
 
+    // A published version is public by definition: anyone may copy it, nothing more.
+    public override NeuronAccess Access(string operation)
+        => operation == nameof(IApp.ExportPublished) ? NeuronAccess.PublicOperation : base.Access(operation);
+
     public Task<AppSnapshot> Read() => Task.FromResult(Describe(Snapshot));
 
     public async Task<AppSnapshot> Create(AppManifest manifest, string spec)
@@ -258,6 +262,38 @@ internal sealed class AppNeuron(
             new(Snapshot.Files, StringComparer.Ordinal)));
     }
 
+    public async Task<AppSnapshot> Publish()
+    {
+        RequireCreated();
+        if (!Snapshot.Verified.TryGetValue(Snapshot.Version, out var green) || !green)
+        { throw new InvalidOperationException($"Version {Snapshot.Version} has not passed its tests; only green versions can be published."); }
+        if (!CallerContextStamper.TryGet(out var caller))
+        { throw new InvalidOperationException("Publishing needs a signed-in publisher."); }
+        if (BrainScope.Create(caller.AccountId, caller.BrainId).Id != BrainId())
+        { throw new UnauthorizedAccessException("Only the brain that owns an app can publish it."); }
+        var next = Snapshot.Clone();
+        var manifest = next.Manifest!;
+        next.PublishedVersion = next.Version;
+        next.Published = new AppVersionRecord(next.Version, clock.GetUtcNow(), manifest, next.Spec, new(next.Files, StringComparer.Ordinal));
+        next.Publisher = caller.PrincipalId;
+        var name = Name();
+        await Save(next, new AppChanged(name, next.Version, next.Status), new AppPublished(name, next.Version));
+        // State first: a failed listing write is repaired by publishing again, never the reverse
+        // (a listing whose bundle Install cannot read).
+        await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).Upsert(new MarketplaceListing(
+            caller.PrincipalId, caller.AccountId, caller.BrainId, name, manifest.Title, manifest.Description,
+            next.Version, manifest.Icon, AppVerifyJob.ScenarioNames(next.Spec)));
+        return Describe(Snapshot);
+    }
+
+    public Task<AppBundle> ExportPublished()
+    {
+        if (Snapshot.Published is not { } published)
+        { throw new InvalidOperationException($"{Name()} has no published version."); }
+        return Task.FromResult(new AppBundle(Name(), published.Version, published.Manifest, published.Spec,
+            new(published.Files, StringComparer.Ordinal)));
+    }
+
     public async Task<AppSnapshot> Import(AppBundle bundle)
     {
         ArgumentNullException.ThrowIfNull(bundle);
@@ -300,6 +336,8 @@ internal sealed class AppNeuron(
     public async Task Delete()
     {
         if (Snapshot.Manifest is null) { return; }
+        if (Snapshot.Publisher is { } publisher)
+        { await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).Remove(publisher, Name()); }
         if (Deployable() is { } deployable && Snapshot.StorageFiles.Length > 0)
         {
             await deployable.Retire(this.GetPrimaryKeyString(), Snapshot.StorageFiles, CancellationToken.None);

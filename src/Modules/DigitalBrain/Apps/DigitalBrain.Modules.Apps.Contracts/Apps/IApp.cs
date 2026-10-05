@@ -25,6 +25,11 @@ public interface IApp : INeuron
     // marks that older version, never the current one.
     Task RecordVerdicts(AppScenarioVerdict[] verdicts, bool green, string? version = null);
     Task<AppBundle> Export();
+    // Publishes the current green version: it becomes the Marketplace listing and the bundle
+    // every Install copies, until the next Publish.
+    Task<AppSnapshot> Publish();
+    // The published version's bundle, readable by anyone: a published app is public by definition.
+    Task<AppBundle> ExportPublished();
     [ResponseTimeout("00:10:00")] Task<AppSnapshot> Import(AppBundle bundle);
     // Install records where the copy came from; recording it again (after an update) also
     // clears Edited, because the program is the publisher's again.

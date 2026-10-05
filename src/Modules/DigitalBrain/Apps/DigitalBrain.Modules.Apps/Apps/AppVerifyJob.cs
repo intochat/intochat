@@ -53,16 +53,22 @@ internal static class AppVerifyJob
         }
     }
 
+    // The gate: every scenario a test must report. A "(live)" scenario talks to real services;
+    // no test reports it, so it never gates.
     internal static HashSet<string> Scenarios(string spec)
+        => new(ScenarioNames(spec).Where(name => !name.EndsWith("(live)", StringComparison.Ordinal)), StringComparer.Ordinal);
+
+    // Spec order, each name once: the Marketplace lists scenarios the way the spec reads.
+    internal static string[] ScenarioNames(string spec)
     {
-        var names = new HashSet<string>(StringComparer.Ordinal);
+        var names = new List<string>();
         foreach (var raw in (spec ?? "").Split('\n'))
         {
             var line = raw.Trim();
-            // A "(live)" scenario talks to real services; no test reports it, so it never gates.
-            if (line.StartsWith("## Scenario:", StringComparison.Ordinal) && !line.EndsWith("(live)", StringComparison.Ordinal))
-            { names.Add(line["## Scenario:".Length..].Trim()); }
+            if (!line.StartsWith("## Scenario:", StringComparison.Ordinal)) { continue; }
+            var name = line["## Scenario:".Length..].Trim();
+            if (!names.Contains(name, StringComparer.Ordinal)) { names.Add(name); }
         }
-        return names;
+        return [.. names];
     }
 }
