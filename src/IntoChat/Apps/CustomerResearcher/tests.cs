@@ -90,10 +90,11 @@ await Scenario("Stop during research cancels it or the research completes, never
     var (model, browser) = await Scripted();
     await browser.Script([searchPage, companyPage, companyPage]);
     await model.Script(["""{"linkId":1}""", Extraction]);
-    var research = await app.Invoke(new InvokeApp(Guid.NewGuid(), "research", "Acme Robotics"));
+    // Its own query: the scenarios share one install, and an earlier scenario saved "Acme Robotics".
+    var research = await app.Invoke(new InvokeApp(Guid.NewGuid(), "research", "Acme Robotics warehouse"));
     await app.Invoke(new InvokeApp(Guid.NewGuid(), "stop", ""));
     var answer = await app.AwaitResponse(research.Id);
-    var saved = await app.Ask("result", "Acme Robotics");
+    var saved = await app.Ask("result", "Acme Robotics warehouse");
     // Stop raced a scripted (instant) research: both orders are legal, half-states are not.
     if (answer == "Stopped." ? saved != "null" : answer != "Saved: Acme Robotics" || saved == "null")
     { throw new InvalidOperationException($"Research answered \"{answer}\" but the stored row was {saved}."); }
