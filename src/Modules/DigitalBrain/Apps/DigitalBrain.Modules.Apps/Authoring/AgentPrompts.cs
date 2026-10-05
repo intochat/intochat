@@ -22,18 +22,17 @@ internal static class AgentPrompts
           stand-in model (say so in the scenario: "with the scripted model replying ..."), so the tests can
           script it. A scenario needing a live model is documentation, not a test: mark its heading with
           "(live)" and keep it out of the checkable set.
-        - The app has one operation, "ask".
+        - The app has one operation, "ask", unless the spec clearly needs more.
         - Model settings take this brain's model names, such as "IGpt56Luna" or "IGemma4".
 
-        For new apps, also return a document object, version 1, containing preamble, behaviors and scenarios.
-        Each behavior has id (a new GUID in N format), title, description, sourcePaths (empty), scenarioIds.
-        Each scenario has id (a new GUID in N format), name (exact unique name without the live suffix), body,
-        isLive (boolean). Several scenarios may describe one behavior; a scenario may link to several behaviors.
-        Keep descriptions small, natural and precise. These are document records, not executable grammar.
-        Never embed scenario headings inside a description. Do not assign source paths; the Builder does that.
         Reply with JSON only, no prose and no code fences:
         {"name": "lowercase-words-with-hyphens", "title": "Short title", "description": "One sentence for people.",
-         "runtime": "<registered runtime name>", "spec": "...full Markdown spec..."}
+         "operations": [{"name": "ask", "description": "What it answers."}],
+         "settings": [{"name": "Model", "description": "Who answers.", "default": "IGemma4"}],
+         "slots": [{"name": "gmail", "connector": "gmail"}],
+         "spec": "...full Markdown spec..."}
+        Slots are the external accounts the app needs (empty for most apps); the person binds their
+        own connection to each slot after install — never put account details in settings.
         """;
 
     public const string Builder = """
@@ -49,26 +48,14 @@ internal static class AgentPrompts
           behavior before answering, and fix every error it reports; a file that does not compile
           cannot pass the gate.
 
-        The tests, always, as file "tests.cs": use the script-side AppScenarioSuite from Apps contracts.
-        Each check receives a fresh installed app and scope; the suite uninstalls it even after failure.
-        Use the exact stable ID from the authoring document. It reports dbtest:json results. Every non-live
-        scenario must have exactly one result; missing, duplicate and unknown results fail verification.
-
-            // Copy the needed #:project directives from read_contracts, including Apps contracts.
-            using DigitalBrain.Apps;
-            await using var brain = await DigitalBrainClient.ConnectAsync(args);
-            var revision = new PackageRevisionRef(PackageId.Parse(brain.Setting("Package")!), brain.Setting("Revision")!);
-            var suite = new AppScenarioSuite(brain.Get<IApp>, revision, brainScope: brain.Setting("BrainScope"));
-            await suite.Run("<existing scenario ID>", "<scenario name>", async (app, scope) =>
-            {
-                var answer = await app.Ask("ask", "<input>", brain.Stopping);
-                if (answer != "<expected>") { throw new InvalidOperationException($"The answer was {answer}."); }
-            }, brain.Stopping);
-            return suite.ExitCode;
+        The tests, always, as file "tests.cs": one deterministic check per "## Scenario:" heading in
+        the spec, reported as "dbtest:pass <exact scenario name>" or "dbtest:fail <exact scenario
+        name>\t<message>" lines, exiting non-zero when any failed. Every scenario heading must get
+        exactly one line; missing and unknown names fail verification. The app under test is named
+        by brain.Setting("App").
 
         Keep each check small: arrange its fixture, send one trigger, assert its observable outcome.
         Share fixture setup rather than copying installation, polling and cleanup into every test.
-        Legacy specs without a structured document may use stable IDs chosen once by the Builder.
         For C# behavior scripts, app.Invocations(brain, brain.Stopping) subscribes before recovering
         pending invocations. Handle only the operations belonging to that behavior, then app.Respond(...).
         UI button signals should invoke the same app operation as assistant tools, not duplicate logic.
@@ -86,13 +73,9 @@ internal static class AgentPrompts
         If earlier attempts failed, the failing scenarios and their messages are listed: fix the
         implementation so they pass.
 
-        Your final reply is JSON only, no prose and no code fences:
-        If an authoring document is provided, also return behaviorSources: an array of
-        {"behaviorId":"exact existing ID","sourcePaths":["behaviors/file.cs"]}.
-        Reference only source files you actually return. Do not change any document IDs or prose.
-        Return operations as [{"name":"operation","description":"What it does"}] when the app has
-        operations beyond ask. Descriptions are the intended behavior, scenarios are its verification examples.
+        Your final reply is JSON only, no prose and no code fences. Return operations as
+        [{"name":"operation","description":"What it does"}] when the app has operations beyond ask.
         {"settings": [{"name": "Model", "description": "...", "default": "IGemma4"}],
-         "files": {"tests.cs": "...", "prompts/system.md": "..."}, "source": ""}
+         "files": {"tests.cs": "...", "behaviors/notify.cs": "..."}}
         """;
 }
