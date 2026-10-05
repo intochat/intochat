@@ -12,7 +12,7 @@ public sealed class BillingFacts
     public void RecurringMetersAccrueWithoutAUserIntentAndAppearOnTheStatement()
     {
         var meter = RecurringMeters.Accrue("ws-1", "storage.gb_month", 2m, "gb_month", new DateTimeOffset(2026, 9, 10, 0, 0, 0, TimeSpan.Zero));
-        Assert.Equal("recurring:storage.gb_month:2026-09", meter.IntentId);
+        Assert.Equal("recurring:ws-1:storage.gb_month:2026-09", meter.IntentId);
 
         var statement = StatementBuilder.Build("account", "2026-09", [], [meter], new PriceBook(), Now);
 
@@ -52,5 +52,37 @@ public sealed class BillingFacts
         Assert.Equal("inv:account:2026-09", invoice.InvoiceId);
         Assert.Equal(statement.Lines, invoice.Lines);
         Assert.Equal(statement.TotalUsd, invoice.AmountUsd);
+    }
+
+    [Fact]
+    public async Task TwoBrainsAccruingTheSameMeterAndPeriodAreBothRecorded()
+    {
+        var first = RecurringMeters.Accrue("brain-1", "storage.gb_month", 1m, "gb_month", Now);
+        var second = RecurringMeters.Accrue("brain-2", "storage.gb_month", 2m, "gb_month", Now);
+        var store = new InMemoryMeterStore();
+
+        Assert.True(await store.AppendAsync(first, TestContext.Current.CancellationToken));
+        Assert.True(await store.AppendAsync(second, TestContext.Current.CancellationToken));
+        Assert.NotEqual(first.IntentId, second.IntentId);
+    }
+
+    [Fact]
+    public void AStatementOmitsUnsettledZeroSettledAndOutOfPeriodReservations()
+    {
+        static AllowanceReservation Reservation(string id, bool settled, decimal compute, DateTimeOffset at) => new()
+        {
+            ReservationId = id, AllowanceId = "budget", ReservedCompute = 5m, SettledCompute = compute,
+            Settled = settled, OccurredAt = at, IntentId = id, BrainId = "brain-1", AppId = "app-1", Operation = "chat",
+        };
+        var statement = StatementBuilder.Build("account", "2026-09",
+        [
+            Reservation("unsettled", false, 3m, Now),
+            Reservation("zero", true, 0m, Now),
+            Reservation("august", true, 3m, new DateTimeOffset(2026, 8, 31, 23, 59, 0, TimeSpan.Zero)),
+            Reservation("october", true, 3m, new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero)),
+        ], [], new PriceBook(), Now);
+
+        Assert.Empty(statement.Lines);
+        Assert.Equal(0m, statement.TotalCompute);
     }
 }

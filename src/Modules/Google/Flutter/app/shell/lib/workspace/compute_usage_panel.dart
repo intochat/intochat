@@ -172,21 +172,15 @@ class _ComputeUsagePanelState extends State<ComputeUsagePanel> {
               spacing: 32,
               runSpacing: 12,
               children: [
-                _amount(context, 'Charged', summary.chargedCompute),
+                _amount(
+                  context,
+                  'Charged',
+                  summary.settledCompute ?? summary.chargedCompute,
+                ),
                 _amount(context, 'Reserved', summary.reservedCompute),
-                if (summary.settledCompute != null)
-                  _amount(context, 'App settlements', summary.settledCompute),
               ],
             ),
             const SizedBox(height: 12),
-            if (summary.settledCompute != null)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 8),
-                child: Text(
-                  'Wallet charges and app settlements are separate records; they are not added together.',
-                  style: TextStyle(fontSize: 12),
-                ),
-              ),
             if (summary.limitCompute != null && summary.limitCompute! > 0) ...[
               if (summary.spentCompute != null)
                 LinearProgressIndicator(

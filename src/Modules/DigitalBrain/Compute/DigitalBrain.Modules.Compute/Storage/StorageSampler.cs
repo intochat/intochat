@@ -1,4 +1,5 @@
 using DigitalBrain.Framework.Metering;
+
 namespace DigitalBrain.Compute.Storage;
 
 // Shadow storage meter. It keeps the highest byte count seen for each UTC day — the daily

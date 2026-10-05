@@ -14,15 +14,16 @@ String usageTime(DateTime? value) {
   return '${local.year}-${two(local.month)}-${two(local.day)} ${two(local.hour)}:${two(local.minute)}';
 }
 
+double? _charged(ComputeUsageItem item) =>
+    item.settledCompute ?? item.chargedCompute;
+
 String usageAmountLabel(ComputeUsageItem item) {
+  final charged = _charged(item);
   final labels = <String>[
-    if (item.chargedCompute != null &&
-        (item.chargedCompute! > 0 || item.previewCompute == null))
-      '${computeAmount(item.chargedCompute)} Charged',
+    if (charged != null && (charged > 0 || item.previewCompute == null))
+      '${computeAmount(charged)} Charged',
     if (item.reservedCompute != null && item.reservedCompute! > 0)
       '${computeAmount(item.reservedCompute)} Reserved',
-    if (item.settledCompute != null && item.settledCompute! > 0)
-      '${computeAmount(item.settledCompute)} App settled',
     if (item.previewCompute != null)
       '${computeAmount(item.previewCompute)} Preview',
   ];
@@ -63,18 +64,13 @@ class ComputeUsageDetails extends StatelessWidget {
             Text(
               'Preview · not charged: ${computeAmount(item.previewCompute)} Compute',
             ),
-          if (item.settledCompute != null)
-            Text(
-              'App settlements: ${computeAmount(item.settledCompute)} Compute',
-            ),
-          if (item.chargedCompute != null)
-            Text('Charged: ${computeAmount(item.chargedCompute)} Compute'),
+          if (_charged(item) != null)
+            Text('Charged: ${computeAmount(_charged(item))} Compute'),
           if (item.reservedCompute != null)
             Text('Reserved: ${computeAmount(item.reservedCompute)} Compute'),
           if (item.previewCompute == null &&
-              item.chargedCompute == null &&
-              item.reservedCompute == null &&
-              item.settledCompute == null)
+              _charged(item) == null &&
+              item.reservedCompute == null)
             const Text('Cost unreported'),
           if (item.priceBookVersion != null)
             Text('Price book ${item.priceBookVersion}'),

@@ -22,6 +22,9 @@ internal sealed class ComputeRecordsNeuron(
         var changedIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var record in records)
         {
+            ArgumentException.ThrowIfNullOrWhiteSpace(record.Id);
+            if (record.Id.Length > 4096 || record.Payload.Length > 1024 * 1024 || record.SortKey.Length > 256)
+            { throw new ArgumentException("Compute record exceeds its size limit."); }
             var old = byId.GetValueOrDefault(record.Id);
             if (old is not null && (!overwrite || record.Revision < old.Revision)) { continue; }
             var next = old is null ? record : record with { SortKey = old.SortKey };

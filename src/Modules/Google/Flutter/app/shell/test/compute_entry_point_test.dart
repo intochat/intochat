@@ -56,7 +56,8 @@ void main() {
         await tester.tap(find.byKey(const Key('compute-usage-button')));
         await tester.pumpAndSettle();
         expect(find.text('No usage recorded yet.'), findsOneWidget);
-        expect(find.text('App settlements'), findsOneWidget);
+        expect(find.text('Charged'), findsOneWidget);
+        expect(find.text('App settlements'), findsNothing);
         expect(find.byType(width < 600 ? BottomSheet : Dialog), findsOneWidget);
         expect(store.currentProject.presentation.openArtifactIds, isEmpty);
         expect(tester.takeException(), isNull);

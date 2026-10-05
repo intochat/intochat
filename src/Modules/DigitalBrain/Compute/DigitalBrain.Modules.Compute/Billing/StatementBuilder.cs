@@ -1,5 +1,5 @@
-using DigitalBrain.Framework.Metering;
 using DigitalBrain.Compute.Metering;
+using DigitalBrain.Framework.Metering;
 
 namespace DigitalBrain.Compute.Billing;
 
@@ -26,6 +26,7 @@ internal static class StatementBuilder
         var periodEnd = periodStart.AddMonths(1);
         var lines = new List<StatementLine>();
 
+        // A reservation is billed to the month it was reserved in; settling after midnight stays in the earlier month.
         lines.AddRange(settled
             .Where(reservation => reservation.Settled && reservation.SettledCompute > 0
                 && InPeriod(reservation.OccurredAt, periodStart, periodEnd))

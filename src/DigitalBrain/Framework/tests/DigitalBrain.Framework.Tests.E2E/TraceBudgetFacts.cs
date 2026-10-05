@@ -53,12 +53,11 @@ public sealed class TraceBudgetFacts
         // Plan P0.4 (docs/superpowers/plans/2026-09-23-intochat-product-delivery.md:248) measured
         // the whole intent at <= 25 spans. Features since then legitimately raised the floor:
         // the /agent stream flows through an Orleans async enumerable (one MoveNext pair per
-        // emitted event, ~24 spans for J1), compute metering/receipts persist through
-        // IComputePart/IComputeRecords grain calls (~32 spans), and target authorization added
+        // emitted event, ~24 spans for J1), the intent's usage persists through
+        // IIntentUsage/RecordBatchAsync and the compute records grain, and target authorization added
         // the discover-select-invoke registry flow plus integration registration and secret
         // resolution to the tool path (~20 spans; measured 131 on 2026-10-04). 140 holds that
-        // measurement with headroom of one event; cutting the metering-part chatter is still
-        // the next real reduction.
+        // measurement with headroom of one event.
         const int J1SpanBudget = 140;
         Assert.True(intentSpans.Length <= J1SpanBudget, $"J1 exported {intentSpans.Length} spans in total (budget <= {J1SpanBudget}).\n{DescribeTree(intentSpans)}");
         Assert.Contains(intentSpans, IsGenAiSpan);

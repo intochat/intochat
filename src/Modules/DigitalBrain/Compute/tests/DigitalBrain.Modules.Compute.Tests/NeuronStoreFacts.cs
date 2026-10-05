@@ -128,4 +128,14 @@ public sealed class NeuronStoreFacts
         Assert.Null(second.NextCursor);
         await Assert.ThrowsAsync<ArgumentException>(() => usage.ReadAsync("other", "brain", 1, first.NextCursor, ct).AsTask());
     }
+
+    [Fact]
+    public async Task ARecordOverTheSizeLimitIsRejected()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<ComputeModule>().StartAsync(ct);
+        var grain = brain.Get<IComputeRecords>("limits");
+        var oversized = UsageRecord(1) with { Payload = new string('x', 1024 * 1024 + 1) };
+        await Assert.ThrowsAsync<ArgumentException>(() => grain.Put([oversized], true));
+    }
 }

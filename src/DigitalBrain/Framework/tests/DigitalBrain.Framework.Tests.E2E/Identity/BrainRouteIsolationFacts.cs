@@ -63,6 +63,7 @@ public sealed class BrainRouteIsolationFacts(ReferenceBrainFixture host)
             },
             TargetNeuron = "neuron", Operation = "chat", EstimatedCompute = 7m, HasSideEffects = true,
         }, ct);
+        Assert.True(reserved.Allowed, reserved.Explanation);
         await aliceLedger.SettleAsync(reserved.ReservationId!, 7m, DigitalBrain.Compute.FailureClass.None, ct);
         using var aliceSummary = JsonDocument.Parse(await alice.GetStringAsync("/compute/summary", ct));
         using var bobSummary = JsonDocument.Parse(await bob.GetStringAsync("/compute/summary", ct));

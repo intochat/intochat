@@ -1,8 +1,9 @@
 using DigitalBrain.Framework.Metering;
+
 namespace DigitalBrain.Compute.Metering;
 
 // A recurring meter accrues for a period without a user intent: storage and subscriptions are
-// billed from the meter alone. The synthetic intent id keys one accrual per meter and period.
+// billed from the meter alone. The synthetic intent id keys one accrual per brain, meter and period.
 internal static class RecurringMeters
 {
     internal const string CostBasis = "recurring";
@@ -20,7 +21,7 @@ internal static class RecurringMeters
         var period = now.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture);
         return new MeterEvent
         {
-            IntentId = $"recurring:{meterId}:{period}",
+            IntentId = $"recurring:{brainId}:{meterId}:{period}",
             MeterId = meterId,
             Step = period,
             BrainId = brainId,
