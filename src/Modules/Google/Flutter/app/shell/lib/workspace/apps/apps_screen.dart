@@ -2,22 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../csharp/csharp_manager.dart';
-import 'app_spec_screen.dart';
-import 'create_app_screen.dart';
+import 'app_screen.dart';
 
-typedef AppsRequest = Future<dynamic> Function(
-  String method,
-  String path, [
-  Object? body,
-]);
+typedef AppsRequest =
+    Future<dynamic> Function(String method, String path, [Object? body]);
 
-// Numeric values of DigitalBrain.Apps.AppStatus and InvocationStatus on the wire.
-const _installed = 1;
-const _pending = 0;
-const _completed = 1;
-
-// Shared C# apps: install one into this workspace in one step, run it, keep it current, or fork it.
+// This brain's apps: one card per app neuron, created in the Creator, driven through its
+// own operations, deleted in one step. Sharing is export/import of a verified version.
 class AppsScreen extends StatefulWidget {
   const AppsScreen({
     super.key,
@@ -25,54 +16,33 @@ class AppsScreen extends StatefulWidget {
     required this.request,
     required this.onClose,
     this.onOpen,
-    this.pollInterval = const Duration(milliseconds: 300),
   });
 
   final String workspaceId;
   final AppsRequest request;
   final VoidCallback onClose;
   final Future<void> Function(String id)? onOpen;
-  final Duration pollInterval;
 
   @override
   State<AppsScreen> createState() => _AppsScreenState();
 }
 
 class _AppsScreenState extends State<AppsScreen> {
-  List<Map<String, dynamic>> _listings = [];
-  final Map<String, Map<String, dynamic>> _apps = {};
-  final Map<String, List<Map<String, dynamic>>> _files = {};
-  final Map<String, TextEditingController> _inputs = {};
-  final Map<String, String> _outputs = {};
-  final Map<String, List<Map<String, dynamic>>> _discussions = {};
+  List<Map<String, dynamic>> _apps = [];
   String _search = '';
   bool _busy = false;
   String? _error;
   String? _notice;
 
+  String get _appsPath => '/brains/${Uri.encodeComponent(widget.workspaceId)}/apps';
+
   static Map<String, dynamic> _map(dynamic value) =>
       value is Map ? Map<String, dynamic>.from(value) : <String, dynamic>{};
-
-  static String _id(Map<String, dynamic> listing) {
-    final package = _map(listing['package']);
-    return '${package['owner']}/${package['name']}';
-  }
-
-  String _appPath(String id) =>
-      '/brains/${Uri.encodeComponent(widget.workspaceId)}/packages/${id.split('/').map(Uri.encodeComponent).join('/')}';
 
   @override
   void initState() {
     super.initState();
     unawaited(_refresh());
-  }
-
-  @override
-  void dispose() {
-    for (final controller in _inputs.values) {
-      controller.dispose();
-    }
-    super.dispose();
   }
 
   Future<void> _perform(Future<void> Function() action) async {
@@ -94,131 +64,31 @@ class _AppsScreenState extends State<AppsScreen> {
   Future<void> _refresh() => _perform(_load);
 
   Future<void> _load() async {
-    final listings = await widget.request('GET', '/packages');
-    final loaded = listings is List
-        ? listings.map(_map).toList()
-        : <Map<String, dynamic>>[];
-    final ids = loaded.map(_id).toList();
-    // One unreadable install must not hide the rest of the marketplace.
-    final reads = await Future.wait(
-      ids.map(
-        (id) => widget
-            .request('GET', _appPath(id))
-            .then<Object?>((view) => view, onError: (Object error) => error),
-      ),
-    );
-    final failures =
-        reads.whereType<Exception>().length + reads.whereType<Error>().length;
+    final listed = await widget.request('GET', _appsPath);
     if (!mounted) return;
     setState(() {
-      _listings = loaded;
-      _apps
-        ..clear()
-        ..addEntries([
-          for (var index = 0; index < ids.length; index++)
-            MapEntry(ids[index], _map(_map(reads[index])['app'])),
-        ]);
-      _files
-        ..clear()
-        ..addEntries([
-          for (var index = 0; index < ids.length; index++)
-            MapEntry(ids[index], [
-              for (final file
-                  in (_map(reads[index])['files'] as List? ?? const []))
-                if (file is Map) Map<String, dynamic>.from(file),
-            ]),
-        ]);
-      if (failures > 0) {
-        _error = 'Could not read $failures installed app(s).';
-      }
+      _apps = listed is List ? listed.map(_map).toList() : [];
     });
   }
 
-  Future<void> _change(
-    String method,
-    String path,
-    String notice, [
-    Object? body,
-  ]) => _perform(() async {
-    try {
-      await widget.request(method, path, body);
-    } catch (_) {
-      // A refused uninstall can still have persisted its pending state.
-      try {
-        await _load();
-      } catch (_) {}
-      rethrow;
-    }
+  Future<void> _delete(String name) => _perform(() async {
+    await widget.request('DELETE', '$_appsPath/${Uri.encodeComponent(name)}');
     await _load();
-    if (mounted) setState(() => _notice = notice);
+    if (mounted) setState(() => _notice = 'Deleted $name.');
   });
 
-  Future<void> _run(String id, String operation) => _perform(() async {
-    final input = _inputs[id]?.text ?? '';
-    var invocation = _map(
-      await widget.request('POST', '${_appPath(id)}/invocations', {
-        'operation': operation,
-        'input': input,
-      }),
-    );
-    // A group chat can take minutes; its turns show up while it runs.
-    final deadline = DateTime.now().add(const Duration(minutes: 10));
-    while (invocation['status'] == _pending &&
-        DateTime.now().isBefore(deadline)) {
-      await Future<void>.delayed(widget.pollInterval);
-      await _readDiscussion(id, '${invocation['id']}');
-      invocation = _map(
-        await widget.request(
-          'GET',
-          '${_appPath(id)}/invocations/${invocation['id']}',
+  Future<void> _openCreator([String? name]) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AppScreen(
+          workspaceId: widget.workspaceId,
+          request: widget.request,
+          name: name,
         ),
-      );
-    }
-    await _readDiscussion(id, '${invocation['id']}');
-    if (!mounted) return;
-    setState(
-      () => _outputs[id] = invocation['status'] == _completed
-          ? '${invocation['output'] ?? ''}'
-          : invocation['status'] == _pending
-          ? 'Still running; the app has not answered yet.'
-          : 'Failed: ${invocation['error'] ?? 'no reason given'}',
+      ),
     );
-  });
-
-  Future<void> _readDiscussion(String id, String invocationId) async {
-    try {
-      final discussion = _map(
-        await widget.request(
-          'GET',
-          '${_appPath(id)}/invocations/$invocationId/discussion',
-        ),
-      );
-      final turns = discussion['turns'] is List
-          ? (discussion['turns'] as List).map(_map).toList()
-          : <Map<String, dynamic>>[];
-      if (mounted && turns.isNotEmpty) {
-        setState(() => _discussions[id] = turns);
-      }
-    } catch (_) {
-      // Only group chat apps hold a discussion.
-    }
+    if (mounted) await _refresh();
   }
-
-  void _openSpec(String id, String title, String revision, bool canOpen) =>
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => AppSpecScreen(
-            packageId: id,
-            workspaceId: widget.workspaceId,
-            title: title,
-            request: widget.request,
-            revision: revision,
-            onOpen: canOpen && widget.onOpen != null
-                ? () => widget.onOpen!(id)
-                : null,
-          ),
-        ),
-      );
 
   @override
   Widget build(BuildContext context) {
@@ -233,17 +103,7 @@ class _AppsScreenState extends State<AppsScreen> {
         actions: [
           TextButton.icon(
             key: const ValueKey('create-app'),
-            onPressed: _busy
-                ? null
-                : () async {
-                    await Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) =>
-                            CreateAppScreen(request: widget.request, workspaceId: widget.workspaceId),
-                      ),
-                    );
-                    if (mounted) await _refresh();
-                  },
+            onPressed: _busy ? null : () => _openCreator(),
             icon: const Icon(Icons.add),
             label: const Text('Create app'),
           ),
@@ -273,7 +133,7 @@ class _AppsScreenState extends State<AppsScreen> {
             child: TextField(
               key: const ValueKey('search-apps'),
               decoration: const InputDecoration(
-                labelText: 'Search apps by owner/name or description',
+                labelText: 'Search apps by name or description',
                 prefixIcon: Icon(Icons.search),
               ),
               onChanged: (value) =>
@@ -281,35 +141,16 @@ class _AppsScreenState extends State<AppsScreen> {
             ),
           ),
           Expanded(
-            child: _listings.isEmpty && !_busy
-                ? const Center(child: Text('No one has published an app yet.'))
+            child: _apps.isEmpty && !_busy
+                ? const Center(child: Text('No apps yet. Create one.'))
                 : ListView(
                     padding: const EdgeInsets.all(12),
                     children: [
-                      for (final installed in [true, false]) ...[
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Text(
-                            installed ? 'Installed apps' : 'Published catalog',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ),
-                        for (final listing in _listings)
-                          if ((_apps[_id(listing)]?['status'] == _installed) ==
-                                  installed &&
-                              '${_id(listing)} ${listing['title'] ?? ''} ${listing['description'] ?? ''}'
-                                  .toLowerCase()
-                                  .contains(_search))
-                            _card(listing),
-                      ],
-                      if (_search.isNotEmpty &&
-                          !_listings.any(
-                            (listing) =>
-                                '${_id(listing)} ${listing['title'] ?? ''} ${listing['description'] ?? ''}'
-                                    .toLowerCase()
-                                    .contains(_search),
-                          ))
-                        const Text('No apps match your search.'),
+                      for (final app in _apps)
+                        if ('${app['name']} ${app['title'] ?? ''} ${app['description'] ?? ''}'
+                            .toLowerCase()
+                            .contains(_search))
+                          _card(app),
                     ],
                   ),
           ),
@@ -318,165 +159,38 @@ class _AppsScreenState extends State<AppsScreen> {
     );
   }
 
-  Widget _card(Map<String, dynamic> listing) {
-    final id = _id(listing);
-    final app = _apps[id] ?? const <String, dynamic>{};
-    final installed = app['status'] == _installed;
-    final uninstallPending = app['uninstallPending'] == true;
-    final running = '${_map(app['revision'])['revision'] ?? ''}';
-    final published = '${listing['revision'] ?? ''}';
-    final origin = _map(_map(listing['forkedFrom'])['package']);
+  Widget _card(Map<String, dynamic> app) {
+    final name = '${app['name']}';
     final operations = app['operations'] is List
-        ? (app['operations'] as List).map(_map).toList()
-        : <Map<String, dynamic>>[];
-    final files = _files[id] ?? const <Map<String, dynamic>>[];
-    final input = _inputs.putIfAbsent(id, TextEditingController.new);
+        ? (app['operations'] as List).map((operation) => '$operation').toList()
+        : <String>[];
     return Card(
-      key: ValueKey('package-$id'),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      key: ValueKey('app-$name'),
+      child: ListTile(
+        title: Text('${app['title'] ?? name}'),
+        subtitle: Text(
+          '$name · v${app['version']} · ${app['status']}'
+          '${'${app['description'] ?? ''}'.isEmpty ? '' : '\n${app['description']}'}',
+        ),
+        isThreeLine: '${app['description'] ?? ''}'.isNotEmpty,
+        onTap: () => _openCreator(name),
+        trailing: Wrap(
+          spacing: 4,
           children: [
-            Text(
-              '${listing['title'] ?? id}',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            Text(
-              '$id · ${published.length > 12 ? published.substring(0, 12) : published}',
-            ),
-            Text(
-              installed
-                  ? 'Installed in this brain'
-                  : 'Published · available to install',
-            ),
-            if (origin.isNotEmpty)
-              Text('Forked from ${origin['owner']}/${origin['name']}'),
-            if (uninstallPending) const Text('Uninstall pending'),
-            if ('${listing['description'] ?? ''}'.isNotEmpty)
-              Text('${listing['description']}'),
-            if (installed && files.isNotEmpty)
-              Text(
-                'C# app: ${files.map(csharpStatusLabel).join(', ')}',
-                key: ValueKey('file-status-$id'),
+            if (widget.onOpen != null &&
+                app['status'] == 'Live' &&
+                operations.contains('open'))
+              FilledButton(
+                key: ValueKey('open-$name'),
+                onPressed: _busy ? null : () => widget.onOpen!(name),
+                child: const Text('Open'),
               ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: [
-                if (installed &&
-                    !uninstallPending &&
-                    widget.onOpen != null &&
-                    operations.any((operation) => operation['name'] == 'open'))
-                  FilledButton(
-                    key: ValueKey('open-$id'),
-                    onPressed: _busy ? null : () => widget.onOpen!(id),
-                    child: const Text('Open'),
-                  ),
-                if (!installed)
-                  FilledButton(
-                    key: ValueKey('install-$id'),
-                    onPressed: _busy
-                        ? null
-                        : () => _change(
-                            'POST',
-                            _appPath(id),
-                            'Installed $id.',
-                            <String, dynamic>{},
-                          ),
-                    child: const Text('Install'),
-                  ),
-                if (installed && !uninstallPending && running != published)
-                  FilledButton.tonal(
-                    key: ValueKey('upgrade-$id'),
-                    onPressed: _busy
-                        ? null
-                        : () => _change(
-                            'POST',
-                            '${_appPath(id)}/upgrade',
-                            'Upgraded $id.',
-                            <String, dynamic>{},
-                          ),
-                    child: const Text('Update'),
-                  ),
-                if (installed)
-                  OutlinedButton(
-                    key: ValueKey('uninstall-$id'),
-                    onPressed: _busy
-                        ? null
-                        : () => _change(
-                            'DELETE',
-                            _appPath(id),
-                            'Uninstalled $id.',
-                          ),
-                    child: const Text('Uninstall'),
-                  ),
-                OutlinedButton(
-                  key: ValueKey('scenarios-$id'),
-                  onPressed: () => _openSpec(
-                    id,
-                    '${listing['title'] ?? id}',
-                    installed ? running : published,
-                    installed &&
-                        !uninstallPending &&
-                        operations.any((o) => o['name'] == 'open'),
-                  ),
-                  child: const Text('Scenarios'),
-                ),
-                OutlinedButton(
-                  key: ValueKey('fork-$id'),
-                  onPressed: _busy
-                      ? null
-                      : () => _change(
-                          'POST',
-                          '/packages/${id.split('/').map(Uri.encodeComponent).join('/')}/fork',
-                          'Forked $id into your apps.',
-                          <String, dynamic>{},
-                        ),
-                  child: const Text('Fork'),
-                ),
-              ],
+            IconButton(
+              key: ValueKey('delete-$name'),
+              tooltip: 'Delete',
+              icon: const Icon(Icons.delete_outline),
+              onPressed: _busy ? null : () => _delete(name),
             ),
-            if (installed && !uninstallPending && operations.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              TextField(
-                key: ValueKey('input-$id'),
-                controller: input,
-                decoration: const InputDecoration(labelText: 'Input'),
-              ),
-              Wrap(
-                spacing: 8,
-                children: [
-                  for (final operation in operations)
-                    TextButton(
-                      key: ValueKey('run-$id-${operation['name']}'),
-                      onPressed: _busy
-                          ? null
-                          : () => _run(id, '${operation['name']}'),
-                      child: Text('Run ${operation['name']}'),
-                    ),
-                ],
-              ),
-            ],
-            for (final turn
-                in _discussions[id] ?? const <Map<String, dynamic>>[])
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: '${turn['speaker']} · round ${turn['round']}: ',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      TextSpan(text: '${turn['text']}'),
-                    ],
-                  ),
-                  key: ValueKey('turn-$id-${turn['round']}-${turn['speaker']}'),
-                ),
-              ),
-            if (_outputs[id] != null)
-              SelectableText(_outputs[id]!, key: ValueKey('output-$id')),
           ],
         ),
       ),

@@ -16,6 +16,7 @@ namespace DigitalBrain.Apps;
 internal static class AppsEndpoints
 {
     public sealed record TextRequest(string? Text);
+    public sealed record AskRequest(string? Operation, string? Input);
     public sealed record SettingsRequest(Dictionary<string, string>? Settings, Dictionary<string, string>? Connections);
     public sealed record RollbackRequest(string Version);
 
@@ -31,7 +32,15 @@ internal static class AppsEndpoints
             foreach (var name in names)
             {
                 var snapshot = await App(brain, name).Read().WaitAsync(ct);
-                items.Add(new { name, title = snapshot.Manifest.Title, description = snapshot.Manifest.Description, status = snapshot.Status.ToString(), version = snapshot.Version });
+                items.Add(new
+                {
+                    name,
+                    title = snapshot.Manifest.Title,
+                    description = snapshot.Manifest.Description,
+                    status = snapshot.Status.ToString(),
+                    version = snapshot.Version,
+                    operations = snapshot.Manifest.Operations.Select(operation => operation.Name).ToArray(),
+                });
             }
             return Results.Ok(items);
         }));
@@ -73,8 +82,8 @@ internal static class AppsEndpoints
             return Results.Ok(View(await App(brain, name).Rollback(request.Version)));
         }));
 
-        apps.MapPost("/{name}/ask", (string name, HttpRequest request, IDigitalBrain brain, CancellationToken ct)
-            => Respond(() => Ask(App(brain, name), request, ct)));
+        apps.MapPost("/{name}/ask", (string name, AskRequest? request, IDigitalBrain brain, CancellationToken ct)
+            => Respond(() => Ask(App(brain, name), request?.Operation ?? "ask", request?.Input ?? "{}", ct)));
 
         apps.MapGet("/{name}/export", (string name, IDigitalBrain brain, CancellationToken ct)
             => Respond(async () => Results.Ok(await App(brain, name).Export().WaitAsync(ct))));
@@ -113,11 +122,9 @@ internal static class AppsEndpoints
         verdicts = snapshot.Verdicts,
     };
 
-    private static async Task<IResult> Ask(IApp app, HttpRequest request, CancellationToken ct)
+    private static async Task<IResult> Ask(IApp app, string operation, string input, CancellationToken ct)
     {
-        using var reader = new StreamReader(request.Body);
-        var input = await reader.ReadToEndAsync(ct);
-        var invocation = await app.Invoke(new(Guid.NewGuid(), "ask", input.Length == 0 ? "{}" : input)).WaitAsync(ct);
+        var invocation = await app.Invoke(new(Guid.NewGuid(), operation, input.Length == 0 ? "{}" : input)).WaitAsync(ct);
         var started = TimeProvider.System.GetTimestamp();
         while (invocation.Status == InvocationStatus.Pending && TimeProvider.System.GetElapsedTime(started) < TimeSpan.FromSeconds(30))
         {

@@ -1,128 +1,49 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:digitalbrain_flutter_shell/workspace/apps/apps_screen.dart';
 
 void main() {
-  testWidgets('install refusals are displayed verbatim', (tester) async {
-    final server = _FakeAppsServer();
-    const refusal = 'Cannot install this app. Missing modules: Postgres.';
-    await tester.pumpWidget(
-      MaterialApp(
-        home: AppsScreen(
-          workspaceId: 'workspace-bob',
-          request: (method, path, [body]) async {
-            if (method == 'POST') {
-              throw UiRequestException(
-                method,
-                path,
-                409,
-                '{"detail":"$refusal"}',
-              );
-            }
-            return server.request(method, path, body);
-          },
-          onClose: () {},
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('install-alice/researcher')));
-    await tester.pumpAndSettle();
-    expect(find.text(refusal), findsOneWidget);
-    expect(server.installedRevision, isNull);
-  });
-
-  testWidgets('installs a shared C# app in one tap, runs it and forks it', (
+  testWidgets('lists this brain\'s apps, opens a live one and deletes one', (
     tester,
   ) async {
     final server = _FakeAppsServer();
+    final opened = <String>[];
     await tester.pumpWidget(
       MaterialApp(
         home: AppsScreen(
           workspaceId: 'workspace-bob',
           request: server.request,
           onClose: () {},
-          pollInterval: const Duration(milliseconds: 1),
+          onOpen: (id) async => opened.add(id),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
     expect(find.text('Internet researcher'), findsOneWidget);
-    expect(find.text('Forked from alice/origin'), findsOneWidget);
+    expect(
+      find.text('researcher · v1.2.0 · Live\nAnswers a question.'),
+      findsOneWidget,
+    );
 
-    await tester.tap(find.byKey(const ValueKey('install-alice/researcher')));
+    await tester.tap(find.byKey(const ValueKey('open-researcher')));
+    await tester.pumpAndSettle();
+    expect(opened, ['researcher']);
+
+    // A Drafted app has no Open button.
+    expect(find.byKey(const ValueKey('open-sketch')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('delete-sketch')));
     await tester.pumpAndSettle();
     expect(
       server.calls,
-      contains('POST /brains/workspace-bob/packages/alice/researcher'),
+      contains('DELETE /brains/workspace-bob/apps/sketch'),
     );
-    expect(
-      find.byKey(const ValueKey('uninstall-alice/researcher')),
-      findsOneWidget,
-    );
-    expect(find.text('C# app: Running'), findsOneWidget);
-
-    await tester.enterText(
-      find.byKey(const ValueKey('input-alice/researcher')),
-      'What is Orleans?',
-    );
-    await tester.tap(
-      find.byKey(const ValueKey('run-alice/researcher-research')),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Research (plain): What is Orleans?'), findsOneWidget);
-
-    await tester.tap(find.byKey(const ValueKey('fork-alice/researcher')));
-    await tester.pumpAndSettle();
-    expect(server.calls, contains('POST /packages/alice/researcher/fork'));
-    expect(
-      find.text('Forked alice/researcher into your apps.'),
-      findsOneWidget,
-    );
+    expect(find.text('Deleted sketch.'), findsOneWidget);
   });
 
-  testWidgets('keeps the marketplace visible when one install cannot be read', (
-    tester,
-  ) async {
-    Future<dynamic> request(String method, String path, [Object? body]) async {
-      if (path == '/packages') {
-        return [
-          for (final name in ['researcher', 'broken'])
-            {
-              'package': {'owner': 'alice', 'name': name},
-              'title': 'Package $name',
-              'revision': 'published-revision',
-            },
-        ];
-      }
-      if (path.endsWith('/broken')) throw Exception('unavailable');
-      return {
-        'app': {'status': 0},
-      };
-    }
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: AppsScreen(
-          workspaceId: 'workspace-bob',
-          request: request,
-          onClose: () {},
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('Package researcher'), findsOneWidget);
-    expect(find.text('Package broken'), findsOneWidget);
-    expect(find.text('Could not read 1 installed app(s).'), findsOneWidget);
-  });
-
-  testWidgets('offers an update when the publisher has moved on', (
-    tester,
-  ) async {
-    final server = _FakeAppsServer()..installedRevision = 'older-revision';
+  testWidgets('search filters the app list', (tester) async {
+    final server = _FakeAppsServer();
     await tester.pumpWidget(
       MaterialApp(
         home: AppsScreen(
@@ -133,97 +54,46 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const ValueKey('upgrade-alice/researcher')));
+    await tester.enterText(
+      find.byKey(const ValueKey('search-apps')),
+      'researcher',
+    );
     await tester.pumpAndSettle();
-
-    expect(
-      server.calls,
-      contains('POST /brains/workspace-bob/packages/alice/researcher/upgrade'),
-    );
-    expect(
-      find.byKey(const ValueKey('upgrade-alice/researcher')),
-      findsNothing,
-    );
+    expect(find.text('Internet researcher'), findsOneWidget);
+    expect(find.byKey(const ValueKey('app-sketch')), findsNothing);
   });
 }
 
 class _FakeAppsServer {
   final calls = <String>[];
-  String? installedRevision;
-  var _reads = 0;
-  String _input = '';
+  var deleted = false;
 
   Future<dynamic> request(String method, String path, [Object? body]) async {
     calls.add('$method $path');
-    const app = '/brains/workspace-bob/packages/alice/researcher';
-    if (method == 'GET' && path == '/packages') {
+    if (method == 'GET' && path == '/brains/workspace-bob/apps') {
       return [
         {
-          'package': {'owner': 'alice', 'name': 'researcher'},
+          'name': 'researcher',
           'title': 'Internet researcher',
-          'description': 'Answers a question with a short research brief.',
-          'revision': 'published-revision',
-          'forkedFrom': {
-            'package': {'owner': 'alice', 'name': 'origin'},
-            'revision': 'origin-revision',
-          },
+          'description': 'Answers a question.',
+          'status': 'Live',
+          'version': '1.2.0',
+          'operations': ['ask', 'open'],
         },
+        if (!deleted)
+          {
+            'name': 'sketch',
+            'title': 'Sketch',
+            'description': '',
+            'status': 'Drafted',
+            'version': '0.1.0',
+            'operations': ['open'],
+          },
       ];
     }
-    if (path == app && method == 'POST') {
-      installedRevision = 'published-revision';
-    }
-    if (path == '$app/upgrade') installedRevision = 'published-revision';
-    if (path == app && method == 'DELETE') installedRevision = null;
-    if (path == app || path == '$app/upgrade') {
-      return {
-        'app': {
-          'status': installedRevision == null ? 0 : 1,
-          'revision': installedRevision == null
-              ? null
-              : {
-                  'package': {'owner': 'alice', 'name': 'researcher'},
-                  'revision': installedRevision,
-                },
-          'operations': [
-            {'name': 'research', 'description': 'Research a question.'},
-          ],
-          'csharpFiles': installedRevision == null
-              ? <String>[]
-              : ['researcher'],
-        },
-        'files': installedRevision == null
-            ? <Object>[]
-            : [
-                {
-                  'id': 'researcher',
-                  'source': 'Console.WriteLine("research");',
-                  'settings': <String, String>{},
-                  'status': 1,
-                  'exitCode': null,
-                  'startedAt': '2026-09-27T10:00:00Z',
-                },
-              ],
-      };
-    }
-    if (path == '$app/invocations') {
-      _input = (body as Map)['input'] as String;
-      return {'id': 'invocation-1', 'status': 0};
-    }
-    if (path == '$app/invocations/invocation-1') {
-      return ++_reads < 2
-          ? {'id': 'invocation-1', 'status': 0}
-          : {
-              'id': 'invocation-1',
-              'status': 1,
-              'output': 'Research (plain): $_input',
-            };
-    }
-    if (path == '/packages/alice/researcher/fork') {
-      return {
-        'id': {'owner': 'bob', 'name': 'researcher'},
-      };
+    if (method == 'DELETE' && path == '/brains/workspace-bob/apps/sketch') {
+      deleted = true;
+      return {'deleted': 'sketch'};
     }
     throw StateError('Unexpected $method $path');
   }

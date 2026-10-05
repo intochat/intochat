@@ -179,13 +179,16 @@ final class DigitalBrainUiClient {
   }
 
   static String appOpenPath(String brainId, String appId) =>
-      '/brains/${Uri.encodeComponent(brainId)}/apps/${Uri.encodeComponent(appId)}/open';
+      '/brains/${Uri.encodeComponent(brainId)}/apps/${Uri.encodeComponent(appId)}/ask';
 
   Future<dynamic> openApp(
     String brainId,
     String appId, [
     Map<String, dynamic> arguments = const {},
-  ]) => jsonRequest('POST', appOpenPath(brainId, appId), arguments);
+  ]) => jsonRequest('POST', appOpenPath(brainId, appId), {
+    'operation': 'open',
+    'input': jsonEncode(arguments),
+  });
 
   Future<TableSnapshot> readTable(
     String workspace,
@@ -850,11 +853,15 @@ final class DigitalBrainUiClient {
     String path, [
     Object? body,
   ]) async {
+    // Creating or authoring an app is one model inference call; everything else on the
+    // apps surface (implement, verify) answers immediately with 202.
+    final authoring =
+        method == 'POST' && (path.endsWith('/apps') || path.endsWith('/author'));
     final response = await _request(
       method,
       path,
       body: body == null ? null : Map<String, Object?>.from(body as Map),
-      timeout: const Duration(seconds: 30),
+      timeout: authoring ? const Duration(minutes: 3) : const Duration(seconds: 30),
     );
     return response.body.isEmpty ? null : jsonDecode(response.body);
   }

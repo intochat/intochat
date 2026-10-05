@@ -38,14 +38,12 @@ class ResearchWindowClient extends FirstRunClient {
     if (request.url.path.endsWith('/apps')) {
       return json([
         {
-          'id': 'intochat/customer-researcher',
+          'name': 'customer-researcher',
           'title': 'Customer Researcher',
           'description': 'Research companies',
-          'app': {
-            'operations': [
-              {'name': 'open'},
-            ],
-          },
+          'status': 'Live',
+          'version': '1.0.0',
+          'operations': ['open'],
         },
       ]);
     }
@@ -53,7 +51,7 @@ class ResearchWindowClient extends FirstRunClient {
         Uri.parse(
           DigitalBrainUiClient.appOpenPath(
             store.currentProject.id,
-            'intochat/customer-researcher',
+            'customer-researcher',
           ),
         ).path) {
       // Server publishes workspace membership before its open response arrives.
