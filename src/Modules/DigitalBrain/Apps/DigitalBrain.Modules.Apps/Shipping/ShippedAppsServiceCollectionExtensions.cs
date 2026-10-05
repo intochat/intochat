@@ -1,4 +1,5 @@
 using System.Reflection;
+using DigitalBrain.Framework.Platform.Shipping;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -41,7 +42,7 @@ public static class ShippedAppsServiceCollectionExtensions
     private static IServiceCollection AddShippedAppSource(this IServiceCollection services, IShippedAppSource source)
     {
         services.AddSingleton(source);
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<global::Microsoft.Extensions.Hosting.IHostedService, ShippedAppPublisher>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IShippedContentPublisher, ShippedAppPublisher>());
         return services;
     }
 }

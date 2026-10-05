@@ -56,7 +56,7 @@ public sealed class AppFacts
         {
             Manifest = content.Manifest with
             {
-                Accounts = [new PackageAccount("twitter", "twitter", "Account to watch")]
+                Accounts = [new PackageConnection("twitter", "twitter", "Account to watch")]
             }
         };
         var revision = await package.Commit(brain.Commit(null, withAccount, "Add account slot"));
@@ -90,14 +90,14 @@ public sealed class AppFacts
         {
             Manifest = source.Manifest with
             {
-                Accounts = [new PackageAccount("twitter", "twitter", "Watch")]
+                Accounts = [new PackageConnection("twitter", "twitter", "Watch")]
             }
         }, "First"));
         var second = await package.Commit(brain.Commit(first.Id, source with
         {
             Manifest = source.Manifest with
             {
-                Accounts = [new PackageAccount("twitter", "twitter", "Watch"), new PackageAccount("notify", "notification", "Notify")]
+                Accounts = [new PackageConnection("twitter", "twitter", "Watch"), new PackageConnection("notify", "notification", "Notify")]
             }
         }, "Second"));
         Caller.Clear();

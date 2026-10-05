@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Platform.Integrations;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain;
@@ -67,7 +68,7 @@ internal static class PostgresHostingExtensions
             {
                 _connection = brain.ApplicationBuilder.AddParameter(brain.ResourceName("postgres-connection"), () =>
                     brain.ApplicationBuilder.Configuration["Parameters:postgres-connection"]
-                    ?? brain.ApplicationBuilder.Configuration.GetConnectionString(configuration.ConnectionName)
+                    ?? brain.ApplicationBuilder.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")]
                     ?? throw new InvalidOperationException($"Connection string '{configuration.ConnectionName}' is required."), secret: true)
                     .WithParentRelationship(module);
             }
@@ -80,18 +81,19 @@ internal static class PostgresHostingExtensions
             if (_configuration is null) { return; }
             if (_database is not null)
             {
-                builder.WithReference(_database, connectionName: _configuration.ConnectionName)
+                builder.WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString")), _database.Resource.ConnectionStringExpression)
                     .WithAnnotation(new WaitAnnotation(_database.Resource, WaitType.WaitUntilHealthy, exitCode: 0));
                 if (_server is not null)
                 {
+                    builder.WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(DigitalBrain.DigitalBrainConfiguration.ModuleOptionsSection("postgres"), "ProvisionPerBrain"), "true");
                     var server = _server.Resource;
                     builder.WithEnvironment(context =>
-                        context.EnvironmentVariables[DigitalBrainConfiguration.EnvironmentName(PostgresModuleOptions.AdminConnectionKey)] = server.ConnectionStringExpression);
+                        context.EnvironmentVariables[DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "AdminConnection"))] = server.ConnectionStringExpression);
                 }
             }
             else if (_connection is not null)
             {
-                builder.WithEnvironment($"ConnectionStrings__{_configuration.ConnectionName}", _connection);
+                builder.WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString")), _connection);
             }
         }
     }

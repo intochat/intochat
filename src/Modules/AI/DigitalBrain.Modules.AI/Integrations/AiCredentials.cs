@@ -1,97 +1,65 @@
 using System.Collections.Concurrent;
 using DigitalBrain;
-using DigitalBrain.Enforcement;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Integrations;
-using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.AI;
 
 internal interface IAiCredentials
 {
-    RegistrationSnapshot StatusOf(string integrationId);
-
-    // Changes only when the registration actually changed (status, settings or a rotated secret), so holders of a released key know to rebuild.
-    long GenerationOf(string integrationId);
-
-    string ReleaseSecret(string integrationId, string field);
-
+    Task<IntegrationSnapshot> StatusOf(string integrationId, CancellationToken cancellationToken = default);
+    Task<long> GenerationOf(string integrationId, CancellationToken cancellationToken = default);
+    Task<ReleasedIntegration> MaterializeAsync(string integrationId, CancellationToken cancellationToken = default);
     Task<string> ReleaseSecretAsync(string integrationId, string field, CancellationToken cancellationToken = default);
 }
 
-// Sync callers (client construction, provider selection) read a short-lived cache of the registration
-// status; the secret itself is never cached and leaves the vault only inside ReleaseSecret*.
-internal sealed class RegistrationCredentials(IGrainFactory grains, TimeProvider time, ILogger<RegistrationCredentials> logger) : IAiCredentials
+internal sealed class RegistrationCredentials(IModuleIntegrations<AIModule> integrations, TimeProvider time) : IAiCredentials
 {
     private static readonly TimeSpan StatusLifetime = TimeSpan.FromSeconds(5);
-
-    private static readonly CallerContext PlatformCaller = new()
-    {
-        PrincipalId = "ai",
-        AccountId = "ai",
-        BrainId = "ai",
-        Kind = CallerKind.Platform,
-        StampedBy = TrustedEdge.Platform,
-        AppId = "ai",
-    };
-
-    private readonly ConcurrentDictionary<string, (RegistrationSnapshot Snapshot, DateTimeOffset ReadAt, long Generation)> _statuses = new(StringComparer.Ordinal);
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly ConcurrentDictionary<string, (IntegrationSnapshot Snapshot, DateTimeOffset ReadAt, long Generation)> _statuses = new(StringComparer.Ordinal);
     private long _generation;
 
-    public long GenerationOf(string integrationId)
+    public async Task<long> GenerationOf(string integrationId, CancellationToken cancellationToken = default)
     {
-        StatusOf(integrationId);
-        return _statuses.TryGetValue(integrationId, out var cached) ? cached.Generation : 0;
+        await StatusOf(integrationId, cancellationToken).ConfigureAwait(false);
+        return _statuses[integrationId].Generation;
     }
 
-    public string ReleaseSecret(string integrationId, string field)
-        => Task.Run(() => ReleaseSecretAsync(integrationId, field)).GetAwaiter().GetResult();
-
-    public async Task<string> ReleaseSecretAsync(string integrationId, string field, CancellationToken cancellationToken = default)
+    public async Task<ReleasedIntegration> MaterializeAsync(string integrationId, CancellationToken cancellationToken = default)
     {
-        var snapshot = await Registration(integrationId).Read().WaitAsync(cancellationToken).ConfigureAwait(false);
-        if (snapshot.Status != RegistrationStatus.Ready)
+        var handle = integrations.Get(integrationId);
+        var snapshot = await handle.ReadAsync(cancellationToken).ConfigureAwait(false);
+        if (snapshot.Status != IntegrationStatus.Ready)
         {
             throw new ProviderUnavailableException(integrationId, snapshot.Status.ToString(), snapshot.MissingFields);
         }
-
-        var released = await Registration(integrationId).Release(PlatformCaller).WaitAsync(cancellationToken).ConfigureAwait(false);
-        return released.Values[field];
+        return await handle.ReleaseAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private static bool SameRegistration(RegistrationSnapshot before, RegistrationSnapshot after)
+    public async Task<string> ReleaseSecretAsync(string integrationId, string field, CancellationToken cancellationToken = default)
+        => (await MaterializeAsync(integrationId, cancellationToken).ConfigureAwait(false)).Values[field];
+
+    private static bool SameRegistration(IntegrationSnapshot before, IntegrationSnapshot after)
         => before.Status == after.Status && before.Revision == after.Revision
             && before.MissingFields.SequenceEqual(after.MissingFields, StringComparer.Ordinal)
             && before.Settings.Count == after.Settings.Count
             && before.Settings.All(pair => after.Settings.TryGetValue(pair.Key, out var value) && value == pair.Value);
 
-    private IIntegrationRegistration Registration(string integrationId) => grains.GetGrain<IIntegrationRegistration>("integration/" + integrationId);
-
-    public RegistrationSnapshot StatusOf(string integrationId)
+    public async Task<IntegrationSnapshot> StatusOf(string integrationId, CancellationToken cancellationToken = default)
     {
-        var now = time.GetUtcNow();
-        if (_statuses.TryGetValue(integrationId, out var cached) && now - cached.ReadAt < StatusLifetime)
-        {
-            return cached.Snapshot;
-        }
-
-        RegistrationSnapshot snapshot;
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            snapshot = Task.Run(() => Registration(integrationId).Read()).GetAwaiter().GetResult();
+            var now = time.GetUtcNow();
+            if (_statuses.TryGetValue(integrationId, out var cached) && now - cached.ReadAt < StatusLifetime) { return cached.Snapshot; }
+            var snapshot = await integrations.Get(integrationId).ReadAsync(cancellationToken).ConfigureAwait(false);
+            var generation = _statuses.TryGetValue(integrationId, out var previous) && SameRegistration(previous.Snapshot, snapshot)
+                ? previous.Generation : Interlocked.Increment(ref _generation);
+            _statuses[integrationId] = (snapshot, now, generation);
+            return snapshot;
         }
-        catch (Exception error)
-        {
-            logger.LogWarning(error, "Integration {IntegrationId} registration could not be read; treating it as unconfigured.", integrationId);
-            snapshot = new RegistrationSnapshot { IntegrationId = integrationId, Status = RegistrationStatus.Unconfigured };
-        }
-
-        var generation = _statuses.TryGetValue(integrationId, out var previous) && SameRegistration(previous.Snapshot, snapshot)
-            ? previous.Generation
-            : Interlocked.Increment(ref _generation);
-        _statuses[integrationId] = (snapshot, now, generation);
-        return snapshot;
+        finally { _gate.Release(); }
     }
 }
 
@@ -106,39 +74,41 @@ internal sealed class FixedAiCredentials : IAiCredentials
         return this;
     }
 
-    public long GenerationOf(string integrationId) => 0;
+    public Task<long> GenerationOf(string integrationId, CancellationToken cancellationToken = default) => Task.FromResult(0L);
 
-    public RegistrationSnapshot StatusOf(string integrationId)
-        => _ready.TryGetValue(integrationId, out var entry)
-            ? new RegistrationSnapshot
+    public Task<IntegrationSnapshot> StatusOf(string integrationId, CancellationToken cancellationToken = default)
+        => Task.FromResult(_ready.TryGetValue(integrationId, out var entry)
+            ? new IntegrationSnapshot
             {
                 IntegrationId = integrationId,
-                Status = RegistrationStatus.Ready,
+                Status = IntegrationStatus.Ready,
                 Settings = entry.Endpoint is null ? [] : new() { [AiIntegrations.EndpointField] = entry.Endpoint },
             }
-            : new RegistrationSnapshot { IntegrationId = integrationId, Status = RegistrationStatus.Unconfigured, MissingFields = [AiIntegrations.ApiKeyField] };
+            : new IntegrationSnapshot { IntegrationId = integrationId, Status = IntegrationStatus.Unconfigured, MissingFields = [AiIntegrations.ApiKeyField] });
 
-    public string ReleaseSecret(string integrationId, string field)
-        => _ready.TryGetValue(integrationId, out var entry)
-            ? entry.ApiKey
-            : throw new ProviderUnavailableException(integrationId, RegistrationStatus.Unconfigured.ToString(), [field]);
+    public async Task<ReleasedIntegration> MaterializeAsync(string integrationId, CancellationToken cancellationToken = default)
+    {
+        if (!_ready.TryGetValue(integrationId, out var entry)) { throw new ProviderUnavailableException(integrationId, IntegrationStatus.Unconfigured.ToString(), [AiIntegrations.ApiKeyField]); }
+        return new ReleasedIntegration { Snapshot = await StatusOf(integrationId, cancellationToken), Values = new() { [AiIntegrations.ApiKeyField] = entry.ApiKey } };
+    }
 
-    public Task<string> ReleaseSecretAsync(string integrationId, string field, CancellationToken cancellationToken = default)
-        => Task.FromResult(ReleaseSecret(integrationId, field));
+    public async Task<string> ReleaseSecretAsync(string integrationId, string field, CancellationToken cancellationToken = default)
+        => (await MaterializeAsync(integrationId, cancellationToken)).Values[field];
+
 }
 
 internal static class AiCredentialsExtensions
 {
-    internal static bool IsReady(this IAiCredentials credentials, string integrationId)
-        => credentials.StatusOf(integrationId).Status == RegistrationStatus.Ready;
+    internal static async Task<bool> IsReady(this IAiCredentials credentials, string integrationId, CancellationToken cancellationToken = default)
+        => (await credentials.StatusOf(integrationId, cancellationToken).ConfigureAwait(false)).Status == IntegrationStatus.Ready;
 
-    internal static string? Setting(this IAiCredentials credentials, string integrationId, string field)
-        => credentials.StatusOf(integrationId).Settings.TryGetValue(field, out var value) ? value : null;
+    internal static async Task<string?> Setting(this IAiCredentials credentials, string integrationId, string field, CancellationToken cancellationToken = default)
+        => (await credentials.StatusOf(integrationId, cancellationToken).ConfigureAwait(false)).Settings.TryGetValue(field, out var value) ? value : null;
 
-    internal static void RequireReady(this IAiCredentials credentials, string integrationId)
+    internal static async Task RequireReady(this IAiCredentials credentials, string integrationId, CancellationToken cancellationToken = default)
     {
-        var snapshot = credentials.StatusOf(integrationId);
-        if (snapshot.Status != RegistrationStatus.Ready)
+        var snapshot = await credentials.StatusOf(integrationId, cancellationToken).ConfigureAwait(false);
+        if (snapshot.Status != IntegrationStatus.Ready)
         {
             throw new ProviderUnavailableException(integrationId, snapshot.Status.ToString(), snapshot.MissingFields);
         }

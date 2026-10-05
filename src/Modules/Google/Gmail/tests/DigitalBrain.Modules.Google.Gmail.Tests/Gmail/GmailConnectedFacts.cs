@@ -1,4 +1,6 @@
-using DigitalBrain.Framework.Platform.Secrets;
+using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Google.Gmail;
 using DigitalBrain.Platform.Secrets;
 using DigitalBrain.Testing.Module;
@@ -14,11 +16,15 @@ public sealed class GmailConnectedFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<GmailModule>()
+            .WithExecution(new() { PrivateConfiguration = GmailHostFixture.ConfiguredRegistration() })
             .ConfigureSilo(silo => silo.Services.AddSingleton<IGmailTokenExchange>(new FakeGmailTokens()))
             .StartAsync(ct);
-        var gmail = brain.Get<IGmail>("gmail");
+        CallerContextStamper.Stamp(new DigitalBrain.Enforcement.CallerContext { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = DigitalBrain.Enforcement.CallerKind.User, StampedBy = DigitalBrain.Enforcement.TrustedEdge.AuthenticatedHttp });
+        var gmail = brain.Get<IGmail>(ConnectionKeys.For(BrainScope.CurrentId(), "gmail", "primary"));
+        Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
         await using var connected = await brain.Observe<GmailConnected>(gmail, ct);
-        await gmail.AcceptAuthorizationCode("fake-code", "owner");
+        CallerContextStamper.Stamp(new DigitalBrain.Enforcement.CallerContext { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = DigitalBrain.Enforcement.CallerKind.User, StampedBy = DigitalBrain.Enforcement.TrustedEdge.AuthenticatedHttp });
+        await brain.Grains.GetGrain<IGmailInbound>(gmail.GetGrainId()).AcceptAuthorizationCode("fake-code", "owner");
         Assert.Equal("user@gmail.com", (await connected.NextAsync(ct: ct)).EmailAddress);
 
     }

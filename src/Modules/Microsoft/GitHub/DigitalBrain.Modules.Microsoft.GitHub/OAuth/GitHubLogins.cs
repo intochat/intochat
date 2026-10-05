@@ -8,5 +8,5 @@ internal sealed class GitHubLogins(GitHubOAuthConfiguration configuration, TimeP
         "github", "GitHub", "GitHubIntegration", "/integrations/github/login", "/integrations/github/callback",
         "Connect the GitHub App to the requested repository. Credentials stay outside your conversation.");
 
-    protected override Uri? PublicOrigin => configuration.IsConfigured ? configuration.PublicOrigin : null;
+    protected override Uri? PublicOrigin => configuration.PublicOrigin;
 }

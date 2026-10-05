@@ -37,9 +37,7 @@ public sealed class CanarySecretFacts(ReferenceBrainFixture host)
     }
 
     [Theory(Timeout = 300_000)]
-    [InlineData("salesforce")]
-    [InlineData("gmail")]
-    [InlineData("webresearch")]
+    [InlineData("supabase")]
     public async Task AConnectionTokenNeverAppearsInPlaintext(string source)
     {
         var ct = TestContext.Current.CancellationToken;
@@ -47,14 +45,14 @@ public sealed class CanarySecretFacts(ReferenceBrainFixture host)
         var collector = host.Collector;
 
         using var seeded = await brain.HttpClient.PostAsJsonAsync(
-            $"/brains/{Owner}/integrations/accounts/connect",
-            new { integrationId = source, connectionId = $"conn-{source}", label = source, value = Canary },
+            $"/brains/{Owner}/connections/connect",
+            new { connectorId = source, connectionId = $"conn-{source}", label = source, value = Canary },
             ct);
         Assert.Equal(System.Net.HttpStatusCode.OK, seeded.StatusCode);
         var seedBody = await seeded.Content.ReadAsStringAsync(ct);
         Assert.DoesNotContain(Canary, seedBody, StringComparison.Ordinal);
 
-        var list = await brain.HttpClient.GetStringAsync($"/brains/{Owner}/integrations/accounts", ct);
+        var list = await brain.HttpClient.GetStringAsync($"/brains/{Owner}/connections", ct);
         Assert.DoesNotContain(Canary, list, StringComparison.Ordinal);
 
         await WaitForAsync(() => collector.Snapshot().Count > 0, ct);

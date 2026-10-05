@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:digitalbrain_flutter_shell/integrations/connections_settings.dart';
+import 'package:digitalbrain_flutter_shell/connections/connections_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -15,7 +15,7 @@ void main() {
       String path, {
       Map<String, Object?>? body,
     }) async => [
-      {'integrationId': 'gmail', 'id': 'new-account', 'status': 'Configured'},
+      {'connectorId': 'gmail', 'id': 'new-account', 'status': 'Configured'},
     ];
     Widget surface(
       Future<Object?> Function(String, {Map<String, Object?>? body}) request,
@@ -26,7 +26,7 @@ void main() {
     await tester.pumpWidget(surface(newRequest));
     await tester.pumpAndSettle();
     delayed.complete([
-      {'integrationId': 'gmail', 'id': 'old-account', 'status': 'Configured'},
+      {'connectorId': 'gmail', 'id': 'old-account', 'status': 'Configured'},
     ]);
     await tester.pumpAndSettle();
     expect(find.textContaining('new-account'), findsOneWidget);
@@ -50,14 +50,15 @@ void main() {
       String path, {
       Map<String, Object?>? body,
     }) async => [
-      {'id': 'mail', 'integrationId': 'gmail', 'status': 'Connected'},
+      {'id': 'mail', 'connectorId': 'gmail', 'status': 'Connected'},
     ];
     Future<Object?> services(String path, {Map<String, Object?>? body}) async {
       if (path.isEmpty) {
         return [
           {
             'id': 'gmail',
-            'name': 'Google',
+            'displayName': 'Google',
+            'authMethods': ['google-oauth'],
             'available': true,
             'capabilities': 'Gmail only',
           },
@@ -75,7 +76,7 @@ void main() {
           body: SingleChildScrollView(
             child: ConnectionsSettings(
               request: connections,
-              serviceRequest: services,
+              connectorRequest: services,
               onOpen: (url) async {
                 opened = url;
               },
@@ -90,6 +91,9 @@ void main() {
     await tester.tap(find.text('Add connection'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Connect'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('connect_name')), 'mail');
+    await tester.tap(find.text('Sign in with the provider'));
     await tester.pumpAndSettle();
     expect(action, 'gmail/start');
     expect(opened?.queryParameters['request'], 'one-use');

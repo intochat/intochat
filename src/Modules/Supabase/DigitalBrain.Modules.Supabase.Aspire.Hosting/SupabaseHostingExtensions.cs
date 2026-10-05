@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Platform.Integrations;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Aspire.Hosting;
@@ -44,7 +45,7 @@ public static class SupabaseHostingExtensions
             _options = options;
             _connection = brain.ApplicationBuilder
                 .AddParameter(brain.ResourceName("supabase-connection"), () => brain.ApplicationBuilder.Configuration["Parameters:supabase-connection"]
-                    ?? brain.ApplicationBuilder.Configuration.GetConnectionString(_options.ParameterName)
+                    ?? brain.ApplicationBuilder.Configuration[IntegrationSchema.Key("supabase", "ConnectionString")]
                     ?? throw new InvalidOperationException($"Connection string '{_options.ParameterName}' is required."), secret: true)
                 .WithParentRelationship(module);
         }
@@ -57,7 +58,8 @@ public static class SupabaseHostingExtensions
                 return;
             }
 
-            builder.WithEnvironment($"ConnectionStrings__{_options.ConnectionName}", _connection);
+            builder.WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(DigitalBrain.DigitalBrainConfiguration.ModuleOptionsSection("supabase"), nameof(SupabaseModuleOptions.UseBackingStore)), "true")
+                .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("supabase", "ConnectionString")), _connection);
         }
     }
 }

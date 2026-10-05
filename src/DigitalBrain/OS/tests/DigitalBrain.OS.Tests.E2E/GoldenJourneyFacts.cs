@@ -10,6 +10,7 @@ using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Supabase.Tables;
 using DigitalBrain.Testing.E2E;
+using DigitalBrain.Testing.E2E.Workspace;
 using Npgsql;
 
 namespace DigitalBrain.OS.Tests.E2E;
@@ -35,20 +36,29 @@ public sealed class GoldenJourneyFacts
         var report = await RepeatAsync(async (attempt, token) =>
         {
             var workspaceId = $"j1-{attempt:D2}";
+            await UserConnections.AuthorizeSupabaseAsync(brain, workspaceId, token);
             var scope = BrainScope.Create("owner", workspaceId);
             var workspace = brain.Get<IWorkspace>(scope.Id);
 
             await AskAsync(brain, workspaceId, "thread", $"{workspaceId}-open", "Show me all customers", token);
             var opened = Assert.Single((await workspace.Read()).Windows);
             var tableId = opened.Reference.NeuronId;
-            var allCustomers = await brain.Get<ISupabaseTable>(tableId).Read(new(0, 25));
+            SupabaseTableSnapshot? allCustomers;
+            using (UserConnections.UseBrain(brain, workspaceId))
+            {
+                allCustomers = await brain.Get<ISupabaseTable>(tableId).Read(new(0, 25));
+            }
             Assert.NotNull(allCustomers);
             Assert.True(allCustomers!.TotalRows > 0, "The customers window opened with no rows.");
 
             await AskAsync(brain, workspaceId, "thread", $"{workspaceId}-london", "only London", token);
             var refinedWindow = Assert.Single((await workspace.Read()).Windows);
             Assert.Equal(tableId, refinedWindow.Reference.NeuronId);
-            var london = await brain.Get<ISupabaseTable>(tableId).Read(new(0, 25));
+            SupabaseTableSnapshot? london;
+            using (UserConnections.UseBrain(brain, workspaceId))
+            {
+                london = await brain.Get<ISupabaseTable>(tableId).Read(new(0, 25));
+            }
             Assert.NotNull(london);
             Assert.NotEmpty(london!.Filters);
             Assert.True(london.FilteredRows > 0, "The seeded data has no London customers.");

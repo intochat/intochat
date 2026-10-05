@@ -52,13 +52,10 @@ internal static class AIClients
                 model.Marker,
                 (provider, _) =>
                 {
-                    var inner = AiIntegrations.KeyedProviders.Contains(model.Provider)
-                        ? new RebuildingEmbeddingGenerator(
-                            () => Factories[model.Provider].CreateEmbeddingGenerator(
-                                model, provider.GetRequiredService<IOptions<AIOptions>>().Value, provider.GetRequiredService<IAiCredentials>()),
-                            GenerationOf(provider, model.Provider))
-                        : Factories[model.Provider].CreateEmbeddingGenerator(
-                            model, provider.GetRequiredService<IOptions<AIOptions>>().Value, provider.GetRequiredService<IAiCredentials>());
+                    var inner = new RebuildingEmbeddingGenerator(
+                        ct => Factories[model.Provider].CreateEmbeddingGenerator(
+                            model, provider.GetRequiredService<IOptions<AIOptions>>().Value, provider.GetRequiredService<IAiCredentials>(), cancellationToken: ct),
+                        GenerationOf(provider, model.Provider));
                     return provider.GetService<IIntentUsageSink>() is { } sink
                         ? new MeteringEmbeddingGenerator(inner, sink, model.Provider.ToString(), model.Id)
                         : inner;
@@ -81,17 +78,16 @@ internal static class AIClients
 
     private static IChatClient BuildChatPipeline(IServiceProvider provider, LLMModel model)
         => BuildChatPipeline(provider, model, Rebuilding(provider, model.Provider,
-            () => Factories[model.Provider].CreateChatClient(
-                model, provider.GetRequiredService<IOptions<AIOptions>>().Value, provider.GetRequiredService<IAiCredentials>())));
+            ct => Factories[model.Provider].CreateChatClient(
+                model, provider.GetRequiredService<IOptions<AIOptions>>().Value, provider.GetRequiredService<IAiCredentials>(), cancellationToken: ct)));
 
     // A keyed provider's client is rebuilt when its registration is re-read, so a cleared or rotated key takes effect without a restart.
-    private static IChatClient Rebuilding(IServiceProvider services, AiProvider provider, Func<IChatClient> create)
-        => AiIntegrations.KeyedProviders.Contains(provider)
-            ? new RebuildingChatClient(create, GenerationOf(services, provider))
-            : create();
+    private static IChatClient Rebuilding(IServiceProvider services, AiProvider provider, Func<CancellationToken, Task<IChatClient>> create)
+        => new RebuildingChatClient(create, GenerationOf(services, provider));
 
-    private static Func<long> GenerationOf(IServiceProvider services, AiProvider provider)
-        => () => services.GetRequiredService<IAiCredentials>().GenerationOf(AiIntegrations.IdOf(provider));
+    private static Func<CancellationToken, Task<long>> GenerationOf(IServiceProvider services, AiProvider provider)
+        => ct => AiIntegrations.KeyedProviders.Contains(provider)
+            ? services.GetRequiredService<IAiCredentials>().GenerationOf(AiIntegrations.IdOf(provider), ct) : Task.FromResult(0L);
 
     internal static IChatClient BuildChatPipeline(IServiceProvider provider, LLMModel model, IChatClient innerClient)
         => BuildChatPipeline(provider, model.SupportsTools, model.Marker.Name, innerClient,
@@ -137,6 +133,9 @@ internal static class AIClients
     }
 
     private static IChatClient DefaultChatClient(IServiceProvider provider)
+        => new RebuildingChatClient(ct => DefaultChatClientAsync(provider, ct), _ => Task.FromResult(0L));
+
+    private static async Task<IChatClient> DefaultChatClientAsync(IServiceProvider provider, CancellationToken cancellationToken)
     {
         var configuration = provider.GetRequiredService<IOptions<AIOptions>>().Value;
         if (!string.IsNullOrWhiteSpace(configuration.Default.Profile)
@@ -144,20 +143,23 @@ internal static class AIClients
             || configuration.Default.Reasoning is not null || configuration.Default.MaxOutputTokens is not null)
         {
             var profiles = provider.GetRequiredService<ModelProfiles>();
-            return profiles.CreateClient(profiles.Resolve(null));
+            return await profiles.CreateClient(await profiles.Resolve(null, cancellationToken: cancellationToken), cancellationToken);
         }
         var model = configuration.Default.Model is { Length: > 0 } markerName
             ? LLMModel.FindByMarkerName(markerName)
                 ?? throw UnknownMarker(DefaultModelKey, markerName, LLMModel.All.Select(static m => m.Marker.Name))
-            : FirstConfiguredModel(configuration, provider.GetRequiredService<IAiCredentials>());
+            : await FirstConfiguredModel(configuration, provider.GetRequiredService<IAiCredentials>(), cancellationToken);
         return provider.GetRequiredKeyedService<IChatClient>(model.Marker);
     }
 
-    private static LLMModel FirstConfiguredModel(AIOptions configuration, IAiCredentials credentials)
-        => LLMModel.All.FirstOrDefault(model => Factories[model.Provider].IsConfigured(configuration, credentials))
-            ?? throw new InvalidOperationException(
-                "No LLM provider is configured. Register a provider through POST /integrations/{id}/registration "
-                + $"(or seed just {IntegrationDefinition.Key(AiIntegrations.IdOf(AiProvider.OpenAI), AiIntegrations.ApiKeyField)}; the endpoint defaults to the provider's hosted one), supply an Ollama endpoint, or pin {DefaultModelKey}.");
+    private static async Task<LLMModel> FirstConfiguredModel(AIOptions configuration, IAiCredentials credentials, CancellationToken cancellationToken)
+    {
+        foreach (var model in LLMModel.All)
+        {
+            if (await Factories[model.Provider].IsConfigured(configuration, credentials, cancellationToken)) { return model; }
+        }
+        throw new InvalidOperationException("No LLM provider is configured. Provision a provider integration, supply an Ollama endpoint, or pin " + DefaultModelKey + ".");
+    }
 
     private static IEmbeddingGenerator<string, Embedding<float>> DefaultEmbeddingGenerator(IServiceProvider provider)
     {
@@ -174,7 +176,7 @@ internal static class AIClients
         // configured: silently switching it changes vector dimensions and orphans
         // every existing Qdrant collection.
         var local = EmbeddingModel.All.Single(static model => model.Marker == typeof(Ollama.IEmbeddingGemma));
-        if (!Factories[local.Provider].IsConfigured(configuration, provider.GetRequiredService<IAiCredentials>()))
+        if (string.IsNullOrEmpty(configuration.Ollama.Endpoint))
         {
             throw new InvalidOperationException(
                 $"No embedding model is configured. Supply an Ollama endpoint for {local.Marker.Name}, "

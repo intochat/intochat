@@ -2,7 +2,7 @@ namespace DigitalBrain.AI;
 
 public interface IAudioTranscriptionService
 {
-    bool IsReady { get; }
+    Task<bool> IsReadyAsync(CancellationToken cancellationToken = default);
     bool InitializationFailed { get; }
     string? ErrorMessage { get; }
     string ModelId { get; }

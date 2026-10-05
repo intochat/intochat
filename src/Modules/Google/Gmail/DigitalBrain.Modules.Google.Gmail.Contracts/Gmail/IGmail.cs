@@ -6,8 +6,6 @@ namespace DigitalBrain.Google.Gmail;
 [Orleans.Metadata.DefaultGrainType("gmail")]
 public interface IGmail : INeuron
 {
-    Task AcceptWatchPush(GmailWatchPush push);
-    Task AcceptAuthorizationCode(string authorizationCode, string? secretOwner = null);
 }
 
 [GenerateSerializer, Alias("gmail.watch-push")]

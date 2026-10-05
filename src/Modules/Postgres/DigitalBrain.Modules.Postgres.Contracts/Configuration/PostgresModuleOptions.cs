@@ -4,12 +4,8 @@ namespace DigitalBrain.Postgres;
 
 public sealed class PostgresModuleOptions : IModuleOptions
 {
-    // Hosted provisioning hands the platform server's admin connection to the brain under this
-    // key; its presence switches capacity to per-brain provisioning.
-    public const string AdminConnectionKey = "DigitalBrain:Capacity:Postgres:AdminConnection";
-
-
     public string ConnectionName { get; set; } = "postgres";
+    public bool ProvisionPerBrain { get; set; }
     public PostgresResourceOptions Hosting { get; set; } = new();
 
     public PostgresModuleOptions WithConnection(string name)

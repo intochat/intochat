@@ -18,7 +18,7 @@ audiences:
 | Package | Consumer | Contents |
 |---|---|---|
 | `DigitalBrain` | scripts (via ScriptContracts), module `*.Contracts`, Clients | the four words + Data, Types, Signals, Edge.V1, Integrations refs, Enforcement shapes, names, configuration grammar, `ModuleId`, `IModuleOptions`, platform attributes |
-| `DigitalBrain.Framework` | module authors | neuron runtime, `Module` declaration (`Configure(ISiloBuilder)`), composition, enforcement machinery, http surface, sdk helpers, platform-facing interfaces (`ISecrets`, `IntegrationDefinition`, identity options) under `DigitalBrain.Framework.Platform.*` |
+| `DigitalBrain.Framework` | module authors | neuron runtime, `Module` declaration (`Configure(ISiloBuilder)`), composition, enforcement machinery, http surface, sdk helpers, platform-facing interfaces (`ISecrets`, `ConnectorDefinition`, `IntegrationSchema`, `IModuleIntegrations<TModule>`, identity options) under `DigitalBrain.Framework.Platform.*` |
 | `DigitalBrain.Platform` | host composers only | credential-ring implementation; `[PlatformAssembly]`-marked |
 | `DigitalBrain.Client` / `.Client.Orleans` | external apps | unchanged; vocabulary-only dependencies |
 
@@ -62,3 +62,12 @@ publishable.
 
 - `AppDraftFacts` (12 tests): "Private settings cannot override host-owned configuration" —
   reproduced at a768af559, before any restructuring commit. Follow-up task spawned.
+
+## Connector credential boundary (2026-10-05 amendment, #165)
+
+Connectors declare supported auth methods and required/optional Integrations. Platform binds
+scoped async handles per module before offering a connector. Modules receive trust and cannot
+construct platform callers or read deployment credentials from configuration. User Connections
+hold SecretRefs per brain at `/brains/{id}/connections`; the offered catalog is `GET /connectors`.
+Deployment provisioning remains under `DigitalBrain:Integrations:{id}:*` and is Platform-only.
+Integrations are what the deployment provisions; Connections are what users authorize.

@@ -82,8 +82,8 @@ public sealed class BoundaryFacts
     public void CredentialAndIdentityContractsResideInPlatformContracts()
     {
         var contracts = ProductionArchitecture.Types.Where(IsCredentialContract).ToArray();
-        Assert.Contains(typeof(IIntegrationRegistration), contracts);
-        Assert.Contains(typeof(IAccountProbe), contracts);
+        Assert.Contains(typeof(IIntegration), contracts);
+        Assert.Contains(typeof(IConnectionProbe), contracts);
         Assert.Contains(typeof(IIdentityDirectory), contracts);
         Assert.Contains(typeof(IGrantStore), contracts);
         foreach (var contract in contracts)

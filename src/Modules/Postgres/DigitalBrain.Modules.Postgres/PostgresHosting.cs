@@ -1,6 +1,7 @@
 using DigitalBrain.AI.Agents;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Capacity;
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Windows;
 using Microsoft.Extensions.Configuration;
@@ -25,48 +26,34 @@ public static class PostgresHosting
         services.AddSingleton<PostgresRegistration>();
         services.AddSingleton<IIncomingGrainCallFilter, PostgresLifecycleGuard>();
         services.TryAddSingleton<IPostgresLegacyTables, PostgresLegacyTables>();
-        silo.AddStartupTask<PostgresMigrationStartup>();
         services.AddOptions<PostgresModuleOptions>()
             .Configure<IConfiguration>((options, configuration) => configuration.PopulateModuleOptions("postgres", options))
             .Validate(options => !string.IsNullOrWhiteSpace(options.ConnectionName), "Postgres requires a connection name.")
-            .Validate<IConfiguration>((options, configuration) => IsConnectionValid(configuration.GetConnectionString(options.ConnectionName)),
-                "Postgres requires a valid PostgreSQL URI or Npgsql connection string for its configured connection name.")
             .ValidateOnStart();
-        services.TryAddKeyedSingleton<NpgsqlDataSource>(DataSourceKey, (provider, _) =>
-        {
-            var options = provider.GetRequiredService<IOptions<PostgresModuleOptions>>().Value;
-            var connection = provider.GetRequiredService<IConfiguration>().GetConnectionString(options.ConnectionName)!;
-            return NpgsqlDataSource.Create(PostgresConnectionSettings.Parse(connection).ConnectionString);
-        });
-        services.TryAddSingleton<IPostgresSourceRegistry, PostgresSourceRegistry>();
+        services.TryAddSingleton<PostgresSourceRegistry>();
+        services.TryAddSingleton<IPostgresSourceRegistry>(provider => provider.GetRequiredService<PostgresSourceRegistry>());
+        services.AddSingleton<IIntegrationStartup>(provider => provider.GetRequiredService<PostgresSourceRegistry>());
         services.TryAddSingleton<PostgresAppResources>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Registry.IRegistryResourceProvider, PostgresRegistryResources>());
         services.AddSingleton<ICapacityConfiguredSource>(provider =>
-            new PostgresConfiguredSource(active: provider.GetRequiredService<IConfiguration>()[PostgresCapacityKind.AdminConnectionKey] is null));
+            new PostgresConfiguredSource(active: !provider.GetRequiredService<IOptions<PostgresModuleOptions>>().Value.ProvisionPerBrain));
         services.AddSingleton<ICapacityProvisioner>(provider =>
-            provider.GetRequiredService<IConfiguration>()[PostgresCapacityKind.AdminConnectionKey] is { } admin
-                ? new DockerPostgresProvisioner(admin)
+            provider.GetRequiredService<IOptions<PostgresModuleOptions>>().Value.ProvisionPerBrain
+                ? new DockerPostgresProvisioner(provider.GetRequiredService<IModuleIntegrations<PostgresModule>>().Get("postgres"))
                 : new InactivePostgresProvisioner());
-        services.TryAddSingleton<IPostgresProvider, PostgresProvider>();
+        services.TryAddSingleton<IPostgresProvider, IntegrationPostgresProvider>();
         services.TryAddSingleton<IPostgresTableProvider, PostgresTableProvider>();
         services.AddLiveTables();
         services.TryAddKeyedSingleton<ILiveTableSource>("postgres", (provider, _) =>
-            LiveTableHosting.CreatePostgresSource(provider.GetRequiredKeyedService<NpgsqlDataSource>(DataSourceKey)));
+            new PostgresIntegrationLiveSource(provider.GetRequiredService<IPostgresSourceRegistry>(), PostgresCapacityKind.PlatformOrigin));
         services.TryAddKeyedSingleton<ILiveTableSource>(KeyedService.AnyKey, (provider, key) =>
             key is string name && name.StartsWith(PostgresAppResources.SourcePrefix, StringComparison.Ordinal) ? new PostgresAppLiveSource(
                 () => provider.GetRequiredService<PostgresAppResources>().Resolve((string)key!, CancellationToken.None),
-                origin => LiveTableHosting.CreatePostgresSource(provider.GetRequiredService<IPostgresSourceRegistry>().Get(origin)))
+                origin => new PostgresIntegrationLiveSource(provider.GetRequiredService<IPostgresSourceRegistry>(), origin))
                 : throw new DigitalBrain.Supabase.Tables.SupabaseTableSourceException("The requested table source is not configured."));
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAgentToolFactory, PostgresTools>());
         services.AddHealthChecks().AddCheck<PostgresHealthCheck>("postgres", tags: ["ready"]);
         return silo;
-    }
-
-    private static bool IsConnectionValid(string? connection)
-    {
-        if (string.IsNullOrWhiteSpace(connection)) { return false; }
-        try { _ = PostgresConnectionSettings.Parse(connection); return true; }
-        catch (InvalidOperationException) { return false; }
     }
 
     private sealed class PostgresRegistration;

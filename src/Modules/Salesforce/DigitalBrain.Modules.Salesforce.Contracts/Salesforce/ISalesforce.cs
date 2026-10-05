@@ -7,7 +7,7 @@ namespace DigitalBrain.Salesforce;
 public interface ISalesforce : INeuron
 {
     // Redeems a one-use login nonce; the instance URL must be HTTPS.
-    Task<SalesforceConnection> Connect(ConnectSalesforceAccount account);
+    Task<SalesforceConnection> Connect(ConnectSalesforceConnection account);
 
     // Requires a stored refresh token; a refused grant clears the connection.
     Task<SalesforceConnection> Refresh(RefreshSalesforceConnection command);

@@ -37,6 +37,7 @@ public static class ModuleTest
             host.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 [DigitalBrainNames.MasterKeyConfigurationKey] = masterKey,
+                [DigitalBrain.Framework.Platform.Integrations.IntegrationSchema.Key("csharp", "RunTokenKey")] = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)),
                 [Platform.Identity.Configuration.AuthOptions.PostureKey] = nameof(Platform.Identity.Configuration.IdentityPosture.Open),
             });
             foreach (var definition in modules)

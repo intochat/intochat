@@ -54,6 +54,19 @@ public sealed class AspireTestSession : IAsyncDisposable
             declareTopology, options, cancellationToken);
     }
 
+    internal static void AllocateProjectHttpPorts(IEnumerable<IResource> resources)
+    {
+        foreach (var project in resources.OfType<ProjectResource>())
+        {
+            foreach (var endpoint in project.Annotations.OfType<EndpointAnnotation>().Where(e => e.UriScheme is "http" or "https"))
+            {
+                endpoint.Port = null;
+                endpoint.TargetPort = null;
+                endpoint.IsProxied = false;
+            }
+        }
+    }
+
     private static IDistributedApplicationTestingBuilder CreateModuleBuilder()
     {
         // Aspire discovers its metadata on the caller stack. The build-transitive factory is
@@ -124,6 +137,7 @@ public sealed class AspireTestSession : IAsyncDisposable
                     { context.EnvironmentVariables[DigitalBrainConfiguration.EnvironmentName(key)] = value!; }
                 }));
             }
+            AllocateProjectHttpPorts(builder.Resources);
             foreach (var resource in hosts)
             {
                 if (privateSettings is not null)

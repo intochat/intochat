@@ -10,15 +10,15 @@ internal interface ILlmProviderFactory
 {
     AiProvider Provider { get; }
 
-    bool IsConfigured(AIOptions configuration, IAiCredentials credentials);
+    Task<bool> IsConfigured(AIOptions configuration, IAiCredentials credentials, CancellationToken cancellationToken = default);
 
-    IChatClient CreateChatClient(LLMModel model, AIOptions configuration, IAiCredentials credentials);
+    Task<IChatClient> CreateChatClient(LLMModel model, AIOptions configuration, IAiCredentials credentials, CancellationToken cancellationToken = default);
 
     // The endpoint pins one client to a resolved model's endpoint; without it a hosted provider uses its registration.
-    IChatClient CreateChatClient(string model, AIOptions configuration, IAiCredentials credentials, string? endpoint = null);
+    Task<IChatClient> CreateChatClient(string model, AIOptions configuration, IAiCredentials credentials, string? endpoint = null, CancellationToken cancellationToken = default);
 
-    IEmbeddingGenerator<string, Embedding<float>> CreateEmbeddingGenerator(
+    Task<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGenerator(
         EmbeddingModel model,
         AIOptions configuration,
-        IAiCredentials credentials);
+        IAiCredentials credentials, CancellationToken cancellationToken = default);
 }

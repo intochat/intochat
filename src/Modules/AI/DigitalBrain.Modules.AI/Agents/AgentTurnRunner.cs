@@ -103,7 +103,7 @@ public sealed class AgentTurnRunner(IServiceProvider services) : IAgentTurnRunne
             var configured = configuration is not null && (configuration.Default.Profile is not null
                 || configuration.Default.Model is not null || configuration.Default.Provider is not null
                 || configuration.Ollama.Endpoint is not null
-                || AiIntegrations.KeyedProviders.Any(provider => services.GetRequiredService<IAiCredentials>().IsReady(AiIntegrations.IdOf(provider))));
+                || (await Task.WhenAll(AiIntegrations.KeyedProviders.Select(provider => services.GetRequiredService<IAiCredentials>().IsReady(AiIntegrations.IdOf(provider), ct)))).Any(ready => ready));
             IChatClient client;
             bool owned;
             ChatOptions options;
@@ -120,13 +120,13 @@ public sealed class AgentTurnRunner(IServiceProvider services) : IAgentTurnRunne
                         MaxOutputTokens = request.Options.MaxOutputTokens ?? selection?.MaxOutputTokens
                     };
                 }
-                var resolved = profiles.Resolve(selection, requiresTools: tools.Count > 0);
+                var resolved = await profiles.Resolve(selection, requiresTools: tools.Count > 0, cancellationToken: ct);
                 descriptor = services.GetRequiredService<InferenceService>().DescribeResolved(resolved);
                 InferenceMapping.ValidateRequest(new InferenceRequest(
                     [.. request.Messages ?? [], request.Input ?? new AiMessage("user", [new AiText(request.Message)])],
                     selection, request.Options), descriptor);
                 options = InferenceMapping.CreateOptions(resolved, request.Options is null ? null : request.Options with { Reasoning = null }, descriptor);
-                client = profiles.CreateInferenceClient(resolved);
+                client = await profiles.CreateInferenceClient(resolved, ct);
                 owned = true;
                 await WriteObserved(events, new AgentTurnEvent.ModelSelected(resolved, descriptor), ct).ConfigureAwait(false);
             }

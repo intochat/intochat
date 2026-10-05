@@ -9,9 +9,9 @@ using Microsoft.Extensions.Logging;
 namespace DigitalBrain.Platform.Integrations.Accounts;
 
 // Resolves only for this operation; the caller never receives credential bytes or an elevated stamp.
-internal sealed class ConnectionCredentialProbe(IGrainFactory grains, IAccountProbe probe, ILogger<ConnectionCredentialProbe> logger)
+internal sealed class ConnectionCredentialProbe(IGrainFactory grains, IConnectionProbe probe, ILogger<ConnectionCredentialProbe> logger)
 {
-    public async Task<AccountProbeResult> ProbeAsync(string source, SecretRef credential, CallerContext actor, CancellationToken ct)
+    public async Task<ConnectionProbeResult> ProbeAsync(string source, SecretRef credential, CallerContext actor, CancellationToken ct)
     {
         if (actor.Kind == CallerKind.App || credential.OwnerOf() != actor.PrincipalId)
         { throw new UnauthorizedAccessException("Only the credential owner can request a connection probe."); }
@@ -20,12 +20,12 @@ internal sealed class ConnectionCredentialProbe(IGrainFactory grains, IAccountPr
         try
         {
             value = await grains.GetGrain<ISecrets>(credential.OwnerOf()).Resolve(actor with
-            { Kind = CallerKind.Platform, StampedBy = TrustedEdge.Platform, AppId = AccountNames.NeuronType }, credential, ct);
+            { Kind = CallerKind.Platform, StampedBy = TrustedEdge.Platform, AppId = ConnectionNames.NeuronType }, credential, ct);
         }
         catch (Exception) when (!ct.IsCancellationRequested)
-        { return AccountProbeResult.Failing("The stored credential could not be resolved."); }
+        { return ConnectionProbeResult.Failing("The stored credential could not be resolved."); }
         try { return await probe.ProbeAsync(source, value, ct); }
         catch (Exception) when (!ct.IsCancellationRequested)
-        { return AccountProbeResult.Failing("The read-only probe failed."); }
+        { return ConnectionProbeResult.Failing("The read-only probe failed."); }
     }
 }

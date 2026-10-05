@@ -4,6 +4,7 @@
     <Description>Tests against a brain in a real process: Aspire-managed storage, real HTTP, and a browser when a module runs a frontend.</Description>
     <DisableMSBuildAssemblyCopyCheck>true</DisableMSBuildAssemblyCopyCheck>
   </PropertyGroup>
+  <ItemGroup><InternalsVisibleTo Include="DigitalBrain.Platform.Tests.E2E" /></ItemGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Aspire.Hosting.Testing" />

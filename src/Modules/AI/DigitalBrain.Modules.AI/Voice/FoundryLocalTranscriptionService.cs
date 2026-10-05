@@ -49,6 +49,7 @@ public sealed class FoundryLocalTranscriptionService :
     }
 
     public bool IsReady { get; private set; }
+    public Task<bool> IsReadyAsync(CancellationToken cancellationToken = default) => Task.FromResult(IsReady);
     public bool InitializationFailed { get; private set; }
     public string? ErrorMessage { get; private set; }
     public string ModelId => _cpuFallbackVariant?.Id ?? _model?.Id ?? "unconfigured";

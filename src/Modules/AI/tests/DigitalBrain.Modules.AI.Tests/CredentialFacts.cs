@@ -24,13 +24,13 @@ public sealed class CredentialFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithRegistrations().WithModule<AIModule>().StartAsync(ct);
 
-        var catalogRow = await brain.Get<IIntegrationRegistration>("integration/openai").Read();
+        var catalogRow = await brain.Get<IIntegration>("integration/openai").Read();
         var factory = new OpenAIProviderFactory();
         var credentials = brain.SiloServices.GetRequiredService<IAiCredentials>();
         var unavailable = await Assert.ThrowsAsync<ProviderUnavailableException>(() => brain.Get<IGpt56Sol>("unregistered").Describe());
 
-        Assert.Equal(RegistrationStatus.Unconfigured, catalogRow.Status);
-        Assert.False(factory.IsConfigured(new AIOptions(), credentials));
+        Assert.Equal(IntegrationStatus.Unconfigured, catalogRow.Status);
+        Assert.False(await factory.IsConfigured(new AIOptions(), credentials, ct));
         Assert.Equal("openai", unavailable.Integration);
         Assert.Equal("Unconfigured", unavailable.Status);
         Assert.Equal(["ApiKey"], unavailable.Missing);
@@ -51,15 +51,15 @@ public sealed class CredentialFacts
                 options.Default.Model = "test-model";
                 options.Default.Capabilities = LlmCapabilities.Tools;
             })).StartAsync(ct);
-        var registration = brain.Get<IIntegrationRegistration>("integration/openai");
-        await using var changes = await brain.Observe<RegistrationChanged>(registration, ct);
+        var registration = brain.Get<IIntegration>("integration/openai");
+        await using var changes = await brain.Observe<IntegrationChanged>(registration, ct);
 
         var seen = ReplyOnceCapturingKey(provider, ct);
         await brain.Get<ILLM>("default").Generate(new([new("user", [new AiText("hi")])]), cancellationToken: ct);
 
         Assert.Equal("Bearer " + Canary, await seen);
         var snapshot = await registration.Read();
-        Assert.Equal(RegistrationStatus.Ready, snapshot.Status);
+        Assert.Equal(IntegrationStatus.Ready, snapshot.Status);
         Assert.DoesNotContain(Canary, JsonSerializer.Serialize(snapshot));
         Assert.DoesNotContain(Canary, JsonSerializer.Serialize(await registration.Configure(new() { Values = { ["Endpoint"] = provider.Url } })));
         Assert.DoesNotContain(Canary, JsonSerializer.Serialize(await changes.NextAsync(ct: ct)));
@@ -73,21 +73,41 @@ public sealed class CredentialFacts
         await using var brain = await ModuleTest.Create()
             .WithRegistrations(new TestExecutionOptions
             {
-                PrivateConfiguration = new Dictionary<string, string?> { [IntegrationDefinition.Key("openai", "ApiKey")] = Canary },
+                PrivateConfiguration = new Dictionary<string, string?> { [IntegrationSchema.Key("openai", "ApiKey")] = Canary },
             })
             .WithModule<AIModule>().StartAsync(ct);
 
-        var snapshot = await brain.Get<IIntegrationRegistration>("integration/openai").Read();
+        var snapshot = await brain.Get<IIntegration>("integration/openai").Read();
         var credentials = brain.SiloServices.GetRequiredService<IAiCredentials>();
-        using var client = new OpenAIProviderFactory().CreateChatClient("test-model", new AIOptions(), credentials);
+        using var client = await new OpenAIProviderFactory().CreateChatClient("test-model", new AIOptions(), credentials, cancellationToken: ct);
 
-        Assert.Equal(RegistrationStatus.Ready, snapshot.Status);
+        Assert.Equal(IntegrationStatus.Ready, snapshot.Status);
         Assert.DoesNotContain("Endpoint", snapshot.Settings.Keys);
         Assert.Equal(AiIntegrations.DefaultEndpointOf(AiProvider.OpenAI), ((ChatClientMetadata)client.GetService(typeof(ChatClientMetadata))!).ProviderUri!.ToString());
     }
 
     [Fact]
-    public async Task AClearedOrRotatedRegistrationTakesEffectOnTheLiveClientWithoutARestart()
+    public async Task ANewClientUsesTheCurrentEndpointAndKeyDespiteCachedReadiness()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var oldProvider = new LoopbackServer();
+        using var newProvider = new LoopbackServer();
+        await using var brain = await ModuleTest.Create().WithRegistrations(AiRegistrationSeeds.OpenAI(Canary, oldProvider.Url)).WithModule<AIModule>().StartAsync(ct);
+        var credentials = brain.SiloServices.GetRequiredService<IAiCredentials>();
+        await credentials.StatusOf("openai", ct);
+        await brain.Get<IIntegration>("integration/openai").Configure(new() { Values = { ["ApiKey"] = "rotated-key", ["Endpoint"] = newProvider.Url } });
+        using var client = await new OpenAIProviderFactory().CreateChatClient("test-model", new AIOptions(), credentials, cancellationToken: ct);
+        Assert.Equal(new Uri(newProvider.Url), ((ChatClientMetadata)client.GetService(typeof(ChatClientMetadata))!).ProviderUri);
+        var seen = ReplyOnceCapturingKey(newProvider, ct);
+        await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hi")], cancellationToken: ct);
+        Assert.Equal("Bearer rotated-key", await seen);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task AClearedOrRotatedRegistrationTakesEffectOnTheLiveClientWithoutARestart(int defaultMode)
     {
         var ct = TestContext.Current.CancellationToken;
         const string Rotated = "canary-rotated-key-2c9e4d";
@@ -96,9 +116,15 @@ public sealed class CredentialFacts
         await using var brain = await ModuleTest.Create()
             .WithRegistrations(AiRegistrationSeeds.OpenAI(Canary, provider.Url))
             .WithModule<AIModule>()
-            .ConfigureSilo(silo => silo.Services.AddSingleton<TimeProvider>(clock)).StartAsync(ct);
-        var registration = brain.Get<IIntegrationRegistration>("integration/openai");
-        var client = brain.SiloServices.GetRequiredKeyedService<IChatClient>(typeof(IGpt56Sol));
+            .ConfigureSilo(silo =>
+            {
+                silo.Services.AddSingleton<TimeProvider>(clock);
+                silo.Services.Configure<AIOptions>(options => { options.Default.Provider = "OpenAI"; options.Default.Model = "test-model";
+                    if (defaultMode == 2) { options.Default.Profile = "pinned"; options.ModelProfiles["pinned"] = new() { Provider = "OpenAI", Model = "test-model" }; }
+                });
+            }).StartAsync(ct);
+        var registration = brain.Get<IIntegration>("integration/openai");
+        var client = defaultMode != 0 ? brain.SiloServices.GetRequiredService<IChatClient>() : brain.SiloServices.GetRequiredKeyedService<IChatClient>(typeof(IGpt56Sol));
         var hi = new[] { new ChatMessage(ChatRole.User, "hi") };
 
         var first = ReplyOnceCapturingKey(provider, ct);
@@ -128,17 +154,17 @@ public sealed class CredentialFacts
             .ConfigureSilo(silo => silo.Services.AddSingleton<TimeProvider>(clock)).StartAsync(ct);
         var credentials = brain.SiloServices.GetRequiredService<IAiCredentials>();
 
-        var seeded = credentials.GenerationOf("openai");
+        var seeded = await credentials.GenerationOf("openai", ct);
         clock.Advance(TimeSpan.FromSeconds(6));
-        var refreshed = credentials.GenerationOf("openai");
+        var refreshed = await credentials.GenerationOf("openai", ct);
         clock.Advance(TimeSpan.FromSeconds(6));
-        var refreshedAgain = credentials.GenerationOf("openai");
-        await brain.Get<IIntegrationRegistration>("integration/openai").Configure(new() { Values = { ["ApiKey"] = "canary-rotated-in-place" } });
+        var refreshedAgain = await credentials.GenerationOf("openai", ct);
+        await brain.Get<IIntegration>("integration/openai").Configure(new() { Values = { ["ApiKey"] = "canary-rotated-in-place" } });
         clock.Advance(TimeSpan.FromSeconds(6));
 
         Assert.Equal(seeded, refreshed);
         Assert.Equal(seeded, refreshedAgain);
-        Assert.NotEqual(seeded, credentials.GenerationOf("openai"));
+        Assert.NotEqual(seeded, await credentials.GenerationOf("openai", ct));
     }
 
     [Fact]
@@ -162,7 +188,7 @@ public sealed class CredentialFacts
                     options.Default.Capabilities = LlmCapabilities.Tools;
                 });
             }).StartAsync(ct);
-        var registration = brain.Get<IIntegrationRegistration>("integration/openai");
+        var registration = brain.Get<IIntegration>("integration/openai");
 
         var refused = ReplyOnceCapturingKey(provider, ct, HttpStatusCode.Unauthorized);
         var failure = await Assert.ThrowsAnyAsync<Exception>(() => brain.Get<ILLM>("default").Generate(new([new("user", [new AiText("hi")])]), cancellationToken: ct));

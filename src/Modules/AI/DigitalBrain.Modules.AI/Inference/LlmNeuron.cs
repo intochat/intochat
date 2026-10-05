@@ -9,7 +9,7 @@ public abstract class LlmNeuronBase(InferenceService inference, Type? marker = n
     public override DigitalBrain.Framework.Enforcement.NeuronAccess Access(string operation)
         => new(DigitalBrain.Framework.Enforcement.BrainScope.CurrentId());
     public Task<ModelDescriptor> Describe(AgentModelSelection? selection = null)
-        => Task.FromResult(inference.Describe(Selection(selection), marker));
+        => inference.Describe(Selection(selection), marker);
     public async Task<InferenceResult> Generate(InferenceRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);

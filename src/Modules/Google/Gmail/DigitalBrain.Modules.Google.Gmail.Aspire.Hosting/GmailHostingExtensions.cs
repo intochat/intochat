@@ -36,7 +36,7 @@ public static class GmailHostingExtensions
         DigitalBrainBuilder brain,
         IResourceBuilder<DigitalBrainModuleResource> module) : DigitalBrainModuleProjection
     {
-        private const string Root = IntegrationDefinition.SectionName + ":gmail";
+        private const string Root = IntegrationSchema.SectionName + ":google-oauth";
 
         private bool _enabled;
         private Uri? _publicOrigin;
@@ -60,13 +60,13 @@ public static class GmailHostingExtensions
             _clientId ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("gmail-client-id"))
                 .WithDescription(
                     "OAuth client ID for a Google web client configured for the [Gmail MCP server](https://developers.google.com/workspace/gmail/api/guides/configure-mcp-server). "
-                    + "Register <your deployment origin>/integrations/gmail/callback. Only the kernel receives this value.",
+                    + "Register <your deployment origin>/google/gmail/oauth/callback. This value provisions the Google OAuth Integration.",
                     enableMarkdown: true)
                 .WithParentRelationship(module);
             _clientSecret ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("gmail-client-secret"), secret: true)
                 .WithDescription(
                     "OAuth client secret for the same Google web client configured for the [Gmail MCP server](https://developers.google.com/workspace/gmail/api/guides/configure-mcp-server). "
-                    + "Only the kernel receives this secret; Gmail sign-in happens in your browser when the assistant needs access.",
+                    + "This secret provisions the Google OAuth Integration; named Gmail connections authorize in your browser.",
                     enableMarkdown: true)
                 .WithParentRelationship(module);
 
@@ -75,11 +75,11 @@ public static class GmailHostingExtensions
                 .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(Root, "ClientSecret"), _clientSecret);
             if (_publicOrigin is { } origin)
             {
-                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(Root, "PublicOrigin"), origin.AbsoluteUri);
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ModuleOptionsSection("gmail"), "PublicOrigin"), origin.AbsoluteUri);
             }
             else
             {
-                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(Root, "PublicOrigin"), builder.GetEndpoint("http"));
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ModuleOptionsSection("gmail"), "PublicOrigin"), builder.GetEndpoint("http"));
             }
         }
     }

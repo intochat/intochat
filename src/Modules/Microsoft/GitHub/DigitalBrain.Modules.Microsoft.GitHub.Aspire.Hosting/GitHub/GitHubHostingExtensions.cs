@@ -81,7 +81,7 @@ public static class GitHubHostingExtensions
         {
             var microsoft = brain.GetOrAddModuleNode("github");
             _privateKey ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName($"github-{id}-app-private-key"), secret: true)
-                .WithDescription("PEM private key for the configured GitHub App. Only the kernel receives this secret.")
+                .WithDescription("PEM private key for the configured GitHub App. Only the host receives this secret.")
                 .WithParentRelationship(microsoft);
             _webhookSecret ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName($"github-{id}-webhook-secret"), secret: true)
                 .WithDescription("GitHub webhook HMAC secret (at least 16 characters). Forward only /integrations/github/webhook through HTTPS.")
@@ -93,15 +93,14 @@ public static class GitHubHostingExtensions
                 .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "RepositoryId"), repositoryId.ToString(System.Globalization.CultureInfo.InvariantCulture))
                 .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "RepoOwner"), repoOwner)
                 .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "RepoName"), repoName)
-                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "EndpointId"), endpointId)
-                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "PrivateKeyPem"), _privateKey)
-                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "WebhookSecret"), _webhookSecret);
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "EndpointId"), endpointId);
             if (SeedsIntegration)
             {
-                const string integrationRoot = IntegrationDefinition.SectionName + ":github";
+                const string integrationRoot = IntegrationSchema.SectionName + ":github";
                 builder
                     .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(integrationRoot, "AppId"), appId.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                    .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(integrationRoot, "PrivateKeyPem"), _privateKey);
+                    .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(integrationRoot, "PrivateKeyPem"), _privateKey)
+                    .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(integrationRoot, "WebhookSecret"), _webhookSecret);
             }
             if (apiHost is not null)
             {

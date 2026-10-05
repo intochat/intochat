@@ -22,7 +22,7 @@ internal sealed class SalesforceNeuron(
     private const int MaxWriteArgumentsBytes = 24 * 1024;
     private static readonly JsonSerializerOptions ArgumentJson = new(JsonSerializerDefaults.Web);
 
-    public async Task<SalesforceConnection> Connect(ConnectSalesforceAccount account)
+    public async Task<SalesforceConnection> Connect(ConnectSalesforceConnection account)
     {
         ArgumentNullException.ThrowIfNull(account);
         if (!Uri.TryCreate(account.InstanceUrl, UriKind.Absolute, out var instanceUrl) || instanceUrl.Scheme != Uri.UriSchemeHttps)

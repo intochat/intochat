@@ -653,7 +653,7 @@
     "RequestHash": 1,
     "Result": 2
   },
-  "DigitalBrain.Apps.PackageAccount": {
+  "DigitalBrain.Apps.PackageConnection": {
     "Name": 0,
     "Source": 1,
     "Description": 2
@@ -1847,38 +1847,41 @@
     "DisplayName": 4,
     "JoinedAt": 5
   },
-  "DigitalBrain.Framework.Platform.Integrations.Accounts.AccountDisconnected": {},
-  "DigitalBrain.Framework.Platform.Integrations.Accounts.AccountNotConfiguredException": {},
-  "DigitalBrain.Framework.Platform.Integrations.Accounts.AccountProbeResult": {},
-  "DigitalBrain.Framework.Platform.Integrations.Accounts.AccountStatusChanged": {},
-  "DigitalBrain.Framework.Platform.Integrations.Accounts.ConnectAccount": {
+  "DigitalBrain.Framework.Platform.Integrations.Accounts.ConnectConnection": {
     "IntegrationId": 0,
     "ConnectionId": 1,
     "Label": 2,
     "Value": 3,
-    "SecretReference": 4
+    "SecretReference": 4,
+    "AuthMethodId": 5
   },
-  "DigitalBrain.Framework.Platform.Integrations.Accounts.IntegrationAccount": {
+  "DigitalBrain.Framework.Platform.Integrations.Accounts.Connection": {
     "Id": 0,
     "IntegrationId": 1,
     "WorkspaceId": 2,
     "Credential": 3,
     "Status": 4,
-    "LastProbedAt": 5
+    "LastProbedAt": 5,
+    "AuthMethodId": 6
   },
-  "DigitalBrain.Framework.Platform.Integrations.ConfigureRegistration": {
+  "DigitalBrain.Framework.Platform.Integrations.Accounts.ConnectionDisconnected": {},
+  "DigitalBrain.Framework.Platform.Integrations.Accounts.ConnectionNotConfiguredException": {},
+  "DigitalBrain.Framework.Platform.Integrations.Accounts.ConnectionProbeResult": {},
+  "DigitalBrain.Framework.Platform.Integrations.Accounts.ConnectionStatusChanged": {},
+  "DigitalBrain.Framework.Platform.Integrations.ConfigureIntegration": {
     "Values": 0
   },
-  "DigitalBrain.Framework.Platform.Integrations.RegistrationChanged": {},
-  "DigitalBrain.Framework.Platform.Integrations.RegistrationSnapshot": {
+  "DigitalBrain.Framework.Platform.Integrations.IntegrationChanged": {},
+  "DigitalBrain.Framework.Platform.Integrations.IntegrationSnapshot": {
     "IntegrationId": 0,
     "Status": 1,
     "MissingFields": 2,
     "Settings": 3,
     "Revision": 4
   },
-  "DigitalBrain.Framework.Platform.Integrations.ReleasedRegistration": {
-    "Values": 0
+  "DigitalBrain.Framework.Platform.Integrations.ReleasedIntegration": {
+    "Values": 0,
+    "Snapshot": 1
   },
   "DigitalBrain.Google.Gmail.GmailConnected": {
     "EmailAddress": 0
@@ -1899,6 +1902,9 @@
     "Body": 6,
     "ExpiresAt": 7,
     "DraftId": 8
+  },
+  "DigitalBrain.Google.Gmail.GmailMailboxIndexState": {
+    "Connections": 0
   },
   "DigitalBrain.Google.Gmail.GmailNotConnectedException": {},
   "DigitalBrain.Google.Gmail.GmailState": {
@@ -1924,15 +1930,15 @@
     "EmailAddress": 0,
     "HistoryId": 1
   },
-  "DigitalBrain.Integrations.AccountRef": {
+  "DigitalBrain.Integrations.ConnectionRef": {
     "Kind": 0,
     "Id": 1
   },
-  "DigitalBrain.Integrations.AccountRequested": {
+  "DigitalBrain.Integrations.ConnectionRequested": {
     "Kind": 0,
     "Id": 1
   },
-  "DigitalBrain.Integrations.IntegrationKind": {
+  "DigitalBrain.Integrations.ConnectorKind": {
     "Id": 0,
     "DisplayName": 1
   },
@@ -2226,13 +2232,13 @@
     "Grants": 0,
     "Sealed": 1
   },
-  "DigitalBrain.Platform.Integrations.Accounts.IntegrationAccountsState": {
-    "Connections": 0
-  },
-  "DigitalBrain.Platform.Integrations.Accounts.ScriptAccountsState": {
+  "DigitalBrain.Platform.Integrations.Accounts.ConnectionRequestsState": {
     "Pending": 0
   },
-  "DigitalBrain.Platform.Integrations.RegistrationState": {
+  "DigitalBrain.Platform.Integrations.Accounts.ConnectionsState": {
+    "Connections": 0
+  },
+  "DigitalBrain.Platform.Integrations.IntegrationState": {
     "References": 0,
     "Settings": 1,
     "Revision": 2
@@ -2386,7 +2392,7 @@
     "PreviewId": 0,
     "ToolSchemaHash": 1
   },
-  "DigitalBrain.Salesforce.ConnectSalesforceAccount": {
+  "DigitalBrain.Salesforce.ConnectSalesforceConnection": {
     "InstanceUrl": 0,
     "ExpiresInSeconds": 1,
     "Nonce": 2,

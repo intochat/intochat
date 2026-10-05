@@ -14,6 +14,7 @@ public sealed class AssistantNeuronUiFacts(ReferenceBrainFixture host) : BrainFa
         var ct = TestContext.Current.CancellationToken;
         var model = Model;
         var brain = Brain;
+        await UserConnections.AuthorizeSupabaseAsync(brain, "neuron-ui", ct);
         await LeadData.SeedAsync(brain, "Neuron UI", ct);
         async Task<JsonElement> Open()
         {

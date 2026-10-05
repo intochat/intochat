@@ -7,21 +7,24 @@ namespace DigitalBrain.AI;
 // operator-owned endpoints. Provider credentials remain entirely server-owned.
 public sealed class AgentModelCatalog(ModelProfiles profiles, IOptionsMonitor<AIOptions> options, string? defaultModel)
 {
-    public ModelCatalog Read()
+    public async Task<ModelCatalog> Read()
     {
-        var automatic = Resolve(Default());
-        return new(Describe(null, "Automatic (workspace default)", automatic),
-            Choices().Select(choice => (choice, resolved: Resolve(choice.Selection)))
-                .Where(item => item.resolved is not null)
-                .Select(item => Describe(item.choice.Id, item.choice.Label, item.resolved)).ToArray());
+        var automatic = await Resolve(Default());
+        var choices = new List<ModelChoice>();
+        foreach (var choice in Choices())
+        {
+            var resolved = await Resolve(choice.Selection);
+            if (resolved is not null) { choices.Add(Describe(choice.Id, choice.Label, resolved)); }
+        }
+        return new(Describe(null, "Automatic (workspace default)", automatic), choices.ToArray());
     }
 
-    public AgentModelSelection? Select(string? id)
+    public async Task<AgentModelSelection?> Select(string? id)
     {
         var selection = id is null ? Default()
             : Choices().FirstOrDefault(choice => string.Equals(choice.Id, id, StringComparison.Ordinal))?.Selection
                 ?? throw new ArgumentException("The selected model is unavailable. Choose a model from Settings.");
-        try { profiles.Resolve(selection, requiresTools: true); }
+        try { await profiles.Resolve(selection, requiresTools: true); }
         catch (ProviderUnavailableException) { throw; }
         catch (Exception error) when (error is ArgumentException or InvalidOperationException or NotSupportedException)
         { throw new ArgumentException("The selected model is unavailable or does not support assistant tools. Choose a model from Settings."); }
@@ -45,9 +48,9 @@ public sealed class AgentModelCatalog(ModelProfiles profiles, IOptionsMonitor<AI
         }
     }
 
-    private ResolvedAgentModel? Resolve(AgentModelSelection? selection)
+    private async Task<ResolvedAgentModel?> Resolve(AgentModelSelection? selection)
     {
-        try { return profiles.Resolve(selection, requiresTools: true); }
+        try { return await profiles.Resolve(selection, requiresTools: true); }
         catch (Exception error) when (error is ArgumentException or InvalidOperationException or NotSupportedException)
         { return null; }
     }

@@ -8,10 +8,10 @@ internal abstract class OpenAICompatibleProviderFactory : ApiKeyProviderFactory
 {
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromMinutes(5);
 
-    public override IChatClient CreateChatClient(string model, AIOptions configuration, IAiCredentials credentials, string? endpoint = null)
+    public override async Task<IChatClient> CreateChatClient(string model, AIOptions configuration, IAiCredentials credentials, string? endpoint = null, CancellationToken cancellationToken = default)
     {
         var builder = new ChatClientBuilder(
-            CreateClient(configuration, credentials, endpoint).GetChatClient(model).AsIChatClient());
+            (await CreateClient(configuration, credentials, endpoint, cancellationToken)).GetChatClient(model).AsIChatClient());
 
         if (Provider is AiProvider.OpenAI && model.StartsWith("gpt-5.6", StringComparison.OrdinalIgnoreCase))
         {
@@ -32,15 +32,16 @@ internal abstract class OpenAICompatibleProviderFactory : ApiKeyProviderFactory
             .Build();
     }
 
-    public override IEmbeddingGenerator<string, Embedding<float>> CreateEmbeddingGenerator(
+    public override async Task<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGenerator(
         EmbeddingModel model,
         AIOptions configuration,
-        IAiCredentials credentials)
-        => CreateClient(configuration, credentials, null).GetEmbeddingClient(model.Id).AsIEmbeddingGenerator();
+        IAiCredentials credentials, CancellationToken cancellationToken = default)
+        => (await CreateClient(configuration, credentials, null, cancellationToken)).GetEmbeddingClient(model.Id).AsIEmbeddingGenerator();
 
-    private OpenAIClient CreateClient(AIOptions configuration, IAiCredentials credentials, string? pinnedEndpoint)
+    private async Task<OpenAIClient> CreateClient(AIOptions configuration, IAiCredentials credentials, string? pinnedEndpoint, CancellationToken cancellationToken)
     {
-        var options = new OpenAIClientOptions { NetworkTimeout = RequestTimeout, Endpoint = EndpointOf(configuration, credentials, pinnedEndpoint) };
-        return new OpenAIClient(new ApiKeyCredential(ReleaseApiKey(credentials)), options);
+        var material = await credentials.MaterializeAsync(IntegrationId, cancellationToken).ConfigureAwait(false);
+        var options = new OpenAIClientOptions { NetworkTimeout = RequestTimeout, Endpoint = EndpointOf(configuration, material.Snapshot, pinnedEndpoint) };
+        return new OpenAIClient(new ApiKeyCredential(material.Values[AiIntegrations.ApiKeyField]), options);
     }
 }

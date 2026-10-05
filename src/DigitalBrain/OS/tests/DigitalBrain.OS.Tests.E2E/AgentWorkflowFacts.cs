@@ -23,6 +23,7 @@ public sealed class AgentWorkflowFacts(ReferenceBrainFixture host) : BrainFact(h
         var ct = TestContext.Current.CancellationToken;
         var model = Model;
         var brain = Brain;
+        await UserConnections.AuthorizeSupabaseAsync(brain, "failures", ct);
         await LeadData.SeedAsync(brain, "Beyond first page", ct);
         async Task<string> Ask(string run)
         {
@@ -34,7 +35,10 @@ public sealed class AgentWorkflowFacts(ReferenceBrainFixture host) : BrainFact(h
         Assert.True(emptyStream.Contains("RUN_FINISHED", StringComparison.Ordinal), emptyStream + "\n" + string.Join("\n", model.Errors) + "\n" + string.Join("\n", model.Requests.Select(r => r.GetRawText())));
         var workspace = brain.Get<IWorkspace>(BrainScope.Create("owner", "failures").Id);
         var window = Assert.Single((await workspace.Read()).Windows);
-        Assert.Empty((await brain.Get<DigitalBrain.Supabase.Tables.ISupabaseTable>(window.Reference.NeuronId).Read(new(0, 25)))!.Rows);
+        using (UserConnections.UseBrain(brain, "failures"))
+        {
+            Assert.Empty((await brain.Get<DigitalBrain.Supabase.Tables.ISupabaseTable>(window.Reference.NeuronId).Read(new(0, 25)))!.Rows);
+        }
         model.Sql = "delete from leads";
         var invalid = await Ask("invalid");
         Assert.Contains("RUN_ERROR", invalid);
@@ -59,6 +63,7 @@ public sealed class AgentWorkflowFacts(ReferenceBrainFixture host) : BrainFact(h
         var ct = TestContext.Current.CancellationToken;
         var model = Model;
         var brain = Brain;
+        await UserConnections.AuthorizeSupabaseAsync(brain, "cancel", ct);
         await LeadData.SeedAsync(brain, "Beyond first page", ct);
         model.Delay = TimeSpan.FromMinutes(1);
         var input = new { brainId = "cancel", threadId = "thread", runId = "cancel-run", messages = new[] { new { role = "user", content = "Show leads" } } };
@@ -111,6 +116,7 @@ public sealed class AgentWorkflowFacts(ReferenceBrainFixture host) : BrainFact(h
         await connection.OpenAsync(ct);
         await using var seed = new NpgsqlCommand("DROP TABLE IF EXISTS leads CASCADE; CREATE TABLE leads (id int, company text, email text, active boolean); INSERT INTO leads VALUES (1, 'Real company', 'real@example.test', true)", connection);
         await seed.ExecuteNonQueryAsync(ct);
+        await UserConnections.AuthorizeSupabaseAsync(brain, "agent", ct);
         var input = new { brainId = "agent", threadId = "thread", runId = "run", messages = new[] { new { role = "user", content = "Show active leads" } } };
         using var response = await brain.HttpClient.PostAsJsonAsync("/agent", input, ct);
         var stream = await response.Content.ReadAsStringAsync(ct);

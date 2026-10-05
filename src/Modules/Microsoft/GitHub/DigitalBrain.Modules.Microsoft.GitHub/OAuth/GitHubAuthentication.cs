@@ -14,8 +14,8 @@ internal static class GitHubAuthentication
     internal static void AddGitHubAuthentication(this IServiceCollection services, IConfiguration configuration)
     {
         var definition = GitHubLogins.LoginDefinition;
-        services.AddOptions<GitHubAppOptions>().Bind(configuration.GetSection(GitHubAppOptions.SectionName));
-        services.AddSingleton(services => new GitHubOAuthConfiguration(services.GetRequiredService<IOptions<GitHubAppOptions>>()));
+        services.AddOptions<GitHubModuleOptions>().Bind(configuration.GetSection(GitHubModuleOptions.SectionName));
+        services.AddSingleton<GitHubOAuthConfiguration>();
         services.AddSingleton<GitHubLogins>();
         services.AddSingleton<BrowserLogins>(s => s.GetRequiredService<GitHubLogins>());
         services.AddSingleton<IHttpSurface>(s => new BrowserLoginSurface(s.GetRequiredService<GitHubLogins>()));
@@ -24,11 +24,11 @@ internal static class GitHubAuthentication
             logging.AddFilter(typeof(GitHubOAuthHandler).FullName, LogLevel.None);
             logging.AddFilter("Microsoft.AspNetCore.Authentication.OAuth", LogLevel.None);
         });
-        services.AddAuthentication().AddOAuth<OAuthOptions, GitHubOAuthHandler>(definition.Scheme, _ => { });
-        services.AddOptions<OAuthOptions>(definition.Scheme).Configure<GitHubOAuthConfiguration>((options, settings) =>
+        services.AddAuthentication().AddOAuth<GitHubOAuthHandlerOptions, GitHubOAuthHandler>(definition.Scheme, _ => { });
+        services.AddOptions<GitHubOAuthHandlerOptions>(definition.Scheme).Configure<GitHubOAuthConfiguration>((options, settings) =>
         {
-            options.ClientId = settings.IsConfigured ? settings.ClientId : "not-configured";
-            options.ClientSecret = settings.IsConfigured ? settings.ClientSecret : "not-configured";
+            options.ClientId = "not-configured";
+            options.ClientSecret = "not-configured";
             options.AuthorizationEndpoint = "https://github.com/login/oauth/authorize";
             options.TokenEndpoint = "https://github.com/login/oauth/access_token";
             options.CallbackPath = definition.CallbackPath;
@@ -57,7 +57,7 @@ internal static class GitHubAuthentication
                         ?? throw new GitHubUnavailableException("The repository setup intent is missing.");
                     try
                     {
-                        var access = await GitHubUserAccess.ResolveAsync(context.Backchannel, context.AccessToken, settings.AppId,
+                        var access = await GitHubUserAccess.ResolveAsync(context.Backchannel, context.AccessToken, await settings.ReadAppIdAsync(context.HttpContext.RequestAborted),
                             scope, context.HttpContext.RequestAborted).ConfigureAwait(false);
                         await setup.ConnectAsync(access, context.HttpContext.RequestAborted).ConfigureAwait(false);
                     }

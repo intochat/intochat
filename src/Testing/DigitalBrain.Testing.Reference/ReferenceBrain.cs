@@ -8,6 +8,7 @@ using DigitalBrain.Google.Gmail;
 using DigitalBrain.Microsoft.GitHub;
 using DigitalBrain.Platform.Identity.Configuration;
 using DigitalBrain.Postgres;
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Qdrant;
 using DigitalBrain.Salesforce;
 using DigitalBrain.Supabase;
@@ -52,6 +53,7 @@ public static class ReferenceBrain
                 PrivateConfiguration = Merge(new Dictionary<string, string?>
                 {
                     ["Parameters:modules-openai-api-key"] = modelApiKey,
+                    [IntegrationSchema.Key("csharp", "RunTokenKey")] = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
                     ["Parameters:Modules-digitalbrain-master-key"] = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)),
                     ["Parameters:modules-gmail-client-id"] = "fixture-client",
                     ["Parameters:modules-gmail-client-secret"] = "fixture-secret",

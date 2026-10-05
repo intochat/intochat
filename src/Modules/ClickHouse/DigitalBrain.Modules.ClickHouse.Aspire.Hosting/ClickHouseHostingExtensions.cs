@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Platform.Integrations;
 using System.Globalization;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
@@ -88,7 +89,7 @@ public static class ClickHouseHostingExtensions
 
             // Waiting on the database resource covers server health and the CREATE DATABASE step.
             builder
-                .WithReference(_database, connectionName: "clickhouse")
+                .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("clickhouse", "ConnectionString")), _database.Resource.ConnectionStringExpression)
                 .WithAnnotation(new WaitAnnotation(_database.Resource, WaitType.WaitUntilHealthy, exitCode: 0));
         }
     }

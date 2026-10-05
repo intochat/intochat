@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Platform.Integrations;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Aspire.Hosting;
@@ -10,6 +11,7 @@ public sealed class SupabaseModuleHosting : ModuleHosting<DigitalBrain.Supabase.
     public override void Configure(DigitalBrainBuilder brain)
     {
         var options = brain.GetModuleConfiguration("supabase").GetModuleOptions<SupabaseModuleOptions>("supabase");
+        if (!options.UseBackingStore) { return; }
         var module = new DigitalBrainModuleBuilder<DigitalBrain.Supabase.Aspire.Hosting.SupabaseModuleHosting>(brain);
         if (options.Hosting.Kind == SupabaseHostKind.External)
         {
@@ -18,14 +20,15 @@ public sealed class SupabaseModuleHosting : ModuleHosting<DigitalBrain.Supabase.
         }
         var server = brain.ApplicationBuilder.AddPostgres(brain.ResourceName("supabase-postgres")).WithParentRelationship(module.Resource);
         var database = server.AddDatabase(brain.ResourceName("supabase-database"), options.ConnectionName);
-        brain.AddProjection(new PostgresProjection(database, options.ConnectionName));
+        brain.AddProjection(new PostgresProjection(database));
     }
 
-    private sealed class PostgresProjection(IResourceBuilder<PostgresDatabaseResource> database, string connectionName)
+    private sealed class PostgresProjection(IResourceBuilder<PostgresDatabaseResource> database)
         : DigitalBrainModuleProjection
     {
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
-            => builder.WithReference(database, connectionName)
+            => builder.WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(DigitalBrain.DigitalBrainConfiguration.ModuleOptionsSection("supabase"), nameof(SupabaseModuleOptions.UseBackingStore)), "true")
+                .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("supabase", "ConnectionString")), database.Resource.ConnectionStringExpression)
                 .WithAnnotation(new WaitAnnotation(database.Resource, WaitType.WaitUntilHealthy, exitCode: 0));
     }
 }

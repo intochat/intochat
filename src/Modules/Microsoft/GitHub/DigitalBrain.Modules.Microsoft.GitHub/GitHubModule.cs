@@ -9,9 +9,16 @@ namespace DigitalBrain.Microsoft.GitHub;
 
 public sealed class GitHubModule() : Module<GitHubModuleOptions>(new ModuleId("github"))
 {
-    public static IntegrationDefinition Integration { get; } = IntegrationDefinition.For("github", "GitHub")
+    public static IntegrationSchema Integration { get; } = IntegrationSchema.For("github", "GitHub")
         .RequiresSecret("PrivateKeyPem")
-        .RequiresSetting("AppId");
+        .RequiresSetting("AppId")
+        .OffersSecret("ClientSecret")
+        .OffersSecret("WebhookSecret");
+    public static ConnectorDefinition Connector => new("github", "GitHub", ["app-installation", "oauth"], ["github"])
+    {
+        Neurons = [typeof(IRepository), typeof(IGitHubConnections)],
+        Signals = [typeof(Signals.RepositoryConnected), typeof(Signals.RepositoryRefused), typeof(Signals.RepositoryAccessRevoked), typeof(Signals.PullRequestChanged), typeof(Signals.GitHubConnectionRegistered)],
+    };
 
     public override void Configure(ISiloBuilder builder)
     {

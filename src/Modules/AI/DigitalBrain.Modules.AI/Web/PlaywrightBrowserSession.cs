@@ -385,7 +385,7 @@ public sealed class PlaywrightBrowserSession : IAsyncDisposable
     {
         lock (_disposeLock)
         {
-            return new ValueTask(_disposeTask ??= Task.Run(DisposeCoreAsync));
+            return new ValueTask(_disposeTask ??= DisposeCoreAsync());
         }
     }
 

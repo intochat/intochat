@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Platform.Integrations;
 using System.Text.Json;
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework.Enforcement;
@@ -15,7 +16,7 @@ public sealed class PostgresMigrationFacts
         var legacy = new LegacyTables();
         await using var brain = await ModuleTest.Create().WithModule<PostgresModule>().ConfigureSilo(silo =>
         {
-            silo.Configuration["ConnectionStrings:postgres"] = "Host=localhost;Database=sample;Username=reader";
+            silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=sample;Username=reader";
             silo.Services.AddSingleton<IPostgresLegacyTables>(legacy);
         }).StartAsync(ct);
         CallerContextStamper.Stamp(new() { PrincipalId = "alice", AccountId = "alice", BrainId = "brain", Kind = CallerKind.Platform, StampedBy = TrustedEdge.Platform });

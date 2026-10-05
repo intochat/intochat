@@ -7,14 +7,14 @@ using DigitalBrain.Microsoft.CSharp;
 
 namespace DigitalBrain.OS.Tests.E2E;
 
-// Alice writes a C# app and shares it with one request; the package carries its code and account
-// slots, never Alice's settings, and Bob's install runs it with his own account.
+// Alice writes a C# app and shares it with one request; the package carries its code and connection
+// slots, never Alice's settings, and Bob's install runs it with his own connection.
 public sealed class ShareCSharpFacts(ReferenceBrainFixture host)
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     [Fact(Timeout = 900_000)]
-    public async Task ACSharpAppIsSharedWithoutSettingsAndInstalledWithTheRecipientsAccount()
+    public async Task ACSharpAppIsSharedWithoutSettingsAndInstalledWithTheRecipientsConnection()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await host.LeaseAsync(ct);
@@ -32,7 +32,7 @@ public sealed class ShareCSharpFacts(ReferenceBrainFixture host)
             new { source = GreeterSource, name = "Greeter", purpose = "Greets whoever runs it." }, ct);
         Assert.Equal("Greeter", written.GetProperty("description").GetProperty("name").GetString());
 
-        var share = new { accounts = new[] { new { name = "twitter", source = "twitter", description = "Account to watch" } } };
+        var share = new { accounts = new[] { new { name = "database", source = "supabase", description = "Database to read" } } };
         var shared = await People.Send(alice.Client, HttpMethod.Post, greeter + "/share", share, ct);
         var reshared = await People.Send(alice.Client, HttpMethod.Post, greeter + "/share", share, ct);
 
@@ -46,24 +46,24 @@ public sealed class ShareCSharpFacts(ReferenceBrainFixture host)
         var manifest = revision.GetProperty("content").GetProperty("manifest");
         Assert.Equal("Greeter", manifest.GetProperty("title").GetString());
         Assert.Empty(manifest.GetProperty("settings").EnumerateArray());
-        Assert.Equal("twitter", Assert.Single(manifest.GetProperty("accounts").EnumerateArray()).GetProperty("name").GetString());
+        Assert.Equal("database", Assert.Single(manifest.GetProperty("accounts").EnumerateArray()).GetProperty("name").GetString());
 
         using (var missing = await bob.Client.PostAsJsonAsync($"/brains/{bob.Workspace}/packages/{aliceName}/greeter", new { }, Json, ct))
         { Assert.Equal(HttpStatusCode.BadRequest, missing.StatusCode); }
-        await People.Send(bob.Client, HttpMethod.Post, $"/brains/{bob.Workspace}/integrations/accounts/connect",
-            new { integrationId = "twitter", connectionId = "bob-twitter", value = "test-token" }, ct);
+        await People.Send(bob.Client, HttpMethod.Post, $"/brains/{bob.Workspace}/connections/connect",
+            new { connectorId = "supabase", connectionId = "bob-database", authMethodId = "connection-string", value = await brain.GetConnectionStringAsync("supabase-database", ct) }, ct);
 
         var options = await People.Send(bob.Client, HttpMethod.Get,
             $"/brains/{bob.Workspace}/packages/{aliceName}/greeter/accounts", null, ct);
-        Assert.Equal("bob-twitter", Assert.Single(options.GetProperty("slots").EnumerateArray())
+        Assert.Equal("bob-database", Assert.Single(options.GetProperty("slots").EnumerateArray())
             .GetProperty("accounts").EnumerateArray().Single().GetProperty("id").GetString());
         using (var wrong = await bob.Client.PostAsJsonAsync($"/brains/{bob.Workspace}/packages/{aliceName}/greeter",
-            new { accounts = new { twitter = "alice-twitter" } }, Json, ct))
+            new { accounts = new { database = "alice-database" } }, Json, ct))
         { Assert.Equal(HttpStatusCode.BadRequest, wrong.StatusCode); }
 
         var installed = await People.Send(bob.Client, HttpMethod.Post, $"/brains/{bob.Workspace}/packages/{aliceName}/greeter",
-            new { accounts = new { twitter = "bob-twitter" } }, ct);
-        Assert.Equal("bob-twitter", installed.GetProperty("app").GetProperty("accounts").GetProperty("twitter").GetString());
+            new { accounts = new { database = "bob-database" } }, ct);
+        Assert.Equal("bob-database", installed.GetProperty("app").GetProperty("accounts").GetProperty("database").GetString());
         var file = brain.Get<ICSharpFile>(installed.GetProperty("app").GetProperty("csharpFiles")[0].GetString()!);
         // Direct test-client reads carry the same identity as Bob's authenticated requests.
         CallerContextStamper.Stamp(new CallerContext
@@ -79,7 +79,7 @@ public sealed class ShareCSharpFacts(ReferenceBrainFixture host)
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(TimeSpan.FromMinutes(3));
             string logs;
-            while (!(logs = await file.ReadLogs(200, timeout.Token)).Contains("GREETING:none ACCOUNT:bob-twitter", StringComparison.Ordinal))
+            while (!(logs = await file.ReadLogs(200, timeout.Token)).Contains("GREETING:none ACCOUNT:bob-database", StringComparison.Ordinal))
             {
                 Assert.True((await file.Read(timeout.Token)).Status != CSharpFileStatus.Exited, logs);
                 await Task.Delay(500, timeout.Token);
@@ -91,7 +91,7 @@ public sealed class ShareCSharpFacts(ReferenceBrainFixture host)
 
     private const string GreeterSource = """
         await using var brain = await DigitalBrainClient.ConnectAsync(args);
-        Console.WriteLine($"GREETING:{brain.Setting("Greeting") ?? "none"} ACCOUNT:{brain.Setting("Account__twitter")}");
+        Console.WriteLine($"GREETING:{brain.Setting("Greeting") ?? "none"} ACCOUNT:{brain.Setting("Account__database")}");
         await Task.Delay(Timeout.Infinite, brain.Stopping);
         """;
 }

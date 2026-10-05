@@ -2,13 +2,17 @@ using DigitalBrain;
 
 namespace DigitalBrain.Microsoft.GitHub;
 
-// The declared repositories reach the AppHost's hosting adapter, which projects the repository identity keys and
-// the private key and webhook secret parameters on the module's Repositories configuration path.
+// Repository declarations and public GitHub App metadata contain no credentials.
 public sealed class GitHubModuleOptions : IModuleOptions
 {
-    public static readonly string SectionName = DigitalBrainConfiguration.ModuleSection(new ModuleId("github"));
-    public static readonly string AppSectionName = SectionName + ":App";
+    public static readonly string SectionName = DigitalBrainConfiguration.ModuleOptionsSection(new ModuleId("github"));
     public static readonly string RepositoriesSectionName = SectionName + ":Repositories";
+
+    public long AppId { get; set; }
+    public string ClientId { get; set; } = "";
+    public string Slug { get; set; } = "";
+    public string PublicOrigin { get; set; } = "";
+    public string PublicWebhookUrl { get; set; } = "";
 
     public Dictionary<string, GitHubRepositoryDeclaration> Repositories { get; set; } = new(StringComparer.Ordinal);
 

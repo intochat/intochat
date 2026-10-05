@@ -33,6 +33,7 @@ public sealed class AgentTableJourneyFacts(ReferenceBrainFixture host) : BrainFa
         var page = await OpenPageAsync(ct);
         await page.SetViewportSizeAsync(1600, 1000);
         var projectId = await WorkspaceBrowser.CreateProjectAsync(page, "Agent journey workspace");
+        await UserConnections.AuthorizeSupabaseAsync(brain, projectId, ct);
         await SendAsync(page, "Show active leads from Supabase");
         var window = page.GetByRole(AriaRole.Region, new() { Name = "Active leads", Exact = true });
         await Assertions.Expect(window.GetByText("Company 1", new() { Exact = true })).ToBeVisibleAsync();
@@ -103,6 +104,7 @@ public sealed class AgentTableJourneyFacts(ReferenceBrainFixture host) : BrainFa
         var page = await OpenPageAsync(ct);
         await page.SetViewportSizeAsync(1600, 1000);
         var projectId = await WorkspaceBrowser.CreateProjectAsync(page, "Agent refine workspace");
+        await UserConnections.AuthorizeSupabaseAsync(brain, projectId, ct);
         var workspace = brain.Get<IWorkspace>(BrainScope.Create("owner", projectId).Id);
 
         await SendAsync(page, "Show all customers from Supabase");
@@ -115,7 +117,11 @@ public sealed class AgentTableJourneyFacts(ReferenceBrainFixture host) : BrainFa
         await Assertions.Expect(page.GetByText("Refined the same window to London.")).ToBeVisibleAsync(new() { Timeout = 60_000 });
         await Assertions.Expect(window).ToHaveCountAsync(1);
         var tableId = Assert.Single((await workspace.Read()).Windows).Reference.NeuronId;
-        var refined = await brain.Get<DigitalBrain.Supabase.Tables.ISupabaseTable>(tableId).Read(new(0, 25));
+        DigitalBrain.Supabase.Tables.SupabaseTableSnapshot? refined;
+        using (UserConnections.UseBrain(brain, projectId))
+        {
+            refined = await brain.Get<DigitalBrain.Supabase.Tables.ISupabaseTable>(tableId).Read(new(0, 25));
+        }
         Assert.Equal(60, refined!.TotalRows);
         Assert.Equal(6, refined.FilteredRows);
         Assert.Equal("city", Assert.Single(refined.Filters).ColumnId);

@@ -18,8 +18,6 @@ public sealed partial class ModuleKeyGrammarFacts
         "src/Modules/AI/tests/DigitalBrain.Modules.AI.Tests/AIGrammarFacts.cs",
         "src/Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Aspire.Hosting/Configuration/FlutterHostOptions.cs",
         "src/Modules/Google/Flutter/tests/DigitalBrain.Modules.Flutter.Tests.Hosting/FlutterHostOptionsGrammarFacts.cs",
-        // Platform capacity contract seeded by deployment; platform-owned by design review.
-        "src/Modules/Postgres/DigitalBrain.Modules.Postgres.Contracts/Configuration/PostgresModuleOptions.cs",
         // Brain-scoped owner identity, not a module option; platform-owned by design review.
         "src/Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Aspire.Hosting/ShellNames.cs",
     ];

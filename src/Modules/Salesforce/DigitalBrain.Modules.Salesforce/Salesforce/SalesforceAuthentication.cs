@@ -25,10 +25,10 @@ internal static class SalesforceAuthentication
         });
         services.AddAuthentication()
             .AddCookie("SalesforceCallback", options => options.Cookie.Name = "db.sf.unused")
-            .AddOAuth<OAuthOptions, SalesforceOAuthHandler>(definition.Scheme, _ => { });
-        services.AddOptions<OAuthOptions>(definition.Scheme).Configure<SalesforceOAuthConfiguration>((options, settings) =>
+            .AddOAuth<SalesforceOAuthHandlerOptions, SalesforceOAuthHandler>(definition.Scheme, _ => { });
+        services.AddOptions<SalesforceOAuthHandlerOptions>(definition.Scheme).Configure<SalesforceOAuthConfiguration>((options, settings) =>
             {
-                settings.Configure(options);
+                SalesforceOAuthConfiguration.Configure(options);
                 options.SignInScheme = "SalesforceCallback";
                 options.CallbackPath = definition.CallbackPath;
                 options.UsePkce = true;
@@ -39,16 +39,15 @@ internal static class SalesforceAuthentication
                 options.RemoteAuthenticationTimeout = TimeSpan.FromMinutes(10);
                 options.CorrelationCookie.HttpOnly = true;
                 options.CorrelationCookie.SameSite = SameSiteMode.Lax;
-                options.CorrelationCookie.SecurePolicy = settings.IsConfigured && settings.PublicOrigin!.Scheme == "https"
+                options.CorrelationCookie.SecurePolicy = settings.PublicOrigin?.Scheme == "https"
                     ? CookieSecurePolicy.Always : CookieSecurePolicy.SameAsRequest;
                 options.BackchannelHttpHandler = new HttpClientHandler { AllowAutoRedirect = false };
                 options.Events = new OAuthEvents
                 {
-                    OnRedirectToAuthorizationEndpoint = context =>
+                    OnRedirectToAuthorizationEndpoint = async context =>
                     {
-                        settings.RequireConfigured();
+                        if (!await settings.IsConfiguredAsync(context.HttpContext.RequestAborted)) { throw new SalesforceUnavailableException("Salesforce integration is unavailable."); }
                         context.Response.Redirect(context.RedirectUri);
-                        return Task.CompletedTask;
                     },
                     OnCreatingTicket = async context =>
                     {
@@ -76,7 +75,7 @@ internal static class SalesforceAuthentication
                                 ? caller.PrincipalId
                                 : null);
                             await grains.GetGrain<ISalesforce>(workspace?.Registry ?? "salesforce")
-                                .Connect(new ConnectSalesforceAccount(instanceUrl.AbsoluteUri,
+                                .Connect(new ConnectSalesforceConnection(instanceUrl.AbsoluteUri,
                                     checked((int)(context.ExpiresIn?.TotalSeconds ?? 3600)), nonce, owner)).ConfigureAwait(false);
                         }
                         catch

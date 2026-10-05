@@ -6,6 +6,22 @@ namespace DigitalBrain.OS.Tests.Unit;
 public sealed class LegacyConfigurationGuardFacts
 {
     [Theory]
+    [InlineData("DigitalBrain:Capacity:Postgres:AdminConnection")]
+    [InlineData("DigitalBrain:Modules:csharp:Deployment:RunTokenKey")]
+    [InlineData("DigitalBrain:Modules:salesforce:OAuth:ConsumerSecret")]
+    [InlineData("DigitalBrain:Modules:github:App:ClientSecret")]
+    [InlineData("DigitalBrain:Integrations:gmail:ClientSecret")]
+    [InlineData("DigitalBrain:Modules:supabase:Options:ConnectionString")]
+    [InlineData("DigitalBrain:Modules:clickhouse:Options:ConnectionString")]
+    public void RetiredCredentialChannelsFailWithoutEchoingValues(string key)
+    {
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { [key] = "canary-secret" }).Build();
+        var error = Assert.Throws<InvalidOperationException>(() => LegacyConfigurationGuard.Check(config));
+        Assert.Contains("DigitalBrain:Integrations:", error.Message);
+        Assert.DoesNotContain("canary-secret", error.Message);
+    }
+
+    [Theory]
     [InlineData("DigitalBrain:Apps:ShipOnStartup")]
     [InlineData("DigitalBrain:ShippedApps:vendor:Path")]
     [InlineData("DigitalBrain:CSharp:EdgeUrl")]

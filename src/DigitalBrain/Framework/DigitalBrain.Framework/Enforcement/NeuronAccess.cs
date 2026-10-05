@@ -11,6 +11,11 @@ public sealed record NeuronAccess(string? Scope = null, bool Public = false)
     // is the scope. Modules with aliases, persisted owners or public operations override it.
     public static NeuronAccess ForBrainKey(string key)
     {
+        if (key.StartsWith("connection/", StringComparison.Ordinal))
+        {
+            try { key = DigitalBrain.Framework.Platform.Integrations.ConnectionKeys.Parse(key).BrainId; }
+            catch (ArgumentException) { return Unclassified; }
+        }
         var separator = key.AsSpan().IndexOfAny('/', ':');
         var scope = separator < 0 ? key : key[..separator];
         return scope.Length == 74 && scope.StartsWith("workspace-", StringComparison.Ordinal)

@@ -90,21 +90,3 @@ internal sealed class PostgresLegacyTables(IServiceProvider services) : IPostgre
         return new(result.ToArray(), skipped.ToArray());
     }
 }
-
-internal sealed class PostgresMigrationStartup(IGrainFactory grains) : IStartupTask
-{
-    public async Task Execute(CancellationToken cancellationToken)
-    {
-        CallerContextStamper.TryGet(out var previous);
-        try
-        {
-            CallerContextStamper.Stamp(new() { PrincipalId = "platform", AccountId = "platform", BrainId = "migration", Kind = CallerKind.Platform, StampedBy = TrustedEdge.Platform });
-            await grains.GetGrain<IPostgresStorageMigration>("table-owners-v1").Ensure().WaitAsync(cancellationToken);
-        }
-        finally
-        {
-            if (previous is null) { RequestContext.Remove(CallerContextStamper.RequestContextKey); }
-            else { CallerContextStamper.Stamp(previous); }
-        }
-    }
-}

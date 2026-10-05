@@ -1,7 +1,9 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Microsoft.Extensions.Options;
+using DigitalBrain.Framework.Platform.Integrations;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Microsoft.CSharp;
 
@@ -9,18 +11,36 @@ internal sealed record RunTokenClaims(string File, string Run, DateTimeOffset Ex
 
 // A run's bearer token for the script edge: the file and run it speaks for, signed with HMAC-SHA256.
 // Development signs with a key made at startup; production must configure one shared by every silo.
-internal sealed class RunTokens(IOptions<CSharpDeploymentSettings> options, TimeProvider time)
+internal sealed class RunTokens(IModuleIntegrations<CSharpModule> integrations, TimeProvider time, IHostEnvironment environment, ILogger<RunTokens> logger) : IIntegrationStartup
 {
     internal static readonly TimeSpan Lifetime = TimeSpan.FromDays(7);
 
-    private readonly byte[] _key = options.Value.RunTokenKey is { Length: > 0 } configured
-        ? Convert.FromBase64String(configured)
-        : RandomNumberGenerator.GetBytes(32);
+    private byte[]? _key;
+
+    public async Task InitializeAsync(CancellationToken cancellationToken)
+    {
+        var handle = integrations.Get("csharp");
+        var status = await handle.ReadAsync(cancellationToken);
+        if (status.Status == IntegrationStatus.Ready)
+        {
+            var key = Convert.FromBase64String(await handle.ReadSecretAsync("RunTokenKey", cancellationToken));
+            if (key.Length < 32) { throw new InvalidOperationException("The csharp Integration RunTokenKey must contain at least 32 bytes."); }
+            _key = key;
+        }
+        else if (environment.IsDevelopment())
+        {
+            _key = RandomNumberGenerator.GetBytes(32);
+            logger.LogWarning("The csharp Integration is unprovisioned; generated development run-token key. Tokens will not survive restart.");
+        }
+        else { throw new InvalidOperationException("The csharp Integration RunTokenKey must be provisioned before production startup."); }
+    }
+
+    private byte[] Key => _key ?? throw new InvalidOperationException("Run-token credentials have not completed Integration startup.");
 
     public string Issue(string file, string run)
     {
         var claims = JsonSerializer.SerializeToUtf8Bytes(new RunTokenClaims(file, run, time.GetUtcNow() + Lifetime), JsonSerializerOptions.Web);
-        return Base64Url(claims) + "." + Base64Url(HMACSHA256.HashData(_key, claims));
+        return Base64Url(claims) + "." + Base64Url(HMACSHA256.HashData(Key, claims));
     }
 
     public RunTokenClaims? Validate(string? token)
@@ -32,7 +52,7 @@ internal sealed class RunTokens(IOptions<CSharpDeploymentSettings> options, Time
         byte[] presented;
         try { presented = FromBase64Url(signature); }
         catch (FormatException) { return null; }
-        if (!CryptographicOperations.FixedTimeEquals(HMACSHA256.HashData(_key, claims), presented)) { return null; }
+        if (!CryptographicOperations.FixedTimeEquals(HMACSHA256.HashData(Key, claims), presented)) { return null; }
         var parsed = JsonSerializer.Deserialize<RunTokenClaims>(claims, JsonSerializerOptions.Web);
         return parsed is not null && parsed.Expires > time.GetUtcNow() ? parsed : null;
     }

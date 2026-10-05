@@ -89,7 +89,7 @@ public sealed class InferenceFacts
             new(ProviderOptions: new Dictionary<string, string> { ["made-up"] = "true" })));
 
     [Fact]
-    public void ProfileSettingsAndLimitsAreDescribedAndEnforced()
+    public async Task ProfileSettingsAndLimitsAreDescribedAndEnforced()
     {
         using var services = new ServiceCollection().AddOptions().Configure<AIOptions>(options =>
         {
@@ -106,11 +106,11 @@ public sealed class InferenceFacts
             };
         }).AddSingleton<IAiCredentials>(new FixedAiCredentials().Ready("openai", "test-only"))
             .AddSingleton<ModelProfiles>().AddSingleton<InferenceService>().BuildServiceProvider();
-        var descriptor = services.GetRequiredService<InferenceService>().Describe(new(Profile: "bounded"));
+        var descriptor = await services.GetRequiredService<InferenceService>().Describe(new(Profile: "bounded"), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(4000, descriptor.ContextWindowTokens);
         Assert.Equal(500, descriptor.MaximumOutputTokens);
         Assert.Equal(CapabilitySupport.Unsupported, descriptor.TopP);
-        var model = services.GetRequiredService<ModelProfiles>().Resolve(new(Profile: "bounded"));
+        var model = await services.GetRequiredService<ModelProfiles>().Resolve(new(Profile: "bounded"), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(0.5f, InferenceMapping.CreateOptions(model, new(Temperature: 0.5f), descriptor).Temperature);
         Assert.Throws<ArgumentException>(() => InferenceMapping.CreateOptions(model, new(TopP: 0.5f), descriptor));
         Assert.Throws<ArgumentException>(() => InferenceMapping.CreateOptions(model, new(MaxOutputTokens: 501), descriptor));

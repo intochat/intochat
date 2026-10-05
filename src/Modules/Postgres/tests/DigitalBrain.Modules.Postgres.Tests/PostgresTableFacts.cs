@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Postgres;
 using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Tables;
@@ -17,7 +18,7 @@ public sealed class PostgresTableFacts
         await using var brain = await ModuleTest.Create().WithModule<DigitalBrain.Flutter.FlutterModule>().WithModule<PostgresModule>()
             .ConfigureSilo(silo =>
             {
-                silo.Configuration["ConnectionStrings:postgres"] = "Host=localhost;Database=sample;Username=reader";
+                silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=sample;Username=reader";
                 silo.Services.AddKeyedSingleton<ILiveTableSource>("postgres", postgres);
                 silo.Services.AddSingleton<ILiveTableSource>(supabase);
             }).StartAsync(ct);

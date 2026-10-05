@@ -767,15 +767,29 @@ final class DigitalBrainUiClient {
         ),
       );
 
-  Future<Object?> serviceConnectionsRequest(
+  Future<Object?> connectorRequest(
     String workspaceId,
     String path, {
     Map<String, Object?>? body,
-  }) => jsonRequest(
-    body == null ? 'GET' : 'POST',
-    '/brains/${Uri.encodeComponent(workspaceId)}/integrations/accounts/services${path.isEmpty ? '' : '/$path'}',
-    body,
-  );
+  }) {
+    if (path.isEmpty) return jsonRequest('GET', '/connectors');
+    if (path == 'gmail/start') {
+      final connection = body?['connectionId'];
+      if (connection is! String || connection.isEmpty) {
+        throw ArgumentError('A Gmail connection name is required.');
+      }
+      return jsonRequest(
+        'POST',
+        '/brains/${Uri.encodeComponent(workspaceId)}/connections/${Uri.encodeComponent(connection)}/gmail/login',
+        body,
+      );
+    }
+    return jsonRequest(
+      body == null ? 'GET' : 'POST',
+      '/brains/${Uri.encodeComponent(workspaceId)}/connections/services/$path',
+      body,
+    );
+  }
 
   Future<Object?> workspaceConnectionsRequest(
     String workspaceId,
@@ -783,7 +797,7 @@ final class DigitalBrainUiClient {
     Map<String, Object?>? body,
   }) => jsonRequest(
     body == null ? 'GET' : 'POST',
-    '/brains/${Uri.encodeComponent(workspaceId)}/integrations/accounts${path.isEmpty ? '' : '/$path'}',
+    '/brains/${Uri.encodeComponent(workspaceId)}/connections${path.isEmpty ? '' : '/$path'}',
     body,
   );
 

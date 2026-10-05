@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Platform.Integrations;
 using System.Text.Json;
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework.Capacity;
@@ -21,7 +22,7 @@ public sealed class PostgresWriteTableFacts
         var capacity = new ChangingCapacity();
         await using var brain = await ModuleTest.Create().WithModule<PostgresModule>().ConfigureSilo(silo =>
         {
-            silo.Configuration["ConnectionStrings:postgres"] = "Host=localhost;Database=sample;Username=reader";
+            silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=sample;Username=reader";
             silo.Services.AddSingleton<IPostgresTableProvider>(provider);
             silo.Services.AddSingleton<ICapacity>(capacity);
         }).StartAsync(ct);
@@ -73,7 +74,7 @@ public sealed class PostgresWriteTableFacts
         var capacity = new ChangingCapacity();
         await using var brain = await ModuleTest.Create().WithModule<PostgresModule>().ConfigureSilo(silo =>
         {
-            silo.Configuration["ConnectionStrings:postgres"] = "Host=localhost;Database=sample;Username=reader";
+            silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=sample;Username=reader";
             silo.Services.AddSingleton<IPostgresTableProvider>(provider);
             silo.Services.AddSingleton<ICapacity>(capacity);
         }).StartAsync(ct);
@@ -119,7 +120,7 @@ public sealed class PostgresWriteTableFacts
         var race = new RetirementRace();
         await using var brain = await ModuleTest.Create().WithModule<PostgresModule>().ConfigureSilo(silo =>
         {
-            silo.Configuration["ConnectionStrings:postgres"] = "Host=localhost;Database=sample;Username=reader";
+            silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=sample;Username=reader";
             silo.Services.AddSingleton<IPostgresTableProvider>(new MemoryTables());
             silo.Services.AddSingleton<IIncomingGrainCallFilter>(race);
             silo.Services.AddKeyedSingleton<IGrainStorage>("Default", race);
@@ -315,9 +316,17 @@ public sealed class PostgresWriteTableFacts
         {
             await ExerciseRows(table);
             await table.Upsert(Key(), Values("'; DROP TABLE --"));
+            // Raw deployment SQL has no brain scope; an app must use its scoped table door.
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Get<IPostgres>("default").Query(new($"SELECT value FROM public.{accepted.Table}")));
+            CallerContextStamper.Stamp(new()
+            {
+                PrincipalId = "test-platform", AccountId = "alice", BrainId = "brain",
+                Kind = CallerKind.Platform, StampedBy = TrustedEdge.Platform,
+            });
             var result = await brain.Get<IPostgres>("default").Query(new($"SELECT value FROM public.{accepted.Table}"));
             Assert.Equal("'; DROP TABLE --", JsonSerializer.Deserialize<string>(Assert.Single(Assert.Single(result.Rows))));
             await Assert.ThrowsAsync<PostgresQueryException>(() => brain.Get<IPostgres>("default").Query(new($"DELETE FROM public.{accepted.Table}")));
+            Stamp();
             var provider = brain.SiloServices.GetRequiredService<IPostgresTableProvider>();
             await provider.DefineAsync(PostgresCapacityKind.PlatformOrigin, accepted.Table, Definition, ct);
             await Assert.ThrowsAsync<PostgresQueryException>(() => provider.DefineAsync(PostgresCapacityKind.PlatformOrigin, accepted.Table,
@@ -400,7 +409,7 @@ public sealed class PostgresWriteTableFacts
     private static Task<ModuleBrain> Start(IPostgresTableProvider? provider, string connection = "Host=localhost;Database=sample;Username=reader")
         => ModuleTest.Create().WithModule<PostgresModule>().ConfigureSilo(silo =>
         {
-            silo.Configuration["ConnectionStrings:postgres"] = connection;
+            silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = connection;
             if (provider is not null) { silo.Services.AddSingleton(provider); }
         }).StartAsync(TestContext.Current.CancellationToken);
 

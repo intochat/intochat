@@ -1,20 +1,18 @@
-using System.Text.Json.Serialization;
 using DigitalBrain;
-using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Supabase;
 
 public sealed class SupabaseModuleOptions : IModuleOptions
 {
+    public bool UseBackingStore { get; set; }
     public string Provider { get; set; } = "Npgsql";
     public string ConnectionName { get; set; } = "supabase";
     public SupabaseResourceOptions Hosting { get; set; } = new();
-    [JsonIgnore]
-    public string? ConnectionString { get; internal set; }
 
     public SupabaseModuleOptions WithConnection(string name)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        UseBackingStore = true;
         ConnectionName = name;
         Hosting.Kind = SupabaseHostKind.External;
         return this;
@@ -22,6 +20,7 @@ public sealed class SupabaseModuleOptions : IModuleOptions
 
     public SupabaseModuleOptions WithPostgres()
     {
+        UseBackingStore = true;
         Hosting.Kind = SupabaseHostKind.Postgres;
         return this;
     }
@@ -29,18 +28,13 @@ public sealed class SupabaseModuleOptions : IModuleOptions
     public void Validate()
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(ConnectionName);
+        if (!string.Equals(Provider, "Npgsql", StringComparison.OrdinalIgnoreCase))
+        { throw new ArgumentException("Supabase requires the Npgsql provider."); }
+        ArgumentNullException.ThrowIfNull(Hosting);
         if (!Enum.IsDefined(Hosting.Kind)) { throw new ArgumentOutOfRangeException(nameof(Hosting), "Unknown Supabase host kind."); }
     }
 
-    public void ResolveConnection(IConfiguration configuration)
-    {
-        if (string.IsNullOrWhiteSpace(ConnectionName))
-        {
-            ConnectionName = "supabase";
-        }
 
-        ConnectionString = configuration.GetConnectionString(ConnectionName);
-    }
 }
 
 public enum SupabaseHostKind { External, Postgres }

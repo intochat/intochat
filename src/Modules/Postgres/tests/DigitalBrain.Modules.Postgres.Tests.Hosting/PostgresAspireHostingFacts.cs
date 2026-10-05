@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Platform.Integrations;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain;
@@ -30,7 +31,7 @@ public sealed class PostgresAspireHostingFacts
         Assert.Equal(persistent, server.Annotations.OfType<ContainerMountAnnotation>().Any(mount => mount.Type == ContainerMountType.Volume));
         Assert.Equal(persistent, server.Annotations.OfType<ContainerLifetimeAnnotation>().Any(lifetime => lifetime.Lifetime == ContainerLifetime.Persistent));
         var environment = await EnvironmentOf(builder, consumer.Resource, TestContext.Current.CancellationToken);
-        Assert.Contains("ConnectionStrings__reporting", environment.Keys);
+        Assert.Contains(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString")), environment.Keys);
         Assert.Equal("reporting", Assert.IsType<string>(environment[DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ModuleOptionsSection("postgres"), "ConnectionName")]));
     }
 
@@ -38,16 +39,16 @@ public sealed class PostgresAspireHostingFacts
     public async Task ExternalConnectionIsProjectedAsASecretWithoutProvisioningAServer()
     {
         var builder = CreateBuilder();
-        builder.Configuration["ConnectionStrings:reporting"] = "Host=external;Database=analytics;Username=reader;Password=test-only";
+        builder.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=external;Database=analytics;Username=reader;Password=test-only";
         var brain = builder.AddDigitalBrain("brain", options: new() { UseAzureStorage = true, PersistentStorage = false })
             .WithHosting<PostgresModuleHosting, PostgresModuleOptions>(module => module.WithPostgres().WithConnection("reporting"));
         var consumer = builder.AddExecutable("consumer", "unused", ".").WithReference(brain);
 
         Assert.Empty(builder.Resources.OfType<PostgresServerResource>());
         var environment = await EnvironmentOf(builder, consumer.Resource, TestContext.Current.CancellationToken);
-        var connection = Assert.IsType<ParameterResource>(environment["ConnectionStrings__reporting"]);
+        var connection = Assert.IsType<ParameterResource>(environment[DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString"))]);
         Assert.True(connection.Secret);
-        Assert.Equal(builder.Configuration["ConnectionStrings:reporting"], await connection.GetValueAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(builder.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")], await connection.GetValueAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -68,7 +69,7 @@ public sealed class PostgresAspireHostingFacts
         foreach (var consumer in new[] { first, second })
         {
             Assert.Contains(consumer.Resource.Annotations.OfType<WaitAnnotation>(), wait => ReferenceEquals(wait.Resource, database));
-            Assert.Contains("ConnectionStrings__reporting", (await EnvironmentOf(builder, consumer.Resource, TestContext.Current.CancellationToken)).Keys);
+            Assert.Contains(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString")), (await EnvironmentOf(builder, consumer.Resource, TestContext.Current.CancellationToken)).Keys);
         }
     }
 
@@ -100,7 +101,7 @@ public sealed class PostgresAspireHostingFacts
         brain.WithHosting(new PostgresModuleHosting(), Definition(enabled: true, persistent: false).Settings);
         var consumer = builder.AddExecutable("consumer", "unused", ".").WithReference(brain);
         var environment = await EnvironmentOf(builder, consumer.Resource, TestContext.Current.CancellationToken);
-        Assert.Contains(DigitalBrainConfiguration.EnvironmentName(PostgresModuleOptions.AdminConnectionKey), environment.Keys);
+        Assert.Contains(DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "AdminConnection")), environment.Keys);
     }
 
     [Fact]
@@ -114,9 +115,9 @@ public sealed class PostgresAspireHostingFacts
 
         Assert.Empty(builder.Resources.OfType<PostgresServerResource>());
         var environment = await EnvironmentOf(builder, consumer.Resource, TestContext.Current.CancellationToken);
-        var connection = Assert.IsType<ParameterResource>(environment["ConnectionStrings__reporting"]);
+        var connection = Assert.IsType<ParameterResource>(environment[DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString"))]);
         Assert.True(connection.Secret);
-        Assert.DoesNotContain(DigitalBrainConfiguration.EnvironmentName(PostgresModuleOptions.AdminConnectionKey), environment.Keys);
+        Assert.DoesNotContain(DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "AdminConnection")), environment.Keys);
     }
 
     private static ModuleDefinition Definition(bool enabled, bool persistent)

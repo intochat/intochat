@@ -1,6 +1,10 @@
 using DigitalBrain;
 using DigitalBrain.Apps;
 using DigitalBrain.Framework;
+using DigitalBrain.Enforcement;
+using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Platform.Shipping;
+using DigitalBrain.Platform.Shipping;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -23,10 +27,12 @@ public sealed class ShippedAppPublisherFacts
         var publishing = new AppPublishing(brain.SiloServices.GetRequiredService<IDigitalBrain>(), new AppAuthoringPolicy([], new Sandbox()));
         async Task Ship(string selection)
         {
-            using var publisher = new ShippedAppPublisher(publishing,
-                sources, new StartedLifetime(), new ConfigurationBuilder().AddInMemoryCollection(
+            var content = new ShippedAppPublisher(publishing,
+                sources, new ConfigurationBuilder().AddInMemoryCollection(
                     new Dictionary<string, string?> { [ShippedAppPublisher.ShipOnStartupKey] = selection }).Build(),
                 NullLogger<ShippedAppPublisher>.Instance);
+            await using var services = PublisherServices(content);
+            var publisher = Assert.IsAssignableFrom<BackgroundService>(Assert.Single(services.GetServices<IHostedService>()));
             await publisher.StartAsync(ct);
             await publisher.ExecuteTask!.WaitAsync(ct);
         }
@@ -52,10 +58,12 @@ public sealed class ShippedAppPublisherFacts
         await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
             .ConfigureSilo(silo => silo.Services.AddSingleton<ITestScriptRunner>(new CancelledRunner())).StartAsync(ct);
         var publishing = new AppPublishing(brain.SiloServices.GetRequiredService<IDigitalBrain>(), new AppAuthoringPolicy([], new Sandbox()));
-        using var publisher = new ShippedAppPublisher(publishing,
-            [new Source("first")], new StartedLifetime(), new ConfigurationBuilder().AddInMemoryCollection(
+        var content = new ShippedAppPublisher(publishing,
+            [new Source("first")], new ConfigurationBuilder().AddInMemoryCollection(
                 new Dictionary<string, string?> { [ShippedAppPublisher.ShipOnStartupKey] = "true" }).Build(),
             NullLogger<ShippedAppPublisher>.Instance);
+        await using var services = PublisherServices(content);
+        var publisher = Assert.IsAssignableFrom<BackgroundService>(Assert.Single(services.GetServices<IHostedService>()));
         await publisher.StartAsync(ct);
 
         await publisher.ExecuteTask!.WaitAsync(ct);
@@ -63,6 +71,50 @@ public sealed class ShippedAppPublisherFacts
         Assert.True(publisher.ExecuteTask.IsCompletedSuccessfully);
         Assert.Null((await brain.Get<IPackage>("first/echo").Read()).Published);
     }
+
+    [Fact]
+    public async Task PlatformRestoresTheCallerAndUsesOnlyRegisteredPublisherIdentities()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        Caller.As("original");
+        var original = CallerContextStamper.Require();
+        try
+        {
+            var content = new RecordingContent();
+            await using var services = PublisherServices(content);
+            var publisher = Assert.IsAssignableFrom<BackgroundService>(Assert.Single(services.GetServices<IHostedService>()));
+            await publisher.StartAsync(ct);
+            await publisher.ExecuteTask!.WaitAsync(ct);
+            Assert.Equal(["first", "second"], content.Callers.Select(caller => caller.PrincipalId).ToArray());
+            Assert.All(content.Callers, caller =>
+            {
+                Assert.Equal(CallerKind.Platform, caller.Kind);
+                Assert.Equal(TrustedEdge.Platform, caller.StampedBy);
+                Assert.Equal(caller.PrincipalId, caller.AccountId);
+                Assert.Equal(caller.PrincipalId, caller.BrainId);
+            });
+            Assert.Equal(original, CallerContextStamper.Require());
+        }
+        finally { Caller.Clear(); }
+    }
+
+    private sealed class RecordingContent : IShippedContentPublisher
+    {
+        public string[] Publishers => ["first", "second"];
+        public List<CallerContext> Callers { get; } = [];
+        public Task PublishAsync(string publisher, CancellationToken cancellationToken)
+        {
+            Callers.Add(CallerContextStamper.Require());
+            return Task.CompletedTask;
+        }
+    }
+
+    private static ServiceProvider PublisherServices(IShippedContentPublisher content)
+        => new ServiceCollection()
+            .AddSingleton(content)
+            .AddSingleton<IHostApplicationLifetime>(new StartedLifetime())
+            .AddShippedContentPublishing()
+            .BuildServiceProvider();
 
     private sealed class CancelledRunner : ITestScriptRunner
     {

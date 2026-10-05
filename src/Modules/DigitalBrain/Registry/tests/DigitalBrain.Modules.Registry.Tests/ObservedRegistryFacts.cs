@@ -36,7 +36,7 @@ public sealed class ObservedRegistryFacts
             .StartAsync(TestContext.Current.CancellationToken);
         var types = await brain.Get<IRegistry>(RegistryModule.Key).Types();
 
-        Assert.DoesNotContain(types, type => type.Id == "integration.registration" || type.Contract == typeof(DigitalBrain.Framework.Platform.Integrations.IIntegrationRegistration).FullName);
+        Assert.DoesNotContain(types, type => type.Id == "integration.registration" || type.Contract == typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration).FullName);
     }
 
     [Fact]

@@ -27,7 +27,7 @@ public sealed class AgentModelsHttpFacts
             {
                 PrivateConfiguration = new Dictionary<string, string?>
                 {
-                    [IntegrationDefinition.Key("openai", "ApiKey")] = apiKey,
+                    [IntegrationSchema.Key("openai", "ApiKey")] = apiKey,
                     [AuthOptions.PostureKey] = "Secured",
                     [AuthOptions.Key(nameof(AuthOptions.Username))] = "owner",
                     [AuthOptions.Key(nameof(AuthOptions.Password))] = "catalog-test-password",

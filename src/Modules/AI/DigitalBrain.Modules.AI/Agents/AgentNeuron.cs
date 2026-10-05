@@ -342,7 +342,7 @@ internal sealed class AgentNeuron(
     public Task<ModelDescriptor> GetCapabilities(CancellationToken ct = default)
     {
         ct.ThrowIfCancellationRequested();
-        return Task.FromResult(ServiceProvider.GetRequiredService<InferenceService>().Describe(_state.Definition.Model));
+        return ServiceProvider.GetRequiredService<InferenceService>().Describe(_state.Definition.Model);
     }
     public Task<IReadOnlyList<AgentEvent>> GetEventLog(CancellationToken ct = default)
     { ct.ThrowIfCancellationRequested(); return Task.FromResult<IReadOnlyList<AgentEvent>>(_state.Events.ToArray()); }

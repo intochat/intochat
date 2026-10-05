@@ -64,8 +64,8 @@ public sealed class AppAuthFacts
         var seeds = new Dictionary<string, string?>();
         if (privateKeyPem is not null)
         {
-            seeds[IntegrationDefinition.Key("github", "PrivateKeyPem")] = privateKeyPem;
-            seeds[IntegrationDefinition.Key("github", "AppId")] = appId;
+            seeds[IntegrationSchema.Key("github", "PrivateKeyPem")] = privateKeyPem;
+            seeds[IntegrationSchema.Key("github", "AppId")] = appId;
         }
 
         return ModuleTest.Create()
@@ -75,7 +75,7 @@ public sealed class AppAuthFacts
     }
 
     private static GitHubRepositoryBinding Binding(long appId)
-        => new("repo", 11, 9, appId, "intochat", "digitalbrain", "0123456789abcdef");
+        => new("repo", 11, 9, appId, "intochat", "digitalbrain");
 
     private static byte[] Base64UrlDecode(string text)
         => Convert.FromBase64String(text.Replace('-', '+').Replace('_', '/').PadRight((text.Length + 3) / 4 * 4, '='));

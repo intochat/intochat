@@ -12,7 +12,7 @@ public static partial class AIHostingExtensions
 {
     // "tavily" mirrors the module's internal AiIntegrations.TavilyId.
     private static readonly string TavilyApiKeyEnvironmentKey =
-        DigitalBrainConfiguration.EnvironmentName(IntegrationDefinition.Key("tavily", "ApiKey"));
+        DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("tavily", "ApiKey"));
     private static readonly string TavilyEnabledEnvironmentKey =
         DigitalBrainConfiguration.EnvironmentName(AIKeys.TavilyEnabled);
     private const string TavilyApiKeyDescription = "API key for Tavily web search. Sign up at [Tavily](https://www.tavily.com/) and copy your API key from your account dashboard. Paste it here to enable web search for DigitalBrain agents.";

@@ -3,12 +3,13 @@ using Aspire.Hosting.ApplicationModel;
 using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Integrations;
 
 namespace DigitalBrain.Salesforce.Aspire.Hosting;
 
 public static class SalesforceHostingExtensions
 {
-    // Only the kernel receives the OAuth parameters. The public origin defaults to the kernel's own http endpoint;
+    // Only the host receives the OAuth parameters. The public origin defaults to the host's own http endpoint;
     // the MCP endpoint is a module option.
     public static DigitalBrainModuleBuilder<DigitalBrain.Salesforce.Aspire.Hosting.SalesforceModuleHosting> WithHostedMcp(
         this DigitalBrainModuleBuilder<DigitalBrain.Salesforce.Aspire.Hosting.SalesforceModuleHosting> module,
@@ -25,7 +26,7 @@ public static class SalesforceHostingExtensions
         DigitalBrainBuilder brain,
         IResourceBuilder<DigitalBrainModuleResource> module) : DigitalBrainModuleProjection
     {
-        private static readonly string OAuthRoot = SalesforceOAuthOptions.SectionName;
+        private static readonly string OptionsRoot = DigitalBrainConfiguration.ModuleOptionsSection(new ModuleId("salesforce"));
 
         private bool _enabled;
         private Uri? _publicOrigin;
@@ -56,20 +57,20 @@ public static class SalesforceHostingExtensions
             _consumerSecret ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("salesforce-consumer-secret"), secret: true)
                 .WithDescription(
                     "Consumer secret from the same Salesforce External Client App. Enable Require Secret for Web Server Flow. "
-                    + "Only the kernel receives this secret; Salesforce login happens in your browser when the assistant needs access.",
+                    + "Only the host receives this secret; Salesforce login happens in your browser when the assistant needs access.",
                     enableMarkdown: true)
                 .WithParentRelationship(module);
 
             builder
-                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(OAuthRoot, "ConsumerKey"), _consumerKey)
-                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(OAuthRoot, "ConsumerSecret"), _consumerSecret);
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("salesforce", "ConsumerKey")), _consumerKey)
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("salesforce", "ConsumerSecret")), _consumerSecret);
             if (_publicOrigin is { } origin)
             {
-                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(OAuthRoot, "PublicOrigin"), origin.AbsoluteUri);
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(OptionsRoot, "PublicOrigin"), origin.AbsoluteUri);
             }
             else
             {
-                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(OAuthRoot, "PublicOrigin"), builder.GetEndpoint("http"));
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(OptionsRoot, "PublicOrigin"), builder.GetEndpoint("http"));
             }
         }
     }

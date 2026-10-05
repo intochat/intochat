@@ -25,8 +25,8 @@ public sealed class SalesforceAccountFacts
 
         Assert.Equal(
             [
-                "GET /brains/{brainId}/integrations/accounts/services",
-                "POST /brains/{brainId}/integrations/accounts/services/{provider}/start",
+                "GET /brains/{brainId}/connections/services",
+                "POST /brains/{brainId}/connections/services/{provider}/start",
             ],
             routes);
     }

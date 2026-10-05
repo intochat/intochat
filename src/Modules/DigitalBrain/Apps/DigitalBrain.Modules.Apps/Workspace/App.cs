@@ -395,7 +395,7 @@ internal sealed class App(
         return values;
     }
 
-    private static Dictionary<string, string> ResolveAccounts(IReadOnlyList<PackageAccount> declared, IReadOnlyDictionary<string, string> selected)
+    private static Dictionary<string, string> ResolveAccounts(IReadOnlyList<PackageConnection> declared, IReadOnlyDictionary<string, string> selected)
     {
         if (selected.Keys.Any(name => !declared.Any(slot => slot.Name == name)))
         { throw new ArgumentException("The installation contains an undeclared account slot."); }

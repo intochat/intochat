@@ -11,7 +11,7 @@ public sealed class ModelProfiles(IServiceProvider services, IOptionsMonitor<AIO
 {
     private IAiCredentials Credentials => services.GetRequiredService<IAiCredentials>();
 
-    public ResolvedAgentModel Resolve(AgentModelSelection? selection, bool requiresTools = false)
+    public async Task<ResolvedAgentModel> Resolve(AgentModelSelection? selection, bool requiresTools = false, CancellationToken cancellationToken = default)
     {
         selection ??= new();
         var configuration = options.CurrentValue;
@@ -61,8 +61,11 @@ public sealed class ModelProfiles(IServiceProvider services, IOptionsMonitor<AIO
         }
         else
         {
-            preset = LLMModel.All.FirstOrDefault(model => AIClients.Factory(model.Provider).IsConfigured(configuration, Credentials))
-                ?? throw new InvalidOperationException("No chat provider is configured. Register a provider integration or configure an Ollama endpoint.");
+            foreach (var candidate in LLMModel.All)
+            {
+                if (await AIClients.Factory(candidate.Provider).IsConfigured(configuration, Credentials, cancellationToken)) { preset = candidate; break; }
+            }
+            if (preset is null) { throw new InvalidOperationException("No chat provider is configured. Provision a provider integration or configure an Ollama endpoint."); }
             provider = preset.Provider;
         }
 
@@ -82,19 +85,19 @@ public sealed class ModelProfiles(IServiceProvider services, IOptionsMonitor<AIO
             throw new ArgumentException("Model ID must contain at most 200 printable characters.", nameof(selection));
         }
         var factory = AIClients.Factory(provider);
-        if (!factory.IsConfigured(configuration, Credentials) && !(provider == AiProvider.Ollama && endpoint is not null))
+        if (!await factory.IsConfigured(configuration, Credentials, cancellationToken) && !(provider == AiProvider.Ollama && endpoint is not null))
         {
             if (provider == AiProvider.Ollama)
             {
                 throw new InvalidOperationException($"Provider 'Ollama' is not configured. Set {AIKeys.OllamaEndpoint}.");
             }
 
-            Credentials.RequireReady(AiIntegrations.IdOf(provider));
+            await Credentials.RequireReady(AiIntegrations.IdOf(provider), cancellationToken);
         }
-        endpoint = Endpoint(endpoint ?? (provider == AiProvider.Ollama
-            ? Clean(configuration.Ollama.Endpoint)
-            : Clean(Credentials.Setting(AiIntegrations.IdOf(provider), AiIntegrations.EndpointField))
-                ?? Clean(configuration.Provider(provider).Endpoint)), provider);
+        // Integration endpoints and keys are materialized together when the client is used.
+        // Persist only explicit host/profile overrides; null means the provider integration/default.
+        endpoint ??= (provider == AiProvider.Ollama ? Clean(configuration.Ollama.Endpoint) : Clean(configuration.Provider(provider).Endpoint));
+        if (endpoint is not null || provider == AiProvider.Ollama) { endpoint = Endpoint(endpoint, provider); }
         var capabilities = declared ?? preset?.Capabilities ?? LlmCapabilities.None;
         if ((capabilities & ~(LlmCapabilities.Tools | LlmCapabilities.Vision | LlmCapabilities.StructuredOutput)) != 0)
         {
@@ -123,18 +126,19 @@ public sealed class ModelProfiles(IServiceProvider services, IOptionsMonitor<AIO
     }
 
     // Callers own these pipelines. Recreating a client never rereads a changed profile or default.
-    public IChatClient CreateClient(ResolvedAgentModel resolved)
+    public async Task<IChatClient> CreateClient(ResolvedAgentModel resolved, CancellationToken cancellationToken = default)
         => AIClients.BuildChatPipeline(services, resolved.Capabilities.HasFlag(LlmCapabilities.Tools),
-            resolved.Provider, CreatePinnedClient(resolved), resolved.Provider, resolved.Model, rejectUnsupportedTools: true);
+            resolved.Provider, await CreatePinnedClient(resolved, cancellationToken), resolved.Provider, resolved.Model, rejectUnsupportedTools: true);
 
     // Inference returns proposed calls. The agent owns the only tool invocation loop, so the
     // inference client carries GenAI telemetry but never the function-invocation middleware.
-    public IChatClient CreateInferenceClient(ResolvedAgentModel resolved)
+    public async Task<IChatClient> CreateInferenceClient(ResolvedAgentModel resolved, CancellationToken cancellationToken = default)
         => AIClients.BuildChatPipeline(services, supportsTools: true, resolved.Provider,
-            CreatePinnedClient(resolved), resolved.Provider, resolved.Model, rejectUnsupportedTools: false, useFunctionInvocation: false);
+            await CreatePinnedClient(resolved, cancellationToken), resolved.Provider, resolved.Model, rejectUnsupportedTools: false, useFunctionInvocation: false);
 
-    private IChatClient CreatePinnedClient(ResolvedAgentModel resolved)
+    private Task<IChatClient> CreatePinnedClient(ResolvedAgentModel resolved, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(resolved);
         if (!string.Equals(resolved.Revision, Revision(resolved), StringComparison.Ordinal))
         {
@@ -143,13 +147,15 @@ public sealed class ModelProfiles(IServiceProvider services, IOptionsMonitor<AIO
         var provider = ParseProvider(resolved.Provider);
         var configuration = new AIOptions();
         configuration.Provider(provider).Endpoint = resolved.Endpoint;
-        var inner = AIClients.Factory(provider).CreateChatClient(resolved.Model, configuration, Credentials, resolved.Endpoint);
-        return new ChatClientBuilder(inner).ConfigureOptions(request =>
+        var inner = new RebuildingChatClient(
+            ct => AIClients.Factory(provider).CreateChatClient(resolved.Model, configuration, Credentials, resolved.Endpoint, ct),
+            ct => AiIntegrations.KeyedProviders.Contains(provider) ? Credentials.GenerationOf(AiIntegrations.IdOf(provider), ct) : Task.FromResult(0L));
+        return Task.FromResult<IChatClient>(new ChatClientBuilder(inner).ConfigureOptions(request =>
         {
             request.ModelId = resolved.Model;
             if (resolved.Reasoning is not null) { request.Reasoning = Reasoning(resolved.Reasoning); }
             if (resolved.MaxOutputTokens is not null) { request.MaxOutputTokens = resolved.MaxOutputTokens; }
-        }).Build();
+        }).Build());
     }
 
     public static ChatOptions CreateOptions(ResolvedAgentModel resolved)
@@ -163,17 +169,17 @@ public sealed class ModelProfiles(IServiceProvider services, IOptionsMonitor<AIO
         };
     }
 
-    public IReadOnlyList<ResolvedAgentModel> List()
+    public async Task<IReadOnlyList<ResolvedAgentModel>> List(CancellationToken cancellationToken = default)
     {
         var configuration = options.CurrentValue;
         var result = new List<ResolvedAgentModel>();
-        foreach (var preset in LLMModel.All.Where(model => AIClients.Factory(model.Provider).IsConfigured(configuration, Credentials)))
+        foreach (var preset in LLMModel.All)
         {
-            result.Add(Resolve(new(Model: preset.Marker.Name)));
+            if (await AIClients.Factory(preset.Provider).IsConfigured(configuration, Credentials, cancellationToken)) { result.Add(await Resolve(new(Model: preset.Marker.Name), cancellationToken: cancellationToken)); }
         }
         foreach (var profile in configuration.ModelProfiles.Keys.Order(StringComparer.OrdinalIgnoreCase))
         {
-            result.Add(Resolve(new(Profile: profile)));
+            result.Add(await Resolve(new(Profile: profile), cancellationToken: cancellationToken));
         }
         return result.AsReadOnly();
     }

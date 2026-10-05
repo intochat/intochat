@@ -8,7 +8,7 @@ namespace DigitalBrain.AI;
 public sealed class InferenceService(ModelProfiles profiles, IOptionsMonitor<AIOptions> settings)
 {
     internal bool HasProfile(string name) => settings.CurrentValue.ModelProfiles.ContainsKey(name);
-    internal ResolvedAgentModel Resolve(AgentModelSelection? selection, Type? marker = null, bool tools = false)
+    internal async Task<ResolvedAgentModel> Resolve(AgentModelSelection? selection, Type? marker = null, bool tools = false, CancellationToken cancellationToken = default)
     {
         if (selection?.Capabilities is not null)
         { throw new ArgumentException("Capabilities must be declared in a host model profile.", nameof(selection)); }
@@ -17,19 +17,19 @@ public sealed class InferenceService(ModelProfiles profiles, IOptionsMonitor<AIO
         if (preset is not null && string.IsNullOrWhiteSpace(selection?.Profile)
             && string.IsNullOrWhiteSpace(selection?.Model) && string.IsNullOrWhiteSpace(selection?.Provider))
         { selection = (selection ?? new()) with { Model = preset.Marker.Name }; }
-        var resolved = profiles.Resolve(selection, tools);
+        var resolved = await profiles.Resolve(selection, tools, cancellationToken);
         if (preset is not null)
         {
-            var expected = profiles.Resolve(new(Model: preset.Marker.Name));
+            var expected = await profiles.Resolve(new(Model: preset.Marker.Name), cancellationToken: cancellationToken);
             if (resolved.Provider != expected.Provider || resolved.Model != expected.Model)
             { throw new ArgumentException($"The selected profile does not match typed model {preset.Marker.Name}.", nameof(selection)); }
         }
         return resolved;
     }
 
-    public ModelDescriptor Describe(AgentModelSelection? selection = null, Type? marker = null)
+    public async Task<ModelDescriptor> Describe(AgentModelSelection? selection = null, Type? marker = null, CancellationToken cancellationToken = default)
     {
-        var model = Resolve(selection, marker);
+        var model = await Resolve(selection, marker, cancellationToken: cancellationToken);
         return DescribeResolved(model, selection?.Capabilities);
     }
 
@@ -57,8 +57,8 @@ public sealed class InferenceService(ModelProfiles profiles, IOptionsMonitor<AIO
 
     public async Task<InferenceResult> Generate(InferenceRequest request, Type? marker = null, CancellationToken cancellationToken = default)
     {
-        var (model, messages, options) = Prepare(request, marker);
-        using var client = profiles.CreateInferenceClient(model);
+        var (model, messages, options) = await Prepare(request, marker, cancellationToken);
+        using var client = await profiles.CreateInferenceClient(model, cancellationToken);
         var result = await client.GetResponseAsync(messages, options, cancellationToken).ConfigureAwait(false);
         return new(result.Messages.Select(InferenceMapping.FromChatMessage).ToArray(), result.FinishReason?.Value,
             InferenceMapping.Usage(result.Usage), result.ResponseId, result.ModelId ?? model.Model);
@@ -67,8 +67,8 @@ public sealed class InferenceService(ModelProfiles profiles, IOptionsMonitor<AIO
     public async IAsyncEnumerable<InferenceUpdate> GenerateStreaming(InferenceRequest request, Type? marker = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var (model, messages, options) = Prepare(request, marker);
-        using var client = profiles.CreateInferenceClient(model);
+        var (model, messages, options) = await Prepare(request, marker, cancellationToken);
+        using var client = await profiles.CreateInferenceClient(model, cancellationToken);
         await foreach (var update in client.GetStreamingResponseAsync(messages, options, cancellationToken).ConfigureAwait(false))
         {
             yield return new(update.Role?.Value, update.Contents.Where(c => c is not UsageContent).Select(InferenceMapping.FromContent).ToArray(),
@@ -77,7 +77,7 @@ public sealed class InferenceService(ModelProfiles profiles, IOptionsMonitor<AIO
         }
     }
 
-    private (ResolvedAgentModel Model, List<ChatMessage> Messages, ChatOptions Options) Prepare(InferenceRequest request, Type? marker)
+    private async Task<(ResolvedAgentModel Model, List<ChatMessage> Messages, ChatOptions Options)> Prepare(InferenceRequest request, Type? marker, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (request.Messages is not { Count: > 0 }) { throw new ArgumentException("At least one message is required.", nameof(request)); }
@@ -90,7 +90,7 @@ public sealed class InferenceService(ModelProfiles profiles, IOptionsMonitor<AIO
                 MaxOutputTokens = request.Options.MaxOutputTokens ?? selection?.MaxOutputTokens,
             };
         }
-        var model = Resolve(selection, marker, request.Tools is { Count: > 0 });
+        var model = await Resolve(selection, marker, request.Tools is { Count: > 0 }, cancellationToken);
         var descriptor = DescribeResolved(model, selection?.Capabilities);
         InferenceMapping.ValidateRequest(request, descriptor);
         var options = InferenceMapping.CreateOptions(model, request.Options is null ? null : request.Options with { Reasoning = null }, descriptor);

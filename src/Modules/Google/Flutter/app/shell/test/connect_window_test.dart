@@ -1,13 +1,65 @@
-import 'package:digitalbrain_flutter_shell/integrations/connect_window.dart';
+import 'package:digitalbrain_flutter_shell/connections/connect_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('offers only the server catalog and never invents providers', (
+    tester,
+  ) async {
+    Future<Object?> request(String path, {Map<String, Object?>? body}) async =>
+        [];
+    Future<Object?> catalog(String path, {Map<String, Object?>? body}) async =>
+        [
+          {
+            'id': 'custom',
+            'displayName': 'Custom CRM',
+            'authMethods': ['token'],
+          },
+        ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ConnectWindow(request: request, connectorRequest: catalog),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Custom CRM'), findsOneWidget);
+    expect(find.text('Salesforce'), findsNothing);
+    expect(find.text('Gmail'), findsNothing);
+  });
+  testWidgets('empty offered catalog disables connecting', (tester) async {
+    Future<Object?> request(String path, {Map<String, Object?>? body}) async =>
+        [];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ConnectWindow(request: request, connectorRequest: request),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text('No connectors are available for this deployment.'),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('connect_submit')))
+          .onPressed,
+      isNull,
+    );
+  });
   testWidgets('masks the pasted value and never echoes it', (tester) async {
     final harness = _Harness();
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(body: ConnectWindow(request: harness.request)),
+        home: Scaffold(
+          body: ConnectWindow(
+            request: harness.request,
+            connectorRequest: harness.catalog,
+          ),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -43,11 +95,16 @@ void main() {
   testWidgets('lists status and probes and disconnects', (tester) async {
     final harness = _Harness()
       ..records = [
-        {'id': 'db', 'integrationId': 'supabase', 'status': 'Expired'},
+        {'id': 'db', 'connectorId': 'supabase', 'status': 'Expired'},
       ];
     await tester.pumpWidget(
       MaterialApp(
-        home: Scaffold(body: ConnectWindow(request: harness.request)),
+        home: Scaffold(
+          body: ConnectWindow(
+            request: harness.request,
+            connectorRequest: harness.catalog,
+          ),
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -70,6 +127,13 @@ final class _Harness {
   List<Map<String, dynamic>> records = [];
   final List<(String, Map<String, Object?>?)> calls = [];
 
+  Future<Object?> catalog(String path, {Map<String, Object?>? body}) async => [
+    {
+      'id': 'supabase',
+      'displayName': 'Supabase database',
+      'authMethods': ['connection-string'],
+    },
+  ];
   Future<Object?> request(String path, {Map<String, Object?>? body}) async {
     calls.add((path, body));
     switch (path) {
@@ -79,7 +143,7 @@ final class _Harness {
         records = [
           {
             'id': body!['connectionId'],
-            'integrationId': body['integrationId'],
+            'connectorId': body['connectorId'],
             'status': 'Connected',
           },
         ];

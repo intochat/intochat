@@ -38,8 +38,8 @@ public sealed class HostedAgentFacts
             {
                 PrivateConfiguration = new Dictionary<string, string?>
                 {
-                    [IntegrationDefinition.Key(provider.ToLowerInvariant(), "ApiKey")] = "test-only",
-                    [IntegrationDefinition.Key(provider.ToLowerInvariant(), "Endpoint")] = endpoint.Url,
+                    [IntegrationSchema.Key(provider.ToLowerInvariant(), "ApiKey")] = "test-only",
+                    [IntegrationSchema.Key(provider.ToLowerInvariant(), "Endpoint")] = endpoint.Url,
                 },
             }).StartAsync(ct);
         var agent = brain.Get<IAgent>("hosted-assistant");

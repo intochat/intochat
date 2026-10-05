@@ -4,13 +4,16 @@ using DigitalBrain.Framework;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Options;
+using DigitalBrain.Framework.Platform.Integrations;
 using Orleans.Hosting;
 
 namespace DigitalBrain.ClickHouse;
 
 public sealed class ClickHouseModule() : Module<ClickHouseModuleOptions>(new ModuleId("clickhouse"))
 {
+    public static IntegrationSchema Integration => IntegrationSchema.For("clickhouse", "ClickHouse").RequiresSecret("ConnectionString");
+    public static ConnectorDefinition Connector => new("clickhouse", "ClickHouse", ["connection-string"], ["clickhouse"]) { Neurons = [typeof(DigitalBrain.ClickHouse.Query.IClickHouse)], Signals = [] };
+
     public const string DriverProviderName = "ClickHouse";
 
     public override void Configure(ISiloBuilder builder)
@@ -19,16 +22,12 @@ public sealed class ClickHouseModule() : Module<ClickHouseModuleOptions>(new Mod
         var services = builder.Services;
         services.AddOptions<ClickHouseModuleOptions>()
             .Configure<IConfiguration>(static (options, configuration) => configuration.PopulateModuleOptions("clickhouse", options))
-            .PostConfigure<IConfiguration>(static (options, configuration) => options.ResolveConnection(configuration))
             .Validate(static options => string.Equals(options.Provider, DriverProviderName, StringComparison.OrdinalIgnoreCase),
-                "ClickHouse requires the module option Provider=ClickHouse.")
-            .Validate(static options => !string.IsNullOrWhiteSpace(options.ConnectionString),
-                "ClickHouse requires a connection string for its configured connection name.");
+                "ClickHouse requires the module option Provider=ClickHouse.");
         services.AddHttpClient(ClickHouseRegistration.HttpClientName, static client => client.Timeout = TimeSpan.FromMinutes(2));
-        services.TryAddSingleton(services => new ClickHouseClient(services.GetRequiredService<IOptions<ClickHouseModuleOptions>>().Value.ConnectionString!,
-            services.GetRequiredService<IHttpClientFactory>(), ClickHouseRegistration.HttpClientName));
-        services.TryAddSingleton<IClickHouseProvider>(services => new ClickHouseDriverProvider(
-            services.GetRequiredService<ClickHouseClient>(), ClickHouseDriverProvider.DatabaseOf(services.GetRequiredService<IOptions<ClickHouseModuleOptions>>().Value.ConnectionString!)));
+        services.TryAddSingleton<IntegrationClickHouseProvider>();
+        services.TryAddSingleton<IClickHouseProvider>(provider => provider.GetRequiredService<IntegrationClickHouseProvider>());
+        services.AddSingleton<IIntegrationStartup>(provider => provider.GetRequiredService<IntegrationClickHouseProvider>());
         services.AddHealthChecks().AddCheck<ClickHouseHealthCheck>("clickhouse", tags: ["ready"]);
     }
 }

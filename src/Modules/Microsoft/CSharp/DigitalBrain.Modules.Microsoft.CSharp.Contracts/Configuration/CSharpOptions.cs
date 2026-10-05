@@ -27,8 +27,6 @@ public sealed class CSharpDeploymentSettings
 
     // The script edge URL runs dial; development derives it from this brain's own HTTP address.
     public string? EdgeUrl { get; set; }
-    // Base64 HMAC key for run tokens, shared by every silo; development makes one per process.
-    public string? RunTokenKey { get; set; }
     // Production: the Azure Container Apps session pool management endpoint. Set, it replaces the Aspire sandbox.
     public string? SessionPoolEndpoint { get; set; }
     // Development: the allocated csharp-sandbox endpoint the AppHost projects for direct health probes.

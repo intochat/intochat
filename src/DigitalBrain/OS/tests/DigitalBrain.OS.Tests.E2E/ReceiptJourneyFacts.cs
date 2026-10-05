@@ -18,6 +18,7 @@ public sealed class ReceiptJourneyFacts(ReferenceBrainFixture host) : BrainFact(
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = Brain;
+        await UserConnections.AuthorizeSupabaseAsync(brain, "receipts", ct);
         await LeadData.SeedAsync(brain, "Receipt run", ct);
 
         using var response = await brain.HttpClient.PostAsJsonAsync("/agent",

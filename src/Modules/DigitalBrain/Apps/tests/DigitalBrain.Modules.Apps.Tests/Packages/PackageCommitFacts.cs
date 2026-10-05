@@ -94,9 +94,9 @@ public sealed class PackageCommitFacts
             valid with { Manifest = valid.Manifest with { Settings = [new PackageSetting("apiToken", "Credentials never ship in a package.", "")] } },
             valid with { Manifest = valid.Manifest with { Settings = [new PackageSetting("app", "Collides with the app address.", "")] } },
             valid with { Manifest = valid.Manifest with { Settings = [new PackageSetting("Account", "Collides with the account prefix.", "")] } },
-            valid with { Manifest = valid.Manifest with { Accounts = [new PackageAccount("twitter", "twitter", "Watch"), new PackageAccount("twitter", "gmail", "Duplicate")] } },
-            valid with { Manifest = valid.Manifest with { Accounts = [new PackageAccount("style", "twitter", "Collides with a setting")] } },
-            valid with { Manifest = valid.Manifest with { Accounts = [new PackageAccount("twitter", "invalid source", "Bad source")] } },
+            valid with { Manifest = valid.Manifest with { Accounts = [new PackageConnection("twitter", "twitter", "Watch"), new PackageConnection("twitter", "gmail", "Duplicate")] } },
+            valid with { Manifest = valid.Manifest with { Accounts = [new PackageConnection("style", "twitter", "Collides with a setting")] } },
+            valid with { Manifest = valid.Manifest with { Accounts = [new PackageConnection("twitter", "invalid source", "Bad source")] } },
             valid with { Source = "" },
         })
         {

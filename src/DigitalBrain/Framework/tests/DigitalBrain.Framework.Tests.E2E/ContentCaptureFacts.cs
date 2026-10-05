@@ -33,6 +33,7 @@ public sealed class ContentCaptureFacts
             // An ambient SDK setting cannot override the explicit module setting.
             ["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = "true",
         }, ct);
+        await UserConnections.AuthorizeSupabaseAsync(brain, "capture", ct);
         await LeadData.SeedAsync(brain, "Capture", ct);
         using var response = await brain.HttpClient.PostAsJsonAsync("/agent", new
         {

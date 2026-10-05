@@ -15,6 +15,7 @@ internal sealed class TokenEndpointStub(WebApplication app, Uri origin, Uri toke
         DigitalBrain.Testing.TestLogging.Apply(builder.Configuration);
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         var app = builder.Build();
+        app.MapGet("/profile", () => Results.Json(new { emailAddress = "user@gmail.com" }));
         app.MapPost("/token", () => Results.Json(new
         {
             token_type = "Bearer",

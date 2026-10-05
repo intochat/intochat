@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Platform.Integrations;
 using System.Text.Json;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.Flutter;
@@ -16,7 +17,7 @@ public sealed class TableWindowToolFacts
     public async Task StorageIdsRequireOpeningAWindowAndDoNotMeanTheDatabaseTableIsMissing(string name)
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().WithModule<SupabaseModule>()
+        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().WithModule<SupabaseModule>().ConfigureSilo(silo => silo.Configuration[IntegrationSchema.Key("supabase", "ConnectionString")] = "Host=localhost;Database=test;Username=reader")
             .ConfigureSilo(silo => silo.Services.AddSingleton<ISupabaseProvider>(new FakeSupabaseProvider())).StartAsync(ct);
         var tools = brain.SiloServices.GetServices<IAgentToolFactory>().SelectMany(factory => factory.Create(() => new("workspace", "run", "call")));
         var tool = tools.Single(tool => tool.Name == name);

@@ -3,6 +3,7 @@ using Aspire.Hosting;
 using Aspire.Hosting.Testing;
 using DigitalBrain.AI;
 using DigitalBrain.Testing.E2E.Agent;
+using DigitalBrain.Testing.E2E.Workspace;
 using Npgsql;
 using static DigitalBrain.Testing.E2E.Diagnostics.TraceAssertions;
 
@@ -27,6 +28,7 @@ public sealed class TraceBudgetFacts
             .WithResourceEnvironment(OtlpEnvironment(collector))
             .StartAsync(ct);
 
+        await UserConnections.AuthorizeSupabaseAsync(brain, "trace", ct);
         await Task.Delay(TimeSpan.FromSeconds(5), ct);
         var idleStart = collector.Snapshot().Count;
         await Task.Delay(TimeSpan.FromSeconds(60), ct);

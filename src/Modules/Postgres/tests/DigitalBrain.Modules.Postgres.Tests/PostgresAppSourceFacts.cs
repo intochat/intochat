@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Platform.Integrations;
 using System.Text.Json;
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework.Capacity;
@@ -33,7 +34,7 @@ public sealed class PostgresAppSourceFacts
         var provider = new PostgresWriteTableFacts.MemoryTables { LoseDefineResponse = true };
         await using var brain = await ModuleTest.Create().WithModule<PostgresModule>().ConfigureSilo(silo =>
         {
-            silo.Configuration["ConnectionStrings:postgres"] = "Host=localhost;Database=platform;Username=reader";
+            silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=platform;Username=reader";
             silo.Services.AddSingleton<IPostgresTableProvider>(provider);
             silo.Services.AddSingleton<ICapacity>(new ResearchCapacity());
         }).StartAsync(ct);
@@ -80,7 +81,7 @@ public sealed class PostgresAppSourceFacts
         await using var brain = await ModuleTest.Create().WithModule<DigitalBrain.Flutter.FlutterModule>().WithModule<PostgresModule>()
             .ConfigureSilo(silo =>
             {
-                silo.Configuration["ConnectionStrings:postgres"] = "Host=localhost;Database=sample;Username=reader";
+                silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=sample;Username=reader";
                 silo.Services.AddKeyedSingleton<ILiveTableSource>(resource, new RecordingSource());
             }).StartAsync(ct);
         var windows = new LiveTableWindows(brain);
@@ -96,7 +97,7 @@ public sealed class PostgresAppSourceFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<PostgresModule>().ConfigureSilo(silo =>
         {
-            silo.Configuration["ConnectionStrings:postgres"] = "Host=localhost;Database=platform;Username=reader";
+            silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=platform;Username=reader";
             silo.Services.AddSingleton<IPostgresTableProvider>(new PostgresWriteTableFacts.MemoryTables());
             silo.Services.AddSingleton<ICapacity>(new ResearchCapacity());
         }).StartAsync(ct);

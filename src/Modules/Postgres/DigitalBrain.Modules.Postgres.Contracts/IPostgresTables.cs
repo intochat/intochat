@@ -17,10 +17,3 @@ public interface IPostgresTableLifetime : INeuron
 {
     Task Retire(string owner);
 }
-
-[PlatformOnly]
-public interface IPostgresStorageMigration : INeuron
-{
-    Task Ensure();
-    [Orleans.Concurrency.ReadOnly] Task<string[]> ReadSkippedBlobs();
-}

@@ -5,8 +5,8 @@ import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:digitalbrain_ui/digitalbrain_ui.dart';
 import 'package:flutter/material.dart';
 
-import '../integrations/connect_window.dart';
-import '../integrations/integrations_menu.dart';
+import '../connections/connect_window.dart';
+import '../connections/connectors_menu.dart';
 import 'workspace_store.dart';
 import 'neuron_workspace_persistence.dart';
 import 'workspace_remote_controller.dart';
@@ -1104,16 +1104,16 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
         kernelBaseUri: widget.kernelBaseUri,
         onOpen: widget.onOpenUrl,
         connectionsRequest: _connectionsRequest,
-        serviceRequest: _serviceConnectionsRequest,
+        connectorRequest: _connectorRequest,
         loadModels: widget.programmingClient?.readModelCatalog,
       );
 
-  ConnectionsRequest? get _serviceConnectionsRequest {
+  ConnectionsRequest? get _connectorRequest {
     final client = widget.programmingClient;
     if (client == null) return null;
     final workspaceId = store.currentProject.id;
     return (path, {body}) =>
-        client.serviceConnectionsRequest(workspaceId, path, body: body);
+        client.connectorRequest(workspaceId, path, body: body);
   }
 
   ConnectionsRequest? get _connectionsRequest {

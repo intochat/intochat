@@ -8,14 +8,14 @@ internal static class AiIntegrations
     internal const string EndpointField = "Endpoint";
     internal const string TavilyId = "tavily";
 
-    internal static IntegrationDefinition[] Definitions { get; } =
+    internal static IntegrationSchema[] Definitions { get; } =
     [
         Provider("openai", "OpenAI"),
         Provider("anthropic", "Anthropic"),
         Provider("google", "Google"),
         Provider("xai", "xAI"),
         Provider("openrouter", "OpenRouter"),
-        IntegrationDefinition.For(TavilyId, "Tavily").RequiresSecret(ApiKeyField),
+        IntegrationSchema.For(TavilyId, "Tavily").RequiresSecret(ApiKeyField),
     ];
 
     internal static string IdOf(AiProvider provider) => provider switch
@@ -40,6 +40,6 @@ internal static class AiIntegrations
 
     internal static AiProvider[] KeyedProviders { get; } = [AiProvider.OpenAI, AiProvider.Anthropic, AiProvider.Google, AiProvider.XAI, AiProvider.OpenRouter];
 
-    private static IntegrationDefinition Provider(string id, string displayName)
-        => IntegrationDefinition.For(id, displayName).RequiresSecret(ApiKeyField).OffersSetting(EndpointField);
+    private static IntegrationSchema Provider(string id, string displayName)
+        => IntegrationSchema.For(id, displayName).RequiresSecret(ApiKeyField).OffersSetting(EndpointField);
 }

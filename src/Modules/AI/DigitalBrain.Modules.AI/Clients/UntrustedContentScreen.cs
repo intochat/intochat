@@ -46,7 +46,7 @@ internal sealed partial class UntrustedContentScreen(IOptions<AIOptions> options
                 throw new InvalidOperationException();
             }
 
-            using var client = new OpenAIProviderFactory().CreateChatClient(model, options.Value, credentials);
+            using var client = await new OpenAIProviderFactory().CreateChatClient(model, options.Value, credentials, cancellationToken);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromSeconds(30));
             var response = await client.GetResponseAsync([

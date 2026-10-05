@@ -14,13 +14,12 @@
   "src/DigitalBrain/Framework/DigitalBrain.Framework/Platform/Identity/AuthOptions.cs",
   "src/DigitalBrain/Framework/DigitalBrain.Framework/Platform/Identity/IdentityHostOptions.cs",
   "src/DigitalBrain/Framework/DigitalBrain.Framework/Platform/Identity/KernelCorsOptions.cs",
-  "src/DigitalBrain/Framework/DigitalBrain.Framework/Platform/Integrations/IntegrationDefinition.cs",
+  "src/DigitalBrain/Framework/DigitalBrain.Framework/Platform/Integrations/IntegrationSchema.cs",
   "src/DigitalBrain/Platform/DigitalBrain.Platform/Identity/Directory/IdentityMigrationOptions.cs",
   "src/Modules/AI/DigitalBrain.Modules.AI/AIOptionsRuntime.cs",
   "src/Modules/AI/tests/DigitalBrain.Modules.AI.Tests/AIGrammarFacts.cs",
   "src/Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Aspire.Hosting/Configuration/FlutterHostOptions.cs",
   "src/Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Aspire.Hosting/ShellNames.cs",
   "src/Modules/Google/Flutter/tests/DigitalBrain.Modules.Flutter.Tests.Hosting/FlutterHostOptionsGrammarFacts.cs",
-  "src/Modules/Postgres/DigitalBrain.Modules.Postgres.Contracts/Configuration/PostgresModuleOptions.cs",
   "src/Testing/tests/DigitalBrain.Architecture.Tests/ModuleKeyGrammarFacts.cs"
 ]

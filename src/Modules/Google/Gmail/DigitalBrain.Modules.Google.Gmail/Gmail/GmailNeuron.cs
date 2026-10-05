@@ -2,7 +2,7 @@ using DigitalBrain;
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
-using DigitalBrain.Framework.Platform.Secrets;
+using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Runtime;
 
@@ -11,26 +11,22 @@ namespace DigitalBrain.Google.Gmail;
 [GrainType("gmail")]
 internal sealed class GmailNeuron(
     [PersistentState("gmail-vault", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<GmailState> store)
-    : Neuron<GmailState>(store), IGmail
+    : Neuron<GmailState>(store), IGmail, IGmailInbound
 {
-    // The connector's inbound edge: the webhook and OAuth-callback endpoints are the gates,
-    // and both operations validate their payloads, so any trusted caller may deliver them.
-    // Everything else keeps the default brain-scope rule.
-    public override DigitalBrain.Framework.Enforcement.NeuronAccess Access(string operation)
-        => operation is nameof(AcceptWatchPush) or nameof(AcceptAuthorizationCode)
-            ? DigitalBrain.Framework.Enforcement.NeuronAccess.PublicOperation
-            : base.Access(operation);
-
-    public Task AcceptWatchPush(GmailWatchPush push)
+    public async Task AcceptWatchPush(GmailWatchPush push)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(push.EmailAddress);
         ArgumentException.ThrowIfNullOrWhiteSpace(push.HistoryId);
-        return PublishAsync(new MailReceived(push.EmailAddress, push.HistoryId));
+        if (!string.Equals(Snapshot.Email, push.EmailAddress, StringComparison.OrdinalIgnoreCase)) { return; }
+        var key = this.GetPrimaryKeyString();
+        if (!key.StartsWith("connection/", StringComparison.Ordinal) || !await ServiceProvider.GetRequiredService<IModuleConnectionCredentials<GmailModule>>().IsConnectedAsync(key)) { return; }
+        await PublishAsync(new MailReceived(push.EmailAddress, push.HistoryId));
     }
 
-    public async Task AcceptAuthorizationCode(string authorizationCode, string? secretOwner = null)
+    public async Task AcceptAuthorizationCode(string authorizationCode, string? targetBrainId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(authorizationCode);
+        _ = ConnectionKeys.Parse(this.GetPrimaryKeyString());
         var tokens = ServiceProvider.GetRequiredService<IGmailTokenExchange>();
         var grant = await tokens.ExchangeAuthorizationCodeAsync(authorizationCode, CancellationToken.None)
             .ConfigureAwait(ConfigureAwaitOptions.ContinueOnCapturedContext);
@@ -40,23 +36,18 @@ internal sealed class GmailNeuron(
             GmailTokenPolicy.ValidateToken(grant.RefreshToken);
         }
 
-        var email = grant.Email ?? this.GetPrimaryKeyString();
-        ArgumentException.ThrowIfNullOrWhiteSpace(email);
-        var owner = string.IsNullOrWhiteSpace(secretOwner) ? this.GetPrimaryKeyString() : secretOwner;
-        var vault = GrainFactory.GetGrain<ISecrets>(owner);
-        var platform = Platform();
-        var credential = await vault.Set(platform, "gmail.access", "Gmail access token", grant.AccessToken, CancellationToken.None)
-            .ConfigureAwait(ConfigureAwaitOptions.ContinueOnCapturedContext);
-        if (!credential.IsSet)
-        {
-            throw new GmailNotConnectedException();
-        }
-
-        var refreshCredential = grant.RefreshToken is null
-            ? null
-            : await vault.Set(platform, "gmail.refresh", "Gmail refresh token", grant.RefreshToken, CancellationToken.None)
-                .ConfigureAwait(ConfigureAwaitOptions.ContinueOnCapturedContext);
+        var email = grant.Email;
+        if (string.IsNullOrWhiteSpace(email)) { throw new GmailUnavailableException("Google did not verify the mailbox identity. Reconnect Gmail."); }
+        var key = this.GetPrimaryKeyString();
+        if (!key.StartsWith("connection/", StringComparison.Ordinal)) { throw new GmailNotConnectedException("Reconnect Gmail as a named connection."); }
+        var credentials = ServiceProvider.GetRequiredService<IModuleConnectionCredentials<GmailModule>>();
+        var credential = await credentials.WriteSecretAsync(key, "gmail.access", "Gmail access token", grant.AccessToken, targetBrainId: targetBrainId);
+        var refreshCredential = grant.RefreshToken is null ? null
+            : await credentials.WriteSecretAsync(key, "gmail.refresh", "Gmail refresh token", grant.RefreshToken, targetBrainId: targetBrainId);
+        if (Snapshot.Email is { } previous && !string.Equals(previous, email, StringComparison.OrdinalIgnoreCase))
+        { await GrainFactory.GetGrain<IGmailMailboxIndex>(previous.ToLowerInvariant()).Remove(key); }
         var expiresAt = GmailTokenPolicy.Expiry(grant.ExpiresInSeconds, ServiceProvider.GetRequiredService<TimeProvider>());
+        await credentials.ConnectAsync(key, "google-oauth", credential, targetBrainId: targetBrainId);
         await Save(Snapshot with
         {
             Email = email,
@@ -65,16 +56,7 @@ internal sealed class GmailNeuron(
             GrantedScopes = grant.GrantedScopes ?? "",
             ExpiresAt = expiresAt,
         }, new GmailConnected(email)).ConfigureAwait(ConfigureAwaitOptions.ContinueOnCapturedContext);
+        await GrainFactory.GetGrain<IGmailMailboxIndex>(email.ToLowerInvariant()).Add(key);
     }
 
-    // The outbound call resolves the secret as trusted platform code, never as the user turn.
-    private static CallerContext Platform() => new()
-    {
-        PrincipalId = "gmail",
-        AccountId = "gmail",
-        BrainId = "gmail",
-        Kind = CallerKind.Platform,
-        StampedBy = TrustedEdge.Platform,
-        AppId = "gmail",
-    };
 }

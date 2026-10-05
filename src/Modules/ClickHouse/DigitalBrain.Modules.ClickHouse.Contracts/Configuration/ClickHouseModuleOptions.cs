@@ -1,15 +1,11 @@
-using System.Text.Json.Serialization;
 using DigitalBrain;
-using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.ClickHouse;
 
 public sealed class ClickHouseModuleOptions : IModuleOptions
 {
-    public string? Provider { get; set; }
+    public string? Provider { get; set; } = "ClickHouse";
     public string ConnectionName { get; set; } = "clickhouse";
-    [JsonIgnore]
-    public string? ConnectionString { get; internal set; }
     public ClickHouseResourceOptions Hosting { get; set; } = new();
 
     public ClickHouseModuleOptions WithClickHouse(Action<ClickHouseResourceOptions>? configure = null)
@@ -22,19 +18,15 @@ public sealed class ClickHouseModuleOptions : IModuleOptions
 
     public void Validate()
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(ConnectionName);
+        if (!string.Equals(Provider, "ClickHouse", StringComparison.OrdinalIgnoreCase))
+        { throw new ArgumentException("ClickHouse requires the ClickHouse provider."); }
+        ArgumentNullException.ThrowIfNull(Hosting);
         if (Hosting.Seeds.Any(string.IsNullOrWhiteSpace))
         { throw new ArgumentException("ClickHouse seed names must not be blank."); }
     }
 
-    public void ResolveConnection(IConfiguration configuration)
-    {
-        if (string.IsNullOrWhiteSpace(ConnectionName))
-        {
-            ConnectionName = "clickhouse";
-        }
 
-        ConnectionString = configuration.GetConnectionString(ConnectionName);
-    }
 }
 
 public sealed class ClickHouseResourceOptions

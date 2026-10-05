@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Supabase;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -10,7 +11,7 @@ public sealed class SupabaseQueryFacts
     public async Task QueryReturnsTypedRows()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<SupabaseModule>(m => m.WithProvider<FakeSupabaseProvider>()).StartAsync(ct);
+        await using var brain = await ModuleTest.Create().WithModule<SupabaseModule>(m => m.WithProvider<FakeSupabaseProvider>()).ConfigureSilo(silo => silo.Configuration[IntegrationSchema.Key("supabase", "ConnectionString")] = "Host=localhost;Database=test;Username=reader").StartAsync(ct);
         var supabase = brain.Get<ISupabase>(SupabaseNames.DefaultNeuron);
 
         var result = await supabase.Query(new("select id from people"));
@@ -63,7 +64,7 @@ public sealed class SupabaseQueryFacts
     }
 
     private static Task<ModuleBrain> StartAsync(FakeSupabaseProvider provider, CancellationToken ct)
-        => ModuleTest.Create().WithModule<SupabaseModule>()
+        => ModuleTest.Create().WithModule<SupabaseModule>().ConfigureSilo(silo => silo.Configuration[IntegrationSchema.Key("supabase", "ConnectionString")] = "Host=localhost;Database=test;Username=reader")
             .ConfigureSilo(silo => silo.Services.AddSingleton<ISupabaseProvider>(provider))
             .StartAsync(ct);
 }

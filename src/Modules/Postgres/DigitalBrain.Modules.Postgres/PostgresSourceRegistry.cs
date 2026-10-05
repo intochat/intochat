@@ -1,8 +1,9 @@
 using System.Collections.Concurrent;
 using DigitalBrain.Framework.Capacity;
-using Microsoft.Extensions.Configuration;
+using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Postgres;
 
@@ -11,14 +12,12 @@ internal static class PostgresCapacityKind
     public const string Kind = "postgres";
     public const string PlatformOrigin = "platform";
     public const string DatabasePrefix = "db:";
-    public const string AdminConnectionKey = PostgresModuleOptions.AdminConnectionKey;
 
     // A table pinned before origins existed (Origin == null) lives in the platform source.
     public static string OriginOrPlatform(string? origin) => string.IsNullOrEmpty(origin) ? PlatformOrigin : origin;
 }
 
-// Inactive when an admin connection is present: local hosted runs provision per brain instead of
-// sharing the platform database, while ConnectionStrings:postgres keeps serving startup and health.
+// Hosted runs can provision one database per brain; other deployments use the configured source.
 internal sealed class PostgresConfiguredSource(bool active) : ICapacityConfiguredSource
 {
     public string Kind => active ? PostgresCapacityKind.Kind : PostgresCapacityKind.Kind + ":inactive";
@@ -27,31 +26,55 @@ internal sealed class PostgresConfiguredSource(bool active) : ICapacityConfigure
 
 internal interface IPostgresSourceRegistry
 {
-    NpgsqlDataSource Get(string origin);
+    Task<NpgsqlDataSource> Get(string origin, CancellationToken ct = default);
 }
 
-internal sealed class PostgresSourceRegistry(IServiceProvider provider, IConfiguration configuration) : IPostgresSourceRegistry, IAsyncDisposable
+internal sealed class PostgresSourceRegistry(IModuleIntegrations<PostgresModule> integrations, IOptions<PostgresModuleOptions> options) : IPostgresSourceRegistry, IAsyncDisposable, IIntegrationStartup
 {
-    private readonly ConcurrentDictionary<string, NpgsqlDataSource> _provisioned = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<(long Revision, string Origin), NpgsqlDataSource> _sources = new();
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private NpgsqlConnectionStringBuilder? _platform;
+    private NpgsqlConnectionStringBuilder? _admin;
+    private long _revision = -1;
+    private bool _adminMaterialized;
 
-    public NpgsqlDataSource Get(string origin)
+    public async Task InitializeAsync(CancellationToken cancellationToken)
+        => _ = await Get(PostgresCapacityKind.PlatformOrigin, cancellationToken);
+
+    public async Task<NpgsqlDataSource> Get(string origin, CancellationToken ct = default)
     {
-        if (origin == PostgresCapacityKind.PlatformOrigin)
-        { return provider.GetRequiredKeyedService<NpgsqlDataSource>(PostgresHosting.DataSourceKey); }
-        if (!origin.StartsWith(PostgresCapacityKind.DatabasePrefix, StringComparison.Ordinal))
+        if (origin != PostgresCapacityKind.PlatformOrigin && !origin.StartsWith(PostgresCapacityKind.DatabasePrefix, StringComparison.Ordinal))
         { throw new PostgresUnavailableException("Unknown Postgres capacity origin."); }
-        return _provisioned.GetOrAdd(origin, key =>
+        await _gate.WaitAsync(ct);
+        try
         {
-            var admin = configuration[PostgresCapacityKind.AdminConnectionKey]
+            var handle = integrations.Get("postgres");
+            var snapshot = await handle.ReadAsync(ct);
+            if (snapshot.Status != IntegrationStatus.Ready) { throw new PostgresUnavailableException("The Postgres integration is unavailable."); }
+            var needAdmin = options.Value.ProvisionPerBrain || origin != PostgresCapacityKind.PlatformOrigin;
+            if (_platform is null || _revision != snapshot.Revision || needAdmin && !_adminMaterialized)
+            {
+                var released = await handle.ReleaseAsync(ct);
+                if (released.Snapshot.Status != IntegrationStatus.Ready) { throw new PostgresUnavailableException("The Postgres integration is unavailable."); }
+                var platform = PostgresConnectionSettings.Parse(released.Values["ConnectionString"]);
+                var admin = needAdmin && released.Values.TryGetValue("AdminConnection", out var value) ? PostgresConnectionSettings.Parse(value) : null;
+                if (options.Value.ProvisionPerBrain && admin is null) { throw new InvalidOperationException("AdminConnection is required for per-brain provisioning."); }
+                _platform = platform;
+                _admin = admin;
+                _adminMaterialized = needAdmin;
+                _revision = released.Snapshot.Revision;
+            }
+            var settings = origin == PostgresCapacityKind.PlatformOrigin ? _platform : _admin
                 ?? throw new PostgresUnavailableException("This table's database is not reachable from this deployment.");
-            var builder = new NpgsqlConnectionStringBuilder(PostgresConnectionSettings.Parse(admin).ConnectionString)
-            { Database = key[PostgresCapacityKind.DatabasePrefix.Length..] };
-            return NpgsqlDataSource.Create(builder.ConnectionString);
-        });
+            var connection = new NpgsqlConnectionStringBuilder(settings.ConnectionString);
+            if (origin != PostgresCapacityKind.PlatformOrigin) { connection.Database = origin[PostgresCapacityKind.DatabasePrefix.Length..]; }
+            return _sources.GetOrAdd((_revision, origin), _ => NpgsqlDataSource.Create(connection.ConnectionString));
+        }
+        finally { _gate.Release(); }
     }
 
     public async ValueTask DisposeAsync()
     {
-        foreach (var source in _provisioned.Values) { await source.DisposeAsync(); }
+        foreach (var source in _sources.Values) { await source.DisposeAsync(); }
     }
 }

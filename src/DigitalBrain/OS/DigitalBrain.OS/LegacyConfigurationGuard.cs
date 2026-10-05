@@ -8,6 +8,14 @@ public static class LegacyConfigurationGuard
 {
     private static readonly (string Legacy, string Target)[] RetiredSections =
     [
+        ("DigitalBrain:Capacity", "DigitalBrain:Integrations:postgres"),
+        ("DigitalBrain:Modules:csharp:Deployment:RunTokenKey", "DigitalBrain:Integrations:csharp:RunTokenKey"),
+        ("DigitalBrain:Modules:salesforce:OAuth", "DigitalBrain:Integrations:salesforce"),
+        ("DigitalBrain:Modules:github:App", "DigitalBrain:Integrations:github"),
+        ("DigitalBrain:Modules:github:Repositories", "DigitalBrain:Modules:github:Options:Repositories"),
+        ("DigitalBrain:Integrations:gmail", "DigitalBrain:Integrations:google-oauth"),
+        ("DigitalBrain:Modules:supabase:Options:ConnectionString", "DigitalBrain:Integrations:supabase:ConnectionString"),
+        ("DigitalBrain:Modules:clickhouse:Options:ConnectionString", "DigitalBrain:Integrations:clickhouse:ConnectionString"),
         ("DigitalBrain:AI", "DigitalBrain:Modules:ai:Options"),
         ("DigitalBrain:Workspace", "DigitalBrain:Modules:ai:Options:Workspace"),
         ("DigitalBrain:Apps", "DigitalBrain:Modules:apps:Options"),

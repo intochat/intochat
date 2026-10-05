@@ -124,7 +124,7 @@ public sealed class MediaFacts
     }
     private sealed class Transcription : IAudioTranscriptionService
     {
-        public bool IsReady => true;
+        public Task<bool> IsReadyAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
         public bool InitializationFailed => false;
         public string? ErrorMessage => null;
         public string ModelId => "test-recognition";
@@ -135,7 +135,7 @@ public sealed class MediaFacts
     }
     private sealed class Speech : ISpeechSynthesisTransport
     {
-        public bool IsAvailable => true;
+        public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
         public string Model => "test-speech";
         public Task<MediaPayload> Synthesize(SpeechSynthesisRequest request, CancellationToken cancellationToken)
             => Task.FromResult(new MediaPayload([(byte)request.Text.Length], "audio/mpeg"));

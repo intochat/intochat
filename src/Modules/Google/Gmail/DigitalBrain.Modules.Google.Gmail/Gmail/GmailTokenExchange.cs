@@ -20,7 +20,13 @@ internal sealed class GmailTokenExchange(GmailRegistration registration, GmailMo
             ["grant_type"] = "authorization_code",
             ["redirect_uri"] = new Uri(credentials.PublicOrigin, "google/gmail/oauth/callback").AbsoluteUri,
         }), cancellationToken).ConfigureAwait(false);
-        return await ReadGrantAsync(response, cancellationToken).ConfigureAwait(false);
+        var grant = await ReadGrantAsync(response, cancellationToken).ConfigureAwait(false);
+        using var request = new HttpRequestMessage(HttpMethod.Get, options.ProfileEndpoint);
+        request.Headers.Authorization = new("Bearer", grant.AccessToken);
+        using var profile = await _oauth.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        profile.EnsureSuccessStatusCode();
+        using var json = JsonDocument.Parse(await profile.Content.ReadAsStringAsync(cancellationToken));
+        return grant with { Email = json.RootElement.GetProperty("emailAddress").GetString() };
     }
 
     public async Task<GmailTokenGrant> ExchangeAsync(string refreshToken, CancellationToken cancellationToken)

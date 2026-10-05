@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain;
 using DigitalBrain.Apps;
 using DigitalBrain.Enforcement;
@@ -19,7 +20,7 @@ public sealed class AppStorageFacts
         await using var brain = await ModuleTest.Create().WithModule<AppsModule>().WithModule<PostgresModule>()
             .ConfigureSilo(silo =>
             {
-                silo.Configuration["ConnectionStrings:postgres"] = "Host=localhost;Database=sample;Username=reader";
+                silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=sample;Username=reader";
                 silo.Services.AddSingleton<IPostgresTableProvider>(provider);
             }).StartAsync(ct);
         Caller.As("alice");
@@ -76,7 +77,7 @@ public sealed class AppStorageFacts
         await using (var brain = await ModuleTest.Create().WithModule<AppsModule>().WithModule<PostgresModule>()
             .ConfigureSilo(silo =>
             {
-                silo.Configuration["ConnectionStrings:postgres"] = "Host=localhost;Database=sample;Username=reader";
+                silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=sample;Username=reader";
                 silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.DefaultGrainStorage, storage);
             }).StartAsync(ct))
         {

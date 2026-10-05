@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Postgres;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -57,18 +58,19 @@ public sealed class PostgresFacts
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 [DigitalBrainConfiguration.ModuleOptionsSection("postgres") + ":ConnectionName"] = "analytics",
-                ["ConnectionStrings:analytics"] = "Host=localhost;Database=analytics;Username=reader",
-                ["ConnectionStrings:supabase"] = "Host=localhost;Database=supabase;Username=reader",
+                [IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=analytics;Username=reader",
+                [IntegrationSchema.Key("supabase", "ConnectionString")] = "Host=localhost;Database=supabase;Username=reader",
             }).Build();
         services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton<IModuleIntegrations<PostgresModule>>(new TestIntegrations(configuration));
         var silo = new PostgresTestSiloBuilder(services, configuration);
         if (postgresFirst) { silo.AddPostgres(); }
         new DigitalBrain.Supabase.SupabaseModule().Configure(silo);
         silo.AddPostgres();
         silo.AddPostgres();
         await using var provider = services.BuildServiceProvider();
-        Assert.Equal("supabase", new NpgsqlConnectionStringBuilder(provider.GetRequiredService<NpgsqlDataSource>().ConnectionString).Database);
-        var source = provider.GetRequiredKeyedService<NpgsqlDataSource>(PostgresHosting.DataSourceKey);
+        Assert.Null(provider.GetService<NpgsqlDataSource>());
+        var source = await provider.GetRequiredService<IPostgresSourceRegistry>().Get("platform", TestContext.Current.CancellationToken);
         Assert.Equal("analytics", new NpgsqlConnectionStringBuilder(source.ConnectionString).Database);
         Assert.Single(provider.GetServices<IPostgresProvider>());
         Assert.Single(provider.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value.Registrations, registration => registration.Name == "postgres");
@@ -99,18 +101,19 @@ public sealed class PostgresFacts
     [Theory]
     [InlineData(null)]
     [InlineData("Password=secret-value")]
-    public async Task StartupRejectsMissingOrInvalidConnections(string? connection)
+    public async Task InvalidCredentialIsRejectedWhenTheSourceIsRequested(string? connection)
     {
         var services = new ServiceCollection();
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["ConnectionStrings:postgres"] = connection,
+            [IntegrationSchema.Key("postgres", "ConnectionString")] = connection,
         }).Build();
         services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton<IModuleIntegrations<PostgresModule>>(new TestIntegrations(configuration));
         new PostgresTestSiloBuilder(services, configuration).AddPostgres();
-        using var provider = services.BuildServiceProvider();
-        var error = await Assert.ThrowsAsync<OptionsValidationException>(async () =>
-            await provider.GetRequiredService<IAsyncStartupValidator>().ValidateAsync(TestContext.Current.CancellationToken));
+        await using var provider = services.BuildServiceProvider();
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await provider.GetRequiredService<IPostgresSourceRegistry>().Get("platform", TestContext.Current.CancellationToken));
         Assert.DoesNotContain("secret-value", error.ToString(), StringComparison.Ordinal);
     }
 
@@ -139,9 +142,10 @@ public sealed class PostgresFacts
         services.AddLogging();
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["ConnectionStrings:postgres"] = "Host=localhost;Database=sample;Username=reader",
+            [IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=sample;Username=reader",
         }).Build();
         services.AddSingleton<IConfiguration>(configuration);
+        services.AddSingleton<IModuleIntegrations<PostgresModule>>(new TestIntegrations(configuration));
         services.AddSingleton<IPostgresProvider, PostgresTestControls>();
         await using var brain = await StartAsync();
         services.AddSingleton<DigitalBrain.IDigitalBrain>(brain);
@@ -155,7 +159,25 @@ public sealed class PostgresFacts
         => ModuleTest.Create().WithModule<PostgresModule, PostgresModuleOptions>(module => module.WithConnection(connectionName))
             .ConfigureSilo(silo =>
             {
-                silo.Configuration[$"ConnectionStrings:{connectionName}"] = "Host=localhost;Database=sample;Username=reader";
+                silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=sample;Username=reader";
                 silo.Services.AddSingleton<IPostgresProvider, PostgresTestControls>();
             }).StartAsync(TestContext.Current.CancellationToken);
+    private sealed class TestIntegrations(IConfiguration configuration) : IModuleIntegrations<PostgresModule>
+    {
+        public IIntegrationHandle Get(string integrationId) => new TestHandle(configuration, integrationId);
+    }
+    private sealed class TestHandle(IConfiguration configuration, string integrationId) : IIntegrationHandle
+    {
+        public string IntegrationId => integrationId;
+        public Task<ReleasedIntegration> ReleaseAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(new ReleasedIntegration
+            {
+                Snapshot = new IntegrationSnapshot { IntegrationId = integrationId, Status = IntegrationStatus.Ready },
+                Values = new() { ["ConnectionString"] = configuration[IntegrationSchema.Key(integrationId, "ConnectionString")] ?? throw new InvalidOperationException("Missing integration credential.") },
+            });
+        public Task<IntegrationSnapshot> ReadAsync(CancellationToken cancellationToken = default) => Task.FromResult(new IntegrationSnapshot { IntegrationId = integrationId, Status = IntegrationStatus.Ready });
+        public Task<string> ReadSecretAsync(string field, CancellationToken cancellationToken = default)
+            => Task.FromResult(configuration[IntegrationSchema.Key(integrationId, field)] ?? throw new InvalidOperationException("Missing integration credential."));
+    }
+
 }

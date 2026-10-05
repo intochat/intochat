@@ -10,11 +10,11 @@ public sealed class NeuronContractFacts
     [Fact]
     public void TheCatalogExposesNeuronContractsAndRefusesCredentialContracts()
     {
-        var catalog = new NeuronContracts([typeof(INeuron).Assembly, typeof(IIntegrationRegistration).Assembly,
+        var catalog = new NeuronContracts([typeof(INeuron).Assembly, typeof(IIntegration).Assembly,
             typeof(DigitalBrain.Time.Timers.ITimer).Assembly]);
         Assert.Equal(typeof(DigitalBrain.Time.Timers.ITimer), catalog.Find(typeof(DigitalBrain.Time.Timers.ITimer).FullName!));
         Assert.DoesNotContain(typeof(INeuron).FullName!, catalog.Names);
-        Assert.Throws<ArgumentException>(() => catalog.Find(typeof(IIntegrationRegistration).FullName!));
+        Assert.Throws<ArgumentException>(() => catalog.Find(typeof(IIntegration).FullName!));
         Assert.Throws<ArgumentException>(() => catalog.Find("Missing.Contract"));
     }
 

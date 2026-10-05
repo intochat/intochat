@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace DigitalBrain.Microsoft.GitHub;
 
-internal sealed class GitHubWebhookIngress(GitHubRepositoryBindings bindings, IGrainFactory grains)
+internal sealed class GitHubWebhookIngress(GitHubRepositoryBindings bindings, IGrainFactory grains, GitHubAppRegistration registration)
 {
     public async Task<GitHubWebhookAcceptance> HandleAsync(ReadOnlyMemory<byte> body,
         IReadOnlyDictionary<string, string[]> headers, CancellationToken cancellationToken)
@@ -30,12 +30,14 @@ internal sealed class GitHubWebhookIngress(GitHubRepositoryBindings bindings, IG
             var app = RoutingHint(payload, "hook", "app_id");
             var signature = Header(headers, "X-Hub-Signature-256");
             var ping = eventName == "ping";
+            var webhookSecret = await registration.ReadOptionalSecretAsync("WebhookSecret", cancellationToken);
+            if (webhookSecret is not { Length: >= 16 }) { return GitHubWebhookAcceptance.Unauthorized; }
             var targets = bindings.All.Where(binding => installation is not null
                 ? binding.InstallationId == installation && (repository is null || binding.RepositoryId == repository)
                 : app is not null && binding.AppId == app).ToArray();
             if (ping && installation is null && app is null)
             {
-                targets = bindings.All.Where(binding => ValidateSignature(body.Span, signature, binding.WebhookSecret)).ToArray();
+                targets = bindings.All.Where(binding => ValidateSignature(body.Span, signature, webhookSecret)).ToArray();
             }
             if (targets.Length == 0)
             {
@@ -44,7 +46,7 @@ internal sealed class GitHubWebhookIngress(GitHubRepositoryBindings bindings, IG
             var results = new List<GitHubWebhookAcceptance>();
             foreach (var binding in targets)
             {
-                if (!ValidateSignature(body.Span, signature, binding.WebhookSecret))
+                if (!ValidateSignature(body.Span, signature, webhookSecret))
                 {
                     results.Add(GitHubWebhookAcceptance.Unauthorized);
                     continue;

@@ -124,7 +124,7 @@ internal sealed class PostgresTableProvider(IPostgresSourceRegistry registry) : 
         deadline.CancelAfter(TimeSpan.FromSeconds(20));
         try
         {
-            await using var connection = await registry.Get(origin).OpenConnectionAsync(deadline.Token);
+            await using var connection = await (await registry.Get(origin, deadline.Token)).OpenConnectionAsync(deadline.Token);
             await using var transaction = await connection.BeginTransactionAsync(deadline.Token);
             await using (var setup = new NpgsqlCommand("SET LOCAL statement_timeout='15s'; SET LOCAL lock_timeout='3s'; SET LOCAL timezone='UTC'", connection, transaction))
             { await setup.ExecuteNonQueryAsync(deadline.Token); }

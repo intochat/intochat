@@ -21,12 +21,17 @@ public sealed class WorkspaceRestoreFacts(ReferenceBrainFixture host) : BrainFac
         var page = await OpenPageAsync(ct);
         await page.SetViewportSizeAsync(1600, 1000);
         var projectId = await WorkspaceBrowser.CreateProjectAsync(page, "Restore data workspace");
+        await UserConnections.AuthorizeSupabaseAsync(brain, projectId, ct);
         await WorkspaceBrowser.CreateProjectAsync(page, "Restore other workspace");
 
         var table = brain.Get<ISupabaseTable>("restored-leads");
-        var snapshot = await table.CreateFromQuery(new("Active leads", "select id, company, email from leads where active order by id"));
-        var company = snapshot.Columns.Single(column => column.Label == "company");
-        await table.UpdateView(new(snapshot.Revision, [new(company.Id, "eq", JsonSerializer.Serialize(marker))], null, snapshot.VisibleColumns));
+        SupabaseTableSnapshot snapshot;
+        using (UserConnections.UseBrain(brain, projectId))
+        {
+            snapshot = await table.CreateFromQuery(new("Active leads", "select id, company, email from leads where active order by id"));
+            var company = snapshot.Columns.Single(column => column.Label == "company");
+            await table.UpdateView(new(snapshot.Revision, [new(company.Id, "eq", JsonSerializer.Serialize(marker))], null, snapshot.VisibleColumns));
+        }
         var workspace = brain.Get<IWorkspace>(BrainScope.Create("owner", projectId).Id);
         await workspace.Open(new("show-leads", "leads-window", "Active leads", WindowReference.Table(snapshot.Id), (await workspace.Read()).Revision));
 

@@ -2,6 +2,7 @@ using Azure.Core;
 using Azure.Identity;
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,6 +13,8 @@ namespace DigitalBrain.Microsoft.CSharp;
 
 public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp")), IHttpModule
 {
+    public static IntegrationSchema Integration => IntegrationSchema.For("csharp", "CSharp run tokens").RequiresSecret("RunTokenKey");
+    public static ConnectorDefinition Connector => new("csharp", "CSharp", ["run-token"], ["csharp"]) { Neurons = [typeof(ICSharpFile)], Signals = [typeof(CSharpFileChanged)] };
     public override void Configure(ISiloBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -28,6 +31,7 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         builder.Services.TryAddSingleton<DigitalBrain.Apps.IScriptSandbox, CSharpScriptSandbox>();
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.TryAddSingleton<RunTokens>();
+        builder.Services.AddSingleton<IIntegrationStartup>(services => services.GetRequiredService<RunTokens>());
         builder.Services.TryAddSingleton<ScriptRunEnvironment>();
         // Explicit: DI would resolve the assemblies parameter as an empty IEnumerable<Assembly>.
         builder.Services.TryAddSingleton(provider => new ScriptContracts(provider.GetRequiredService<ModuleInventory>().ContractAssemblies()));

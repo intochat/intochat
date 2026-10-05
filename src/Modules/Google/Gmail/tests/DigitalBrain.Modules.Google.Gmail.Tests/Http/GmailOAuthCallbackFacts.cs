@@ -19,16 +19,16 @@ public sealed class GmailOAuthCallbackFacts
             .WithHttpEdge()
             .StartAsync(ct);
 
-        foreach (var path in new[] { "google/gmail/oauth/callback?code=fake-code", "integrations/gmail/login?request=x" })
+        foreach (var path in new[] { "google/gmail/oauth/callback?code=fake-code" })
         {
             using var response = await brain.HttpClient.GetAsync(path, ct);
             var body = await response.Content.ReadAsStringAsync(ct);
 
             Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
             using var json = JsonDocument.Parse(body);
-            Assert.Equal("gmail", json.RootElement.GetProperty("integration").GetString());
+            Assert.Equal("google-oauth", json.RootElement.GetProperty("integration").GetString());
             Assert.Equal("Unconfigured", json.RootElement.GetProperty("status").GetString());
-            Assert.Equal(["ClientId", "ClientSecret", "PublicOrigin"],
+            Assert.Equal(["ClientId", "ClientSecret"],
                 json.RootElement.GetProperty("missing").EnumerateArray().Select(field => field.GetString()).ToArray());
             Assert.DoesNotContain("Aspire", body, StringComparison.Ordinal);
         }

@@ -1,4 +1,9 @@
 using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Framework.Platform.Integrations.Accounts;
+using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Enforcement;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Http;
 using DigitalBrain.Google.Gmail;
 using DigitalBrain.Testing.Module;
 using Xunit;
@@ -20,8 +25,9 @@ public sealed class GmailHostFixture : IAsyncLifetime
     {
         _stub = await TokenEndpointStub.StartAsync(CancellationToken.None);
         _brain = await ModuleTest.Create()
-            .WithModule<GmailModule, GmailModuleOptions>(options => options.TokenEndpoint = _stub.TokenEndpoint)
-            .WithExecution(new() { PrivateConfiguration = ConfiguredRegistration(_stub) })
+            .WithModule<GmailModule, GmailModuleOptions>(options => { options.TokenEndpoint = _stub.TokenEndpoint; options.ProfileEndpoint = new(_stub.Origin, "profile"); options.PublicOrigin = _stub.Origin; })
+            .WithExecution(new() { PrivateConfiguration = ConfiguredRegistration() })
+            .ConfigureSilo(silo => silo.Services.AddSingleton<IGmailPushAuthenticator>(new TestPushAuthenticator()))
             .WithHttpEdge()
             .StartAsync();
     }
@@ -32,11 +38,17 @@ public sealed class GmailHostFixture : IAsyncLifetime
         if (_stub is not null) { await _stub.DisposeAsync(); }
     }
 
-    internal static Dictionary<string, string?> ConfiguredRegistration(TokenEndpointStub stub) => new()
+    internal async Task ConnectForPushAsync(string brainName, string connectionId)
     {
-        [IntegrationDefinition.Key("gmail", "ClientId")] = "integration-client",
-        [IntegrationDefinition.Key("gmail", "ClientSecret")] = "integration-secret",
-        [IntegrationDefinition.Key("gmail", "PublicOrigin")] = stub.Origin.AbsoluteUri,
+        var state = Brain.SiloServices.GetRequiredService<GmailCallbackRequests>().Begin("owner", "owner", brainName, connectionId);
+        using var response = await Brain.HttpClient.GetAsync($"google/gmail/oauth/callback?code=fake-code&state={state}");
+        response.EnsureSuccessStatusCode();
+    }
+
+    internal static Dictionary<string, string?> ConfiguredRegistration() => new()
+    {
+        [IntegrationSchema.Key("google-oauth", "ClientId")] = "integration-client",
+        [IntegrationSchema.Key("google-oauth", "ClientSecret")] = "integration-secret",
     };
 }
 
@@ -44,4 +56,9 @@ public sealed class GmailHostFixture : IAsyncLifetime
 public sealed class GmailHostCollection : ICollectionFixture<GmailHostFixture>
 {
     public const string Name = "gmail-configured-host";
+}
+
+internal sealed class TestPushAuthenticator : IGmailPushAuthenticator
+{
+    public Task<bool> AuthenticateAsync(HttpRequest request, CancellationToken cancellationToken) => Task.FromResult(request.Headers.Authorization == "Bearer test-google-push");
 }

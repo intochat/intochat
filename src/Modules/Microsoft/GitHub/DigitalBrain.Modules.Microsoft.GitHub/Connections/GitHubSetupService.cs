@@ -3,7 +3,7 @@ using Microsoft.Extensions.Options;
 namespace DigitalBrain.Microsoft.GitHub;
 
 internal sealed class GitHubSetupService(
-    IOptions<GitHubAppOptions> options, GitHubRepositoryBindings bindings, IGrainFactory grains,
+    IOptions<GitHubModuleOptions> options, GitHubRepositoryBindings bindings, IGrainFactory grains,
     GitHubInstallationTokens tokens, IGitHubRepositorySource source, GitHubAppRegistration registration)
 {
     public async Task<GitHubSetupResult> ResolveAsync(
@@ -111,12 +111,11 @@ internal sealed class GitHubSetupService(
     private async Task<bool> ConfiguredAsync(long? appId, CancellationToken cancellationToken)
         => await registration.ReadAppIdAsync(cancellationToken) is { } registeredAppId
             && (appId is null || appId == registeredAppId)
-            && options.Value.WebhookSecret is { Length: >= 16 };
+            && await registration.ReadOptionalSecretAsync("WebhookSecret", cancellationToken) is { Length: >= 16 };
 
     private GitHubRepositoryBinding Create(GitHubConnectionRecord record)
         => new(record.Id, record.RepositoryId, record.InstallationId, record.AppId,
             record.RepositoryOwner, record.RepositoryName,
-            options.Value.WebhookSecret!,
             authorizationEpoch: record.Epoch);
 
     internal static (string Owner, string Name) ParseUrl(string value)

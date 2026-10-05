@@ -16,7 +16,7 @@ public sealed class UnavailableTranscriptionService : IAudioTranscriptionService
     public UnavailableTranscriptionService(string errorMessage)
         => ErrorMessage = errorMessage;
 
-    public bool IsReady => false;
+    public Task<bool> IsReadyAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
     public bool InitializationFailed => true;
     public string? ErrorMessage { get; }
     public string ModelId => "none";

@@ -12,26 +12,26 @@ internal sealed class OllamaProviderFactory : ILlmProviderFactory
 
     public AiProvider Provider => AiProvider.Ollama;
 
-    public bool IsConfigured(AIOptions configuration, IAiCredentials credentials)
-        => !string.IsNullOrEmpty(configuration.Ollama.Endpoint);
+    public Task<bool> IsConfigured(AIOptions configuration, IAiCredentials credentials, CancellationToken cancellationToken = default)
+        => Task.FromResult(!string.IsNullOrEmpty(configuration.Ollama.Endpoint));
 
-    public IChatClient CreateChatClient(LLMModel model, AIOptions configuration, IAiCredentials credentials)
-        => CreateChatClient(configuration.Ollama.Models.GetValueOrDefault(model.Marker.Name)?.Model ?? model.Id, configuration, credentials);
+    public Task<IChatClient> CreateChatClient(LLMModel model, AIOptions configuration, IAiCredentials credentials, CancellationToken cancellationToken = default)
+        => CreateChatClient(configuration.Ollama.Models.GetValueOrDefault(model.Marker.Name)?.Model ?? model.Id, configuration, credentials, cancellationToken: cancellationToken);
 
-    public IChatClient CreateChatClient(string model, AIOptions configuration, IAiCredentials credentials, string? endpoint = null)
-        => new ChatClientBuilder(CreateApiClient(configuration, model, model, "WithLlm", useMarkerOverride: false))
+    public Task<IChatClient> CreateChatClient(string model, AIOptions configuration, IAiCredentials credentials, string? endpoint = null, CancellationToken cancellationToken = default)
+        => Task.FromResult<IChatClient>(new ChatClientBuilder(CreateApiClient(configuration, model, model, "WithLlm", useMarkerOverride: false))
             .ConfigureOptions(static options =>
             {
                 options.AdditionalProperties ??= [];
                 options.AdditionalProperties.TryAdd("think", false);
             })
-            .Build();
+            .Build());
 
-    public IEmbeddingGenerator<string, Embedding<float>> CreateEmbeddingGenerator(
+    public Task<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGenerator(
         EmbeddingModel model,
         AIOptions configuration,
-        IAiCredentials credentials)
-        => CreateApiClient(configuration, model.Marker.Name, model.Id, "WithEmbedding");
+        IAiCredentials credentials, CancellationToken cancellationToken = default)
+        => Task.FromResult<IEmbeddingGenerator<string, Embedding<float>>>(CreateApiClient(configuration, model.Marker.Name, model.Id, "WithEmbedding"));
 
     private static string EndpointConfigurationKey => $"{AIClients.ConfigurationRoot}:Ollama:Endpoint";
 

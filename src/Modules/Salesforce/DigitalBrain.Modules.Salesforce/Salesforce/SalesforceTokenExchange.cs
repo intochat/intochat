@@ -12,7 +12,7 @@ internal sealed class SalesforceTokenExchange(SalesforceOAuthConfiguration confi
     {
         try
         {
-            using var request = configuration.RefreshRequest(refreshToken);
+            using var request = await configuration.RefreshRequestAsync(refreshToken, cancellationToken);
             using var response = await _oauth.SendAsync(request, cancellationToken).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {

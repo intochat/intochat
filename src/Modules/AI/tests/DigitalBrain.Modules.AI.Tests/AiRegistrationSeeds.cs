@@ -15,8 +15,8 @@ internal static class AiRegistrationSeeds
         {
             PrivateConfiguration = new Dictionary<string, string?>
             {
-                [IntegrationDefinition.Key("openai", "ApiKey")] = apiKey,
-                [IntegrationDefinition.Key("openai", "Endpoint")] = endpoint,
+                [IntegrationSchema.Key("openai", "ApiKey")] = apiKey,
+                [IntegrationSchema.Key("openai", "Endpoint")] = endpoint,
             },
         };
 

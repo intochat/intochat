@@ -107,6 +107,6 @@ public sealed class CSharpDeployment : ModuleDeployment<CSharpModule>
         context.SetRuntimeEnvironment(DigitalBrainConfiguration.EnvironmentName(
             CSharpDeploymentSettings.SectionName, nameof(CSharpDeploymentSettings.EdgeUrl)), foundation.RuntimeUrl);
         context.SetRuntimeEnvironment(DigitalBrainConfiguration.EnvironmentName(
-            CSharpDeploymentSettings.SectionName, nameof(CSharpDeploymentSettings.RunTokenKey)), runTokenKey.B64Std, secret: true);
+            DigitalBrain.Framework.Platform.Integrations.IntegrationSchema.Key("csharp", "RunTokenKey")), runTokenKey.B64Std, secret: true);
     }
 }

@@ -11,6 +11,7 @@ using DigitalBrain.Platform.Identity.Grants;
 using DigitalBrain.Platform.Integrations;
 using DigitalBrain.Platform.Integrations.Accounts;
 using DigitalBrain.Platform.Secrets;
+using DigitalBrain.Platform.Shipping;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -26,19 +27,26 @@ public static class PlatformHosting
         if (services.Any(service => service.ServiceType == typeof(PlatformRegistration))) { return; }
         services.AddSingleton<PlatformRegistration>();
         services.AddIdentity();
+        services.AddShippedContentPublishing();
         services.AddOptions<IdentityMigrationOptions>().BindConfiguration(IdentityMigrationOptions.SectionName);
         services.TryAddSingleton<DeploymentStorageIdentity>();
         silo.AddStartupTask<IdentityMigrationStartup>();
         services.TryAddSingleton<DigitalBrain.Framework.Platform.Auth.ITokenHandoff, Auth.TokenHandoff>();
         services.TryAddSingleton<DigitalBrain.Framework.Platform.Auth.IOAuthCredentials, Auth.OAuthCredentials>();
         services.AddMasterKeyWrapper();
-        services.TryAddSingleton<IReadOnlyList<IntegrationDefinition>>(provider =>
+        services.TryAddSingleton<IReadOnlyList<IntegrationSchema>>(provider =>
             IntegrationDiscovery.Collect(provider.GetRequiredService<ModuleInventory>().Types));
-        services.TryAddSingleton<IAccountProbe, CredentialPresenceProbe>();
+        services.TryAddSingleton<IReadOnlyList<ConnectorDefinition>>(provider =>
+            ConnectorDiscovery.Collect(provider.GetRequiredService<ModuleInventory>(), provider.GetRequiredService<IReadOnlyList<IntegrationSchema>>()));
+        services.TryAddSingleton(typeof(IModuleIntegrations<>), typeof(ModuleIntegrations<>));
+        services.TryAddSingleton(typeof(IModuleConnectionCredentials<>), typeof(ModuleConnectionCredentials<>));
+        services.TryAddSingleton<IConnectionProbe, CredentialPresenceProbe>();
         services.TryAddSingleton<ConnectionCredentialProbe>();
-        services.TryAddSingleton<RegistrationCredentials>();
+        services.TryAddSingleton<IntegrationCredentials>();
+        services.TryAddSingleton<ConnectorCatalog>();
+        services.AddSingleton<IIntegrationStartup, PostgresMigrationStartup>();
         services.TryAddSingleton<ICapabilities, Capabilities>();
-        silo.AddStartupTask<RegistrationSeeder>();
+        silo.AddStartupTask<IntegrationSeeder>();
         services.AddCapacity();
         services.TryAddSingleton<IGrantPolicySource, GrainGrantPolicySource>();
         services.TryAddSingleton<IIdentity, PlatformIdentity>();
@@ -50,7 +58,7 @@ public static class PlatformHosting
         ArgumentNullException.ThrowIfNull(endpoints);
         endpoints.MapSecrets();
         endpoints.MapIntegrations();
-        endpoints.MapAccounts();
+        endpoints.MapConnections();
         endpoints.MapCapabilities();
         IdentityEndpoints.Map(endpoints);
         return endpoints;

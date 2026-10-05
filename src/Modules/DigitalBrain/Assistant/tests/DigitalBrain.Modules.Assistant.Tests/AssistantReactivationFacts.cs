@@ -22,7 +22,7 @@ public sealed class AssistantReactivationFacts
         var runner = new StreamScenarioRunner();
         await using var brain = await ModuleTest.Create().WithExecution(new TestExecutionOptions
         {
-            PrivateConfiguration = new Dictionary<string, string?> { [IntegrationDefinition.Key("openai", "ApiKey")] = "test-no-network" },
+            PrivateConfiguration = new Dictionary<string, string?> { [IntegrationSchema.Key("openai", "ApiKey")] = "test-no-network" },
         }).WithModule<AssistantModule>().RequireModules([new DigitalBrain.Apps.AppsModule(), new DigitalBrain.AI.AIModule(), new DigitalBrain.Compute.ComputeModule(), new DigitalBrain.Flutter.FlutterModule()])
             .ConfigureSilo(silo => silo.Services.AddSingleton<IAgentTurnRunner>(runner)
                 .Configure<AIOptions>(options =>

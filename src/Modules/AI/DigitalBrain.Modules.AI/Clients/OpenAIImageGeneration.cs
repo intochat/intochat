@@ -6,15 +6,17 @@ namespace DigitalBrain.AI;
 
 internal sealed class OpenAIImageGeneration(ImageModel model, IAiCredentials credentials) : IImageGeneration, IConditionallyAvailable
 {
-    public bool IsAvailable => credentials.IsReady(AiIntegrations.IdOf(model.Provider));
+    public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) => credentials.IsReady(AiIntegrations.IdOf(model.Provider), cancellationToken);
 
     public async Task<GeneratedUiImage> GenerateAsync(string prompt, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
 
-        var apiKey = await credentials.ReleaseSecretAsync(AiIntegrations.IdOf(model.Provider), AiIntegrations.ApiKeyField, cancellationToken).ConfigureAwait(false);
-
-        var client = new OpenAIClient(new ApiKeyCredential(apiKey)).GetImageClient(model.Id);
+        var material = await credentials.MaterializeAsync(AiIntegrations.IdOf(model.Provider), cancellationToken).ConfigureAwait(false);
+        var apiKey = material.Values[AiIntegrations.ApiKeyField];
+        var options = new OpenAIClientOptions();
+        if (material.Snapshot.Settings.GetValueOrDefault(AiIntegrations.EndpointField) is { Length: > 0 } endpoint) { options.Endpoint = new Uri(endpoint); }
+        var client = new OpenAIClient(new ApiKeyCredential(apiKey), options).GetImageClient(model.Id);
         var image = await client.GenerateImageAsync(
             prompt,
             OptionsFor(model),

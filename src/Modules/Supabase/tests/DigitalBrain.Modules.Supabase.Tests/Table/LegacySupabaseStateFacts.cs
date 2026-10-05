@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Supabase;
@@ -17,7 +18,7 @@ public sealed class LegacySupabaseStateFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var provider = new FakeSupabaseProvider();
-        await using var brain = await ModuleTest.Create().WithModule<SupabaseModule>().ConfigureSilo(silo =>
+        await using var brain = await ModuleTest.Create().WithModule<SupabaseModule>().ConfigureSilo(silo => silo.Configuration[IntegrationSchema.Key("supabase", "ConnectionString")] = "Host=localhost;Database=test;Username=reader").ConfigureSilo(silo =>
         {
             silo.Services.AddSingleton<ISupabaseProvider>(provider);
             // The production Azure Blob provider uses the same Orleans storage serializer.

@@ -1,6 +1,5 @@
 namespace DigitalBrain.Microsoft.GitHub;
 
-// Contains credentials. Do not serialize or log this options instance.
 public sealed class GitHubRepositoryOptions
 {
     public long RepositoryId { get; set; }
@@ -8,13 +7,12 @@ public sealed class GitHubRepositoryOptions
     public long AppId { get; set; }
     public string RepoOwner { get; set; } = "";
     public string RepoName { get; set; } = "";
-    public string WebhookSecret { get; set; } = "";
     public string? EndpointId { get; set; }
     public Uri? ApiHost { get; set; }
     public Uri? McpEndpoint { get; set; }
 
     internal GitHubRepositoryBinding CreateBinding(string id) => new(id, RepositoryId, InstallationId,
-        AppId, RepoOwner, RepoName, WebhookSecret, EndpointId, ApiHost, McpEndpoint);
+        AppId, RepoOwner, RepoName, EndpointId, ApiHost, McpEndpoint);
 }
 
 public sealed class GitHubRepositoriesOptions

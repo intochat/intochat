@@ -50,6 +50,6 @@ public sealed class ProductCompositionFacts
         }
         Assert.Equal("IDeepSeekV41Flash", environment[DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ModuleOptionsSection("ai") + ":Default:Model")]);
         Assert.True(environment.ContainsKey(DigitalBrainConfiguration.EnvironmentName(
-            DigitalBrain.Framework.Platform.Integrations.IntegrationDefinition.Key("openrouter", "ApiKey"))));
+            DigitalBrain.Framework.Platform.Integrations.IntegrationSchema.Key("openrouter", "ApiKey"))));
     }
 }

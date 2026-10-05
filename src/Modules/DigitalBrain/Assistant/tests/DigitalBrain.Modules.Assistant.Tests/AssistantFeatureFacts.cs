@@ -20,7 +20,7 @@ public sealed class AssistantFeatureFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithExecution(new TestExecutionOptions
         {
-            PrivateConfiguration = new Dictionary<string, string?> { [IntegrationDefinition.Key("openai", "ApiKey")] = "test-no-network" },
+            PrivateConfiguration = new Dictionary<string, string?> { [IntegrationSchema.Key("openai", "ApiKey")] = "test-no-network", [IntegrationSchema.Key("supabase", "ConnectionString")] = "Host=localhost;Database=fixture;Username=test;Password=test" },
         })
             .WithModule<AssistantModule>().RequireModules([new DigitalBrain.Apps.AppsModule(), new DigitalBrain.AI.AIModule(), new DigitalBrain.Compute.ComputeModule(), new DigitalBrain.Flutter.FlutterModule()])
             .WithModule<SpecsModule>()
@@ -56,7 +56,7 @@ public sealed class AssistantFeatureFacts
     // Audio in these scenarios is the UTF-8 text the user "said".
     private sealed class TextTranscriber : IAudioTranscriptionService
     {
-        public bool IsReady => true;
+        public Task<bool> IsReadyAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
         public bool InitializationFailed => false;
         public string? ErrorMessage => null;
         public string ModelId => "text";

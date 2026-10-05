@@ -5,7 +5,7 @@ namespace DigitalBrain.AI.Media;
 
 internal sealed class UnavailableSpeechSynthesis : ISpeechSynthesisTransport
 {
-    public bool IsAvailable => false;
+    public Task<bool> IsAvailableAsync(CancellationToken cancellationToken = default) => Task.FromResult(false);
     public string Model => "";
     public Task<MediaPayload> Synthesize(SpeechSynthesisRequest request, CancellationToken cancellationToken)
         => throw new NotSupportedException("Configure a speech synthesis transport.");

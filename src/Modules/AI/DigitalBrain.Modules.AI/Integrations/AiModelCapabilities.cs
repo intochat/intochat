@@ -7,7 +7,7 @@ namespace DigitalBrain.AI;
 
 // Reads registrations straight from their grains on every derivation: a capability appears the moment
 // its provider becomes Ready and disappears the moment it stops, with no cache to go stale.
-internal sealed class AiModelCapabilities(IGrainFactory grains, IOptionsMonitor<AIOptions> options) : ICapabilitySource
+internal sealed class AiModelCapabilities(IModuleIntegrations<AIModule> integrations, IOptionsMonitor<AIOptions> options) : ICapabilitySource
 {
     public const string LlmKind = "llm";
 
@@ -20,8 +20,8 @@ internal sealed class AiModelCapabilities(IGrainFactory grains, IOptionsMonitor<
             var integrationId = provider == AiProvider.Ollama ? "ollama" : AiIntegrations.IdOf(provider);
             if (provider != AiProvider.Ollama)
             {
-                var snapshot = await grains.GetGrain<IIntegrationRegistration>("integration/" + integrationId).Read().WaitAsync(ct);
-                if (snapshot.Status != RegistrationStatus.Ready) { continue; }
+                var snapshot = await integrations.Get(integrationId).ReadAsync(ct);
+                if (snapshot.Status != IntegrationStatus.Ready) { continue; }
             }
             else if (string.IsNullOrEmpty(configuration.Ollama.Endpoint)) { continue; }
 

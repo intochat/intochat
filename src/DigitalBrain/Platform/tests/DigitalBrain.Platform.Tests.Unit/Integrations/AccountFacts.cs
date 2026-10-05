@@ -33,7 +33,7 @@ public sealed class AccountFacts : IDisposable
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartAsync(ct);
-        var input = new ConnectAccount { IntegrationId = "gmail", ConnectionId = "mail", Value = "first" };
+        var input = new ConnectConnection { IntegrationId = "gmail", ConnectionId = "mail", Value = "first" };
         var first = await brain.Get<IConnectionRegistry>("workspace-one").Connect(input, ct);
         var second = await brain.Get<IConnectionRegistry>("workspace-two").Connect(input with { Value = "second" }, ct);
         Assert.NotEqual(first.Credential.Reference, second.Credential.Reference);
@@ -49,7 +49,7 @@ public sealed class AccountFacts : IDisposable
         await using var brain = await StartAsync(ct);
         var accounts = brain.Get<IConnectionRegistry>(Owner);
 
-        var account = await accounts.Connect(new ConnectAccount
+        var account = await accounts.Connect(new ConnectConnection
         {
             IntegrationId = "webresearch",
             ConnectionId = "research",
@@ -57,7 +57,7 @@ public sealed class AccountFacts : IDisposable
             Value = Canary,
         }, ct);
 
-        Assert.Equal(AccountStatus.Connected, account.Status);
+        Assert.Equal(ConnectionStatus.Connected, account.Status);
         Assert.Equal("webresearch", account.IntegrationId);
         Assert.StartsWith("secret://", account.Credential.Reference, StringComparison.Ordinal);
         Assert.Equal(Owner, account.WorkspaceId);
@@ -69,22 +69,22 @@ public sealed class AccountFacts : IDisposable
     public async Task AProbeTracksExpiredThenFailingStatus()
     {
         var ct = TestContext.Current.CancellationToken;
-        var scripted = new ScriptedProbe(AccountProbeOutcome.Expired, AccountProbeOutcome.Failing);
-        await using var brain = await ModuleTest.Create()
-            .ConfigureSilo(silo => silo.Services.AddSingleton<IAccountProbe>(scripted))
+        var scripted = new ScriptedProbe(ConnectionProbeOutcome.Expired, ConnectionProbeOutcome.Failing);
+        await using var brain = await ModuleTest.Create().WithModule<ConnectionTestModule>()
+            .ConfigureSilo(silo => silo.Services.AddSingleton<IConnectionProbe>(scripted))
             .StartAsync(ct);
         var accounts = brain.Get<IConnectionRegistry>(Owner);
 
-        var connected = await accounts.Connect(new ConnectAccount
+        var connected = await accounts.Connect(new ConnectConnection
         {
             IntegrationId = "supabase",
             ConnectionId = "db",
             Value = "Host=db;Database=app;Username=reader;Password=pw",
         }, ct);
-        Assert.Equal(AccountStatus.Expired, connected.Status);
+        Assert.Equal(ConnectionStatus.Expired, connected.Status);
 
         var probed = await accounts.Probe("db", ct);
-        Assert.Equal(AccountStatus.Failing, probed.Status);
+        Assert.Equal(ConnectionStatus.Failing, probed.Status);
         Assert.NotNull(probed.LastProbedAt);
     }
 
@@ -94,9 +94,9 @@ public sealed class AccountFacts : IDisposable
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartAsync(ct);
         var accounts = brain.Get<IConnectionRegistry>(Owner);
-        await using var disconnected = await brain.Observe<AccountDisconnected>(accounts, ct);
+        await using var disconnected = await brain.Observe<ConnectionDisconnected>(accounts, ct);
 
-        await accounts.Connect(new ConnectAccount { IntegrationId = "gmail", ConnectionId = "mail", Value = "oauth-token" }, ct);
+        await accounts.Connect(new ConnectConnection { IntegrationId = "gmail", ConnectionId = "mail", Value = "oauth-token" }, ct);
         await accounts.Disconnect("mail", ct);
 
         Assert.Empty(await accounts.List(ct));
@@ -109,7 +109,7 @@ public sealed class AccountFacts : IDisposable
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartAsync(ct);
 
-        await Assert.ThrowsAsync<AccountNotConfiguredException>(() => brain.Get<IConnectionRegistry>(Owner).Probe("missing", ct));
+        await Assert.ThrowsAsync<ConnectionNotConfiguredException>(() => brain.Get<IConnectionRegistry>(Owner).Probe("missing", ct));
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public sealed class AccountFacts : IDisposable
         await using var brain = await StartAsync(ct);
 
         await Assert.ThrowsAsync<ArgumentException>(() => brain.Get<IConnectionRegistry>(Owner)
-            .Connect(new ConnectAccount { IntegrationId = "", ConnectionId = "x", Value = "v" }, ct));
+            .Connect(new ConnectConnection { IntegrationId = "", ConnectionId = "x", Value = "v" }, ct));
     }
 
     [Fact]
@@ -134,12 +134,12 @@ public sealed class AccountFacts : IDisposable
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartAsync(ct);
         var accounts = brain.Get<IConnectionRegistry>(Owner);
-        await accounts.Connect(new ConnectAccount { IntegrationId = "gmail", ConnectionId = "mail", Value = "v" }, ct);
+        await accounts.Connect(new ConnectConnection { IntegrationId = "gmail", ConnectionId = "mail", Value = "v" }, ct);
 
         CallerContextStamper.Stamp(UserCaller() with { Kind = CallerKind.App, StampedBy = TrustedEdge.AppProxy });
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => accounts.Connect(
-            new ConnectAccount { IntegrationId = "gmail", ConnectionId = "other", Value = "v" }, ct));
+            new ConnectConnection { IntegrationId = "gmail", ConnectionId = "other", Value = "v" }, ct));
         await Assert.ThrowsAsync<InvalidOperationException>(() => accounts.Probe("mail", ct));
         await Assert.ThrowsAsync<InvalidOperationException>(() => accounts.Disconnect("mail", ct));
         CallerContextStamper.Stamp(UserCaller());
@@ -156,7 +156,7 @@ public sealed class AccountFacts : IDisposable
         await using var brain = await StartAsync(ct);
 
         var refusal = await Assert.ThrowsAsync<ArgumentException>(() => brain.Get<IConnectionRegistry>(Owner)
-            .Connect(new ConnectAccount { IntegrationId = "gmail", ConnectionId = "mail", SecretReference = reference }, ct));
+            .Connect(new ConnectConnection { IntegrationId = "gmail", ConnectionId = "mail", SecretReference = reference }, ct));
 
         Assert.DoesNotContain(reference, refusal.Message, StringComparison.Ordinal);
         Assert.Empty(await brain.Get<IConnectionRegistry>(Owner).List(ct));
@@ -170,7 +170,7 @@ public sealed class AccountFacts : IDisposable
         var own = await brain.Get<ISecrets>(Owner).Set(UserCaller(), "mine", "Mine", "own-value", ct);
 
         var account = await brain.Get<IConnectionRegistry>(Owner)
-            .Connect(new ConnectAccount { IntegrationId = "gmail", ConnectionId = "mail", SecretReference = own.Reference }, ct);
+            .Connect(new ConnectConnection { IntegrationId = "gmail", ConnectionId = "mail", SecretReference = own.Reference }, ct);
 
         Assert.Equal(own.Reference, account.Credential.Reference);
     }
@@ -182,12 +182,12 @@ public sealed class AccountFacts : IDisposable
         await using var brain = await StartAsync(ct);
 
         var account = await brain.Get<IConnectionRegistry>("workspace-one")
-            .Connect(new ConnectAccount { IntegrationId = "gmail", ConnectionId = "mail", Value = "mine" }, ct);
+            .Connect(new ConnectConnection { IntegrationId = "gmail", ConnectionId = "mail", Value = "mine" }, ct);
 
         Assert.Equal(Owner, account.Credential.OwnerOf());
         Orleans.Runtime.RequestContext.Clear();
         await Assert.ThrowsAsync<UntrustedCallerException>(() => brain.Get<IConnectionRegistry>("workspace-one")
-            .Connect(new ConnectAccount { IntegrationId = "gmail", ConnectionId = "mail2", Value = "v" }, ct));
+            .Connect(new ConnectConnection { IntegrationId = "gmail", ConnectionId = "mail2", Value = "v" }, ct));
         CallerContextStamper.Stamp(UserCaller());
         Assert.Equal("mail", Assert.Single(await brain.Get<IConnectionRegistry>("workspace-one").List(ct)).Id);
     }
@@ -221,38 +221,38 @@ public sealed class AccountFacts : IDisposable
         var routes = app.DataSources.SelectMany(source => source.Endpoints)
             .OfType<RouteEndpoint>().Select(endpoint => endpoint.RoutePattern.RawText!).ToArray();
 
-        Assert.Contains("/brains/{brainId}/integrations/accounts/connect", routes);
-        Assert.Contains("/brains/{brainId}/integrations/accounts/probe", routes);
-        Assert.Contains("/brains/{brainId}/integrations/accounts/disconnect", routes);
-        Assert.Contains("/brains/{brainId}/integrations/accounts/requests", routes);
+        Assert.Contains("/brains/{brainId}/connections/connect", routes);
+        Assert.Contains("/brains/{brainId}/connections/probe", routes);
+        Assert.Contains("/brains/{brainId}/connections/disconnect", routes);
+        Assert.Contains("/brains/{brainId}/connections/requests", routes);
         Assert.DoesNotContain(routes, route => route.StartsWith("/connections", StringComparison.Ordinal));
     }
 
     [Theory]
-    [InlineData(AccountStatus.Connected, "Configured")]
-    [InlineData(AccountStatus.Expired, "Expired")]
-    [InlineData(AccountStatus.Failing, "Unavailable")]
-    public void StoredCredentialsDoNotImplyVerification(AccountStatus status, string expected)
-        => Assert.Equal(expected, AccountEndpoints.Status(status));
+    [InlineData(ConnectionStatus.Connected, "Configured")]
+    [InlineData(ConnectionStatus.Expired, "Expired")]
+    [InlineData(ConnectionStatus.Failing, "Unavailable")]
+    public void StoredCredentialsDoNotImplyVerification(ConnectionStatus status, string expected)
+        => Assert.Equal(expected, ConnectionEndpoints.Status(status));
 
     [Fact]
     public void PackageAccountsIncludeOnlyRecordsFiledUnderTheBrain()
     {
         var scope = BrainScope.Create("alice", "one");
-        static IntegrationAccount Account(string id, string workspace, string owner) => new()
+        static Connection Account(string id, string workspace, string owner) => new()
         {
             Id = id,
             IntegrationId = "gmail",
             WorkspaceId = workspace,
-            Status = AccountStatus.Connected,
+            Status = ConnectionStatus.Connected,
             Credential = SecretReferences.For(owner, id, id, true),
         };
-        var result = ScopedAccounts.Visible(scope, [Account("new", "one", "alice"), Account("wrong-workspace", "two", "alice")]);
+        var result = ScopedConnections.Visible(scope, [Account("new", "one", "alice"), Account("wrong-workspace", "two", "alice")]);
         Assert.Equal(["new"], result.Select(account => account.Id));
     }
 
     private static Task<ModuleBrain> StartAsync(CancellationToken cancellationToken)
-        => ModuleTest.Create().StartAsync(cancellationToken);
+        => ModuleTest.Create().WithModule<ConnectionTestModule>().StartAsync(cancellationToken);
 
     private static CallerContext UserCaller() => new()
     {
@@ -264,13 +264,23 @@ public sealed class AccountFacts : IDisposable
     };
 }
 
-internal sealed class ScriptedProbe(params AccountProbeOutcome[] outcomes) : IAccountProbe
+internal sealed class ScriptedProbe(params ConnectionProbeOutcome[] outcomes) : IConnectionProbe
 {
     private int _index;
 
-    public Task<AccountProbeResult> ProbeAsync(string source, string credential, CancellationToken cancellationToken = default)
+    public Task<ConnectionProbeResult> ProbeAsync(string source, string credential, CancellationToken cancellationToken = default)
     {
         var outcome = outcomes[Math.Min(_index++, outcomes.Length - 1)];
-        return Task.FromResult(new AccountProbeResult(outcome, "scripted"));
+        return Task.FromResult(new ConnectionProbeResult(outcome, "scripted"));
     }
+}
+
+public sealed class ConnectionTestModule() : Module(new ModuleId("connection-test"))
+{
+    public static ConnectorDefinition[] Connectors => [
+        new("gmail", "Gmail", ["api-key"], []),
+        new("supabase", "Supabase", ["connection-string"], []),
+        new("webresearch", "Research", ["api-key"], []),
+    ];
+    public override void Configure(Orleans.Hosting.ISiloBuilder silo) { }
 }

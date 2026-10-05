@@ -68,16 +68,16 @@ internal sealed class AppService(
 
     public async Task<InstalledAppView> ReadApp(PackageId id) => await View(await App(id).Read());
 
-    public async Task<AppAccountOptions> AccountOptions(PackageId id, string? revisionId)
+    public async Task<AppConnectionOptions> AccountOptions(PackageId id, string? revisionId)
     {
         var revision = await Resolve(new(id.Owner, id.Name, revisionId), preferPublished: true);
         var declared = (await Package(id).ReadRevision(revision.Revision)).Content.Manifest.Accounts ?? [];
         var scope = CurrentScope();
-        var available = ScopedAccounts.Visible(scope, await brain.Get<IConnectionRegistry>(scope.Id).List());
-        return new(revision.Revision, declared.Select(slot => new AppAccountSlot(slot.Name, slot.Source, slot.Description,
-            available.Where(account => account.IntegrationId == slot.Source && account.Status == AccountStatus.Connected)
+        var available = ScopedConnections.Visible(scope, await brain.Get<IConnectionRegistry>(scope.Id).List());
+        return new(revision.Revision, declared.Select(slot => new AppConnectionSlot(slot.Name, slot.Source, slot.Description,
+            available.Where(account => account.IntegrationId == slot.Source && account.Status == ConnectionStatus.Connected)
                 .OrderBy(account => account.Id, StringComparer.Ordinal)
-                .Select(account => new AppAccountChoice(account.Id, account.Credential.Label)).ToArray())).ToArray());
+                .Select(account => new AppConnectionChoice(account.Id, account.Credential.Label)).ToArray())).ToArray());
     }
 
     public async Task<InstalledAppView> Install(PackageId id, InstallAppRequest request)
@@ -171,13 +171,13 @@ internal sealed class AppService(
         var declared = (await Package(revision.Package).ReadRevision(revision.Revision)).Content.Manifest.Accounts ?? [];
         if (declared.Length == 0 && selected.Count == 0) { return; }
         var scope = CurrentScope();
-        var available = ScopedAccounts.Visible(scope, await brain.Get<IConnectionRegistry>(scope.Id).List());
+        var available = ScopedConnections.Visible(scope, await brain.Get<IConnectionRegistry>(scope.Id).List());
         foreach (var slot in declared)
         {
             if (!selected.TryGetValue(slot.Name, out var id) || string.IsNullOrWhiteSpace(id))
             { throw new ArgumentException($"Choose an account for {slot.Name} ({slot.Source})."); }
             var account = available.FirstOrDefault(item => item.Id == id && item.IntegrationId == slot.Source);
-            if (account is null || account.Status != AccountStatus.Connected)
+            if (account is null || account.Status != ConnectionStatus.Connected)
             { throw new ArgumentException($"Account {id} is not a connected {slot.Source} account in this workspace."); }
         }
         if (selected.Keys.Any(key => !declared.Any(slot => slot.Name == key)))

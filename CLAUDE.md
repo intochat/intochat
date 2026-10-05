@@ -85,11 +85,16 @@ app.authoring.json optional stable scenario IDs and scenario-to-source associati
   (no private roots — `ModuleKeyGrammarFacts` enforces it, `LegacyConfigurationGuard` refuses
   retired roots at OS startup); `Validate()` runs at compile and at bind and checks only the
   options' own values — cross-ring facts resolve loudly at the owning ring's bind; no secrets in
-  options — credentials belong to the integrations registration (a design rule, reviewed, not
-  name-sniffed). Modules also ship `IntegrationDefinition`s; their registrations are deployment-scoped
-  `[PlatformOnly]` neurons seeded from `DigitalBrain:Integrations:{id}:{Field}` (catalog:
-  `GET /integrations`). A user's connectors are integration accounts, per brain, under
-  `/brains/{id}/integrations/accounts`.
+  options — credentials belong to Connections (user authorization) or Integrations (deployment
+  provisioning). Modules ship `ConnectorDefinition`s declaring auth methods, neurons/signals,
+  and required/optional Integrations. `IntegrationSchema` describes provisioning fields under
+  `DigitalBrain:Integrations:{id}:{Field}`. Platform resolves dependencies and delivers scoped,
+  async `IModuleIntegrations<TModule>` handles; modules never mint platform callers, read credential
+  configuration, or dial Integration grains. Unprovisioned required dependencies exclude a connector
+  from `GET /connectors` with a startup diagnostic. Required host infrastructure fails binding.
+  User Connections live at `/brains/{id}/connections`; deployment Integrations are `[PlatformOnly]`.
+  Integrations are what the deployment provisions; Connections are what users authorize.
+
 
 Open design fronts (do not improvise these): cross-app subscription scopes/permissions; the
 renderable palette v1 / UiPart; run-token tightening.

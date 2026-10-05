@@ -44,8 +44,11 @@ public abstract class MediaNeuron : Neuron
 
 public sealed class ImageGeneratorNeuron(IServiceProvider services) : MediaNeuron, IImageGenerator
 {
-    public Task<MediaCapabilities> Describe() => Task.FromResult(Capabilities(MediaOperation.ImageGeneration,
-        () => services.GetService<IImageGeneration>() is { } images && (images is not IConditionallyAvailable conditional || conditional.IsAvailable)));
+    public async Task<MediaCapabilities> Describe()
+    {
+        var images = services.GetService<IImageGeneration>();
+        return new(MediaOperation.ImageGeneration, images is not null && (images is not IConditionallyAvailable conditional || await conditional.IsAvailableAsync()), MaxPayloadBytes);
+    }
     public Task<ImageGenerationResult> Generate(ImageGenerationRequest request, CancellationToken cancellationToken = default)
         => Execute(MediaOperation.ImageGeneration, cancellationToken, async id =>
         {
@@ -79,11 +82,11 @@ public sealed class EmbeddingNeuron(IServiceProvider services) : MediaNeuron, IE
 
 public sealed class SpeechRecognizerNeuron(IServiceProvider services) : MediaNeuron, ISpeechRecognizer
 {
-    public Task<MediaCapabilities> Describe()
+    public async Task<MediaCapabilities> Describe()
     {
         var service = services.GetService<IAudioTranscriptionService>();
-        return Task.FromResult(new MediaCapabilities(MediaOperation.SpeechRecognition, service?.IsReady == true,
-            MaxPayloadBytes, service?.ErrorMessage));
+        return new MediaCapabilities(MediaOperation.SpeechRecognition, service is not null && await service.IsReadyAsync(),
+            MaxPayloadBytes, service?.ErrorMessage);
     }
     public Task<SpeechRecognitionResult> Recognize(SpeechRecognitionRequest request, CancellationToken cancellationToken = default)
         => Execute(MediaOperation.SpeechRecognition, cancellationToken, async id =>
@@ -92,7 +95,7 @@ public sealed class SpeechRecognizerNeuron(IServiceProvider services) : MediaNeu
             ArgumentException.ThrowIfNullOrWhiteSpace(request.FileName);
             if (request.FileName.Length > 255 || request.FileName.IndexOfAny(['/', '\\']) >= 0) { throw new ArgumentException("Supply a filename without a path."); }
             var service = services.GetService<IAudioTranscriptionService>();
-            if (service?.IsReady != true) { throw new NotSupportedException("Speech recognition is unavailable."); }
+            if (service is null || !await service.IsReadyAsync(cancellationToken)) { throw new NotSupportedException("Speech recognition is unavailable."); }
             using var stream = new MemoryStream(request.Audio.Content, writable: false);
             var text = await service.TranscribeAsync(stream, request.FileName, cancellationToken);
             if (text.Length > 1_000_000) { throw new InvalidOperationException("Transcription exceeds the response limit."); }
@@ -102,13 +105,16 @@ public sealed class SpeechRecognizerNeuron(IServiceProvider services) : MediaNeu
 
 public sealed class SpeechSynthesizerNeuron(ISpeechSynthesisTransport transport) : MediaNeuron, ISpeechSynthesizer
 {
-    public Task<MediaCapabilities> Describe() => Task.FromResult(new MediaCapabilities(MediaOperation.SpeechSynthesis,
-        transport.IsAvailable, MaxPayloadBytes, transport.IsAvailable ? null : "Configure a speech synthesis transport."));
+    public async Task<MediaCapabilities> Describe()
+    {
+        var available = await transport.IsAvailableAsync();
+        return new(MediaOperation.SpeechSynthesis, available, MaxPayloadBytes, available ? null : "Configure a speech synthesis transport.");
+    }
     public Task<SpeechSynthesisResult> Synthesize(SpeechSynthesisRequest request, CancellationToken cancellationToken = default)
         => Execute(MediaOperation.SpeechSynthesis, cancellationToken, async id =>
         {
             ArgumentNullException.ThrowIfNull(request); ValidateText(request.Text); ValidateText(request.Voice);
-            if (!transport.IsAvailable) { throw new NotSupportedException("Speech synthesis is unavailable."); }
+            if (!await transport.IsAvailableAsync(cancellationToken)) { throw new NotSupportedException("Speech synthesis is unavailable."); }
             var audio = await transport.Synthesize(request, cancellationToken); ValidatePayload(audio);
             return new SpeechSynthesisResult(id, audio, transport.Model);
         }, result => new SpeechSynthesized(result.OperationId, result.Model));

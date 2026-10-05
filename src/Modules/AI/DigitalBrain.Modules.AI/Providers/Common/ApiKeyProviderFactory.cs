@@ -1,4 +1,5 @@
 using Microsoft.Extensions.AI;
+using DigitalBrain.Framework.Platform.Integrations;
 
 namespace DigitalBrain.AI;
 
@@ -6,33 +7,24 @@ internal abstract class ApiKeyProviderFactory : ILlmProviderFactory
 {
     public abstract AiProvider Provider { get; }
 
-    public bool IsConfigured(AIOptions configuration, IAiCredentials credentials)
-        => credentials.IsReady(IntegrationId);
+    public Task<bool> IsConfigured(AIOptions configuration, IAiCredentials credentials, CancellationToken cancellationToken = default)
+        => credentials.IsReady(IntegrationId, cancellationToken);
 
-    public virtual IChatClient CreateChatClient(LLMModel model, AIOptions configuration, IAiCredentials credentials)
-        => CreateChatClient(model.Id, configuration, credentials);
+    public virtual Task<IChatClient> CreateChatClient(LLMModel model, AIOptions configuration, IAiCredentials credentials, CancellationToken cancellationToken = default)
+        => CreateChatClient(model.Id, configuration, credentials, cancellationToken: cancellationToken);
 
-    public abstract IChatClient CreateChatClient(string model, AIOptions configuration, IAiCredentials credentials, string? endpoint = null);
+    public abstract Task<IChatClient> CreateChatClient(string model, AIOptions configuration, IAiCredentials credentials, string? endpoint = null, CancellationToken cancellationToken = default);
 
-    public abstract IEmbeddingGenerator<string, Embedding<float>> CreateEmbeddingGenerator(
+    public abstract Task<IEmbeddingGenerator<string, Embedding<float>>> CreateEmbeddingGenerator(
         EmbeddingModel model,
         AIOptions configuration,
-        IAiCredentials credentials);
+        IAiCredentials credentials, CancellationToken cancellationToken = default);
 
     protected string IntegrationId => AiIntegrations.IdOf(Provider);
 
-    // Releases inside the factory: the key exists in memory only for the duration of client construction.
-    protected string ReleaseApiKey(IAiCredentials credentials)
-    {
-        credentials.RequireReady(IntegrationId);
-        return credentials.ReleaseSecret(IntegrationId, AiIntegrations.ApiKeyField);
-    }
-
-    // A pinned profile endpoint wins, then the registration's runtime setting, then the
-    // composition's declared endpoint (AIOptions), then the provider's hosted default.
-    protected Uri EndpointOf(AIOptions configuration, IAiCredentials credentials, string? pinned)
+    protected Uri EndpointOf(AIOptions configuration, IntegrationSnapshot snapshot, string? pinned)
         => new(pinned is { Length: > 0 } ? pinned
-            : credentials.Setting(IntegrationId, AiIntegrations.EndpointField)
+            : snapshot.Settings.GetValueOrDefault(AiIntegrations.EndpointField)
             ?? DeclaredEndpoint(configuration)
             ?? AiIntegrations.DefaultEndpointOf(Provider));
 

@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Tables;
 using DigitalBrain.Supabase.Tables.Signals;
@@ -241,7 +242,7 @@ public sealed class SupabaseTableFacts
     }
 
     private static Task<ModuleBrain> StartAsync(FakeSupabaseProvider provider, CancellationToken ct)
-        => ModuleTest.Create().WithModule<SupabaseModule>()
+        => ModuleTest.Create().WithModule<SupabaseModule>().ConfigureSilo(silo => silo.Configuration[IntegrationSchema.Key("supabase", "ConnectionString")] = "Host=localhost;Database=test;Username=reader")
             .ConfigureSilo(silo => silo.Services.AddSingleton<ISupabaseProvider>(provider))
             .StartAsync(ct);
 }

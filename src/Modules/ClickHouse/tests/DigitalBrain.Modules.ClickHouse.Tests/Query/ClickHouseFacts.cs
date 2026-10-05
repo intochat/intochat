@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.ClickHouse;
 using DigitalBrain.ClickHouse.Query;
 using DigitalBrain.Testing.Module;
@@ -61,7 +62,7 @@ public sealed class ClickHouseFacts
     }
 
     private static Task<ModuleBrain> Start(FakeClickHouseProvider provider, CancellationToken ct)
-        => ModuleTest.Create().WithModule<ClickHouseModule>()
+        => ModuleTest.Create().WithModule<ClickHouseModule>().ConfigureSilo(silo => silo.Configuration[IntegrationSchema.Key("clickhouse", "ConnectionString")] = "Host=localhost;Database=test;Username=default")
             .ConfigureSilo(silo => silo.Services.AddSingleton<IClickHouseProvider>(provider))
             .StartAsync(ct);
 }

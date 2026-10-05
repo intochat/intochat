@@ -36,11 +36,9 @@ public sealed class OpenAITranscriptionService : IAudioTranscriptionService
 
     private string Integration => AiIntegrations.IdOf(_model.Provider);
 
-    // Not ready reports rather than throws: voice answers 503 with the reason and the rest of the
-    // process is unaffected.
-    public bool IsReady => _model.Formats.HasFlag(TranscriptionFormats.Text) && _credentials.IsReady(Integration);
+    public async Task<bool> IsReadyAsync(CancellationToken cancellationToken = default) => _model.Formats.HasFlag(TranscriptionFormats.Text) && await _credentials.IsReady(Integration, cancellationToken);
 
-    public bool InitializationFailed => !IsReady;
+    public bool InitializationFailed => !_model.Formats.HasFlag(TranscriptionFormats.Text);
 
     public string? ErrorMessage
     {
@@ -51,10 +49,7 @@ public sealed class OpenAITranscriptionService : IAudioTranscriptionService
                 return $"{_model.DisplayName} does not offer a plain-text response, which voice transcription requires.";
             }
 
-            var status = _credentials.StatusOf(Integration);
-            return status.Status == RegistrationStatus.Ready
-                ? null
-                : $"{_model.DisplayName} requires the {Integration} integration, which is {status.Status}.";
+            return null;
         }
     }
 
@@ -81,7 +76,7 @@ public sealed class OpenAITranscriptionService : IAudioTranscriptionService
     {
         ArgumentNullException.ThrowIfNull(audioStream);
 
-        if (!IsReady)
+        if (!await IsReadyAsync(cancellationToken))
         {
             throw new InvalidOperationException(ErrorMessage ?? "Transcription is not configured.");
         }
@@ -101,9 +96,10 @@ public sealed class OpenAITranscriptionService : IAudioTranscriptionService
 
     private async Task<AudioClient> CreateClientAsync(CancellationToken cancellationToken)
     {
-        var apiKey = await _credentials.ReleaseSecretAsync(Integration, AiIntegrations.ApiKeyField, cancellationToken).ConfigureAwait(false);
+        var material = await _credentials.MaterializeAsync(Integration, cancellationToken).ConfigureAwait(false);
+        var apiKey = material.Values[AiIntegrations.ApiKeyField];
         var options = new OpenAIClientOptions { NetworkTimeout = RequestTimeout };
-        if (_credentials.Setting(Integration, AiIntegrations.EndpointField) is { Length: > 0 } endpoint)
+        if (material.Snapshot.Settings.GetValueOrDefault(AiIntegrations.EndpointField) is { Length: > 0 } endpoint)
         {
             options.Endpoint = new Uri(endpoint);
         }

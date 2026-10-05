@@ -16,28 +16,28 @@ public static class GitHubAppHostingExtensions
         ArgumentNullException.ThrowIfNull(configure);
         var options = new GitHubAppHostingOptions();
         configure(options);
-        ArgumentNullException.ThrowIfNull(options.PublicOrigin);
-        ArgumentNullException.ThrowIfNull(options.PublicWebhookUrl);
         return module.WithGitHubApp(options.AppId, options.Slug, options.ClientId, options.PublicOrigin!, options.PublicWebhookUrl!);
     }
 
     public static DigitalBrainModuleBuilder<DigitalBrain.Microsoft.GitHub.GitHubModuleHosting> WithGitHubApp(
         this DigitalBrainModuleBuilder<DigitalBrain.Microsoft.GitHub.GitHubModuleHosting> module,
-        long appId, string slug, string clientId, Uri publicOrigin, Uri publicWebhookUrl)
+        long appId, string slug = "", string clientId = "", Uri? publicOrigin = null, Uri? publicWebhookUrl = null)
     {
         ArgumentNullException.ThrowIfNull(module);
         ArgumentOutOfRangeException.ThrowIfLessThan(appId, 1);
-        ArgumentException.ThrowIfNullOrWhiteSpace(slug);
-        ArgumentException.ThrowIfNullOrWhiteSpace(clientId);
-        if (!publicOrigin.IsAbsoluteUri || publicOrigin.UserInfo.Length != 0 || publicOrigin.AbsolutePath != "/"
+        if (string.IsNullOrWhiteSpace(clientId) != (publicOrigin is null))
+        {
+            throw new ArgumentException("GitHub OAuth requires both ClientId and PublicOrigin.");
+        }
+        if (publicOrigin is not null && (!publicOrigin.IsAbsoluteUri || publicOrigin.UserInfo.Length != 0 || publicOrigin.AbsolutePath != "/"
             || publicOrigin.Query.Length != 0 || publicOrigin.Fragment.Length != 0
-            || publicOrigin.Scheme != "https" && !(publicOrigin.Scheme == "http" && publicOrigin.IsLoopback))
+            || publicOrigin.Scheme != "https" && !(publicOrigin.Scheme == "http" && publicOrigin.IsLoopback)))
         {
             throw new ArgumentException("GitHub OAuth requires a public HTTPS origin or a local development origin.", nameof(publicOrigin));
         }
-        if (!publicWebhookUrl.IsAbsoluteUri || publicWebhookUrl.Scheme != "https" || publicWebhookUrl.UserInfo.Length != 0
+        if (publicWebhookUrl is not null && (!publicWebhookUrl.IsAbsoluteUri || publicWebhookUrl.Scheme != "https" || publicWebhookUrl.UserInfo.Length != 0
             || publicWebhookUrl.Query.Length != 0 || publicWebhookUrl.Fragment.Length != 0
-            || publicWebhookUrl.AbsolutePath != "/integrations/github/webhook")
+            || publicWebhookUrl.AbsolutePath != "/integrations/github/webhook"))
         {
             throw new ArgumentException("GitHub requires a public HTTPS /integrations/github/webhook endpoint.", nameof(publicWebhookUrl));
         }
@@ -50,7 +50,7 @@ public static class GitHubAppHostingExtensions
         return module;
     }
 
-    private sealed class GitHubAppProjection(DigitalBrainBuilder brain, long appId, string slug, string clientId, Uri publicOrigin, Uri publicWebhookUrl)
+    private sealed class GitHubAppProjection(DigitalBrainBuilder brain, long appId, string slug = "", string clientId = "", Uri? publicOrigin = null, Uri? publicWebhookUrl = null)
         : DigitalBrainModuleProjection
     {
         private IResourceBuilder<ParameterResource>? _privateKey;
@@ -60,22 +60,34 @@ public static class GitHubAppHostingExtensions
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
         {
             _privateKey ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("github-app-private-key"), secret: true)
-                .WithDescription("PEM private key for the GitHub App; projected only to the kernel.");
-            _webhookSecret ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("github-app-webhook-secret"), secret: true)
+                .WithDescription("PEM private key for the GitHub App; projected only to the host.");
+            if (publicWebhookUrl is not null)
+            {
+                _webhookSecret ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("github-app-webhook-secret"), secret: true)
                 .WithDescription("GitHub App HMAC webhook secret, at least 16 characters.");
-            _clientSecret ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("github-app-client-secret"), secret: true)
+            }
+            if (publicOrigin is not null)
+            {
+                _clientSecret ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("github-app-client-secret"), secret: true)
                 .WithDescription("GitHub App OAuth client secret; user tokens are only used during authorization.");
-            var root = GitHubModuleOptions.AppSectionName;
-            const string IntegrationRoot = IntegrationDefinition.SectionName + ":github";
+            }
+            var root = GitHubModuleOptions.SectionName;
+            const string IntegrationRoot = IntegrationSchema.SectionName + ":github";
             builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "AppId"), appId.ToString(System.Globalization.CultureInfo.InvariantCulture))
                 .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(IntegrationRoot, "AppId"), appId.ToString(System.Globalization.CultureInfo.InvariantCulture))
                 .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "Slug"), slug)
                 .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "ClientId"), clientId)
-                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "PublicOrigin"), publicOrigin.AbsoluteUri)
-                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "PublicWebhookUrl"), publicWebhookUrl.AbsoluteUri)
-                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(IntegrationRoot, "PrivateKeyPem"), _privateKey)
-                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "WebhookSecret"), _webhookSecret)
-                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "ClientSecret"), _clientSecret);
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(IntegrationRoot, "PrivateKeyPem"), _privateKey);
+            if (publicOrigin is not null)
+            {
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "PublicOrigin"), publicOrigin.AbsoluteUri)
+                    .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(IntegrationRoot, "ClientSecret"), _clientSecret!);
+            }
+            if (publicWebhookUrl is not null)
+            {
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "PublicWebhookUrl"), publicWebhookUrl.AbsoluteUri)
+                    .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(IntegrationRoot, "WebhookSecret"), _webhookSecret!);
+            }
         }
     }
 }

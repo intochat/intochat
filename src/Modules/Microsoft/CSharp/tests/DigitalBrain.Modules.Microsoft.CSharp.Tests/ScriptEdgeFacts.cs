@@ -204,7 +204,7 @@ public sealed class ScriptEdgeFacts
 
         Assert.Equal(typeof(IPinger), contracts.Find(typeof(IPinger).FullName!));
         Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Framework.Platform.Secrets.ISecrets).FullName!));
-        Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegrationRegistration).FullName!));
+        Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration).FullName!));
         Assert.Throws<ArgumentException>(() => contracts.Find(typeof(IPlatformOnlyPinger).FullName!));
     }
 
@@ -252,10 +252,10 @@ public sealed class ScriptEdgeFacts
     [Fact]
     public void TheIntegrationRegistrationContractIsAbsentFromTheScriptCatalogBecauseReleaseReliesOnThat()
     {
-        var contracts = new ScriptContracts([typeof(DigitalBrain.Framework.Platform.Integrations.IIntegrationRegistration).Assembly]);
+        var contracts = new ScriptContracts([typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration).Assembly]);
 
-        Assert.True(DigitalBrain.PlatformOnlyAttribute.AppliesTo(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegrationRegistration)));
-        Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegrationRegistration).FullName!));
+        Assert.True(DigitalBrain.PlatformOnlyAttribute.AppliesTo(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration)));
+        Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration).FullName!));
     }
 
     [Fact]
@@ -278,7 +278,7 @@ public sealed class ScriptEdgeFacts
         });
 
         await Assert.ThrowsAsync<ArgumentException>(() => edge.InvokeAsync(token,
-            (typeof(DigitalBrain.Framework.Platform.Integrations.IIntegrationRegistration).FullName!, "integration/openai", "Release", [forged]), ct));
+            (typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration).FullName!, "integration/openai", "Release", [forged]), ct));
         await Assert.ThrowsAsync<ArgumentException>(() => edge.InvokeAsync(token,
             (typeof(DigitalBrain.Framework.Platform.Secrets.ISecrets).FullName!, "owner", "Resolve", [forged, forged]), ct));
         await Assert.ThrowsAsync<ArgumentException>(() => edge.OpenSignalsAsync(token, typeof(IPlatformOnlyPinger).FullName!, "x", "Pinged", ct));

@@ -24,7 +24,7 @@ internal static class SupabaseConnectionSettings
         catch (Exception error) when (error is ArgumentException or FormatException or OverflowException)
         {
             // Do not retain the driver exception: its message can contain the supplied secret.
-            throw new InvalidOperationException("ConnectionStrings:supabase must be a PostgreSQL URI or an Npgsql connection string (Host=...;Database=...;Username=...;Password=...).");
+            throw new InvalidOperationException("The Supabase integration credential must be a PostgreSQL URI or an Npgsql connection string (Host=...;Database=...;Username=...;Password=...).");
         }
     }
 

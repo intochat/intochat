@@ -2,11 +2,11 @@ using System.Security.Cryptography;
 using System.Text;
 
 namespace DigitalBrain.Microsoft.GitHub;
-// Configuration is trusted application input. Never serialize this type or include it in a log.
+// Validated operator repository identity and public endpoints.
 internal sealed class GitHubRepositoryBinding
 {
     private int _revoked;
-    internal GitHubRepositoryBinding(string id, long repositoryId, long installationId, long appId, string repoOwner, string repoName, string webhookSecret, string? endpointId = null, Uri? apiHost = null, Uri? mcpEndpoint = null, string? authorizationEpoch = null)
+    internal GitHubRepositoryBinding(string id, long repositoryId, long installationId, long appId, string repoOwner, string repoName, string? endpointId = null, Uri? apiHost = null, Uri? mcpEndpoint = null, string? authorizationEpoch = null)
     {
         ValidateName(id);
         ValidateName(endpointId ?? id);
@@ -15,10 +15,6 @@ internal sealed class GitHubRepositoryBinding
         ArgumentOutOfRangeException.ThrowIfLessThan(repositoryId, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(installationId, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(appId, 1);
-        if (webhookSecret.Length < 16)
-        {
-            throw new InvalidOperationException("GitHub requires a webhook secret of at least 16 characters.");
-        }
 
         Id = id;
         RepositoryId = repositoryId;
@@ -26,7 +22,6 @@ internal sealed class GitHubRepositoryBinding
         AppId = appId;
         RepoOwner = repoOwner;
         RepoName = repoName;
-        WebhookSecret = webhookSecret;
         EndpointId = endpointId ?? id;
         var validatedApi = ValidateEndpoint(apiHost ?? new Uri("https://api.github.com/"));
         ApiHost = new Uri(validatedApi.AbsoluteUri.TrimEnd('/') + '/');
@@ -45,7 +40,6 @@ internal sealed class GitHubRepositoryBinding
     public string EndpointId { get; }
     public string Revision { get; }
     public bool Enabled => Volatile.Read(ref _revoked) == 0;
-    internal string WebhookSecret { get; }
     internal string RepositoryPath => $"repos/{Uri.EscapeDataString(RepoOwner)}/{Uri.EscapeDataString(RepoName)}";
 
     public void Revoke() => Interlocked.Exchange(ref _revoked, 1);

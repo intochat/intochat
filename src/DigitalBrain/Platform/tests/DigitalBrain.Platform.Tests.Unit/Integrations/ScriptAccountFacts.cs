@@ -29,7 +29,8 @@ public sealed class ScriptAccountFacts
 
     public sealed class PostgresKindModule() : Module(new ModuleId(nameof(PostgresKindModule)))
     {
-        public static IntegrationDefinition Integration { get; } = IntegrationDefinition.For("postgres", "Postgres");
+        public static IntegrationSchema Integration { get; } = IntegrationSchema.For("postgres", "Postgres");
+        public static ConnectorDefinition Connector => new("postgres", "Postgres", ["connection-string"], []);
 
         public override void Configure(ISiloBuilder silo) { }
     }

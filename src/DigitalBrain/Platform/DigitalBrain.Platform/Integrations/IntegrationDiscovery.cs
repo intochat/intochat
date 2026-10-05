@@ -3,13 +3,13 @@ using DigitalBrain.Framework.Platform.Integrations;
 
 namespace DigitalBrain.Platform.Integrations;
 
-// A module declares what it needs with `public static IntegrationDefinition Integration` or
-// `public static IntegrationDefinition[] Integrations`; a module with neither contributes nothing.
+// A module declares what it needs with `public static IntegrationSchema Integration` or
+// `public static IntegrationSchema[] Integrations`; a module with neither contributes nothing.
 internal static class IntegrationDiscovery
 {
-    public static IReadOnlyList<IntegrationDefinition> Collect(IEnumerable<Type> moduleTypes)
+    public static IReadOnlyList<IntegrationSchema> Collect(IEnumerable<Type> moduleTypes)
     {
-        var found = new List<IntegrationDefinition>();
+        var found = new List<IntegrationSchema>();
         foreach (var module in moduleTypes.Distinct())
         {
             found.AddRange(Declared(module, "Integration"));
@@ -25,14 +25,14 @@ internal static class IntegrationDiscovery
         return found;
     }
 
-    private static IEnumerable<IntegrationDefinition> Declared(Type module, string member)
+    private static IEnumerable<IntegrationSchema> Declared(Type module, string member)
     {
         const BindingFlags Static = BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly;
         var value = module.GetProperty(member, Static)?.GetValue(null) ?? module.GetField(member, Static)?.GetValue(null);
         return value switch
         {
-            IntegrationDefinition single => [single],
-            IEnumerable<IntegrationDefinition> many => many,
+            IntegrationSchema single => [single],
+            IEnumerable<IntegrationSchema> many => many,
             _ => [],
         };
     }

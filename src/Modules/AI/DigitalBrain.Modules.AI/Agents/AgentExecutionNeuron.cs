@@ -17,9 +17,9 @@ internal sealed class AgentExecutionNeuron(IAgentTurnRunner runner, IIntentUsage
     public override NeuronAccess Access(string operation) => new(BrainScope.CurrentId());
 
     public Task<ModelCatalog> Models(string? defaultModel = null)
-        => Task.FromResult(new AgentModelCatalog(profiles, options, defaultModel).Read());
+        => new AgentModelCatalog(profiles, options, defaultModel).Read();
     public Task<AgentModelSelection?> SelectModel(string? id, string? defaultModel = null)
-        => Task.FromResult(new AgentModelCatalog(profiles, options, defaultModel).Select(id));
+        => new AgentModelCatalog(profiles, options, defaultModel).Select(id);
 
     public async IAsyncEnumerable<AgentTurnEvent> Run(AgentTurnRequest request, string intentId,
         [EnumeratorCancellation] CancellationToken ct = default)

@@ -94,3 +94,20 @@ Postgres instance: Postgres 50/50 and CustomerResearcher 12/12, with no skipped 
 `aspire run --detach` from `src/DigitalBrain/AppHost/DigitalBrain.AppHost` started successfully.
 All running resources reported Healthy. The configured sandbox, rebuild helpers,
 and Azure environment remained NotStarted.
+
+## Connections and deployment credentials
+
+The module's ConnectorDefinition declares supported authentication methods and Integration
+dependencies. Platform delivers credentials through scoped async Integration handles; credential
+values never belong in module options. User authorizations are per-brain Connections holding
+SecretRefs. The offered connector catalog is `GET /connectors`, and user connections are managed
+at `/brains/{id}/connections`. Provision deployment credentials with
+`DigitalBrain:Integrations:{id}:{Field}`; ordinary options stay under `DigitalBrain:Modules:{id}:Options`.
+
+Integrations are what the deployment provisions; Connections are what users authorize.
+
+Postgres requires Integration `postgres:ConnectionString` for its selected platform source.
+Optional secret `AdminConnection` is required and validated when `ProvisionPerBrain` selects
+per-brain database provisioning. Both are released through module-scoped handles after Platform
+seeding; the retired capacity AdminConnection key is rejected. The Postgres owner migration
+is invoked by Platform's narrow startup service after credential initialization.

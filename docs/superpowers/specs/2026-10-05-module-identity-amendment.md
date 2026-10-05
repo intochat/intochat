@@ -184,3 +184,12 @@ One mechanism: a module is an object that knows its name; every ring either hold
 names it through a generic parameter; every value travels the one configuration grammar under
 the module's section; options validate themselves and nothing else. The only strings in the
 system are the ids and the configuration values themselves.
+
+## Connector credential boundary (2026-10-05 amendment, #165)
+
+Connectors declare supported auth methods and required/optional Integrations. Platform binds
+scoped async handles per module before offering a connector. Modules receive trust and cannot
+construct platform callers or read deployment credentials from configuration. User Connections
+hold SecretRefs per brain at `/brains/{id}/connections`; the offered catalog is `GET /connectors`.
+Deployment provisioning remains under `DigitalBrain:Integrations:{id}:*` and is Platform-only.
+Integrations are what the deployment provisions; Connections are what users authorize.

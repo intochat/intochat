@@ -20,9 +20,14 @@ public sealed class SupabaseTableDisplayFacts(ReferenceBrainFixture host) : Brai
         var page = await OpenPageAsync(ct);
         await page.SetViewportSizeAsync(1600, 1000);
         var projectId = await WorkspaceBrowser.CreateProjectAsync(page, "Display data workspace");
+        await UserConnections.AuthorizeSupabaseAsync(brain, projectId, ct);
         var workspace = brain.Get<IWorkspace>(BrainScope.Create("owner", projectId).Id);
         var table = brain.Get<ISupabaseTable>("active-leads");
-        var snapshot = await table.CreateFromQuery(new("Active leads", "select id, company, email from leads where active order by id"));
+        SupabaseTableSnapshot snapshot;
+        using (UserConnections.UseBrain(brain, projectId))
+        {
+            snapshot = await table.CreateFromQuery(new("Active leads", "select id, company, email from leads where active order by id"));
+        }
         await workspace.Open(new("show-leads", "leads-window", "Active leads", WindowReference.Table(snapshot.Id), (await workspace.Read()).Revision));
 
         var window = page.GetByRole(AriaRole.Region, new() { Name = "Active leads", Exact = true });
@@ -51,9 +56,14 @@ public sealed class SupabaseTableDisplayFacts(ReferenceBrainFixture host) : Brai
         var page = await OpenPageAsync(ct);
         await page.SetViewportSizeAsync(1600, 1000);
         var projectId = await WorkspaceBrowser.CreateProjectAsync(page, "Display unavailable data");
+        await UserConnections.AuthorizeSupabaseAsync(brain, projectId, ct);
         var workspace = brain.Get<IWorkspace>(BrainScope.Create("owner", projectId).Id);
         var table = brain.Get<ISupabaseTable>("empty-leads");
-        var snapshot = await table.CreateFromQuery(new("Empty leads", "select id, company, email from leads where false"));
+        SupabaseTableSnapshot snapshot;
+        using (UserConnections.UseBrain(brain, projectId))
+        {
+            snapshot = await table.CreateFromQuery(new("Empty leads", "select id, company, email from leads where false"));
+        }
         await workspace.Open(new("show-empty", "empty-window", "Empty leads", WindowReference.Table(snapshot.Id), (await workspace.Read()).Revision));
         var window = page.GetByRole(AriaRole.Region, new() { Name = "Empty leads", Exact = true });
         await Assertions.Expect(window.GetByText("No rows match these filters.", new() { Exact = true })).ToBeVisibleAsync();

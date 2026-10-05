@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using DigitalBrain.Framework.Capacity;
 using Npgsql;
+using DigitalBrain.Framework.Platform.Integrations;
 
 namespace DigitalBrain.Postgres;
 
@@ -10,6 +11,9 @@ namespace DigitalBrain.Postgres;
 // this class is absent from production and provisioning refuses there by construction.
 internal sealed class DockerPostgresProvisioner(string adminConnection, Func<string, string, CancellationToken, Task>? createDatabase = null) : ICapacityProvisioner
 {
+    public DockerPostgresProvisioner(IIntegrationHandle integration) : this(string.Empty) => _integration = integration;
+    private readonly IIntegrationHandle? _integration;
+
     public string Kind => PostgresCapacityKind.Kind;
 
     public static string DatabaseName(string brainId)
@@ -18,7 +22,8 @@ internal sealed class DockerPostgresProvisioner(string adminConnection, Func<str
     public async ValueTask<string> Ensure(CapacityScope scope, CancellationToken ct)
     {
         var database = DatabaseName(scope.BrainId);
-        await (createDatabase ?? CreateDatabase)(adminConnection, database, ct);
+        var admin = _integration is null ? adminConnection : await _integration.ReadSecretAsync("AdminConnection", ct);
+        await (createDatabase ?? CreateDatabase)(admin, database, ct);
         return PostgresCapacityKind.DatabasePrefix + database;
     }
 

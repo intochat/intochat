@@ -63,7 +63,7 @@ public sealed class VoiceFacts
 
     private sealed class BrokenTranscription : IAudioTranscriptionService
     {
-        public bool IsReady => true;
+        public Task<bool> IsReadyAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
         public bool InitializationFailed => false;
         public string? ErrorMessage => null;
         public string ModelId => "test";
@@ -86,7 +86,7 @@ public sealed class VoiceFacts
     private sealed class Transcription : IAudioTranscriptionService
     {
         public bool Called { get; private set; }
-        public bool IsReady => true;
+        public Task<bool> IsReadyAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
         public bool InitializationFailed => false;
         public string? ErrorMessage => null;
         public string ModelId => "test";

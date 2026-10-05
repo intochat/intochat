@@ -1,9 +1,9 @@
 import 'package:digitalbrain_ui/digitalbrain_ui.dart';
 import 'package:flutter/material.dart';
 
-import '../integrations/connect_window.dart';
-import '../integrations/connections_settings.dart';
-import '../integrations/integrations_menu.dart';
+import '../connections/connect_window.dart';
+import '../connections/connections_settings.dart';
+import '../connections/connectors_menu.dart';
 import 'model_settings.dart';
 import 'workspace_store.dart';
 
@@ -17,16 +17,15 @@ class WorkspaceSettings extends StatefulWidget {
     this.kernelBaseUri,
     this.onOpen,
     this.connectionsRequest,
-    this.serviceRequest,
-    this.oauthUrl,
+    this.connectorRequest,
     this.loadModels,
   });
   final WorkspaceStore store;
   final String initialSection;
   final VoidCallback onClose;
-  final Uri? kernelBaseUri, oauthUrl;
+  final Uri? kernelBaseUri;
   final OpenUrl? onOpen;
-  final ConnectionsRequest? connectionsRequest, serviceRequest;
+  final ConnectionsRequest? connectionsRequest, connectorRequest;
   final ModelCatalogLoader? loadModels;
   @override
   State<WorkspaceSettings> createState() => _WorkspaceSettingsState();
@@ -91,8 +90,7 @@ class _WorkspaceSettingsState extends State<WorkspaceSettings> {
           kernelBaseUri: widget.kernelBaseUri,
           onOpen: widget.onOpen,
           connectionsRequest: widget.connectionsRequest,
-          serviceRequest: widget.serviceRequest,
-          oauthUrl: widget.oauthUrl,
+          connectorRequest: widget.connectorRequest,
           loadModels: widget.loadModels,
         ),
       ),
@@ -201,7 +199,7 @@ class _WorkspaceSettingsState extends State<WorkspaceSettings> {
       case 'connections':
         return ConnectionsSettings(
           request: widget.connectionsRequest,
-          serviceRequest: widget.serviceRequest,
+          connectorRequest: widget.connectorRequest,
           onOpen: widget.onOpen,
         );
       case 'models':

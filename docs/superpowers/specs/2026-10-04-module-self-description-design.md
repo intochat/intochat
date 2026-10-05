@@ -85,3 +85,12 @@ infrastructure outputs (connection strings, endpoints), not composition.
 
 Docker/NuGet release pipelines, the IntoChat de-branding of the OS image (separate step), and any
 change to module runtime contracts.
+
+## Connector credential boundary (2026-10-05 amendment, #165)
+
+Connectors declare supported auth methods and required/optional Integrations. Platform binds
+scoped async handles per module before offering a connector. Modules receive trust and cannot
+construct platform callers or read deployment credentials from configuration. User Connections
+hold SecretRefs per brain at `/brains/{id}/connections`; the offered catalog is `GET /connectors`.
+Deployment provisioning remains under `DigitalBrain:Integrations:{id}:*` and is Platform-only.
+Integrations are what the deployment provisions; Connections are what users authorize.
