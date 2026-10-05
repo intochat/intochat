@@ -11,7 +11,7 @@
     <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" />
     <ProjectReference Include="../../Sdk/DigitalBrain.Sdk/DigitalBrain.Sdk.csproj" />
   </ItemGroup>
-  <ItemGroup><ProjectReference Include="../../Kernel/DigitalBrain.Kernel.AspNetCore/DigitalBrain.Kernel.AspNetCore.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../Kernel/DigitalBrain.Kernel/DigitalBrain.Kernel.csproj" /></ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="DigitalBrain.Platform.Tests.Unit" /><InternalsVisibleTo Include="DigitalBrain.Platform.Tests.E2E" /></ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="DigitalBrain.Testing.Module" /></ItemGroup>
 </Project>

@@ -2,7 +2,7 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Contracts;
 using DigitalBrain.Flutter;
-using DigitalBrain.Kernel.AspNetCore;
+using DigitalBrain.Kernel;
 using DigitalBrain.Kernel.Enforcement;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

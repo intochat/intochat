@@ -1,6 +1,6 @@
 using DigitalBrain.Contracts;
 using DigitalBrain.Aspire.Server;
-using DigitalBrain.Kernel.AspNetCore;
+using DigitalBrain.Kernel;
 using DigitalBrain.OS;
 using DigitalBrain.Platform;
 using DigitalBrain.Platform.Identity;

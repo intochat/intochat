@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using DigitalBrain;
 using DigitalBrain.Contracts;
-using DigitalBrain.Kernel.AspNetCore;
+using DigitalBrain.Kernel;
 using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Platform.Contracts.Identity;
 using DigitalBrain.Platform.Identity.Authority;

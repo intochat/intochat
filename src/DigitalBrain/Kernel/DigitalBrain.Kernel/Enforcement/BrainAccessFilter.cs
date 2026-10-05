@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
 
-namespace DigitalBrain.Kernel.AspNetCore;
+namespace DigitalBrain.Kernel;
 
 // The HTTP edge of the brain membership rule. Routes that address a brain by path apply
 // this filter so a principal cannot reach a brain it does not belong to, even though the route

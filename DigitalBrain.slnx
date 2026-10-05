@@ -24,7 +24,6 @@
     <Project Path="src/DigitalBrain/Deployment/tests/DigitalBrain.Deployment.Tests/DigitalBrain.Deployment.Tests.csproj" />
   </Folder>
   <Folder Name="/Kernel/">
-    <Project Path="src/DigitalBrain/Kernel/DigitalBrain.Kernel.AspNetCore/DigitalBrain.Kernel.AspNetCore.csproj" />
     <Project Path="src/DigitalBrain/Kernel/DigitalBrain.Kernel/DigitalBrain.Kernel.csproj" />
   </Folder>
   <Folder Name="/Kernel/tests/">

@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
-namespace DigitalBrain.Kernel.AspNetCore;
+namespace DigitalBrain.Kernel;
 
 public static class BrainRoutes
 {

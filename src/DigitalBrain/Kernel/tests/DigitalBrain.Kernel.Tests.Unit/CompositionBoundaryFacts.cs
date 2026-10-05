@@ -5,7 +5,7 @@ using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Aspire.Server;
 using DigitalBrain.Contracts;
 using DigitalBrain.Contracts.Edge.V1;
-using DigitalBrain.Kernel.AspNetCore;
+using DigitalBrain.Kernel;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;

@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Routing;
 
-namespace DigitalBrain.Kernel.AspNetCore;
+namespace DigitalBrain.Kernel;
 
 public interface IHttpModule
 {

@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.DependencyInjection;
-namespace DigitalBrain.Kernel.AspNetCore;
+namespace DigitalBrain.Kernel;
 
 public static class ModuleEndpoints
 {

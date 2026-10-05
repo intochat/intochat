@@ -4,7 +4,10 @@
     <Description>Kernel module runtime: neurons, signals, and composition.</Description>
     <RootNamespace>DigitalBrain.Kernel</RootNamespace>
   </PropertyGroup>
-  <ItemGroup><PackageReference Include="Microsoft.Orleans.Server" /></ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.Orleans.Server" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../DigitalBrain.Contracts/DigitalBrain.Contracts.csproj" />
   </ItemGroup>

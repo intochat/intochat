@@ -19,7 +19,7 @@ using DigitalBrain.Flutter.TextField;
 using DigitalBrain.Flutter.VoiceInput;
 using DigitalBrain.Flutter.WebBrowser;
 using DigitalBrain.Flutter.Workspace;
-using DigitalBrain.Kernel.AspNetCore;
+using DigitalBrain.Kernel;
 using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Sdk.Http;
 using DigitalBrain.Sdk.Types;

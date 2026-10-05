@@ -6,7 +6,6 @@ using DigitalBrain.Assistant;
 using DigitalBrain.Compute;
 using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
-using DigitalBrain.Kernel.AspNetCore;
 using DigitalBrain.OS;
 using DigitalBrain.Platform;
 using DigitalBrain.Platform.Identity;
