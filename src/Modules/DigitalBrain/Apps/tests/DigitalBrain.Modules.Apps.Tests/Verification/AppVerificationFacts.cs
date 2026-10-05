@@ -121,8 +121,7 @@ public sealed class AppVerificationFacts
         await brain.Get<IAppVerification>(IAppVerification.Key(new(Echo, revision.Id))).Verify();
 
         var run = RecordingCSharpFile.ConfiguredSettings.Single(pair => pair.Key.StartsWith($"specs/{Echo}@{revision.Id}", StringComparison.Ordinal));
-        Assert.Equal(Echo.ToString(), run.Value["Package"]);
-        Assert.Equal(revision.Id, run.Value["Revision"]);
+        Assert.Equal($"{Echo}@{revision.Id}", run.Value["App"]);
         Assert.True(RecordingCSharpFile.Deleted.ContainsKey(run.Key));
     }
 
