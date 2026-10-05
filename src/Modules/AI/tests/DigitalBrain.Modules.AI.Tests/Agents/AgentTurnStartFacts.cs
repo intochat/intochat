@@ -88,6 +88,35 @@ public sealed class AgentTurnStartFacts
         finally { Orleans.Runtime.RequestContext.Clear(); }
     }
 
+    // One app, two conversations: a turn still running in one must not hold up starting the other.
+    [Fact]
+    public async Task StartingATurnIsNotHeldUpByAnotherConversationsRunningTurn()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new StubChatClient(async (_, _, _) =>
+        {
+            await release.Task;
+            return new ChatResponse(new ChatMessage(ChatRole.Assistant, "done"));
+        });
+        await using var brain = await Start(client, ct);
+        StampUser();
+        try
+        {
+            var scope = BrainScope.CurrentId();
+            var execution = brain.Get<IAgentExecution>(scope + "/apps/assistant/execution");
+            await execution.Start(new(scope + "/apps/assistant/conversations/one", "", "", [], "first"));
+            await Task.Delay(300, ct);
+
+            var second = execution.Start(new(scope + "/apps/assistant/conversations/two", "", "", [], "second"));
+
+            Assert.Same(second, await Task.WhenAny(second, Task.Delay(TimeSpan.FromSeconds(5), ct)));
+            release.TrySetResult();
+            Assert.NotEmpty(await second);
+        }
+        finally { release.TrySetResult(); Orleans.Runtime.RequestContext.Clear(); }
+    }
+
     // Every signal of the run, ending with its completion or failure.
     private static async Task<List<Signal>> UntilEnd(LocalSignalHub.Subscription<Signal> signals, string runId, CancellationToken ct)
     {
