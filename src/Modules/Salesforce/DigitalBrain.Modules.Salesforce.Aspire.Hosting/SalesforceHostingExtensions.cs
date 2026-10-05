@@ -24,7 +24,7 @@ public static class SalesforceHostingExtensions
         DigitalBrainBuilder brain,
         IResourceBuilder<DigitalBrainModuleResource> module) : DigitalBrainModuleProjection
     {
-        private const string OAuthRoot = SalesforceOAuthOptions.SectionName;
+        private static readonly string OAuthRoot = SalesforceOAuthOptions.SectionName;
 
         private bool _enabled;
         private Uri? _publicOrigin;

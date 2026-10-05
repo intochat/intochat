@@ -3,12 +3,12 @@ using DigitalBrain.Contracts;
 namespace DigitalBrain.Microsoft.GitHub;
 
 // The declared repositories reach the AppHost's hosting adapter, which projects the repository identity keys and
-// the private key and webhook secret parameters on the DigitalBrain:Microsoft:GitHub:Repositories configuration path.
+// the private key and webhook secret parameters on the module's Repositories configuration path.
 public sealed class GitHubModuleOptions : IModuleOptions
 {
-    public const string SectionName = "DigitalBrain:Microsoft:GitHub";
-    public const string AppSectionName = SectionName + ":App";
-    public const string RepositoriesSectionName = SectionName + ":Repositories";
+    public static readonly string SectionName = DigitalBrainConfiguration.ModuleSection(new ModuleId("github"));
+    public static readonly string AppSectionName = SectionName + ":App";
+    public static readonly string RepositoriesSectionName = SectionName + ":Repositories";
 
     public Dictionary<string, GitHubRepositoryDeclaration> Repositories { get; set; } = new(StringComparer.Ordinal);
 

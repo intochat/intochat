@@ -28,7 +28,7 @@ using DigitalBrain.Supabase.Aspire.Hosting;
 // binding (the path leaf under ShippedAppsServiceCollectionExtensions.ConfigurationSection).
 const string UiPortKey = "DigitalBrain:Http:UiPort";
 const string McpPortKey = "DigitalBrain:Http:McpPort";
-const string IntoChatShippedAppsPathKey = "DigitalBrain:ShippedApps:intochat:Path";
+const string IntoChatShippedAppsPathKey = "DigitalBrain:Modules:apps:Shipped:intochat:Path";
 
 var builder = DistributedApplication.CreateBuilder(args);
 var digitalBrain = builder.AddDigitalBrain("Modules", new DigitalBrainHostingOptions { ServiceId = "intochat", UseAzureStorage = true })

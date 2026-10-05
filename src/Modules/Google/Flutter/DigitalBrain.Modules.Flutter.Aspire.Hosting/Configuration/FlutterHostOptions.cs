@@ -2,8 +2,9 @@ namespace DigitalBrain.Flutter.Aspire.Hosting;
 
 public sealed class FlutterHostOptions
 {
-    public const string SectionName = "DigitalBrain:Flutter:Hosting";
-    public const string WebContainerKey = SectionName + ":WebContainer";
+    public static readonly string SectionName =
+        DigitalBrain.Contracts.DigitalBrainConfiguration.ModuleSection(new DigitalBrain.Contracts.ModuleId("flutter")) + ":Hosting";
+    public static readonly string WebContainerKey = SectionName + ":WebContainer";
 
     public FlutterHostKind Kind { get; set; } = FlutterHostKind.Window;
 

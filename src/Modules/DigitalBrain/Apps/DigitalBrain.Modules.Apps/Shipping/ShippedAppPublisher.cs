@@ -17,7 +17,7 @@ internal sealed class ShippedAppPublisher(AppPublishing publishing, IEnumerable<
     // Verifying a shipped app runs real sandbox scripts. A test host declares what it needs:
     // "true" (default) ships everything, "false" nothing, and a comma-separated list of package
     // names ships only those.
-    public const string ShipOnStartupKey = ShippedAppsServiceCollectionExtensions.ShipOnStartupKey;
+    public static readonly string ShipOnStartupKey = ShippedAppsServiceCollectionExtensions.ShipOnStartupKey;
 
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

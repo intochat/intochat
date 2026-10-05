@@ -12,7 +12,8 @@ namespace DigitalBrain.Time;
 
 public sealed class TimeModule() : Module(new ModuleId("time"))
 {
-    public const string MinimumReminderPeriodKey = "DigitalBrain:Time:MinimumReminderPeriod";
+    public static readonly string MinimumReminderPeriodKey =
+        DigitalBrainConfiguration.ModuleOptionsSection(new ModuleId("time")) + ":MinimumReminderPeriod";
 
     public override void Configure(ISiloBuilder silo)
     {

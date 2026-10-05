@@ -64,7 +64,7 @@ public static class GitHubAppHostingExtensions
                 .WithDescription("GitHub App HMAC webhook secret, at least 16 characters.");
             _clientSecret ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("github-app-client-secret"), secret: true)
                 .WithDescription("GitHub App OAuth client secret; user tokens are only used during authorization.");
-            const string root = GitHubModuleOptions.AppSectionName;
+            var root = GitHubModuleOptions.AppSectionName;
             const string IntegrationRoot = IntegrationDefinition.SectionName + ":github";
             builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "AppId"), appId.ToString(System.Globalization.CultureInfo.InvariantCulture))
                 .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(IntegrationRoot, "AppId"), appId.ToString(System.Globalization.CultureInfo.InvariantCulture))

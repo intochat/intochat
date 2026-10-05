@@ -66,7 +66,7 @@ public sealed class E2ETestBuilder<TAppHost> where TAppHost : class
     }
 
     // Hosting-layer configuration for the AppHost builder itself (not a resource), such as
-    // DigitalBrain:Flutter:Hosting:WebContainer.
+    // DigitalBrain:Modules:flutter:Hosting:WebContainer.
     public E2ETestBuilder<TAppHost> WithHostConfiguration(string key, string? value)
     {
         EnsureMutable();

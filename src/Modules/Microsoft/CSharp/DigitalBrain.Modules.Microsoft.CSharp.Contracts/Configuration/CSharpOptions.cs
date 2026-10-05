@@ -19,10 +19,11 @@ public sealed class CSharpOptions : IModuleOptions
     public void Validate() => ArgumentException.ThrowIfNullOrWhiteSpace(AspireApplication);
 }
 
-// Deployment-owned values read from DigitalBrain:CSharp configuration; they are not module options.
+// Deployment-owned values under the module's section; they are not user options, so they
+// live beside Options, not under it.
 public sealed class CSharpDeploymentSettings
 {
-    public const string SectionName = "DigitalBrain:CSharp";
+    public static readonly string SectionName = DigitalBrainConfiguration.ModuleSection(new ModuleId("csharp")) + ":Deployment";
 
     // The script edge URL runs dial; development derives it from this brain's own HTTP address.
     public string? EdgeUrl { get; set; }

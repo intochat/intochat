@@ -12,7 +12,7 @@ internal sealed class SalesforceOAuthConfiguration(IOptions<SalesforceOAuthOptio
     internal SalesforceOAuthConfiguration(IConfiguration configuration)
         : this(Options.Create(configuration.GetSection(SalesforceOAuthOptions.SectionName).Get<SalesforceOAuthOptions>() ?? new())) { }
 
-    internal const string Section = SalesforceModule.OAuthConfigurationRoot;
+    internal static readonly string Section = SalesforceModule.OAuthConfigurationRoot;
 
     internal string ConsumerKey => options.Value.ConsumerKey ?? "";
     internal string ConsumerSecret => options.Value.ConsumerSecret ?? "";

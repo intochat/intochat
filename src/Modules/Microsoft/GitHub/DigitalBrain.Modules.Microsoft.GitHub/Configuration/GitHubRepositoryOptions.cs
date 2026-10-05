@@ -19,7 +19,7 @@ public sealed class GitHubRepositoryOptions
 
 public sealed class GitHubRepositoriesOptions
 {
-    public const string SectionName = GitHubModuleOptions.SectionName;
+    public static readonly string SectionName = GitHubModuleOptions.SectionName;
     public Dictionary<string, GitHubRepositoryOptions> Repositories { get; set; } = new(StringComparer.Ordinal);
 
     internal GitHubRepositoryBindings CreateBindings() => new(Repositories.Select(pair => pair.Value.CreateBinding(pair.Key)));

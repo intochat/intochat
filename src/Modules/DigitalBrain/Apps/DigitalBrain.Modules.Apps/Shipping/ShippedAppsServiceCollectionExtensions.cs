@@ -7,10 +7,12 @@ namespace DigitalBrain.Apps;
 
 public static class ShippedAppsServiceCollectionExtensions
 {
-    public const string ConfigurationSection = "DigitalBrain:ShippedApps";
+    public static readonly string ConfigurationSection =
+        DigitalBrain.Contracts.DigitalBrainConfiguration.ModuleSection(new DigitalBrain.Contracts.ModuleId("apps")) + ":Shipped";
     // The startup-shipping switch lives on the module's public surface so hosts and fixtures can
     // name it; ShippedAppPublisher (internal) is its reader.
-    public const string ShipOnStartupKey = "DigitalBrain:Apps:ShipOnStartup";
+    public static readonly string ShipOnStartupKey =
+        DigitalBrain.Contracts.DigitalBrainConfiguration.ModuleOptionsSection(new DigitalBrain.Contracts.ModuleId("apps")) + ":ShipOnStartup";
 
     public static IServiceCollection AddShippedApps(this IServiceCollection services, Assembly assembly, string resourcePrefix, string publisher)
     {
@@ -20,7 +22,7 @@ public static class ShippedAppsServiceCollectionExtensions
         return services.AddShippedAppSource(new EmbeddedShippedAppSource(assembly, resourcePrefix, publisher));
     }
 
-    // Configuration names the vendors: DigitalBrain:ShippedApps:{publisher}:Path points at a
+    // Configuration names the vendors: DigitalBrain:Modules:apps:Shipped:{publisher}:Path points at a
     // directory of app folders. The deployment decides which vendors ship, not the host's code.
     public static IServiceCollection AddShippedApps(this IServiceCollection services, IConfiguration configuration)
     {

@@ -2,7 +2,7 @@ namespace DigitalBrain.Apps;
 
 // App folders read from a directory on disk: one subfolder per app, the same shape the
 // embedded source reads from resources. Deployments point the host at a folder through
-// DigitalBrain:ShippedApps:{publisher}:Path.
+// DigitalBrain:Modules:apps:Shipped:{publisher}:Path.
 public sealed class DirectoryShippedAppSource(string path, string publisher) : IShippedAppSource
 {
     public string Publisher => publisher;

@@ -33,7 +33,7 @@ internal sealed class ScriptRunEnvironment(RunTokens tokens, IOptions<CSharpDepl
         if (options.Value.EdgeUrl is { Length: > 0 } configured) { return configured; }
         var listening = services.GetService<IServer>()?.Features.Get<IServerAddressesFeature>()?.Addresses
             .FirstOrDefault(address => address.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException("Configure DigitalBrain:CSharp:EdgeUrl; this brain listens on no HTTP address scripts can reach.");
+            ?? throw new InvalidOperationException($"Configure {CSharpDeploymentSettings.SectionName}:EdgeUrl; this brain listens on no HTTP address scripts can reach.");
         var wildcard = listening.Replace("://+", "://localhost", StringComparison.Ordinal).Replace("://*", "://localhost", StringComparison.Ordinal)
             .Replace("[::]", "localhost", StringComparison.Ordinal).Replace("0.0.0.0", "localhost", StringComparison.Ordinal);
         return new UriBuilder(wildcard) { Host = DockerHost }.Uri.ToString();

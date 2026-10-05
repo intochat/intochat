@@ -11,7 +11,7 @@ public sealed record TestExecutionOptions
     public IReadOnlyDictionary<string, string?> PrivateConfiguration { get; init; } = new Dictionary<string, string?>();
     public IReadOnlyDictionary<string, string> ResourceEnvironment { get; init; } = new Dictionary<string, string>();
     // Feeds the AppHost builder's own configuration (not a resource's environment): hosting-layer
-    // knobs like DigitalBrain:Flutter:Hosting:WebContainer describe the machine running the AppHost.
+    // knobs like DigitalBrain:Modules:flutter:Hosting:WebContainer describe the machine running the AppHost.
     public IReadOnlyDictionary<string, string?> HostConfiguration { get; init; } = new Dictionary<string, string?>();
 
     public void Validate()

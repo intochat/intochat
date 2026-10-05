@@ -25,8 +25,10 @@ internal sealed partial class AppDraftNeuron(
     IContractVocabulary? vocabulary = null)
     : Neuron<AppDraftState>(store), IAppDraft
 {
-    internal const string AuthorModelKey = "DigitalBrain:Apps:AuthorModel";
-    internal const string BuilderModelKey = "DigitalBrain:Apps:BuilderModel";
+    internal static readonly string AuthorModelKey =
+        DigitalBrain.Contracts.DigitalBrainConfiguration.ModuleOptionsSection(new DigitalBrain.Contracts.ModuleId("apps")) + ":AuthorModel";
+    internal static readonly string BuilderModelKey =
+        DigitalBrain.Contracts.DigitalBrainConfiguration.ModuleOptionsSection(new DigitalBrain.Contracts.ModuleId("apps")) + ":BuilderModel";
 
     private const int MaxAuthorRetries = 2;
     private const int MaxBuildAttempts = 3;

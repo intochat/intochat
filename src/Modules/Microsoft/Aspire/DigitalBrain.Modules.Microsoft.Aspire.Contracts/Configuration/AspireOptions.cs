@@ -4,7 +4,7 @@ namespace DigitalBrain.Microsoft.Aspire;
 
 public sealed class AspireOptions : IModuleOptions
 {
-    public const string ConfigurationRoot = "DigitalBrain:Microsoft:Aspire";
+    public static readonly string ConfigurationRoot = DigitalBrainConfiguration.ModuleSection(new ModuleId("aspire"));
 
     public string ApplicationName { get; set; } = "DigitalBrain";
 

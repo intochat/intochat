@@ -11,7 +11,7 @@ namespace DigitalBrain.Microsoft.Aspire;
 
 public sealed class AspireModule() : Module<AspireOptions>(new ModuleId("aspire")), IHttpModule
 {
-    public const string ConfigurationRoot = AspireOptions.ConfigurationRoot;
+    public static readonly string ConfigurationRoot = AspireOptions.ConfigurationRoot;
 
     public override void Configure(ISiloBuilder builder)
     {
