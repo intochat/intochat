@@ -46,6 +46,88 @@ void main() {
     );
     expect(find.byKey(const ValueKey('verdict-It shouts')), findsOneWidget);
   });
+
+  testWidgets('a green version can be published, a red one cannot', (
+    tester,
+  ) async {
+    var green = false;
+    String? published;
+    final calls = <String>[];
+    Future<dynamic> request(String method, String path, [Object? body]) async {
+      calls.add('$method $path');
+      if (method == 'POST' && path.endsWith('/publish')) {
+        published = '1.0.0';
+        return {'publishedVersion': published};
+      }
+      return {
+        'name': 'shouter',
+        'manifest': {'title': 'Shouter', 'description': 'Shouts back.'},
+        'spec': '## Scenario: It shouts',
+        'version': '1.0.0',
+        'status': 'Live',
+        'activity': <String>[],
+        'verdicts': <Object>[],
+        'versions': [
+          {'version': '1.0.0', 'savedAt': '2026-10-05T00:00:00Z', 'green': green},
+        ],
+        'publishedVersion': published,
+      };
+    }
+
+    Future<void> show() async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AppScreen(
+            key: UniqueKey(),
+            workspaceId: 'workspace-alice',
+            request: request,
+            name: 'shouter',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await show();
+    expect(find.byKey(const ValueKey('publish-app')), findsNothing);
+
+    green = true;
+    await show();
+    await tester.tap(find.byKey(const ValueKey('publish-app')));
+    await tester.pumpAndSettle();
+    expect(calls, contains('POST /brains/workspace-alice/apps/shouter/publish'));
+    expect(find.text('Published v1.0.0'), findsOneWidget);
+    // Already published at this version: nothing more to publish.
+    expect(find.byKey(const ValueKey('publish-app')), findsNothing);
+  });
+
+  testWidgets('an installed copy says where it came from', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AppScreen(
+          workspaceId: 'workspace-alice',
+          name: 'customer-researcher',
+          request: (method, path, [body]) async => {
+            'name': 'customer-researcher',
+            'manifest': {'title': 'Customer Researcher'},
+            'spec': '',
+            'version': '1.2.0',
+            'status': 'Live',
+            'origin': {
+              'publisher': 'intochat',
+              'name': 'customer-researcher',
+              'version': '1.2.0',
+            },
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Installed from intochat/customer-researcher v1.2.0'),
+      findsOneWidget,
+    );
+  });
 }
 
 class _FakeCreatorServer {

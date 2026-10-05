@@ -6,7 +6,7 @@ import 'apps_request.dart';
 
 // The Creator: describe the app and it exists — Drafted, in this brain — then iterate.
 // Implement and Verify answer immediately and run in the background; the screen follows
-// the app's status and activity feed. A red app is a state to revisit, never a refusal.
+// the app's status and activity feed. A green version can be published to the Marketplace.
 class AppScreen extends StatefulWidget {
   const AppScreen({
     super.key,
@@ -123,6 +123,22 @@ class _AppScreenState extends State<AppScreen> {
     _show(await widget.request('GET', _appPath));
   });
 
+  static bool _green(Map<String, dynamic> app) =>
+      app['versions'] is List &&
+      (app['versions'] as List).map(_map).any(
+        (version) =>
+            version['version'] == app['version'] && version['green'] == true,
+      );
+
+  Future<void> _publish() => _perform('', () async {
+    await widget.request(
+      'POST',
+      '$_appPath/publish',
+      const <String, dynamic>{},
+    );
+    _show(await widget.request('GET', _appPath));
+  });
+
   @override
   Widget build(BuildContext context) {
     final app = _app;
@@ -164,6 +180,17 @@ class _AppScreenState extends State<AppScreen> {
                   key: const ValueKey('app-status'),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
+              if (app != null && app['origin'] is Map)
+                Text(
+                  'Installed from ${_map(app['origin'])['publisher']}/'
+                  '${_map(app['origin'])['name']} v${_map(app['origin'])['version']}',
+                  key: const ValueKey('app-origin'),
+                ),
+              if (app != null && '${app['publishedVersion'] ?? ''}'.isNotEmpty)
+                Text(
+                  'Published v${app['publishedVersion']}',
+                  key: const ValueKey('published-version'),
+                ),
               TextField(
                 key: const ValueKey('describe-app'),
                 controller: _describe,
@@ -199,6 +226,12 @@ class _AppScreenState extends State<AppScreen> {
                           : _verify,
                       child: const Text('Verify'),
                     ),
+                    if (_green(app) && app['publishedVersion'] != app['version'])
+                      FilledButton.tonal(
+                        key: const ValueKey('publish-app'),
+                        onPressed: _busy ? null : _publish,
+                        child: const Text('Publish'),
+                      ),
                   ],
                 ],
               ),
