@@ -839,38 +839,6 @@ final class DigitalBrainUiClient {
     _ => 2,
   };
 
-  Future<Uint8List> appAsset(String workspace, String assetId) async {
-    final response = await _request(
-      'GET',
-      '/brains/${Uri.encodeComponent(workspace)}/apps/assets/${Uri.encodeComponent(assetId)}',
-      timeout: const Duration(seconds: 30),
-    );
-    return response.bodyBytes;
-  }
-
-  Future<Map<String, dynamic>> saveImageCopy(
-    String workspace,
-    String documentId,
-    String operationId,
-    Uint8List bytes,
-  ) async {
-    final request = http.Request(
-      'POST',
-      baseUri.resolve(
-        '/brains/${Uri.encodeComponent(workspace)}/apps/images/$documentId/save/$operationId',
-      ),
-    );
-    request.headers['content-type'] = 'image/png';
-    request.bodyBytes = bytes;
-    final response = await http.Response.fromStream(
-      await _http.send(request).timeout(const Duration(seconds: 60)),
-    ).timeout(const Duration(seconds: 60));
-    if (response.statusCode != 200) {
-      throw StateError('Save failed: ${response.body}');
-    }
-    return Map<String, dynamic>.from(jsonDecode(response.body) as Map);
-  }
-
   void close() {
     if (_ownsClient) {
       _http.close();
