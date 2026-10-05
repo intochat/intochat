@@ -1,9 +1,9 @@
-using DigitalBrain;
-using DigitalBrain.Framework;
 using System.Security.Cryptography;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
+using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
+using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Microsoft.Aspire;

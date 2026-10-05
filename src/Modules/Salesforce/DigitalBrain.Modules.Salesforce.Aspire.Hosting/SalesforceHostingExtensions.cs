@@ -1,8 +1,8 @@
-using DigitalBrain;
-using DigitalBrain.Framework;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
+using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
+using DigitalBrain.Framework;
 
 namespace DigitalBrain.Salesforce.Aspire.Hosting;
 

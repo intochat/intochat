@@ -1,7 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Apps;
-using DigitalBrain.Framework;
 using DigitalBrain.Enforcement;
+using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;

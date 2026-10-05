@@ -1,12 +1,12 @@
 using System.Text.Json;
-using DigitalBrain.Client;
 using DigitalBrain;
-using DigitalBrain.Framework;
+using DigitalBrain.Client;
 using DigitalBrain.Edge.V1;
 using DigitalBrain.Enforcement;
+using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
-using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Microsoft.CSharp;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;

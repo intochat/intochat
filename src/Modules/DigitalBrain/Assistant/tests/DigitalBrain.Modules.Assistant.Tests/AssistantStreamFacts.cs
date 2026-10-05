@@ -1,4 +1,3 @@
-using DigitalBrain.Framework.Platform.Integrations;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -11,6 +10,7 @@ using DigitalBrain.Flutter.Chat;
 using DigitalBrain.Flutter.FileInput;
 using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Workspace;
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Specs;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;

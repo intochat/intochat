@@ -1,9 +1,9 @@
 using System.ComponentModel;
 using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Signals;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Registry;
+using DigitalBrain.Signals;
 using DigitalBrain.Time;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Hosting;

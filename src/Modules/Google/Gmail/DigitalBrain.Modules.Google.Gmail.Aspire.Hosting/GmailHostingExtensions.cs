@@ -1,9 +1,9 @@
-using DigitalBrain;
-using DigitalBrain.Framework;
-using DigitalBrain.Framework.Platform.Integrations;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
+using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Integrations;
 
 namespace DigitalBrain.Google.Gmail;
 

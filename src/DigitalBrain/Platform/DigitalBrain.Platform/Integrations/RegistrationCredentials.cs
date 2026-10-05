@@ -1,9 +1,9 @@
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework.Enforcement;
-using DigitalBrain.Types;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Framework.Platform.Secrets;
 using DigitalBrain.Platform.Secrets;
+using DigitalBrain.Types;
 using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Platform.Integrations;

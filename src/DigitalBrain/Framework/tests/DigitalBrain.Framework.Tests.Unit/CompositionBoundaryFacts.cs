@@ -1,11 +1,11 @@
 using System.Text.Json;
 using Aspire.Hosting;
 using Aspire.Hosting.Azure;
+using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Aspire.Server;
-using DigitalBrain;
-using DigitalBrain.Framework;
 using DigitalBrain.Edge.V1;
+using DigitalBrain.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;

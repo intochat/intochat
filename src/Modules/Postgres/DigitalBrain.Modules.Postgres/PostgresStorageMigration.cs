@@ -1,7 +1,7 @@
 using Azure.Storage.Blobs;
 using DigitalBrain;
-using DigitalBrain.Framework;
 using DigitalBrain.Enforcement;
+using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

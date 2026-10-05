@@ -1,5 +1,4 @@
 using DigitalBrain;
-using DigitalBrain.Framework;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Button;
 using DigitalBrain.Flutter.Button.Signals;
@@ -9,6 +8,7 @@ using DigitalBrain.Flutter.TextField;
 using DigitalBrain.Flutter.TextField.Signals;
 using DigitalBrain.Flutter.VoiceInput;
 using DigitalBrain.Flutter.VoiceInput.Signals;
+using DigitalBrain.Framework;
 using DigitalBrain.Testing.Module;
 using Orleans;
 using Orleans.Runtime;

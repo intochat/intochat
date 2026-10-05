@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Configuration;
 using Aspire.Hosting;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Aspire.Hosting;
@@ -23,6 +22,7 @@ using DigitalBrain.Salesforce;
 using DigitalBrain.Salesforce.Aspire.Hosting;
 using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Aspire.Hosting;
+using Microsoft.Extensions.Configuration;
 
 // The AppHost owns its deployment keys: the published ports and the vendor's shipped-apps
 // binding (the path leaf under ShippedAppsServiceCollectionExtensions.ConfigurationSection).

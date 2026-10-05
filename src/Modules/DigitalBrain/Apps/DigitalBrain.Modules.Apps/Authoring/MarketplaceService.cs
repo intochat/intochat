@@ -1,8 +1,8 @@
 using DigitalBrain;
 using DigitalBrain.AI.GroupChat;
 using DigitalBrain.Apps;
-using DigitalBrain.Framework;
 using DigitalBrain.Enforcement;
+using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Microsoft.CSharp;
 

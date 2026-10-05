@@ -1,5 +1,3 @@
-using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Platform.Identity.Configuration;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -9,6 +7,8 @@ using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.OpenAI;
 using DigitalBrain.Assistant;
+using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 

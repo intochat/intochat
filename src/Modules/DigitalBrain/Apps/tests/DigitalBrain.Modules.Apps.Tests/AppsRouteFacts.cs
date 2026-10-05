@@ -1,8 +1,8 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Apps;
-using DigitalBrain.Framework;
 using DigitalBrain.Enforcement;
+using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Testing.Module;
 using Microsoft.AspNetCore.Builder;

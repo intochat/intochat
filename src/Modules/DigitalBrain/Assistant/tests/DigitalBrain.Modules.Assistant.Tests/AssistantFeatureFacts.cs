@@ -1,8 +1,8 @@
-using DigitalBrain.Framework.Platform.Integrations;
 using System.Text;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.Assistant;
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Specs;
 using DigitalBrain.Supabase;
 using DigitalBrain.Testing.Module;

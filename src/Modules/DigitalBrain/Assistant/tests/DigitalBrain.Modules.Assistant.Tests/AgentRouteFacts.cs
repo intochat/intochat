@@ -1,8 +1,8 @@
 using System.Text;
 using DigitalBrain;
 using DigitalBrain.Assistant;
-using DigitalBrain.Framework;
 using DigitalBrain.Enforcement;
+using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

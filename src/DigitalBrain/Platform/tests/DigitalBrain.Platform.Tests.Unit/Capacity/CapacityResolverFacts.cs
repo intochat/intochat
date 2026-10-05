@@ -1,5 +1,5 @@
-using DigitalBrain.Platform.Capacity;
 using DigitalBrain.Framework.Capacity;
+using DigitalBrain.Platform.Capacity;
 
 namespace DigitalBrain.Platform.Tests.Unit.Capacity;
 

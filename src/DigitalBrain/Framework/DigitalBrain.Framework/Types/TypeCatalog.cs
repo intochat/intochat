@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
-using DigitalBrain.Types;
 using DigitalBrain.Framework.Types;
+using DigitalBrain.Types;
 
 namespace DigitalBrain.Framework.Types;
 

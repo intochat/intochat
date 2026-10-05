@@ -1,7 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Mcp;
 using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Mcp;
 
 namespace DigitalBrain.Mcp.Tests.Unit;
 

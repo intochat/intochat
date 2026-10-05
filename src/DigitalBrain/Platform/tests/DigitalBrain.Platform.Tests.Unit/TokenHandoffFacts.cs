@@ -1,5 +1,5 @@
-using DigitalBrain.Platform.Auth;
 using DigitalBrain.Framework.Platform.Auth;
+using DigitalBrain.Platform.Auth;
 
 namespace DigitalBrain.Platform.Tests.Unit;
 

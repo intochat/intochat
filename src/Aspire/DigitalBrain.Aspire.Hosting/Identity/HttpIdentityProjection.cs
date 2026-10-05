@@ -1,7 +1,7 @@
-using DigitalBrain;
-using DigitalBrain.Framework;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
+using DigitalBrain;
+using DigitalBrain.Framework;
 using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.Extensions.Configuration;
 

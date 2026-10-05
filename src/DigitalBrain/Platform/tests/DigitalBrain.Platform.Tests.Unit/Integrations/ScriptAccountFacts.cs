@@ -1,7 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Integrations;
 using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Integrations;
 using DigitalBrain.Testing.Module;
 using Orleans.Hosting;
 using Xunit;

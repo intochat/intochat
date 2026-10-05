@@ -1,7 +1,7 @@
-using DigitalBrain;
-using DigitalBrain.Framework;
 using Azure.Core;
 using Azure.Identity;
+using DigitalBrain;
+using DigitalBrain.Framework;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;

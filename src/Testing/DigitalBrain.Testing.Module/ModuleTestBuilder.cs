@@ -1,6 +1,6 @@
+using DigitalBrain;
 using DigitalBrain.Client;
 using DigitalBrain.Client.Orleans;
-using DigitalBrain;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;

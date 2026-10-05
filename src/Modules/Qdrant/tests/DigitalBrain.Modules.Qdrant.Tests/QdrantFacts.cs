@@ -1,5 +1,5 @@
-using DigitalBrain.Qdrant;
 using DigitalBrain.Framework.Vectors;
+using DigitalBrain.Qdrant;
 using Xunit;
 
 namespace DigitalBrain.Modules.Qdrant.Tests;

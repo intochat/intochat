@@ -1,9 +1,9 @@
 using DigitalBrain.Enforcement;
+using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Platform.Identity.Configuration;
 using DigitalBrain.Platform.Identity.Directory;
 using DigitalBrain.Platform.Secrets;
-using DigitalBrain.Framework;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

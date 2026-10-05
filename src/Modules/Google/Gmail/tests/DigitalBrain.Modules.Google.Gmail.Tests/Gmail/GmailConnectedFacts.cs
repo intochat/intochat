@@ -1,5 +1,5 @@
-using DigitalBrain.Google.Gmail;
 using DigitalBrain.Framework.Platform.Secrets;
+using DigitalBrain.Google.Gmail;
 using DigitalBrain.Platform.Secrets;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;

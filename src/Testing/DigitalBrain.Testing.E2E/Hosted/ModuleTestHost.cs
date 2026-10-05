@@ -1,8 +1,8 @@
-using DigitalBrain;
-using DigitalBrain.Framework;
 using System.Reflection;
 using Aspire.Hosting;
+using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
+using DigitalBrain.Framework;
 
 namespace DigitalBrain.Testing.E2E;
 

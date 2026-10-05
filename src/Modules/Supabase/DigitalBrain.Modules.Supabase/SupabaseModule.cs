@@ -1,6 +1,6 @@
 using DigitalBrain;
-using DigitalBrain.Framework;
 using DigitalBrain.AI.Agents;
+using DigitalBrain.Framework;
 using DigitalBrain.Supabase.Windows;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;

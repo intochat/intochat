@@ -1,6 +1,6 @@
 using Aspire.Hosting;
-using DigitalBrain;
 using Aspire.Hosting.ApplicationModel;
+using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
 using Microsoft.Extensions.Configuration;
 
