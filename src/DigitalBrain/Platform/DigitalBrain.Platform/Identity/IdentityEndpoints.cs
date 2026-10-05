@@ -92,10 +92,12 @@ internal static class IdentityEndpoints
     }
 
     private static async Task<IResult> RegisterAsync(RegisterRequest input, HttpContext http, IDigitalBrain brain,
-        Microsoft.Extensions.Options.IOptions<Configuration.AuthOptions> auth, CancellationToken ct)
+        Microsoft.Extensions.Options.IOptions<Configuration.AuthOptions> auth, IOptions<SeededAccountOptions> seeds, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(input.PrincipalId)) { return Results.BadRequest(new { error = "Username is required." }); }
-        if (!string.IsNullOrEmpty(auth.Value.Username) && string.Equals(input.PrincipalId, auth.Value.Username, StringComparison.OrdinalIgnoreCase))
+        // A seeded name belongs to its seed: a first-party publisher must never be a stranger's account.
+        if ((!string.IsNullOrEmpty(auth.Value.Username) && string.Equals(input.PrincipalId, auth.Value.Username, StringComparison.OrdinalIgnoreCase))
+            || seeds.Value.Accounts.Any(seed => string.Equals(seed.Username, input.PrincipalId, StringComparison.OrdinalIgnoreCase)))
         { return Results.Conflict(new { error = "This username is reserved." }); }
         try
         {

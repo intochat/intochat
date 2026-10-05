@@ -63,18 +63,24 @@ var runtime = builder.AddProject<Projects.DigitalBrain_OS>("IntoChat")
     .WithReference(digitalBrain)
     .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntoChatAccountKey + ":Username"), "intochat")
     .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntoChatAccountKey + ":DisplayName"), "IntoChat")
-    // Development switching only; an Open host already acts as its owner without a login.
-    .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntoChatAccountKey + ":Password"),
-        builder.Configuration[IntoChatAccountKey + ":Password"] ?? "intochat-development")
     .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsKey + ":Path"), intoChatApps)
     .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsKey + ":Account"), "intochat")
-    .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsKey + ":Writable"), "true")
     .WaitFor(cookieProtection)
     .WithHttpEndpoint(
         port: builder.Configuration.GetValue(UiPortKey, 5080),
         name: "http",
         isProxied: false)
     .WithHttpHealthCheck("/health", endpointName: "http");
+
+// Development only: a known IntoChat password for one-step switching, and publishing in the shell
+// writes the apps folder back. A published deployment ships neither.
+if (builder.ExecutionContext.IsRunMode)
+{
+    runtime
+        .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntoChatAccountKey + ":Password"),
+            builder.Configuration[IntoChatAccountKey + ":Password"] ?? "intochat-development")
+        .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsKey + ":Writable"), "true");
+}
 
 builder.AddProject<Projects.DigitalBrain_Mcp>("digitalbrain-mcp")
     .WithReference(digitalBrain.AsClient(shareHttpIdentity: true))

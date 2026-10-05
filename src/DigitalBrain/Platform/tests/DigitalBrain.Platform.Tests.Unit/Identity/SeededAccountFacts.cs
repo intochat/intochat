@@ -10,6 +10,25 @@ namespace DigitalBrain.Platform.Tests.Unit.Identity;
 
 public sealed class SeededAccountFacts
 {
+    private static readonly IOptions<AuthOptions> Open = Options.Create(new AuthOptions { Posture = IdentityPosture.Open });
+
+    // A seed password is a development convenience; a secured host must never accept it, or the
+    // first-party publisher would ship with a password everyone can read in the AppHost.
+    [Fact]
+    public async Task ASecuredHostNeverGivesASeededAccountItsConfiguredPassword()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        var options = new SeededAccountOptions();
+        options.Accounts.Add(new() { Username = "intochat", Password = "intochat-development", DisplayName = "IntoChat" });
+        var secured = Options.Create(new AuthOptions { Posture = IdentityPosture.Secured });
+
+        await new SeededAccountsStartup(brain.Grains, Options.Create(options), secured, NullLogger<SeededAccountsStartup>.Instance).Execute(ct);
+
+        Assert.NotNull(await brain.Grains.GetGrain<DigitalBrain.Platform.Identity.Authority.IPrincipal>("intochat").DefaultMembership());
+        Assert.Null(await brain.Get<IIdentityDirectory>(IdentityGrains.Directory).AuthenticateAsync("intochat", "intochat-development", ct));
+    }
+
     [Fact]
     public async Task SeededAccountsAreRegisteredOnceAndKeepTheirAccountAcrossRestarts()
     {
@@ -17,7 +36,7 @@ public sealed class SeededAccountFacts
         await using var brain = await ModuleTest.Create().StartAsync(ct);
         var options = new SeededAccountOptions();
         options.Accounts.Add(new() { Username = "intochat", Password = "intochat-development", DisplayName = "IntoChat" });
-        var startup = new SeededAccountsStartup(brain.Grains, Options.Create(options), NullLogger<SeededAccountsStartup>.Instance);
+        var startup = new SeededAccountsStartup(brain.Grains, Options.Create(options), Open, NullLogger<SeededAccountsStartup>.Instance);
 
         await startup.Execute(ct);
         var directory = brain.Get<IIdentityDirectory>(IdentityGrains.Directory);
@@ -36,7 +55,7 @@ public sealed class SeededAccountFacts
         await using var brain = await ModuleTest.Create().StartAsync(ct);
         var options = new SeededAccountOptions();
         options.Accounts.Add(new() { Username = "os", DisplayName = "DigitalBrain OS" });
-        var startup = new SeededAccountsStartup(brain.Grains, Options.Create(options), NullLogger<SeededAccountsStartup>.Instance);
+        var startup = new SeededAccountsStartup(brain.Grains, Options.Create(options), Open, NullLogger<SeededAccountsStartup>.Instance);
 
         await startup.Execute(ct);
         await startup.Execute(ct);
@@ -56,7 +75,7 @@ public sealed class SeededAccountFacts
         var options = new SeededAccountOptions();
         options.Accounts.Add(new() { Username = "intochat", Password = "different-password", DisplayName = "IntoChat" });
 
-        await new SeededAccountsStartup(brain.Grains, Options.Create(options), NullLogger<SeededAccountsStartup>.Instance).Execute(ct);
+        await new SeededAccountsStartup(brain.Grains, Options.Create(options), Open, NullLogger<SeededAccountsStartup>.Instance).Execute(ct);
 
         Assert.Equal(existing, await directory.AuthenticateAsync("intochat", "original-password", ct));
         Assert.Null(await directory.AuthenticateAsync("intochat", "different-password", ct));
