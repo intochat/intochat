@@ -1,68 +1,29 @@
-using DigitalBrain;
+using System.Security.Cryptography;
 using DigitalBrain.AI;
-using DigitalBrain.AI.FoundryLocal;
-using DigitalBrain.AI.Ollama;
 using DigitalBrain.AI.OpenAI;
 using DigitalBrain.Apps;
-using DigitalBrain.Assistant;
 using DigitalBrain.ClickHouse;
-using DigitalBrain.Compute;
-using DigitalBrain.Files;
 using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Aspire.Hosting;
-using DigitalBrain.Framework;
-using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Framework.Platform.Secrets;
 using DigitalBrain.Google.Gmail;
-using DigitalBrain.Microsoft.Aspire;
-using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Microsoft.GitHub;
-using DigitalBrain.Microsoft.Playwright;
+using DigitalBrain.Platform.Identity.Configuration;
 using DigitalBrain.Postgres;
 using DigitalBrain.Qdrant;
-using DigitalBrain.Registry;
 using DigitalBrain.Salesforce;
-using DigitalBrain.Specs;
 using DigitalBrain.Supabase;
-using DigitalBrain.Time;
 
 namespace DigitalBrain.Testing.E2E;
 
+// The reference brain is the product boot without product-owned shipped content: the same
+// AppHost, the same composition, overridden only through ordinary configuration. There is no
+// second list of modules anywhere — the OS catalog is the one list, and this builder rides it.
 public static class ReferenceBrain
 {
+    // Port 1 is deliberately unserved: unused provider calls fail instead of reaching live services.
     private static readonly Uri UnconfiguredProvider = new("http://127.0.0.1:1/");
 
-    public static E2ETestBuilder Create(string modelApiKey = "fixture-key", Dictionary<string, string?>? privateConfiguration = null)
-        => E2ETest.Create()
-            .WithModule<AIModule, AIOptions>(ai =>
-            {
-                ai.Telemetry.EnableSensitiveData = true;
-
-                ai.WithLlm<IGpt56Luna>()
-                    .WithDefaultLlm<IGemma4>()
-                    .WithDefaultEmbedding<ITextEmbedding3Small>()
-                    .WithVoiceToText<IWhisperLargeV3Turbo>()
-                    .WithTavilySearch();
-            })
-            .WithModule<QdrantModule, QdrantModuleOptions>(qdrant => qdrant.WithHostedQdrant())
-            .WithModule<ClickHouseModule, ClickHouseModuleOptions>(database => database.WithClickHouse())
-            .WithModule<SupabaseModule, SupabaseModuleOptions>(database => database.WithConnection("supabase"))
-            .WithModule<PostgresModule, PostgresModuleOptions>(database => database.WithPostgres(options => options.DatabaseName = "digitalbrain"))
-            .WithModule<PlaywrightModule>()
-            .WithModule<TimeModule>()
-            .WithModule<FilesModule>()
-            .WithModule<GmailModule, GmailModuleOptions>(gmail => gmail.WithGmail())
-            .WithModule<SalesforceModule, SalesforceModuleOptions>(salesforce => salesforce.WithHostedMcp())
-            .WithModule<GitHubModule>()
-            .WithModule<FlutterModule, FlutterModuleOptions>(flutter => flutter.RunDesktopApp())
-            .WithModule<ComputeModule>()
-            .WithModule<RegistryModule>()
-            .WithModule<SpecsModule>()
-            .WithModule<AppsModule>()
-            .WithModule<AssistantModule>()
-            .WithModule<AspireModule>()
-            .WithModule<CSharpModule>()
-            .WithModule<CSharpAuthoringModule>()
+    public static E2ETestBuilder<Projects.DigitalBrain_AppHost> Create(string modelApiKey = "fixture-key", Dictionary<string, string?>? privateConfiguration = null)
+        => E2ETest.For<Projects.DigitalBrain_AppHost>()
             .ConfigureModule<AIModule, AIOptions>(ai => ai.WithoutLocalModels().WithoutVoiceToText().WithoutWebSearch()
                 .WithDefaultLlm<IGpt56Luna>().WithModelEndpoint(AiProvider.OpenAI, new(UnconfiguredProvider, "v1/")))
             .ConfigureModule<QdrantModule, QdrantModuleOptions>(qdrant => qdrant.Host = false)
@@ -82,24 +43,26 @@ public static class ReferenceBrain
             .ConfigureModule<FlutterModule, FlutterModuleOptions>(flutter => flutter.BackendOnly())
             .WithExecution(new()
             {
-                // Use the authenticated reference host without product-owned shipped content.
+                // Shipping verifies built-in packages through real sandbox scripts; only a product
+                // fixture pays that, by overriding this with the packages it ships.
                 ResourceEnvironment = new Dictionary<string, string>(StringComparer.Ordinal)
                 {
-                    [DigitalBrainConfiguration.EnvironmentName(ModuleHostChannel.ReferenceCompositionKey)] = "true",
-                    // The OS composition now ships its own apps; reference suites keep startup
-                    // shipping off for time — the product golden journeys ship and verify them.
                     [DigitalBrainConfiguration.EnvironmentName(ShippedAppsServiceCollectionExtensions.ShipOnStartupKey)] = "false",
+                    // Reference facts own their session; the product's cookie stays the product's.
+                    [DigitalBrainConfiguration.EnvironmentName(IdentityHostOptions.Key(nameof(IdentityHostOptions.CookieName)))] = "digitalbrain.reference.session",
                 },
                 PrivateConfiguration = Merge(new Dictionary<string, string?>
                 {
                     ["Parameters:modules-openai-api-key"] = modelApiKey,
+                    ["Parameters:Modules-digitalbrain-master-key"] = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)),
                     ["Parameters:modules-gmail-client-id"] = "fixture-client",
                     ["Parameters:modules-gmail-client-secret"] = "fixture-secret",
                     ["Parameters:modules-salesforce-consumer-key"] = "fixture-client",
                     ["Parameters:modules-salesforce-consumer-secret"] = "fixture-secret",
                 }, privateConfiguration),
             });
-    private static Dictionary<string, string?> Merge(Dictionary<string, string?> defaults, Dictionary<string, string?>? extra)
+
+    internal static Dictionary<string, string?> Merge(Dictionary<string, string?> defaults, Dictionary<string, string?>? extra)
     {
         if (extra is not null) { foreach (var item in extra) { defaults[item.Key] = item.Value; } }
         return defaults;

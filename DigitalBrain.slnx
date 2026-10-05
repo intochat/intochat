@@ -198,6 +198,7 @@
     <Project Path="src/Testing/DigitalBrain.Testing.E2E/DigitalBrain.Testing.E2E.csproj" />
     <Project Path="src/Testing/DigitalBrain.Testing.Module/DigitalBrain.Testing.Module.csproj" />
     <Project Path="src/Testing/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
+    <Project Path="src/Testing/DigitalBrain.Testing.Reference/DigitalBrain.Testing.Reference.csproj" />
   </Folder>
   <Folder Name="/Testing/tests/">
     <Project Path="src/Testing/tests/DigitalBrain.Architecture.Tests/DigitalBrain.Architecture.Tests.csproj" />
