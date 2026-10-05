@@ -53,6 +53,7 @@ final class _LoginScreenState extends State<LoginScreen> {
       _error = failure;
     });
   }
+
   bool _register = false;
 
   @override

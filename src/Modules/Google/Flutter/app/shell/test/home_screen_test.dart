@@ -16,7 +16,11 @@ class _FakeHome {
           'status': 'Live',
           'version': '1.0.0',
           'operations': ['open'],
-          'origin': {'publisher': 'os', 'name': 'assistant', 'version': '1.0.0'},
+          'origin': {
+            'publisher': 'os',
+            'name': 'assistant',
+            'version': '1.0.0',
+          },
           'edited': false,
           'updateAvailable': true,
         },
@@ -88,7 +92,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final myApps = tester.getTopLeft(find.byKey(const ValueKey('home-my-apps')));
+    final myApps = tester.getTopLeft(
+      find.byKey(const ValueKey('home-my-apps')),
+    );
     final market = tester.getTopLeft(
       find.byKey(const ValueKey('home-marketplace')),
     );
@@ -159,9 +165,7 @@ void main() {
     expect(launched, ['csharp']);
   });
 
-  testWidgets('a failed load says so and keeps the local apps', (
-    tester,
-  ) async {
+  testWidgets('a failed load says so and keeps the local apps', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(

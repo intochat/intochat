@@ -69,14 +69,17 @@ void main() {
     expect(() => entry.listing.scenarios.add('x'), throwsUnsupportedError);
   });
 
-  test('seeded accounts are empty when the server is not in open posture', () async {
-    final client = DigitalBrainUiClient(
-      baseUri: Uri.parse('http://test'),
-      httpClient: MockClient((request) async => http.Response('', 404)),
-    );
-    expect(await client.listSeededAccounts(), isEmpty);
-    client.close();
-  });
+  test(
+    'seeded accounts are empty when the server is not in open posture',
+    () async {
+      final client = DigitalBrainUiClient(
+        baseUri: Uri.parse('http://test'),
+        httpClient: MockClient((request) async => http.Response('', 404)),
+      );
+      expect(await client.listSeededAccounts(), isEmpty);
+      client.close();
+    },
+  );
 
   test('continuing as a seeded account adopts its session', () async {
     final paths = <String>[];

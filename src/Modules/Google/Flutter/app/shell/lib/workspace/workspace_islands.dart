@@ -143,17 +143,17 @@ class WorkspaceIslands extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (sidePanel)
-            IconButton(
-              tooltip: 'Side panel',
-              onPressed: store.toggleChat,
-              icon: Icon(
-                Icons.chat_bubble_outline,
-                size: 21,
-                color: project.presentation.chatCollapsed
-                    ? null
-                    : Theme.of(context).colorScheme.primary,
+              IconButton(
+                tooltip: 'Side panel',
+                onPressed: store.toggleChat,
+                icon: Icon(
+                  Icons.chat_bubble_outline,
+                  size: 21,
+                  color: project.presentation.chatCollapsed
+                      ? null
+                      : Theme.of(context).colorScheme.primary,
+                ),
               ),
-            ),
             if (project.presentation.openArtifactIds.isNotEmpty)
               Container(
                 height: 24,

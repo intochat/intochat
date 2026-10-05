@@ -68,7 +68,11 @@ void main() {
         'activity': <String>[],
         'verdicts': <Object>[],
         'versions': [
-          {'version': '1.0.0', 'savedAt': '2026-10-05T00:00:00Z', 'green': green},
+          {
+            'version': '1.0.0',
+            'savedAt': '2026-10-05T00:00:00Z',
+            'green': green,
+          },
         ],
         'publishedVersion': published,
       };
@@ -95,7 +99,10 @@ void main() {
     await show();
     await tester.tap(find.byKey(const ValueKey('publish-app')));
     await tester.pumpAndSettle();
-    expect(calls, contains('POST /brains/workspace-alice/apps/shouter/publish'));
+    expect(
+      calls,
+      contains('POST /brains/workspace-alice/apps/shouter/publish'),
+    );
     expect(find.text('Published v1.0.0'), findsOneWidget);
     // Already published at this version: nothing more to publish.
     expect(find.byKey(const ValueKey('publish-app')), findsNothing);

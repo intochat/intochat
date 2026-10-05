@@ -19,7 +19,11 @@ const _listingJson = {
 };
 
 class _FakeMarket {
-  _FakeMarket({this.installed = false, this.edited = false, this.update = false});
+  _FakeMarket({
+    this.installed = false,
+    this.edited = false,
+    this.update = false,
+  });
   bool installed, edited, update;
   final calls = <String>[];
 

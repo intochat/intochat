@@ -125,10 +125,13 @@ class _AppScreenState extends State<AppScreen> {
 
   static bool _green(Map<String, dynamic> app) =>
       app['versions'] is List &&
-      (app['versions'] as List).map(_map).any(
-        (version) =>
-            version['version'] == app['version'] && version['green'] == true,
-      );
+      (app['versions'] as List)
+          .map(_map)
+          .any(
+            (version) =>
+                version['version'] == app['version'] &&
+                version['green'] == true,
+          );
 
   Future<void> _publish() => _perform('', () async {
     await widget.request(
@@ -226,7 +229,8 @@ class _AppScreenState extends State<AppScreen> {
                           : _verify,
                       child: const Text('Verify'),
                     ),
-                    if (_green(app) && app['publishedVersion'] != app['version'])
+                    if (_green(app) &&
+                        app['publishedVersion'] != app['version'])
                       FilledButton.tonal(
                         key: const ValueKey('publish-app'),
                         onPressed: _busy ? null : _publish,

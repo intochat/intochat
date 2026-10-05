@@ -226,10 +226,9 @@ final class DigitalBrainUiClient {
   ) async {
     final result = Map<String, dynamic>.from(
       await jsonRequest('POST', appOpenPath(brainId, appId), {
-            'operation': 'open',
-            'input': 'docked',
-          })
-          as Map,
+        'operation': 'open',
+        'input': 'docked',
+      }) as Map,
     );
     final surface = result['surface'];
     return surface is String

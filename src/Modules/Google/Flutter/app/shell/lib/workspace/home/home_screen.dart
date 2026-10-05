@@ -91,7 +91,10 @@ class _HomeScreenState extends State<HomeScreen> {
     widget.onAppsChanged?.call();
   }
 
-  Future<void> _details({MarketplaceListing? listing, String? installed}) async {
+  Future<void> _details({
+    MarketplaceListing? listing,
+    String? installed,
+  }) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => AppDetailScreen(
