@@ -11,4 +11,5 @@
     <PackageReference Include="Qdrant.Client" />
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../DigitalBrain.Modules.Qdrant.Contracts/DigitalBrain.Modules.Qdrant.Contracts.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../DigitalBrain/Kernel/DigitalBrain.Kernel/DigitalBrain.Kernel.csproj" /></ItemGroup>
 </Project>

@@ -15,4 +15,5 @@
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
     <PackageReference Include="Aspire.Azure.Storage.Blobs" />
   </ItemGroup>
+  <ItemGroup><ProjectReference Include="../../Kernel/DigitalBrain.Kernel/DigitalBrain.Kernel.csproj" /></ItemGroup>
 </Project>
