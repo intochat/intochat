@@ -3,6 +3,7 @@ using DigitalBrain.Enforcement;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Framework.Platform.Integrations.Accounts;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Runtime;
 
@@ -19,7 +20,19 @@ internal sealed class GmailNeuron(
         ArgumentException.ThrowIfNullOrWhiteSpace(push.HistoryId);
         if (!string.Equals(Snapshot.Email, push.EmailAddress, StringComparison.OrdinalIgnoreCase)) { return; }
         var key = this.GetPrimaryKeyString();
-        if (!key.StartsWith("connection/", StringComparison.Ordinal) || !await ServiceProvider.GetRequiredService<IModuleConnectionCredentials<GmailModule>>().IsConnectedAsync(key)) { return; }
+        if (!key.StartsWith("connection/", StringComparison.Ordinal)) { return; }
+        if (CallerContextStamper.TryGet(out _))
+        {
+            if (!await ServiceProvider.GetRequiredService<IModuleConnectionCredentials<GmailModule>>().IsConnectedAsync(key)) { return; }
+        }
+        else
+        {
+            // Verified Pub/Sub delivery enters this internal contract without a user stamp.
+            // Keep the cluster's unstamped read path; never fabricate a user or Platform caller.
+            var (brain, connector, connection) = ConnectionKeys.Parse(key);
+            if (!(await GrainFactory.GetGrain<IConnectionRegistry>(brain).List())
+                .Any(c => c.Id == connection && c.IntegrationId == connector && c.Status == ConnectionStatus.Connected)) { return; }
+        }
         await PublishAsync(new MailReceived(push.EmailAddress, push.HistoryId));
     }
 

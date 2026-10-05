@@ -23,7 +23,7 @@ verification. A rename without replacing credential acquisition does not meet th
 ## Approach
 
 Use Platform-owned dependency binding and a Framework-facing async handle. Connector metadata
-declares dependencies; Platform creates handles restricted to those dependencies and delivers
+declares dependencies; Platform creates handles restricted to those dependencies or the module's own IntegrationSchemas and delivers
 them through module-specific bindings. Modules never receive a general integration resolver.
 
 Two alternatives were considered. A renamed registration API would retain imperative access
@@ -73,7 +73,7 @@ secret fields and required and optional setting fields. Non-secret module behavi
 endpoints belongs in ordinary options; settings remain only where they describe provisioning.
 IDs and field names retain the existing validated grammar. All declaration collections are arrays.
 
-Module declarations are static properties on the module type, discovered from `ModuleInventory`. Module-specific bindings expose only that module's declared dependencies. The
+Module declarations are static properties on the module type, discovered from `ModuleInventory`. Module-specific bindings expose only that module's own schemas and declared connector dependencies. The
 Platform implementation owns construction, rejects undeclared dependencies and unknown fields,
 and creates trusted callers internally. There is no public constructor/factory that accepts a
 module-provided CallerContext as proof of authority. This enforces architectural access within

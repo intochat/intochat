@@ -3,7 +3,7 @@ using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Shipping;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Orleans.Runtime;
+using DigitalBrain.Platform.Enforcement;
 
 namespace DigitalBrain.Platform.Shipping;
 
@@ -32,21 +32,12 @@ internal sealed class ShippedContentStartup(IEnumerable<IShippedContentPublisher
             {
                 stoppingToken.ThrowIfCancellationRequested();
                 ArgumentException.ThrowIfNullOrWhiteSpace(publisher);
-                var previous = RequestContext.Get(CallerContextStamper.RequestContextKey);
-                try
+                using var _ = CallerContextScope.Scoped(new CallerContext
                 {
-                    CallerContextStamper.Stamp(new CallerContext
-                    {
-                        PrincipalId = publisher, AccountId = publisher, BrainId = publisher,
-                        Kind = CallerKind.Platform, StampedBy = TrustedEdge.Platform,
-                    });
-                    await source.PublishAsync(publisher, stoppingToken).WaitAsync(stoppingToken);
-                }
-                finally
-                {
-                    if (previous is null) { RequestContext.Remove(CallerContextStamper.RequestContextKey); }
-                    else { RequestContext.Set(CallerContextStamper.RequestContextKey, previous); }
-                }
+                    PrincipalId = publisher, AccountId = publisher, BrainId = publisher,
+                    Kind = CallerKind.Platform, StampedBy = TrustedEdge.Platform,
+                });
+                await source.PublishAsync(publisher, stoppingToken).WaitAsync(stoppingToken);
             }
         }
     }

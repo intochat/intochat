@@ -2,11 +2,10 @@
 
 ## Connections and deployment credentials
 
-The module's ConnectorDefinition declares supported authentication methods and Integration
-dependencies. Platform delivers credentials through scoped async Integration handles; credential
-values never belong in module options. User authorizations are per-brain Connections holding
-SecretRefs. The offered connector catalog is `GET /connectors`, and user connections are managed
-at `/brains/{id}/connections`. Provision deployment credentials with
+The module declares deployment infrastructure through its IntegrationSchema and has no
+user-connectable ConnectorDefinition. Platform delivers credentials through scoped async
+handles authorized by that schema. Credential values never belong in module options, and
+CSharp does not appear in `GET /connectors`. Provision deployment credentials with
 `DigitalBrain:Integrations:{id}:{Field}`; ordinary options stay under `DigitalBrain:Modules:{id}:Options`.
 
 Integrations are what the deployment provisions; Connections are what users authorize.

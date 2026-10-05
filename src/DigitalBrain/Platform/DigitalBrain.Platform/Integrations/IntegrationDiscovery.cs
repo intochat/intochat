@@ -12,8 +12,7 @@ internal static class IntegrationDiscovery
         var found = new List<IntegrationSchema>();
         foreach (var module in moduleTypes.Distinct())
         {
-            found.AddRange(Declared(module, "Integration"));
-            found.AddRange(Declared(module, "Integrations"));
+            found.AddRange(Declared(module));
         }
 
         var duplicate = found.GroupBy(definition => definition.Id, StringComparer.Ordinal).FirstOrDefault(group => group.Count() > 1);
@@ -24,6 +23,9 @@ internal static class IntegrationDiscovery
 
         return found;
     }
+
+    internal static IEnumerable<IntegrationSchema> Declared(Type module)
+        => Declared(module, "Integration").Concat(Declared(module, "Integrations"));
 
     private static IEnumerable<IntegrationSchema> Declared(Type module, string member)
     {

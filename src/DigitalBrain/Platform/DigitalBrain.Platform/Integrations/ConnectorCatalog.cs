@@ -7,23 +7,46 @@ internal sealed record ConnectorCatalogEntry(string Id, string DisplayName, stri
 
 internal sealed class ConnectorCatalog(IReadOnlyList<ConnectorDefinition> connectors, IGrainFactory grains, ILogger<ConnectorCatalog> logger)
 {
+    private readonly SemaphoreSlim _refresh = new(1, 1);
+    private readonly Dictionary<string, IntegrationSnapshot> _snapshots = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, bool> _availability = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ConnectorCatalogEntry> _entries = new(StringComparer.Ordinal);
+
     public async Task<ConnectorCatalogEntry[]> ListAsync(CancellationToken cancellationToken)
     {
-        var result = new List<ConnectorCatalogEntry>();
-        foreach (var connector in connectors)
+        await _refresh.WaitAsync(cancellationToken);
+        try
         {
-            var ready = true;
-            foreach (var dependency in connector.RequiredIntegrations)
+            // Read every distinct dependency for freshness; only replace its cached snapshot on change.
+            foreach (var dependency in connectors.SelectMany(c => c.RequiredIntegrations).Distinct(StringComparer.Ordinal))
             {
                 var snapshot = await grains.GetGrain<IIntegration>(IntegrationVault.GrainKeyPrefix + dependency).Read().WaitAsync(cancellationToken);
-                if (snapshot.Status == IntegrationStatus.Ready) { continue; }
-                ready = false;
-                logger.LogWarning("Connector {ConnectorId} is unavailable: Integration {IntegrationId} is {Status}; missing fields: {MissingFields}",
-                    connector.Id, dependency, snapshot.Status, string.Join(", ", snapshot.MissingFields));
+                if (!_snapshots.TryGetValue(dependency, out var previous) || previous.Revision != snapshot.Revision || previous.Status != snapshot.Status)
+                { _snapshots[dependency] = snapshot; }
             }
-            if (ready) { result.Add(new(connector.Id, connector.DisplayName, connector.AuthMethods, connector.RequiredIntegrations,
-                connector.OptionalIntegrations, connector.Neurons.Select(t => t.Name).ToArray(), connector.Signals.Select(t => t.Name).ToArray(), connector.ExternalSystem)); }
+
+            var result = new List<ConnectorCatalogEntry>();
+            foreach (var connector in connectors)
+            {
+                var unavailable = connector.RequiredIntegrations.Select(id => _snapshots[id]).Where(s => s.Status != IntegrationStatus.Ready).ToArray();
+                var ready = unavailable.Length == 0;
+                if (!ready && (!_availability.TryGetValue(connector.Id, out var wasReady) || wasReady))
+                {
+                    logger.LogWarning("Connector {ConnectorId} is unavailable: {Dependencies}", connector.Id,
+                        string.Join("; ", unavailable.Select(s => $"Integration {s.IntegrationId} is {s.Status}; missing fields: {string.Join(", ", s.MissingFields)}")));
+                }
+                _availability[connector.Id] = ready;
+                if (!ready) { continue; }
+                if (!_entries.TryGetValue(connector.Id, out var entry))
+                {
+                    entry = new(connector.Id, connector.DisplayName, connector.AuthMethods, connector.RequiredIntegrations,
+                        connector.OptionalIntegrations, connector.Neurons.Select(t => t.Name).ToArray(), connector.Signals.Select(t => t.Name).ToArray(), connector.ExternalSystem);
+                    _entries.Add(connector.Id, entry);
+                }
+                result.Add(entry);
+            }
+            return result.ToArray();
         }
-        return result.ToArray();
+        finally { _refresh.Release(); }
     }
 }

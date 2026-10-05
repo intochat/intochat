@@ -10,6 +10,29 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 public sealed class RunTokensFacts
 {
     [Fact]
+    public async Task RunTokenInfrastructureIsNotAUserConnector()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await DigitalBrain.Testing.Module.ModuleTest.Create().WithModule<CSharpModule>().WithHttpEdge().StartAsync(ct);
+        var response = await brain.HttpClient.GetAsync("/connectors", ct);
+        response.EnsureSuccessStatusCode();
+        using var catalog = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        Assert.DoesNotContain(catalog.RootElement.EnumerateArray(), item => item.GetProperty("id").GetString() == "csharp");
+        DigitalBrain.Framework.Enforcement.CallerContextStamper.Stamp(new()
+        {
+            PrincipalId = "owner", AccountId = "owner", BrainId = "owner",
+            Kind = DigitalBrain.Enforcement.CallerKind.User, StampedBy = DigitalBrain.Enforcement.TrustedEdge.AuthenticatedHttp,
+        });
+        try
+        {
+            var error = await Assert.ThrowsAsync<ArgumentException>(() => brain.Get<DigitalBrain.Framework.Platform.Integrations.Accounts.IConnectionRegistry>(DigitalBrain.Framework.Enforcement.BrainScope.CurrentId())
+                .Connect(new() { IntegrationId = "csharp", ConnectionId = "internal", AuthMethodId = "run-token", Value = "meaningless" }, ct));
+            Assert.Contains("not offered by the deployment", error.Message);
+        }
+        finally { Orleans.Runtime.RequestContext.Remove(DigitalBrain.Framework.Enforcement.CallerContextStamper.RequestContextKey); }
+    }
+
+    [Fact]
     public async Task ATokenNamesItsFileAndRunUntilItExpires()
     {
         var time = new MovableTime();

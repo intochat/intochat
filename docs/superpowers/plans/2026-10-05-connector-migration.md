@@ -9,7 +9,7 @@ Framework namespace DigitalBrain.Framework.Platform.Integrations:
 - `IntegrationSchema` replaces the old deployment schema role of IntegrationDefinition (same fluent methods/Key helpers).
 - `ConnectorDefinition(string Id, string DisplayName, string[] AuthMethods, string[] RequiredIntegrations)` has OptionalIntegrations, Neurons, Signals arrays.
 - `IIntegrationHandle`: string IntegrationId; Task<IntegrationSnapshot> ReadAsync(CancellationToken = default); Task<string> ReadSecretAsync(string field, CancellationToken = default); Task<ReleasedIntegration> ReleaseAsync(CancellationToken = default) atomically supplies revision/settings and secrets.
-- `IModuleIntegrations<TModule>`: IIntegrationHandle Get(string integrationId). Platform checks the module's declared connector dependencies before returning handles. No general resolver is delivered to modules.
+- `IModuleIntegrations<TModule>`: IIntegrationHandle Get(string integrationId). Platform checks the module's own declared schemas or connector dependencies before returning handles. No general resolver is delivered to modules.
 - RegistrationSnapshot/Status become IntegrationSnapshot/Status; IIntegrationRegistration becomes IIntegration. Existing serializer aliases, member Ids, storage names and grain types stay pinned.
 - Module declarations use static `IntegrationSchema[] Integrations` and `ConnectorDefinition[] Connectors` (single `Integration`/`Connector` accepted). Schemas are provisioning descriptions, connectors hold dependency edges.
 

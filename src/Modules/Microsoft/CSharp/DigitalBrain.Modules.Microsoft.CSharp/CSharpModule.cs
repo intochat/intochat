@@ -14,7 +14,6 @@ namespace DigitalBrain.Microsoft.CSharp;
 public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp")), IHttpModule
 {
     public static IntegrationSchema Integration => IntegrationSchema.For("csharp", "CSharp run tokens").RequiresSecret("RunTokenKey");
-    public static ConnectorDefinition Connector => new("csharp", "CSharp", ["run-token"], ["csharp"]) { Neurons = [typeof(ICSharpFile)], Signals = [typeof(CSharpFileChanged)] };
     public override void Configure(ISiloBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);

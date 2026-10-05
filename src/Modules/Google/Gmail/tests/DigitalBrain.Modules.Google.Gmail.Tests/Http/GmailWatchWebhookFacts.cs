@@ -15,6 +15,31 @@ namespace DigitalBrain.Modules.Google.Gmail.Tests;
 public sealed class GmailWatchWebhookFacts(GmailHostFixture host)
 {
     [Fact]
+    public async Task UserDeliveryCannotProbeAnotherBrainsConnection()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = host.Brain;
+        await host.ConnectForPushAsync("member", "scoped-push");
+        var key = ConnectionKeys.For(BrainScope.Create("owner", "member").Id, "gmail", "scoped-push");
+        var inbound = brain.Grains.GetGrain<IGmailInbound>(key);
+        var caller = new DigitalBrain.Enforcement.CallerContext
+        {
+            PrincipalId = "owner", AccountId = "owner", BrainId = "other",
+            Kind = DigitalBrain.Enforcement.CallerKind.User, StampedBy = DigitalBrain.Enforcement.TrustedEdge.AuthenticatedHttp,
+        };
+        CallerContextStamper.Stamp(caller);
+        try
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => inbound.AcceptWatchPush(new("denied", "user@gmail.com")));
+            CallerContextStamper.Stamp(caller with { BrainId = "member" });
+            await using var mail = await brain.Observe<MailReceived>(brain.Get<IGmail>(key), ct);
+            await inbound.AcceptWatchPush(new("allowed", "user@gmail.com"));
+            Assert.Equal("allowed", (await mail.NextAsync(ct: ct)).HistoryId);
+        }
+        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+    }
+
+    [Fact]
     public async Task GmailWatchHttpPublishesMailReceived()
     {
         var ct = TestContext.Current.CancellationToken;

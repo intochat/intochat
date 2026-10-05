@@ -5,6 +5,7 @@ using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Framework.Platform.Integrations.Accounts;
 using DigitalBrain.Framework.Platform.Secrets;
 using DigitalBrain.Types;
+using DigitalBrain.Platform.Enforcement;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Platform.Integrations;
@@ -13,8 +14,9 @@ internal sealed class ModuleIntegrations<TModule>(IServiceProvider services, Mod
 {
     public IIntegrationHandle Get(string integrationId)
     {
-        if (!inventory.Types.Contains(typeof(TModule)) || !ConnectorDiscovery.Declared(typeof(TModule))
-            .Any(c => c.RequiredIntegrations.Contains(integrationId, StringComparer.Ordinal) || c.OptionalIntegrations.Contains(integrationId, StringComparer.Ordinal)))
+        if (!inventory.Types.Contains(typeof(TModule)) || !(IntegrationDiscovery.Declared(typeof(TModule)).Any(s => s.Id == integrationId)
+            || ConnectorDiscovery.Declared(typeof(TModule))
+                .Any(c => c.RequiredIntegrations.Contains(integrationId, StringComparer.Ordinal) || c.OptionalIntegrations.Contains(integrationId, StringComparer.Ordinal))))
         { throw new UnauthorizedAccessException($"Module '{typeof(TModule).Name}' has not declared Integration '{integrationId}'."); }
         return new IntegrationHandle(integrationId, services.GetRequiredService<IGrainFactory>(), services.GetRequiredService<IReadOnlyList<IntegrationSchema>>());
     }
@@ -32,6 +34,7 @@ internal sealed class IntegrationHandle(string integrationId, IGrainFactory grai
         cancellationToken.ThrowIfCancellationRequested();
         if (!schemas.Any(s => s.Id == integrationId && s.SecretFields.Concat(s.OptionalSecretFields).Contains(field, StringComparer.Ordinal)))
         { throw new UnauthorizedAccessException("The requested secret field is not declared by this Integration."); }
+        // Release the whole Integration coherently, even for one field, rather than tear credentials across rotations.
         var released = await ReleaseAsync(cancellationToken).ConfigureAwait(false);
         return released.Values[field];
     }
@@ -59,42 +62,24 @@ internal sealed class ModuleConnectionCredentials<TModule>(IGrainFactory grains,
         if (brain != BrainScope.Create(caller.AccountId, target).Id || caller.Kind == CallerKind.App
             || !await identity.CanAccessAsync(caller.PrincipalId, caller.AccountId, target, cancellationToken))
         { throw new UnauthorizedAccessException("Only an authorized brain member can connect this credential."); }
-        var previous = Orleans.Runtime.RequestContext.Get(CallerContextStamper.RequestContextKey);
-        try
+        using var _ = CallerContextScope.Scoped(caller with { BrainId = target });
+        await grains.GetGrain<IConnectionRegistry>(brain).Connect(new ConnectConnection
         {
-            CallerContextStamper.Stamp(caller with { BrainId = target });
-            await grains.GetGrain<IConnectionRegistry>(brain).Connect(new ConnectConnection
-            {
-                IntegrationId = connector, ConnectionId = connection, AuthMethodId = authMethodId, SecretReference = credential.Reference,
-            }, cancellationToken);
-        }
-        finally
-        {
-            if (previous is null) { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
-            else { Orleans.Runtime.RequestContext.Set(CallerContextStamper.RequestContextKey, previous); }
-        }
+            IntegrationId = connector, ConnectionId = connection, AuthMethodId = authMethodId, SecretReference = credential.Reference,
+        }, cancellationToken);
     }
 
     public async Task<bool> IsConnectedAsync(string connectionKey, CancellationToken cancellationToken = default)
     {
         var (brain, connector, connection) = ConnectionKeys.Parse(connectionKey);
         RequireConnector(connector);
-        var previous = Orleans.Runtime.RequestContext.Get(CallerContextStamper.RequestContextKey);
-        try
-        {
-            CallerContextStamper.Stamp(new CallerContext
-            {
-                PrincipalId = connector, AccountId = connector, BrainId = brain, AppId = connector,
-                Kind = CallerKind.Platform, StampedBy = TrustedEdge.Platform,
-            });
-            return (await grains.GetGrain<IConnectionRegistry>(brain).List(cancellationToken))
-                .Any(c => c.Id == connection && c.IntegrationId == connector && c.Status == ConnectionStatus.Connected);
-        }
-        finally
-        {
-            if (previous is null) { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
-            else { Orleans.Runtime.RequestContext.Set(CallerContextStamper.RequestContextKey, previous); }
-        }
+        var caller = CallerContextStamper.Require();
+        if (brain != BrainScope.Create(caller.AccountId, caller.BrainId).Id || caller.Kind == CallerKind.App
+            || !await identity.CanAccessAsync(caller.PrincipalId, caller.AccountId, caller.BrainId, cancellationToken))
+        { throw new UnauthorizedAccessException("Only an authorized brain member can probe this connection."); }
+        using var _ = CallerContextScope.Scoped(caller with { Kind = CallerKind.Platform, StampedBy = TrustedEdge.Platform, AppId = connector });
+        return (await grains.GetGrain<IConnectionRegistry>(brain).List(cancellationToken))
+            .Any(c => c.Id == connection && c.IntegrationId == connector && c.Status == ConnectionStatus.Connected);
     }
 
     private void RequireConnector(string connectorId)
