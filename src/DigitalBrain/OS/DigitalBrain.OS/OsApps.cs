@@ -135,7 +135,13 @@ internal sealed class OsBootService(
         }
         // The publisher's own brain already owns its apps.
         if (BrainScope.Create(listing.PublisherAccountId, listing.PublisherBrainId).Id == activated.BrainId) { return; }
-        if ((await grains.GetGrain<IApp>(IApp.Key(activated.BrainId, app.Name)).Read().WaitAsync(cancellationToken)).Manifest.Title.Length > 0) { return; }
-        await installer.Install(app.Publisher, app.Name, cancellationToken);
+        // A default is offered once: one the brain already has counts as offered, and a person
+        // who deletes it keeps it deleted.
+        var index = grains.GetGrain<IAppIndex>(activated.BrainId);
+        var offer = app.Publisher + "/" + app.Name;
+        if (await index.Offered(offer).WaitAsync(cancellationToken)) { return; }
+        if ((await grains.GetGrain<IApp>(IApp.Key(activated.BrainId, app.Name)).Read().WaitAsync(cancellationToken)).Manifest.Title.Length == 0)
+        { await installer.Install(app.Publisher, app.Name, cancellationToken); }
+        await index.Offer(offer).WaitAsync(cancellationToken);
     }
 }

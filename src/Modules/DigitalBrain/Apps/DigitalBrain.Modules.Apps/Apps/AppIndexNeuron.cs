@@ -7,6 +7,7 @@ namespace DigitalBrain.Apps;
 public sealed class AppIndexState
 {
     [Id(0)] public string[] Names { get; set; } = [];
+    [Id(1)] public string[] Offered { get; set; } = [];
 }
 
 // The brain's app names: an index, not domain state, so it publishes nothing — AppChanged
@@ -32,4 +33,14 @@ internal sealed class AppIndexNeuron(
     }
 
     public Task<string[]> List() => Task.FromResult<string[]>([.. (store.State ??= new()).Names]);
+    public async Task<bool> Offer(string app)
+    {
+        store.State ??= new();
+        if (store.State.Offered.Contains(app, StringComparer.Ordinal)) { return false; }
+        store.State.Offered = [.. store.State.Offered.Append(app)];
+        await store.WriteStateAsync();
+        return true;
+    }
+
+    public Task<bool> Offered(string app) => Task.FromResult((store.State ??= new()).Offered.Contains(app, StringComparer.Ordinal));
 }

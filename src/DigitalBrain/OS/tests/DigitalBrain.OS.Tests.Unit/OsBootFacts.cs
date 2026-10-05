@@ -87,6 +87,27 @@ public sealed class OsBootFacts
         await WaitForAsync(brain.Get<IApp>(IApp.Key(scope, "late")), snapshot => snapshot.Status == AppStatus.Live, ct);
     }
 
+    // A default is offered once: a person who deletes it keeps it deleted.
+    [Fact(Timeout = 60_000)]
+    public async Task ADeletedDefaultStaysDeleted()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Boot(ct, new OsApp("os", "hello"));
+        await SeedPublished(brain, "hello");
+        var scope = await Establish(brain);
+        var app = brain.Get<IApp>(IApp.Key(scope, "hello"));
+        await WaitForAsync(app, snapshot => snapshot.Status == AppStatus.Live, ct);
+
+        StampBrainOwner();
+        await app.Delete();
+        var neuron = brain.Get<IBrain>(scope);
+        await brain.DeactivateAsync(neuron, ct);
+        await neuron.Read();
+        await Task.Delay(1000, ct);
+
+        Assert.Equal(AppStatus.Drafted, (await app.Read()).Status);
+    }
+
     [Fact(Timeout = 60_000)]
     public async Task ADefaultThePersonAlreadyHasIsLeftAlone()
     {
