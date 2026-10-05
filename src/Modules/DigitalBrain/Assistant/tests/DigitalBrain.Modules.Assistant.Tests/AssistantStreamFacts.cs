@@ -11,7 +11,6 @@ using DigitalBrain.Flutter.FileInput;
 using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Specs;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -25,8 +24,8 @@ public sealed class AssistantStreamFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartBrain(ct);
-        var context = new StepContext("stream-refusal/applications/assistant", brain.Grains, brain.SiloServices, ct);
-        var app = App(context);
+        const string key = "stream-refusal/applications/assistant";
+        var app = brain.Get<IAssistant>(key);
         foreach (var message in new[] { DigitalBrain.Framework.Capacity.CapacityUnavailableException.RefusalMessage, "Cannot install this app. Missing modules: Postgres." })
         {
             var events = await Collect(app, new("one", Guid.NewGuid().ToString("N"), "refuse:" + message, "owner"), ct);
@@ -56,14 +55,14 @@ public sealed class AssistantStreamFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartBrain(ct);
-        var context = new StepContext("stream-streamedtext/applications/assistant", brain.Grains, brain.SiloServices, ct);
-        var app = App(context);
+        const string key = "stream-streamedtext/applications/assistant";
+        var app = brain.Get<IAssistant>(key);
         var events = await Collect(app, new("one", "run", "hello", "owner"), ct);
         Assert.Equal(["RUN_STARTED", "TEXT_MESSAGE_START", "TEXT_MESSAGE_CONTENT", "TEXT_MESSAGE_CONTENT", "TEXT_MESSAGE_END", "RUN_FINISHED", "RECEIPT"], events.Select(Type));
         Assert.Equal("Hello world", Text(events));
         Assert.Equal("Hello world", Assert.Single((await app.ReadConversation("one", ct)).Turns).AssistantText);
         Assert.Empty((await app.ReadConversation("two", ct)).Turns);
-        Assert.Empty((await context.Grains.GetGrain<IAssistant>(AssistantSurface.Key(context.Subject.Split("/applications/")[0] + "-other")).ReadConversation("one", ct)).Turns);
+        Assert.Empty((await brain.Grains.GetGrain<IAssistant>(AssistantSurface.Key(key.Split("/applications/")[0] + "-other")).ReadConversation("one", ct)).Turns);
     }
 
     [Fact]
@@ -71,9 +70,9 @@ public sealed class AssistantStreamFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartBrain(ct);
-        var context = new StepContext("stream-replayisidem/applications/assistant", brain.Grains, brain.SiloServices, ct);
-        var app = App(context);
-        var runner = context.Services.GetRequiredService<StreamScenarioRunner>();
+        const string key = "stream-replayisidem/applications/assistant";
+        var app = brain.Get<IAssistant>(key);
+        var runner = brain.SiloServices.GetRequiredService<StreamScenarioRunner>();
         var request = new AssistantRun("one", "run", "replay", "owner");
         await Collect(app, request, ct);
         var before = runner.Count("replay");
@@ -92,8 +91,8 @@ public sealed class AssistantStreamFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartBrain(ct);
-        var context = new StepContext("stream-unavailablem/applications/assistant", brain.Grains, brain.SiloServices, ct);
-        var app = App(context);
+        const string key = "stream-unavailablem/applications/assistant";
+        var app = brain.Get<IAssistant>(key);
         await Assert.ThrowsAsync<ArgumentException>(() => Collect(app, new("one", "run", "hello", "owner", "profile:missing"), ct));
         var state = await app.ReadConversation("one", ct);
         Assert.Null(state.ActiveRunId);
@@ -106,8 +105,8 @@ public sealed class AssistantStreamFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartBrain(ct);
-        var context = new StepContext("stream-failedrunsre/applications/assistant", brain.Grains, brain.SiloServices, ct);
-        var app = App(context);
+        const string key = "stream-failedrunsre/applications/assistant";
+        var app = brain.Get<IAssistant>(key);
         var error = Assert.Single(await Collect(app, new("one", "failed", "fail", "owner"), ct), item => Type(item) == "RUN_ERROR");
         Assert.Equal("AGENT_FAILED", error.GetProperty("code").GetString());
         Assert.Equal("failed", error.GetProperty("runId").GetString());
@@ -122,10 +121,10 @@ public sealed class AssistantStreamFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartBrain(ct);
-        var context = new StepContext("stream-cancellation/applications/assistant", brain.Grains, brain.SiloServices, ct);
-        var app = App(context);
+        const string key = "stream-cancellation/applications/assistant";
+        var app = brain.Get<IAssistant>(key);
         using var cancel = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var runner = context.Services.GetRequiredService<StreamScenarioRunner>();
+        var runner = brain.SiloServices.GetRequiredService<StreamScenarioRunner>();
         var reading = Collect(app, new("one", "cancelled", "wait", "owner"), cancel.Token);
         await runner.Waiting.Task.WaitAsync(TimeSpan.FromSeconds(15), ct);
         await cancel.CancelAsync();
@@ -144,9 +143,9 @@ public sealed class AssistantStreamFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartBrain(ct);
-        var context = new StepContext("stream-concurrentsu/applications/assistant", brain.Grains, brain.SiloServices, ct);
-        var app = App(context);
-        var runner = context.Services.GetRequiredService<StreamScenarioRunner>();
+        const string key = "stream-concurrentsu/applications/assistant";
+        var app = brain.Get<IAssistant>(key);
+        var runner = brain.SiloServices.GetRequiredService<StreamScenarioRunner>();
         var owner = Collect(app, new("one", "same", "hold", "owner"), ct);
         await runner.Holding.Task.WaitAsync(TimeSpan.FromSeconds(15), ct);
         try
@@ -170,8 +169,8 @@ public sealed class AssistantStreamFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartBrain(ct);
-        var context = new StepContext("stream-tooleventsan/applications/assistant", brain.Grains, brain.SiloServices, ct);
-        var events = await Collect(App(context), new("one", "tools", "tools", "owner"), ct);
+        const string key = "stream-tooleventsan/applications/assistant";
+        var events = await Collect(brain.Get<IAssistant>(key), new("one", "tools", "tools", "owner"), ct);
         foreach (var type in new[] { "TOOL_CALL_START", "TOOL_CALL_ARGS", "TOOL_CALL_END", "TOOL_CALL_RESULT", "UI_CARD", "RECEIPT" })
         { Assert.Single(events, item => Type(item) == type); }
         Assert.Equal("table", events.Single(item => Type(item) == "UI_CARD").GetProperty("card").GetProperty("kind").GetString());
@@ -185,14 +184,14 @@ public sealed class AssistantStreamFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartBrain(ct);
-        var context = new StepContext("stream-toolcardsret/applications/assistant", brain.Grains, brain.SiloServices, ct);
-        var ui = await StartUi(context);
+        const string key = "stream-toolcardsret/applications/assistant";
+        var ui = await StartUi(brain, key);
         await ui.Submit("card-actions");
         await ui.Until(thread => thread.Results.Length > 0 && thread.Messages.Any(message => message.Text == "Hello world") && thread.TurnId is null, ct);
-        await App(context).Activate();
+        await brain.Get<IAssistant>(key).Activate();
         var buttons = new List<ButtonState>();
         foreach (var node in (await ui.Tree()).Where(node => node.Kind == "button"))
-        { buttons.Add(await context.Grains.GetGrain<IButton>(node.Name).Read()); }
+        { buttons.Add(await brain.Grains.GetGrain<IButton>(node.Name).Read()); }
         using var docs = System.Text.Json.JsonDocument.Parse(Assert.Single(buttons, button => button.Label == "Docs").Activation!);
         Assert.Equal("https://example.com", docs.RootElement.GetProperty("url").GetString());
         using var table = System.Text.Json.JsonDocument.Parse(Assert.Single(buttons, button => button.Label == "Open table").Activation!);
@@ -205,10 +204,10 @@ public sealed class AssistantStreamFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartBrain(ct);
-        var context = new StepContext("stream-fileinputcap/applications/assistant", brain.Grains, brain.SiloServices, ct);
-        var ui = await StartUi(context);
+        const string key = "stream-fileinputcap/applications/assistant";
+        var ui = await StartUi(brain, key);
         await ui.Input("Review this");
-        await context.Grains.GetGrain<IFileInput>(UiParts.NameOf(context.Subject, AssistantSurface.AttachPart))
+        await brain.Grains.GetGrain<IFileInput>(UiParts.NameOf(key, AssistantSurface.AttachPart))
             .Capture("notes.txt", "A useful note");
         var state = await ui.Until(thread => thread.Draft.Contains("A useful note", StringComparison.Ordinal), ct);
         Assert.Contains("Review this", state.Draft);
@@ -222,8 +221,8 @@ public sealed class AssistantStreamFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartBrain(ct);
-        var context = new StepContext("stream-explicitcont/applications/assistant", brain.Grains, brain.SiloServices, ct);
-        var ui = await StartUi(context);
+        const string key = "stream-explicitcont/applications/assistant";
+        var ui = await StartUi(brain, key);
         var first = (await ui.Read()).Id;
         await ui.Input("hello");
         await ui.Until(state => state.Draft == "hello", ct);
@@ -231,10 +230,10 @@ public sealed class AssistantStreamFacts
         var answer = await ui.Until(state => state.Messages.Any(message => message.Text == "Hello world") && state.TurnId is null, ct);
         Assert.Equal("", answer.Draft);
         Assert.Single(answer.Receipts);
-        Assert.Equal("Hello world", Assert.Single((await App(context).ReadConversation(first, ct)).Turns).AssistantText);
+        Assert.Equal("Hello world", Assert.Single((await brain.Get<IAssistant>(key).ReadConversation(first, ct)).Turns).AssistantText);
         await ui.Input("keep first draft");
         await ui.Until(state => state.Draft == "keep first draft", ct);
-        await App(context).Activate();
+        await brain.Get<IAssistant>(key).Activate();
         Assert.Equal("keep first draft", (await ui.Read()).Draft);
         await ui.Button(AssistantSurface.NewPart).Click();
         var second = await ui.Until(state => state.Id != first, ct);
@@ -262,16 +261,16 @@ public sealed class AssistantStreamFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartBrain(ct);
-        var context = new StepContext("stream-explicitcont/applications/assistant", brain.Grains, brain.SiloServices, ct);
-        var ui = await StartUi(context);
+        const string key = "stream-explicitcont/applications/assistant";
+        var ui = await StartUi(brain, key);
         await ui.Submit("ui-wait");
-        var runner = context.Services.GetRequiredService<StreamScenarioRunner>();
+        var runner = brain.SiloServices.GetRequiredService<StreamScenarioRunner>();
         await runner.UiHolding.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
         var active = await ui.Until(state => state.TurnId is not null, ct);
         Assert.NotNull(active.TurnId);
         await ui.Button(AssistantSurface.StopPart).Click();
         await ui.Until(state => state.TurnId is null, ct);
-        Assert.Null((await App(context).ReadConversation(active.Id, ct)).ActiveRunId);
+        Assert.Null((await brain.Get<IAssistant>(key).ReadConversation(active.Id, ct)).ActiveRunId);
         await ui.Submit("hello");
         await ui.Until(state => state.Messages.Any(message => message.Text == "Hello world") && state.TurnId is null, ct);
     }
@@ -281,8 +280,8 @@ public sealed class AssistantStreamFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartBrain(ct);
-        var context = new StepContext("stream-productionto/applications/assistant", brain.Grains, brain.SiloServices, ct);
-        var ui = await StartUi(context);
+        const string key = "stream-productionto/applications/assistant";
+        var ui = await StartUi(brain, key);
         await ui.Submit("window-handles");
         var state = await ui.Until(state => state.Messages.Any(message => message.Text == "Hello world") && state.TurnId is null, ct);
         Assert.Equal(2, state.Results.Length);
@@ -297,13 +296,13 @@ public sealed class AssistantStreamFacts
             Assert.Equal(expected.Title, card.GetProperty("title").GetString());
             Assert.True(card.GetProperty("remoteManaged").GetBoolean());
         }
-        await App(context).Activate();
+        await brain.Get<IAssistant>(key).Activate();
         Assert.Equal(state.Results, (await ui.Read()).Results);
         var openButtons = (await ui.Tree()).Where(node => node.Kind == "button" && node.Name.EndsWith("/open", StringComparison.Ordinal)).ToArray();
         Assert.Equal(2, openButtons.Length);
         foreach (var node in openButtons)
         {
-            var button = await context.Grains.GetGrain<IButton>(node.Name).Read();
+            var button = await brain.Grains.GetGrain<IButton>(node.Name).Read();
             Assert.Equal("Open", button.Label);
             using var activation = System.Text.Json.JsonDocument.Parse(button.Activation!);
             Assert.True(activation.RootElement.GetProperty("remoteManaged").GetBoolean());
@@ -316,8 +315,8 @@ public sealed class AssistantStreamFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartBrain(ct);
-        var context = new StepContext("stream-longmodelans/applications/assistant", brain.Grains, brain.SiloServices, ct);
-        var ui = await StartUi(context);
+        const string key = "stream-longmodelans/applications/assistant";
+        var ui = await StartUi(brain, key);
         var expected = new string('a', 32_000) + new string('b', 8_123);
         await ui.Submit("long-answer");
         var state = await ui.Until(state => state.Messages.Any(message => message.Role == ChatRole.Assistant && message.Text.Length > 0)
@@ -326,8 +325,8 @@ public sealed class AssistantStreamFacts
         Assert.Contains(expected, await ui.VisibleText());
         Assert.Equal(expected, string.Concat(state.Messages.Where(message => message.Role == ChatRole.Assistant).Select(message => message.Text)));
         Assert.Equal(state.Messages.Length, state.Messages.Select(message => message.Id).Distinct().Count());
-        Assert.Equal(expected, Assert.Single((await App(context).ReadConversation(state.Id, ct)).Turns).AssistantText);
-        await App(context).Activate();
+        Assert.Equal(expected, Assert.Single((await brain.Get<IAssistant>(key).ReadConversation(state.Id, ct)).Turns).AssistantText);
+        await brain.Get<IAssistant>(key).Activate();
         Assert.Equal(expected, string.Concat((await ui.Read()).Messages.Where(message => message.Role == ChatRole.Assistant).Select(message => message.Text)));
     }
 
@@ -336,23 +335,23 @@ public sealed class AssistantStreamFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartBrain(ct);
-        var context = new StepContext("stream-historicalar/applications/assistant", brain.Grains, brain.SiloServices, ct);
-        var ui = await StartUi(context);
+        const string key = "stream-historicalar/applications/assistant";
+        var ui = await StartUi(brain, key);
         const string prompt = "Show customers\n\n[Conversation agent: private-artifact-context SECRET-CONTEXT]";
-        await Collect(App(context), new("legacy-thread", "old-run", prompt, "owner"), ct);
-        await Collect(App(context), new("other-thread", "other-run", prompt, "owner"), ct);
-        await App(context).Act("conversation", "legacy-thread");
+        await Collect(brain.Get<IAssistant>(key), new("legacy-thread", "old-run", prompt, "owner"), ct);
+        await Collect(brain.Get<IAssistant>(key), new("other-thread", "other-run", prompt, "owner"), ct);
+        await brain.Get<IAssistant>(key).Act("conversation", "legacy-thread");
         var restored = await ui.Until(state => state.Id == "legacy-thread", ct);
         Assert.Equal("Show customers", restored.Messages.Single(message => message.Role == ChatRole.User).Text);
-        Assert.Equal("Show customers", (await App(context).Read()).Threads.Single(thread => thread.Id == "legacy-thread").Title);
+        Assert.Equal("Show customers", (await brain.Get<IAssistant>(key).Read()).Threads.Single(thread => thread.Id == "legacy-thread").Title);
         Assert.DoesNotContain("SECRET-CONTEXT", System.Text.Json.JsonSerializer.Serialize(restored));
-        Assert.Equal(prompt, Assert.Single((await App(context).ReadConversation("legacy-thread", ct)).Turns).UserText);
-        await App(context).Act("conversation", "other-thread");
+        Assert.Equal(prompt, Assert.Single((await brain.Get<IAssistant>(key).ReadConversation("legacy-thread", ct)).Turns).UserText);
+        await brain.Get<IAssistant>(key).Act("conversation", "other-thread");
         var selected = await ui.Until(state => state.Id == "other-thread", ct);
         Assert.Equal("Show customers", selected.Messages.Single(message => message.Role == ChatRole.User).Text);
-        Assert.Equal("Show customers", (await App(context).Read()).Threads.Single(thread => thread.Id == "other-thread").Title);
+        Assert.Equal("Show customers", (await brain.Get<IAssistant>(key).Read()).Threads.Single(thread => thread.Id == "other-thread").Title);
         Assert.DoesNotContain("SECRET-CONTEXT", System.Text.Json.JsonSerializer.Serialize(selected));
-        Assert.Equal(prompt, Assert.Single((await App(context).ReadConversation("other-thread", ct)).Turns).UserText);
+        Assert.Equal(prompt, Assert.Single((await brain.Get<IAssistant>(key).ReadConversation("other-thread", ct)).Turns).UserText);
     }
 
     [Fact]
@@ -360,24 +359,23 @@ public sealed class AssistantStreamFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartBrain(ct);
-        var context = new StepContext("stream-applaunchesc/applications/assistant", brain.Grains, brain.SiloServices, ct);
-        var first = await App(context).OpenWindow();
-        var second = await App(context).OpenWindow();
+        const string key = "stream-applaunchesc/applications/assistant";
+        var first = await brain.Get<IAssistant>(key).OpenWindow();
+        var second = await brain.Get<IAssistant>(key).OpenWindow();
         Assert.NotEqual(first.Id, second.Id);
         Assert.NotEqual(first.Surface.Name, second.Surface.Name);
-        var left = new AssistantUiProbe(context.Grains, first.Surface.Name[..^"/surface".Length]);
-        var right = new AssistantUiProbe(context.Grains, second.Surface.Name[..^"/surface".Length]);
+        var left = new AssistantUiProbe(brain.Grains, first.Surface.Name[..^"/surface".Length]);
+        var right = new AssistantUiProbe(brain.Grains, second.Surface.Name[..^"/surface".Length]);
         await left.AssertExplicitControls();
         await right.AssertExplicitControls();
         await left.Input("left only");
         Assert.Equal("", (await right.Read()).Draft);
         Assert.NotEqual((await left.Read()).Id, (await right.Read()).Id);
-        var windows = (await context.Grains.GetGrain<IWorkspace>(context.Subject.Split("/applications/")[0]).Read()).Windows;
+        var windows = (await brain.Grains.GetGrain<IWorkspace>(key.Split("/applications/")[0]).Read()).Windows;
         Assert.Contains(windows, window => window.Id == first.Id && window.IsOpen);
         Assert.Contains(windows, window => window.Id == second.Id && window.IsOpen);
     }
 
-    private static IAssistant App(StepContext context) => context.Grains.GetGrain<IAssistant>(context.Subject);
     private static string? Type(JsonElement item) => item.GetProperty("type").GetString();
     private static string Text(IEnumerable<JsonElement> items) => string.Concat(items.Where(item => Type(item) == "TEXT_MESSAGE_CONTENT").Select(item => item.GetProperty("delta").GetString()));
     private static async Task<List<JsonElement>> Collect(IAssistant app, AssistantRun request, CancellationToken ct)
@@ -391,10 +389,10 @@ public sealed class AssistantStreamFacts
         return result;
     }
 
-    private static async Task<AssistantUiProbe> StartUi(StepContext context)
+    private static async Task<AssistantUiProbe> StartUi(ModuleBrain brain, string key)
     {
-        await context.Grains.GetGrain<IAssistant>(context.Subject).Activate();
-        var ui = new AssistantUiProbe(context.Grains, context.Subject);
+        await brain.Grains.GetGrain<IAssistant>(key).Activate();
+        var ui = new AssistantUiProbe(brain.Grains, key);
         await ui.AssertExplicitControls();
         return ui;
     }

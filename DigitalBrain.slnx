@@ -85,13 +85,6 @@
   <Folder Name="/Modules/DigitalBrain/Registry/tests/">
     <Project Path="src/Modules/DigitalBrain/Registry/tests/DigitalBrain.Modules.Registry.Tests/DigitalBrain.Modules.Registry.Tests.csproj" />
   </Folder>
-  <Folder Name="/Modules/DigitalBrain/Specs/">
-    <Project Path="src/Modules/DigitalBrain/Specs/DigitalBrain.Modules.Specs.Contracts/DigitalBrain.Modules.Specs.Contracts.csproj" />
-    <Project Path="src/Modules/DigitalBrain/Specs/DigitalBrain.Modules.Specs/DigitalBrain.Modules.Specs.csproj" />
-  </Folder>
-  <Folder Name="/Modules/DigitalBrain/Specs/tests/">
-    <Project Path="src/Modules/DigitalBrain/Specs/tests/DigitalBrain.Modules.Specs.Tests/DigitalBrain.Modules.Specs.Tests.csproj" />
-  </Folder>
   <Folder Name="/Modules/Files/">
     <Project Path="src/Modules/Files/DigitalBrain.Modules.Files.Contracts/DigitalBrain.Modules.Files.Contracts.csproj" />
     <Project Path="src/Modules/Files/DigitalBrain.Modules.Files/DigitalBrain.Modules.Files.csproj" />
