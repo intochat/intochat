@@ -46,6 +46,18 @@ Rules the migration locked in (guarded by `BoundaryFacts` + `ExtractionFacts`):
 `"intochat.caller-context"` (transient Orleans RequestContext key) was renamed to
 `"digitalbrain.caller-context"` in this migration.
 
+## Amendment (2026-10-05, later the same day): the shadow OS is deleted
+
+`DigitalBrain.Testing.E2E` used to maintain a parallel OS — a hand-copied module list
+(`ReferenceBrain`), a second host program (`ModuleHostProgram`) and a type-name config side
+channel (`ModuleHostChannel`) — glued to the real one by a drift test. All of it is gone. Every
+E2E suite now boots the real AppHost through `E2ETest.For<Projects.DigitalBrain_AppHost>()`
+with test needs expressed as ordinary configuration overrides; the reference brain is the
+product boot minus shipped content plus its own cookie, and lives in the non-packable
+`DigitalBrain.Testing.Reference` project. `DigitalBrain.Testing.E2E` is a pure harness with no
+module, OS or AppHost reference — `PackedCompositionFacts` green is the proof it is
+publishable.
+
 ## Pre-existing reds discovered and not caused by this work
 
 - `AppDraftFacts` (12 tests): "Private settings cannot override host-owned configuration" —
