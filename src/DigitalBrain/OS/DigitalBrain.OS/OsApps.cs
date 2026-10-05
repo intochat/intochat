@@ -74,18 +74,43 @@ internal sealed class OsBootService(
     {
         if (options.Value.Apps.Count == 0) { return; }
         var apps = options.Value.Apps.ToArray();
+        // Brains activated in this process: a deployment's defaults pass their gates after its
+        // first brains are up, so a default published later still reaches them.
+        var brains = new System.Collections.Concurrent.ConcurrentDictionary<string, Activated>(StringComparer.Ordinal);
         using var activations = signals.Subscribe<Activated>();
-        await foreach (var activated in activations.Reader.ReadAllAsync(stoppingToken))
+        using var published = signals.Subscribe<DigitalBrain.Apps.Signals.AppPublished>();
+        await Task.WhenAll(OnActivations(), OnPublished());
+
+        async Task OnActivations()
         {
-            foreach (var app in apps)
+            await foreach (var activated in activations.Reader.ReadAllAsync(stoppingToken))
             {
-                try { await EnsureInstalledAsync(activated, app, stoppingToken); }
-                catch (Exception error) when (error is not OperationCanceledException)
-                {
-                    // One default failing must not keep the others from installing; the next
-                    // activation retries.
-                    logger.LogWarning(error, "Default app {Publisher}/{App} did not install in brain {Brain}.", app.Publisher, app.Name, activated.BrainId);
-                }
+                brains[activated.BrainId] = activated;
+                await InstallAsync(activated, apps, stoppingToken);
+            }
+        }
+
+        async Task OnPublished()
+        {
+            await foreach (var app in published.Reader.ReadAllAsync(stoppingToken))
+            {
+                var defaults = apps.Where(item => item.Name == app.Name).ToArray();
+                if (defaults.Length == 0) { continue; }
+                foreach (var activated in brains.Values) { await InstallAsync(activated, defaults, stoppingToken); }
+            }
+        }
+    }
+
+    private async Task InstallAsync(Activated activated, OsApp[] apps, CancellationToken cancellationToken)
+    {
+        foreach (var app in apps)
+        {
+            try { await EnsureInstalledAsync(activated, app, cancellationToken); }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                // One default failing must not keep the others from installing; the next
+                // activation retries.
+                logger.LogWarning(error, "Default app {Publisher}/{App} did not install in brain {Brain}.", app.Publisher, app.Name, activated.BrainId);
             }
         }
     }

@@ -72,6 +72,21 @@ public sealed class OsBootFacts
         await WaitForAsync(brain.Get<IApp>(IApp.Key(scope, "later")), snapshot => snapshot.Status == AppStatus.Live, ct);
     }
 
+    // A fresh deployment activates brains while its default apps are still passing their gates;
+    // a default published after activation reaches the brain without waiting for a reactivation.
+    [Fact(Timeout = 60_000)]
+    public async Task ADefaultPublishedAfterTheBrainActivatedIsInstalledWithoutAReactivation()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Boot(ct, new OsApp("os", "late"));
+        var scope = await Establish(brain);
+        Assert.Equal(AppStatus.Drafted, (await brain.Get<IApp>(IApp.Key(scope, "late")).Read()).Status);
+
+        await SeedPublished(brain, "late");
+
+        await WaitForAsync(brain.Get<IApp>(IApp.Key(scope, "late")), snapshot => snapshot.Status == AppStatus.Live, ct);
+    }
+
     [Fact(Timeout = 60_000)]
     public async Task ADefaultThePersonAlreadyHasIsLeftAlone()
     {
