@@ -1,7 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
-using Orleans.Hosting;
 using DigitalBrain.Framework.Platform.Integrations;
+using Orleans.Hosting;
 
 namespace DigitalBrain.Postgres;
 

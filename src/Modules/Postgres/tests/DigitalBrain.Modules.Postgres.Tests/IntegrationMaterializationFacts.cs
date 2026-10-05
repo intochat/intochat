@@ -1,5 +1,5 @@
-using DigitalBrain.Postgres;
 using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Postgres;
 using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Modules.Postgres.Tests;

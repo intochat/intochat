@@ -42,8 +42,11 @@ public sealed class ConnectionCompatibilityFacts
         var ct = TestContext.Current.CancellationToken;
         CallerContextStamper.Stamp(new CallerContext
         {
-            PrincipalId = "owner", AccountId = "owner", BrainId = "owner",
-            Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp,
+            PrincipalId = "owner",
+            AccountId = "owner",
+            BrainId = "owner",
+            Kind = CallerKind.User,
+            StampedBy = TrustedEdge.AuthenticatedHttp,
         });
         try
         {
@@ -51,7 +54,10 @@ public sealed class ConnectionCompatibilityFacts
             var registry = brain.Get<IConnectionRegistry>("owner");
             var saved = await registry.Connect(new ConnectConnection
             {
-                IntegrationId = "gmail", ConnectionId = "mail", AuthMethodId = "api-key", Value = "test-only-credential",
+                IntegrationId = "gmail",
+                ConnectionId = "mail",
+                AuthMethodId = "api-key",
+                Value = "test-only-credential",
             }, ct);
             await brain.DeactivateAsync(registry, ct);
             var restored = Assert.Single(await registry.List(ct));

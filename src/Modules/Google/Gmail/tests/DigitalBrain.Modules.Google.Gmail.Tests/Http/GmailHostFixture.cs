@@ -1,11 +1,11 @@
+using DigitalBrain.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Framework.Platform.Integrations.Accounts;
-using DigitalBrain.Framework.Enforcement;
-using DigitalBrain.Enforcement;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.AspNetCore.Http;
 using DigitalBrain.Google.Gmail;
 using DigitalBrain.Testing.Module;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace DigitalBrain.Modules.Google.Gmail.Tests;

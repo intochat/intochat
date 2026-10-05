@@ -1,5 +1,5 @@
-using Microsoft.Extensions.AI;
 using DigitalBrain.Framework.Platform.Integrations;
+using Microsoft.Extensions.AI;
 
 namespace DigitalBrain.AI;
 

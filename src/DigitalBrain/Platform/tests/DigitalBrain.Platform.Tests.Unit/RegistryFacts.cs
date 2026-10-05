@@ -20,8 +20,14 @@ public sealed class RegistryFacts
                 services.GetRequiredService<IActivationCensus>(), Task.CompletedTask));
             silo.Services.AddSingleton<IRegistryInventoryProvider>(new Provider("healthy"));
         }).StartAsync(ct);
-        CallerContextStamper.Stamp(new() { PrincipalId = "owner", AccountId = "owner", BrainId = "one",
-            Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
+        CallerContextStamper.Stamp(new()
+        {
+            PrincipalId = "owner",
+            AccountId = "owner",
+            BrainId = "one",
+            Kind = CallerKind.User,
+            StampedBy = TrustedEdge.AuthenticatedHttp
+        });
         var registry = host.SiloServices.GetRequiredService<IRegistry>();
         var failed = await registry.Active("test", ct);
         Assert.Equal("healthy", Assert.Single(failed.Records).Domain);
@@ -49,8 +55,14 @@ public sealed class RegistryFacts
             silo.Services.AddSingleton<IRegistryInventoryProvider>(services => new ActivatingMembershipProvider(
                 services.GetRequiredService<IDigitalBrain>(), services.GetRequiredService<IActivationCensus>(), membershipRead));
         }).StartAsync(ct);
-        CallerContextStamper.Stamp(new() { PrincipalId = "owner", AccountId = "owner", BrainId = "one",
-            Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
+        CallerContextStamper.Stamp(new()
+        {
+            PrincipalId = "owner",
+            AccountId = "owner",
+            BrainId = "one",
+            Kind = CallerKind.User,
+            StampedBy = TrustedEdge.AuthenticatedHttp
+        });
         await host.AuthorizeCallerAsync();
         var neuron = host.Get<IBrain>(BrainScope.CurrentId());
         await neuron.Read();
@@ -124,8 +136,14 @@ public sealed class RegistryFacts
         var registry = host.SiloServices.GetRequiredService<IRegistry>();
         foreach (var brain in new[] { "one", "two" })
         {
-            CallerContextStamper.Stamp(new() { PrincipalId = "owner", AccountId = "owner", BrainId = brain,
-                Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
+            CallerContextStamper.Stamp(new()
+            {
+                PrincipalId = "owner",
+                AccountId = "owner",
+                BrainId = brain,
+                Kind = CallerKind.User,
+                StampedBy = TrustedEdge.AuthenticatedHttp
+            });
             try
             {
                 var result = active ? await registry.Active("test", ct) : await registry.Persisted("test", ct);

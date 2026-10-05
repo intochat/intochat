@@ -1,6 +1,6 @@
-using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.ClickHouse;
 using DigitalBrain.ClickHouse.Query;
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;

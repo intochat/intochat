@@ -27,7 +27,10 @@ public static class UserConnections
             ?? throw new InvalidOperationException("The reference fixture has no Supabase test database.");
         using var response = await brain.HttpClient.PostAsJsonAsync($"/brains/{Uri.EscapeDataString(brainId)}/connections/connect", new
         {
-            connectorId = "supabase", connectionId = "supabase", authMethodId = "connection-string", value = connection,
+            connectorId = "supabase",
+            connectionId = "supabase",
+            authMethodId = "connection-string",
+            value = connection,
         }, cancellationToken);
         response.EnsureSuccessStatusCode();
         var row = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
@@ -44,8 +47,11 @@ public static class UserConnections
         var previous = Orleans.Runtime.RequestContext.Get(CallerContextStamper.RequestContextKey);
         CallerContextStamper.Stamp(new CallerContext
         {
-            PrincipalId = identity.PrincipalId, AccountId = identity.AccountId, BrainId = brainId,
-            Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp,
+            PrincipalId = identity.PrincipalId,
+            AccountId = identity.AccountId,
+            BrainId = brainId,
+            Kind = CallerKind.User,
+            StampedBy = TrustedEdge.AuthenticatedHttp,
         });
         return new CallerScope(previous);
     }

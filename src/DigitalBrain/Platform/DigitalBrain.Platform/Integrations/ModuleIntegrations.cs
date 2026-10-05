@@ -4,8 +4,8 @@ using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Framework.Platform.Integrations.Accounts;
 using DigitalBrain.Framework.Platform.Secrets;
-using DigitalBrain.Types;
 using DigitalBrain.Platform.Enforcement;
+using DigitalBrain.Types;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Platform.Integrations;
@@ -44,8 +44,12 @@ internal sealed class IntegrationHandle(string integrationId, IGrainFactory grai
         cancellationToken.ThrowIfCancellationRequested();
         var caller = new CallerContext
         {
-            PrincipalId = IntegrationVault.CallerAppId, AccountId = IntegrationVault.Owner, BrainId = IntegrationVault.Owner,
-            Kind = CallerKind.Platform, StampedBy = TrustedEdge.Platform, AppId = IntegrationVault.CallerAppId,
+            PrincipalId = IntegrationVault.CallerAppId,
+            AccountId = IntegrationVault.Owner,
+            BrainId = IntegrationVault.Owner,
+            Kind = CallerKind.Platform,
+            StampedBy = TrustedEdge.Platform,
+            AppId = IntegrationVault.CallerAppId,
         };
         return await Integration.Release(caller).WaitAsync(cancellationToken).ConfigureAwait(false);
     }
@@ -65,7 +69,10 @@ internal sealed class ModuleConnectionCredentials<TModule>(IGrainFactory grains,
         using var _ = CallerContextScope.Scoped(caller with { BrainId = target });
         await grains.GetGrain<IConnectionRegistry>(brain).Connect(new ConnectConnection
         {
-            IntegrationId = connector, ConnectionId = connection, AuthMethodId = authMethodId, SecretReference = credential.Reference,
+            IntegrationId = connector,
+            ConnectionId = connection,
+            AuthMethodId = authMethodId,
+            SecretReference = credential.Reference,
         }, cancellationToken);
     }
 

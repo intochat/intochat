@@ -1,6 +1,7 @@
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Google.Gmail;
 namespace DigitalBrain.Modules.Google.Gmail.Tests;
+
 public sealed class GmailRegistrationFacts
 {
     [Fact]

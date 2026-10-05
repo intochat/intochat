@@ -3,6 +3,7 @@ using DigitalBrain.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 namespace DigitalBrain.Google.Gmail;
+
 internal sealed class GmailOAuthPrivacySurface : IHttpSurface
 {
     public void Map(IApplicationBuilder app)

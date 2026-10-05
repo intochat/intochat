@@ -1,5 +1,6 @@
 using DigitalBrain.Framework.Platform.Integrations;
 namespace DigitalBrain.Google.Gmail;
+
 internal sealed record GmailOAuthCredentials(string ClientId, string ClientSecret, Uri PublicOrigin);
 internal static class GmailScopes { internal const string Read = "https://www.googleapis.com/auth/gmail.readonly"; }
 internal sealed class GmailRegistration(IModuleIntegrations<GmailModule> integrations, GmailModuleOptions options)

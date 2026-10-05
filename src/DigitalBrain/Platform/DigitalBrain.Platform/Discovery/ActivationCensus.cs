@@ -1,6 +1,6 @@
+using System.Runtime.ExceptionServices;
 using DigitalBrain.Framework;
 using Orleans.Runtime;
-using System.Runtime.ExceptionServices;
 
 namespace DigitalBrain.Platform.Discovery;
 

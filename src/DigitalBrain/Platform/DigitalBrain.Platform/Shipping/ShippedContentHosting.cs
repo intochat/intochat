@@ -1,9 +1,9 @@
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Shipping;
+using DigitalBrain.Platform.Enforcement;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using DigitalBrain.Platform.Enforcement;
 
 namespace DigitalBrain.Platform.Shipping;
 
@@ -34,8 +34,11 @@ internal sealed class ShippedContentStartup(IEnumerable<IShippedContentPublisher
                 ArgumentException.ThrowIfNullOrWhiteSpace(publisher);
                 using var _ = CallerContextScope.Scoped(new CallerContext
                 {
-                    PrincipalId = publisher, AccountId = publisher, BrainId = publisher,
-                    Kind = CallerKind.Platform, StampedBy = TrustedEdge.Platform,
+                    PrincipalId = publisher,
+                    AccountId = publisher,
+                    BrainId = publisher,
+                    Kind = CallerKind.Platform,
+                    StampedBy = TrustedEdge.Platform,
                 });
                 await source.PublishAsync(publisher, stoppingToken).WaitAsync(stoppingToken);
             }

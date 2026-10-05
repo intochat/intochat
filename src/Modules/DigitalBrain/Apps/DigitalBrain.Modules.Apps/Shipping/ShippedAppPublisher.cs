@@ -1,8 +1,8 @@
 using DigitalBrain;
 using DigitalBrain.Apps;
 using DigitalBrain.Framework;
-using Microsoft.Extensions.Configuration;
 using DigitalBrain.Framework.Platform.Shipping;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Apps;

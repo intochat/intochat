@@ -1,10 +1,10 @@
-using DigitalBrain.Framework.Enforcement;
 using System.Net;
-using DigitalBrain.Framework;
-using DigitalBrain.Framework.Platform.Integrations;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Google.Gmail;
 using DigitalBrain.Testing;
 using Xunit;
@@ -24,8 +24,11 @@ public sealed class GmailWatchWebhookFacts(GmailHostFixture host)
         var inbound = brain.Grains.GetGrain<IGmailInbound>(key);
         var caller = new DigitalBrain.Enforcement.CallerContext
         {
-            PrincipalId = "owner", AccountId = "owner", BrainId = "other",
-            Kind = DigitalBrain.Enforcement.CallerKind.User, StampedBy = DigitalBrain.Enforcement.TrustedEdge.AuthenticatedHttp,
+            PrincipalId = "owner",
+            AccountId = "owner",
+            BrainId = "other",
+            Kind = DigitalBrain.Enforcement.CallerKind.User,
+            StampedBy = DigitalBrain.Enforcement.TrustedEdge.AuthenticatedHttp,
         };
         CallerContextStamper.Stamp(caller);
         try

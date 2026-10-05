@@ -1,8 +1,8 @@
-using DigitalBrain.Framework.Platform.Integrations;
 using System.Text.Json;
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework.Capacity;
 using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Postgres;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -320,8 +320,11 @@ public sealed class PostgresWriteTableFacts
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Get<IPostgres>("default").Query(new($"SELECT value FROM public.{accepted.Table}")));
             CallerContextStamper.Stamp(new()
             {
-                PrincipalId = "test-platform", AccountId = "alice", BrainId = "brain",
-                Kind = CallerKind.Platform, StampedBy = TrustedEdge.Platform,
+                PrincipalId = "test-platform",
+                AccountId = "alice",
+                BrainId = "brain",
+                Kind = CallerKind.Platform,
+                StampedBy = TrustedEdge.Platform,
             });
             var result = await brain.Get<IPostgres>("default").Query(new($"SELECT value FROM public.{accepted.Table}"));
             Assert.Equal("'; DROP TABLE --", JsonSerializer.Deserialize<string>(Assert.Single(Assert.Single(result.Rows))));

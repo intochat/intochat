@@ -119,7 +119,9 @@ public sealed class CredentialFacts
             .ConfigureSilo(silo =>
             {
                 silo.Services.AddSingleton<TimeProvider>(clock);
-                silo.Services.Configure<AIOptions>(options => { options.Default.Provider = "OpenAI"; options.Default.Model = "test-model";
+                silo.Services.Configure<AIOptions>(options =>
+                {
+                    options.Default.Provider = "OpenAI"; options.Default.Model = "test-model";
                     if (defaultMode == 2) { options.Default.Profile = "pinned"; options.ModelProfiles["pinned"] = new() { Provider = "OpenAI", Model = "test-model" }; }
                 });
             }).StartAsync(ct);

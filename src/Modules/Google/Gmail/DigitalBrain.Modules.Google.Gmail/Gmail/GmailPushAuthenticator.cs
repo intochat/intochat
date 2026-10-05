@@ -1,10 +1,11 @@
+using System.IdentityModel.Tokens.Jwt;
+using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.AspNetCore.Http;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
-using DigitalBrain.Framework.Platform.Integrations;
 namespace DigitalBrain.Google.Gmail;
+
 internal interface IGmailPushAuthenticator { Task<bool> AuthenticateAsync(HttpRequest request, CancellationToken cancellationToken); }
 internal sealed class GmailPushAuthenticator(IModuleIntegrations<GmailModule> integrations) : IGmailPushAuthenticator
 {
@@ -25,13 +26,19 @@ internal sealed class GmailPushAuthenticator(IModuleIntegrations<GmailModule> in
     }
     internal static bool ValidatePushToken(string token, OpenIdConnectConfiguration metadata, string audience, string email)
     {
-            var principal = new JwtSecurityTokenHandler { MapInboundClaims = false }.ValidateToken(token, new TokenValidationParameters
-            {
-                ValidateIssuer = true, ValidIssuers = ["https://accounts.google.com", "accounts.google.com"],
-                ValidateAudience = true, ValidAudience = audience, ValidateLifetime = true,
-                RequireExpirationTime = true, RequireSignedTokens = true, ValidateIssuerSigningKey = true,
-                IssuerSigningKeys = metadata.SigningKeys, ClockSkew = TimeSpan.FromMinutes(1),
-            }, out _);
-            return principal.FindFirst("email")?.Value == email && principal.FindFirst("email_verified")?.Value is "true" or "True";
+        var principal = new JwtSecurityTokenHandler { MapInboundClaims = false }.ValidateToken(token, new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuers = ["https://accounts.google.com", "accounts.google.com"],
+            ValidateAudience = true,
+            ValidAudience = audience,
+            ValidateLifetime = true,
+            RequireExpirationTime = true,
+            RequireSignedTokens = true,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKeys = metadata.SigningKeys,
+            ClockSkew = TimeSpan.FromMinutes(1),
+        }, out _);
+        return principal.FindFirst("email")?.Value == email && principal.FindFirst("email_verified")?.Value is "true" or "True";
     }
 }

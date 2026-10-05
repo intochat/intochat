@@ -40,8 +40,11 @@ public sealed class AppDocumentHttpFacts
         // The grain claims the creator's ambient scope the moment it is first addressed.
         CallerContextStamper.Stamp(new CallerContext
         {
-            PrincipalId = "alice", AccountId = "account-alice", BrainId = "alice",
-            Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp,
+            PrincipalId = "alice",
+            AccountId = "account-alice",
+            BrainId = "alice",
+            Kind = CallerKind.User,
+            StampedBy = TrustedEdge.AuthenticatedHttp,
         });
         await created.Create(new(Guid.NewGuid(), "Blocks", "Small behaviors.", "prompt"));
 

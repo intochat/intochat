@@ -1,8 +1,8 @@
-using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Framework.Capacity;
-using Microsoft.Extensions.Options;
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Postgres;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Modules.Postgres.Tests;
 

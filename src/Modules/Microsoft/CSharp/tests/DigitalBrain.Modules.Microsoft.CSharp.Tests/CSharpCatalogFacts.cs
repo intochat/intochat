@@ -70,7 +70,7 @@ public sealed class CSharpCatalogFacts
         var ct = TestContext.Current.CancellationToken;
         var brain = new RecordingBrain();
         var service = new CSharpToolService(brain, new CSharpCatalogStore(new InMemoryDocumentStore<CSharpCatalog>()),
-            new CSharpContractDiscovery(new ContractCatalog(new ModuleInventory([])),  new ModuleInventory([]), new CSharpDirectives(Options.Create(new CSharpOptions()))));
+            new CSharpContractDiscovery(new ContractCatalog(new ModuleInventory([])), new ModuleInventory([]), new CSharpDirectives(Options.Create(new CSharpOptions()))));
 
         await Assert.ThrowsAsync<ArgumentException>(() => service.ForScope("scope").Write("timer", "Console.WriteLine(1);", new string('n', 121), null, ct));
 

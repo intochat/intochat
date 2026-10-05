@@ -1,5 +1,6 @@
 using Orleans.Runtime;
 namespace DigitalBrain.Google.Gmail;
+
 [Alias("gmail.mailbox-index"), Orleans.Metadata.DefaultGrainType("gmail.mailbox-index")]
 internal interface IGmailMailboxIndex : IGrainWithStringKey
 {

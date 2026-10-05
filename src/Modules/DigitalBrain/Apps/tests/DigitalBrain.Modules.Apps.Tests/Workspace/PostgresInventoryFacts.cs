@@ -1,8 +1,8 @@
-using DigitalBrain.Postgres;
 using DigitalBrain.Enforcement;
+using DigitalBrain.Framework.Capacity;
 using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Framework.Capacity;
+using DigitalBrain.Postgres;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Modules.Apps.Tests.Workspace;
@@ -23,8 +23,14 @@ public sealed class PostgresInventoryFacts
             }).StartAsync(ct);
         foreach (var name in new[] { "one", "two" })
         {
-            CallerContextStamper.Stamp(new() { PrincipalId = "owner", AccountId = "account", BrainId = name,
-                Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
+            CallerContextStamper.Stamp(new()
+            {
+                PrincipalId = "owner",
+                AccountId = "account",
+                BrainId = name,
+                Kind = CallerKind.User,
+                StampedBy = TrustedEdge.AuthenticatedHttp
+            });
             await brain.AuthorizeCallerAsync();
             var package = DigitalBrain.Apps.PackageId.Create("owner", name);
             var revision = await brain.Get<DigitalBrain.Apps.IPackage>(package.ToString()).Commit(new(Guid.NewGuid(), null,
@@ -38,8 +44,14 @@ public sealed class PostgresInventoryFacts
         var inventory = brain.SiloServices.GetServices<DigitalBrain.Framework.IRegistryInventoryProvider>().Single(p => p.Domain == "postgres");
         foreach (var name in new[] { "one", "two" })
         {
-            CallerContextStamper.Stamp(new() { PrincipalId = "owner", AccountId = "account", BrainId = name,
-                Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
+            CallerContextStamper.Stamp(new()
+            {
+                PrincipalId = "owner",
+                AccountId = "account",
+                BrainId = name,
+                Kind = CallerKind.User,
+                StampedBy = TrustedEdge.AuthenticatedHttp
+            });
             Assert.Equal("inventory-" + name, Assert.Single(await inventory.Persisted(null, ct)).Key);
             Assert.Equal("inventory-" + name, Assert.Single(await inventory.Active(null, ct)).Key);
             await brain.DeactivateAsync(brain.Get<IPostgresTable>("inventory-" + name), ct);

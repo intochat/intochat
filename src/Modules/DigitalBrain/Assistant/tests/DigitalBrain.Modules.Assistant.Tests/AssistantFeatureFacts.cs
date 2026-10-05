@@ -1,20 +1,20 @@
-using System.Text;
 using System.Globalization;
+using System.Text;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.Assistant;
-using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Flutter;
-using ChatRole = DigitalBrain.Flutter.Chat.ChatRole;
 using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.VoiceInput;
 using DigitalBrain.Flutter.Workspace;
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Tables;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using ChatRole = DigitalBrain.Flutter.Chat.ChatRole;
 
 namespace DigitalBrain.Modules.Assistant.Tests;
 

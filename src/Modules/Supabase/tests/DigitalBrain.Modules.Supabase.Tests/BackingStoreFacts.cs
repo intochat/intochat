@@ -1,8 +1,8 @@
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Supabase;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Modules.Supabase.Tests;
 

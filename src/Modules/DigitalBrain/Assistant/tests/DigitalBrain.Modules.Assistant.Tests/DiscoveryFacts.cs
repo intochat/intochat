@@ -1,7 +1,7 @@
-using DigitalBrain.Enforcement;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Assistant;
+using DigitalBrain.Enforcement;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Enforcement;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Modules.Assistant.Tests;

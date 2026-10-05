@@ -1,11 +1,11 @@
-using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Supabase;
-using DigitalBrain.Types;
 using DigitalBrain;
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Framework.Platform.Integrations.Accounts;
+using DigitalBrain.Supabase;
+using DigitalBrain.Types;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Modules.Supabase.Tests;
@@ -30,17 +30,23 @@ public sealed class ConnectionCredentialFacts
             .StartAsync(ct);
         var credentials = brain.SiloServices.GetRequiredService<IModuleConnectionCredentials<SupabaseModule>>();
         static void Stamp(string name) => CallerContextStamper.Stamp(new()
-            {
-                PrincipalId = "owner", AccountId = "account-owner", BrainId = name,
-                Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp,
-            });
+        {
+            PrincipalId = "owner",
+            AccountId = "account-owner",
+            BrainId = name,
+            Kind = CallerKind.User,
+            StampedBy = TrustedEdge.AuthenticatedHttp,
+        });
         async Task Connect(string name, string value)
         {
             Stamp(name);
             await brain.AuthorizeCallerAsync();
             await brain.Get<IConnectionRegistry>(BrainScope.CurrentId()).Connect(new()
             {
-                IntegrationId = "supabase", ConnectionId = "supabase", AuthMethodId = "connection-string", Value = value,
+                IntegrationId = "supabase",
+                ConnectionId = "supabase",
+                AuthMethodId = "connection-string",
+                Value = value,
             }, ct);
         }
         try

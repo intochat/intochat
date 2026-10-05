@@ -11,7 +11,8 @@ public sealed class ContractCatalog
 
     public ContractCatalog(ModuleInventory modules) : this(modules.ContractAssemblies(), modules.Types
         .SelectMany(module => ModuleInventory.ContractAssembliesOf(module.Assembly).Select(assembly => (assembly, Id: NeuronType.ModuleIdOf(module))))
-        .GroupBy(item => item.assembly).ToDictionary(group => group.Key, group => group.First().Id)) { }
+        .GroupBy(item => item.assembly).ToDictionary(group => group.Key, group => group.First().Id))
+    { }
 
     public ContractCatalog(IEnumerable<Assembly> assemblies) : this(assemblies, new Dictionary<Assembly, string>()) { }
 

@@ -1,8 +1,8 @@
-using DigitalBrain.Framework.Platform.Integrations;
 using System.Globalization;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Aspire.Hosting;
+using DigitalBrain.Framework.Platform.Integrations;
 
 namespace DigitalBrain.ClickHouse.Aspire.Hosting;
 

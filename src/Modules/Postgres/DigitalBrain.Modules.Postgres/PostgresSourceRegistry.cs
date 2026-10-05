@@ -2,8 +2,8 @@ using System.Collections.Concurrent;
 using DigitalBrain.Framework.Capacity;
 using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
-using Npgsql;
 using Microsoft.Extensions.Options;
+using Npgsql;
 
 namespace DigitalBrain.Postgres;
 

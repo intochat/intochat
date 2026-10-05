@@ -1,8 +1,8 @@
 using DigitalBrain.Apps;
 using DigitalBrain.Framework;
-using DigitalBrain.Time;
-using DigitalBrain.Qdrant;
 using DigitalBrain.Framework.Vectors;
+using DigitalBrain.Qdrant;
+using DigitalBrain.Time;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 

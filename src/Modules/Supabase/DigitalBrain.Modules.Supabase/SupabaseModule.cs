@@ -1,12 +1,12 @@
 using DigitalBrain;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Supabase.Windows;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using DigitalBrain.Framework.Platform.Integrations;
 using Npgsql;
 using Orleans.Hosting;
 

@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Supabase.Tables;
-using Npgsql;
 using Microsoft.Extensions.Options;
+using Npgsql;
 
 namespace DigitalBrain.Supabase;
 

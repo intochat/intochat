@@ -1,5 +1,5 @@
-using DigitalBrain.Supabase;
 using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Supabase;
 using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Modules.Supabase.Tests;

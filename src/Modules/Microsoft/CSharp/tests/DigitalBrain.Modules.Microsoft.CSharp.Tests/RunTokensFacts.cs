@@ -1,9 +1,9 @@
-using DigitalBrain.Microsoft.CSharp;
-using Xunit;
 using DigitalBrain.Framework.Platform.Integrations;
-using Microsoft.Extensions.Hosting;
+using DigitalBrain.Microsoft.CSharp;
 using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
+using Xunit;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
@@ -20,8 +20,11 @@ public sealed class RunTokensFacts
         Assert.DoesNotContain(catalog.RootElement.EnumerateArray(), item => item.GetProperty("id").GetString() == "csharp");
         DigitalBrain.Framework.Enforcement.CallerContextStamper.Stamp(new()
         {
-            PrincipalId = "owner", AccountId = "owner", BrainId = "owner",
-            Kind = DigitalBrain.Enforcement.CallerKind.User, StampedBy = DigitalBrain.Enforcement.TrustedEdge.AuthenticatedHttp,
+            PrincipalId = "owner",
+            AccountId = "owner",
+            BrainId = "owner",
+            Kind = DigitalBrain.Enforcement.CallerKind.User,
+            StampedBy = DigitalBrain.Enforcement.TrustedEdge.AuthenticatedHttp,
         });
         try
         {

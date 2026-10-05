@@ -53,33 +53,33 @@ internal static class MarketplaceEndpoints
                     ? Results.Problem("This app belongs to another person. Fork it to make your own.", statusCode: StatusCodes.Status403Forbidden)
                     : await next(context);
             });
-        creator.MapGet("/content", (string owner, string name , [global::Microsoft.AspNetCore.Mvc.FromServices] IDigitalBrain brain)
+        creator.MapGet("/content", (string owner, string name, [global::Microsoft.AspNetCore.Mvc.FromServices] IDigitalBrain brain)
             => App(brain, owner, name).ReadContent());
-        creator.MapPost("/author", async (string owner, string name, CreatorRequest request, [global::Microsoft.AspNetCore.Mvc.FromServices] CreatorService creatorService , [global::Microsoft.AspNetCore.Mvc.FromServices] IDigitalBrain brain, CancellationToken ct) =>
+        creator.MapPost("/author", async (string owner, string name, CreatorRequest request, [global::Microsoft.AspNetCore.Mvc.FromServices] CreatorService creatorService, [global::Microsoft.AspNetCore.Mvc.FromServices] IDigitalBrain brain, CancellationToken ct) =>
         {
             return Results.Ok(await creatorService.Author(App(brain, owner, name), request.Text, ct));
         });
-        creator.MapPost("/implement", async (string owner, string name, CreatorRequest request, [global::Microsoft.AspNetCore.Mvc.FromServices] CreatorService creatorService , [global::Microsoft.AspNetCore.Mvc.FromServices] IDigitalBrain brain, CancellationToken ct) =>
+        creator.MapPost("/implement", async (string owner, string name, CreatorRequest request, [global::Microsoft.AspNetCore.Mvc.FromServices] CreatorService creatorService, [global::Microsoft.AspNetCore.Mvc.FromServices] IDigitalBrain brain, CancellationToken ct) =>
         {
             return Results.Ok(await creatorService.Implement(App(brain, owner, name), request.Text, ct));
         });
-        creator.MapPut("/behaviors", async (string owner, string name, WriteFileRequest request , [global::Microsoft.AspNetCore.Mvc.FromServices] IDigitalBrain brain) =>
+        creator.MapPut("/behaviors", async (string owner, string name, WriteFileRequest request, [global::Microsoft.AspNetCore.Mvc.FromServices] IDigitalBrain brain) =>
         {
             return Results.Ok(await App(brain, owner, name).WriteBehavior(request.Path, request.Source, Guid.NewGuid()));
         });
-        creator.MapPut("/files", async (string owner, string name, WriteFileRequest request , [global::Microsoft.AspNetCore.Mvc.FromServices] IDigitalBrain brain) =>
+        creator.MapPut("/files", async (string owner, string name, WriteFileRequest request, [global::Microsoft.AspNetCore.Mvc.FromServices] IDigitalBrain brain) =>
         {
             return Results.Ok(await App(brain, owner, name).WriteFile(request.Path, request.Source, Guid.NewGuid()));
         });
-        creator.MapPut("/document", async (string owner, string name, AppAuthoringDocument document , [global::Microsoft.AspNetCore.Mvc.FromServices] IDigitalBrain brain) =>
+        creator.MapPut("/document", async (string owner, string name, AppAuthoringDocument document, [global::Microsoft.AspNetCore.Mvc.FromServices] IDigitalBrain brain) =>
         {
             return Results.Ok(await App(brain, owner, name).SaveDocument(document, Guid.NewGuid()));
         });
-        creator.MapPost("/run", async (string owner, string name, RunScenariosRequest request, [global::Microsoft.AspNetCore.Mvc.FromServices] LiveAppPackaging packaging , [global::Microsoft.AspNetCore.Mvc.FromServices] IDigitalBrain brain, CancellationToken ct) =>
+        creator.MapPost("/run", async (string owner, string name, RunScenariosRequest request, [global::Microsoft.AspNetCore.Mvc.FromServices] LiveAppPackaging packaging, [global::Microsoft.AspNetCore.Mvc.FromServices] IDigitalBrain brain, CancellationToken ct) =>
         {
             return Results.Ok(await packaging.RunScenarios(App(brain, owner, name), PackageId.Create(owner, name), request.ScenarioIds, ct));
         });
-        creator.MapPost("/save", async (string owner, string name, SaveAppRequest request, [global::Microsoft.AspNetCore.Mvc.FromServices] LiveAppPackaging packaging , [global::Microsoft.AspNetCore.Mvc.FromServices] IDigitalBrain brain) =>
+        creator.MapPost("/save", async (string owner, string name, SaveAppRequest request, [global::Microsoft.AspNetCore.Mvc.FromServices] LiveAppPackaging packaging, [global::Microsoft.AspNetCore.Mvc.FromServices] IDigitalBrain brain) =>
         {
             return Results.Ok(await packaging.Save(App(brain, owner, name), PackageId.Create(owner, name), request.Message ?? "Save"));
         });

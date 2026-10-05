@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 namespace DigitalBrain.Google.Gmail;
+
 internal sealed record GmailCallbackTarget(string AccountId, string BrainId, string ConnectionId);
 internal sealed class GmailCallbackRequests(TimeProvider clock)
 {

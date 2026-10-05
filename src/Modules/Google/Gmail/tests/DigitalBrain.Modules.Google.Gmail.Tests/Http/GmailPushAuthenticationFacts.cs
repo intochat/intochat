@@ -1,13 +1,14 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Json;
 using DigitalBrain.Google.Gmail;
-using DigitalBrain.Testing.Module;
 using DigitalBrain.Platform.Identity.Configuration;
+using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
 namespace DigitalBrain.Modules.Google.Gmail.Tests;
+
 public sealed class GmailPushAuthenticationFacts
 {
     [Fact]
