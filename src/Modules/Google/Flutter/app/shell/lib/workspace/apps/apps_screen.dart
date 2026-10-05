@@ -3,12 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'app_screen.dart';
+import 'apps_request.dart';
 
-typedef AppsRequest = Future<dynamic> Function(
-  String method,
-  String path, [
-  Object? body,
-]);
+export 'apps_request.dart';
 
 // This brain's apps: one card per app neuron, created in the Creator, driven through its
 // own operations, deleted in one step. Sharing is export/import of a verified version.
