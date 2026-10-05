@@ -1,6 +1,7 @@
 using DigitalBrain.Apps.Signals;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DigitalBrain.Apps.Tests.Apps;
 
@@ -204,6 +205,43 @@ public sealed class AppNeuronFacts
         var ignored = await app.CompleteBuild(oldAttempt, new() { ["tests.cs"] = "// stale" }, null,
             new AppManifest("Hijacked", "", [], [], []));
         Assert.Equal("Echo", ignored.Manifest.Title);
+    }
+
+    [Fact]
+    public async Task ABuildThatRewritesTheSpecFailsTheSpecBelongsToTheAuthor()
+    {
+        await using var brain = await Start();
+        var app = brain.Get<IApp>(IApp.Key(Brain, "spec-guard"));
+        await app.Create(Manifest(), "the authored spec");
+        await app.BeginBuild(null);
+        var failed = await app.CompleteBuild(await app.CurrentBuildAttempt(),
+            new() { ["tests.cs"] = "// t", [AppFiles.SpecPath] = "hijacked" }, null);
+        Assert.Equal(AppStatus.Failed, failed.Status);
+        Assert.Equal("the authored spec", failed.Spec);
+        Assert.False(failed.Files.ContainsKey(AppFiles.SpecPath));
+        Assert.Contains(failed.Activity, line => line.Contains("app.spec.md", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task HistoryTimestampsComeFromTheHostClock()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var moment = new DateTimeOffset(2026, 10, 5, 12, 0, 0, TimeSpan.Zero);
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
+            .ConfigureSilo(silo =>
+            {
+                silo.Services.RemoveAll<TimeProvider>();
+                silo.Services.AddSingleton<TimeProvider>(new FixedClock(moment));
+            })
+            .StartAsync(ct);
+        var app = brain.Get<IApp>(IApp.Key(Brain, "clocked"));
+        var created = await app.Create(Manifest(), "spec");
+        Assert.Equal(moment, created.Versions.Single().SavedAt);
+    }
+
+    private sealed class FixedClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
     }
 
     [Fact]

@@ -10,6 +10,7 @@ public sealed class DeployableRuntimeFacts
     internal sealed class FakeRuntime : IDeployableRuntime
     {
         public List<RuntimeDeployment> Deployed { get; } = [];
+        public List<RuntimeDeployment> Swapped { get; } = [];
         public List<(string AppKey, string[] Keys)> Retired { get; } = [];
         public string Name => AppFiles.Runtime;
 
@@ -19,6 +20,12 @@ public sealed class DeployableRuntimeFacts
         public Task<string[]> Deploy(RuntimeDeployment deployment, CancellationToken cancellationToken)
         {
             Deployed.Add(deployment);
+            return Task.FromResult<string[]>([.. deployment.Programs.Keys.Select(path => "fake-" + path)]);
+        }
+
+        public Task<string[]> Swap(RuntimeDeployment deployment, CancellationToken cancellationToken)
+        {
+            Swapped.Add(deployment);
             return Task.FromResult<string[]>([.. deployment.Programs.Keys.Select(path => "fake-" + path)]);
         }
 
@@ -52,6 +59,28 @@ public sealed class DeployableRuntimeFacts
         await app.Delete();
         var retired = Assert.Single(runtime.Retired);
         Assert.Contains("fake-behaviors/track.cs", retired.Keys);
+    }
+
+    [Fact]
+    public async Task ABuildDeploysNewBehaviorsAndSwapsOnlyExistingOnes()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runtime = new FakeRuntime();
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
+            .ConfigureSilo(silo => { silo.Services.RemoveAll<IDeployableRuntime>(); silo.Services.AddSingleton<IDeployableRuntime>(runtime); })
+            .StartAsync(ct);
+        var app = brain.Get<IApp>(IApp.Key("runtime-facts", "fresh"));
+        await app.Create(new("Fresh", "fresh", [], [], []), "spec");
+        await app.WriteBehavior("behaviors/old.cs", "// old", Guid.NewGuid());
+        runtime.Deployed.Clear();
+        runtime.Swapped.Clear();
+        await app.BeginBuild(null);
+
+        await app.CompleteBuild(await app.CurrentBuildAttempt(),
+            new() { ["tests.cs"] = "// t", ["behaviors/old.cs"] = "// old v2", ["behaviors/new.cs"] = "// new" }, null);
+
+        Assert.Equal(["behaviors/new.cs"], runtime.Deployed.SelectMany(deployment => deployment.Programs.Keys).Order());
+        Assert.Equal(["behaviors/old.cs"], runtime.Swapped.SelectMany(deployment => deployment.Programs.Keys).Order());
     }
 
     [Fact]

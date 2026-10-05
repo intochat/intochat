@@ -47,6 +47,21 @@ public sealed class AppVerifyFacts
     }
 
     [Fact]
+    public async Task ScratchVerificationCopiesNeverAppearInTheAppIndex()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runner = new ScriptedTestRunner();
+        runner.BySourceMarker["scripted-tests"] = (0, "dbtest:pass Echoes\ndbtest:pass Shouts\n");
+        var (brain, _) = await Start(runner, ct);
+        await using var __ = brain;
+        // Even a scratch copy that outlives its run (a swallowed delete) stays out of the index.
+        var scratch = brain.Get<IApp>(IApp.Key(Brain, "echo--verify-leak"));
+        await scratch.Import(new("echo--verify-leak", "1.0.0",
+            new("Echo", "echoes", [], [], []), "## Scenario: Echoes\nIt echoes.", new() { ["tests.cs"] = "// t" }));
+        Assert.Equal(["echo"], await brain.Get<IAppIndex>(Brain).List());
+    }
+
+    [Fact]
     public async Task AVerifyRunWithAFailingScenarioMarksTheVersionRed()
     {
         var ct = TestContext.Current.CancellationToken;

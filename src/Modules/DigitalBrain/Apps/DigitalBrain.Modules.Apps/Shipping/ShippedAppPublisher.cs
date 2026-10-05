@@ -51,7 +51,7 @@ internal sealed class ShippedAppPublisher(
         var installed = await app.Read();
         if (installed.Manifest.Title.Length > 0 && installed.Version == bundle.Version) { return; }
         var (verdicts, green) = await AppVerifyJob.RunBundle(grains, runner, bundle,
-            IApp.Key(publisher, bundle.Name + "--verify-" + Guid.NewGuid().ToString("N")), cancellationToken);
+            IApp.Key(publisher, bundle.Name + AppFiles.VerifyMarker + Guid.NewGuid().ToString("N")), cancellationToken);
         if (!green)
         {
             logger.LogWarning("{Publisher}/{App} stays out: verification failed.", publisher, bundle.Name);

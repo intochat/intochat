@@ -37,7 +37,7 @@ internal sealed class AppNeuron(
         next.Version = "0.1.0";
         next.Status = AppStatus.Drafted;
         Record(next);
-        await GrainFactory.GetGrain<IAppIndex>(BrainId()).Track(Name());
+        await TrackUnlessScratch();
         await Persist(next);
         return Describe(Snapshot);
     }
@@ -188,6 +188,14 @@ internal sealed class AppNeuron(
             await Persist(next);
             return Describe(Snapshot);
         }
+        if (files.ContainsKey(AppFiles.SpecPath))
+        {
+            next.Status = AppStatus.Failed;
+            next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), $"build failed: {AppFiles.SpecPath} belongs to the Author, not the Builder"];
+            await Persist(next);
+            return Describe(Snapshot);
+        }
+        var existingBehaviors = Snapshot.Files.Keys.Where(AppFiles.IsBehavior).ToHashSet(StringComparer.Ordinal);
         var firstTests = files.ContainsKey(AppFiles.TestsPath) && !next.Files.ContainsKey(AppFiles.TestsPath);
         if (manifest is not null)
         {
@@ -204,7 +212,7 @@ internal sealed class AppNeuron(
         next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), "build finished"];
         Record(next);
         await Persist(next);
-        foreach (var path in behaviorPaths) { await DeployBehavior(path, files[path], swap: Snapshot.Files.ContainsKey(path)); }
+        foreach (var path in behaviorPaths) { await DeployBehavior(path, files[path], swap: existingBehaviors.Contains(path)); }
         return Describe(Snapshot);
     }
 
@@ -266,7 +274,7 @@ internal sealed class AppNeuron(
         var behaviors = next.Files.Keys.Where(AppFiles.IsBehavior).ToArray();
         next.StorageFiles = Deployable()?.Keys(this.GetPrimaryKeyString(), next.ProgramGeneration, behaviors) ?? [];
         Record(next);
-        await GrainFactory.GetGrain<IAppIndex>(BrainId()).Track(Name());
+        await TrackUnlessScratch();
         await Persist(next);
         foreach (var path in behaviors) { await DeployBehavior(path, next.Files[path], swap: false); }
         return Describe(Snapshot);
@@ -341,6 +349,12 @@ internal sealed class AppNeuron(
 
     private IDeployableRuntime? Deployable() => deployables.FirstOrDefault(candidate => candidate.Name == AppFiles.Runtime);
 
+    // A verification scratch copy is working state, not one of the brain's apps.
+    private Task TrackUnlessScratch()
+        => Name().Contains(AppFiles.VerifyMarker, StringComparison.Ordinal)
+            ? Task.CompletedTask
+            : GrainFactory.GetGrain<IAppIndex>(BrainId()).Track(Name());
+
     private async Task DeployBehavior(string path, string source, bool swap)
     {
         if (Deployable() is not { } deployable) { return; }
@@ -390,9 +404,9 @@ internal sealed class AppNeuron(
         return values;
     }
 
-    private static void Record(AppState next)
+    private void Record(AppState next)
     {
-        var record = new AppVersionRecord(next.Version, DateTimeOffset.UtcNow, next.Manifest!, next.Spec,
+        var record = new AppVersionRecord(next.Version, clock.GetUtcNow(), next.Manifest!, next.Spec,
             new(next.Files, StringComparer.Ordinal));
         next.History = [.. next.History.TakeLast(MaxHistory - 1), record];
     }

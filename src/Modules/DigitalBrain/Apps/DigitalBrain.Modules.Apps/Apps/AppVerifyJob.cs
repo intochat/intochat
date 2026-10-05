@@ -19,7 +19,7 @@ internal static class AppVerifyJob
         var bundle = new AppBundle(snapshot.Name, snapshot.Version, snapshot.Manifest, snapshot.Spec,
             new(snapshot.Files, StringComparer.Ordinal));
         var (verdicts, green) = await RunBundle(grains, services.GetRequiredService<ITestScriptRunner>(),
-            bundle, appKey + "--verify-" + Guid.NewGuid().ToString("N"), cancellationToken);
+            bundle, appKey + AppFiles.VerifyMarker + Guid.NewGuid().ToString("N"), cancellationToken);
         await app.RecordVerdicts(verdicts, green, snapshot.Version);
     }
 
