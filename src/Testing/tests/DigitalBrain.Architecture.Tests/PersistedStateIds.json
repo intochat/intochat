@@ -734,16 +734,6 @@
     "ProviderReference": 2,
     "CheckoutUrl": 3
   },
-  "DigitalBrain.Compute.LedgerEntry": {
-    "AccountId": 0,
-    "IdempotencyKey": 1,
-    "Kind": 2,
-    "Amount": 3,
-    "IntentId": 4,
-    "AppId": 5,
-    "Description": 6,
-    "OccurredAt": 7
-  },
   "DigitalBrain.Compute.LimitPolicy": {
     "AccountLimitCompute": 0,
     "WorkspaceLimitCompute": 1,
@@ -823,12 +813,6 @@
     "Payload": 1,
     "OccurredAt": 2,
     "Revision": 3
-  },
-  "DigitalBrain.Compute.WalletBalance": {
-    "AccountId": 0,
-    "ChargedCompute": 1,
-    "CostCompute": 2,
-    "EntryCount": 3
   },
   "DigitalBrain.Data.Row": {
     "Values": 0

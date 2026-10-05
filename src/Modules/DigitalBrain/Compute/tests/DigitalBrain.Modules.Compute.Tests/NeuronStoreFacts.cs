@@ -1,5 +1,4 @@
 using DigitalBrain.Compute;
-using DigitalBrain.Compute.Ledger;
 using DigitalBrain.Compute.Metering;
 using DigitalBrain.Compute.Storage;
 using DigitalBrain.Compute.Usage;
@@ -48,25 +47,6 @@ public sealed class NeuronStoreFacts
     }
 
     [Fact]
-    public async Task ANewAccountReadsAndWrites()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<ComputeModule>().StartAsync(ct);
-        var ledger = new NeuronLedgerStore(brain.Grains);
-        Assert.Empty(await ledger.ReadAsync("account", ct));
-        var appended = await ledger.AppendAsync(new LedgerEntry
-        {
-            AccountId = "account",
-            IdempotencyKey = "charge",
-            Kind = LedgerKind.WalletCharge,
-            Amount = 10,
-            OccurredAt = DateTimeOffset.UnixEpoch,
-        }, ct);
-        Assert.Equal(LedgerAppend.Inserted, appended);
-        Assert.Equal(10m, Assert.Single(await ledger.ReadAsync("account", ct)).Amount);
-    }
-
-    [Fact]
     public async Task ImmutableTreeBoundsRecordsAndKeepsPublishedRootAfterFailedWrite()
     {
         var parts = new Dictionary<string, string>();
@@ -110,7 +90,6 @@ public sealed class NeuronStoreFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<ComputeModule>().StartAsync(ct);
-        Assert.DoesNotContain("InMemory", brain.SiloServices.GetRequiredService<ILedgerStore>().GetType().Name);
         Assert.DoesNotContain("InMemory", brain.SiloServices.GetRequiredService<IMeterStore>().GetType().Name);
         Assert.DoesNotContain("File", brain.SiloServices.GetRequiredService<IUsageStore>().GetType().Name);
         var usage = brain.SiloServices.GetRequiredService<IUsageStore>();

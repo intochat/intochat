@@ -10,7 +10,7 @@ namespace DigitalBrain.Modules.Compute.Tests;
 public sealed class AllowanceFacts
 {
     [Fact]
-    public async Task UsageSummaryKeepsWalletChargesSettlementsAndReservationsSeparateAfterReload()
+    public async Task SettlementsAndReservationsSurviveReload()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<ComputeModule>().StartAsync(ct);
@@ -19,11 +19,7 @@ public sealed class AllowanceFacts
         var settled = await ledger.AuthorizeAsync(Paid("account", "ws-1", "chat", 5m, intent: "settled"), ct);
         await ledger.SettleAsync(settled.ReservationId!, 3m, FailureClass.None, ct);
         await ledger.AuthorizeAsync(Paid("account", "ws-1", "chat", 7m, intent: "reserved"), ct);
-        var wallet = brain.Get<IWallet>("account");
-        await wallet.ChargeAsync(new LedgerEntry { AccountId = "account", IdempotencyKey = "settled", IntentId = "settled", Kind = LedgerKind.WalletCharge, Amount = 3m, OccurredAt = Now }, ct);
-        await wallet.ChargeAsync(new LedgerEntry { AccountId = "account", IdempotencyKey = "other", IntentId = "other", Kind = LedgerKind.WalletCharge, Amount = 2m, OccurredAt = Now }, ct);
         await brain.DeactivateAsync(ledger, ct);
-        Assert.Equal(5m, await wallet.ReadChargedAsync(cancellationToken: ct));
         Assert.Equal(3m, await ledger.ReadSettledAsync(cancellationToken: ct));
         Assert.Equal(3m, await ledger.ReadSettledAsync("ws-1", "settled", ct));
         Assert.Equal(0m, await ledger.ReadSettledAsync("ws-1", "reserved", ct));

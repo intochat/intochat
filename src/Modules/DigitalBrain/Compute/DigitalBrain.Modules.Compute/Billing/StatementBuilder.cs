@@ -3,7 +3,7 @@ using DigitalBrain.Compute.Metering;
 
 namespace DigitalBrain.Compute.Billing;
 
-// Rolls a month's charges and recurring meters into one statement. A recurring meter has no user
+// Rolls a month's settled reservations and recurring meters into one statement. A recurring meter has no user
 // intent: it accrues for the period on its own and still appears as its own line. Pure so the
 // statement can be tested without a grain.
 internal static class StatementBuilder
@@ -11,14 +11,14 @@ internal static class StatementBuilder
     internal static MonthlyStatement Build(
         string accountId,
         string period,
-        IReadOnlyList<LedgerEntry> charges,
+        IReadOnlyList<AllowanceReservation> settled,
         IReadOnlyList<MeterEvent> meters,
         IPriceBook priceBook,
         DateTimeOffset generatedAt)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(accountId);
         ArgumentException.ThrowIfNullOrWhiteSpace(period);
-        ArgumentNullException.ThrowIfNull(charges);
+        ArgumentNullException.ThrowIfNull(settled);
         ArgumentNullException.ThrowIfNull(meters);
         ArgumentNullException.ThrowIfNull(priceBook);
 
@@ -26,14 +26,15 @@ internal static class StatementBuilder
         var periodEnd = periodStart.AddMonths(1);
         var lines = new List<StatementLine>();
 
-        lines.AddRange(charges
-            .Where(charge => InPeriod(charge.OccurredAt, periodStart, periodEnd))
-            .GroupBy(charge => (charge.AppId, charge.Description))
+        lines.AddRange(settled
+            .Where(reservation => reservation.Settled && reservation.SettledCompute > 0
+                && InPeriod(reservation.OccurredAt, periodStart, periodEnd))
+            .GroupBy(reservation => (reservation.AppId, reservation.Operation))
             .Select(group => new StatementLine
             {
                 AppId = group.Key.AppId,
-                Operation = group.Key.Description ?? "call",
-                Compute = group.Sum(charge => charge.Amount),
+                Operation = group.Key.Operation,
+                Compute = group.Sum(reservation => reservation.SettledCompute),
                 Count = group.Count(),
                 Recurring = false,
             }));

@@ -17,10 +17,12 @@ internal static class ComputeEndpoints
             var accountId = CallerContextStamper.Require().AccountId;
             var ledger = brain.Get<IAllowanceLedger>(accountId);
             var limits = await ledger.ReadLimitsAsync(ct);
+            var settled = await ledger.ReadSettledAsync(cancellationToken: ct);
             return Results.Ok(new
             {
-                chargedCompute = await brain.Get<IWallet>(accountId).ReadChargedAsync(cancellationToken: ct),
-                settledCompute = await ledger.ReadSettledAsync(cancellationToken: ct),
+                // chargedCompute mirrors settledCompute while the Flutter shell still reads it.
+                chargedCompute = settled,
+                settledCompute = settled,
                 reservedCompute = await ledger.ReadReservedAsync(cancellationToken: ct),
                 limits.LimitCompute,
                 limits.SpentCompute,

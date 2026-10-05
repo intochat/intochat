@@ -2,7 +2,6 @@ using DigitalBrain.Framework.Metering;
 using DigitalBrain;
 using DigitalBrain.Compute.Allowances;
 using DigitalBrain.Compute.Billing;
-using DigitalBrain.Compute.Ledger;
 using DigitalBrain.Compute.Metering;
 using DigitalBrain.Compute.Storage;
 using DigitalBrain.Compute.Usage;
@@ -23,7 +22,6 @@ public sealed class ComputeModule() : Module(new ModuleId("compute")), IHttpModu
         ArgumentNullException.ThrowIfNull(silo);
         var services = silo.Services;
         services.TryAddSingleton<IMeterStore, NeuronMeterStore>();
-        services.TryAddSingleton<ILedgerStore, NeuronLedgerStore>();
         services.TryAddSingleton<IUsageStore, NeuronUsageStore>();
         services.TryAddSingleton<IMeterSink, DurableMeterSink>();
         services.TryAddSingleton<IBatchMeterSink>(provider => (IBatchMeterSink)provider.GetRequiredService<IMeterSink>());

@@ -1,42 +1,10 @@
 using DigitalBrain.Framework.Metering;
 using System.Globalization;
 using System.Text.Json;
-using DigitalBrain.Compute.Ledger;
 using DigitalBrain.Compute.Metering;
 using DigitalBrain.Compute.Usage;
 
 namespace DigitalBrain.Compute.Storage;
-
-internal sealed class NeuronLedgerStore(IGrainFactory grains) : ILedgerStore
-{
-    private IComputeRecords Records(string account) => grains.GetGrain<IComputeRecords>("ledger/" + UsagePaging.Hash(account));
-    private static ComputeStoredRecord Record(LedgerEntry entry) => new(entry.IdempotencyKey, JsonSerializer.Serialize(entry),
-        entry.OccurredAt.UtcTicks.ToString("D19", CultureInfo.InvariantCulture) + "-" + UsagePaging.Hash(entry.IdempotencyKey), 0);
-
-    private IComputeRecords Ready(string account, CancellationToken ct)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(account);
-        ct.ThrowIfCancellationRequested();
-        return Records(account);
-    }
-
-    public async ValueTask<LedgerAppend> AppendAsync(LedgerEntry entry, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(entry);
-        var records = Ready(entry.AccountId, cancellationToken);
-        return await records.Put([Record(entry)], false) == 1 ? LedgerAppend.Inserted : LedgerAppend.Duplicate;
-    }
-
-    public async ValueTask<IReadOnlyList<LedgerEntry>> ReadAsync(string accountId, CancellationToken cancellationToken = default)
-    {
-        var records = Ready(accountId, cancellationToken);
-        return (await records.Read()).Select(row => JsonSerializer.Deserialize<LedgerEntry>(row.Payload)!).ToArray();
-    }
-
-    public async ValueTask<decimal> ChargedAsync(string accountId, string? intentId, CancellationToken cancellationToken = default)
-        => (await ReadAsync(accountId, cancellationToken)).Where(entry => entry.Kind == LedgerKind.WalletCharge
-            && (intentId is null || entry.IntentId == intentId)).Sum(entry => entry.Amount);
-}
 
 internal sealed class NeuronMeterStore(IGrainFactory grains) : IMeterStore
 {

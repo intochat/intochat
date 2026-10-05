@@ -31,11 +31,13 @@ public static class ComputeUsageEndpoints
             foreach (var row in page.Items)
             {
                 var item = JsonSerializer.Deserialize<ComputeUsageItem>(row.Payload)!;
+                var settled = await ledger.ReadSettledAsync(scope, item.Id, ct);
                 items.Add(item with
                 {
                     OccurredAt = row.OccurredAt,
-                    ChargedCompute = await brain.Get<IWallet>(accountId).ReadChargedAsync(item.Id, ct),
-                    SettledCompute = await ledger.ReadSettledAsync(scope, item.Id, ct),
+                    // chargedCompute mirrors settledCompute while the Flutter shell still reads it.
+                    ChargedCompute = settled,
+                    SettledCompute = settled,
                     ReservedCompute = await ledger.ReadReservedAsync(scope, item.Id, ct),
                 });
             }

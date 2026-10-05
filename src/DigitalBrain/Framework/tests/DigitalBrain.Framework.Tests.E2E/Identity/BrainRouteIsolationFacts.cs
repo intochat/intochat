@@ -45,14 +45,25 @@ public sealed class BrainRouteIsolationFacts(ReferenceBrainFixture host)
         using var ownCompute = await bob.GetAsync($"/brains/{bobWorkspace}/compute/usage", ct);
         Assert.Equal(HttpStatusCode.OK, ownCompute.StatusCode);
 
-        await brain.Get<DigitalBrain.Compute.IWallet>(alicePerson.Account).ChargeAsync(new DigitalBrain.Compute.LedgerEntry
+        var aliceLedger = brain.Get<DigitalBrain.Compute.IAllowanceLedger>(alicePerson.Account);
+        await aliceLedger.GrantAsync(new DigitalBrain.Compute.Allowance
         {
-            AccountId = alicePerson.Account,
-            IdempotencyKey = "private-charge",
-            Kind = DigitalBrain.Compute.LedgerKind.WalletCharge,
-            Amount = 7m,
-            OccurredAt = DateTimeOffset.UtcNow,
+            AllowanceId = "budget", AccountId = alicePerson.Account, WorkspaceId = aliceWorkspace,
+            Level = DigitalBrain.Compute.ApprovalLevel.StandingBudget,
+            Scope = DigitalBrain.Compute.AllowanceScope.Always,
+            LimitCompute = 100m, PriceBookVersion = new DigitalBrain.Compute.PriceBook().Version,
+            GrantedAt = DateTimeOffset.UtcNow,
         }, ct);
+        var reserved = await aliceLedger.AuthorizeAsync(new CallRequest
+        {
+            Caller = new CallerContext
+            {
+                PrincipalId = alicePerson.Account, AccountId = alicePerson.Account, BrainId = aliceWorkspace,
+                Kind = CallerKind.Assistant, StampedBy = TrustedEdge.AuthenticatedHttp, IntentId = "private-charge",
+            },
+            TargetNeuron = "neuron", Operation = "chat", EstimatedCompute = 7m, HasSideEffects = true,
+        }, ct);
+        await aliceLedger.SettleAsync(reserved.ReservationId!, 7m, DigitalBrain.Compute.FailureClass.None, ct);
         using var aliceSummary = JsonDocument.Parse(await alice.GetStringAsync("/compute/summary", ct));
         using var bobSummary = JsonDocument.Parse(await bob.GetStringAsync("/compute/summary", ct));
         Assert.Equal(7m, aliceSummary.RootElement.GetProperty("chargedCompute").GetDecimal());
