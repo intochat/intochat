@@ -202,6 +202,8 @@ public sealed class ShippedAppPublisherFacts
     internal sealed class Source(string account, Dictionary<string, string> versions, string tests = "passing") : IShippedAppSource
     {
         public string Account => account;
+        public bool Writable => false;
+        public void Write(AppBundle bundle) => throw new NotSupportedException();
         public IReadOnlyList<AppBundle> Load() =>
         [new("echo", versions[account], new("Echo", "Echo input", [new("ask", "Echo")], [], []),
             "## Scenario: Echo\nEchoes.", new() { [AppFiles.TestsPath] = tests })];

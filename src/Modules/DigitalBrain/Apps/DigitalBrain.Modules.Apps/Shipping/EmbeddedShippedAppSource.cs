@@ -7,6 +7,8 @@ namespace DigitalBrain.Apps;
 public sealed class EmbeddedShippedAppSource(System.Reflection.Assembly assembly, string resourcePrefix, string account) : IShippedAppSource
 {
     public string Account => account;
+    public bool Writable => false;
+    public void Write(AppBundle bundle) => throw new NotSupportedException("Embedded shipped apps are read-only.");
 
     public IReadOnlyList<AppBundle> Load()
     {
@@ -51,12 +53,46 @@ internal static class ShippedAppFolder
                 manifest.Description,
                 [.. manifest.Operations.Select(operation => new AppOperation(operation.Name, operation.Description))],
                 [.. manifest.Settings.Select(setting => new AppSetting(setting.Name, setting.Description, setting.Default))],
-                [.. (manifest.Slots ?? []).Select(slot => new AppSlot(slot.Name, slot.Connector))]),
+                [.. (manifest.Slots ?? []).Select(slot => new AppSlot(slot.Name, slot.Connector))],
+                manifest.Icon),
             files.GetValueOrDefault(AppFiles.SpecPath, ""),
             bundleFiles);
     }
 
-    private sealed record AppJson(string Name, string Title, string Description, IReadOnlyList<OperationJson> Operations, IReadOnlyList<SettingJson> Settings, string? Version = null, IReadOnlyList<SlotJson>? Slots = null);
+    internal static Dictionary<string, string> ToFiles(AppBundle bundle)
+    {
+        var manifest = new AppJson(bundle.Name, bundle.Manifest.Title, bundle.Manifest.Description,
+            [.. bundle.Manifest.Operations.Select(operation => new OperationJson(operation.Name, operation.Description))],
+            [.. bundle.Manifest.Settings.Select(setting => new SettingJson(setting.Name, setting.Description, setting.Default))],
+            bundle.Version,
+            bundle.Manifest.Slots.Length == 0 ? null : [.. bundle.Manifest.Slots.Select(slot => new SlotJson(slot.Name, slot.Connector))],
+            bundle.Manifest.Icon);
+        var files = new Dictionary<string, string>(bundle.Files, StringComparer.Ordinal)
+        {
+            [ManifestFile] = JsonSerializer.Serialize(manifest, Pretty) + "\n",
+            [AppFiles.SpecPath] = bundle.Spec,
+        };
+        return files;
+    }
+
+    // A new app's folder: its title in PascalCase, the way src/IntoChat/Apps names folders.
+    internal static string FolderName(AppBundle bundle)
+    {
+        var words = bundle.Manifest.Title.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Select(word => new string([.. word.Where(char.IsLetterOrDigit)]))
+            .Where(word => word.Length > 0)
+            .Select(word => char.ToUpperInvariant(word[0]) + word[1..]);
+        var name = string.Concat(words);
+        return name.Length > 0 ? name : bundle.Name;
+    }
+
+    private static readonly JsonSerializerOptions Pretty = new(JsonSerializerDefaults.Web)
+    {
+        WriteIndented = true,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+    };
+
+    private sealed record AppJson(string Name, string Title, string Description, IReadOnlyList<OperationJson> Operations, IReadOnlyList<SettingJson> Settings, string? Version = null, IReadOnlyList<SlotJson>? Slots = null, string? Icon = null);
     private sealed record OperationJson(string Name, string Description);
     private sealed record SettingJson(string Name, string Description, string Default);
     private sealed record SlotJson(string Name, string Connector);
