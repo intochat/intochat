@@ -856,12 +856,15 @@ final class DigitalBrainUiClient {
     // Creating or authoring an app is one model inference call; everything else on the
     // apps surface (implement, verify) answers immediately with 202.
     final authoring =
-        method == 'POST' && (path.endsWith('/apps') || path.endsWith('/author'));
+        method == 'POST' &&
+        (path.endsWith('/apps') || path.endsWith('/author'));
     final response = await _request(
       method,
       path,
       body: body == null ? null : Map<String, Object?>.from(body as Map),
-      timeout: authoring ? const Duration(minutes: 3) : const Duration(seconds: 30),
+      timeout: authoring
+          ? const Duration(minutes: 3)
+          : const Duration(seconds: 30),
     );
     return response.body.isEmpty ? null : jsonDecode(response.body);
   }

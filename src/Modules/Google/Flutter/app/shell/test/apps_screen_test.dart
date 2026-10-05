@@ -35,10 +35,7 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('delete-sketch')));
     await tester.pumpAndSettle();
-    expect(
-      server.calls,
-      contains('DELETE /brains/workspace-bob/apps/sketch'),
-    );
+    expect(server.calls, contains('DELETE /brains/workspace-bob/apps/sketch'));
     expect(find.text('Deleted sketch.'), findsOneWidget);
   });
 

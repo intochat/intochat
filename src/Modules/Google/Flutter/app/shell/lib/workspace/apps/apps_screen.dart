@@ -4,8 +4,11 @@ import 'package:flutter/material.dart';
 
 import 'app_screen.dart';
 
-typedef AppsRequest =
-    Future<dynamic> Function(String method, String path, [Object? body]);
+typedef AppsRequest = Future<dynamic> Function(
+  String method,
+  String path, [
+  Object? body,
+]);
 
 // This brain's apps: one card per app neuron, created in the Creator, driven through its
 // own operations, deleted in one step. Sharing is export/import of a verified version.
@@ -34,7 +37,8 @@ class _AppsScreenState extends State<AppsScreen> {
   String? _error;
   String? _notice;
 
-  String get _appsPath => '/brains/${Uri.encodeComponent(widget.workspaceId)}/apps';
+  String get _appsPath =>
+      '/brains/${Uri.encodeComponent(widget.workspaceId)}/apps';
 
   static Map<String, dynamic> _map(dynamic value) =>
       value is Map ? Map<String, dynamic>.from(value) : <String, dynamic>{};

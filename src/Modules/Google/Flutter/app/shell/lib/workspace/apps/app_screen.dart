@@ -33,7 +33,8 @@ class _AppScreenState extends State<AppScreen> {
   Timer? _poll;
   String? _error;
 
-  String get _appsPath => '/brains/${Uri.encodeComponent(widget.workspaceId)}/apps';
+  String get _appsPath =>
+      '/brains/${Uri.encodeComponent(widget.workspaceId)}/apps';
   String get _appPath => '$_appsPath/${Uri.encodeComponent(_name!)}';
 
   static Map<String, dynamic> _map(dynamic value) =>
@@ -44,7 +45,9 @@ class _AppScreenState extends State<AppScreen> {
     super.initState();
     _name = widget.name;
     if (_name != null) {
-      unawaited(_perform('', () async => _show(await widget.request('GET', _appPath))));
+      unawaited(
+        _perform('', () async => _show(await widget.request('GET', _appPath))),
+      );
     }
   }
 
@@ -107,9 +110,11 @@ class _AppScreenState extends State<AppScreen> {
   );
 
   Future<void> _implement() => _perform('', () async {
-    _show(await widget.request('POST', '$_appPath/implement', {
-      'text': _describe.text,
-    }));
+    _show(
+      await widget.request('POST', '$_appPath/implement', {
+        'text': _describe.text,
+      }),
+    );
     _describe.clear();
   });
 
@@ -129,7 +134,11 @@ class _AppScreenState extends State<AppScreen> {
         : const <Map<String, dynamic>>[];
     return Scaffold(
       appBar: AppBar(
-        title: Text(app == null ? 'Create app' : '${_map(app['manifest'])['title'] ?? _name}'),
+        title: Text(
+          app == null
+              ? 'Create app'
+              : '${_map(app['manifest'])['title'] ?? _name}',
+        ),
       ),
       body: Center(
         child: ConstrainedBox(
@@ -144,7 +153,9 @@ class _AppScreenState extends State<AppScreen> {
                   child: Text(
                     _error!,
                     key: const ValueKey('app-error'),
-                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
                 ),
               if (app != null)
@@ -176,12 +187,16 @@ class _AppScreenState extends State<AppScreen> {
                   if (app != null) ...[
                     FilledButton(
                       key: const ValueKey('build-app'),
-                      onPressed: _busy || app['status'] == 'Building' ? null : _implement,
+                      onPressed: _busy || app['status'] == 'Building'
+                          ? null
+                          : _implement,
                       child: const Text('Implement'),
                     ),
                     FilledButton.tonal(
                       key: const ValueKey('run-scenarios'),
-                      onPressed: _busy || app['status'] == 'Building' ? null : _verify,
+                      onPressed: _busy || app['status'] == 'Building'
+                          ? null
+                          : _verify,
                       child: const Text('Verify'),
                     ),
                   ],
@@ -195,14 +210,21 @@ class _AppScreenState extends State<AppScreen> {
               ],
               if (verdicts.isNotEmpty) ...[
                 const SizedBox(height: 16),
-                Text('Scenarios', style: Theme.of(context).textTheme.titleSmall),
+                Text(
+                  'Scenarios',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
                 for (final verdict in verdicts)
                   ListTile(
                     dense: true,
                     key: ValueKey('verdict-${verdict['name']}'),
                     leading: Icon(
-                      verdict['passed'] == true ? Icons.check_circle : Icons.cancel,
-                      color: verdict['passed'] == true ? Colors.green : Colors.red,
+                      verdict['passed'] == true
+                          ? Icons.check_circle
+                          : Icons.cancel,
+                      color: verdict['passed'] == true
+                          ? Colors.green
+                          : Colors.red,
                     ),
                     title: Text('${verdict['name']}'),
                     subtitle: '${verdict['message'] ?? ''}'.isEmpty
@@ -212,8 +234,14 @@ class _AppScreenState extends State<AppScreen> {
               ],
               if (app != null && '${app['spec'] ?? ''}'.isNotEmpty) ...[
                 const SizedBox(height: 16),
-                Text('Specification', style: Theme.of(context).textTheme.titleSmall),
-                SelectableText('${app['spec']}', key: const ValueKey('app-spec')),
+                Text(
+                  'Specification',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                SelectableText(
+                  '${app['spec']}',
+                  key: const ValueKey('app-spec'),
+                ),
               ],
             ],
           ),
