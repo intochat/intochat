@@ -8,8 +8,6 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.Qdrant;
 
-[ModuleDeployment("DigitalBrain.Qdrant.QdrantDeployment, DigitalBrain.Modules.Qdrant.Deployment")]
-[ModuleHosting("DigitalBrain.Qdrant.Aspire.Hosting.QdrantModuleHosting, DigitalBrain.Modules.Qdrant.Aspire.Hosting")]
 public sealed class QdrantModule() : Module<QdrantModuleOptions>(new ModuleId("qdrant"))
 {
     public const string ConnectionName = "qdrant";

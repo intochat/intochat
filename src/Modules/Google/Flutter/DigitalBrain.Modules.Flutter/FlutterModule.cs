@@ -9,7 +9,6 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.Flutter;
 
-[ModuleHosting("DigitalBrain.Flutter.Aspire.Hosting.FlutterModuleHosting, DigitalBrain.Modules.Flutter.Aspire.Hosting")]
 public sealed class FlutterModule() : Module<FlutterModuleOptions>(new ModuleId("flutter")), IHttpModule
 {
     public override void Configure(ISiloBuilder silo)

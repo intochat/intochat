@@ -8,7 +8,6 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.Microsoft.GitHub;
 
-[ModuleHosting("DigitalBrain.Microsoft.GitHub.GitHubModuleHosting, DigitalBrain.Modules.Microsoft.GitHub.Aspire.Hosting")]
 public sealed class GitHubModule() : Module<GitHubModuleOptions>(new ModuleId("github"))
 {
     public static IntegrationDefinition Integration { get; } = IntegrationDefinition.For("github", "GitHub")

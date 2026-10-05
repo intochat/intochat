@@ -11,8 +11,6 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.Microsoft.CSharp;
 
-[ModuleDeployment("DigitalBrain.Microsoft.CSharp.CSharpDeployment, DigitalBrain.Modules.Microsoft.CSharp.Deployment")]
-[ModuleHosting("DigitalBrain.Microsoft.CSharp.CSharpModuleHosting, DigitalBrain.Modules.Microsoft.CSharp.Aspire.Hosting")]
 public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp")), IHttpModule
 {
     public override void Configure(ISiloBuilder builder)

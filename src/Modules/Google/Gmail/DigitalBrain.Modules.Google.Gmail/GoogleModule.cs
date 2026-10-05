@@ -16,7 +16,6 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.Google.Gmail;
 
-[ModuleHosting("DigitalBrain.Google.Gmail.GmailModuleHosting, DigitalBrain.Modules.Google.Gmail.Aspire.Hosting")]
 public sealed class GmailModule() : Module<GmailModuleOptions>(new ModuleId("gmail")), IHttpModule
 {
     public static IntegrationDefinition Integration { get; } = IntegrationDefinition.For("gmail", "Gmail")

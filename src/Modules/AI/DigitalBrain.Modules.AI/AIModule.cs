@@ -13,8 +13,6 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.AI;
 
-[ModuleDeployment("DigitalBrain.AI.AIDeployment, DigitalBrain.Modules.AI.Deployment")]
-[ModuleHosting("DigitalBrain.AI.Aspire.Hosting.AIModuleHosting, DigitalBrain.Modules.AI.Aspire.Hosting")]
 public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai"))
 {
     public const string McpServersKey = AIOptions.SectionName + ":McpServers";

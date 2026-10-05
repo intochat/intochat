@@ -9,8 +9,6 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.ClickHouse;
 
-[ModuleDeployment("DigitalBrain.ClickHouse.ClickHouseDeployment, DigitalBrain.Modules.ClickHouse.Deployment")]
-[ModuleHosting("DigitalBrain.ClickHouse.Aspire.Hosting.ClickHouseModuleHosting, DigitalBrain.Modules.ClickHouse.Aspire.Hosting")]
 public sealed class ClickHouseModule() : Module<ClickHouseModuleOptions>(new ModuleId("clickhouse"))
 {
     public const string DriverProviderName = "ClickHouse";

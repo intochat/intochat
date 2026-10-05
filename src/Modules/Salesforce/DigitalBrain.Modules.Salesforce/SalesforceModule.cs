@@ -11,7 +11,6 @@ using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Salesforce;
 
-[ModuleHosting("DigitalBrain.Salesforce.Aspire.Hosting.SalesforceModuleHosting, DigitalBrain.Modules.Salesforce.Aspire.Hosting")]
 public sealed class SalesforceModule() : Module<SalesforceModuleOptions>(new ModuleId("salesforce")), IHttpModule
 {
     public const string OAuthConfigurationRoot = SalesforceOAuthOptions.SectionName;

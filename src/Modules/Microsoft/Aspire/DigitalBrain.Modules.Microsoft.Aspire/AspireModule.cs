@@ -9,7 +9,6 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.Microsoft.Aspire;
 
-[ModuleHosting("DigitalBrain.Microsoft.Aspire.AspireModuleHosting, DigitalBrain.Modules.Microsoft.Aspire.Aspire.Hosting")]
 public sealed class AspireModule() : Module<AspireOptions>(new ModuleId("aspire")), IHttpModule
 {
     public const string ConfigurationRoot = AspireOptions.ConfigurationRoot;

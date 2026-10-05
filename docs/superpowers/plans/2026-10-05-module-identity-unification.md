@@ -463,9 +463,9 @@ public sealed class ModuleHostingScanFacts
 - Modify: every module class still carrying `[ModuleHosting(…)]` / `[ModuleDeployment(…)]` (the Task 3 list) — delete the attributes and their now-unused `using DigitalBrain.Contracts;` if dangling
 - Modify: any残 remaining reference (grep `ModuleIdentity\.|ModuleIdAttribute|ModuleHostingAttribute|ModuleDeploymentAttribute` across `src/` — Task 3's sweep left only attribute writers and the two rings now migrated)
 
-- [ ] **Step 1: Delete and sweep.** `grep -rn "ModuleIdentity\.\|ModuleIdAttribute\|ModuleHostingAttribute\|ModuleDeploymentAttribute" src --include=*.cs | grep -v obj` must return nothing.
-- [ ] **Step 2: Build the full dependency chain** (Contracts → Kernel → Aspire.Server → Aspire.Hosting → OS → Deployment → Testing.E2E) and run: Kernel unit, OS unit, Aspire.Hosting unit, Deployment tests → PASS.
-- [ ] **Step 3: Commit** — `refactor: the module attributes are gone`
+- [x] **Step 1: Delete and sweep.** `grep -rn "ModuleIdentity\.\|ModuleIdAttribute\|ModuleHostingAttribute\|ModuleDeploymentAttribute" src --include=*.cs | grep -v obj` must return nothing.
+- [x] **Step 2: Build the full dependency chain** (Contracts → Kernel → Aspire.Server → Aspire.Hosting → OS → Deployment → Testing.E2E) and run: Kernel unit, OS unit, Aspire.Hosting unit, Deployment tests → PASS.
+- [x] **Step 3: Commit** — `refactor: the module attributes are gone`
 
 ---
 

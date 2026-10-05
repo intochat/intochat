@@ -9,7 +9,6 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.Microsoft.CSharp;
 
-[ModuleHosting("DigitalBrain.Microsoft.CSharp.CSharpAuthoringModuleHosting, DigitalBrain.Modules.Microsoft.CSharp.Aspire.Hosting")]
 public sealed class CSharpAuthoringModule() : Module(new ModuleId("csharp-authoring")), IHttpModule
 {
     public override void Configure(ISiloBuilder builder)
