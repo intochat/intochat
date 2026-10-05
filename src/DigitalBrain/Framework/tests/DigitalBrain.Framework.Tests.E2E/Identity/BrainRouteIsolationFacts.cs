@@ -23,32 +23,32 @@ public sealed class BrainRouteIsolationFacts(ReferenceBrainFixture host)
         using var bobPerson = await People.SignedIn(brain.HttpClient, "bob-" + suffix, ct);
         var alice = alicePerson.Client;
         var bob = bobPerson.Client;
-        var aliceWorkspace = alicePerson.Workspace;
-        var bobWorkspace = bobPerson.Workspace;
+        var aliceBrain = alicePerson.Workspace;
+        var bobBrain = bobPerson.Workspace;
         // Bob reaches his own workspace but is forbidden from Alice's scoped value and app node.
-        using var ownUi = await bob.GetAsync($"/brains/{bobWorkspace}/ui/sliders/volume", ct);
+        using var ownUi = await bob.GetAsync($"/brains/{bobBrain}/ui/sliders/volume", ct);
         Assert.Equal(HttpStatusCode.OK, ownUi.StatusCode);
 
-        using var foreignWorkspace = await bob.GetAsync($"/brains/{aliceWorkspace}", ct);
+        using var foreignWorkspace = await bob.GetAsync($"/brains/{aliceBrain}", ct);
         Assert.Equal(HttpStatusCode.Forbidden, foreignWorkspace.StatusCode);
-        using var foreignSources = await bob.PostAsJsonAsync($"/brains/{aliceWorkspace}/connected-sources", new { sources = new[] { "stolen" } }, ct);
+        using var foreignSources = await bob.PostAsJsonAsync($"/brains/{aliceBrain}/connected-sources", new { sources = new[] { "stolen" } }, ct);
         Assert.Equal(HttpStatusCode.Forbidden, foreignSources.StatusCode);
 
-        using var foreignUi = await bob.GetAsync($"/brains/{aliceWorkspace}/ui/sliders/volume", ct);
+        using var foreignUi = await bob.GetAsync($"/brains/{aliceBrain}/ui/sliders/volume", ct);
         Assert.Equal(HttpStatusCode.Forbidden, foreignUi.StatusCode);
 
-        using var foreignNode = await bob.GetAsync($"/brains/{aliceWorkspace}/apps/node?kind=text&name={aliceWorkspace}/apps/forms/intake", ct);
+        using var foreignNode = await bob.GetAsync($"/brains/{aliceBrain}/apps/node?kind=text&name={aliceBrain}/apps/forms/intake", ct);
         Assert.Equal(HttpStatusCode.Forbidden, foreignNode.StatusCode);
 
-        using var foreignCompute = await bob.GetAsync($"/brains/{aliceWorkspace}/compute/usage", ct);
+        using var foreignCompute = await bob.GetAsync($"/brains/{aliceBrain}/compute/usage", ct);
         Assert.Equal(HttpStatusCode.Forbidden, foreignCompute.StatusCode);
-        using var ownCompute = await bob.GetAsync($"/brains/{bobWorkspace}/compute/usage", ct);
+        using var ownCompute = await bob.GetAsync($"/brains/{bobBrain}/compute/usage", ct);
         Assert.Equal(HttpStatusCode.OK, ownCompute.StatusCode);
 
         var aliceLedger = brain.Get<DigitalBrain.Compute.IAllowanceLedger>(alicePerson.Account);
         await aliceLedger.GrantAsync(new DigitalBrain.Compute.Allowance
         {
-            AllowanceId = "budget", AccountId = alicePerson.Account, BrainId = aliceWorkspace,
+            AllowanceId = "budget", AccountId = alicePerson.Account, BrainId = aliceBrain,
             Level = DigitalBrain.Compute.ApprovalLevel.StandingBudget,
             Scope = DigitalBrain.Compute.AllowanceScope.Always,
             LimitCompute = 100m, PriceBookVersion = new DigitalBrain.Compute.PriceBook().Version,
@@ -58,7 +58,7 @@ public sealed class BrainRouteIsolationFacts(ReferenceBrainFixture host)
         {
             Caller = new CallerContext
             {
-                PrincipalId = alicePerson.Account, AccountId = alicePerson.Account, BrainId = aliceWorkspace,
+                PrincipalId = alicePerson.Account, AccountId = alicePerson.Account, BrainId = aliceBrain,
                 Kind = CallerKind.Assistant, StampedBy = TrustedEdge.AuthenticatedHttp, IntentId = "private-charge",
             },
             TargetNeuron = "neuron", Operation = "chat", EstimatedCompute = 7m, HasSideEffects = true,

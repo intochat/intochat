@@ -10,7 +10,7 @@ namespace DigitalBrain.Modules.Compute.Tests;
 public sealed class AllowanceFacts
 {
     [Fact]
-    public async Task SettlementsAndReservationsSurviveReload()
+    public async Task AllowancesSettlementsAndReservationsSurviveReload()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<ComputeModule>().StartAsync(ct);

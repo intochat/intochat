@@ -17,7 +17,7 @@ public enum AllowanceScope
     Always = 2,
 }
 
-// One approved spending right. A standing budget covers a brainId, install consent covers an app
+// One approved spending right. A standing budget covers a brain, install consent covers an app
 // up to a monthly limit, and a per-operation allowance covers one operation. Permissions and the
 // price book version are recorded at grant time so a later permission or price growth forces
 // re-consent instead of silently extending the approval.
@@ -81,7 +81,7 @@ public enum LimitAlert
     At100 = 3,
 }
 
-// Caps at account, brainId, app and run scope. Zero means "no cap at this scope".
+// Caps at account, brain, app and run scope. Zero means "no cap at this scope".
 [GenerateSerializer, Alias("compute.limit-policy")]
 public sealed record LimitPolicy
 {
