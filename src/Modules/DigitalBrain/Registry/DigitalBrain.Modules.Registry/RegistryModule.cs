@@ -1,8 +1,4 @@
-using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Vectors;
-using Microsoft.Extensions.AI;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
 
@@ -14,15 +10,6 @@ public sealed class RegistryModule() : Module(new ModuleId("registry"))
     public override void Configure(ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
-        silo.Services.TryAddSingleton<NeuronTypes>();
         silo.Services.TryAddSingleton<RegistryDiscoveryService>();
-        silo.Services.TryAddSingleton(provider => new NeuronTypeSearch(provider.GetRequiredService<NeuronTypes>(),
-            provider.GetService<IVectorStore>(), Embeddings(provider)));
-    }
-
-    private static IEmbeddingGenerator<string, Embedding<float>>? Embeddings(IServiceProvider services)
-    {
-        try { return services.GetService<IEmbeddingGenerator<string, Embedding<float>>>(); }
-        catch (InvalidOperationException) { return null; } // An unconfigured AI provider must not disable the registry.
     }
 }

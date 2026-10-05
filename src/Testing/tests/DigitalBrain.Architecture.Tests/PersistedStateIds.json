@@ -1752,6 +1752,19 @@
     "Payload": 2
   },
   "DigitalBrain.Framework.Enforcement.UntrustedCallerException": {},
+  "DigitalBrain.Framework.NeuronType": {
+    "Id": 0,
+    "ModuleId": 1,
+    "Name": 2,
+    "Description": 3,
+    "Methods": 4,
+    "Contract": 5,
+    "Signals": 6
+  },
+  "DigitalBrain.Framework.NeuronTypeHit": {
+    "Type": 0,
+    "Score": 1
+  },
   "DigitalBrain.Framework.Platform.Identity.Account": {
     "AccountId": 0,
     "Name": 1,
@@ -2282,19 +2295,6 @@
   "DigitalBrain.Postgres.TableValue": {
     "Column": 0,
     "Json": 1
-  },
-  "DigitalBrain.Registry.NeuronType": {
-    "Id": 0,
-    "ModuleId": 1,
-    "Name": 2,
-    "Description": 3,
-    "Methods": 4,
-    "Contract": 5,
-    "Signals": 6
-  },
-  "DigitalBrain.Registry.NeuronTypeHit": {
-    "Type": 0,
-    "Score": 1
   },
   "DigitalBrain.Registry.RegistryCapability": {
     "Id": 0,

@@ -1,10 +1,10 @@
 using DigitalBrain.AI;
-using DigitalBrain.Registry;
+using DigitalBrain.Framework;
 
 namespace DigitalBrain.Apps;
 
-// The Builder's grounding: search the registry for neuron contracts, read a module's contracts in
-// full, and compile-check C# before answering. The registry is the catalog; nothing here reflects.
+// The Builder's grounding: search the shared catalog for neuron contracts, read a module's contracts in
+// full, and compile-check C# before answering. Framework owns the catalog; nothing here reflects.
 internal static class BuilderTools
 {
     public const string SearchContracts = "search_contracts";
@@ -27,19 +27,18 @@ internal static class BuilderTools
 
     public sealed record ContractHit(string Module, string Contract, string Description);
 
-    public static async Task<IReadOnlyList<ContractHit>> Search(IGrainFactory grains, string query)
+    public static async Task<IReadOnlyList<ContractHit>> Search(ContractCatalog catalog, NeuronTypeSearch search, string query)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
-        var registry = grains.GetGrain<IRegistry>(IRegistry.Key);
         try
         {
-            return [.. (await registry.Search(query)).Select(hit => Hit(hit.Type))];
+            return [.. (await search.Search(query)).Select(hit => Hit(hit.Type))];
         }
         // Without an embedding model the registry has no vector search; a name and description
         // match over the full catalog still answers the Builder's question.
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            return [.. (await registry.Types())
+            return [.. catalog.Read()
                 .Where(type => query.Split(' ', StringSplitOptions.RemoveEmptyEntries).Any(word =>
                     type.Id.Contains(word, StringComparison.OrdinalIgnoreCase)
                     || type.Name.Contains(word, StringComparison.OrdinalIgnoreCase)

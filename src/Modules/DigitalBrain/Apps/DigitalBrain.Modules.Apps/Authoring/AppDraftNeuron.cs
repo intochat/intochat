@@ -21,6 +21,8 @@ internal sealed partial class AppDraftNeuron(
     IEnumerable<IAppRuntime> runtimes,
     AppAuthoringPolicy policy,
     AppPublishing publishing,
+    ContractCatalog contractCatalog,
+    NeuronTypeSearch contractSearch,
     IScriptSandbox? csharp = null,
     IContractVocabulary? vocabulary = null)
     : Neuron<AppDraftState>(store), IAppDraft
@@ -244,7 +246,7 @@ internal sealed partial class AppDraftNeuron(
             return call.Name switch
             {
                 BuilderTools.SearchContracts => JsonSerializer.Serialize(
-                    await BuilderTools.Search(GrainFactory, Parse<BuilderTools.SearchArguments>(call.ArgumentsJson).Query), Json),
+                    await BuilderTools.Search(contractCatalog, contractSearch, Parse<BuilderTools.SearchArguments>(call.ArgumentsJson).Query), Json),
                 BuilderTools.ReadContracts => JsonSerializer.Serialize(
                     await Require(csharp).ReadContracts(Parse<BuilderTools.ReadArguments>(call.ArgumentsJson).Modules ?? [], CancellationToken.None), Json),
                 BuilderTools.CheckCSharp => JsonSerializer.Serialize(

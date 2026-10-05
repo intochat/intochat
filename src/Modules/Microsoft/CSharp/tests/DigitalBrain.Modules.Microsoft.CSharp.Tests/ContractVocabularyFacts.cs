@@ -17,10 +17,10 @@ public sealed class ContractVocabularyFacts
     [Fact]
     public void VocabularyContainsOnlyTheComposedPublicContracts()
     {
-        var vocabulary = new ContractVocabulary([typeof(IPublicNeuron).Assembly]).Read();
+        var vocabulary = new ContractVocabulary(new ContractCatalog([typeof(IPublicNeuron).Assembly])).Read();
         Assert.Contains(vocabulary, x => x.QualifiedName == typeof(IPublicNeuron).FullName && x.Kind == "neuron");
         Assert.DoesNotContain(vocabulary, x => x.QualifiedName == typeof(IHiddenNeuron).FullName);
-        Assert.Empty(new ContractVocabulary([]).Read());
+        Assert.Empty(new ContractVocabulary(new ContractCatalog(Array.Empty<System.Reflection.Assembly>())).Read());
         Assert.Contains(vocabulary, x => x.QualifiedName == typeof(PublicSignal).FullName && x.Kind == "signal");
         Assert.DoesNotContain(vocabulary, x => x.QualifiedName == typeof(HiddenSignal).FullName);
         Assert.Equal(2, vocabulary.Count(x => x.Name == "ISame"));

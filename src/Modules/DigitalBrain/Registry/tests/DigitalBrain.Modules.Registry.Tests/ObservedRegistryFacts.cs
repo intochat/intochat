@@ -17,7 +17,7 @@ public sealed class ObservedRegistryFacts
     {
         await using var brain = await ModuleTest.Create().WithModule<RegistryModule>().WithModule<TimeModule>().WithReminders()
             .StartAsync(TestContext.Current.CancellationToken);
-        var types = await brain.Get<IRegistry>(RegistryModule.Key).Types();
+        var types = brain.SiloServices.GetRequiredService<ContractCatalog>().Read();
 
         Assert.Contains(types, type => type.Id == "timer" && type.Methods.Any(method => method.Contains("Start", StringComparison.Ordinal)));
         var timer = types.Single(type => type.Id == "timer");
@@ -26,7 +26,7 @@ public sealed class ObservedRegistryFacts
         Assert.Contains(timer.Signals!, signal => signal.Contains("TimerTick", StringComparison.Ordinal) && signal.Contains("TimerId", StringComparison.Ordinal));
         Assert.Contains(types, type => type.Id == "reminder");
         Assert.DoesNotContain(types, type => type.Id == "test.registry-clock");
-        Assert.Empty(await brain.Get<IRegistry>(RegistryModule.Key).Search("schedule a timer", cancellationToken: TestContext.Current.CancellationToken));
+        Assert.Empty(await brain.SiloServices.GetRequiredService<NeuronTypeSearch>().Search("schedule a timer", ct: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public sealed class ObservedRegistryFacts
     {
         await using var brain = await ModuleTest.Create().WithModule<RegistryModule>()
             .StartAsync(TestContext.Current.CancellationToken);
-        var types = await brain.Get<IRegistry>(RegistryModule.Key).Types();
+        var types = brain.SiloServices.GetRequiredService<ContractCatalog>().Read();
 
         Assert.DoesNotContain(types, type => type.Id == "integration.registration" || type.Contract == typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration).FullName);
     }
@@ -44,7 +44,7 @@ public sealed class ObservedRegistryFacts
     {
         await using var brain = await ModuleTest.Create().WithModule<RegistryModule>()
             .StartAsync(TestContext.Current.CancellationToken);
-        var types = await brain.Get<IRegistry>(RegistryModule.Key).Types();
+        var types = brain.SiloServices.GetRequiredService<ContractCatalog>().Read();
 
         var platformAssembly = typeof(DigitalBrain.Platform.PlatformHosting).Assembly;
         var platformContracts = platformAssembly.GetExportedTypes().Where(type => type.IsInterface).Select(type => type.FullName);

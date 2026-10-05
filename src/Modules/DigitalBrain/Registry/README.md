@@ -1,12 +1,6 @@
 # Registry
 
-Registry exposes contract and capability views through `IRegistry`:
-
-```csharp
-await registry.Types();                  // Installed public neuron contracts
-await registry.Search("table");          // Search those contract descriptions
-await registry.Discover("my app data");  // Current caller's capabilities/resources
-```
+Registry exposes capability discovery through `IRegistry`. Public contract discovery and embedding search are in-process Framework services (`ContractCatalog` and `NeuronTypeSearch`), shared by CSharp, Apps and MCP.
 
 `Discover` accepts no caller-selected account or brain. It requires trusted SDK caller
 context and refuses app callers. Module-owned `IRegistryResourceProvider` implementations

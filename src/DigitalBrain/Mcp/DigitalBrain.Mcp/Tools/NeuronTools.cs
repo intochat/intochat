@@ -9,7 +9,7 @@ using Orleans;
 namespace DigitalBrain.Mcp;
 
 [McpServerToolType]
-internal sealed class NeuronTools(IDigitalBrain brain, McpCaller caller)
+internal sealed class NeuronTools(IDigitalBrain brain, McpCaller caller, NeuronTypeSearch search)
 {
     private static readonly NeuronContracts Contracts = new(NeuronContracts.Deployed());
     private static readonly HashSet<string> ObserverMethods = [nameof(INeuron.Watch), nameof(INeuron.Unwatch)];
@@ -23,11 +23,11 @@ internal sealed class NeuronTools(IDigitalBrain brain, McpCaller caller)
         return [.. Contracts.Names.Order(StringComparer.Ordinal)];
     }
 
-    [McpServerTool(Name = "neurons_search"), Description("Search the brain's registry for neuron types by what they do. Returns each match's contract type name, methods and signals; the brain must compose RegistryModule.")]
-    public async Task<IReadOnlyList<DigitalBrain.Registry.NeuronTypeHit>> Search(string query, CancellationToken cancellationToken = default)
+    [McpServerTool(Name = "neurons_search"), Description("Search this host's neuron contracts by what they do. Uses lexical matching when local vector search is unavailable. Returns each match's contract type name, methods and signals.")]
+    public async Task<IReadOnlyList<NeuronTypeHit>> Search(string query, CancellationToken cancellationToken = default)
     {
         caller.Stamp();
-        return await brain.Get<DigitalBrain.Registry.IRegistry>(DigitalBrain.Registry.IRegistry.Key).Search(query, cancellationToken: cancellationToken);
+        return await search.Search(query, ct: cancellationToken);
     }
 
     [McpServerTool(Name = "neurons_get"), Description("Resolve a neuron. contract is a full type name from neurons_list, key is the grain key, for example a timer name.")]

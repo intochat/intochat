@@ -3,20 +3,28 @@ using System.Text.Json;
 using DigitalBrain.Framework.Vectors;
 using Microsoft.Extensions.AI;
 
-namespace DigitalBrain.Registry;
+namespace DigitalBrain.Framework;
 
-internal sealed class NeuronTypeSearch(NeuronTypes types, IVectorStore? vectors, IEmbeddingGenerator<string, Embedding<float>>? embeddings) : IDisposable
+public sealed class NeuronTypeSearch(ContractCatalog types, IVectorStore? vectors, IEmbeddingGenerator<string, Embedding<float>>? embeddings, bool lexicalFallback = false) : IDisposable
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private IReadOnlyList<NeuronType>? _indexed;
     private string _collection = "";
     private string _scope = "";
 
-    public async Task<IReadOnlyList<NeuronTypeHit>> Search(string query, int take, CancellationToken ct)
+    public async Task<IReadOnlyList<NeuronTypeHit>> Search(string query, int take = 10, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
         ArgumentOutOfRangeException.ThrowIfLessThan(take, 1);
-        if (embeddings is null || vectors is null) { return []; }
+        ct.ThrowIfCancellationRequested();
+        if (embeddings is null || vectors is null)
+        {
+            if (!lexicalFallback) { return []; }
+            var terms = query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            return [.. types.Read().Select(type => new NeuronTypeHit(type, terms.Count(term =>
+                    (type.Id + " " + type.Name + " " + type.Description + " " + string.Join(" ", type.Methods)).Contains(term, StringComparison.OrdinalIgnoreCase))))
+                .Where(hit => hit.Score > 0).OrderByDescending(hit => hit.Score).ThenBy(hit => hit.Type.Id, StringComparer.Ordinal).Take(Math.Min(take, 100))];
+        }
         await _gate.WaitAsync(ct).ConfigureAwait(false);
         try
         {

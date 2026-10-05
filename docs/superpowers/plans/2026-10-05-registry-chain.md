@@ -15,7 +15,7 @@
 
 ## Tasks
 
-- [ ] #146: Remove Apps backfill and ledger, replace legacy-backfill test with index tracking/reactivation coverage, reserve state IDs, retire registry state manifest entries. Run Registry, Apps, Assistant; fresh review; commit.
+- [x] #146: Remove Apps backfill and ledger, replace legacy-backfill test with index tracking/reactivation coverage, reserve state IDs, retire registry state manifest entries. Run Registry, Apps, Assistant; fresh review; commit.
 - [ ] #147: Move catalog/search and DTOs into Framework, have ContractVocabulary consume the catalog, repoint CSharp/Builder/MCP, preserve filtering/aliases/descriptions/signal shapes and embedding results. Compare one Builder query before/after. Run CSharp, Apps, MCP, Registry; fresh review; commit.
 - [ ] #148: Move provider DTOs/interface to Framework and federation to Assistant; implement and test caller/key brain isolation. Repoint tools/providers, remove Registry projects/references/catalog/solution entries, relocate tests and update manifests. Run Assistant, Apps, CSharp, Postgres, Supabase, MCP, OS; fresh review; commit.
 - [ ] Finish: OS unit, Framework and OS E2E suites, Aspire smoke with all resources healthy. Record evidence and retired-state migration notes; close the three issues only after successful verification.
@@ -31,4 +31,8 @@
 ## Evidence and progress
 
 Baseline: 8fa6f7603221a35fbe2534207926424aaf339b15. Implementation authorized by the user's explicit full-chain instruction; seam choices above resolve the delegated placement decisions.
-`n#146 evidence: replacement Apps test failed on ledger repopulation before removal. Registry 12 passed/1 live Qdrant skip; Apps 114 passed; Assistant 71 passed; Architecture 35 passed. Fresh reviewer found retired-ID baseline and obsolete collection fixtures; both repaired and architecture suite passed. Local Aspire stopped to release DLL locks.
+
+#146 evidence: replacement Apps test failed on ledger repopulation before removal. Registry 12 passed/1 live Qdrant skip; Apps 114 passed; Assistant 71 passed; Architecture 35 passed. Fresh reviewer found retired-ID baseline and obsolete collection fixtures; both repaired and architecture suite passed. Local Aspire stopped to release DLL locks.
+
+#147 review: Framework placement selected as planned. The catalog includes kernel contracts from ModuleInventory in addition to selected module contracts. Standalone MCP has no local embedding/vector configuration, so it opts into deterministic lexical fallback when those services are absent; silo search retains prior behavior. The standalone regression failed with an empty result before the fix and passes afterward. Builder timer query passed both before and after the move.
+#147 evidence: CSharp 81 passed; Apps 115 passed (includes before/after Builder query); MCP 9 passed; Registry 12 passed/1 live Qdrant skip; Architecture 35 passed after sorting moved DTO baseline entries. Fresh review completed and standalone MCP finding fixed with a red-to-green regression.

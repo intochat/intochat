@@ -1,7 +1,6 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Registry;
 
 namespace DigitalBrain.Microsoft.CSharp;
 
@@ -9,9 +8,9 @@ public sealed record CSharpContractModule(string Id, string? Directive);
 
 public sealed record CSharpContractCatalogSnapshot(IReadOnlyList<CSharpContractModule> Modules, IReadOnlyList<string> Contracts, string Example, bool Truncated = false);
 
-// What a script author (human or agent) sees: the registry's neuron catalog, joined with the
+// What a script author (human or agent) sees: the shared neuron catalog, joined with the
 // #:project directive each module's contracts need in a file-based app.
-public sealed class CSharpContractDiscovery(IDigitalBrain brain, ModuleInventory inventory, CSharpDirectives directives)
+public sealed class CSharpContractDiscovery(ContractCatalog catalog, ModuleInventory inventory, CSharpDirectives directives)
 {
     private const int ResponseBudget = 24000;
 
@@ -34,12 +33,11 @@ public sealed class CSharpContractDiscovery(IDigitalBrain brain, ModuleInventory
         // Console output is the log. Settings arrive through brain.Setting(name).
         """;
 
-    public async Task<CSharpContractCatalogSnapshot> Read(IReadOnlyList<string> moduleIds, CancellationToken cancellationToken = default)
+    public Task<CSharpContractCatalogSnapshot> Read(IReadOnlyList<string> moduleIds, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(moduleIds);
         cancellationToken.ThrowIfCancellationRequested();
-        // The registry's catalog is the truth of what exists; its grain key is the module key "registry".
-        var types = await brain.Get<IRegistry>(IRegistry.Key).Types();
+        var types = catalog.Read();
         var installed = types.GroupBy(type => type.ModuleId, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(module => module.Key, module => module.ToArray(), StringComparer.OrdinalIgnoreCase);
         var unknown = moduleIds.Where(id => !installed.ContainsKey(id)).ToArray();
@@ -61,7 +59,7 @@ public sealed class CSharpContractDiscovery(IDigitalBrain brain, ModuleInventory
             contracts.RemoveAt(contracts.Count - 1);
             snapshot = snapshot with { Contracts = [.. contracts], Truncated = true };
         }
-        return snapshot;
+        return Task.FromResult(snapshot);
     }
 
     private string? Directive(string moduleId)

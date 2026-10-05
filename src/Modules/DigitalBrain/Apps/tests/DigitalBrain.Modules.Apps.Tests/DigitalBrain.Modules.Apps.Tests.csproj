@@ -6,5 +6,6 @@
     <ProjectReference Include="../../../../AI/DigitalBrain.Modules.AI/DigitalBrain.Modules.AI.csproj" />
     <ProjectReference Include="../../../../Postgres/DigitalBrain.Modules.Postgres/DigitalBrain.Modules.Postgres.csproj" />
   </ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../../Qdrant/DigitalBrain.Modules.Qdrant/DigitalBrain.Modules.Qdrant.csproj" /><ProjectReference Include="../../../../Time/DigitalBrain.Modules.Time/DigitalBrain.Modules.Time.csproj" /></ItemGroup>
   <ItemGroup><Using Include="DigitalBrain.Testing.Module" /></ItemGroup>
 </Project>

@@ -33,8 +33,8 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         builder.Services.AddSingleton<IIntegrationStartup>(services => services.GetRequiredService<RunTokens>());
         builder.Services.TryAddSingleton<ScriptRunEnvironment>();
         // Explicit: DI would resolve the assemblies parameter as an empty IEnumerable<Assembly>.
-        builder.Services.TryAddSingleton(provider => new ScriptContracts(provider.GetRequiredService<ModuleInventory>().ContractAssemblies()));
-        builder.Services.TryAddSingleton<IContractVocabulary>(provider => new ContractVocabulary(provider.GetRequiredService<ModuleInventory>().ContractAssemblies()));
+        builder.Services.TryAddSingleton(provider => new ScriptContracts(provider.GetRequiredService<ContractCatalog>()));
+        builder.Services.TryAddSingleton<IContractVocabulary>(provider => new ContractVocabulary(provider.GetRequiredService<ContractCatalog>()));
         builder.Services.TryAddTransient<ScriptEdge>();
         builder.Services.TryAddSingleton<CSharpDirectives>();
         builder.Services.TryAddSingleton<CSharpContractDiscovery>();

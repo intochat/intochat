@@ -18,9 +18,10 @@ public sealed class TypeSearchFacts
         await using var brain = await ModuleTest.Create().WithModule<RegistryModule>().WithModule<RegistryFixtureModule>()
             .ConfigureSilo(silo => silo.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(new ClockEmbeddings()))
             .StartAsync(ct);
-        var registry = brain.Get<IRegistry>(RegistryModule.Key);
-        Assert.Contains(await registry.Types(), type => type.Id == "test.registry-clock");
-        Assert.Empty(await registry.Search("wake me", 1, ct));
+        var catalog = brain.SiloServices.GetRequiredService<ContractCatalog>();
+        var search = brain.SiloServices.GetRequiredService<NeuronTypeSearch>();
+        Assert.Contains(catalog.Read(), type => type.Id == "test.registry-clock");
+        Assert.Empty(await search.Search("wake me", 1, ct));
     }
 
     [Fact]
@@ -33,7 +34,7 @@ public sealed class TypeSearchFacts
             .WithModule<RegistryFixtureModule>()
             .ConfigureSilo(silo => { silo.Configuration["ConnectionStrings:qdrant"] = connection; silo.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(new ClockEmbeddings()); })
             .StartAsync(ct);
-        var hit = Assert.Single(await brain.Get<IRegistry>(RegistryModule.Key).Search("wake me tomorrow", 1, ct));
+        var hit = Assert.Single(await brain.SiloServices.GetRequiredService<NeuronTypeSearch>().Search("wake me tomorrow", 1, ct));
         Assert.Equal("test.registry-clock", hit.Type.Id);
         Assert.Equal(1, hit.Score, precision: 4);
     }
@@ -46,12 +47,13 @@ public sealed class TypeSearchFacts
             .WithModule<RegistryFixtureModule>()
             .ConfigureSilo(silo => silo.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(embedder))
             .StartAsync(TestContext.Current.CancellationToken);
-        var registry = brain.Get<IRegistry>(RegistryModule.Key);
+        var catalog = brain.SiloServices.GetRequiredService<ContractCatalog>();
+        var search = brain.SiloServices.GetRequiredService<NeuronTypeSearch>();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => registry.Search("wake me tomorrow", 1, TestContext.Current.CancellationToken));
-        Assert.Contains(await registry.Types(), type => type.Id == "test.registry-clock");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => search.Search("wake me tomorrow", 1, TestContext.Current.CancellationToken));
+        Assert.Contains(catalog.Read(), type => type.Id == "test.registry-clock");
         embedder.Fail = false;
-        var found = Assert.Single(await registry.Search("wake me tomorrow", 1, TestContext.Current.CancellationToken));
+        var found = Assert.Single(await search.Search("wake me tomorrow", 1, TestContext.Current.CancellationToken));
         Assert.Equal("test.registry-clock", found.Type.Id);
         Assert.Equal(1, found.Score, precision: 4);
         Assert.Contains("Ping", Assert.Single(found.Type.Methods), StringComparison.Ordinal);
@@ -66,27 +68,28 @@ public sealed class TypeSearchFacts
             .ConfigureSilo(silo => silo.Services.AddSingleton<IVectorStore>(vectors)
                 .AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(new ClockEmbeddings())).StartAsync(ct))
         {
-            Assert.Equal("test.registry-clock", Assert.Single(await first.Get<IRegistry>(RegistryModule.Key).Search("wake me", 1, ct)).Type.Id);
+            Assert.Equal("test.registry-clock", Assert.Single(await first.SiloServices.GetRequiredService<NeuronTypeSearch>().Search("wake me", 1, ct)).Type.Id);
         }
         await using var second = await ModuleTest.Create().WithModule<RegistryModule>()
             .ConfigureSilo(silo => silo.Services.AddSingleton<IVectorStore>(vectors)
                 .AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(new ClockEmbeddings())).StartAsync(ct);
 
-        Assert.DoesNotContain(await second.Get<IRegistry>(RegistryModule.Key).Search("wake me", 25, ct), hit => hit.Type.Id == "test.registry-clock");
+        Assert.DoesNotContain(await second.SiloServices.GetRequiredService<NeuronTypeSearch>().Search("wake me", 25, ct), hit => hit.Type.Id == "test.registry-clock");
     }
 
     [Fact]
     public async Task ModuleAnnouncementsDoNotChangeTheSelectedComposition()
     {
         await using var brain = await ModuleTest.Create().WithModule<RegistryModule>().StartAsync(TestContext.Current.CancellationToken);
-        var registry = brain.Get<IRegistry>(RegistryModule.Key);
-        Assert.DoesNotContain(await registry.Types(), type => type.Id == "test.registry-clock");
+        var catalog = brain.SiloServices.GetRequiredService<ContractCatalog>();
+        var search = brain.SiloServices.GetRequiredService<NeuronTypeSearch>();
+        Assert.DoesNotContain(catalog.Read(), type => type.Id == "test.registry-clock");
         var hub = brain.SiloServices.GetRequiredService<LocalSignalHub>();
         using var announcements = hub.Subscribe<ModuleLoaded>();
         var announced = new ModuleLoaded(typeof(RegistryFixtureModule).AssemblyQualifiedName!);
         hub.Publish(announced);
         Assert.Same(announced, await announcements.Reader.ReadAsync(TestContext.Current.CancellationToken).AsTask().WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
-        Assert.DoesNotContain(await registry.Types(), type => type.Id == "test.registry-clock");
+        Assert.DoesNotContain(catalog.Read(), type => type.Id == "test.registry-clock");
     }
 
     private sealed class ClockEmbeddings : IEmbeddingGenerator<string, Embedding<float>>

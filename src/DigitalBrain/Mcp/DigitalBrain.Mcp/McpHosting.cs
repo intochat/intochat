@@ -10,6 +10,8 @@ public static class McpHosting
 {
     public static void AddDigitalBrainMcp(this IServiceCollection services)
     {
+        services.AddSingleton(new ContractCatalog(NeuronContracts.Deployed()));
+        services.AddContractCatalog(lexicalFallback: true);
         services.AddIdentity();
         services.AddHttpContextAccessor();
         services.AddSingleton<McpCaller>();

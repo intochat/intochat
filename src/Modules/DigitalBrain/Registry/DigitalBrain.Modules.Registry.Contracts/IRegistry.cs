@@ -10,30 +10,6 @@ public interface IRegistry : INeuron
     Task<RegistryDiscovery> Discover(string query, CancellationToken cancellationToken = default);
     Task<RegistryDiscovery> Browse(string query, string? provider = null, int offset = 0, int limit = 10, CancellationToken cancellationToken = default);
     Task<RegistryCapability?> Select(string id, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<NeuronType>> Types();
-    Task<IReadOnlyList<NeuronTypeHit>> Search(string query, int take = 10, CancellationToken cancellationToken = default);
 
 }
-
-[GenerateSerializer, Alias("registry.neuron-type")]
-public sealed record NeuronType(
-    [property: Id(0)] string Id,
-    [property: Id(1)] string ModuleId,
-    [property: Id(2)] string Name,
-    [property: Id(3)] string Description,
-    [property: Id(4)] IReadOnlyList<string> Methods,
-    [property: Id(5)] string Contract = "",
-    [property: Id(6)] IReadOnlyList<string>? Signals = null)
-{
-    // "DigitalBrain.Time.TimeModule" reads as module id "time".
-    public static string ModuleIdOf(Type moduleType)
-    {
-        ArgumentNullException.ThrowIfNull(moduleType);
-        var name = moduleType.Name;
-        return (name.EndsWith("Module", StringComparison.Ordinal) ? name[..^"Module".Length] : name).ToLowerInvariant();
-    }
-}
-
-[GenerateSerializer, Alias("registry.type-hit")]
-public sealed record NeuronTypeHit([property: Id(0)] NeuronType Type, [property: Id(1)] double Score);
 

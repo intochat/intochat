@@ -1,4 +1,5 @@
 using DigitalBrain;
+using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Mcp;
@@ -7,6 +8,18 @@ namespace DigitalBrain.Mcp.Tests.Unit;
 
 public sealed class NeuronContractFacts
 {
+    [Fact]
+    public async Task StandaloneSearchFindsTimerContractsWithoutVectorInfrastructure()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDigitalBrainMcp();
+        await using var provider = services.BuildServiceProvider();
+        var hits = await provider.GetRequiredService<NeuronTypeSearch>().Search("timer", ct: TestContext.Current.CancellationToken);
+        Assert.Contains(hits, hit => hit.Type.Contract == "DigitalBrain.Time.Timers.ITimer");
+        Assert.DoesNotContain(hits, hit => hit.Type.Contract.StartsWith("DigitalBrain.Platform.", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void TheCatalogExposesNeuronContractsAndRefusesCredentialContracts()
     {

@@ -15,6 +15,7 @@ public static class BrainHosting
     {
         ArgumentNullException.ThrowIfNull(silo);
         silo.Services.AddSingleton(new ModuleInventory(moduleTypes));
+        silo.Services.AddContractCatalog();
         silo.Services.TryAddSingleton(TimeProvider.System);
         silo.AddStartupTask<RuntimeStartupTask>();
         silo.Services.TryAddSingleton<ICallFilter, CallFilter>();
