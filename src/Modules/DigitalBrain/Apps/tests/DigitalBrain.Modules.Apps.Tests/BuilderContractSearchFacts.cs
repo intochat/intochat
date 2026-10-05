@@ -20,7 +20,7 @@ public sealed class BuilderContractSearchFacts
         var result = await BuilderTools.Search(brain.SiloServices.GetRequiredService<ContractCatalog>(), brain.SiloServices.GetRequiredService<NeuronTypeSearch>(), "schedule a timer");
         Assert.Equal("time", result[0].Module);
         Assert.Equal("DigitalBrain.Time.Timers.ITimer", result[0].Contract);
-        Assert.NotEmpty(result[0].Description);
+        Assert.Equal(new BuilderTools.ContractHit("time", "DigitalBrain.Time.Timers.ITimer", "Timer"), result[0]);
     }
 
     private sealed class TimerEmbeddings : IEmbeddingGenerator<string, Embedding<float>>

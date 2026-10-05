@@ -3,22 +3,20 @@ using DigitalBrain.AI.Agents;
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
-using DigitalBrain.Registry;
 using Microsoft.Extensions.AI;
 
 namespace DigitalBrain.Assistant;
 
-internal sealed class RegistryDiscoveryTools(IGrainFactory grains, ModuleInventory modules) : IAgentToolFactory
+internal sealed class RegistryDiscoveryTools(IGrainFactory grains) : IAgentToolFactory
 {
     public IReadOnlyList<AIFunction> Create(Func<AgentToolContext> context)
     {
-        IRegistry Registry()
+        ICapabilityDiscovery Registry()
         {
             if (context().ScopeId != BrainScope.CurrentId())
             { throw new UnauthorizedAccessException("Discovery must use the caller's current brain."); }
-            return grains.GetGrain<IRegistry>(IRegistry.Key);
+            return grains.GetGrain<ICapabilityDiscovery>(BrainScope.CurrentId());
         }
-        bool Available() => modules.ContractAssemblies().Contains(typeof(IRegistry).Assembly);
         static AgentToolOffer Error(string code, string message) => new([], new { isError = true, code, message });
 
         async Task<AgentToolOffer> Discover(
@@ -27,7 +25,6 @@ internal sealed class RegistryDiscoveryTools(IGrainFactory grains, ModuleInvento
             [Description("Provider ID from an earlier discovery. Omit to list providers.")] string? provider = null,
             int offset = 0, int limit = 10)
         {
-            if (!Available()) { return Error("discovery_unavailable", "The Registry module is not installed."); }
             return new([], await Registry().Browse(query, provider, offset, limit, ct));
         }
 
@@ -35,7 +32,6 @@ internal sealed class RegistryDiscoveryTools(IGrainFactory grains, ModuleInvento
             [Description("Exact capability ID returned by discovery, such as postgres or apps:owner/name.")] string id,
             CancellationToken ct)
         {
-            if (!Available()) { return Error("discovery_unavailable", "The Registry module is not installed."); }
             try
             {
                 var capability = await Registry().Select(id, ct);

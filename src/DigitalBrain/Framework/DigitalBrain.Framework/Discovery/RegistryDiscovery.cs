@@ -1,4 +1,4 @@
-namespace DigitalBrain.Registry;
+namespace DigitalBrain.Framework;
 
 [GenerateSerializer, Alias("registry.discovery")]
 public sealed record RegistryDiscovery(

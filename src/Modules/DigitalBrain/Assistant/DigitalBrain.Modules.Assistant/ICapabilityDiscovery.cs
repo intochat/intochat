@@ -1,15 +1,11 @@
-using DigitalBrain;
+using DigitalBrain.Framework;
 
-namespace DigitalBrain.Registry;
+namespace DigitalBrain.Assistant;
 
-[Alias("registry"), Orleans.Metadata.DefaultGrainType("registry")]
-public interface IRegistry : INeuron
+[PlatformOnly, Alias("assistant.discovery"), Orleans.Metadata.DefaultGrainType("assistant.discovery")]
+public interface ICapabilityDiscovery : INeuron
 {
-    const string Key = "registry";
-
     Task<RegistryDiscovery> Discover(string query, CancellationToken cancellationToken = default);
     Task<RegistryDiscovery> Browse(string query, string? provider = null, int offset = 0, int limit = 10, CancellationToken cancellationToken = default);
     Task<RegistryCapability?> Select(string id, CancellationToken cancellationToken = default);
-
 }
-

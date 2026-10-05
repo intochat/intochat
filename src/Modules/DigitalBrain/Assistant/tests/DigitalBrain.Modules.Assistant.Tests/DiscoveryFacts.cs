@@ -1,9 +1,10 @@
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework.Enforcement;
-using DigitalBrain.Registry;
+using DigitalBrain.Assistant;
+using DigitalBrain.Framework;
 using Orleans.Runtime;
 
-namespace DigitalBrain.Modules.Registry.Tests;
+namespace DigitalBrain.Modules.Assistant.Tests;
 
 public sealed class DiscoveryFacts
 {
@@ -67,15 +68,52 @@ public sealed class DiscoveryFacts
     [Fact]
     public async Task TheNeuronSerializesDescriptionsAndExplicitSelections()
     {
-        await using var brain = await ModuleTest.Create().WithModule<RegistryModule>()
-            .ConfigureSilo(silo => Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions
+        await using var brain = await ModuleTest.Create().WithModule<AssistantModule>()
+            .ConfigureSilo(silo => global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions
                 .AddSingleton<IRegistryResourceProvider>(silo.Services, new ScopedProvider()))
             .StartAsync(TestContext.Current.CancellationToken);
         Caller("round-trip");
-        var registry = brain.Get<IRegistry>(IRegistry.Key);
+        var registry = brain.Get<ICapabilityDiscovery>(BrainScope.CurrentId());
         var result = await registry.Discover("resources", TestContext.Current.CancellationToken);
         Assert.Null(Assert.Single(result.Capabilities).ResourcesJson);
         Assert.Equal(BrainScope.CurrentId(), (await registry.Select("scoped", TestContext.Current.CancellationToken))!.ResourcesJson);
+    }
+
+    [Fact]
+    public async Task DiscoveryGrainRejectsAnotherBrainsKey()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<AssistantModule>().StartAsync(ct);
+        Caller("first");
+        var discovery = brain.Get<ICapabilityDiscovery>(BrainScope.CurrentId());
+        await discovery.Discover("", ct);
+        Caller("second");
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => discovery.Discover("", ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => discovery.Browse("", null, 0, 10, ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => discovery.Select("scoped", ct));
+        await brain.Get<ICapabilityDiscovery>(BrainScope.CurrentId()).Discover("", ct);
+    }
+
+    [Fact]
+    public async Task DiscoveryGrainRejectsUnstampedAndAppCallersEvenWithTheCorrectKey()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<AssistantModule>().StartAsync(ct);
+        Caller();
+        var discovery = brain.Get<ICapabilityDiscovery>(BrainScope.CurrentId());
+        var trusted = CallerContextStamper.Require();
+        CallerContextStamper.Stamp(trusted with { Kind = CallerKind.App, StampedBy = TrustedEdge.AppProxy });
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => discovery.Discover("", ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => discovery.Browse("", null, 0, 10, ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => discovery.Select("scoped", ct));
+        RequestContext.Set(CallerContextStamper.RequestContextKey, trusted with { StampedBy = TrustedEdge.AppProxy });
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => discovery.Discover("", ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => discovery.Browse("", null, 0, 10, ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => discovery.Select("scoped", ct));
+        RequestContext.Remove(CallerContextStamper.RequestContextKey);
+        await Assert.ThrowsAsync<UntrustedCallerException>(() => discovery.Discover("", ct));
+        await Assert.ThrowsAsync<UntrustedCallerException>(() => discovery.Browse("", null, 0, 10, ct));
+        await Assert.ThrowsAsync<UntrustedCallerException>(() => discovery.Select("scoped", ct));
     }
 
     private sealed class ScopedProvider(string id = "scoped") : IRegistryResourceProvider

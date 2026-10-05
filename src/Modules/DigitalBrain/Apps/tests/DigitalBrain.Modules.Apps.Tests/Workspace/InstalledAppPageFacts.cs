@@ -1,7 +1,7 @@
 using DigitalBrain.Apps;
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework.Enforcement;
-using DigitalBrain.Registry;
+using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Runtime;
 using Orleans.Storage;
@@ -15,7 +15,7 @@ public sealed class InstalledAppPageFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var storage = new FlakyGrainStorage();
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().WithModule<RegistryModule>()
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
             .ConfigureSilo(silo => silo.Services.AddKeyedSingleton<IGrainStorage>("Default", storage)).StartAsync(ct);
         Caller.As("alice");
         await brain.AuthorizeCallerAsync();
@@ -26,7 +26,6 @@ public sealed class InstalledAppPageFacts
         var app = brain.Get<IApp>(scope + "/packages/" + id);
         await app.Install(new(Guid.NewGuid(), new(id, revision.Id), new Dictionary<string, string>()));
         CallerContextStamper.Stamp(CallerContextStamper.Require() with { Kind = CallerKind.Platform, StampedBy = TrustedEdge.Platform });
-        var registry = brain.Get<IRegistry>(IRegistry.Key);
         var index = brain.Get<IApps>(scope);
         await brain.DeactivateAsync(index, ct);
         await storage.ClearStateAsync("installed-apps", index.GetGrainId(), new GrainState<InstalledAppsState>());
@@ -37,6 +36,5 @@ public sealed class InstalledAppPageFacts
         await index.Track(id);
         await brain.DeactivateAsync(index, ct);
         Assert.Equal(id, Assert.Single((await index.Page(0, 10)).Packages));
-        Assert.Equal("apps:" + id, Assert.Single((await registry.Browse("", "apps", cancellationToken: ct)).Capabilities).Id);
     }
 }

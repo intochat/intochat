@@ -4,7 +4,6 @@
     <RootNamespace>DigitalBrain.Modules.Assistant</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../Registry/DigitalBrain.Modules.Registry.Contracts/DigitalBrain.Modules.Registry.Contracts.csproj" />
     <PackageReference Include="Microsoft.Orleans.Sdk" />
     <InternalsVisibleTo Include="DigitalBrain.Modules.Assistant.Tests" />
   </ItemGroup>

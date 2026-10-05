@@ -5,7 +5,6 @@ using DigitalBrain.Assistant;
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
-using DigitalBrain.Registry;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,10 +13,10 @@ namespace DigitalBrain.Modules.Assistant.Tests;
 public sealed class RegistryDiscoveryFacts
 {
     [Fact]
-    public async Task MissingRegistryIsAnExplicitDiscoveryFailureNotAnUnavailableGrainCall()
+    public async Task AssistantDiscoveryWorksWithoutARegistryModule()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await ModuleTest.Create().WithModule<AssistantModule>().StartAsync(ct);
         CallerContextStamper.Stamp(new CallerContext
         {
             PrincipalId = "alice",
@@ -28,11 +27,11 @@ public sealed class RegistryDiscoveryFacts
         });
         try
         {
-            var factory = new RegistryDiscoveryTools(brain.Grains, brain.SiloServices.GetRequiredService<ModuleInventory>());
+            var factory = new RegistryDiscoveryTools(brain.Grains);
             var tool = Assert.Single(factory.Create(() => new(BrainScope.CurrentId(), "run", "call")), item => item.Name == "discover_capabilities");
             var result = Assert.IsType<AgentToolOffer>(await tool.InvokeAsync(new AIFunctionArguments(new Dictionary<string, object?> { ["query"] = "tables" }), ct));
             Assert.Empty(result.Tools);
-            Assert.Contains("discovery_unavailable", System.Text.Json.JsonSerializer.Serialize(result.Result));
+            Assert.Empty(Assert.IsType<RegistryDiscovery>(result.Result).Errors);
         }
         finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
     }
@@ -42,7 +41,7 @@ public sealed class RegistryDiscoveryFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var database = new DatabaseFixture();
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().WithModule<RegistryModule>()
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().WithModule<AssistantModule>()
             .ConfigureSilo(silo => silo.Services.AddSingleton<IRegistryResourceProvider>(database)).StartAsync(ct);
         CallerContextStamper.Stamp(new CallerContext
         {
@@ -63,7 +62,7 @@ public sealed class RegistryDiscoveryFacts
 
             using var services = new ServiceCollection()
                 .AddSingleton<IChatClient>(new DiscoveryModel())
-                .AddSingleton<IAgentToolFactory>(new RegistryDiscoveryTools(brain.Grains, brain.SiloServices.GetRequiredService<ModuleInventory>()))
+                .AddSingleton<IAgentToolFactory>(new RegistryDiscoveryTools(brain.Grains))
                 .AddSingleton<IAgentToolFactory>(database)
                 .AddSingleton(brain.SiloServices.GetRequiredService<IAgentToolSource>()).BuildServiceProvider();
             var events = new List<AgentTurnEvent>();

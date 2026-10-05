@@ -21,4 +21,3 @@ public sealed record NeuronType(
 
 [GenerateSerializer, Alias("registry.type-hit")]
 public sealed record NeuronTypeHit([property: Id(0)] NeuronType Type, [property: Id(1)] double Score);
-

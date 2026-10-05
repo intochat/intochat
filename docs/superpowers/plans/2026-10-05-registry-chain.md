@@ -16,9 +16,9 @@
 ## Tasks
 
 - [x] #146: Remove Apps backfill and ledger, replace legacy-backfill test with index tracking/reactivation coverage, reserve state IDs, retire registry state manifest entries. Run Registry, Apps, Assistant; fresh review; commit.
-- [ ] #147: Move catalog/search and DTOs into Framework, have ContractVocabulary consume the catalog, repoint CSharp/Builder/MCP, preserve filtering/aliases/descriptions/signal shapes and embedding results. Compare one Builder query before/after. Run CSharp, Apps, MCP, Registry; fresh review; commit.
-- [ ] #148: Move provider DTOs/interface to Framework and federation to Assistant; implement and test caller/key brain isolation. Repoint tools/providers, remove Registry projects/references/catalog/solution entries, relocate tests and update manifests. Run Assistant, Apps, CSharp, Postgres, Supabase, MCP, OS; fresh review; commit.
-- [ ] Finish: OS unit, Framework and OS E2E suites, Aspire smoke with all resources healthy. Record evidence and retired-state migration notes; close the three issues only after successful verification.
+- [x] #147: Move catalog/search and DTOs into Framework, have ContractVocabulary consume the catalog, repoint CSharp/Builder/MCP, preserve filtering/aliases/descriptions/signal shapes and embedding results. Compare one Builder query before/after. Run CSharp, Apps, MCP, Registry; fresh review; commit.
+- [x] #148: Move provider DTOs/interface to Framework and federation to Assistant; implement and test caller/key brain isolation. Repoint tools/providers, remove Registry projects/references/catalog/solution entries, relocate tests and update manifests. Run Assistant, Apps, CSharp, Postgres, Supabase, MCP, OS; fresh review; commit.
+- [x] Finish: OS unit, Framework and OS E2E suites, Aspire smoke with all resources healthy. Record evidence and retired-state migration notes; close the three issues only after successful verification.
 
 ## Review focus
 
@@ -36,3 +36,36 @@ Baseline: 8fa6f7603221a35fbe2534207926424aaf339b15. Implementation authorized by
 
 #147 review: Framework placement selected as planned. The catalog includes kernel contracts from ModuleInventory in addition to selected module contracts. Standalone MCP has no local embedding/vector configuration, so it opts into deterministic lexical fallback when those services are absent; silo search retains prior behavior. The standalone regression failed with an empty result before the fix and passes afterward. Builder timer query passed both before and after the move.
 #147 evidence: CSharp 81 passed; Apps 115 passed (includes before/after Builder query); MCP 9 passed; Registry 12 passed/1 live Qdrant skip; Architecture 35 passed after sorting moved DTO baseline entries. Fresh review completed and standalone MCP finding fixed with a red-to-green regression.
+
+#148 seam review: provider interface and DTOs moved to Framework; federation and a PlatformOnly discovery grain live in Assistant. The grain key is exactly BrainScope.CurrentId(). Each RPC checks the key before trusted-caller service enforcement, because the kernel intentionally bypasses its ordinary call filter for PlatformOnly contracts. Tool-level scope checks remain. No discovery storage is introduced. The direct cross-brain regression failed before the move and passes afterward. Reviewer found no blocking issues; direct RPC rejection coverage was added for unstamped and App callers.
+
+## Migration notes
+
+The retired global `registry` grain's `registry.state` blob is orphaned. No storage sweep, delete job, backfill-completion branch, or dated migration is introduced. All environments are dev-only and data loss is accepted: an Apps index that predates self-tracking will not list legacy installs; reinstalling in dev is acceptable. Existing tracked package arrays remain at field ID 0; IDs 1 (`Discovered`) and 2 (`DiscoveryOffset`) are permanently reserved in both source and the architecture compatibility baseline.
+
+Contract metadata and capability discovery are derived. The new Assistant discovery grain uses the ambient brain's canonical `BrainScope` key and has no persistent state. Moving discovery DTOs and catalog DTOs preserves their Orleans aliases and field IDs; the manifest records their new Framework CLR names. Registry's obsolete observed-instance compatibility samples are retired with the removed type. MCP exposes only contract search, so there is no MCP capability-discovery tool to repoint or remove.
+
+Final review of the whole chain against the initial baseline found no actionable findings. Per-step reviews were also completed; their findings and repairs are recorded above. The added direct-grain tests cover App, forged-untrusted, unstamped, and cross-brain callers across Discover, Browse, and Select.
+#148 unit evidence: Assistant 78 passed; Apps 115 passed plus strengthened Builder query regression; CSharp 89 passed including live Qdrant; Postgres 77 passed including live database cases; Supabase 67 passed; MCP 9 passed; OS unit 44 passed; Architecture 35 passed; Framework unit 114 passed. Disposable task-owned Postgres/Qdrant containers were removed. E2E and final smoke evidence follows.
+
+## Final verification
+
+| Per-project suite | Passed | Skipped |
+| --- | ---: | ---: |
+| Assistant | 78 | 0 |
+| Apps | 115 | 0 |
+| CSharp (live Qdrant included) | 89 | 0 |
+| Postgres (live database included) | 77 | 0 |
+| Supabase | 67 | 0 |
+| MCP | 9 | 0 |
+| OS unit | 44 | 0 |
+| Framework unit | 114 | 0 |
+| Architecture | 35 | 0 |
+| Framework E2E | 15 | 0 |
+| OS E2E | 18 | 2 |
+
+The two OS E2E skips are J1CustomersJourneyPassesGoldenThreshold and J2aCardFormJourneyPassesGoldenThreshold, explicitly gated on live-model credentials and DIGITALBRAIN_E2E_LIVE_MODEL=1. The browser and scripted-model journeys passed. Framework's existing trace budgets passed unchanged. Local raw logs are `.codex-registry-*.log` in the repository root.
+
+`aspire run --detach --non-interactive --format Json` from src/DigitalBrain/AppHost/DigitalBrain.AppHost exited 0. The final resource snapshot showed 39/39 active resources Healthy, including IntoChat, digitalbrain-mcp, FlutterShell, csharp-sandbox, storage, Postgres, ClickHouse, Qdrant and the local transcription model. The Azure deployment control and two on-demand rebuild helpers are inactive control resources. The dev host remains running. Removed 92 obsolete Registry DLL/PDB build artifacts from workspace bin/obj directories so stale assemblies cannot remain in MCP's deployed catalog; MCP's suite passed again after cleanup.
+
+Issues #146, #147 and #148 were closed with per-step and final test evidence. All three reviewed commits remain local on `os`; the six pre-existing local commits are preserved and nothing was pushed.

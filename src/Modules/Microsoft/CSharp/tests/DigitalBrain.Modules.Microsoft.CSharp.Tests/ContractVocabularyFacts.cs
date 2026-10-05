@@ -7,12 +7,12 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
 public sealed class ContractVocabularyFacts
 {
-    public interface IPublicNeuron : INeuron;
+    [Alias("test.vocabulary.public")] public interface IPublicNeuron : INeuron;
     [PlatformOnly] public interface IHiddenNeuron : INeuron;
     public sealed record PublicSignal : Signal;
     private sealed record HiddenSignal : Signal;
-    public static class A { public interface ISame : INeuron; }
-    public static class B { public interface ISame : INeuron; }
+    public static class A { [Alias("test.vocabulary.a")] public interface ISame : INeuron; }
+    public static class B { [Alias("test.vocabulary.b")] public interface ISame : INeuron; }
 
     [Fact]
     public void VocabularyContainsOnlyTheComposedPublicContracts()

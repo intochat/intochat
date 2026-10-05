@@ -17,7 +17,6 @@ public static class OsCatalog
         new DigitalBrain.Apps.AppsModule(),
         new DigitalBrain.Assistant.AssistantModule(),
         new DigitalBrain.Compute.ComputeModule(),
-        new DigitalBrain.Registry.RegistryModule(),
         new DigitalBrain.Flutter.FlutterModule(),
         new DigitalBrain.Google.Gmail.GmailModule(),
         new DigitalBrain.Microsoft.Aspire.AspireModule(),

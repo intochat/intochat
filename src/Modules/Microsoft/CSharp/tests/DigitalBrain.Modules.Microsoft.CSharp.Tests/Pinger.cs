@@ -5,6 +5,7 @@ using DigitalBrain.Framework.Enforcement;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
+[Alias("tests.csharp.pinger")]
 public interface IPinger : INeuron
 {
     Task Ping(int number);

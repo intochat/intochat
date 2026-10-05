@@ -2,20 +2,19 @@ using System.ComponentModel;
 using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Registry;
 using DigitalBrain.Signals;
 using DigitalBrain.Time;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Hosting;
 
-namespace DigitalBrain.Modules.Registry.Tests;
+namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
-public sealed class ObservedRegistryFacts
+public sealed class ContractCatalogFacts
 {
     [Fact]
     public async Task TypesAreDiscoveredFromSelectedModulesWithoutVectorServices()
     {
-        await using var brain = await ModuleTest.Create().WithModule<RegistryModule>().WithModule<TimeModule>().WithReminders()
+        await using var brain = await ModuleTest.Create().WithModule<TimeModule>().WithReminders()
             .StartAsync(TestContext.Current.CancellationToken);
         var types = brain.SiloServices.GetRequiredService<ContractCatalog>().Read();
 
@@ -32,7 +31,7 @@ public sealed class ObservedRegistryFacts
     [Fact]
     public async Task TheIntegrationRegistrationContractIsExcludedFromTheNeuronTypeCatalog()
     {
-        await using var brain = await ModuleTest.Create().WithModule<RegistryModule>()
+        await using var brain = await ModuleTest.Create()
             .StartAsync(TestContext.Current.CancellationToken);
         var types = brain.SiloServices.GetRequiredService<ContractCatalog>().Read();
 
@@ -42,7 +41,7 @@ public sealed class ObservedRegistryFacts
     [Fact]
     public async Task TheWholePlatformAssemblyContributesNoNeuronTypesToTheCatalog()
     {
-        await using var brain = await ModuleTest.Create().WithModule<RegistryModule>()
+        await using var brain = await ModuleTest.Create()
             .StartAsync(TestContext.Current.CancellationToken);
         var types = brain.SiloServices.GetRequiredService<ContractCatalog>().Read();
 

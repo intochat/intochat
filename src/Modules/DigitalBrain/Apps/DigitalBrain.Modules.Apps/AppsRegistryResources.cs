@@ -1,7 +1,7 @@
 using System.Text.Json;
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework.Enforcement;
-using DigitalBrain.Registry;
+using DigitalBrain.Framework;
 
 namespace DigitalBrain.Apps;
 

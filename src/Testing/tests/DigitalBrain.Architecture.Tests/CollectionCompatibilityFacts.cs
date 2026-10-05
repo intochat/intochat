@@ -34,4 +34,3 @@ public sealed class CollectionCompatibilityFacts
 
     private sealed record Sample(string Type, string Member, string Representation, string Payload, string Expected);
 }
-

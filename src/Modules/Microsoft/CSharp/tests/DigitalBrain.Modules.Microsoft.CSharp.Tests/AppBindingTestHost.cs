@@ -5,6 +5,7 @@ using Orleans.Runtime;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
+[Alias("tests.csharp.binding-host")]
 public interface IAppBindingTestHost : INeuron
 {
     Task Bind(string file, string? overrideApp = null);

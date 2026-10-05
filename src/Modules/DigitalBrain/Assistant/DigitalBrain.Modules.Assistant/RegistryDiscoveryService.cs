@@ -1,7 +1,8 @@
 using DigitalBrain.Enforcement;
+using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 
-namespace DigitalBrain.Registry;
+namespace DigitalBrain.Assistant;
 
 internal sealed class RegistryDiscoveryService(IEnumerable<IRegistryResourceProvider> providers)
 {

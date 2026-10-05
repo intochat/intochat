@@ -20,7 +20,7 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
             .Configure<IConfiguration>((options, configuration) => configuration.PopulateModuleOptions("apps", options));
         silo.Services.TryAddSingleton(TimeProvider.System);
         silo.Services.TryAddSingleton<AppRequirements>();
-        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Registry.IRegistryResourceProvider, AppsRegistryResources>());
+        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Framework.IRegistryResourceProvider, AppsRegistryResources>());
         silo.Services.TryAddSingleton<ITestScriptRunner, CSharpFileTestRunner>();
         silo.Services.TryAddSingleton<MarketplaceService>();
         silo.Services.TryAddSingleton<AppService>();

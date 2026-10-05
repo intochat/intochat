@@ -12,7 +12,7 @@ public static class CSharpAuthoringHosting
         services.TryAddSingleton<CSharpToolService>();
         services.TryAddSingleton<DigitalBrain.Apps.IScriptSandbox, CSharpScriptSandbox>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAgentToolFactory, CSharpAgentTools>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Registry.IRegistryResourceProvider, CSharpRegistryResources>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Framework.IRegistryResourceProvider, CSharpRegistryResources>());
         return services;
     }
 }

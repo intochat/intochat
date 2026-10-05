@@ -3,7 +3,7 @@ using DigitalBrain.Apps;
 using DigitalBrain.Assistant;
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework.Enforcement;
-using DigitalBrain.Registry;
+using DigitalBrain.Framework;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -15,7 +15,7 @@ public sealed class AgentToolSelectionFacts
     public async Task ToolsComeFromTheInstalledRevisionInTheCurrentBrain()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().WithModule<RegistryModule>().StartAsync(ct);
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().WithModule<AssistantModule>().StartAsync(ct);
         CallerContextStamper.Stamp(new CallerContext
         {
             PrincipalId = "alice",
@@ -35,7 +35,7 @@ public sealed class AgentToolSelectionFacts
         var scope = BrainScope.CurrentId();
         var installed = brain.Get<IApp>(scope + "/packages/" + id);
         await installed.Install(new(Guid.NewGuid(), new(id, revision.Id), new Dictionary<string, string>()));
-        var registry = brain.Get<IRegistry>(IRegistry.Key);
+        var registry = brain.Get<ICapabilityDiscovery>(BrainScope.CurrentId());
         async Task<string[]> Discover() => (await registry.Select("apps:" + id, ct))?.Tools ?? [];
 
         Assert.Equal([AppToolName.For(id, "installed-tool")], await Discover());
@@ -62,7 +62,7 @@ public sealed class AgentToolSelectionFacts
     public async Task PrivateInstallsAreDiscoverableWithoutPublicationOrActivationHistory()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().WithModule<RegistryModule>().StartAsync(ct);
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().WithModule<AssistantModule>().StartAsync(ct);
         CallerContextStamper.Stamp(new CallerContext
         {
             PrincipalId = "alice",
@@ -79,7 +79,7 @@ public sealed class AgentToolSelectionFacts
         var app = brain.Get<IApp>(scope + "/packages/" + id);
         await app.Install(new(Guid.NewGuid(), new(id, revision.Id), new Dictionary<string, string>()));
         Assert.Empty(await brain.Get<IPackageDirectory>(PackageDirectory.Key).List());
-        Assert.Equal([AppToolName.For(id, "ask")], (await brain.Get<IRegistry>(IRegistry.Key).Select("apps:" + id, ct))!.Tools);
+        Assert.Equal([AppToolName.For(id, "ask")], (await brain.Get<ICapabilityDiscovery>(BrainScope.CurrentId()).Select("apps:" + id, ct))!.Tools);
         await brain.DeactivateAsync(app, ct);
         await brain.DeactivateAsync(brain.Get<IApps>(scope), ct);
         Assert.Equal(id, Assert.Single(await brain.Get<IApps>(scope).List()));

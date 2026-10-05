@@ -2,12 +2,11 @@ using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Vectors;
 using DigitalBrain.Qdrant;
-using DigitalBrain.Registry;
 using DigitalBrain.Signals;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace DigitalBrain.Modules.Registry.Tests;
+namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
 public sealed class TypeSearchFacts
 {
@@ -15,7 +14,7 @@ public sealed class TypeSearchFacts
     public async Task SearchDegradesWithoutAComposedVectorStoreEvenWhenEmbeddingsAreAvailable()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<RegistryModule>().WithModule<RegistryFixtureModule>()
+        await using var brain = await ModuleTest.Create().WithModule<RegistryFixtureModule>()
             .ConfigureSilo(silo => silo.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(new ClockEmbeddings()))
             .StartAsync(ct);
         var catalog = brain.SiloServices.GetRequiredService<ContractCatalog>();
@@ -30,7 +29,7 @@ public sealed class TypeSearchFacts
         var connection = Environment.GetEnvironmentVariable("DIGITALBRAIN_QDRANT_TEST_CONNECTION");
         Assert.SkipWhen(string.IsNullOrWhiteSpace(connection), "Set DIGITALBRAIN_QDRANT_TEST_CONNECTION for the real vector-store contract.");
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<RegistryModule>().WithModule<QdrantModule>()
+        await using var brain = await ModuleTest.Create().WithModule<QdrantModule>()
             .WithModule<RegistryFixtureModule>()
             .ConfigureSilo(silo => { silo.Configuration["ConnectionStrings:qdrant"] = connection; silo.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(new ClockEmbeddings()); })
             .StartAsync(ct);
@@ -43,7 +42,7 @@ public sealed class TypeSearchFacts
     public async Task VectorSearchReturnsTypesAndCanBeRebuiltAfterAnEmbeddingFailure()
     {
         var embedder = new ClockEmbeddings { Fail = true };
-        await using var brain = await ModuleTest.Create().WithModule<RegistryModule>().WithModule<QdrantModule>()
+        await using var brain = await ModuleTest.Create().WithModule<QdrantModule>()
             .WithModule<RegistryFixtureModule>()
             .ConfigureSilo(silo => silo.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(embedder))
             .StartAsync(TestContext.Current.CancellationToken);
@@ -64,13 +63,13 @@ public sealed class TypeSearchFacts
     {
         var vectors = new InMemoryQdrant();
         var ct = TestContext.Current.CancellationToken;
-        await using (var first = await ModuleTest.Create().WithModule<RegistryModule>().WithModule<RegistryFixtureModule>()
+        await using (var first = await ModuleTest.Create().WithModule<RegistryFixtureModule>()
             .ConfigureSilo(silo => silo.Services.AddSingleton<IVectorStore>(vectors)
                 .AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(new ClockEmbeddings())).StartAsync(ct))
         {
             Assert.Equal("test.registry-clock", Assert.Single(await first.SiloServices.GetRequiredService<NeuronTypeSearch>().Search("wake me", 1, ct)).Type.Id);
         }
-        await using var second = await ModuleTest.Create().WithModule<RegistryModule>()
+        await using var second = await ModuleTest.Create()
             .ConfigureSilo(silo => silo.Services.AddSingleton<IVectorStore>(vectors)
                 .AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(new ClockEmbeddings())).StartAsync(ct);
 
@@ -80,7 +79,7 @@ public sealed class TypeSearchFacts
     [Fact]
     public async Task ModuleAnnouncementsDoNotChangeTheSelectedComposition()
     {
-        await using var brain = await ModuleTest.Create().WithModule<RegistryModule>().StartAsync(TestContext.Current.CancellationToken);
+        await using var brain = await ModuleTest.Create().StartAsync(TestContext.Current.CancellationToken);
         var catalog = brain.SiloServices.GetRequiredService<ContractCatalog>();
         var search = brain.SiloServices.GetRequiredService<NeuronTypeSearch>();
         Assert.DoesNotContain(catalog.Read(), type => type.Id == "test.registry-clock");

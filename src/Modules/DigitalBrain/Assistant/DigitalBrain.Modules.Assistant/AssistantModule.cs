@@ -13,6 +13,7 @@ public sealed class AssistantModule() : Module(new ModuleId("assistant")), IHttp
     public override void Configure(ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
+        silo.Services.TryAddSingleton<RegistryDiscoveryService>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IAgentToolFactory, WorkspaceFormTools>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IAgentToolFactory, RegistryDiscoveryTools>());
         silo.Services.AddOptions<AssistantOptions>().BindConfiguration("Assistant");

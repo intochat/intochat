@@ -1833,6 +1833,23 @@
     "Values": 0,
     "Snapshot": 1
   },
+  "DigitalBrain.Framework.RegistryCapability": {
+    "Id": 0,
+    "Description": 1,
+    "Tools": 2,
+    "ResourcesJson": 3,
+    "ToolSource": 4,
+    "ToolResource": 5
+  },
+  "DigitalBrain.Framework.RegistryDiscovery": {
+    "Capabilities": 0,
+    "Errors": 1,
+    "NextOffset": 2
+  },
+  "DigitalBrain.Framework.RegistryDiscoveryError": {
+    "Provider": 0,
+    "Message": 1
+  },
   "DigitalBrain.Google.Gmail.GmailConnected": {
     "EmailAddress": 0
   },
@@ -2295,23 +2312,6 @@
   "DigitalBrain.Postgres.TableValue": {
     "Column": 0,
     "Json": 1
-  },
-  "DigitalBrain.Registry.RegistryCapability": {
-    "Id": 0,
-    "Description": 1,
-    "Tools": 2,
-    "ResourcesJson": 3,
-    "ToolSource": 4,
-    "ToolResource": 5
-  },
-  "DigitalBrain.Registry.RegistryDiscovery": {
-    "Capabilities": 0,
-    "Errors": 1,
-    "NextOffset": 2
-  },
-  "DigitalBrain.Registry.RegistryDiscoveryError": {
-    "Provider": 0,
-    "Message": 1
   },
   "DigitalBrain.Salesforce.ConfirmSalesforceWrite": {
     "PreviewId": 0,

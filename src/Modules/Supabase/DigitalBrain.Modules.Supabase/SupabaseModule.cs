@@ -39,7 +39,7 @@ public sealed class SupabaseModule() : Module<SupabaseModuleOptions>(new ModuleI
         services.TryAddSingleton<ISupabaseBackingStore>(provider => provider.GetRequiredService<SupabaseBackingStore>());
         services.AddSingleton<IIntegrationStartup>(provider => provider.GetRequiredService<SupabaseBackingStore>());
         services.AddLiveTables();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Registry.IRegistryResourceProvider, SupabaseRegistryResources>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Framework.IRegistryResourceProvider, SupabaseRegistryResources>());
         services.AddSingleton<IAgentToolFactory, LiveTableTools>();
         services.TryAddSingleton<ILiveTableSource>(services => services.GetRequiredService<ISupabaseProvider>());
         services.AddHealthChecks().AddCheck<SupabaseHealthCheck>("supabase", tags: ["ready"]);

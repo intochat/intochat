@@ -49,6 +49,7 @@ public sealed class ProductCompositionFacts
         Assert.All(productModules, module => Assert.Contains(module, catalogModules));
         Assert.Contains("qdrant", productModules);
         Assert.DoesNotContain("memory", productModules);
+        Assert.DoesNotContain("registry", catalogModules);
         Assert.Contains(appHost.Resources, resource => resource.Name == "Modules-openrouter-api-key"
             && resource is ParameterResource { Secret: true });
         var runtime = appHost.Resources.Single(resource => resource.Name == "IntoChat");
