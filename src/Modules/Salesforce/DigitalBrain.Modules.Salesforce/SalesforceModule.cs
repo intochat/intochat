@@ -2,7 +2,6 @@ using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
 using DigitalBrain.Kernel.Platform.Auth;
 using DigitalBrain.Kernel.Platform.Integrations.Accounts;
-using DigitalBrain.Sdk;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;

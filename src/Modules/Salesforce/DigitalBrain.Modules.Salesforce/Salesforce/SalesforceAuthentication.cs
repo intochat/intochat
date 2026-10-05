@@ -1,6 +1,6 @@
 using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Kernel.Platform.Auth;
-using DigitalBrain.Sdk;
+using DigitalBrain.Kernel;
 using Microsoft.AspNetCore.Authentication.OAuth;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;

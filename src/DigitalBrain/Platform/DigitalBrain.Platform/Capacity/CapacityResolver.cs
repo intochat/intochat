@@ -1,4 +1,4 @@
-using DigitalBrain.Sdk.Capacity;
+using DigitalBrain.Kernel.Capacity;
 
 namespace DigitalBrain.Platform.Capacity;
 

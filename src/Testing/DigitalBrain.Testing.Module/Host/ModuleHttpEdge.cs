@@ -3,7 +3,6 @@ using DigitalBrain.Kernel;
 using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Platform;
 using DigitalBrain.Platform.Identity;
-using DigitalBrain.Sdk;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;

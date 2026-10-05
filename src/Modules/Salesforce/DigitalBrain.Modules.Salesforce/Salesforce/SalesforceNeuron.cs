@@ -5,7 +5,6 @@ using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
 using DigitalBrain.Kernel.Platform.Auth;
 using DigitalBrain.Salesforce.Signals;
-using DigitalBrain.Sdk;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 

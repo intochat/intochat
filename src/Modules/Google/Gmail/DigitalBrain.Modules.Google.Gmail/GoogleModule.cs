@@ -3,7 +3,6 @@ using DigitalBrain.Kernel;
 using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Kernel.Platform.Auth;
 using DigitalBrain.Kernel.Platform.Integrations;
-using DigitalBrain.Sdk;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;

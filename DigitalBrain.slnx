@@ -218,10 +218,8 @@
     <Project Path="src/DigitalBrain/Platform/tests/DigitalBrain.Platform.Tests.Unit/DigitalBrain.Platform.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Sdk/">
-    <Project Path="src/DigitalBrain/Sdk/DigitalBrain.Sdk/DigitalBrain.Sdk.csproj" />
   </Folder>
   <Folder Name="/Sdk/tests/">
-    <Project Path="src/DigitalBrain/Sdk/tests/DigitalBrain.Sdk.Tests.Unit/DigitalBrain.Sdk.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />

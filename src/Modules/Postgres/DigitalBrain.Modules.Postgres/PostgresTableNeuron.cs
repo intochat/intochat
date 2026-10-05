@@ -18,7 +18,7 @@ internal sealed record PostgresTableState
 }
 
 [GrainType("postgres.table")]
-internal sealed partial class PostgresTableNeuron(IPostgresTableProvider provider, DigitalBrain.Sdk.Capacity.ICapacity capacity,
+internal sealed partial class PostgresTableNeuron(IPostgresTableProvider provider, DigitalBrain.Kernel.Capacity.ICapacity capacity,
     [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<PostgresTableState> state) : Neuron, IPostgresTable, IPostgresTableLifetime, IPostgresTableOwnership
 {
     public override NeuronAccess Access(string operation)

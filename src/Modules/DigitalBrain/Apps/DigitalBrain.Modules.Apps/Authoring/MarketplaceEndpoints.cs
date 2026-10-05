@@ -3,7 +3,7 @@ using DigitalBrain.Apps;
 using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
 using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Sdk.Http;
+using DigitalBrain.Kernel.Http;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;

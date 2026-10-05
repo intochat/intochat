@@ -6,7 +6,6 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="DigitalBrain.Modules.Qdrant.Tests" />
-    <ProjectReference Include="../../../DigitalBrain/Sdk/DigitalBrain.Sdk/DigitalBrain.Sdk.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Qdrant.Client" />

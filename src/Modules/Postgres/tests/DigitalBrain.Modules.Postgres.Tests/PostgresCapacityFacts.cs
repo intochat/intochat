@@ -1,5 +1,5 @@
 using DigitalBrain.Postgres;
-using DigitalBrain.Sdk.Capacity;
+using DigitalBrain.Kernel.Capacity;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Modules.Postgres.Tests;

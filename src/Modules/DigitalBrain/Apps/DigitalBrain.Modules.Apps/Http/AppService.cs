@@ -4,7 +4,7 @@ using DigitalBrain.Contracts;
 using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Kernel.Platform.Integrations.Accounts;
-using DigitalBrain.Sdk.Integrations.Accounts;
+using DigitalBrain.Kernel.Integrations.Accounts;
 
 namespace DigitalBrain.Apps;
 

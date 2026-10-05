@@ -4,7 +4,7 @@ using DigitalBrain.Contracts.Signals;
 using DigitalBrain.Kernel;
 using DigitalBrain.Qdrant;
 using DigitalBrain.Registry;
-using DigitalBrain.Sdk.Vectors;
+using DigitalBrain.Kernel.Vectors;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 

@@ -1,5 +1,4 @@
 using DigitalBrain.Kernel;
-using DigitalBrain.Sdk;
 
 namespace DigitalBrain.Google.Gmail;
 

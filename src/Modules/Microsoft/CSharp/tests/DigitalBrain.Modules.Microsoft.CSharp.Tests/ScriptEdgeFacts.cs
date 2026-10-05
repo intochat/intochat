@@ -104,7 +104,7 @@ public sealed class ScriptEdgeFacts
         await host.StartAsync(ct);
         await using var client = await DigitalBrainClient.ConnectAsync(["--" + ScriptEdgeProtocol.EdgeSetting + "=" + host.Urls.Single(), "--" + ScriptEdgeProtocol.TokenSetting + "=" + token], ct);
         var error = await Assert.ThrowsAnyAsync<InvalidOperationException>(() => client.Get<IPinger>("pinger").RefuseCapacity());
-        Assert.Equal(DigitalBrain.Sdk.Capacity.CapacityUnavailableException.RefusalMessage, error.Message);
+        Assert.Equal(DigitalBrain.Kernel.Capacity.CapacityUnavailableException.RefusalMessage, error.Message);
         await host.StopAsync(ct);
     }
 

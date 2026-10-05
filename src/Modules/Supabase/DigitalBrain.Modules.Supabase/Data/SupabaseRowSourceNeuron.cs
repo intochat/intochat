@@ -1,6 +1,6 @@
 using DigitalBrain.Contracts.Data;
 using DigitalBrain.Kernel;
-using DigitalBrain.Sdk.Data;
+using DigitalBrain.Kernel.Data;
 using Orleans.Concurrency;
 
 namespace DigitalBrain.Supabase;

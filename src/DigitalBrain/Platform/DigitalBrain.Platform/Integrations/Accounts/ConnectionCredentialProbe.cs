@@ -2,7 +2,7 @@ using DigitalBrain.Contracts.Enforcement;
 using DigitalBrain.Contracts.Types;
 using DigitalBrain.Kernel.Platform.Integrations.Accounts;
 using DigitalBrain.Kernel.Platform.Secrets;
-using DigitalBrain.Sdk.Types;
+using DigitalBrain.Kernel.Types;
 using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Platform.Integrations.Accounts;

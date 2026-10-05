@@ -1,7 +1,7 @@
 using System.Reflection;
 using DigitalBrain.Contracts.Types;
 using DigitalBrain.Flutter.TextField;
-using DigitalBrain.Sdk.Types;
+using DigitalBrain.Kernel.Types;
 
 namespace DigitalBrain.Modules.Flutter.Tests.Composition;
 

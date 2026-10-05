@@ -7,7 +7,7 @@ using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Kernel.Platform.Integrations.Accounts;
 using DigitalBrain.Kernel.Platform.Secrets;
 using DigitalBrain.Platform.Secrets;
-using DigitalBrain.Sdk.Types;
+using DigitalBrain.Kernel.Types;
 using Orleans;
 using Orleans.Runtime;
 

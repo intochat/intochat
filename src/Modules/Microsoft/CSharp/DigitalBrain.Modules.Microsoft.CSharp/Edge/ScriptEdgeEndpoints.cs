@@ -38,7 +38,7 @@ internal static class ScriptEdgeEndpoints
 
     private static IResult Refusal(HttpContext http, Exception error)
     {
-        if (error is DigitalBrain.Apps.AppRequirementsException or DigitalBrain.Sdk.Capacity.CapacityUnavailableException)
+        if (error is DigitalBrain.Apps.AppRequirementsException or DigitalBrain.Kernel.Capacity.CapacityUnavailableException)
         {
             http.Response.Headers[ScriptEdgeProtocol.RefusalHeader] = error.GetType().Name;
             return Results.Text(error.Message, statusCode: error is DigitalBrain.Apps.AppRequirementsException ? 409 : 503);

@@ -5,7 +5,7 @@ using DigitalBrain.Kernel.Platform.Secrets;
 using DigitalBrain.Platform.Secrets;
 using DigitalBrain.Salesforce;
 using DigitalBrain.Salesforce.Signals;
-using DigitalBrain.Sdk;
+using DigitalBrain.Kernel;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;

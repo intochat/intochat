@@ -1,6 +1,6 @@
 using DigitalBrain.AI.Agents;
 using DigitalBrain.Kernel;
-using DigitalBrain.Sdk.Capacity;
+using DigitalBrain.Kernel.Capacity;
 using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Windows;
 using Microsoft.Extensions.Configuration;

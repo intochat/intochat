@@ -32,7 +32,7 @@ public sealed record Ignored([property: Id(0)] int Number) : Signal;
 public sealed class Pinger : Neuron, IPinger
 {
     public override NeuronAccess Access(string operation) => NeuronAccess.PublicOperation;
-    public Task RefuseCapacity() => throw new DigitalBrain.Sdk.Capacity.CapacityUnavailableException();
+    public Task RefuseCapacity() => throw new DigitalBrain.Kernel.Capacity.CapacityUnavailableException();
     public async Task Ping(int number)
     {
         await PublishAsync(new Ignored(number));

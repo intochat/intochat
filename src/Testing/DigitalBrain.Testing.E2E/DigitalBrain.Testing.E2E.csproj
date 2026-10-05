@@ -19,7 +19,6 @@
     <ProjectReference Include="../../Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Contracts/DigitalBrain.Modules.Flutter.Contracts.csproj" />
     <ProjectReference Include="../../Aspire/DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" />
     <ProjectReference Include="../../Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />
-    <ProjectReference Include="../../DigitalBrain/Sdk/DigitalBrain.Sdk/DigitalBrain.Sdk.csproj" />
     <ProjectReference Include="../../DigitalBrain/Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
   </ItemGroup>
   <ItemGroup>

@@ -9,7 +9,7 @@ using DigitalBrain.Kernel.Platform.Integrations;
 using DigitalBrain.Kernel.Platform.Secrets;
 using DigitalBrain.Platform.Integrations;
 using DigitalBrain.Platform.Secrets;
-using DigitalBrain.Sdk.Types;
+using DigitalBrain.Kernel.Types;
 using DigitalBrain.Testing;
 using DigitalBrain.Testing.Module;
 using Microsoft.AspNetCore.Builder;
@@ -385,7 +385,11 @@ public sealed class RegistrationFacts
         var platform = typeof(IntegrationDiscovery).Assembly;
 
         Assert.True(PlatformAssemblyAttribute.IsPlatform(platform));
-        Assert.True(PlatformAssemblyAttribute.IsPlatform(typeof(IntegrationDefinition).Assembly));
+        // IntegrationDefinition lives in the Kernel now: never a contracts assembly, so never
+        // script-discovered — its neuron contracts still carry [PlatformOnly] type by type.
+        Assert.All(typeof(IntegrationDefinition).Assembly.GetExportedTypes()
+                .Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type) && type.Namespace!.Contains(".Platform.", StringComparison.Ordinal)),
+            contract => Assert.True(PlatformOnlyAttribute.AppliesTo(contract)));
         Assert.All(platform.GetExportedTypes().Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type)),
             contract => Assert.True(PlatformOnlyAttribute.AppliesTo(contract)));
     }

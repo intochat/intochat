@@ -6,7 +6,7 @@ using DigitalBrain.Kernel.Platform.Integrations;
 using DigitalBrain.Kernel.Platform.Secrets;
 using DigitalBrain.Platform.Identity.Authority;
 using DigitalBrain.Platform.Secrets;
-using DigitalBrain.Sdk.Capacity;
+using DigitalBrain.Kernel.Capacity;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Platform.Tests.Unit;

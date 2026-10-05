@@ -1,7 +1,7 @@
 using DigitalBrain.Contracts.Types;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Form;
-using DigitalBrain.Sdk.Types;
+using DigitalBrain.Kernel.Types;
 using DigitalBrain.Testing.Module;
 using Xunit;
 

@@ -9,7 +9,6 @@ using DigitalBrain.Kernel;
 using DigitalBrain.OS;
 using DigitalBrain.Platform;
 using DigitalBrain.Platform.Identity;
-using DigitalBrain.Sdk;
 
 var builder = WebApplication.CreateBuilder(args);
 LegacyConfigurationGuard.Check(builder.Configuration);

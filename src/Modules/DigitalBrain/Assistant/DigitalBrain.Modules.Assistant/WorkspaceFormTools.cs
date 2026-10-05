@@ -11,7 +11,7 @@ using DigitalBrain.Flutter.Form;
 using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Workspace;
-using DigitalBrain.Sdk.Types;
+using DigitalBrain.Kernel.Types;
 using Microsoft.Extensions.AI;
 
 namespace DigitalBrain.Assistant;
