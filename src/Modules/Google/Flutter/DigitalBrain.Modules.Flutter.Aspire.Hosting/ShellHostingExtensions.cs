@@ -36,7 +36,7 @@ public static class ShellHostingExtensions
             options.DeviceTarget = ShellNames.DefaultWebDeviceTarget;
         }
 
-        module.DigitalBrainBuilder.ApplicationBuilder.Configuration.GetSection(FlutterHostOptions.SectionName).Bind(options);
+        FlutterHostOptions.Bind(options, module.DigitalBrainBuilder.ApplicationBuilder.Configuration);
         options.Kind = kind;
         configure?.Invoke(options);
         GetOrCreateState(module).EnsureFlutterHost(kind, options);

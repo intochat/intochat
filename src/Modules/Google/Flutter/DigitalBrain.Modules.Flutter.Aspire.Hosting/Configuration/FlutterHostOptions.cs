@@ -6,6 +6,18 @@ public sealed class FlutterHostOptions
         DigitalBrain.Contracts.DigitalBrainConfiguration.ModuleSection(new DigitalBrain.Contracts.ModuleId("flutter")) + ":Hosting";
     public static readonly string WebContainerKey = SectionName + ":WebContainer";
 
+    // Read in the AppHost process, which the OS-side LegacyConfigurationGuard never sees;
+    // the bind defends its own retired root.
+    public static FlutterHostOptions Bind(FlutterHostOptions options, global::Microsoft.Extensions.Configuration.IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(configuration);
+        if (global::Microsoft.Extensions.Configuration.ConfigurationExtensions.Exists(configuration.GetSection("DigitalBrain:Flutter:Hosting")))
+        { throw new InvalidOperationException($"'DigitalBrain:Flutter:Hosting' moved to '{SectionName}' — migrate the keys."); }
+        global::Microsoft.Extensions.Configuration.ConfigurationBinder.Bind(configuration.GetSection(SectionName), options);
+        return options;
+    }
+
     public FlutterHostKind Kind { get; set; } = FlutterHostKind.Window;
 
     public string ResourceName { get; set; } = ShellNames.DefaultFlutterResourceName;

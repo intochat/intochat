@@ -44,7 +44,7 @@ ENV ASPNETCORE_ENVIRONMENT=Production \
     ASPNETCORE_URLS=http://0.0.0.0:8080 \
     DOTNET_EnableDiagnostics=0 \
     DigitalBrain__Standalone=true \
-    DigitalBrain__ShippedApps__intochat__Path=/app/shipped/intochat
+    DigitalBrain__Modules__apps__Shipped__intochat__Path=/app/shipped/intochat
 
 EXPOSE 8080
 
