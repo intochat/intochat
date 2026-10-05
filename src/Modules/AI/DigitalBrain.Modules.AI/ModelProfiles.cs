@@ -33,7 +33,7 @@ public sealed class ModelProfiles(IServiceProvider services, IOptionsMonitor<AIO
             }
             if (!configuration.ModelProfiles.TryGetValue(profileName, out var profile))
             {
-                throw new ArgumentException($"Model profile '{profileName}' is not configured in {AIOptions.SectionName}:ModelProfiles.", nameof(selection));
+                throw new ArgumentException($"Model profile '{profileName}' is not configured in {AIKeys.Options}:ModelProfiles.", nameof(selection));
             }
             providerName = Clean(profile.Provider);
             modelName = Clean(profile.Model);
@@ -86,7 +86,7 @@ public sealed class ModelProfiles(IServiceProvider services, IOptionsMonitor<AIO
         {
             if (provider == AiProvider.Ollama)
             {
-                throw new InvalidOperationException($"Provider 'Ollama' is not configured. Set {AIOptions.SectionName}:Ollama:Endpoint.");
+                throw new InvalidOperationException($"Provider 'Ollama' is not configured. Set {AIKeys.OllamaEndpoint}.");
             }
 
             Credentials.RequireReady(AiIntegrations.IdOf(provider));

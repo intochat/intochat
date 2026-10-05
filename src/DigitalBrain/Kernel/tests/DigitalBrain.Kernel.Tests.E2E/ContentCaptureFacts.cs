@@ -14,7 +14,7 @@ public sealed class ContentCaptureFacts
 {
     private const string OrdinaryContent = "Show active leads";
     private static readonly string EnableSensitiveKey =
-        Contracts.DigitalBrainConfiguration.EnvironmentName(AIOptions.TelemetryEnableSensitiveDataKey);
+        Contracts.DigitalBrainConfiguration.EnvironmentName(AIKeys.TelemetryEnableSensitiveData);
 
     [Theory(Timeout = 300_000)]
     [InlineData(true)]

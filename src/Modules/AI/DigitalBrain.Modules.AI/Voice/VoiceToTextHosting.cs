@@ -7,7 +7,7 @@ namespace DigitalBrain.AI;
 
 internal static class VoiceToTextHosting
 {
-    public const string DefaultTranscriptionKey = AIClients.DefaultTranscriptionKey;
+    public static readonly string DefaultTranscriptionKey = AIClients.DefaultTranscriptionKey;
 
     internal static void Add(IServiceCollection services, IConfiguration configuration)
         => Add(services, AIOptionsRuntime.Read(configuration));

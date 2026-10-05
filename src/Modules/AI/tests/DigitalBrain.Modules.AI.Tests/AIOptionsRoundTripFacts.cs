@@ -22,8 +22,6 @@ public sealed class AIOptionsRoundTripFacts
         Assert.Equal("m1", bound.ModelProfiles["fast"].Model);
         Assert.Equal(1000, bound.ModelProfiles["Fast"].ContextWindowTokens);
         Assert.Equal("gemma:2b", bound.Ollama.Models["gemma"].Model);
-        var copied = new AIOptions();
-        copied.CopyFrom(bound);
-        Assert.Equal(options.OpenRouter.Endpoint, copied.Provider(AiProvider.OpenRouter).Endpoint);
+        Assert.Equal(options.OpenRouter.Endpoint, bound.Provider(AiProvider.OpenRouter).Endpoint);
     }
 }

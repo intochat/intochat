@@ -16,11 +16,11 @@ namespace DigitalBrain.AI;
 
 internal static class AIClients
 {
-    internal const string ConfigurationRoot = AIOptions.SectionName;
-    internal const string DefaultModelKey = AIOptions.DefaultModelKey;
-    internal const string DefaultEmbeddingKey = AIOptions.DefaultEmbeddingKey;
-    internal const string DefaultTranscriptionKey = AIOptions.DefaultTranscriptionKey;
-    internal const string DefaultImageKey = AIOptions.DefaultImageKey;
+    internal static readonly string ConfigurationRoot = AIKeys.Options;
+    internal static readonly string DefaultModelKey = AIKeys.DefaultModel;
+    internal static readonly string DefaultEmbeddingKey = AIKeys.DefaultEmbedding;
+    internal static readonly string DefaultTranscriptionKey = AIKeys.DefaultTranscription;
+    internal static readonly string DefaultImageKey = AIKeys.DefaultImage;
     private const string TelemetrySource = "DigitalBrain.AI";
 
     private static readonly IReadOnlyDictionary<AiProvider, ILlmProviderFactory> Factories =

@@ -12,7 +12,7 @@ public sealed class FoundryLocalTranscriptionService :
     IHostedService,
     IAsyncDisposable
 {
-    public const string DefaultTranscriptionKey = VoiceToTextHosting.DefaultTranscriptionKey;
+    public static readonly string DefaultTranscriptionKey = VoiceToTextHosting.DefaultTranscriptionKey;
 
     // Catalogue order expresses local preference, the job WhisperModel.Priority
     // used to do: best-first, walked when the configured model is absent.

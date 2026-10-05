@@ -78,8 +78,8 @@ public static partial class AIHostingExtensions
             {
                 builder
                     .WithAnnotation(new WaitAnnotation(resource.Resource, WaitType.WaitUntilHealthy, exitCode: 0))
-                    .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(AIOptions.OllamaEndpointKey), resource.Resource.Parent.UriExpression)
-                    .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(AIOptions.OllamaSectionName, $"{marker.Name}:Model"), resource.Resource.ModelName);
+                    .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(AIKeys.OllamaEndpoint), resource.Resource.Parent.UriExpression)
+                    .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(AIKeys.Ollama, $"{marker.Name}:Model"), resource.Resource.ModelName);
             }
 
             foreach (var (provider, apiKey) in _providerApiKeys)
@@ -89,12 +89,12 @@ public static partial class AIHostingExtensions
 
             if (_defaultLlmMarker is { } llmMarker)
             {
-                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(AIOptions.DefaultModelKey), llmMarker.Name);
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(AIKeys.DefaultModel), llmMarker.Name);
             }
 
             if (_defaultEmbeddingMarker is { } embeddingMarker)
             {
-                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(AIOptions.DefaultEmbeddingKey), embeddingMarker.Name);
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(AIKeys.DefaultEmbedding), embeddingMarker.Name);
             }
         }
 
@@ -182,7 +182,7 @@ public static partial class AIHostingExtensions
         // One key for every transcription model, matching the default model and
         // embedding keys. The provider on the model picks the implementation.
         private static readonly string TranscriptionEnvironmentKey =
-            DigitalBrainConfiguration.EnvironmentName(AIOptions.DefaultTranscriptionKey);
+            DigitalBrainConfiguration.EnvironmentName(AIKeys.DefaultTranscription);
         private TranscriptionModel? _model;
         private IResourceBuilder<FoundryLocalModelResource>? _whisper;
 

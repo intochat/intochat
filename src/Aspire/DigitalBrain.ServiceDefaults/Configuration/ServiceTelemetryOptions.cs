@@ -15,9 +15,9 @@ internal sealed class TelemetryIntegrationOptions
     [ConfigurationKeyName("OTEL_EXPORTER_OTLP_ENDPOINT")]
     public string? ExporterEndpoint { get; set; }
 
-    // Mirrors AIOptions.TelemetryEnableSensitiveDataKey; ServiceDefaults is reference-free, so the
+    // Mirrors AIKeys.TelemetryEnableSensitiveData; ServiceDefaults is reference-free, so the
     // AI module's key is restated here once, at this composition boundary.
-    public const string EnableSensitiveDataKey = "DigitalBrain:AI:Telemetry:EnableSensitiveData";
+    public const string EnableSensitiveDataKey = "DigitalBrain:Modules:ai:Options:Telemetry:EnableSensitiveData";
 
     [ConfigurationKeyName(EnableSensitiveDataKey)]
     public bool? EnableSensitiveData { get; set; }
