@@ -108,7 +108,17 @@ public sealed class AgentTurnRunner(IServiceProvider services) : IAgentTurnRunne
             bool owned;
             ChatOptions options;
             ModelDescriptor? descriptor = null;
-            if (request.Model is not null || configured || request.Options is not null)
+            // A scripted model plays the provider: the publish gate drives whole tool-calling turns
+            // through IScriptedLLM, with no provider configuration.
+            var scripted = request.Model?.Model is { } name && name.StartsWith(DigitalBrain.AI.Scripted.IScriptedLLM.ModelPrefix, StringComparison.Ordinal)
+                ? name[DigitalBrain.AI.Scripted.IScriptedLLM.ModelPrefix.Length..] : null;
+            if (scripted is not null)
+            {
+                client = new ScriptedChatClient(services.GetRequiredService<IGrainFactory>().GetGrain<DigitalBrain.AI.Scripted.IScriptedLLM>(scripted));
+                options = new();
+                owned = true;
+            }
+            else if (request.Model is not null || configured || request.Options is not null)
             {
                 var profiles = services.GetRequiredService<ModelProfiles>();
                 var selection = request.Model;
