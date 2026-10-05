@@ -7,7 +7,6 @@ using DigitalBrain.Enforcement;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Identity;
-using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Postgres;
 using Orleans.Runtime;
 
@@ -16,7 +15,8 @@ namespace DigitalBrain.Apps;
 [GrainType("apps.app")]
 internal sealed class App(
     [PersistentState("app", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<AppState> store,
-    TimeProvider clock, AppRequirements requirements, ModuleInventory modules)
+    TimeProvider clock, AppRequirements requirements, ModuleInventory modules,
+    IEnumerable<IDeployableRuntime> deployables)
     : Neuron<AppState>(store), IApp, IAppAdoption, IAppStorageHandover, IAppInventoryView
 {
     public override NeuronAccess Access(string operation)
@@ -42,10 +42,8 @@ internal sealed class App(
         if (Snapshot.Status != AppStatus.Installed || Snapshot.PendingUninstall is not null || Snapshot.Revision is null)
         { return Task.FromResult<NeuronRecord[]>([]); }
         var package = Snapshot.Revision.Package.ToString();
-        var paths = Snapshot.ScriptPaths.ToDictionary(path => FileKey(Snapshot.ProgramGeneration, path));
         return Task.FromResult<NeuronRecord[]>([new("apps", "apps.app", this.GetPrimaryKeyString(), package),
-            .. Snapshot.StorageFiles.Select(key => new NeuronRecord("apps", "microsoft.csharp.file", key,
-                package + " / " + paths.GetValueOrDefault(key, key)))]);
+            .. Snapshot.StorageFiles.Select(key => new NeuronRecord("apps", "microsoft.csharp.file", key, package + " / " + key))]);
     }
 
     public async Task<AppSnapshot> AbandonStorage(AbandonAppStorage request)
@@ -83,7 +81,6 @@ internal sealed class App(
         var accounts = ResolveAccounts(revision.Content.Manifest.Accounts ?? [], request.Accounts ?? new Dictionary<string, string>());
         var runtime = revision.Content.Manifest.RuntimeName;
         var generation = Snapshot.ProgramGeneration + 1;
-        var programs = runtime == PackageManifest.CSharpRuntime ? revision.Content.Programs().Keys.ToArray() : [];
         // Track before persisting the install: a failed deployment leaves a harmless candidate,
         // while a completed install can never be hidden by a missed index write.
         var key = this.GetPrimaryKeyString();
@@ -100,9 +97,9 @@ internal sealed class App(
             Accounts = accounts,
             Operations = [.. revision.Content.Manifest.Operations],
             ProgramGeneration = generation,
-            ScriptPaths = programs,
             Receipts = Receipted(request.OperationId, request),
-            StorageFiles = programs.Select(path => FileKey(generation, path)).ToArray(),
+            StorageFiles = [],
+            DeployedFiles = [],
             StorageHistoryKnown = true,
             PostgresScopes = AppRequirements.ReferencesAssembly(revision.Content, typeof(IPostgresTable).Assembly.GetName().Name!),
             LifecycleReceipts = [.. Snapshot.LifecycleReceipts, new(request.OperationId, CommandHash(request), "")],
@@ -151,15 +148,12 @@ internal sealed class App(
         foreach (var (slot, account) in request.Accounts ?? new Dictionary<string, string>()) { selected[slot] = account; }
         var accounts = ResolveAccounts(revision.Content.Manifest.Accounts ?? [], selected);
         await BackfillStorageFiles();
-        var programs = Snapshot.RunsScript ? revision.Content.Programs().Keys.ToArray() : [];
         await DeployAndPersist(Snapshot with
         {
             Settings = settings,
             Accounts = accounts,
             ProgramGeneration = Snapshot.ProgramGeneration + 1,
-            ScriptPaths = programs,
             Receipts = Receipted(request.OperationId, request),
-            StorageFiles = [.. Snapshot.StorageFiles, .. programs.Select(path => FileKey(Snapshot.ProgramGeneration + 1, path))]
         });
         return Describe(Snapshot);
     }
@@ -182,7 +176,6 @@ internal sealed class App(
         var accounts = ResolveAccounts(revision.Content.Manifest.Accounts ?? [], request.Accounts ?? Snapshot.Accounts);
         var runtime = revision.Content.Manifest.RuntimeName;
         await BackfillStorageFiles();
-        var programs = runtime == PackageManifest.CSharpRuntime ? revision.Content.Programs().Keys.ToArray() : [];
         await DeployAndPersist(Snapshot with
         {
             Runtime = runtime,
@@ -192,9 +185,7 @@ internal sealed class App(
             Settings = settings,
             Accounts = accounts,
             Operations = [.. revision.Content.Manifest.Operations],
-            ScriptPaths = programs,
             Receipts = Receipted(request.OperationId, request),
-            StorageFiles = [.. Snapshot.StorageFiles, .. programs.Select(path => FileKey(Snapshot.ProgramGeneration + 1, path))],
             PostgresScopes = Snapshot.PostgresScopes || AppRequirements.ReferencesAssembly(revision.Content, typeof(IPostgresTable).Assembly.GetName().Name!),
         });
         return Describe(Snapshot);
@@ -223,7 +214,7 @@ internal sealed class App(
         var abandon = Snapshot.PendingAbandonStorage;
         var postgresAvailable = modules.ContractAssemblies().Contains(typeof(IPostgresTable).Assembly);
         if (abandon is null && Snapshot.PostgresScopes && !postgresAvailable) { throw new InvalidOperationException(AppRequirementsException.RestorePostgres); }
-        foreach (var file in Snapshot.StorageFiles) { await GrainFactory.GetGrain<ICSharpFile>(file).Delete(); }
+        await RetireDeployment(Snapshot.Runtime, Snapshot.StorageFiles);
         if (abandon is null && postgresAvailable)
         {
             await GrainFactory.GetGrain<IPostgresStorageMigration>("table-owners-v1").Ensure();
@@ -272,7 +263,7 @@ internal sealed class App(
             invocations.RemoveAt(oldest);
         }
         await Save(Snapshot with { Invocations = invocations }, new AppInvoked(invocation.Id, invocation.Operation, invocation.Input));
-        if (!Snapshot.RunsScript)
+        if (Snapshot.DeployedFiles.Length == 0)
         { await GrainFactory.GetGrain<IAppRuntimeWorker>(0).Answer(this.GetPrimaryKeyString(), Snapshot.Revision!, invocation); }
         return invocation;
     }
@@ -306,33 +297,24 @@ internal sealed class App(
     public Task<IReadOnlyList<AppInvocation>> Pending()
         => Task.FromResult<IReadOnlyList<AppInvocation>>(Snapshot.Invocations.Where(item => item.Status == InvocationStatus.Pending).ToArray());
 
-    // Every deployment gets fresh files, so a command retried after a lost save rewrites and restarts
-    // the same files instead of depending on what the previous generation left behind.
-    // Only a csharp app has programs to run; every other runtime answers through IAppRuntimeWorker.
+    // A runtime with programs materializes them; every other runtime answers through
+    // IAppRuntimeWorker and deploys nothing. The app grain never knows how.
     private async Task<string[]> Deploy(string runtime, int generation, PackageContent content, IReadOnlyDictionary<string, string> settings, IReadOnlyDictionary<string, string> accounts)
     {
-        if (runtime != PackageManifest.CSharpRuntime) { return []; }
-        var programs = content.Programs();
-        foreach (var (path, source) in programs)
-        {
-            var key = FileKey(generation, path);
-            await GrainFactory.GetGrain<ICSharpAppBinding>(key).BindApp(this.GetPrimaryKeyString());
-            var file = GrainFactory.GetGrain<ICSharpFile>(key);
-            await file.Write(source);
-            await file.Configure(Configuration(settings, accounts));
-            await file.Start();
-        }
-        return [.. programs.Keys];
+        var deployable = deployables.FirstOrDefault(candidate => candidate.Name == runtime);
+        if (deployable is null) { return []; }
+        var programs = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (path, source) in content.Programs()) { programs[path] = source; }
+        return await deployable.Deploy(
+            new(this.GetPrimaryKeyString(), Snapshot.BrainScopeId ?? "", generation, programs, Configuration(settings, accounts)),
+            CancellationToken.None);
     }
 
-    // Deleting an already deleted file is harmless, so retries need no bookkeeping.
-    private async Task Retire(string runtime, int generation)
+    private async Task RetireDeployment(string runtime, string[] storageKeys)
     {
-        if (runtime != PackageManifest.CSharpRuntime) { return; }
-        foreach (var path in Snapshot.ScriptPaths)
-        {
-            await GrainFactory.GetGrain<ICSharpFile>(FileKey(generation, path)).Delete();
-        }
+        if (storageKeys.Length == 0) { return; }
+        var deployable = deployables.FirstOrDefault(candidate => candidate.Name == runtime);
+        if (deployable is not null) { await deployable.Retire(this.GetPrimaryKeyString(), storageKeys, CancellationToken.None); }
     }
 
     private async Task Resume()
@@ -351,18 +333,24 @@ internal sealed class App(
     {
         var target = Snapshot.PendingDeployment!.Target;
         var revision = await GrainFactory.GetGrain<IPackage>(target.Revision!.Package.ToString()).ReadRevision(target.Revision.Revision);
-        await Retire(Snapshot.Runtime, Snapshot.ProgramGeneration);
+        await RetireDeployment(Snapshot.Runtime, Snapshot.DeployedFiles);
         if (CallerContextStamper.TryGet(out _))
         {
             await GrainFactory.GetGrain<IAppGrantMigration>(BrainScope.CurrentId()).Migrate(this.GetPrimaryKeyString(), Snapshot.StorageFiles);
         }
+        var deployed = await Deploy(target.Runtime, target.ProgramGeneration, revision.Content, target.Settings, target.Accounts);
+        // A resumed deployment re-deploys the same deterministic keys; the union stays stable.
+        target = target with
+        {
+            DeployedFiles = deployed,
+            StorageFiles = target.StorageFiles.Concat(deployed).Distinct(StringComparer.Ordinal).ToArray(),
+        };
         if (modules.ContractAssemblies().Contains(typeof(IPostgresTable).Assembly))
         {
             await GrainFactory.GetGrain<IPostgresStorageMigration>("table-owners-v1").Ensure();
             var owner = JsonSerializer.Serialize(new[] { BrainScope.CurrentId(), this.GetPrimaryKeyString() });
             await GrainFactory.GetGrain<IPostgresAppStorage>(owner).Migrate(target.StorageFiles);
         }
-        await Deploy(target.Runtime, target.ProgramGeneration, revision.Content, target.Settings, target.Accounts);
         await Persist(target);
     }
 
@@ -420,8 +408,8 @@ internal sealed class App(
         return result;
     }
 
-    private string FileKey(int generation, string path)
-        => "app-csharp-" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(this.GetPrimaryKeyString() + "\0" + generation + "\0" + path)));
+    // Used only by the storage backfill for installs predating DeployedFiles; dies with it.
+    private string FileKey(int generation, string path) => CSharpAppRuntime.FileKey(this.GetPrimaryKeyString(), generation, path);
 
     private static Dictionary<string, string> Resolve(IReadOnlyList<PackageSetting> declared, IReadOnlyDictionary<string, string> current, IReadOnlyDictionary<string, string> supplied)
     {
@@ -483,8 +471,6 @@ internal sealed class App(
         state.Revision,
         new Dictionary<string, string>(state.Settings),
         state.Operations.ToArray(),
-        state.ProgramGeneration == 0 || !state.RunsScript
-            ? []
-            : state.ScriptPaths.Select(path => FileKey(state.ProgramGeneration, path)).ToArray(),
+        state.DeployedFiles.ToArray(),
         new Dictionary<string, string>(state.Accounts), state.PendingUninstall is not null, state.AbandonedStorage.ToArray());
 }

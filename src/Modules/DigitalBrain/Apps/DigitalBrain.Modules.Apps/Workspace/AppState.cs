@@ -25,6 +25,8 @@ public sealed record AppState
     [Id(19)] public AbandonedAppStorage[] AbandonedStorage { get; init; } = [];
     [Id(20)] public string? BrainScopeId { get; init; }
     [Id(21)] public string? InstallerAppId { get; init; }
+    // The storage keys the current generation's runtime returned from Deploy.
+    [Id(22)] public string[] DeployedFiles { get; init; } = [];
     public bool RunsScript => Runtime == PackageManifest.CSharpRuntime;
 }
 

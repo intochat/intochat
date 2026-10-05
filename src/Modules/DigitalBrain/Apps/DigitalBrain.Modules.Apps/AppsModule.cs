@@ -30,6 +30,7 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
         silo.Services.TryAddSingleton<AppAuthoringPolicy>();
         silo.Services.AddAppRuntime<GroupChatRuntime>();
         silo.Services.AddAppRuntime<PromptRuntime>();
+        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IDeployableRuntime, CSharpAppRuntime>());
     }
 
     public void Configure(IEndpointRouteBuilder endpoints)
