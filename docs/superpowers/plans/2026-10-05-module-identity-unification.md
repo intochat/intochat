@@ -431,10 +431,28 @@ public sealed class ModuleHostingScanFacts
 - Consumes: `ModuleId`, `Module`.
 - Produces: `Discover(IReadOnlyList<ModuleId> composedModules, params Assembly[] roots)` → `List<IDigitalBrainModuleDeployment>`; same assembly-walk as `ModuleHostingScan` (extract the walk into a shared private helper only if both live in one assembly — they don't; duplicate the 15 lines, each ring owns its scan). A composed module id with no discovered contributor **and** whose module type is known to require one: today's rule is "attribute present → contributor must resolve"; the new rule is "contributor present → it deploys; composed module with no contributor → skipped", EXCEPT the deployment program asserts coverage explicitly: after the scan, `Discover` throws naming any id in `composedModules` that previously had a `[ModuleDeployment]`-style contributor — concretely, keep a loud error when a contributor type exists in the scan for no composed module (dead reference) and rely on the deployment E2E/manifest test for coverage.
 
-- [ ] **Step 1: Write the failing discovery facts** (mirror the two scan facts of Task 5 against `QdrantDeployment` + Review Focus 3: composing id `"qdrant"` with roots that do NOT reference the Qdrant Deployment project yields a result not containing it, and the deployment program's coverage check — `AspireManifest`/composition test — fails loudly; place the loud check where today's `?? throw new InvalidOperationException(… "Reference the module's Deployment project")` lives, keyed by the composed module list the manifest already carries).
-- [ ] **Step 2: Implement** the interface member, the base class, the scan, migrate the 4 contributors, delete the `GetCustomAttribute<ModuleDeploymentAttribute>` path.
-- [ ] **Step 3: Run** the Deployment test project → PASS.
-- [ ] **Step 4: Commit** — `refactor: deployment claims its module through the generic parameter`
+- [x] **Step 1: Write the failing discovery facts** (mirror the two scan facts of Task 5 against `QdrantDeployment` + Review Focus 3: composing id `"qdrant"` with roots that do NOT reference the Qdrant Deployment project yields a result not containing it, and the deployment program's coverage check — `AspireManifest`/composition test — fails loudly; place the loud check where today's `?? throw new InvalidOperationException(… "Reference the module's Deployment project")` lives, keyed by the composed module list the manifest already carries).
+- [x] **Step 2: Implement** the interface member, the base class, the scan, migrate the 4 contributors, delete the `GetCustomAttribute<ModuleDeploymentAttribute>` path.
+- [x] **Step 3: Run** the Deployment test project → PASS.
+- [x] **Step 4: Commit** — `refactor: deployment claims its module through the generic parameter`
+
+> **Deviations (recorded 2026-10-05, executor):**
+> - The plan assumed the manifest already carries composed module **ids**. In reality the manifest
+>   carried a legacy numeric type-name array (`DigitalBrain__Modules__N`, produced by nothing in the
+>   current AppHost and read only by the deployment). To keep the one-grammar id list, `AspireManifest`
+>   gained `ComposedModuleIds(runtime)`, reading ids from the id-keyed `DigitalBrain__Modules__{id}__…`
+>   entries the AppHost does emit; `Runtime` detection accepts those keys (and still the fixture's
+>   numeric `__0`). `AspireManifest.Modules(runtime)` (type names) is left for compatibility but is no
+>   longer used by `RunAsync`.
+> - `Discover` was made `internal` with `InternalsVisibleTo("DigitalBrain.Deployment.Tests")` so the
+>   discovery facts can exercise it; the Deployment test project references the Qdrant Deployment
+>   project.
+> - `ModuleDeployment<TModule>` declares `public abstract void Deploy(ModuleDeploymentContext)`
+>   (required for an abstract class implementing the interface), so the 4 contributors' `Deploy`
+>   gains `override`.
+> - The loud check is the dead-reference throw (a scanned contributor whose module is not composed);
+>   a composed module with no contributor is skipped and coverage fails at the existing
+>   `manifestValues.Missing` deploy-time check, as the Produces text allows.
 
 ---
 

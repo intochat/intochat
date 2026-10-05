@@ -5,11 +5,11 @@ namespace DigitalBrain.ClickHouse;
 
 // Runs the manifest's ClickHouse container as an internal service with its data on Azure Files.
 // Seed scripts the AppHost copies into a local container do not travel with the manifest.
-public sealed class ClickHouseDeployment : IDigitalBrainModuleDeployment
+public sealed class ClickHouseDeployment : ModuleDeployment<ClickHouseModule>
 {
     private const int HttpPort = 8123;
 
-    public void Deploy(ModuleDeploymentContext context)
+    public override void Deploy(ModuleDeploymentContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
         var server = context.Manifest.ServingContainer(context.Runtime, ClickHouseRegistration.DefaultConnectionName);

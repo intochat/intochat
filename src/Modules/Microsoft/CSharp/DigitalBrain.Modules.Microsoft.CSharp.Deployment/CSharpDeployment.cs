@@ -12,12 +12,12 @@ namespace DigitalBrain.Microsoft.CSharp;
 // Scripts run in a custom-container session pool: one Hyper-V session per owner running the Sandbox
 // image. The pool has its own environment and subnet, whose NSG lets sessions out on HTTPS only (the
 // script edge and package restores); limiting that to the edge alone needs Azure Firewall rules.
-public sealed class CSharpDeployment : IDigitalBrainModuleDeployment
+public sealed class CSharpDeployment : ModuleDeployment<CSharpModule>
 {
     // Settings: "sandboxImage" (the Sandbox image in the registry) and "sessionExecutorRoleId", the id of
     // the built-in "Azure ContainerApps Session Executor" role:
     // az role definition list --name "Azure ContainerApps Session Executor" --query "[0].name" -o tsv
-    public void Deploy(ModuleDeploymentContext context)
+    public override void Deploy(ModuleDeploymentContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
         var foundation = context.Foundation;

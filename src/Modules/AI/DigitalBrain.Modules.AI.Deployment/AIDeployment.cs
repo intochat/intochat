@@ -5,12 +5,12 @@ namespace DigitalBrain.AI;
 
 // Provider API keys are manifest parameters and reach Key Vault with the rest; what this module deploys
 // is the Ollama server local models run on, pulling every model the manifest names before serving.
-public sealed partial class AIDeployment : IDigitalBrainModuleDeployment
+public sealed partial class AIDeployment : ModuleDeployment<AIModule>
 {
     private const string Ollama = "ollama";
     private const int Port = 11434;
 
-    public void Deploy(ModuleDeploymentContext context)
+    public override void Deploy(ModuleDeploymentContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
         if (!context.Manifest.ResourceNames.Contains(Ollama)) { return; }

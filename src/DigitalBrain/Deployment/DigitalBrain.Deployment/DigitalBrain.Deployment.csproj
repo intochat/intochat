@@ -11,4 +11,5 @@
     <PackageReference Include="Pulumi.Random" />
     <ProjectReference Include="../../Kernel/DigitalBrain.Kernel/DigitalBrain.Kernel.csproj" />
   </ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="DigitalBrain.Deployment.Tests" /></ItemGroup>
 </Project>

@@ -91,6 +91,7 @@ public sealed class DigitalBrainDeploymentFacts
 
     private sealed class VectorsDeployment : IDigitalBrainModuleDeployment
     {
+        public DigitalBrain.Contracts.ModuleId Module { get; } = new("vectors");
         public void Deploy(ModuleDeploymentContext context) => context.Provide("vectors", "bindings.grpc.url", "https://vectors.internal");
     }
 }

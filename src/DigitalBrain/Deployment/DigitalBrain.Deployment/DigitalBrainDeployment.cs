@@ -34,7 +34,8 @@ public static class DigitalBrainDeployment
         ArgumentNullException.ThrowIfNull(options);
         var manifest = options.Manifest;
         var runtime = manifest.Runtime;
-        var modules = options.Modules ?? Discover(manifest.Modules(runtime));
+        var modules = options.Modules ?? Discover(manifest.ComposedModuleIds(runtime),
+            System.Reflection.Assembly.GetEntryAssembly() ?? typeof(DigitalBrainDeployment).Assembly);
         var kit = await DeploymentKitFoundation.DeployAsync(options, modules).ConfigureAwait(false);
         var prefix = options.NamingPrefix;
 
@@ -183,17 +184,36 @@ public static class DigitalBrainDeployment
         context.GrantRuntime("registry-pull", AcrPull, kit.ContainerRegistry.ResourceId);
     }
 
-    private static List<IDigitalBrainModuleDeployment> Discover(IReadOnlyList<string> moduleTypes)
+    internal static List<IDigitalBrainModuleDeployment> Discover(IReadOnlyList<ModuleId> composedModules, params Assembly[] roots)
     {
-        List<IDigitalBrainModuleDeployment> deployments = [];
-        foreach (var moduleType in moduleTypes)
+        ArgumentNullException.ThrowIfNull(composedModules);
+        ArgumentNullException.ThrowIfNull(roots);
+        var composed = composedModules.ToHashSet();
+        var found = new Dictionary<ModuleId, IDigitalBrainModuleDeployment>();
+        var seen = new HashSet<string>();
+        var queue = new Queue<Assembly>(roots);
+        while (queue.TryDequeue(out var assembly))
         {
-            var module = System.Type.GetType(moduleType, throwOnError: true)!;
-            if (module.GetCustomAttribute<ModuleDeploymentAttribute>() is not { } attribute) { continue; }
-            var deployment = System.Type.GetType(attribute.TypeName)
-                ?? throw new InvalidOperationException($"{module.Name} deploys with '{attribute.TypeName}', which is not in this deployment program. Reference the module's Deployment project.");
-            deployments.Add((IDigitalBrainModuleDeployment)Activator.CreateInstance(deployment)!);
+            if (!seen.Add(assembly.FullName!)) { continue; }
+            foreach (var reference in assembly.GetReferencedAssemblies())
+            {
+                try { queue.Enqueue(Assembly.Load(reference)); }
+                catch (FileNotFoundException) { } catch (FileLoadException) { }
+            }
+            foreach (var type in assembly.GetExportedTypes())
+            {
+                if (type.IsAbstract || !typeof(IDigitalBrainModuleDeployment).IsAssignableFrom(type)) { continue; }
+                var deployment = (IDigitalBrainModuleDeployment)Activator.CreateInstance(type)!;
+                found[deployment.Module] = deployment;
+            }
         }
-        return deployments;
+        // A contributor referenced by the deployment program for a module it does not compose is a
+        // stale reference: the program deploys what it references, and only what it composes.
+        foreach (var pair in found)
+        {
+            if (!composed.Contains(pair.Key))
+            { throw new InvalidOperationException($"A deployment contributor for '{pair.Key}' is referenced but that module is not composed."); }
+        }
+        return [.. composedModules.Distinct().Where(found.ContainsKey).Select(id => found[id])];
     }
 }

@@ -44,11 +44,12 @@ public sealed partial class AspireManifest
 
     public IEnumerable<string> Parameters => _resources.Keys.Where(name => TypeOf(name) == "parameter.v0");
 
-    // The brain runtime is the project that loads modules; its environment carries DigitalBrain__Modules__N.
+    // The brain runtime is the project that loads modules; its environment carries the module list.
     public string Runtime => _resources.Where(resource => resource.Value.GetProperty("type").GetString() == "project.v0"
-            && resource.Value.TryGetProperty("env", out var env) && env.TryGetProperty(ModulesEnvironmentPrefix + "0", out _))
+            && resource.Value.TryGetProperty("env", out var env)
+            && env.EnumerateObject().Any(variable => variable.Name.StartsWith(ModulesEnvironmentPrefix, StringComparison.Ordinal)))
         .Select(resource => resource.Key).SingleOrDefault()
-        ?? throw new InvalidOperationException($"The manifest has no brain runtime project (one whose env loads {ModulesEnvironmentPrefix}0).");
+        ?? throw new InvalidOperationException($"The manifest has no brain runtime project (one whose env carries {ModulesEnvironmentPrefix} keys).");
 
     public IReadOnlyDictionary<string, string> Environment(string resource)
         => Resource(resource).TryGetProperty("env", out var env)
@@ -87,4 +88,14 @@ public sealed partial class AspireManifest
         => [.. Environment(runtime).Where(variable => variable.Key.StartsWith(ModulesEnvironmentPrefix, StringComparison.Ordinal))
             .OrderBy(variable => int.Parse(variable.Key[ModulesEnvironmentPrefix.Length..], System.Globalization.CultureInfo.InvariantCulture))
             .Select(variable => variable.Value)];
+
+    // The composed module ids the runtime's environment already carries under the one grammar:
+    // DigitalBrain__Modules__{id}__… keys. The numeric type-name array is legacy and is not an id.
+    public IReadOnlyList<Contracts.ModuleId> ComposedModuleIds(string runtime)
+        => [.. Environment(runtime).Keys
+            .Where(key => key.StartsWith(ModulesEnvironmentPrefix, StringComparison.Ordinal))
+            .Select(key => key[ModulesEnvironmentPrefix.Length..].Split("__", 2)[0])
+            .Where(id => id.Length > 0 && !int.TryParse(id, out _))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(id => new Contracts.ModuleId(id))];
 }
