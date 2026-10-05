@@ -56,9 +56,9 @@ public sealed record AppDeployment(string AppKey, string BrainId, int Generation
 ```
 `CSharpAppRuntime` owns the `app-csharp-` + SHA256 file-key derivation (moved verbatim from `App.FileKey`), `ICSharpAppBinding.BindApp`, Write/Configure/Start, Delete on retire. `App.cs` resolves `IEnumerable<IDeployableRuntime>` by manifest runtime name; a runtime with no deployable registered deploys nothing (GroupChat/Prompt answer via `IAppRuntimeWorker` as today). The ten `== PackageManifest.CSharpRuntime` string checks in App.cs/AppService/AppPublishing collapse to "is there a deployable runtime named X".
 
-- [ ] Write failing Apps fact: installing a csharp app with a registered `CSharpAppRuntime` deploys files (observable via `RecordingCSharpFile`/FakeSandbox pattern already used in AppFacts) while `App.cs` no longer references `ICSharpFile` directly.
-- [ ] Implement seam; move code; run Apps + CSharp suites.
-- [ ] Commit: `refactor(apps): csharp becomes a deployable runtime, not a special case (#140)`
+- [x] Write failing Apps fact: installing a csharp app with a registered `CSharpAppRuntime` deploys files (observable via `RecordingCSharpFile`/FakeSandbox pattern already used in AppFacts) while `App.cs` no longer references `ICSharpFile` directly.
+- [x] Implement seam; move code; run Apps + CSharp suites.
+- [x] Commit: `refactor(apps): csharp becomes a deployable runtime, not a special case (#140)`
 
 ### Task A2: Postgres storage hook
 
@@ -79,8 +79,8 @@ public interface IAppStorageHook
 ```
 Postgres registers the hook; it owns table-owners migrate/retire. `AppState.PostgresScopes` field retires (id reserved). Hooks run for every app — the hook itself no-ops cheaply when the app owns no tables.
 
-- [ ] Failing fact: uninstalling an app invokes the registered hook with the app's storage keys (fake hook in Apps tests); Postgres suite covers its hook against real tables (existing live-gated facts).
-- [ ] Implement; run Apps + Postgres suites. Commit: `refactor(apps): storage ownership moves behind IAppStorageHook (#140)`
+- [x] Failing fact: uninstalling an app invokes the registered hook with the app's storage keys (fake hook in Apps tests); Postgres suite covers its hook against real tables (existing live-gated facts).
+- [x] Implement; run Apps + Postgres suites. Commit: `refactor(apps): storage ownership moves behind IAppStorageHook (#140)`
 
 ### Task A3: Delete the museum
 
@@ -89,7 +89,7 @@ Postgres registers the hook; it owns table-owners migrate/retire. `AppState.Post
 - Modify/Delete: `Workspace/IAppAdoption.cs`, `Contracts/Workspace/AbandonAppStorage.cs`, abandon-storage route in `PackageEndpoints.cs:52`, `AppRequirementsException.RestorePostgres` (uninstall with hook unable to run now throws plainly).
 - Test: AppFacts/AppRequirementFacts prune deleted behaviors; new fact per Review Focus 4.
 
-- [ ] Delete, fix facts, run Apps suite + OS unit. Commit: `refactor(apps)!: delete the migration museum — dev-only, no data carried (#137)`
+- [x] Delete, fix facts, run Apps suite + OS unit. Commit: `refactor(apps)!: delete the migration museum — dev-only, no data carried (#137)`
 
 ## Stage B — One file model (#139)
 
@@ -102,7 +102,7 @@ Postgres registers the hook; it owns table-owners migrate/retire. `AppState.Post
 - Shipped apps: `WordCount/app.cs` becomes a `Files` entry via the shipped-source loaders (`DirectoryShippedAppSource` reads it into Files).
 - Test: PackageCommitFacts/serialization facts updated; a fact that a legacy-shaped payload with Source still deserializes (id reserved) but new commits never write it.
 
-- [ ] Implement, run Apps suite + E2E compile, commit: `refactor(apps)!: one file model — PackageContent.Source deleted (#139)`
+- [x] Implement, run Apps suite + E2E compile, commit: `refactor(apps)!: one file model — PackageContent.Source deleted (#139)`
 
 ## Stage C — The live app and the Creator (#138, #141, the redesign)
 
@@ -122,11 +122,11 @@ Task<AppContent> ReadContent();                          // manifest + files + d
 - The free-text spec is `AppDocumentCodec.ExportSpec(Document)` — computed, never stored.
 - Test: new `LiveAppFacts` — create → write behavior → file deployed; edit → same key redeployed; broken source → behavior error recorded, app still answers `Read`; reload red app (Review Focus 2); two brains isolated.
 
-- [ ] Facts first, implement, Apps suite green, commit: `feat(apps): the live editable app — created running, edited per behavior, allowed red`
+- [x] Facts first, implement, Apps suite green, commit: `feat(apps): the live editable app — created running, edited per behavior, allowed red`
 
 ### Task C2: Watermark/resume + in-flight edit fact
 
-- [ ] Fact per Review Focus 1 in LiveAppFacts using `RecordingCSharpFile`/FakeSandbox: signal in flight, behavior edited, delivery resumes at watermark without double-handling. (Mechanics are CSharp-module behavior; the fact pins the composition.) Commit with C1 if small.
+- [x] Fact per Review Focus 1 in LiveAppFacts using `RecordingCSharpFile`/FakeSandbox: signal in flight, behavior edited, delivery resumes at watermark without double-handling. (Mechanics are CSharp-module behavior; the fact pins the composition.) Commit with C1 if small.
 
 ### Task C3: Creator services replace AppDraft (#141)
 
@@ -140,7 +140,7 @@ Task<AppContent> ReadContent();                          // manifest + files + d
 - Modify Dart in same commit: `app_draft_controller.dart`, `create_app_screen.dart`, `apps_screen.dart` re-point to Creator endpoints (functional adaptation; full Creator IDE UX is a follow-up issue).
 - Test: `CreatorFacts` with scripted LLMs — author populates document on live app; implement writes behaviors and hot-swaps; run records per-scenario verdicts; only affected scenarios re-run (fact: edit one behavior, only its scenarios' verdicts change).
 
-- [ ] Facts, implement, Apps + Assistant suites, `flutter analyze` + `flutter test`, commit: `feat(apps)!: Creator services on the live app; the draft pipeline is deleted (#138, #141)`
+- [x] Facts, implement, Apps + Assistant suites, `flutter analyze` + `flutter test`, commit: `feat(apps)!: Creator services on the live app; the draft pipeline is deleted (#138, #141)`
 
 ### Task C4: Save = commit, Publish = the gate
 
@@ -149,12 +149,12 @@ Task<AppContent> ReadContent();                          // manifest + files + d
 - `ShippedAppPublisher` unchanged (commit→verify→publish→install path for first-party stays).
 - Test: save red app → revision exists; publish red → refused; publish green → marketplace lists.
 
-- [ ] Facts, implement, commit: `feat(apps): save commits history, publish stays the only gate`
+- [x] Facts, implement, commit: `feat(apps): save commits history, publish stays the only gate`
 
 ### Task C5: Fork → live app; install unchanged
 
 - Modify: fork endpoint materializes the forked revision as a live app in the caller's brain (install + content copy into `Files`/`Document`), red allowed (Review Focus 5 fact).
-- [ ] Fact, implement, Apps suite + both E2E suites, commit: `feat(apps): fork materializes a live app`
+- [x] Fact, implement, Apps suite + both E2E suites, commit: `feat(apps): fork materializes a live app`
 
 ## Stage D — De-brand what survives (#142)
 
@@ -162,7 +162,7 @@ Task<AppContent> ReadContent();                          // manifest + files + d
 
 - Rename remaining `intochat.*` Apps identities (grep Contracts + runtime; draft ones died in C3) to `apps.*` — dev-only hard rename, no identity shims; note in commit.
 - Move `BuiltInSettingsEndpoints`/`BuiltInSettingsOptions` to DigitalBrain.OS composition; delete Apps→Flutter.Contracts ProjectReference.
-- [ ] Run Apps + OS suites, packaging-manifest test, commit: `refactor(apps)!: apps.* identities; product glue returns to the host (#142)`
+- [x] Run Apps + OS suites, packaging-manifest test, commit: `refactor(apps)!: apps.* identities; product glue returns to the host (#142)`
 
 ## Closure
 
