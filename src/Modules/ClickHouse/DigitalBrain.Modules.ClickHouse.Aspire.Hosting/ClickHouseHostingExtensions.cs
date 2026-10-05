@@ -15,6 +15,7 @@ public static class ClickHouseHostingExtensions
         ArgumentNullException.ThrowIfNull(module);
         var options = new ClickHouseHostingOptions();
         configure?.Invoke(options);
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.DatabaseName);
         State(module).Enable(options);
         return module;
     }
@@ -49,7 +50,7 @@ public static class ClickHouseHostingExtensions
             }
 
             var builder = brain.ApplicationBuilder;
-            _server = builder.AddClickHouse(brain.ResourceName(ClickHouseNames.Server))
+            _server = builder.AddClickHouse(brain.ResourceName(ClickHouseResourceNames.Server))
                 .WithParentRelationship(brain.Resource)
                 .WithUrlForEndpoint("http", static endpoint => new ResourceUrlAnnotation
                 {
@@ -58,7 +59,7 @@ public static class ClickHouseHostingExtensions
                     Endpoint = endpoint,
                 });
             if (options.PersistentStorage) { _server.WithDataVolume().WithLifetime(ContainerLifetime.Persistent); }
-            _database = _server.AddDatabase(brain.ResourceName(ClickHouseNames.DatabaseResource), ClickHouseNames.DatabaseName);
+            _database = _server.AddDatabase(brain.ResourceName(ClickHouseResourceNames.Database), options.DatabaseName);
 
             if (options.Seeds.Count > 0)
             {

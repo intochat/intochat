@@ -40,9 +40,10 @@ public sealed class CSharpFileContainerFacts
         deadline.CancelAfter(TimeSpan.FromMinutes(15));
         var ct = deadline.Token;
         await using var brain = await ReferenceBrain.Create()
+            .ConfigureModule<AspireModule, AspireOptions>(aspire => aspire.ApplicationName = "sandbox-e2e")
             .ConfigureModule<CSharpModule, CSharpOptions>(csharp => csharp.WithSandbox(RepositoryRoot()))
             .StartAsync(ct);
-        var aspire = brain.Get<IAspire>(new AspireOptions().ApplicationName);
+        var aspire = brain.Get<IAspire>("sandbox-e2e");
         var timerId = "csharp-e2e-" + Guid.NewGuid().ToString("N")[..8];
         var listener = brain.Get<ICSharpFile>("e2e/" + timerId);
         var broken = brain.Get<ICSharpFile>("e2e/broken-" + timerId);

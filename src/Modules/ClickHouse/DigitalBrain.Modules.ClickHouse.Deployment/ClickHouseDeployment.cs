@@ -13,11 +13,19 @@ public sealed class ClickHouseDeployment : ModuleDeployment<ClickHouseModule>
     {
         ArgumentNullException.ThrowIfNull(context);
         var server = context.Manifest.ServingContainer(context.Runtime, ClickHouseRegistration.DefaultConnectionName);
+        var databaseKey = DigitalBrainConfiguration.EnvironmentName(
+            DigitalBrainConfiguration.ModuleOptionsSection("clickhouse"), nameof(ClickHouseModuleOptions.DatabaseName));
+        var database = context.Manifest.Environment(context.Runtime).GetValueOrDefault(databaseKey)
+            ?? new ClickHouseModuleOptions().DatabaseName;
         var app = context.AddService(new ServiceDefinition("clickhouse", context.Manifest.Image(server), HttpPort)
         {
             Transport = "http",
             AllowInsecure = true,
-            Environment = new Dictionary<string, Input<string>> { ["CLICKHOUSE_USER"] = "default" },
+            Environment = new Dictionary<string, Input<string>>
+            {
+                ["CLICKHOUSE_USER"] = "default",
+                ["CLICKHOUSE_DB"] = context.Values.Resolve(database),
+            },
             Secrets = new Dictionary<string, Input<string>> { ["CLICKHOUSE_PASSWORD"] = context.Parameter(server + "-password") },
             DataPath = "/var/lib/clickhouse",
             Cpu = 2,

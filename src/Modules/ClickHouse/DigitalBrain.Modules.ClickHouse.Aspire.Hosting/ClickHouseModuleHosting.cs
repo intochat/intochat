@@ -12,6 +12,7 @@ public sealed class ClickHouseModuleHosting : ModuleHosting<DigitalBrain.ClickHo
         {
             new DigitalBrainModuleBuilder<DigitalBrain.ClickHouse.Aspire.Hosting.ClickHouseModuleHosting>(brain).WithClickHouse(o =>
             {
+                o.DatabaseName = options.DatabaseName;
                 o.PersistentStorage = options.Hosting.PersistentStorage;
                 o.AlwaysRunInitScripts = options.Hosting.AlwaysRunInitScripts;
                 foreach (var seed in options.Hosting.Seeds) { o.WithSeed(seed); }

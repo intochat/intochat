@@ -13,6 +13,7 @@ internal static class AspireBridgeEndpoints
 {
     public static void MapAspireBridge(this IEndpointRouteBuilder endpoints)
     {
+        // The AppHost dials this bridge, not a user, so it sits outside BrainRoutes.Group.
         var bridge = endpoints.MapGroup(AspireBridgeRoutes.Root).AddEndpointFilter(RequireBridgeKey).ExcludeFromDescription();
         bridge.MapGet("commands", (AspireBridge commands, CancellationToken cancellationToken)
             => TypedResults.ServerSentEvents(commands.ReadCommandsAsync(cancellationToken), "command"));

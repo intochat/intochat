@@ -6,6 +6,19 @@ namespace DigitalBrain.Modules.Microsoft.Aspire.Tests;
 
 public sealed class AspireNeuronFacts
 {
+    [Fact]
+    public void ApplicationNameDefaultsToTheHostingApplication()
+    {
+        var options = new AspireOptions();
+        options.Validate();
+        Assert.Equal(AppDomain.CurrentDomain.FriendlyName, options.ApplicationName);
+        options.ApplicationName = "custom-host";
+        options.Validate();
+        Assert.Equal("custom-host", options.ApplicationName);
+        options.ApplicationName = " ";
+        Assert.Throws<ArgumentException>(options.Validate);
+    }
+
     private const string Application = "DigitalBrain";
     private const string StampedPublisher = "microsoft.aspire/" + Application;
 

@@ -6,6 +6,7 @@ public sealed class ClickHouseModuleOptions : IModuleOptions
 {
     public string? Provider { get; set; } = "ClickHouse";
     public string ConnectionName { get; set; } = "clickhouse";
+    public string DatabaseName { get; set; } = "digitalbrain";
     public ClickHouseResourceOptions Hosting { get; set; } = new();
 
     public ClickHouseModuleOptions WithClickHouse(Action<ClickHouseResourceOptions>? configure = null)
@@ -19,6 +20,7 @@ public sealed class ClickHouseModuleOptions : IModuleOptions
     public void Validate()
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(ConnectionName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(DatabaseName);
         if (!string.Equals(Provider, "ClickHouse", StringComparison.OrdinalIgnoreCase))
         { throw new ArgumentException("ClickHouse requires the ClickHouse provider."); }
         ArgumentNullException.ThrowIfNull(Hosting);

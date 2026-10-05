@@ -12,6 +12,16 @@ namespace DigitalBrain.OS.Tests.Unit;
 // compilation and authoring; the product uses the same connector set as the reference composition.
 public sealed class ProductCompositionFacts
 {
+    [Fact]
+    public async Task ClickHouseHostingUsesTheConfiguredDatabaseName()
+    {
+        await using var appHost = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.DigitalBrain_AppHost>(
+            ["Parameters:Modules-digitalbrain-master-key=synthetic-composition-test-key-32chars",
+             DigitalBrainConfiguration.ModuleOptionsSection("clickhouse") + ":DatabaseName=analytics"], TestContext.Current.CancellationToken);
+        var database = Assert.Single(appHost.Resources.OfType<ClickHouseDatabaseResource>());
+        Assert.Equal("analytics", database.DatabaseName);
+    }
+
     // The hosting assemblies all sit in this test's output (via the AppHost reference), so a
     // hosting adapter referenced here but claiming an id outside the catalog is stale, and a
     // catalog module with an adapter in scope must resolve through the same scan the host uses.
