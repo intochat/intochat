@@ -13,6 +13,7 @@ import 'session_http_client_io.dart'
     as transport;
 import 'host_environment.dart';
 import 'models/installed_app.dart';
+import 'models/marketplace.dart';
 import 'models/brain_models.dart';
 import 'models/compute_usage.dart';
 import 'models/model_catalog.dart';
@@ -115,6 +116,34 @@ final class DigitalBrainUiClient {
     _useSession(jsonDecode(response.body) as Map<String, dynamic>);
   }
 
+  /// Accounts the deployment seeded for development; empty unless the server runs in open posture.
+  Future<List<SeededAccount>> listSeededAccounts() async {
+    try {
+      final response = await _request(
+        'GET',
+        '/identity/seeded-accounts',
+        timeout: const Duration(seconds: 10),
+      );
+      return [
+        for (final item in jsonDecode(response.body) as List)
+          SeededAccount.fromJson(Map<String, dynamic>.from(item as Map)),
+      ];
+    } on UiRequestException catch (error) {
+      if (error.statusCode == 404) return const [];
+      rethrow;
+    }
+  }
+
+  Future<void> signInSeeded(String username) async {
+    final response = await _request(
+      'POST',
+      '/identity/seeded-accounts/${Uri.encodeComponent(username)}/login',
+      body: const {},
+      timeout: const Duration(seconds: 15),
+    );
+    _useSession(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
   /// Creates an owned workspace; clients never choose or claim an existing id.
   Future<String> createWorkspace() async {
     final response = await _request(
@@ -163,7 +192,7 @@ final class DigitalBrainUiClient {
         .toList();
   }
 
-  /// Installed app operations come from the revision running in this brain.
+  /// This brain's apps, with where each installed copy came from and whether an update is offered.
   Future<List<InstalledAppSummary>> listInstalledApps(String workspace) async {
     final body = await _tableRequest(
       'GET',
@@ -189,6 +218,39 @@ final class DigitalBrainUiClient {
     'operation': 'open',
     'input': jsonEncode(arguments),
   });
+
+  /// Asks an app to open in the side panel; answers the surface it declared.
+  Future<Map<String, dynamic>> openDockedApp(
+    String brainId,
+    String appId,
+  ) async {
+    final result = Map<String, dynamic>.from(
+      await jsonRequest('POST', appOpenPath(brainId, appId), {
+            'operation': 'open',
+            'input': 'docked',
+          })
+          as Map,
+    );
+    final surface = result['surface'];
+    return surface is String
+        ? {'kind': 'surface', 'name': surface}
+        : Map<String, dynamic>.from(surface as Map);
+  }
+
+  /// Raw bytes of a served file such as an app icon; null when the server has none.
+  Future<Uint8List?> readBytes(String path) async {
+    try {
+      final response = await _request(
+        'GET',
+        path,
+        timeout: const Duration(seconds: 30),
+      );
+      return response.bodyBytes;
+    } on UiRequestException catch (error) {
+      if (error.statusCode == 404) return null;
+      rethrow;
+    }
+  }
 
   Future<TableSnapshot> readTable(
     String workspace,
