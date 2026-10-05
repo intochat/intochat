@@ -9,6 +9,88 @@ namespace DigitalBrain.Platform.Tests.Unit;
 public sealed class RegistryFacts
 {
     [Fact]
+    public async Task CensusFailureIsNamedWithoutDiscardingOtherProvidersAndIsNotRetained()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var failure = new CensusFailure();
+        await using var host = await ModuleTest.Create().ConfigureSilo(silo =>
+        {
+            silo.Services.AddSingleton<IOutgoingGrainCallFilter>(failure);
+            silo.Services.AddSingleton<IRegistryInventoryProvider>(services => new DelayedCensusProvider(
+                services.GetRequiredService<IActivationCensus>(), Task.CompletedTask));
+            silo.Services.AddSingleton<IRegistryInventoryProvider>(new Provider("healthy"));
+        }).StartAsync(ct);
+        CallerContextStamper.Stamp(new() { PrincipalId = "owner", AccountId = "owner", BrainId = "one",
+            Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
+        var registry = host.SiloServices.GetRequiredService<IRegistry>();
+        var failed = await registry.Active("test", ct);
+        Assert.Equal("healthy", Assert.Single(failed.Records).Domain);
+        Assert.Equal("delayed", Assert.Single(failed.Errors).Provider);
+        failure.Fail = false;
+        Assert.Empty((await registry.Active("test", ct)).Errors);
+    }
+
+    private sealed class CensusFailure : IOutgoingGrainCallFilter
+    {
+        public bool Fail { get; set; } = true;
+        public Task Invoke(IOutgoingGrainCallContext context) => Fail && context.InterfaceMethod.Name == nameof(IManagementGrain.GetDetailedGrainStatistics)
+            ? throw new IOException("Census unavailable") : context.Invoke();
+    }
+
+    [Fact]
+    public async Task ActiveDoesNotCountActivationsCausedByAnotherProvidersMembershipRead()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var membershipRead = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var host = await ModuleTest.Create().ConfigureSilo(silo =>
+        {
+            silo.Services.AddSingleton<IRegistryInventoryProvider>(services => new DelayedCensusProvider(
+                services.GetRequiredService<IActivationCensus>(), membershipRead.Task));
+            silo.Services.AddSingleton<IRegistryInventoryProvider>(services => new ActivatingMembershipProvider(
+                services.GetRequiredService<IDigitalBrain>(), services.GetRequiredService<IActivationCensus>(), membershipRead));
+        }).StartAsync(ct);
+        CallerContextStamper.Stamp(new() { PrincipalId = "owner", AccountId = "owner", BrainId = "one",
+            Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
+        await host.AuthorizeCallerAsync();
+        var neuron = host.Get<IBrain>(BrainScope.CurrentId());
+        await neuron.Read();
+        await host.DeactivateAsync(neuron, ct);
+        var registry = host.SiloServices.GetRequiredService<IRegistry>();
+        var first = await registry.Active(ct: ct);
+        Assert.Empty(first.Errors);
+        Assert.DoesNotContain(first.Records, record => record.Domain == "delayed");
+        Assert.Contains((await registry.Active(ct: ct)).Records, record => record.Domain == "delayed");
+        await host.DeactivateAsync(neuron, ct);
+        Assert.DoesNotContain(await host.SiloServices.GetRequiredService<IActivationCensus>().Activations("brain", ct),
+            record => record.Key == BrainScope.CurrentId());
+    }
+
+    private sealed class DelayedCensusProvider(IActivationCensus census, Task membershipRead) : IRegistryInventoryProvider
+    {
+        public string Domain => "delayed";
+        public Task<NeuronRecord[]> Persisted(string? typeId, CancellationToken ct) => Task.FromResult<NeuronRecord[]>([]);
+        public async Task<NeuronRecord[]> Active(string? typeId, CancellationToken ct)
+        {
+            await membershipRead.WaitAsync(ct);
+            return (await census.Activations("brain", ct)).Where(record => record.Key == BrainScope.CurrentId())
+                .Select(record => new NeuronRecord(Domain, record.TypeId, record.Key, "Brain")).ToArray();
+        }
+    }
+
+    private sealed class ActivatingMembershipProvider(IDigitalBrain brain, IActivationCensus census, TaskCompletionSource completed) : IRegistryInventoryProvider
+    {
+        public string Domain => "membership";
+        public Task<NeuronRecord[]> Persisted(string? typeId, CancellationToken ct) => Task.FromResult<NeuronRecord[]>([]);
+        public async Task<NeuronRecord[]> Active(string? typeId, CancellationToken ct)
+        {
+            _ = await census.Activations("unused", ct);
+            await brain.Get<IBrain>(BrainScope.CurrentId()).Read();
+            completed.TrySetResult();
+            return [];
+        }
+    }
+
+    [Fact]
     public async Task CensusReportsRealActivationsAcrossBrainsAndRefreshesAfterDeactivation()
     {
         var ct = TestContext.Current.CancellationToken;

@@ -27,7 +27,8 @@ public static class PlatformHosting
         if (services.Any(service => service.ServiceType == typeof(PlatformRegistration))) { return; }
         services.AddSingleton<PlatformRegistration>();
         services.TryAddSingleton<IRegistry, Discovery.PlatformRegistry>();
-        services.TryAddSingleton<IActivationCensus, Discovery.ActivationCensus>();
+        services.TryAddSingleton<Discovery.ActivationCensus>();
+        services.TryAddSingleton<IActivationCensus>(provider => provider.GetRequiredService<Discovery.ActivationCensus>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IRegistryInventoryProvider, Discovery.ConnectionsInventoryProvider>());
         services.AddIdentity();
         services.AddShippedContentPublishing();

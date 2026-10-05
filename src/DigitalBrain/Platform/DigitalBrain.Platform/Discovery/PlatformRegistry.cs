@@ -3,7 +3,7 @@ using DigitalBrain.Framework.Enforcement;
 
 namespace DigitalBrain.Platform.Discovery;
 
-internal sealed class PlatformRegistry(IEnumerable<IRegistryInventoryProvider> providers) : IRegistry
+internal sealed class PlatformRegistry(IEnumerable<IRegistryInventoryProvider> providers, ActivationCensus census) : IRegistry
 {
     public Task<RegistryInventory> Persisted(string? typeId = null, CancellationToken ct = default)
         => Discover(false, typeId, ct);
@@ -16,6 +16,7 @@ internal sealed class PlatformRegistry(IEnumerable<IRegistryInventoryProvider> p
         if (!CallerContextStamper.IsTrusted(caller)) { throw new UntrustedCallerException("The inventory requires a trusted caller."); }
         ct.ThrowIfCancellationRequested();
         var sources = providers.ToArray();
+        using var snapshot = active ? census.Use(await census.Capture(ct)) : null;
         var answers = await Task.WhenAll(sources.Select(async provider =>
         {
             try
