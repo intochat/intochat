@@ -291,6 +291,13 @@ internal sealed class AppNeuron(
         return Describe(Snapshot);
     }
 
+    public Task<AppBundle?> ExportVersion(string version)
+    {
+        var record = Snapshot.History.LastOrDefault(item => item.Version == version);
+        return Task.FromResult(record is null ? null
+            : new AppBundle(Name(), record.Version, record.Manifest, record.Spec, new(record.Files, StringComparer.Ordinal)));
+    }
+
     public Task<AppBundle> ExportPublished()
     {
         if (Snapshot.Published is not { } published)

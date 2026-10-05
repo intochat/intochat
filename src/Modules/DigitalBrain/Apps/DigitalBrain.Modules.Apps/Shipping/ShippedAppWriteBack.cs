@@ -26,10 +26,7 @@ internal sealed class ShippedAppWriteBack(
                     var publisher = await publishers.Resolve(source.Account, stoppingToken);
                     var app = grains.GetGrain<IApp>(IApp.Key(publisher.ScopeId, signal.Name));
                     if (signal.Publisher != app.GetGrainId().ToString()) { continue; }
-                    var bundle = await app.ExportPublished();
-                    // Startup publishes the folder's own version; rewriting it would only reformat it.
-                    if (source.Load().Any(existing => existing.Name == bundle.Name && existing.Version == bundle.Version)) { continue; }
-                    source.Write(bundle);
+                    await ShippedAppSync.WriteIfFastForward(source, app, await app.ExportPublished(), logger);
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
                 { logger.LogWarning(error, "Writing {App} back to the {Account} folder failed.", signal.Name, source.Account); }

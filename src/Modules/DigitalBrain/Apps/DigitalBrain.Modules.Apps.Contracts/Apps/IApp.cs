@@ -30,6 +30,9 @@ public interface IApp : INeuron
     Task<AppSnapshot> Publish();
     // The published version's bundle, readable by anyone: a published app is public by definition.
     Task<AppBundle> ExportPublished();
+    // A version this app still holds in its history, for development sync to prove a folder is
+    // unchanged since that version; null once the version has aged out.
+    [Orleans.Concurrency.ReadOnly] Task<AppBundle?> ExportVersion(string version);
     [ResponseTimeout("00:10:00")] Task<AppSnapshot> Import(AppBundle bundle);
     // An update: the bundle's program replaces this one in place. Settings, connections and the
     // app's stored data stay; behaviors the bundle lacks stop.

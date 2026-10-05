@@ -109,6 +109,35 @@ public sealed class ShippedAppSyncFacts : IDisposable
         finally { await writeBack.StopAsync(ct); }
     }
 
+    // Write-back only fast-forwards: a folder holding work the brain never saw (an edit without a
+    // version bump) is left alone, at startup and on publish, instead of silently overwritten.
+    [Fact]
+    public async Task AFolderWithUnpublishedEditsIsNeverOverwritten()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await StartAsync(ct);
+        var vendor = await ShippedAppPublisherFacts.Register(brain, "vendor", ct);
+        var source = new DirectoryShippedAppSource(_root, "vendor", writable: true);
+        source.Write(Bundle("1.0.0", "It echoes."));
+        await ShippedAppPublisherFacts.Ship(brain, [source], "true", ct);
+        var writeBack = new ShippedAppWriteBack(
+            brain.SiloServices.GetRequiredService<LocalSignalHub>(), brain.SiloServices.GetRequiredService<IGrainFactory>(),
+            brain.SiloServices.GetRequiredService<IPublisherDirectory>(), [source], NullLogger<ShippedAppWriteBack>.Instance);
+        await writeBack.StartAsync(ct);
+        var spec = Path.Combine(_root, "Echo", "app.spec.md");
+        File.WriteAllText(spec, "## Scenario: Echo\nMy uncommitted work.\n");
+        try
+        {
+            await PublishEdit(brain.Get<IApp>(IApp.Key(vendor.ScopeId, "echo")), vendor, "It echoes twice.");
+            await Task.Delay(500, ct);
+            Assert.Contains("My uncommitted work.", File.ReadAllText(spec), StringComparison.Ordinal);
+
+            await ShippedAppPublisherFacts.Ship(brain, [source], "true", ct);
+            Assert.Contains("My uncommitted work.", File.ReadAllText(spec), StringComparison.Ordinal);
+        }
+        finally { await writeBack.StopAsync(ct); }
+    }
+
     [Fact]
     public async Task AReadOnlyFolderIsNeverWritten()
     {

@@ -51,11 +51,17 @@ internal sealed class ShippedAppPublisher(
         var installed = await app.Read();
         var brainVersion = installed.Manifest.Title.Length == 0 ? null : installed.PublishedVersion ?? "0.0.0";
         var order = brainVersion is null ? 1 : AppVersions.Compare(bundle.Version, brainVersion);
-        if (order == 0) { return; }
+        if (order == 0)
+        {
+            // Same version, different content: the folder changed without a bump and will not ship.
+            if (brainVersion is not null && await app.ExportVersion(brainVersion) is { } recorded && !ShippedAppSync.SameContent(bundle, recorded))
+            { logger.LogWarning("{Account}/{App} folder differs from its published {Version} without a version bump; bump the version to ship it.", publisher.Username, bundle.Name, brainVersion); }
+            return;
+        }
         if (order < 0)
         {
-            // The publisher moved ahead in the brain; a development folder catches up.
-            if (source.Writable) { source.Write(await app.ExportPublished()); }
+            // The publisher moved ahead in the brain; a development folder catches up when it can.
+            if (source.Writable) { await ShippedAppSync.WriteIfFastForward(source, app, await app.ExportPublished(), logger); }
             return;
         }
         var (verdicts, green) = await AppVerifyJob.RunBundle(grains, runner, bundle,
