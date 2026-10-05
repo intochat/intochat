@@ -166,5 +166,5 @@ Task<AppContent> ReadContent();                          // manifest + files + d
 
 ## Closure
 
-- [ ] Full pass: Apps, CSharp, Postgres, Assistant, OS unit; Framework+OS E2E; `aspire run` smoke all Healthy.
-- [ ] Close #137, #138, #139, #140, #141, #142 with evidence comments; file the follow-up issue "Creator IDE UX in the shell" for the full visual experience.
+- [x] Full pass: Apps, CSharp, Postgres, Assistant, OS unit; Framework+OS E2E; `aspire run` smoke all Healthy.
+- [x] Close #137, #138, #139, #140, #141, #142 with evidence comments; file the follow-up issue "Creator IDE UX in the shell" for the full visual experience.
