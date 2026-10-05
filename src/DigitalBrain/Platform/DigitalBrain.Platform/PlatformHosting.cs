@@ -35,6 +35,9 @@ public static class PlatformHosting
         services.AddOptions<IdentityMigrationOptions>().BindConfiguration(IdentityMigrationOptions.SectionName);
         services.TryAddSingleton<DeploymentStorageIdentity>();
         silo.AddStartupTask<IdentityMigrationStartup>();
+        services.AddOptions<DigitalBrain.Platform.Identity.Configuration.SeededAccountOptions>()
+            .BindConfiguration(DigitalBrain.Platform.Identity.Configuration.SeededAccountOptions.SectionName);
+        silo.AddStartupTask<SeededAccountsStartup>();
         services.TryAddSingleton<DigitalBrain.Framework.Platform.Auth.ITokenHandoff, Auth.TokenHandoff>();
         services.TryAddSingleton<DigitalBrain.Framework.Platform.Auth.IOAuthCredentials, Auth.OAuthCredentials>();
         services.AddMasterKeyWrapper();
