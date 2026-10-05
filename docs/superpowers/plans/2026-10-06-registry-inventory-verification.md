@@ -29,6 +29,44 @@ Existing opt-in skips: CSharp's `ComposedQdrantSearchesTheRealVectorStore` requi
 `LiveTablesAreParameterizedIdempotentAndVisibleThroughTheReadDoor` require the documented
 live Postgres connection variables. The new inventory isolation facts all ran.
 
+## E2E suites
+
+Sequential, per-project runs with the same command and default build-output paths:
+
+| Suite | Succeeded | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| Framework E2E | 15 | 0 | 0 |
+| OS E2E | 18 | 0 | 2 |
+| Platform E2E | 2 | 0 | 0 |
+| Aspire Hosting E2E | 1 | 0 | 0 |
+| **Total** | **36** | **0** | **2** |
+
+Framework's final output:
+
+```text
+Test run summary: Passed!
+  total: 15
+  failed: 0
+  succeeded: 15
+  skipped: 0
+  duration: 4m 25s 279ms
+```
+
+OS's final output:
+
+```text
+Test run summary: Passed!
+  total: 20
+  failed: 0
+  succeeded: 18
+  skipped: 2
+  duration: 4m 51s 678ms
+```
+
+The two existing live golden journeys (`J1CustomersJourneyPassesGoldenThreshold` and
+`J2aCardFormJourneyPassesGoldenThreshold`) require `DIGITALBRAIN_E2E_LIVE_MODEL=1` and
+`DIGITALBRAIN_E2E_MODEL_API_KEY`. Scripted/browser journeys ran.
+
 ## Aspire smoke
 
 Run from `src/DigitalBrain/AppHost/DigitalBrain.AppHost` in the verification worktree:

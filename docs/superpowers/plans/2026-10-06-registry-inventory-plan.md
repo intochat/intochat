@@ -14,7 +14,13 @@ builds/tests, never the .slnx.
 - [x] Task 3 — Providers over existing aggregates (RED: absent providers; GREEN: Apps 117/117, Platform 137/137, CSharp 89 passed/1 live skip, Postgres 74 passed/3 live skips)
 - [x] Task 4 — Time: reminder/timer listing + provider (RED: missing provider; GREEN: Time 19/19, Architecture 35/35; existing Start/Stop contracts implement Set/Arm lifecycle intent)
 - [x] Task 5 — Assistant tools (RED: tools absent from scripted conversations; GREEN: Assistant 80/80)
-- [ ] Task 6 — Coverage rule in docs + closure
+- [x] Task 6 — Coverage rule + spec rulings + independent review; final verification: 714 unit passes / 4 live skips, Framework E2E 15/15, OS E2E 18 passes / 2 live skips, Platform E2E 2/2, Aspire E2E 1/1; Aspire smoke 38/38 Healthy. See [verification record](2026-10-06-registry-inventory-verification.md).
+
+Final implementation revision verified in isolation: `ab8cc0e793266757cd681067200ba5ee702321d0`.
+Concurrent Apps refactors in the shared `os` checkout are outside that verification claim.
+Review found and fixed a cross-provider liveness race (deterministic RED then GREEN): one
+transient census per Active request now precedes every provider's membership reads. Added
+failure/retry and Time index-write-failure regressions; final Platform 139/139 and Time 20/20.
 
 ## Task 1 — Framework contracts
 
