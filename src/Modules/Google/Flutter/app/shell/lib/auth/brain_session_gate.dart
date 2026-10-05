@@ -52,6 +52,7 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
   DigitalBrainUiClient? _client;
   String? _statusMessage;
   String? _loginError;
+  List<SeededAccount> _seeded = const [];
   String _lastUsername = '';
 
   @override
@@ -100,6 +101,7 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
               ? null
               : 'Sign in failed. Check the username and password.';
         });
+        unawaited(_loadSeeded());
       }
       return 'Sign in failed. Check the username and password.';
     }
@@ -179,6 +181,32 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
     }
   }
 
+  // Seeded accounts exist only on a development server; any failure simply hides them.
+  Future<void> _loadSeeded() async {
+    final client = widget.createClient(null);
+    try {
+      final accounts = await client.listSeededAccounts();
+      if (mounted) setState(() => _seeded = accounts);
+    } on Object {
+      if (mounted) setState(() => _seeded = const []);
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<String?> _continueAs(String username) async {
+    final client = widget.createClient(null);
+    try {
+      await client.signInSeeded(username);
+      store.clearStoredCredentials();
+      _enterShell(client, null);
+      return null;
+    } on Object {
+      client.close();
+      return 'Could not continue as $username.';
+    }
+  }
+
   Future<void> _switchAccount() async {
     final previous = _client;
     setState(() {
@@ -196,6 +224,7 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
           _phase = _Phase.login;
           _loginError = null;
         });
+        unawaited(_loadSeeded());
       }
     } on Object {
       if (mounted) {
@@ -245,6 +274,8 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
                   _signIn(username, password, register: true),
               initialUsername: _lastUsername,
               errorMessage: _loginError,
+              seededAccounts: _seeded,
+              onContinueAs: _continueAs,
             )
           : const ColoredBox(
               color: UiPalette.surface,
