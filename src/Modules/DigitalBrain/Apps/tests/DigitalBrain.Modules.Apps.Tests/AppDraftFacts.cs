@@ -333,13 +333,10 @@ public sealed class AppDraftFacts
         .WithModule<AppsModule>()
         // Extra keys join the host configuration; replacing the IConfiguration singleton would
         // erase the rest of the host's configuration (the master key included).
-        .WithExecution(new TestExecutionOptions
+        .ConfigureModule<AppsModule, AppsOptions>(apps =>
         {
-            PrivateConfiguration = new Dictionary<string, string?>
-            {
-                [AppDraftNeuron.AuthorModelKey] = IScriptedLLM.ModelPrefix + "author",
-                [AppDraftNeuron.BuilderModelKey] = IScriptedLLM.ModelPrefix + "builder",
-            },
+            apps.AuthorModel = IScriptedLLM.ModelPrefix + "author";
+            apps.BuilderModel = IScriptedLLM.ModelPrefix + "builder";
         })
         .ConfigureSilo(silo =>
         {

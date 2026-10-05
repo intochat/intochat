@@ -8,7 +8,7 @@ using Aspire.Hosting;
 using Aspire.Hosting.Testing;
 using Azure.Storage.Blobs;
 using DigitalBrain.Aspire.Hosting;
-using DigitalBrain.Platform.Contracts.Identity;
+using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Testing;
 using DigitalBrain.Testing.E2E;
 
@@ -26,7 +26,7 @@ await using (var session = await AspireTestSession.StartAsync(
         foreach (var name in new[] { "first", "second" })
         {
             builder.Configuration[$"Parameters:{name}-digitalbrain-master-key"] = key;
-            var brain = builder.AddDigitalBrain(name, persistentStorage: false, dataVolume: name == "second" ? compositionVolume.Name : null, serviceId: name == "second" ? "stable-composition" : name, options: new() { UseAzureStorage = true, ClusterId = Guid.NewGuid().ToString("N") });
+            var brain = builder.AddDigitalBrain(name, new() { UseAzureStorage = true, PersistentStorage = false, DataVolume = name == "second" ? compositionVolume.Name : null, ServiceId = name == "second" ? "stable-composition" : name, ClusterId = Guid.NewGuid().ToString("N") });
             var server = builder.AddExecutable(name + "-server", "dotnet", AppContext.BaseDirectory, candidate, "server")
                 .WithReference(brain).WithHttpEndpoint(name: "http", env: "ASPNETCORE_HTTP_PORTS")
                 .WithHttpHealthCheck("/health");
@@ -53,8 +53,8 @@ await compositionVolume.WaitUntilReleasedAsync(ct);
 await using (var renamed = await AspireTestSession.StartAsync(new TestExecutionOptions(), builder =>
 {
     builder.Configuration["Parameters:renamed-digitalbrain-master-key"] = key;
-    var brain = builder.AddDigitalBrain("renamed", persistentStorage: false, dataVolume: compositionVolume.Name,
-        serviceId: "stable-composition", options: new() { UseAzureStorage = true, ClusterId = Guid.NewGuid().ToString("N") });
+    var brain = builder.AddDigitalBrain("renamed", new() { UseAzureStorage = true, PersistentStorage = false, DataVolume = compositionVolume.Name,
+        ServiceId = "stable-composition", ClusterId = Guid.NewGuid().ToString("N") });
     builder.AddExecutable("renamed-server", "dotnet", AppContext.BaseDirectory, candidate, "server")
         .WithReference(brain).WithHttpEndpoint(name: "http", env: "ASPNETCORE_HTTP_PORTS").WithHttpHealthCheck("/health");
 }, ct))

@@ -8,6 +8,7 @@ using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Apps;
@@ -15,7 +16,7 @@ namespace DigitalBrain.Apps;
 [GrainType("intochat.app-draft")]
 internal sealed partial class AppDraftNeuron(
     [PersistentState("intochat.app-draft", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<AppDraftState> store,
-    IConfiguration configuration,
+    IOptions<AppsOptions> options,
     ILogger<AppDraftNeuron> logger,
     IEnumerable<IAppRuntime> runtimes,
     AppAuthoringPolicy policy,
@@ -24,11 +25,6 @@ internal sealed partial class AppDraftNeuron(
     IContractVocabulary? vocabulary = null)
     : Neuron<AppDraftState>(store), IAppDraft
 {
-    internal static readonly string AuthorModelKey =
-        DigitalBrain.DigitalBrainConfiguration.ModuleOptionsSection(new DigitalBrain.ModuleId("apps")) + ":AuthorModel";
-    internal static readonly string BuilderModelKey =
-        DigitalBrain.DigitalBrainConfiguration.ModuleOptionsSection(new DigitalBrain.ModuleId("apps")) + ":BuilderModel";
-
     private const int MaxAuthorRetries = 2;
     private const int MaxBuildAttempts = 3;
     private const int MaxBuilderRounds = 12;
@@ -42,8 +38,8 @@ internal sealed partial class AppDraftNeuron(
         return DigitalBrain.Framework.Enforcement.NeuronAccess.PublicOperation;
     }
     private string Owner => DraftId.Split('/')[0];
-    private string AuthorModel => configuration[AuthorModelKey] ?? nameof(IGpt56Luna);
-    private string BuilderModel => configuration[BuilderModelKey] ?? nameof(IGpt56Luna);
+    private string AuthorModel => options.Value.AuthorModel ?? nameof(IGpt56Luna);
+    private string BuilderModel => options.Value.BuilderModel ?? nameof(IGpt56Luna);
     // A csharp app is only offered where this host may run it.
     private string[] Runtimes => policy.AvailableRuntimes;
     private string RuntimeDescriptions => string.Join("\n\n", runtimes.Select(runtime => runtime.AuthoringDescription)

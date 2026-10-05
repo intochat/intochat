@@ -4,17 +4,20 @@ using DigitalBrain.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
 
 namespace DigitalBrain.Apps;
 
-public sealed class AppsModule() : Module(new ModuleId("apps")), IHttpModule
+public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IHttpModule
 {
     public override void Configure(ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
+        silo.Services.AddOptions<AppsOptions>()
+            .Configure<IConfiguration>((options, configuration) => configuration.PopulateModuleOptions("apps", options));
         silo.Services.TryAddSingleton(TimeProvider.System);
         silo.Services.TryAddSingleton<AppRequirements>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Registry.IRegistryResourceProvider, AppsRegistryResources>());

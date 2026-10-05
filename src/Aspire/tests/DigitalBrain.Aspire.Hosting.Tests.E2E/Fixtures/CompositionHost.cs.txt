@@ -2,7 +2,7 @@ using DigitalBrain;
 using DigitalBrain.Aspire.Client;
 using DigitalBrain.Aspire.Server;
 using DigitalBrain.Platform;
-using DigitalBrain.Platform.Contracts.Identity;
+using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Platform.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
