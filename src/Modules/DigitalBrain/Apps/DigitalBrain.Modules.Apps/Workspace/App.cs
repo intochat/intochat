@@ -56,6 +56,11 @@ internal sealed class App(
         { throw new InvalidOperationException("This app already exists; edit it instead of creating it again."); }
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Title);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Runtime);
+        // The live app appears in the brain's menu the same way an install does.
+        var key = this.GetPrimaryKeyString();
+        var marker = key.IndexOf("/packages/", StringComparison.Ordinal);
+        if (marker > 0 && key[(marker + "/packages/".Length)..].Split('/') is { Length: 2 } parts)
+        { await GrainFactory.GetGrain<IApps>(key[..marker]).Track(PackageId.Create(parts[0], parts[1])); }
         await Persist(Snapshot with
         {
             Status = AppStatus.Installed,
@@ -145,6 +150,36 @@ internal sealed class App(
         {
             Files = files, BehaviorErrors = errors, DeployedFiles = deployed, StorageFiles = storage,
             Receipts = Receipted(operationId, new BehaviorDelete(path)),
+        });
+        return Describe(Snapshot);
+    }
+
+    public async Task<AppSnapshot> WriteFile(string path, string source, Guid operationId)
+    {
+        RequireLive();
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentException.ThrowIfNullOrWhiteSpace(source);
+        if (path == PackageContent.SourcePath
+            || (path.StartsWith(PackageContent.BehaviorsPrefix, StringComparison.Ordinal) && path.EndsWith(".cs", StringComparison.Ordinal)))
+        { throw new ArgumentException("Programs are written through WriteBehavior, which deploys them."); }
+        if (Replay(operationId, new BehaviorWrite(path, source))) { return Describe(Snapshot); }
+        var files = new Dictionary<string, string>(Snapshot.Files, StringComparer.Ordinal) { [path] = source };
+        await Persist(Snapshot with { Files = files, Receipts = Receipted(operationId, new BehaviorWrite(path, source)) });
+        return Describe(Snapshot);
+    }
+
+    public async Task<AppSnapshot> SaveManifest(PackageManifest manifest, Guid operationId)
+    {
+        RequireLive();
+        ArgumentNullException.ThrowIfNull(manifest);
+        if (Replay(operationId, manifest)) { return Describe(Snapshot); }
+        await Persist(Snapshot with
+        {
+            Title = manifest.Title,
+            Description = manifest.Description,
+            Operations = [.. manifest.Operations],
+            Declared = [.. manifest.Settings],
+            Receipts = Receipted(operationId, manifest),
         });
         return Describe(Snapshot);
     }

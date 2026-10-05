@@ -15,6 +15,7 @@ class AppSpecScreen extends StatefulWidget {
   const AppSpecScreen({
     super.key,
     required this.packageId,
+    required this.workspaceId,
     required this.title,
     required this.request,
     this.revision,
@@ -22,6 +23,7 @@ class AppSpecScreen extends StatefulWidget {
   });
 
   final String packageId;
+  final String workspaceId;
   final String title;
   final AppsRequest request;
   final String? revision;
@@ -122,7 +124,8 @@ class _AppSpecScreenState extends State<AppSpecScreen> {
                               MaterialPageRoute<void>(
                                 builder: (_) => CreateAppScreen(
                                   request: widget.request,
-                                  initialRevision: _map(spec?['revision']),
+                                  workspaceId: widget.workspaceId,
+                                  app: widget.packageId,
                                 ),
                               ),
                             ),

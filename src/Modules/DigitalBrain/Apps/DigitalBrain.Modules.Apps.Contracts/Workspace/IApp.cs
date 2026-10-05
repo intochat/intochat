@@ -18,6 +18,9 @@ public interface IApp : INeuron
     [ResponseTimeout("00:10:00")] Task<AppSnapshot> Create(CreateApp request);
     [ResponseTimeout("00:10:00")] Task<AppSnapshot> WriteBehavior(string path, string source, Guid operationId);
     [ResponseTimeout("00:10:00")] Task<AppSnapshot> DeleteBehavior(string path, Guid operationId);
+    // Non-program files (app.spec.md, tests.cs, prompts): stored, never deployed.
+    Task<AppSnapshot> WriteFile(string path, string source, Guid operationId);
+    Task<AppSnapshot> SaveManifest(PackageManifest manifest, Guid operationId);
     Task<AppSnapshot> SaveDocument(AppAuthoringDocument document, Guid operationId);
     Task RecordVerdicts(AppScenarioVerdict[] verdicts, Guid operationId);
     [Orleans.Concurrency.ReadOnly, Orleans.Concurrency.AlwaysInterleave] Task<AppContent> ReadContent();

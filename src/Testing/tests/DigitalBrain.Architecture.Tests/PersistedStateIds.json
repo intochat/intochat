@@ -456,6 +456,13 @@
     "OperationId": 0,
     "Number": 1
   },
+  "DigitalBrain.Apps.App\u002BBehaviorDelete": {
+    "Path": 0
+  },
+  "DigitalBrain.Apps.App\u002BBehaviorWrite": {
+    "Path": 0,
+    "Source": 1
+  },
   "DigitalBrain.Apps.AppAuthoringDocument": {
     "Version": 0,
     "Preamble": 1,
@@ -469,6 +476,13 @@
     "SourcePaths": 3,
     "ScenarioIds": 4
   },
+  "DigitalBrain.Apps.AppContent": {
+    "Manifest": 0,
+    "Files": 1,
+    "Document": 2,
+    "Verdicts": 3,
+    "BehaviorErrors": 4
+  },
   "DigitalBrain.Apps.AppDeployment": {
     "Target": 0
   },
@@ -477,53 +491,6 @@
     "OriginalSpec": 1,
     "CanEdit": 2,
     "Error": 3
-  },
-  "DigitalBrain.Apps.AppDraftAttempt": {
-    "Revision": 0,
-    "Green": 1,
-    "Failures": 2
-  },
-  "DigitalBrain.Apps.AppDraftChanged": {
-    "DraftId": 0,
-    "Revision": 1,
-    "Status": 2
-  },
-  "DigitalBrain.Apps.AppDraftConflictException": {},
-  "DigitalBrain.Apps.AppDraftEntry": {
-    "Id": 0,
-    "Title": 1,
-    "Status": 2,
-    "UpdatedAt": 3
-  },
-  "DigitalBrain.Apps.AppDraftState": {
-    "Revision": 0,
-    "Request": 1,
-    "Name": 2,
-    "Title": 3,
-    "Description": 4,
-    "Runtime": 5,
-    "Spec": 6,
-    "Status": 7,
-    "Attempts": 8,
-    "Published": 9,
-    "Error": 10,
-    "Document": 11,
-    "SourceRevision": 12,
-    "VerifiedDocumentHash": 13
-  },
-  "DigitalBrain.Apps.AppDraftView": {
-    "Draft": 0,
-    "Verification": 1,
-    "Vocabulary": 2,
-    "Files": 3,
-    "FilesRevision": 4,
-    "VerificationCurrent": 5
-  },
-  "DigitalBrain.Apps.AppDraftsChanged": {
-    "Owner": 0
-  },
-  "DigitalBrain.Apps.AppDraftsState": {
-    "Entries": 0
   },
   "DigitalBrain.Apps.AppInvocation": {
     "Id": 0,
@@ -586,7 +553,13 @@
     "\u003Cretired:19\u003E": 19,
     "BrainScopeId": 20,
     "InstallerAppId": 21,
-    "DeployedFiles": 22
+    "DeployedFiles": 22,
+    "Files": 23,
+    "Document": 24,
+    "Verdicts": 25,
+    "BehaviorErrors": 26,
+    "Title": 27,
+    "Description": 28
   },
   "DigitalBrain.Apps.AppTestRun": {
     "Scenarios": 0,
@@ -616,6 +589,12 @@
     "OperationId": 0,
     "Settings": 1,
     "Accounts": 2
+  },
+  "DigitalBrain.Apps.CreateApp": {
+    "OperationId": 0,
+    "Title": 1,
+    "Description": 2,
+    "Runtime": 3
   },
   "DigitalBrain.Apps.ForkPackage": {
     "OperationId": 0,
@@ -753,10 +732,6 @@
     "Generation": 2,
     "Programs": 3,
     "Configuration": 4
-  },
-  "DigitalBrain.Apps.SaveAppDocument": {
-    "ExpectedRevision": 0,
-    "Document": 1
   },
   "DigitalBrain.Apps.Signals.AppChanged": {
     "App": 0

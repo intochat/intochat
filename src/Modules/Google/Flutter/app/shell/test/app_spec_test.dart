@@ -46,53 +46,42 @@ void main() {
     expect(find.text('Shouts back whatever you say.'), findsOneWidget);
   });
 
-  testWidgets('drafts, revises and builds an app until it is published', (
+  testWidgets('creates a live app, implements it and runs its scenarios', (
     tester,
   ) async {
     final calls = <String>[];
-    var status = 1;
+    var verdicts = <Object>[];
+    Map<String, dynamic> content() => {
+      'manifest': {
+        'title': 'Shouter',
+        'runtimeName': 'prompt',
+        'description': 'Shouts back.',
+      },
+      'files': {'app.spec.md': _spec},
+      'verdicts': verdicts,
+      'behaviorErrors': <String, dynamic>{},
+    };
     Future<dynamic> request(String method, String path, [Object? body]) async {
-      calls.add('$method ${path.replaceAll(RegExp('[0-9a-f]{32}'), 'ID')}');
-      if (path.endsWith('/build')) status = 3;
-      return {
-        'draft': {
-          'title': 'Shouter',
-          'runtime': 'prompt',
-          'description': 'Shouts back.',
-          'spec': _spec,
-          'status': status,
-          'attempts': status == 3
-              ? [
-                  {
-                    'green': false,
-                    'failures': 'Scenario \'It shouts\': The answer was "hi".',
-                  },
-                  {'green': true, 'failures': ''},
-                ]
-              : <Object>[],
-          'published': status == 3
-              ? {
-                  'package': {'owner': 'alice', 'name': 'shouter'},
-                  'revision': 'r2',
-                }
-              : null,
-        },
-        'verification': status == 3
-            ? {
-                'green': true,
-                'run': {
-                  'scenarios': [
-                    {'name': 'It shouts', 'passed': true, 'message': ''},
-                  ],
-                  'exitCode': 0,
-                },
-              }
-            : null,
-      };
+      calls.add('$method $path');
+      if (path == '/brains/workspace-test/creator/apps') {
+        return {'owner': 'alice', 'name': 'shouter', 'content': content()};
+      }
+      if (path.endsWith('/creator/implement')) return content();
+      if (path.endsWith('/creator/run')) {
+        verdicts = [
+          {'name': 'It shouts', 'passed': true, 'message': '', 'scenarioId': 's1'},
+        ];
+        return {'scenarios': verdicts, 'exitCode': 0};
+      }
+      if (path.endsWith('/creator/content')) return content();
+      if (path.endsWith('/creator/save')) return {'revision': 'r1'};
+      throw StateError('Unexpected $method $path');
     }
 
     await tester.pumpWidget(
-      MaterialApp(home: CreateAppScreen(request: request)),
+      MaterialApp(
+        home: CreateAppScreen(request: request, workspaceId: 'workspace-test'),
+      ),
     );
     await tester.enterText(
       find.byKey(const ValueKey('describe-app')),
@@ -104,37 +93,21 @@ void main() {
     expect(find.text('Shouter · prompt app'), findsOneWidget);
     expect(find.text('Scenario: It shouts'), findsOneWidget);
 
-    await tester.enterText(
-      find.byKey(const ValueKey('revise-app')),
-      'Check the exact answer',
-    );
-    await tester.ensureVisible(find.byKey(const ValueKey('revise-button')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('revise-button')));
-    await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(const ValueKey('build-app')));
-    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('build-app')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('run-scenarios')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('save-app')));
     await tester.pumpAndSettle();
 
     expect(calls, [
-      'POST /packages/drafts/ID',
-      'POST /packages/drafts/ID/revise',
-      'POST /packages/drafts/ID/build',
+      'POST /brains/workspace-test/creator/apps',
+      'POST /brains/workspace-test/packages/alice/shouter/creator/implement',
+      'POST /brains/workspace-test/packages/alice/shouter/creator/run',
+      'GET /brains/workspace-test/packages/alice/shouter/creator/content',
+      'POST /brains/workspace-test/packages/alice/shouter/creator/save',
     ]);
-    expect(find.byKey(const ValueKey('attempt-1')), findsOneWidget);
-    expect(
-      find.text('Scenario \'It shouts\': The answer was "hi".'),
-      findsOneWidget,
-    );
-    await tester.dragUntilVisible(
-      find.byKey(const ValueKey('published-app')),
-      find.byType(ListView),
-      const Offset(0, -200),
-    );
-    expect(
-      find.text('Published as alice/shouter. Install it from Apps.'),
-      findsOneWidget,
-    );
+    expect(find.text('Saved as alice/shouter@r1.'), findsOneWidget);
   });
 }

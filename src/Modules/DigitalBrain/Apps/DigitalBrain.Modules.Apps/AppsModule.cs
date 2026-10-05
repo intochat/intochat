@@ -28,6 +28,8 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
         silo.Services.TryAddSingleton<AppPublishing>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IAgentToolSource, AppAgentTools>());
         silo.Services.TryAddSingleton<AppAuthoringPolicy>();
+        silo.Services.TryAddSingleton<CreatorService>();
+        silo.Services.TryAddSingleton<LiveAppPackaging>();
         silo.Services.AddAppRuntime<GroupChatRuntime>();
         silo.Services.AddAppRuntime<PromptRuntime>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IDeployableRuntime, CSharpAppRuntime>());
