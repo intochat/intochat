@@ -5,19 +5,21 @@ using Orleans.Runtime;
 namespace DigitalBrain.Compute.Storage;
 
 // A non-reentrant writer serializes deduplication; records live directly in grain state.
-// Every log this grain backs is bounded: meters shard per month, usage evicts past Cap.
+// Meter shards are billing facts and never evict (they are bounded by sharding per month);
+// usage-log grains, recognized by their key, keep only the newest Cap rows.
 [GrainType("compute.records")]
 internal sealed class ComputeRecordsNeuron(
     [PersistentState("records", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ComputeRecordsState> state)
     : Neuron, IComputeRecords
 {
     internal const int Cap = 10_000;
+    internal const string UsageKeyPrefix = "usage/";
 
     public async Task<int> Put(ComputeStoredRecord[] records, bool overwrite)
     {
         if (records.Length > 1000) { throw new ArgumentException("At most 1000 records per batch."); }
         var byId = state.State.Records.ToDictionary(record => record.Id, StringComparer.Ordinal);
-        var changed = 0;
+        var changedIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var record in records)
         {
             var old = byId.GetValueOrDefault(record.Id);
@@ -25,11 +27,13 @@ internal sealed class ComputeRecordsNeuron(
             var next = old is null ? record : record with { SortKey = old.SortKey };
             if (old == next) { continue; }
             byId[record.Id] = next;
-            changed++;
+            changedIds.Add(record.Id);
         }
-        if (changed == 0) { return 0; }
         var kept = byId.Values.OrderBy(record => record.SortKey, StringComparer.Ordinal).ToArray();
-        if (kept.Length > Cap) { kept = kept[^Cap..]; }
+        if (kept.Length > Cap && this.GetPrimaryKeyString().StartsWith(UsageKeyPrefix, StringComparison.Ordinal)) { kept = kept[^Cap..]; }
+        // A record evicted in the same call was never recorded, so it is not counted.
+        var changed = kept.Count(record => changedIds.Contains(record.Id));
+        if (changed == 0) { return 0; }
         var previous = state.State;
         state.State = new ComputeRecordsState { Records = kept };
         try { await state.WriteStateAsync(); }

@@ -35,12 +35,14 @@ public sealed class NeuronStoreFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<ComputeModule>().StartAsync(ct);
         var store = brain.SiloServices.GetRequiredService<IUsageStore>();
-        for (var i = 0; i < ComputeRecordsNeuron.Cap + 10; i++)
+        var grain = brain.Get<IComputeRecords>(ComputeRecordsNeuron.UsageKeyPrefix + UsagePaging.Scope("account", "brain-1"));
+        var total = ComputeRecordsNeuron.Cap + 10;
+        for (var start = 0; start < total; start += 1000)
         {
-            await store.AppendAsync("account", "brain-1", $"row-{i}", "{}", ct);
+            await grain.Put([.. Enumerable.Range(start, Math.Min(1000, total - start)).Select(UsageRecord)], true);
         }
         var page = await store.ReadAsync("account", "brain-1", 1, null, ct);
-        Assert.Equal($"row-{ComputeRecordsNeuron.Cap + 9}", page.Items[0].Id);
+        Assert.Equal($"row-{total - 1}", page.Items[0].Id);
         var all = new List<string>();
         string? cursor = null;
         do
@@ -50,7 +52,41 @@ public sealed class NeuronStoreFacts
             cursor = next.NextCursor;
         } while (cursor is not null);
         Assert.Equal(ComputeRecordsNeuron.Cap, all.Count);
-        Assert.DoesNotContain("row-0", all);
+        Assert.All(Enumerable.Range(0, 10), i => Assert.DoesNotContain($"row-{i}", all));
+        Assert.Contains("row-10", all);
+    }
+
+    [Fact]
+    public async Task ARowOlderThanEveryKeptUsageRowIsNotCountedWhenItIsEvictedInTheSamePut()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<ComputeModule>().StartAsync(ct);
+        var grain = brain.Get<IComputeRecords>(ComputeRecordsNeuron.UsageKeyPrefix + "full");
+        for (var start = 0; start < ComputeRecordsNeuron.Cap; start += 1000)
+        {
+            await grain.Put([.. Enumerable.Range(start + 1, 1000).Select(UsageRecord)], true);
+        }
+        Assert.Equal(0, await grain.Put([UsageRecord(0)], true));
+        Assert.DoesNotContain(await grain.Read(), record => record.Id == "row-0");
+    }
+
+    [Fact]
+    public async Task MeterShardsNeverEvictRecords()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<ComputeModule>().StartAsync(ct);
+        var grain = brain.Get<IComputeRecords>("meters/2026-09");
+        for (var start = 0; start < ComputeRecordsNeuron.Cap + 10; start += 1000)
+        {
+            await grain.Put([.. Enumerable.Range(start, Math.Min(1000, ComputeRecordsNeuron.Cap + 10 - start)).Select(UsageRecord)], false);
+        }
+        Assert.Equal(ComputeRecordsNeuron.Cap + 10, (await grain.Read()).Length);
+    }
+
+    private static ComputeStoredRecord UsageRecord(int i)
+    {
+        var id = $"row-{i}";
+        return new(id, "{}", (DateTime.UnixEpoch.Ticks + i).ToString("D19") + "-" + UsagePaging.Hash(id), 0);
     }
 
     [Fact]
