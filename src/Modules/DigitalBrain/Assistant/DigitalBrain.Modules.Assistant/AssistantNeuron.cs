@@ -3,14 +3,6 @@ using DigitalBrain;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Media;
-using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Button;
-using DigitalBrain.Flutter.Button.Signals;
-using DigitalBrain.Flutter.FileInput;
-using DigitalBrain.Flutter.Select;
-using DigitalBrain.Flutter.TextField;
-using DigitalBrain.Flutter.TextField.Signals;
-using DigitalBrain.Flutter.VoiceInput.Signals;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -20,9 +12,9 @@ using Orleans.Runtime;
 namespace DigitalBrain.Assistant;
 
 
-// Input commands may arrive while a turn streams its presentation.
+// Runs, transcriptions and model reads may overlap: each is independent of the others.
 [Reentrant, GrainType("apps.assistant")]
-internal sealed partial class AssistantNeuron(
+internal sealed class AssistantNeuron(
     [PersistentState("apps.assistant", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<AssistantState> store, IServiceProvider services)
     : Neuron<AssistantState>(store), IAssistant
 {
@@ -33,7 +25,6 @@ internal sealed partial class AssistantNeuron(
         => operation is nameof(Models)
             ? DigitalBrain.Framework.Enforcement.NeuronAccess.PublicOperation
             : new(Workspace);
-    private ITextField Draft => GrainFactory.GetGrain<ITextField>(UiParts.NameOf(Key, AssistantSurface.DraftPart));
     public Task<AssistantState> Read() => Task.FromResult(Snapshot);
     // An assistant started for a workspace is keyed "{workspace}/applications/assistant".
     private string Workspace => Key.Split("/applications/")[0];
@@ -85,70 +76,6 @@ internal sealed partial class AssistantNeuron(
     public async Task Configure(AgentDefinition definition)
     {
         ArgumentNullException.ThrowIfNull(definition);
-        await Change(state => state with { Definition = definition });
+        await Save(Snapshot with { Definition = definition }, new AssistantConfigured(Key));
     }
-
-    public async Task Activate()
-    {
-        await AssistantSurface.Compose(GrainFactory, Key);
-        if (!Snapshot.Active) { await Change(state => state with { Active = true }); }
-        _published.Clear();
-        await InitializePresentation();
-    }
-
-    public async Task Answer(string message)
-    {
-        await Send(message);
-    }
-
-    public async Task Hear(byte[] audio, string mimeType)
-    {
-        await Act("voice", Convert.ToBase64String(audio));
-    }
-
-    public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
-    {
-        foreach (var running in _running.Values) { running.Cancel(); }
-        return base.OnDeactivateAsync(reason, cancellationToken);
-    }
-
-    public async Task HandleUiEvent(Signal signal)
-    {
-        var prefix = Key + "/";
-        switch (signal)
-        {
-            case TextFieldChanged changed when changed.Name == prefix + AssistantSurface.DraftPart:
-                await Act("draft", changed.Value);
-                break;
-            case SelectChanged changed when changed.Name == prefix + AssistantSurface.ThreadsPart:
-                await Act("conversation", changed.Value);
-                break;
-            case SelectChanged changed when changed.Name == prefix + AssistantSurface.ModelPart:
-                await Act("model", changed.Value);
-                break;
-            case FileCaptured captured when captured.Name == prefix + AssistantSurface.AttachPart:
-                await Act("attach", System.Text.Json.JsonSerializer.Serialize(new { name = captured.FileName, content = captured.Content }));
-                break;
-            case VoiceCaptured captured when captured.Name == prefix + AssistantSurface.VoicePart:
-                await Hear(captured.Audio, captured.MimeType);
-                break;
-            case ButtonClicked clicked when clicked.Name.StartsWith(prefix, StringComparison.Ordinal):
-                switch (clicked.Action)
-                {
-                    case "submit": await Act("submit", (await Draft.Read()).Value); break;
-                    case "cancel": await Act("cancel", null); break;
-                    case "new-conversation": await Act("new-conversation", null); break;
-                    case "prompt:help": await SetDraft("What can you help me with?"); break;
-                    case "prompt:data": await SetDraft("Show me my data"); break;
-                    case var command when command.StartsWith("command:", StringComparison.Ordinal):
-                        using (var document = System.Text.Json.JsonDocument.Parse(command[8..]))
-                        {
-                            await Act(JsonText(document.RootElement, "action") ?? "", JsonText(document.RootElement, "value"));
-                        }
-                        break;
-                }
-                break;
-        }
-    }
-
 }

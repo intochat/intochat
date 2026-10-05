@@ -9,7 +9,7 @@ namespace DigitalBrain.Modules.Assistant.Tests;
 public sealed class AssistantRouteFacts
 {
     [Fact]
-    public void ComputeUsageAndAssistantApplicationsAreServedUnderTheBrainRoute()
+    public void ComputeUsageIsServedUnderTheBrainRouteAndTheBuiltInWindowIsGone()
     {
         var snapshot = RouteSnapshot.Map(services =>
         {
@@ -20,9 +20,9 @@ public sealed class AssistantRouteFacts
         snapshot.AssertEveryMethodAndRouteIsDistinct();
         var routes = snapshot.Routes;
         Assert.Contains("/brains/{brainId}/compute/usage", routes);
-        Assert.Contains("/brains/{brainId}/applications/assistant/open", routes);
-        Assert.Contains("/brains/{brainId}/applications/assistant/start", routes);
-        Assert.Contains("/brains/{brainId}/built-in/activate", routes);
-        Assert.Contains("/brains/{brainId}/built-in/assistant/open", routes);
+        Assert.DoesNotContain("/brains/{brainId}/applications/assistant/open", routes);
+        Assert.DoesNotContain("/brains/{brainId}/applications/assistant/start", routes);
+        Assert.DoesNotContain("/brains/{brainId}/built-in/activate", routes);
+        Assert.DoesNotContain("/brains/{brainId}/built-in/assistant/open", routes);
     }
 }

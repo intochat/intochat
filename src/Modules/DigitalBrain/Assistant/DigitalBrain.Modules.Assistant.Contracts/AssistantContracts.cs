@@ -1,20 +1,15 @@
 using DigitalBrain;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
-using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Chat;
 using Orleans.Concurrency;
 
 namespace DigitalBrain.Assistant;
 
 [Alias("apps.assistant"), Orleans.Metadata.DefaultGrainType("apps.assistant")]
-public interface IAssistant : INeuron, IUiEventHandler
+public interface IAssistant : INeuron
 {
-    Task Activate();
     [ReadOnly] Task<AssistantState> Read();
-    Task<AssistantWindow> OpenWindow(string? draft = null, string? title = null);
-    Task SetDraft(string draft);
-    [OneWay] Task Act(string action, string? value);
     Task<AssistantTranscriptionResult> Transcribe(string? base64, CancellationToken ct = default);
     [AlwaysInterleave, ResponseTimeout("00:10:00")] IAsyncEnumerable<string> Run(AssistantRun request, CancellationToken ct = default);
     Task<AgentConversationState> ReadConversation(string threadId, CancellationToken ct = default);
@@ -22,9 +17,6 @@ public interface IAssistant : INeuron, IUiEventHandler
     Task Configure(AgentDefinition definition);
     Task<IAgent> Conversation(string threadId);
     Task<AgentDefinition> DefineTurn(string? summary);
-    // One-way, so the chat or voice input that announced the request is free to take the reply.
-    [OneWay] Task Answer(string message);
-    [OneWay] Task Hear(byte[] audio, string mimeType);
 }
 
 [GenerateSerializer, Alias("apps.assistant-state")]
@@ -55,12 +47,6 @@ public sealed record AssistantThread
     [Id(8)] public string? Status { get; init; }
     [Id(9)] public string? TurnId { get; init; }
 }
-
-[GenerateSerializer, Alias("assistant.window")]
-public sealed record AssistantWindow(
-    [property: Id(0)] string Id,
-    [property: Id(1)] string Title,
-    [property: Id(2)] UiChildRef Surface);
 
 [GenerateSerializer, Alias("assistant.run")]
 public sealed record AssistantRun(

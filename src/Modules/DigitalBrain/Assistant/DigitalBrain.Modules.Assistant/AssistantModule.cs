@@ -24,7 +24,6 @@ public sealed class AssistantModule() : Module(new ModuleId("assistant")), IHttp
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ComputeUsageEndpoints.Map(endpoints);
-        AssistantEndpoints.Map(endpoints);
         AgentEndpoints.Map(endpoints);
     }
 }

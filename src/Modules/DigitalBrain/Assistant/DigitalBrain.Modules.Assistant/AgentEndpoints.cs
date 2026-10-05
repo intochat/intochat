@@ -17,16 +17,16 @@ internal static class AgentEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet("/ai/models", async (IDigitalBrain brain) =>
-            Results.Ok(await brain.Get<IAssistant>(AssistantSurface.Key("catalog")).Models()));
+            Results.Ok(await brain.Get<IAssistant>(AssistantConversations.AssistantKey("catalog")).Models()));
 
         var brainRoutes = BrainRoutes.Group(endpoints);
         brainRoutes.MapGet("/conversations/{threadId}", async (string threadId, IDigitalBrain brain, CancellationToken ct) =>
             BrainScope.IsValidId(threadId)
-                ? Results.Ok(await brain.Get<IAssistant>(AssistantSurface.Key(BrainScope.CurrentId())).ReadConversation(threadId, ct))
+                ? Results.Ok(await brain.Get<IAssistant>(AssistantConversations.AssistantKey(BrainScope.CurrentId())).ReadConversation(threadId, ct))
                 : Results.BadRequest());
         brainRoutes.MapPost("/voice", async (VoiceInput input, IDigitalBrain brain, CancellationToken ct) =>
         {
-            var result = await brain.Get<IAssistant>(AssistantSurface.Key(BrainScope.CurrentId())).Transcribe(input.Audio, ct);
+            var result = await brain.Get<IAssistant>(AssistantConversations.AssistantKey(BrainScope.CurrentId())).Transcribe(input.Audio, ct);
             return result.Status == 200 ? Results.Ok(new { text = result.Text })
                 : Results.Json(new { error = result.Error }, statusCode: result.Status);
         }).WithMetadata(new RequestSizeLimitAttribute(MaxVoiceBytes));
@@ -42,7 +42,7 @@ internal static class AgentEndpoints
             var request = new AssistantRun(input.ThreadId, input.RunId, input.Messages[0].Content, scope!.Owner, input.ModelProfile);
             try
             {
-                await foreach (var item in brain.Get<IAssistant>(AssistantSurface.Key(scope.Id)).Run(request, http.RequestAborted))
+                await foreach (var item in brain.Get<IAssistant>(AssistantConversations.AssistantKey(scope.Id)).Run(request, http.RequestAborted))
                 {
                     if (!http.Response.HasStarted)
                     {
