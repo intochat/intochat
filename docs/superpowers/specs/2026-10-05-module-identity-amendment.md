@@ -1,6 +1,7 @@
 # Module identity: one mechanism, one ring, one grammar
 
-Drafted 2026-10-05. Amends the 2026-10-04 module self-description design. That design's goals
+Ratified 2026-10-05 (implemented on branch `os`; §7 as amended by the execution rulings noted
+inline). Amends the 2026-10-04 module self-description design. That design's goals
 stand — one source per fact, the catalog is the composition, the AppHost speaks only
 deployment. This amendment replaces its *mechanism* and extends it to the two places the same
 disease was found afterwards: the Contracts/Kernel split of the module concept, and the AI
@@ -138,12 +139,16 @@ is every module's home, with no private roots beside it. Concretely, for AI:
   `DigitalBrainConfiguration.ModuleOptionsSection(AIModule id)`, not by string concatenation.
 - `AIOptionsRuntime`'s dual bind (module options, then the private section overlaid) collapses
   to the single standard bind; `CopyFrom` dies with the side channel.
-- `AIHostingOptions` (`Llms`, `Embeddings`) moves out of `AIOptions` into the AI hosting
-  declaration, stated with typed model references (the `LLMModel`/`EmbeddingModel` catalog
-  instances or their markers), so "unknown marker" becomes a compile error and both of
-  `AIOptions.Validate()`'s cross-ring checks plus the `?? throw` lookups in `AIModuleHosting`
-  evaporate. Marker strings survive only where configuration genuinely chooses a model at
-  deploy time (`Default:Model` and friends), resolved loudly at bind, once.
+- **Execution ruling (supersedes the draft's "move `Hosting` out of options"):** the ratified
+  2026-10-04 design keeps model picks as typed AppHost/E2E code, and the E2E override channel
+  (`ConfigureModule<AIModule, AIOptions>`) flows through compiled settings — configuration is
+  the system's one value channel. So hosting declarations stay **typed at the declaration
+  site** (the `AIOptions.WithLlm<TModel>` extension family, resolving markers at write time),
+  travel as configuration under the module's section, and are resolved **loudly once at bind**
+  in `AIModuleHosting` (errors name the marker and the catalog). `AIOptions.Validate()`'s
+  cross-ring checks are deleted; the caller-less parallel typed API on
+  `DigitalBrainModuleBuilder<AIModuleHosting>` is deleted. The same shape is confirmed
+  conformant for ClickHouse, Flutter and Postgres.
 - `AIProviderOptions` is re-checked against the "no secrets in options" rule; provider
   credentials belong to the integrations registration.
 
@@ -154,7 +159,13 @@ is every module's home, with no private roots beside it. Concretely, for AI:
 check and adapter/module cross-check in `Register`, `WithModule(Type)`, the `Type.GetType`
 lookups in deployment discovery, every `Activator.CreateInstance(moduleType)`,
 `AIOptions.SectionName` and its key constants, `AIOptions.CopyFrom`, `AIOptions.Validate()`'s
-catalog checks, `AIHostingOptions` as an options member.
+catalog checks, the caller-less `DigitalBrainModuleBuilder<AIModuleHosting>` model API, every
+module's private configuration root (`DigitalBrain:AI`, `:Workspace`, `:Apps`, `:ShippedApps`,
+`:CSharp`, `:Microsoft:GitHub`, `:Microsoft:Aspire`, `:Salesforce:OAuth`, `:Flutter:Hosting`,
+`:Time`). Enforced permanently by `ModuleKeyGrammarFacts` (module keys live under
+`DigitalBrain:Modules:`) and refused at startup by `LegacyConfigurationGuard` in the OS.
+Platform-owned exceptions, by review: Postgres `DigitalBrain:Capacity:Postgres:AdminConnection`
+and Flutter `DigitalBrain:Owner`.
 
 ## Trade-off accepted
 

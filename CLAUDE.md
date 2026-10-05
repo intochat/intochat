@@ -74,11 +74,19 @@ app.authoring.json optional stable scenario IDs and scenario-to-source associati
   `src/IntoChat/Apps/`).
 - **Module contract:** a module ships contracts + signals + connector + fakes (Testing package) +
   renderables. Modules never ship step definitions or test-only methods on production interfaces.
-  A module declares `IModule<TOptions>`: options are ordinary configuration — code-declared values
-  compile to flat keys under `DigitalBrain:Modules:{Name}:Options:{Property}`, so the AppHost's own
-  configuration (args, env, files) overrides any option by standard precedence and tests need no
-  side channel; `Validate()` runs at compile and at bind; no secrets in options — credentials
-  belong to the integrations registration (a design rule, reviewed, not name-sniffed). Modules also ship `IntegrationDefinition`s; their registrations are deployment-scoped
+  A module is a `Module` / `Module<TOptions>` subclass (Contracts) whose `ModuleId` is passed to
+  the base constructor — no attributes, no reflection; the catalog (`OsCatalog`) holds instances,
+  and hosting/deployment adapters claim their module through `ModuleHosting<TModule>` /
+  `ModuleDeployment<TModule>` generic parameters, discovered by scanning referenced assemblies.
+  Options are ordinary configuration — code-declared values compile to flat keys under
+  `DigitalBrain:Modules:{id}:Options:{Property}`, so the AppHost's own configuration (args, env,
+  files) overrides any option by standard precedence and tests need no side channel; every
+  module-owned key derives from `DigitalBrainConfiguration.ModuleSection`/`ModuleOptionsSection`
+  (no private roots — `ModuleKeyGrammarFacts` enforces it, `LegacyConfigurationGuard` refuses
+  retired roots at OS startup); `Validate()` runs at compile and at bind and checks only the
+  options' own values — cross-ring facts resolve loudly at the owning ring's bind; no secrets in
+  options — credentials belong to the integrations registration (a design rule, reviewed, not
+  name-sniffed). Modules also ship `IntegrationDefinition`s; their registrations are deployment-scoped
   `[PlatformOnly]` neurons seeded from `DigitalBrain:Integrations:{id}:{Field}` (catalog:
   `GET /integrations`). A user's connectors are integration accounts, per brain, under
   `/brains/{id}/integrations/accounts`.
