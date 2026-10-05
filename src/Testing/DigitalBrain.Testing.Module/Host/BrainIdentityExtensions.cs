@@ -1,5 +1,5 @@
 using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Platform.Contracts.Identity;
+using DigitalBrain.Kernel.Platform.Identity;
 using DigitalBrain.Platform.Identity.Authority;
 
 namespace DigitalBrain.Testing.Module;

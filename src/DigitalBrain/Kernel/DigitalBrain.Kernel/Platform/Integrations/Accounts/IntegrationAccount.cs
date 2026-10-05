@@ -1,6 +1,6 @@
 using DigitalBrain.Contracts.Types;
 
-namespace DigitalBrain.Platform.Contracts.Integrations.Accounts;
+namespace DigitalBrain.Kernel.Platform.Integrations.Accounts;
 
 public enum AccountStatus
 {

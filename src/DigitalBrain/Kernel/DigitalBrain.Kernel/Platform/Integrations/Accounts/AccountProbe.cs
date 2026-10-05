@@ -1,5 +1,5 @@
 // Orleans aliases retain the original wire identities across the SDK namespace rename.
-namespace DigitalBrain.Platform.Contracts.Integrations.Accounts;
+namespace DigitalBrain.Kernel.Platform.Integrations.Accounts;
 
 public enum AccountProbeOutcome
 {

@@ -1,7 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Contracts;
 
-namespace DigitalBrain.Platform.Contracts.Integrations.Accounts;
+namespace DigitalBrain.Kernel.Platform.Integrations.Accounts;
 
 public static class AccountNames
 {

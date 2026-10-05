@@ -7,7 +7,7 @@ using DigitalBrain.Assistant;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Platform.Contracts.Identity;
+using DigitalBrain.Kernel.Platform.Identity;
 using DigitalBrain.Testing.E2E.Workspace;
 using Microsoft.Playwright;
 using Npgsql;

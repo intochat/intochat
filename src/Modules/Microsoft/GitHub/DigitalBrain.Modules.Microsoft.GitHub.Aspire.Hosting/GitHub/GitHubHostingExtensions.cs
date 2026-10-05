@@ -1,5 +1,5 @@
 using DigitalBrain.Contracts;
-using DigitalBrain.Platform.Contracts.Integrations;
+using DigitalBrain.Kernel.Platform.Integrations;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Aspire.Hosting;

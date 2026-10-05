@@ -2,7 +2,7 @@ using System.Text.Json;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Platform.Contracts.Identity;
+using DigitalBrain.Kernel.Platform.Identity;
 using DigitalBrain.Supabase.Tables;
 using Microsoft.Playwright;
 

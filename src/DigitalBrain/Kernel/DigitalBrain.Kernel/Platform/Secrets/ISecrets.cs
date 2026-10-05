@@ -3,7 +3,7 @@ using DigitalBrain.Contracts;
 using DigitalBrain.Contracts.Enforcement;
 using DigitalBrain.Contracts.Types;
 
-namespace DigitalBrain.Platform.Contracts.Secrets;
+namespace DigitalBrain.Kernel.Platform.Secrets;
 
 // Keep the existing Orleans identity so stored credentials remain addressable.
 [Orleans.Metadata.DefaultGrainType("vault")]

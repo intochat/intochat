@@ -4,7 +4,7 @@ using DigitalBrain.AI.Media;
 using DigitalBrain.AI.Web;
 using DigitalBrain.AI.WebSearch;
 using DigitalBrain.Kernel;
-using DigitalBrain.Platform.Contracts.Integrations;
+using DigitalBrain.Kernel.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;

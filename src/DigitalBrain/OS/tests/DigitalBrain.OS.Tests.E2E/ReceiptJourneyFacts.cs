@@ -4,7 +4,7 @@ using DigitalBrain.AI;
 using DigitalBrain.AI.Metering;
 using DigitalBrain.Assistant;
 using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Platform.Contracts.Identity;
+using DigitalBrain.Kernel.Platform.Identity;
 using DigitalBrain.Testing.E2E.Agent;
 using DigitalBrain.Testing.E2E.Workspace;
 

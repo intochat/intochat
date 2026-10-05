@@ -1,8 +1,8 @@
 using DigitalBrain.Contracts.Enforcement;
 using DigitalBrain.Contracts.Types;
 using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Platform.Contracts.Integrations;
-using DigitalBrain.Platform.Contracts.Secrets;
+using DigitalBrain.Kernel.Platform.Integrations;
+using DigitalBrain.Kernel.Platform.Secrets;
 using DigitalBrain.Platform.Secrets;
 using Microsoft.Extensions.Logging;
 

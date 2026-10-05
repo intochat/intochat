@@ -1,4 +1,4 @@
-using DigitalBrain.Platform.Contracts.Integrations;
+using DigitalBrain.Kernel.Platform.Integrations;
 
 namespace DigitalBrain.AI;
 

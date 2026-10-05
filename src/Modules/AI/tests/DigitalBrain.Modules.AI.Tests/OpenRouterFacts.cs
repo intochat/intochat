@@ -1,6 +1,6 @@
 using DigitalBrain.AI;
 using DigitalBrain.AI.OpenRouter;
-using DigitalBrain.Platform.Contracts.Integrations;
+using DigitalBrain.Kernel.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Modules.AI.Tests;

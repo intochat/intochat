@@ -1,6 +1,6 @@
 using DigitalBrain.Kernel;
 using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Platform.Contracts.Integrations.Accounts;
+using DigitalBrain.Kernel.Platform.Integrations.Accounts;
 using DigitalBrain.Sdk.Integrations.Accounts;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

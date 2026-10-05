@@ -1,5 +1,5 @@
 using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Platform.Contracts.Secrets;
+using DigitalBrain.Kernel.Platform.Secrets;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;

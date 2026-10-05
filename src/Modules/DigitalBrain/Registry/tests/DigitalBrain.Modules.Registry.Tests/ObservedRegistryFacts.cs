@@ -3,7 +3,7 @@ using DigitalBrain;
 using DigitalBrain.Contracts;
 using DigitalBrain.Contracts.Signals;
 using DigitalBrain.Kernel;
-using DigitalBrain.Platform.Contracts.Integrations;
+using DigitalBrain.Kernel.Platform.Integrations;
 using DigitalBrain.Registry;
 using DigitalBrain.Time;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,7 +37,7 @@ public sealed class ObservedRegistryFacts
             .StartAsync(TestContext.Current.CancellationToken);
         var types = await brain.Get<IRegistry>(RegistryModule.Key).Types();
 
-        Assert.DoesNotContain(types, type => type.Id == "integration.registration" || type.Contract == typeof(DigitalBrain.Platform.Contracts.Integrations.IIntegrationRegistration).FullName);
+        Assert.DoesNotContain(types, type => type.Id == "integration.registration" || type.Contract == typeof(DigitalBrain.Kernel.Platform.Integrations.IIntegrationRegistration).FullName);
     }
 
     [Fact]

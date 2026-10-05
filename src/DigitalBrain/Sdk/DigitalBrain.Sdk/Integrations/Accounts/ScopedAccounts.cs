@@ -1,6 +1,6 @@
 using DigitalBrain.Kernel.Enforcement;
 
-using DigitalBrain.Platform.Contracts.Integrations.Accounts;
+using DigitalBrain.Kernel.Platform.Integrations.Accounts;
 
 namespace DigitalBrain.Sdk.Integrations.Accounts;
 

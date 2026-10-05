@@ -1,5 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
-namespace DigitalBrain.Platform.Contracts.Auth;
+namespace DigitalBrain.Kernel.Platform.Auth;
 
 public interface ITokenHandoff
 {

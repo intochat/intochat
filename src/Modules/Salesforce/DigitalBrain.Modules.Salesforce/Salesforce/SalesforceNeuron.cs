@@ -3,7 +3,7 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Contracts;
 using DigitalBrain.Kernel;
-using DigitalBrain.Platform.Contracts.Auth;
+using DigitalBrain.Kernel.Platform.Auth;
 using DigitalBrain.Salesforce.Signals;
 using DigitalBrain.Sdk;
 using Orleans.Concurrency;

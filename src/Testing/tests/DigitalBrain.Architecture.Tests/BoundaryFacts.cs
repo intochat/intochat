@@ -1,9 +1,9 @@
 using ArchUnitNET.xUnitV3;
 using DigitalBrain.Kernel;
-using DigitalBrain.Platform.Contracts.Identity;
-using DigitalBrain.Platform.Contracts.Integrations;
-using DigitalBrain.Platform.Contracts.Integrations.Accounts;
-using DigitalBrain.Platform.Contracts.Secrets;
+using DigitalBrain.Kernel.Platform.Identity;
+using DigitalBrain.Kernel.Platform.Integrations;
+using DigitalBrain.Kernel.Platform.Integrations.Accounts;
+using DigitalBrain.Kernel.Platform.Secrets;
 using static ArchUnitNET.Fluent.ArchRuleDefinition;
 
 namespace DigitalBrain.Architecture.Tests;
@@ -12,16 +12,16 @@ public sealed class BoundaryFacts
 {
     private static readonly string[] KernelLayers =
     [
-        "DigitalBrain", "DigitalBrain.Contracts", "DigitalBrain.Platform.Contracts", "DigitalBrain.Client", "DigitalBrain.Client.Orleans",
+        "DigitalBrain", "DigitalBrain.Contracts", "DigitalBrain.Kernel.Platform", "DigitalBrain.Client", "DigitalBrain.Client.Orleans",
         "DigitalBrain.Kernel", "DigitalBrain.Kernel", "DigitalBrain.Sdk", "DigitalBrain.Platform"
     ];
 
     [Theory]
     [InlineData("DigitalBrain.Kernel", "DigitalBrain.Client")]
     [InlineData("DigitalBrain.Kernel", "DigitalBrain.Client.Orleans")]
-    [InlineData("DigitalBrain.Kernel", "DigitalBrain.Platform.Contracts")]
-    [InlineData("DigitalBrain.Client", "DigitalBrain.Platform.Contracts")]
-    [InlineData("DigitalBrain.Client.Orleans", "DigitalBrain.Platform.Contracts")]
+    [InlineData("DigitalBrain.Kernel", "DigitalBrain.Kernel.Platform")]
+    [InlineData("DigitalBrain.Client", "DigitalBrain.Kernel.Platform")]
+    [InlineData("DigitalBrain.Client.Orleans", "DigitalBrain.Kernel.Platform")]
     public void CoreBoundariesDoNotInvert(string source, string forbidden)
         => Types().That().ResideInAssembly(ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == source)).Should().NotDependOnAny(Types().That().ResideInAssembly(ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == forbidden)))
             .Check(ProductionArchitecture.Graph.Value);
@@ -92,8 +92,8 @@ public sealed class BoundaryFacts
     }
 
     internal static bool IsCredentialContract(Type type) => type.IsInterface && (
-        InNamespace(type, "DigitalBrain.Platform.Contracts.Secrets") || InNamespace(type, "DigitalBrain.Platform.Contracts.Identity")
-        || InNamespace(type, "DigitalBrain.Platform.Contracts.Integrations"));
+        InNamespace(type, "DigitalBrain.Kernel.Platform.Secrets") || InNamespace(type, "DigitalBrain.Kernel.Platform.Identity")
+        || InNamespace(type, "DigitalBrain.Kernel.Platform.Integrations"));
 
     private static bool InNamespace(Type type, string name) =>
         type.Namespace == name || type.Namespace?.StartsWith(name + ".", StringComparison.Ordinal) == true;

@@ -1,6 +1,6 @@
 using Orleans;
 
-namespace DigitalBrain.Platform.Contracts.Identity;
+namespace DigitalBrain.Kernel.Platform.Identity;
 
 [GenerateSerializer, Alias("identity.account")]
 public sealed record Account

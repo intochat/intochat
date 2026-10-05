@@ -11,7 +11,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../DigitalBrain/DigitalBrain.Contracts/DigitalBrain.Contracts.csproj" />
-    <ProjectReference Include="../../DigitalBrain/Platform/DigitalBrain.Platform.Contracts/DigitalBrain.Platform.Contracts.csproj" />
+    <ProjectReference Include="../../DigitalBrain/Kernel/DigitalBrain.Kernel/DigitalBrain.Kernel.csproj" />
   </ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="DigitalBrain.Aspire.Hosting.Tests.Unit" /></ItemGroup>
 </Project>

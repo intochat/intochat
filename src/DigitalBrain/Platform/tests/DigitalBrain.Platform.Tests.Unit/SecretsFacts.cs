@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using DigitalBrain.Contracts.Enforcement;
 using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Platform.Contracts.Secrets;
+using DigitalBrain.Kernel.Platform.Secrets;
 using DigitalBrain.Platform.Secrets;
 using DigitalBrain.Sdk.Types;
 using Microsoft.Extensions.DependencyInjection;

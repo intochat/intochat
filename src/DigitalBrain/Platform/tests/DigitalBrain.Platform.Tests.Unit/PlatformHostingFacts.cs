@@ -1,9 +1,9 @@
 using DigitalBrain.Contracts.Enforcement;
 using DigitalBrain.Kernel;
 using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Platform.Contracts.Identity;
-using DigitalBrain.Platform.Contracts.Integrations;
-using DigitalBrain.Platform.Contracts.Secrets;
+using DigitalBrain.Kernel.Platform.Identity;
+using DigitalBrain.Kernel.Platform.Integrations;
+using DigitalBrain.Kernel.Platform.Secrets;
 using DigitalBrain.Platform.Identity.Authority;
 using DigitalBrain.Platform.Secrets;
 using DigitalBrain.Sdk.Capacity;

@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace DigitalBrain.Platform.Contracts.Integrations;
+namespace DigitalBrain.Kernel.Platform.Integrations;
 
 public sealed record IntegrationDefinition(string Id, string DisplayName, string[] SecretFields, string[] SettingFields)
 {

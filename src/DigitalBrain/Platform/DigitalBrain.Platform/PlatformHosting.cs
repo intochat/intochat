@@ -1,9 +1,9 @@
 using DigitalBrain.Kernel;
 using DigitalBrain.Kernel.Enforcement;
 using DigitalBrain.Platform.Capacity;
-using DigitalBrain.Platform.Contracts.Identity;
-using DigitalBrain.Platform.Contracts.Integrations;
-using DigitalBrain.Platform.Contracts.Integrations.Accounts;
+using DigitalBrain.Kernel.Platform.Identity;
+using DigitalBrain.Kernel.Platform.Integrations;
+using DigitalBrain.Kernel.Platform.Integrations.Accounts;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Directory;
 using DigitalBrain.Platform.Identity.Grants;
@@ -28,8 +28,8 @@ public static class PlatformHosting
         services.AddOptions<IdentityMigrationOptions>().BindConfiguration(IdentityMigrationOptions.SectionName);
         services.TryAddSingleton<DeploymentStorageIdentity>();
         silo.AddStartupTask<IdentityMigrationStartup>();
-        services.TryAddSingleton<DigitalBrain.Platform.Contracts.Auth.ITokenHandoff, Auth.TokenHandoff>();
-        services.TryAddSingleton<DigitalBrain.Platform.Contracts.Auth.IOAuthCredentials, Auth.OAuthCredentials>();
+        services.TryAddSingleton<DigitalBrain.Kernel.Platform.Auth.ITokenHandoff, Auth.TokenHandoff>();
+        services.TryAddSingleton<DigitalBrain.Kernel.Platform.Auth.IOAuthCredentials, Auth.OAuthCredentials>();
         services.AddMasterKeyWrapper();
         services.TryAddSingleton<IReadOnlyList<IntegrationDefinition>>(provider =>
             IntegrationDiscovery.Collect(provider.GetRequiredService<ModuleInventory>().Types));

@@ -1,1 +1,0 @@
-[assembly: DigitalBrain.Contracts.PlatformAssembly]

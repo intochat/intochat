@@ -4,7 +4,7 @@ using DigitalBrain.Contracts.Enforcement;
 using DigitalBrain.Contracts.Types;
 using DigitalBrain.Kernel;
 using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Platform.Contracts.Secrets;
+using DigitalBrain.Kernel.Platform.Secrets;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Platform.Secrets;

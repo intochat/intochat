@@ -23,7 +23,7 @@ public sealed class IdentityHostingFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var directory = brain.Get<DigitalBrain.Platform.Contracts.Identity.IIdentityDirectory>(DigitalBrain.Platform.Contracts.Identity.IdentityGrains.Directory);
+        var directory = brain.Get<DigitalBrain.Kernel.Platform.Identity.IIdentityDirectory>(DigitalBrain.Kernel.Platform.Identity.IdentityGrains.Directory);
         var alice = await directory.RegisterAsync("alice", "correct-password", "Alice", ct);
         await directory.RegisterAsync("bob", "correct-password", "Bob", ct);
         var builder = WebApplication.CreateBuilder();
@@ -42,7 +42,7 @@ public sealed class IdentityHostingFacts
         var target = new { alice.AccountId, alice.BrainId };
         using var denied = await client.PostAsJsonAsync("/identity/session/brain", target, ct);
         Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
-        await directory.ShareBrainAsync(alice.AccountId, alice.BrainId, "bob", "Bob", DigitalBrain.Platform.Contracts.Identity.MemberRole.Member, ct);
+        await directory.ShareBrainAsync(alice.AccountId, alice.BrainId, "bob", "Bob", DigitalBrain.Kernel.Platform.Identity.MemberRole.Member, ct);
         using var selected = await client.PostAsJsonAsync("/identity/session/brain", target, ct);
         selected.EnsureSuccessStatusCode();
         using var session = JsonDocument.Parse(await client.GetStringAsync("/identity/session", ct));

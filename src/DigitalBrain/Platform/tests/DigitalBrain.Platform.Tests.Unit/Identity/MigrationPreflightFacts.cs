@@ -1,4 +1,4 @@
-using DigitalBrain.Platform.Contracts.Identity;
+using DigitalBrain.Kernel.Platform.Identity;
 using DigitalBrain.Platform.Identity.Directory;
 
 namespace DigitalBrain.Platform.Tests.Unit.Identity;

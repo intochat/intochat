@@ -1,6 +1,6 @@
 using DigitalBrain.Contracts.Types;
 
-namespace DigitalBrain.Platform.Contracts.Auth;
+namespace DigitalBrain.Kernel.Platform.Auth;
 
 // Server-side token operations. Never exposed to script contract discovery.
 public interface IOAuthCredentials

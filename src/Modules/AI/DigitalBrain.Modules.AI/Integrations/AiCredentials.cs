@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using DigitalBrain;
 using DigitalBrain.Contracts;
 using DigitalBrain.Contracts.Enforcement;
-using DigitalBrain.Platform.Contracts.Integrations;
+using DigitalBrain.Kernel.Platform.Integrations;
 using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.AI;

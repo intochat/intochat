@@ -6,7 +6,7 @@ using DigitalBrain.AI.Agents;
 using DigitalBrain.Assistant;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Kernel.Enforcement;
-using DigitalBrain.Platform.Contracts.Identity;
+using DigitalBrain.Kernel.Platform.Identity;
 using DigitalBrain.Supabase.Tables;
 using DigitalBrain.Testing.E2E;
 using Npgsql;

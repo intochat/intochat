@@ -1,5 +1,5 @@
 using System.ClientModel;
-using DigitalBrain.Platform.Contracts.Integrations;
+using DigitalBrain.Kernel.Platform.Integrations;
 using OpenAI;
 using OpenAI.Audio;
 

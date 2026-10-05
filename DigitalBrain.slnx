@@ -211,7 +211,6 @@
     <Project Path="src/DigitalBrain/OS/tests/DigitalBrain.OS.Tests.Unit/DigitalBrain.OS.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Platform/">
-    <Project Path="src/DigitalBrain/Platform/DigitalBrain.Platform.Contracts/DigitalBrain.Platform.Contracts.csproj" />
     <Project Path="src/DigitalBrain/Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
   </Folder>
   <Folder Name="/Platform/tests/">

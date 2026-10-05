@@ -1,4 +1,4 @@
-using DigitalBrain.Platform.Contracts.Integrations.Accounts;
+using DigitalBrain.Kernel.Platform.Integrations.Accounts;
 
 namespace DigitalBrain.Platform.Integrations.Accounts;
 

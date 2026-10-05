@@ -1,7 +1,7 @@
 using DigitalBrain.Contracts;
 using Orleans;
 
-namespace DigitalBrain.Platform.Contracts.Identity;
+namespace DigitalBrain.Kernel.Platform.Identity;
 
 [PlatformOnly]
 public interface IAppGrantMigration : IGrainWithStringKey

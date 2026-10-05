@@ -3,7 +3,7 @@ using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.AI.FoundryLocal;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Contracts;
-using DigitalBrain.Platform.Contracts.Integrations;
+using DigitalBrain.Kernel.Platform.Integrations;
 
 namespace DigitalBrain.AI.Aspire.Hosting;
 

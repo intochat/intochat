@@ -1,6 +1,6 @@
 using DigitalBrain.Contracts.Enforcement;
 
-namespace DigitalBrain.Platform.Contracts.Identity;
+namespace DigitalBrain.Kernel.Platform.Identity;
 
 public interface IIdentity
 {

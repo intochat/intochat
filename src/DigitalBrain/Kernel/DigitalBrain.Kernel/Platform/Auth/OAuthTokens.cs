@@ -1,3 +1,3 @@
-namespace DigitalBrain.Platform.Contracts.Auth;
+namespace DigitalBrain.Kernel.Platform.Auth;
 
 public sealed record OAuthTokens(string AccessToken, string? RefreshToken);

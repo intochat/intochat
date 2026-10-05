@@ -1,6 +1,6 @@
 using DigitalBrain.Contracts.Enforcement;
 
-namespace DigitalBrain.Platform.Contracts.Integrations;
+namespace DigitalBrain.Kernel.Platform.Integrations;
 
 public sealed record Capability(string IntegrationId, string Kind, string Id, string Display);
 

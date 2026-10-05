@@ -2,7 +2,7 @@ using System.Net.Http.Json;
 using Azure.Storage.Blobs;
 using DigitalBrain.Aspire.Server;
 using DigitalBrain.Contracts;
-using DigitalBrain.Platform.Contracts.Identity;
+using DigitalBrain.Kernel.Platform.Identity;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Configuration;
 using DigitalBrain.Platform.Identity.Directory;
