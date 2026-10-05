@@ -3,6 +3,7 @@ using DigitalBrain.Framework.Platform.Shipping;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 namespace DigitalBrain.Apps;
 
@@ -47,6 +48,7 @@ public static class ShippedAppsServiceCollectionExtensions
     {
         services.AddSingleton(source);
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IShippedContentPublisher, ShippedAppPublisher>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ShippedAppWriteBack>());
         return services;
     }
 }

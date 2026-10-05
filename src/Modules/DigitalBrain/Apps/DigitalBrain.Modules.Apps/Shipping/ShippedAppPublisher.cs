@@ -35,7 +35,7 @@ internal sealed class ShippedAppPublisher(
             {
                 stoppingToken.ThrowIfCancellationRequested();
                 if (selection is not null && !selection.Contains(bundle.Name)) { continue; }
-                try { await Ship(publisher, bundle, stoppingToken).WaitAsync(stoppingToken); }
+                try { await Ship(publisher, source, bundle, stoppingToken).WaitAsync(stoppingToken); }
                 // Only the host's own shutdown stops shipping; a downstream cancellation or
                 // timeout is this bundle's failure, not the process's.
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { throw; }
@@ -45,11 +45,19 @@ internal sealed class ShippedAppPublisher(
         }
     }
 
-    private async Task Ship(PublisherBrain publisher, AppBundle bundle, CancellationToken cancellationToken)
+    private async Task Ship(PublisherBrain publisher, IShippedAppSource source, AppBundle bundle, CancellationToken cancellationToken)
     {
         var app = grains.GetGrain<IApp>(IApp.Key(publisher.ScopeId, bundle.Name));
         var installed = await app.Read();
-        if (installed.Manifest.Title.Length > 0 && installed.Version == bundle.Version) { return; }
+        var brainVersion = installed.Manifest.Title.Length == 0 ? null : installed.PublishedVersion ?? "0.0.0";
+        var order = brainVersion is null ? 1 : AppVersions.Compare(bundle.Version, brainVersion);
+        if (order == 0) { return; }
+        if (order < 0)
+        {
+            // The publisher moved ahead in the brain; a development folder catches up.
+            if (source.Writable) { source.Write(await app.ExportPublished()); }
+            return;
+        }
         var (verdicts, green) = await AppVerifyJob.RunBundle(grains, runner, bundle,
             IApp.Key(publisher.ScopeId, bundle.Name + AppFiles.VerifyMarker + Guid.NewGuid().ToString("N")), cancellationToken);
         if (!green)
@@ -58,9 +66,11 @@ internal sealed class ShippedAppPublisher(
                 string.Join("; ", verdicts.Where(verdict => !verdict.Passed).Select(verdict => $"{verdict.Name}: {verdict.Message}")));
             return;
         }
-        if (installed.Manifest.Title.Length > 0) { await app.Delete(); }
-        await app.Import(bundle);
+        // Replace keeps the publisher brain's settings, connections and stored data (B3).
+        if (installed.Manifest.Title.Length > 0) { await app.Replace(bundle); }
+        else { await app.Import(bundle); }
         await app.RecordVerdicts(verdicts, green: true, bundle.Version);
+        await app.Publish();
     }
 
     // null means every app; an empty set means none.
