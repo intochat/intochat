@@ -13,12 +13,11 @@ namespace DigitalBrain.OS;
 // The operating system's first-party apps: package ids ("owner/name") that every brain carries,
 // installed at the published revision when the brain activates and upgraded when a new revision
 // ships. The list is deployment configuration; a distribution names its own.
-// One OS app: the package the brain carries, and optionally the legacy package it replaces.
+// One OS app: the package the brain carries.
 // Parsing happens where the entry is written, so a typo names its own value.
-public sealed record OsApp(PackageId Package, PackageId? Replaces = null)
+public sealed record OsApp(PackageId Package)
 {
-    public static OsApp Parse(string package, string? replaces = null)
-        => new(ParseId(package), replaces is null ? null : ParseId(replaces));
+    public static OsApp Parse(string package) => new(ParseId(package));
 
     private static PackageId ParseId(string value)
     {
@@ -57,7 +56,7 @@ public static class OsAppsHosting
             {
                 if (!os.Apps.Any(existing => existing.Package == app.Package)) { os.Apps.Add(app); }
             }
-            Add(new(PackageId.Create("os", "settings"), PackageId.Parse("intochat/settings")));
+            Add(new(PackageId.Create("os", "settings")));
             Add(new(PackageId.Create("os", "assistant")));
         });
         services.Configure<BuiltInSettingsOptions>(options => options.Package ??= PackageId.Create("os", "settings"));
@@ -128,12 +127,5 @@ internal sealed class OsBootService(
             await app.Upgrade(new(Guid.NewGuid(), new(package, published))).WaitAsync(cancellationToken);
         }
 
-        // With the replacement ensured, adopt the package it replaces: the App grain owns the
-        // whole transition (storage ownership transfer + retire) and no-ops when the legacy app
-        // is gone, so at-least-once activations retry a failed retire harmlessly.
-        if (osApp.Replaces is { } legacy)
-        {
-            await grains.GetGrain<IAppAdoption>(activated.BrainId + "/packages/" + package).Adopt(legacy).WaitAsync(cancellationToken);
-        }
     }
 }

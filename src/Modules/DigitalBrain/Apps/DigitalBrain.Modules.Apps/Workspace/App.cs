@@ -7,7 +7,7 @@ using DigitalBrain.Enforcement;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Identity;
-using DigitalBrain.Postgres;
+
 using Orleans.Runtime;
 
 namespace DigitalBrain.Apps;
@@ -15,9 +15,9 @@ namespace DigitalBrain.Apps;
 [GrainType("apps.app")]
 internal sealed class App(
     [PersistentState("app", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<AppState> store,
-    TimeProvider clock, AppRequirements requirements, ModuleInventory modules,
-    IEnumerable<IDeployableRuntime> deployables)
-    : Neuron<AppState>(store), IApp, IAppAdoption, IAppStorageHandover, IAppInventoryView
+    TimeProvider clock, AppRequirements requirements,
+    IEnumerable<IDeployableRuntime> deployables, IEnumerable<IAppStorageHook> storageHooks)
+    : Neuron<AppState>(store), IApp, IAppInventoryView
 {
     public override NeuronAccess Access(string operation)
     {
@@ -101,38 +101,9 @@ internal sealed class App(
             StorageFiles = [],
             DeployedFiles = [],
             StorageHistoryKnown = true,
-            PostgresScopes = AppRequirements.ReferencesAssembly(revision.Content, typeof(IPostgresTable).Assembly.GetName().Name!),
             LifecycleReceipts = [.. Snapshot.LifecycleReceipts, new(request.OperationId, CommandHash(request), "")],
         });
         return Describe(Snapshot);
-    }
-
-    // Adoption: retire the package this installed app supersedes, carrying its Postgres table
-    // ownership over (physical names unchanged). Requiring the replacement to be installed first
-    // makes the ordering a contract, not a convention; a legacy that is not installed is a no-op,
-    // so at-least-once activations retry a failed retire harmlessly.
-    public async Task Adopt(PackageId legacy)
-    {
-        await Resume();
-        RequireInstalled();
-        var legacyKey = BrainScope.CurrentId() + "/packages/" + legacy;
-        var legacyApp = GrainFactory.GetGrain<IApp>(legacyKey);
-        if ((await legacyApp.Read()).Status != AppStatus.Installed) { return; }
-        if (modules.ContractAssemblies().Contains(typeof(IPostgresTable).Assembly))
-        {
-            await GrainFactory.GetGrain<IPostgresStorageMigration>("table-owners-v1").Ensure();
-            var owner = JsonSerializer.Serialize(new[] { BrainScope.CurrentId(), this.GetPrimaryKeyString() });
-            var owners = await GrainFactory.GetGrain<IAppStorageHandover>(legacyKey).ReadStorageOwners();
-            await GrainFactory.GetGrain<IPostgresAppStorage>(owner).Migrate(owners);
-        }
-        // The legacy index's own retire no-ops on tables whose ownership has moved.
-        await legacyApp.Uninstall(new(Guid.NewGuid()));
-    }
-
-    public async Task<string[]> ReadStorageOwners()
-    {
-        await BackfillStorageFiles();
-        return [this.GetPrimaryKeyString(), .. Snapshot.StorageFiles];
     }
 
     public async Task<AppSnapshot> Configure(ConfigureApp request)
@@ -186,7 +157,6 @@ internal sealed class App(
             Accounts = accounts,
             Operations = [.. revision.Content.Manifest.Operations],
             Receipts = Receipted(request.OperationId, request),
-            PostgresScopes = Snapshot.PostgresScopes || AppRequirements.ReferencesAssembly(revision.Content, typeof(IPostgresTable).Assembly.GetName().Name!),
         });
         return Describe(Snapshot);
     }
@@ -212,16 +182,11 @@ internal sealed class App(
     {
         var request = Snapshot.PendingUninstall!;
         var abandon = Snapshot.PendingAbandonStorage;
-        var postgresAvailable = modules.ContractAssemblies().Contains(typeof(IPostgresTable).Assembly);
-        if (abandon is null && Snapshot.PostgresScopes && !postgresAvailable) { throw new InvalidOperationException(AppRequirementsException.RestorePostgres); }
         await RetireDeployment(Snapshot.Runtime, Snapshot.StorageFiles);
-        if (abandon is null && postgresAvailable)
+        if (abandon is null)
         {
-            await GrainFactory.GetGrain<IPostgresStorageMigration>("table-owners-v1").Ensure();
-            var brain = BrainScope.CurrentId();
-            await GrainFactory.GetGrain<IPostgresTables>(JsonSerializer.Serialize(new[] { brain, this.GetPrimaryKeyString() })).Retire();
-            foreach (var file in Snapshot.StorageFiles)
-            { await GrainFactory.GetGrain<IPostgresTables>(JsonSerializer.Serialize(new[] { brain, file })).Retire(); }
+            foreach (var hook in storageHooks)
+            { await hook.OnRetired(Snapshot.BrainScopeId ?? "", this.GetPrimaryKeyString(), Snapshot.StorageFiles, CancellationToken.None); }
         }
         var now = clock.GetUtcNow();
         var invocations = Snapshot.Invocations
@@ -345,12 +310,8 @@ internal sealed class App(
             DeployedFiles = deployed,
             StorageFiles = target.StorageFiles.Concat(deployed).Distinct(StringComparer.Ordinal).ToArray(),
         };
-        if (modules.ContractAssemblies().Contains(typeof(IPostgresTable).Assembly))
-        {
-            await GrainFactory.GetGrain<IPostgresStorageMigration>("table-owners-v1").Ensure();
-            var owner = JsonSerializer.Serialize(new[] { BrainScope.CurrentId(), this.GetPrimaryKeyString() });
-            await GrainFactory.GetGrain<IPostgresAppStorage>(owner).Migrate(target.StorageFiles);
-        }
+        foreach (var hook in storageHooks)
+        { await hook.OnDeployed(target.BrainScopeId ?? "", this.GetPrimaryKeyString(), target.StorageFiles, CancellationToken.None); }
         await Persist(target);
     }
 
@@ -358,7 +319,6 @@ internal sealed class App(
     {
         if (Snapshot.StorageHistoryKnown) { return; }
         var paths = new HashSet<string>(Snapshot.ScriptPaths, StringComparer.Ordinal) { PackageContent.SourcePath };
-        var postgres = Snapshot.PostgresScopes;
         if (Snapshot.Revision is { } installed)
         {
             var package = GrainFactory.GetGrain<IPackage>(installed.Package.ToString());
@@ -370,12 +330,11 @@ internal sealed class App(
                 if (!visited.Add(id)) { continue; }
                 var revision = await package.ReadRevision(id);
                 paths.UnionWith(revision.Content.Programs().Keys);
-                postgres |= AppRequirements.ReferencesAssembly(revision.Content, typeof(IPostgresTable).Assembly.GetName().Name!);
                 foreach (var parent in revision.Parents) { remaining.Push(parent); }
             }
         }
         var files = Enumerable.Range(1, Snapshot.ProgramGeneration).SelectMany(generation => paths.Select(path => FileKey(generation, path)));
-        await Persist(Snapshot with { StorageFiles = files.Distinct(StringComparer.Ordinal).ToArray(), StorageHistoryKnown = true, PostgresScopes = postgres });
+        await Persist(Snapshot with { StorageFiles = files.Distinct(StringComparer.Ordinal).ToArray(), StorageHistoryKnown = true });
     }
 
     // The script reads brain.Setting("App") to find this neuron, brain.Setting(name) for each setting

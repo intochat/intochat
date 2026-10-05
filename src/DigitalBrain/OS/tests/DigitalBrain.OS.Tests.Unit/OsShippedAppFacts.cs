@@ -24,8 +24,6 @@ public sealed class OsShippedAppFacts
         var options = provider.GetRequiredService<IOptions<OsAppsOptions>>().Value;
         Assert.Equal(["os/settings", "os/assistant", "intochat/customer-researcher"],
             options.Apps.Select(app => app.Package.ToString()));
-        Assert.Equal(PackageId.Parse("intochat/settings"),
-            options.Apps.Single(app => app.Package.ToString() == "os/settings").Replaces);
         Assert.Equal(PackageId.Create("os", "settings"), provider.GetRequiredService<IOptions<BuiltInSettingsOptions>>().Value.Package);
     }
 
@@ -68,8 +66,6 @@ public sealed class OsShippedAppFacts
     {
         var package = Assert.ThrowsAny<Exception>(() => OsApp.Parse("os-settings"));
         Assert.Contains("os-settings", package.Message);
-        var replaces = Assert.ThrowsAny<Exception>(() => OsApp.Parse("os/settings", "intochat settings"));
-        Assert.Contains("intochat settings", replaces.Message);
     }
 
     [Fact]
