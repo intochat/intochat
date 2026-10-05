@@ -39,10 +39,8 @@ public sealed class CSharpFileContainerFacts
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         deadline.CancelAfter(TimeSpan.FromMinutes(15));
         var ct = deadline.Token;
-        await using var brain = await E2ETest.Create()
-            .WithModule<TimeModule>()
-            .WithModule<AspireModule>()
-            .WithModule<CSharpModule, CSharpOptions>(csharp => csharp.WithSandbox(RepositoryRoot()))
+        await using var brain = await ReferenceBrain.Create()
+            .ConfigureModule<CSharpModule, CSharpOptions>(csharp => csharp.WithSandbox(RepositoryRoot()))
             .StartAsync(ct);
         var aspire = brain.Get<IAspire>(new AspireOptions().ApplicationName);
         var timerId = "csharp-e2e-" + Guid.NewGuid().ToString("N")[..8];

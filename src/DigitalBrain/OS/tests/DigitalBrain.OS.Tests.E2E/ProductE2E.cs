@@ -15,9 +15,6 @@ namespace DigitalBrain.OS.Tests.E2E;
 
 internal static class ProductE2E
 {
-    // Port 1 is deliberately unserved: unused provider calls fail instead of reaching live services.
-    private static readonly Uri UnconfiguredProvider = new("http://127.0.0.1:1/");
-
     public static Task<E2EBrain> StartAsync(CancellationToken ct) => Create().StartAsync(ct);
 
     // The host ships its first-party apps in the background after it is healthy; a fact that opens
@@ -42,46 +39,12 @@ internal static class ProductE2E
         }
     }
 
+    // The product host IS the reference boot; what is the product's own is its cookie and the
+    // shipped content a product fixture turns back on.
     public static E2ETestBuilder<Projects.DigitalBrain_AppHost> Create(string modelApiKey = "fixture-key", Dictionary<string, string?>? privateConfiguration = null)
-        => E2ETest.For<Projects.DigitalBrain_AppHost>()
-            .ConfigureModule<AIModule, AIOptions>(ai => ai.WithoutLocalModels().WithoutVoiceToText().WithoutWebSearch()
-                .WithDefaultLlm<IGpt56Luna>().WithModelEndpoint(AiProvider.OpenAI, new(UnconfiguredProvider, "v1/")))
-            .ConfigureModule<QdrantModule, QdrantModuleOptions>(qdrant => qdrant.Host = false)
-            .ConfigureModule<PostgresModule, PostgresModuleOptions>(database => database.WithPostgres(options =>
+        => ReferenceBrain.Create(modelApiKey, privateConfiguration)
+            .WithResourceEnvironment(new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                options.DatabaseName = "digitalbrain";
-                options.PersistentStorage = false;
-            }))
-            .ConfigureModule<ClickHouseModule, ClickHouseModuleOptions>(database => database.WithClickHouse(options =>
-            {
-                options.PersistentStorage = false;
-            }))
-            .ConfigureModule<SupabaseModule, SupabaseModuleOptions>(database => database.WithPostgres())
-            .ConfigureModule<GmailModule, GmailModuleOptions>(gmail => gmail.WithTokenEndpoint(new(UnconfiguredProvider, "token")))
-            .ConfigureModule<SalesforceModule, SalesforceModuleOptions>(salesforce => salesforce.WithLocalMcp(new(UnconfiguredProvider, "mcp")))
-            .ConfigureModule<GitHubModule, GitHubModuleOptions>(github => github.WithGitHubRepositories(new Dictionary<string, GitHubRepositoryDeclaration>()))
-            .ConfigureModule<FlutterModule, FlutterModuleOptions>(flutter => flutter.BackendOnly())
-            .WithExecution(new()
-            {
-                // Shipping verifies built-in packages through real sandbox scripts. Only the shared
-                // host (IntoChatHostFixture) pays that once; private hosts opt out by default.
-                ResourceEnvironment = new Dictionary<string, string>(StringComparer.Ordinal)
-                {
-                    [DigitalBrainConfiguration.EnvironmentName(ShippedAppsServiceCollectionExtensions.ShipOnStartupKey)] = "false",
-                },
-                PrivateConfiguration = Merge(new Dictionary<string, string?>
-                {
-                    ["Parameters:modules-openai-api-key"] = modelApiKey,
-                    ["Parameters:Modules-digitalbrain-master-key"] = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)),
-                    ["Parameters:modules-gmail-client-id"] = "fixture-client",
-                    ["Parameters:modules-gmail-client-secret"] = "fixture-secret",
-                    ["Parameters:modules-salesforce-consumer-key"] = "fixture-client",
-                    ["Parameters:modules-salesforce-consumer-secret"] = "fixture-secret",
-                }, privateConfiguration),
+                [DigitalBrainConfiguration.EnvironmentName(Platform.Identity.Configuration.IdentityHostOptions.Key(nameof(Platform.Identity.Configuration.IdentityHostOptions.CookieName)))] = "intochat.session",
             });
-    private static Dictionary<string, string?> Merge(Dictionary<string, string?> defaults, Dictionary<string, string?>? extra)
-    {
-        if (extra is not null) { foreach (var item in extra) { defaults[item.Key] = item.Value; } }
-        return defaults;
-    }
 }
