@@ -519,10 +519,10 @@ public sealed class AIModuleHosting : ModuleHosting<AIModule>
 **Interfaces:**
 - Produces: `DigitalBrainBuilder.WithHosting<THosting>(Action<THosting> configure) where THosting : IDigitalBrainModuleHosting, new()`.
 
-- [ ] **Step 1: Write the failing facts** — (a) `AIModuleHosting` configured with `WithLlm<IGpt56Luna>()` provisions that model (assert via the hosting state the existing AI hosting tests already inspect); (b) Review Focus 5: `new AIOptions().Validate()` does not throw.
-- [ ] **Step 2: Implement** per the file list; run the AI module test suites and `dotnet build src/DigitalBrain/AppHost/DigitalBrain.AppHost`.
-- [ ] **Step 3: Run** `dotnet test src/DigitalBrain/Kernel/tests/DigitalBrain.Kernel.Tests.E2E --filter E2EBoundaryFacts` and the AI suites → PASS.
-- [ ] **Step 4: Commit** — `refactor: AI model provisioning is a typed hosting declaration`
+- [x] **Step 1: Write the failing facts** — (a) `AIModuleHosting` configured with `WithLlm<IGpt56Luna>()` provisions that model (assert via the hosting state the existing AI hosting tests already inspect); (b) Review Focus 5: `new AIOptions().Validate()` does not throw.
+- [x] **Step 2: Implement** per the file list; run the AI module test suites and `dotnet build src/DigitalBrain/AppHost/DigitalBrain.AppHost`.
+- [x] **Step 3: Run** `dotnet test src/DigitalBrain/Kernel/tests/DigitalBrain.Kernel.Tests.E2E --filter E2EBoundaryFacts` and the AI suites → PASS.
+- [x] **Step 4: Commit** — `refactor: AI model provisioning is a typed hosting declaration`
 
 ---
 
@@ -574,10 +574,10 @@ internal static void Register(IServiceCollection services)
 - Modify: every `appsettings*.json` / launch profile carrying `DigitalBrain:AI` or `DigitalBrain__AI` keys (grep `"DigitalBrain:AI\|DigitalBrain__AI"` across `src/` including `*.json`, `*.pubxml`, Dockerfiles) — rewrite under `DigitalBrain:Modules:ai:Options:`.
 - Modify: `src/Testing/tests/DigitalBrain.Architecture.Tests/ConfigurationKeyOwners.json` — remove `AIOptions.cs` from the baseline (the ratchet enforces the win; `AIKeys.cs` must qualify as grammar-derived — if the ratchet flags it, the ratchet's rule is "keys built from DigitalBrainConfiguration calls are owned", so verify the fact's detection and add `AIKeys.cs` to the baseline only if strictly necessary, with a comment).
 
-- [ ] **Step 1: Write the failing fact** — in the AI module's unit suite: configuration carrying `DigitalBrain:AI:Default:Model` makes `AIOptionsRuntime.Read` throw with the migration message; configuration carrying `DigitalBrain:Modules:ai:Options:Default:Model=Fable5` binds into `options.Default.Model`.
-- [ ] **Step 2: Implement** per the file list; sweep with `grep -rn "DigitalBrain:AI\|DigitalBrain__AI" src --include=*.cs --include=*.json --include=*.pubxml | grep -v obj` — only the legacy guard string and the `AIKeys` mirror comment may remain.
-- [ ] **Step 3: Run** the AI suites, `dotnet test src/Testing/tests/DigitalBrain.Architecture.Tests`, `dotnet test src/DigitalBrain/Kernel/tests/DigitalBrain.Kernel.Tests.E2E --filter ContentCaptureFacts` → PASS.
-- [ ] **Step 4: Commit** — `refactor: AI speaks the one configuration grammar`
+- [x] **Step 1: Write the failing fact** — in the AI module's unit suite: configuration carrying `DigitalBrain:AI:Default:Model` makes `AIOptionsRuntime.Read` throw with the migration message; configuration carrying `DigitalBrain:Modules:ai:Options:Default:Model=Fable5` binds into `options.Default.Model`.
+- [x] **Step 2: Implement** per the file list; sweep with `grep -rn "DigitalBrain:AI\|DigitalBrain__AI" src --include=*.cs --include=*.json --include=*.pubxml | grep -v obj` — only the legacy guard string and the `AIKeys` mirror comment may remain.
+- [x] **Step 3: Run** the AI suites, `dotnet test src/Testing/tests/DigitalBrain.Architecture.Tests`, `dotnet test src/DigitalBrain/Kernel/tests/DigitalBrain.Kernel.Tests.E2E --filter ContentCaptureFacts` → PASS.
+- [x] **Step 4: Commit** — `refactor: AI speaks the one configuration grammar`
 
 ---
 
@@ -666,11 +666,11 @@ Salesforce, Apps, CSharp):**
 
 ### Task 12: Full verification and ratification
 
-- [ ] **Step 1: Build every ring**: Contracts, Kernel, Aspire.Server, Aspire.Hosting, OS, Deployment, Testing, Testing.E2E, AppHost.
-- [ ] **Step 2: Run the suites**: Kernel unit, Kernel E2E, OS unit, Architecture, Aspire.Hosting unit, Deployment, AI module suites, every module suite touched by Tasks 10–11 (ClickHouse, Flutter, Postgres, CSharp, GitHub, Salesforce, Apps, Time, Aspire), IntoChat E2E composition/routes.
-- [ ] **Step 3: Smoke**: `aspire run` from `src/DigitalBrain/AppHost/DigitalBrain.AppHost` — all resources Healthy; exercise one AI call if credentials are available, else confirm the AI module composes.
-- [ ] **Step 4: Ratify** — mark `docs/superpowers/specs/2026-10-05-module-identity-amendment.md` header "Ratified <date>"; update `CLAUDE.md`'s module-contract paragraph (module options under the one grammar, `Module` abstract class, no attributes) in the same commit.
-- [ ] **Step 5: Commit** — `docs: ratify module identity unification`
+- [x] **Step 1: Build every ring**: Contracts, Kernel, Aspire.Server, Aspire.Hosting, OS, Deployment, Testing, Testing.E2E, AppHost.
+- [x] **Step 2: Run the suites**: Kernel unit, Kernel E2E, OS unit, Architecture, Aspire.Hosting unit, Deployment, AI module suites, every module suite touched by Tasks 10–11 (ClickHouse, Flutter, Postgres, CSharp, GitHub, Salesforce, Apps, Time, Aspire), IntoChat E2E composition/routes.
+- [x] **Step 3: Smoke**: `aspire run` from `src/DigitalBrain/AppHost/DigitalBrain.AppHost` — all resources Healthy; exercise one AI call if credentials are available, else confirm the AI module composes.
+- [x] **Step 4: Ratify** — mark `docs/superpowers/specs/2026-10-05-module-identity-amendment.md` header "Ratified <date>"; update `CLAUDE.md`'s module-contract paragraph (module options under the one grammar, `Module` abstract class, no attributes) in the same commit.
+- [x] **Step 5: Commit** — `docs: ratify module identity unification`
 
 ---
 
