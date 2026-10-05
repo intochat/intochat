@@ -16,4 +16,5 @@ public sealed record AppManifest(
     [property: Id(1)] string Description,
     [property: Id(2)] AppOperation[] Operations,
     [property: Id(3)] AppSetting[] Settings,
-    [property: Id(4)] AppSlot[] Slots);
+    [property: Id(4)] AppSlot[] Slots,
+    [property: Id(5)] string? Icon = null);

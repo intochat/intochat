@@ -23,6 +23,11 @@ public sealed class AppState
     [Id(17)] public Dictionary<string, string> BehaviorErrors { get; set; } = [];
     [Id(18)] public List<AppInvocation> Invocations { get; set; } = [];
     [Id(19)] public List<OperationReceipt> Receipts { get; set; } = [];
+    [Id(20)] public string? PublishedVersion { get; set; }
+    [Id(21)] public AppOrigin? Origin { get; set; }
+    [Id(22)] public bool Edited { get; set; }
+    [Id(23)] public AppVersionRecord? Published { get; set; }
+    [Id(24)] public string? Publisher { get; set; }
 
     public AppState Clone() => new()
     {
@@ -46,6 +51,11 @@ public sealed class AppState
         BehaviorErrors = new(BehaviorErrors, StringComparer.Ordinal),
         Invocations = [.. Invocations],
         Receipts = [.. Receipts],
+        PublishedVersion = PublishedVersion,
+        Origin = Origin,
+        Edited = Edited,
+        Published = Published,
+        Publisher = Publisher,
     };
 }
 

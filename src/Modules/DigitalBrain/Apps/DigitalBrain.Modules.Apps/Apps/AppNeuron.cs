@@ -48,6 +48,7 @@ internal sealed class AppNeuron(
         ArgumentException.ThrowIfNullOrWhiteSpace(spec);
         if (Replayed(operationId)) { return Describe(Snapshot); }
         var next = Snapshot.Clone();
+        next.Edited = true;
         next.Spec = spec;
         next.Version = Bump(next.Version, minor: true);
         Record(next);
@@ -62,6 +63,7 @@ internal sealed class AppNeuron(
         ArgumentNullException.ThrowIfNull(manifest);
         if (Replayed(operationId)) { return Describe(Snapshot); }
         var next = Snapshot.Clone();
+        next.Edited = true;
         next.Manifest = manifest;
         // Newly declared settings get their defaults; chosen values survive.
         foreach (var setting in manifest.Settings)
@@ -80,6 +82,7 @@ internal sealed class AppNeuron(
         if (!AppFiles.IsBehavior(path)) { throw new ArgumentException("A behavior is a behaviors/*.cs file."); }
         if (Replayed(operationId)) { return Describe(Snapshot); }
         var next = Snapshot.Clone();
+        next.Edited = true;
         var swap = next.Files.ContainsKey(path);
         next.Files[path] = source;
         next.Version = Bump(next.Version, minor: false);
@@ -102,6 +105,7 @@ internal sealed class AppNeuron(
         if (AppFiles.IsBehavior(path)) { throw new ArgumentException("Programs are written through WriteBehavior, which deploys them."); }
         if (Replayed(operationId)) { return Describe(Snapshot); }
         var next = Snapshot.Clone();
+        next.Edited = true;
         next.Files[path] = source;
         next.Version = Bump(next.Version, minor: false);
         Record(next);
@@ -140,6 +144,7 @@ internal sealed class AppNeuron(
             { await hook.OnRetired(Snapshot.BrainScopeId ?? "", this.GetPrimaryKeyString(), removedKeys, CancellationToken.None); }
         }
         var next = Snapshot.Clone();
+        next.Edited = true;
         next.Manifest = record.Manifest;
         next.Spec = record.Spec;
         next.Files = new(record.Files, StringComparer.Ordinal);
@@ -204,6 +209,7 @@ internal sealed class AppNeuron(
             { if (!next.Settings.ContainsKey(setting.Name)) { next.Settings[setting.Name] = setting.Default; } }
         }
         foreach (var (path, source) in files) { next.Files[path] = source; }
+        next.Edited = true;
         var behaviorPaths = files.Keys.Where(AppFiles.IsBehavior).ToArray();
         var keys = Deployable()?.Keys(this.GetPrimaryKeyString(), next.ProgramGeneration, behaviorPaths) ?? [];
         next.StorageFiles = [.. next.StorageFiles.Concat(keys).Distinct(StringComparer.Ordinal)];
@@ -279,6 +285,17 @@ internal sealed class AppNeuron(
         foreach (var path in behaviors) { await DeployBehavior(path, next.Files[path], swap: false); }
         return Describe(Snapshot);
     }
+
+    public async Task RecordOrigin(AppOrigin origin)
+    {
+        ArgumentNullException.ThrowIfNull(origin);
+        RequireCreated();
+        var next = Snapshot.Clone();
+        next.Origin = origin;
+        next.Edited = false;
+        await Persist(next);
+    }
+
 
     public async Task Delete()
     {
@@ -462,5 +479,8 @@ internal sealed class AppNeuron(
         [.. state.Activity],
         [.. state.History.Select(record => new AppVersionSummary(record.Version, record.SavedAt,
             state.Verified.TryGetValue(record.Version, out var green) ? green : null))],
-        [.. state.Verdicts]);
+        [.. state.Verdicts],
+        state.PublishedVersion,
+        state.Origin,
+        state.Edited);
 }

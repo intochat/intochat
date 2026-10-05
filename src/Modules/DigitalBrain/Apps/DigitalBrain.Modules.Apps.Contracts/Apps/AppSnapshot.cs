@@ -20,4 +20,7 @@ public sealed record AppSnapshot(
     [property: Id(7)] AppStatus Status,
     [property: Id(8)] string[] Activity,
     [property: Id(9)] AppVersionSummary[] Versions,
-    [property: Id(10)] AppScenarioVerdict[] Verdicts);
+    [property: Id(10)] AppScenarioVerdict[] Verdicts,
+    [property: Id(11)] string? PublishedVersion = null,
+    [property: Id(12)] AppOrigin? Origin = null,
+    [property: Id(13)] bool Edited = false);

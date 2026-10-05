@@ -26,6 +26,9 @@ public interface IApp : INeuron
     Task RecordVerdicts(AppScenarioVerdict[] verdicts, bool green, string? version = null);
     Task<AppBundle> Export();
     [ResponseTimeout("00:10:00")] Task<AppSnapshot> Import(AppBundle bundle);
+    // Install records where the copy came from; recording it again (after an update) also
+    // clears Edited, because the program is the publisher's again.
+    Task RecordOrigin(AppOrigin origin);
     [ResponseTimeout("00:10:00")] Task Delete();
     Task<AppInvocation> Invoke(InvokeApp request);
     Task<AppInvocation> Respond(AppResponse response);
