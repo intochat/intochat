@@ -18,6 +18,8 @@ internal sealed class StubChatClient(ChatResponder? respond = null, ChatStreamer
 
     public static StubChatClient StreamingOnly(ChatStreamer stream) => new(stream: stream);
 
+    public static StubChatClient Failing(string message) => new((_, _, _) => throw new InvalidOperationException(message));
+
     public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
     {
         var recorded = Record(messages);

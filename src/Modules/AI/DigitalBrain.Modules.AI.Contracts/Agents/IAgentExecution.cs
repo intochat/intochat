@@ -10,4 +10,6 @@ public interface IAgentExecution : INeuron
     IAsyncEnumerable<AgentTurnEvent> Run(AgentTurnRequest request, string intentId, CancellationToken ct = default);
     Task<ModelCatalog> Models(string? defaultModel = null);
     Task<AgentModelSelection?> SelectModel(string? id, string? defaultModel = null);
+    // A turn a script can hold: answers the run id at once and reports the turn as signals.
+    Task<string> Start(AgentTurnStart turn);
 }
