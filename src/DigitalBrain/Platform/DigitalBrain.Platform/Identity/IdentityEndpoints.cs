@@ -35,6 +35,8 @@ internal static class IdentityEndpoints
         routes.MapPost("/identity/session/brain", SelectBrainAsync);
         routes.MapPost("/identity/logout", (Delegate)LogoutAsync);
         routes.MapPost("/identity/brains", CreateBrainAsync);
+        routes.MapGet("/identity/seeded-accounts", SeededAccounts);
+        routes.MapPost("/identity/seeded-accounts/{username}/login", SeededLoginAsync);
         var grants = BrainRoutes.Group(routes, "/grants");
         grants.MapGet("", async (string brainId, IDigitalBrain brain, CancellationToken ct) =>
             Results.Ok(await Grants(brain, brainId).ListGrants().WaitAsync(ct)));
@@ -134,6 +136,28 @@ internal static class IdentityEndpoints
 
     private static IBrainAuthority Grants(IDigitalBrain brain, string brainId)
         => brain.Get<IBrainAuthority>(BrainScope.Create(CallerContextStamper.Require().AccountId, brainId).Id);
+
+    // Development switching: an Open host already acts as its owner without a login, so naming
+    // and entering its seeded accounts adds no reach. Secured hosts answer as if absent.
+    private static IResult SeededAccounts(IOptions<AuthOptions> auth, IOptions<SeededAccountOptions> seeds)
+        => auth.Value.Posture != IdentityPosture.Open
+            ? Results.NotFound()
+            : Results.Ok(seeds.Value.Accounts
+                .Where(seed => !string.IsNullOrEmpty(seed.Password))
+                .Select(seed => new SeededAccountView(seed.Username, seed.DisplayName.Length > 0 ? seed.DisplayName : seed.Username))
+                .ToArray());
+
+    private static async Task<IResult> SeededLoginAsync(string username, HttpContext http, IDigitalBrain brain,
+        IOptions<AuthOptions> auth, IOptions<SeededAccountOptions> seeds, CancellationToken ct)
+    {
+        if (auth.Value.Posture != IdentityPosture.Open) { return Results.NotFound(); }
+        var seed = seeds.Value.Accounts.FirstOrDefault(entry => entry.Username == username && !string.IsNullOrEmpty(entry.Password));
+        if (seed is null) { return Results.NotFound(); }
+        var member = await brain.Get<IPrincipal>(seed.Username).Authenticate(seed.Password!).WaitAsync(ct);
+        return member is null ? Results.Unauthorized() : await SignInAsync(member, http);
+    }
+
+    internal sealed record SeededAccountView(string Username, string DisplayName);
 
     internal sealed record LoginRequest(string PrincipalId, string? Password = null);
     internal sealed record BrainSelection(string AccountId, string BrainId);
