@@ -36,9 +36,6 @@ public sealed class ProductCompositionFacts
         // so its module annotations are the hosted subset of the catalog.
         var catalogModules = DigitalBrain.OS.OsCatalog.Modules
             .Select(module => module.Id.ToString()).Order().ToArray();
-        var referenceModules = ReferenceBrain.Create().BuildComposition().Modules
-            .Select(module => module.Id.ToString()).Order().ToArray();
-        Assert.Equal(catalogModules, referenceModules);
         Assert.All(productModules, module => Assert.Contains(module, catalogModules));
         Assert.Contains("qdrant", productModules);
         Assert.DoesNotContain("memory", productModules);

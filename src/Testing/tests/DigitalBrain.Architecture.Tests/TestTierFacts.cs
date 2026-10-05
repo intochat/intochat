@@ -99,7 +99,6 @@ public sealed class TestTierFacts
         string[] boots =
         [
             "ReferenceBrain" + ".Create(",
-            "E2ETest" + ".Create(",
             "E2ETest" + ".For<",
             "ProductE2E" + ".Create(",
         ];

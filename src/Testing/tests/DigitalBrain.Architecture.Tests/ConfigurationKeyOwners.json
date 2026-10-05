@@ -22,6 +22,5 @@
   "src/Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Aspire.Hosting/ShellNames.cs",
   "src/Modules/Google/Flutter/tests/DigitalBrain.Modules.Flutter.Tests.Hosting/FlutterHostOptionsGrammarFacts.cs",
   "src/Modules/Postgres/DigitalBrain.Modules.Postgres.Contracts/Configuration/PostgresModuleOptions.cs",
-  "src/Testing/DigitalBrain.Testing.E2E/Hosted/ModuleHostChannel.cs",
   "src/Testing/tests/DigitalBrain.Architecture.Tests/ModuleKeyGrammarFacts.cs"
 ]
