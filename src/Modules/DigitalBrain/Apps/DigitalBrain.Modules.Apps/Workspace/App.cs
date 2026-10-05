@@ -46,20 +46,6 @@ internal sealed class App(
             .. Snapshot.StorageFiles.Select(key => new NeuronRecord("apps", "microsoft.csharp.file", key, package + " / " + key))]);
     }
 
-    public async Task<AppSnapshot> AbandonStorage(AbandonAppStorage request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        if (Replay(request.OperationId, request)) { return Describe(Snapshot); }
-        if (Snapshot.PendingUninstall is null)
-        { throw new InvalidOperationException("Storage can only be abandoned for a pending uninstall."); }
-        if (request.OperationId == Snapshot.PendingUninstall.OperationId)
-        { throw new InvalidOperationException("Abandoning storage requires its own operation ID."); }
-        if (Snapshot.PendingAbandonStorage is null)
-        { await Persist(Snapshot with { PendingAbandonStorage = request }); }
-        await CompleteUninstall();
-        return Describe(Snapshot);
-    }
-
     public async Task<AppSnapshot> Install(InstallApp request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -100,8 +86,6 @@ internal sealed class App(
             Receipts = Receipted(request.OperationId, request),
             StorageFiles = [],
             DeployedFiles = [],
-            StorageHistoryKnown = true,
-            LifecycleReceipts = [.. Snapshot.LifecycleReceipts, new(request.OperationId, CommandHash(request), "")],
         });
         return Describe(Snapshot);
     }
@@ -118,7 +102,6 @@ internal sealed class App(
         var selected = new Dictionary<string, string>(Snapshot.Accounts);
         foreach (var (slot, account) in request.Accounts ?? new Dictionary<string, string>()) { selected[slot] = account; }
         var accounts = ResolveAccounts(revision.Content.Manifest.Accounts ?? [], selected);
-        await BackfillStorageFiles();
         await DeployAndPersist(Snapshot with
         {
             Settings = settings,
@@ -146,7 +129,6 @@ internal sealed class App(
         var settings = Resolve(declared, kept, new Dictionary<string, string>());
         var accounts = ResolveAccounts(revision.Content.Manifest.Accounts ?? [], request.Accounts ?? Snapshot.Accounts);
         var runtime = revision.Content.Manifest.RuntimeName;
-        await BackfillStorageFiles();
         await DeployAndPersist(Snapshot with
         {
             Runtime = runtime,
@@ -169,10 +151,9 @@ internal sealed class App(
         if (Snapshot.Status != AppStatus.Installed)
         {
             // Even a no-op must remain a no-op when delivery repeats after a later install.
-            await Persist(Snapshot with { LifecycleReceipts = [.. Snapshot.LifecycleReceipts, new(request.OperationId, CommandHash(request), "")] });
+            await Persist(Snapshot with { Receipts = Receipted(request.OperationId, request) });
             return Describe(Snapshot);
         }
-        await BackfillStorageFiles();
         await Persist(Snapshot with { PendingUninstall = request });
         await CompleteUninstall();
         return Describe(Snapshot);
@@ -181,27 +162,19 @@ internal sealed class App(
     private async Task CompleteUninstall()
     {
         var request = Snapshot.PendingUninstall!;
-        var abandon = Snapshot.PendingAbandonStorage;
         await RetireDeployment(Snapshot.Runtime, Snapshot.StorageFiles);
-        if (abandon is null)
-        {
-            foreach (var hook in storageHooks)
-            { await hook.OnRetired(Snapshot.BrainScopeId ?? "", this.GetPrimaryKeyString(), Snapshot.StorageFiles, CancellationToken.None); }
-        }
+        foreach (var hook in storageHooks)
+        { await hook.OnRetired(Snapshot.BrainScopeId ?? "", this.GetPrimaryKeyString(), Snapshot.StorageFiles, CancellationToken.None); }
         var now = clock.GetUtcNow();
         var invocations = Snapshot.Invocations
             .Select(item => item.Status == InvocationStatus.Pending ? item with { Status = InvocationStatus.Failed, Error = "The app was uninstalled.", CompletedAt = now } : item)
             .ToList();
-        OperationReceipt[] completed = abandon is null ? [] : [new(abandon.OperationId, CommandHash(abandon), "Storage left behind")];
         await Persist(Snapshot with
         {
             Status = AppStatus.Uninstalled,
             Invocations = invocations,
             Receipts = Receipted(request.OperationId, request),
             PendingUninstall = null,
-            PendingAbandonStorage = null,
-            AbandonedStorage = abandon is null ? Snapshot.AbandonedStorage : [.. Snapshot.AbandonedStorage, new(abandon.OperationId, Snapshot.StorageFiles.ToArray())],
-            LifecycleReceipts = [.. Snapshot.LifecycleReceipts, new(request.OperationId, CommandHash(request), ""), .. completed]
         });
     }
 
@@ -315,28 +288,6 @@ internal sealed class App(
         await Persist(target);
     }
 
-    private async Task BackfillStorageFiles()
-    {
-        if (Snapshot.StorageHistoryKnown) { return; }
-        var paths = new HashSet<string>(Snapshot.ScriptPaths, StringComparer.Ordinal) { PackageContent.SourcePath };
-        if (Snapshot.Revision is { } installed)
-        {
-            var package = GrainFactory.GetGrain<IPackage>(installed.Package.ToString());
-            var remaining = new Stack<string>();
-            var visited = new HashSet<string>(StringComparer.Ordinal);
-            remaining.Push(installed.Revision);
-            while (remaining.TryPop(out var id))
-            {
-                if (!visited.Add(id)) { continue; }
-                var revision = await package.ReadRevision(id);
-                paths.UnionWith(revision.Content.Programs().Keys);
-                foreach (var parent in revision.Parents) { remaining.Push(parent); }
-            }
-        }
-        var files = Enumerable.Range(1, Snapshot.ProgramGeneration).SelectMany(generation => paths.Select(path => FileKey(generation, path)));
-        await Persist(Snapshot with { StorageFiles = files.Distinct(StringComparer.Ordinal).ToArray(), StorageHistoryKnown = true });
-    }
-
     // The script reads brain.Setting("App") to find this neuron, brain.Setting(name) for each setting
     // and brain.Setting("Account__" + slot) for each connected account.
     private Dictionary<string, string> Configuration(IReadOnlyDictionary<string, string> settings, IReadOnlyDictionary<string, string> accounts)
@@ -367,9 +318,6 @@ internal sealed class App(
         return result;
     }
 
-    // Used only by the storage backfill for installs predating DeployedFiles; dies with it.
-    private string FileKey(int generation, string path) => CSharpAppRuntime.FileKey(this.GetPrimaryKeyString(), generation, path);
-
     private static Dictionary<string, string> Resolve(IReadOnlyList<PackageSetting> declared, IReadOnlyDictionary<string, string> current, IReadOnlyDictionary<string, string> supplied)
     {
         ArgumentNullException.ThrowIfNull(supplied);
@@ -391,8 +339,7 @@ internal sealed class App(
 
     private bool Replay(Guid operationId, object request)
     {
-        var receipt = Snapshot.LifecycleReceipts.FirstOrDefault(item => item.OperationId == operationId)
-            ?? Snapshot.Receipts.Find(item => item.OperationId == operationId);
+        var receipt = Snapshot.Receipts.Find(item => item.OperationId == operationId);
         if (receipt is null) { return false; }
         return receipt.RequestHash == CommandHash(request)
             ? true
@@ -431,5 +378,5 @@ internal sealed class App(
         new Dictionary<string, string>(state.Settings),
         state.Operations.ToArray(),
         state.DeployedFiles.ToArray(),
-        new Dictionary<string, string>(state.Accounts), state.PendingUninstall is not null, state.AbandonedStorage.ToArray());
+        new Dictionary<string, string>(state.Accounts), state.PendingUninstall is not null);
 }

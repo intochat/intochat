@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:uuid/uuid.dart';
 
 import '../csharp/csharp_manager.dart';
 import 'app_spec_screen.dart';
@@ -161,36 +160,6 @@ class _AppsScreenState extends State<AppsScreen> {
     await _load();
     if (mounted) setState(() => _notice = notice);
   });
-
-  Future<void> _abandonStorage(String id) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Uninstall and leave storage behind?'),
-        content: const Text(
-          'Existing storage will remain and must be cleaned up separately.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            key: const ValueKey('confirm-abandon-storage'),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Leave storage behind'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    await _change(
-      'POST',
-      '${_appPath(id)}/abandon-storage',
-      'Uninstalled $id. Storage was left behind.',
-      {'operationId': const Uuid().v4()},
-    );
-  }
 
   Future<void> _run(String id, String operation) => _perform(() async {
     final input = _inputs[id]?.text ?? '';
@@ -438,8 +407,6 @@ class _AppsScreenState extends State<AppsScreen> {
             if (origin.isNotEmpty)
               Text('Forked from ${origin['owner']}/${origin['name']}'),
             if (uninstallPending) const Text('Uninstall pending'),
-            if ((app['abandonedStorage'] as List? ?? const []).isNotEmpty)
-              const Text('Storage from a previous uninstall was left behind.'),
             if ('${listing['description'] ?? ''}'.isNotEmpty)
               Text('${listing['description']}'),
             if (installed && files.isNotEmpty)
@@ -497,12 +464,6 @@ class _AppsScreenState extends State<AppsScreen> {
                             'Uninstalled $id.',
                           ),
                     child: const Text('Uninstall'),
-                  ),
-                if (uninstallPending)
-                  OutlinedButton(
-                    key: ValueKey('abandon-storage-$id'),
-                    onPressed: _busy ? null : () => _abandonStorage(id),
-                    child: const Text('Leave storage behind'),
                   ),
                 OutlinedButton(
                   key: ValueKey('scenarios-$id'),

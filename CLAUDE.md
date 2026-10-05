@@ -74,6 +74,7 @@ app.authoring.json optional stable scenario IDs and scenario-to-source associati
   `src/IntoChat/Apps/`).
 - **Module contract:** a module ships contracts + signals + connector + fakes (Testing package) +
   renderables. Modules never ship step definitions or test-only methods on production interfaces.
+  A module that owns enumerable per-brain state ships its `IRegistryInventoryProvider`; the Framework's `IRegistry` federates them — nothing mirrors domain state.
   A module is a `Module` / `Module<TOptions>` subclass (in the module runtime assembly) whose `ModuleId` is passed to
   the base constructor — no attributes, no reflection; the catalog (`OsCatalog`) holds instances,
   and hosting/deployment adapters claim their module through `ModuleHosting<TModule>` /

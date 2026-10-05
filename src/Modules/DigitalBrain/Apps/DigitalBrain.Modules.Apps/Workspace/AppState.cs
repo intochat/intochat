@@ -13,21 +13,15 @@ public sealed record AppState
     [Id(8)] public List<OperationReceipt> Receipts { get; init; } = [];
     [Id(9)] public Dictionary<string, string> Accounts { get; init; } = [];
     [Id(10)] public string Runtime { get; init; } = PackageManifest.CSharpRuntime;
-    // The program paths the current generation deployed, so retiring needs no second look at the revision.
-    [Id(11)] public string[] ScriptPaths { get; init; } = [];
+    // Ids 11 (ScriptPaths), 15 (StorageHistoryKnown), 16 (LifecycleReceipts), 17 (PostgresScopes),
+    // 18 (PendingAbandonStorage) and 19 (AbandonedStorage) are retired; never reuse them.
     [Id(12)] public string[] StorageFiles { get; init; } = [];
     [Id(13)] public AppDeployment? PendingDeployment { get; init; }
     [Id(14)] public UninstallApp? PendingUninstall { get; init; }
-    [Id(15)] public bool StorageHistoryKnown { get; init; }
-    [Id(16)] public OperationReceipt[] LifecycleReceipts { get; init; } = [];
-    [Id(17)] public bool PostgresScopes { get; init; }
-    [Id(18)] public AbandonAppStorage? PendingAbandonStorage { get; init; }
-    [Id(19)] public AbandonedAppStorage[] AbandonedStorage { get; init; } = [];
     [Id(20)] public string? BrainScopeId { get; init; }
     [Id(21)] public string? InstallerAppId { get; init; }
     // The storage keys the current generation's runtime returned from Deploy.
     [Id(22)] public string[] DeployedFiles { get; init; } = [];
-    public bool RunsScript => Runtime == PackageManifest.CSharpRuntime;
 }
 
 [GenerateSerializer]

@@ -68,10 +68,4 @@ public sealed class AppStorageFacts
         public Task<TableValue[][]> PageAsync(string origin, string table, TableDefinition definition, int offset, int limit, CancellationToken ct) => Task.FromResult<TableValue[][]>([Row]);
     }
 
-    [Fact]
-    public async Task StorageCannotBeAbandonedWithoutAPendingUninstall()
-    {
-        await using var brain = await PackageBrain.StartAsync(TestContext.Current.CancellationToken);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => brain.Get<IApp>("no-uninstall").AbandonStorage(new(Guid.NewGuid())));
-    }
 }

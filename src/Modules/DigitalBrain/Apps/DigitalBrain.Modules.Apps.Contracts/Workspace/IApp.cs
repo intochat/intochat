@@ -14,7 +14,6 @@ public interface IApp : INeuron
     [ResponseTimeout("00:10:00")] Task<AppSnapshot> Configure(ConfigureApp request);
     [ResponseTimeout("00:10:00")] Task<AppSnapshot> Upgrade(UpgradeApp request);
     [ResponseTimeout("00:10:00")] Task<AppSnapshot> Uninstall(UninstallApp request);
-    [ResponseTimeout("00:10:00")] Task<AppSnapshot> AbandonStorage(AbandonAppStorage request);
     Task<AppInvocation> Invoke(InvokeApp request);
     Task<AppInvocation> Respond(AppResponse response);
     Task<AppInvocation> ReadInvocation(Guid invocationId);

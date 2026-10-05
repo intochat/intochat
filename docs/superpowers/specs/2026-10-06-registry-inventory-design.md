@@ -124,3 +124,40 @@ threads may follow; absence shows up honestly in `Domains`.
   scans, key-parsing conventions. The Task 0 gate evidence is the standing rationale.
 - A mandatory uniform key grammar for brain scoping (hashed keys are a feature).
 - Any state persisted by the Registry or its providers beyond what domains already own.
+
+## Implementation rulings
+
+- The sibling `IRegistryInventoryProvider` keeps membership separate from capability discovery.
+  `Domains` includes every provider asked, including failures. Provider failures use a generic
+  message so exception diagnostics cannot leak credentials. Caller cancellation still cancels
+  the operation; it is not presented as a domain outage.
+- Each Registry Active request owns one transient census snapshot captured before any domain
+  queries. Providers read that request's snapshot, so one provider's membership reads cannot
+  activate a grain before another provider samples it. The snapshot (or its error) is scoped to
+  that async request and discarded at completion; nothing is cached across requests. Direct
+  provider calls still obtain a fresh census. `ActivationRecord` is an in-process type/key pair,
+  not a serialized user-facing contract. This is not a transaction across independent user
+  mutations of domain membership during discovery.
+- Apps reads the existing `StorageFiles` through a host-only, read-only App view. Current file
+  paths are displayed where the aggregate retains their mapping; historical files retain their
+  raw keys. It does not call the migration/backfill handover. Legacy unindexed installations
+  remain outside the existing `IApps` membership view.
+- Connections are records inside a single per-brain `connections` grain, not individual grains.
+  Each connection record therefore reports the owning aggregate's type/key, with connector/id
+  as Display; Active means that aggregate is active. No credential or SecretRef is projected.
+- CSharp has an existing durable `CSharpCatalogStore` authoring catalog. Its provider reads that
+  catalog and derives keys using CSharp's existing identity function. Direct grain callers that
+  bypass authoring are outside coverage; app-owned files are covered by Apps. No index was added.
+- Postgres uses its existing installed-app resource/ownership service. Direct and legacy owners
+  without an installed-app membership path remain outside this view. Resource-description
+  failures become a domain error rather than a silently incomplete successful answer.
+- Time uses the existing `Start`/`Stop` contracts for the plan's Set/Arm/cancel lifecycle. Its
+  small index records schedule intent before registration, idempotently by type/key. Index
+  failures are logged and cannot block scheduling or cancellation; failed registration or
+  cleanup can leave stale intent. Timers retain activation-local scheduling semantics; this
+  index does not turn timers into durable schedulers. Unstamped runtime/deployment starts have
+  no ambient brain and are outside the per-brain index. No additional per-neuron persisted
+  ownership state, signals, or central inventory are introduced. Existing unscoped Time key
+  semantics are unchanged; the index does not add ownership enforcement to the scheduling API.
+
+Verification notes and task status are recorded in the implementation plan.

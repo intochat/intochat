@@ -8,7 +8,8 @@ public sealed class PersistedStateFacts
     // Retired IDs remain reserved. Never fill their gaps.
     private static readonly Dictionary<string, uint[]> RetiredIds = new()
     {
-        ["DigitalBrain.Apps.AppState"] = [2],
+        ["DigitalBrain.Apps.AppState"] = [2, 11, 15, 16, 17, 18, 19],
+        ["DigitalBrain.Apps.AppSnapshot"] = [7],
         ["DigitalBrain.Apps.InstalledAppsState"] = [1, 2],
         ["DigitalBrain.Apps.CommitPackage"] = [3],
         ["DigitalBrain.Apps.PackageRevision"] = [3],
