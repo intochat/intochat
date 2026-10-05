@@ -8,17 +8,12 @@ namespace DigitalBrain.Compute.Storage;
 
 internal sealed class NeuronMeterStore(IGrainFactory grains) : IMeterStore
 {
-    private IComputeRecords Records => grains.GetGrain<IComputeRecords>("meters/v1");
+    private IComputeRecords Records(string period) => grains.GetGrain<IComputeRecords>("meters/" + period);
+    private static string Period(MeterEvent value) => value.OccurredAt.UtcDateTime.ToString("yyyy-MM", CultureInfo.InvariantCulture);
     private static ComputeStoredRecord Record(MeterEvent value)
     {
         var id = JsonSerializer.Serialize(new[] { value.IntentId, value.MeterId, value.Step });
         return new(id, JsonSerializer.Serialize(value), value.OccurredAt.UtcTicks.ToString("D19", CultureInfo.InvariantCulture) + "-" + UsagePaging.Hash(id), 0);
-    }
-
-    private IComputeRecords Ready(CancellationToken ct)
-    {
-        ct.ThrowIfCancellationRequested();
-        return Records;
     }
 
     public async ValueTask<bool> AppendAsync(MeterEvent meterEvent, CancellationToken cancellationToken = default)
@@ -27,15 +22,20 @@ internal sealed class NeuronMeterStore(IGrainFactory grains) : IMeterStore
     public async ValueTask<int> AppendBatchAsync(IReadOnlyList<MeterEvent> meterEvents, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(meterEvents);
-        var records = Ready(cancellationToken);
-        // Existing intent batches commit with one root update, including dedup.
-        return await records.Put(meterEvents.Select(Record).ToArray(), false);
+        cancellationToken.ThrowIfCancellationRequested();
+        var inserted = 0;
+        foreach (var month in meterEvents.GroupBy(Period))
+        {
+            inserted += await Records(month.Key).Put(month.Select(Record).ToArray(), false);
+        }
+        return inserted;
     }
 
-    public async ValueTask<IReadOnlyList<MeterEvent>> ReadAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<IReadOnlyList<MeterEvent>> ReadAsync(string period, CancellationToken cancellationToken = default)
     {
-        var records = Ready(cancellationToken);
-        return (await records.Read()).Select(row => JsonSerializer.Deserialize<MeterEvent>(row.Payload)!).ToArray();
+        ArgumentException.ThrowIfNullOrWhiteSpace(period);
+        cancellationToken.ThrowIfCancellationRequested();
+        return (await Records(period).Read()).Select(row => JsonSerializer.Deserialize<MeterEvent>(row.Payload)!).ToArray();
     }
 
     public ValueTask EnsureCreatedAsync(CancellationToken cancellationToken = default)

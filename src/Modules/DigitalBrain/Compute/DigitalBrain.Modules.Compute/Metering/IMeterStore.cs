@@ -7,7 +7,7 @@ internal interface IMeterStore
 
     ValueTask<int> AppendBatchAsync(IReadOnlyList<MeterEvent> meterEvents, CancellationToken cancellationToken = default);
 
-    ValueTask<IReadOnlyList<MeterEvent>> ReadAsync(CancellationToken cancellationToken = default);
+    ValueTask<IReadOnlyList<MeterEvent>> ReadAsync(string period, CancellationToken cancellationToken = default);
 
     ValueTask EnsureCreatedAsync(CancellationToken cancellationToken = default);
 }

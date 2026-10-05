@@ -1,5 +1,6 @@
 using DigitalBrain.Framework.Metering;
 using System.Collections.Concurrent;
+using System.Globalization;
 
 namespace DigitalBrain.Compute.Metering;
 
@@ -29,10 +30,10 @@ internal sealed class InMemoryMeterStore : IMeterStore
         return ValueTask.FromResult(inserted);
     }
 
-    public ValueTask<IReadOnlyList<MeterEvent>> ReadAsync(CancellationToken cancellationToken = default)
+    public ValueTask<IReadOnlyList<MeterEvent>> ReadAsync(string period, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        IReadOnlyList<MeterEvent> snapshot = [.. events.Values.OrderBy(meter => meter.OccurredAt)];
+        IReadOnlyList<MeterEvent> snapshot = [.. events.Values.Where(meter => meter.OccurredAt.UtcDateTime.ToString("yyyy-MM", CultureInfo.InvariantCulture) == period).OrderBy(meter => meter.OccurredAt)];
         return ValueTask.FromResult(snapshot);
     }
 

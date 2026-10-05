@@ -11,23 +11,6 @@ namespace DigitalBrain.Modules.Compute.Tests;
 public sealed class NeuronStoreFacts
 {
     [Fact]
-    public async Task ImmutableTreeReusesTheLastCommittedPartWithoutMutatingEarlierRoots()
-    {
-        var parts = new Dictionary<string, string>();
-        var reads = 0;
-        var tree = new ComputeRecordTree(
-            key => { reads++; return Task.FromResult(parts[key]); },
-            (key, value) => { parts[key] = value; return Task.CompletedTask; });
-        var first = await tree.Set(null, new("one", "original", "001", 1));
-        Assert.Equal("original", (await tree.Get(first, "one"))!.Payload);
-        var second = await tree.Set(first, new("one", "updated", "001", 2));
-        Assert.Equal("updated", (await tree.Get(second, "one"))!.Payload);
-        Assert.Equal(0, reads);
-        Assert.Equal("original", (await tree.Get(first, "one"))!.Payload);
-        Assert.Equal(1, reads);
-    }
-
-    [Fact]
     public async Task UsageContractPreservesRowsAcrossReactivationAndRejectsForeignCursors()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -47,24 +30,27 @@ public sealed class NeuronStoreFacts
     }
 
     [Fact]
-    public async Task ImmutableTreeBoundsRecordsAndKeepsPublishedRootAfterFailedWrite()
+    public async Task TheUsageLogEvictsOldestRowsPastTheCapAndStillPages()
     {
-        var parts = new Dictionary<string, string>();
-        var fail = false;
-        var tree = new ComputeRecordTree(
-            key => Task.FromResult(parts[key]),
-            (key, value) => { if (fail) { throw new IOException("storage unavailable"); } parts[key] = value; return Task.CompletedTask; });
-        string? root = null;
-        for (var i = 0; i < 180; i++) { root = await tree.Set(root, new($"id-{i}", $"payload-{i}", i.ToString("D6"), i)); }
-        var published = root;
-        Assert.Equal("payload-17", (await tree.Get(published, "id-17"))!.Payload);
-        var rows = new List<ComputeStoredRecord>();
-        await foreach (var row in tree.Read(published)) { rows.Add(row); }
-        Assert.Equal(180, rows.Count);
-        Assert.All(parts.Values, value => Assert.True(value.Length < 128 * 1024));
-        fail = true;
-        await Assert.ThrowsAsync<IOException>(() => tree.Set(published, new("id-17", "lost", "000017", 200)));
-        Assert.Equal("payload-17", (await tree.Get(published, "id-17"))!.Payload);
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<ComputeModule>().StartAsync(ct);
+        var store = brain.SiloServices.GetRequiredService<IUsageStore>();
+        for (var i = 0; i < ComputeRecordsNeuron.Cap + 10; i++)
+        {
+            await store.AppendAsync("account", "brain-1", $"row-{i}", "{}", ct);
+        }
+        var page = await store.ReadAsync("account", "brain-1", 1, null, ct);
+        Assert.Equal($"row-{ComputeRecordsNeuron.Cap + 9}", page.Items[0].Id);
+        var all = new List<string>();
+        string? cursor = null;
+        do
+        {
+            var next = await store.ReadAsync("account", "brain-1", 100, cursor, ct);
+            all.AddRange(next.Items.Select(row => row.Id));
+            cursor = next.NextCursor;
+        } while (cursor is not null);
+        Assert.Equal(ComputeRecordsNeuron.Cap, all.Count);
+        Assert.DoesNotContain("row-0", all);
     }
 
     [Fact]

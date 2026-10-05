@@ -22,7 +22,7 @@ public sealed class MeterFacts
         await sink.RecordAsync(meterEvent, ct);
         await sink.RecordAsync(meterEvent with { Quantity = 999 }, ct);
 
-        var stored = await store.ReadAsync(ct);
+        var stored = await store.ReadAsync(EpochPeriod, ct);
         var single = Assert.Single(stored);
         Assert.Equal(10m, single.Quantity);
     }
@@ -39,7 +39,7 @@ public sealed class MeterFacts
         var inserted = await sink.RecordBatchAsync([input, output, input], ct);
 
         Assert.Equal(2, inserted);
-        Assert.Equal(2, (await store.ReadAsync(ct)).Count);
+        Assert.Equal(2, (await store.ReadAsync(EpochPeriod, ct)).Count);
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public sealed class MeterFacts
             .Select(_ => store.AppendAsync(Event(), ct).AsTask()));
 
         Assert.Single(results, inserted => inserted);
-        Assert.Single(await store.ReadAsync(ct));
+        Assert.Single(await store.ReadAsync(EpochPeriod, ct));
     }
 
     [Fact]
@@ -75,8 +75,8 @@ public sealed class MeterFacts
         Assert.Null(lower);
         Assert.NotNull(second);
         Assert.Equal(2m, sampler.AverageDailyPeakGigabytes);
-        Assert.Equal(2, (await store.ReadAsync(ct)).Count);
-        Assert.All(await store.ReadAsync(ct), stored => Assert.Equal(StorageSampler.MeterId, stored.MeterId));
+        Assert.Equal(2, (await store.ReadAsync("2026-09", ct)).Count);
+        Assert.All(await store.ReadAsync("2026-09", ct), stored => Assert.Equal(StorageSampler.MeterId, stored.MeterId));
         Assert.Equal(MeterSource.StorageSampler, second.Source);
     }
 
@@ -88,6 +88,46 @@ public sealed class MeterFacts
         Assert.True(MeterReconciliation.Compare(0m, 0m).WithinTolerance);
         Assert.Equal(0.5m, MeterReconciliation.Compare(100.5m, 100m).DeltaPercent);
     }
+
+    private const string EpochPeriod = "1970-01";
+
+    [Fact]
+    public async Task ABatchSpanningTwoMonthsLandsInBothPeriods()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<ComputeModule>().StartAsync(ct);
+        var store = brain.SiloServices.GetRequiredService<IMeterStore>();
+        var september = Meter("intent-1", new DateTimeOffset(2026, 9, 30, 23, 0, 0, TimeSpan.Zero));
+        var october = Meter("intent-2", new DateTimeOffset(2026, 10, 1, 1, 0, 0, TimeSpan.Zero));
+        Assert.Equal(2, await store.AppendBatchAsync([september, october], ct));
+        Assert.Single(await store.ReadAsync("2026-09", ct));
+        Assert.Single(await store.ReadAsync("2026-10", ct));
+    }
+
+    [Fact]
+    public async Task ADuplicateMeterEventAfterReactivationIsNotRecordedTwice()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<ComputeModule>().StartAsync(ct);
+        var store = brain.SiloServices.GetRequiredService<IMeterStore>();
+        var meter = Meter("intent-1", new DateTimeOffset(2026, 9, 10, 0, 0, 0, TimeSpan.Zero));
+        Assert.True(await store.AppendAsync(meter, ct));
+        await brain.DeactivateAsync(brain.Get<IComputeRecords>("meters/2026-09"), ct);
+        Assert.False(await store.AppendAsync(meter, ct));
+        Assert.Single(await store.ReadAsync("2026-09", ct));
+    }
+
+    private static MeterEvent Meter(string intent, DateTimeOffset at) => new()
+    {
+        IntentId = intent,
+        MeterId = "llm.m.input_tokens",
+        Step = "input_tokens",
+        BrainId = "brain-1",
+        Quantity = 1m,
+        Unit = "tokens",
+        Source = MeterSource.ChatClient,
+        OccurredAt = at,
+    };
 
     private static MeterEvent Event() => new()
     {
