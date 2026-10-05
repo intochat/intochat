@@ -31,10 +31,10 @@ public sealed class InventoryFacts
             var scope = BrainScope.CurrentId();
             await host.Get<IReminder>(scope + "/standup").Start(TimeSpan.FromHours(1), TimeSpan.FromDays(1));
             await host.Get<IReminder>(scope + "/review").Start(TimeSpan.FromHours(2), TimeSpan.FromDays(1));
-            var id = PackageId.Create("owner", name);
-            var revision = await host.Get<IPackage>(id.ToString()).Commit(new(Guid.NewGuid(), null,
-                new(new(name, "Inventory", [], [], Runtime: "prompt"), ""), "Initial"));
-            await host.Get<IApp>(scope + "/packages/" + id).Install(new(Guid.NewGuid(), new(id, revision.Id), new Dictionary<string, string>()));
+            var app = host.Get<IApp>(IApp.Key(scope, name));
+            await app.Create(new(name, "Inventory", [], [], []), "## Scenario: Lists\nIt lists.");
+            await app.BeginBuild(null);
+            await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t" }, null);
         }
         foreach (var name in new[] { "one", "two" })
         {
@@ -54,8 +54,8 @@ public sealed class InventoryFacts
             Assert.Contains("broken", model.Inventory.Domains);
             Assert.Contains(model.Inventory.Errors, error => error.Provider == "broken");
             Assert.Equal(2, model.Inventory.Records.Count(record => record.Domain == "time"));
-            Assert.Equal(BrainScope.CurrentId() + "/packages/owner/" + name,
-                Assert.Single(model.Inventory.Records, record => record.Domain == "apps").Key);
+            Assert.Equal(IApp.Key(BrainScope.CurrentId(), name),
+                Assert.Single(model.Inventory.Records, record => record.Domain == "apps" && record.TypeId == "apps.app2").Key);
             Assert.All(model.Inventory.Records, record => Assert.StartsWith(BrainScope.CurrentId() + "/", record.Key, StringComparison.Ordinal));
         }
     }

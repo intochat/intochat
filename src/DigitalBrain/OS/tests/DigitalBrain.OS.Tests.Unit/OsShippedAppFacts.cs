@@ -9,22 +9,19 @@ public sealed class OsShippedAppFacts
     private static readonly EmbeddedShippedAppSource Source = new(typeof(OsCatalog).Assembly, "DigitalBrain.OS.Apps/", "os");
 
     [Fact]
-    public void TheOperatingSystemShipsSettingsAndAssistant()
+    public void TheOperatingSystemShipsSettings()
     {
-        Assert.Equal(["assistant", "settings"], Source.Load().Select(app => app.Package.Name).Order());
-        Assert.All(Source.Load(), app => Assert.Equal("os", app.Package.Owner));
+        Assert.Equal(["settings"], Source.Load().Select(app => app.Name).Order());
     }
 
     [Fact]
     public void AddOperatingSystemAppsNamesItsOwnManifestAndADeploymentOnlyAdds()
     {
         var services = new ServiceCollection();
-        services.AddOperatingSystemApps(os => os.Apps.Add(OsApp.Parse("intochat/customer-researcher")));
+        services.AddOperatingSystemApps(os => os.Apps.Add(new("customer-researcher")));
         using var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<OsAppsOptions>>().Value;
-        Assert.Equal(["os/settings", "os/assistant", "intochat/customer-researcher"],
-            options.Apps.Select(app => app.Package.ToString()));
-        Assert.Equal(PackageId.Create("os", "settings"), provider.GetRequiredService<IOptions<BuiltInSettingsOptions>>().Value.Package);
+        Assert.Equal(["settings", "customer-researcher"], options.Apps.Select(app => app.Name));
     }
 
     [Fact]
@@ -32,10 +29,9 @@ public sealed class OsShippedAppFacts
     {
         foreach (var app in Source.Load())
         {
-            var sources = new Dictionary<string, string> { [PackageContent.TestsPath] = app.Content.File(PackageContent.TestsPath)! };
-            foreach (var (path, program) in app.Content.Programs()) { sources[path] = program; }
+            var sources = new Dictionary<string, string>(app.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal)));
             var result = new DigitalBrain.Microsoft.CSharp.CSharpScriptCheck().Check(sources);
-            Assert.True(result.Success, $"{app.Package}: {string.Join("; ", result.Errors.Select(error => $"{error.File}:{error.Line} {error.Message}"))}");
+            Assert.True(result.Success, $"{app.Name}: {string.Join("; ", result.Errors.Select(error => $"{error.File}:{error.Line} {error.Message}"))}");
         }
     }
 
@@ -45,9 +41,7 @@ public sealed class OsShippedAppFacts
         var builder = global::Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
         DigitalBrain.Aspire.Server.ServerHostingExtensions.AddDigitalBrainServer(builder, server => server.AddOperatingSystem());
         using var provider = builder.Services.BuildServiceProvider();
-        Assert.Equal(PackageId.Create("os", "settings"), provider.GetRequiredService<IOptions<BuiltInSettingsOptions>>().Value.Package);
-        Assert.Contains(provider.GetRequiredService<IOptions<OsAppsOptions>>().Value.Apps,
-            app => app.Package.ToString() == "os/settings");
+        Assert.Contains(provider.GetRequiredService<IOptions<OsAppsOptions>>().Value.Apps, app => app.Name == "settings");
     }
 
     [Fact]
@@ -57,23 +51,6 @@ public sealed class OsShippedAppFacts
         services.AddOperatingSystemApps();
         services.AddOperatingSystemApps();
         using var provider = services.BuildServiceProvider();
-        Assert.Equal(2, provider.GetRequiredService<IOptions<OsAppsOptions>>().Value.Apps.Count);
-    }
-
-    [Fact]
-    public void AMalformedManifestEntryFailsAtParseNamingTheValue()
-    {
-        var package = Assert.ThrowsAny<Exception>(() => OsApp.Parse("os-settings"));
-        Assert.Contains("os-settings", package.Message);
-    }
-
-    [Fact]
-    public void ADistributionRegisteredAfterTheOsOverridesTheBuiltInSettingsPackage()
-    {
-        var services = new ServiceCollection();
-        services.AddOperatingSystemApps();
-        services.Configure<BuiltInSettingsOptions>(options => options.Package = PackageId.Create("acme", "settings"));
-        using var provider = services.BuildServiceProvider();
-        Assert.Equal(PackageId.Create("acme", "settings"), provider.GetRequiredService<IOptions<BuiltInSettingsOptions>>().Value.Package);
+        Assert.Single(provider.GetRequiredService<IOptions<OsAppsOptions>>().Value.Apps);
     }
 }

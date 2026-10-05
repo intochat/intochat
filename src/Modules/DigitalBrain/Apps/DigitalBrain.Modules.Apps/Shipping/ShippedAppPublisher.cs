@@ -1,4 +1,3 @@
-using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Shipping;
 using Microsoft.Extensions.Configuration;
@@ -10,7 +9,7 @@ namespace DigitalBrain.Apps;
 // import it when green, skip it when the installed version already matches. A red bundle
 // stays out and says why in the log.
 internal sealed class ShippedAppPublisher(
-    IDigitalBrain brain, ITestScriptRunner runner,
+    IGrainFactory grains, ITestScriptRunner runner,
     IEnumerable<IShippedAppSource> sources, IConfiguration configuration,
     ILogger<ShippedAppPublisher> logger) : IShippedContentPublisher
 {
@@ -47,15 +46,12 @@ internal sealed class ShippedAppPublisher(
 
     private async Task Ship(string publisher, AppBundle bundle, CancellationToken cancellationToken)
     {
-        var key = IAppV2.Key(publisher, bundle.Name);
-        var app = brain.Get<IAppV2>(key);
+        var key = IApp.Key(publisher, bundle.Name);
+        var app = grains.GetGrain<IApp>(key);
         var installed = await app.Read();
         if (installed.Manifest.Title.Length > 0 && installed.Version == bundle.Version) { return; }
-        var run = await runner.RunAsync(key, bundle.Files.GetValueOrDefault(AppFiles.TestsPath, ""), cancellationToken);
-        var declared = AppVerifyJob.Scenarios(bundle.Spec);
-        var green = run.Green
-            && declared.All(name => run.Scenarios.Any(verdict => verdict.Name == name && verdict.Passed))
-            && (declared.Count == 0 || run.Scenarios.All(verdict => declared.Contains(verdict.Name)));
+        var (verdicts, green) = await AppVerifyJob.RunBundle(grains, runner, bundle,
+            IApp.Key(publisher, bundle.Name + "--verify-" + Guid.NewGuid().ToString("N")), cancellationToken);
         if (!green)
         {
             logger.LogWarning("{Publisher}/{App} stays out: verification failed.", publisher, bundle.Name);
@@ -63,7 +59,7 @@ internal sealed class ShippedAppPublisher(
         }
         if (installed.Manifest.Title.Length > 0) { await app.Delete(); }
         await app.Import(bundle);
-        await app.RecordVerdicts(run.Scenarios, green: true);
+        await app.RecordVerdicts(verdicts, green: true);
     }
 
     // null means every app; an empty set means none.

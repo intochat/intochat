@@ -2,7 +2,7 @@ using DigitalBrain.Apps;
 
 namespace DigitalBrain.OS.Tests.Unit;
 
-// Package scenarios execute through their tests.cs publish gate.
+// Shipped bundles execute through their tests.cs share gate.
 public sealed class VendorAppFacts
 {
     private static string FindRepositoryRoot()
@@ -19,18 +19,17 @@ public sealed class VendorAppFacts
     private static readonly DirectoryShippedAppSource Source =
         new(Path.Combine(FindRepositoryRoot(), "src", "IntoChat", "Apps"), "intochat");
     [Fact]
-    public void EveryFirstPartyPackageShips()
-        => Assert.Equal(["customer-researcher", "group-chat", "word-count"], Source.Load().Select(app => app.Package.Name).Order());
+    public void EveryFirstPartyAppShips()
+        => Assert.Equal(["customer-researcher", "word-count"], Source.Load().Select(app => app.Name).Order());
 
     [Fact]
     public void EveryShippedProgramAndTestsFileCompilesAgainstCurrentContracts()
     {
         foreach (var app in Source.Load())
         {
-            var sources = new Dictionary<string, string> { [PackageContent.TestsPath] = app.Content.File(PackageContent.TestsPath)! };
-            foreach (var (path, program) in app.Content.Programs()) { sources[path] = program; }
+            var sources = new Dictionary<string, string>(app.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal)));
             var result = new DigitalBrain.Microsoft.CSharp.CSharpScriptCheck().Check(sources);
-            Assert.True(result.Success, $"{app.Package}: {string.Join("; ", result.Errors.Select(error => $"{error.File}:{error.Line} {error.Message}"))}");
+            Assert.True(result.Success, $"{app.Name}: {string.Join("; ", result.Errors.Select(error => $"{error.File}:{error.Line} {error.Message}"))}");
         }
     }
 
@@ -48,10 +47,10 @@ public sealed class VendorAppFacts
             "/brain/src/Modules/AI/DigitalBrain.Modules.AI.Contracts/DigitalBrain.Modules.AI.Contracts.csproj",
             "/brain/src/Modules/Postgres/DigitalBrain.Modules.Postgres.Contracts/DigitalBrain.Modules.Postgres.Contracts.csproj",
         ];
-        var researcher = Source.Load().Single(app => app.Package.Name == "customer-researcher");
-        Assert.Null(researcher.Content.File(PackageContent.SourcePath));
-        Assert.Equal(["behaviors/controls.cs", "behaviors/research.cs", "behaviors/surface.cs"], researcher.Content.Programs().Keys);
-        var sources = researcher.Content.Programs().Values.Append(researcher.Content.File(PackageContent.TestsPath)!);
+        var researcher = Source.Load().Single(app => app.Name == "customer-researcher");
+        Assert.Equal(["behaviors/controls.cs", "behaviors/research.cs", "behaviors/surface.cs"],
+            researcher.Files.Keys.Where(AppFiles.IsBehavior).Order(StringComparer.Ordinal));
+        var sources = researcher.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal)).Select(file => file.Value);
         Assert.All(sources, source =>
         {
             Assert.DoesNotContain("CustomerResearcher.Contracts", source, StringComparison.Ordinal);
@@ -64,8 +63,8 @@ public sealed class VendorAppFacts
     public void EveryShippedAppCarriesSpecAndTests()
         => Assert.All(Source.Load(), app =>
         {
-            Assert.False(string.IsNullOrWhiteSpace(app.Content.File(PackageContent.SpecPath)), $"{app.Package} has no {PackageContent.SpecPath}.");
-            Assert.False(string.IsNullOrWhiteSpace(app.Content.File(PackageContent.TestsPath)), $"{app.Package} has no {PackageContent.TestsPath}.");
+            Assert.False(string.IsNullOrWhiteSpace(app.Spec), $"{app.Name} has no {AppFiles.SpecPath}.");
+            Assert.False(string.IsNullOrWhiteSpace(app.Files.GetValueOrDefault(AppFiles.TestsPath)), $"{app.Name} has no {AppFiles.TestsPath}.");
         });
 
 }

@@ -1,8 +1,7 @@
 namespace DigitalBrain.Apps;
 
-// Renamed to AppState in the deletion sweep, when the Workspace grain's state goes.
 [GenerateSerializer, Alias("apps.state2")]
-public sealed class AppStateV2
+public sealed class AppState
 {
     [Id(0)] public AppManifest? Manifest { get; set; }
     [Id(1)] public string Spec { get; set; } = "";
@@ -10,7 +9,7 @@ public sealed class AppStateV2
     [Id(3)] public Dictionary<string, string> Settings { get; set; } = [];
     [Id(4)] public Dictionary<string, string> Connections { get; set; } = [];
     [Id(5)] public string Version { get; set; } = "0.0.0";
-    [Id(6)] public AppStatusV2 Status { get; set; }
+    [Id(6)] public AppStatus Status { get; set; }
     [Id(7)] public string[] Activity { get; set; } = [];
     [Id(8)] public AppVersionRecord[] History { get; set; } = [];
     [Id(9)] public AppScenarioVerdict[] Verdicts { get; set; } = [];
@@ -25,7 +24,7 @@ public sealed class AppStateV2
     [Id(18)] public List<AppInvocation> Invocations { get; set; } = [];
     [Id(19)] public List<OperationReceipt> Receipts { get; set; } = [];
 
-    public AppStateV2 Clone() => new()
+    public AppState Clone() => new()
     {
         Manifest = Manifest,
         Spec = Spec,

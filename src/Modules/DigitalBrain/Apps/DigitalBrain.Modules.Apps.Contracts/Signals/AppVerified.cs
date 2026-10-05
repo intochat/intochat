@@ -1,6 +1,7 @@
-using DigitalBrain;
-
 namespace DigitalBrain.Apps.Signals;
 
-[GenerateSerializer, Alias("apps.app-verified")]
-public sealed record AppVerified([property: Id(0)] PackageRevisionRef Revision, [property: Id(1)] bool Green) : Signal;
+[GenerateSerializer, Alias("apps.app-verified2")]
+public sealed record AppVerified(
+    [property: Id(0)] string Name,
+    [property: Id(1)] string Version,
+    [property: Id(2)] bool Green) : Signal;

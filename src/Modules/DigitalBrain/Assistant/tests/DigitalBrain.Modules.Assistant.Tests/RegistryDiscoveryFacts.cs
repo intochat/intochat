@@ -55,10 +55,10 @@ public sealed class RegistryDiscoveryFacts
         {
             await brain.AuthorizeCallerAsync();
             var scope = BrainScope.CurrentId();
-            var packageId = PackageId.Create("alice", "researcher");
-            var revision = await brain.Get<IPackage>(packageId.ToString()).Commit(new(Guid.NewGuid(), null,
-                new PackageContent(new("Researcher", "Research", [new("research", "Research")], [], Runtime: "prompt"), ""), "Initial"));
-            await brain.Get<IApp>(scope + "/packages/" + packageId).Install(new(Guid.NewGuid(), new(packageId, revision.Id), new Dictionary<string, string>()));
+            var researcher = brain.Get<IApp>(IApp.Key(scope, "researcher"));
+            await researcher.Create(new("Researcher", "Research", [new("research", "Research")], [], []), "## Scenario: Researches\nIt researches.");
+            await researcher.BeginBuild(null);
+            await researcher.CompleteBuild(await researcher.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t" }, null);
 
             using var services = new ServiceCollection()
                 .AddSingleton<IChatClient>(new DiscoveryModel())

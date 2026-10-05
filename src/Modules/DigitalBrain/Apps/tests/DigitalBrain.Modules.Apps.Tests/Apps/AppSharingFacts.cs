@@ -11,9 +11,9 @@ public sealed class AppSharingFacts
     private static Task<ModuleBrain> Start() =>
         ModuleTest.Create().WithModule<AppsModule>().StartAsync(TestContext.Current.CancellationToken);
 
-    private static async Task<IAppV2> LiveApp(ModuleBrain brain, string key)
+    private static async Task<IApp> LiveApp(ModuleBrain brain, string key)
     {
-        var app = brain.Get<IAppV2>(key);
+        var app = brain.Get<IApp>(key);
         await app.Create(Manifest(), "## Scenario: Echoes\nIt echoes.");
         await app.BeginBuild(null);
         await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["behaviors/echo.cs"] = "// b" }, null);
@@ -24,7 +24,7 @@ public sealed class AppSharingFacts
     public async Task ExportingARedVersionIsRefused()
     {
         await using var brain = await Start();
-        var app = await LiveApp(brain, IAppV2.Key("sharing-a", "red"));
+        var app = await LiveApp(brain, IApp.Key("sharing-a", "red"));
         await app.RecordVerdicts([new("Echoes", false, "broken")], green: false);
         var error = await Assert.ThrowsAsync<InvalidOperationException>(app.Export);
         Assert.Contains("green", error.Message, StringComparison.Ordinal);
@@ -34,7 +34,7 @@ public sealed class AppSharingFacts
     public async Task ExportingBeforeAnyVerificationIsRefused()
     {
         await using var brain = await Start();
-        var app = await LiveApp(brain, IAppV2.Key("sharing-b", "unverified"));
+        var app = await LiveApp(brain, IApp.Key("sharing-b", "unverified"));
         await Assert.ThrowsAsync<InvalidOperationException>(app.Export);
     }
 
@@ -42,7 +42,7 @@ public sealed class AppSharingFacts
     public async Task AVersionSavedAfterTheGreenRunCannotRideThatVerdict()
     {
         await using var brain = await Start();
-        var app = await LiveApp(brain, IAppV2.Key("sharing-c", "moved-on"));
+        var app = await LiveApp(brain, IApp.Key("sharing-c", "moved-on"));
         await app.RecordVerdicts([new("Echoes", true, "ok")], green: true);
         await app.WriteFile("notes.md", "changed after the green run", Guid.NewGuid());
         await Assert.ThrowsAsync<InvalidOperationException>(app.Export);
@@ -52,7 +52,7 @@ public sealed class AppSharingFacts
     public async Task AnExportedBundleCarriesNoConnectionsAndDefaultSettings()
     {
         await using var brain = await Start();
-        var app = await LiveApp(brain, IAppV2.Key("sharing-d", "clean"));
+        var app = await LiveApp(brain, IApp.Key("sharing-d", "clean"));
         await app.Configure(new() { ["Text"] = "my private value" }, new() { ["gmail"] = "my-gmail-connection" });
         await app.RecordVerdicts([new("Echoes", true, "ok")], green: true);
         var bundle = await app.Export();
@@ -66,15 +66,15 @@ public sealed class AppSharingFacts
     public async Task ImportingIntoAnotherBrainYieldsALiveAppWithEmptyConnectionSlots()
     {
         await using var brain = await Start();
-        var source = await LiveApp(brain, IAppV2.Key("sharing-e", "original"));
+        var source = await LiveApp(brain, IApp.Key("sharing-e", "original"));
         await source.Configure(new(), new() { ["gmail"] = "alice-gmail" });
         await source.RecordVerdicts([new("Echoes", true, "ok")], green: true);
         var bundle = await source.Export();
 
-        var copy = brain.Get<IAppV2>(IAppV2.Key("sharing-other-brain", "original"));
+        var copy = brain.Get<IApp>(IApp.Key("sharing-other-brain", "original"));
         var imported = await copy.Import(bundle);
 
-        Assert.Equal(AppStatusV2.Live, imported.Status);
+        Assert.Equal(AppStatus.Live, imported.Status);
         Assert.Empty(imported.Connections);
         Assert.Equal((await source.Read()).Files, imported.Files);
     }
@@ -83,7 +83,7 @@ public sealed class AppSharingFacts
     public async Task ImportingOverAnExistingAppIsRefusedAndLeavesItUntouched()
     {
         await using var brain = await Start();
-        var app = await LiveApp(brain, IAppV2.Key("sharing-f", "mine"));
+        var app = await LiveApp(brain, IApp.Key("sharing-f", "mine"));
         var before = await app.Read();
         var bundle = new AppBundle("mine", "9.0.0", Manifest(), "## Scenario: Other\nOther.", new() { ["tests.cs"] = "// other" });
         await Assert.ThrowsAsync<InvalidOperationException>(() => app.Import(bundle));
@@ -96,7 +96,7 @@ public sealed class AppSharingFacts
     public async Task EditingAnImportedAppBumpsItsOwnHistoryFromTheImportedBaseline()
     {
         await using var brain = await Start();
-        var copy = brain.Get<IAppV2>(IAppV2.Key("sharing-g", "forked"));
+        var copy = brain.Get<IApp>(IApp.Key("sharing-g", "forked"));
         await copy.Import(new("forked", "1.2.0", Manifest(), "## Scenario: Echoes\nIt echoes.", new() { ["tests.cs"] = "// t" }));
         var edited = await copy.WriteFile("notes.md", "my own notes", Guid.NewGuid());
         Assert.Equal("1.2.1", edited.Version);

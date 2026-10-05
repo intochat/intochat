@@ -19,7 +19,6 @@ public static class ShippedAppsServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(assembly);
         ArgumentException.ThrowIfNullOrWhiteSpace(resourcePrefix);
-        _ = PackageId.Create(publisher, "source");
         return services.AddShippedAppSource(new EmbeddedShippedAppSource(assembly, resourcePrefix, publisher));
     }
 
@@ -33,7 +32,6 @@ public static class ShippedAppsServiceCollectionExtensions
             var path = vendor["Path"];
             if (string.IsNullOrWhiteSpace(path))
             { throw new InvalidOperationException($"{ConfigurationSection}:{vendor.Key} names no Path."); }
-            _ = PackageId.Create(vendor.Key, "source");
             services.AddShippedAppSource(new DirectoryShippedAppSource(path, vendor.Key));
         }
         return services;

@@ -1,23 +1,25 @@
 using DigitalBrain.Apps;
+using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DigitalBrain.Modules.Apps.Tests.Runtimes;
 
 public sealed class DeployableRuntimeFacts
 {
-    private sealed class FakeRuntime : IDeployableRuntime
+    internal sealed class FakeRuntime : IDeployableRuntime
     {
         public List<RuntimeDeployment> Deployed { get; } = [];
         public List<(string AppKey, string[] Keys)> Retired { get; } = [];
-        public string Name => "fake";
+        public string Name => AppFiles.Runtime;
 
         public string[] Keys(string appKey, int generation, IReadOnlyList<string> paths)
-            => paths.Select(path => "fake-" + path).ToArray();
+            => [.. paths.Select(path => "fake-" + path)];
 
         public Task<string[]> Deploy(RuntimeDeployment deployment, CancellationToken cancellationToken)
         {
             Deployed.Add(deployment);
-            return Task.FromResult(deployment.Programs.Keys.Select(path => "fake-" + deployment.Generation + "-" + path).ToArray());
+            return Task.FromResult<string[]>([.. deployment.Programs.Keys.Select(path => "fake-" + path)]);
         }
 
         public Task Retire(string appKey, string[] storageKeys, CancellationToken cancellationToken)
@@ -28,33 +30,27 @@ public sealed class DeployableRuntimeFacts
     }
 
     [Fact]
-    public async Task InstallDeploysThroughTheRuntimeAndUninstallRetiresTheSameKeys()
+    public async Task ABuildDeploysBehaviorsThroughTheRuntimeAndDeleteRetiresTheSameKeys()
     {
         var ct = TestContext.Current.CancellationToken;
         var runtime = new FakeRuntime();
-        await using var brain = await PackageBrain.StartAsync(ct,
-            silo => silo.Services.AddSingleton<IDeployableRuntime>(runtime));
-        var package = PackageId.Parse("alice/fake-tracker");
-        Caller.As("alice");
-        await brain.AuthorizeCallerAsync();
-        var tracker = PackageSamples.Tracker();
-        var content = tracker with { Manifest = tracker.Manifest with { Runtime = "fake" } };
-        var revision = await brain.Get<IPackage>(package.ToString()).Commit(brain.Commit(null, content, "fake runtime"));
-        await brain.Get<IPackage>(package.ToString()).Publish(new(Guid.NewGuid(), revision.Id));
-        Caller.Clear();
-        var app = brain.Get<IApp>("workspace-test/apps/" + Guid.NewGuid().ToString("N"));
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
+            .ConfigureSilo(silo => { silo.Services.RemoveAll<IDeployableRuntime>(); silo.Services.AddSingleton<IDeployableRuntime>(runtime); })
+            .StartAsync(ct);
+        var app = brain.Get<IApp>(IApp.Key("runtime-facts", "tracker"));
+        await app.Create(new("Tracker", "tracks", [new("ask", "ask")], [new("Feed", "what to watch", "news")], []), "## Scenario: Tracks\nIt tracks.");
+        await app.BeginBuild(null);
 
-        var installed = await app.Install(new(Guid.NewGuid(), new(package, revision.Id), new Dictionary<string, string>()));
+        await app.CompleteBuild(await app.CurrentBuildAttempt(),
+            new() { ["tests.cs"] = "// t", ["behaviors/track.cs"] = "// b" }, null);
 
         var deployment = Assert.Single(runtime.Deployed);
-        Assert.Equal(["behaviors/report.cs", "behaviors/track.cs"], deployment.Programs.Keys.Order(StringComparer.Ordinal));
-        Assert.Equal(installed.CSharpFiles.Order(StringComparer.Ordinal),
-            runtime.Deployed.Single().Programs.Keys.Select(path => "fake-1-" + path).Order(StringComparer.Ordinal));
+        Assert.Equal(["behaviors/track.cs"], [.. deployment.Programs.Keys]);
         Assert.True(deployment.Configuration.ContainsKey("App"));
+        Assert.Equal("news", deployment.Configuration["Feed"]);
 
-        await app.Uninstall(new(Guid.NewGuid()));
-
+        await app.Delete();
         var retired = Assert.Single(runtime.Retired);
-        Assert.Equal(installed.CSharpFiles.Order(StringComparer.Ordinal), retired.Keys.Order(StringComparer.Ordinal));
+        Assert.Contains("fake-behaviors/track.cs", retired.Keys);
     }
 }

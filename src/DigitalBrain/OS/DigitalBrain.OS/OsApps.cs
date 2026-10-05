@@ -10,21 +10,10 @@ using Orleans;
 
 namespace DigitalBrain.OS;
 
-// The operating system's first-party apps: package ids ("owner/name") that every brain carries,
-// installed at the published revision when the brain activates and upgraded when a new revision
-// ships. The list is deployment configuration; a distribution names its own.
-// One OS app: the package the brain carries.
-// Parsing happens where the entry is written, so a typo names its own value.
-public sealed record OsApp(PackageId Package)
-{
-    public static OsApp Parse(string package) => new(ParseId(package));
-
-    private static PackageId ParseId(string value)
-    {
-        try { return PackageId.Parse(value); }
-        catch (Exception error) { throw new FormatException($"Not a package id: '{value}'.", error); }
-    }
-}
+// The operating system's first-party apps: names every brain carries, imported from the "os"
+// brain's shipped copy when the brain activates and re-imported when a new version ships.
+// The list is deployment configuration; a distribution names its own.
+public sealed record OsApp(string Name);
 
 public sealed class OsAppsOptions
 {
@@ -52,14 +41,8 @@ public static class OsAppsHosting
         {
             // Idempotent so a host that both composes the OS and wires the apps explicitly
             // does not boot each app twice.
-            void Add(OsApp app)
-            {
-                if (!os.Apps.Any(existing => existing.Package == app.Package)) { os.Apps.Add(app); }
-            }
-            Add(new(PackageId.Create("os", "settings")));
-            Add(new(PackageId.Create("os", "assistant")));
+            if (!os.Apps.Any(existing => existing.Name == "settings")) { os.Apps.Add(new("settings")); }
         });
-        services.Configure<BuiltInSettingsOptions>(options => options.Package ??= PackageId.Create("os", "settings"));
         return services.AddOperatingSystemBoot(configure);
     }
 
@@ -73,10 +56,10 @@ public static class OsAppsHosting
 }
 
 // The OS boots in the system's own language: the brain neuron publishes Activated, and this
-// behavior reacts by ensuring the OS apps are installed and current — through IApp and IPackage,
-// the same contracts any app uses. Delivery is at-least-once and Activated repeats on every
-// activation, so every step reads before it writes; a package that has not shipped yet is
-// simply picked up on the next activation.
+// behavior reacts by ensuring the OS apps are present and current — exporting the "os" brain's
+// verified copy and importing it into the activated brain, the same path any shared app takes.
+// Delivery is at-least-once and Activated repeats on every activation, so every step reads
+// before it writes; an app that has not shipped yet is simply picked up on the next activation.
 internal sealed class OsBootService(
     LocalSignalHub signals, IGrainFactory grains, IOptions<OsAppsOptions> options, ILogger<OsBootService> logger)
     : BackgroundService
@@ -90,22 +73,21 @@ internal sealed class OsBootService(
         {
             foreach (var app in apps)
             {
-                try { await EnsureCurrentAsync(activated, app, stoppingToken); }
+                try { await EnsureCurrentAsync(activated, app.Name, stoppingToken); }
                 catch (Exception error) when (error is not OperationCanceledException)
                 {
                     // One app failing must not keep Settings from starting; the next
                     // activation retries.
-                    logger.LogWarning(error, "OS app {Package} did not start in brain {Brain}.", app.Package, activated.BrainId);
+                    logger.LogWarning(error, "OS app {App} did not start in brain {Brain}.", app.Name, activated.BrainId);
                 }
             }
         }
     }
 
-    private async Task EnsureCurrentAsync(Activated activated, OsApp osApp, CancellationToken cancellationToken)
+    private async Task EnsureCurrentAsync(Activated activated, string name, CancellationToken cancellationToken)
     {
-        var package = osApp.Package;
         // The brain's (owner, name) pair is the scope identity the kernel derives everywhere
-        // from the caller; the install must land in the activated brain's own scope.
+        // from the caller; the import must land in the activated brain's own scope.
         CallerContextStamper.Stamp(new CallerContext
         {
             PrincipalId = "os",
@@ -114,18 +96,25 @@ internal sealed class OsBootService(
             Kind = CallerKind.Platform,
             StampedBy = TrustedEdge.Platform,
         });
-        var published = (await grains.GetGrain<IPackage>(package.ToString()).Read().WaitAsync(cancellationToken)).Published;
-        if (published is null) { return; }
-        var app = grains.GetGrain<IApp>(activated.BrainId + "/packages/" + package);
+        var shipped = grains.GetGrain<IApp>(IApp.Key("os", name));
+        var source = await shipped.Read().WaitAsync(cancellationToken);
+        if (source.Manifest.Title.Length == 0) { return; }
+        var app = grains.GetGrain<IApp>(IApp.Key(activated.BrainId, name));
         var snapshot = await app.Read().WaitAsync(cancellationToken);
-        if (snapshot.Status != AppStatus.Installed)
+        if (snapshot.Manifest.Title.Length > 0 && snapshot.Version == source.Version) { return; }
+        var bundle = await shipped.Export().WaitAsync(cancellationToken);
+        if (snapshot.Manifest.Title.Length > 0)
         {
-            await app.Install(new(Guid.NewGuid(), new(package, published), new Dictionary<string, string>())).WaitAsync(cancellationToken);
+            // An upgrade keeps what the person chose; only the program is replaced.
+            var settings = snapshot.Settings;
+            var connections = snapshot.Connections;
+            await app.Delete().WaitAsync(cancellationToken);
+            await app.Import(bundle).WaitAsync(cancellationToken);
+            await app.Configure(new(settings, StringComparer.Ordinal), new(connections, StringComparer.Ordinal)).WaitAsync(cancellationToken);
         }
-        else if (snapshot.Revision is { } installed && installed.Revision != published)
+        else
         {
-            await app.Upgrade(new(Guid.NewGuid(), new(package, published))).WaitAsync(cancellationToken);
+            await app.Import(bundle).WaitAsync(cancellationToken);
         }
-
     }
 }

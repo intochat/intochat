@@ -1,5 +1,7 @@
 using DigitalBrain.Apps;
+using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DigitalBrain.Modules.Apps.Tests.Runtimes;
 
@@ -24,31 +26,34 @@ public sealed class StorageHookFacts
     }
 
     [Fact]
-    public async Task DeployAndUninstallDriveTheRegisteredStorageHookWithTheAppsKeys()
+    public async Task ABuildAndADeleteDriveTheRegisteredStorageHookWithTheAppsKeys()
     {
         var ct = TestContext.Current.CancellationToken;
         var hook = new RecordingHook();
-        await using var brain = await PackageBrain.StartAsync(ct,
-            silo => silo.Services.AddSingleton<IAppStorageHook>(hook));
-        Caller.As("alice");
-        await brain.AuthorizeCallerAsync();
-        var package = PackageId.Parse("alice/hooked");
-        var grain = brain.Get<IPackage>(package.ToString());
-        var revision = await grain.Commit(brain.Commit(null, PackageSamples.Tracker(), "hooked"));
-        await grain.Publish(new(Guid.NewGuid(), revision.Id));
-        Caller.Clear();
-        var key = "workspace-test/apps/" + Guid.NewGuid().ToString("N");
+        var runtime = new DeployableRuntimeFacts.FakeRuntime();
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
+            .ConfigureSilo(silo =>
+            {
+                silo.Services.RemoveAll<IDeployableRuntime>();
+                silo.Services.AddSingleton<IDeployableRuntime>(runtime);
+                silo.Services.AddSingleton<IAppStorageHook>(hook);
+            })
+            .StartAsync(ct);
+        var key = IApp.Key("hook-facts", "hooked");
         var app = brain.Get<IApp>(key);
+        await app.Create(new("Hooked", "hooked", [], [], []), "## Scenario: Hooks\nIt hooks.");
+        await app.BeginBuild(null);
 
-        var installed = await app.Install(new(Guid.NewGuid(), new(package, revision.Id), new Dictionary<string, string>()));
+        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["behaviors/track.cs"] = "// b" }, null);
 
         var deployed = Assert.Single(hook.Deployed);
         Assert.Equal(key, deployed.AppKey);
-        Assert.Equal(installed.CSharpFiles.Order(StringComparer.Ordinal), deployed.Keys.Order(StringComparer.Ordinal));
+        Assert.Contains("fake-behaviors/track.cs", deployed.Keys);
 
-        await app.Uninstall(new(Guid.NewGuid()));
+        await app.Delete();
 
         var retired = Assert.Single(hook.Retired);
-        Assert.Equal(installed.CSharpFiles.Order(StringComparer.Ordinal), retired.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(key, retired.AppKey);
+        Assert.Contains("fake-behaviors/track.cs", retired.Keys);
     }
 }

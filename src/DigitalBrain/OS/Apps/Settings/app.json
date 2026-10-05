@@ -2,10 +2,16 @@
   "name": "settings",
   "title": "Settings",
   "description": "Workspace preferences: your display name and theme, edited on a settings surface.",
-  "runtime": "csharp",
+  "version": "1.0.0",
   "operations": [
-    { "name": "open", "description": "Compose the settings surface and answer the preferences." },
-    { "name": "read", "description": "Answer the current preferences." }
+    {
+      "name": "open",
+      "description": "Compose the settings surface and answer the preferences."
+    },
+    {
+      "name": "read",
+      "description": "Answer the current preferences."
+    }
   ],
   "settings": []
 }

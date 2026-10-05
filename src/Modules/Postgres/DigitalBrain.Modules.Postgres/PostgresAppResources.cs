@@ -37,13 +37,13 @@ internal sealed class PostgresAppResources(DigitalBrain.IDigitalBrain brain)
 
     private async Task<string[]> Installed(string scope, CancellationToken ct)
     {
-        var packages = await brain.Get<IApps>(scope).List().WaitAsync(ct);
+        var names = await brain.Get<IAppIndex>(scope).List().WaitAsync(ct);
         var installed = new List<string>();
-        foreach (var package in packages)
+        foreach (var name in names)
         {
-            var id = scope + "/packages/" + package;
+            var id = IApp.Key(scope, name);
             var snapshot = await brain.Get<IApp>(id).Read().WaitAsync(ct);
-            if (snapshot.Status == AppStatus.Installed && !snapshot.UninstallPending) { installed.Add(id); }
+            if (snapshot.Status == AppStatus.Live) { installed.Add(id); }
         }
         return installed.ToArray();
     }

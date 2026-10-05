@@ -1,5 +1,4 @@
 using System.Text.Json;
-using DigitalBrain.Enforcement;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 
@@ -13,29 +12,26 @@ internal sealed class AppsRegistryResources(IDigitalBrain brain) : IRegistryReso
 
     public async Task<RegistryDiscovery> Browse(int offset, int limit, CancellationToken ct)
     {
-        var page = await brain.Get<IApps>(BrainScope.CurrentId()).Page(offset, limit + 1).WaitAsync(ct);
-        if (!page.Ready) { return new([], [new(Id, "The legacy app index is being updated. Retry this page.")], offset); }
-        var packages = page.Packages;
+        var names = await brain.Get<IAppIndex>(BrainScope.CurrentId()).List().WaitAsync(ct);
         var capabilities = new List<RegistryCapability>();
         var errors = new List<RegistryDiscoveryError>();
-        foreach (var package in packages.Take(limit))
+        foreach (var name in names.Skip(offset).Take(limit))
         {
-            try { if (await Select("apps:" + package, ct) is { } capability) { capabilities.Add(capability); } }
+            try { if (await Select("apps:" + name, ct) is { } capability) { capabilities.Add(capability); } }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
             catch (Exception) { errors.Add(new(Id, "An installed app could not be described.")); }
         }
-        return new([.. capabilities], [.. errors], packages.Length > limit ? offset + limit : null);
+        return new([.. capabilities], [.. errors], names.Length > offset + limit ? offset + limit : null);
     }
 
     public async Task<RegistryCapability?> Select(string id, CancellationToken ct)
     {
         if (!id.StartsWith("apps:", StringComparison.Ordinal)) { return null; }
-        var package = PackageId.Parse(id[5..]);
-        var app = await brain.Get<IApp>(BrainScope.CurrentId() + "/packages/" + package).Read().WaitAsync(ct);
-        if (app.Status != AppStatus.Installed || app.UninstallPending || app.Revision is not { } revision) { return null; }
-        var manifest = (await brain.Get<IPackage>(package.ToString()).ReadRevision(revision.Revision).WaitAsync(ct)).Content.Manifest;
-        return new(id, manifest.Title + ": " + manifest.Description,
-            [.. app.Operations.Select(operation => AppToolName.For(package, operation.Name))],
-            JsonSerializer.Serialize(new { package, app.Operations }), "apps", package + "@" + revision.Revision);
+        var name = id[5..];
+        var app = await brain.Get<IApp>(IApp.Key(BrainScope.CurrentId(), name)).Read().WaitAsync(ct);
+        if (app.Status is not (AppStatus.Live or AppStatus.Building)) { return null; }
+        return new(id, app.Manifest.Title + ": " + app.Manifest.Description,
+            [.. app.Manifest.Operations.Select(operation => AppToolName.For(name, operation.Name))],
+            JsonSerializer.Serialize(new { name, operations = app.Manifest.Operations }), "apps", name);
     }
 }

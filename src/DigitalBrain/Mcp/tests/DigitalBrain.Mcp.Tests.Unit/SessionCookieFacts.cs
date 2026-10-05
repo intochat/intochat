@@ -42,7 +42,7 @@ public sealed class SessionCookieFacts
         foreach (var (contract, key, expectedError) in new[]
         {
             (typeof(IApp).FullName!, BrainScope.Create("someone", "else").Id + "/packages/alice/example", true),
-            (typeof(IPackage).FullName!, "alice/example", false),
+            (typeof(DigitalBrain.Apps.IApp).FullName!, "alice/apps/example", false),
         })
         {
             using var invocation = await client.PostAsJsonAsync(mcp.Urls.Single() + "/mcp",

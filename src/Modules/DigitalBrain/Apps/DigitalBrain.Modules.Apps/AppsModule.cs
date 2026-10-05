@@ -19,21 +19,13 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
         silo.Services.AddOptions<AppsOptions>()
             .Configure<IConfiguration>((options, configuration) => configuration.PopulateModuleOptions("apps", options));
         silo.Services.TryAddSingleton(TimeProvider.System);
-        silo.Services.TryAddSingleton<AppRequirements>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Framework.IRegistryResourceProvider, AppsRegistryResources>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Framework.IRegistryInventoryProvider, AppsInventoryProvider>());
         silo.Services.TryAddSingleton<ITestScriptRunner, CSharpFileTestRunner>();
         silo.Services.TryAddSingleton<AppWorkQueue>();
-        silo.Services.TryAddSingleton<MarketplaceService>();
-        silo.Services.TryAddSingleton<AppService>();
-        silo.Services.TryAddSingleton<AppPublishing>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IAgentToolSource, AppAgentTools>());
         silo.Services.TryAddSingleton<AppAuthoringPolicy>();
-        silo.Services.TryAddSingleton<CreatorService>();
         silo.Services.TryAddSingleton<Creator>();
-        silo.Services.TryAddSingleton<LiveAppPackaging>();
-        silo.Services.AddAppRuntime<GroupChatRuntime>();
-        silo.Services.AddAppRuntime<PromptRuntime>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IDeployableRuntime, CSharpAppRuntime>());
     }
 
@@ -43,7 +35,5 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
         endpoints.MapGet("/session/capabilities", static (IServiceProvider services) =>
             Results.Ok(new { developerMode = services.GetService<IScriptSandbox>()?.CanRun == true }));
         AppsEndpoints.Map(endpoints);
-        PackageEndpoints.Map(endpoints);
-        MarketplaceEndpoints.MapMarketplace(endpoints);
     }
 }

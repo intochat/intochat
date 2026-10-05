@@ -11,10 +11,10 @@ namespace DigitalBrain.Apps;
 // that write their results back in.
 [GrainType("apps.app2")]
 internal sealed class AppNeuron(
-    [PersistentState("app2", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<AppStateV2> store,
+    [PersistentState("app2", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<AppState> store,
     TimeProvider clock, IOptions<AppsOptions> options,
     IEnumerable<IDeployableRuntime> deployables, IEnumerable<IAppStorageHook> storageHooks)
-    : Neuron<AppStateV2>(store), IAppV2
+    : Neuron<AppState>(store), IApp
 {
     private const int MaxHistory = 20;
     private const int MaxActivity = 50;
@@ -22,9 +22,9 @@ internal sealed class AppNeuron(
     private const int MaxPayloadLength = 64 * 1024;
     private const int MaxReceipts = 64;
 
-    public Task<AppSnapshotV2> Read() => Task.FromResult(Describe(Snapshot));
+    public Task<AppSnapshot> Read() => Task.FromResult(Describe(Snapshot));
 
-    public async Task<AppSnapshotV2> Create(AppManifest manifest, string spec)
+    public async Task<AppSnapshot> Create(AppManifest manifest, string spec)
     {
         ArgumentNullException.ThrowIfNull(manifest);
         if (Snapshot.Manifest is not null)
@@ -35,14 +35,14 @@ internal sealed class AppNeuron(
         next.Spec = spec ?? "";
         next.Settings = manifest.Settings.ToDictionary(setting => setting.Name, setting => setting.Default, StringComparer.Ordinal);
         next.Version = "0.1.0";
-        next.Status = AppStatusV2.Drafted;
+        next.Status = AppStatus.Drafted;
         Record(next);
         await GrainFactory.GetGrain<IAppIndex>(BrainId()).Track(Name());
         await Persist(next);
         return Describe(Snapshot);
     }
 
-    public async Task<AppSnapshotV2> SaveSpec(string spec, Guid operationId)
+    public async Task<AppSnapshot> SaveSpec(string spec, Guid operationId)
     {
         RequireCreated();
         ArgumentException.ThrowIfNullOrWhiteSpace(spec);
@@ -56,7 +56,7 @@ internal sealed class AppNeuron(
         return Describe(Snapshot);
     }
 
-    public async Task<AppSnapshotV2> SaveManifest(AppManifest manifest, Guid operationId)
+    public async Task<AppSnapshot> SaveManifest(AppManifest manifest, Guid operationId)
     {
         RequireCreated();
         ArgumentNullException.ThrowIfNull(manifest);
@@ -73,7 +73,7 @@ internal sealed class AppNeuron(
         return Describe(Snapshot);
     }
 
-    public async Task<AppSnapshotV2> WriteBehavior(string path, string source, Guid operationId)
+    public async Task<AppSnapshot> WriteBehavior(string path, string source, Guid operationId)
     {
         RequireCreated();
         ArgumentException.ThrowIfNullOrWhiteSpace(source);
@@ -94,7 +94,7 @@ internal sealed class AppNeuron(
         return Describe(Snapshot);
     }
 
-    public async Task<AppSnapshotV2> WriteFile(string path, string source, Guid operationId)
+    public async Task<AppSnapshot> WriteFile(string path, string source, Guid operationId)
     {
         RequireCreated();
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -110,17 +110,20 @@ internal sealed class AppNeuron(
         return Describe(Snapshot);
     }
 
-    public async Task<AppSnapshotV2> Configure(Dictionary<string, string> settings, Dictionary<string, string> connections)
+    public async Task<AppSnapshot> Configure(Dictionary<string, string> settings, Dictionary<string, string> connections)
     {
         RequireCreated();
         var next = Snapshot.Clone();
         foreach (var (name, value) in settings ?? []) { next.Settings[name] = value; }
         foreach (var (slot, id) in connections ?? []) { next.Connections[slot] = id; }
         await Persist(next);
+        // Behaviors read their settings from the deployment configuration; a configure
+        // re-swaps them so the running scripts see the new values.
+        await RedeployBehaviors();
         return Describe(Snapshot);
     }
 
-    public async Task<AppSnapshotV2> Rollback(string version)
+    public async Task<AppSnapshot> Rollback(string version)
     {
         RequireCreated();
         var record = Snapshot.History.FirstOrDefault(item => item.Version == version)
@@ -136,14 +139,14 @@ internal sealed class AppNeuron(
         return Describe(Snapshot);
     }
 
-    public async Task<AppSnapshotV2> BeginBuild(string? instruction)
+    public async Task<AppSnapshot> BeginBuild(string? instruction)
     {
         RequireCreated();
-        if (Snapshot.Status == AppStatusV2.Building
+        if (Snapshot.Status == AppStatus.Building
             && clock.GetUtcNow() - Snapshot.BuildStartedAt < TimeSpan.FromSeconds(options.Value.BuildFreshForSeconds))
         { throw new InvalidOperationException("The Builder is already working on this app."); }
         var next = Snapshot.Clone();
-        next.Status = AppStatusV2.Building;
+        next.Status = AppStatus.Building;
         next.BuildAttempt = Guid.NewGuid();
         next.BuildStartedAt = clock.GetUtcNow();
         next.Activity = string.IsNullOrWhiteSpace(instruction) ? ["build started"] : ["build started: " + instruction.Trim()];
@@ -155,19 +158,19 @@ internal sealed class AppNeuron(
 
     public async Task Progress(string line)
     {
-        if (Snapshot.Status != AppStatusV2.Building || string.IsNullOrWhiteSpace(line)) { return; }
+        if (Snapshot.Status != AppStatus.Building || string.IsNullOrWhiteSpace(line)) { return; }
         var next = Snapshot.Clone();
         next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), line.Trim()];
         await Persist(next);
     }
 
-    public async Task<AppSnapshotV2> CompleteBuild(Guid attempt, Dictionary<string, string>? files, string? error)
+    public async Task<AppSnapshot> CompleteBuild(Guid attempt, Dictionary<string, string>? files, string? error)
     {
-        if (Snapshot.Status != AppStatusV2.Building || attempt != Snapshot.BuildAttempt) { return Describe(Snapshot); }
+        if (Snapshot.Status != AppStatus.Building || attempt != Snapshot.BuildAttempt) { return Describe(Snapshot); }
         var next = Snapshot.Clone();
         if (error is not null || files is not { Count: > 0 })
         {
-            next.Status = AppStatusV2.Failed;
+            next.Status = AppStatus.Failed;
             next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), "build failed: " + (error ?? "the Builder produced no files")];
             await Persist(next);
             return Describe(Snapshot);
@@ -178,7 +181,7 @@ internal sealed class AppNeuron(
         var keys = Deployable()?.Keys(this.GetPrimaryKeyString(), next.ProgramGeneration, behaviorPaths) ?? [];
         next.StorageFiles = [.. next.StorageFiles.Concat(keys).Distinct(StringComparer.Ordinal)];
         next.Version = Bump(next.Version, minor: firstTests);
-        next.Status = AppStatusV2.Live;
+        next.Status = AppStatus.Live;
         next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), "build finished"];
         Record(next);
         await Persist(next);
@@ -186,7 +189,7 @@ internal sealed class AppNeuron(
         return Describe(Snapshot);
     }
 
-    public async Task<AppSnapshotV2> BeginVerify()
+    public async Task<AppSnapshot> BeginVerify()
     {
         RequireCreated();
         if (!Snapshot.Files.ContainsKey(AppFiles.TestsPath))
@@ -206,7 +209,7 @@ internal sealed class AppNeuron(
         next.Verified[next.Version] = green;
         next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), green ? "verification green" : "verification red"];
         var name = Name();
-        await Save(next, new AppChangedV2(name, next.Version, next.Status), new AppVerifiedV2(name, next.Version, green));
+        await Save(next, new AppChanged(name, next.Version, next.Status), new AppVerified(name, next.Version, green));
     }
 
     public Task<AppBundle> Export()
@@ -219,7 +222,7 @@ internal sealed class AppNeuron(
             new(Snapshot.Files, StringComparer.Ordinal)));
     }
 
-    public async Task<AppSnapshotV2> Import(AppBundle bundle)
+    public async Task<AppSnapshot> Import(AppBundle bundle)
     {
         ArgumentNullException.ThrowIfNull(bundle);
         if (Snapshot.Manifest is not null)
@@ -232,7 +235,7 @@ internal sealed class AppNeuron(
         next.Settings = bundle.Manifest.Settings.ToDictionary(setting => setting.Name, setting => setting.Default, StringComparer.Ordinal);
         next.Connections = [];
         next.Version = bundle.Version;
-        next.Status = AppStatusV2.Live;
+        next.Status = AppStatus.Live;
         var behaviors = next.Files.Keys.Where(AppFiles.IsBehavior).ToArray();
         next.StorageFiles = Deployable()?.Keys(this.GetPrimaryKeyString(), next.ProgramGeneration, behaviors) ?? [];
         Record(next);
@@ -252,7 +255,7 @@ internal sealed class AppNeuron(
             { await hook.OnRetired(Snapshot.BrainScopeId ?? "", this.GetPrimaryKeyString(), Snapshot.StorageFiles, CancellationToken.None); }
         }
         await GrainFactory.GetGrain<IAppIndex>(BrainId()).Untrack(Name());
-        await Persist(new AppStateV2 { BrainScopeId = Snapshot.BrainScopeId });
+        await Persist(new AppState { BrainScopeId = Snapshot.BrainScopeId });
     }
 
     public async Task<AppInvocation> Invoke(InvokeApp request)
@@ -276,8 +279,6 @@ internal sealed class AppNeuron(
             next.Invocations.RemoveAt(oldest);
         }
         await Save(next, new AppInvoked(invocation.Id, invocation.Operation, invocation.Input));
-        if (Snapshot.DeployedFiles.Length == 0)
-        { await GrainFactory.GetGrain<IAppRuntimeWorker>(0).AnswerLive(this.GetPrimaryKeyString(), invocation); }
         return invocation;
     }
 
@@ -362,7 +363,7 @@ internal sealed class AppNeuron(
         return values;
     }
 
-    private static void Record(AppStateV2 next)
+    private static void Record(AppState next)
     {
         var record = new AppVersionRecord(next.Version, DateTimeOffset.UtcNow, next.Manifest!, next.Spec,
             new(next.Files, StringComparer.Ordinal));
@@ -371,7 +372,7 @@ internal sealed class AppNeuron(
 
     private bool Replayed(Guid operationId) => Snapshot.Receipts.Any(receipt => receipt.OperationId == operationId);
 
-    private static void Receipt(AppStateV2 next, Guid operationId)
+    private static void Receipt(AppState next, Guid operationId)
     {
         next.Receipts.Add(new(operationId, "", ""));
         while (next.Receipts.Count > MaxReceipts) { next.Receipts.RemoveAt(0); }
@@ -405,10 +406,10 @@ internal sealed class AppNeuron(
                      : $"{parts[0]}.{parts[1]}.{int.Parse(parts[2]) + 1}";
     }
 
-    private Task Persist(AppStateV2 next)
-        => Save(next, new AppChangedV2(Name(), next.Version, next.Status));
+    private Task Persist(AppState next)
+        => Save(next, new AppChanged(Name(), next.Version, next.Status));
 
-    private AppSnapshotV2 Describe(AppStateV2 state) => new(
+    private AppSnapshot Describe(AppState state) => new(
         Name(),
         state.Manifest ?? new("", "", [], [], []),
         state.Spec,

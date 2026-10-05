@@ -121,8 +121,7 @@ public sealed class AssistantTurnExecution(IServiceProvider services, IGrainFact
                 outcome = AgentRunOutcome.Cancelled;
                 activity.CancelPending();
             }
-            catch (Exception error) when (error.Message == DigitalBrain.Framework.Capacity.CapacityUnavailableException.RefusalMessage
-                || DigitalBrain.Apps.AppRequirementsException.IsRefusal(error.Message))
+            catch (Exception error) when (error.Message == DigitalBrain.Framework.Capacity.CapacityUnavailableException.RefusalMessage)
             {
                 outcome = AgentRunOutcome.Failed;
                 if (ownsRun) { await KeepFailedTurn(error.Message); }

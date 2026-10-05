@@ -20,7 +20,6 @@ public sealed class CSharpRouteFacts
                 "DELETE /brains/{brainId}/csharp/{id}",
                 "GET /brains/{brainId}/csharp/",
                 "GET /brains/{brainId}/csharp/{id}",
-                "POST /brains/{brainId}/csharp/{id}/share",
                 "POST /brains/{brainId}/csharp/{id}/start",
                 "POST /brains/{brainId}/csharp/{id}/stop",
                 "PUT /brains/{brainId}/csharp/{id}",
@@ -35,7 +34,6 @@ public sealed class CSharpRouteFacts
         DigitalBrain.Testing.TestLogging.Apply(builder.Configuration);
         builder.Services.AddSingleton<ScriptEdge>(_ => null!);
         builder.Services.AddSingleton(new ScopedCSharpTools(null!, null!, null, "scope", canRun: false));
-        builder.Services.AddSingleton(new CSharpSharing(null!, null!));
         var app = builder.Build();
         new CSharpModule().Configure(app);
         var routes = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>();
@@ -48,7 +46,6 @@ public sealed class CSharpRouteFacts
         DigitalBrain.Testing.TestLogging.Apply(builder.Configuration);
         builder.Configuration.AddInMemoryCollection(settings.Select(setting => new KeyValuePair<string, string?>(setting.Key, setting.Value)));
         builder.Services.AddSingleton(new ScopedCSharpTools(null!, null!, null, "scope", canRun: false));
-        builder.Services.AddSingleton(new CSharpSharing(null!, null!));
         var app = builder.Build();
         new CSharpAuthoringModule().Configure(app);
         return (app, ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().ToArray());

@@ -24,13 +24,11 @@ public sealed class CSharpCompositionFacts
             Assert.Single(factories);
             var discovery = await Assert.Single(capabilities).Discover(TestContext.Current.CancellationToken);
             Assert.Equal(CSharpAgentTools.Names.Order(StringComparer.Ordinal), Assert.Single(discovery.Capabilities).Tools.Order(StringComparer.Ordinal));
-            Assert.NotNull(brain.SiloServices.GetRequiredService<CSharpSharing>());
         }
         else
         {
             Assert.Empty(factories);
             Assert.Empty(capabilities);
-            Assert.Null(brain.SiloServices.GetService<CSharpSharing>());
         }
     }
 }

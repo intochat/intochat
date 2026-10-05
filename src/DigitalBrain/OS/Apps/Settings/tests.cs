@@ -5,30 +5,31 @@ using DigitalBrain.Apps;
 using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.TextField;
 
+// The host verifies a scratch copy of the app and names it in the "App" setting.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
-var package = PackageId.Parse(brain.Setting("Package")!);
-var revision = brain.Setting("Revision")!;
+var appKey = brain.Setting("App")!;
+var app = brain.Get<IApp>(appKey);
+// Preferences live under the brain scope, shared by every Settings copy in that brain.
+var brainScope = appKey[..appKey.LastIndexOf("/apps/", StringComparison.Ordinal)];
+string Prefs() => brainScope + "/settings";
 var failures = 0;
-// Mirrors the app's own derivation: preferences live under the brain scope when one exists.
-string Prefs(string scope) => brain.Setting("BrainScope") is { Length: > 0 } brainScope ? brainScope + "/settings" : scope + "/app";
 
 // The preferences are the brain's shared, durable state. Scenarios that write them must leave
-// them exactly as found, or the next verification run of any Settings revision reads this
-// suite's leftovers — and a fork verified inside a person's brain would overwrite their values.
-async Task<(string Name, string Theme)> SavePrefs(string scope) =>
-    ((await brain.Get<ITextField>(Prefs(scope) + "/display-name").Read()).Value,
-     (await brain.Get<ITextField>(Prefs(scope) + "/theme").Read()).Value);
+// them exactly as found, or a verification run inside a person's brain overwrites their values.
+async Task<(string Name, string Theme)> SavePrefs() =>
+    ((await brain.Get<ITextField>(Prefs() + "/display-name").Read()).Value,
+     (await brain.Get<ITextField>(Prefs() + "/theme").Read()).Value);
 
-async Task RestorePrefs(string scope, (string Name, string Theme) saved)
+async Task RestorePrefs((string Name, string Theme) saved)
 {
-    await brain.Get<ITextField>(Prefs(scope) + "/display-name").SetValue(saved.Name);
-    await brain.Get<ITextField>(Prefs(scope) + "/theme").SetValue(saved.Theme);
+    await brain.Get<ITextField>(Prefs() + "/display-name").SetValue(saved.Name);
+    await brain.Get<ITextField>(Prefs() + "/theme").SetValue(saved.Theme);
 }
 
-await Scenario("Opening settings composes the surface and answers bounded preferences", async (app, scope) =>
+await Scenario("Opening settings composes the surface and answers the defaults", async () =>
 {
-    var payload = JsonDocument.Parse(await Ask(app, "open", "")).RootElement;
-    if (payload.GetProperty("id").GetString() != scope + "/app/window" || payload.GetProperty("title").GetString() != "Settings")
+    var payload = JsonDocument.Parse(await Ask("open", "")).RootElement;
+    if (payload.GetProperty("title").GetString() != "Settings")
     { throw new InvalidOperationException("Settings did not answer the generic window contract."); }
     var surfaceName = payload.GetProperty("surface").GetString()!;
     var surface = await brain.Get<ISurface>(surfaceName).Read();
@@ -41,81 +42,49 @@ await Scenario("Opening settings composes the surface and answers bounded prefer
     if (preferences.GetProperty("theme").GetString() is not ("system" or "light" or "dark")) { throw new InvalidOperationException("The theme is not a known value."); }
 });
 
-await Scenario("Typed values are the preferences", async (app, scope) =>
+await Scenario("Typed values are the preferences", async () =>
 {
-    var saved = await SavePrefs(scope);
+    var saved = await SavePrefs();
     try
     {
-        await Ask(app, "open", "");
-        await brain.Get<ITextField>(Prefs(scope) + "/display-name").SetValue("Ada");
-        await brain.Get<ITextField>(Prefs(scope) + "/theme").SetValue("dark");
+        await Ask("open", "");
+        await brain.Get<ITextField>(Prefs() + "/display-name").SetValue("Ada");
+        await brain.Get<ITextField>(Prefs() + "/theme").SetValue("dark");
 
-        var preferences = JsonDocument.Parse(await Ask(app, "read", "")).RootElement.GetProperty("preferences");
+        var preferences = JsonDocument.Parse(await Ask("read", "")).RootElement.GetProperty("preferences");
 
         if (preferences.GetProperty("displayName").GetString() != "Ada") { throw new InvalidOperationException("The display name was not answered."); }
         if (preferences.GetProperty("theme").GetString() != "dark") { throw new InvalidOperationException("The theme was not answered."); }
     }
-    finally { await RestorePrefs(scope, saved); }
+    finally { await RestorePrefs(saved); }
 });
 
-await Scenario("Preferences survive reopening", async (app, scope) =>
+await Scenario("Preferences survive reopening", async () =>
 {
-    var saved = await SavePrefs(scope);
+    var saved = await SavePrefs();
     try
     {
-        await Ask(app, "open", "");
-        await brain.Get<ITextField>(Prefs(scope) + "/display-name").SetValue("Ada");
-        await brain.Get<ITextField>(Prefs(scope) + "/theme").SetValue("light");
+        await Ask("open", "");
+        await brain.Get<ITextField>(Prefs() + "/display-name").SetValue("Ada");
+        await brain.Get<ITextField>(Prefs() + "/theme").SetValue("light");
 
-        var preferences = JsonDocument.Parse(await Ask(app, "open", "")).RootElement.GetProperty("preferences");
+        var preferences = JsonDocument.Parse(await Ask("open", "")).RootElement.GetProperty("preferences");
 
         if (preferences.GetProperty("displayName").GetString() != "Ada" || preferences.GetProperty("theme").GetString() != "light")
         { throw new InvalidOperationException("Reopening lost the preferences."); }
-        if ((await brain.Get<ITextField>(Prefs(scope) + "/display-name").Read()).Value != "Ada")
+        if ((await brain.Get<ITextField>(Prefs() + "/display-name").Read()).Value != "Ada")
         { throw new InvalidOperationException("The field no longer holds the display name."); }
     }
-    finally { await RestorePrefs(scope, saved); }
-});
-
-await Scenario("Preferences survive a reinstall under a different package identity", async (app, scope) =>
-{
-    var saved = await SavePrefs(scope);
-    try
-    {
-        await Ask(app, "open", "");
-        await brain.Get<ITextField>(Prefs(scope) + "/display-name").SetValue("Grace");
-        await app.Uninstall(new UninstallApp(Guid.NewGuid()));
-
-        // A second install at a different app key: brain-keyed preferences carry over; without a
-        // brain scope each install is its own world and carrying over is not promised.
-        var secondScope = (brain.Setting("BrainScope") is { } owner ? owner + "/" : "") + $"specs/{package}@{revision}/{Guid.NewGuid():N}";
-        var second = brain.Get<IApp>(secondScope + "/app");
-        await second.Install(new InstallApp(Guid.NewGuid(), new(package, revision), new Dictionary<string, string>()));
-        try
-        {
-            var preferences = JsonDocument.Parse(await Ask(second, "open", "")).RootElement.GetProperty("preferences");
-            var expected = brain.Setting("BrainScope") is { Length: > 0 } ? "Grace" : "";
-            if (preferences.GetProperty("displayName").GetString() != expected)
-            { throw new InvalidOperationException("Preferences did not survive the reinstall."); }
-        }
-        finally { try { await second.Uninstall(new UninstallApp(Guid.NewGuid())); } catch (Exception) { } }
-    }
-    finally { await RestorePrefs(scope, saved); }
+    finally { await RestorePrefs(saved); }
 });
 
 return failures == 0 ? 0 : 1;
 
-async Task Scenario(string name, Func<IApp, string, Task> run)
+async Task Scenario(string name, Func<Task> run)
 {
-    // Scratch installs live inside the host-supplied brain scope, so the scenario's neurons
-    // are brain-owned for target authorization instead of failing closed as unclassified.
-    var brainScope = brain.Setting("BrainScope");
-    var scope = (brainScope is null ? "" : brainScope + "/") + $"specs/{package}@{revision}/{Guid.NewGuid():N}";
-    var app = brain.Get<IApp>(scope + "/app");
     try
     {
-        await app.Install(new InstallApp(Guid.NewGuid(), new(package, revision), new Dictionary<string, string>()));
-        await run(app, scope);
+        await run();
         Console.WriteLine($"dbtest:pass {name}");
     }
     catch (Exception error)
@@ -123,13 +92,9 @@ async Task Scenario(string name, Func<IApp, string, Task> run)
         failures++;
         Console.WriteLine($"dbtest:fail {name}\t{error.Message.ReplaceLineEndings(" ")}");
     }
-    finally
-    {
-        try { await app.Uninstall(new UninstallApp(Guid.NewGuid())); } catch (Exception) { }
-    }
 }
 
-async Task<string> Ask(IApp app, string operation, string input)
+async Task<string> Ask(string operation, string input)
 {
     var invocation = await app.Invoke(new InvokeApp(Guid.NewGuid(), operation, input));
     var deadline = DateTimeOffset.UtcNow.AddMinutes(5);

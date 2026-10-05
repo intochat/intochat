@@ -29,7 +29,5 @@ internal static class CSharpAuthoringEndpoints
         files.MapPost("/{id}/start", (string id, ScopedCSharpTools tools, CancellationToken ct) => tools.Start(id, ct));
         files.MapPost("/{id}/stop", (string id, ScopedCSharpTools tools, CancellationToken ct) => tools.Stop(id, ct));
         files.MapDelete("/{id}", (string id, ScopedCSharpTools tools, CancellationToken ct) => tools.Delete(id, ct));
-        files.MapPost("/{id}/share", (string id, ShareCSharpRequest request, CSharpSharing sharing, CancellationToken ct)
-            => sharing.Share(id, request, ct));
     }
 }

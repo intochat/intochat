@@ -10,7 +10,7 @@ namespace DigitalBrain.Apps;
 // generation left behind.
 internal sealed class CSharpAppRuntime(IGrainFactory grains) : IDeployableRuntime
 {
-    public string Name => PackageManifest.CSharpRuntime;
+    public string Name => AppFiles.Runtime;
 
     public string[] Keys(string appKey, int generation, IReadOnlyList<string> paths)
         => [.. paths.Select(path => FileKey(appKey, generation, path))];

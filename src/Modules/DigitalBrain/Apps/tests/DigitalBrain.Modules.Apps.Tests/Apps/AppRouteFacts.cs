@@ -61,7 +61,6 @@ public sealed class AppRouteFacts
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton<global::Microsoft.Extensions.Logging.ILoggerProvider>(new CapturingLoggerProvider(log));
         builder.Services.AddSingleton<IDigitalBrain>(brain.SiloServices.GetRequiredService<IDigitalBrain>());
-        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<MarketplaceService>());
         builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<Creator>());
         builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<AppWorkQueue>());
         builder.Services.AddSingleton<IBrainAccess, OpenBrainAccess>();
@@ -80,8 +79,8 @@ public sealed class AppRouteFacts
         var implementing = await Invoke("POST", "/brains/{brainId}/apps/{name}/implement", new { }, ("brainId", "alice"), ("name", "shouter"));
         Assert.Equal(202, implementing.Response.StatusCode);
         Assert.Equal("Building", Json(implementing).GetProperty("status").GetString());
-        var app = brain.Get<IAppV2>(scope + "/apps/shouter");
-        await WaitFor(app, AppStatusV2.Live, ct);
+        var app = brain.Get<IApp>(scope + "/apps/shouter");
+        await WaitFor(app, AppStatus.Live, ct);
 
         // Verify answers 202 and the verdicts land in the background.
         var verifying = await Invoke("POST", "/brains/{brainId}/apps/{name}/verify", new { }, ("brainId", "alice"), ("name", "shouter"));
@@ -143,12 +142,11 @@ public sealed class AppRouteFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
         var scope = BrainScope.Create("account-alice", "alice").Id;
-        var app = brain.Get<IAppV2>(scope + "/apps/red");
+        var app = brain.Get<IApp>(scope + "/apps/red");
         await app.Create(new("Red", "red", [], [], []), "## Scenario: Red\nRed.");
 
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton<IDigitalBrain>(brain.SiloServices.GetRequiredService<IDigitalBrain>());
-        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<MarketplaceService>());
         builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<Creator>());
         builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<AppWorkQueue>());
         builder.Services.AddSingleton<IBrainAccess, OpenBrainAccess>();
@@ -196,14 +194,14 @@ public sealed class AppRouteFacts
         }
     }
 
-    private static async Task WaitFor(IAppV2 app, AppStatusV2 status, CancellationToken ct)
+    private static async Task WaitFor(IApp app, AppStatus status, CancellationToken ct)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(TimeSpan.FromSeconds(30));
         while ((await app.Read()).Status != status) { await Task.Delay(50, deadline.Token); }
     }
 
-    private static async Task WaitForGreen(IAppV2 app, CancellationToken ct)
+    private static async Task WaitForGreen(IApp app, CancellationToken ct)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(TimeSpan.FromSeconds(30));

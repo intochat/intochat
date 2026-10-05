@@ -26,7 +26,7 @@ public sealed class AssistantStreamFacts
         await using var brain = await StartBrain(ct);
         const string key = "stream-refusal/applications/assistant";
         var app = brain.Get<IAssistant>(key);
-        foreach (var message in new[] { DigitalBrain.Framework.Capacity.CapacityUnavailableException.RefusalMessage, "Cannot install this app. Missing modules: Postgres." })
+        foreach (var message in new[] { DigitalBrain.Framework.Capacity.CapacityUnavailableException.RefusalMessage })
         {
             var events = await Collect(app, new("one", Guid.NewGuid().ToString("N"), "refuse:" + message, "owner"), ct);
             Assert.Equal(message, Assert.Single(events, item => Type(item) == "RUN_ERROR").GetProperty("message").GetString());

@@ -29,19 +29,19 @@ internal sealed class Creator(
 
     // With no name, the Author names the app and it exists — Drafted, in the caller's brain —
     // when this returns. With a name, it reshapes that app's spec.
-    public async Task<AppSnapshotV2> Author(IDigitalBrain brain, string brainId, string? name, string request, CancellationToken cancellationToken)
+    public async Task<AppSnapshot> Author(IDigitalBrain brain, string brainId, string? name, string request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(brain);
         ArgumentException.ThrowIfNullOrWhiteSpace(request);
         if (request.Length > MaxRequestLength) { throw new ArgumentException($"Describe the app in at most {MaxRequestLength} characters."); }
-        var existing = name is null ? null : await brain.Get<IAppV2>(IAppV2.Key(brainId, name)).Read();
-        var prompt = existing is not null && existing.Status != AppStatusV2.Drafted || existing?.Spec is { Length: > 0 }
+        var existing = name is null ? null : await brain.Get<IApp>(IApp.Key(brainId, name)).Read();
+        var prompt = existing is not null && existing.Status != AppStatus.Drafted || existing?.Spec is { Length: > 0 }
             ? $"Revise this app.\n\nCurrent specification:\n{existing!.Spec}\n\nTheir change request:\n{request.Trim()}"
             : $"Write the specification for this app.\n\nWhat the person wants:\n{request.Trim()}";
         var authored = await Authored(prompt, cancellationToken);
         var manifest = new AppManifest(authored.Title, authored.Description,
             authored.Operations ?? [], authored.Settings ?? [], authored.Slots ?? []);
-        var app = brain.Get<IAppV2>(IAppV2.Key(brainId, name ?? authored.Name));
+        var app = brain.Get<IApp>(IApp.Key(brainId, name ?? authored.Name));
         if (name is null)
         {
             ValidateName(authored.Name);
@@ -56,22 +56,22 @@ internal sealed class Creator(
     }
 
     // Flips the app to Building and returns; the Builder loop lands the files in the background.
-    public async Task<AppSnapshotV2> Implement(IDigitalBrain brain, string appKey, string? instruction)
+    public async Task<AppSnapshot> Implement(IDigitalBrain brain, string appKey, string? instruction)
     {
         ArgumentNullException.ThrowIfNull(brain);
         policy.RequireSandbox();
-        var app = brain.Get<IAppV2>(appKey);
+        var app = brain.Get<IApp>(appKey);
         var snapshot = await app.BeginBuild(instruction);
         var attempt = await app.CurrentBuildAttempt();
         queue.Enqueue($"implement {appKey}", (services, ct) => Build(appKey, attempt, snapshot, instruction, ct));
         return snapshot;
     }
 
-    private async Task Build(string appKey, Guid attempt, AppSnapshotV2 snapshot, string? instruction, CancellationToken cancellationToken)
+    private async Task Build(string appKey, Guid attempt, AppSnapshot snapshot, string? instruction, CancellationToken cancellationToken)
     {
         // The queue's grain client is unstamped (trusted cluster path); progress and results
         // land on the neuron, which is the only durable record of this run.
-        var app = grains.GetGrain<IAppV2>(appKey);
+        var app = grains.GetGrain<IApp>(appKey);
         try
         {
             var task = new StringBuilder()
@@ -122,7 +122,7 @@ internal sealed class Creator(
 
     // The Builder works with tools: it searches the contract catalog, reads details and
     // compile-checks its C# before answering. Each round lands on the app's activity feed.
-    private async Task<string> BuilderConversation(IAppV2 app, string task, CancellationToken cancellationToken)
+    private async Task<string> BuilderConversation(IApp app, string task, CancellationToken cancellationToken)
     {
         var messages = new List<AiMessage>
         {

@@ -452,45 +452,15 @@
     "OwnerAccountId": 1,
     "Name": 2
   },
-  "DigitalBrain.Apps.AcceptProposal": {
-    "OperationId": 0,
-    "Number": 1
+  "DigitalBrain.Apps.AppBundle": {
+    "Name": 0,
+    "Version": 1,
+    "Manifest": 2,
+    "Spec": 3,
+    "Files": 4
   },
-  "DigitalBrain.Apps.App\u002BBehaviorDelete": {
-    "Path": 0
-  },
-  "DigitalBrain.Apps.App\u002BBehaviorWrite": {
-    "Path": 0,
-    "Source": 1
-  },
-  "DigitalBrain.Apps.AppAuthoringDocument": {
-    "Version": 0,
-    "Preamble": 1,
-    "Behaviors": 2,
-    "Scenarios": 3
-  },
-  "DigitalBrain.Apps.AppBehaviorDocument": {
-    "Id": 0,
-    "Title": 1,
-    "Description": 2,
-    "SourcePaths": 3,
-    "ScenarioIds": 4
-  },
-  "DigitalBrain.Apps.AppContent": {
-    "Manifest": 0,
-    "Files": 1,
-    "Document": 2,
-    "Verdicts": 3,
-    "BehaviorErrors": 4
-  },
-  "DigitalBrain.Apps.AppDeployment": {
-    "Target": 0
-  },
-  "DigitalBrain.Apps.AppDocumentReadResult": {
-    "Document": 0,
-    "OriginalSpec": 1,
-    "CanEdit": 2,
-    "Error": 3
+  "DigitalBrain.Apps.AppIndexState": {
+    "Names": 0
   },
   "DigitalBrain.Apps.AppInvocation": {
     "Id": 0,
@@ -502,17 +472,21 @@
     "RequestedAt": 6,
     "CompletedAt": 7
   },
-  "DigitalBrain.Apps.AppRequirementsException": {},
+  "DigitalBrain.Apps.AppManifest": {
+    "Title": 0,
+    "Description": 1,
+    "Operations": 2,
+    "Settings": 3,
+    "Slots": 4
+  },
+  "DigitalBrain.Apps.AppOperation": {
+    "Name": 0,
+    "Description": 1
+  },
   "DigitalBrain.Apps.AppResponse": {
     "InvocationId": 0,
     "Output": 1,
     "Error": 2
-  },
-  "DigitalBrain.Apps.AppScenarioDocument": {
-    "Id": 0,
-    "Name": 1,
-    "Body": 2,
-    "IsLive": 3
   },
   "DigitalBrain.Apps.AppScenarioVerdict": {
     "Name": 0,
@@ -520,211 +494,76 @@
     "Message": 2,
     "ScenarioId": 3
   },
+  "DigitalBrain.Apps.AppSetting": {
+    "Name": 0,
+    "Description": 1,
+    "Default": 2
+  },
+  "DigitalBrain.Apps.AppSlot": {
+    "Name": 0,
+    "Connector": 1
+  },
   "DigitalBrain.Apps.AppSnapshot": {
-    "Status": 0,
-    "Revision": 1,
-    "Settings": 2,
-    "Operations": 3,
-    "CSharpFiles": 4,
-    "Accounts": 5,
-    "UninstallPending": 6,
-    "\u003Cretired:7\u003E": 7
+    "Name": 0,
+    "Manifest": 1,
+    "Spec": 2,
+    "Files": 3,
+    "Settings": 4,
+    "Connections": 5,
+    "Version": 6,
+    "Status": 7,
+    "Activity": 8,
+    "Versions": 9,
+    "Verdicts": 10
   },
   "DigitalBrain.Apps.AppState": {
-    "Status": 0,
-    "Revision": 1,
-    "\u003Cretired:2\u003E": 2,
-    "Declared": 3,
-    "Settings": 4,
-    "Operations": 5,
-    "ProgramGeneration": 6,
-    "Invocations": 7,
-    "Receipts": 8,
-    "Accounts": 9,
-    "Runtime": 10,
-    "\u003Cretired:11\u003E": 11,
-    "StorageFiles": 12,
-    "PendingDeployment": 13,
-    "PendingUninstall": 14,
-    "\u003Cretired:15\u003E": 15,
-    "\u003Cretired:16\u003E": 16,
-    "\u003Cretired:17\u003E": 17,
-    "\u003Cretired:18\u003E": 18,
-    "\u003Cretired:19\u003E": 19,
-    "BrainScopeId": 20,
-    "InstallerAppId": 21,
-    "DeployedFiles": 22,
-    "Files": 23,
-    "Document": 24,
-    "Verdicts": 25,
-    "BehaviorErrors": 26,
-    "Title": 27,
-    "Description": 28
+    "Manifest": 0,
+    "Spec": 1,
+    "Files": 2,
+    "Settings": 3,
+    "Connections": 4,
+    "Version": 5,
+    "Status": 6,
+    "Activity": 7,
+    "History": 8,
+    "Verdicts": 9,
+    "Verified": 10,
+    "BuildAttempt": 11,
+    "BuildStartedAt": 12,
+    "BrainScopeId": 13,
+    "ProgramGeneration": 14,
+    "StorageFiles": 15,
+    "DeployedFiles": 16,
+    "BehaviorErrors": 17,
+    "Invocations": 18,
+    "Receipts": 19
   },
   "DigitalBrain.Apps.AppTestRun": {
     "Scenarios": 0,
     "ExitCode": 1
   },
-  "DigitalBrain.Apps.AppVerification": {
-    "Revision": 0,
-    "Run": 1,
-    "VerifiedAt": 2
+  "DigitalBrain.Apps.AppVersionRecord": {
+    "Version": 0,
+    "SavedAt": 1,
+    "Manifest": 2,
+    "Spec": 3,
+    "Files": 4
   },
-  "DigitalBrain.Apps.AppVerificationState": {
-    "Last": 0
-  },
-  "DigitalBrain.Apps.CloseProposal": {
-    "OperationId": 0,
-    "Number": 1
-  },
-  "DigitalBrain.Apps.CommitPackage": {
-    "OperationId": 0,
-    "ExpectedHead": 1,
-    "Content": 2,
-    "\u003Cretired:3\u003E": 3,
-    "Message": 4,
-    "MergeFrom": 5
-  },
-  "DigitalBrain.Apps.ConfigureApp": {
-    "OperationId": 0,
-    "Settings": 1,
-    "Accounts": 2
-  },
-  "DigitalBrain.Apps.CreateApp": {
-    "OperationId": 0,
-    "Title": 1,
-    "Description": 2,
-    "Runtime": 3
-  },
-  "DigitalBrain.Apps.ForkPackage": {
-    "OperationId": 0,
-    "Source": 1
-  },
-  "DigitalBrain.Apps.InstallApp": {
-    "OperationId": 0,
-    "Revision": 1,
-    "Settings": 2,
-    "Accounts": 3
-  },
-  "DigitalBrain.Apps.InstalledAppsPage": {
-    "Packages": 0,
-    "Ready": 1
-  },
-  "DigitalBrain.Apps.InstalledAppsState": {
-    "Packages": 0,
-    "\u003Cretired:1\u003E": 1,
-    "\u003Cretired:2\u003E": 2
+  "DigitalBrain.Apps.AppVersionSummary": {
+    "Version": 0,
+    "SavedAt": 1,
+    "Green": 2
   },
   "DigitalBrain.Apps.InvokeApp": {
     "InvocationId": 0,
     "Operation": 1,
     "Input": 2,
-    "ExpectedRevision": 3
+    "\u003Cretired:3\u003E": 3
   },
   "DigitalBrain.Apps.OperationReceipt": {
     "OperationId": 0,
     "RequestHash": 1,
     "Result": 2
-  },
-  "DigitalBrain.Apps.PackageConnection": {
-    "Name": 0,
-    "Source": 1,
-    "Description": 2
-  },
-  "DigitalBrain.Apps.PackageContent": {
-    "Manifest": 0,
-    "\u003Cretired:1\u003E": 1,
-    "Files": 2
-  },
-  "DigitalBrain.Apps.PackageDirectoryState": {
-    "Listings": 0
-  },
-  "DigitalBrain.Apps.PackageId": {
-    "Owner": 0,
-    "Name": 1
-  },
-  "DigitalBrain.Apps.PackageListing": {
-    "Package": 0,
-    "Title": 1,
-    "Description": 2,
-    "Revision": 3,
-    "ForkedFrom": 4,
-    "PublishedAt": 5
-  },
-  "DigitalBrain.Apps.PackageManifest": {
-    "Title": 0,
-    "Description": 1,
-    "Operations": 2,
-    "Settings": 3,
-    "Accounts": 4,
-    "Runtime": 5
-  },
-  "DigitalBrain.Apps.PackageOperation": {
-    "Name": 0,
-    "Description": 1
-  },
-  "DigitalBrain.Apps.PackageProposal": {
-    "Number": 0,
-    "Source": 1,
-    "Title": 2,
-    "Author": 3,
-    "Status": 4,
-    "OpenedAt": 5
-  },
-  "DigitalBrain.Apps.PackageRevision": {
-    "Id": 0,
-    "Parents": 1,
-    "Content": 2,
-    "\u003Cretired:3\u003E": 3,
-    "Author": 4,
-    "Message": 5,
-    "CommittedAt": 6
-  },
-  "DigitalBrain.Apps.PackageRevisionRef": {
-    "Package": 0,
-    "Revision": 1
-  },
-  "DigitalBrain.Apps.PackageRevisionSummary": {
-    "Id": 0,
-    "Parents": 1,
-    "Author": 2,
-    "Message": 3,
-    "CommittedAt": 4
-  },
-  "DigitalBrain.Apps.PackageSetting": {
-    "Name": 0,
-    "Description": 1,
-    "DefaultValue": 2
-  },
-  "DigitalBrain.Apps.PackageSnapshot": {
-    "Id": 0,
-    "ForkedFrom": 1,
-    "Head": 2,
-    "Published": 3,
-    "History": 4,
-    "Proposals": 5
-  },
-  "DigitalBrain.Apps.PackageState": {
-    "ForkedFrom": 0,
-    "Head": 1,
-    "Published": 2,
-    "Revisions": 3,
-    "History": 4,
-    "Proposals": 5,
-    "Receipts": 6
-  },
-  "DigitalBrain.Apps.ProposeChange": {
-    "OperationId": 0,
-    "Source": 1,
-    "Title": 2
-  },
-  "DigitalBrain.Apps.PublishPackage": {
-    "OperationId": 0,
-    "Revision": 1
-  },
-  "DigitalBrain.Apps.PullPackage": {
-    "OperationId": 0,
-    "Source": 1
   },
   "DigitalBrain.Apps.RuntimeDeployment": {
     "AppKey": 0,
@@ -734,7 +573,9 @@
     "Configuration": 4
   },
   "DigitalBrain.Apps.Signals.AppChanged": {
-    "App": 0
+    "Name": 0,
+    "Version": 1,
+    "Status": 2
   },
   "DigitalBrain.Apps.Signals.AppInvocationCompleted": {
     "Invocation": 0
@@ -745,34 +586,9 @@
     "Input": 2
   },
   "DigitalBrain.Apps.Signals.AppVerified": {
-    "Revision": 0,
-    "Green": 1
-  },
-  "DigitalBrain.Apps.Signals.AppsChanged": {
-    "Packages": 0
-  },
-  "DigitalBrain.Apps.Signals.PackageChanged": {
-    "Package": 0,
-    "Head": 1,
-    "Published": 2
-  },
-  "DigitalBrain.Apps.Signals.PackageListed": {
-    "Listing": 0
-  },
-  "DigitalBrain.Apps.SpecToken": {
     "Name": 0,
-    "Kind": 1,
-    "QualifiedName": 2,
-    "Module": 3,
-    "Description": 4
-  },
-  "DigitalBrain.Apps.UninstallApp": {
-    "OperationId": 0
-  },
-  "DigitalBrain.Apps.UpgradeApp": {
-    "OperationId": 0,
-    "Revision": 1,
-    "Accounts": 2
+    "Version": 1,
+    "Green": 2
   },
   "DigitalBrain.Assistant.AssistantConfigured": {
     "Key": 0

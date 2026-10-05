@@ -15,7 +15,6 @@ public sealed class CSharpAuthoringModule() : Module(new ModuleId("csharp-author
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.Services.AddCSharpAuthoring();
-        builder.Services.TryAddSingleton<CSharpSharing>();
         builder.Services.TryAddScoped(provider => provider.GetRequiredService<CSharpToolService>().ForScope(BrainScope.CurrentId()));
     }
 

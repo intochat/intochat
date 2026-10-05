@@ -37,7 +37,7 @@ public sealed class AppCreatorFacts
 
         Assert.Equal("shouter", created.Name);
         Assert.Equal("Shouter", created.Manifest.Title);
-        Assert.Equal(AppStatusV2.Drafted, created.Status);
+        Assert.Equal(AppStatus.Drafted, created.Status);
         Assert.Contains("## Scenario: It shouts", created.Spec, StringComparison.Ordinal);
     }
 
@@ -67,16 +67,16 @@ public sealed class AppCreatorFacts
         var creator = brain.SiloServices.GetRequiredService<Creator>();
         var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
         await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
-        var app = brain.Get<IAppV2>(IAppV2.Key(Brain, "shouter"));
-        await using var changes = await brain.SubscribeAsync<AppChangedV2>(app, ct);
+        var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
+        await using var changes = await brain.SubscribeAsync<AppChanged>(app, ct);
 
-        var building = await creator.Implement(digitalBrain, IAppV2.Key(Brain, "shouter"), null);
-        Assert.Equal(AppStatusV2.Building, building.Status);
+        var building = await creator.Implement(digitalBrain, IApp.Key(Brain, "shouter"), null);
+        Assert.Equal(AppStatus.Building, building.Status);
 
         await foreach (var change in changes.ReadAllAsync(ct))
         {
-            if (change.Status == AppStatusV2.Live) { break; }
-            Assert.NotEqual(AppStatusV2.Failed, change.Status);
+            if (change.Status == AppStatus.Live) { break; }
+            Assert.NotEqual(AppStatus.Failed, change.Status);
         }
         var live = await app.Read();
         Assert.Equal("// proof v1", live.Files["tests.cs"]);
@@ -94,12 +94,12 @@ public sealed class AppCreatorFacts
         var creator = brain.SiloServices.GetRequiredService<Creator>();
         var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
         await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
-        var app = brain.Get<IAppV2>(IAppV2.Key(Brain, "shouter"));
-        await using var changes = await brain.SubscribeAsync<AppChangedV2>(app, ct);
+        var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
+        await using var changes = await brain.SubscribeAsync<AppChanged>(app, ct);
 
-        await creator.Implement(digitalBrain, IAppV2.Key(Brain, "shouter"), null);
+        await creator.Implement(digitalBrain, IApp.Key(Brain, "shouter"), null);
 
-        await foreach (var change in changes.ReadAllAsync(ct)) { if (change.Status == AppStatusV2.Failed) { break; } }
+        await foreach (var change in changes.ReadAllAsync(ct)) { if (change.Status == AppStatus.Failed) { break; } }
         var failed = await app.Read();
         Assert.Contains(failed.Activity, line => line.Contains("tests.cs", StringComparison.Ordinal));
     }
@@ -114,14 +114,14 @@ public sealed class AppCreatorFacts
         var creator = brain.SiloServices.GetRequiredService<Creator>();
         var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
         await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
-        var app = brain.Get<IAppV2>(IAppV2.Key(Brain, "shouter"));
-        await using var changes = await brain.SubscribeAsync<AppChangedV2>(app, ct);
+        var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
+        await using var changes = await brain.SubscribeAsync<AppChanged>(app, ct);
 
-        await creator.Implement(digitalBrain, IAppV2.Key(Brain, "shouter"), null);
+        await creator.Implement(digitalBrain, IApp.Key(Brain, "shouter"), null);
 
-        await foreach (var change in changes.ReadAllAsync(ct)) { if (change.Status == AppStatusV2.Failed) { break; } }
+        await foreach (var change in changes.ReadAllAsync(ct)) { if (change.Status == AppStatus.Failed) { break; } }
         var failed = await app.Read();
-        Assert.Equal(AppStatusV2.Failed, failed.Status);
+        Assert.Equal(AppStatus.Failed, failed.Status);
     }
 
     [Fact]
@@ -137,12 +137,12 @@ public sealed class AppCreatorFacts
         var creator = brain.SiloServices.GetRequiredService<Creator>();
         var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
         await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
-        var app = brain.Get<IAppV2>(IAppV2.Key(Brain, "shouter"));
-        await using var changes = await brain.SubscribeAsync<AppChangedV2>(app, ct);
+        var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
+        await using var changes = await brain.SubscribeAsync<AppChanged>(app, ct);
 
-        await creator.Implement(digitalBrain, IAppV2.Key(Brain, "shouter"), null);
+        await creator.Implement(digitalBrain, IApp.Key(Brain, "shouter"), null);
 
-        await foreach (var change in changes.ReadAllAsync(ct)) { if (change.Status == AppStatusV2.Live) { break; } }
+        await foreach (var change in changes.ReadAllAsync(ct)) { if (change.Status == AppStatus.Live) { break; } }
         Assert.Equal("// proof v1", (await app.Read()).Files["tests.cs"]);
     }
 

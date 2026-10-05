@@ -93,12 +93,12 @@ internal static class AppsEndpoints
         }));
     }
 
-    private static string Key(string name) => IAppV2.Key(BrainScope.CurrentId(), name);
+    private static string Key(string name) => IApp.Key(BrainScope.CurrentId(), name);
 
-    private static IAppV2 App(IDigitalBrain brain, string name) => brain.Get<IAppV2>(Key(name));
+    private static IApp App(IDigitalBrain brain, string name) => brain.Get<IApp>(Key(name));
 
     // The wire view: the snapshot plus status as a string the shell can switch on.
-    private static object View(AppSnapshotV2 snapshot) => new
+    private static object View(AppSnapshot snapshot) => new
     {
         name = snapshot.Name,
         manifest = snapshot.Manifest,
@@ -113,7 +113,7 @@ internal static class AppsEndpoints
         verdicts = snapshot.Verdicts,
     };
 
-    private static async Task<IResult> Ask(IAppV2 app, HttpRequest request, CancellationToken ct)
+    private static async Task<IResult> Ask(IApp app, HttpRequest request, CancellationToken ct)
     {
         using var reader = new StreamReader(request.Body);
         var input = await reader.ReadToEndAsync(ct);

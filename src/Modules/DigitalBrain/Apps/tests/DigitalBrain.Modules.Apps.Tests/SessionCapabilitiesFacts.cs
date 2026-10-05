@@ -20,7 +20,6 @@ public sealed class SessionCapabilitiesFacts
         await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(TestContext.Current.CancellationToken);
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton<IDigitalBrain>(brain);
-        builder.Services.AddSingleton<MarketplaceService>();
         builder.Services.AddSingleton<AppAuthoringPolicy>();
         if (canRun.HasValue) { builder.Services.AddSingleton<IScriptSandbox>(new Sandbox(canRun.Value)); }
         await using var app = builder.Build();

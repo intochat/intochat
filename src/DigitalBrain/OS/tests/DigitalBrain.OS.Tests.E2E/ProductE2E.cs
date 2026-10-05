@@ -18,22 +18,20 @@ internal static class ProductE2E
     public static Task<E2EBrain> StartAsync(CancellationToken ct) => Create().StartAsync(ct);
 
     // The host ships its first-party apps in the background after it is healthy; a fact that opens
-    // one has to wait until that package is published.
-    public static async Task WaitUntilShippedAsync(E2EBrain brain, string package, CancellationToken ct, TimeSpan? budget = null)
+    // one has to wait until that app's bundle imported into the publisher's brain.
+    public static async Task WaitUntilShippedAsync(E2EBrain brain, string appKey, CancellationToken ct, TimeSpan? budget = null)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(budget ?? TimeSpan.FromMinutes(4));
         while (true)
         {
-            var snapshot = await brain.Get<IPackage>(package).Read();
-            if (snapshot.Published is not null) { return; }
-            // A red verification never publishes; failing with its verdicts beats a silent timeout.
-            if (snapshot.Head is { } head
-                && await brain.Get<IAppVerification>(IAppVerification.Key(new(PackageId.Parse(package), head))).Read()
-                    is { Green: false } verification)
+            var snapshot = await brain.Get<IApp>(appKey).Read();
+            if (snapshot.Status == AppStatus.Live) { return; }
+            // A red verification never imports; failing with its verdicts beats a silent timeout.
+            if (snapshot.Verdicts.Any(verdict => !verdict.Passed))
             {
-                throw new InvalidOperationException($"{package}@{head} failed verification (exit {verification.Run.ExitCode}): "
-                    + string.Join("; ", verification.Run.Scenarios.Select(scenario => $"{scenario.Name}={(scenario.Passed ? "pass" : "FAIL " + scenario.Message)}")));
+                throw new InvalidOperationException($"{appKey} failed verification: "
+                    + string.Join("; ", snapshot.Verdicts.Select(scenario => $"{scenario.Name}={(scenario.Passed ? "pass" : "FAIL " + scenario.Message)}")));
             }
             await Task.Delay(TimeSpan.FromSeconds(1), timeout.Token);
         }
