@@ -30,5 +30,5 @@ public interface IAppV2 : INeuron
     Task<AppInvocation> ReadInvocation(Guid invocationId);
     Task<IReadOnlyList<AppInvocation>> Pending();
 
-    static string Key(Guid brainId, string name) => $"{brainId}/apps/{name}";
+    static string Key(string brainId, string name) => $"{brainId}/apps/{name}";
 }

@@ -8,7 +8,7 @@ public sealed record AppSetting([property: Id(0)] string Name, [property: Id(1)]
 
 // A named credential slot ("gmail"); the bound connection id is per-brain state, never shared.
 [GenerateSerializer, Alias("apps.slot")]
-public sealed record AppConnectionSlot([property: Id(0)] string Name, [property: Id(1)] string Connector);
+public sealed record AppSlot([property: Id(0)] string Name, [property: Id(1)] string Connector);
 
 [GenerateSerializer, Alias("apps.manifest2")]
 public sealed record AppManifest(
@@ -16,4 +16,4 @@ public sealed record AppManifest(
     [property: Id(1)] string Description,
     [property: Id(2)] AppOperation[] Operations,
     [property: Id(3)] AppSetting[] Settings,
-    [property: Id(4)] AppConnectionSlot[] Slots);
+    [property: Id(4)] AppSlot[] Slots);
