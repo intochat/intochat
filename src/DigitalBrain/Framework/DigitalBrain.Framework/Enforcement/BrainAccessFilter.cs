@@ -29,8 +29,25 @@ public static class BrainAccessFilter
         if (!CallerContextStamper.TryGet(out var caller)) { return Results.Unauthorized(); }
 
         var access = http.RequestServices.GetRequiredService<IBrainAccess>();
-        return await access.CanAccessAsync(caller.PrincipalId, caller.AccountId, brainId, http.RequestAborted)
-            ? null
-            : Results.StatusCode(StatusCodes.Status403Forbidden);
+        if (!await access.CanAccessAsync(caller.PrincipalId, caller.AccountId, brainId, http.RequestAborted))
+        { return Results.StatusCode(StatusCodes.Status403Forbidden); }
+        await EnsureEstablished(http, caller.AccountId, brainId);
+        return null;
+    }
+
+    // A brain in use is an established brain: a development owner never registers, and its
+    // brain's Activated is what boots the OS defaults into it. Once per brain per host; the
+    // call is idempotent, so a retry after a failure is harmless.
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IDigitalBrain, System.Collections.Concurrent.ConcurrentDictionary<string, bool>> Established = [];
+
+    private static async Task EnsureEstablished(HttpContext http, string accountId, string brainId)
+    {
+        if (http.RequestServices.GetService<IDigitalBrain>() is not { } brain) { return; }
+        var scope = BrainScope.Create(accountId, brainId).Id;
+        var seen = Established.GetOrCreateValue(brain);
+        if (!seen.TryAdd(scope, true)) { return; }
+        // Best effort: the request itself is already allowed, and the next one retries.
+        try { await brain.Get<IBrain>(scope).Establish(new(brainId, accountId)); }
+        catch (Exception error) when (error is not OperationCanceledException) { seen.TryRemove(scope, out _); }
     }
 }
