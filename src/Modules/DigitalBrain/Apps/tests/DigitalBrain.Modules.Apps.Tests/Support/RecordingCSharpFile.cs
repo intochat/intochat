@@ -45,6 +45,15 @@ public sealed class RecordingCSharpFile : Neuron, ICSharpFile, ICSharpAppBinding
             ? Current with { Status = CSharpFileStatus.Exited, ExitCode = scripted.ExitCode, StartedAt = DateTimeOffset.UtcNow }
             : Current with { Status = CSharpFileStatus.Running, StartedAt = DateTimeOffset.UtcNow });
 
+    // Records swaps so facts can assert an edit kept the file rather than recreating it.
+    public static ConcurrentDictionary<string, int> Swaps { get; } = new(StringComparer.Ordinal);
+
+    public Task<CSharpFileSnapshot> Swap(string source, CancellationToken cancellationToken = default)
+    {
+        Swaps.AddOrUpdate(Key, 1, (_, count) => count + 1);
+        return Task.FromResult(Files[Key] = Current with { Source = source, Status = CSharpFileStatus.Running, StartedAt = DateTimeOffset.UtcNow });
+    }
+
     public Task<CSharpFileSnapshot> Arm(CSharpTrigger trigger, CancellationToken cancellationToken = default)
         => Task.FromResult(Files[Key] = Current with { Trigger = trigger });
 

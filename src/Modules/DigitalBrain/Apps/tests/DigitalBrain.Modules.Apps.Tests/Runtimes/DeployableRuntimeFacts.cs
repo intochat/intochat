@@ -11,6 +11,9 @@ public sealed class DeployableRuntimeFacts
         public List<(string AppKey, string[] Keys)> Retired { get; } = [];
         public string Name => "fake";
 
+        public string[] Keys(string appKey, int generation, IReadOnlyList<string> paths)
+            => paths.Select(path => "fake-" + path).ToArray();
+
         public Task<string[]> Deploy(RuntimeDeployment deployment, CancellationToken cancellationToken)
         {
             Deployed.Add(deployment);

@@ -12,4 +12,6 @@ namespace DigitalBrain.Apps;
 public interface IAppRuntimeWorker : IGrainWithIntegerKey
 {
     [OneWay] Task Answer(string appKey, PackageRevisionRef revision, AppInvocation invocation);
+    // A live app has no revision: its own content is the program the runtime answers from.
+    [OneWay] Task AnswerLive(string appKey, AppInvocation invocation);
 }

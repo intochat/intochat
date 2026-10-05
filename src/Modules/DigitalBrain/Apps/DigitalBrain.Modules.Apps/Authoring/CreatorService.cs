@@ -34,11 +34,16 @@ internal sealed class CreatorService(
     public async Task<(PackageId Package, AppContent Content)> Start(IDigitalBrain brain, string request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(brain);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request);
+        if (request.Length > MaxRequestLength) { throw new ArgumentException($"Describe the app in at most {MaxRequestLength} characters."); }
         var owner = DigitalBrain.Framework.Enforcement.CallerContextStamper.Require().PrincipalId;
-        var named = await Authored($"Write the specification for this app.\n\nWhat the person wants:\n{request?.Trim()}", cancellationToken);
+        var named = await Authored($"Write the specification for this app.\n\nWhat the person wants:\n{request.Trim()}", cancellationToken);
         var package = PackageId.Create(owner, named.Name);
         var app = brain.Get<IApp>(DigitalBrain.Framework.Enforcement.BrainScope.CurrentId() + "/packages/" + package);
-        await Apply(app, named, await app.Read());
+        var existing = await app.Read();
+        if (existing.Status == AppStatus.Installed)
+        { throw new InvalidOperationException($"You already have an app named {package}. Open it in the Creator, or describe this one differently so it gets its own name."); }
+        await Apply(app, named, existing);
         return (package, await app.ReadContent());
     }
 

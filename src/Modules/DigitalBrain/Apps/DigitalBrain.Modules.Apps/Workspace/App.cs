@@ -69,6 +69,14 @@ internal sealed class App(
             Description = request.Description?.Trim() ?? "",
             ProgramGeneration = Snapshot.ProgramGeneration + 1,
             Receipts = Receipted(request.OperationId, request),
+            // A live app owns its whole shape: any residue of an earlier package install here
+            // (an uninstalled app reborn as a live one) is reset, Revision above all.
+            Revision = null,
+            Declared = [],
+            Settings = [],
+            Accounts = [],
+            Operations = [],
+            Invocations = [],
             Files = [],
             Document = null,
             Verdicts = [],
@@ -79,7 +87,8 @@ internal sealed class App(
         return Describe(Snapshot);
     }
 
-    // Writing a behavior hot-swaps exactly that file. A deploy failure is recorded on the
+    // Writing a behavior hot-swaps exactly that file: the run restarts, its durable
+    // subscriptions and buffered signals survive. A deploy failure is recorded on the
     // behavior — the app keeps serving; red is a state to revisit, not an error to unwind.
     public async Task<AppSnapshot> WriteBehavior(string path, string source, Guid operationId)
     {
@@ -87,23 +96,37 @@ internal sealed class App(
         RequireBehaviorPath(path);
         ArgumentException.ThrowIfNullOrWhiteSpace(source);
         if (Replay(operationId, new BehaviorWrite(path, source))) { return Describe(Snapshot); }
-        var files = new Dictionary<string, string>(Snapshot.Files, StringComparer.Ordinal) { [path] = source };
-        await Persist(Snapshot with { Files = files, Receipts = Receipted(operationId, new BehaviorWrite(path, source)) });
-        var errors = new Dictionary<string, string>(Snapshot.BehaviorErrors, StringComparer.Ordinal);
         var deployable = deployables.FirstOrDefault(candidate => candidate.Name == Snapshot.Runtime);
+        var swap = Snapshot.Files.ContainsKey(path);
+        var keys = deployable?.Keys(this.GetPrimaryKeyString(), Snapshot.ProgramGeneration, [path]) ?? [];
+        var files = new Dictionary<string, string>(Snapshot.Files, StringComparer.Ordinal) { [path] = source };
+        // The keys are tracked before anything deploys: a failure part-way can never leave a
+        // running file that uninstall and the storage hooks cannot see.
+        await Persist(Snapshot with
+        {
+            Files = files,
+            StorageFiles = Snapshot.StorageFiles.Concat(keys).Distinct(StringComparer.Ordinal).ToArray(),
+            Receipts = Receipted(operationId, new BehaviorWrite(path, source)),
+        });
+        var errors = new Dictionary<string, string>(Snapshot.BehaviorErrors, StringComparer.Ordinal);
         if (deployable is not null)
         {
+            var deployment = new RuntimeDeployment(this.GetPrimaryKeyString(), Snapshot.BrainScopeId ?? "",
+                Snapshot.ProgramGeneration, new(StringComparer.Ordinal) { [path] = source },
+                Configuration(Snapshot.Settings, Snapshot.Accounts));
             try
             {
-                var keys = await deployable.Deploy(new(this.GetPrimaryKeyString(), Snapshot.BrainScopeId ?? "",
-                    Snapshot.ProgramGeneration, new(StringComparer.Ordinal) { [path] = source },
-                    Configuration(Snapshot.Settings, Snapshot.Accounts)), CancellationToken.None);
+                var deployed = swap
+                    ? await deployable.Swap(deployment, CancellationToken.None)
+                    : await deployable.Deploy(deployment, CancellationToken.None);
                 errors.Remove(path);
-                var deployed = Snapshot.DeployedFiles.Concat(keys).Distinct(StringComparer.Ordinal).ToArray();
-                var storage = Snapshot.StorageFiles.Concat(keys).Distinct(StringComparer.Ordinal).ToArray();
-                await Persist(Snapshot with { DeployedFiles = deployed, StorageFiles = storage, BehaviorErrors = errors });
+                await Persist(Snapshot with
+                {
+                    DeployedFiles = Snapshot.DeployedFiles.Concat(deployed).Distinct(StringComparer.Ordinal).ToArray(),
+                    BehaviorErrors = errors,
+                });
                 foreach (var hook in storageHooks)
-                { await hook.OnDeployed(Snapshot.BrainScopeId ?? "", this.GetPrimaryKeyString(), storage, CancellationToken.None); }
+                { await hook.OnDeployed(Snapshot.BrainScopeId ?? "", this.GetPrimaryKeyString(), Snapshot.StorageFiles, CancellationToken.None); }
             }
             catch (Exception failure) when (failure is not OperationCanceledException)
             {
@@ -119,36 +142,26 @@ internal sealed class App(
         RequireLive();
         RequireBehaviorPath(path);
         if (Replay(operationId, new BehaviorDelete(path))) { return Describe(Snapshot); }
+        var deployable = deployables.FirstOrDefault(candidate => candidate.Name == Snapshot.Runtime);
+        // Keys are deterministic per (app, generation, path): exactly this behavior retires,
+        // and the surviving behaviors are never touched, let alone restarted.
+        var keys = deployable?.Keys(this.GetPrimaryKeyString(), Snapshot.ProgramGeneration, [path]) ?? [];
+        if (deployable is not null && keys.Length > 0)
+        {
+            await deployable.Retire(this.GetPrimaryKeyString(), keys, CancellationToken.None);
+            foreach (var hook in storageHooks)
+            { await hook.OnRetired(Snapshot.BrainScopeId ?? "", this.GetPrimaryKeyString(), keys, CancellationToken.None); }
+        }
         var files = new Dictionary<string, string>(Snapshot.Files, StringComparer.Ordinal);
         files.Remove(path);
         var errors = new Dictionary<string, string>(Snapshot.BehaviorErrors, StringComparer.Ordinal);
         errors.Remove(path);
-        var deployable = deployables.FirstOrDefault(candidate => candidate.Name == Snapshot.Runtime);
-        var deployed = Snapshot.DeployedFiles;
-        var storage = Snapshot.StorageFiles;
-        if (deployable is not null)
-        {
-            // Keys are deterministic per (app, generation, path): retiring everything and
-            // redeploying what remains keeps the survivors' keys and drops exactly the removed one.
-            await deployable.Retire(this.GetPrimaryKeyString(), Snapshot.DeployedFiles, CancellationToken.None);
-            var programs = new Dictionary<string, string>(StringComparer.Ordinal);
-            foreach (var (remaining, source) in files)
-            {
-                if (remaining == PackageContent.SourcePath
-                    || (remaining.StartsWith(PackageContent.BehaviorsPrefix, StringComparison.Ordinal) && remaining.EndsWith(".cs", StringComparison.Ordinal)))
-                { programs[remaining] = source; }
-            }
-            var keys = programs.Count == 0
-                ? []
-                : await deployable.Deploy(new(this.GetPrimaryKeyString(), Snapshot.BrainScopeId ?? "",
-                    Snapshot.ProgramGeneration, programs, Configuration(Snapshot.Settings, Snapshot.Accounts)), CancellationToken.None);
-            var removed = Snapshot.DeployedFiles.Except(keys, StringComparer.Ordinal).ToArray();
-            deployed = keys;
-            storage = Snapshot.StorageFiles.Except(removed, StringComparer.Ordinal).ToArray();
-        }
         await Persist(Snapshot with
         {
-            Files = files, BehaviorErrors = errors, DeployedFiles = deployed, StorageFiles = storage,
+            Files = files,
+            BehaviorErrors = errors,
+            DeployedFiles = Snapshot.DeployedFiles.Except(keys, StringComparer.Ordinal).ToArray(),
+            StorageFiles = Snapshot.StorageFiles.Except(keys, StringComparer.Ordinal).ToArray(),
             Receipts = Receipted(operationId, new BehaviorDelete(path)),
         });
         return Describe(Snapshot);
@@ -294,7 +307,7 @@ internal sealed class App(
         ArgumentNullException.ThrowIfNull(request);
         await Resume();
         if (Replay(request.OperationId, request)) { return Describe(Snapshot); }
-        RequireInstalled();
+        RequirePackaged();
         var settings = Resolve(Snapshot.Declared, Snapshot.Settings, request.Settings);
         var revision = await GrainFactory.GetGrain<IPackage>(Snapshot.Revision!.Package.ToString()).ReadRevision(Snapshot.Revision.Revision);
         requirements.Check(revision.Content);
@@ -316,7 +329,7 @@ internal sealed class App(
         ArgumentNullException.ThrowIfNull(request);
         await Resume();
         if (Replay(request.OperationId, request)) { return Describe(Snapshot); }
-        RequireInstalled();
+        RequirePackaged();
         var installed = Snapshot.Revision!.Package;
         if (request.Revision.Package != installed)
         { throw new ArgumentException($"This app runs {installed}. Install {request.Revision.Package} as its own app to try it."); }
@@ -388,7 +401,7 @@ internal sealed class App(
         if (!Snapshot.Operations.Any(operation => operation.Name == request.Operation))
         {
             throw new ArgumentException(
-                $"{request.Operation} is not an operation of {Snapshot.Revision!.Package}. It offers: {string.Join(", ", Snapshot.Operations.Select(operation => operation.Name))}.");
+                $"{request.Operation} is not an operation of {Snapshot.Revision?.Package.ToString() ?? Snapshot.Title}. It offers: {string.Join(", ", Snapshot.Operations.Select(operation => operation.Name))}.");
         }
         if (request.Input is not { Length: <= MaxPayloadLength }) { throw new ArgumentException("An invocation input is at most 64 KiB."); }
         var invocation = new AppInvocation(request.InvocationId, request.Operation, request.Input, InvocationStatus.Pending, null, null, clock.GetUtcNow(), null);
@@ -401,7 +414,12 @@ internal sealed class App(
         }
         await Save(Snapshot with { Invocations = invocations }, new AppInvoked(invocation.Id, invocation.Operation, invocation.Input));
         if (Snapshot.DeployedFiles.Length == 0)
-        { await GrainFactory.GetGrain<IAppRuntimeWorker>(0).Answer(this.GetPrimaryKeyString(), Snapshot.Revision!, invocation); }
+        {
+            if (Snapshot.Revision is { } revision)
+            { await GrainFactory.GetGrain<IAppRuntimeWorker>(0).Answer(this.GetPrimaryKeyString(), revision, invocation); }
+            else
+            { await GrainFactory.GetGrain<IAppRuntimeWorker>(0).AnswerLive(this.GetPrimaryKeyString(), invocation); }
+        }
         return invocation;
     }
 
@@ -534,6 +552,13 @@ internal sealed class App(
     private void RequireInstalled()
     {
         if (Snapshot.Status != AppStatus.Installed) { throw new InvalidOperationException("The app is not installed."); }
+    }
+
+    private void RequirePackaged()
+    {
+        RequireInstalled();
+        if (Snapshot.Revision is null)
+        { throw new InvalidOperationException("This is a live app; edit it through the Creator."); }
     }
 
     private bool Replay(Guid operationId, object request)

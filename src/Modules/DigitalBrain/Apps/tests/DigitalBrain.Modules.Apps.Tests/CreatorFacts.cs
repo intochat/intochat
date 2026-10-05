@@ -118,6 +118,24 @@ public sealed class CreatorFacts
     }
 
     [Fact]
+    public async Task StartRefusesToOverwriteAnAppYouAlreadyHave()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await StartAsync(ct);
+        await brain.Get<IScriptedLLM>("author").Script([Authored(Spec), Authored(Spec)]);
+        StampAlice();
+        var creator = brain.SiloServices.GetRequiredService<CreatorService>();
+        var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
+        var (first, _) = await creator.Start(digitalBrain, "Shout back.", ct);
+        Assert.Equal("alice/shouter", first.ToString());
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => creator.Start(digitalBrain, "Shout back again.", ct));
+
+        Assert.Contains("already have an app named alice/shouter", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AnImplementationWithoutTestsIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;

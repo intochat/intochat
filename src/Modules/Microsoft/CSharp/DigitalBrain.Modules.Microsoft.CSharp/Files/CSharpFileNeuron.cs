@@ -110,6 +110,21 @@ internal sealed partial class CSharpFileNeuron(
         return Describe(await runner.InspectAsync(owner.Principal, runId, cancellationToken));
     }
 
+    public async Task<CSharpFileSnapshot> Swap(string source, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(source);
+        if (Encoding.UTF8.GetByteCount(source) > MaximumSourceBytes) { throw new ArgumentException($"Source exceeds {MaximumSourceBytes} bytes.", nameof(source)); }
+        // An edit is not a fresh intent: keep the durable subscriptions (and their buffered
+        // signals) and keep watching their sources, so nothing published during the restart
+        // is lost; the new run drains the buffers when it re-subscribes.
+        await StopCurrentRunAsync(cancellationToken);
+        await reminders.RegisterOrUpdateReminder(this.GetGrainId(), ReconcileReminder, ReconcilePeriod, ReconcilePeriod);
+        var owner = Caller();
+        var runId = await StartRunAsync(Snapshot with { Source = source, ShouldRun = true, Failures = 0, Owner = owner.Principal, OwnerContext = owner.Context, Trigger = null }, trigger: null, cancellationToken);
+        await WatchSourcesAsync();
+        return Describe(await runner.InspectAsync(owner.Principal, runId, cancellationToken));
+    }
+
     public async Task<CSharpFileSnapshot> Arm(CSharpTrigger trigger, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(trigger);

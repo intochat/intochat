@@ -12,6 +12,25 @@ internal sealed class CSharpAppRuntime(IGrainFactory grains) : IDeployableRuntim
 {
     public string Name => PackageManifest.CSharpRuntime;
 
+    public string[] Keys(string appKey, int generation, IReadOnlyList<string> paths)
+        => [.. paths.Select(path => FileKey(appKey, generation, path))];
+
+    // An edit hot-swaps the file: the run restarts, the subscriptions and their buffers survive.
+    public async Task<string[]> Swap(RuntimeDeployment deployment, CancellationToken cancellationToken)
+    {
+        var keys = new List<string>();
+        foreach (var (path, source) in deployment.Programs.OrderBy(program => program.Key, StringComparer.Ordinal))
+        {
+            var key = FileKey(deployment.AppKey, deployment.Generation, path);
+            await grains.GetGrain<ICSharpAppBinding>(key).BindApp(deployment.AppKey);
+            var file = grains.GetGrain<ICSharpFile>(key);
+            await file.Configure(deployment.Configuration);
+            await file.Swap(source, cancellationToken);
+            keys.Add(key);
+        }
+        return [.. keys];
+    }
+
     public async Task<string[]> Deploy(RuntimeDeployment deployment, CancellationToken cancellationToken)
     {
         var keys = new List<string>();

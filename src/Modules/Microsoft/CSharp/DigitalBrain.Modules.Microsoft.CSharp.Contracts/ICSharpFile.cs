@@ -11,6 +11,9 @@ public interface ICSharpFile : INeuron
     Task Configure(IReadOnlyDictionary<string, string> settings, CancellationToken cancellationToken = default);
     // The first start builds the sandbox image; Start keeps the file running until Stop, a clean exit or repeated crashes.
     [ResponseTimeout("00:05:00")] Task<CSharpFileSnapshot> Start(CancellationToken cancellationToken = default);
+    // An edit, not a fresh intent: the new source restarts the run but keeps the file's durable
+    // subscriptions and their buffered signals, so a hot-swapped behavior resumes where it was.
+    [ResponseTimeout("00:05:00")] Task<CSharpFileSnapshot> Swap(string source, CancellationToken cancellationToken = default);
     // Waits for the trigger's signal instead of running now; every matching signal starts one run that reads it with brain.Trigger<T>().
     Task<CSharpFileSnapshot> Arm(CSharpTrigger trigger, CancellationToken cancellationToken = default);
     [ResponseTimeout("00:05:00")] Task<CSharpFileSnapshot> Stop(CancellationToken cancellationToken = default);

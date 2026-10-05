@@ -42,6 +42,31 @@ public sealed class CSharpSubscriptionFacts
     }
 
     [Fact]
+    public async Task SwappingTheSourceKeepsSubscriptionsAndTheirBufferedSignals()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new FakeSandbox();
+        await using var brain = await SandboxBrain.StartAsync(sandbox, ct);
+        var pinger = brain.Get<IPinger>("pinger");
+        var file = await Subscribed(brain, sandbox, "workspace/swapping", pinger, ct);
+        var edge = file.AsReference<ICSharpFileEdge>();
+        await pinger.Ping(1);
+        await Eventually(async () => (await file.Read(ct)).Subscriptions.Single().Pending == 1, ct);
+
+        // An edit is not a fresh intent: the new source resumes the old one's subscriptions.
+        await file.Swap("Console.WriteLine(2);", ct);
+
+        var swapped = await file.Read(ct);
+        Assert.Equal("Console.WriteLine(2);", swapped.Source);
+        Assert.Equal(1, Assert.Single(swapped.Subscriptions).Pending);
+        // Signals that arrive after the swap keep buffering on the surviving subscription.
+        await pinger.Ping(2);
+        await Eventually(async () => (await file.Read(ct)).Subscriptions.Single().Pending == 2, ct);
+        var drained = await edge.DrainPending(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged));
+        Assert.Equal(2, drained.Count);
+    }
+
+    [Fact]
     public async Task ASubscriptionIsRecordedOnceAndBuffersOnlyMatchingSignals()
     {
         var ct = TestContext.Current.CancellationToken;

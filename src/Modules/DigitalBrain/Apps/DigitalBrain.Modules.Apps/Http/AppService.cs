@@ -43,19 +43,26 @@ internal sealed class AppService(
     // in your brain — red history forks as a red app, ready to revisit.
     private async Task Materialize(PackageId target, PackageSnapshot forked)
     {
+        if (forked.Head is null) { return; }
         var app = App(target);
-        if ((await app.Read()).Status == AppStatus.Installed || forked.Head is null) { return; }
+        // Every step id derives from the forked revision, so a retried fork replays the
+        // completed steps and finishes the missing ones instead of stopping at
+        // "already installed" with half an app.
+        Guid Step(string name) => new(System.Security.Cryptography.MD5.HashData(
+            System.Text.Encoding.UTF8.GetBytes("fork\0" + target + "\0" + forked.Head + "\0" + name)));
+        var existing = await app.Read();
+        if (existing.Status == AppStatus.Installed && existing.Revision is not null) { return; }
         var content = (await Package(target).ReadRevision(forked.Head)).Content;
-        await app.Create(new(Guid.NewGuid(), content.Manifest.Title, content.Manifest.Description, content.Manifest.RuntimeName));
-        await app.SaveManifest(content.Manifest, Guid.NewGuid());
+        await app.Create(new(Step("create"), content.Manifest.Title, content.Manifest.Description, content.Manifest.RuntimeName));
+        await app.SaveManifest(content.Manifest, Step("manifest"));
         var programs = content.Programs();
         foreach (var (path, text) in content.Files ?? new Dictionary<string, string>())
         {
             if (path == AppDocumentCodec.Path || string.IsNullOrWhiteSpace(text)) { continue; }
-            if (programs.ContainsKey(path)) { await app.WriteBehavior(path, text, Guid.NewGuid()); }
-            else { await app.WriteFile(path, text, Guid.NewGuid()); }
+            if (programs.ContainsKey(path)) { await app.WriteBehavior(path, text, Step("write:" + path)); }
+            else { await app.WriteFile(path, text, Step("file:" + path)); }
         }
-        if (AppDocumentCodec.Read(content).Document is { } document) { await app.SaveDocument(document, Guid.NewGuid()); }
+        if (AppDocumentCodec.Read(content).Document is { } document) { await app.SaveDocument(document, Step("document")); }
     }
 
     public async Task<PackageSnapshot> Pull(PackageId id, PullAppRequest request)

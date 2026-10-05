@@ -7,7 +7,13 @@ namespace DigitalBrain.Apps;
 public interface IDeployableRuntime
 {
     string Name { get; }
+    // The storage keys this runtime will use for these paths — deterministic, so the app can
+    // track them before a deploy and retire exactly the right ones after a delete.
+    string[] Keys(string appKey, int generation, IReadOnlyList<string> paths);
     Task<string[]> Deploy(RuntimeDeployment deployment, CancellationToken cancellationToken);
+    // An edit of already-running programs: restarts them but preserves their durable
+    // subscriptions and buffered signals. Defaults to a full deploy for runtimes without one.
+    Task<string[]> Swap(RuntimeDeployment deployment, CancellationToken cancellationToken) => Deploy(deployment, cancellationToken);
     Task Retire(string appKey, string[] storageKeys, CancellationToken cancellationToken);
 }
 

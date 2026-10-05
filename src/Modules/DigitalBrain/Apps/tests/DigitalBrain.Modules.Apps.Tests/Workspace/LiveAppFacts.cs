@@ -12,6 +12,9 @@ public sealed class LiveAppFacts
         public List<(string AppKey, string[] Keys)> Retired { get; } = [];
         public string Name => "fake";
 
+        public string[] Keys(string appKey, int generation, IReadOnlyList<string> paths)
+            => paths.Select(path => "fake-" + path).ToArray();
+
         public Task<string[]> Deploy(RuntimeDeployment deployment, CancellationToken cancellationToken)
         {
             if (deployment.Programs.Values.Any(source => source.Contains("BROKEN", StringComparison.Ordinal)))
@@ -126,6 +129,93 @@ public sealed class LiveAppFacts
         Assert.Equal(key, Assert.Single(second.CSharpFiles));
         Assert.Equal("// v2", RecordingCSharpFile.Files[key].Source);
         Assert.Equal(CSharpFileStatus.Running, RecordingCSharpFile.Files[key].Status);
+    }
+
+    [Fact]
+    public async Task AFailedDeployStillTracksItsKeySoUninstallRetiresIt()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runtime = new FakeRuntime();
+        await using var brain = await PackageBrain.StartAsync(ct,
+            silo => silo.Services.AddSingleton<IDeployableRuntime>(runtime));
+        var app = brain.Get<IApp>(Key());
+        await app.Create(new(Guid.NewGuid(), "Tracker", "Tracks things.", "fake"));
+        await app.WriteBehavior("behaviors/report.cs", "// BROKEN", Guid.NewGuid());
+
+        await app.Uninstall(new(Guid.NewGuid()));
+
+        var retired = Assert.Single(runtime.Retired);
+        Assert.Contains("fake-behaviors/report.cs", retired.Keys);
+    }
+
+    [Fact]
+    public async Task EditingAnExistingBehaviorSwapsItInsteadOfRecreatingIt()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await PackageBrain.StartAsync(ct);
+        var app = brain.Get<IApp>(Key());
+        await app.Create(new(Guid.NewGuid(), "Shouter", "Shouts.", PackageManifest.CSharpRuntime));
+        var first = await app.WriteBehavior("behaviors/shout.cs", "// v1", Guid.NewGuid());
+        var key = Assert.Single(first.CSharpFiles);
+        Assert.False(RecordingCSharpFile.Swaps.ContainsKey(key));
+
+        await app.WriteBehavior("behaviors/shout.cs", "// v2", Guid.NewGuid());
+
+        // The second write swapped: the file's subscriptions and buffers survive the edit.
+        Assert.Equal(1, RecordingCSharpFile.Swaps[key]);
+    }
+
+    [Fact]
+    public async Task AnUninstalledPackageAppCanBeRebornAsALiveApp()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await PackageBrain.StartAsync(ct);
+        Caller.As("alice");
+        await brain.AuthorizeCallerAsync();
+        var package = PackageId.Parse("alice/reborn");
+        var grain = brain.Get<IPackage>(package.ToString());
+        var revision = await grain.Commit(brain.Commit(null, PackageSamples.Tracker(), "v1"));
+        await grain.Publish(new(Guid.NewGuid(), revision.Id));
+        Caller.Clear();
+        var app = brain.Get<IApp>(Key());
+        await app.Install(new(Guid.NewGuid(), new(package, revision.Id), new Dictionary<string, string>()));
+        await app.Uninstall(new(Guid.NewGuid()));
+
+        await app.Create(new(Guid.NewGuid(), "Reborn", "Lives again.", PackageManifest.CSharpRuntime));
+        var written = await app.WriteBehavior("behaviors/again.cs", "// alive", Guid.NewGuid());
+
+        Assert.Null((await app.Read()).Revision);
+        Assert.Single(written.CSharpFiles);
+    }
+
+    private sealed class EchoRuntime : IAppRuntime
+    {
+        public string Name => "test-echo";
+        public string AuthoringDescription => "test-echo answers input without settings or files.";
+        public Task<string> Answer(AppRuntimeRequest request, CancellationToken cancellationToken)
+            => Task.FromResult("echo: " + request.Input);
+    }
+
+    [Fact]
+    public async Task ALiveAppOnAnAnswerRuntimeAnswersInvocationsFromItsOwnContent()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await PackageBrain.StartAsync(ct,
+            silo => silo.Services.AddAppRuntime<EchoRuntime>());
+        var app = brain.Get<IApp>(Key());
+        await app.Create(new(Guid.NewGuid(), "Echo", "Echoes.", "test-echo"));
+        await app.SaveManifest(new("Echo", "Echoes.", [new PackageOperation("ask", "Ask.")], []), Guid.NewGuid());
+
+        var invocation = await app.Invoke(new(Guid.NewGuid(), "ask", "hello", null));
+        var started = TimeProvider.System.GetTimestamp();
+        while (invocation.Status == InvocationStatus.Pending && TimeProvider.System.GetElapsedTime(started) < TimeSpan.FromSeconds(10))
+        {
+            await Task.Delay(100, ct);
+            invocation = await app.ReadInvocation(invocation.Id);
+        }
+
+        Assert.Equal(InvocationStatus.Completed, invocation.Status);
+        Assert.Equal("echo: hello", invocation.Output);
     }
 
     [Fact]
