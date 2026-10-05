@@ -85,13 +85,6 @@
   <Folder Name="/Modules/DigitalBrain/Registry/tests/">
     <Project Path="src/Modules/DigitalBrain/Registry/tests/DigitalBrain.Modules.Registry.Tests/DigitalBrain.Modules.Registry.Tests.csproj" />
   </Folder>
-  <Folder Name="/Modules/Files/">
-    <Project Path="src/Modules/Files/DigitalBrain.Modules.Files.Contracts/DigitalBrain.Modules.Files.Contracts.csproj" />
-    <Project Path="src/Modules/Files/DigitalBrain.Modules.Files/DigitalBrain.Modules.Files.csproj" />
-  </Folder>
-  <Folder Name="/Modules/Files/tests/">
-    <Project Path="src/Modules/Files/tests/DigitalBrain.Modules.Files.Tests/DigitalBrain.Modules.Files.Tests.csproj" />
-  </Folder>
   <Folder Name="/Modules/Google/" />
   <Folder Name="/Modules/Google/Flutter/">
     <Project Path="src/Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Aspire.Hosting/DigitalBrain.Modules.Flutter.Aspire.Hosting.csproj" />

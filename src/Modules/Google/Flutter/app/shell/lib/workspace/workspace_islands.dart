@@ -54,8 +54,6 @@ class WorkspaceIslands extends StatelessWidget {
     ),
   );
   IconData appIcon(String kind) => switch (kind) {
-    'files' => Icons.folder_outlined,
-    'images' => Icons.tune,
     'csharp' => Icons.code,
     'assistant' => Icons.assistant_outlined,
     'table' => Icons.table_chart_outlined,
@@ -220,18 +218,6 @@ class WorkspaceIslands extends StatelessWidget {
               },
               itemBuilder: (_) => [
                 for (final entry in [
-                  (
-                    id: 'files',
-                    title: 'Files',
-                    description: 'Workspace assets',
-                    icon: Icons.folder_outlined,
-                  ),
-                  (
-                    id: 'images',
-                    title: 'Image Editor',
-                    description: 'Draw, crop and export',
-                    icon: Icons.tune,
-                  ),
                   (
                     id: 'assistant',
                     title: 'Assistant',

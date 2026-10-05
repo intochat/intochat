@@ -14,7 +14,6 @@ import 'workspace_desktop.dart';
 import 'workspace_settings.dart';
 import 'workspace_routes.dart';
 
-import 'app_surface_host.dart';
 import 'compute_usage_panel.dart';
 import 'compute_usage_history.dart';
 import 'workspace_islands.dart';
@@ -594,45 +593,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
           ),
         );
       }
-      return Semantics(
-        container: true,
-        explicitChildNodes: true,
-        role: SemanticsRole.region,
-        label: a.title,
-        child: AppSurfaceHost(
-          key: ValueKey('${store.currentProject.id}-${a.id}'),
-          client: client,
-          workspace: store.currentProject.id,
-          artifact: a,
-          onImage: (document) {
-            final images = store.launchLocalApp('images');
-            final documents = List<Map<String, dynamic>>.from(
-              (images.data['documents'] as List? ?? []).map(
-                (d) => Map<String, dynamic>.from(d),
-              ),
-            );
-            if (!documents.any((d) => d['id'] == document['id'])) {
-              documents.add({
-                'id': document['id'],
-                'name': document['asset']['name'],
-              });
-            }
-            images.data['documents'] = documents;
-            images.data['selected'] = document['id'];
-            store.save();
-          },
-          onChanged: () => store.save(),
-          onSaved: () {
-            final files = store.currentProject.artifacts
-                .where((a) => a.id == 'app-files')
-                .firstOrNull;
-            if (files != null) {
-              files.data['refresh'] = (files.data['refresh'] as int? ?? 0) + 1;
-              store.save();
-            }
-          },
-        ),
-      );
+      return const Center(child: Text('This application has been retired.'));
     }
 
     if (a.kind == 'table' && _tables[a.id] == null) {
@@ -1160,9 +1121,6 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
 
   Future<void> _launchApp(String appId) async {
     switch (appId) {
-      case 'files':
-      case 'images':
-        store.launchLocalApp(appId);
       case 'csharp':
         if (store.developerMode) store.launchLocalApp(appId);
       default:

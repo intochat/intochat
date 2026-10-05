@@ -24,7 +24,9 @@ void main() {
   ) async {
     await pumpShell(tester, false);
     expect(find.text('C# files'), findsNothing);
-    expect(find.text('Files'), findsOneWidget);
+    expect(find.text('Files'), findsNothing);
+    expect(find.text('Image Editor'), findsNothing);
+    expect(find.text('Assistant'), findsWidgets);
     await tester.pumpWidget(const SizedBox.shrink());
     tester.view.resetPhysicalSize();
     tester.view.resetDevicePixelRatio();

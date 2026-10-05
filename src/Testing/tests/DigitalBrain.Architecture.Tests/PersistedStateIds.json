@@ -1117,69 +1117,6 @@
     "Name": 0,
     "OwnerAccountId": 1
   },
-  "DigitalBrain.Files.FileExplorerState": {
-    "FolderId": 0,
-    "Revision": 1,
-    "Surface": 2
-  },
-  "DigitalBrain.Files.ImageAsset": {
-    "Id": 0,
-    "Name": 1,
-    "Width": 2,
-    "Height": 3,
-    "Fingerprint": 4,
-    "SourceEntryId": 5,
-    "DocumentId": 6
-  },
-  "DigitalBrain.Files.ImageDocumentState": {
-    "Id": 0,
-    "Asset": 1,
-    "Recipe": 2,
-    "Revision": 3,
-    "LastSavedRevision": 4,
-    "Surface": 5,
-    "Receipts": 6,
-    "Saves": 7,
-    "Versions": 8
-  },
-  "DigitalBrain.Files.ImageEditCommand": {
-    "Kind": 0,
-    "Stroke": 1,
-    "Crop": 2,
-    "Recipe": 3
-  },
-  "DigitalBrain.Files.ImageSaveOperationState": {
-    "Result": 0,
-    "Stage": 1
-  },
-  "DigitalBrain.Files.ImageVersion": {
-    "VersionId": 0,
-    "AssetId": 1,
-    "Revision": 2,
-    "Kind": 3
-  },
-  "DigitalBrain.Files.SaveTicket": {
-    "OperationId": 0,
-    "Revision": 1,
-    "Recipe": 2,
-    "Asset": 3,
-    "Result": 4
-  },
-  "DigitalBrain.Files.SavedFile": {
-    "EntryId": 0,
-    "Name": 1,
-    "Checksum": 2,
-    "Bytes": 3
-  },
-  "DigitalBrain.Files.WorkspaceAsset": {
-    "Image": 0,
-    "Bytes": 1,
-    "CreatedAt": 2
-  },
-  "DigitalBrain.Files.WorkspaceAssetsState": {
-    "Assets": 0,
-    "Pages": 1
-  },
   "DigitalBrain.Flutter.Button.ButtonState": {
     "Name": 0,
     "Version": 1,

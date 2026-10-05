@@ -379,6 +379,7 @@ class WorkspaceStore extends ChangeNotifier {
       snapshot.windows.where((w) => w.isOpen).map((w) => w.id),
     );
     for (final window in snapshot.windows) {
+      // Retired server windows stay readable as placeholders without calling removed routes.
       final builtIn = window.id == 'app-files' || window.id == 'app-images';
       final kind = window.kind == 'table'
           ? 'table'
@@ -411,23 +412,6 @@ class WorkspaceStore extends ChangeNotifier {
           ...artifact.data,
           'surface': {'kind': window.kind, 'name': window.neuronId},
         };
-      }
-      if (window.kind != 'table' && window.id == 'app-images') {
-        final name = window.neuronId;
-        final parts = name.split('/images/');
-        if (parts.length == 2) {
-          final documentId = parts.last.split('/').first;
-          final documents = List<Map<String, dynamic>>.from(
-            (artifact.data['documents'] as List? ?? []).map(
-              (d) => Map<String, dynamic>.from(d),
-            ),
-          );
-          if (!documents.any((d) => d['id'] == documentId)) {
-            documents.add({'id': documentId, 'name': 'Image'});
-          }
-          artifact.data['documents'] = documents;
-          artifact.data['selected'] ??= documentId;
-        }
       }
       artifact.title = window.title;
       if (window.isOpen && !(suppressed?.contains(window.id) ?? false)) {
@@ -696,7 +680,7 @@ class WorkspaceStore extends ChangeNotifier {
   }
 
   WorkspaceArtifact launchLocalApp(String app) {
-    if (!['files', 'images', 'csharp'].contains(app)) {
+    if (app != 'csharp') {
       throw ArgumentError('Application not implemented.');
     }
     if (app == 'csharp' && !_developerMode) {
@@ -707,11 +691,7 @@ class WorkspaceStore extends ChangeNotifier {
         currentProject.artifacts.where((a) => a.id == id).firstOrNull ??
         WorkspaceArtifact(
           id: id,
-          title: switch (app) {
-            'files' => 'Files',
-            'csharp' => 'C# files',
-            _ => 'Image Editor',
-          },
+          title: 'C# files',
           kind: 'app',
           data: {'app': app},
         );

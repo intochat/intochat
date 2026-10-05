@@ -38,7 +38,10 @@ void main() {
   test('restart keeps saved work but starts with no open windows', () async {
     final persistence = MemoryPersistence();
     final original = WorkspaceStore(persistence: persistence);
-    original.launchLocalApp('images');
+    original.addArtifact(
+      WorkspaceArtifact(id: 'saved', title: 'Saved work', kind: 'surface'),
+    );
+    original.openArtifact('saved');
     original.currentConversation.draft = 'Keep my draft';
     await original.save();
     original.dispose();

@@ -280,20 +280,6 @@
     "Expected": "[\"legacy-value\"]"
   },
   {
-    "Type": "DigitalBrain.Files.ImageDocumentState",
-    "Member": "Versions",
-    "Representation": "array",
-    "Payload": "MAFtBp2CO2ludG9jaGF0LmltYWdlLWRvY3VtZW50LXN0YXRl6MABwQHBAQEBAQHBAcEBwQExAeE8YZIxaW50b2NoYXQuaW1hZ2UtdmVyc2lvbltdAAMh6EAZbGVnYWN5LXZhbHVlwRsBAcEb4ODg",
-    "Expected": "[{\"VersionId\":\"legacy-value\",\"AssetId\":\"legacy-value\",\"Revision\":0,\"Kind\":\"legacy-value\"}]"
-  },
-  {
-    "Type": "DigitalBrain.Files.ImageDocumentState",
-    "Member": "Versions",
-    "Representation": "list",
-    "Payload": "MAFtBp2CO2ludG9jaGF0LmltYWdlLWRvY3VtZW50LXN0YXRl6MABwQHBAQEBAQHBAcEBwQExAVJBbUZ3U3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdGAxW1tpbnRvY2hhdC5pbWFnZS12ZXJzaW9uXV0AAyHoQBlsZWdhY3ktdmFsdWXBGwEBwRvg4OA=",
-    "Expected": "[{\"VersionId\":\"legacy-value\",\"AssetId\":\"legacy-value\",\"Revision\":0,\"Kind\":\"legacy-value\"}]"
-  },
-  {
     "Type": "DigitalBrain.Flutter.Collection.CollectionDefinition",
     "Member": "Items",
     "Representation": "array",

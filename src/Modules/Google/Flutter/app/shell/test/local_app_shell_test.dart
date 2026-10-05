@@ -6,23 +6,34 @@ import 'package:digitalbrain_flutter_shell/workspace/workspace_store.dart';
 import 'workspace_remote_controller_test.dart' show MemoryPersistence;
 
 void main() {
+  test('retired local apps cannot be launched', () {
+    final store = WorkspaceStore(persistence: MemoryPersistence());
+    for (final app in ['files', 'images']) {
+      expect(() => store.launchLocalApp(app), throwsArgumentError);
+    }
+    store.dispose();
+  });
   test('app launch minimizes others and preserves a restored size', () {
     final store = WorkspaceStore(
       persistence: MemoryPersistence(),
       seedProject: false,
     )..createProject('Personal');
-    store.launchLocalApp('files');
-    expect(store.currentProject.presentation.modeOf('app-files'), 'maximized');
-    store.restoreWindow('app-files');
-    store.launchLocalApp('images');
+    store.developerMode = true;
+    store.launchLocalApp('csharp');
+    expect(store.currentProject.presentation.modeOf('app-csharp'), 'maximized');
+    store.restoreWindow('app-csharp');
+    store.addArtifact(
+      WorkspaceArtifact(id: 'other', title: 'Other', kind: 'surface'),
+    );
+    store.openArtifact('other');
+    store.launchLocalApp('csharp');
     expect(
       store.currentProject.presentation.minimizedArtifactIds,
-      contains('app-files'),
+      contains('other'),
     );
-    store.launchLocalApp('files');
-    expect(store.currentProject.presentation.modeOf('app-files'), 'floating');
+    expect(store.currentProject.presentation.modeOf('app-csharp'), 'floating');
     expect(
-      store.currentProject.artifacts.where((a) => a.id == 'app-files'),
+      store.currentProject.artifacts.where((a) => a.id == 'app-csharp'),
       hasLength(1),
     );
   });
