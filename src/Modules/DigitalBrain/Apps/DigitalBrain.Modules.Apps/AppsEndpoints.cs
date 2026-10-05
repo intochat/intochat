@@ -143,7 +143,19 @@ internal static class AppsEndpoints
             ".webp" => "image/webp",
             _ => "text/plain",
         };
-        return Results.Text(content, type);
+        return new InertFile(Results.Text(content, type));
+    }
+
+    // A publisher's file served from the API origin: an SVG can carry script, so the answer runs
+    // nothing and is never sniffed into something that would.
+    private sealed class InertFile(IResult inner) : IResult
+    {
+        public Task ExecuteAsync(HttpContext http)
+        {
+            http.Response.Headers.ContentSecurityPolicy = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
+            http.Response.Headers.XContentTypeOptions = "nosniff";
+            return inner.ExecuteAsync(http);
+        }
     }
 
     internal static object View(AppSnapshot snapshot) => new
