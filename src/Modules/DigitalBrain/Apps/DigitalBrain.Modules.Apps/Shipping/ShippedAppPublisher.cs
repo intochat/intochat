@@ -1,4 +1,5 @@
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Framework.Platform.Shipping;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -18,9 +19,9 @@ internal sealed class ShippedAppPublisher(
     // names ships only those.
     public static readonly string ShipOnStartupKey = ShippedAppsServiceCollectionExtensions.ShipOnStartupKey;
 
-    public string[] Publishers => sources.Select(source => source.Publisher).Distinct(StringComparer.Ordinal).ToArray();
+    public string[] Accounts => sources.Select(source => source.Account).Distinct(StringComparer.Ordinal).ToArray();
 
-    public async Task PublishAsync(string publisher, CancellationToken stoppingToken)
+    public async Task PublishAsync(PublisherBrain publisher, CancellationToken stoppingToken)
     {
         var selection = Selection(configuration[ShipOnStartupKey]);
         if (selection is { Count: 0 })
@@ -28,7 +29,7 @@ internal sealed class ShippedAppPublisher(
             logger.LogInformation("Shipped apps stay unpublished: {Key} is off.", ShipOnStartupKey);
             return;
         }
-        foreach (var source in sources.Where(source => source.Publisher == publisher))
+        foreach (var source in sources.Where(source => source.Account == publisher.Username))
         {
             foreach (var bundle in source.Load())
             {
@@ -39,22 +40,22 @@ internal sealed class ShippedAppPublisher(
                 // timeout is this bundle's failure, not the process's.
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { throw; }
                 catch (Exception error)
-                { logger.LogError(error, "Shipping {Publisher}/{App} failed.", publisher, bundle.Name); }
+                { logger.LogError(error, "Shipping {Account}/{App} failed.", publisher.Username, bundle.Name); }
             }
         }
     }
 
-    private async Task Ship(string publisher, AppBundle bundle, CancellationToken cancellationToken)
+    private async Task Ship(PublisherBrain publisher, AppBundle bundle, CancellationToken cancellationToken)
     {
-        var key = IApp.Key(publisher, bundle.Name);
-        var app = grains.GetGrain<IApp>(key);
+        var app = grains.GetGrain<IApp>(IApp.Key(publisher.ScopeId, bundle.Name));
         var installed = await app.Read();
         if (installed.Manifest.Title.Length > 0 && installed.Version == bundle.Version) { return; }
         var (verdicts, green) = await AppVerifyJob.RunBundle(grains, runner, bundle,
-            IApp.Key(publisher, bundle.Name + AppFiles.VerifyMarker + Guid.NewGuid().ToString("N")), cancellationToken);
+            IApp.Key(publisher.ScopeId, bundle.Name + AppFiles.VerifyMarker + Guid.NewGuid().ToString("N")), cancellationToken);
         if (!green)
         {
-            logger.LogWarning("{Publisher}/{App} stays out: verification failed.", publisher, bundle.Name);
+            logger.LogWarning("{Account}/{App} stays out: verification failed: {Failures}", publisher.Username, bundle.Name,
+                string.Join("; ", verdicts.Where(verdict => !verdict.Passed).Select(verdict => $"{verdict.Name}: {verdict.Message}")));
             return;
         }
         if (installed.Manifest.Title.Length > 0) { await app.Delete(); }

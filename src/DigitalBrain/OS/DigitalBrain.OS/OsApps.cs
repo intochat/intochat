@@ -2,6 +2,7 @@ using DigitalBrain.Apps;
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -36,7 +37,13 @@ public static class OsAppsHosting
             return services;
         }
         services.AddSingleton<OsAppsRegistered>();
-        services.AddShippedApps(typeof(OsCatalog).Assembly, "DigitalBrain.OS.Apps/", publisher: "os");
+        services.AddShippedApps(typeof(OsCatalog).Assembly, "DigitalBrain.OS.Apps/", account: "os");
+        // The OS's apps belong to its own account; every distribution carries it.
+        services.Configure<DigitalBrain.Platform.Identity.Configuration.SeededAccountOptions>(seeded =>
+        {
+            if (!seeded.Accounts.Any(account => account.Username == "os"))
+            { seeded.Accounts.Add(new() { Username = "os", DisplayName = "DigitalBrain OS" }); }
+        });
         services.Configure<OsAppsOptions>(os =>
         {
             // Idempotent so a host that both composes the OS and wires the apps explicitly
@@ -61,7 +68,7 @@ public static class OsAppsHosting
 // Delivery is at-least-once and Activated repeats on every activation, so every step reads
 // before it writes; an app that has not shipped yet is simply picked up on the next activation.
 internal sealed class OsBootService(
-    LocalSignalHub signals, IGrainFactory grains, IOptions<OsAppsOptions> options, ILogger<OsBootService> logger)
+    LocalSignalHub signals, IGrainFactory grains, IPublisherDirectory publishers, IOptions<OsAppsOptions> options, ILogger<OsBootService> logger)
     : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -96,7 +103,8 @@ internal sealed class OsBootService(
             Kind = CallerKind.Platform,
             StampedBy = TrustedEdge.Platform,
         });
-        var shipped = grains.GetGrain<IApp>(IApp.Key("os", name));
+        var os = await publishers.Resolve("os", cancellationToken);
+        var shipped = grains.GetGrain<IApp>(IApp.Key(os.ScopeId, name));
         var source = await shipped.Read().WaitAsync(cancellationToken);
         if (source.Manifest.Title.Length == 0) { return; }
         var app = grains.GetGrain<IApp>(IApp.Key(activated.BrainId, name));

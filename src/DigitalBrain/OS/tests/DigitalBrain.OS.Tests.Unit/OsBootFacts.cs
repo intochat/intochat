@@ -2,6 +2,7 @@ using DigitalBrain;
 using DigitalBrain.Apps;
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.OS;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,8 +21,9 @@ public sealed class OsBootFacts
             .WithModule<AppsModule>()
             .ConfigureSilo(silo => { silo.Services.RemoveAll<DigitalBrain.Apps.IDeployableRuntime>(); silo.Services.AddOperatingSystemBoot(os => os.Apps.Add(new("hello"))); })
             .StartAsync(ct);
+        var os = await RegisterOs(brain, ct);
 
-        var source = await SeedGreen(brain, "hello");
+        var source = await SeedGreen(brain, os, "hello");
         var first = (await source.Read()).Version;
 
         var scope = BrainScope.Create("acct", "home").Id;
@@ -64,8 +66,9 @@ public sealed class OsBootFacts
                 });
             })
             .StartAsync(ct);
+        var os = await RegisterOs(brain, ct);
 
-        await SeedGreen(brain, "hello");
+        await SeedGreen(brain, os, "hello");
 
         var scope = BrainScope.Create("acct", "home").Id;
         StampBrainOwner();
@@ -75,19 +78,25 @@ public sealed class OsBootFacts
         await WaitForAsync(brain.Get<IApp>(IApp.Key(scope, "hello")), snapshot => snapshot.Status == AppStatus.Live, ct);
         Assert.Equal(AppStatus.Drafted, (await brain.Get<IApp>(IApp.Key(scope, "later")).Read()).Status);
 
-        await SeedGreen(brain, "later");
+        await SeedGreen(brain, os, "later");
         StampBrainOwner();
         await brain.DeactivateAsync(neuron, ct);
         await neuron.Read();
         await WaitForAsync(brain.Get<IApp>(IApp.Key(scope, "later")), snapshot => snapshot.Status == AppStatus.Live, ct);
     }
 
-    // The "os" brain's copy: created, built and recorded green so Export is allowed.
+    private static async Task<PublisherBrain> RegisterOs(ModuleBrain brain, CancellationToken ct)
+    {
+        await brain.Get<IIdentityDirectory>(IdentityGrains.Directory).RegisterAsync("os", "os-development-password", "DigitalBrain OS", ct);
+        return await brain.SiloServices.GetRequiredService<IPublisherDirectory>().Resolve("os", ct);
+    }
+
+    // The "os" account's copy: created, built and recorded green so Export is allowed.
     // Seeding plays the platform: an unstamped call rides the trusted internal path.
-    private static async Task<IApp> SeedGreen(ModuleBrain brain, string name)
+    private static async Task<IApp> SeedGreen(ModuleBrain brain, PublisherBrain os, string name)
     {
         Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
-        var source = brain.Get<IApp>(IApp.Key("os", name));
+        var source = brain.Get<IApp>(IApp.Key(os.ScopeId, name));
         await source.Create(new("Hello", "Shows hello world", [new("open", "Open")], [new("Greeting", "what to say", "hello")], []),
             "## Scenario: Greets\nIt greets.");
         await source.BeginBuild(null);

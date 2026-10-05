@@ -36,6 +36,7 @@ public static class PlatformHosting
         services.TryAddSingleton<DeploymentStorageIdentity>();
         silo.AddStartupTask<IdentityMigrationStartup>();
         silo.AddStartupTask<SeededAccountsStartup>();
+        services.TryAddSingleton<DigitalBrain.Framework.Platform.Identity.IPublisherDirectory, PublisherDirectory>();
         services.TryAddSingleton<DigitalBrain.Framework.Platform.Auth.ITokenHandoff, Auth.TokenHandoff>();
         services.TryAddSingleton<DigitalBrain.Framework.Platform.Auth.IOAuthCredentials, Auth.OAuthCredentials>();
         services.AddMasterKeyWrapper();

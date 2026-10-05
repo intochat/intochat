@@ -1,9 +1,11 @@
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Framework.Platform.Shipping;
 using DigitalBrain.Platform.Enforcement;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Platform.Shipping;
 
@@ -16,7 +18,9 @@ public static class ShippedContentHosting
     }
 }
 
-internal sealed class ShippedContentStartup(IEnumerable<IShippedContentPublisher> content, IHostApplicationLifetime lifetime) : BackgroundService
+internal sealed class ShippedContentStartup(
+    IEnumerable<IShippedContentPublisher> content, IPublisherDirectory publishers,
+    IHostApplicationLifetime lifetime, ILogger<ShippedContentStartup> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -28,15 +32,22 @@ internal sealed class ShippedContentStartup(IEnumerable<IShippedContentPublisher
         }
         foreach (var source in content)
         {
-            foreach (var publisher in source.Publishers)
+            foreach (var account in source.Accounts)
             {
                 stoppingToken.ThrowIfCancellationRequested();
-                ArgumentException.ThrowIfNullOrWhiteSpace(publisher);
+                ArgumentException.ThrowIfNullOrWhiteSpace(account);
+                PublisherBrain publisher;
+                try { publisher = await publishers.Resolve(account, stoppingToken); }
+                catch (InvalidOperationException error)
+                {
+                    logger.LogError(error, "Shipped content for {Account} stays out: the account does not exist.", account);
+                    continue;
+                }
                 using var _ = CallerContextScope.Scoped(new CallerContext
                 {
-                    PrincipalId = publisher,
-                    AccountId = publisher,
-                    BrainId = publisher,
+                    PrincipalId = publisher.Username,
+                    AccountId = publisher.AccountId,
+                    BrainId = publisher.BrainId,
                     Kind = CallerKind.Platform,
                     StampedBy = TrustedEdge.Platform,
                 });
