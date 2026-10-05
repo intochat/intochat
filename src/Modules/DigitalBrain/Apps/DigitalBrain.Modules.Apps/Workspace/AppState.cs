@@ -22,6 +22,14 @@ public sealed record AppState
     [Id(21)] public string? InstallerAppId { get; init; }
     // The storage keys the current generation's runtime returned from Deploy.
     [Id(22)] public string[] DeployedFiles { get; init; } = [];
+    // The live app's own content: files edited in place, the canonical scenario document,
+    // the latest verdicts and any per-behavior deploy failures. Empty for package installs.
+    [Id(23)] public Dictionary<string, string> Files { get; init; } = [];
+    [Id(24)] public AppAuthoringDocument? Document { get; init; }
+    [Id(25)] public AppScenarioVerdict[] Verdicts { get; init; } = [];
+    [Id(26)] public Dictionary<string, string> BehaviorErrors { get; init; } = [];
+    [Id(27)] public string Title { get; init; } = "";
+    [Id(28)] public string Description { get; init; } = "";
 }
 
 [GenerateSerializer]

@@ -46,6 +46,170 @@ internal sealed class App(
             .. Snapshot.StorageFiles.Select(key => new NeuronRecord("apps", "microsoft.csharp.file", key, package + " / " + key))]);
     }
 
+    // A live app exists the moment it is created: installed, running, editable, allowed red.
+    public async Task<AppSnapshot> Create(CreateApp request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        await Claim();
+        if (Replay(request.OperationId, request)) { return Describe(Snapshot); }
+        if (Snapshot.Status == AppStatus.Installed)
+        { throw new InvalidOperationException("This app already exists; edit it instead of creating it again."); }
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Title);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Runtime);
+        await Persist(Snapshot with
+        {
+            Status = AppStatus.Installed,
+            Runtime = request.Runtime,
+            Title = request.Title.Trim(),
+            Description = request.Description?.Trim() ?? "",
+            ProgramGeneration = Snapshot.ProgramGeneration + 1,
+            Receipts = Receipted(request.OperationId, request),
+            Files = [],
+            Document = null,
+            Verdicts = [],
+            BehaviorErrors = [],
+            DeployedFiles = [],
+            StorageFiles = [],
+        });
+        return Describe(Snapshot);
+    }
+
+    // Writing a behavior hot-swaps exactly that file. A deploy failure is recorded on the
+    // behavior — the app keeps serving; red is a state to revisit, not an error to unwind.
+    public async Task<AppSnapshot> WriteBehavior(string path, string source, Guid operationId)
+    {
+        RequireLive();
+        RequireBehaviorPath(path);
+        ArgumentException.ThrowIfNullOrWhiteSpace(source);
+        if (Replay(operationId, new BehaviorWrite(path, source))) { return Describe(Snapshot); }
+        var files = new Dictionary<string, string>(Snapshot.Files, StringComparer.Ordinal) { [path] = source };
+        await Persist(Snapshot with { Files = files, Receipts = Receipted(operationId, new BehaviorWrite(path, source)) });
+        var errors = new Dictionary<string, string>(Snapshot.BehaviorErrors, StringComparer.Ordinal);
+        var deployable = deployables.FirstOrDefault(candidate => candidate.Name == Snapshot.Runtime);
+        if (deployable is not null)
+        {
+            try
+            {
+                var keys = await deployable.Deploy(new(this.GetPrimaryKeyString(), Snapshot.BrainScopeId ?? "",
+                    Snapshot.ProgramGeneration, new(StringComparer.Ordinal) { [path] = source },
+                    Configuration(Snapshot.Settings, Snapshot.Accounts)), CancellationToken.None);
+                errors.Remove(path);
+                var deployed = Snapshot.DeployedFiles.Concat(keys).Distinct(StringComparer.Ordinal).ToArray();
+                var storage = Snapshot.StorageFiles.Concat(keys).Distinct(StringComparer.Ordinal).ToArray();
+                await Persist(Snapshot with { DeployedFiles = deployed, StorageFiles = storage, BehaviorErrors = errors });
+                foreach (var hook in storageHooks)
+                { await hook.OnDeployed(Snapshot.BrainScopeId ?? "", this.GetPrimaryKeyString(), storage, CancellationToken.None); }
+            }
+            catch (Exception failure) when (failure is not OperationCanceledException)
+            {
+                errors[path] = failure.Message;
+                await Persist(Snapshot with { BehaviorErrors = errors });
+            }
+        }
+        return Describe(Snapshot);
+    }
+
+    public async Task<AppSnapshot> DeleteBehavior(string path, Guid operationId)
+    {
+        RequireLive();
+        RequireBehaviorPath(path);
+        if (Replay(operationId, new BehaviorDelete(path))) { return Describe(Snapshot); }
+        var files = new Dictionary<string, string>(Snapshot.Files, StringComparer.Ordinal);
+        files.Remove(path);
+        var errors = new Dictionary<string, string>(Snapshot.BehaviorErrors, StringComparer.Ordinal);
+        errors.Remove(path);
+        var deployable = deployables.FirstOrDefault(candidate => candidate.Name == Snapshot.Runtime);
+        var deployed = Snapshot.DeployedFiles;
+        var storage = Snapshot.StorageFiles;
+        if (deployable is not null)
+        {
+            // Keys are deterministic per (app, generation, path): retiring everything and
+            // redeploying what remains keeps the survivors' keys and drops exactly the removed one.
+            await deployable.Retire(this.GetPrimaryKeyString(), Snapshot.DeployedFiles, CancellationToken.None);
+            var programs = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var (remaining, source) in files)
+            {
+                if (remaining == PackageContent.SourcePath
+                    || (remaining.StartsWith(PackageContent.BehaviorsPrefix, StringComparison.Ordinal) && remaining.EndsWith(".cs", StringComparison.Ordinal)))
+                { programs[remaining] = source; }
+            }
+            var keys = programs.Count == 0
+                ? []
+                : await deployable.Deploy(new(this.GetPrimaryKeyString(), Snapshot.BrainScopeId ?? "",
+                    Snapshot.ProgramGeneration, programs, Configuration(Snapshot.Settings, Snapshot.Accounts)), CancellationToken.None);
+            var removed = Snapshot.DeployedFiles.Except(keys, StringComparer.Ordinal).ToArray();
+            deployed = keys;
+            storage = Snapshot.StorageFiles.Except(removed, StringComparer.Ordinal).ToArray();
+        }
+        await Persist(Snapshot with
+        {
+            Files = files, BehaviorErrors = errors, DeployedFiles = deployed, StorageFiles = storage,
+            Receipts = Receipted(operationId, new BehaviorDelete(path)),
+        });
+        return Describe(Snapshot);
+    }
+
+    public async Task<AppSnapshot> SaveDocument(AppAuthoringDocument document, Guid operationId)
+    {
+        RequireLive();
+        ArgumentNullException.ThrowIfNull(document);
+        if (Replay(operationId, document)) { return Describe(Snapshot); }
+        // Verdicts bind to stable scenario ids; a scenario that left the document takes its verdict with it.
+        var ids = document.Scenarios.Select(scenario => scenario.Id).ToHashSet(StringComparer.Ordinal);
+        var verdicts = Snapshot.Verdicts.Where(verdict => verdict.ScenarioId is { } id && ids.Contains(id)).ToArray();
+        await Persist(Snapshot with { Document = document, Verdicts = verdicts, Receipts = Receipted(operationId, document) });
+        return Describe(Snapshot);
+    }
+
+    public async Task RecordVerdicts(AppScenarioVerdict[] verdicts, Guid operationId)
+    {
+        RequireLive();
+        ArgumentNullException.ThrowIfNull(verdicts);
+        if (Replay(operationId, verdicts)) { return; }
+        var merged = Snapshot.Verdicts.Where(existing => verdicts.All(update => update.ScenarioId != existing.ScenarioId))
+            .Concat(verdicts).ToArray();
+        await Persist(Snapshot with { Verdicts = merged, Receipts = Receipted(operationId, verdicts) });
+    }
+
+    public Task<AppContent> ReadContent() => Task.FromResult(new AppContent(
+        new PackageManifest(Snapshot.Title, Snapshot.Description, Snapshot.Operations.ToArray(), Snapshot.Declared.ToArray(), Runtime: Snapshot.Runtime),
+        new Dictionary<string, string>(Snapshot.Files),
+        Snapshot.Document,
+        Snapshot.Verdicts.ToArray(),
+        new Dictionary<string, string>(Snapshot.BehaviorErrors)));
+
+    [GenerateSerializer, Alias("apps.behavior-write")]
+    internal sealed record BehaviorWrite([property: Id(0)] string Path, [property: Id(1)] string Source);
+    [GenerateSerializer, Alias("apps.behavior-delete")]
+    internal sealed record BehaviorDelete([property: Id(0)] string Path);
+
+    private async Task Claim()
+    {
+        if (Snapshot.BrainScopeId is null && CallerContextStamper.TryGet(out var creator))
+        {
+            await Persist(Snapshot with
+            {
+                BrainScopeId = BrainScope.CurrentId(),
+                InstallerAppId = creator.Kind == DigitalBrain.Enforcement.CallerKind.App ? creator.AppId : null,
+            });
+        }
+    }
+
+    private void RequireLive()
+    {
+        RequireInstalled();
+        if (Snapshot.Revision is not null)
+        { throw new InvalidOperationException("This app runs a package revision; fork it to edit a live copy."); }
+    }
+
+    private static void RequireBehaviorPath(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        if (path != PackageContent.SourcePath
+            && !(path.StartsWith(PackageContent.BehaviorsPrefix, StringComparison.Ordinal) && path.EndsWith(".cs", StringComparison.Ordinal)))
+        { throw new ArgumentException("A behavior is app.cs or a behaviors/*.cs file."); }
+    }
+
     public async Task<AppSnapshot> Install(InstallApp request)
     {
         ArgumentNullException.ThrowIfNull(request);

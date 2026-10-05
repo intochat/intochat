@@ -14,6 +14,13 @@ public interface IApp : INeuron
     [ResponseTimeout("00:10:00")] Task<AppSnapshot> Configure(ConfigureApp request);
     [ResponseTimeout("00:10:00")] Task<AppSnapshot> Upgrade(UpgradeApp request);
     [ResponseTimeout("00:10:00")] Task<AppSnapshot> Uninstall(UninstallApp request);
+    // The live app: created running, edited per behavior, allowed red.
+    [ResponseTimeout("00:10:00")] Task<AppSnapshot> Create(CreateApp request);
+    [ResponseTimeout("00:10:00")] Task<AppSnapshot> WriteBehavior(string path, string source, Guid operationId);
+    [ResponseTimeout("00:10:00")] Task<AppSnapshot> DeleteBehavior(string path, Guid operationId);
+    Task<AppSnapshot> SaveDocument(AppAuthoringDocument document, Guid operationId);
+    Task RecordVerdicts(AppScenarioVerdict[] verdicts, Guid operationId);
+    [Orleans.Concurrency.ReadOnly, Orleans.Concurrency.AlwaysInterleave] Task<AppContent> ReadContent();
     Task<AppInvocation> Invoke(InvokeApp request);
     Task<AppInvocation> Respond(AppResponse response);
     Task<AppInvocation> ReadInvocation(Guid invocationId);
