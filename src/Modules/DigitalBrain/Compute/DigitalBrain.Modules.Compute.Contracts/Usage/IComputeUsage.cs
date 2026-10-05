@@ -11,6 +11,6 @@ public sealed record UsagePage([property: Id(0)] IReadOnlyList<UsageRow> Items, 
 [Alias("compute.usage"), Orleans.Metadata.DefaultGrainType("compute.usage")]
 public interface IComputeUsage : INeuron
 {
-    Task Append(string workspace, string id, string payload, DateTimeOffset revision, CancellationToken ct = default);
-    Task<UsagePage> Read(string workspace, int limit, string? cursor, CancellationToken ct = default);
+    Task Append(string brainId, string id, string payload, DateTimeOffset revision, CancellationToken ct = default);
+    Task<UsagePage> Read(string brainId, int limit, string? cursor, CancellationToken ct = default);
 }

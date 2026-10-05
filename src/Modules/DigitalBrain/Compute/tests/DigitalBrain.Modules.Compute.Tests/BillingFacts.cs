@@ -28,7 +28,7 @@ public sealed class BillingFacts
         {
             ReservationId = "intent-1:neuron:chat", AllowanceId = "budget",
             ReservedCompute = 5m, SettledCompute = 3m, Settled = true,
-            OccurredAt = Now, IntentId = "intent-1", WorkspaceId = "brain-1",
+            OccurredAt = Now, IntentId = "intent-1", BrainId = "brain-1",
             AppId = "app-1", Operation = "chat",
         };
         var meter = RecurringMeters.Accrue("brain-1", "storage.gb_month", 2m, "gb_month", Now);

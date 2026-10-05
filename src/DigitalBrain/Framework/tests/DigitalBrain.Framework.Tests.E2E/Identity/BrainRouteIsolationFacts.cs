@@ -48,7 +48,7 @@ public sealed class BrainRouteIsolationFacts(ReferenceBrainFixture host)
         var aliceLedger = brain.Get<DigitalBrain.Compute.IAllowanceLedger>(alicePerson.Account);
         await aliceLedger.GrantAsync(new DigitalBrain.Compute.Allowance
         {
-            AllowanceId = "budget", AccountId = alicePerson.Account, WorkspaceId = aliceWorkspace,
+            AllowanceId = "budget", AccountId = alicePerson.Account, BrainId = aliceWorkspace,
             Level = DigitalBrain.Compute.ApprovalLevel.StandingBudget,
             Scope = DigitalBrain.Compute.AllowanceScope.Always,
             LimitCompute = 100m, PriceBookVersion = new DigitalBrain.Compute.PriceBook().Version,

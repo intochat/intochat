@@ -34,11 +34,11 @@ public sealed class ChaosChargeFacts
         Assert.True(report.SpentCompute <= report.LimitCompute);
     }
 
-    private static Allowance Allowance(string account, string workspace, decimal limit) => new()
+    private static Allowance Allowance(string account, string brainId, decimal limit) => new()
     {
         AllowanceId = "budget",
         AccountId = account,
-        WorkspaceId = workspace,
+        BrainId = brainId,
         Level = ApprovalLevel.StandingBudget,
         Scope = AllowanceScope.Always,
         LimitCompute = limit,
@@ -46,14 +46,14 @@ public sealed class ChaosChargeFacts
         GrantedAt = DateTimeOffset.UtcNow,
     };
 
-    private static CallRequest Paid(string account, string workspace, decimal compute, string intent,
+    private static CallRequest Paid(string account, string brainId, decimal compute, string intent,
         string? appId = null, string operation = "Render", params string[] permissions) => new()
         {
             Caller = new CallerContext
             {
                 PrincipalId = "principal",
                 AccountId = account,
-                BrainId = workspace,
+                BrainId = brainId,
                 Kind = CallerKind.Assistant,
                 StampedBy = TrustedEdge.AuthenticatedHttp,
                 AppId = appId,

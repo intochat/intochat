@@ -17,7 +17,7 @@ public enum AllowanceScope
     Always = 2,
 }
 
-// One approved spending right. A standing budget covers a workspace, install consent covers an app
+// One approved spending right. A standing budget covers a brainId, install consent covers an app
 // up to a monthly limit, and a per-operation allowance covers one operation. Permissions and the
 // price book version are recorded at grant time so a later permission or price growth forces
 // re-consent instead of silently extending the approval.
@@ -26,7 +26,7 @@ public sealed record Allowance
 {
     [Id(0)] public required string AllowanceId { get; init; }
     [Id(1)] public required string AccountId { get; init; }
-    [Id(2)] public required string WorkspaceId { get; init; }
+    [Id(2)] public required string BrainId { get; init; }
     [Id(3)] public string? AppId { get; init; }
     [Id(4)] public string? Operation { get; init; }
     [Id(5)] public required ApprovalLevel Level { get; init; }
@@ -51,7 +51,7 @@ public sealed record AllowanceReservation
     [Id(3)] public decimal SettledCompute { get; init; }
     [Id(4)] public required DateTimeOffset OccurredAt { get; init; }
     [Id(5)] public string? IntentId { get; init; }
-    [Id(6)] public required string WorkspaceId { get; init; }
+    [Id(6)] public required string BrainId { get; init; }
     [Id(7)] public string? AppId { get; init; }
     [Id(8)] public required string Operation { get; init; }
     [Id(9)] public FailureClass Failure { get; init; }
@@ -63,7 +63,7 @@ public sealed record AllowanceReservation
 public sealed record PendingApproval
 {
     [Id(0)] public required string ApprovalId { get; init; }
-    [Id(1)] public required string WorkspaceId { get; init; }
+    [Id(1)] public required string BrainId { get; init; }
     [Id(2)] public string? AppId { get; init; }
     [Id(3)] public required string Operation { get; init; }
     [Id(4)] public required decimal EstimatedCompute { get; init; }
@@ -81,12 +81,12 @@ public enum LimitAlert
     At100 = 3,
 }
 
-// Caps at account, workspace, app and run scope. Zero means "no cap at this scope".
+// Caps at account, brainId, app and run scope. Zero means "no cap at this scope".
 [GenerateSerializer, Alias("compute.limit-policy")]
 public sealed record LimitPolicy
 {
     [Id(0)] public decimal AccountLimitCompute { get; init; }
-    [Id(1)] public decimal WorkspaceLimitCompute { get; init; }
+    [Id(1)] public decimal BrainLimitCompute { get; init; }
     [Id(2)] public decimal AppLimitCompute { get; init; }
     [Id(3)] public decimal RunLimitCompute { get; init; }
 }
@@ -148,8 +148,8 @@ public static class AllowanceReservations
 [Orleans.Metadata.DefaultGrainType("compute-allowance-ledger")]
 public interface IAllowanceLedger : INeuron
 {
-    Task<decimal> ReadReservedAsync(string? workspaceId = null, string? intentId = null, CancellationToken cancellationToken = default);
-    Task<decimal> ReadSettledAsync(string? workspaceId = null, string? intentId = null, CancellationToken cancellationToken = default);
+    Task<decimal> ReadReservedAsync(string? brainId = null, string? intentId = null, CancellationToken cancellationToken = default);
+    Task<decimal> ReadSettledAsync(string? brainId = null, string? intentId = null, CancellationToken cancellationToken = default);
 
     Task<AllowanceDecision> AuthorizeAsync(CallRequest request, CancellationToken cancellationToken = default);
 

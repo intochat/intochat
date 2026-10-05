@@ -16,13 +16,13 @@ public sealed class NeuronStoreFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<ComputeModule>().StartAsync(ct);
         var usage = brain.Get<IComputeUsage>("account");
-        await usage.Append("workspace", "one", "first", DateTimeOffset.UnixEpoch, ct);
-        await usage.Append("workspace", "two", "second", DateTimeOffset.UnixEpoch, ct);
+        await usage.Append("brain", "one", "first", DateTimeOffset.UnixEpoch, ct);
+        await usage.Append("brain", "two", "second", DateTimeOffset.UnixEpoch, ct);
         await brain.DeactivateAsync(usage, ct);
-        var page = await usage.Read("workspace", 1, null, ct);
+        var page = await usage.Read("brain", 1, null, ct);
         Assert.Single(page.Items);
         Assert.NotNull(page.NextCursor);
-        var next = await usage.Read("workspace", 1, page.NextCursor, ct);
+        var next = await usage.Read("brain", 1, page.NextCursor, ct);
         Assert.Single(next.Items);
         Assert.NotEqual(page.Items[0].Id, next.Items[0].Id);
         Assert.Empty((await usage.Read("other", 20, null, ct)).Items);
@@ -115,17 +115,17 @@ public sealed class NeuronStoreFacts
         Assert.DoesNotContain("InMemory", brain.SiloServices.GetRequiredService<IMeterStore>().GetType().Name);
         Assert.DoesNotContain("File", brain.SiloServices.GetRequiredService<IUsageStore>().GetType().Name);
         var usage = brain.SiloServices.GetRequiredService<IUsageStore>();
-        await usage.AppendAsync("account", "workspace", "first", "original", ct);
-        var firstTime = (await usage.ReadAsync("account", "workspace", 1, null, ct)).Items[0].OccurredAt;
-        await usage.AppendAsync("account", "workspace", "second", "second", ct);
-        await usage.AppendAsync("account", "workspace", "first", "newer", ct);
-        await usage.AppendAsync("account", "workspace", "first", "stale", ct, DateTimeOffset.UnixEpoch);
-        var first = await usage.ReadAsync("account", "workspace", 1, null, ct);
-        var second = await usage.ReadAsync("account", "workspace", 1, first.NextCursor, ct);
+        await usage.AppendAsync("account", "brain", "first", "original", ct);
+        var firstTime = (await usage.ReadAsync("account", "brain", 1, null, ct)).Items[0].OccurredAt;
+        await usage.AppendAsync("account", "brain", "second", "second", ct);
+        await usage.AppendAsync("account", "brain", "first", "newer", ct);
+        await usage.AppendAsync("account", "brain", "first", "stale", ct, DateTimeOffset.UnixEpoch);
+        var first = await usage.ReadAsync("account", "brain", 1, null, ct);
+        var second = await usage.ReadAsync("account", "brain", 1, first.NextCursor, ct);
         Assert.Equal("second", Assert.Single(first.Items).Id);
         Assert.Equal("newer", Assert.Single(second.Items).Payload);
         Assert.Equal(firstTime, second.Items[0].OccurredAt);
         Assert.Null(second.NextCursor);
-        await Assert.ThrowsAsync<ArgumentException>(() => usage.ReadAsync("other", "workspace", 1, first.NextCursor, ct).AsTask());
+        await Assert.ThrowsAsync<ArgumentException>(() => usage.ReadAsync("other", "brain", 1, first.NextCursor, ct).AsTask());
     }
 }

@@ -24,9 +24,14 @@ public sealed class AllowanceFacts
         Assert.Equal(3m, await ledger.ReadSettledAsync("ws-1", "settled", ct));
         Assert.Equal(0m, await ledger.ReadSettledAsync("ws-1", "reserved", ct));
         Assert.Equal(7m, await ledger.ReadReservedAsync(cancellationToken: ct));
-        Assert.Equal(0m, await ledger.ReadReservedAsync("other-workspace", cancellationToken: ct));
+        Assert.Equal(0m, await ledger.ReadReservedAsync("other-brain", cancellationToken: ct));
         Assert.Equal(7m, await ledger.ReadReservedAsync("ws-1", "reserved", ct));
         Assert.Equal(0m, await brain.Get<IAllowanceLedger>("other-account").ReadSettledAsync(cancellationToken: ct));
+
+        await ledger.GrantAsync(AllowanceOf("late-budget", "ws-2", ApprovalLevel.StandingBudget, AllowanceScope.Always, 100m), ct);
+        await brain.DeactivateAsync(ledger, ct);
+        var afterReload = await ledger.AuthorizeAsync(Paid("account", "ws-2", "chat", 5m, intent: "after-reload"), ct);
+        Assert.True(afterReload.Allowed);
     }
 
     private static readonly DateTimeOffset Now = new(2026, 9, 23, 12, 0, 0, TimeSpan.Zero);
@@ -78,7 +83,7 @@ public sealed class AllowanceFacts
             AllowanceId = "once",
             ReservedCompute = 5m,
             OccurredAt = Now,
-            WorkspaceId = "ws-1",
+            BrainId = "ws-1",
             Operation = "Render",
         };
 
@@ -114,7 +119,7 @@ public sealed class AllowanceFacts
             Settled = true,
             SettledCompute = 10m,
             OccurredAt = new DateTimeOffset(2026, 8, 5, 0, 0, 0, TimeSpan.Zero),
-            WorkspaceId = "ws-1",
+            BrainId = "ws-1",
             AppId = "app-1",
             Operation = "Render",
         };
@@ -279,13 +284,13 @@ public sealed class AllowanceFacts
         Assert.Equal(0m, report.SpentCompute);
     }
 
-    private static Allowance AllowanceOf(string id, string workspace, ApprovalLevel level, AllowanceScope scope, decimal limit,
+    private static Allowance AllowanceOf(string id, string brainId, ApprovalLevel level, AllowanceScope scope, decimal limit,
         string? appId = null, string? operation = null)
         => new()
         {
             AllowanceId = id,
             AccountId = "account",
-            WorkspaceId = workspace,
+            BrainId = brainId,
             AppId = appId,
             Operation = operation,
             Level = level,
@@ -302,7 +307,7 @@ public sealed class AllowanceFacts
         DateTimeOffset? hardStoppedAt = null)
         => new(allowances ?? [], reservations ?? [], policy ?? new LimitPolicy(), PriceVersion, LimitAlert.None, hardStoppedAt);
 
-    private static CallRequest Paid(string account, string workspace, string? conversation, decimal compute,
+    private static CallRequest Paid(string account, string brainId, string? conversation, decimal compute,
         string? appId = null, string operation = "Render", string? intent = null, params string[] permissions)
         => new()
         {
@@ -310,7 +315,7 @@ public sealed class AllowanceFacts
             {
                 PrincipalId = "principal",
                 AccountId = account,
-                BrainId = workspace,
+                BrainId = brainId,
                 Kind = CallerKind.Assistant,
                 StampedBy = TrustedEdge.AuthenticatedHttp,
                 AppId = appId,
@@ -324,13 +329,13 @@ public sealed class AllowanceFacts
             SemanticTypeIds = permissions,
         };
 
-    private static CallRequest ReadOnly(string account, string workspace) => new()
+    private static CallRequest ReadOnly(string account, string brainId) => new()
     {
         Caller = new CallerContext
         {
             PrincipalId = "principal",
             AccountId = account,
-            BrainId = workspace,
+            BrainId = brainId,
             Kind = CallerKind.Assistant,
             StampedBy = TrustedEdge.AuthenticatedHttp,
         },

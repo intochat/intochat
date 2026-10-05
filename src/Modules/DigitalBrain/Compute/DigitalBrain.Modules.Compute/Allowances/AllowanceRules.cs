@@ -156,7 +156,7 @@ internal static class AllowanceRules
     private static bool ContextMatches(Allowance allowance, CallRequest request)
     {
         var caller = request.Caller;
-        if (!string.Equals(allowance.WorkspaceId, caller.BrainId, StringComparison.Ordinal)) { return false; }
+        if (!string.Equals(allowance.BrainId, caller.BrainId, StringComparison.Ordinal)) { return false; }
         if (allowance.AppId is { Length: > 0 } allowedApp
             && !string.Equals(allowedApp, caller.AppId, StringComparison.Ordinal)) { return false; }
         return allowance.Operation is not { Length: > 0 } operation
@@ -195,8 +195,8 @@ internal static class AllowanceRules
         var candidates = new List<LimitAssessment>();
 
         Add(policy.AccountLimitCompute, Sum(snapshot.Reservations, _ => true));
-        Add(policy.WorkspaceLimitCompute, Sum(snapshot.Reservations,
-            reservation => string.Equals(reservation.WorkspaceId, caller.BrainId, StringComparison.Ordinal)));
+        Add(policy.BrainLimitCompute, Sum(snapshot.Reservations,
+            reservation => string.Equals(reservation.BrainId, caller.BrainId, StringComparison.Ordinal)));
         if (caller.AppId is { Length: > 0 })
         {
             Add(policy.AppLimitCompute, Sum(snapshot.Reservations,

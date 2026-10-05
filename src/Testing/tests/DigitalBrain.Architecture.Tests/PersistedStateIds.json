@@ -677,7 +677,7 @@
   "DigitalBrain.Compute.Allowance": {
     "AllowanceId": 0,
     "AccountId": 1,
-    "WorkspaceId": 2,
+    "BrainId": 2,
     "AppId": 3,
     "Operation": 4,
     "Level": 5,
@@ -706,7 +706,7 @@
     "SettledCompute": 3,
     "OccurredAt": 4,
     "IntentId": 5,
-    "WorkspaceId": 6,
+    "BrainId": 6,
     "AppId": 7,
     "Operation": 8,
     "Failure": 9,
@@ -736,7 +736,7 @@
   },
   "DigitalBrain.Compute.LimitPolicy": {
     "AccountLimitCompute": 0,
-    "WorkspaceLimitCompute": 1,
+    "BrainLimitCompute": 1,
     "AppLimitCompute": 2,
     "RunLimitCompute": 3
   },
@@ -752,7 +752,7 @@
     "IntentId": 0,
     "MeterId": 1,
     "Step": 2,
-    "WorkspaceId": 3,
+    "BrainId": 3,
     "Quantity": 4,
     "Unit": 5,
     "Source": 6,
@@ -770,7 +770,7 @@
   },
   "DigitalBrain.Compute.PendingApproval": {
     "ApprovalId": 0,
-    "WorkspaceId": 1,
+    "BrainId": 1,
     "AppId": 2,
     "Operation": 3,
     "EstimatedCompute": 4,

@@ -47,28 +47,28 @@ internal sealed class NeuronMeterStore(IGrainFactory grains) : IMeterStore
 
 internal sealed class NeuronUsageStore(IGrainFactory grains) : IUsageStore
 {
-    private IComputeRecords Records(string account, string workspace) => grains.GetGrain<IComputeRecords>(ComputeRecordsNeuron.UsageKeyPrefix + UsagePaging.Scope(account, workspace));
+    private IComputeRecords Records(string account, string brainId) => grains.GetGrain<IComputeRecords>(ComputeRecordsNeuron.UsageKeyPrefix + UsagePaging.Scope(account, brainId));
 
-    private IComputeRecords Ready(string account, string workspace, CancellationToken ct)
+    private IComputeRecords Ready(string account, string brainId, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(account);
-        ArgumentException.ThrowIfNullOrWhiteSpace(workspace);
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
         ct.ThrowIfCancellationRequested();
-        return Records(account, workspace);
+        return Records(account, brainId);
     }
 
-    public async ValueTask AppendAsync(string account, string workspace, string id, string payload, CancellationToken ct = default, DateTimeOffset? revision = null)
+    public async ValueTask AppendAsync(string account, string brainId, string id, string payload, CancellationToken ct = default, DateTimeOffset? revision = null)
     {
-        var records = Ready(account, workspace, ct);
+        var records = Ready(account, brainId, ct);
         await records.Put([new(id, payload, UsagePaging.Key(id), (revision ?? DateTimeOffset.UtcNow).UtcTicks)], true);
     }
 
-    public async ValueTask<UsagePage> ReadAsync(string account, string workspace, int limit, string? cursor, CancellationToken ct = default)
+    public async ValueTask<UsagePage> ReadAsync(string account, string brainId, int limit, string? cursor, CancellationToken ct = default)
     {
-        var before = UsagePaging.Decode(account, workspace, limit, cursor);
-        var records = Ready(account, workspace, ct);
+        var before = UsagePaging.Decode(account, brainId, limit, cursor);
+        var records = Ready(account, brainId, ct);
         var page = await records.Page(before, limit);
         return new(page.Items.Select(row => new UsageRow(row.Id, row.Payload, UsagePaging.OccurredAt(row.SortKey), row.Revision)).ToArray(),
-            page.NextKey is null ? null : UsagePaging.Encode(account, workspace, page.NextKey));
+            page.NextKey is null ? null : UsagePaging.Encode(account, brainId, page.NextKey));
     }
 }

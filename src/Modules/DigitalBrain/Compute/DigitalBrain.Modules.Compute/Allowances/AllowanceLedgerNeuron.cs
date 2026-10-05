@@ -44,19 +44,19 @@ internal sealed class AllowanceLedgerNeuron : Neuron<AllowanceLedgerState>, IAll
 
     private string AccountId => this.GetPrimaryKeyString();
 
-    public Task<decimal> ReadSettledAsync(string? workspaceId = null, string? intentId = null, CancellationToken cancellationToken = default)
+    public Task<decimal> ReadSettledAsync(string? brainId = null, string? intentId = null, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(Snapshot.Reservations.Where(item => item.Settled
-            && (workspaceId is null || item.WorkspaceId == workspaceId)
+            && (brainId is null || item.BrainId == brainId)
             && (intentId is null || item.IntentId == intentId)).Sum(item => item.SettledCompute));
     }
 
-    public Task<decimal> ReadReservedAsync(string? workspaceId = null, string? intentId = null, CancellationToken cancellationToken = default)
+    public Task<decimal> ReadReservedAsync(string? brainId = null, string? intentId = null, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(Snapshot.Reservations.Where(item => !item.Settled
-            && (workspaceId is null || item.WorkspaceId == workspaceId)
+            && (brainId is null || item.BrainId == brainId)
             && (intentId is null || item.IntentId == intentId)).Sum(item => item.ReservedCompute));
     }
 
@@ -88,7 +88,7 @@ internal sealed class AllowanceLedgerNeuron : Neuron<AllowanceLedgerState>, IAll
                 ReservedCompute = request.EstimatedCompute,
                 OccurredAt = now,
                 IntentId = request.Caller.IntentId,
-                WorkspaceId = request.Caller.BrainId,
+                BrainId = request.Caller.BrainId,
                 AppId = request.Caller.AppId,
                 Operation = request.Operation,
             });
@@ -136,7 +136,7 @@ internal sealed class AllowanceLedgerNeuron : Neuron<AllowanceLedgerState>, IAll
         {
             AllowanceId = approvalId,
             AccountId = AccountId,
-            WorkspaceId = pending.WorkspaceId,
+            BrainId = pending.BrainId,
             AppId = pending.AppId,
             Operation = level == ApprovalLevel.PerOperation ? pending.Operation : null,
             Level = level,
@@ -229,7 +229,7 @@ internal sealed class AllowanceLedgerNeuron : Neuron<AllowanceLedgerState>, IAll
         next.Pending.Add(new PendingApproval
         {
             ApprovalId = approvalId,
-            WorkspaceId = request.Caller.BrainId,
+            BrainId = request.Caller.BrainId,
             AppId = request.Caller.AppId,
             Operation = request.Operation,
             EstimatedCompute = request.EstimatedCompute,
@@ -244,7 +244,7 @@ internal sealed class AllowanceLedgerNeuron : Neuron<AllowanceLedgerState>, IAll
     {
         var caps = new List<decimal>();
         if (policy.AccountLimitCompute > 0) { caps.Add(policy.AccountLimitCompute); }
-        if (policy.WorkspaceLimitCompute > 0) { caps.Add(policy.WorkspaceLimitCompute); }
+        if (policy.BrainLimitCompute > 0) { caps.Add(policy.BrainLimitCompute); }
         if (policy.AppLimitCompute > 0 && reservation.AppId is { Length: > 0 }) { caps.Add(policy.AppLimitCompute); }
         if (policy.RunLimitCompute > 0 && reservation.IntentId is { Length: > 0 }) { caps.Add(policy.RunLimitCompute); }
         return caps.Count == 0 ? 0m : caps.Min();

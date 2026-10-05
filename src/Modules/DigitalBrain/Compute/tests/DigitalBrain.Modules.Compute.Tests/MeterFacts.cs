@@ -65,11 +65,11 @@ public sealed class MeterFacts
         var sampler = new StorageSampler(probe, store);
         var day1 = new DateTimeOffset(2026, 9, 1, 6, 0, 0, TimeSpan.Zero);
 
-        var first = await sampler.SampleAsync("workspace-a", day1, ct);
+        var first = await sampler.SampleAsync("brain-a", day1, ct);
         probe.Bytes = 512L * 1024 * 1024;
-        var lower = await sampler.SampleAsync("workspace-a", day1.AddHours(6), ct);
+        var lower = await sampler.SampleAsync("brain-a", day1.AddHours(6), ct);
         probe.Bytes = 3L * 1024 * 1024 * 1024;
-        var second = await sampler.SampleAsync("workspace-a", day1.AddDays(1), ct);
+        var second = await sampler.SampleAsync("brain-a", day1.AddDays(1), ct);
 
         Assert.NotNull(first);
         Assert.Null(lower);
@@ -134,7 +134,7 @@ public sealed class MeterFacts
         IntentId = "intent-1",
         MeterId = "llm.gpt.input_tokens",
         Step = "input_tokens",
-        BrainId = "workspace-a",
+        BrainId = "brain-a",
         Quantity = 10,
         Unit = "tokens",
         Source = MeterSource.ChatClient,

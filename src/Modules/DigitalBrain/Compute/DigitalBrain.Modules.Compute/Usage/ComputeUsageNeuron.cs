@@ -14,21 +14,21 @@ internal sealed class ComputeUsageNeuron(IUsageStore store) : Neuron, IComputeUs
         RequireScope(BrainScope.CurrentId());
         return new(BrainScope.CurrentId());
     }
-    public async Task Append(string workspace, string id, string payload, DateTimeOffset revision, CancellationToken ct = default)
+    public async Task Append(string brainId, string id, string payload, DateTimeOffset revision, CancellationToken ct = default)
     {
-        RequireScope(workspace);
-        await store.AppendAsync(this.GetPrimaryKeyString(), workspace, id, payload, ct, revision);
+        RequireScope(brainId);
+        await store.AppendAsync(this.GetPrimaryKeyString(), brainId, id, payload, ct, revision);
     }
-    public async Task<UsagePage> Read(string workspace, int limit, string? cursor, CancellationToken ct = default)
+    public async Task<UsagePage> Read(string brainId, int limit, string? cursor, CancellationToken ct = default)
     {
-        RequireScope(workspace);
-        return await store.ReadAsync(this.GetPrimaryKeyString(), workspace, limit, cursor, ct);
+        RequireScope(brainId);
+        return await store.ReadAsync(this.GetPrimaryKeyString(), brainId, limit, cursor, ct);
     }
 
-    private void RequireScope(string workspace)
+    private void RequireScope(string brainId)
     {
         if (CallerContextStamper.TryGet(out var caller) && caller.Kind != CallerKind.Platform
-            && (caller.AccountId != this.GetPrimaryKeyString() || workspace != BrainScope.CurrentId()))
+            && (caller.AccountId != this.GetPrimaryKeyString() || brainId != BrainScope.CurrentId()))
         { throw new UnauthorizedAccessException("Usage belongs to another brain."); }
     }
 }
