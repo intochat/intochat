@@ -2,7 +2,6 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Apps;
 using DigitalBrain.Enforcement;
-using DigitalBrain.Flutter;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 using Microsoft.AspNetCore.Builder;
@@ -60,7 +59,9 @@ internal static class BuiltInSettingsEndpoints
         var surfaceName = payload.RootElement.GetProperty("surface").GetString()!;
         return Results.Ok(new
         {
-            surface = new { kind = UIVocabulary.SurfaceType, name = surfaceName },
+            // "surface" is the shell's renderable kind (Flutter UIVocabulary.SurfaceType); the
+            // literal keeps this module free of the UI palette.
+            surface = new { kind = "surface", name = surfaceName },
             preferences = payload.RootElement.GetProperty("preferences").Clone(),
         });
     }
