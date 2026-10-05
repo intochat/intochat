@@ -462,20 +462,6 @@
     "Expected": "[{\"Name\":\"legacy-value\",\"AppId\":0,\"Kind\":\"legacy-value\",\"State\":\"legacy-value\",\"Conclusion\":\"legacy-value\",\"Sha\":\"legacy-value\",\"AttemptId\":\"legacy-value\",\"UpdatedAt\":\"0001-01-01T00:00:00+00:00\"}]"
   },
   {
-    "Type": "DigitalBrain.Registry.NeuronInstance",
-    "Member": "TypeIds",
-    "Representation": "array",
-    "Payload": "MAFjVhurMXJlZ2lzdHJ5Lm5ldXJvbi1pbnN0YW5jZejAAcEBKTUAA0EZbGVnYWN5LXZhbHVl4EEhAAAAAAAAAAAAAAAAAAAAACGAAAAAAAAAAACBAAAAAAAAAADgIYAAAAAAAAAAAIEAAAAAAAAAAOABAeA=",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.Registry.NeuronInstance",
-    "Member": "TypeIds",
-    "Representation": "list",
-    "Payload": "MAFjVhurMXJlZ2lzdHJ5Lm5ldXJvbi1pbnN0YW5jZejAAcEBMQFZ0bcpV1N5c3RlbS5Db2xsZWN0aW9ucy5HZW5lcmljLkxpc3RgMVtbc3RyaW5nXV0AA0EZbGVnYWN5LXZhbHVl4EEhAAAAAAAAAAAAAAAAAAAAACGAAAAAAAAAAACBAAAAAAAAAADgIYAAAAAAAAAAAIEAAAAAAAAAAOABAeA=",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
     "Type": "DigitalBrain.Supabase.Tables.SupabaseTableRow",
     "Member": "Cells",
     "Representation": "array",

@@ -5,10 +5,11 @@ namespace DigitalBrain.Architecture.Tests;
 
 public sealed class PersistedStateFacts
 {
-    // These IDs were retired before the architecture suite existed. Never fill their gaps.
+    // Retired IDs remain reserved. Never fill their gaps.
     private static readonly Dictionary<string, uint[]> RetiredIds = new()
     {
         ["DigitalBrain.Apps.AppState"] = [2],
+        ["DigitalBrain.Apps.InstalledAppsState"] = [1, 2],
         ["DigitalBrain.Apps.CommitPackage"] = [3],
         ["DigitalBrain.Apps.PackageRevision"] = [3],
         ["DigitalBrain.Assistant.AssistantState"] = [5],

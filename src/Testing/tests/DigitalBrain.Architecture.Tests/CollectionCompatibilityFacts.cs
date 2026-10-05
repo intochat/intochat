@@ -19,7 +19,7 @@ public sealed class CollectionCompatibilityFacts
         using var provider = services.BuildServiceProvider();
         var serializer = provider.GetRequiredService<Serializer>();
         var options = new JsonSerializerOptions { IgnoreReadOnlyProperties = true };
-        Assert.Equal(78, samples.Length);
+        Assert.Equal(76, samples.Length);
         Assert.All(samples, sample =>
         {
             var value = serializer.Deserialize<object>(Convert.FromBase64String(sample.Payload));
@@ -34,3 +34,4 @@ public sealed class CollectionCompatibilityFacts
 
     private sealed record Sample(string Type, string Member, string Representation, string Payload, string Expected);
 }
+

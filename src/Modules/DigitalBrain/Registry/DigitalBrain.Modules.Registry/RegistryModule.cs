@@ -18,7 +18,6 @@ public sealed class RegistryModule() : Module(new ModuleId("registry"))
         silo.Services.TryAddSingleton<RegistryDiscoveryService>();
         silo.Services.TryAddSingleton(provider => new NeuronTypeSearch(provider.GetRequiredService<NeuronTypes>(),
             provider.GetService<IVectorStore>(), Embeddings(provider)));
-        silo.Services.AddHostedService<RegistryObserver>();
     }
 
     private static IEmbeddingGenerator<string, Embedding<float>>? Embeddings(IServiceProvider services)

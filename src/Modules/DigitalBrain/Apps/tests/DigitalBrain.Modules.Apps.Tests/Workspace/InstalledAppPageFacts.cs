@@ -11,7 +11,7 @@ namespace DigitalBrain.Modules.Apps.Tests.Workspace;
 public sealed class InstalledAppPageFacts
 {
     [Fact]
-    public async Task PagingBackfillsALegacyInstallationWithoutASeparateListCall()
+    public async Task PagingUsesOnlyTrackedInstallationsAndSurvivesReactivation()
     {
         var ct = TestContext.Current.CancellationToken;
         var storage = new FlakyGrainStorage();
@@ -27,17 +27,16 @@ public sealed class InstalledAppPageFacts
         await app.Install(new(Guid.NewGuid(), new(id, revision.Id), new Dictionary<string, string>()));
         CallerContextStamper.Stamp(CallerContextStamper.Require() with { Kind = CallerKind.Platform, StampedBy = TrustedEdge.Platform });
         var registry = brain.Get<IRegistry>(IRegistry.Key);
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(TimeSpan.FromSeconds(10));
-        while (!(await registry.Instances("apps.app")).Any(item => item.Key == scope + "/packages/" + id))
-        { await Task.Delay(20, timeout.Token); }
         var index = brain.Get<IApps>(scope);
         await brain.DeactivateAsync(index, ct);
         await storage.ClearStateAsync("installed-apps", index.GetGrainId(), new GrainState<InstalledAppsState>());
         Caller.As("alice");
         var page = await index.Page(0, 10);
         Assert.True(page.Ready);
-        Assert.Equal(id, Assert.Single(page.Packages));
+        Assert.Empty(page.Packages);
+        await index.Track(id);
+        await brain.DeactivateAsync(index, ct);
+        Assert.Equal(id, Assert.Single((await index.Page(0, 10)).Packages));
         Assert.Equal("apps:" + id, Assert.Single((await registry.Browse("", "apps", cancellationToken: ct)).Capabilities).Id);
     }
 }

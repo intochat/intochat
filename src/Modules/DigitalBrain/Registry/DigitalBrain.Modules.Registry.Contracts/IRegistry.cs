@@ -5,7 +5,6 @@ namespace DigitalBrain.Registry;
 [Alias("registry"), Orleans.Metadata.DefaultGrainType("registry")]
 public interface IRegistry : INeuron
 {
-    // The one registry per brain lives under its own module key.
     const string Key = "registry";
 
     Task<RegistryDiscovery> Discover(string query, CancellationToken cancellationToken = default);
@@ -13,9 +12,7 @@ public interface IRegistry : INeuron
     Task<RegistryCapability?> Select(string id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<NeuronType>> Types();
     Task<IReadOnlyList<NeuronTypeHit>> Search(string query, int take = 10, CancellationToken cancellationToken = default);
-    // Installed-app index migration reads this snapshot while discovery awaits its provider.
-    [Orleans.Concurrency.AlwaysInterleave]
-    Task<IReadOnlyList<NeuronInstance>> Instances(string? typeId = null, bool activeOnly = false, int skip = 0, int take = 100);
+
 }
 
 [GenerateSerializer, Alias("registry.neuron-type")]
@@ -40,13 +37,3 @@ public sealed record NeuronType(
 [GenerateSerializer, Alias("registry.type-hit")]
 public sealed record NeuronTypeHit([property: Id(0)] NeuronType Type, [property: Id(1)] double Score);
 
-// One observed identity, not an event log or an authoritative liveness record.
-[GenerateSerializer, Alias("registry.neuron-instance")]
-public sealed record NeuronInstance(
-    [property: Id(0)] string Id,
-    [property: Id(1)] string Key,
-    [property: Id(2)] string[] TypeIds,
-    [property: Id(3)] Guid ActivationId,
-    [property: Id(4)] DateTimeOffset FirstSeenAt,
-    [property: Id(5)] DateTimeOffset LastSeenAt,
-    [property: Id(6)] bool LastKnownActive);

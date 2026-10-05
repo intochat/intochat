@@ -102,37 +102,37 @@
     "Json": 0
   },
   "DigitalBrain.AI.Agents.AgentTurnEvent": {},
-  "DigitalBrain.AI.Agents.AgentTurnEvent\u002BCompleted": {
+  "DigitalBrain.AI.Agents.AgentTurnEvent+Completed": {
     "Messages": 0,
     "Usage": 1
   },
-  "DigitalBrain.AI.Agents.AgentTurnEvent\u002BFailed": {
+  "DigitalBrain.AI.Agents.AgentTurnEvent+Failed": {
     "Message": 0,
     "Cancelled": 1
   },
-  "DigitalBrain.AI.Agents.AgentTurnEvent\u002BFinished": {},
-  "DigitalBrain.AI.Agents.AgentTurnEvent\u002BModelSelected": {
+  "DigitalBrain.AI.Agents.AgentTurnEvent+Finished": {},
+  "DigitalBrain.AI.Agents.AgentTurnEvent+ModelSelected": {
     "Model": 0,
     "Descriptor": 1
   },
-  "DigitalBrain.AI.Agents.AgentTurnEvent\u002BStarted": {
+  "DigitalBrain.AI.Agents.AgentTurnEvent+Started": {
     "RunId": 0
   },
-  "DigitalBrain.AI.Agents.AgentTurnEvent\u002BText": {
+  "DigitalBrain.AI.Agents.AgentTurnEvent+Text": {
     "Content": 0
   },
-  "DigitalBrain.AI.Agents.AgentTurnEvent\u002BToolCompleted": {
+  "DigitalBrain.AI.Agents.AgentTurnEvent+ToolCompleted": {
     "CallId": 0,
     "Name": 1,
     "Result": 2
   },
-  "DigitalBrain.AI.Agents.AgentTurnEvent\u002BToolFailed": {
+  "DigitalBrain.AI.Agents.AgentTurnEvent+ToolFailed": {
     "CallId": 0,
     "Name": 1,
     "Code": 2,
     "Message": 3
   },
-  "DigitalBrain.AI.Agents.AgentTurnEvent\u002BToolStarted": {
+  "DigitalBrain.AI.Agents.AgentTurnEvent+ToolStarted": {
     "CallId": 0,
     "Name": 1,
     "Arguments": 2
@@ -573,7 +573,7 @@
   "DigitalBrain.Apps.AppState": {
     "Status": 0,
     "Revision": 1,
-    "\u003Cretired:2\u003E": 2,
+    "<retired:2>": 2,
     "Declared": 3,
     "Settings": 4,
     "Operations": 5,
@@ -614,7 +614,7 @@
     "OperationId": 0,
     "ExpectedHead": 1,
     "Content": 2,
-    "\u003Cretired:3\u003E": 3,
+    "<retired:3>": 3,
     "Message": 4,
     "MergeFrom": 5
   },
@@ -639,8 +639,8 @@
   },
   "DigitalBrain.Apps.InstalledAppsState": {
     "Packages": 0,
-    "Discovered": 1,
-    "DiscoveryOffset": 2
+    "<retired:1>": 1,
+    "<retired:2>": 2
   },
   "DigitalBrain.Apps.InvokeApp": {
     "InvocationId": 0,
@@ -702,7 +702,7 @@
     "Id": 0,
     "Parents": 1,
     "Content": 2,
-    "\u003Cretired:3\u003E": 3,
+    "<retired:3>": 3,
     "Author": 4,
     "Message": 5,
     "CommittedAt": 6
@@ -814,7 +814,7 @@
     "SelectedThread": 2,
     "Threads": 3,
     "Owner": 4,
-    "\u003Cretired:5\u003E": 5
+    "<retired:5>": 5
   },
   "DigitalBrain.Assistant.AssistantThread": {
     "Id": 0,
@@ -1014,7 +1014,7 @@
   },
   "DigitalBrain.Compute.Storage.ComputeRecordsState": {
     "Root": 0,
-    "\u003Cretired:1\u003E": 1
+    "<retired:1>": 1
   },
   "DigitalBrain.Compute.Storage.ComputeStoredRecord": {
     "Id": 0,
@@ -1634,7 +1634,7 @@
   },
   "DigitalBrain.Flutter.WebBrowser.Signals.BrowserConnected": {
     "Name": 0,
-    "\u003Cretired:1\u003E": 1,
+    "<retired:1>": 1,
     "SessionId": 2
   },
   "DigitalBrain.Flutter.WebBrowser.Signals.BrowserDisconnected": {
@@ -1682,7 +1682,7 @@
   "DigitalBrain.Flutter.Workspace.ShellHeadState": {
     "Revision": 0,
     "Root": 1,
-    "\u003Cretired:2\u003E": 2,
+    "<retired:2>": 2,
     "LastOperation": 3,
     "LastDigest": 4
   },
@@ -1847,8 +1847,8 @@
   "DigitalBrain.Google.Gmail.GmailState": {
     "Subject": 0,
     "Email": 1,
-    "\u003Cretired:2\u003E": 2,
-    "\u003Cretired:3\u003E": 3,
+    "<retired:2>": 2,
+    "<retired:3>": 3,
     "GrantedScopes": 4,
     "ExpiresAt": 5,
     "CanCompose": 6,
@@ -2187,14 +2187,14 @@
     "Label": 3,
     "IsSet": 4,
     "SealedValue": 5,
-    "\u003Cretired:6\u003E": 6,
+    "<retired:6>": 6,
     "SealedSecret": 7
   },
   "DigitalBrain.Platform.Secrets.SecretsState": {
     "Owner": 0,
     "WrappedOwnerKey": 1,
     "Fields": 2,
-    "\u003Cretired:3\u003E": 3
+    "<retired:3>": 3
   },
   "DigitalBrain.Postgres.PostgresAppTableResource": {
     "AppId": 0,
@@ -2283,15 +2283,6 @@
     "Column": 0,
     "Json": 1
   },
-  "DigitalBrain.Registry.NeuronInstance": {
-    "Id": 0,
-    "Key": 1,
-    "TypeIds": 2,
-    "ActivationId": 3,
-    "FirstSeenAt": 4,
-    "LastSeenAt": 5,
-    "LastKnownActive": 6
-  },
   "DigitalBrain.Registry.NeuronType": {
     "Id": 0,
     "ModuleId": 1,
@@ -2321,9 +2312,6 @@
   "DigitalBrain.Registry.RegistryDiscoveryError": {
     "Provider": 0,
     "Message": 1
-  },
-  "DigitalBrain.Registry.RegistryState": {
-    "Instances": 0
   },
   "DigitalBrain.Salesforce.ConfirmSalesforceWrite": {
     "PreviewId": 0,

@@ -1,11 +1,10 @@
 # Registry
 
-Registry exposes three distinct views through `IRegistry`:
+Registry exposes contract and capability views through `IRegistry`:
 
 ```csharp
 await registry.Types();                  // Installed public neuron contracts
 await registry.Search("table");          // Search those contract descriptions
-await registry.Instances();              // Observed runtime activity (diagnostics)
 await registry.Discover("my app data");  // Current caller's capabilities/resources
 ```
 
@@ -23,7 +22,4 @@ The Assistant adapts discovery results into `AgentToolOffer`. The generic AI run
 those bindings through registered factories and dynamic sources, without database-specific
 regexes. Reflected contract methods do not automatically become executable model tools.
 
-Providers currently execute serially and return the full catalog. Large catalogs and slow
-providers increase latency and response size; paging and per-provider budgets are not yet
-implemented. `Instances` permits read-only interleaving so legacy app-index backfill can
-inspect activity during discovery without a Registry-to-Apps-to-Registry deadlock.
+Resource browsing is paged and bounded by a per-provider timeout. Discovery is derived; no registry state is persisted.
