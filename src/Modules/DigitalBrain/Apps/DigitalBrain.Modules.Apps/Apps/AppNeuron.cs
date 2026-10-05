@@ -128,10 +128,23 @@ internal sealed class AppNeuron(
         RequireCreated();
         var record = Snapshot.History.FirstOrDefault(item => item.Version == version)
             ?? throw new ArgumentException($"No version {version}. This app has: {string.Join(", ", Snapshot.History.Select(item => item.Version))}.");
+        // Behaviors the target version lacks stop running: they are retired before the
+        // surviving ones redeploy, and their tracked keys leave with them.
+        var removed = Snapshot.Files.Keys.Where(AppFiles.IsBehavior)
+            .Where(path => !record.Files.ContainsKey(path)).ToArray();
+        var removedKeys = Deployable()?.Keys(this.GetPrimaryKeyString(), Snapshot.ProgramGeneration, removed) ?? [];
+        if (Deployable() is { } runtime && removedKeys.Length > 0)
+        {
+            await runtime.Retire(this.GetPrimaryKeyString(), removedKeys, CancellationToken.None);
+            foreach (var hook in storageHooks)
+            { await hook.OnRetired(Snapshot.BrainScopeId ?? "", this.GetPrimaryKeyString(), removedKeys, CancellationToken.None); }
+        }
         var next = Snapshot.Clone();
         next.Manifest = record.Manifest;
         next.Spec = record.Spec;
         next.Files = new(record.Files, StringComparer.Ordinal);
+        next.StorageFiles = [.. next.StorageFiles.Except(removedKeys, StringComparer.Ordinal)];
+        next.DeployedFiles = [.. next.DeployedFiles.Except(removedKeys, StringComparer.Ordinal)];
         next.Version = Bump(next.Version, minor: false);
         Record(next);
         await Persist(next);
@@ -164,7 +177,7 @@ internal sealed class AppNeuron(
         await Persist(next);
     }
 
-    public async Task<AppSnapshot> CompleteBuild(Guid attempt, Dictionary<string, string>? files, string? error)
+    public async Task<AppSnapshot> CompleteBuild(Guid attempt, Dictionary<string, string>? files, string? error, AppManifest? manifest = null)
     {
         if (Snapshot.Status != AppStatus.Building || attempt != Snapshot.BuildAttempt) { return Describe(Snapshot); }
         var next = Snapshot.Clone();
@@ -176,6 +189,12 @@ internal sealed class AppNeuron(
             return Describe(Snapshot);
         }
         var firstTests = files.ContainsKey(AppFiles.TestsPath) && !next.Files.ContainsKey(AppFiles.TestsPath);
+        if (manifest is not null)
+        {
+            next.Manifest = manifest;
+            foreach (var setting in manifest.Settings)
+            { if (!next.Settings.ContainsKey(setting.Name)) { next.Settings[setting.Name] = setting.Default; } }
+        }
         foreach (var (path, source) in files) { next.Files[path] = source; }
         var behaviorPaths = files.Keys.Where(AppFiles.IsBehavior).ToArray();
         var keys = Deployable()?.Keys(this.GetPrimaryKeyString(), next.ProgramGeneration, behaviorPaths) ?? [];
@@ -200,16 +219,19 @@ internal sealed class AppNeuron(
         return Describe(Snapshot);
     }
 
-    public async Task RecordVerdicts(AppScenarioVerdict[] verdicts, bool green)
+    public async Task RecordVerdicts(AppScenarioVerdict[] verdicts, bool green, string? version = null)
     {
         RequireCreated();
         ArgumentNullException.ThrowIfNull(verdicts);
+        var tested = version ?? Snapshot.Version;
         var next = Snapshot.Clone();
-        next.Verdicts = verdicts;
-        next.Verified[next.Version] = green;
-        next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), green ? "verification green" : "verification red"];
+        next.Verified[tested] = green;
+        // Verdicts for a version the app has moved past stay informative, never current facts.
+        if (tested == next.Version) { next.Verdicts = verdicts; }
+        next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1),
+            (green ? "verification green" : "verification red") + (tested == next.Version ? "" : $" (for {tested})")];
         var name = Name();
-        await Save(next, new AppChanged(name, next.Version, next.Status), new AppVerified(name, next.Version, green));
+        await Save(next, new AppChanged(name, next.Version, next.Status), new AppVerified(name, tested, green));
     }
 
     public Task<AppBundle> Export()
@@ -225,6 +247,11 @@ internal sealed class AppNeuron(
     public async Task<AppSnapshot> Import(AppBundle bundle)
     {
         ArgumentNullException.ThrowIfNull(bundle);
+        if (bundle.Name != Name() || string.IsNullOrWhiteSpace(bundle.Name)
+            || bundle.Name.Any(c => !char.IsAsciiLetterLower(c) && !char.IsAsciiDigit(c) && c != '-'))
+        { throw new InvalidDataException($"'{bundle.Name}' is not a valid app name: lowercase letters, digits and dashes, matching the key."); }
+        if (bundle.Version.Split('.') is not { Length: 3 } parts || parts.Any(part => !part.All(char.IsAsciiDigit) || part.Length == 0))
+        { throw new InvalidDataException($"'{bundle.Version}' is not a version of the form major.minor.patch."); }
         if (Snapshot.Manifest is not null)
         { throw new InvalidOperationException($"You already have an app named {Name()}."); }
         var next = Snapshot.Clone();

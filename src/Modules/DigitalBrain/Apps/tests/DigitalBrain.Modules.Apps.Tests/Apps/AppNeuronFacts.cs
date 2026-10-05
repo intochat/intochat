@@ -176,6 +176,37 @@ public sealed class AppNeuronFacts
     }
 
     [Fact]
+    public async Task VerdictsRecordedForAnOlderVersionDoNotMarkTheCurrentOneGreen()
+    {
+        await using var brain = await Start();
+        var app = brain.Get<IApp>(IApp.Key(Brain, "stale-verdict"));
+        await app.Create(Manifest(), "## Scenario: Echoes\nIt echoes.");
+        var tested = (await app.Read()).Version;
+        await app.SaveSpec("## Scenario: Echoes\nIt echoes twice.", Guid.NewGuid());
+        await app.RecordVerdicts([new("Echoes", true, "ok")], green: true, tested);
+        await Assert.ThrowsAsync<InvalidOperationException>(app.Export);
+        var snapshot = await app.Read();
+        Assert.True(snapshot.Versions.Single(version => version.Version == tested).Green);
+        Assert.Null(snapshot.Versions.Single(version => version.Version == snapshot.Version).Green);
+    }
+
+    [Fact]
+    public async Task AStaleWorkersManifestIsIgnoredWithItsFiles()
+    {
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
+            .ConfigureSilo(silo => silo.Services.PostConfigure<AppsOptions>(options => options.BuildFreshForSeconds = 0))
+            .StartAsync(TestContext.Current.CancellationToken);
+        var app = brain.Get<IApp>(IApp.Key(Brain, "stale-manifest"));
+        await app.Create(Manifest(), "spec");
+        await app.BeginBuild(null);
+        var oldAttempt = await app.CurrentBuildAttempt();
+        await app.BeginBuild(null);
+        var ignored = await app.CompleteBuild(oldAttempt, new() { ["tests.cs"] = "// stale" }, null,
+            new AppManifest("Hijacked", "", [], [], []));
+        Assert.Equal("Echo", ignored.Manifest.Title);
+    }
+
+    [Fact]
     public async Task HistoryIsCappedAtTwentyVersions()
     {
         await using var brain = await Start();

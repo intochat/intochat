@@ -20,7 +20,7 @@ internal static class AppVerifyJob
             new(snapshot.Files, StringComparer.Ordinal));
         var (verdicts, green) = await RunBundle(grains, services.GetRequiredService<ITestScriptRunner>(),
             bundle, appKey + "--verify-" + Guid.NewGuid().ToString("N"), cancellationToken);
-        await app.RecordVerdicts(verdicts, green);
+        await app.RecordVerdicts(verdicts, green, snapshot.Version);
     }
 
     // Imports the bundle at the scratch key, runs its tests there, and deletes the copy.
@@ -28,9 +28,11 @@ internal static class AppVerifyJob
         IGrainFactory grains, ITestScriptRunner runner, AppBundle bundle, string scratchKey, CancellationToken cancellationToken)
     {
         var scratch = grains.GetGrain<IApp>(scratchKey);
+        var marker = scratchKey.LastIndexOf("/apps/", StringComparison.Ordinal);
+        var scratchName = marker >= 0 ? scratchKey[(marker + "/apps/".Length)..] : scratchKey;
         try
         {
-            await scratch.Import(bundle);
+            await scratch.Import(bundle with { Name = scratchName });
             var run = await runner.RunAsync(scratchKey, bundle.Files.GetValueOrDefault(AppFiles.TestsPath, ""), cancellationToken);
             var declared = Scenarios(bundle.Spec);
             var verdicts = new List<AppScenarioVerdict>(run.Scenarios);

@@ -59,7 +59,7 @@ internal sealed class ShippedAppPublisher(
         }
         if (installed.Manifest.Title.Length > 0) { await app.Delete(); }
         await app.Import(bundle);
-        await app.RecordVerdicts(verdicts, green: true);
+        await app.RecordVerdicts(verdicts, green: true, bundle.Version);
     }
 
     // null means every app; an empty set means none.

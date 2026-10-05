@@ -19,9 +19,11 @@ public interface IApp : INeuron
     Task<AppSnapshot> BeginBuild(string? instruction);
     Task<Guid> CurrentBuildAttempt();
     Task Progress(string line);
-    [ResponseTimeout("00:10:00")] Task<AppSnapshot> CompleteBuild(Guid attempt, Dictionary<string, string>? files, string? error);
+    [ResponseTimeout("00:10:00")] Task<AppSnapshot> CompleteBuild(Guid attempt, Dictionary<string, string>? files, string? error, AppManifest? manifest = null);
     Task<AppSnapshot> BeginVerify();
-    Task RecordVerdicts(AppScenarioVerdict[] verdicts, bool green);
+    // Verdicts bind to the version that was actually tested; a run finishing after an edit
+    // marks that older version, never the current one.
+    Task RecordVerdicts(AppScenarioVerdict[] verdicts, bool green, string? version = null);
     Task<AppBundle> Export();
     Task<AppSnapshot> Import(AppBundle bundle);
     [ResponseTimeout("00:10:00")] Task Delete();

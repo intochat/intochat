@@ -93,6 +93,18 @@ public sealed class AppSharingFacts
     }
 
     [Fact]
+    public async Task ImportRefusesAnInvalidNameOrAnUnparsableVersion()
+    {
+        await using var brain = await Start();
+        var sneaky = brain.Get<IApp>(IApp.Key("sharing-h", "x/apps/y"));
+        await Assert.ThrowsAsync<InvalidDataException>(() => sneaky.Import(
+            new("x/apps/y", "1.0.0", Manifest(), "spec", new() { ["tests.cs"] = "// t" })));
+        var odd = brain.Get<IApp>(IApp.Key("sharing-h", "odd"));
+        await Assert.ThrowsAsync<InvalidDataException>(() => odd.Import(
+            new("odd", "1.0.0-rc1", Manifest(), "spec", new() { ["tests.cs"] = "// t" })));
+    }
+
+    [Fact]
     public async Task EditingAnImportedAppBumpsItsOwnHistoryFromTheImportedBaseline()
     {
         await using var brain = await Start();

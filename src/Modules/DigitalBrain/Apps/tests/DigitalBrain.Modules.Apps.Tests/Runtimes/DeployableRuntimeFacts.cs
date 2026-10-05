@@ -53,4 +53,24 @@ public sealed class DeployableRuntimeFacts
         var retired = Assert.Single(runtime.Retired);
         Assert.Contains("fake-behaviors/track.cs", retired.Keys);
     }
+
+    [Fact]
+    public async Task RollbackRetiresBehaviorsTheTargetVersionLacks()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runtime = new FakeRuntime();
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
+            .ConfigureSilo(silo => { silo.Services.RemoveAll<IDeployableRuntime>(); silo.Services.AddSingleton<IDeployableRuntime>(runtime); })
+            .StartAsync(ct);
+        var app = brain.Get<IApp>(IApp.Key("runtime-facts", "rollback"));
+        await app.Create(new("Tracker", "tracks", [], [], []), "spec");
+        await app.WriteBehavior("behaviors/keep.cs", "// keep", Guid.NewGuid());
+        var before = (await app.Read()).Version;
+        await app.WriteBehavior("behaviors/extra.cs", "// extra", Guid.NewGuid());
+
+        var rolled = await app.Rollback(before);
+
+        Assert.False(rolled.Files.ContainsKey("behaviors/extra.cs"));
+        Assert.Contains(runtime.Retired, retired => retired.Keys.Contains("fake-behaviors/extra.cs"));
+    }
 }

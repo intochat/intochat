@@ -89,14 +89,17 @@ internal sealed class Creator(
             { await app.CompleteBuild(attempt, null, "the Builder produced no files"); return; }
             if (!files.ContainsKey(AppFiles.TestsPath) && !snapshot.Files.ContainsKey(AppFiles.TestsPath))
             { await app.CompleteBuild(attempt, null, $"the implementation must include {AppFiles.TestsPath}, the scenarios' proof"); return; }
-            if (built.Operations is { Length: > 0 } || built.Settings is { Count: > 0 })
-            {
-                await app.SaveManifest(new(snapshot.Manifest.Title, snapshot.Manifest.Description,
+            // Manifest changes land with the files, inside the attempt check: a stale
+            // worker's manifest is discarded with its files.
+            var manifest = built.Operations is { Length: > 0 } || built.Settings is { Count: > 0 }
+                ? new AppManifest(snapshot.Manifest.Title, snapshot.Manifest.Description,
                     built.Operations is { Length: > 0 } ? built.Operations : snapshot.Manifest.Operations,
-                    [.. (built.Settings ?? []).Select(setting => new AppSetting(setting.Name, setting.Description ?? "", setting.Default ?? ""))],
-                    snapshot.Manifest.Slots), Guid.NewGuid());
-            }
-            await app.CompleteBuild(attempt, files, null);
+                    built.Settings is { Count: > 0 }
+                        ? [.. built.Settings.Select(setting => new AppSetting(setting.Name, setting.Description ?? "", setting.Default ?? ""))]
+                        : snapshot.Manifest.Settings,
+                    snapshot.Manifest.Slots)
+                : null;
+            await app.CompleteBuild(attempt, files, null, manifest);
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
