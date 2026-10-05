@@ -113,4 +113,17 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
     public void AReadOnlySourceRefusesToWrite()
         => Assert.Throws<InvalidOperationException>(() => new DirectoryShippedAppSource(_root, "vendor").Write(
             new("echo", "1.0.0", new("Echo", "Echoes.", [], [], []), "", [])));
+
+    [Fact]
+    public void TheIntoChatAppsShipTheirIcons()
+    {
+        var apps = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "..", "..", "..", "IntoChat", "Apps"));
+        var bundles = new DirectoryShippedAppSource(apps, "intochat").Load();
+        Assert.NotEmpty(bundles);
+        foreach (var app in bundles)
+        {
+            Assert.Equal("icon.svg", app.Manifest.Icon);
+            Assert.StartsWith("<svg", app.Files["icon.svg"], StringComparison.Ordinal);
+        }
+    }
 }
