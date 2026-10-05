@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Metering;
 namespace DigitalBrain.Compute.Metering;
 
 internal interface IMeterStore

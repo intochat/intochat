@@ -1,5 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Compute;
+using DigitalBrain.Framework.Metering;
 using DigitalBrain.Framework;
 
 namespace DigitalBrain.AI.Metering;
@@ -10,7 +10,7 @@ namespace DigitalBrain.AI.Metering;
 internal static class IntentMeterEvents
 {
     public static IEnumerable<MeterEvent> FromUsage(
-        string intentId, string? workspaceId, IReadOnlyList<IIntentUsageEntry> usage)
+        string intentId, string? brainId, IReadOnlyList<IIntentUsageEntry> usage)
     {
         foreach (var entry in usage.OfType<TokenUsageEntry>())
         {
@@ -23,7 +23,7 @@ internal static class IntentMeterEvents
                     IntentId = intentId,
                     MeterId = $"{prefix}.{entry.Model}.{step}",
                     Step = step,
-                    WorkspaceId = workspaceId ?? string.Empty,
+                    BrainId = brainId ?? string.Empty,
                     Quantity = quantity,
                     Unit = "tokens",
                     Source = source,
@@ -34,8 +34,8 @@ internal static class IntentMeterEvents
         }
     }
 
-    public static IEnumerable<MeterEvent> FromUsage(string intentId, string? workspaceId, TokenUsageEntry entry)
-        => FromUsage(intentId, workspaceId, [entry]);
+    public static IEnumerable<MeterEvent> FromUsage(string intentId, string? brainId, TokenUsageEntry entry)
+        => FromUsage(intentId, brainId, [entry]);
 
     private static IEnumerable<(string Step, decimal Quantity)> Classes(TokenUsageEntry entry)
     {

@@ -1,5 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Compute;
+using DigitalBrain.Framework.Metering;
 using DigitalBrain.Framework;
 using Orleans;
 
@@ -34,10 +34,10 @@ internal sealed class GrainIntentUsageSink(IGrainFactory grains, IMeterSink? met
         await EmitAsync(intent.IntentId, intent.ScopeId, entries, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task EmitAsync(string intentId, string? workspaceId, TokenUsageEntry[] entries, CancellationToken cancellationToken)
+    private async Task EmitAsync(string intentId, string? brainId, TokenUsageEntry[] entries, CancellationToken cancellationToken)
     {
         if (meterSink is null) { return; }
-        var meterEvents = IntentMeterEvents.FromUsage(intentId, workspaceId, entries).ToArray();
+        var meterEvents = IntentMeterEvents.FromUsage(intentId, brainId, entries).ToArray();
         if (meterEvents.Length == 0) { return; }
         try
         {

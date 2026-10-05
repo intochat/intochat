@@ -2,7 +2,7 @@ using System.Runtime.CompilerServices;
 using DigitalBrain;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Metering;
-using DigitalBrain.Compute;
+using DigitalBrain.Framework.Metering;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.AI;
 using Xunit;
@@ -176,7 +176,7 @@ public sealed class MeteringFacts
         Assert.All(events, meterEvent =>
         {
             Assert.Equal("intent-1", meterEvent.IntentId);
-            Assert.Equal("scope", meterEvent.WorkspaceId);
+            Assert.Equal("scope", meterEvent.BrainId);
             Assert.Equal(MeterSource.ChatClient, meterEvent.Source);
         });
     }

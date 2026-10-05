@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Metering;
 namespace DigitalBrain.Compute.Metering;
 
 // A recurring meter accrues for a period without a user intent: storage and subscriptions are
@@ -7,14 +8,14 @@ internal static class RecurringMeters
     internal const string CostBasis = "recurring";
 
     internal static MeterEvent Accrue(
-        string workspaceId,
+        string brainId,
         string meterId,
         decimal quantity,
         string unit,
         DateTimeOffset now,
         string? appId = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
         ArgumentException.ThrowIfNullOrWhiteSpace(meterId);
         var period = now.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture);
         return new MeterEvent
@@ -22,7 +23,7 @@ internal static class RecurringMeters
             IntentId = $"recurring:{meterId}:{period}",
             MeterId = meterId,
             Step = period,
-            WorkspaceId = workspaceId,
+            BrainId = brainId,
             Quantity = quantity,
             Unit = unit,
             Source = MeterSource.StorageSampler,

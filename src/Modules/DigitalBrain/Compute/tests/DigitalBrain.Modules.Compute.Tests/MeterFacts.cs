@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Metering;
 using DigitalBrain.Compute;
 using DigitalBrain.Compute.Metering;
 using DigitalBrain.Compute.Reconciliation;
@@ -93,7 +94,7 @@ public sealed class MeterFacts
         IntentId = "intent-1",
         MeterId = "llm.gpt.input_tokens",
         Step = "input_tokens",
-        WorkspaceId = "workspace-a",
+        BrainId = "workspace-a",
         Quantity = 10,
         Unit = "tokens",
         Source = MeterSource.ChatClient,

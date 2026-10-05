@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Metering;
 namespace DigitalBrain.Compute.Storage;
 
 // Shadow storage meter. It keeps the highest byte count seen for each UTC day — the daily
@@ -17,9 +18,9 @@ internal sealed class StorageSampler(IStorageUsageProbe probe, Metering.IMeterSt
 
     public decimal GigabyteMonths => AverageDailyPeakGigabytes * (dailyPeaks.Count / DaysPerMonth);
 
-    public async ValueTask<MeterEvent?> SampleAsync(string workspaceId, DateTimeOffset now, CancellationToken cancellationToken = default)
+    public async ValueTask<MeterEvent?> SampleAsync(string brainId, DateTimeOffset now, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
         var day = DateOnly.FromDateTime(now.UtcDateTime);
         var bytes = await probe.ReadBytesAsync(cancellationToken).ConfigureAwait(false);
         if (dailyPeaks.TryGetValue(day, out var peak) && bytes <= peak) { return null; }
@@ -27,10 +28,10 @@ internal sealed class StorageSampler(IStorageUsageProbe probe, Metering.IMeterSt
 
         var meterEvent = new MeterEvent
         {
-            IntentId = $"storage:{workspaceId}:{day:yyyy-MM}",
+            IntentId = $"storage:{brainId}:{day:yyyy-MM}",
             MeterId = MeterId,
             Step = day.ToString("yyyy-MM-dd"),
-            WorkspaceId = workspaceId,
+            BrainId = brainId,
             Quantity = GigabyteMonths,
             Unit = "gb_month",
             Source = MeterSource.StorageSampler,
