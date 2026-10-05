@@ -7,10 +7,10 @@ namespace DigitalBrain.Apps.Tests.Apps;
 public sealed class AppGrainTypeFacts
 {
     [Fact]
-    public void TheAppNeuronDeclaresTheVocabularysAppGrainType()
+    public void TheAppNeuronDeclaresTheGrainTypeTheGuardsCheck()
     {
         var neuron = typeof(AppsModule).Assembly.GetType("DigitalBrain.Apps.AppNeuron", throwOnError: true)!;
         var declared = (GrainTypeAttribute)Attribute.GetCustomAttribute(neuron, typeof(GrainTypeAttribute))!;
-        Assert.Equal(DigitalBrain.AppGrainType.Name, declared.GetGrainType(null!, neuron).ToString());
+        Assert.Equal(DigitalBrain.Framework.AppGrainType.Name, declared.GetGrainType(null!, neuron).ToString());
     }
 }

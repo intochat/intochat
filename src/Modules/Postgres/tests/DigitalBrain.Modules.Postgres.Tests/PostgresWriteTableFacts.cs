@@ -497,7 +497,7 @@ public interface IPostgresLifecycleTestApp : DigitalBrain.INeuron
     Task Migrate(string[] files);
 }
 
-[GrainType(DigitalBrain.AppGrainType.Name)]
+[GrainType(DigitalBrain.Framework.AppGrainType.Name)]
 public sealed class PostgresLifecycleTestApp : DigitalBrain.Framework.Neuron, IPostgresLifecycleTestApp
 {
     public override NeuronAccess Access(string operation) => NeuronAccess.PublicOperation;

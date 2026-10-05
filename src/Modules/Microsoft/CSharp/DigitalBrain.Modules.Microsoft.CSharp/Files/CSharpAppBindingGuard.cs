@@ -16,7 +16,7 @@ internal sealed class CSharpAppBindingGuard : IIncomingGrainCallFilter
         if (context.InterfaceMethod.DeclaringType == typeof(ICSharpAppBinding))
         {
             var source = context.SourceId;
-            if (source is null || source.Value.Type.ToString() != DigitalBrain.AppGrainType.Name
+            if (source is null || source.Value.Type.ToString() != DigitalBrain.Framework.AppGrainType.Name
                 || source.Value.Key.ToString() != (string)context.Request.GetArgument(0)!)
             { throw new UnauthorizedAccessException("Only the originating Apps grain may bind a behavior."); }
             _ = BrainScope.CurrentId();

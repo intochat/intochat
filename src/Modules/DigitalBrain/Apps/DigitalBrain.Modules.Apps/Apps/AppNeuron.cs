@@ -9,7 +9,7 @@ namespace DigitalBrain.Apps;
 // The app: the only durable thing in the module. Manifest, spec, files, connections,
 // semver history, status and activity all live here; builders and verifiers are caches
 // that write their results back in.
-[GrainType(DigitalBrain.AppGrainType.Name)]
+[GrainType(DigitalBrain.Framework.AppGrainType.Name)]
 internal sealed class AppNeuron(
     [PersistentState("app2", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<AppState> store,
     TimeProvider clock, IOptions<AppsOptions> options,
