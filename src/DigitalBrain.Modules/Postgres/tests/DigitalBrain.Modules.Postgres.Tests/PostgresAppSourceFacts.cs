@@ -41,7 +41,7 @@ public sealed class PostgresAppSourceFacts
         }).StartAsync(ct);
         Stamp(CallerKind.App);
         await brain.AuthorizeCallerAsync();
-        await Assert.ThrowsAsync<IOException>(() => brain.Get<IPostgresTable>("pending-discovery").Define(new([new("id", "text")], ["id"])));
+        await Assert.ThrowsAsync<IOException>(() => brain.Get<ITable>("pending-discovery").Define(new([new("id", "text")], ["id"])));
         var scope = BrainScope.CurrentId();
         CallerContextStamper.Stamp(new()
         {
@@ -52,7 +52,7 @@ public sealed class PostgresAppSourceFacts
             AppId = "healthy-install",
             StampedBy = TrustedEdge.AppProxy
         });
-        await brain.Get<IPostgresTable>("healthy-discovery").Define(new([new("id", "text")], ["id"]));
+        await brain.Get<ITable>("healthy-discovery").Define(new([new("id", "text")], ["id"]));
         Stamp(CallerKind.Platform);
         await brain.AuthorizeCallerAsync();
         var result = await new PostgresAppResources(brain).CollectInstalled(["install", "healthy-install"], ct);
@@ -104,7 +104,7 @@ public sealed class PostgresAppSourceFacts
         }).StartAsync(ct);
         Stamp(CallerKind.App);
         await brain.AuthorizeCallerAsync();
-        var table = brain.Get<IPostgresTable>("research-resource");
+        var table = brain.Get<ITable>("research-resource");
         await table.Define(new([new("id", "text")], ["id"]));
         var owner = new TableOwner(BrainScope.CurrentId(), "install").Key;
         var resource = brain.Get<IPostgresTableResource>("research-resource");
@@ -114,12 +114,12 @@ public sealed class PostgresAppSourceFacts
         var discovered = await resource.DescribeResource(owner);
         Assert.Equal("db:research", discovered.Origin);
         Assert.Equal("install", discovered.AppId);
-        Assert.Equal(["research-resource"], await brain.Get<IPostgresTables>(owner).ReadTables());
+        Assert.Equal(["research-resource"], await brain.Get<ITableIndex>(owner).ReadTables());
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => resource.DescribeResource(new TableOwner(BrainScope.CurrentId(), "other-install").Key));
         Stamp(CallerKind.Platform, "other-brain");
         await brain.AuthorizeCallerAsync();
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => resource.DescribeResource(owner));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Get<IPostgresTables>(owner).ReadTables());
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Get<ITableIndex>(owner).ReadTables());
     }
 
     private static void Stamp(CallerKind kind, string brain = "brain")

@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using NpgsqlTypes;
+using DigitalBrain.Postgres.Tables;
 
 namespace DigitalBrain.Postgres;
 

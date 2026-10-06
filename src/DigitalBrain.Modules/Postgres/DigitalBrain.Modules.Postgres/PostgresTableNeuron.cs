@@ -4,6 +4,7 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 using Orleans.Runtime;
 using DigitalBrain.Postgres.Tables;
+using DigitalBrain.Postgres.Tables.Signals;
 
 namespace DigitalBrain.Postgres;
 
@@ -11,7 +12,7 @@ namespace DigitalBrain.Postgres;
 internal sealed record PostgresTableState
 {
     [Id(0)] public string? Owner { get; init; }
-    [Id(1)] public PostgresTableDefinition? Accepted { get; init; }
+    [Id(1)] public AcceptedTable? Accepted { get; init; }
     [Id(2)] public string? Origin { get; init; }
     [Id(3)] public TableDefinition? Pending { get; init; }
     [Id(4)] public string? PhysicalTable { get; init; }
@@ -19,7 +20,7 @@ internal sealed record PostgresTableState
 
 [GrainType("postgres.table")]
 internal sealed partial class PostgresTableNeuron(IPostgresTableProvider provider, DigitalBrain.Framework.Capacity.ICapacity capacity,
-    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<PostgresTableState> state) : Neuron, IPostgresTable, IPostgresTableLifetime
+    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<PostgresTableState> state) : Neuron, ITable, ITableLifetime
 {
     public override NeuronAccess Access(string operation)
     {
@@ -39,7 +40,7 @@ internal sealed partial class PostgresTableNeuron(IPostgresTableProvider provide
         return scope;
     }
 
-    private async Task<PostgresTableDefinition> Current()
+    private async Task<AcceptedTable> Current()
     {
         // Check each operation: caching would allow writes after the owner closes but before
         // its queued Retire reaches this table. Table serialization then orders accepted work before DROP.
@@ -47,7 +48,7 @@ internal sealed partial class PostgresTableNeuron(IPostgresTableProvider provide
         return state.State.Accepted ?? throw new PostgresQueryException("Define the table first.");
     }
 
-    private IPostgresTables Tables(string owner) => GrainFactory.GetGrain<IPostgresTables>(owner);
+    private ITableIndex Tables(string owner) => GrainFactory.GetGrain<ITableIndex>(owner);
 
     public async Task Retire(string owner)
     {
@@ -65,7 +66,7 @@ internal sealed partial class PostgresTableNeuron(IPostgresTableProvider provide
         catch { state.State = previous; throw; }
     }
 
-    public async Task<PostgresTableDefinition> Define(TableDefinition definition)
+    public async Task<AcceptedTable> Define(TableDefinition definition)
     {
         var scope = Scope();
         var normalized = PostgresTablePolicy.Validate(definition);
@@ -86,7 +87,7 @@ internal sealed partial class PostgresTableNeuron(IPostgresTableProvider provide
         await Tables(scope).Register(this.GetPrimaryKeyString());
         await Persist(state.State with { Owner = scope, Origin = origin, Pending = normalized });
         await provider.DefineAsync(origin, table, normalized, CancellationToken.None);
-        var result = new PostgresTableDefinition(table, normalized, 1);
+        var result = new AcceptedTable(table, normalized, 1);
         await Persist(new() { Owner = scope, Accepted = result, Origin = origin });
         await PublishAsync(new TableDefined(table, result.Revision));
         return result;

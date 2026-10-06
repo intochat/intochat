@@ -17,7 +17,7 @@ public sealed class PostgresFacts
     public async Task QueryReturnsTypedRowsThroughTheDefaultGrainType()
     {
         await using var brain = await StartAsync();
-        var result = await brain.Get<IPostgres>("default").Query(new(" select id from people; ", 10));
+        var result = await brain.Get<IPostgresServer>("default").Query(new(" select id from people; ", 10));
         Assert.Equal(1, result.RowCount);
         Assert.False(result.Truncated);
         Assert.Equal("id", Assert.Single(result.Columns).Name);
@@ -28,7 +28,7 @@ public sealed class PostgresFacts
     public async Task InvalidQueriesAreRejectedBeforeDatabaseAccess()
     {
         await using var brain = await StartAsync();
-        var postgres = brain.Get<IPostgres>("default");
+        var postgres = brain.Get<IPostgresServer>("default");
         await Assert.ThrowsAsync<PostgresQueryException>(() => postgres.Query(new(" ")));
         await Assert.ThrowsAsync<PostgresQueryException>(() => postgres.Query(new("delete from people")));
         await Assert.ThrowsAsync<PostgresQueryException>(() => postgres.Query(new("select 1", 0)));
@@ -39,7 +39,7 @@ public sealed class PostgresFacts
     public async Task SchemaAndConnectionAreAvailableThroughTheNeuron()
     {
         await using var brain = await StartAsync("reporting");
-        var postgres = brain.Get<IPostgres>("default");
+        var postgres = brain.Get<IPostgresServer>("default");
         var schema = await postgres.ReadSchema(new(" reporting.people "));
         Assert.Equal("reporting.people", Assert.Single(schema.Tables).Name);
         var connection = await postgres.ReadConnection();
@@ -132,7 +132,7 @@ public sealed class PostgresFacts
     public async Task InvalidSchemaNameIsRejected()
     {
         await using var brain = await StartAsync();
-        await Assert.ThrowsAsync<PostgresQueryException>(() => brain.Get<IPostgres>("default").ReadSchema(new("people; drop table people")));
+        await Assert.ThrowsAsync<PostgresQueryException>(() => brain.Get<IPostgresServer>("default").ReadSchema(new("people; drop table people")));
     }
 
     [Fact]

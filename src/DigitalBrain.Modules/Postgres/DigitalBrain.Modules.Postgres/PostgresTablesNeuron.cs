@@ -17,7 +17,7 @@ internal sealed record PostgresTablesState
 [GrainType("postgres.tables")]
 internal sealed class PostgresTablesNeuron(
     [PersistentState("tables", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<PostgresTablesState> state)
-    : Neuron, IPostgresTables
+    : Neuron, ITableIndex
 {
     private readonly SemaphoreSlim writes = new(1, 1);
 
@@ -49,7 +49,7 @@ internal sealed class PostgresTablesNeuron(
         // Registration must still answer while a table is finishing its in-flight Define.
         // The write gate is released before calls back to tables, so closed scopes refuse promptly.
         foreach (var table in state.State.Tables)
-        { await GrainFactory.GetGrain<IPostgresTableLifetime>(table).Retire(this.GetPrimaryKeyString()); }
+        { await GrainFactory.GetGrain<ITableLifetime>(table).Retire(this.GetPrimaryKeyString()); }
     }
 
     public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
@@ -72,7 +72,7 @@ internal sealed class PostgresLifecycleGuard : IIncomingGrainCallFilter
     public async Task Invoke(IIncomingGrainCallContext context)
     {
         var contract = context.InterfaceMethod.DeclaringType;
-        if (contract == typeof(IPostgresTables) && context.InterfaceMethod.Name == nameof(IPostgresTables.ReadTables))
+        if (contract == typeof(ITableIndex) && context.InterfaceMethod.Name == nameof(ITableIndex.ReadTables))
         {
             var scope = TableOwner.Parse(context.TargetId.Key.ToString()!);
             if (scope.BrainId != BrainScope.CurrentId())
@@ -81,21 +81,21 @@ internal sealed class PostgresLifecycleGuard : IIncomingGrainCallFilter
             if (!CallerContextStamper.IsTrusted(caller) || caller.Kind == CallerKind.App)
             { throw new UnauthorizedAccessException("Only trusted host code may read app storage."); }
         }
-        else if (contract == typeof(IPostgresTables) || contract == typeof(IPostgresTableLifetime))
+        else if (contract == typeof(ITableIndex) || contract == typeof(ITableLifetime))
         {
             var source = context.SourceId;
-            var expected = contract == typeof(IPostgresTableLifetime) ? "postgres.tables"
-                : context.InterfaceMethod.Name == nameof(IPostgresTables.Retire) ? DigitalBrain.Framework.AppGrainType.Name : "postgres.table";
+            var expected = contract == typeof(ITableLifetime) ? "postgres.tables"
+                : context.InterfaceMethod.Name == nameof(ITableIndex.Retire) ? DigitalBrain.Framework.AppGrainType.Name : "postgres.table";
             if (source is null || source.Value.Type.ToString() != expected)
             { throw new UnauthorizedAccessException("Only the owning module may change table lifetime."); }
-            var owner = contract == typeof(IPostgresTables) ? context.TargetId.Key.ToString()
+            var owner = contract == typeof(ITableIndex) ? context.TargetId.Key.ToString()
                 : (string)context.Request.GetArgument(0)!;
             var scope = TableOwner.Parse(owner);
             if (scope.BrainId != BrainScope.CurrentId())
             { throw new UnauthorizedAccessException("This storage belongs to another brain."); }
-            if (contract == typeof(IPostgresTableLifetime) && source.Value.Key.ToString() != owner)
+            if (contract == typeof(ITableLifetime) && source.Value.Key.ToString() != owner)
             { throw new UnauthorizedAccessException("This table belongs to another owner."); }
-            if (contract == typeof(IPostgresTables) && context.InterfaceMethod.Name == nameof(IPostgresTables.Register)
+            if (contract == typeof(ITableIndex) && context.InterfaceMethod.Name == nameof(ITableIndex.Register)
                 && source.Value.Key.ToString() != (string)context.Request.GetArgument(0)!)
             { throw new UnauthorizedAccessException("A table can only register itself."); }
         }

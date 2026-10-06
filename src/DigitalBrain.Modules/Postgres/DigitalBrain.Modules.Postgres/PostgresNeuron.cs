@@ -4,7 +4,7 @@ using Orleans.Concurrency;
 namespace DigitalBrain.Postgres;
 
 [GrainType("postgres")]
-internal sealed class PostgresNeuron(IPostgresProvider provider) : Neuron, IPostgres
+internal sealed class PostgresNeuron(IPostgresProvider provider) : Neuron, IPostgresServer
 {
     [ReadOnly]
     public Task<PostgresQueryResult> Query(PostgresQuery query)

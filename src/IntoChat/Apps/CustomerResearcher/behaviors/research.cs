@@ -14,7 +14,7 @@ using DigitalBrain.Apps.Signals;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Microsoft.Playwright;
-using DigitalBrain.Postgres;
+using DigitalBrain.Postgres.Tables;
 
 // One invocation stream orders research and cancellation. UI controls submit the same operations
 // as assistant tools. Storage belongs to the installation, independent of this file's name.
@@ -24,7 +24,7 @@ var app = brain.Get<IApp>(appKey);
 var status = brain.Get<IText>(appKey + "/status");
 var modelSetting = brain.Setting("Model") ?? "";
 var browserSetting = brain.Setting("Browser") ?? "";
-var table = brain.Get<IPostgresTable>(appKey + "/table");
+var table = brain.Get<ITable>(appKey + "/table");
 var sync = new object();
 var defined = false;
 CancellationTokenSource? running = null;

@@ -14,10 +14,10 @@ internal sealed class PostgresAppStorageHook(IServiceProvider services) : IAppSt
 
     public async Task OnRetired(string brainId, string appKey, string[] storageKeys, CancellationToken cancellationToken)
     {
-        await Grains.GetGrain<IPostgresTables>(new TableOwner(brainId, appKey).Key).Retire();
+        await Grains.GetGrain<ITableIndex>(new TableOwner(brainId, appKey).Key).Retire();
         foreach (var key in storageKeys)
         {
-            await Grains.GetGrain<IPostgresTables>(new TableOwner(brainId, key).Key).Retire();
+            await Grains.GetGrain<ITableIndex>(new TableOwner(brainId, key).Key).Retire();
         }
     }
 }

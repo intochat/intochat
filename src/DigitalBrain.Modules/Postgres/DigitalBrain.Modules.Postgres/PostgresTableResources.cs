@@ -17,7 +17,7 @@ internal sealed record PostgresAppTableResource(
     [property: Id(0)] string AppId,
     [property: Id(1)] string TableId,
     [property: Id(2)] string Origin,
-    [property: Id(3)] PostgresTableDefinition Table);
+    [property: Id(3)] AcceptedTable Table);
 
 internal sealed partial class PostgresTableNeuron : IPostgresTableResource
 {

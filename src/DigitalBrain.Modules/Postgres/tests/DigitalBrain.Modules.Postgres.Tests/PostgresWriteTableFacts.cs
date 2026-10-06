@@ -10,6 +10,7 @@ using Orleans;
 using Orleans.Runtime;
 using Orleans.Storage;
 using DigitalBrain.Postgres.Tables;
+using DigitalBrain.Postgres.Tables.Signals;
 
 namespace DigitalBrain.Modules.Postgres.Tests;
 
@@ -29,7 +30,7 @@ public sealed class PostgresWriteTableFacts
         }).StartAsync(ct);
         Stamp();
         await brain.AuthorizeCallerAsync();
-        var table = brain.Get<IPostgresTable>("pending-ddl");
+        var table = brain.Get<ITable>("pending-ddl");
         await Assert.ThrowsAsync<IOException>(() => table.Define(Definition));
         capacity.Origin = "db:replacement";
         await brain.DeactivateAsync(table, ct);
@@ -48,12 +49,12 @@ public sealed class PostgresWriteTableFacts
         await using var brain = await Start(new MemoryTables());
         Stamp();
         await brain.AuthorizeCallerAsync();
-        var first = brain.Get<IPostgresTable>("first-install");
+        var first = brain.Get<ITable>("first-install");
         await first.Define(Definition);
         await first.Upsert(Key(), Values("first"));
         Stamp("brain", "fork-file");
         await brain.AuthorizeCallerAsync();
-        var fork = brain.Get<IPostgresTable>("fork-install");
+        var fork = brain.Get<ITable>("fork-install");
         await fork.Define(Definition);
         await fork.Upsert(Key(), Values("fork"));
 
@@ -76,7 +77,7 @@ public sealed class PostgresWriteTableFacts
         }).StartAsync(ct);
         Stamp();
         await brain.AuthorizeCallerAsync();
-        var table = brain.Get<IPostgresTable>("race");
+        var table = brain.Get<ITable>("race");
         await table.Define(Definition);
         race.HoldOpen = true;
         var defining = table.Define(Definition);
@@ -95,14 +96,14 @@ public sealed class PostgresWriteTableFacts
         await using var brain = await Start(provider);
         Stamp();
         await brain.AuthorizeCallerAsync();
-        var table = brain.Get<IPostgresTable>("lifecycle");
+        var table = brain.Get<ITable>("lifecycle");
         await table.Define(Definition);
         await table.Upsert(Key(), Values("old"));
         var owner = brain.Get<IPostgresLifecycleTestApp>("install");
         await owner.Uninstall("brain", "app");
         await owner.Uninstall("brain", "app");
         await brain.DeactivateAsync(table, TestContext.Current.CancellationToken);
-        await brain.DeactivateAsync(brain.Get<IPostgresTables>(new TableOwner(BrainScope.CurrentId(), "app").Key), TestContext.Current.CancellationToken);
+        await brain.DeactivateAsync(brain.Get<ITableIndex>(new TableOwner(BrainScope.CurrentId(), "app").Key), TestContext.Current.CancellationToken);
         await owner.Uninstall("brain", "app");
         Stamp("brain", "new-file");
         await brain.AuthorizeCallerAsync();
@@ -119,7 +120,7 @@ public sealed class PostgresWriteTableFacts
         await using var brain = await Start(new MemoryTables());
         Stamp();
         await brain.AuthorizeCallerAsync();
-        var tables = brain.Get<IPostgresTables>(new TableOwner(BrainScope.CurrentId(), "app").Key);
+        var tables = brain.Get<ITableIndex>(new TableOwner(BrainScope.CurrentId(), "app").Key);
         await Assert.ThrowsAsync<UnauthorizedAccessException>(tables.Retire);
     }
 
@@ -134,7 +135,7 @@ public sealed class PostgresWriteTableFacts
         await using var brain = await Start(provider);
         Stamp();
         await brain.AuthorizeCallerAsync();
-        var table = brain.Get<IPostgresTable>("definitions");
+        var table = brain.Get<ITable>("definitions");
         var accepted = await table.Define(Definition);
         Assert.Equal(1, accepted.Revision);
         Assert.Equal(accepted.Table, (await table.Define(new(Definition.Columns.Reverse().ToArray(), ["id"]))).Table);
@@ -152,7 +153,7 @@ public sealed class PostgresWriteTableFacts
         await using var brain = await Start(provider);
         Stamp();
         await brain.AuthorizeCallerAsync();
-        var table = brain.Get<IPostgresTable>("invalid");
+        var table = brain.Get<ITable>("invalid");
         foreach (var name in new[] { "bad-name", "x; DROP TABLE x", "é", "1name", new string('a', 64), "" })
         { await Assert.ThrowsAsync<PostgresQueryException>(() => table.Define(new([new(name, "text")], [name]))); }
         await Assert.ThrowsAsync<PostgresQueryException>(() => table.Define(new([new("id", "varchar")], ["id"])));
@@ -175,7 +176,7 @@ public sealed class PostgresWriteTableFacts
         await using var brain = await Start(new MemoryTables());
         Stamp();
         await brain.AuthorizeCallerAsync();
-        var table = brain.Get<IPostgresTable>("rows");
+        var table = brain.Get<ITable>("rows");
         await table.Define(Definition);
         await ExerciseRows(table);
     }
@@ -186,14 +187,14 @@ public sealed class PostgresWriteTableFacts
         await using var brain = await Start(new MemoryTables());
         Stamp();
         await brain.AuthorizeCallerAsync();
-        var first = brain.Get<IPostgresTable>("first");
+        var first = brain.Get<ITable>("first");
         var physical = (await first.Define(Definition)).Table;
         await first.Upsert(Key(), Values("first"));
         foreach (var (brainId, appId) in new[] { ("other", "app"), ("brain", "other-app") })
         {
             Stamp(brainId, appId);
             await brain.AuthorizeCallerAsync();
-            var second = brain.Get<IPostgresTable>(brainId + appId);
+            var second = brain.Get<ITable>(brainId + appId);
             Assert.NotEqual(physical, (await second.Define(Definition)).Table);
             Assert.Null(await second.Read(Key()));
             await second.Upsert(Key(), Values("second"));
@@ -217,7 +218,7 @@ public sealed class PostgresWriteTableFacts
         await using var brain = await Start(new MemoryTables());
         Stamp();
         await brain.AuthorizeCallerAsync();
-        var table = brain.Get<IPostgresTable>("signals");
+        var table = brain.Get<ITable>("signals");
         await using var definitions = await brain.SubscribeAsync<TableDefined>(table, ct);
         var accepted = await table.Define(Definition);
         await using var defined = definitions.ReadAllAsync(ct).GetAsyncEnumerator(ct);
@@ -243,7 +244,7 @@ public sealed class PostgresWriteTableFacts
         await using var brain = await Start(new MemoryTables());
         Stamp();
         await brain.AuthorizeCallerAsync();
-        await Research(brain.Get<IPostgresTable>("research-results"));
+        await Research(brain.Get<ITable>("research-results"));
     }
 
     [Fact]
@@ -256,8 +257,8 @@ public sealed class PostgresWriteTableFacts
         await using var brain = await Start(null, connection!);
         Stamp();
         await brain.AuthorizeCallerAsync();
-        var table = brain.Get<IPostgresTable>("live-" + Guid.NewGuid().ToString("N"));
-        var research = brain.Get<IPostgresTable>("research-" + Guid.NewGuid().ToString("N"));
+        var table = brain.Get<ITable>("live-" + Guid.NewGuid().ToString("N"));
+        var research = brain.Get<ITable>("research-" + Guid.NewGuid().ToString("N"));
         var accepted = await table.Define(Definition);
         string? researchName = null;
         string? otherName = null;
@@ -266,7 +267,7 @@ public sealed class PostgresWriteTableFacts
             await ExerciseRows(table);
             await table.Upsert(Key(), Values("'; DROP TABLE --"));
             // Raw deployment SQL has no brain scope; an app must use its scoped table door.
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Get<IPostgres>("default").Query(new($"SELECT value FROM public.{accepted.Table}")));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Get<IPostgresServer>("default").Query(new($"SELECT value FROM public.{accepted.Table}")));
             CallerContextStamper.Stamp(new()
             {
                 PrincipalId = "test-platform",
@@ -275,16 +276,16 @@ public sealed class PostgresWriteTableFacts
                 Kind = CallerKind.Platform,
                 StampedBy = TrustedEdge.Platform,
             });
-            var result = await brain.Get<IPostgres>("default").Query(new($"SELECT value FROM public.{accepted.Table}"));
+            var result = await brain.Get<IPostgresServer>("default").Query(new($"SELECT value FROM public.{accepted.Table}"));
             Assert.Equal("'; DROP TABLE --", JsonSerializer.Deserialize<string>(Assert.Single(Assert.Single(result.Rows))));
-            await Assert.ThrowsAsync<PostgresQueryException>(() => brain.Get<IPostgres>("default").Query(new($"DELETE FROM public.{accepted.Table}")));
+            await Assert.ThrowsAsync<PostgresQueryException>(() => brain.Get<IPostgresServer>("default").Query(new($"DELETE FROM public.{accepted.Table}")));
             Stamp();
             var provider = brain.SiloServices.GetRequiredService<IPostgresTableProvider>();
             await provider.DefineAsync(PostgresCapacityKind.PlatformOrigin, accepted.Table, Definition, ct);
             await Assert.ThrowsAsync<PostgresQueryException>(() => provider.DefineAsync(PostgresCapacityKind.PlatformOrigin, accepted.Table,
                 new([new("id", "text"), new("value", "number")], ["id"]), ct));
             Stamp("other-brain");
-            var other = brain.Get<IPostgresTable>("other-" + Guid.NewGuid().ToString("N"));
+            var other = brain.Get<ITable>("other-" + Guid.NewGuid().ToString("N"));
             otherName = (await other.Define(Definition)).Table;
             Assert.Null(await other.Read(Key()));
             await other.Upsert(Key(), Values("other"));
@@ -308,7 +309,7 @@ public sealed class PostgresWriteTableFacts
         }
     }
 
-    private static async Task ExerciseRows(IPostgresTable table)
+    private static async Task ExerciseRows(ITable table)
     {
         Assert.True(await table.Upsert(Key(), Values("'; DROP TABLE --")));
         Assert.False(await table.Upsert(Key(), Values("'; DROP TABLE --")));
@@ -323,7 +324,7 @@ public sealed class PostgresWriteTableFacts
     }
 
     // The script needs only the Contracts assembly: no store, Npgsql or caller-supplied workspace.
-    private static async Task<string> Research(IPostgresTable table)
+    private static async Task<string> Research(ITable table)
     {
         var columns = new[] { "research_id", "company_name", "website", "location", "email", "phone", "industry", "summary" }
             .Select(name => new TableColumn(name, "text")).Concat([new("evidence", "jsonb"), new("updated_at", "timestamptz")]).ToArray();
@@ -416,8 +417,8 @@ public sealed class PostgresWriteTableFacts
         public async Task Invoke(IIncomingGrainCallContext context)
         {
             await context.Invoke();
-            if (HoldOpen && context.InterfaceMethod.DeclaringType == typeof(IPostgresTables)
-                && context.InterfaceMethod.Name == nameof(IPostgresTables.RequireOpen))
+            if (HoldOpen && context.InterfaceMethod.DeclaringType == typeof(ITableIndex)
+                && context.InterfaceMethod.Name == nameof(ITableIndex.RequireOpen))
             {
                 HoldOpen = false;
                 Open.TrySetResult();
@@ -450,5 +451,5 @@ public sealed class PostgresLifecycleTestApp : DigitalBrain.Framework.Neuron, IP
 {
     public override NeuronAccess Access(string operation) => NeuronAccess.PublicOperation;
     public Task Uninstall(string brain, string file)
-        => GrainFactory.GetGrain<IPostgresTables>(new TableOwner(BrainScope.Create("alice", brain).Id, file).Key).Retire();
+        => GrainFactory.GetGrain<ITableIndex>(new TableOwner(BrainScope.Create("alice", brain).Id, file).Key).Retire();
 }

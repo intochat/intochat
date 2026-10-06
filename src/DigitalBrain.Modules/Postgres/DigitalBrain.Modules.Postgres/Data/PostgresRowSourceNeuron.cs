@@ -12,7 +12,7 @@ internal sealed class PostgresRowSourceNeuron(IGrainFactory grains) : Neuron, IP
     public async Task<RowSchema> ReadSchema()
     {
         var table = this.GetPrimaryKeyString();
-        var schema = await grains.GetGrain<IPostgres>(table).ReadSchema(new ReadPostgresSchema(table));
+        var schema = await grains.GetGrain<IPostgresServer>(table).ReadSchema(new ReadPostgresSchema(table));
         return new RowSchema([.. Columns(schema, table).Select(column => new RowColumn(column.Name, column.TableType))]);
     }
 
@@ -25,7 +25,7 @@ internal sealed class PostgresRowSourceNeuron(IGrainFactory grains) : Neuron, IP
         ArgumentNullException.ThrowIfNull(query);
         var schema = await ReadSchema();
         var sql = RowQuerySql.Compile(this.GetPrimaryKeyString(), schema, query);
-        var result = await grains.GetGrain<IPostgres>(this.GetPrimaryKeyString()).Query(new PostgresQuery(sql, query.Limit));
+        var result = await grains.GetGrain<IPostgresServer>(this.GetPrimaryKeyString()).Query(new PostgresQuery(sql, query.Limit));
         return new RowPage(
             [.. result.Columns.Select(column => new RowColumn(column.Name, column.TableType))],
             [.. result.Rows.Select(row => new Row([.. row.Select(RowCells.FromJson)]))],

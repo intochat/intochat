@@ -1,11 +1,9 @@
-using DigitalBrain;
 using Orleans.Concurrency;
 
 namespace DigitalBrain.Postgres;
 
-[Alias("postgres")]
-[Orleans.Metadata.DefaultGrainType("postgres")]
-public interface IPostgres : INeuron
+[Alias("postgres"), Orleans.Metadata.DefaultGrainType("postgres")]
+public interface IPostgresServer : INeuron
 {
     // Server-side caps.
     [ReadOnly, Alias("query")]

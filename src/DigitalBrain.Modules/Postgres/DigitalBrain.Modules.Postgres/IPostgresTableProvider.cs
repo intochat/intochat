@@ -1,3 +1,5 @@
+using DigitalBrain.Postgres.Tables;
+
 namespace DigitalBrain.Postgres;
 
 public interface IPostgresTableProvider

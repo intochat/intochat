@@ -60,7 +60,7 @@ internal sealed class PostgresAppResources(DigitalBrain.IDigitalBrain brain)
         foreach (var app in installed)
         {
             var owner = new TableOwner(scope, app).Key;
-            foreach (var table in await brain.Get<IPostgresTables>(owner).ReadTables().WaitAsync(ct))
+            foreach (var table in await brain.Get<ITableIndex>(owner).ReadTables().WaitAsync(ct))
             {
                 try { resources.Add(await brain.Get<IPostgresTableResource>(table).DescribeResource(owner).WaitAsync(ct)); }
                 catch (PostgresQueryException error) { errors.Add(new(app, table, error.Message)); }
@@ -84,7 +84,7 @@ internal sealed class PostgresAppResources(DigitalBrain.IDigitalBrain brain)
         if (!(await Installed(scope, ct)).Contains(identity[0], StringComparer.Ordinal))
         { throw new UnauthorizedAccessException("This app is not installed in the current brain."); }
         var owner = new TableOwner(scope, identity[0]).Key;
-        var tables = await brain.Get<IPostgresTables>(owner).ReadTables().WaitAsync(ct);
+        var tables = await brain.Get<ITableIndex>(owner).ReadTables().WaitAsync(ct);
         if (!tables.Contains(identity[1], StringComparer.Ordinal))
         { throw new UnauthorizedAccessException("This table is not owned by the installed app."); }
         return await brain.Get<IPostgresTableResource>(identity[1]).DescribeResource(owner).WaitAsync(ct);
