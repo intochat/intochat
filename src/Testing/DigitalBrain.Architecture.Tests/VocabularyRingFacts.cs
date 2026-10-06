@@ -9,7 +9,7 @@ public sealed class VocabularyRingFacts
 {
     private static readonly Assembly Vocabulary = typeof(Signal).Assembly;
 
-    private static readonly Type[] Roots = [typeof(INeuron), typeof(IBrain), typeof(IDigitalBrain), typeof(INeuronObserver)];
+    private static readonly Type[] Roots = [typeof(INeuron), typeof(IBrain), typeof(ISynapse), typeof(IDigitalBrain), typeof(INeuronObserver)];
 
     // The Contracts ring: DigitalBrain plus every production assembly whose DigitalBrain references stay
     // inside the ring (module *.Contracts projects). Their neuron contracts, signals and wire exceptions
@@ -70,6 +70,15 @@ public sealed class VocabularyRingFacts
         Assert.False(typeof(IAsyncDisposable).IsAssignableFrom(typeof(IDigitalBrain)));
         var get = typeof(IDigitalBrain).GetMethod("Get")!;
         Assert.Contains(typeof(INeuron), get.GetGenericArguments()[0].GetGenericParameterConstraints());
+    }
+
+    [Fact]
+    public void EverySynapseContractCarriesAnAlias()
+    {
+        var offenders = Ring.SelectMany(a => a.GetExportedTypes())
+            .Where(t => t.IsInterface && typeof(ISynapse).IsAssignableFrom(t) && t.GetCustomAttribute<AliasAttribute>() is null)
+            .Select(t => t.FullName!).Order().ToArray();
+        Assert.True(offenders.Length == 0, "Synapse contracts without an alias:\n" + string.Join("\n", offenders));
     }
 
     private static IEnumerable<Type> PublicTypes() => Vocabulary.GetExportedTypes()

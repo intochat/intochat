@@ -18,7 +18,7 @@ public sealed class ExtractionFacts
 
         Assert.Equal("DigitalBrain", typeof(INeuron).Assembly.GetName().Name);
         Assert.Equal(
-            ["Activated", "BrainSnapshot", "EstablishBrain", "IBrain", "IDigitalBrain", "INeuron", "INeuronObserver", "NeuronActivated", "NeuronActivity", "NeuronDeactivated", "PlatformAssemblyAttribute", "PlatformOnlyAttribute", "Signal"],
+            ["Activated", "BrainSnapshot", "EstablishBrain", "IBrain", "IDigitalBrain", "INeuron", "INeuronObserver", "ISynapse", "NeuronActivated", "NeuronActivity", "NeuronDeactivated", "PlatformAssemblyAttribute", "PlatformOnlyAttribute", "Signal", "SynapseChanged", "SynapseSnapshot", "SynapseWatch"],
             exported);
     }
 
