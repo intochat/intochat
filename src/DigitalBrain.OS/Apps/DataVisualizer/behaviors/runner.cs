@@ -4,6 +4,7 @@
 #:project /brain/src/Modules/Time/DigitalBrain.Modules.Time.Contracts/DigitalBrain.Modules.Time.Contracts.csproj
 using System.Globalization;
 using System.Text.Json;
+using System.Threading.Channels;
 using DigitalBrain.Apps;
 using DigitalBrain.Flutter.Card;
 using DigitalBrain.Flutter.Chart;
@@ -30,59 +31,115 @@ var appKey = brain.Setting("App")!;
 var registry = brain.Get<IText>(appKey + "/views");
 var postgres = brain.Get<IPostgresServer>("default");
 var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
-var subscriptions = new Dictionary<string, CancellationTokenSource>(StringComparer.Ordinal);
+var subscriptions = new Dictionary<string, Watched>(StringComparer.Ordinal);
 
-await Reconcile();
-await foreach (var _ in brain.On<TextChanged>(registry, brain.Stopping)) { await Reconcile(); }
+while (!brain.Stopping.IsCancellationRequested)
+{
+    try
+    {
+        // Subscribe first, reconcile second: a registry write between the two is not lost.
+        await using var registryChanges = await brain.SubscribeAsync<TextChanged>(registry, brain.Stopping);
+        await Reconcile();
+        await foreach (var _ in registryChanges.ReadAllAsync(brain.Stopping)) { await Reconcile(); }
+    }
+    catch (OperationCanceledException) when (brain.Stopping.IsCancellationRequested) { }
+    catch (Exception error)
+    {
+        Console.WriteLine($"registry stream stopped, resubscribing: {error.Message}");
+        await Task.Delay(TimeSpan.FromSeconds(1), brain.Stopping).ContinueWith(_ => { });
+    }
+}
 
 async Task Reconcile()
 {
     var views = await Views();
     foreach (var gone in subscriptions.Keys.Except(views.Select(v => v.Id)).ToArray())
     {
-        subscriptions[gone].Cancel();
+        subscriptions[gone].Cts.Cancel();
+        subscriptions[gone].Cts.Dispose();
         subscriptions.Remove(gone);
     }
     foreach (var view in views)
     {
-        await Run(view);
-        if (subscriptions.ContainsKey(view.Id)) { continue; }
-        var cts = CancellationTokenSource.CreateLinkedTokenSource(brain.Stopping);
-        subscriptions[view.Id] = cts;
-        _ = Watch(view, cts.Token);
+        if (!subscriptions.TryGetValue(view.Id, out var watched))
+        {
+            watched = await Watch(view);
+            subscriptions[view.Id] = watched;
+        }
+        watched.Trigger.TryWrite(true);
     }
 }
 
-async Task Watch(View view, CancellationToken ct)
+// Every trigger of a view funnels into one channel read by one loop, so runs are ordered and bursts
+// coalesce. Streams are open before the first run is requested.
+async Task<Watched> Watch(View view)
 {
-    var root = $"{appKey}/views/{view.Id}";
-    var tasks = new List<Task>();
-    foreach (var column in view.Filters)
+    var cts = CancellationTokenSource.CreateLinkedTokenSource(brain.Stopping);
+    var channel = Channel.CreateBounded<bool>(new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropWrite, SingleReader = true });
+    try
     {
-        tasks.Add(Rerun<TextFieldChanged>(brain.Get<ITextField>($"{root}/filter/{column}"), view.Id, ct));
+        var root = $"{appKey}/views/{view.Id}";
+        foreach (var column in view.Filters) { await Pump<TextFieldChanged>(brain.Get<ITextField>($"{root}/filter/{column}"), channel.Writer, cts.Token); }
+        if (view.Source.StartsWith("apptable:", StringComparison.Ordinal))
+        {
+            var table = brain.Get<AppTable>(view.Source["apptable:".Length..]);
+            await Pump<RowUpserted>(table, channel.Writer, cts.Token);
+            await Pump<RowDeleted>(table, channel.Writer, cts.Token);
+        }
+        if (view.RefreshSeconds > 0) { await Pump<ReminderTick>(brain.Get<IReminder>($"{root}/refresh"), channel.Writer, cts.Token); }
     }
-    if (view.Source.StartsWith("apptable:", StringComparison.Ordinal))
+    catch
     {
-        var table = brain.Get<AppTable>(view.Source["apptable:".Length..]);
-        tasks.Add(Rerun<RowUpserted>(table, view.Id, ct));
-        tasks.Add(Rerun<RowDeleted>(table, view.Id, ct));
+        cts.Cancel();
+        cts.Dispose();
+        throw;
     }
-    if (view.RefreshSeconds > 0)
-    {
-        tasks.Add(Rerun<ReminderTick>(brain.Get<IReminder>($"{root}/refresh"), view.Id, ct));
-    }
-    await Task.WhenAll(tasks);
+    _ = RunLoop(view.Id, channel.Reader, cts.Token);
+    return new Watched(cts, channel.Writer);
 }
 
-// A watcher that fails exits alone; the runner loop and the other views keep going.
-async Task Rerun<T>(INeuron source, string id, CancellationToken ct) where T : Signal
+// Opens the subscription, then pumps it in the background. When the stream ends the pump resubscribes
+// and requests a run, so a signal missed in between is not lost.
+async Task Pump<T>(INeuron source, ChannelWriter<bool> trigger, CancellationToken ct) where T : Signal
+{
+    var subscription = await brain.SubscribeAsync<T>(source, ct);
+    _ = Task.Run(async () =>
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            try { await foreach (var _ in subscription.ReadAllAsync(ct)) { trigger.TryWrite(true); } }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
+            catch (Exception error) { Console.WriteLine($"{typeof(T).Name} stream of {source} stopped, resubscribing: {error.Message}"); }
+            while (!ct.IsCancellationRequested)
+            {
+                try
+                {
+                    subscription = await brain.SubscribeAsync<T>(source, ct);
+                    trigger.TryWrite(true);
+                    break;
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
+                catch (Exception error)
+                {
+                    Console.WriteLine($"resubscribing {typeof(T).Name} failed: {error.Message}");
+                    await Task.Delay(TimeSpan.FromSeconds(1), ct).ContinueWith(_ => { });
+                }
+            }
+        }
+    }, CancellationToken.None);
+}
+
+async Task RunLoop(string id, ChannelReader<bool> triggers, CancellationToken ct)
 {
     try
     {
-        await foreach (var _ in brain.On<T>(source, ct)) { await Run(await Current(id)); }
+        await foreach (var _ in triggers.ReadAllAsync(ct))
+        {
+            try { await Run(await Current(id)); }
+            catch (Exception error) when (error is not OperationCanceledException) { Console.WriteLine($"run of {id} failed: {error.Message}"); }
+        }
     }
     catch (OperationCanceledException) { }
-    catch (Exception error) { Console.WriteLine($"watcher for {id} stopped: {error.Message}"); }
 }
 
 async Task Run(View? view)
@@ -162,3 +219,5 @@ async Task<View[]> Views()
 }
 
 sealed record View(string Id, string Title, string Kind, string Source, string Sql, string[] Filters, int RefreshSeconds);
+
+sealed record Watched(CancellationTokenSource Cts, ChannelWriter<bool> Trigger);
