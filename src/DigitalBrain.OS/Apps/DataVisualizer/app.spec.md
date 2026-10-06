@@ -41,7 +41,7 @@ leaves the previous rows in place and sets the status card's body to the error.
 
 Invoking "close" with a view id removes it from the registry, and "read" for that id answers an error.
 
-## Scenario (live): A platform table shows live data
+## Scenario: A platform table shows live data (live)
 
 With a real Postgres connection, a view over `select * from information_schema.tables limit 5`
 renders five rows.

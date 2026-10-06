@@ -115,7 +115,7 @@ await Scenario("Closing a view removes it", async () =>
     catch (InvalidOperationException error) when (error.Message.Contains("No view", StringComparison.Ordinal)) { }
 });
 
-await Scenario("(live) A platform table shows live data", async () =>
+await Scenario("A platform table shows live data (live)", async () =>
 {
     var id = (await Show(new { title = "Tables", kind = "table", source = "sql", sql = "select table_name from information_schema.tables limit 5", filters = Array.Empty<string>() })).GetProperty("view").GetString()!;
     try { await WaitTable(id, rows => rows.Count == 5); }
