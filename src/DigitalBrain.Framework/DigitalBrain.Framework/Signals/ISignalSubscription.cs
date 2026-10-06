@@ -1,4 +1,4 @@
-namespace DigitalBrain;
+namespace DigitalBrain.Framework;
 
 public interface ISignalSubscription<T> : IAsyncDisposable where T : Signal
 {

@@ -27,6 +27,7 @@ public sealed class AspireTestSession : IAsyncDisposable
 
     public DistributedApplication App { get; }
     public IDigitalBrain Brain => _client!.Services.GetRequiredService<IDigitalBrain>();
+    public IBrainSubscriptions Subscriptions => _client!.Services.GetRequiredService<IBrainSubscriptions>();
     public HttpClient HttpClient { get; private set; } = null!;
     public Uri? BrowserEndpoint { get; private set; }
     public string? BrowserReadySelector { get; private set; }
@@ -244,7 +245,7 @@ public sealed class AspireTestSession : IAsyncDisposable
         using var deadline = new CancellationTokenSource(_options.CleanupTimeout);
         try
         {
-            await host.Services.GetRequiredService<IDigitalBrain>().DisposeAsync().AsTask().WaitAsync(deadline.Token).ConfigureAwait(false);
+            await ((IAsyncDisposable)host.Services.GetRequiredService<IDigitalBrain>()).DisposeAsync().AsTask().WaitAsync(deadline.Token).ConfigureAwait(false);
             await host.StopAsync(deadline.Token).ConfigureAwait(false);
         }
         finally { host.Dispose(); }

@@ -12,9 +12,8 @@ using ITimer = DigitalBrain.Time.Timers.ITimer;
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var timer = brain.Get<ITimer>(brain.Setting("TimerId") ?? "tea");
 var stopAfterFirstTick = brain.Setting("Smoke") == "true";
-await using var ticks = await brain.SubscribeAsync<TimerTick>(timer, brain.Stopping);
 Console.WriteLine("TimerReport ready");
-await foreach (var tick in ticks.ReadAllAsync(brain.Stopping))
+await foreach (var tick in brain.On<TimerTick>(timer, brain.Stopping))
 {
     Console.WriteLine($"TimerTick {tick.TimerId} {tick.ObservedAt:O}");
     if (stopAfterFirstTick) { break; }

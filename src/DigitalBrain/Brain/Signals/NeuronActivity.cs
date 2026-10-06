@@ -1,4 +1,4 @@
-namespace DigitalBrain.Framework.Signals;
+namespace DigitalBrain;
 
 [GenerateSerializer, Alias("brain.neuron-activity")]
 public abstract record NeuronActivity : Signal

@@ -12,7 +12,7 @@ namespace DigitalBrain.Microsoft.CSharp;
 // Everything a script does to the brain passes here: the run token must still speak for its file,
 // only neuron contracts from installed contract assemblies are callable, and each call carries the
 // file owner's caller context re-stamped as an app behind the app proxy.
-internal sealed class ScriptEdge(RunTokens tokens, ScriptContracts contracts, IGrainFactory grains, IDigitalBrain brain)
+internal sealed class ScriptEdge(RunTokens tokens, ScriptContracts contracts, IGrainFactory grains, IBrainSubscriptions subscriptions)
 {
     private static readonly HashSet<string> ObserverMethods = [nameof(INeuron.Watch), nameof(INeuron.Unwatch)];
 
@@ -61,7 +61,7 @@ internal sealed class ScriptEdge(RunTokens tokens, ScriptContracts contracts, IG
         Stamp(owner);
         var file = grains.GetGrain<ICSharpFileEdge>(claims.File);
         await file.Subscribed(claims.Run, source.GetGrainId().ToString(), signal).ConfigureAwait(false);
-        var doorbell = await brain.SubscribeAsync<Signal>(grains.GetGrain<ICSharpFile>(claims.File), cancellationToken).ConfigureAwait(false);
+        var doorbell = await subscriptions.SubscribeAsync<Signal>(grains.GetGrain<ICSharpFile>(claims.File), cancellationToken).ConfigureAwait(false);
         return Draining(file, claims.Run, source.GetGrainId().ToString(), signal, doorbell, cancellationToken);
     }
 

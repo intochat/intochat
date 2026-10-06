@@ -18,7 +18,7 @@ public sealed class ExtractionFacts
 
         Assert.Equal("DigitalBrain", typeof(INeuron).Assembly.GetName().Name);
         Assert.Equal(
-            ["Activated", "BrainSnapshot", "EstablishBrain", "IBrain", "IDigitalBrain", "INeuron", "INeuronObserver", "ISignalSubscription`1", "PlatformAssemblyAttribute", "PlatformOnlyAttribute", "Signal"],
+            ["Activated", "BrainSnapshot", "EstablishBrain", "IBrain", "IDigitalBrain", "INeuron", "INeuronObserver", "NeuronActivated", "NeuronActivity", "NeuronDeactivated", "PlatformAssemblyAttribute", "PlatformOnlyAttribute", "Signal"],
             exported);
     }
 
@@ -27,7 +27,7 @@ public sealed class ExtractionFacts
     {
         var assemblies = new ModuleInventory([]).ContractAssemblies().Select(assembly => assembly.GetName().Name).Order(StringComparer.Ordinal).ToArray();
 
-        Assert.Equal(["DigitalBrain"], assemblies);
+        Assert.Equal(["DigitalBrain", "DigitalBrain.Platform.Contracts"], assemblies);
         Assert.DoesNotContain(new ModuleInventory([]).ContractAssemblies(), PlatformAssemblyAttribute.IsPlatform);
     }
 }

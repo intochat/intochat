@@ -8,8 +8,7 @@ public static class TimerReport
     public static async Task RunAsync(IDigitalBrain brain, string timerId, Func<TimerTick, Task> report, CancellationToken cancellationToken)
     {
         var timer = brain.Get<DigitalBrain.Time.Timers.ITimer>(timerId);
-        await using var elapsed = await brain.SubscribeAsync<TimerTick>(timer, cancellationToken);
-        await foreach (var fact in elapsed.ReadAllAsync(cancellationToken))
+        await foreach (var fact in brain.On<TimerTick>(timer, cancellationToken))
         {
             await report(fact);
         }

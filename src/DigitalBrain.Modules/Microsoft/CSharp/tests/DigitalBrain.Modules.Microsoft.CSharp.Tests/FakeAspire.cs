@@ -5,7 +5,8 @@ using Orleans.Runtime;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
-public interface IFakeAspireProbe : IGrainWithStringKey
+[Alias("test.fake-aspire-probe")]
+public interface IFakeAspireProbe : INeuron
 {
     Task<int> Starts();
     Task FailStarts();

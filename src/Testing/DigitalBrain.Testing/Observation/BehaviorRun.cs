@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Collections.Concurrent;
 using DigitalBrain;
 using DigitalBrain.Framework;
@@ -46,19 +47,24 @@ public sealed class BehaviorRun : IAsyncDisposable
                 TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
         }
     }
-    private sealed class ObservedBrain(IDigitalBrain inner) : IDigitalBrain
+    private sealed class ObservedBrain(IDigitalBrain inner) : IDigitalBrain, IBrainSubscriptions
     {
+        private readonly IBrainSubscriptions _subscriptions = inner as IBrainSubscriptions
+            ?? throw new ArgumentException("RunBehavior needs a brain that hands out subscription handles (the test harness brains do).", nameof(inner));
         private readonly ConcurrentDictionary<(GrainId, Type), TaskCompletionSource> _ready = new();
         internal TaskCompletionSource Ready(GrainId source, Type type)
             => _ready.GetOrAdd((source, type), _ => new(TaskCreationOptions.RunContinuationsAsynchronously));
-        public T Get<T>(string id) where T : class, IGrainWithStringKey => inner.Get<T>(id);
+        public T Get<T>(string id) where T : class, INeuron => inner.Get<T>(id);
+        public async IAsyncEnumerable<T> On<T>(INeuron source, [EnumeratorCancellation] CancellationToken cancellationToken = default) where T : Signal
+        {
+            await using var subscription = await SubscribeAsync<T>(source, cancellationToken).ConfigureAwait(false);
+            await foreach (var signal in subscription.ReadAllAsync(cancellationToken).ConfigureAwait(false)) { yield return signal; }
+        }
         public async Task<ISignalSubscription<T>> SubscribeAsync<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
         {
-            var subscription = await inner.SubscribeAsync<T>(source, cancellationToken).ConfigureAwait(false);
+            var subscription = await _subscriptions.SubscribeAsync<T>(source, cancellationToken).ConfigureAwait(false);
             Ready(source.GetGrainId(), typeof(T)).TrySetResult();
             return subscription;
         }
-
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }

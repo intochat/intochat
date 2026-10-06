@@ -72,7 +72,7 @@ public sealed class TableHttpFacts
 
     private sealed class FakeBrain(Func<SupabaseTableSnapshot?> tableRead, Action? onGrainTouched) : IDigitalBrain
     {
-        public T Get<T>(string id) where T : class, IGrainWithStringKey
+        public T Get<T>(string id) where T : class, INeuron
         {
             onGrainTouched?.Invoke();
             var proxy = DispatchProxy.Create<T, GrainProxy>();
@@ -86,10 +86,8 @@ public sealed class TableHttpFacts
             return proxy;
         }
 
-        public Task<ISignalSubscription<T>> SubscribeAsync<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
+        public IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
             => throw new NotSupportedException();
-
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     public class GrainProxy : DispatchProxy

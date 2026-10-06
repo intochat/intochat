@@ -124,14 +124,14 @@ public sealed class PrimitiveBindingFacts
 }
 
 [Alias("test.primitive-handler"), Orleans.Metadata.DefaultGrainType("test.primitive-handler")]
-public interface IPrimitiveTestHandler : IUiEventHandler
+public interface IPrimitiveTestHandler : IUiEventHandler, INeuron
 {
     Task<IReadOnlyList<Signal>> Events();
     Task ProjectTo(string name);
 }
 
 [GrainType("test.primitive-handler")]
-public sealed class PrimitiveTestHandler : Grain, IPrimitiveTestHandler
+public sealed class PrimitiveTestHandler : Neuron, IPrimitiveTestHandler
 {
     private readonly List<Signal> _events = [];
     private string? _projection;

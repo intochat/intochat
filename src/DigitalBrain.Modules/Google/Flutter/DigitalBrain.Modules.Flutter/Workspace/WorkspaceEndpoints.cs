@@ -39,13 +39,16 @@ internal static class WorkspaceEndpoints
     private static async Task Events(HttpContext http, IDigitalBrain digitalBrain, CancellationToken ct)
     {
         var workspace = Workspace(digitalBrain);
-        await using var changes = await digitalBrain.SubscribeAsync<WorkspaceChanged>(workspace, ct);
+        // Prime the watch before the initial read: the stream is opening while the read runs, which
+        // narrows (not closes) the window in which a change between the two could be missed.
+        await using var changes = digitalBrain.On<WorkspaceChanged>(workspace, ct).GetAsyncEnumerator(ct);
+        var next = changes.MoveNextAsync();
         var initial = await workspace.Read().WaitAsync(ct);
         http.Response.ContentType = "text/event-stream";
         http.Response.Headers.CacheControl = "no-cache";
         var brainId = CallerContextStamper.Require().BrainId;
         await Write(initial.Revision);
-        await foreach (var change in changes.ReadAllAsync(ct)) { await Write(change.Revision); }
+        while (await next) { await Write(changes.Current.Revision); next = changes.MoveNextAsync(); }
         async Task Write(long revision)
         {
             await http.Response.WriteAsync("data: " + JsonSerializer.Serialize(new { brainId, revision }, Json) + "\n\n", ct);

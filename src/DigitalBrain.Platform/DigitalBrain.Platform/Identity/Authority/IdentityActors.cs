@@ -1,17 +1,18 @@
+using DigitalBrain;
 using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Identity;
 using Orleans;
 
 namespace DigitalBrain.Platform.Identity.Authority;
 
-internal interface IPrincipal : IGrainWithStringKey
+internal interface IPrincipal : INeuron
 {
     Task<Member> Register(string password, string displayName);
     Task<Member?> Authenticate(string password);
     Task<Member?> DefaultMembership();
 }
 
-internal interface IAccount : IGrainWithStringKey
+internal interface IAccount : INeuron
 {
     Task EnsureCreated(Account account);
     Task<Account?> Read();
@@ -19,7 +20,7 @@ internal interface IAccount : IGrainWithStringKey
     Task EnsureBrain(Member owner);
 }
 
-internal interface IBrainAuthority : IGrainWithStringKey
+internal interface IBrainAuthority : INeuron
 {
     Task Initialize(string accountId, string brainId);
     Task<Member?> Membership(string principalId);

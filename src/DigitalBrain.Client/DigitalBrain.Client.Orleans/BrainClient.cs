@@ -1,18 +1,28 @@
+using System.Runtime.CompilerServices;
 using DigitalBrain;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Signals;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using DigitalBrain.Framework.Signals;
 
 namespace DigitalBrain.Client.Orleans;
 
 internal sealed class BrainClient(IClusterClient cluster, IOptions<SubscriptionOptions> options, ILogger<BrainClient> logger, ILocalSignalHub? hub = null)
-    : IDigitalBrain
+    : IDigitalBrain, IBrainSubscriptions, IAsyncDisposable
 {
     private readonly Lock _gate = new();
     private readonly HashSet<IAsyncDisposable> _subscriptions = [];
     private bool _disposed;
 
-    public T Get<T>(string id) where T : class, IGrainWithStringKey => cluster.GetGrain<T>(id);
+    internal int TrackedSubscriptions { get { lock (_gate) { return _subscriptions.Count; } } }
+
+    public T Get<T>(string id) where T : class, INeuron => cluster.GetGrain<T>(id);
+
+    public async IAsyncEnumerable<T> On<T>(INeuron source, [EnumeratorCancellation] CancellationToken cancellationToken = default) where T : Signal
+    {
+        await using var subscription = await SubscribeAsync<T>(source, cancellationToken).ConfigureAwait(false);
+        await foreach (var signal in subscription.ReadAllAsync(cancellationToken).ConfigureAwait(false)) { yield return signal; }
+    }
 
     public async Task<ISignalSubscription<T>> SubscribeAsync<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
     {

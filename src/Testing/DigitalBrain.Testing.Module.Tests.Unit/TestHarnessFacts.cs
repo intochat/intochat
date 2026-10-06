@@ -16,8 +16,7 @@ public sealed class TestHarnessFacts
         var b = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
         async Task Observe(IDigitalBrain handle, TaskCompletionSource<int> result, CancellationToken token)
         {
-            await using var subscription = await handle.SubscribeAsync<Number>(source, token);
-            await foreach (var number in subscription.ReadAllAsync(token)) { result.TrySetResult(number.Value); return; }
+            await foreach (var number in handle.On<Number>(source, token)) { result.TrySetResult(number.Value); return; }
         }
         await using var first = brain.RunBehavior((handle, token) => Observe(handle, a, token), ct);
         await using var second = brain.RunBehavior((handle, token) => Observe(handle, b, token), ct);

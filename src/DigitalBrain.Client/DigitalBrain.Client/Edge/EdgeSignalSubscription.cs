@@ -8,7 +8,7 @@ using DigitalBrain.Client.Edge.V1;
 namespace DigitalBrain.Client;
 
 // One server-sent event stream per subscription; the edge sends only signals of type T.
-internal sealed class EdgeSignalSubscription<T> : ISignalSubscription<T> where T : Signal
+internal sealed class EdgeSignalSubscription<T> : IAsyncDisposable where T : Signal
 {
     private readonly Channel<T> _signals = Channel.CreateBounded<T>(new BoundedChannelOptions(1024) { SingleReader = true, AllowSynchronousContinuations = false });
     private readonly CancellationTokenSource _lifetime;
@@ -26,7 +26,7 @@ internal sealed class EdgeSignalSubscription<T> : ISignalSubscription<T> where T
 
     public Task Completion => _completion.Task;
 
-    public static async Task<ISignalSubscription<T>> OpenAsync(ScriptEdgeClient edge, NeuronProxy source, CancellationToken cancellationToken)
+    public static async Task<EdgeSignalSubscription<T>> OpenAsync(ScriptEdgeClient edge, NeuronProxy source, CancellationToken cancellationToken)
     {
         var stream = await edge.OpenSignalsAsync(source.Contract.FullName!, source.Key, typeof(T).Name, cancellationToken).ConfigureAwait(false);
         return new EdgeSignalSubscription<T>(stream, cancellationToken);

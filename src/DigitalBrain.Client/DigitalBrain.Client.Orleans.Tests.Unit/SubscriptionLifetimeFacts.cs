@@ -70,4 +70,24 @@ public sealed class SubscriptionLifetimeFacts
         Assert.True(await reader.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3), ct));
         Assert.Equal(8, reader.Current.Value);
     }
+
+    [Fact]
+    public async Task OnClosesItsSubscriptionWhenTheConsumerCancelsMidStream()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Options().StartAsync(ct);
+        var source = brain.Get<ITestEmitter>("on-cancel");
+        using var consumer = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var first = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reading = Task.Run(async () =>
+        {
+            await foreach (var _ in brain.On<Number>(source, consumer.Token)) { first.TrySetResult(); }
+        }, ct);
+        await source.Emit(1);
+        await first.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
+        consumer.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reading);
+        var client = (BrainClient)brain.Client();
+        Assert.Equal(0, client.TrackedSubscriptions);
+    }
 }

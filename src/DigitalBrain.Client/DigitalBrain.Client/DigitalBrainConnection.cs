@@ -7,7 +7,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Client;
 
-public sealed class DigitalBrainConnection : IDigitalBrain
+public sealed class DigitalBrainConnection : IDigitalBrain, IAsyncDisposable
 {
     private readonly IConfigurationRoot _configuration;
     private readonly CancellationTokenSource _stopping = new();
@@ -39,20 +39,18 @@ public sealed class DigitalBrainConnection : IDigitalBrain
             ? JsonSerializer.Deserialize<T>(json, ScriptEdgeProtocol.Json) ?? throw new InvalidOperationException("The trigger signal is empty.")
             : throw new InvalidOperationException("This run was not started by a trigger.");
 
-    public T Get<T>(string id) where T : class, IGrainWithStringKey
+    internal static DigitalBrainConnection ForTests(HttpClient http) => new(new ConfigurationBuilder().Build(), http);
+
+    public T Get<T>(string id) where T : class, INeuron
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         return NeuronProxy.Create<T>(_edge, id);
     }
 
-    public Task<ISignalSubscription<T>> SubscribeAsync<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
-        => source is NeuronProxy neuron
-            ? EdgeSignalSubscription<T>.OpenAsync(_edge, neuron, cancellationToken)
-            : throw new ArgumentException("Subscribe to a neuron obtained from this connection's Get.", nameof(source));
-
     public async IAsyncEnumerable<T> On<T>(INeuron source, [EnumeratorCancellation] CancellationToken cancellationToken = default) where T : Signal
     {
-        await using var subscription = await SubscribeAsync<T>(source, cancellationToken).ConfigureAwait(false);
+        if (source is not NeuronProxy neuron) { throw new ArgumentException("Watch a neuron obtained from this connection's Get.", nameof(source)); }
+        await using var subscription = await EdgeSignalSubscription<T>.OpenAsync(_edge, neuron, cancellationToken).ConfigureAwait(false);
         await foreach (var signal in subscription.ReadAllAsync(cancellationToken).ConfigureAwait(false))
         {
             yield return signal;

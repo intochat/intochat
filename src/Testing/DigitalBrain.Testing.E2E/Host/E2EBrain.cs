@@ -9,7 +9,7 @@ using Orleans;
 
 namespace DigitalBrain.Testing.E2E;
 
-public sealed class E2EBrain : IDigitalBrain, ITrackedBrain
+public sealed class E2EBrain : IDigitalBrain, IBrainSubscriptions, IAsyncDisposable, ITrackedBrain
 {
     private readonly SemaphoreSlim _browserGate = new(1);
     private readonly ResolvedBrowserOptions _options;
@@ -51,10 +51,13 @@ public sealed class E2EBrain : IDigitalBrain, ITrackedBrain
     TestExecutionOptions ITrackedBrain.Execution => _session.Options;
     void ITrackedBrain.Track(IAsyncDisposable resource) => _lifetime.Own("observation", resource);
 
-    public T Get<T>(string id) where T : class, IGrainWithStringKey => _session.Brain.Get<T>(id);
+    public T Get<T>(string id) where T : class, INeuron => _session.Brain.Get<T>(id);
+
+    public IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
+        => _session.Brain.On<T>(source, cancellationToken);
 
     public Task<ISignalSubscription<T>> SubscribeAsync<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
-        => _session.Brain.SubscribeAsync<T>(source, cancellationToken);
+        => _session.Subscriptions.SubscribeAsync<T>(source, cancellationToken);
 
     internal async Task StartBrowserAsync(CancellationToken cancellationToken)
     {

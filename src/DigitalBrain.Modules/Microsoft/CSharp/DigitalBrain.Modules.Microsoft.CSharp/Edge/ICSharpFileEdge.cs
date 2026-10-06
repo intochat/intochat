@@ -1,3 +1,4 @@
+using DigitalBrain;
 using DigitalBrain.Framework.Enforcement;
 using Orleans.Metadata;
 
@@ -9,7 +10,7 @@ internal sealed record RunAuthorization([property: Id(0)] bool Active, [property
 // The edge asks the file whether a token's run still speaks for it, and on whose behalf. It also
 // records the durable subscriptions a script declares by streaming, and drains their buffers.
 [Alias("microsoft.csharp.file-edge"), DefaultGrainType("microsoft.csharp.file")]
-internal interface ICSharpFileEdge : IGrainWithStringKey
+internal interface ICSharpFileEdge : INeuron
 {
     Task<RunAuthorization> Authorize(string runId);
     Task Subscribed(string runId, string neuron, string signal);

@@ -9,7 +9,7 @@ public sealed class VocabularyRingFacts
 {
     private static readonly Assembly Vocabulary = typeof(Signal).Assembly;
 
-    private static readonly Type[] Roots = [typeof(INeuron), typeof(IBrain), typeof(IDigitalBrain), typeof(INeuronObserver), typeof(ISignalSubscription<>)];
+    private static readonly Type[] Roots = [typeof(INeuron), typeof(IBrain), typeof(IDigitalBrain), typeof(INeuronObserver)];
 
     // The Contracts ring: DigitalBrain plus every production assembly whose DigitalBrain references stay
     // inside the ring (module *.Contracts projects). Their neuron contracts, signals and wire exceptions
@@ -45,6 +45,31 @@ public sealed class VocabularyRingFacts
                 || (name.StartsWith("Microsoft.Extensions.", StringComparison.Ordinal) && name.EndsWith(".Abstractions", StringComparison.Ordinal))))
             .Order().ToArray();
         Assert.True(offenders.Length == 0, "DigitalBrain references non-abstraction assemblies:\n" + string.Join("\n", offenders));
+    }
+
+    [Fact]
+    public void TheRingHoldsNoHandles()
+    {
+        // A Task is itself disposable; what matters is what a member hands back once awaited.
+        static Type Awaited(Type type) => type == typeof(Task) || type == typeof(ValueTask) ? typeof(void)
+            : type.IsGenericType && (type.GetGenericTypeDefinition() == typeof(Task<>) || type.GetGenericTypeDefinition() == typeof(ValueTask<>)) ? type.GetGenericArguments()[0]
+            : type;
+        static bool IsHandle(Type type) => typeof(IAsyncDisposable).IsAssignableFrom(type) || typeof(IDisposable).IsAssignableFrom(type);
+        var offenders = PublicTypes()
+            .Where(t => IsHandle(t)
+                || t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly).Any(m => IsHandle(Awaited(m.ReturnType))))
+            .Select(t => t.FullName!).Order().ToArray();
+        Assert.True(offenders.Length == 0, "Ring types that are or return handles:\n" + string.Join("\n", offenders));
+    }
+
+    [Fact]
+    public void TheBrainSeenByAProgramHasExactlyResolveAndWatch()
+    {
+        var members = typeof(IDigitalBrain).GetMethods().Select(m => m.Name).Order().ToArray();
+        Assert.Equal(["Get", "On"], members);
+        Assert.False(typeof(IAsyncDisposable).IsAssignableFrom(typeof(IDigitalBrain)));
+        var get = typeof(IDigitalBrain).GetMethod("Get")!;
+        Assert.Contains(typeof(INeuron), get.GetGenericArguments()[0].GetGenericParameterConstraints());
     }
 
     private static IEnumerable<Type> PublicTypes() => Vocabulary.GetExportedTypes()

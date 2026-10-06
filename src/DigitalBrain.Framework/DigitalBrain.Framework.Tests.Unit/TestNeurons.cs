@@ -31,7 +31,7 @@ public sealed class OtherEmitter : Neuron, IOtherEmitter
     public Task Emit(int value) => PublishAsync(new Number(value));
 }
 
-public interface ISiloBrainListener : IGrainWithStringKey
+public interface ISiloBrainListener : INeuron
 {
     Task<bool> HubIsPresent();
     Task Listen(string sourceId);
@@ -40,7 +40,7 @@ public interface ISiloBrainListener : IGrainWithStringKey
 }
 
 [GrainType("silo-brain-listener")]
-public sealed class SiloBrainListener : Grain, ISiloBrainListener
+public sealed class SiloBrainListener : Neuron, ISiloBrainListener
 {
     private int _last;
     private ISignalSubscription<Number>? _subscription;
@@ -51,7 +51,7 @@ public sealed class SiloBrainListener : Grain, ISiloBrainListener
     {
         var brain = ServiceProvider.GetRequiredService<IDigitalBrain>();
         var source = brain.Get<ITestEmitter>(sourceId);
-        _subscription = await brain.SubscribeAsync<Number>(source);
+        _subscription = await ServiceProvider.GetRequiredService<IBrainSubscriptions>().SubscribeAsync<Number>(source);
         _ = Drain();
     }
 
@@ -61,7 +61,7 @@ public sealed class SiloBrainListener : Grain, ISiloBrainListener
     {
         var brain = ServiceProvider.GetRequiredService<IDigitalBrain>();
         using var cancellation = new CancellationTokenSource();
-        await using var subscription = await brain.SubscribeAsync<Number>(brain.Get<ITestEmitter>(sourceId), cancellation.Token);
+        await using var subscription = await ServiceProvider.GetRequiredService<IBrainSubscriptions>().SubscribeAsync<Number>(brain.Get<ITestEmitter>(sourceId), cancellation.Token);
         await cancellation.CancelAsync();
         await Task.WhenAny(subscription.Completion, Task.Delay(TimeSpan.FromSeconds(5)));
         return subscription.Completion.IsCanceled;

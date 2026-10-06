@@ -59,7 +59,7 @@ public sealed class LateRegistrationFacts
         try
         {
             await source.WaitForHeldWatch().WaitAsync(TimeSpan.FromSeconds(3), ct);
-            await brain.Client().DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3), ct);
+            await ((IAsyncDisposable)brain.Client()).DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3), ct);
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => subscribing);
             await source.ReleaseWatch();
             await source.WaitForCompletedWatch().WaitAsync(TimeSpan.FromSeconds(3), ct);

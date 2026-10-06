@@ -36,7 +36,8 @@ public sealed record Invitation
 
 // The identity front door. Identity and authorization state are held by principal, account,
 // and account/brain-scoped actors.
-public interface IIdentityDirectory : IGrainWithStringKey
+[PlatformOnly]
+public interface IIdentityDirectory : INeuron
 {
     Task<Member> RegisterAsync(string principalId, string password, string displayName, CancellationToken cancellationToken = default);
     Task<Member?> AuthenticateAsync(string principalId, string password, CancellationToken cancellationToken = default);

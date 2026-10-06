@@ -15,9 +15,7 @@ public sealed class CSharpScriptSandbox(CSharpToolService tools) : IScriptSandbo
 
                     await using var brain = await DigitalBrainClient.ConnectAsync(args);
                     var app = brain.Get<IApp>(brain.Setting("App")!);
-                    await using var invocations = await brain.SubscribeAsync<AppInvoked>(app, brain.Stopping);
-                    foreach (var missed in await app.Pending()) { await app.Respond(Answer(missed.Id, missed.Input)); }
-                    await foreach (var invoked in invocations.ReadAllAsync(brain.Stopping)) { await app.Respond(Answer(invoked.InvocationId, invoked.Input)); }
+                    await foreach (var invoked in app.Invocations(brain, brain.Stopping)) { await app.Respond(Answer(invoked.InvocationId, invoked.Input)); }
 
                     static AppResponse Answer(Guid invocationId, string input) => new(invocationId, /* the answer */ input, null);
                   Settings are read with brain.Setting("Name").
