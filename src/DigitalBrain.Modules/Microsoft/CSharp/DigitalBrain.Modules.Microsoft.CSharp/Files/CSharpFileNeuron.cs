@@ -3,7 +3,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using DigitalBrain;
 using DigitalBrain.Client;
-using DigitalBrain.Edge.V1;
+using DigitalBrain.Client.Edge.V1;
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;

@@ -1,6 +1,7 @@
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text.Json;
+using DigitalBrain.Framework;
 
 namespace DigitalBrain.Testing.E2E;
 

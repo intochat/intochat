@@ -8,6 +8,7 @@ using DigitalBrain.Assistant;
 using DigitalBrain.Compute;
 using DigitalBrain.Framework;
 using Xunit;
+using DigitalBrain.Framework.Metering;
 
 namespace DigitalBrain.Modules.Assistant.Tests;
 
@@ -103,10 +104,10 @@ public sealed class AgentTurnFacts
     public void ShadowPriceSumsEveryTokenClassForTheIntent()
     {
         using var intent = IntentContext.Begin("intent-shadow", "scope");
-        intent.AddUsage(new TokenUsageEntry(MeterKind.Chat, "OpenAI", "gpt-5.6-luna",
-            1_000_000, 0, null, 1_000_000, 2_000_000, true, DateTimeOffset.UtcNow));
+        intent.AddUsage(new IntentUsageEntry<TokenUsageEntry>(new(MeterKind.Chat, "OpenAI", "gpt-5.6-luna",
+            1_000_000, 0, null, 1_000_000, 2_000_000, true, DateTimeOffset.UtcNow)));
 
-        var (modelCalls, compute) = AgentReceipts.ShadowPrice(intent.Usage.OfType<TokenUsageEntry>(), new PriceBook());
+        var (modelCalls, compute) = AgentReceipts.ShadowPrice(intent.UsageOf<TokenUsageEntry>(), new PriceBook());
 
         Assert.Equal(1, modelCalls);
         Assert.Equal(250m + 1000m, compute);

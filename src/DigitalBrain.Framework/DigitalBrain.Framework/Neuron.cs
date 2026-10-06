@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Signals;
+using DigitalBrain.Framework.Signals;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

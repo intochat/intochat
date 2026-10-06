@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using DigitalBrain;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.AI;
+using DigitalBrain.Framework.Metering;
 
 namespace DigitalBrain.AI.Metering;
 
@@ -52,7 +53,7 @@ internal sealed class MeteringChatClient(IChatClient innerClient, IIntentUsageSi
         var entry = new TokenUsageEntry(MeterKind.Chat, provider, responseModel ?? optionModel ?? model,
             usage?.InputTokenCount, usage?.CachedInputTokenCount, usage?.ReasoningTokenCount,
             usage?.OutputTokenCount, usage?.TotalTokenCount, usage is not null, DateTimeOffset.UtcNow);
-        try { await sink.RecordAsync(intent.IntentId, entry, cancellationToken).ConfigureAwait(false); }
+        try { await sink.RecordAsync(intent.IntentId, new IntentUsageEntry<TokenUsageEntry>(entry), cancellationToken).ConfigureAwait(false); }
         catch { /* Metering is an observer: a storage fault must never fail the model call. */ }
     }
 }

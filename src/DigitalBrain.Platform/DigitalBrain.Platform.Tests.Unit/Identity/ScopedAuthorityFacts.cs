@@ -7,6 +7,7 @@ using Orleans;
 using Orleans.Runtime;
 using Orleans.Serialization;
 using Orleans.Storage;
+using DigitalBrain.Framework;
 
 namespace DigitalBrain.Platform.Tests.Unit.Identity;
 
@@ -16,7 +17,7 @@ public sealed class ScopedAuthorityFacts
     public async Task RegistrationResumesAfterProvisioningFailsWithoutAllocatingAnotherAccount()
     {
         await using var brain = await ModuleTest.Create().ConfigureSilo(silo =>
-            silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrain.DigitalBrainNames.DefaultGrainStorage,
+            silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.DefaultGrainStorage,
                 (services, _) => new FailOnceStorage(new OrleansGrainStorageSerializer(services.GetRequiredService<Serializer>()))))
             .StartAsync(TestContext.Current.CancellationToken);
         var principal = brain.Get<IPrincipal>("recoverable");

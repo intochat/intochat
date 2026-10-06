@@ -1,6 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Signals;
+using DigitalBrain.Framework.Signals;
 
 namespace DigitalBrain.Framework;
 

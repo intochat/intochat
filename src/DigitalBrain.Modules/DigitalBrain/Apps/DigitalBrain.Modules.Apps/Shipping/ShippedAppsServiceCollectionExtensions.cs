@@ -4,17 +4,18 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using DigitalBrain.Framework;
 
 namespace DigitalBrain.Apps;
 
 public static class ShippedAppsServiceCollectionExtensions
 {
     public static readonly string ConfigurationSection =
-        DigitalBrain.DigitalBrainConfiguration.ModuleSection(new DigitalBrain.ModuleId("apps")) + ":Shipped";
+        DigitalBrain.Framework.DigitalBrainConfiguration.ModuleSection(new DigitalBrain.Framework.ModuleId("apps")) + ":Shipped";
     // The startup-shipping switch lives on the module's public surface so hosts and fixtures can
     // name it; ShippedAppPublisher (internal) is its reader.
     public static readonly string ShipOnStartupKey =
-        DigitalBrain.DigitalBrainConfiguration.ModuleOptionsSection(new DigitalBrain.ModuleId("apps")) + ":ShipOnStartup";
+        DigitalBrain.Framework.DigitalBrainConfiguration.ModuleOptionsSection(new DigitalBrain.Framework.ModuleId("apps")) + ":ShipOnStartup";
 
     public static IServiceCollection AddShippedApps(this IServiceCollection services, Assembly assembly, string resourcePrefix, string account)
     {

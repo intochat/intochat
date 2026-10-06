@@ -39,6 +39,6 @@ public sealed class CSharpModuleHosting : ModuleHosting<DigitalBrain.Microsoft.C
     {
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
             => builder.WithEnvironment(
-                DigitalBrainConfiguration.EnvironmentName(CSharpDeploymentSettings.SectionName, nameof(CSharpDeploymentSettings.SandboxProbeUrl)), endpoint);
+                DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(CSharpDeploymentSettings.SectionName, nameof(CSharpDeploymentSettings.SandboxProbeUrl)), endpoint);
     }
 }

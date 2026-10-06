@@ -1,7 +1,7 @@
 using DigitalBrain;
-using DigitalBrain.Signals;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using DigitalBrain.Framework.Signals;
 
 namespace DigitalBrain.Client.Orleans;
 

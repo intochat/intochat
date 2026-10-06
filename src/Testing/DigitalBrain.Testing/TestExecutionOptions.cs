@@ -1,3 +1,5 @@
+using DigitalBrain.Framework;
+
 namespace DigitalBrain.Testing;
 
 public sealed record TestExecutionOptions

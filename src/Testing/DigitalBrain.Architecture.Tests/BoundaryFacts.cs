@@ -13,8 +13,8 @@ public sealed class BoundaryFacts
 {
     private static readonly string[] KernelLayers =
     [
-        "DigitalBrain", "DigitalBrain.Client", "DigitalBrain.Client.Orleans",
-        "DigitalBrain.Framework", "DigitalBrain.Platform"
+        "DigitalBrain", "DigitalBrain.Client", "DigitalBrain.Framework",
+        "DigitalBrain.Client.Orleans", "DigitalBrain.Platform"
     ];
 
     [Theory]

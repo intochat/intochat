@@ -4,6 +4,7 @@ using DigitalBrain.Assistant;
 using DigitalBrain.Compute;
 using DigitalBrain.Framework;
 using Xunit;
+using DigitalBrain.Framework.Metering;
 
 namespace DigitalBrain.Modules.Assistant.Tests;
 
@@ -28,7 +29,7 @@ public sealed class ComputeUsageFacts
         using var intent = IntentContext.Begin("retried", "workspace");
         var previous = new TokenUsageEntry(MeterKind.Chat, "OpenAI", "gpt-5.6-luna", 1000, 0, 0, 1000, 2000, true, DateTimeOffset.UtcNow);
         var current = previous with { InputTokens = 2000 };
-        intent.AddUsage(current);
+        intent.AddUsage(new IntentUsageEntry<TokenUsageEntry>(current));
         var priceBook = new PriceBook();
         var currentReceipt = AgentReceipts.Create(priceBook, intent, new IntentActivity(), AgentRunOutcome.Succeeded);
         var cumulative = AgentReceipts.Create(priceBook, intent, new IntentActivity(), AgentRunOutcome.Succeeded, [previous, current]);

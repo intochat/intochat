@@ -1,6 +1,6 @@
 using System.Net.ServerSentEvents;
 using DigitalBrain.Client;
-using DigitalBrain.Edge.V1;
+using DigitalBrain.Client.Edge.V1;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;

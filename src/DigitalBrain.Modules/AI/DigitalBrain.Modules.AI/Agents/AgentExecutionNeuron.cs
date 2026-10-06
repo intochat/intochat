@@ -7,6 +7,7 @@ using DigitalBrain.Framework.Enforcement;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Orleans.Runtime;
+using DigitalBrain.Framework.Metering;
 
 namespace DigitalBrain.AI.Agents;
 

@@ -1,6 +1,6 @@
 using System.Net;
 using System.Text;
-using DigitalBrain.Edge.V1;
+using DigitalBrain.Client.Edge.V1;
 
 namespace DigitalBrain.Client.Tests.Unit;
 

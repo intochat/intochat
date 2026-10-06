@@ -61,10 +61,10 @@ var intoChatApps = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..",
 
 var runtime = builder.AddProject<Projects.DigitalBrain_OS>("IntoChat")
     .WithReference(digitalBrain)
-    .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntoChatAccountKey + ":Username"), "intochat")
-    .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntoChatAccountKey + ":DisplayName"), "IntoChat")
-    .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsKey + ":Path"), intoChatApps)
-    .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsKey + ":Account"), "intochat")
+    .WithEnvironment(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(IntoChatAccountKey + ":Username"), "intochat")
+    .WithEnvironment(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(IntoChatAccountKey + ":DisplayName"), "IntoChat")
+    .WithEnvironment(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsKey + ":Path"), intoChatApps)
+    .WithEnvironment(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsKey + ":Account"), "intochat")
     .WaitFor(cookieProtection)
     .WithHttpEndpoint(
         port: builder.Configuration.GetValue(UiPortKey, 5080),
@@ -77,9 +77,9 @@ var runtime = builder.AddProject<Projects.DigitalBrain_OS>("IntoChat")
 if (builder.ExecutionContext.IsRunMode)
 {
     runtime
-        .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntoChatAccountKey + ":Password"),
+        .WithEnvironment(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(IntoChatAccountKey + ":Password"),
             builder.Configuration[IntoChatAccountKey + ":Password"] ?? "intochat-development")
-        .WithEnvironment(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsKey + ":Writable"), "true");
+        .WithEnvironment(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsKey + ":Writable"), "true");
 }
 
 builder.AddProject<Projects.DigitalBrain_Mcp>("digitalbrain-mcp")

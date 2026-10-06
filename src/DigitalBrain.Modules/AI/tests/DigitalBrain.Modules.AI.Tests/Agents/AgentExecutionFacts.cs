@@ -7,6 +7,7 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Framework.Metering;
 
 namespace DigitalBrain.Modules.AI.Tests;
 
@@ -65,7 +66,7 @@ public sealed class AgentExecutionFacts
     private sealed class FailingUsageSink : IIntentUsageSink
     {
         public int FlushCalls { get; private set; }
-        public Task RecordAsync(string intentId, TokenUsageEntry entry, CancellationToken cancellationToken = default)
+        public Task RecordAsync(string intentId, IIntentUsageEntry entry, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
         public Task FlushAsync(IntentUsageBatch intent, CancellationToken cancellationToken = default)
         {

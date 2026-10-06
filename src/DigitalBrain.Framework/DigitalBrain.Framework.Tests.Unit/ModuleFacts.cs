@@ -2,7 +2,7 @@ namespace DigitalBrain.Framework.Tests.Unit;
 
 public sealed class ModuleFacts
 {
-    private sealed class ExampleOptions : DigitalBrain.IModuleOptions { public void Validate() { } }
+    private sealed class ExampleOptions : DigitalBrain.Framework.IModuleOptions { public void Validate() { } }
     private sealed class ExampleModule() : DigitalBrain.Framework.Module<ExampleOptions>(new("example"))
     { public override void Configure(Orleans.Hosting.ISiloBuilder silo) { } }
 

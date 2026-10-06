@@ -1,4 +1,5 @@
 using Orleans.Runtime;
+using DigitalBrain.Framework;
 namespace DigitalBrain.Google.Gmail;
 
 [Alias("gmail.mailbox-index"), Orleans.Metadata.DefaultGrainType("gmail.mailbox-index")]

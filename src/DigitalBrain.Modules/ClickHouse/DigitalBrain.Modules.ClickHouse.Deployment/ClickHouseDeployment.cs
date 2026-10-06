@@ -1,5 +1,6 @@
 using DigitalBrain.Deployment;
 using Pulumi;
+using DigitalBrain.Framework;
 
 namespace DigitalBrain.ClickHouse;
 

@@ -31,7 +31,7 @@ public sealed class PostgresAspireHostingFacts
         Assert.Equal(persistent, server.Annotations.OfType<ContainerMountAnnotation>().Any(mount => mount.Type == ContainerMountType.Volume));
         Assert.Equal(persistent, server.Annotations.OfType<ContainerLifetimeAnnotation>().Any(lifetime => lifetime.Lifetime == ContainerLifetime.Persistent));
         var environment = await EnvironmentOf(builder, consumer.Resource, TestContext.Current.CancellationToken);
-        Assert.Contains(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString")), environment.Keys);
+        Assert.Contains(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString")), environment.Keys);
         Assert.Equal("reporting", Assert.IsType<string>(environment[DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ModuleOptionsSection("postgres"), "ConnectionName")]));
     }
 
@@ -46,7 +46,7 @@ public sealed class PostgresAspireHostingFacts
 
         Assert.Empty(builder.Resources.OfType<PostgresServerResource>());
         var environment = await EnvironmentOf(builder, consumer.Resource, TestContext.Current.CancellationToken);
-        var connection = Assert.IsType<ParameterResource>(environment[DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString"))]);
+        var connection = Assert.IsType<ParameterResource>(environment[DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString"))]);
         Assert.True(connection.Secret);
         Assert.Equal(builder.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")], await connection.GetValueAsync(TestContext.Current.CancellationToken));
     }
@@ -69,7 +69,7 @@ public sealed class PostgresAspireHostingFacts
         foreach (var consumer in new[] { first, second })
         {
             Assert.Contains(consumer.Resource.Annotations.OfType<WaitAnnotation>(), wait => ReferenceEquals(wait.Resource, database));
-            Assert.Contains(DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString")), (await EnvironmentOf(builder, consumer.Resource, TestContext.Current.CancellationToken)).Keys);
+            Assert.Contains(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString")), (await EnvironmentOf(builder, consumer.Resource, TestContext.Current.CancellationToken)).Keys);
         }
     }
 
@@ -115,7 +115,7 @@ public sealed class PostgresAspireHostingFacts
 
         Assert.Empty(builder.Resources.OfType<PostgresServerResource>());
         var environment = await EnvironmentOf(builder, consumer.Resource, TestContext.Current.CancellationToken);
-        var connection = Assert.IsType<ParameterResource>(environment[DigitalBrain.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString"))]);
+        var connection = Assert.IsType<ParameterResource>(environment[DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString"))]);
         Assert.True(connection.Secret);
         Assert.DoesNotContain(DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "AdminConnection")), environment.Keys);
     }

@@ -18,7 +18,7 @@ public sealed record TokenUsageEntry(
     [property: Id(6)] long? OutputTokens,
     [property: Id(7)] long? TotalTokens,
     [property: Id(8)] bool UsageReported,
-    [property: Id(9)] DateTimeOffset At) : IIntentUsageEntry;
+    [property: Id(9)] DateTimeOffset At);
 
 [GenerateSerializer, Alias("ai.intent-token-usage")]
 public sealed record IntentTokenUsage(

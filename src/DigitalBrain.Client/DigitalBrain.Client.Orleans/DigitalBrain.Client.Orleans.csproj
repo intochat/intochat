@@ -4,5 +4,6 @@
     <PackageReference Include="Microsoft.Orleans.Client" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <ProjectReference Include="../../DigitalBrain/DigitalBrain.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
   </ItemGroup>
 </Project>

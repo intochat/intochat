@@ -4,7 +4,7 @@ using Aspire.Hosting.Azure;
 using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Aspire.Server;
-using DigitalBrain.Edge.V1;
+using DigitalBrain.Client.Edge.V1;
 using DigitalBrain.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
@@ -12,6 +12,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Orleans.Hosting;
+using DigitalBrain.Framework.Metering;
 
 namespace DigitalBrain.Framework.Tests.Unit;
 

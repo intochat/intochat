@@ -149,8 +149,8 @@ public sealed class MeteringFacts
 
         using (var intent = IntentContext.Begin("intent-batch", "scope"))
         {
-            await sink.RecordAsync(intent.IntentId, chat, ct);
-            await sink.RecordAsync(intent.IntentId, chat with { Meter = MeterKind.Embedding }, ct);
+            await sink.RecordAsync(intent.IntentId, new IntentUsageEntry<TokenUsageEntry>(chat), ct);
+            await sink.RecordAsync(intent.IntentId, new IntentUsageEntry<TokenUsageEntry>(chat with { Meter = MeterKind.Embedding }), ct);
             // Provider calls accumulate in the intent scope; nothing is durable until the flush.
             Assert.Empty((await usage.ReadAsync(ct)).Entries);
             await sink.FlushAsync(intent.Snapshot(), ct);
@@ -188,9 +188,9 @@ public sealed class MeteringFacts
     {
         public List<(string IntentId, TokenUsageEntry Entry)> Records { get; } = [];
 
-        public Task RecordAsync(string intentId, TokenUsageEntry entry, CancellationToken cancellationToken = default)
+        public Task RecordAsync(string intentId, IIntentUsageEntry entry, CancellationToken cancellationToken = default)
         {
-            Records.Add((intentId, entry));
+            Records.Add((intentId, ((IntentUsageEntry<TokenUsageEntry>)entry).Value));
             return Task.CompletedTask;
         }
 

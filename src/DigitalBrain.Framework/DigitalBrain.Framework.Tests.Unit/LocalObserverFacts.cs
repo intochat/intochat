@@ -1,6 +1,6 @@
-using DigitalBrain.Signals;
 using Microsoft.Extensions.Logging.Abstractions;
 using Orleans.Runtime;
+using DigitalBrain.Framework.Signals;
 
 namespace DigitalBrain.Framework.Tests.Unit;
 

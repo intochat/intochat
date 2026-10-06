@@ -3,6 +3,7 @@ using DeploymentKit.Enums;
 using DigitalBrain.Deployment;
 using Pulumi;
 using Pulumi.Testing;
+using DigitalBrain.Framework;
 
 namespace DigitalBrain.Deployment.Tests;
 
@@ -91,7 +92,7 @@ public sealed class DigitalBrainDeploymentFacts
 
     private sealed class VectorsDeployment : IDigitalBrainModuleDeployment
     {
-        public DigitalBrain.ModuleId Module { get; } = new("vectors");
+        public DigitalBrain.Framework.ModuleId Module { get; } = new("vectors");
         public void Deploy(ModuleDeploymentContext context) => context.Provide("vectors", "bindings.grpc.url", "https://vectors.internal");
     }
 }

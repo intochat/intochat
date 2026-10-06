@@ -1,3 +1,5 @@
+using DigitalBrain.Framework.Metering;
+
 namespace DigitalBrain.Framework;
 
 public sealed class IntentContext : IDisposable
@@ -14,6 +16,7 @@ public sealed class IntentContext : IDisposable
     public string? ScopeId { get; }
     public static IntentContext? Current => Ambient.Value;
     public IIntentUsageEntry[] Usage { get { lock (_gate) { return [.. _usage]; } } }
+    public IEnumerable<T> UsageOf<T>() where T : notnull => Usage.OfType<IntentUsageEntry<T>>().Select(entry => entry.Value);
     public IntentUsageBatch Snapshot() => new(IntentId, ScopeId, Usage);
     public void AddUsage(IIntentUsageEntry entry)
     {

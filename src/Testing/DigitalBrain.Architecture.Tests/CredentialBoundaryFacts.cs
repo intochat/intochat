@@ -3,6 +3,7 @@ using System.Reflection.Emit;
 using DigitalBrain;
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Framework;
 
 namespace DigitalBrain.Architecture.Tests;
 

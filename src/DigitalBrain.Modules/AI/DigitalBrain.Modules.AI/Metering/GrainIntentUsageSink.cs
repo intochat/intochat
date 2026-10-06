@@ -11,24 +11,25 @@ namespace DigitalBrain.AI.Metering;
 // loaded, the same batch is converted into idempotent meter events.
 internal sealed class GrainIntentUsageSink(IGrainFactory grains, IMeterSink? meterSink = null) : IIntentUsageSink
 {
-    public async Task RecordAsync(string intentId, TokenUsageEntry entry, CancellationToken cancellationToken = default)
+    public async Task RecordAsync(string intentId, IIntentUsageEntry entry, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(intentId);
         ArgumentNullException.ThrowIfNull(entry);
+        if (entry is not IntentUsageEntry<TokenUsageEntry> { Value: var tokens }) { return; }
         if (IntentContext.Current is { } intent && string.Equals(intent.IntentId, intentId, StringComparison.Ordinal))
         {
             intent.AddUsage(entry);
             return;
         }
 
-        await grains.GetGrain<IIntentUsage>(intentId).RecordAsync(entry, cancellationToken).ConfigureAwait(false);
-        await EmitAsync(intentId, null, [entry], cancellationToken).ConfigureAwait(false);
+        await grains.GetGrain<IIntentUsage>(intentId).RecordAsync(tokens, cancellationToken).ConfigureAwait(false);
+        await EmitAsync(intentId, null, [tokens], cancellationToken).ConfigureAwait(false);
     }
 
     public async Task FlushAsync(IntentUsageBatch intent, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(intent);
-        var entries = intent.Usage.OfType<TokenUsageEntry>().ToArray();
+        var entries = intent.Usage.OfType<IntentUsageEntry<TokenUsageEntry>>().Select(usage => usage.Value).ToArray();
         if (entries.Length == 0) { return; }
         await grains.GetGrain<IIntentUsage>(intent.IntentId).RecordBatchAsync(entries, cancellationToken).ConfigureAwait(false);
         await EmitAsync(intent.IntentId, intent.ScopeId, entries, cancellationToken).ConfigureAwait(false);

@@ -3,10 +3,11 @@ using DigitalBrain.Client.Orleans;
 using DigitalBrain.Mcp;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.ServiceDefaults;
+using DigitalBrain.Framework;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddDigitalBrainClient(useAzureClustering: true);
-builder.AddKeyedAzureBlobServiceClient(DigitalBrain.DigitalBrainNames.GrainState);
+builder.AddKeyedAzureBlobServiceClient(DigitalBrainNames.GrainState);
 builder.Services.AddCookieProtection();
 builder.Services.AddDigitalBrainMcp();
 

@@ -9,7 +9,7 @@ public static class AgentReceipts
 {
     public static AgentReceipt Create(IPriceBook priceBook, IntentContext intent, IntentActivity activity, AgentRunOutcome outcome, TokenUsageEntry[]? cumulativeUsage = null)
     {
-        var (modelCalls, compute) = ShadowPrice(cumulativeUsage ?? intent.Usage.OfType<TokenUsageEntry>(), priceBook);
+        var (modelCalls, compute) = ShadowPrice(cumulativeUsage ?? intent.UsageOf<TokenUsageEntry>(), priceBook);
         return new AgentReceipt(outcome, Summarize(activity), activity.Calls, activity.Touched, modelCalls, compute);
     }
 

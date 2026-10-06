@@ -10,9 +10,9 @@ namespace DigitalBrain.AI.Metering;
 internal static class IntentMeterEvents
 {
     public static IEnumerable<MeterEvent> FromUsage(
-        string intentId, string? brainId, IReadOnlyList<IIntentUsageEntry> usage)
+        string intentId, string? brainId, IReadOnlyList<TokenUsageEntry> usage)
     {
-        foreach (var entry in usage.OfType<TokenUsageEntry>())
+        foreach (var entry in usage)
         {
             var prefix = entry.Meter == MeterKind.Chat ? "llm" : "embedding";
             var source = entry.Meter == MeterKind.Chat ? MeterSource.ChatClient : MeterSource.EmbeddingGenerator;

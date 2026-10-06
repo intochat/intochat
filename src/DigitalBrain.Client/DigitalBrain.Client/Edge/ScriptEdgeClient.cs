@@ -1,6 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using DigitalBrain.Edge.V1;
+using DigitalBrain.Client.Edge.V1;
 
 namespace DigitalBrain.Client;
 

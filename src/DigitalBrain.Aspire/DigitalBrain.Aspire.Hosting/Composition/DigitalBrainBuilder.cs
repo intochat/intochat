@@ -31,7 +31,7 @@ public sealed class DigitalBrainBuilder
         => WithHosting(new THosting());
 
     public DigitalBrainBuilder WithHosting<THosting, TOptions>(Action<TOptions>? configure = null)
-        where THosting : IDigitalBrainModuleHosting, new() where TOptions : class, DigitalBrain.IModuleOptions, new()
+        where THosting : IDigitalBrainModuleHosting, new() where TOptions : class, DigitalBrain.Framework.IModuleOptions, new()
     {
         var hosting = new THosting();
         var options = new TOptions();

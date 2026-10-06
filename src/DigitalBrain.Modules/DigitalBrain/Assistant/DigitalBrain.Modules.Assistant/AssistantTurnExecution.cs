@@ -12,6 +12,7 @@ using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using DigitalBrain.Framework.Metering;
 
 namespace DigitalBrain.Assistant;
 
@@ -186,7 +187,7 @@ public sealed class AssistantTurnExecution(IServiceProvider services, IGrainFact
                         occurredAt = DateTimeOffset.UtcNow,
                         priceBookVersion = priceBook.Version,
                         previewCompute = projection?.PreviewCompute,
-                        modelUsage = (projection?.ModelUsage ?? intent.Usage.OfType<TokenUsageEntry>()).Select(entry => new
+                        modelUsage = (projection?.ModelUsage ?? intent.UsageOf<TokenUsageEntry>()).Select(entry => new
                         {
                             provider = entry.Provider,
                             model = entry.Model,

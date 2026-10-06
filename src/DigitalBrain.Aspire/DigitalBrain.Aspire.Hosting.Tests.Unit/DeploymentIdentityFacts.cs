@@ -133,6 +133,6 @@ public sealed class DeploymentIdentityFacts
         Assert.Same(second, selected);
         Assert.Equal("second-data", selected.ServiceId);
         Assert.Equal("second-run", selected.ClusterId);
-        Assert.Equal(second.ResourceName(DigitalBrain.DigitalBrainNames.Clustering), selected.ClusteringResourceName);
+        Assert.Equal(second.ResourceName(DigitalBrainNames.Clustering), selected.ClusteringResourceName);
     }
 }
