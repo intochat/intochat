@@ -100,6 +100,8 @@
     "digitalbrain-mcp"
   ],
   "disableClaudeAiConnectors": true,
-  "enabledPlugins": {},
+  "enabledPlugins": {
+    "csharp-lsp@claude-plugins-official": true
+  },
   "extraKnownMarketplaces": {}
 }
