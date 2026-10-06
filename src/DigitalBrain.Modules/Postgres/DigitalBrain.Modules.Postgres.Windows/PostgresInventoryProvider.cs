@@ -1,7 +1,7 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 
-namespace DigitalBrain.Postgres;
+namespace DigitalBrain.Postgres.Windows;
 
 // The existing resource service enumerates installed app ownership, not database tables.
 // Tables owned only by unindexed legacy/direct callers are outside this view.

@@ -25,6 +25,7 @@ public static class OsCatalog
         new DigitalBrain.Microsoft.GitHub.GitHubModule(),
         new DigitalBrain.Microsoft.Playwright.PlaywrightModule(),
         new DigitalBrain.Postgres.PostgresModule(),
+        new DigitalBrain.Postgres.Windows.PostgresWindowsModule(),
         new DigitalBrain.Qdrant.QdrantModule(),
         new DigitalBrain.Salesforce.SalesforceModule(),
         new DigitalBrain.Supabase.SupabaseModule(),

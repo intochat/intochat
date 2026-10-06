@@ -47,10 +47,8 @@ public sealed class PostgresFacts
         Assert.Equal("sample", connection.Database);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task HostingKeepsThePostgresPoolSeparateFromOtherModules(bool postgresFirst)
+    [Fact]
+    public async Task RepeatedHostingRegistersOnePostgresPoolProviderAndHealthCheck()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -59,13 +57,10 @@ public sealed class PostgresFacts
             {
                 [DigitalBrainConfiguration.ModuleOptionsSection("postgres") + ":ConnectionName"] = "analytics",
                 [IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=analytics;Username=reader",
-                [IntegrationSchema.Key("supabase", "ConnectionString")] = "Host=localhost;Database=supabase;Username=reader",
             }).Build();
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton<IModuleIntegrations<PostgresModule>>(new TestIntegrations(configuration));
         var silo = new PostgresTestSiloBuilder(services, configuration);
-        if (postgresFirst) { silo.AddPostgres(); }
-        new DigitalBrain.Supabase.SupabaseModule().Configure(silo);
         silo.AddPostgres();
         silo.AddPostgres();
         await using var provider = services.BuildServiceProvider();

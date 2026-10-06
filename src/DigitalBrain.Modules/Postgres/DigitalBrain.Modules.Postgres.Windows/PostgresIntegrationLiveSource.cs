@@ -2,7 +2,7 @@ using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Tables;
 using DigitalBrain.Supabase.Windows;
 
-namespace DigitalBrain.Postgres;
+namespace DigitalBrain.Postgres.Windows;
 
 internal sealed class PostgresIntegrationLiveSource(IPostgresSourceRegistry sources, string origin) : ILiveTableSource
 {

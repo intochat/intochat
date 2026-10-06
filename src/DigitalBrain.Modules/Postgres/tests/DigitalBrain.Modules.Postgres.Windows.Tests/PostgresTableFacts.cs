@@ -4,8 +4,9 @@ using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Tables;
 using DigitalBrain.Supabase.Windows;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Postgres.Windows;
 
-namespace DigitalBrain.Modules.Postgres.Tests;
+namespace DigitalBrain.Modules.Postgres.Windows.Tests;
 
 public sealed class PostgresTableFacts
 {
@@ -15,7 +16,7 @@ public sealed class PostgresTableFacts
         var ct = TestContext.Current.CancellationToken;
         var postgres = new Source("postgres");
         var supabase = new Source("supabase");
-        await using var brain = await ModuleTest.Create().WithModule<DigitalBrain.Flutter.FlutterModule>().WithModule<PostgresModule>()
+        await using var brain = await ModuleTest.Create().WithModule<DigitalBrain.Flutter.FlutterModule>().WithModule<PostgresModule>().WithModule<PostgresWindowsModule>()
             .ConfigureSilo(silo =>
             {
                 silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=sample;Username=reader";

@@ -1,9 +1,6 @@
-using DigitalBrain.AI.Agents;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Capacity;
 using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Supabase;
-using DigitalBrain.Supabase.Windows;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -45,19 +42,6 @@ public static class PostgresHosting
         services.TryAddSingleton<ITableStore, TableStore>();
         services.AddSingleton<IIncomingGrainCallFilter, TableLifecycleGuard>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Apps.IAppStorageHook, TableStorageHook>());
-        // Moves to Postgres.Windows in the next task.
-        services.TryAddSingleton<PostgresAppResources>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IRegistryInventoryProvider, PostgresInventoryProvider>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Framework.IRegistryResourceProvider, PostgresRegistryResources>());
-        services.AddLiveTables();
-        services.TryAddKeyedSingleton<ILiveTableSource>("postgres", (provider, _) =>
-            new PostgresIntegrationLiveSource(provider.GetRequiredService<IPostgresSourceRegistry>(), PostgresCapacityKind.PlatformOrigin));
-        services.TryAddKeyedSingleton<ILiveTableSource>(KeyedService.AnyKey, (provider, key) =>
-            key is string name && name.StartsWith(PostgresAppResources.SourcePrefix, StringComparison.Ordinal) ? new PostgresAppLiveSource(
-                () => provider.GetRequiredService<PostgresAppResources>().Resolve((string)key!, CancellationToken.None),
-                origin => new PostgresIntegrationLiveSource(provider.GetRequiredService<IPostgresSourceRegistry>(), origin))
-                : throw new DigitalBrain.Supabase.Tables.SupabaseTableSourceException("The requested table source is not configured."));
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IAgentToolFactory, PostgresTools>());
         return silo;
     }
 

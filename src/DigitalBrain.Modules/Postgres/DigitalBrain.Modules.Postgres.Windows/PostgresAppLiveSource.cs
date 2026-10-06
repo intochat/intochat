@@ -2,7 +2,7 @@ using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Tables;
 using DigitalBrain.Postgres.Tables;
 
-namespace DigitalBrain.Postgres;
+namespace DigitalBrain.Postgres.Windows;
 
 // Only this fixed projection is accepted. Filtering and aggregation use the existing parameterized
 // query-plan compiler; neither an origin nor a physical table name is accepted from the caller.

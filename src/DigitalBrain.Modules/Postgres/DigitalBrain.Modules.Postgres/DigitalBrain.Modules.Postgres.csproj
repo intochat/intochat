@@ -7,15 +7,9 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../DigitalBrain/Apps/DigitalBrain.Modules.Apps.Contracts/DigitalBrain.Modules.Apps.Contracts.csproj" />
-    <ProjectReference Include="../../Supabase/DigitalBrain.Modules.Supabase/DigitalBrain.Modules.Supabase.csproj" />
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <PackageReference Include="Npgsql" />
-    <PackageReference Include="Azure.Storage.Blobs" />
-    <PackageReference Include="Microsoft.Orleans.Persistence.AzureStorage" />
-    <InternalsVisibleTo Include="DigitalBrain.Modules.Postgres.Tests" />
     <ProjectReference Include="../DigitalBrain.Modules.Postgres.Contracts/DigitalBrain.Modules.Postgres.Contracts.csproj" />
     <ProjectReference Include="../../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
-  </ItemGroup>
-  <ItemGroup>
+    <PackageReference Include="Npgsql" />
+    <InternalsVisibleTo Include="DigitalBrain.Modules.Postgres.Tests" />
   </ItemGroup>
 </Project>

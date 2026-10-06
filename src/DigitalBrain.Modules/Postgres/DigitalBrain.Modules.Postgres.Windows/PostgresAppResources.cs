@@ -5,7 +5,7 @@ using DigitalBrain.Enforcement;
 using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Postgres.Tables;
 
-namespace DigitalBrain.Postgres;
+namespace DigitalBrain.Postgres.Windows;
 
 internal sealed record PostgresAppDiscovery(TableDescription[] Resources, PostgresAppDiscoveryError[] Errors);
 internal sealed record PostgresAppDiscoveryError(string AppId, string TableId, string Message);

@@ -24,7 +24,7 @@ internal sealed class PostgresConfiguredSource(bool active) : ICapacityConfigure
     public string Origin => PostgresCapacityKind.PlatformOrigin;
 }
 
-internal interface IPostgresSourceRegistry
+public interface IPostgresSourceRegistry
 {
     Task<NpgsqlDataSource> Get(string origin, CancellationToken ct = default);
 }

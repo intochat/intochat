@@ -366,7 +366,7 @@ public sealed class PostgresWriteTableFacts
             if (provider is not null) { silo.Services.AddSingleton(provider); }
         }).StartAsync(TestContext.Current.CancellationToken);
 
-    internal sealed class MemoryTables : ITableStore
+    public sealed class MemoryTables : ITableStore
     {
         private readonly Dictionary<string, Dictionary<string, TableValue[]>> tables = [];
         public int Definitions { get; private set; }

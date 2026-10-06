@@ -9,8 +9,9 @@ using DigitalBrain.Supabase.Tables;
 using DigitalBrain.Supabase.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Postgres.Tables;
+using DigitalBrain.Postgres.Windows;
 
-namespace DigitalBrain.Modules.Postgres.Tests;
+namespace DigitalBrain.Modules.Postgres.Windows.Tests;
 
 public sealed class PostgresAppSourceFacts
 {
@@ -32,8 +33,8 @@ public sealed class PostgresAppSourceFacts
     public async Task PendingDefinitionDoesNotHideHealthyTablesInAnotherApp()
     {
         var ct = TestContext.Current.CancellationToken;
-        var provider = new PostgresWriteTableFacts.MemoryTables { LoseDefineResponse = true };
-        await using var brain = await ModuleTest.Create().WithModule<PostgresModule>().ConfigureSilo(silo =>
+        var provider = new DigitalBrain.Modules.Postgres.Tests.PostgresWriteTableFacts.MemoryTables { LoseDefineResponse = true };
+        await using var brain = await ModuleTest.Create().WithModule<PostgresModule>().WithModule<PostgresWindowsModule>().ConfigureSilo(silo =>
         {
             silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=platform;Username=reader";
             silo.Services.AddSingleton<ITableStore>(provider);
@@ -79,7 +80,7 @@ public sealed class PostgresAppSourceFacts
     {
         var ct = TestContext.Current.CancellationToken;
         const string resource = "postgres-app:discovered-resource";
-        await using var brain = await ModuleTest.Create().WithModule<DigitalBrain.Flutter.FlutterModule>().WithModule<PostgresModule>()
+        await using var brain = await ModuleTest.Create().WithModule<DigitalBrain.Flutter.FlutterModule>().WithModule<PostgresModule>().WithModule<PostgresWindowsModule>()
             .ConfigureSilo(silo =>
             {
                 silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=sample;Username=reader";
@@ -96,10 +97,10 @@ public sealed class PostgresAppSourceFacts
     public async Task HostDiscoveryRetainsPinnedOriginAndRejectsAppAndOtherBrainCallers()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<PostgresModule>().ConfigureSilo(silo =>
+        await using var brain = await ModuleTest.Create().WithModule<PostgresModule>().WithModule<PostgresWindowsModule>().ConfigureSilo(silo =>
         {
             silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=platform;Username=reader";
-            silo.Services.AddSingleton<ITableStore>(new PostgresWriteTableFacts.MemoryTables());
+            silo.Services.AddSingleton<ITableStore>(new DigitalBrain.Modules.Postgres.Tests.PostgresWriteTableFacts.MemoryTables());
             silo.Services.AddSingleton<ICapacity>(new ResearchCapacity());
         }).StartAsync(ct);
         Stamp(CallerKind.App);

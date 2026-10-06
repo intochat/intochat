@@ -1,6 +1,6 @@
 using DigitalBrain.Framework;
 
-namespace DigitalBrain.Postgres;
+namespace DigitalBrain.Postgres.Windows;
 
 internal sealed class PostgresRegistryResources : IRegistryResourceProvider
 {

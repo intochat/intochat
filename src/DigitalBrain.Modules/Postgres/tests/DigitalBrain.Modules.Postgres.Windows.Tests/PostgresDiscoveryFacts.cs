@@ -1,6 +1,7 @@
 using DigitalBrain.Postgres;
+using DigitalBrain.Postgres.Windows;
 
-namespace DigitalBrain.Modules.Postgres.Tests;
+namespace DigitalBrain.Modules.Postgres.Windows.Tests;
 
 public sealed class PostgresDiscoveryFacts
 {

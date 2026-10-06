@@ -5,7 +5,7 @@ using DigitalBrain.Supabase.Windows;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
-namespace DigitalBrain.Postgres;
+namespace DigitalBrain.Postgres.Windows;
 
 internal sealed class PostgresTools(IPostgresProvider provider, LiveTableWindows windows,
     PostgresAppResources resources, ILogger<PostgresTools> logger) : IAgentToolFactory
