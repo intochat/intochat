@@ -7,25 +7,11 @@ using Orleans.Runtime;
 
 namespace DigitalBrain.Platform.Identity.Directory;
 
-public sealed class IdentityMigrationOptions
-{
-    public const string SectionName = "DigitalBrain:Identity:Migration";
-    public const string MaintenanceKey = SectionName + ":" + nameof(Maintenance);
-    public bool Maintenance { get; set; }
-    public string? SourceSnapshotId { get; set; }
-    // Complete grant-store inventory from the stopped source snapshot, including grant-only brains.
-    public string[]? LegacyGrantBrainIds { get; set; }
-    // Explicit mapping for legacy grants without a corresponding directory membership.
-    public Dictionary<string, string> LegacyBrainAccounts { get; set; } = [];
-}
-
-internal sealed class IdentityMigrationStartup(IGrainFactory grains, IOptions<AuthOptions> auth, TimeProvider clock, IOptions<IdentityMigrationOptions> migration, DeploymentStorageIdentity storageIdentity) : IStartupTask
+internal sealed class IdentityStartup(IGrainFactory grains, IOptions<AuthOptions> auth, TimeProvider clock, DeploymentStorageIdentity storageIdentity) : IStartupTask
 {
     public async Task Execute(CancellationToken cancellationToken)
     {
-        if (migration.Value.Maintenance) { await storageIdentity.ValidateAsync(cancellationToken); return; }
         await storageIdentity.BindAsync(cancellationToken);
-        await grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory).PrepareAsync(cancellationToken);
         // Basic bootstrap is an explicit owner of one default scope, never a wildcard bypass.
         if (auth.Value.Username is not { Length: > 0 } principal || string.IsNullOrEmpty(auth.Value.Password)) { return; }
         var account = grains.GetGrain<IAccount>(principal);

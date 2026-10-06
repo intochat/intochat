@@ -14,7 +14,6 @@ import 'package:digitalbrain_flutter_shell/workspace/home/home_screen.dart';
 import 'package:digitalbrain_flutter_shell/workspace/workspace_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'workspace_remote_controller_test.dart' show MemoryPersistence;
 
 void main() {
   testWidgets('main workspace mounts only the neuron-declared application', (
@@ -111,42 +110,6 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     store.dispose();
   });
-
-  test(
-    'saved standalone assistant windows migrate to the main application',
-    () async {
-      final persistence = MemoryPersistence();
-      final original = WorkspaceStore(persistence: persistence);
-      original.addArtifact(
-        WorkspaceArtifact(
-          id: 'app-assistant',
-          title: 'Assistant',
-          kind: 'app',
-          data: {'app': 'assistant'},
-        ),
-      );
-      original.currentConversation.draft = 'Keep my draft';
-      original.currentConversation.messages.add({
-        'id': 'saved',
-        'role': 'user',
-        'text': 'Keep my history',
-      });
-      await original.save();
-      original.dispose();
-
-      final restored = WorkspaceStore(persistence: persistence);
-      await restored.load();
-      expect(restored.currentProject.artifacts, isEmpty);
-      expect(restored.currentProject.presentation.chatCollapsed, isFalse);
-      expect(restored.currentConversation.draft, 'Keep my draft');
-      expect(
-        restored.currentConversation.messages.single['text'],
-        'Keep my history',
-      );
-      expect(() => restored.launchLocalApp('assistant'), throwsArgumentError);
-      restored.dispose();
-    },
-  );
 
   testWidgets('nothing docked means no side panel', (tester) async {
     final store = WorkspaceStore(persistence: MemoryWorkspacePersistence())

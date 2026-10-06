@@ -32,8 +32,8 @@ void main() {
     expect(find.textContaining('new-account'), findsOneWidget);
     expect(find.textContaining('old-account'), findsNothing);
   });
-  test('legacy Connected is only Configured', () {
-    expect(connectionStatus('Connected'), 'Configured');
+  test('a configured credential is never shown as verified', () {
+    expect(connectionStatus('Configured'), 'Configured');
     expect(connectionStatus('Expired'), 'Expired');
     expect(connectionStatus('Failing'), 'Unavailable');
   });
@@ -50,7 +50,7 @@ void main() {
       String path, {
       Map<String, Object?>? body,
     }) async => [
-      {'id': 'mail', 'connectorId': 'gmail', 'status': 'Connected'},
+      {'id': 'mail', 'connectorId': 'gmail', 'status': 'Configured'},
     ];
     Future<Object?> services(String path, {Map<String, Object?>? body}) async {
       if (path.isEmpty) {

@@ -7,6 +7,7 @@ using DigitalBrain.OS;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Xunit;
 
 namespace DigitalBrain.OS.Tests.Unit;
@@ -16,14 +17,15 @@ public sealed class OsBootFacts
     private static readonly string OsScope = BrainScope.Create("account-os", "os").Id;
 
     [Fact(Timeout = 60_000)]
-    public async Task EstablishingABrainInstallsThePublishedDefaultsWithTheirOrigin()
+    public async Task AnEstablishedBrainAlreadyHasThePublishedDefaultsWithTheirOrigin()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Boot(ct, new OsApp("os", "hello"));
         var released = await SeedPublished(brain, "hello");
 
         var scope = await Establish(brain);
-        var installed = await WaitForAsync(brain.Get<IApp>(IApp.Key(scope, "hello")), snapshot => snapshot.Status == AppStatus.Live, ct);
+        var installed = await brain.Get<IApp>(IApp.Key(scope, "hello")).Read();
+        Assert.Equal(AppStatus.Live, installed.Status);
         Assert.Equal(released, installed.Version);
         Assert.Equal("os", installed.Origin!.Publisher);
     }
@@ -124,6 +126,18 @@ public sealed class OsBootFacts
         var after = await own.Read();
         Assert.Equal("My hello", after.Manifest.Title);
         Assert.Null(after.Origin);
+    }
+
+    [Fact(Timeout = 60_000)]
+    public async Task TheHostIsReadyOnlyOnceEveryDefaultIsPublished()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Boot(ct, new OsApp("os", "hello"));
+        var health = brain.SiloServices.GetRequiredService<HealthCheckService>();
+
+        Assert.Equal(HealthStatus.Unhealthy, (await health.CheckHealthAsync(ct)).Entries["os-defaults"].Status);
+        await SeedPublished(brain, "hello");
+        Assert.Equal(HealthStatus.Healthy, (await health.CheckHealthAsync(ct)).Entries["os-defaults"].Status);
     }
 
     private static Task<ModuleBrain> Boot(CancellationToken ct, params OsApp[] defaults) => ModuleTest.Create()

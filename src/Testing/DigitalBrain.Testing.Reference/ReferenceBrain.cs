@@ -44,12 +44,6 @@ public static class ReferenceBrain
             .ConfigureModule<FlutterModule, FlutterModuleOptions>(flutter => flutter.BackendOnly())
             .WithExecution(new()
             {
-                // Shipping verifies built-in packages through real sandbox scripts; only a product
-                // fixture pays that, by overriding this with the packages it ships.
-                ResourceEnvironment = new Dictionary<string, string>(StringComparer.Ordinal)
-                {
-                    [DigitalBrainConfiguration.EnvironmentName(ShippedAppsServiceCollectionExtensions.ShipOnStartupKey)] = "false",
-                },
                 PrivateConfiguration = Merge(new Dictionary<string, string?>
                 {
                     ["Parameters:modules-openai-api-key"] = modelApiKey,

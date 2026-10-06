@@ -11,10 +11,10 @@ using Orleans.Configuration;
 
 namespace DigitalBrain.Platform.Identity.Directory;
 
-// Azure Blob grain keys do not contain Orleans ServiceId. Bind the store explicitly without
-// renaming any legacy grain blobs. Cluster membership and display names are intentionally absent.
+// Azure Blob grain keys do not contain Orleans ServiceId: the store is bound to one deployment's
+// service id and master key, so a misconfigured host cannot read or write another's state.
 internal sealed class DeploymentStorageIdentity(
-    IOptions<ClusterOptions> cluster, IKeyWrapper keys, IOptions<IdentityMigrationOptions> migration,
+    IOptions<ClusterOptions> cluster, IKeyWrapper keys,
     [FromKeyedServices(DigitalBrainNames.GrainState)] BlobServiceClient? storage = null)
 {
     private const string MarkerName = ".digitalbrain-deployment.json";
@@ -27,14 +27,6 @@ internal sealed class DeploymentStorageIdentity(
         if (!await container.ExistsAsync(ct)) { return; }
         var marker = await ReadAsync(container, ct);
         if (marker is not null) { Validate(marker, cluster.Value.ServiceId, keys); }
-        else if (!migration.Value.Maintenance)
-        {
-            await foreach (var page in container.GetBlobsAsync(cancellationToken: ct).AsPages(pageSizeHint: 1))
-            {
-                if (page.Values.Count > 0)
-                { throw new OptionsValidationException("DeploymentStorage", typeof(ClusterOptions), ["Existing state requires explicit maintenance adoption before normal startup."]); }
-            }
-        }
     }
 
     public async Task BindAsync(CancellationToken ct)

@@ -87,8 +87,7 @@ behaviors/*.cs   the implementation: one script per concern
   `DigitalBrain:Modules:{id}:Options:{Property}`, so the AppHost's own configuration (args, env,
   files) overrides any option by standard precedence and tests need no side channel; every
   module-owned key derives from `DigitalBrainConfiguration.ModuleSection`/`ModuleOptionsSection`
-  (no private roots — `ModuleKeyGrammarFacts` enforces it, `LegacyConfigurationGuard` refuses
-  retired roots at OS startup); `Validate()` runs at compile and at bind and checks only the
+  (no private roots — `ModuleKeyGrammarFacts` enforces it); `Validate()` runs at compile and at bind and checks only the
   options' own values — cross-ring facts resolve loudly at the owning ring's bind; no secrets in
   options — credentials belong to Connections (user authorization) or Integrations (deployment
   provisioning). Modules ship `ConnectorDefinition`s declaring auth methods, neurons/signals,
@@ -124,7 +123,8 @@ renderable palette v1 / UiPart; run-token tightening.
   belongs in the module's test project. Packaging manifests are checked as one parsed module set.
 - Flutter shell: `flutter analyze` and `flutter test` from `src/Modules/Google/Flutter/app/shell`.
   Wire-shape changes in C# records must be mirrored in the Dart screens in the same change.
-- Persisted grain state: append `[Id(n)]`, never renumber; use concrete arrays, not interface
+- Persisted grain state: no compatibility or migration code — there is no stored data to keep,
+  so reshape state freely. Use concrete arrays, not interface
   lists — the memory grain storage's JSON serializer cannot round-trip C# collection-expression
   `IReadOnlyList` wrappers, and it only bites on reactivation.
 - Code style: no boilerplate `/// <summary>`; names carry the meaning; small inline comments only

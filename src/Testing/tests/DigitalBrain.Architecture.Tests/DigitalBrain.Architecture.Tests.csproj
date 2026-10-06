@@ -5,7 +5,6 @@
     <ArchitectureProject Include="../../../DigitalBrain/**/*.csproj;../../../Modules/**/*.csproj"
                          Exclude="../../../**/tests/**;../../../**/*.Testing/**;../../../**/*.Aspire.Hosting/**;../../../**/*.Deployment/**;../../../DigitalBrain/Deployment/**;../../../**/*.Sandbox/**" />
     <ProjectReference Include="@(ArchitectureProject)" />
-    <None Include="PersistedStateIds.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="TestTierBaseline.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="CollectionCompatibilitySamples.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

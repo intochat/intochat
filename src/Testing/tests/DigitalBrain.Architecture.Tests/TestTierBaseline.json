@@ -8,6 +8,6 @@
     "src/DigitalBrain/Framework/tests/DigitalBrain.Framework.Tests.E2E/TraceBudgetFacts.cs",
     "src/DigitalBrain/OS/tests/DigitalBrain.OS.Tests.E2E/CSharpFileContainerFacts.cs",
     "src/DigitalBrain/OS/tests/DigitalBrain.OS.Tests.E2E/GoldenJourneyFacts.cs",
-    "src/DigitalBrain/Platform/tests/DigitalBrain.Platform.Tests.E2E/MigrationLifecycleFacts.cs"
+    "src/DigitalBrain/OS/tests/DigitalBrain.OS.Tests.E2E/ShippedAppVerificationFacts.cs"
   ]
 }

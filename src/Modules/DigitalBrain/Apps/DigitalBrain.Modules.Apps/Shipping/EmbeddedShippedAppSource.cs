@@ -8,6 +8,7 @@ public sealed class EmbeddedShippedAppSource(System.Reflection.Assembly assembly
 {
     public string Account => account;
     public bool Writable => false;
+    public bool VerifiedByBuild => true;
     public void Write(AppBundle bundle) => throw new NotSupportedException("Embedded shipped apps are read-only.");
 
     public IReadOnlyList<AppBundle> Load()
@@ -31,12 +32,10 @@ public sealed class EmbeddedShippedAppSource(System.Reflection.Assembly assembly
 }
 
 // A shipped app folder is the same shape wherever it comes from: app.json is the manifest,
-// app.spec.md the spec, a legacy top-level app.cs becomes behaviors/app.cs, every other
-// file travels in the bundle.
+// app.spec.md the spec, every other file travels in the bundle.
 internal static class ShippedAppFolder
 {
     private const string ManifestFile = "app.json";
-    private const string LegacyScriptFile = "app.cs";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     internal static AppBundle ToBundle(string folder, IReadOnlyDictionary<string, string> files)
@@ -44,9 +43,8 @@ internal static class ShippedAppFolder
         var manifestText = files.GetValueOrDefault(ManifestFile) ?? throw new InvalidDataException($"Shipped app {folder} has no {ManifestFile}.");
         var manifest = JsonSerializer.Deserialize<AppJson>(manifestText, Json) ?? throw new InvalidDataException($"{folder}/{ManifestFile} is empty.");
         var bundleFiles = files
-            .Where(file => file.Key is not ManifestFile and not LegacyScriptFile and not AppFiles.SpecPath)
+            .Where(file => file.Key is not ManifestFile and not AppFiles.SpecPath)
             .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
-        if (files.TryGetValue(LegacyScriptFile, out var script)) { bundleFiles[AppFiles.BehaviorsPrefix + LegacyScriptFile] = script; }
         return new(manifest.Name, manifest.Version ?? "1.0.0",
             new AppManifest(
                 manifest.Title,

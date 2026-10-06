@@ -17,7 +17,7 @@ internal sealed record PostgresTablesState
 [GrainType("postgres.tables")]
 internal sealed class PostgresTablesNeuron(
     [PersistentState("tables", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<PostgresTablesState> state)
-    : Neuron, IPostgresTables, IPostgresTablesImport, IPostgresAppStorage, IPostgresLegacyOwner
+    : Neuron, IPostgresTables, IPostgresAppStorage, IPostgresLegacyOwner
 {
     private readonly SemaphoreSlim writes = new(1, 1);
 
@@ -65,7 +65,7 @@ internal sealed class PostgresTablesNeuron(
         finally { writes.Release(); }
     }
 
-    public async Task Import(string tableId)
+    private async Task Import(string tableId)
     {
         await writes.WaitAsync();
         try
@@ -132,15 +132,6 @@ internal sealed class PostgresLifecycleGuard : IIncomingGrainCallFilter
                 || (contract == typeof(IPostgresTableOwnership) && source.Value.Key.ToString() != owner))
             { throw new UnauthorizedAccessException("Ownership transfer cannot cross brains or app indexes."); }
         }
-        if (contract == typeof(IPostgresTablesImport))
-        {
-            if (context.SourceId?.Type.ToString() != "postgres.migration")
-            { throw new UnauthorizedAccessException("Only Postgres may migrate table ownership."); }
-        }
-        if (contract == typeof(IPostgresStorageMigration)
-            && context.SourceId?.Type.ToString() != DigitalBrain.Framework.AppGrainType.Name
-            && (!CallerContextStamper.TryGet(out var caller) || caller.Kind != DigitalBrain.Enforcement.CallerKind.Platform))
-        { throw new UnauthorizedAccessException("Only platform startup or Apps may prepare storage migration."); }
         if (contract == typeof(IPostgresTables) || contract == typeof(IPostgresTableLifetime))
         {
             var source = context.SourceId;

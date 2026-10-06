@@ -10,7 +10,6 @@ internal interface IPrincipal : IGrainWithStringKey
     Task<Member> Register(string password, string displayName);
     Task<Member?> Authenticate(string password);
     Task<Member?> DefaultMembership();
-    Task Import(Member member, string passwordHash);
 }
 
 internal interface IAccount : IGrainWithStringKey
@@ -34,5 +33,4 @@ internal interface IBrainAuthority : IGrainWithStringKey
     Task RevokeAsOwner(CallerContext caller, string appId, string semanticTypeId, GrantMode mode);
     Task Revoke(string appId, string semanticTypeId, GrantMode mode);
     Task<Grant[]> ListGrants();
-    Task Import(Member[] members, Grant[] grants, Invitation[] invitations);
 }

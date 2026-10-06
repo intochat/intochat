@@ -27,7 +27,6 @@ public sealed record AssistantState
     [Id(2)] public string SelectedThread { get; init; } = "";
     [Id(3)] public AssistantThread[] Threads { get; init; } = [];
     [Id(4)] public string Owner { get; init; } = "";
-    // [Id(5)] retired (LegacyRestored); never reuse
 }
 
 [GenerateSerializer, Alias("apps.assistant-configured")]

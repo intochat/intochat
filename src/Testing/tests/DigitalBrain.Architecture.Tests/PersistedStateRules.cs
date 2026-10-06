@@ -10,28 +10,18 @@ internal static class PersistedStateRules
         .GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly)
         .Where(member => member is PropertyInfo or FieldInfo && member.IsDefined(typeof(IdAttribute)));
 
-    internal static Dictionary<string, uint> Ids(Type type) => Members(type)
-        .ToDictionary(member => member.Name, member => member.GetCustomAttribute<IdAttribute>()!.Id);
-
-    internal static IEnumerable<string> IdViolations(Type type, uint[] retired)
+    internal static IEnumerable<string> IdViolations(Type type)
     {
-        var members = Members(type).ToArray();
-        var ids = members.Select(member => member.GetCustomAttribute<IdAttribute>()!.Id).ToArray();
+        var ids = Members(type).Select(member => member.GetCustomAttribute<IdAttribute>()!.Id);
         foreach (var duplicate in ids.GroupBy(id => id).Where(group => group.Count() > 1))
         {
             yield return $"{type.FullName}: duplicate Id({duplicate.Key})";
         }
-        foreach (var id in retired.Intersect(ids)) { yield return $"{type.FullName}: retired Id({id}) reused"; }
-        var occupied = ids.Concat(retired).Order().ToArray();
-        if (occupied.Length > 0 && !occupied.SequenceEqual(Enumerable.Range(0, occupied.Length).Select(id => (uint)id)))
-        {
-            yield return $"{type.FullName}: IDs must be contiguous, including explicitly retired IDs";
-        }
     }
 
-    internal static IEnumerable<string> ShapeViolations(Type type, uint[] retired)
+    internal static IEnumerable<string> ShapeViolations(Type type)
     {
-        foreach (var violation in IdViolations(type, retired)) { yield return violation; }
+        foreach (var violation in IdViolations(type)) { yield return violation; }
         foreach (var member in ContractRules.PublicMembers(type).Where(member => member.DeclaringType == type
             && (member is FieldInfo || member is PropertyInfo { SetMethod: not null })))
         {
@@ -52,24 +42,6 @@ internal static class PersistedStateRules
         (type.IsInterface && typeof(System.Collections.IEnumerable).IsAssignableFrom(type))
         || (type.HasElementType && ContainsInterfaceCollection(type.GetElementType()!))
         || (type.IsGenericType && type.GetGenericArguments().Any(ContainsInterfaceCollection));
-
-    internal static IEnumerable<string> CompatibilityViolations(Dictionary<string, uint> previous, Dictionary<string, uint> current)
-    {
-        foreach (var (member, id) in previous)
-        {
-            if (!current.TryGetValue(member, out var actual) || actual != id)
-            {
-                yield return $"{member}: preserve Id({id}); retire removed IDs explicitly";
-            }
-        }
-        foreach (var (member, id) in current.Where(entry => !previous.ContainsKey(entry.Key)))
-        {
-            if (previous.Count > 0 && id <= previous.Values.Max())
-            {
-                yield return $"{member}: Id({id}) must append after Id({previous.Values.Max()})";
-            }
-        }
-    }
 
     internal static Type[] Discover(IEnumerable<Type> productionTypes)
     {

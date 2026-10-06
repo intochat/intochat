@@ -25,13 +25,13 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
     public void AFolderOfAppFoldersLoadsLikeTheEmbeddedSource()
     {
         Write("echo/app.json", Manifest);
-        Write("echo/app.cs", "// program\r\nreturn;\r\n");
+        Write("echo/behaviors/app.cs", "// program\r\nreturn;\r\n");
         Write("echo/behaviors/extra.cs", "// behavior\n");
         var source = new DirectoryShippedAppSource(_root, "vendor");
         var app = Assert.Single(source.Load());
         Assert.Equal("echo", app.Name);
         // Line endings normalize exactly as the embedded source does, so content hashes agree
-        // across checkouts. A legacy top-level app.cs lands under behaviors/.
+        // across checkouts.
         Assert.Equal("// program\nreturn;\n", app.Files["behaviors/app.cs"]);
         Assert.Equal("// behavior\n", app.Files["behaviors/extra.cs"]);
     }

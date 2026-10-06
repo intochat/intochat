@@ -85,6 +85,21 @@ public sealed class ShippedAppPublisherFacts
     }
 
     [Fact]
+    public async Task ABundleVerifiedByTheBuildGoesLiveWithoutRunningItsTests()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
+            .ConfigureSilo(silo => silo.Services.AddSingleton<ITestScriptRunner>(new CancelledRunner())).StartAsync(ct);
+        var first = await Register(brain, "first", ct);
+
+        await Ship(brain, [new Source("first", new() { ["first"] = "1.0.0" }, verifiedByBuild: true)], "true", ct);
+
+        var app = await brain.Get<IApp>(IApp.Key(first.ScopeId, "echo")).Read();
+        Assert.Equal(AppStatus.Live, app.Status);
+        Assert.Equal(["Echo"], app.Verdicts.Select(verdict => verdict.Name));
+    }
+
+    [Fact]
     public async Task PlatformStampsEachPublisherAccountsOwnBrainAndRestoresTheCaller()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -199,8 +214,9 @@ public sealed class ShippedAppPublisherFacts
             => throw new OperationCanceledException("The C# sandbox did not start.");
     }
 
-    internal sealed class Source(string account, Dictionary<string, string> versions, string tests = "passing") : IShippedAppSource
+    internal sealed class Source(string account, Dictionary<string, string> versions, string tests = "passing", bool verifiedByBuild = false) : IShippedAppSource
     {
+        public bool VerifiedByBuild => verifiedByBuild;
         public string Account => account;
         public bool Writable => false;
         public void Write(AppBundle bundle) => throw new NotSupportedException();

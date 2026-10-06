@@ -78,15 +78,4 @@ internal sealed class PrincipalGrain(
     }
 
     public Task<Member?> DefaultMembership() => Task.FromResult(State.DefaultMembership);
-    public async Task Import(Member member, string passwordHash)
-    {
-        if (member.PrincipalId != this.GetPrimaryKeyString()) { throw new InvalidOperationException("Principal import key mismatch."); }
-        if (State.DefaultMembership is not null)
-        {
-            if (State.DefaultMembership != member || State.PasswordHash != passwordHash)
-            { throw new InvalidOperationException("Principal import conflicts with existing state."); }
-            return;
-        }
-        await Persist(new() { DefaultMembership = member, PasswordHash = passwordHash, RegistrationComplete = true });
-    }
 }

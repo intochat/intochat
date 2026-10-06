@@ -35,19 +35,20 @@ public static class BrainAccessFilter
         return null;
     }
 
-    // A brain in use is an established brain: a development owner never registers, and its
-    // brain's Activated is what boots the OS defaults into it. Once per brain per host; the
+    // A brain in use is an established brain: a development owner never registers, and
+    // establishing provisions the OS defaults into it. Every request to the brain waits for the
+    // same establishment, so none sees a half-provisioned brain. Once per brain per host; the
     // call is idempotent, so a retry after a failure is harmless.
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IDigitalBrain, System.Collections.Concurrent.ConcurrentDictionary<string, bool>> Established = [];
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IDigitalBrain, System.Collections.Concurrent.ConcurrentDictionary<string, Lazy<Task>>> Established = [];
 
     private static async Task EnsureEstablished(HttpContext http, string accountId, string brainId)
     {
         if (http.RequestServices.GetService<IDigitalBrain>() is not { } brain) { return; }
         var scope = BrainScope.Create(accountId, brainId).Id;
         var seen = Established.GetOrCreateValue(brain);
-        if (!seen.TryAdd(scope, true)) { return; }
+        var establishing = seen.GetOrAdd(scope, _ => new Lazy<Task>(() => brain.Get<IBrain>(scope).Establish(new(brainId, accountId))));
         // Best effort: the request itself is already allowed, and the next one retries.
-        try { await brain.Get<IBrain>(scope).Establish(new(brainId, accountId)); }
-        catch (Exception error) when (error is not OperationCanceledException) { seen.TryRemove(scope, out _); }
+        try { await establishing.Value; }
+        catch (Exception error) when (error is not OperationCanceledException) { seen.TryRemove(new(scope, establishing)); }
     }
 }

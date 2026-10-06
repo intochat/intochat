@@ -113,19 +113,20 @@ public sealed class GrantFacts
     }
 
     [Fact]
-    public async Task RevokingAOnceGrantEmptiesTheStoreAndTheNextReadLooksMissing()
+    public async Task RevokingAOnceGrantEmptiesTheAuthorityAndTheNextReadLooksMissing()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var store = brain.Get<IGrantStore>(IdentityGrains.Grants("ws-1"));
-        await store.GrantAsync(Grant(GrantMode.Once, "person.birthDate", "app-1", "ws-1"), ct);
-        Assert.Single(await store.ListAsync(ct));
+        var authority = brain.Get<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
+        await authority.Initialize("account-1", "ws-1");
+        await authority.Grant(Grant(GrantMode.Once, "person.birthDate", "app-1", "ws-1"));
+        Assert.Single(await authority.ListGrants());
 
-        await store.RevokeAsync("app-1", "person.birthDate", GrantMode.Once, ct);
-        Assert.Empty(await store.ListAsync(ct));
+        await authority.Revoke("app-1", "person.birthDate", GrantMode.Once);
+        Assert.Empty(await authority.ListGrants());
 
         var decision = GrantRules.Evaluate(
-            Request(CallerKind.App, "app-1", "ws-1", "person.birthDate"), null, await store.ListAsync(ct));
+            Request(CallerKind.App, "app-1", "ws-1", "person.birthDate"), null, await authority.ListGrants());
         Assert.Equal(CallDenial.MissingGrant, decision!.Denial);
         Assert.Contains("missing", decision.Explanation, StringComparison.OrdinalIgnoreCase);
     }
@@ -145,15 +146,16 @@ public sealed class GrantFacts
     }
 
     [Fact]
-    public async Task GrantStoreGrantsRevokesAndRelists()
+    public async Task TheAuthorityGrantsRevokesAndRelists()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var store = brain.Get<IGrantStore>(IdentityGrains.Grants("ws-1"));
-        await store.GrantAsync(Grant(GrantMode.Always, "person.birthDate", "app-1", "ws-1"), ct);
-        Assert.Single(await store.ListAsync(ct));
-        await store.RevokeAsync("app-1", "person.birthDate", GrantMode.Always, ct);
-        Assert.Empty(await store.ListAsync(ct));
+        var authority = brain.Get<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
+        await authority.Initialize("account-1", "ws-1");
+        await authority.Grant(Grant(GrantMode.Always, "person.birthDate", "app-1", "ws-1"));
+        Assert.Single(await authority.ListGrants());
+        await authority.Revoke("app-1", "person.birthDate", GrantMode.Always);
+        Assert.Empty(await authority.ListGrants());
     }
 
     [Fact]
@@ -161,13 +163,14 @@ public sealed class GrantFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var store = brain.Get<IGrantStore>(IdentityGrains.Grants("ws-1"));
-        await store.GrantAsync(Grant(GrantMode.Always, "person.birthDate", "app-1", "ws-1"), ct);
-        await store.GrantAsync(Grant(GrantMode.ThisChat, "person.birthDate", "app-1", "ws-1") with { ConversationId = "chat-1" }, ct);
-        Assert.Equal(2, (await store.ListAsync(ct)).Count);
+        var authority = brain.Get<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
+        await authority.Initialize("account-1", "ws-1");
+        await authority.Grant(Grant(GrantMode.Always, "person.birthDate", "app-1", "ws-1"));
+        await authority.Grant(Grant(GrantMode.ThisChat, "person.birthDate", "app-1", "ws-1") with { ConversationId = "chat-1" });
+        Assert.Equal(2, (await authority.ListGrants()).Length);
 
-        await store.RevokeAsync("app-1", "person.birthDate", GrantMode.Always, ct);
-        var remaining = Assert.Single(await store.ListAsync(ct));
+        await authority.Revoke("app-1", "person.birthDate", GrantMode.Always);
+        var remaining = Assert.Single(await authority.ListGrants());
         Assert.Equal(GrantMode.ThisChat, remaining.Mode);
 
         var request = Request(CallerKind.App, "app-1", "ws-1", "person.birthDate");

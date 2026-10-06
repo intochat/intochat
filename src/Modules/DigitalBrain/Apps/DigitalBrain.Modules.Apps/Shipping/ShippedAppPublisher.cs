@@ -6,9 +6,9 @@ using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Apps;
 
-// Brings every shipped bundle into its publisher's brain at startup: verify its tests once,
-// import it when green, skip it when the installed version already matches. A red bundle
-// stays out and says why in the log.
+// Brings every shipped bundle into its publisher's brain at startup: import it when green, skip
+// it when the installed version already matches. A bundle compiled into the host is green by
+// its build; a folder bundle is verified here, and a red one stays out and says why in the log.
 internal sealed class ShippedAppPublisher(
     IGrainFactory grains, ITestScriptRunner runner,
     IEnumerable<IShippedAppSource> sources, IConfiguration configuration,
@@ -64,8 +64,8 @@ internal sealed class ShippedAppPublisher(
             if (source.Writable) { await ShippedAppSync.WriteIfFastForward(source, app, await app.ExportPublished(), logger); }
             return;
         }
-        var (verdicts, green) = await AppVerifyJob.RunBundle(grains, runner, bundle,
-            IApp.Key(publisher.ScopeId, bundle.Name + AppFiles.VerifyMarker + Guid.NewGuid().ToString("N")), cancellationToken);
+        var (verdicts, green) = source.VerifiedByBuild ? ByBuild(bundle) : await AppVerifyJob.RunBundle(grains, runner, bundle,
+                IApp.Key(publisher.ScopeId, bundle.Name + AppFiles.VerifyMarker + Guid.NewGuid().ToString("N")), cancellationToken);
         if (!green)
         {
             logger.LogWarning("{Account}/{App} stays out: verification failed: {Failures}", publisher.Username, bundle.Name,
@@ -77,6 +77,14 @@ internal sealed class ShippedAppPublisher(
         else { await app.Import(bundle); }
         await app.RecordVerdicts(verdicts, green: true, bundle.Version);
         await app.Publish();
+    }
+
+    // Silence never passes: a bundle that declares no scenario is not green by its build either.
+    private static (AppScenarioVerdict[] Verdicts, bool Green) ByBuild(AppBundle bundle)
+    {
+        var verdicts = AppVerifyJob.Scenarios(bundle.Spec).Order(StringComparer.Ordinal)
+            .Select(name => new AppScenarioVerdict(name, true, "Verified by the build.")).ToArray();
+        return (verdicts, verdicts.Length > 0);
     }
 
     // null means every app; an empty set means none.

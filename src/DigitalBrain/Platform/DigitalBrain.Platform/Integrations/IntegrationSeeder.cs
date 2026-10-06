@@ -19,7 +19,6 @@ internal sealed class IntegrationSeeder(
 
     public async Task SeedAsync(CancellationToken cancellationToken)
     {
-        if (configuration.GetValue<bool>(Identity.Directory.IdentityMigrationOptions.MaintenanceKey)) { return; }
         foreach (var definition in definitions)
         {
             cancellationToken.ThrowIfCancellationRequested();

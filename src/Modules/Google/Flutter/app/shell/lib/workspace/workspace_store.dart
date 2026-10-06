@@ -173,7 +173,7 @@ class WorkspacePresentation {
   List<String> openArtifactIds = [];
   Set<String> minimizedArtifactIds = {};
   String? activeArtifactId;
-  String layout = 'quiet'; // Legacy layout, retained for older saved projects.
+  String layout = 'quiet';
   Map<String, String> windowModes = {};
   Map<String, String> restoreModes = {};
   bool chatCollapsed = false;
@@ -495,11 +495,6 @@ class WorkspaceStore extends ChangeNotifier {
               WorkspaceConversation(id: _id(), title: 'New conversation'),
             );
           }
-          // The assistant is now the main application surface, not a saved artifact.
-          project.artifacts.removeWhere(
-            (artifact) =>
-                artifact.kind == 'app' && artifact.data['app'] == 'assistant',
-          );
           if (!project.conversations.any(
             (c) => c.id == project.selectedConversationId,
           )) {

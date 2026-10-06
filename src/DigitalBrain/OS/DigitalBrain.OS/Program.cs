@@ -10,7 +10,6 @@ using DigitalBrain.Platform;
 using DigitalBrain.Platform.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
-LegacyConfigurationGuard.Check(builder.Configuration);
 
 // IntoChat is a distribution of the operating system: the composition is the OS's, and what
 // is IntoChat's own is branding, shipped apps and configuration.

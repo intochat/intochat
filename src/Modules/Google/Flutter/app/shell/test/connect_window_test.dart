@@ -144,7 +144,7 @@ final class _Harness {
           {
             'id': body!['connectionId'],
             'connectorId': body['connectorId'],
-            'status': 'Connected',
+            'status': 'Configured',
           },
         ];
         return records.single;

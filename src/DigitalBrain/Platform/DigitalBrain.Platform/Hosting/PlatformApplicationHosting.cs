@@ -8,9 +8,7 @@ public static class PlatformApplicationHosting
 {
     public static IHostApplicationBuilder AddDigitalBrainPlatform(this IHostApplicationBuilder builder)
     {
-        // Maintenance inspection has no HTTP surface and must not provision cookie storage.
-        if (!builder.Configuration.GetValue<bool>(IdentityMigrationOptions.SectionName + ":Maintenance"))
-        { builder.Services.AddCookieProtection(); }
+        builder.Services.AddCookieProtection();
         builder.UseOrleans(silo => silo.AddDigitalBrainPlatform());
         return builder;
     }

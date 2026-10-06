@@ -115,19 +115,4 @@ public sealed class ScopedAuthorityFacts
         Assert.NotEqual(first.BrainId, (await account.CreateBrain("alice", "operation-2", "Second")).BrainId);
     }
 
-    [Fact]
-    public async Task RepeatingAnImportCannotRestoreRevokedGrantsOrMembers()
-    {
-        await using var brain = await ModuleTest.Create().StartAsync(TestContext.Current.CancellationToken);
-        var authority = brain.Get<IBrainAuthority>(BrainScope.Create("account", "brain").Id);
-        var member = new Member { PrincipalId = "alice", AccountId = "account", BrainId = "brain", DisplayName = "Alice", Role = MemberRole.Owner };
-        var grant = new Grant { AppId = "app", WorkspaceId = "brain", SemanticTypeId = "person.email", Mode = GrantMode.Always };
-        await authority.Initialize("account", "brain");
-        await authority.Import([member], [grant], []);
-        await authority.RemoveMember("alice");
-        await authority.Revoke("app", "person.email", GrantMode.Always);
-        await authority.Import([member], [grant], []);
-        Assert.Null(await authority.Membership("alice"));
-        Assert.Empty(await authority.ListGrants());
-    }
 }

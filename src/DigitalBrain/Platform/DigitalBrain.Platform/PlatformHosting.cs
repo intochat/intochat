@@ -32,9 +32,8 @@ public static class PlatformHosting
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IRegistryInventoryProvider, Discovery.ConnectionsInventoryProvider>());
         services.AddIdentity();
         services.AddShippedContentPublishing();
-        services.AddOptions<IdentityMigrationOptions>().BindConfiguration(IdentityMigrationOptions.SectionName);
         services.TryAddSingleton<DeploymentStorageIdentity>();
-        silo.AddStartupTask<IdentityMigrationStartup>();
+        silo.AddStartupTask<IdentityStartup>();
         silo.AddStartupTask<SeededAccountsStartup>();
         services.TryAddSingleton<DigitalBrain.Framework.Platform.Identity.IPublisherDirectory, PublisherDirectory>();
         services.TryAddSingleton<DigitalBrain.Framework.Platform.Auth.ITokenHandoff, Auth.TokenHandoff>();
@@ -50,7 +49,6 @@ public static class PlatformHosting
         services.TryAddSingleton<ConnectionCredentialProbe>();
         services.TryAddSingleton<IntegrationCredentials>();
         services.TryAddSingleton<ConnectorCatalog>();
-        services.AddSingleton<IIntegrationStartup, PostgresMigrationStartup>();
         services.TryAddSingleton<ICapabilities, Capabilities>();
         silo.AddStartupTask<IntegrationSeeder>();
         services.AddCapacity();

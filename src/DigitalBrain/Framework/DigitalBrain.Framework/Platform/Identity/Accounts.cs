@@ -34,16 +34,12 @@ public sealed record Invitation
     [Id(6)] public bool Accepted { get; init; }
 }
 
-// Compatibility facade and migration coordinator. Live identity and authorization state
-// are held by principal, account, and account/brain-scoped actors.
+// The identity front door. Identity and authorization state are held by principal, account,
+// and account/brain-scoped actors.
 public interface IIdentityDirectory : IGrainWithStringKey
 {
     Task<Member> RegisterAsync(string principalId, string password, string displayName, CancellationToken cancellationToken = default);
     Task<Member?> AuthenticateAsync(string principalId, string password, CancellationToken cancellationToken = default);
-
-    Task PrepareAsync(CancellationToken cancellationToken = default);
-    Task<string> InspectMigrationAsync(CancellationToken cancellationToken = default);
-    Task ApplyMigrationAsync(string planId, CancellationToken cancellationToken = default);
 
     Task<Member?> FindMemberAsync(string principalId, string accountId, string brainId, CancellationToken cancellationToken = default);
 
@@ -54,19 +50,7 @@ public interface IIdentityDirectory : IGrainWithStringKey
     Task<Member> ShareBrainAsync(string accountId, string brainId, string principalId, string displayName, MemberRole role, CancellationToken cancellationToken = default);
 }
 
-// Legacy grain keys retained for migration and persisted-state compatibility.
 public static class IdentityGrains
 {
     public const string Directory = "intochat-identity-directory";
-
-    public const string GrantsPrefix = "intochat-grants-";
-
-    public static string Grants(string workspaceId) => GrantsPrefix + workspaceId;
-
-    // The grant store is keyed by the prefixed grain key; grants themselves carry the bare
-    // workspace id, which is what the call filter compares against the caller.
-    public static string WorkspaceOfGrantStore(string grainKey) =>
-        grainKey.StartsWith(GrantsPrefix, StringComparison.Ordinal)
-            ? grainKey[GrantsPrefix.Length..]
-            : grainKey;
 }

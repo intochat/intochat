@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 /// A stored credential is configured, never proof of working provider access.
 String connectionStatus(Object? status) => switch (status) {
-  'Connected' || 'Configured' || 0 => 'Configured',
+  'Configured' || 0 => 'Configured',
   'Verified' => 'Verified',
   'Expired' || 1 => 'Expired',
   'Disconnected' || 3 => 'Disconnected',

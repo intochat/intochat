@@ -4,6 +4,8 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -57,61 +59,46 @@ public static class OsAppsHosting
     {
         ArgumentNullException.ThrowIfNull(services);
         if (configure is not null) { services.Configure(configure); }
+        services.TryAddSingleton<OsDefaults>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IBrainProvisioner, OsDefaults>(provider => provider.GetRequiredService<OsDefaults>()));
         services.AddHostedService<OsBootService>();
+        services.AddHealthChecks().AddCheck<OsDefaultsPublished>("os-defaults", tags: ["ready"]);
         return services;
     }
 }
 
-// The OS boots in the system's own language: the brain neuron publishes Activated, and this
-// behavior installs every default the brain does not have yet, through the same Marketplace
-// Install anyone uses. A present app is the person's, never replaced here; newer versions are
-// offered as updates. A default not yet published is picked up on a later activation.
-internal sealed class OsBootService(
-    LocalSignalHub signals, IGrainFactory grains, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsBootService> logger)
-    : BackgroundService
+// A new brain is born with the OS defaults: Establish awaits this provisioner, so the first
+// thing a person sees in a new brain already has its apps. Every default installs through the
+// same Marketplace Install anyone uses; a present app is the person's, never replaced here.
+internal sealed class OsDefaults(
+    IGrainFactory grains, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger) : IBrainProvisioner
 {
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        if (options.Value.Apps.Count == 0) { return; }
-        var apps = options.Value.Apps.ToArray();
-        // Brains activated in this process: a deployment's defaults pass their gates after its
-        // first brains are up, so a default published later still reaches them.
-        var brains = new System.Collections.Concurrent.ConcurrentDictionary<string, Activated>(StringComparer.Ordinal);
-        using var activations = signals.Subscribe<Activated>();
-        using var published = signals.Subscribe<DigitalBrain.Apps.Signals.AppPublished>();
-        await Task.WhenAll(OnActivations(), OnPublished());
+    public OsApp[] Apps => [.. options.Value.Apps];
 
-        async Task OnActivations()
+    public Task Provision(Activated brain, CancellationToken cancellationToken) => InstallAsync(brain, Apps, cancellationToken);
+
+    public async Task InstallAsync(Activated activated, OsApp[] apps, CancellationToken cancellationToken)
+    {
+        // Installing speaks for the brain's owner as the platform; the caller's own context
+        // comes back afterwards, since a provisioner runs inside the caller's turn.
+        var caller = CallerContextStamper.TryGet(out var current) ? current : null;
+        try
         {
-            await foreach (var activated in activations.Reader.ReadAllAsync(stoppingToken))
+            foreach (var app in apps)
             {
-                brains[activated.BrainId] = activated;
-                await InstallAsync(activated, apps, stoppingToken);
+                try { await EnsureInstalledAsync(activated, app, cancellationToken); }
+                catch (Exception error) when (error is not OperationCanceledException)
+                {
+                    // One default failing must not keep the others from installing; the next
+                    // activation retries.
+                    logger.LogWarning(error, "Default app {Publisher}/{App} did not install in brain {Brain}.", app.Publisher, app.Name, activated.BrainId);
+                }
             }
         }
-
-        async Task OnPublished()
+        finally
         {
-            await foreach (var app in published.Reader.ReadAllAsync(stoppingToken))
-            {
-                var defaults = apps.Where(item => item.Name == app.Name).ToArray();
-                if (defaults.Length == 0) { continue; }
-                foreach (var activated in brains.Values) { await InstallAsync(activated, defaults, stoppingToken); }
-            }
-        }
-    }
-
-    private async Task InstallAsync(Activated activated, OsApp[] apps, CancellationToken cancellationToken)
-    {
-        foreach (var app in apps)
-        {
-            try { await EnsureInstalledAsync(activated, app, cancellationToken); }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                // One default failing must not keep the others from installing; the next
-                // activation retries.
-                logger.LogWarning(error, "Default app {Publisher}/{App} did not install in brain {Brain}.", app.Publisher, app.Name, activated.BrainId);
-            }
+            if (caller is null) { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+            else { Orleans.Runtime.RequestContext.Set(CallerContextStamper.RequestContextKey, caller); }
         }
     }
 
@@ -143,5 +130,56 @@ internal sealed class OsBootService(
         if ((await grains.GetGrain<IApp>(IApp.Key(activated.BrainId, app.Name)).Read().WaitAsync(cancellationToken)).Manifest.Title.Length == 0)
         { await installer.Install(app.Publisher, app.Name, cancellationToken); }
         await index.Offer(offer).WaitAsync(cancellationToken);
+    }
+}
+
+// Catch-up for brains that already exist: on every activation, and whenever a default is
+// published, every default a brain does not have yet installs. A new brain needs none of this;
+// Establish provisions it.
+internal sealed class OsBootService(LocalSignalHub signals, OsDefaults defaults) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        var apps = defaults.Apps;
+        if (apps.Length == 0) { return; }
+        var brains = new System.Collections.Concurrent.ConcurrentDictionary<string, Activated>(StringComparer.Ordinal);
+        using var activations = signals.Subscribe<Activated>();
+        using var published = signals.Subscribe<DigitalBrain.Apps.Signals.AppPublished>();
+        await Task.WhenAll(OnActivations(), OnPublished());
+
+        async Task OnActivations()
+        {
+            await foreach (var activated in activations.Reader.ReadAllAsync(stoppingToken))
+            {
+                brains[activated.BrainId] = activated;
+                await defaults.InstallAsync(activated, apps, stoppingToken);
+            }
+        }
+
+        async Task OnPublished()
+        {
+            await foreach (var app in published.Reader.ReadAllAsync(stoppingToken))
+            {
+                var matching = apps.Where(item => item.Name == app.Name).ToArray();
+                if (matching.Length == 0) { continue; }
+                foreach (var activated in brains.Values) { await defaults.InstallAsync(activated, matching, stoppingToken); }
+            }
+        }
+    }
+}
+
+// The host is ready when a new brain can be born complete: every default is in the Marketplace.
+internal sealed class OsDefaultsPublished(IGrainFactory grains, OsDefaults defaults) : IHealthCheck
+{
+    public async Task<HealthCheckResult> CheckHealthAsync(
+        HealthCheckContext context, CancellationToken cancellationToken = default)
+    {
+        var marketplace = grains.GetGrain<IMarketplace>(IMarketplace.Key);
+        foreach (var app in defaults.Apps)
+        {
+            if (await marketplace.Read(app.Publisher, app.Name).WaitAsync(cancellationToken) is null)
+            { return HealthCheckResult.Unhealthy($"{app.Publisher}/{app.Name} is not published yet."); }
+        }
+        return HealthCheckResult.Healthy();
     }
 }
