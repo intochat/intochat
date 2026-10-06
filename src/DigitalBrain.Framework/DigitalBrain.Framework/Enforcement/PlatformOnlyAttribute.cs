@@ -1,4 +1,4 @@
-namespace DigitalBrain;
+namespace DigitalBrain.Framework.Enforcement;
 
 /// <summary>
 /// Marks a neuron contract as reserved for trusted platform code: it is left out of the catalog
@@ -6,8 +6,7 @@ namespace DigitalBrain;
 /// </summary>
 /// <remarks>
 /// Exists because a program could otherwise forge the caller context such a contract trusts.
-/// Enforcement, not vocabulary: scheduled to leave this ring once module contracts are declared
-/// rather than discovered.
+/// Scheduled to go once module contracts are declared rather than discovered.
 /// </remarks>
 [AttributeUsage(AttributeTargets.Interface, AllowMultiple = false, Inherited = false)]
 public sealed class PlatformOnlyAttribute : Attribute

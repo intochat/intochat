@@ -1,3 +1,5 @@
+using DigitalBrain.Framework.Enforcement;
+
 namespace DigitalBrain.Postgres.Tables;
 
 // One index per TableOwner: which tables the app defined, and whether its storage is retired.

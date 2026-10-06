@@ -45,12 +45,12 @@ internal sealed class NeuronCallFilter(ICallFilter filter) : IIncomingGrainCallF
 
     private static bool IsPlatformOnly(Neuron neuron, Type contract)
     {
-        if (DigitalBrain.PlatformOnlyAttribute.AppliesTo(contract)) { return true; }
+        if (PlatformOnlyAttribute.AppliesTo(contract)) { return true; }
         if (contract != typeof(INeuron)) { return false; }
         // Watch/Unwatch are declared on the shared base interface. Their target is
         // privileged only when every exposed neuron contract is privileged too.
         var contracts = neuron.GetType().GetInterfaces()
             .Where(type => type != typeof(INeuron) && typeof(INeuron).IsAssignableFrom(type)).ToArray();
-        return contracts.Length > 0 && contracts.All(DigitalBrain.PlatformOnlyAttribute.AppliesTo);
+        return contracts.Length > 0 && contracts.All(PlatformOnlyAttribute.AppliesTo);
     }
 }
