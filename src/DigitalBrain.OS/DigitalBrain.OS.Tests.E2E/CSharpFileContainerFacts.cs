@@ -56,7 +56,8 @@ public sealed class CSharpFileContainerFacts
             // Start answers Running only once the sandbox accepted the run; the state-change
             // feed is not asserted because the AppHost's resource watch can die mid-session,
             // and "script ready" below is the durable proof the sandbox executes.
-            Assert.Equal(CSharpFileStatus.Running, (await listener.Start(ct)).Status);
+            await listener.Start(ct);
+            Assert.Equal(CSharpFileStatus.Running, (await listener.Inspect(ct)).Status);
 
             await broken.Write("Console.WriteLine(undefinedName);", ct);
             await broken.Start(ct);
@@ -94,7 +95,7 @@ public sealed class CSharpFileContainerFacts
             await broken.Delete(CancellationToken.None);
             await triggered.Delete(CancellationToken.None);
         }
-        Assert.Equal(CSharpFileStatus.Stopped, (await listener.Read(ct)).Status);
+        Assert.Equal(CSharpFileStatus.Stopped, (await listener.Inspect(ct)).Status);
     }
 
     private static async Task Logs(ICSharpFile file, string expected, CancellationToken ct)
@@ -122,7 +123,7 @@ public sealed class CSharpFileContainerFacts
         {
             try
             {
-                var snapshot = await file.Read(ct);
+                var snapshot = await file.Inspect(ct);
                 if (reached(snapshot)) { return snapshot; }
             }
             catch (TimeoutException) { /* The file is busy waking a run; keep polling. */ }

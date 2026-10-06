@@ -26,10 +26,21 @@ public sealed class RecordingCSharpFile : Neuron, ICSharpFile, ICSharpAppBinding
 
     private CSharpFileSnapshot Current => Files.GetOrAdd(Key, key => new(key, "", new Dictionary<string, string>(), CSharpFileStatus.Stopped, null, null, false, 0, null));
 
-    public Task<CSharpFileSnapshot> Read(CancellationToken cancellationToken = default) => Task.FromResult(Current);
+    public Task<CSharpFileSnapshot> Inspect(CancellationToken cancellationToken = default) => Task.FromResult(Current);
 
-    public Task Write(string source, CancellationToken cancellationToken = default)
-        => Task.FromResult(Files[Key] = Current with { Source = source });
+    public Task<SynapseSnapshot> Read(CancellationToken cancellationToken = default) => Task.FromResult(AsSynapse(Current));
+
+    private static SynapseSnapshot AsSynapse(CSharpFileSnapshot file) => new(file.Id, file.Source,
+        file.Status is CSharpFileStatus.Running or CSharpFileStatus.Restarting,
+        [.. file.Subscriptions.Select(s => new SynapseWatch(s.Neuron, s.Signal, s.Pending)), .. file.Trigger is { } t ? new[] { new SynapseWatch(t.Neuron, t.Signal, 0) } : []],
+        null);
+
+    Task<SynapseSnapshot> ISynapse.Start(CancellationToken cancellationToken) => Task.FromResult(AsSynapse(Run()));
+
+    Task<SynapseSnapshot> ISynapse.Stop(CancellationToken cancellationToken) => Task.FromResult(AsSynapse(Halt()));
+
+    public Task Write(string program, CancellationToken cancellationToken = default)
+        => Task.FromResult(Files[Key] = Current with { Source = program });
 
     // Kept across Delete, so a test can assert what a since-retired file was configured with.
     public static ConcurrentDictionary<string, Dictionary<string, string>> ConfiguredSettings { get; } = new(StringComparer.Ordinal);
@@ -40,10 +51,10 @@ public sealed class RecordingCSharpFile : Neuron, ICSharpFile, ICSharpAppBinding
         return Task.FromResult(Files[Key] = Current with { Settings = new Dictionary<string, string>(settings) });
     }
 
-    public Task<CSharpFileSnapshot> Start(CancellationToken cancellationToken = default)
-        => Task.FromResult(Files[Key] = Scripted is { } scripted
+    private CSharpFileSnapshot Run()
+        => Files[Key] = Scripted is { } scripted
             ? Current with { Status = CSharpFileStatus.Exited, ExitCode = scripted.ExitCode, StartedAt = DateTimeOffset.UtcNow }
-            : Current with { Status = CSharpFileStatus.Running, StartedAt = DateTimeOffset.UtcNow });
+            : Current with { Status = CSharpFileStatus.Running, StartedAt = DateTimeOffset.UtcNow };
 
     // Records swaps so facts can assert an edit kept the file rather than recreating it.
     public static ConcurrentDictionary<string, int> Swaps { get; } = new(StringComparer.Ordinal);
@@ -57,8 +68,7 @@ public sealed class RecordingCSharpFile : Neuron, ICSharpFile, ICSharpAppBinding
     public Task<CSharpFileSnapshot> Arm(CSharpTrigger trigger, CancellationToken cancellationToken = default)
         => Task.FromResult(Files[Key] = Current with { Trigger = trigger });
 
-    public Task<CSharpFileSnapshot> Stop(CancellationToken cancellationToken = default)
-        => Task.FromResult(Files[Key] = Current with { Status = CSharpFileStatus.Stopped });
+    private CSharpFileSnapshot Halt() => Files[Key] = Current with { Status = CSharpFileStatus.Stopped };
 
     public Task<string> ReadLogs(int tail = 200, CancellationToken cancellationToken = default)
         => Task.FromResult(Scripted?.Logs ?? "");

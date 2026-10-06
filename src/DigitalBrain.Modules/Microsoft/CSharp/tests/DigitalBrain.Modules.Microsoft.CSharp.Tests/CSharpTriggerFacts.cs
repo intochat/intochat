@@ -15,7 +15,7 @@ public sealed class CSharpTriggerFacts
         var pinger = brain.Get<IPinger>("pinger");
         var file = await Armed(brain, "workspace/on-ping", pinger, ct);
 
-        var armed = await file.Read(ct);
+        var armed = await file.Inspect(ct);
         Assert.True(armed.ShouldRun);
         Assert.Equal(nameof(Pinged), armed.Trigger!.Signal);
         Assert.Equal(0, sandbox.Started);
@@ -46,10 +46,10 @@ public sealed class CSharpTriggerFacts
             sandbox.ExitLatest(1);
         }
         await pinger.Ping(0);
-        await Eventually(async () => !(await file.Read(ct)).ShouldRun, ct);
+        await Eventually(async () => !(await file.Inspect(ct)).ShouldRun, ct);
 
         Assert.Equal(CSharpFileNeuron.MaximumFailures, sandbox.Started);
-        Assert.Equal(CSharpFileNeuron.MaximumFailures, (await file.Read(ct)).Failures);
+        Assert.Equal(CSharpFileNeuron.MaximumFailures, (await file.Inspect(ct)).Failures);
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public sealed class CSharpTriggerFacts
         await Task.Delay(TimeSpan.FromMilliseconds(500), ct);
 
         Assert.Equal(0, sandbox.Started);
-        Assert.False((await file.Read(ct)).ShouldRun);
+        Assert.False((await file.Inspect(ct)).ShouldRun);
     }
 
     [Fact]

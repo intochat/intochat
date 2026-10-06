@@ -33,13 +33,14 @@ internal sealed class CSharpFileTestRunner(IGrainFactory grains, TimeProvider cl
             if (DigitalBrain.Framework.Enforcement.CallerContextStamper.TryGet(out _))
             { settings["BrainScope"] = DigitalBrain.Framework.Enforcement.BrainScope.CurrentId(); }
             await file.Configure(settings, cancellationToken);
-            var snapshot = await file.Start(cancellationToken);
+            await file.Start(cancellationToken);
+            var snapshot = await file.Inspect(cancellationToken);
             var deadline = clock.GetUtcNow() + RunDeadline;
             while (snapshot.ExitCode is null && snapshot.Status is CSharpFileStatus.Running or CSharpFileStatus.Restarting)
             {
                 if (clock.GetUtcNow() > deadline) { break; }
                 await Task.Delay(PollInterval, cancellationToken);
-                snapshot = await file.Read(cancellationToken);
+                snapshot = await file.Inspect(cancellationToken);
             }
             return new AppTestRun(ParseVerdicts(await file.ReadLogs(LogTail, cancellationToken)), snapshot.ExitCode);
         }

@@ -23,23 +23,24 @@ public sealed class CSharpFileNeuronFacts
         var sandbox = new FakeSandbox();
         await using var brain = await Brain(sandbox, ct);
         var file = brain.Get<ICSharpFile>("workspace/report");
-        await using var changes = await brain.Observe<CSharpFileChanged>(file, ct);
+        await using var changes = await brain.Observe<SynapseChanged>(file, ct);
 
         await file.Write("Console.WriteLine(\"hi\");", ct);
         await file.Configure(new Dictionary<string, string> { ["TimerId"] = "tea" }, ct);
-        var running = await file.Start(ct);
+        await file.Start(ct);
+        var running = await file.Inspect(ct);
 
         Assert.Equal(CSharpFileStatus.Running, running.Status);
         var start = Assert.Single(sandbox.Requests, FakeSandbox.IsStart);
         Assert.Equal("Console.WriteLine(\"hi\");", start.Body!["source"]!.GetValue<string>());
         Assert.Equal("tea", start.Body["environment"]!["CSharpFile__Settings__TimerId"]!.GetValue<string>());
-        Assert.Equal("workspace/report", (await changes.NextAsync(ct: ct)).FileId);
+        Assert.Equal("workspace/report", (await changes.NextAsync(ct: ct)).SynapseId);
         Assert.Equal("hi", await file.ReadLogs(cancellationToken: ct));
 
         await file.Delete(ct);
 
         Assert.Contains(sandbox.Requests, request => request.Method == "POST" && request.Path.EndsWith("/stop", StringComparison.Ordinal));
-        var deleted = await file.Read(ct);
+        var deleted = await file.Inspect(ct);
         Assert.Equal(CSharpFileStatus.Stopped, deleted.Status);
         Assert.Equal("", deleted.Source);
     }
@@ -73,7 +74,7 @@ public sealed class CSharpFileNeuronFacts
         sandbox.ExitLatest(0);
         await Reconcile(file);
 
-        var finished = await file.Read(ct);
+        var finished = await file.Inspect(ct);
         Assert.Equal(CSharpFileStatus.Exited, finished.Status);
         Assert.False(finished.ShouldRun);
         Assert.Equal(1, sandbox.Started);
@@ -88,16 +89,16 @@ public sealed class CSharpFileNeuronFacts
         var file = await Started(brain, "workspace/crash", ct);
 
         sandbox.ExitLatest(1);
-        Assert.Equal(CSharpFileStatus.Restarting, (await file.Read(ct)).Status);
+        Assert.Equal(CSharpFileStatus.Restarting, (await file.Inspect(ct)).Status);
         for (var failure = 1; failure < CSharpFileNeuron.MaximumFailures; failure++)
         {
             await Reconcile(file);
-            Assert.Equal(failure, (await file.Read(ct)).Failures);
+            Assert.Equal(failure, (await file.Inspect(ct)).Failures);
             sandbox.ExitLatest(1);
         }
         await Reconcile(file);
 
-        var abandoned = await file.Read(ct);
+        var abandoned = await file.Inspect(ct);
         Assert.False(abandoned.ShouldRun);
         Assert.Equal(CSharpFileStatus.Exited, abandoned.Status);
         Assert.Equal(CSharpFileNeuron.MaximumFailures, abandoned.Failures);
@@ -115,7 +116,7 @@ public sealed class CSharpFileNeuronFacts
         sandbox.LoseEveryRun();
         await Reconcile(file);
 
-        var restarted = await file.Read(ct);
+        var restarted = await file.Inspect(ct);
         Assert.Equal(CSharpFileStatus.Running, restarted.Status);
         Assert.Equal(0, restarted.Failures);
         Assert.Equal(2, sandbox.Started);
@@ -129,11 +130,12 @@ public sealed class CSharpFileNeuronFacts
         await using var brain = await Brain(sandbox, ct);
         var file = await Started(brain, "workspace/stopped", ct);
 
-        var stopped = await file.Stop(ct);
+        await file.Stop(ct);
+        var stopped = await file.Inspect(ct);
         await Reconcile(file);
 
         Assert.False(stopped.ShouldRun);
-        Assert.Equal(CSharpFileStatus.Exited, (await file.Read(ct)).Status);
+        Assert.Equal(CSharpFileStatus.Exited, (await file.Inspect(ct)).Status);
         Assert.Equal(1, sandbox.Started);
     }
 

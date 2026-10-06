@@ -24,7 +24,7 @@ public sealed class ScopedCSharpTools(IDigitalBrain brain, CSharpCatalogStore ca
         var file = File(id);
         var description = await catalog.Describe(scope, id, name, purpose, ct);
         await file.Write(source, ct);
-        return new(description, await file.Read(ct));
+        return new(description, await file.Inspect(ct));
     }
 
     [McpServerTool(Name = "csharp_run"), Description("Act on a saved C# app: status reads its run state and recent output; start compiles and runs the current source in the C# sandbox (restarting it if running) and keeps it running: a crash is retried up to 5 times and a lost sandbox is restarted; stop stops it; logs reads recent console output; delete stops it and removes the file. Compile errors appear in logs with a non-zero exit code while the status is Restarting, then Exited. Never claim the app works until its logs show the expected output.")]
@@ -49,7 +49,7 @@ public sealed class ScopedCSharpTools(IDigitalBrain brain, CSharpCatalogStore ca
     {
         var views = new List<CSharpFileView>();
         foreach (var description in await catalog.List(scope, ct))
-        { views.Add(new(description, await File(description.Id).Read(ct))); }
+        { views.Add(new(description, await File(description.Id).Inspect(ct))); }
         return views;
     }
 
@@ -57,20 +57,24 @@ public sealed class ScopedCSharpTools(IDigitalBrain brain, CSharpCatalogStore ca
     {
         var description = await catalog.Read(scope, id, ct);
         var file = File(id);
-        return new(description, await file.Read(ct), await file.ReadLogs(LogTail, ct));
+        return new(description, await file.Inspect(ct), await file.ReadLogs(LogTail, ct));
     }
 
     public async Task<CSharpFileView> Start(string id, CancellationToken ct)
     {
         if (!canRun) { throw new InvalidOperationException("This host has no C# sandbox, so it cannot run C# files."); }
         var description = await catalog.Read(scope, id, ct);
-        return new(description, await File(id).Start(ct));
+        var file = File(id);
+        await file.Start(ct);
+        return new(description, await file.Inspect(ct));
     }
 
     public async Task<CSharpFileView> Stop(string id, CancellationToken ct)
     {
         var description = await catalog.Read(scope, id, ct);
-        return new(description, await File(id).Stop(ct));
+        var file = File(id);
+        await file.Stop(ct);
+        return new(description, await file.Inspect(ct));
     }
 
     public async Task<CSharpFileView> Delete(string id, CancellationToken ct)
@@ -79,7 +83,7 @@ public sealed class ScopedCSharpTools(IDigitalBrain brain, CSharpCatalogStore ca
         var file = File(id);
         await file.Delete(ct);
         await catalog.Remove(scope, id, ct);
-        return new(description, await file.Read(ct));
+        return new(description, await file.Inspect(ct));
     }
 
     private ICSharpFile File(string id)

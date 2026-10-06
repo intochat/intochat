@@ -25,9 +25,9 @@ public sealed class CSharpSubscriptionFacts
             var first = researchFirst ? research : stop;
             var second = researchFirst ? stop : research;
             await first.Ping(1);
-            await Eventually(async () => (await file.Read(ct)).Subscriptions.Single(s => s.Neuron == first.GetGrainId().ToString()).Pending == 1, ct);
+            await Eventually(async () => (await file.Inspect(ct)).Subscriptions.Single(s => s.Neuron == first.GetGrainId().ToString()).Pending == 1, ct);
             await second.Ping(1);
-            await Eventually(async () => (await file.Read(ct)).Subscriptions.All(s => s.Pending == 1), ct);
+            await Eventually(async () => (await file.Inspect(ct)).Subscriptions.All(s => s.Pending == 1), ct);
 
             // A resumed Stop loop can drain first regardless of publication order.
             var stopped = Assert.Single(await edge.DrainPending(sandbox.LatestRunId, stop.GetGrainId().ToString(), nameof(Pinged)));
@@ -51,17 +51,17 @@ public sealed class CSharpSubscriptionFacts
         var file = await Subscribed(brain, sandbox, "workspace/swapping", pinger, ct);
         var edge = file.AsReference<ICSharpFileEdge>();
         await pinger.Ping(1);
-        await Eventually(async () => (await file.Read(ct)).Subscriptions.Single().Pending == 1, ct);
+        await Eventually(async () => (await file.Inspect(ct)).Subscriptions.Single().Pending == 1, ct);
 
         // An edit is not a fresh intent: the new source resumes the old one's subscriptions.
         await file.Swap("Console.WriteLine(2);", ct);
 
-        var swapped = await file.Read(ct);
+        var swapped = await file.Inspect(ct);
         Assert.Equal("Console.WriteLine(2);", swapped.Source);
         Assert.Equal(1, Assert.Single(swapped.Subscriptions).Pending);
         // Signals that arrive after the swap keep buffering on the surviving subscription.
         await pinger.Ping(2);
-        await Eventually(async () => (await file.Read(ct)).Subscriptions.Single().Pending == 2, ct);
+        await Eventually(async () => (await file.Inspect(ct)).Subscriptions.Single().Pending == 2, ct);
         var drained = await edge.DrainPending(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged));
         Assert.Equal(2, drained.Count);
     }
@@ -81,7 +81,7 @@ public sealed class CSharpSubscriptionFacts
         await pinger.Ping(7);
 
         await Eventually(async () => (await edge.DrainPending(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged))) is { Count: > 0 }, ct);
-        Assert.Single((await file.Read(ct)).Subscriptions);
+        Assert.Single((await file.Inspect(ct)).Subscriptions);
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public sealed class CSharpSubscriptionFacts
 
         await pinger.Ping(1);
         await pinger.Ping(2);
-        await Eventually(async () => (await file.Read(ct)).Subscriptions.Single().Pending == 2, ct);
+        await Eventually(async () => (await file.Inspect(ct)).Subscriptions.Single().Pending == 2, ct);
 
         var drained = await edge.DrainPending(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged));
         Assert.Equal(2, drained.Count);
@@ -118,7 +118,7 @@ public sealed class CSharpSubscriptionFacts
         await edge.Subscribed(sandbox.LatestRunId, two.GetGrainId().ToString(), nameof(Pinged));
 
         await two.Ping(9);
-        await Eventually(async () => (await file.Read(ct)).Subscriptions.Any(s => s.Pending > 0), ct);
+        await Eventually(async () => (await file.Inspect(ct)).Subscriptions.Any(s => s.Pending > 0), ct);
 
         Assert.Empty(await edge.DrainPending(sandbox.LatestRunId, one.GetGrainId().ToString(), nameof(Pinged)));
         Assert.Single(await edge.DrainPending(sandbox.LatestRunId, two.GetGrainId().ToString(), nameof(Pinged)));
@@ -135,7 +135,7 @@ public sealed class CSharpSubscriptionFacts
         var edge = file.AsReference<ICSharpFileEdge>();
 
         for (var number = 0; number < CSharpFileNeuron.MaximumPending + 5; number++) { await pinger.Ping(number); }
-        await Eventually(async () => (await file.Read(ct)).Subscriptions.Single().Pending == CSharpFileNeuron.MaximumPending, ct);
+        await Eventually(async () => (await file.Inspect(ct)).Subscriptions.Single().Pending == CSharpFileNeuron.MaximumPending, ct);
 
         var drained = await edge.DrainPending(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged));
         Assert.Equal(CSharpFileNeuron.MaximumPending, drained.Count);
@@ -167,7 +167,7 @@ public sealed class CSharpSubscriptionFacts
 
         sandbox.ExitLatest(0);                        // the registering run ends cleanly
         await Reconcile(file);                        // reconcile observes the exit
-        Assert.True((await file.Read(ct)).ShouldRun); // ...but a subscribed file is waiting, not finished
+        Assert.True((await file.Inspect(ct)).ShouldRun); // ...but a subscribed file is waiting, not finished
 
         await pinger.Ping(1);
         await Eventually(() => sandbox.Started == 2, ct);   // a wake-run started
@@ -190,7 +190,7 @@ public sealed class CSharpSubscriptionFacts
         await Task.Delay(TimeSpan.FromMilliseconds(300), ct);
 
         Assert.Equal(2, sandbox.Started);             // no third run
-        Assert.Equal(2, (await file.Read(ct)).Subscriptions.Single().Pending);
+        Assert.Equal(2, (await file.Inspect(ct)).Subscriptions.Single().Pending);
     }
 
     [Fact]
@@ -228,9 +228,9 @@ public sealed class CSharpSubscriptionFacts
             sandbox.ExitLatest(1);
         }
         await pinger.Ping(0);
-        await Eventually(async () => !(await file.Read(ct)).ShouldRun, ct);
+        await Eventually(async () => !(await file.Inspect(ct)).ShouldRun, ct);
 
-        Assert.Empty((await file.Read(ct)).Subscriptions);
+        Assert.Empty((await file.Inspect(ct)).Subscriptions);
         Assert.Equal(CSharpFileNeuron.MaximumFailures + 1, sandbox.Started);
     }
 
@@ -247,7 +247,7 @@ public sealed class CSharpSubscriptionFacts
         await pinger.Ping(1);
         await Task.Delay(TimeSpan.FromMilliseconds(300), ct);
 
-        Assert.Empty((await file.Read(ct)).Subscriptions);
+        Assert.Empty((await file.Inspect(ct)).Subscriptions);
         Assert.Equal(1, sandbox.Started);             // only the original registering run ever started
     }
 
@@ -313,7 +313,7 @@ public sealed class CSharpSubscriptionFacts
         await pinger.Ping(3);
         await Eventually(() => sandbox.Started == 4, ct);
 
-        Assert.Equal(0, (await file.Read(ct)).Failures);
+        Assert.Equal(0, (await file.Inspect(ct)).Failures);
     }
 
     [Fact]
@@ -327,7 +327,7 @@ public sealed class CSharpSubscriptionFacts
         await file.Start(ct);
 
         await Assert.ThrowsAsync<ArgumentException>(() => file.AsReference<ICSharpFileEdge>()
-            .Subscribed(sandbox.LatestRunId, file.GetGrainId().ToString(), nameof(CSharpFileChanged)));
+            .Subscribed(sandbox.LatestRunId, file.GetGrainId().ToString(), nameof(SynapseChanged)));
     }
 
     private static Task Reconcile(ICSharpFile file)

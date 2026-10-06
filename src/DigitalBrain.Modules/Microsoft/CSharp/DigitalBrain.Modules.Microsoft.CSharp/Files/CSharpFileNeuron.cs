@@ -66,7 +66,7 @@ internal sealed partial class CSharpFileNeuron(
         { throw new UnauthorizedAccessException("The behavior is already bound to another app."); }
         if (Snapshot.AppId is not null) { return; }
         await StopCurrentRunAsync(CancellationToken.None);
-        await Save(Snapshot with { AppId = appId, AppBrain = brain, ShouldRun = false, RunId = "", Subscriptions = [] }, new CSharpFileChanged(FileId));
+        await Save(Snapshot with { AppId = appId, AppBrain = brain, ShouldRun = false, RunId = "", Subscriptions = [] }, new SynapseChanged(FileId));
     }
 
     public override async Task OnActivateAsync(CancellationToken cancellationToken)
@@ -77,15 +77,34 @@ internal sealed partial class CSharpFileNeuron(
         if (IsArmed || Snapshot.Subscriptions.Length > 0) { RenewSourceWatches(dueTime: TimeSpan.Zero); }
     }
 
-    public async Task<CSharpFileSnapshot> Read(CancellationToken cancellationToken = default)
+    public async Task<CSharpFileSnapshot> Inspect(CancellationToken cancellationToken = default)
         => Describe(await runner.InspectAsync(Snapshot.Owner, Snapshot.RunId, cancellationToken));
 
-    public Task Write(string source, CancellationToken cancellationToken = default)
+    // The word's view of this file: alive while a run is up, one watch per durable subscription
+    // plus the armed trigger, and the last failed run's log tail.
+    public async Task<SynapseSnapshot> Read(CancellationToken cancellationToken = default)
+        => await AsSynapse(await Inspect(cancellationToken), cancellationToken);
+
+    async Task<SynapseSnapshot> ISynapse.Start(CancellationToken cancellationToken) => await AsSynapse(await Start(cancellationToken), cancellationToken);
+
+    async Task<SynapseSnapshot> ISynapse.Stop(CancellationToken cancellationToken) => await AsSynapse(await Stop(cancellationToken), cancellationToken);
+
+    private async Task<SynapseSnapshot> AsSynapse(CSharpFileSnapshot file, CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        if (Encoding.UTF8.GetByteCount(source) > MaximumSourceBytes) { throw new ArgumentException($"Source exceeds {MaximumSourceBytes} bytes.", nameof(source)); }
+        var watches = file.Subscriptions.Select(s => new SynapseWatch(s.Neuron, s.Signal, s.Pending)).ToList();
+        if (file.Trigger is { } trigger && !watches.Any(w => w.Neuron == trigger.Neuron && w.Signal == trigger.Signal))
+        { watches.Add(new(trigger.Neuron, trigger.Signal, 0)); }
+        var failed = file.Status == CSharpFileStatus.Exited && file.ExitCode is not 0;
+        return new(file.Id, file.Source, file.Status is CSharpFileStatus.Running or CSharpFileStatus.Restarting, [.. watches],
+            failed ? await ReadLogs(20, cancellationToken) : null);
+    }
+
+    public Task Write(string program, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(program);
+        if (Encoding.UTF8.GetByteCount(program) > MaximumSourceBytes) { throw new ArgumentException($"Source exceeds {MaximumSourceBytes} bytes.", nameof(program)); }
         var owner = CallerContextStamper.TryGet(out var caller) ? caller : Snapshot.OwnerContext;
-        return Save(Snapshot with { Source = source, OwnerContext = Snapshot.OwnerContext ?? owner }, new CSharpFileChanged(FileId));
+        return Save(Snapshot with { Source = program, OwnerContext = Snapshot.OwnerContext ?? owner }, new SynapseChanged(FileId));
     }
 
     public Task Configure(IReadOnlyDictionary<string, string> settings, CancellationToken cancellationToken = default)
@@ -94,7 +113,7 @@ internal sealed partial class CSharpFileNeuron(
         if (settings.Count > MaximumSettings) { throw new ArgumentException($"At most {MaximumSettings} settings are allowed.", nameof(settings)); }
         if (settings.Keys.FirstOrDefault(name => !SettingName().IsMatch(name)) is { } invalid)
         { throw new ArgumentException($"Setting '{invalid}' must contain only letters, digits and underscores.", nameof(settings)); }
-        return Save(Snapshot with { Settings = new(settings, StringComparer.Ordinal) }, new CSharpFileChanged(FileId));
+        return Save(Snapshot with { Settings = new(settings, StringComparer.Ordinal) }, new SynapseChanged(FileId));
     }
 
     public async Task<CSharpFileSnapshot> Start(CancellationToken cancellationToken = default)
@@ -133,7 +152,7 @@ internal sealed partial class CSharpFileNeuron(
         await UnwatchSourcesAsync();
         await StopCurrentRunAsync(cancellationToken);
         var owner = Caller();
-        await Save(Snapshot with { ShouldRun = true, Failures = 0, Owner = owner.Principal, OwnerContext = owner.Context, Trigger = trigger, Subscriptions = [] }, new CSharpFileChanged(FileId));
+        await Save(Snapshot with { ShouldRun = true, Failures = 0, Owner = owner.Principal, OwnerContext = owner.Context, Trigger = trigger, Subscriptions = [] }, new SynapseChanged(FileId));
         await WatchSourcesAsync();
         await reminders.RegisterOrUpdateReminder(this.GetGrainId(), ReconcileReminder, ReconcilePeriod, ReconcilePeriod);
         return Describe(await runner.InspectAsync(Snapshot.Owner, Snapshot.RunId, cancellationToken));
@@ -145,7 +164,7 @@ internal sealed partial class CSharpFileNeuron(
         await UnwatchSourcesAsync();
         await StopCurrentRunAsync(cancellationToken);
         var run = await runner.InspectAsync(Snapshot.Owner, Snapshot.RunId, cancellationToken);
-        await Save(Snapshot with { ShouldRun = false, Subscriptions = [] }, new CSharpFileChanged(FileId));
+        await Save(Snapshot with { ShouldRun = false, Subscriptions = [] }, new SynapseChanged(FileId));
         return Describe(run);
     }
 
@@ -157,7 +176,7 @@ internal sealed partial class CSharpFileNeuron(
         await StopReconcilingAsync();
         await UnwatchSourcesAsync();
         await StopCurrentRunAsync(cancellationToken);
-        await Save(new CSharpFileState(), new CSharpFileChanged(FileId));
+        await Save(new CSharpFileState(), new SynapseChanged(FileId));
         DeactivateOnIdle();
     }
 
@@ -205,7 +224,7 @@ internal sealed partial class CSharpFileNeuron(
         {
             await StopReconcilingAsync();
             await UnwatchSourcesAsync();
-            await Save(Snapshot with { ShouldRun = false, Failures = failures, Subscriptions = [] }, new CSharpFileChanged(FileId));
+            await Save(Snapshot with { ShouldRun = false, Failures = failures, Subscriptions = [] }, new SynapseChanged(FileId));
             return;
         }
         await StartRunAsync(Snapshot with { Failures = failures }, trigger: null, CancellationToken.None);
@@ -220,7 +239,7 @@ internal sealed partial class CSharpFileNeuron(
         ArgumentException.ThrowIfNullOrWhiteSpace(signal);
         if (!Snapshot.Subscriptions.Any(existing => existing.Neuron == neuron && existing.Signal == signal))
         {
-            await Save(Snapshot with { Subscriptions = [.. Snapshot.Subscriptions, new(neuron, signal, [])] }, new CSharpFileChanged(FileId));
+            await Save(Snapshot with { Subscriptions = [.. Snapshot.Subscriptions, new(neuron, signal, [])] }, new SynapseChanged(FileId));
         }
         await WatchSourcesAsync();
     }
@@ -234,7 +253,7 @@ internal sealed partial class CSharpFileNeuron(
         await Save(Snapshot with
         {
             Subscriptions = Snapshot.Subscriptions.Select(s => s == subscription ? s with { Pending = [] } : s).ToArray(),
-        }, new CSharpFileChanged(FileId));
+        }, new SynapseChanged(FileId));
         return drained;
     }
 
@@ -260,7 +279,7 @@ internal sealed partial class CSharpFileNeuron(
         {
             await StopReconcilingAsync();
             await UnwatchSourcesAsync();
-            await Save(Snapshot with { ShouldRun = false, Failures = failures }, new CSharpFileChanged(FileId));
+            await Save(Snapshot with { ShouldRun = false, Failures = failures }, new SynapseChanged(FileId));
             return;
         }
         await StartRunAsync(Snapshot with { Failures = failures }, signal, CancellationToken.None);
@@ -296,11 +315,11 @@ internal sealed partial class CSharpFileNeuron(
                 return;
             case CSharpFileStatus.Exited when run.ExitCode == 0:
                 await StopReconcilingAsync();
-                await Save(Snapshot with { ShouldRun = false }, new CSharpFileChanged(FileId));
+                await Save(Snapshot with { ShouldRun = false }, new SynapseChanged(FileId));
                 return;
             case CSharpFileStatus.Exited when Snapshot.Failures + 1 >= MaximumFailures:
                 await StopReconcilingAsync();
-                await Save(Snapshot with { ShouldRun = false, Failures = Snapshot.Failures + 1 }, new CSharpFileChanged(FileId));
+                await Save(Snapshot with { ShouldRun = false, Failures = Snapshot.Failures + 1 }, new SynapseChanged(FileId));
                 return;
             case CSharpFileStatus.Exited:
                 await StartRunAsync(Snapshot with { Failures = Snapshot.Failures + 1 }, trigger: null, CancellationToken.None);
@@ -317,9 +336,9 @@ internal sealed partial class CSharpFileNeuron(
         var runId = Guid.NewGuid().ToString("N");
         // Bound behaviors authorize only their current run. Record it before launching because
         // the sandbox can reach the edge before StartAsync returns.
-        if (next.AppId is not null) { await Save(next with { RunId = runId }, new CSharpFileChanged(FileId)); }
+        if (next.AppId is not null) { await Save(next with { RunId = runId }, new SynapseChanged(FileId)); }
         await runner.StartAsync(new CSharpRun(next.Owner, runId, next.Source, environment.Create(FileId, runId, next.Settings, trigger)), cancellationToken);
-        await Save(next with { RunId = runId }, new CSharpFileChanged(FileId));
+        await Save(next with { RunId = runId }, new SynapseChanged(FileId));
         return runId;
     }
 

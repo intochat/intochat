@@ -376,6 +376,21 @@ public sealed class ScriptEdgeFacts
     }
 
     [Fact]
+    public async Task AScriptCanCallReadOnASynapseAndInspectOnTheCSharpFileWithoutAmbiguity()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new FakeSandbox();
+        await using var brain = await SandboxBrain.StartAsync(sandbox, ct, silo => silo.Services.AddSingleton(new ScriptContracts([typeof(IPinger).Assembly, typeof(ICSharpFile).Assembly])));
+        const string fileId = "workspace/synapses/edge-read";
+        var token = await StartAsAlice(brain, sandbox, fileId, ct);
+        var edge = brain.SiloServices.GetRequiredService<ScriptEdge>();
+        var synapse = await edge.InvokeAsync(token, (typeof(ICSharpFile).FullName!, fileId, nameof(ISynapse.Read), []), ct);
+        Assert.True(synapse!.Value.TryGetProperty("program", out _));
+        var rich = await edge.InvokeAsync(token, (typeof(ICSharpFile).FullName!, fileId, nameof(ICSharpFile.Inspect), []), ct);
+        Assert.True(rich!.Value.TryGetProperty("status", out _));
+    }
+
+    [Fact]
     public void ThePlatformContractsAssemblyIsInEveryInventory()
     {
         var inventory = new DigitalBrain.Framework.ModuleInventory([]);
