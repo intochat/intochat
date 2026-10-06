@@ -50,4 +50,47 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('ui_chart_Share')), findsOneWidget);
   });
+
+  Future<void> pumpTable(WidgetTester tester, Map<String, dynamic> state) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NeuronView(
+            kind: 'table',
+            name: 'w/apps/dv/grid',
+            refreshEvery: const Duration(days: 1),
+            load: (_, _) async => state,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('an empty table node renders nothing and does not throw', (
+    tester,
+  ) async {
+    await pumpTable(tester, {'title': 'People', 'columns': [], 'rows': []});
+    expect(tester.takeException(), isNull);
+    expect(find.byType(DataTable), findsNothing);
+  });
+
+  testWidgets('a ragged row is padded or truncated to the column count', (
+    tester,
+  ) async {
+    await pumpTable(tester, {
+      'columns': [
+        {'id': 'a', 'title': 'A'},
+        {'id': 'b', 'title': 'B'},
+      ],
+      'rows': [
+        ['only'],
+        ['x', 'y', 'extra'],
+      ],
+    });
+    expect(tester.takeException(), isNull);
+    expect(find.text('only'), findsOneWidget);
+    expect(find.text('y'), findsOneWidget);
+    expect(find.text('extra'), findsNothing);
+  });
 }

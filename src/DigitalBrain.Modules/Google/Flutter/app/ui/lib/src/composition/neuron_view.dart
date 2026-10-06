@@ -459,18 +459,26 @@ class _NeuronViewState extends State<NeuronView> {
         );
       case 'table':
         final columns = (definition['columns'] as List? ?? []).whereType<Map>().toList();
+        if (columns.isEmpty) return const SizedBox.shrink();
         final rows = (definition['rows'] as List? ?? []).whereType<List>().toList();
         return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            columns: [
-              for (final column in columns)
-                DataColumn(label: Text('${column['title'] ?? column['id']}')),
-            ],
-            rows: [
-              for (final row in rows)
-                DataRow(cells: [for (final cell in row) DataCell(Text('$cell'))]),
-            ],
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              columns: [
+                for (final column in columns)
+                  DataColumn(label: Text('${column['title'] ?? column['id']}')),
+              ],
+              rows: [
+                for (final row in rows)
+                  DataRow(
+                    cells: [
+                      for (var i = 0; i < columns.length; i++)
+                        DataCell(Text(i < row.length ? '${row[i]}' : '')),
+                    ],
+                  ),
+              ],
+            ),
           ),
         );
       case 'chart':
