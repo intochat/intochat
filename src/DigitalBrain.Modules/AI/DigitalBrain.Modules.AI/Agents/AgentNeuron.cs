@@ -41,7 +41,7 @@ internal sealed class AgentNeuron(
     private bool _mutating;
     private AgentStorage _state = new();
 
-    public override async Task OnActivateAsync(CancellationToken cancellationToken)
+    internal async Task ResumeAsync()
     {
         _state = string.IsNullOrEmpty(store.State.Json) ? new() : JsonSerializer.Deserialize<AgentStorage>(store.State.Json)!;
         if (_state.LastRun is { Status: AgentRunStatus.Running } interrupted)
@@ -56,7 +56,6 @@ internal sealed class AgentNeuron(
                 }
             });
         }
-        await base.OnActivateAsync(cancellationToken);
     }
 
     public async Task Configure(AgentDefinition definition, long expectedRevision, CancellationToken ct = default)

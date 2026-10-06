@@ -1,23 +1,24 @@
-using System.Collections.Concurrent;
-using System.Reflection;
-using DigitalBrain;
-using DigitalBrain.Framework;
-using DigitalBrain.Framework.Signals;
+using DigitalBrain.Framework.Enforcement;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Orleans.Runtime;
 using Orleans.Utilities;
 
 namespace DigitalBrain.Framework;
 
-public abstract class Neuron : Grain, INeuron, IGrainBase
+/// <summary>
+/// The grain every neuron is: observable, and activated through the activation pipeline.
+/// </summary>
+/// <remarks>
+/// Activation is sealed. A module that needs work on activation registers an
+/// <see cref="IActivationHandler{TNeuron}"/> for its neuron type instead of overriding the grain
+/// lifecycle, so the runtime owns the order and the failure handling.
+/// </remarks>
+public abstract class Neuron : Grain, INeuron
 {
-    public virtual Enforcement.NeuronAccess Access(string operation) => Enforcement.NeuronAccess.ForBrainKey(this.GetPrimaryKeyString());
+    public virtual NeuronAccess Access(string operation) => NeuronAccess.ForBrainKey(this.GetPrimaryKeyString());
 
-    private static readonly ConcurrentDictionary<Type, string[]> ActivityTypeIds = new();
     private readonly Guid _activation = Guid.NewGuid();
-    private bool _observedActivation;
     private ObserverManager<INeuronObserver>? _observers;
     private ObserverManager<INeuronObserver> Observers => _observers ??= new(
         ServiceProvider.GetRequiredService<IOptions<ObserverOptions>>().Value.Lease,
@@ -25,32 +26,18 @@ public abstract class Neuron : Grain, INeuron, IGrainBase
 
     protected TimeSpan ObserverRenewal => TimeSpan.FromTicks(ServiceProvider.GetRequiredService<IOptions<ObserverOptions>>().Value.Lease.Ticks / 5);
 
-    // Orleans calls IGrainBase; keep derived virtual hooks intact without relying on a base call.
-    async Task IGrainBase.OnActivateAsync(CancellationToken cancellationToken)
-    {
-        await OnActivateAsync(cancellationToken);
-        _observedActivation = true;
-        PublishActivity(active: true);
-    }
+    /// <summary>This neuron's id as stamped on its signals. Transitional: the full grain id until keys are brain-owned.</summary>
+    public NeuronId Id => new(this.GetGrainId().ToString());
 
-    async Task IGrainBase.OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+    public sealed override async Task OnActivateAsync(CancellationToken cancellationToken)
     {
-        try { await OnDeactivateAsync(reason, cancellationToken); }
-        finally { if (_observedActivation) { PublishActivity(active: false); } }
-    }
-
-    private void PublishActivity(bool active)
-    {
-        var signals = ServiceProvider.GetRequiredService<LocalSignalHub>();
-        var typeIds = ActivityTypeIds.GetOrAdd(GetType(), static neuronType => neuronType.GetInterfaces()
-            .Where(type => type != typeof(INeuron) && typeof(INeuron).IsAssignableFrom(type))
-            .Select(type => type.GetCustomAttribute<AliasAttribute>()?.Alias)
-            .OfType<string>().Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray());
-        var now = ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow();
-        NeuronActivity activity = active
-            ? new NeuronActivated { NeuronId = this.GetGrainId().ToString(), Key = this.GetPrimaryKeyString(), TypeIds = [.. typeIds], ActivationId = _activation, ObservedAt = now }
-            : new NeuronDeactivated { NeuronId = this.GetGrainId().ToString(), Key = this.GetPrimaryKeyString(), TypeIds = [.. typeIds], ActivationId = _activation, ObservedAt = now };
-        signals.Publish(activity);
+        await base.OnActivateAsync(cancellationToken);
+        var handlers = ServiceProvider.GetServices(typeof(IActivationHandler<>).MakeGenericType(GetType()));
+        foreach (var handler in handlers)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await ((IActivationHandler)handler!).Activated(this, cancellationToken);
+        }
     }
 
     public virtual Task<Guid> Watch(INeuronObserver observer)
@@ -67,7 +54,7 @@ public abstract class Neuron : Grain, INeuron, IGrainBase
 
     protected Task PublishAsync(Signal signal)
     {
-        var stamped = signal with { Publisher = this.GetGrainId().ToString() };
+        var stamped = signal with { Publisher = Id };
         ServiceProvider.GetRequiredService<LocalSignalHub>().Publish(this.GetGrainId(), stamped);
         return Observers.Notify(observer => observer.OnSignalAsync(stamped));
     }

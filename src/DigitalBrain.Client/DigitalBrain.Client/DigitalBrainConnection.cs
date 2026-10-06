@@ -40,11 +40,12 @@ public sealed class DigitalBrainConnection : IDigitalBrain, IAsyncDisposable
 
     internal static DigitalBrainConnection ForTests(HttpClient http) => new(new ConfigurationBuilder().Build(), http);
 
-    public T Get<T>(string id) where T : class, INeuron
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(id);
-        return NeuronProxy.Create<T>(_edge, id);
-    }
+    public T Get<T>(NeuronId id) where T : INeuron => NeuronProxy.Create<T>(_edge, id.Name);
+
+    // The edge tells a run which brain it serves; a run without one cannot reach its kernel.
+    public IKernel Self => Configuration["CSharpFile:Brain"] is { Length: > 0 } brain
+        ? NeuronProxy.Create<IKernel>(_edge, brain)
+        : throw new InvalidOperationException("This run was not told its brain.");
 
     public IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
     {

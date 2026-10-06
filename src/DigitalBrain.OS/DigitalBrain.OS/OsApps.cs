@@ -9,6 +9,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Orleans;
+using Orleans.Runtime;
 
 namespace DigitalBrain.OS;
 
@@ -59,24 +60,33 @@ public static class OsAppsHosting
         ArgumentNullException.ThrowIfNull(services);
         if (configure is not null) { services.Configure(configure); }
         services.TryAddSingleton<OsDefaults>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IBrainProvisioner, OsDefaults>(provider => provider.GetRequiredService<OsDefaults>()));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<ICreationHandler, OsDefaults>(provider => provider.GetRequiredService<OsDefaults>()));
         services.AddHostedService<OsBootService>();
         services.AddHealthChecks().AddCheck<OsDefaultsPublished>("os-defaults", tags: ["ready"]);
         return services;
     }
 }
 
-// A new brain is born with the OS defaults: Establish awaits this provisioner, so the first
-// thing a person sees in a new brain already has its apps. Every default installs through the
-// same Marketplace Install anyone uses; a present app is the person's, never replaced here.
+// A brain, as the OS needs to address it: its id and the account that owns it.
+internal sealed record BrainBirth(string BrainId, string AccountId)
+{
+    // The kernel's id is "kernel/<brain id>"; the brain id is the key.
+    public static BrainBirth From(Signal signal, Owner owner)
+        => new(GrainId.Parse(signal.Publisher.Name).Key.ToString()!, owner.AccountId);
+}
+
+// A new brain is born with the OS defaults: Create awaits this handler, so the first thing a
+// person sees in a new brain already has its apps. Every default installs through the same
+// Marketplace Install anyone uses; a present app is the person's, never replaced here.
 internal sealed class OsDefaults(
-    IGrainFactory grains, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger) : IBrainProvisioner
+    IGrainFactory grains, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger) : ICreationHandler
 {
     public OsApp[] Apps => [.. options.Value.Apps];
 
-    public Task Provision(Activated brain, CancellationToken cancellationToken) => InstallAsync(brain, Apps, cancellationToken);
+    public Task Created(IKernel kernel, Created created, CancellationToken cancellationToken)
+        => InstallAsync(new BrainBirth(kernel.GetPrimaryKeyString(), created.Owner.AccountId), Apps, cancellationToken);
 
-    public async Task InstallAsync(Activated activated, OsApp[] apps, CancellationToken cancellationToken)
+    public async Task InstallAsync(BrainBirth activated, OsApp[] apps, CancellationToken cancellationToken)
     {
         // Installing speaks for the brain's owner as the platform; the caller's own context
         // comes back afterwards, since a provisioner runs inside the caller's turn.
@@ -101,15 +111,15 @@ internal sealed class OsDefaults(
         }
     }
 
-    private async Task EnsureInstalledAsync(Activated activated, OsApp app, CancellationToken cancellationToken)
+    private async Task EnsureInstalledAsync(BrainBirth activated, OsApp app, CancellationToken cancellationToken)
     {
         // The brain's (owner, name) pair is the scope identity the kernel derives everywhere
         // from the caller; the install must land in the activated brain's own scope.
         CallerContextStamper.Stamp(new CallerContext
         {
             PrincipalId = "os",
-            AccountId = activated.OwnerAccountId,
-            BrainId = activated.Name,
+            AccountId = activated.AccountId,
+            BrainId = activated.BrainId,
             Kind = CallerKind.Platform,
             StampedBy = TrustedEdge.Platform,
         });
@@ -141,7 +151,7 @@ internal sealed class OsBootService(LocalSignalHub signals, OsDefaults defaults)
     {
         var apps = defaults.Apps;
         if (apps.Length == 0) { return; }
-        var brains = new System.Collections.Concurrent.ConcurrentDictionary<string, Activated>(StringComparer.Ordinal);
+        var brains = new System.Collections.Concurrent.ConcurrentDictionary<string, BrainBirth>(StringComparer.Ordinal);
         using var activations = signals.Subscribe<Activated>();
         using var published = signals.Subscribe<DigitalBrain.Apps.Signals.AppPublished>();
         await Task.WhenAll(OnActivations(), OnPublished());
@@ -150,8 +160,9 @@ internal sealed class OsBootService(LocalSignalHub signals, OsDefaults defaults)
         {
             await foreach (var activated in activations.Reader.ReadAllAsync(stoppingToken))
             {
-                brains[activated.BrainId] = activated;
-                await defaults.InstallAsync(activated, apps, stoppingToken);
+                var brain = BrainBirth.From(activated, activated.Owner);
+                brains[brain.BrainId] = brain;
+                await defaults.InstallAsync(brain, apps, stoppingToken);
             }
         }
 

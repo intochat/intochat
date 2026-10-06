@@ -18,9 +18,9 @@ public class NeuronProxy : DispatchProxy
 
     internal string Key { get; private set; } = "";
 
-    internal static T Create<T>(ScriptEdgeClient edge, string key) where T : class
+    internal static T Create<T>(ScriptEdgeClient edge, string key)
     {
-        var proxy = Create<T, NeuronProxy>();
+        var proxy = (T)Create(typeof(T), typeof(NeuronProxy));
         var neuron = (NeuronProxy)(object)proxy;
         neuron._edge = edge;
         neuron.Contract = typeof(T);

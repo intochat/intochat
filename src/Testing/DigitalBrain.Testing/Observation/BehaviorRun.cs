@@ -54,7 +54,8 @@ public sealed class BehaviorRun : IAsyncDisposable
         private readonly ConcurrentDictionary<(GrainId, Type), TaskCompletionSource> _ready = new();
         internal TaskCompletionSource Ready(GrainId source, Type type)
             => _ready.GetOrAdd((source, type), _ => new(TaskCreationOptions.RunContinuationsAsynchronously));
-        public T Get<T>(string id) where T : class, INeuron => inner.Get<T>(id);
+        public T Get<T>(NeuronId id) where T : INeuron => inner.Get<T>(id);
+        public IKernel Self => inner.Self;
         public async IAsyncEnumerable<T> On<T>(INeuron source, [EnumeratorCancellation] CancellationToken cancellationToken = default) where T : Signal
         {
             await using var subscription = await SubscribeAsync<T>(source, cancellationToken).ConfigureAwait(false);

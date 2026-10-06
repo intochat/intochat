@@ -55,6 +55,7 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai"))
         builder.Services.TryAddSingleton<IAiCredentials, RegistrationCredentials>();
         AIClients.Add(builder.Services);
         builder.Services.TryAddSingleton<Agents.IAgentTurnRunner, Agents.AgentTurnRunner>();
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<Agents.AgentNeuron>, Agents.AgentActivation>());
         builder.Services.TryAddSingleton<ModelProfiles>();
         builder.Services.AddSingleton<ICapabilitySource, AiModelCapabilities>();
         builder.Services.TryAddSingleton<InferenceService>();

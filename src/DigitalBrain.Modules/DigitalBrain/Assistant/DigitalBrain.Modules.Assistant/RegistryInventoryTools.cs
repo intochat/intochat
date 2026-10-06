@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Reflection;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
@@ -7,7 +6,7 @@ using Microsoft.Extensions.AI;
 
 namespace DigitalBrain.Assistant;
 
-internal sealed class RegistryInventoryTools(IRegistry registry, ModuleInventory catalog) : IAgentToolFactory
+internal sealed class RegistryInventoryTools(IRegistry registry) : IAgentToolFactory
 {
     public IReadOnlyList<AIFunction> Create(Func<AgentToolContext> context)
     {
@@ -26,10 +25,8 @@ internal sealed class RegistryInventoryTools(IRegistry registry, ModuleInventory
         {
             RequireScope();
             var all = await registry.Persisted(null, ct);
-            // A synapse record is one whose grain type is the alias of a contract deriving from ISynapse.
-            var synapseTypes = catalog.ContractAssemblies().SelectMany(assembly => assembly.GetExportedTypes())
-                .Where(type => type.IsInterface && typeof(ISynapse).IsAssignableFrom(type))
-                .Select(type => type.GetCustomAttribute<AliasAttribute>()?.Alias).OfType<string>().ToHashSet(StringComparer.Ordinal);
+            // Programs that run are neurons of their own kind; today the C# file is the only one.
+            var synapseTypes = new HashSet<string>(StringComparer.Ordinal) { "microsoft.csharp.file" };
             return all with { Records = all.Records.Where(record => synapseTypes.Contains(record.TypeId)).ToArray() };
         }
         return [

@@ -1,9 +1,11 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace DigitalBrain.Framework.Enforcement;
 
+/// <summary>
+/// The brain a call is in. The brain's id is its kernel's grain key and the prefix of every
+/// neuron key inside it; there is no second, derived id.
+/// </summary>
 public sealed record BrainScope(string Id, string Owner, string Name)
 {
     public static string CurrentId()
@@ -18,10 +20,7 @@ public sealed record BrainScope(string Id, string Owner, string Name)
         if (!IsValidId(name))
         { throw new ArgumentException("A brain ID must contain 1–200 characters without path separators.", nameof(name)); }
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
-        // "workspace-" prefix is a stored artifact of the previous naming; renaming it means a data
-        // migration and is explicitly deferred.
-        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(owner + "\0" + name));
-        return new("workspace-" + Convert.ToHexStringLower(digest), owner, name);
+        return new(name, owner, name);
     }
 
     // Brain, thread and run ids travel in routes and grain keys: 1-200 characters, no control

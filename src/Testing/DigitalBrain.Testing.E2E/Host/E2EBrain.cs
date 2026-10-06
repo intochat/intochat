@@ -51,10 +51,15 @@ public sealed class E2EBrain : IDigitalBrain, IBrainSubscriptions, IAsyncDisposa
     TestExecutionOptions ITrackedBrain.Execution => _session.Options;
     void ITrackedBrain.Track(IAsyncDisposable resource) => _lifetime.Own("observation", resource);
 
-    public T Get<T>(string id) where T : class, INeuron => _session.Brain.Get<T>(id);
+    // Raw grain access for facts; programs resolve by NeuronId through IDigitalBrain.
+    public T Get<T>(string id) where T : class, INeuron => _session.Brains.Grain<T>(id);
+
+    T IDigitalBrain.Get<T>(NeuronId id) => _session.Brains.Grain<T>(id.Name);
+
+    public IKernel Self => _session.Brains.Open(WorkspaceId).Self;
 
     public IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
-        => _session.Brain.On<T>(source, cancellationToken);
+        => _session.Brains.On<T>(source, cancellationToken);
 
     public Task<ISignalSubscription<T>> SubscribeAsync<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
         => _session.Subscriptions.SubscribeAsync<T>(source, cancellationToken);

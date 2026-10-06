@@ -6,8 +6,10 @@ using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Client.Orleans;
 
+// The cluster as a whole: opens brains, resolves raw grains for hosts and harnesses, and owns
+// every subscription so disposal releases them all.
 internal sealed class BrainClient(IClusterClient cluster, IOptions<SubscriptionOptions> options, ILogger<BrainClient> logger, ILocalSignalHub? hub = null)
-    : IDigitalBrain, IBrainSubscriptions, IAsyncDisposable
+    : IDigitalBrains, IBrainSubscriptions, IAsyncDisposable
 {
     private readonly Lock _gate = new();
     private readonly HashSet<IAsyncDisposable> _subscriptions = [];
@@ -15,14 +17,41 @@ internal sealed class BrainClient(IClusterClient cluster, IOptions<SubscriptionO
 
     internal int TrackedSubscriptions { get { lock (_gate) { return _subscriptions.Count; } } }
 
-    public T Get<T>(string id) where T : class, INeuron => cluster.GetGrain<T>(id);
+    public IDigitalBrain Open(string brainId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
+        return new OrleansBrain(this, brainId);
+    }
 
+    public T Grain<T>(string key) where T : INeuron => cluster.GetGrain<T>(key);
+
+    // Either token ends the watch: the one given here, or the enumerator's. See WatchStream for
+    // why the stream is hand-written.
     public IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
         => new WatchStream<T>(async ct =>
         {
-            var subscription = await SubscribeAsync<T>(source, ct).ConfigureAwait(false);
-            return (subscription.ReadAllAsync(ct), subscription);
+            if (!cancellationToken.CanBeCanceled)
+            {
+                var subscription = await SubscribeAsync<T>(source, ct).ConfigureAwait(false);
+                return (subscription.ReadAllAsync(ct), subscription);
+            }
+            var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, cancellationToken);
+            try
+            {
+                var subscription = await SubscribeAsync<T>(source, linked.Token).ConfigureAwait(false);
+                return (subscription.ReadAllAsync(linked.Token), new LinkedHandle(subscription, linked));
+            }
+            catch { linked.Dispose(); throw; }
         });
+
+    private sealed class LinkedHandle(IAsyncDisposable subscription, CancellationTokenSource linked) : IAsyncDisposable
+    {
+        public async ValueTask DisposeAsync()
+        {
+            try { await subscription.DisposeAsync().ConfigureAwait(false); }
+            finally { linked.Dispose(); }
+        }
+    }
 
     public async Task<ISignalSubscription<T>> SubscribeAsync<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
     {

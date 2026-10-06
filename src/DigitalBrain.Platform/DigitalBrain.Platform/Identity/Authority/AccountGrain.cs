@@ -55,7 +55,7 @@ internal sealed class AccountGrain(
         if (State.Account is null || owner.AccountId != this.GetPrimaryKeyString() || State.Account.OwnerPrincipalId != owner.PrincipalId)
         { throw new UnauthorizedAccessException("Brain ownership does not match the account."); }
         var scope = BrainScope.Create(owner.AccountId, owner.BrainId);
-        await GrainFactory.GetGrain<IBrain>(scope.Id).Establish(new(owner.BrainId, owner.AccountId));
+        await GrainFactory.GetGrain<IKernel>(scope.Id).Create(new Owner(owner.AccountId));
         var authority = GrainFactory.GetGrain<IBrainAuthority>(scope.Id);
         await authority.Initialize(owner.AccountId, owner.BrainId);
         await authority.ProvisionOwner(owner);

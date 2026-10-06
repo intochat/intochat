@@ -1,3 +1,5 @@
+using DigitalBrain.Framework.Enforcement;
+
 namespace DigitalBrain.Google.Gmail;
 
 [PlatformOnly, Alias("gmail.inbound"), Orleans.Metadata.DefaultGrainType("gmail")]

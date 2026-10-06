@@ -36,6 +36,7 @@ internal static class ModuleHttpEdge
         // silo's own factory and brain client.
         var silo = brain.SiloServices;
         builder.Services.AddSingleton(silo.GetRequiredService<IDigitalBrain>());
+        builder.Services.AddSingleton(silo.GetRequiredService<IDigitalBrains>());
         builder.Services.AddSingleton(silo.GetRequiredService<IGrainFactory>());
         foreach (var surface in silo.GetServices<IHttpSurface>()) { builder.Services.AddSingleton(surface); }
         builder.Services.AddIdentity();

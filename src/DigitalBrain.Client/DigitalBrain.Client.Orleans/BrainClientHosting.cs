@@ -1,4 +1,3 @@
-using DigitalBrain;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -19,7 +18,7 @@ public static class BrainClientHosting
             .Validate(o => o.BufferCapacity > 0 && o.RenewEvery > TimeSpan.Zero && o.OperationTimeout > TimeSpan.Zero, "Invalid brain buffer or subscription timing settings.")
             .ValidateOnStart();
         services.TryAddSingleton<BrainClient>();
-        services.TryAddSingleton<IDigitalBrain>(provider => provider.GetRequiredService<BrainClient>());
+        services.TryAddSingleton<IDigitalBrains>(provider => provider.GetRequiredService<BrainClient>());
         services.TryAddSingleton<IBrainSubscriptions>(provider => provider.GetRequiredService<BrainClient>());
         return services;
     }

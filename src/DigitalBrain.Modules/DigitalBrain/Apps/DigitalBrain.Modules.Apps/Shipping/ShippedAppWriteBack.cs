@@ -25,7 +25,7 @@ internal sealed class ShippedAppWriteBack(
                 {
                     var publisher = await publishers.Resolve(source.Account, stoppingToken);
                     var app = grains.GetGrain<IApp>(IApp.Key(publisher.ScopeId, signal.Name));
-                    if (signal.Publisher != app.GetGrainId().ToString()) { continue; }
+                    if (signal.Publisher.Name != app.GetGrainId().ToString()) { continue; }
                     await ShippedAppSync.WriteIfFastForward(source, app, await app.ExportPublished(), logger);
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
