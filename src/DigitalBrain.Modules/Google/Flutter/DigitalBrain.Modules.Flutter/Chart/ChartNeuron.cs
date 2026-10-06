@@ -1,6 +1,4 @@
-using System.Globalization;
 using DigitalBrain;
-using DigitalBrain.Data;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Chart.Signals;
 using DigitalBrain.Framework;
@@ -27,8 +25,6 @@ internal sealed class ChartNeuron([PersistentState("state", DigitalBrainNames.De
         next.Title = title.Trim();
         next.Kind = kind.Trim().ToLowerInvariant();
         next.Points = [.. points.TakeLast(UIVocabulary.ChartMaxPoints)];
-        next.SourceNeuronId = null;
-        next.Query = null;
         return Save(next, new ChartChanged(this.GetPrimaryKeyString(), next.Version, next.Title));
     }
 
@@ -50,49 +46,14 @@ internal sealed class ChartNeuron([PersistentState("state", DigitalBrainNames.De
             next.Points.RemoveRange(0, next.Points.Count - UIVocabulary.ChartMaxPoints);
         }
 
-        next.SourceNeuronId = null;
-        next.Query = null;
-        return Save(next, new ChartChanged(this.GetPrimaryKeyString(), next.Version, next.Title));
-    }
-
-    public Task Bind(string sourceNeuronId, RowQuery query)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sourceNeuronId);
-        ArgumentNullException.ThrowIfNull(query);
-        var next = Snapshot;
-        next.Name = this.GetPrimaryKeyString();
-        next.Version++;
-        next.SourceNeuronId = sourceNeuronId;
-        next.Query = query.Degrade(new SourceCapabilities());
-        next.Points = [];
         return Save(next, new ChartChanged(this.GetPrimaryKeyString(), next.Version, next.Title));
     }
 
     [ReadOnly]
-    public async Task<ChartState> Read()
+    public Task<ChartState> Read()
     {
         var state = Snapshot;
-        if (string.IsNullOrEmpty(state.SourceNeuronId))
-        {
-            state.Name = this.GetPrimaryKeyString();
-            return state;
-        }
-
-        var source = RowSourceAddress.Open(GrainFactory, state.SourceNeuronId);
-        var capabilities = await source.ReadCapabilities();
-        var page = await source.Read((state.Query ?? new RowQuery()).Degrade(capabilities));
-        return new ChartState
-        {
-            Name = this.GetPrimaryKeyString(),
-            Version = state.Version,
-            Title = state.Title,
-            Kind = state.Kind,
-            Points = [.. page.Rows.Take(UIVocabulary.ChartMaxPoints).Select((row, index) => new ChartPoint(
-                index.ToString(CultureInfo.InvariantCulture),
-                row.Values.Length > 0 ? row.Values[0] : "",
-                row.Values.Length > 1 && double.TryParse(row.Values[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : 0))],
-            SourceNeuronId = state.SourceNeuronId,
-            Query = state.Query,
-        };
+        state.Name = this.GetPrimaryKeyString();
+        return Task.FromResult(state);
     }
 }

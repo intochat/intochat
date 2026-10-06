@@ -78,7 +78,6 @@ public sealed class UiKitRouteFacts
         "POST /brains/{brainId}/ui/sliders/{name}/configure",
         "POST /brains/{brainId}/ui/sliders/{name}/value",
         "POST /brains/{brainId}/ui/tables/{name}/replace",
-        "POST /brains/{brainId}/ui/tables/{name}/view",
         "POST /brains/{brainId}/ui/tabs/{name}",
         "POST /brains/{brainId}/ui/tabs/{name}/select",
         "POST /brains/{brainId}/ui/textfields/{name}/configure",

@@ -182,11 +182,6 @@ internal static class UiKitEndpoints
             await grains.GetGrain<ITable>(name).Replace(body.Title, body.Columns, body.Rows).WaitAsync(ct);
             return Results.Accepted();
         });
-        UiHttp.MapPost(endpoints, "tables/{name}/view", async (string name, TableView body, IGrainFactory grains, CancellationToken ct) =>
-        {
-            await grains.GetGrain<ITable>(name).SetView(body.Sort, body.Filter).WaitAsync(ct);
-            return Results.Accepted();
-        });
 
         UiHttp.MapGet<ICalendar, CalendarState>(endpoints, "calendars", neuron => neuron.Read());
         UiHttp.MapPost(endpoints, "calendars/{name}", async (string name, CalendarSet body, IGrainFactory grains, CancellationToken ct) =>
