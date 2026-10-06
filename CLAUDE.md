@@ -7,7 +7,8 @@ IntoChat is one product on top of the OS; the Flutter shell is its workspace UI.
 
 ## Non-negotiables
 
-- **LSP for all code work** (C# and Dart): symbols, references, usages, renames, diagnostics. Never grep code.
+- **LSP for all code work** (C# and Dart): find every definition, reference, implementation and caller
+  through LSP before changing anything; edit; then LSP diagnostics must be clean. Never grep code.
 - **Done means seen running**: Aspire resources Healthy → driven via `digitalbrain-mcp` → confirmed in traces/logs.
 - **Brainstorm only for design**: new concepts, contract/module-shape changes, open fronts. Everything else: do it and verify.
 
@@ -103,9 +104,12 @@ run-token tightening.
 ## Way of working
 
 **LSP is the main dev tool** for C# (`csharp-ls` over `DigitalBrain.slnx`) and Dart (`dart language-server`
-over `src/DigitalBrain.Modules/Google/Flutter/app`). Every symbol lookup, definition, reference, usage,
-call hierarchy and rename goes through LSP — never grep or search-replace for code. Check LSP
-diagnostics after every edit, before building.
+over `src/DigitalBrain.Modules/Google/Flutter/app`). It is read-only — it maps a change, Edit makes it:
+1. **Map** — `goToDefinition`, `findReferences`, `goToImplementation`, `incomingCalls` find every site
+   the change touches. Never grep for code.
+2. **Edit** — change the symbol and each site it found.
+3. **Confirm** — LSP diagnostics clean, then build. Runtime-bound sites LSP can't see (script contracts,
+   Dart mirrors of C# records) are caught by the verification loop.
 
 **codegraph** (`codegraph_explore`) is for general understanding of the repo's structure — orienting in
 an unfamiliar area, not for precise symbol work.
