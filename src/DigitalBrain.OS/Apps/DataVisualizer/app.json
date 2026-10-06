@@ -1,0 +1,15 @@
+{
+  "name": "datavisualizer",
+  "title": "Data Visualizer",
+  "description": "Live tables and charts over your data: SQL or app tables, filtered from the UI.",
+  "version": "1.0.0",
+  "icon": "icon.svg",
+  "operations": [
+    { "name": "open", "description": "Compose the app surface listing every view." },
+    { "name": "show", "description": "Create a view from JSON {title, kind: table|chart, source: sql|apptable:<id>, sql, filters: [column], refreshSeconds} and answer its id and window." },
+    { "name": "refine", "description": "Set filter values for a view: JSON {view, filters: {column: value}}. Re-runs the view." },
+    { "name": "read", "description": "Answer a view's current columns and rows as JSON: input is the view id." },
+    { "name": "close", "description": "Remove a view and its window: input is the view id." }
+  ],
+  "settings": []
+}

@@ -49,7 +49,7 @@ public static class OsAppsHosting
         {
             // Idempotent so a host that both composes the OS and wires the apps explicitly
             // does not install a default twice.
-            foreach (var app in new[] { new OsApp("os", "settings"), new OsApp("os", "assistant") })
+            foreach (var app in new[] { new OsApp("os", "settings"), new OsApp("os", "assistant"), new OsApp("os", "datavisualizer") })
             { if (!os.Apps.Contains(app)) { os.Apps.Add(app); } }
         });
         return services.AddOperatingSystemBoot(configure);

@@ -11,7 +11,7 @@ public sealed class OsShippedAppFacts
     [Fact]
     public void TheOperatingSystemShipsSettings()
     {
-        Assert.Equal(["assistant", "settings"], Source.Load().Select(app => app.Name).Order());
+        Assert.Equal(["assistant", "datavisualizer", "settings"], Source.Load().Select(app => app.Name).Order());
     }
 
     [Fact]
@@ -21,7 +21,7 @@ public sealed class OsShippedAppFacts
         services.AddOperatingSystemApps(os => os.Apps.Add(new("intochat", "customer-researcher")));
         using var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<OsAppsOptions>>().Value;
-        Assert.Equal(["os/settings", "os/assistant", "intochat/customer-researcher"], options.Apps.Select(app => app.Publisher + "/" + app.Name));
+        Assert.Equal(["os/settings", "os/assistant", "os/datavisualizer", "intochat/customer-researcher"], options.Apps.Select(app => app.Publisher + "/" + app.Name));
     }
 
     [Fact]
@@ -51,6 +51,6 @@ public sealed class OsShippedAppFacts
         services.AddOperatingSystemApps();
         services.AddOperatingSystemApps();
         using var provider = services.BuildServiceProvider();
-        Assert.Equal(2, provider.GetRequiredService<IOptions<OsAppsOptions>>().Value.Apps.Count);
+        Assert.Equal(3, provider.GetRequiredService<IOptions<OsAppsOptions>>().Value.Apps.Count);
     }
 }
