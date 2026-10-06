@@ -4,7 +4,6 @@ using Aspire.Hosting.Testing;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.Assistant;
-using DigitalBrain.Enforcement;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Framework.Enforcement;

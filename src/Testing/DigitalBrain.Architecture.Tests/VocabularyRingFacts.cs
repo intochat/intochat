@@ -1,5 +1,4 @@
 using System.Reflection;
-using DigitalBrain.Enforcement;
 
 namespace DigitalBrain.Architecture.Tests;
 
@@ -17,15 +16,10 @@ public sealed class VocabularyRingFacts
     // are what scripts compile against, so they root reachability for the vocabulary's shapes.
     private static readonly Assembly[] Ring = ContractsRing();
 
-    private static readonly Dictionary<Type, string> Allowlist = new()
-    {
-        [typeof(CallerContext)] = "kernel-stamped caller; BrainScope reads it",
-        [typeof(CallerKind)] = "kernel-stamped caller; BrainScope reads it",
-        [typeof(TrustedEdge)] = "kernel-stamped caller; BrainScope reads it",
-    };
+    private static readonly Dictionary<Type, string> Allowlist = new();
 
     private static readonly string[] Namespaces =
-        ["DigitalBrain", "DigitalBrain.Integrations", "DigitalBrain.Types", "DigitalBrain.Enforcement"];
+        ["DigitalBrain", "DigitalBrain.Integrations", "DigitalBrain.Types"];
 
     [Fact]
     public void EveryPublicVocabularyTypeIsANeuronContractASignalOrAShapeTheyCarry()

@@ -1,4 +1,3 @@
-using DigitalBrain.Enforcement;
 using DigitalBrain.Framework.Enforcement;
 
 namespace DigitalBrain.Compute.Allowances;
@@ -13,10 +12,13 @@ internal sealed class AllowanceCallFilterStage(IAllowancePolicySource source) : 
     public async ValueTask<CallDecision?> EvaluateAsync(CallRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var decision = await source.AuthorizeAsync(request, cancellationToken).ConfigureAwait(false);
+        var mapped = new AllowanceRequest(request.Caller.AccountId, request.Caller.BrainId, request.Caller.AppId, request.Caller.IntentId,
+            (AllowanceCallerKind)(int)request.Caller.Kind, request.TargetNeuron, request.Operation, request.SemanticTypeIds, request.EstimatedCompute, request.HasSideEffects,
+            request.Caller.ConversationId);
+        var decision = await source.AuthorizeAsync(mapped, cancellationToken).ConfigureAwait(false);
         if (decision.Allowed) { return null; }
         return CallDecision.Deny(
-            decision.Denial ?? CallDenial.MissingAllowance,
+            decision.Denial is { } denial ? (CallDenial)(int)denial : CallDenial.MissingAllowance,
             decision.Explanation ?? "No allowance covers this call.");
     }
 }

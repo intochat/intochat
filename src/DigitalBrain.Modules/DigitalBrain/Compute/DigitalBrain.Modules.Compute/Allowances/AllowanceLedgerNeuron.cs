@@ -1,5 +1,4 @@
 using DigitalBrain;
-using DigitalBrain.Enforcement;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 using Orleans.Runtime;
@@ -60,11 +59,11 @@ internal sealed class AllowanceLedgerNeuron : Neuron<AllowanceLedgerState>, IAll
             && (intentId is null || item.IntentId == intentId)).Sum(item => item.ReservedCompute));
     }
 
-    public async Task<AllowanceDecision> AuthorizeAsync(CallRequest request, CancellationToken cancellationToken = default)
+    public async Task<AllowanceDecision> AuthorizeAsync(AllowanceRequest request, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(request);
-        RequireAccount(request.Caller.AccountId);
+        RequireAccount(request.AccountId);
         var now = DateTimeOffset.UtcNow;
         var next = Snapshot;
 
@@ -87,14 +86,14 @@ internal sealed class AllowanceLedgerNeuron : Neuron<AllowanceLedgerState>, IAll
                 AllowanceId = decision.AllowanceId ?? "none",
                 ReservedCompute = request.EstimatedCompute,
                 OccurredAt = now,
-                IntentId = request.Caller.IntentId,
-                BrainId = request.Caller.BrainId,
-                AppId = request.Caller.AppId,
+                IntentId = request.IntentId,
+                BrainId = request.BrainId,
+                AppId = request.AppId,
                 Operation = request.Operation,
             });
         }
 
-        if (decision.Denial == CallDenial.MissingAllowance)
+        if (decision.Denial == AllowanceDenial.MissingAllowance)
         {
             AddPending(next, request, decision.ApprovalId!, now);
         }
@@ -223,19 +222,19 @@ internal sealed class AllowanceLedgerNeuron : Neuron<AllowanceLedgerState>, IAll
         return Task.FromResult<AllowanceReservation[]>([.. Snapshot.Reservations]);
     }
 
-    private static void AddPending(AllowanceLedgerState next, CallRequest request, string approvalId, DateTimeOffset now)
+    private static void AddPending(AllowanceLedgerState next, AllowanceRequest request, string approvalId, DateTimeOffset now)
     {
         if (next.Pending.Exists(item => string.Equals(item.ApprovalId, approvalId, StringComparison.Ordinal))) { return; }
         next.Pending.Add(new PendingApproval
         {
             ApprovalId = approvalId,
-            BrainId = request.Caller.BrainId,
-            AppId = request.Caller.AppId,
+            BrainId = request.BrainId,
+            AppId = request.AppId,
             Operation = request.Operation,
             EstimatedCompute = request.EstimatedCompute,
             Reason = "Awaiting an allowance decision.",
             RequestedAt = now,
-            IntentId = request.Caller.IntentId,
+            IntentId = request.IntentId,
             Permissions = request.SemanticTypeIds.ToArray(),
         });
     }

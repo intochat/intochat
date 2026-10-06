@@ -1,5 +1,4 @@
 using DigitalBrain;
-using DigitalBrain.Enforcement;
 
 namespace DigitalBrain.Compute;
 
@@ -107,7 +106,7 @@ public sealed record LimitReport
 public sealed record AllowanceDecision
 {
     [Id(0)] public bool Allowed { get; init; }
-    [Id(1)] public CallDenial? Denial { get; init; }
+    [Id(1)] public AllowanceDenial? Denial { get; init; }
     [Id(2)] public string? Explanation { get; init; }
     [Id(3)] public string? ReservationId { get; init; }
     [Id(4)] public string? ApprovalId { get; init; }
@@ -136,10 +135,10 @@ public enum FailureClass
 // reserves once. The same function backs the ledger and any caller that later settles the call.
 public static class AllowanceReservations
 {
-    public static string For(CallRequest request)
+    public static string For(AllowanceRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return $"{request.Caller.IntentId ?? "anon"}:{request.TargetNeuron}:{request.Operation}";
+        return $"{request.IntentId ?? "anon"}:{request.TargetNeuron}:{request.Operation}";
     }
 }
 
@@ -151,7 +150,7 @@ public interface IAllowanceLedger : INeuron
     Task<decimal> ReadReservedAsync(string? brainId = null, string? intentId = null, CancellationToken cancellationToken = default);
     Task<decimal> ReadSettledAsync(string? brainId = null, string? intentId = null, CancellationToken cancellationToken = default);
 
-    Task<AllowanceDecision> AuthorizeAsync(CallRequest request, CancellationToken cancellationToken = default);
+    Task<AllowanceDecision> AuthorizeAsync(AllowanceRequest request, CancellationToken cancellationToken = default);
 
     Task<Allowance> GrantAsync(Allowance allowance, CancellationToken cancellationToken = default);
 

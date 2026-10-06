@@ -1,13 +1,11 @@
 using DigitalBrain.Compute;
 using DigitalBrain.Compute.Allowances;
-using DigitalBrain.Enforcement;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Testing.Module;
 
 namespace DigitalBrain.Modules.Compute.Tests;
 
 // Chaos and prompt-injection facts for the allowance path. The model never reaches a paid call
-// without an allowance: a scripted sequence of tool calls is replayed as CallRequests against the
+// without an allowance: a scripted sequence of tool calls is replayed as AllowanceRequests against the
 // one durable ledger and every call without an allowance is stopped.
 public sealed class ChaosChargeFacts
 {
@@ -46,24 +44,7 @@ public sealed class ChaosChargeFacts
         GrantedAt = DateTimeOffset.UtcNow,
     };
 
-    private static CallRequest Paid(string account, string brainId, decimal compute, string intent,
-        string? appId = null, string operation = "Render", params string[] permissions) => new()
-        {
-            Caller = new CallerContext
-            {
-                PrincipalId = "principal",
-                AccountId = account,
-                BrainId = brainId,
-                Kind = CallerKind.Assistant,
-                StampedBy = TrustedEdge.AuthenticatedHttp,
-                AppId = appId,
-                ConversationId = "chat-1",
-                IntentId = intent,
-            },
-            TargetNeuron = "neuron",
-            Operation = operation,
-            EstimatedCompute = compute,
-            HasSideEffects = true,
-            SemanticTypeIds = permissions,
-        };
+    private static AllowanceRequest Paid(string account, string brainId, decimal compute, string intent,
+        string? appId = null, string operation = "Render", params string[] permissions)
+        => new(account, brainId, appId, intent, AllowanceCallerKind.Assistant, "neuron", operation, permissions, compute, true, "chat-1");
 }

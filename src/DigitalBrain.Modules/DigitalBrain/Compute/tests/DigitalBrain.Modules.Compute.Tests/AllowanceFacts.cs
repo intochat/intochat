@@ -2,13 +2,20 @@ using DigitalBrain.Compute;
 using DigitalBrain.Compute.Allowances;
 using DigitalBrain.Compute.Billing;
 using DigitalBrain.Compute.Metering;
-using DigitalBrain.Enforcement;
 using DigitalBrain.Framework.Enforcement;
 
 namespace DigitalBrain.Modules.Compute.Tests;
 
 public sealed class AllowanceFacts
 {
+    [Fact]
+    public void TheLedgerContractTakesNoFrameworkShape()
+    {
+        var method = typeof(IAllowanceLedger).GetMethod(nameof(IAllowanceLedger.AuthorizeAsync))!;
+        Assert.Equal(typeof(AllowanceRequest), method.GetParameters()[0].ParameterType);
+        Assert.Equal(typeof(IAllowanceLedger).Assembly, typeof(AllowanceRequest).Assembly);
+    }
+
     [Fact]
     public async Task AllowancesSettlementsAndReservationsSurviveReload()
     {
@@ -44,7 +51,7 @@ public sealed class AllowanceFacts
         var outcome = AllowanceRules.Evaluate(request, Snapshot(), Now);
 
         Assert.False(outcome.Decision.Allowed);
-        Assert.Equal(CallDenial.MissingAllowance, outcome.Decision.Denial);
+        Assert.Equal(AllowanceDenial.MissingAllowance, outcome.Decision.Denial);
         Assert.Equal(AllowanceRules.ApprovalId(request), outcome.Decision.ApprovalId);
     }
 
@@ -57,7 +64,7 @@ public sealed class AllowanceFacts
 
         var past = AllowanceRules.Evaluate(Paid("account", "ws-1", "chat-1", 11m), Snapshot([budget]), Now);
         Assert.False(past.Decision.Allowed);
-        Assert.Equal(CallDenial.LimitReached, past.Decision.Denial);
+        Assert.Equal(AllowanceDenial.LimitReached, past.Decision.Denial);
     }
 
     [Fact]
@@ -90,7 +97,7 @@ public sealed class AllowanceFacts
         var outcome = AllowanceRules.Evaluate(Paid("account", "ws-1", "chat-1", 1m, operation: "Render"), Snapshot([once], [used]), Now);
 
         Assert.False(outcome.Decision.Allowed);
-        Assert.Equal(CallDenial.MissingAllowance, outcome.Decision.Denial);
+        Assert.Equal(AllowanceDenial.MissingAllowance, outcome.Decision.Denial);
     }
 
     [Fact]
@@ -101,7 +108,7 @@ public sealed class AllowanceFacts
         { ConversationId = "chat-1" };
 
         Assert.True(AllowanceRules.Evaluate(Paid("account", "ws-1", "chat-1", 1m, operation: "Render"), Snapshot([scoped]), Now).Decision.Allowed);
-        Assert.Equal(CallDenial.MissingAllowance,
+        Assert.Equal(AllowanceDenial.MissingAllowance,
             AllowanceRules.Evaluate(Paid("account", "ws-1", "chat-2", 1m, operation: "Render"), Snapshot([scoped]), Now).Decision.Denial);
     }
 
@@ -161,7 +168,7 @@ public sealed class AllowanceFacts
         Assert.True(within.Decision.Allowed);
 
         var after = AllowanceRules.Evaluate(ReadOnly("account", "ws-1"), snapshot, Now.AddDays(31));
-        Assert.Equal(CallDenial.LimitReached, after.Decision.Denial);
+        Assert.Equal(AllowanceDenial.LimitReached, after.Decision.Denial);
     }
 
     [Fact]
@@ -189,15 +196,15 @@ public sealed class AllowanceFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var allowed = new AllowanceCallFilterStage(new FixedSource(AllowanceDecision.Allow()));
-        Assert.Null(await allowed.EvaluateAsync(Paid("account", "ws-1", "chat-1", 1m), ct));
+        Assert.Null(await allowed.EvaluateAsync(StageCall(), ct));
 
         var denied = new AllowanceCallFilterStage(new FixedSource(new AllowanceDecision
         {
             Allowed = false,
-            Denial = CallDenial.MissingAllowance,
+            Denial = AllowanceDenial.MissingAllowance,
             Explanation = "No allowance.",
         }));
-        var decision = await denied.EvaluateAsync(Paid("account", "ws-1", "chat-1", 1m), ct);
+        var decision = await denied.EvaluateAsync(StageCall(), ct);
         Assert.Equal(CallDenial.MissingAllowance, decision!.Denial);
     }
 
@@ -209,7 +216,7 @@ public sealed class AllowanceFacts
         var ledger = brain.Get<IAllowanceLedger>("account");
 
         var decision = await ledger.AuthorizeAsync(Paid("account", "ws-1", "chat-1", 5m), ct);
-        Assert.Equal(CallDenial.MissingAllowance, decision.Denial);
+        Assert.Equal(AllowanceDenial.MissingAllowance, decision.Denial);
 
         await brain.DeactivateAsync(ledger, ct);
 
@@ -307,45 +314,35 @@ public sealed class AllowanceFacts
         DateTimeOffset? hardStoppedAt = null)
         => new(allowances ?? [], reservations ?? [], policy ?? new LimitPolicy(), PriceVersion, LimitAlert.None, hardStoppedAt);
 
-    private static CallRequest Paid(string account, string brainId, string? conversation, decimal compute,
+    private static AllowanceRequest Paid(string account, string brainId, string? conversation, decimal compute,
         string? appId = null, string operation = "Render", string? intent = null, params string[] permissions)
-        => new()
-        {
-            Caller = new CallerContext
-            {
-                PrincipalId = "principal",
-                AccountId = account,
-                BrainId = brainId,
-                Kind = CallerKind.Assistant,
-                StampedBy = TrustedEdge.AuthenticatedHttp,
-                AppId = appId,
-                ConversationId = conversation,
-                IntentId = intent ?? $"intent-{Guid.NewGuid():N}",
-            },
-            TargetNeuron = "neuron",
-            Operation = operation,
-            EstimatedCompute = compute,
-            HasSideEffects = true,
-            SemanticTypeIds = permissions,
-        };
+        => new(account, brainId, appId, intent ?? $"intent-{Guid.NewGuid():N}", AllowanceCallerKind.Assistant,
+            "neuron", operation, permissions, compute, true, conversation);
 
-    private static CallRequest ReadOnly(string account, string brainId) => new()
+    private static AllowanceRequest ReadOnly(string account, string brainId)
+        => new(account, brainId, null, null, AllowanceCallerKind.Assistant, "neuron", "Read", [], 0m, false);
+
+    private static CallRequest StageCall() => new()
     {
         Caller = new CallerContext
         {
             PrincipalId = "principal",
-            AccountId = account,
-            BrainId = brainId,
+            AccountId = "account",
+            BrainId = "ws-1",
             Kind = CallerKind.Assistant,
             StampedBy = TrustedEdge.AuthenticatedHttp,
+            ConversationId = "chat-1",
+            IntentId = "intent-stage",
         },
         TargetNeuron = "neuron",
-        Operation = "Read",
+        Operation = "Render",
+        EstimatedCompute = 1m,
+        HasSideEffects = true,
     };
 
     private sealed class FixedSource(AllowanceDecision decision) : IAllowancePolicySource
     {
-        public ValueTask<AllowanceDecision> AuthorizeAsync(CallRequest request, CancellationToken cancellationToken)
+        public ValueTask<AllowanceDecision> AuthorizeAsync(AllowanceRequest request, CancellationToken cancellationToken)
             => ValueTask.FromResult(decision);
     }
 }

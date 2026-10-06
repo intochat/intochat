@@ -23,8 +23,8 @@ public sealed class RunTokensFacts
             PrincipalId = "owner",
             AccountId = "owner",
             BrainId = "owner",
-            Kind = DigitalBrain.Enforcement.CallerKind.User,
-            StampedBy = DigitalBrain.Enforcement.TrustedEdge.AuthenticatedHttp,
+            Kind = DigitalBrain.Framework.Enforcement.CallerKind.User,
+            StampedBy = DigitalBrain.Framework.Enforcement.TrustedEdge.AuthenticatedHttp,
         });
         try
         {

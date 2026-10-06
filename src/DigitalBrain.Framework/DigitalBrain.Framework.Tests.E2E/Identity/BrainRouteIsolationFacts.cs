@@ -1,10 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using DigitalBrain.Enforcement;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Slider;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Identity;
 
 namespace DigitalBrain.Framework.Tests.E2E.Identity;
@@ -57,22 +55,8 @@ public sealed class BrainRouteIsolationFacts(ReferenceBrainFixture host)
             PriceBookVersion = new DigitalBrain.Compute.PriceBook().Version,
             GrantedAt = DateTimeOffset.UtcNow,
         }, ct);
-        var reserved = await aliceLedger.AuthorizeAsync(new CallRequest
-        {
-            Caller = new CallerContext
-            {
-                PrincipalId = alicePerson.Account,
-                AccountId = alicePerson.Account,
-                BrainId = aliceBrain,
-                Kind = CallerKind.Assistant,
-                StampedBy = TrustedEdge.AuthenticatedHttp,
-                IntentId = "private-charge",
-            },
-            TargetNeuron = "neuron",
-            Operation = "chat",
-            EstimatedCompute = 7m,
-            HasSideEffects = true,
-        }, ct);
+        var reserved = await aliceLedger.AuthorizeAsync(new DigitalBrain.Compute.AllowanceRequest(alicePerson.Account, aliceBrain, null, "private-charge", DigitalBrain.Compute.AllowanceCallerKind.Assistant,
+            "neuron", "chat", [], 7m, true), ct);
         Assert.True(reserved.Allowed, reserved.Explanation);
         await aliceLedger.SettleAsync(reserved.ReservationId!, 7m, DigitalBrain.Compute.FailureClass.None, ct);
         using var aliceSummary = JsonDocument.Parse(await alice.GetStringAsync("/compute/summary", ct));

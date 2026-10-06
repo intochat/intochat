@@ -1,4 +1,4 @@
-using DigitalBrain.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 
 namespace DigitalBrain.Framework.Enforcement;
 

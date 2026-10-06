@@ -19,11 +19,11 @@ public sealed class GmailConnectedFacts
             .WithExecution(new() { PrivateConfiguration = GmailHostFixture.ConfiguredRegistration() })
             .ConfigureSilo(silo => silo.Services.AddSingleton<IGmailTokenExchange>(new FakeGmailTokens()))
             .StartAsync(ct);
-        CallerContextStamper.Stamp(new DigitalBrain.Enforcement.CallerContext { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = DigitalBrain.Enforcement.CallerKind.User, StampedBy = DigitalBrain.Enforcement.TrustedEdge.AuthenticatedHttp });
+        CallerContextStamper.Stamp(new DigitalBrain.Framework.Enforcement.CallerContext { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = DigitalBrain.Framework.Enforcement.CallerKind.User, StampedBy = DigitalBrain.Framework.Enforcement.TrustedEdge.AuthenticatedHttp });
         var gmail = brain.Get<IGmail>(ConnectionKeys.For(BrainScope.CurrentId(), "gmail", "primary"));
         Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
         await using var connected = await brain.Observe<GmailConnected>(gmail, ct);
-        CallerContextStamper.Stamp(new DigitalBrain.Enforcement.CallerContext { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = DigitalBrain.Enforcement.CallerKind.User, StampedBy = DigitalBrain.Enforcement.TrustedEdge.AuthenticatedHttp });
+        CallerContextStamper.Stamp(new DigitalBrain.Framework.Enforcement.CallerContext { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = DigitalBrain.Framework.Enforcement.CallerKind.User, StampedBy = DigitalBrain.Framework.Enforcement.TrustedEdge.AuthenticatedHttp });
         await brain.Grains.GetGrain<IGmailInbound>(gmail.GetGrainId()).AcceptAuthorizationCode("fake-code", "owner");
         Assert.Equal("user@gmail.com", (await connected.NextAsync(ct: ct)).EmailAddress);
 

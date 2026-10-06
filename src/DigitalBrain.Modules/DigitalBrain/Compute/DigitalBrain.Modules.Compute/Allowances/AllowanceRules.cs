@@ -1,6 +1,3 @@
-using DigitalBrain.Enforcement;
-using DigitalBrain.Framework.Enforcement;
-
 namespace DigitalBrain.Compute.Allowances;
 
 // The enforcement decision is a pure function of a snapshot so it can be tested without Orleans.
@@ -28,11 +25,11 @@ internal static class AllowanceRules
     internal static decimal Effective(AllowanceReservation reservation)
         => reservation.Settled ? reservation.SettledCompute : reservation.ReservedCompute;
 
-    internal static string ReservationId(CallRequest request)
+    internal static string ReservationId(AllowanceRequest request)
         => AllowanceReservations.For(request);
 
-    internal static string ApprovalId(CallRequest request)
-        => $"approve:{request.Caller.BrainId}:{request.Caller.AppId ?? "none"}:{request.Operation}";
+    internal static string ApprovalId(AllowanceRequest request)
+        => $"approve:{request.BrainId}:{request.AppId ?? "none"}:{request.Operation}";
 
     internal static bool IsWithinGrace(DateTimeOffset? hardStoppedAt, DateTimeOffset now)
         => hardStoppedAt is { } stopped && now <= stopped + ReadExportGrace;
@@ -50,11 +47,11 @@ internal static class AllowanceRules
         return headroom <= 0 ? 0m : Math.Min(actualCompute, headroom);
     }
 
-    internal static AllowanceOutcome Evaluate(CallRequest request, AllowanceSnapshot snapshot, DateTimeOffset now)
+    internal static AllowanceOutcome Evaluate(AllowanceRequest request, AllowanceSnapshot snapshot, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(snapshot);
-        var caller = request.Caller;
+        var caller = request;
         var isReadOnly = !request.HasSideEffects && request.EstimatedCompute <= 0;
 
         if (!isReadOnly && request.EstimatedCompute <= 0)
@@ -70,7 +67,7 @@ internal static class AllowanceRules
 
         if (assessment.Exceeded)
         {
-            return Outcome(Deny(CallDenial.LimitReached,
+            return Outcome(Deny(AllowanceDenial.LimitReached,
                 $"The call would spend {request.EstimatedCompute} past the {assessment.Cap} cap."),
                 assessment.Alert, snapshot.HardStoppedAt is not null, assessment.Spent, assessment.Cap);
         }
@@ -81,7 +78,7 @@ internal static class AllowanceRules
             return Outcome(new AllowanceDecision
             {
                 Allowed = false,
-                Denial = CallDenial.MissingAllowance,
+                Denial = AllowanceDenial.MissingAllowance,
                 Explanation = selection.ReconsentRequired
                     ? "The app's permissions or prices changed; re-consent is required."
                     : "No allowance covers this paid call; approval is pending.",
@@ -92,7 +89,7 @@ internal static class AllowanceRules
 
         if (selection.Remaining < request.EstimatedCompute)
         {
-            return Outcome(Deny(CallDenial.LimitReached,
+            return Outcome(Deny(AllowanceDenial.LimitReached,
                 $"The allowance has {selection.Remaining} Compute left and the call estimates {request.EstimatedCompute}."),
                 assessment.Alert, true, assessment.Spent, assessment.Cap);
         }
@@ -116,12 +113,12 @@ internal static class AllowanceRules
 
         return IsWithinGrace(snapshot.HardStoppedAt, now)
             ? Outcome(AllowanceDecision.Allow(), assessment.Alert, true, assessment.Spent, assessment.Cap)
-            : Outcome(Deny(CallDenial.LimitReached, "The 30-day read/export grace has expired."), assessment.Alert, true, assessment.Spent, assessment.Cap);
+            : Outcome(Deny(AllowanceDenial.LimitReached, "The 30-day read/export grace has expired."), assessment.Alert, true, assessment.Spent, assessment.Cap);
     }
 
-    private static AllowanceSelection SelectAllowance(CallRequest request, AllowanceSnapshot snapshot, DateTimeOffset now)
+    private static AllowanceSelection SelectAllowance(AllowanceRequest request, AllowanceSnapshot snapshot, DateTimeOffset now)
     {
-        var caller = request.Caller;
+        var caller = request;
         Allowance? best = null;
         decimal bestRemaining = 0m;
         var reconsent = false;
@@ -153,9 +150,9 @@ internal static class AllowanceRules
         return new AllowanceSelection(best, bestRemaining, reconsent);
     }
 
-    private static bool ContextMatches(Allowance allowance, CallRequest request)
+    private static bool ContextMatches(Allowance allowance, AllowanceRequest request)
     {
-        var caller = request.Caller;
+        var caller = request;
         if (!string.Equals(allowance.BrainId, caller.BrainId, StringComparison.Ordinal)) { return false; }
         if (allowance.AppId is { Length: > 0 } allowedApp
             && !string.Equals(allowedApp, caller.AppId, StringComparison.Ordinal)) { return false; }
@@ -163,7 +160,7 @@ internal static class AllowanceRules
             || string.Equals(operation, request.Operation, StringComparison.Ordinal);
     }
 
-    private static bool ScopeAvailable(Allowance allowance, CallerContext caller, IReadOnlyList<AllowanceReservation> reservations)
+    private static bool ScopeAvailable(Allowance allowance, AllowanceRequest caller, IReadOnlyList<AllowanceReservation> reservations)
         => allowance.Scope switch
         {
             AllowanceScope.ThisChat => caller.ConversationId is { Length: > 0 }
@@ -188,9 +185,9 @@ internal static class AllowanceRules
     private static bool SameMonth(DateTimeOffset left, DateTimeOffset right)
         => left.Year == right.Year && left.Month == right.Month;
 
-    private static LimitAssessment AssessLimits(CallRequest request, AllowanceSnapshot snapshot, decimal amount)
+    private static LimitAssessment AssessLimits(AllowanceRequest request, AllowanceSnapshot snapshot, decimal amount)
     {
-        var caller = request.Caller;
+        var caller = request;
         var policy = snapshot.Limits;
         var candidates = new List<LimitAssessment>();
 
@@ -232,7 +229,7 @@ internal static class AllowanceRules
         _ => LimitAlert.None,
     };
 
-    private static AllowanceDecision Deny(CallDenial denial, string explanation) => new()
+    private static AllowanceDecision Deny(AllowanceDenial denial, string explanation) => new()
     {
         Allowed = false,
         Denial = denial,

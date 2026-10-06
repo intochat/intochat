@@ -2,7 +2,6 @@ using DigitalBrain;
 using DigitalBrain.Assistant;
 using DigitalBrain.Compute;
 using DigitalBrain.Compute.Usage;
-using DigitalBrain.Enforcement;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Testing.Module;

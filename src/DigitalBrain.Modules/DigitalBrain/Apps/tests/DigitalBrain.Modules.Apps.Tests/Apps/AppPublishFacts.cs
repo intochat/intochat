@@ -179,13 +179,13 @@ public sealed class AppPublishFacts
         await sibling.BeginBuild(null);
         await sibling.CompleteBuild(await sibling.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["behaviors/echo.cs"] = "// b" }, null);
         await sibling.RecordVerdicts([new("Echoes", true, "ok"), new("Quiet", true, "ok")], green: true);
-        DigitalBrain.Framework.Enforcement.CallerContextStamper.Stamp(new DigitalBrain.Enforcement.CallerContext
+        DigitalBrain.Framework.Enforcement.CallerContextStamper.Stamp(new DigitalBrain.Framework.Enforcement.CallerContext
         {
             PrincipalId = "intochat",
             AccountId = "account-intochat",
             BrainId = "second",
-            Kind = DigitalBrain.Enforcement.CallerKind.Platform,
-            StampedBy = DigitalBrain.Enforcement.TrustedEdge.Platform,
+            Kind = DigitalBrain.Framework.Enforcement.CallerKind.Platform,
+            StampedBy = DigitalBrain.Framework.Enforcement.TrustedEdge.Platform,
         });
 
         await Assert.ThrowsAsync<InvalidOperationException>(sibling.Publish);

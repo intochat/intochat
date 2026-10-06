@@ -1,4 +1,4 @@
-namespace DigitalBrain.Enforcement;
+namespace DigitalBrain.Framework.Enforcement;
 
 public enum CallerKind
 {
