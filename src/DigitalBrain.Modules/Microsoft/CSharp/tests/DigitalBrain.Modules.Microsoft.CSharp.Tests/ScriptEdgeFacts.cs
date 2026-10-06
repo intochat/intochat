@@ -375,6 +375,14 @@ public sealed class ScriptEdgeFacts
         return sandbox.Requests.Last(FakeSandbox.IsStart).Body!["environment"]![DigitalBrainConfiguration.EnvironmentName(ScriptEdgeProtocol.TokenSetting)]!.GetValue<string>();
     }
 
+    [Fact]
+    public void ThePlatformContractsAssemblyIsInEveryInventory()
+    {
+        var inventory = new DigitalBrain.Framework.ModuleInventory([]);
+        Assert.Contains(typeof(DigitalBrain.Integrations.IConnectionRequests).Assembly, inventory.ContractAssemblies());
+        Assert.NotEqual(typeof(DigitalBrain.INeuron).Assembly, typeof(DigitalBrain.Integrations.IConnectionRequests).Assembly);
+    }
+
     // The test's own IPinger stands in for an installed module contract.
     private static Task<ModuleBrain> Brain(FakeSandbox sandbox, CancellationToken ct)
         => SandboxBrain.StartAsync(sandbox, ct, silo => silo.Services.AddSingleton(new ScriptContracts([typeof(IPinger).Assembly])));

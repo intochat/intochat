@@ -18,8 +18,7 @@ public sealed class VocabularyRingFacts
 
     private static readonly Dictionary<Type, string> Allowlist = new();
 
-    private static readonly string[] Namespaces =
-        ["DigitalBrain", "DigitalBrain.Integrations"];
+    private static readonly string[] Namespaces = ["DigitalBrain"];
 
     [Fact]
     public void EveryPublicVocabularyTypeIsANeuronContractASignalOrAShapeTheyCarry()

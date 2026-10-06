@@ -20,6 +20,7 @@ public sealed class ModuleInventory
     public IReadOnlyList<Assembly> ContractAssemblies()
         => [.. Types.Select(module => module.Assembly).Distinct()
             .SelectMany(ContractAssembliesOf)
+            .Prepend(typeof(DigitalBrain.Integrations.IConnectionRequests).Assembly)
             .Prepend(typeof(INeuron).Assembly)
             .Where(assembly => !PlatformAssemblyAttribute.IsPlatform(assembly))
             .Distinct()];
