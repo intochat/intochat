@@ -1,7 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
-using DigitalBrain.Types;
+using DigitalBrain.Framework.Types;
 
 namespace DigitalBrain.Framework.Platform.Secrets;
 

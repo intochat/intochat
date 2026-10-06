@@ -10,7 +10,6 @@ using DigitalBrain.Platform.Integrations;
 using DigitalBrain.Platform.Secrets;
 using DigitalBrain.Testing;
 using DigitalBrain.Testing.Module;
-using DigitalBrain.Types;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;

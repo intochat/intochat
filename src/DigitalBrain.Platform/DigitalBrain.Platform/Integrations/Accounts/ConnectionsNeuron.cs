@@ -6,7 +6,6 @@ using DigitalBrain.Framework.Platform.Integrations.Accounts;
 using DigitalBrain.Framework.Platform.Secrets;
 using DigitalBrain.Framework.Types;
 using DigitalBrain.Platform.Secrets;
-using DigitalBrain.Types;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 using Orleans.Runtime;

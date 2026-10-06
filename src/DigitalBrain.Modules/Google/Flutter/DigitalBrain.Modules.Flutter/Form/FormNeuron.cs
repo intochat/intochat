@@ -3,7 +3,6 @@ using DigitalBrain;
 using DigitalBrain.Flutter.Form.Signals;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Types;
-using DigitalBrain.Types;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
@@ -51,17 +50,17 @@ internal sealed class FormNeuron([PersistentState("state", DigitalBrainNames.Def
     {
         var field = Field(fieldName);
         ArgumentNullException.ThrowIfNull(value);
-        if (field.Kind == FieldKind.Secret) { throw new ArgumentException("A secret field only accepts a SecretRef; raw secret values are never accepted.", nameof(value)); }
+        if (field.Kind == FormFieldKind.Secret) { throw new ArgumentException("A secret field only accepts a FormSecret; raw secret values are never accepted.", nameof(value)); }
         field.Value = value;
         Snapshot.Revision++;
         return SaveAndReturn();
     }
 
-    public Task<FormState> SetSecret(string fieldName, SecretRef reference)
+    public Task<FormState> SetSecret(string fieldName, FormSecret reference)
     {
         var field = Field(fieldName);
-        if (field.Kind != FieldKind.Secret) { throw new ArgumentException($"Field '{fieldName}' is not a secret field.", nameof(fieldName)); }
-        _ = TypeCatalog.Validate(reference, FieldKind.Secret);
+        if (field.Kind != FormFieldKind.Secret) { throw new ArgumentException($"Field '{fieldName}' is not a secret field.", nameof(fieldName)); }
+        Validate(field.Kind, ToRef(reference));
         field.SecretSet = true;
         field.Secret = reference;
         field.Value = null;
@@ -85,39 +84,39 @@ internal sealed class FormNeuron([PersistentState("state", DigitalBrainNames.Def
         {
             if (!Snapshot.Fields.Any(field => field.Name == name)) { throw new ArgumentException($"The form has no field '{name}'.", nameof(submission)); }
         }
-        var normalized = new List<(FormFieldState Field, string? Value, bool SecretSet, SecretRef? Secret)>(Snapshot.Fields.Count);
+        var normalized = new List<(FormFieldState Field, string? Value, bool SecretSet, FormSecret? Secret)>(Snapshot.Fields.Count);
         foreach (var field in Snapshot.Fields)
         {
             provided.TryGetValue(field.Name, out var submitted);
-            if (field.Kind == FieldKind.Secret)
+            if (field.Kind == FormFieldKind.Secret)
             {
                 if (submitted?.Secret is null)
                 {
-                    if (submitted?.Value is not null) { throw new TypeValidationException(field.Kind, submitted.Value, TypeCatalog.AllowedFor(field.Kind)); }
-                    if (field.Required && !field.SecretSet) { throw new TypeValidationException(field.Kind, null, TypeCatalog.AllowedFor(field.Kind)); }
+                    if (submitted?.Value is not null) { throw Invalid(field.Kind, submitted.Value, TypeCatalog.AllowedFor(Catalog(field.Kind))); }
+                    if (field.Required && !field.SecretSet) { throw Invalid(field.Kind, null, TypeCatalog.AllowedFor(Catalog(field.Kind))); }
                     continue;
                 }
-                _ = TypeCatalog.Validate(submitted.Secret, FieldKind.Secret);
+                Validate(field.Kind, ToRef(submitted.Secret));
                 normalized.Add((field, null, true, submitted.Secret));
                 continue;
             }
             if (string.IsNullOrEmpty(submitted?.Value))
             {
-                if (field.Required) { throw new TypeValidationException(field.Kind, submitted?.Value, TypeCatalog.AllowedFor(field.Kind)); }
+                if (field.Required) { throw Invalid(field.Kind, submitted?.Value, TypeCatalog.AllowedFor(Catalog(field.Kind))); }
                 continue;
             }
             var text = submitted!.Value!;
-            if (field.Kind == FieldKind.Choice && field.Choices.Count > 0 && !field.Choices.Contains(text, StringComparer.Ordinal))
-            { throw new TypeValidationException(field.Kind, text, field.Choices); }
-            if (field.Kind == FieldKind.MultiChoice && field.Choices.Count > 0)
+            if (field.Kind == FormFieldKind.Choice && field.Choices.Count > 0 && !field.Choices.Contains(text, StringComparer.Ordinal))
+            { throw Invalid(field.Kind, text, field.Choices); }
+            if (field.Kind == FormFieldKind.MultiChoice && field.Choices.Count > 0)
             {
                 foreach (var choice in text.Split('\n'))
                 {
-                    if (!field.Choices.Contains(choice, StringComparer.Ordinal)) { throw new TypeValidationException(field.Kind, choice, field.Choices); }
+                    if (!field.Choices.Contains(choice, StringComparer.Ordinal)) { throw Invalid(field.Kind, choice, field.Choices); }
                 }
             }
-            var input = field.Kind == FieldKind.MultiChoice ? text.Split('\n') : (object)text;
-            normalized.Add((field, Normalize(field.Kind, TypeCatalog.Validate(input, field.Kind)), false, null));
+            var input = field.Kind == FormFieldKind.MultiChoice ? text.Split('\n') : (object)text;
+            normalized.Add((field, Normalize(field.Kind, Validate(field.Kind, input)), false, null));
         }
         foreach (var (field, value, secretSet, secret) in normalized)
         {
@@ -147,13 +146,23 @@ internal sealed class FormNeuron([PersistentState("state", DigitalBrainNames.Def
         return state;
     }
 
-    private static string Normalize(FieldKind kind, object validated) => kind switch
+    private static object Validate(FormFieldKind kind, object input)
     {
-        FieldKind.Date => ((DateOnly)validated).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-        FieldKind.DateTime => ((DateTime)validated).ToString("O", CultureInfo.InvariantCulture),
-        FieldKind.Number => ((decimal)validated).ToString(CultureInfo.InvariantCulture),
-        FieldKind.Boolean => (bool)validated ? "true" : "false",
-        FieldKind.MultiChoice => string.Join('\n', (string[])validated),
+        try { return TypeCatalog.Validate(input, Catalog(kind)); }
+        catch (TypeValidationException error) { throw Invalid(kind, error.RejectedValue, error.AllowedValues); }
+    }
+
+    private static FieldKind Catalog(FormFieldKind kind) => (FieldKind)(int)kind;
+    private static SecretRef ToRef(FormSecret secret) => new() { Reference = secret.Reference, Label = secret.Label, Status = secret.IsSet ? SecretStatus.Set : SecretStatus.Unset };
+    private static FormValidationException Invalid(FormFieldKind kind, object? value, IReadOnlyList<string> allowed) => new(kind, value?.ToString(), [.. allowed]);
+
+    private static string Normalize(FormFieldKind kind, object validated) => kind switch
+    {
+        FormFieldKind.Date => ((DateOnly)validated).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+        FormFieldKind.DateTime => ((DateTime)validated).ToString("O", CultureInfo.InvariantCulture),
+        FormFieldKind.Number => ((decimal)validated).ToString(CultureInfo.InvariantCulture),
+        FormFieldKind.Boolean => (bool)validated ? "true" : "false",
+        FormFieldKind.MultiChoice => string.Join('\n', (string[])validated),
         _ => (string)validated,
     };
 }

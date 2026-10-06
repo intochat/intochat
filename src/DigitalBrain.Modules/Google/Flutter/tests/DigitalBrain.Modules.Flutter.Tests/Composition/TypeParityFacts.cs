@@ -1,7 +1,7 @@
 using System.Reflection;
+using DigitalBrain.Flutter.Form;
 using DigitalBrain.Flutter.TextField;
 using DigitalBrain.Framework.Types;
-using DigitalBrain.Types;
 
 namespace DigitalBrain.Modules.Flutter.Tests.Composition;
 
@@ -19,6 +19,13 @@ public sealed class TypeParityFacts
         {
             Assert.Equal(kind, TypeCatalog.Get(kind).Kind);
         }
+    }
+
+    [Fact]
+    public void TheFormFieldKindsMirrorTheFrameworkCatalogKinds()
+    {
+        Assert.Equal(Enum.GetNames<FieldKind>(), Enum.GetNames<FormFieldKind>());
+        Assert.Equal(Enum.GetValues<FieldKind>().Select(kind => (int)kind), Enum.GetValues<FormFieldKind>().Select(kind => (int)kind));
     }
 
     [Fact]

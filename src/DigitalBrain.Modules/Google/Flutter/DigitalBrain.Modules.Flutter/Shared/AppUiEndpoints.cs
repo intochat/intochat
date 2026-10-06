@@ -23,7 +23,6 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Http;
 using DigitalBrain.Framework.Types;
-using DigitalBrain.Types;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -100,7 +99,7 @@ internal static class AppUiEndpoints
                             throw new ArgumentException("A form secret carries the vault reference, never a raw secret value.");
                         }
 
-                        await form.SetSecret(input.Field ?? "", SecretReferences.FromReference(input.Value!, input.Field ?? "")).WaitAsync(ct);
+                        await form.SetSecret(input.Field ?? "", new FormSecret(input.Value!, input.Field ?? "", true)).WaitAsync(ct);
                     }
                     else { await form.SetDraft(input.Field ?? "", input.Value ?? "").WaitAsync(ct); }
                     break;

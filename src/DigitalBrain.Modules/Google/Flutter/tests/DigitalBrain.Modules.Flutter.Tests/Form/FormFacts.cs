@@ -2,7 +2,6 @@ using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Form;
 using DigitalBrain.Framework.Types;
 using DigitalBrain.Testing.Module;
-using DigitalBrain.Types;
 using Xunit;
 
 namespace DigitalBrain.Modules.Flutter.Tests.Form;
@@ -11,9 +10,9 @@ public sealed class FormFacts
 {
     private static readonly FormDefinition Intake = new("Customer intake",
     [
-        new("name", "Name", FieldKind.PlainText, Required: true),
-        new("surname", "Surname", FieldKind.PlainText, Required: true),
-        new("birthDate", "Date of birth", FieldKind.Date, Required: true),
+        new("name", "Name", FormFieldKind.PlainText, Required: true),
+        new("surname", "Surname", FormFieldKind.PlainText, Required: true),
+        new("birthDate", "Date of birth", FormFieldKind.Date, Required: true),
     ]);
 
     [Fact]
@@ -47,13 +46,13 @@ public sealed class FormFacts
         await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
         var form = brain.Get<IForm>("owner/a/apps/forms/intake");
         await form.Define(Intake);
-        var error = await Assert.ThrowsAsync<TypeValidationException>(() => form.Submit(new(
+        var error = await Assert.ThrowsAsync<FormValidationException>(() => form.Submit(new(
         [
             new("name", "Ada"),
             new("surname", "Lovelace"),
             new("birthDate", "date"),
         ])));
-        Assert.Equal(FieldKind.Date, error.Kind);
+        Assert.Equal(FormFieldKind.Date, error.Kind);
         Assert.Contains("yyyy-MM-dd", error.Message);
     }
 
@@ -63,8 +62,8 @@ public sealed class FormFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
         var form = brain.Get<IForm>("owner/a/apps/forms/plan");
-        await form.Define(new("Plan", [new("tier", "Tier", FieldKind.Choice, true, ["free", "pro"])]));
-        var error = await Assert.ThrowsAsync<TypeValidationException>(() => form.Submit(new([new("tier", "gold")], 1)));
+        await form.Define(new("Plan", [new("tier", "Tier", FormFieldKind.Choice, true, ["free", "pro"])]));
+        var error = await Assert.ThrowsAsync<FormValidationException>(() => form.Submit(new([new("tier", "gold")], 1)));
         Assert.Contains("free", error.Message);
         Assert.Contains("pro", error.Message);
     }
@@ -75,9 +74,9 @@ public sealed class FormFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
         var form = brain.Get<IForm>("owner/a/apps/forms/login");
-        await form.Define(new("Login", [new("password", "Password", FieldKind.Secret)]));
+        await form.Define(new("Login", [new("password", "Password", FormFieldKind.Secret)]));
         var secret = SecretReferences.For("owner", "login-password", "Password", isSet: true);
-        await form.SetSecret("password", secret);
+        await form.SetSecret("password", new FormSecret(secret.Reference, secret.Label, true));
         var state = await form.Read();
         var field = state.Fields.Single();
         Assert.True(field.SecretSet);
@@ -86,8 +85,8 @@ public sealed class FormFacts
         Assert.Equal(secret.Reference, field.Secret!.Reference);
         // Raw secret values are never accepted through a draft.
         await Assert.ThrowsAsync<ArgumentException>(() => form.SetDraft("password", "hunter2"));
-        // A raw value submitted for a secret field is rejected too; only a SecretRef is allowed.
-        var error = await Assert.ThrowsAsync<TypeValidationException>(() => form.Submit(new([new("password", "hunter2")], state.Revision)));
+        // A raw value submitted for a secret field is rejected too; only a FormSecret is allowed.
+        var error = await Assert.ThrowsAsync<FormValidationException>(() => form.Submit(new([new("password", "hunter2")], state.Revision)));
         Assert.DoesNotContain("hunter2", error.Message, StringComparison.Ordinal);
     }
 
@@ -97,10 +96,10 @@ public sealed class FormFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
         var form = brain.Get<IForm>("owner/a/apps/forms/ref");
-        var state = await form.Define(new("Ref", [new("customer", "Customer", FieldKind.Reference)]));
+        var state = await form.Define(new("Ref", [new("customer", "Customer", FormFieldKind.Reference)]));
         var field = state.Fields.Single();
         Assert.False(field.Supported);
-        Assert.Equal(FieldKind.Reference, field.Kind);
+        Assert.Equal(FormFieldKind.Reference, field.Kind);
     }
 
     [Fact]
@@ -116,5 +115,24 @@ public sealed class FormFacts
         Assert.True(reloaded.Submitted);
         Assert.Equal(2, reloaded.Revision);
         Assert.Equal(3, reloaded.Fields.Count);
+    }
+
+    [Fact]
+    public async Task AnUnsupportedKindIsRejectedThroughTheFormContract()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        var form = brain.Get<IForm>("f");
+        await form.Define(new("Sign up", [new("age", "Age", FormFieldKind.Number, Required: true)]));
+        var error = await Assert.ThrowsAsync<FormValidationException>(() => form.Submit(new([new("age", "forty")])));
+        Assert.Equal(FormFieldKind.Number, error.Kind);
+        Assert.Equal("forty", error.RejectedValue);
+    }
+
+    [Fact]
+    public void TheFormContractCarriesNoFrameworkType()
+    {
+        var types = typeof(IForm).Assembly.GetExportedTypes().SelectMany(t => t.GetProperties().Select(p => p.PropertyType).Concat(t.GetMethods().SelectMany(m => m.GetParameters().Select(p => p.ParameterType))));
+        Assert.DoesNotContain(types, t => t.Namespace?.StartsWith("DigitalBrain.Framework", StringComparison.Ordinal) == true || t.Namespace == "DigitalBrain.Types");
     }
 }

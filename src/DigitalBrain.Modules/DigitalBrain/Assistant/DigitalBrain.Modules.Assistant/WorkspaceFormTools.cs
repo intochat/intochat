@@ -11,7 +11,6 @@ using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Types;
-using DigitalBrain.Types;
 using Microsoft.Extensions.AI;
 
 namespace DigitalBrain.Assistant;
@@ -20,7 +19,7 @@ namespace DigitalBrain.Assistant;
 // receives the handle plus the field types; submitted values never travel back to the model.
 public sealed class WorkspaceFormTools(IDigitalBrain brain) : IAgentToolFactory
 {
-    private static readonly Dictionary<string, FieldKind> Kinds = BuildKinds();
+    private static readonly Dictionary<string, FormFieldKind> Kinds = BuildKinds();
 
     public IReadOnlyList<AIFunction> Create(Func<AgentToolContext> context)
     {
@@ -31,7 +30,7 @@ public sealed class WorkspaceFormTools(IDigitalBrain brain) : IAgentToolFactory
         {
             var trusted = context();
             try { return await OpenAsync(trusted, title, fields, ct); }
-            catch (Exception error) when (error is ArgumentException or TypeValidationException or InvalidOperationException or KeyNotFoundException)
+            catch (Exception error) when (error is ArgumentException or FormValidationException or InvalidOperationException or KeyNotFoundException)
             { return Failure(error); }
         }
 
@@ -89,19 +88,19 @@ public sealed class WorkspaceFormTools(IDigitalBrain brain) : IAgentToolFactory
         await brain.Get<IWorkspace>(scope).EnsureOpenAsync(formId, title, WindowReference.For(new UiChildRef("surface", formId + "/surface")), ct);
     }
 
-    private static FieldKind ParseKind(string kind)
+    private static FormFieldKind ParseKind(string kind)
     {
         if (!string.IsNullOrWhiteSpace(kind) && Kinds.TryGetValue(kind.Trim(), out var parsed)) { return parsed; }
         throw new ArgumentException($"'{kind}' is not a semantic type. Allowed kinds: {string.Join(", ", Kinds.Keys)}.", nameof(kind));
     }
 
-    private static Dictionary<string, FieldKind> BuildKinds()
+    private static Dictionary<string, FormFieldKind> BuildKinds()
     {
-        var kinds = new Dictionary<string, FieldKind>(StringComparer.OrdinalIgnoreCase);
+        var kinds = new Dictionary<string, FormFieldKind>(StringComparer.OrdinalIgnoreCase);
         foreach (var type in TypeCatalog.All)
         {
-            kinds[type.Id] = type.Kind;
-            kinds[type.Kind.ToString()] = type.Kind;
+            kinds[type.Id] = (FormFieldKind)(int)type.Kind;
+            kinds[type.Kind.ToString()] = (FormFieldKind)(int)type.Kind;
         }
         return kinds;
     }
@@ -115,7 +114,7 @@ public sealed class WorkspaceFormTools(IDigitalBrain brain) : IAgentToolFactory
         submitted = state.Submitted,
         fields = state.Fields.Select(field =>
         {
-            var type = TypeCatalog.Get(field.Kind);
+            var type = TypeCatalog.Get((FieldKind)(int)field.Kind);
             return new
             {
                 name = field.Name,

@@ -4,7 +4,6 @@ using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Form;
 using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Testing;
-using DigitalBrain.Types;
 using Xunit;
 
 namespace DigitalBrain.Modules.Flutter.Tests.Form;
@@ -21,8 +20,8 @@ public sealed class FormHttpFacts(FlutterHostFixture host)
         var form = brain.Get<IForm>(UiScope.Key(BrainScope.Create("owner", ws).Id, "intake"));
         var defined = await form.Define(new("Customer intake",
         [
-            new("name", "Name", FieldKind.PlainText, true),
-            new("birthDate", "Date of birth", FieldKind.Date, true),
+            new("name", "Name", FormFieldKind.PlainText, true),
+            new("birthDate", "Date of birth", FormFieldKind.Date, true),
         ]));
         await form.Submit(new([new("name", "Ada"), new("birthDate", "1815-12-10")], defined.Revision));
 

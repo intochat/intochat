@@ -1,7 +1,6 @@
 using DigitalBrain.Framework.Types;
 using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Tables;
-using DigitalBrain.Types;
 using Xunit;
 
 namespace DigitalBrain.Modules.Supabase.Tests.Table;

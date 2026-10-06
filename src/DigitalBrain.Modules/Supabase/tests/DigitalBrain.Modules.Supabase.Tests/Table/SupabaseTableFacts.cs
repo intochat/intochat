@@ -3,7 +3,6 @@ using DigitalBrain.Framework.Types;
 using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Tables;
 using DigitalBrain.Supabase.Tables.Signals;
-using DigitalBrain.Types;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
