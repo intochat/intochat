@@ -1786,3 +1786,58 @@ dotnet test --project src/Testing/DigitalBrain.Architecture.Tests
 - [ ] **Step 2:** `aspire run`; resources healthy; drive the DataVisualizer filter path once more via `digitalbrain-mcp` and confirm the trace.
 - [ ] **Step 3:** Run every suite touched across the five stages (the list in Tasks 3, 12, 17, 19, 20); all green.
 - [ ] **Step 4:** Commit `git commit -am "Docs: the kernel is the four words"`.
+
+---
+
+# Amendment (2026-10-06, after the Task 12 live run)
+
+Rulings: scripts never touch the platform Postgres (A = brain-scoped connections); app tests are
+out of the app model (B: delete `tests.cs`, verify live only; the model-wide removal is a separate
+spec); behaviors are one script per reaction. Tasks 22-24 replace Task 12's remaining steps; Stage 4
+and Task 21 follow them.
+
+### Task 22: Connection-keyed Postgres neuron
+
+**Files:**
+- Modify: `src/DigitalBrain.Modules/Postgres/DigitalBrain.Modules.Postgres/PostgresServerNeuron.cs`
+- Create: `src/DigitalBrain.Modules/Postgres/DigitalBrain.Modules.Postgres/ConnectionPostgresProvider.cs`
+- Modify: `src/DigitalBrain.Modules/Postgres/DigitalBrain.Modules.Postgres/PostgresHosting.cs` (register the provider factory)
+- Test: `src/DigitalBrain.Modules/Postgres/tests/DigitalBrain.Modules.Postgres.Tests/ConnectionPostgresFacts.cs` (create)
+
+**Interfaces:**
+- Consumes: `ConnectionKeys.For(scopeId, "postgres", connectionId)` → `connection/{scope}/postgres/{id}` and `ConnectionKeys.Parse`; `IModuleConnectionCredentials<PostgresModule>.ReadConnectionAsync("postgres", connectionId, ct)`; `BrainScope.CurrentId()`; `PostgresConnectionSettings.Parse(connectionString).ConnectionString`.
+- Produces: `IPostgresServer` at key `connection/{scope}/postgres/{connectionId}` answers `Query`, `ReadSchema`, `ReadConnection` against that connection's database. Key `default` keeps today's platform behavior and today's access (platform/internal only).
+
+- [ ] **Step 1: Failing facts** in `ConnectionPostgresFacts.cs`, over `ModuleTest.Create().WithModule<PostgresModule>()`:
+  - `AScriptInItsOwnBrainQueriesItsConnectedDatabase`: register a fake `IModuleConnectionCredentials<PostgresModule>` whose `ReadConnectionAsync("postgres", "c1")` returns a connection string, and a fake `IConnectionPostgresProviderFactory` (see Step 3) mapping that string to a `PostgresTestControls`-style provider; stamp an App caller in brain `b`; `brain.Get<IPostgresServer>(ConnectionKeys.For(scope, "postgres", "c1")).Query(new("select 1", 10))` returns the fake's row.
+  - `AScriptMayNotAddressAnotherBrainsConnection`: same, but the key carries a different scope id → `UnauthorizedAccessException` (or the enforcement denial the harness surfaces; assert on the type the existing `BrainRouteIsolationFacts` asserts).
+  - `TheDefaultKeyStaysPlatformOnly`: an App caller calling key `default` is refused (the behavior observed live).
+- [ ] **Step 2: Run** `dotnet test --project src/DigitalBrain.Modules/Postgres/tests/DigitalBrain.Modules.Postgres.Tests -- --filter-method "*ConnectionPostgres*"`; expected compile failure.
+- [ ] **Step 3: Implement.** `ConnectionPostgresProvider : IPostgresProvider` built per call from a connection string (`NpgsqlDataSource.Create(...)` inside an `await using`, mirroring `ConnectionSupabaseProvider`); an internal `IConnectionPostgresProviderFactory { IPostgresProvider ForConnectionString(string connectionString); }` with the real implementation registered in `PostgresHosting` (so facts can swap it). In `PostgresServerNeuron`, resolve the provider per call: if `ConnectionKeys.Parse(this.GetPrimaryKeyString())` succeeds, require `parsed.BrainId == BrainScope.CurrentId()` (else throw `UnauthorizedAccessException("The connection belongs to another brain.")`), read the connection string through `IModuleConnectionCredentials<PostgresModule>`, and use `factory.ForConnectionString(...)`; otherwise use the injected platform provider as today. No `Access` override on the neuron: the key form already carries the scope.
+- [ ] **Step 4: Run** the three facts and the whole Postgres suite; expected green (plus the ledgered skips).
+- [ ] **Step 5: Commit** `Postgres: a connection-keyed server neuron serves a brain's own database`.
+
+### Task 23: DataVisualizer as small behaviors, no tests
+
+**Files:**
+- Delete: `src/DigitalBrain.OS/Apps/DataVisualizer/tests.cs`, `behaviors/views.cs`, `behaviors/runner.cs`
+- Modify: `app.json` (add `"slots": [{ "name": "db", "connector": "postgres" }]`; bump version to `1.0.2`), `app.spec.md` (remove every `## Scenario` section; describe the behaviors instead)
+- Create: `behaviors/operations.cs`, `behaviors/run-on-change.cs`, `behaviors/run-on-filter.cs`, `behaviors/run-on-row.cs`, `behaviors/run-on-tick.cs`
+- Modify: `src/DigitalBrain.OS/DigitalBrain.OS.Tests.Unit/OsShippedAppFacts.cs` if a fact requires `tests.cs` per app
+
+**Interfaces:**
+- Registry: unchanged (`IText` at `{app}/views`, JSON `View[]`, `TextChanged`).
+- Postgres key: `ConnectionKeys.For(brain.Setting("Brain")!, "postgres", brain.Setting("Account__db")!)`; when `Account__db` is empty a SQL view's status card reads Title `Error`, Body `Connect a Postgres database to this app.`
+- The shared `Run(view)` (SQL with bound parameters, app-table page + equality filter, table `Replace`, chart `Render`, status card `""`/`ok · n rows · time` or `Error`/message) is copied verbatim into each `run-on-*.cs`; the `View` record likewise.
+
+- [ ] **Step 1:** `operations.cs` = today's `views.cs` minus nothing (it already is one reaction: app invoked); rename only.
+- [ ] **Step 2:** `run-on-change.cs`: `await foreach (var _ in brain.On<TextChanged>(registry, brain.Stopping)) { foreach (var view in await Views()) await Run(view); }` with the resubscribe loop from today's runner (1 s delay after a stream end).
+- [ ] **Step 3:** `run-on-filter.cs`: on start and on every registry change, (re)subscribe to each view's filter fields; on `TextFieldChanged` run that view. Keep the subscribe-before-run order and per-view cancellation from today's runner, but no channel: a run is awaited inline in the pump (the table's `Version` orders writes).
+- [ ] **Step 4:** `run-on-row.cs`: same shape over `RowUpserted`/`RowDeleted` for `apptable:` sources. `run-on-tick.cs`: same over `ReminderTick` for `RefreshSeconds > 0`.
+- [ ] **Step 5:** `app.spec.md` becomes a one-paragraph description plus a table "behavior → when → reacts". Delete `tests.cs`.
+- [ ] **Step 6:** `dotnet test --project src/DigitalBrain.OS/DigitalBrain.OS.Tests.Unit -- --filter-method "*EveryOsProgramAndTestsFileCompiles*"` passes; the whole OS unit suite shows only the ledgered baseline failures.
+- [ ] **Step 7: Commit** `DataVisualizer: one behavior per reaction, a db slot, no tests`.
+
+### Task 24: Verify live
+
+Same as Task 12 steps 2-5 with these changes: bind a Postgres connection to the installed app's `db` slot through the Connections endpoint (`/brains/{id}/connections`, connector `postgres`, the Aspire-provisioned database's connection string) and the app settings endpoint; `show` a SQL view with a `country` filter; `neurons_get` the table (rows); `Input` `uk` on the filter field; `neurons_get` again; cite the trace from `ITextField.Input` to `ITable.Replace`. Commit fixes individually. There is no `os-defaults`-green criterion beyond publication.
