@@ -1,5 +1,6 @@
 using DigitalBrain.Apps.Signals;
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Modules.Apps.Tests;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -267,7 +268,9 @@ public sealed class AppNeuronFacts
         Assert.Contains("synapses/", refused.Message, StringComparison.Ordinal);
         var snapshot = await app.WriteBehavior("synapses/new.cs", "// p", Guid.NewGuid());
         Assert.Contains("synapses/new.cs", snapshot.Files.Keys);
-        var file = await brain.Get<ICSharpFile>(IApp.Key(Brain, "keyed") + "/synapses/new.cs").Inspect(ct);
-        Assert.Equal(IApp.Key(Brain, "keyed") + "/synapses/new.cs", file.Id);
+        // Deployed programs are keyed by the app runtime's hashed file key, never by their bundle path.
+        var deployed = Assert.Single(RecordingCSharpFile.Files.Values, file => file.Source == "// p");
+        Assert.Contains(deployed.Id, Enumerable.Range(0, 3).Select(generation => AppProgramKey.For(IApp.Key(Brain, "keyed"), generation, "synapses/new.cs")));
+        Assert.StartsWith("app-csharp-", deployed.Id, StringComparison.Ordinal);
     }
 }

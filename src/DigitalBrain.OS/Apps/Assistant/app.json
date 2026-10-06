@@ -2,7 +2,7 @@
   "name": "assistant",
   "title": "Assistant",
   "description": "Talk to your brain: ask questions, find capabilities and open what you need.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "icon": "icon.svg",
   "operations": [
     { "name": "open", "description": "Compose the assistant surface; input \"docked\" answers it for the side panel without opening a window." },

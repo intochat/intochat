@@ -2,7 +2,7 @@
   "name": "datavisualizer",
   "title": "Data Visualizer",
   "description": "Live tables and charts over your data: SQL or app tables, filtered from the UI.",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "icon": "icon.svg",
   "operations": [
     { "name": "open", "description": "Compose the app surface listing every view." },

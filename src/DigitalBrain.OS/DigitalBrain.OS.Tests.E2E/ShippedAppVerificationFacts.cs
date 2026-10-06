@@ -42,6 +42,42 @@ public sealed class ShippedAppVerificationFacts
         }
     }
 
+    [Fact]
+    public async Task EveryShippedSynapseIsAliveAndReadsAsASynapse()
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        deadline.CancelAfter(TimeSpan.FromMinutes(15));
+        var ct = deadline.Token;
+        await using var brain = await ReferenceBrain.Create()
+            .ConfigureModule<CSharpModule, CSharpOptions>(csharp => csharp.WithSandbox(RepositoryRoot()))
+            .StartAsync(ct);
+        var scope = BrainScope.Create("owner", "shipped").Id;
+        // Any brain-addressed request establishes the brain; Establish provisions the OS defaults.
+        (await brain.HttpClient.GetAsync("/brains/shipped/apps", ct)).EnsureSuccessStatusCode();
+        foreach (var name in new[] { "settings", "assistant", "datavisualizer" })
+        {
+            var app = await brain.Get<IApp>(IApp.Key(scope, name)).Read();
+            var synapses = app.Files.Keys.Where(AppFiles.IsSynapse).ToArray();
+            Assert.NotEmpty(synapses);
+            foreach (var path in synapses)
+            {
+                // Deployed programs live under the runtime's hashed key for the app's current program
+                // generation; the generation is app state, so probe the first few.
+                var key = Enumerable.Range(0, 8).Select(generation => AppProgramKey.For(IApp.Key(scope, name), generation, path))
+                    .FirstOrDefault(candidate => brain.Get<ISynapse>(candidate).Read(ct).GetAwaiter().GetResult().Program.Length > 0)
+                    ?? throw new Xunit.Sdk.XunitException($"{name}/{path} has no deployed program in generations 0-7");
+                var synapse = await brain.Get<ISynapse>(key).Read(ct);
+                while (!synapse.Alive)
+                {
+                    // The sandbox builds the first run; the sibling fact polls verdicts the same way.
+                    await Task.Delay(TimeSpan.FromSeconds(1), ct);
+                    synapse = await brain.Get<ISynapse>(key).Read(ct);
+                }
+                Assert.NotEmpty(synapse.Program);
+            }
+        }
+    }
+
     private static string RepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)

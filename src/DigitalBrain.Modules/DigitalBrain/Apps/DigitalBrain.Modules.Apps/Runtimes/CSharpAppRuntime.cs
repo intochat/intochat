@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using DigitalBrain.Microsoft.CSharp;
 
 namespace DigitalBrain.Apps;
@@ -56,6 +54,5 @@ internal sealed class CSharpAppRuntime(IGrainFactory grains) : IDeployableRuntim
         }
     }
 
-    internal static string FileKey(string appKey, int generation, string path)
-        => "app-csharp-" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(appKey + "\0" + generation + "\0" + path)));
+    internal static string FileKey(string appKey, int generation, string path) => AppProgramKey.For(appKey, generation, path);
 }
