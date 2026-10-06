@@ -10,12 +10,12 @@
   <Folder Name="/Client/">
     <Project Path="src/DigitalBrain.Client/DigitalBrain.Client.Orleans/DigitalBrain.Client.Orleans.csproj" />
     <Project Path="src/DigitalBrain.Client/DigitalBrain.Client/DigitalBrain.Client.csproj" />
-    <Project Path="src/DigitalBrain.Client/tests/DigitalBrain.Client.Orleans.Tests.Unit/DigitalBrain.Client.Orleans.Tests.Unit.csproj" />
-    <Project Path="src/DigitalBrain.Client/tests/DigitalBrain.Client.Tests.Unit/DigitalBrain.Client.Tests.Unit.csproj" />
+    <Project Path="src/DigitalBrain.Client/DigitalBrain.Client.Orleans.Tests.Unit/DigitalBrain.Client.Orleans.Tests.Unit.csproj" />
+    <Project Path="src/DigitalBrain.Client/DigitalBrain.Client.Tests.Unit/DigitalBrain.Client.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Deployment/">
     <Project Path="src/DigitalBrain.Deployment/DigitalBrain.Deployment/DigitalBrain.Deployment.csproj" />
-    <Project Path="src/DigitalBrain.Deployment/tests/DigitalBrain.Deployment.Tests/DigitalBrain.Deployment.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Deployment/DigitalBrain.Deployment.Tests/DigitalBrain.Deployment.Tests.csproj" />
   </Folder>
   <Folder Name="/Framework/">
     <Project Path="src/DigitalBrain.Framework/DigitalBrain.Framework.Tests.E2E/DigitalBrain.Framework.Tests.E2E.csproj" />
