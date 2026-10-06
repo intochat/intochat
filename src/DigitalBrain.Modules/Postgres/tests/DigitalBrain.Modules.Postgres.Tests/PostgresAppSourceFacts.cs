@@ -113,12 +113,12 @@ public sealed class PostgresAppSourceFacts
         var discovered = await resource.DescribeResource(owner);
         Assert.Equal("db:research", discovered.Origin);
         Assert.Equal("install", discovered.AppId);
-        Assert.Equal(["research-resource"], await brain.Get<IPostgresAppStorage>(owner).ReadTables());
+        Assert.Equal(["research-resource"], await brain.Get<IPostgresTables>(owner).ReadTables());
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => resource.DescribeResource(JsonSerializer.Serialize(new[] { BrainScope.CurrentId(), "other-install" })));
         Stamp(CallerKind.Platform, "other-brain");
         await brain.AuthorizeCallerAsync();
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => resource.DescribeResource(owner));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Get<IPostgresAppStorage>(owner).ReadTables());
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Get<IPostgresTables>(owner).ReadTables());
     }
 
     private static void Stamp(CallerKind kind, string brain = "brain")

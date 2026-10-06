@@ -9,14 +9,7 @@ public sealed class StorageHookFacts
 {
     private sealed class RecordingHook : IAppStorageHook
     {
-        public List<(string Brain, string AppKey, string[] Keys)> Deployed { get; } = [];
         public List<(string Brain, string AppKey, string[] Keys)> Retired { get; } = [];
-
-        public Task OnDeployed(string brainId, string appKey, string[] storageKeys, CancellationToken cancellationToken)
-        {
-            Deployed.Add((brainId, appKey, storageKeys));
-            return Task.CompletedTask;
-        }
 
         public Task OnRetired(string brainId, string appKey, string[] storageKeys, CancellationToken cancellationToken)
         {
@@ -26,7 +19,7 @@ public sealed class StorageHookFacts
     }
 
     [Fact]
-    public async Task ABuildAndADeleteDriveTheRegisteredStorageHookWithTheAppsKeys()
+    public async Task ADeleteDrivesTheRegisteredStorageHookWithTheAppsKeys()
     {
         var ct = TestContext.Current.CancellationToken;
         var hook = new RecordingHook();
@@ -45,10 +38,7 @@ public sealed class StorageHookFacts
         await app.BeginBuild(null);
 
         await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["behaviors/track.cs"] = "// b" }, null);
-
-        var deployed = Assert.Single(hook.Deployed);
-        Assert.Equal(key, deployed.AppKey);
-        Assert.Contains("fake-behaviors/track.cs", deployed.Keys);
+        Assert.Empty(hook.Retired);
 
         await app.Delete();
 
@@ -85,10 +75,9 @@ public sealed class StorageHookFacts
         // The app's storage is never retired: only the removed behavior's file stops.
         Assert.Empty(hook.Retired);
         Assert.Equal(["fake-behaviors/drop.cs"], Assert.Single(runtime.Retired).Keys);
-        // Kept behaviors hot-swap, new ones deploy, and ownership moves to the current keys.
+        // Kept behaviors hot-swap, new ones deploy.
         Assert.Equal("// v2", runtime.Swapped.Last(item => item.Programs.ContainsKey("behaviors/keep.cs")).Programs["behaviors/keep.cs"]);
         Assert.Contains(runtime.Deployed, item => item.Programs.ContainsKey("behaviors/new.cs"));
-        Assert.Equal(["fake-behaviors/keep.cs", "fake-behaviors/new.cs"], hook.Deployed.Last().Keys.Order(StringComparer.Ordinal).ToArray());
         // What the person chose survives; a newly declared setting gets its default.
         Assert.Equal("1.1.0", replaced.Version);
         Assert.Equal(AppStatus.Live, replaced.Status);

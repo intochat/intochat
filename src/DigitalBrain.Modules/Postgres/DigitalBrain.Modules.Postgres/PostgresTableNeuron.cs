@@ -19,7 +19,7 @@ internal sealed record PostgresTableState
 
 [GrainType("postgres.table")]
 internal sealed partial class PostgresTableNeuron(IPostgresTableProvider provider, DigitalBrain.Framework.Capacity.ICapacity capacity,
-    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<PostgresTableState> state) : Neuron, IPostgresTable, IPostgresTableLifetime, IPostgresTableOwnership
+    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<PostgresTableState> state) : Neuron, IPostgresTable, IPostgresTableLifetime
 {
     public override NeuronAccess Access(string operation)
     {
@@ -31,18 +31,6 @@ internal sealed partial class PostgresTableNeuron(IPostgresTableProvider provide
         return base.Access(operation);
     }
 
-    public async Task Transfer(string previousOwner, string owner)
-    {
-        if (state.State.Owner == owner || state.State.Owner is null) { return; }
-        if (state.State.Owner != previousOwner)
-        { throw new UnauthorizedAccessException("The legacy table belongs to an unrelated owner."); }
-        await Persist(state.State with
-        {
-            Owner = owner,
-            PhysicalTable = state.State.Accepted?.Table ?? state.State.PhysicalTable
-                ?? PostgresTablePolicy.PhysicalName(previousOwner, this.GetPrimaryKeyString())
-        });
-    }
     private string Scope()
     {
         var caller = CallerContextStamper.Require();

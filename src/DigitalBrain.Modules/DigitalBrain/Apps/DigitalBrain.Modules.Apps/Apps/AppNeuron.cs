@@ -478,8 +478,6 @@ internal sealed class AppNeuron(
             next.DeployedFiles = [.. next.DeployedFiles.Concat(deployed).Distinct(StringComparer.Ordinal)];
             next.BehaviorErrors = errors;
             await Persist(next);
-            foreach (var hook in storageHooks)
-            { await hook.OnDeployed(Snapshot.BrainScopeId ?? "", this.GetPrimaryKeyString(), Snapshot.StorageFiles, CancellationToken.None); }
         }
         // Red is a state to revisit, not an error to unwind: the app keeps serving.
         catch (Exception failure) when (failure is not OperationCanceledException)
