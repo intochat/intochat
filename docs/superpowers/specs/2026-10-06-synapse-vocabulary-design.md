@@ -1,6 +1,6 @@
 # Synapse: the fourth word becomes a type
 
-Ratified 2026-10-06. Companion to `2026-10-05-framework-restructuring.md`; leaves
+Ratified 2026-10-06, amended the same day during planning (IDigitalBrain stays, shrunk; the C# rich view is `Inspect`). Companion to `2026-10-05-framework-restructuring.md`; leaves
 `2026-10-06-registry-inventory-design.md` in force (see "What this does not change").
 
 ## Diagnosis
@@ -41,8 +41,11 @@ Rules fixed by this spec:
 - **Dialects sit beneath the word.** `ISynapse` carries only what a synapse means on any
   runtime. How one runner hosts it (sandbox image, settings, hot swap, per-signal arming) is
   that runner's contract, derived from `ISynapse`.
-- **The ring holds no session.** Resolution (`Get<T>`) and ephemeral subscription belong to the
-  client ring (scripts) and the framework ring (silo code), never to the vocabulary.
+- **The ring holds no handles.** A program sees the brain through two verbs, resolve and watch
+  (`IDigitalBrain.Get<T>`, `IDigitalBrain.On<T>`), both free of Orleans and of disposables.
+  Subscription handles and `IAsyncDisposable` belong to the framework ring (silo code) and the
+  client ring (scripts), never to the vocabulary. Contracts helpers such as
+  `AppInvocations.Invocations` watch through `IDigitalBrain.On<T>`.
 
 ## The vocabulary ring after this change
 
@@ -50,6 +53,7 @@ Rules fixed by this spec:
 src/DigitalBrain/
   INeuron.cs                     Watch / Unwatch, unchanged
   INeuronObserver.cs             unchanged: Watch's parameter
+  IDigitalBrain.cs               Get<T> where T : INeuron, On<T> -> IAsyncEnumerable<T>; nothing else
   Signal.cs                      unchanged; Publisher stays a string (NeuronId is a later front)
   Brain/IBrain.cs                Read, Establish
   Brain/BrainSnapshot.cs
@@ -92,19 +96,32 @@ public sealed record SynapseChanged([property: Id(0)] string SynapseId) : Signal
 
 `ModuleLoaded` stays in Framework: it is a composition fact, not brain structure.
 
+`IDigitalBrain` shrinks to the program's view of the brain:
+
+```csharp
+public interface IDigitalBrain
+{
+    T Get<T>(string id) where T : class, INeuron;
+    IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal;
+}
+```
+
 Leaving the ring:
 
-- `IDigitalBrain` → `DigitalBrain.Framework.INeuronResolver`, same two members, for silo code
-  (endpoints, MCP tools, the script edge, inventory providers, the testing harness).
-- `ISignalSubscription<T>` → `DigitalBrain.Framework.ISignalSubscription<T>`; the Orleans client
-  implementation in `DigitalBrain.Client.Orleans` moves with it.
-- The script-facing connection becomes `DigitalBrain.Client.Brain` (class, not interface): `Get<T>`
-  constrained on `INeuron`, `On<T>(source)` returning `IAsyncEnumerable<T>`, `Setting`,
-  `Trigger<T>`, `Stopping`. Watching has one verb; there is no subscription handle for scripts.
-  `DigitalBrainClient.ConnectAsync` returns it.
+- `ISignalSubscription<T>` → `DigitalBrain.Framework.ISignalSubscription<T>`. Silo code and the
+  testing harness that need a handle (completion, explicit disposal) use a Framework-side
+  `IBrainSubscriptions` service with `SubscribeAsync<T>`; the Orleans client in
+  `DigitalBrain.Client.Orleans` implements both `IDigitalBrain` and `IBrainSubscriptions`.
+- `IAsyncDisposable` on `IDigitalBrain`. The script connection (`DigitalBrainConnection`) and the
+  Orleans client stay disposable as classes; the interface is not.
+- The `IGrainWithStringKey` constraint on `Get<T>`; it becomes `INeuron`.
+
+The script-facing `DigitalBrainConnection` keeps `Setting`, `Trigger<T>` and `Stopping`, drops
+`SubscribeAsync`, and implements `On<T>` over one edge stream per enumeration. Watching has one
+verb; there is no subscription handle for scripts.
 
 The csproj description becomes "Neuron, signal, synapse, brain." `VocabularyRingFacts.Roots`
-becomes `INeuron`, `IBrain`, `ISynapse`, `INeuronObserver`.
+becomes `INeuron`, `IBrain`, `ISynapse`, `IDigitalBrain`, `INeuronObserver`.
 
 ## The C# dialect
 
@@ -112,7 +129,9 @@ becomes `INeuron`, `IBrain`, `ISynapse`, `INeuronObserver`.
 [Alias("microsoft.csharp.file"), DefaultGrainType("microsoft.csharp.file")]
 public interface ICSharpFile : ISynapse
 {
-    Task<CSharpFileSnapshot> Read(CancellationToken cancellationToken = default);   // hides ISynapse.Read with the richer view
+    // The dialect's rich view beside ISynapse.Read: no hiding, because the script edge resolves a
+    // method by name and argument count across a contract and its inherited interfaces.
+    Task<CSharpFileSnapshot> Inspect(CancellationToken cancellationToken = default);
     Task Configure(IReadOnlyDictionary<string, string> settings, CancellationToken cancellationToken = default);
     [ResponseTimeout("00:05:00")] Task<CSharpFileSnapshot> Swap(string source, CancellationToken cancellationToken = default);
     Task<CSharpFileSnapshot> Arm(CSharpTrigger trigger, CancellationToken cancellationToken = default);
@@ -123,9 +142,11 @@ public interface ICSharpFile : ISynapse
 - `Write`, `Start`, `Stop`, `Delete` are inherited. Starting a synapse may build a sandbox on
   any runtime, so the five-minute `[ResponseTimeout]` is declared on `ISynapse.Start`, `Stop`
   and `Delete` themselves; the dialect adds none of its own for those members.
-- `CSharpFileSnapshot` derives its base fields: `Alive` is `Status is Running or Restarting`,
-  `Watches` is `Subscriptions` plus the armed `Trigger` as a watch, `LastError` is the last
-  non-zero exit's tail. State shape (`CSharpFileState`) is unchanged.
+- `ISynapse.Read` returns `SynapseSnapshot` derived from the same state the rich view reads:
+  `Alive` is `Status is Running or Restarting`, `Watches` is `Subscriptions` plus the armed
+  `Trigger` as a watch with `Pending = 0`, `LastError` is the last non-zero exit's log tail or
+  null. State shape (`CSharpFileState`) is unchanged. `Inspect` returns `CSharpFileSnapshot` as
+  today's `Read` does.
 - `CSharpFileChanged` is deleted; the neuron publishes `SynapseChanged`.
 - Grain type names do not change, so `AppGrainType` and every `GrainType` comparison keep working.
 
@@ -156,7 +177,8 @@ inventory provider as before.
   every provider including `TimeInventory` stay as ratified today. `IBrain` gains no
   `Neurons()`/`Synapses()`; a brain-side inventory door remains a separate ratification.
 - **The script edge protocol.** `scripts/v1/invoke` and `scripts/v1/signals` are unchanged;
-  `ScriptEdge` constructs on `INeuronResolver` instead of `IDigitalBrain`.
+  `ScriptEdge` keeps `IDigitalBrain` for resolution and takes `IBrainSubscriptions` for its
+  doorbell handle.
 - **`Signal.Publisher`'s type.** Making it a `NeuronId` is the v0.2 follow-up and touches
   thirteen comparison sites; out of scope.
 - **Framework's `Platform/` folder.** Named as a smell in the survey; its resolution is a
@@ -166,8 +188,9 @@ inventory provider as before.
 
 Three commits, each building and green on its own:
 
-1. **Ring reshape.** Folders, moved signals, `INeuronResolver`, Framework `ISignalSubscription`,
-   Client `Brain`, every call site. No behavior change; architecture facts updated.
+1. **Ring reshape.** Folders, moved signals, `IDigitalBrain` shrunk, Framework
+   `ISignalSubscription` and `IBrainSubscriptions`, every call site. No behavior change;
+   architecture facts updated.
 2. **`ISynapse`.** Added to the ring; `ICSharpFile` derives from it; `SynapseChanged`; snapshot
    derivation; key convention test.
 3. **Bundle rename.** `synapses/`, prompts, first-party apps, `list_synapses`.
@@ -181,13 +204,14 @@ registry survives. Tests pinning behavior that is renamed are renamed, not rewri
 New facts, all over real grains through `ModuleTest.Create().WithModule<…>()`:
 
 - **Architecture** (`DigitalBrain.Architecture.Tests`): the ring's roots are exactly the four
-  words plus the observer; no public type in the ring implements `IAsyncDisposable` or takes a
-  `CancellationToken` outside a neuron contract method; every contract assignable to
-  `ISynapse` is marked with an alias and every synapse key produced by Apps or the CSharp
-  module matches `*/synapses/*`.
-- **Client** (`DigitalBrain.Client.Tests.Unit`): `Brain.On<T>` opens one edge stream per
-  enumeration and closes it when the loop ends; `Brain` exposes no member returning a
-  subscription handle, and `Get<T>` is constrained on `INeuron`.
+  words plus `IDigitalBrain` and the observer; no public type in the ring derives from
+  `IAsyncDisposable` or `IDisposable`, and no ring member returns one; `IDigitalBrain` has
+  exactly the members `Get` and `On`; every contract assignable to `ISynapse` carries an alias.
+- **Apps and CSharp key grammar**: every synapse key produced by Apps or the CSharp module
+  matches `*/synapses/*` (pinned in the owning module's tests).
+- **Client** (`DigitalBrain.Client.Tests.Unit`): `DigitalBrainConnection.On<T>` opens one edge
+  stream per enumeration and closes it when the loop ends, including when the loop breaks early;
+  the connection exposes no member returning a subscription handle.
 - **CSharp** (`DigitalBrain.Modules.Microsoft.CSharp.Tests`): a started synapse reports
   `Alive` and one watch per streamed subscription; a stopped synapse keeps program and watches;
   a swapped program keeps buffered signals and their `Pending` counts; an armed synapse lists
