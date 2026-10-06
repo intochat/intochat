@@ -1,5 +1,5 @@
 using DigitalBrain.Apps.Signals;
-using DigitalBrain.Testing.Module;
+using DigitalBrain.Microsoft.CSharp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -50,7 +50,7 @@ public sealed class AppNeuronFacts
         Assert.Equal("0.2.0", afterSpec.Version);
         var afterFile = await app.WriteFile("notes.md", "notes", Guid.NewGuid());
         Assert.Equal("0.2.1", afterFile.Version);
-        var afterBehavior = await app.WriteBehavior("behaviors/echo.cs", "// echo", Guid.NewGuid());
+        var afterBehavior = await app.WriteBehavior("synapses/echo.cs", "// echo", Guid.NewGuid());
         Assert.Equal("0.2.2", afterBehavior.Version);
     }
 
@@ -106,10 +106,10 @@ public sealed class AppNeuronFacts
         await app.Create(Manifest(), "spec");
         await app.BeginBuild(null);
         var attempt = await app.CurrentBuildAttempt();
-        var live = await app.CompleteBuild(attempt, new() { ["tests.cs"] = "// t", ["behaviors/echo.cs"] = "// b" }, null);
+        var live = await app.CompleteBuild(attempt, new() { ["tests.cs"] = "// t", ["synapses/echo.cs"] = "// b" }, null);
         Assert.Equal(AppStatus.Live, live.Status);
         Assert.Equal("// t", live.Files["tests.cs"]);
-        Assert.Equal("// b", live.Files["behaviors/echo.cs"]);
+        Assert.Equal("// b", live.Files["synapses/echo.cs"]);
 
         await app.BeginBuild(null);
         var second = await app.CurrentBuildAttempt();
@@ -166,13 +166,13 @@ public sealed class AppNeuronFacts
     {
         await using var brain = await Start();
         var bundle = new AppBundle("copy", "1.2.0", Manifest("Copied"), "## Scenario: Echoes\nIt echoes.",
-            new() { ["tests.cs"] = "// t", ["behaviors/echo.cs"] = "// b" });
+            new() { ["tests.cs"] = "// t", ["synapses/echo.cs"] = "// b" });
         var app = brain.Get<IApp>(IApp.Key(Brain, "copy"));
         var imported = await app.Import(bundle);
         Assert.Equal(AppStatus.Live, imported.Status);
         Assert.Equal("1.2.0", imported.Version);
         Assert.Empty(imported.Connections);
-        Assert.Equal("// b", imported.Files["behaviors/echo.cs"]);
+        Assert.Equal("// b", imported.Files["synapses/echo.cs"]);
         await Assert.ThrowsAsync<InvalidOperationException>(() => app.Import(bundle));
     }
 
@@ -254,5 +254,20 @@ public sealed class AppNeuronFacts
         var snapshot = await app.Read();
         Assert.Equal(20, snapshot.Versions.Length);
         Assert.Equal("0.1.24", snapshot.Version);
+    }
+
+    [Fact]
+    public async Task ASynapseIsKeyedUnderTheAppsSynapsesFolderAndTheOldFolderIsRefused()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Start();
+        var app = brain.Get<IApp>(IApp.Key(Brain, "keyed"));
+        await app.Create(Manifest(), "## Scenario: Keys\nIt keys.");
+        var refused = await Assert.ThrowsAsync<ArgumentException>(() => app.WriteBehavior("behaviors/old.cs", "// p", Guid.NewGuid()));
+        Assert.Contains("synapses/", refused.Message, StringComparison.Ordinal);
+        var snapshot = await app.WriteBehavior("synapses/new.cs", "// p", Guid.NewGuid());
+        Assert.Contains("synapses/new.cs", snapshot.Files.Keys);
+        var file = await brain.Get<ICSharpFile>(IApp.Key(Brain, "keyed") + "/synapses/new.cs").Inspect(ct);
+        Assert.Equal(IApp.Key(Brain, "keyed") + "/synapses/new.cs", file.Id);
     }
 }

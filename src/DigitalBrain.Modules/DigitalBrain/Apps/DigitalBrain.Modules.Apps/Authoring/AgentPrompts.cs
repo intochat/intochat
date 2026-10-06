@@ -76,6 +76,6 @@ internal static class AgentPrompts
         Your final reply is JSON only, no prose and no code fences. Return operations as
         [{"name":"operation","description":"What it does"}] when the app has operations beyond ask.
         {"settings": [{"name": "Model", "description": "...", "default": "IGemma4"}],
-         "files": {"tests.cs": "...", "behaviors/notify.cs": "..."}}
+         "files": {"tests.cs": "...", "synapses/notify.cs": "..."}}
         """;
 }

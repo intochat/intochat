@@ -22,7 +22,7 @@ public sealed class AppPublishFacts
         await app.Create(Manifest(), Spec);
         await app.BeginBuild(null);
         await app.CompleteBuild(await app.CurrentBuildAttempt(),
-            new() { ["tests.cs"] = "// t", ["behaviors/echo.cs"] = "// b", ["icon.svg"] = "<svg/>" }, null);
+            new() { ["tests.cs"] = "// t", ["synapses/echo.cs"] = "// b", ["icon.svg"] = "<svg/>" }, null);
         await app.RecordVerdicts([new("Echoes", true, "ok"), new("Quiet", true, "ok")], green: true);
         return app;
     }
@@ -177,7 +177,7 @@ public sealed class AppPublishFacts
         var sibling = brain.Get<IApp>(IApp.Key(siblingScope, "echo"));
         await sibling.Create(Manifest(), Spec);
         await sibling.BeginBuild(null);
-        await sibling.CompleteBuild(await sibling.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["behaviors/echo.cs"] = "// b" }, null);
+        await sibling.CompleteBuild(await sibling.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["synapses/echo.cs"] = "// b" }, null);
         await sibling.RecordVerdicts([new("Echoes", true, "ok"), new("Quiet", true, "ok")], green: true);
         DigitalBrain.Framework.Enforcement.CallerContextStamper.Stamp(new DigitalBrain.Framework.Enforcement.CallerContext
         {

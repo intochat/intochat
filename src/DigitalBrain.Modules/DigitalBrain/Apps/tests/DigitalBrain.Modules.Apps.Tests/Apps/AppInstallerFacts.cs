@@ -26,7 +26,7 @@ public sealed class AppInstallerFacts
         var app = Mine(brain, publisher);
         await app.Create(Manifest(), Spec);
         await app.BeginBuild(null);
-        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["behaviors/echo.cs"] = "// v1" }, null);
+        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["synapses/echo.cs"] = "// v1" }, null);
         await app.RecordVerdicts([new("Echoes", true, "ok")], green: true);
         Owner.Stamp(publisher);
         await app.Publish();
@@ -37,7 +37,7 @@ public sealed class AppInstallerFacts
     private static async Task<string> PublishNewVersion(IApp app, string publisher = "intochat")
     {
         Caller.Clear();
-        await app.WriteBehavior("behaviors/echo.cs", "// v2", Guid.NewGuid());
+        await app.WriteBehavior("synapses/echo.cs", "// v2", Guid.NewGuid());
         await app.RecordVerdicts([new("Echoes", true, "ok")], green: true);
         Owner.Stamp(publisher);
         var version = (await app.Publish()).Version;
@@ -115,7 +115,7 @@ public sealed class AppInstallerFacts
         Caller.Clear();
 
         Assert.Equal(next, updated.Version);
-        Assert.Equal("// v2", updated.Files["behaviors/echo.cs"]);
+        Assert.Equal("// v2", updated.Files["synapses/echo.cs"]);
         Assert.Equal("alice's words", updated.Settings["Text"]);
         Assert.Equal("alice-gmail", updated.Connections["gmail"]);
         Assert.Equal(next, updated.Origin!.Version);

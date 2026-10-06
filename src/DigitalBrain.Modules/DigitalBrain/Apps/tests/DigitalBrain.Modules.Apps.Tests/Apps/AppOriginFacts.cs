@@ -46,14 +46,14 @@ public sealed class AppOriginFacts
         Assert.True((await file.WriteFile("notes.md", "mine", Guid.NewGuid())).Edited);
 
         var behavior = await Installed(brain, IApp.Key("origin-e", "echo"));
-        Assert.True((await behavior.WriteBehavior("behaviors/echo.cs", "// mine", Guid.NewGuid())).Edited);
+        Assert.True((await behavior.WriteBehavior("synapses/echo.cs", "// mine", Guid.NewGuid())).Edited);
 
         var rolled = await Installed(brain, IApp.Key("origin-f", "echo"));
         Assert.True((await rolled.Rollback("1.0.0")).Edited);
 
         var built = await Installed(brain, IApp.Key("origin-g", "echo"));
         await built.BeginBuild(null);
-        Assert.True((await built.CompleteBuild(await built.CurrentBuildAttempt(), new() { ["behaviors/echo.cs"] = "// built" }, null)).Edited);
+        Assert.True((await built.CompleteBuild(await built.CurrentBuildAttempt(), new() { ["synapses/echo.cs"] = "// built" }, null)).Edited);
     }
 
     [Fact]

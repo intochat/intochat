@@ -29,7 +29,7 @@ public sealed class AppVerifyFacts
         await app.Create(Manifest(), Spec);
         await app.BeginBuild(null);
         await app.CompleteBuild(await app.CurrentBuildAttempt(),
-            new() { ["tests.cs"] = "// scripted-tests", ["behaviors/echo.cs"] = "// b" }, null);
+            new() { ["tests.cs"] = "// scripted-tests", ["synapses/echo.cs"] = "// b" }, null);
         return (brain, app);
     }
 

@@ -166,7 +166,7 @@ public sealed class OsBootFacts
         await source.Create(new("Hello", "Shows hello world", [new("open", "Open")], [new("Greeting", "what to say", "hello")], []),
             "## Scenario: Greets\nIt greets.");
         await source.BeginBuild(null);
-        await source.CompleteBuild(await source.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["behaviors/hello.cs"] = "// b" }, null);
+        await source.CompleteBuild(await source.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["synapses/hello.cs"] = "// b" }, null);
         await source.RecordVerdicts([new("Greets", true, "ok")], green: true);
         StampOs();
         var published = await source.Publish();

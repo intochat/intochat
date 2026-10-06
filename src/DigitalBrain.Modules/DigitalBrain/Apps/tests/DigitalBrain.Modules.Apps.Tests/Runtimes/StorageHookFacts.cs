@@ -37,14 +37,14 @@ public sealed class StorageHookFacts
         await app.Create(new("Hooked", "hooked", [], [], []), "## Scenario: Hooks\nIt hooks.");
         await app.BeginBuild(null);
 
-        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["behaviors/track.cs"] = "// b" }, null);
+        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["synapses/track.cs"] = "// b" }, null);
         Assert.Empty(hook.Retired);
 
         await app.Delete();
 
         var retired = Assert.Single(hook.Retired);
         Assert.Equal(key, retired.AppKey);
-        Assert.Contains("fake-behaviors/track.cs", retired.Keys);
+        Assert.Contains("fake-synapses/track.cs", retired.Keys);
     }
 
     [Fact]
@@ -65,26 +65,26 @@ public sealed class StorageHookFacts
         var app = brain.Get<IApp>(key);
         var manifest = new AppManifest("Replaced", "replaced", [], [new("Text", "what to say", "hi")], []);
         await app.Import(new("replaced", "1.0.0", manifest, "## Scenario: Stores\nIt stores.",
-            new() { ["tests.cs"] = "// t", ["behaviors/keep.cs"] = "// v1", ["behaviors/drop.cs"] = "// v1" }));
+            new() { ["tests.cs"] = "// t", ["synapses/keep.cs"] = "// v1", ["synapses/drop.cs"] = "// v1" }));
         await app.Configure(new() { ["Text"] = "mine" }, new() { ["gmail"] = "my-gmail" });
 
         var next = manifest with { Settings = [.. manifest.Settings, new("Mood", "how to say it", "calm")] };
         var replaced = await app.Replace(new("replaced", "1.1.0", next, "## Scenario: Stores\nIt stores more.",
-            new() { ["tests.cs"] = "// t", ["behaviors/keep.cs"] = "// v2", ["behaviors/new.cs"] = "// v2" }));
+            new() { ["tests.cs"] = "// t", ["synapses/keep.cs"] = "// v2", ["synapses/new.cs"] = "// v2" }));
 
         // The app's storage is never retired: only the removed behavior's file stops.
         Assert.Empty(hook.Retired);
-        Assert.Equal(["fake-behaviors/drop.cs"], Assert.Single(runtime.Retired).Keys);
+        Assert.Equal(["fake-synapses/drop.cs"], Assert.Single(runtime.Retired).Keys);
         // Kept behaviors hot-swap, new ones deploy.
-        Assert.Equal("// v2", runtime.Swapped.Last(item => item.Programs.ContainsKey("behaviors/keep.cs")).Programs["behaviors/keep.cs"]);
-        Assert.Contains(runtime.Deployed, item => item.Programs.ContainsKey("behaviors/new.cs"));
+        Assert.Equal("// v2", runtime.Swapped.Last(item => item.Programs.ContainsKey("synapses/keep.cs")).Programs["synapses/keep.cs"]);
+        Assert.Contains(runtime.Deployed, item => item.Programs.ContainsKey("synapses/new.cs"));
         // What the person chose survives; a newly declared setting gets its default.
         Assert.Equal("1.1.0", replaced.Version);
         Assert.Equal(AppStatus.Live, replaced.Status);
         Assert.Equal("mine", replaced.Settings["Text"]);
         Assert.Equal("calm", replaced.Settings["Mood"]);
         Assert.Equal("my-gmail", replaced.Connections["gmail"]);
-        Assert.False(replaced.Files.ContainsKey("behaviors/drop.cs"));
+        Assert.False(replaced.Files.ContainsKey("synapses/drop.cs"));
     }
 
     [Fact]

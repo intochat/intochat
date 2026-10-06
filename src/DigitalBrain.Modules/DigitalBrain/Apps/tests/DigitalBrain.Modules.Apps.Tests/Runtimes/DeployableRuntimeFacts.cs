@@ -49,16 +49,16 @@ public sealed class DeployableRuntimeFacts
         await app.BeginBuild(null);
 
         await app.CompleteBuild(await app.CurrentBuildAttempt(),
-            new() { ["tests.cs"] = "// t", ["behaviors/track.cs"] = "// b" }, null);
+            new() { ["tests.cs"] = "// t", ["synapses/track.cs"] = "// b" }, null);
 
         var deployment = Assert.Single(runtime.Deployed);
-        Assert.Equal(["behaviors/track.cs"], [.. deployment.Programs.Keys]);
+        Assert.Equal(["synapses/track.cs"], [.. deployment.Programs.Keys]);
         Assert.True(deployment.Configuration.ContainsKey("App"));
         Assert.Equal("news", deployment.Configuration["Feed"]);
 
         await app.Delete();
         var retired = Assert.Single(runtime.Retired);
-        Assert.Contains("fake-behaviors/track.cs", retired.Keys);
+        Assert.Contains("fake-synapses/track.cs", retired.Keys);
     }
 
     [Fact]
@@ -71,16 +71,16 @@ public sealed class DeployableRuntimeFacts
             .StartAsync(ct);
         var app = brain.Get<IApp>(IApp.Key("runtime-facts", "fresh"));
         await app.Create(new("Fresh", "fresh", [], [], []), "spec");
-        await app.WriteBehavior("behaviors/old.cs", "// old", Guid.NewGuid());
+        await app.WriteBehavior("synapses/old.cs", "// old", Guid.NewGuid());
         runtime.Deployed.Clear();
         runtime.Swapped.Clear();
         await app.BeginBuild(null);
 
         await app.CompleteBuild(await app.CurrentBuildAttempt(),
-            new() { ["tests.cs"] = "// t", ["behaviors/old.cs"] = "// old v2", ["behaviors/new.cs"] = "// new" }, null);
+            new() { ["tests.cs"] = "// t", ["synapses/old.cs"] = "// old v2", ["synapses/new.cs"] = "// new" }, null);
 
-        Assert.Equal(["behaviors/new.cs"], runtime.Deployed.SelectMany(deployment => deployment.Programs.Keys).Order());
-        Assert.Equal(["behaviors/old.cs"], runtime.Swapped.SelectMany(deployment => deployment.Programs.Keys).Order());
+        Assert.Equal(["synapses/new.cs"], runtime.Deployed.SelectMany(deployment => deployment.Programs.Keys).Order());
+        Assert.Equal(["synapses/old.cs"], runtime.Swapped.SelectMany(deployment => deployment.Programs.Keys).Order());
     }
 
     [Fact]
@@ -93,13 +93,13 @@ public sealed class DeployableRuntimeFacts
             .StartAsync(ct);
         var app = brain.Get<IApp>(IApp.Key("runtime-facts", "rollback"));
         await app.Create(new("Tracker", "tracks", [], [], []), "spec");
-        await app.WriteBehavior("behaviors/keep.cs", "// keep", Guid.NewGuid());
+        await app.WriteBehavior("synapses/keep.cs", "// keep", Guid.NewGuid());
         var before = (await app.Read()).Version;
-        await app.WriteBehavior("behaviors/extra.cs", "// extra", Guid.NewGuid());
+        await app.WriteBehavior("synapses/extra.cs", "// extra", Guid.NewGuid());
 
         var rolled = await app.Rollback(before);
 
-        Assert.False(rolled.Files.ContainsKey("behaviors/extra.cs"));
-        Assert.Contains(runtime.Retired, retired => retired.Keys.Contains("fake-behaviors/extra.cs"));
+        Assert.False(rolled.Files.ContainsKey("synapses/extra.cs"));
+        Assert.Contains(runtime.Retired, retired => retired.Keys.Contains("fake-synapses/extra.cs"));
     }
 }

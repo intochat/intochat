@@ -25,15 +25,15 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
     public void AFolderOfAppFoldersLoadsLikeTheEmbeddedSource()
     {
         Write("echo/app.json", Manifest);
-        Write("echo/behaviors/app.cs", "// program\r\nreturn;\r\n");
-        Write("echo/behaviors/extra.cs", "// behavior\n");
+        Write("echo/synapses/app.cs", "// program\r\nreturn;\r\n");
+        Write("echo/synapses/extra.cs", "// behavior\n");
         var source = new DirectoryShippedAppSource(_root, "vendor");
         var app = Assert.Single(source.Load());
         Assert.Equal("echo", app.Name);
         // Line endings normalize exactly as the embedded source does, so content hashes agree
         // across checkouts.
-        Assert.Equal("// program\nreturn;\n", app.Files["behaviors/app.cs"]);
-        Assert.Equal("// behavior\n", app.Files["behaviors/extra.cs"]);
+        Assert.Equal("// program\nreturn;\n", app.Files["synapses/app.cs"]);
+        Assert.Equal("// behavior\n", app.Files["synapses/extra.cs"]);
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
             """);
         Write("Echo/app.spec.md", "## Scenario: Echo\nEchoes.\n");
         Write("Echo/tests.cs", "// tests\n");
-        Write("Echo/behaviors/echo.cs", "// echo\n");
+        Write("Echo/synapses/echo.cs", "// echo\n");
         Write("Echo/icon.svg", "<svg/>");
         var source = new DirectoryShippedAppSource(_root, "vendor", writable: true);
         var loaded = Assert.Single(source.Load());
@@ -84,7 +84,7 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
         {
             Version = "1.1.0",
             Spec = "## Scenario: Echo\nEchoes twice.\n",
-            Files = new(loaded.Files.Where(file => file.Key != "behaviors/echo.cs"), StringComparer.Ordinal) { ["behaviors/twice.cs"] = "// twice\n" },
+            Files = new(loaded.Files.Where(file => file.Key != "synapses/echo.cs"), StringComparer.Ordinal) { ["synapses/twice.cs"] = "// twice\n" },
         };
         source.Write(edited);
 

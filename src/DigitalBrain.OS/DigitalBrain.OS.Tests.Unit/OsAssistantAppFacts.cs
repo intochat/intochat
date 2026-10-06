@@ -13,8 +13,8 @@ public sealed class OsAssistantAppFacts
         Assert.Equal(["open", "send", "transcript", "new"], bundle.Manifest.Operations.Select(operation => operation.Name));
         Assert.Equal("icon.svg", bundle.Manifest.Icon);
         Assert.Contains("icon.svg", bundle.Files.Keys);
-        Assert.Contains("behaviors/surface.cs", bundle.Files.Keys);
-        Assert.Contains("behaviors/chat.cs", bundle.Files.Keys);
+        Assert.Contains("synapses/surface.cs", bundle.Files.Keys);
+        Assert.Contains("synapses/chat.cs", bundle.Files.Keys);
         var scenarios = bundle.Spec.Split('\n').Where(line => line.StartsWith("## Scenario:", StringComparison.Ordinal))
             .Select(line => line["## Scenario:".Length..].Trim()).ToArray();
         Assert.Equal(6, scenarios.Length);

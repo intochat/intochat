@@ -53,7 +53,7 @@ public sealed class AppRouteFacts
         })]);
         await brain.Get<IScriptedLLM>("builder").Script([JsonSerializer.Serialize(new
         {
-            files = new Dictionary<string, string> { ["tests.cs"] = "// proof v1", ["behaviors/shout.cs"] = "// b" },
+            files = new Dictionary<string, string> { ["tests.cs"] = "// proof v1", ["synapses/shout.cs"] = "// b" },
         })]);
 
         var log = new List<string>();

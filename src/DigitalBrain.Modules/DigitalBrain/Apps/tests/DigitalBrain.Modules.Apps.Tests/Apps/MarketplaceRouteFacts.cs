@@ -28,7 +28,7 @@ public sealed class MarketplaceRouteFacts
         await source.Create(new("Echo", "echoes", [new("ask", "ask it")], [], [], Icon: "icon.svg"), Spec);
         await source.BeginBuild(null);
         await source.CompleteBuild(await source.CurrentBuildAttempt(),
-            new() { ["tests.cs"] = "// t", ["behaviors/echo.cs"] = "// v1", ["icon.svg"] = "<svg id=\"echo\"/>" }, null);
+            new() { ["tests.cs"] = "// t", ["synapses/echo.cs"] = "// v1", ["icon.svg"] = "<svg id=\"echo\"/>" }, null);
         await source.RecordVerdicts([new("Echoes", true, "ok")], green: true);
 
         var builder = WebApplication.CreateBuilder();
@@ -86,7 +86,7 @@ public sealed class MarketplaceRouteFacts
 
         // The publisher ships a new green version; alice sees the update and takes it.
         Caller.Clear();
-        await source.WriteBehavior("behaviors/echo.cs", "// v2", Guid.NewGuid());
+        await source.WriteBehavior("synapses/echo.cs", "// v2", Guid.NewGuid());
         await source.RecordVerdicts([new("Echoes", true, "ok")], green: true);
         var republished = await Invoke("intochat", "POST", "/brains/{brainId}/apps/{name}/publish", ("brainId", "intochat"), ("name", "echo"));
         var next = Json(republished).GetProperty("publishedVersion").GetString();

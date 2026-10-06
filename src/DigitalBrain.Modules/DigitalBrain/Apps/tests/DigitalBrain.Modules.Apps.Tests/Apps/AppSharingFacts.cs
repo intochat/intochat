@@ -16,7 +16,7 @@ public sealed class AppSharingFacts
         var app = brain.Get<IApp>(key);
         await app.Create(Manifest(), "## Scenario: Echoes\nIt echoes.");
         await app.BeginBuild(null);
-        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["behaviors/echo.cs"] = "// b" }, null);
+        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["synapses/echo.cs"] = "// b" }, null);
         return app;
     }
 

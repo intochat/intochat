@@ -48,8 +48,8 @@ public sealed class VendorAppFacts
             "/brain/src/DigitalBrain.Modules/Postgres/DigitalBrain.Modules.Postgres.Contracts/DigitalBrain.Modules.Postgres.Contracts.csproj",
         ];
         var researcher = Source.Load().Single(app => app.Name == "customer-researcher");
-        Assert.Equal(["behaviors/controls.cs", "behaviors/research.cs", "behaviors/surface.cs"],
-            researcher.Files.Keys.Where(AppFiles.IsBehavior).Order(StringComparer.Ordinal));
+        Assert.Equal(["synapses/controls.cs", "synapses/research.cs", "synapses/surface.cs"],
+            researcher.Files.Keys.Where(AppFiles.IsSynapse).Order(StringComparer.Ordinal));
         var sources = researcher.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal)).Select(file => file.Value);
         Assert.All(sources, source =>
         {

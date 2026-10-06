@@ -17,7 +17,7 @@ internal sealed class AppsInventoryProvider(IDigitalBrain brain, IActivationCens
             var key = IApp.Key(scope, name);
             var app = await brain.Get<IApp>(key).Read().WaitAsync(ct);
             records.Add(new("apps", "apps.app2", key, name));
-            records.AddRange(app.Files.Keys.Where(AppFiles.IsBehavior)
+            records.AddRange(app.Files.Keys.Where(AppFiles.IsSynapse)
                 .Select(path => new NeuronRecord("apps", "microsoft.csharp.file", key + "/" + path, name + " / " + path)));
         }
         return [.. records.Where(record => typeId is null || record.TypeId == typeId)];

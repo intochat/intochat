@@ -197,6 +197,13 @@ public sealed class AppCreatorFacts
         Assert.Equal("// proof v1", (await app.Read()).Files["tests.cs"]);
     }
 
+    [Fact]
+    public void TheBuilderIsToldToWriteSynapsesAndNeverBehaviors()
+    {
+        Assert.Contains("synapses/", AgentPrompts.Builder, StringComparison.Ordinal);
+        Assert.DoesNotContain("behaviors/", AgentPrompts.Builder, StringComparison.Ordinal);
+    }
+
     private static string Authored(string spec) => System.Text.Json.JsonSerializer.Serialize(new
     {
         name = "shouter",

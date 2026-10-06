@@ -83,7 +83,7 @@ internal sealed class AppNeuron(
     {
         RequireCreated();
         ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        if (!AppFiles.IsBehavior(path)) { throw new ArgumentException("A behavior is a behaviors/*.cs file."); }
+        if (!AppFiles.IsSynapse(path)) { throw new ArgumentException("A synapse is a synapses/*.cs file."); }
         if (Replayed(operationId)) { return Describe(Snapshot); }
         var next = Snapshot.Clone();
         next.Edited = true;
@@ -106,7 +106,7 @@ internal sealed class AppNeuron(
         RequireCreated();
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        if (AppFiles.IsBehavior(path)) { throw new ArgumentException("Programs are written through WriteBehavior, which deploys them."); }
+        if (AppFiles.IsSynapse(path)) { throw new ArgumentException("Programs are written through WriteBehavior, which deploys them under synapses/."); }
         if (Replayed(operationId)) { return Describe(Snapshot); }
         var next = Snapshot.Clone();
         next.Edited = true;
@@ -138,7 +138,7 @@ internal sealed class AppNeuron(
             ?? throw new ArgumentException($"No version {version}. This app has: {string.Join(", ", Snapshot.History.Select(item => item.Version))}.");
         // Behaviors the target version lacks stop running: they are retired before the
         // surviving ones redeploy, and their tracked keys leave with them.
-        var removed = Snapshot.Files.Keys.Where(AppFiles.IsBehavior)
+        var removed = Snapshot.Files.Keys.Where(AppFiles.IsSynapse)
             .Where(path => !record.Files.ContainsKey(path)).ToArray();
         var removedKeys = Deployable()?.Keys(this.GetPrimaryKeyString(), Snapshot.ProgramGeneration, removed) ?? [];
         if (Deployable() is { } runtime && removedKeys.Length > 0)
@@ -204,7 +204,7 @@ internal sealed class AppNeuron(
             await Persist(next);
             return Describe(Snapshot);
         }
-        var existingBehaviors = Snapshot.Files.Keys.Where(AppFiles.IsBehavior).ToHashSet(StringComparer.Ordinal);
+        var existingBehaviors = Snapshot.Files.Keys.Where(AppFiles.IsSynapse).ToHashSet(StringComparer.Ordinal);
         var firstTests = files.ContainsKey(AppFiles.TestsPath) && !next.Files.ContainsKey(AppFiles.TestsPath);
         if (manifest is not null)
         {
@@ -214,7 +214,7 @@ internal sealed class AppNeuron(
         }
         foreach (var (path, source) in files) { next.Files[path] = source; }
         next.Edited = true;
-        var behaviorPaths = files.Keys.Where(AppFiles.IsBehavior).ToArray();
+        var behaviorPaths = files.Keys.Where(AppFiles.IsSynapse).ToArray();
         var keys = Deployable()?.Keys(this.GetPrimaryKeyString(), next.ProgramGeneration, behaviorPaths) ?? [];
         next.StorageFiles = [.. next.StorageFiles.Concat(keys).Distinct(StringComparer.Ordinal)];
         next.Version = Bump(next.Version, minor: firstTests);
@@ -321,7 +321,7 @@ internal sealed class AppNeuron(
         next.Connections = [];
         next.Version = bundle.Version;
         next.Status = AppStatus.Live;
-        var behaviors = next.Files.Keys.Where(AppFiles.IsBehavior).ToArray();
+        var behaviors = next.Files.Keys.Where(AppFiles.IsSynapse).ToArray();
         next.StorageFiles = Deployable()?.Keys(this.GetPrimaryKeyString(), next.ProgramGeneration, behaviors) ?? [];
         Record(next);
         await TrackUnlessScratch();
@@ -336,7 +336,7 @@ internal sealed class AppNeuron(
         RequireCreated();
         RequireBundleFor(bundle);
         var appKey = this.GetPrimaryKeyString();
-        var existing = Snapshot.Files.Keys.Where(AppFiles.IsBehavior).ToHashSet(StringComparer.Ordinal);
+        var existing = Snapshot.Files.Keys.Where(AppFiles.IsSynapse).ToHashSet(StringComparer.Ordinal);
         var removed = existing.Where(path => !bundle.Files.ContainsKey(path)).ToArray();
         var removedKeys = Deployable()?.Keys(appKey, Snapshot.ProgramGeneration, removed) ?? [];
         // Only the removed behaviors' files stop. The storage hooks are not told: their OnRetired
@@ -349,7 +349,7 @@ internal sealed class AppNeuron(
         next.Files = new(bundle.Files, StringComparer.Ordinal);
         foreach (var setting in bundle.Manifest.Settings)
         { if (!next.Settings.ContainsKey(setting.Name)) { next.Settings[setting.Name] = setting.Default; } }
-        var behaviors = next.Files.Keys.Where(AppFiles.IsBehavior).ToArray();
+        var behaviors = next.Files.Keys.Where(AppFiles.IsSynapse).ToArray();
         var keys = Deployable()?.Keys(appKey, next.ProgramGeneration, behaviors) ?? [];
         next.StorageFiles = [.. next.StorageFiles.Except(removedKeys, StringComparer.Ordinal).Concat(keys).Distinct(StringComparer.Ordinal)];
         next.DeployedFiles = [.. next.DeployedFiles.Except(removedKeys, StringComparer.Ordinal)];
@@ -491,7 +491,7 @@ internal sealed class AppNeuron(
 
     private async Task RedeployBehaviors()
     {
-        foreach (var path in Snapshot.Files.Keys.Where(AppFiles.IsBehavior).ToArray())
+        foreach (var path in Snapshot.Files.Keys.Where(AppFiles.IsSynapse).ToArray())
         { await DeployBehavior(path, Snapshot.Files[path], swap: true); }
     }
 

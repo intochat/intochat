@@ -6,8 +6,8 @@ public sealed class CSharpScriptSandbox(CSharpToolService tools) : IScriptSandbo
 {
     public bool CanRun => tools.CanRun;
     public string AuthoringDescription => """
-        - "csharp": one C# file-based app per concern under "files" as "behaviors/<name>.cs" (a single
-                  behavior is fine). Each behavior answers invocations or reacts to signals through the brain
+        - "csharp": one C# file-based app per concern under "files" as "synapses/<name>.cs" (a single
+                  synapse is fine). Each synapse answers invocations or reacts to signals through the brain
                   client. The invocation-answering shape (change only the Answer function, keep the #:project line):
                     #:project /brain/src/DigitalBrain.Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps.Contracts/DigitalBrain.Modules.Apps.Contracts.csproj
                     using DigitalBrain.Apps;

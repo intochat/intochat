@@ -4,6 +4,7 @@ using DigitalBrain.AI.Agents;
 using DigitalBrain.Apps;
 using DigitalBrain.Assistant;
 using DigitalBrain.Framework;
+using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Time;
 using DigitalBrain.Time.Reminders;
@@ -57,6 +58,35 @@ public sealed class InventoryFacts
                 Assert.Single(model.Inventory.Records, record => record.Domain == "apps" && record.TypeId == "apps.app2").Key);
             Assert.All(model.Inventory.Records, record => Assert.StartsWith(BrainScope.CurrentId() + "/", record.Key, StringComparison.Ordinal));
         }
+    }
+
+    [Fact]
+    public async Task ListSynapsesReturnsOnlySynapseTypedRecordsOfTheCallersBrain()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // The C# module is composed so its synapse contract is in the inventory the filter reads.
+        await using var host = await ModuleTest.Create().WithModule<AppsModule>().WithModule<AssistantModule>().WithModule<TimeModule>().WithModule<CSharpModule>().WithReminders()
+            .ConfigureSilo(silo => silo.Services.PostConfigure<CSharpDeploymentSettings>(options => options.EdgeUrl = "http://edge.test/")).StartAsync(ct);
+        Stamp("one");
+        await host.AuthorizeCallerAsync();
+        var scope = BrainScope.CurrentId();
+        await host.Get<IReminder>(scope + "/standup").Start(TimeSpan.FromHours(1), TimeSpan.FromDays(1));
+        var app = host.Get<IApp>(IApp.Key(scope, "one"));
+        await app.Create(new("one", "One", [], [], []), "## Scenario: Lists\nIt lists.");
+        await app.BeginBuild(null);
+        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["synapses/app.cs"] = "// p" }, null);
+        var model = new InventoryModel("list_synapses");
+        using var services = new ServiceCollection().AddSingleton<IChatClient>(model)
+            .AddSingleton<IEnumerable<IAgentToolFactory>>(host.SiloServices.GetServices<IAgentToolFactory>()).BuildServiceProvider();
+        var events = new List<AgentTurnEvent>();
+        await foreach (var item in new AgentTurnRunner(services).RunAsync(new("assistant", "run", scope, [],
+            "Which synapses exist in this brain?", null, ToolNames: AssistantDefinition.Product.Tools), ct))
+        { events.Add(item); }
+        Assert.Empty(events.OfType<AgentTurnEvent.Failed>());
+        Assert.NotNull(model.Inventory);
+        Assert.All(model.Inventory.Records, record => Assert.Equal("microsoft.csharp.file", record.TypeId));
+        Assert.Contains(model.Inventory.Records, record => record.Key.EndsWith("/synapses/app.cs", StringComparison.Ordinal));
+        Assert.DoesNotContain(model.Inventory.Records, record => record.TypeId == "reminder");
     }
 
     private static void Stamp(string name) => CallerContextStamper.Stamp(new()
