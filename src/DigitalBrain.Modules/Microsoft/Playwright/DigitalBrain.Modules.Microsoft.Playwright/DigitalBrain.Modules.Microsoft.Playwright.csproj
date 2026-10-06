@@ -5,6 +5,6 @@
     <PackageReference Include="Microsoft.Playwright" />
     <InternalsVisibleTo Include="DigitalBrain.Modules.Microsoft.Playwright.Tests" />
     <ProjectReference Include="../DigitalBrain.Modules.Microsoft.Playwright.Contracts/DigitalBrain.Modules.Microsoft.Playwright.Contracts.csproj" />
-    <ProjectReference Include="../../../../DigitalBrain/Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
+    <ProjectReference Include="../../../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
   </ItemGroup>
 </Project>

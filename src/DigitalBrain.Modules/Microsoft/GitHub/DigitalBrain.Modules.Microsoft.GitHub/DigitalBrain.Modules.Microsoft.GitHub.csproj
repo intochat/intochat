@@ -13,6 +13,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../DigitalBrain.Modules.Microsoft.GitHub.Contracts/DigitalBrain.Modules.Microsoft.GitHub.Contracts.csproj" />
-    <ProjectReference Include="../../../../DigitalBrain/Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
+    <ProjectReference Include="../../../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
   </ItemGroup>
 </Project>

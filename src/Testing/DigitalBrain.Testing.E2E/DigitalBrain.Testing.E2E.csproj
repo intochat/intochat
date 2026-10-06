@@ -14,9 +14,9 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
-    <ProjectReference Include="../../Aspire/DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" />
-    <ProjectReference Include="../../Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />
-    <ProjectReference Include="../../DigitalBrain/Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Aspire/DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Build/DigitalBrain.Testing.E2E.targets" Pack="true" PackagePath="buildTransitive/" />
@@ -34,5 +34,5 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
   </ItemGroup>
-  <ItemGroup><ProjectReference Include="../../DigitalBrain/Client/DigitalBrain.Client.Orleans/DigitalBrain.Client.Orleans.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../DigitalBrain.Client/DigitalBrain.Client.Orleans/DigitalBrain.Client.Orleans.csproj" /></ItemGroup>
 </Project>

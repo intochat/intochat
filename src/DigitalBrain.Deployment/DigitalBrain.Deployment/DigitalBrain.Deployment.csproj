@@ -9,7 +9,7 @@
     <PackageReference Include="Pulumi" />
     <PackageReference Include="Pulumi.AzureNative" />
     <PackageReference Include="Pulumi.Random" />
-    <ProjectReference Include="../../Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
   </ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="DigitalBrain.Deployment.Tests" /></ItemGroup>
 </Project>

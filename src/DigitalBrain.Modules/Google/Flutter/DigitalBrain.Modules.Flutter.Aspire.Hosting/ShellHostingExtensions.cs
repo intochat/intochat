@@ -79,7 +79,7 @@ public static class ShellHostingExtensions
             {
                 throw new InvalidOperationException(
                     $"Flutter host package was not found at '{packageRoot}'. " +
-                    "Pass FlutterHostOptions.WorkingDirectory or place src/Modules/Google/Flutter/app/core in the repo.");
+                    "Pass FlutterHostOptions.WorkingDirectory or place src/DigitalBrain.Modules/Google/Flutter/app/core in the repo.");
             }
 
             var resourceName = string.IsNullOrWhiteSpace(options.ResourceName)
@@ -337,8 +337,8 @@ public static class ShellHostingExtensions
             // or any test project, and those sit at different depths under the repository root.
             string[] packagePathsFromRepositoryRoot =
             [
-                Path.Combine("src", "Modules", "Google", "Flutter", "app", "core"),
-                Path.Combine("src", "Modules", "Google", "Flutter", "app", "shell"),
+                Path.Combine("src", "DigitalBrain.Modules", "Google", "Flutter", "app", "core"),
+                Path.Combine("src", "DigitalBrain.Modules", "Google", "Flutter", "app", "shell"),
             ];
             for (var directory = new DirectoryInfo(Path.GetFullPath(appHostDirectory)); directory is not null; directory = directory.Parent)
             {

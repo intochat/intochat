@@ -14,7 +14,7 @@
     <PackageReference Include="xunit.v3.extensibility.core" />
     <PackageReference Include="Npgsql" />
     <ProjectReference Include="../DigitalBrain.Testing.E2E/DigitalBrain.Testing.E2E.csproj" />
-    <ProjectReference Include="../../DigitalBrain/AppHost/DigitalBrain.AppHost/DigitalBrain.AppHost.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="../../DigitalBrain/OS/DigitalBrain.OS/DigitalBrain.OS.csproj" />
+    <ProjectReference Include="../../DigitalBrain.AppHost/DigitalBrain.AppHost.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="../../DigitalBrain.OS/DigitalBrain.OS/DigitalBrain.OS.csproj" />
   </ItemGroup>
 </Project>

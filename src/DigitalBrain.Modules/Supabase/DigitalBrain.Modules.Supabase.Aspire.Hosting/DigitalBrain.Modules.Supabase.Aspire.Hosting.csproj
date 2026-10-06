@@ -11,6 +11,6 @@
   <ItemGroup>
     <ProjectReference Include="../DigitalBrain.Modules.Supabase.Contracts/DigitalBrain.Modules.Supabase.Contracts.csproj" />
     <ProjectReference Include="../DigitalBrain.Modules.Supabase/DigitalBrain.Modules.Supabase.csproj" />
-    <ProjectReference Include="../../../Aspire/DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" />
+    <ProjectReference Include="../../../DigitalBrain.Aspire/DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" />
   </ItemGroup>
 </Project>

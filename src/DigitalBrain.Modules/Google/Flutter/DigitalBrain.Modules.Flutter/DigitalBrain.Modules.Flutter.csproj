@@ -15,5 +15,5 @@
   <ItemGroup>
     <ProjectReference Include="../DigitalBrain.Modules.Flutter.Contracts/DigitalBrain.Modules.Flutter.Contracts.csproj" />
   </ItemGroup>
-  <ItemGroup><ProjectReference Include="../../../../DigitalBrain/Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" /></ItemGroup>
 </Project>

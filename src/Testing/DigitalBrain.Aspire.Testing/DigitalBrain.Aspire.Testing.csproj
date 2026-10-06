@@ -5,6 +5,6 @@
     <Description>Aspire composition facts without a running application: builders in run and publish mode, and the environment a resource would receive.</Description>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../Aspire/DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Aspire/DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" />
   </ItemGroup>
 </Project>

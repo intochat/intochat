@@ -13,19 +13,19 @@
     <InternalsVisibleTo Include="DigitalBrain.OS.Tests.Unit" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../../../Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />
-    <ProjectReference Include="../../Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- The OS is the composition of every module in the repo; OsCatalog names them in code
          and the compiler checks the two agree. Hosting, deployment, contracts, testing and
          sandbox projects ride along with their module or belong to other rings. -->
-    <ProjectReference Include="../../../Modules/**/DigitalBrain.Modules.*.csproj"
-                      Exclude="../../../Modules/**/tests/**;
-                               ../../../Modules/**/DigitalBrain.Modules.*.Aspire.Hosting.csproj;
-                               ../../../Modules/**/DigitalBrain.Modules.*.Deployment.csproj;
-                               ../../../Modules/**/DigitalBrain.Modules.*.Testing.csproj;
-                               ../../../Modules/**/DigitalBrain.Modules.*.Contracts.csproj;
-                               ../../../Modules/**/DigitalBrain.Modules.*.Sandbox.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Modules/**/DigitalBrain.Modules.*.csproj"
+                      Exclude="../../DigitalBrain.Modules/**/tests/**;
+                               ../../DigitalBrain.Modules/**/DigitalBrain.Modules.*.Aspire.Hosting.csproj;
+                               ../../DigitalBrain.Modules/**/DigitalBrain.Modules.*.Deployment.csproj;
+                               ../../DigitalBrain.Modules/**/DigitalBrain.Modules.*.Testing.csproj;
+                               ../../DigitalBrain.Modules/**/DigitalBrain.Modules.*.Contracts.csproj;
+                               ../../DigitalBrain.Modules/**/DigitalBrain.Modules.*.Sandbox.csproj" />
   </ItemGroup>
 </Project>

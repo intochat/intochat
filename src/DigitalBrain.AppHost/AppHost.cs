@@ -57,7 +57,7 @@ var digitalBrain = builder.AddDigitalBrain("Modules", new DigitalBrainHostingOpt
 
 var cookieProtection = digitalBrain.AddBlobContainer(digitalBrain.Identity!.ProtectionContainerName);
 
-var intoChatApps = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "..", "IntoChat", "Apps"));
+var intoChatApps = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "IntoChat", "Apps"));
 
 var runtime = builder.AddProject<Projects.DigitalBrain_OS>("IntoChat")
     .WithReference(digitalBrain)

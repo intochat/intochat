@@ -4,7 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Orleans.Sdk" />
-    <ProjectReference Include="../../../../Testing/DigitalBrain.Testing.E2E/DigitalBrain.Testing.E2E.csproj" />
-    <ProjectReference Include="../../../../Testing/DigitalBrain.Testing.Reference/DigitalBrain.Testing.Reference.csproj" />
+    <ProjectReference Include="../../Testing/DigitalBrain.Testing.E2E/DigitalBrain.Testing.E2E.csproj" />
+    <ProjectReference Include="../../Testing/DigitalBrain.Testing.Reference/DigitalBrain.Testing.Reference.csproj" />
   </ItemGroup>
 </Project>
