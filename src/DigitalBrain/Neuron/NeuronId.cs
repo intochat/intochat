@@ -5,9 +5,10 @@ namespace DigitalBrain;
 /// </summary>
 /// <remarks>
 /// Exists so that no code outside the brain builds or parses grain keys. The brain alone maps an
-/// id to a grain (<see cref="IBrain.Neuron{T}"/>); everything else, signals and synapses included,
-/// carries this value. Names have no path separators or control characters so they compose into
-/// keys and routes unchanged.
+/// id to a grain (<see cref="IDigitalBrain.Get{T}"/>); everything else, signals and synapses
+/// included, carries this value. Names have no path separators or control characters so they
+/// compose into keys and routes unchanged. A string converts implicitly, so a program writes
+/// <c>brain.Get&lt;IButton&gt;("save")</c>.
 /// </remarks>
 [GenerateSerializer, Alias("neuron.id"), Immutable]
 public readonly record struct NeuronId
@@ -24,6 +25,11 @@ public readonly record struct NeuronId
         if (name.Any(c => char.IsControl(c) || c is '/' or '\\'))
         { throw new ArgumentException("A neuron name has no path separators or control characters.", nameof(name)); }
         Name = name;
+    }
+
+    public static implicit operator NeuronId(string name)
+    {
+        return new(name);
     }
 
     public override string ToString() => Name;

@@ -8,8 +8,8 @@ namespace DigitalBrain;
 /// </summary>
 /// <remarks>
 /// The contract is deliberately only "can be watched". What a neuron does is its own contract,
-/// derived from this one; how it is reached is the brain's job (<see cref="IBrain.Neuron{T}"/>).
-/// Every signal a neuron publishes is stamped with its <see cref="NeuronId"/> by the kernel, so
+/// derived from this one; how it is reached is the brain's job (<see cref="IDigitalBrain.Get{T}"/>).
+/// Every signal a neuron publishes is stamped with its <see cref="NeuronId"/> by the runtime, so
 /// provenance is never forged.
 /// </remarks>
 public interface INeuron : IGrainWithStringKey

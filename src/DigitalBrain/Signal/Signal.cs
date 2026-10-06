@@ -14,7 +14,7 @@ public record Signal
     /// The neuron this signal came from, the same id a <see cref="Synapse"/> connects to.
     /// </summary>
     /// <remarks>
-    /// Stamped by the kernel at publish, overwriting whatever the caller set, so provenance cannot
+    /// Stamped by the runtime at publish, overwriting whatever the caller set, so provenance cannot
     /// be forged. It is routing metadata, not proof of identity: authorization is decided against
     /// the caller context, never against this value.
     /// </remarks>
