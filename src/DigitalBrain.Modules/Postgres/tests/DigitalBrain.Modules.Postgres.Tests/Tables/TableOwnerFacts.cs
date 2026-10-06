@@ -1,4 +1,5 @@
 using DigitalBrain.Enforcement;
+using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Postgres.Tables;
 
 namespace DigitalBrain.Modules.Postgres.Tests.Tables;
@@ -30,7 +31,8 @@ public sealed class TableOwnerFacts
             PrincipalId = "alice", AccountId = "alice", BrainId = "brain-1",
             Kind = CallerKind.App, AppId = "brain-1/apps/notes", StampedBy = TrustedEdge.AppProxy,
         };
-        Assert.Equal(new TableOwner("brain-1", "brain-1/apps/notes"), TableOwner.Current(caller));
+        // Grain keys carry the brain scope id, never the caller's raw brain name.
+        Assert.Equal(new TableOwner(BrainScope.Create("alice", "brain-1").Id, "brain-1/apps/notes"), TableOwner.Current(caller));
         Assert.Throws<UnauthorizedAccessException>(() => TableOwner.Current(caller with { AppId = "" }));
         Assert.Throws<UnauthorizedAccessException>(() => TableOwner.Current(caller with { StampedBy = TrustedEdge.Platform }));
     }

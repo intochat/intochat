@@ -27,8 +27,8 @@ public readonly record struct TableOwner(string BrainId, string AppId)
         ArgumentNullException.ThrowIfNull(caller);
         if (!CallerContextStamper.IsTrusted(caller) || string.IsNullOrWhiteSpace(caller.AppId))
         { throw new UnauthorizedAccessException("A trusted brain and app caller is required."); }
-        return new(caller.BrainId, caller.AppId);
+        return new(BrainScope.Create(caller.AccountId, caller.BrainId).Id, caller.AppId);
     }
 
-    public static TableOwner Current() => Current(CallerContextStamper.Require()) with { BrainId = BrainScope.CurrentId() };
+    public static TableOwner Current() => Current(CallerContextStamper.Require());
 }

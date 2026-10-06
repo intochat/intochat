@@ -44,6 +44,24 @@ public sealed class PostgresWriteTableFacts
     }
 
     [Fact]
+    public async Task AnAppCallerWithoutAnAppIdCannotDefineOrBindATable()
+    {
+        var provider = new MemoryTables();
+        await using var brain = await Start(provider);
+        Stamp(app: "");
+        await brain.AuthorizeCallerAsync();
+        var table = brain.Get<ITable>("unbound");
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => table.Define(Definition));
+        Assert.Equal(0, provider.Definitions);
+
+        // The refused call bound nothing: a real owner can still claim the table.
+        Stamp();
+        await brain.AuthorizeCallerAsync();
+        await table.Define(Definition);
+        Assert.Equal(1, provider.Definitions);
+    }
+
+    [Fact]
     public async Task UninstallLeavesAnotherInstallOfTheSameSchemaIntact()
     {
         await using var brain = await Start(new MemoryTables());
