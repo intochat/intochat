@@ -265,25 +265,6 @@ final class DigitalBrainUiClient {
     ),
   );
 
-  Future<TableSnapshot> createTable(
-    String workspace, {
-    required String title,
-    required List<TableColumn> columns,
-    required List<TableRowData> rows,
-  }) async => TableSnapshot.fromJson(
-    Map<String, dynamic>.from(
-      await _tableRequest(
-        'POST',
-        '/brains/${Uri.encodeComponent(workspace)}/ui/tables',
-        body: {
-          'title': title,
-          'columns': columns.map((x) => x.toJson()).toList(),
-          'rows': rows.map((x) => x.toJson()).toList(),
-        },
-      ) as Map,
-    ),
-  );
-
   Future<TableSnapshot> updateTableView(
     String workspace,
     String id,
