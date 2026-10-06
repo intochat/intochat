@@ -1,13 +1,15 @@
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Platform.Integrations;
 using Orleans.Concurrency;
 
 namespace DigitalBrain.Postgres;
 
 [GrainType("postgres")]
-internal sealed class PostgresServerNeuron(IPostgresProvider provider) : Neuron, IPostgresServer
+internal sealed class PostgresServerNeuron(IPostgresProvider platform, IConnectionPostgresProviderFactory connections, IModuleConnectionCredentials<PostgresModule> credentials) : Neuron, IPostgresServer
 {
     [ReadOnly]
-    public Task<PostgresQueryResult> Query(PostgresQuery query)
+    public async Task<PostgresQueryResult> Query(PostgresQuery query)
     {
         ArgumentNullException.ThrowIfNull(query);
         if (query.MaxRows is < 1 or > PostgresQuery.MaxRowsLimit)
@@ -22,11 +24,11 @@ internal sealed class PostgresServerNeuron(IPostgresProvider provider) : Neuron,
         string sql;
         try { sql = PostgresQueryGuard.Normalize(query.Sql); }
         catch (ArgumentException error) { throw new PostgresQueryException(error.Message); }
-        return provider.QueryAsync(sql, query.MaxRows, parameters, CancellationToken.None);
+        return await (await Resolve()).QueryAsync(sql, query.MaxRows, parameters, CancellationToken.None);
     }
 
     [ReadOnly]
-    public Task<PostgresSchema> ReadSchema(ReadPostgresSchema query)
+    public async Task<PostgresSchema> ReadSchema(ReadPostgresSchema query)
     {
         ArgumentNullException.ThrowIfNull(query);
         var table = string.IsNullOrWhiteSpace(query.Table) ? null : query.Table.Trim();
@@ -34,9 +36,22 @@ internal sealed class PostgresServerNeuron(IPostgresProvider provider) : Neuron,
         {
             throw new PostgresQueryException("table must be a plain table name, optionally prefixed with its schema.");
         }
-        return provider.ReadSchemaAsync(table, CancellationToken.None);
+        return await (await Resolve()).ReadSchemaAsync(table, CancellationToken.None);
     }
 
     [ReadOnly]
-    public Task<PostgresConnection> ReadConnection() => provider.PingAsync(CancellationToken.None);
+    public async Task<PostgresConnection> ReadConnection() => await (await Resolve()).PingAsync(CancellationToken.None);
+
+    private async Task<IPostgresProvider> Resolve()
+    {
+        var key = this.GetPrimaryKeyString();
+        if (!key.StartsWith("connection/", StringComparison.Ordinal)) { return platform; }
+        (string BrainId, string ConnectorId, string ConnectionId) parsed;
+        try { parsed = ConnectionKeys.Parse(key); }
+        catch (ArgumentException) { throw new UnauthorizedAccessException("A canonical connection key is required."); }
+        if (parsed.BrainId != BrainScope.CurrentId() || parsed.ConnectorId != "postgres")
+        { throw new UnauthorizedAccessException("The connection belongs to another brain."); }
+        var connection = await credentials.ReadConnectionAsync(parsed.ConnectorId, parsed.ConnectionId);
+        return connections.ForConnectionString(connection);
+    }
 }
