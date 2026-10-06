@@ -5,6 +5,7 @@ using DigitalBrain.Enforcement;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Button;
 using DigitalBrain.Flutter.Card;
+using DigitalBrain.Flutter.Chart;
 using DigitalBrain.Flutter.Collection;
 using DigitalBrain.Flutter.FileInput;
 using DigitalBrain.Flutter.Form;
@@ -12,6 +13,7 @@ using DigitalBrain.Flutter.ImageCanvas;
 using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Select;
 using DigitalBrain.Flutter.Surface;
+using DigitalBrain.Flutter.Table;
 using DigitalBrain.Flutter.Tabs;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.TextField;
@@ -52,6 +54,8 @@ internal static class AppUiEndpoints
                 "collection" => Results.Ok(await brain.Get<ICollectionView>(name).Read().WaitAsync(ct)),
                 "imagecanvas" => Results.Ok(await brain.Get<IImageCanvas>(name).Read().WaitAsync(ct)),
                 "form" => Results.Ok(await brain.Get<IForm>(name).Read().WaitAsync(ct)),
+                "table" => Results.Ok(await brain.Get<ITable>(name).Read().WaitAsync(ct)),
+                "chart" => Results.Ok(await brain.Get<IChart>(name).Read().WaitAsync(ct)),
                 UIVocabulary.VoiceInputType => Results.Ok(await brain.Get<IVoiceInput>(name).Read().WaitAsync(ct)),
                 UIVocabulary.WebBrowserType => Results.Ok(await brain.Get<IWebBrowser>(name).Read().WaitAsync(ct)),
                 _ => throw new ArgumentException("Unknown app UI kind.")

@@ -63,6 +63,8 @@ final class RendererRegistry {
 
   /// Kinds `NeuronView` draws itself. Everything else in [uiKinds] uses the fallback.
   static const Set<String> dedicatedUiKinds = {
+    'chart',
+    'table',
     'webbrowser',
     'surface',
     'layout',

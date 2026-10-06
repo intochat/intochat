@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../voice_input/ui_voice_input.dart';
 import '../components/browser/ui_web_browser.dart';
+import '../components/chart/ui_chart.dart';
 import '../models/ui_part.dart';
 import 'renderer_registry.dart';
 import 'ui_collection_view.dart';
@@ -456,6 +457,24 @@ class _NeuronViewState extends State<NeuronView> {
               Expanded(child: _child(active!['child'] as Map)),
           ],
         );
+      case 'table':
+        final columns = (definition['columns'] as List? ?? []).whereType<Map>().toList();
+        final rows = (definition['rows'] as List? ?? []).whereType<List>().toList();
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            columns: [
+              for (final column in columns)
+                DataColumn(label: Text('${column['title'] ?? column['id']}')),
+            ],
+            rows: [
+              for (final row in rows)
+                DataRow(cells: [for (final cell in row) DataCell(Text('$cell'))]),
+            ],
+          ),
+        );
+      case 'chart':
+        return UiChart(part: UiChartPart.fromMetadata(definition));
       case 'card':
         return Padding(
           padding: const EdgeInsets.all(8),

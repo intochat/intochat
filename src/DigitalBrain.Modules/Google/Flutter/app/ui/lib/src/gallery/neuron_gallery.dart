@@ -154,6 +154,25 @@ Map<String, dynamic> neuronExample(String kind) => switch (kind) {
     'recipe': {'strokes': []},
     'documentRevision': 1,
   },
+  'table' => {
+    'title': 'Reading list',
+    'columns': [
+      {'id': 'title', 'title': 'Title'},
+      {'id': 'pages', 'title': 'Pages'},
+    ],
+    'rows': [
+      ['A Field Guide', '210'],
+      ['The Creative Act', '432'],
+    ],
+  },
+  'chart' => {
+    'title': 'Pages read',
+    'kind': 'bar',
+    'points': [
+      {'eventId': '1', 'label': 'Mon', 'value': 20},
+      {'eventId': '2', 'label': 'Tue', 'value': 42},
+    ],
+  },
   _ => {},
 };
 
