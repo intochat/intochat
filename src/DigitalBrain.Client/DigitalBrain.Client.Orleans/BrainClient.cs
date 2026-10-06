@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Signals;
@@ -18,11 +17,12 @@ internal sealed class BrainClient(IClusterClient cluster, IOptions<SubscriptionO
 
     public T Get<T>(string id) where T : class, INeuron => cluster.GetGrain<T>(id);
 
-    public async IAsyncEnumerable<T> On<T>(INeuron source, [EnumeratorCancellation] CancellationToken cancellationToken = default) where T : Signal
-    {
-        await using var subscription = await SubscribeAsync<T>(source, cancellationToken).ConfigureAwait(false);
-        await foreach (var signal in subscription.ReadAllAsync(cancellationToken).ConfigureAwait(false)) { yield return signal; }
-    }
+    public IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
+        => new WatchStream<T>(async ct =>
+        {
+            var subscription = await SubscribeAsync<T>(source, ct).ConfigureAwait(false);
+            return (subscription.ReadAllAsync(ct), subscription);
+        });
 
     public async Task<ISignalSubscription<T>> SubscribeAsync<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
     {

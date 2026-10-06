@@ -77,17 +77,30 @@ public sealed class SubscriptionLifetimeFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Options().StartAsync(ct);
         var source = brain.Get<ITestEmitter>("on-cancel");
+        var client = (BrainClient)brain.Client();
         using var consumer = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var first = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var reading = Task.Run(async () =>
         {
-            await foreach (var _ in brain.On<Number>(source, consumer.Token)) { first.TrySetResult(); }
+            await foreach (var _ in brain.On<Number>(source, consumer.Token)) { }
         }, ct);
-        await source.Emit(1);
-        await first.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
+        // The watch is tracked as soon as On opens it; cancel while its first read is pending.
+        while (client.TrackedSubscriptions == 0 && !reading.IsCompleted) { await Task.Delay(TimeSpan.FromMilliseconds(20), ct); }
         consumer.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reading);
-        var client = (BrainClient)brain.Client();
         Assert.Equal(0, client.TrackedSubscriptions);
+    }
+
+    [Fact]
+    public async Task DisposingAnOnEnumeratorWhileAReadIsInFlightLeavesNoSubscriptionAndThrowsNothing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Options().StartAsync(ct);
+        var source = brain.Get<ITestEmitter>("in-flight");
+        var enumerator = brain.On<Number>(source, ct).GetAsyncEnumerator(ct);
+        var pending = enumerator.MoveNextAsync();
+        await Task.Delay(TimeSpan.FromMilliseconds(200), ct);
+        await enumerator.DisposeAsync();
+        try { await pending; } catch (OperationCanceledException) { }
+        Assert.Equal(0, ((BrainClient)brain.Client()).TrackedSubscriptions);
     }
 }

@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using DigitalBrain;
@@ -47,14 +46,14 @@ public sealed class DigitalBrainConnection : IDigitalBrain, IAsyncDisposable
         return NeuronProxy.Create<T>(_edge, id);
     }
 
-    public async IAsyncEnumerable<T> On<T>(INeuron source, [EnumeratorCancellation] CancellationToken cancellationToken = default) where T : Signal
+    public IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
     {
         if (source is not NeuronProxy neuron) { throw new ArgumentException("Watch a neuron obtained from this connection's Get.", nameof(source)); }
-        await using var subscription = await EdgeSignalSubscription<T>.OpenAsync(_edge, neuron, cancellationToken).ConfigureAwait(false);
-        await foreach (var signal in subscription.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+        return new WatchStream<T>(async ct =>
         {
-            yield return signal;
-        }
+            var subscription = await EdgeSignalSubscription<T>.OpenAsync(_edge, neuron, ct).ConfigureAwait(false);
+            return (subscription.ReadAllAsync(ct), subscription);
+        });
     }
 
     private IConfiguration Configuration => _configuration;

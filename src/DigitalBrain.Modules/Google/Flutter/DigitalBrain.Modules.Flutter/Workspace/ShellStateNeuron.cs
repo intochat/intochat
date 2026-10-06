@@ -15,7 +15,8 @@ internal sealed class ShellStateNeuron([PersistentState("head", DigitalBrainName
     // The shell is the person's, not a brain's: its key is the digest of account and principal,
     // so the only caller allowed through an edge is the one whose digest this is.
     public override NeuronAccess Access(string operation)
-        => CallerContextStamper.TryGet(out var caller) && ShellPersistenceEndpoints.Scope(caller.AccountId, caller.PrincipalId) == this.GetPrimaryKeyString()
+        => operation is nameof(IShellState.Read) or nameof(IShellState.Save)
+            && CallerContextStamper.TryGet(out var caller) && ShellPersistenceEndpoints.Scope(caller.AccountId, caller.PrincipalId) == this.GetPrimaryKeyString()
             ? NeuronAccess.PublicOperation : NeuronAccess.Unclassified;
 
     private IShellPart Part(string hash) => GrainFactory.GetGrain<IShellPart>(this.GetPrimaryKeyString() + "/" + hash);

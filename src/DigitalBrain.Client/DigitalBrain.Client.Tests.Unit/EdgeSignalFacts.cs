@@ -45,18 +45,57 @@ public sealed class EdgeSignalFacts
         Assert.True(handler.Disposed, "the SSE response must be disposed when the consumer breaks out");
     }
 
-    private sealed class Handler(string events) : HttpMessageHandler
+    [Fact]
+    public async Task DisposingAnOnEnumeratorWhileAReadIsInFlightClosesTheStream()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var handler = new Handler(events: null);
+        using var http = new HttpClient(handler) { BaseAddress = new("https://example.test") };
+        var connection = DigitalBrainConnection.ForTests(http);
+        var source = connection.Get<ISource>("source");
+        var enumerator = connection.On<Changed>(source, ct).GetAsyncEnumerator(ct);
+        var pending = enumerator.MoveNextAsync();
+        await Task.Delay(TimeSpan.FromMilliseconds(200), ct);
+        await enumerator.DisposeAsync();
+        try { await pending; } catch (OperationCanceledException) { } catch (InvalidOperationException) { }
+        Assert.True(handler.Disposed, "the SSE response must be disposed when the enumerator is disposed mid-read");
+    }
+
+    // events null: a stream that stays open (reads wait for cancellation) until the response is disposed.
+    private sealed class Handler(string? events) : HttpMessageHandler
     {
         public bool Disposed { get; private set; }
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            var content = new StreamContent(new Observed(Encoding.UTF8.GetBytes(events), () => Disposed = true));
+            Stream body = events is null ? new Open(() => Disposed = true) : new Observed(Encoding.UTF8.GetBytes(events), () => Disposed = true);
+            var content = new StreamContent(body);
             content.Headers.ContentType = new("text/event-stream");
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
         }
         private sealed class Observed(byte[] bytes, Action onDispose) : MemoryStream(bytes)
         {
             protected override void Dispose(bool disposing) { onDispose(); base.Dispose(disposing); }
+        }
+        private sealed class Open(Action onDispose) : Stream
+        {
+            private readonly CancellationTokenSource _closed = new();
+            public override bool CanRead => true;
+            public override bool CanSeek => false;
+            public override bool CanWrite => false;
+            public override long Length => throw new NotSupportedException();
+            public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+            public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+            {
+                using var both = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _closed.Token);
+                try { await Task.Delay(Timeout.Infinite, both.Token); } catch (OperationCanceledException) when (_closed.IsCancellationRequested) { return 0; }
+                return 0;
+            }
+            public override int Read(byte[] buffer, int offset, int count) => ReadAsync(buffer.AsMemory(offset, count)).AsTask().GetAwaiter().GetResult();
+            public override void Flush() { }
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException();
+            public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+            protected override void Dispose(bool disposing) { onDispose(); _closed.Cancel(); base.Dispose(disposing); }
         }
     }
 }
