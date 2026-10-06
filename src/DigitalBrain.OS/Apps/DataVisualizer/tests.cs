@@ -43,8 +43,8 @@ await Scenario("Typing a filter value replaces the rows", async () =>
         var table = await WaitTable(id, rows => rows.Count == 1 && rows[0][0] == "uk");
         await filter.Input("u's; drop table t");
         await WaitTable(id, rows => rows.Count == 0);
-        var status = (await brain.Get<ICard>($"{appKey}/views/{id}/status").Read()).Body;
-        if (status.Contains("error", StringComparison.OrdinalIgnoreCase)) { throw new InvalidOperationException("A quoted filter value raised an error: " + status); }
+        var status = await brain.Get<ICard>($"{appKey}/views/{id}/status").Read();
+        if (status.Title == "Error") { throw new InvalidOperationException("A quoted filter value raised an error: " + status.Body); }
     }
     finally { await Ask("close", id); }
 });
@@ -64,17 +64,18 @@ await Scenario("A chart view renders points from an aggregate query", async () =
 await Scenario("Changing an app table re-renders its view", async () =>
 {
     var sample = brain.Get<AppTable>(appKey + "/sample");
-    await sample.Define(new([new("id", "text"), new("country", "text")], ["id"]));
-    await sample.Upsert([new("id", "\"1\"")], [new("country", "\"us\"")]);
-    var shown = await Show(new { title = "Sample", kind = "table", source = "apptable:" + appKey + "/sample", sql = "", filters = Array.Empty<string>() });
-    var id = shown.GetProperty("view").GetString()!;
+    string? id = null;
     try
     {
+        await sample.Define(new([new("id", "text"), new("country", "text")], ["id"]));
+        await sample.Upsert([new("id", "\"1\"")], [new("country", "\"us\"")]);
+        var shown = await Show(new { title = "Sample", kind = "table", source = "apptable:" + appKey + "/sample", sql = "", filters = Array.Empty<string>() });
+        id = shown.GetProperty("view").GetString()!;
         await WaitTable(id, rows => rows.Count == 1);
         await sample.Upsert([new("id", "\"2\"")], [new("country", "\"uk\"")]);
         await WaitTable(id, rows => rows.Count == 2);
     }
-    finally { await Ask("close", id); await sample.Delete([new("id", "\"1\"")]); await sample.Delete([new("id", "\"2\"")]); }
+    finally { if (id is not null) { await Ask("close", id); } await sample.Delete([new("id", "\"1\"")]); await sample.Delete([new("id", "\"2\"")]); }
 });
 
 await Scenario("Restarting the behaviors rebuilds the same windows", async () =>
@@ -101,7 +102,7 @@ await Scenario("An unreachable source keeps the last rows and reports the error"
     {
         await WaitTable(id, rows => rows.Count == 2);
         await Ask("refine", JsonSerializer.Serialize(new { view = id, sql = "select * from table_that_does_not_exist_9f3" }));
-        var status = await Wait(() => brain.Get<ICard>($"{appKey}/views/{id}/status").Read(), card => card.Body.Length > 0 && !card.Body.StartsWith("ok", StringComparison.Ordinal));
+        await Wait(() => brain.Get<ICard>($"{appKey}/views/{id}/status").Read(), card => card.Title == "Error");
         if ((await brain.Get<ViewTable>($"{appKey}/views/{id}/table").Read()).Rows.Count != 2) { throw new InvalidOperationException("The previous rows were lost."); }
     }
     finally { await Ask("close", id); }
