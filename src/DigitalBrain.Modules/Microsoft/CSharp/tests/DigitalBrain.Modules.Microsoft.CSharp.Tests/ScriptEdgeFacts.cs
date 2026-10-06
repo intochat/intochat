@@ -223,17 +223,13 @@ public sealed class ScriptEdgeFacts
     }
 
     [Fact]
-    public void RowSourcesAndScriptAccountsAreVisibleAndTheCredentialRegistryIsNot()
+    public void ScriptAccountsAreVisibleAndTheCredentialRegistryIsNot()
     {
         var contracts = new ScriptContracts([
-            typeof(DigitalBrain.Data.IRowSource).Assembly,
+            typeof(DigitalBrain.Integrations.IConnectionRequests).Assembly,
             typeof(DigitalBrain.Framework.Platform.Integrations.Accounts.IConnectionRegistry).Assembly,
         ]);
 
-        Assert.Equal(typeof(DigitalBrain.Data.IRowSource), contracts.Find(typeof(DigitalBrain.Data.IRowSource).FullName!));
-        Assert.Equal(
-            typeof(DigitalBrain.Data.IStoredRows),
-            contracts.Find(typeof(DigitalBrain.Data.IStoredRows).FullName!));
         Assert.Equal(
             typeof(DigitalBrain.Integrations.IConnectionRequests),
             contracts.Find(typeof(DigitalBrain.Integrations.IConnectionRequests).FullName!));

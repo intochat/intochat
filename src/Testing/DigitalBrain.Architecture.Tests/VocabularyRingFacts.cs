@@ -25,7 +25,7 @@ public sealed class VocabularyRingFacts
     };
 
     private static readonly string[] Namespaces =
-        ["DigitalBrain", "DigitalBrain.Data", "DigitalBrain.Integrations", "DigitalBrain.Types", "DigitalBrain.Enforcement"];
+        ["DigitalBrain", "DigitalBrain.Integrations", "DigitalBrain.Types", "DigitalBrain.Enforcement"];
 
     [Fact]
     public void EveryPublicVocabularyTypeIsANeuronContractASignalOrAShapeTheyCarry()
