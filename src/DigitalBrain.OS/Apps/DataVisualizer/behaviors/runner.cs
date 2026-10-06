@@ -1,7 +1,7 @@
-#:project /brain/src/Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps.Contracts/DigitalBrain.Modules.Apps.Contracts.csproj
-#:project /brain/src/Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Contracts/DigitalBrain.Modules.Flutter.Contracts.csproj
-#:project /brain/src/Modules/Postgres/DigitalBrain.Modules.Postgres.Contracts/DigitalBrain.Modules.Postgres.Contracts.csproj
-#:project /brain/src/Modules/Time/DigitalBrain.Modules.Time.Contracts/DigitalBrain.Modules.Time.Contracts.csproj
+#:project /brain/src/DigitalBrain.Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps.Contracts/DigitalBrain.Modules.Apps.Contracts.csproj
+#:project /brain/src/DigitalBrain.Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Contracts/DigitalBrain.Modules.Flutter.Contracts.csproj
+#:project /brain/src/DigitalBrain.Modules/Postgres/DigitalBrain.Modules.Postgres.Contracts/DigitalBrain.Modules.Postgres.Contracts.csproj
+#:project /brain/src/DigitalBrain.Modules/Time/DigitalBrain.Modules.Time.Contracts/DigitalBrain.Modules.Time.Contracts.csproj
 using System.Globalization;
 using System.Text.Json;
 using System.Threading.Channels;
@@ -110,6 +110,7 @@ async Task Pump<T>(INeuron source, ChannelWriter<bool> trigger, CancellationToke
             try { await foreach (var _ in subscription.ReadAllAsync(ct)) { trigger.TryWrite(true); } }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
             catch (Exception error) { Console.WriteLine($"{typeof(T).Name} stream of {source} stopped, resubscribing: {error.Message}"); }
+            await Task.Delay(TimeSpan.FromSeconds(1), ct).ContinueWith(_ => { });
             while (!ct.IsCancellationRequested)
             {
                 try
@@ -136,10 +137,10 @@ async Task RunLoop(string id, ChannelReader<bool> triggers, CancellationToken ct
         await foreach (var _ in triggers.ReadAllAsync(ct))
         {
             try { await Run(await Current(id)); }
-            catch (Exception error) when (error is not OperationCanceledException) { Console.WriteLine($"run of {id} failed: {error.Message}"); }
+            catch (Exception error) when (!ct.IsCancellationRequested) { Console.WriteLine($"run of {id} failed: {error.Message}"); }
         }
     }
-    catch (OperationCanceledException) { }
+    catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
 }
 
 async Task Run(View? view)
