@@ -10,7 +10,8 @@ TestResults/
 .vs/
 logs/
 .codegraph/
-.grok/
+.grok/*
+!.grok/lsp.json
 .digitalbrain/
 .agents/
 .superpowers/
