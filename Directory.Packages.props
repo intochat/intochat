@@ -65,12 +65,12 @@
     <PackageVersion Include="Microsoft.Orleans.Clustering.AzureStorage" Version="10.3.1" />
     <PackageVersion Include="Microsoft.Orleans.Dashboard" Version="10.3.1" />
     <PackageVersion Include="Microsoft.Orleans.Dashboard.Abstractions" Version="10.3.1" />
-    <PackageVersion Include="Microsoft.Orleans.Persistence.AzureStorage" Version="10.3.1" />
-    <PackageVersion Include="Microsoft.Orleans.Reminders" Version="10.3.1" />
-    <PackageVersion Include="Microsoft.Orleans.Reminders.AzureStorage" Version="10.3.1" />
-    <PackageVersion Include="Microsoft.Orleans.Sdk" Version="10.3.1" />
-    <PackageVersion Include="Microsoft.Orleans.Server" Version="10.3.1" />
-    <PackageVersion Include="Microsoft.Orleans.Serialization.SystemTextJson" Version="10.3.1" />
+    <PackageVersion Include="Microsoft.Orleans.Persistence.AzureStorage" Version="10.4.0" />
+    <PackageVersion Include="Microsoft.Orleans.Reminders" Version="10.4.0" />
+    <PackageVersion Include="Microsoft.Orleans.Reminders.AzureStorage" Version="10.4.0" />
+    <PackageVersion Include="Microsoft.Orleans.Sdk" Version="10.4.0" />
+    <PackageVersion Include="Microsoft.Orleans.Server" Version="10.4.0" />
+    <PackageVersion Include="Microsoft.Orleans.Serialization.SystemTextJson" Version="10.4.0" />
     <PackageVersion Include="Microsoft.AI.Foundry.Local" Version="2.1.0" />
     <PackageVersion Include="Concentus" Version="2.2.2" />
     <PackageVersion Include="Concentus.Oggfile" Version="1.0.7" />
@@ -82,7 +82,7 @@
     <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.1" />
     <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.1" />
     <PackageVersion Include="xunit.v3.assert" Version="4.0.1" />
-    <PackageVersion Include="Microsoft.Orleans.TestingHost" Version="10.3.1" />
+    <PackageVersion Include="Microsoft.Orleans.TestingHost" Version="10.4.0" />
     <!-- Restored, never referenced for assemblies: hosted tests read DCP and dashboard paths
          out of these packages because they build the Aspire model without an AppHost project. -->
     <PackageVersion Include="Aspire.Hosting.Orchestration.win-x64" Version="$(AspireVersion)" />
@@ -96,5 +96,5 @@
     <PackageVersion Include="Aspire.Dashboard.Sdk.osx-arm64" Version="$(AspireVersion)" />
     <PackageVersion Include="Aspire.Dashboard.Sdk.osx-x64" Version="$(AspireVersion)" />
   </ItemGroup>
-  <ItemGroup><PackageVersion Include="Microsoft.Orleans.Core.Abstractions" Version="10.3.1" /></ItemGroup>
+  <ItemGroup><PackageVersion Include="Microsoft.Orleans.Core.Abstractions" Version="10.4.0" /></ItemGroup>
 </Project>
