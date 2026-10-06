@@ -25,7 +25,7 @@ public sealed class PostgresProviderFacts
         Assert.StartsWith("PostgreSQL", connection.ServerVersion, StringComparison.Ordinal);
         Assert.Equal(expectedDatabase, (await provider.ReadSchemaAsync(null, ct)).Database);
 
-        var result = await provider.QueryAsync("SELECT i, true AS flag, NULL::text AS empty FROM generate_series(1, 3) AS i", 2, ct);
+        var result = await provider.QueryAsync("SELECT i, true AS flag, NULL::text AS empty FROM generate_series(1, 3) AS i", 2, [], ct);
         Assert.Equal(2, result.RowCount);
         Assert.True(result.Truncated);
         Assert.Equal(["1", "true", "null"], result.Rows[0]);
@@ -44,7 +44,7 @@ public sealed class PostgresProviderFacts
         {
             var metadata = await provider.ReadSchemaAsync($"{schema}.items", ct);
             Assert.Equal($"{schema}.items", Assert.Single(metadata.Tables).Name);
-            var error = await Assert.ThrowsAsync<PostgresQueryException>(() => provider.QueryAsync($"SELECT {schema}.write_item()", 1, ct));
+            var error = await Assert.ThrowsAsync<PostgresQueryException>(() => provider.QueryAsync($"SELECT {schema}.write_item()", 1, [], ct));
             Assert.Contains("25006", error.Message, StringComparison.Ordinal);
             await using var count = source.CreateCommand($"SELECT count(*) FROM {schema}.items");
             Assert.Equal(0L, await count.ExecuteScalarAsync(ct));

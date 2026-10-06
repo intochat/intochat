@@ -13,10 +13,15 @@ internal sealed class PostgresTestSiloBuilder(IServiceCollection services, IConf
 
 internal sealed class PostgresTestControls : IPostgresProvider
 {
-    public Task<PostgresQueryResult> QueryAsync(string sql, int maxRows, CancellationToken cancellationToken)
+    public Task<PostgresQueryResult> QueryAsync(string sql, int maxRows, IReadOnlyList<PostgresParameter> parameters, CancellationToken cancellationToken)
     {
-        Assert.Equal("select id from people", sql);
         Assert.Equal(10, maxRows);
+        if (parameters.Count == 1)
+        {
+            Assert.Equal("select id from people where country = $1", sql);
+            Assert.Equal("u's; drop table people", parameters[0].Value);
+        }
+        else { Assert.Equal("select id from people", sql); }
         return Task.FromResult(new PostgresQueryResult([new("id", "int4", "number")], [["7"]], 1, false, 0));
     }
 

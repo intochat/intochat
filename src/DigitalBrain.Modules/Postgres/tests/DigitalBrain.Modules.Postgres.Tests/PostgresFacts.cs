@@ -14,6 +14,23 @@ namespace DigitalBrain.Modules.Postgres.Tests;
 public sealed class PostgresFacts
 {
     [Fact]
+    public async Task ParametersAreBoundNotInterpolated()
+    {
+        await using var brain = await StartAsync();
+        var result = await brain.Get<IPostgresServer>("default")
+            .Query(new("select id from people where country = $1", 10, [new("country", "u's; drop table people")]));
+        Assert.Equal(1, result.RowCount);
+    }
+
+    [Fact]
+    public async Task MoreThanSixteenParametersAreRejected()
+    {
+        await using var brain = await StartAsync();
+        var many = Enumerable.Range(0, 17).Select(i => new PostgresParameter($"p{i}", "x")).ToArray();
+        await Assert.ThrowsAsync<PostgresQueryException>(() => brain.Get<IPostgresServer>("default").Query(new("select 1", 10, many)));
+    }
+
+    [Fact]
     public async Task QueryReturnsTypedRowsThroughTheDefaultGrainType()
     {
         await using var brain = await StartAsync();

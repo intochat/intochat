@@ -14,10 +14,15 @@ internal sealed class PostgresServerNeuron(IPostgresProvider provider) : Neuron,
         {
             throw new PostgresQueryException($"maxRows must be between 1 and {PostgresQuery.MaxRowsLimit}.");
         }
+        var parameters = query.Parameters ?? [];
+        if (parameters.Length > PostgresQuery.MaxParameters)
+        {
+            throw new PostgresQueryException($"A query takes at most {PostgresQuery.MaxParameters} parameters.");
+        }
         string sql;
         try { sql = PostgresQueryGuard.Normalize(query.Sql); }
         catch (ArgumentException error) { throw new PostgresQueryException(error.Message); }
-        return provider.QueryAsync(sql, query.MaxRows, CancellationToken.None);
+        return provider.QueryAsync(sql, query.MaxRows, parameters, CancellationToken.None);
     }
 
     [ReadOnly]
