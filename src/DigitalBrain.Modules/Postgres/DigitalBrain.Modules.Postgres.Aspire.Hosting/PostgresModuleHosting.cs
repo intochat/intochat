@@ -10,18 +10,7 @@ public sealed class PostgresModuleHosting : ModuleHosting<DigitalBrain.Postgres.
         ArgumentNullException.ThrowIfNull(brain);
         var options = brain.GetModuleConfiguration("postgres").GetModuleOptions<PostgresModuleOptions>("postgres");
         var module = new DigitalBrainModuleBuilder<DigitalBrain.Postgres.Aspire.Hosting.PostgresModuleHosting>(brain);
-        if (options.Hosting.Enabled)
-        {
-            module.WithPostgres(hosting =>
-            {
-                hosting.ConnectionName = options.ConnectionName;
-                hosting.DatabaseName = options.Hosting.DatabaseName;
-                hosting.PersistentStorage = options.Hosting.PersistentStorage;
-            });
-        }
-        else
-        {
-            module.WithExternalConnection(options.ConnectionName);
-        }
+        if (options.Hosting.Enabled) { module.WithPostgres(options.ConnectionName, options.Hosting); }
+        else { module.WithExternalConnection(options.ConnectionName); }
     }
 }

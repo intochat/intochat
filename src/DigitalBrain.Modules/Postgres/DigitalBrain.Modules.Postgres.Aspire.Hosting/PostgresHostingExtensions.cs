@@ -11,15 +11,13 @@ namespace DigitalBrain.Postgres.Aspire.Hosting;
 internal static class PostgresHostingExtensions
 {
     public static DigitalBrainModuleBuilder<DigitalBrain.Postgres.Aspire.Hosting.PostgresModuleHosting> WithPostgres(
-        this DigitalBrainModuleBuilder<DigitalBrain.Postgres.Aspire.Hosting.PostgresModuleHosting> module,
-        Action<PostgresHostingOptions>? configure = null)
+        this DigitalBrainModuleBuilder<DigitalBrain.Postgres.Aspire.Hosting.PostgresModuleHosting> module, string connectionName, PostgresResourceOptions hosting)
     {
         ArgumentNullException.ThrowIfNull(module);
-        var options = new PostgresHostingOptions();
-        configure?.Invoke(options);
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.ConnectionName);
-        ArgumentException.ThrowIfNullOrWhiteSpace(options.DatabaseName);
-        State(module).Enable(new(options.ConnectionName, options.DatabaseName, options.PersistentStorage));
+        ArgumentNullException.ThrowIfNull(hosting);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(hosting.DatabaseName);
+        State(module).Enable(new(connectionName, hosting.DatabaseName, hosting.PersistentStorage));
         return module;
     }
 
