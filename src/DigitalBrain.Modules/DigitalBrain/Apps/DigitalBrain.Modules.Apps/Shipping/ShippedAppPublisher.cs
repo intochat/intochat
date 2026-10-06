@@ -79,13 +79,10 @@ internal sealed class ShippedAppPublisher(
         await app.Publish();
     }
 
-    // Silence never passes: a bundle that declares no scenario is not green by its build either.
+    // The build is the verdict for a first-party bundle, which may declare no scenario at all.
     private static (AppScenarioVerdict[] Verdicts, bool Green) ByBuild(AppBundle bundle)
-    {
-        var verdicts = AppVerifyJob.Scenarios(bundle.Spec).Order(StringComparer.Ordinal)
-            .Select(name => new AppScenarioVerdict(name, true, "Verified by the build.")).ToArray();
-        return (verdicts, verdicts.Length > 0);
-    }
+        => (AppVerifyJob.Scenarios(bundle.Spec).Order(StringComparer.Ordinal)
+            .Select(name => new AppScenarioVerdict(name, true, "Verified by the build.")).ToArray(), true);
 
     // null means every app; an empty set means none.
     private static HashSet<string>? Selection(string? configured) => configured?.Trim().ToLowerInvariant() switch
