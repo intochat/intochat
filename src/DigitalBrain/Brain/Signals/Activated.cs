@@ -1,10 +1,12 @@
 namespace DigitalBrain;
 
-// Published when an established brain wakes: once right after Establish, and again on every
-// later activation. Handlers are idempotent; this is the signal the operating system itself
-// boots on, and any app can subscribe to it the same way.
+/// <summary>
+/// Published on every wake of a created brain, including right after <see cref="Created"/>.
+/// </summary>
+/// <remarks>
+/// This is the signal the operating system boots on and any program may subscribe to. Because it
+/// fires on every activation, handlers are idempotent: they catch up, they do not initialize.
+/// </remarks>
+/// <param name="Owner">The account the brain belongs to.</param>
 [GenerateSerializer, Alias("brain.activated")]
-public sealed record Activated(
-    [property: Id(0)] string BrainId,
-    [property: Id(1)] string OwnerAccountId,
-    [property: Id(2)] string Name) : Signal;
+public sealed record Activated([property: Id(0)] Owner Owner) : Signal;
