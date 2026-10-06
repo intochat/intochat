@@ -1,8 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Client;
 using DigitalBrain.Client.Orleans;
-using DigitalBrain.Contracts;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Orleans;
@@ -11,19 +10,21 @@ using Orleans.TestingHost;
 
 namespace DigitalBrain.Testing.Module;
 
-public sealed class ModuleBrain : IDigitalBrain, ITrackedBrain
+public sealed class ModuleBrain : IDigitalBrain, IBrainSubscriptions, IAsyncDisposable, ITrackedBrain
 {
     private readonly InProcessTestCluster cluster;
-    private readonly IDigitalBrain _brain;
+    private readonly IDigitalBrains _brains;
+    private readonly IBrainSubscriptions _subscriptions;
     private readonly TestSessionLifetime _lifetime;
     private readonly TestExecutionOptions _execution;
     internal ModuleBrain(InProcessTestCluster cluster, TestExecutionOptions execution, TestSessionLifetime lifetime)
     {
         this.cluster = cluster;
         _execution = execution;
-        _brain = cluster.Client.ServiceProvider.GetRequiredService<IDigitalBrain>();
+        _brains = cluster.Client.ServiceProvider.GetRequiredService<IDigitalBrains>();
+        _subscriptions = cluster.Client.ServiceProvider.GetRequiredService<IBrainSubscriptions>();
         _lifetime = lifetime;
-        _lifetime.Own("client", _brain);
+        _lifetime.Own("client", (IAsyncDisposable)_brains);
     }
     int ITrackedBrain.BufferCapacity => cluster.Client.ServiceProvider.GetRequiredService<IOptions<SubscriptionOptions>>().Value.BufferCapacity;
     TestExecutionOptions ITrackedBrain.Execution => _execution;
@@ -55,14 +56,23 @@ public sealed class ModuleBrain : IDigitalBrain, ITrackedBrain
     // not grains (for example the broker gateway or a certification service).
     public IServiceProvider SiloServices => cluster.GetActiveSilos().First().ServiceProvider;
 
-    internal IDigitalBrain Client => _brain;
+    internal IDigitalBrains Brains => _brains;
 
     void ITrackedBrain.Track(IAsyncDisposable resource) => _lifetime.Own("observation", resource);
 
-    public T Get<T>(string id) where T : class, IGrainWithStringKey => _brain.Get<T>(id);
+    // Raw grain access for facts; programs resolve by NeuronId through IDigitalBrain.
+    public T Get<T>(string id) where T : class, INeuron => _brains.Grain<T>(id);
+
+    T IDigitalBrain.Get<T>(NeuronId id) => _brains.Grain<T>(id.Name);
+
+    // The brain of the caller the fact stamped.
+    public IKernel Self => _brains.Open(DigitalBrain.Framework.Enforcement.BrainScope.CurrentId()).Self;
 
     public Task<ISignalSubscription<T>> SubscribeAsync<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
-        => _brain.SubscribeAsync<T>(source, cancellationToken);
+        => _subscriptions.SubscribeAsync<T>(source, cancellationToken);
+
+    public IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
+        => _brains.On<T>(source, cancellationToken);
 
     public Task DeactivateAsync(INeuron neuron, CancellationToken cancellationToken = default)
         => cluster.DeactivateAsync(neuron.GetGrainId()).WaitAsync(cancellationToken);

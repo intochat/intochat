@@ -1,3 +1,5 @@
+using DigitalBrain.Framework;
+
 namespace DigitalBrain.Testing;
 
 public sealed record TestExecutionOptions
@@ -11,7 +13,7 @@ public sealed record TestExecutionOptions
     public IReadOnlyDictionary<string, string?> PrivateConfiguration { get; init; } = new Dictionary<string, string?>();
     public IReadOnlyDictionary<string, string> ResourceEnvironment { get; init; } = new Dictionary<string, string>();
     // Feeds the AppHost builder's own configuration (not a resource's environment): hosting-layer
-    // knobs like DigitalBrain:Flutter:Hosting:WebContainer describe the machine running the AppHost.
+    // knobs like DigitalBrain:Modules:flutter:Hosting:WebContainer describe the machine running the AppHost.
     public IReadOnlyDictionary<string, string?> HostConfiguration { get; init; } = new Dictionary<string, string?>();
 
     public void Validate()
@@ -21,8 +23,8 @@ public sealed record TestExecutionOptions
             if (string.IsNullOrWhiteSpace(key) || key.Contains("__", StringComparison.Ordinal)
                 || key.StartsWith("Orleans:", StringComparison.OrdinalIgnoreCase)
                 || key.StartsWith("ConnectionStrings:", StringComparison.OrdinalIgnoreCase)
-                || key.StartsWith("DigitalBrain:Testing:", StringComparison.OrdinalIgnoreCase)
-                || key.StartsWith("DigitalBrain:Modules:", StringComparison.OrdinalIgnoreCase))
+                || key.StartsWith(Framework.ModuleSettingsValidation.TestingSectionPrefix, StringComparison.OrdinalIgnoreCase)
+                || key.StartsWith(DigitalBrainConfiguration.ModulesSectionName + ":", StringComparison.OrdinalIgnoreCase))
             { throw new ArgumentException("Private settings cannot override host-owned configuration."); }
         }
         foreach (var timeout in new[] { StartupTimeout, AssertionTimeout, CleanupTimeout })

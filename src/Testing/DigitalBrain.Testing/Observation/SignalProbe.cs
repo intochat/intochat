@@ -1,7 +1,6 @@
 using System.Threading.Channels;
 using DigitalBrain;
-using DigitalBrain.Contracts;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 namespace DigitalBrain.Testing;
 
 public sealed class SignalProbe<T> : IAsyncDisposable where T : Signal

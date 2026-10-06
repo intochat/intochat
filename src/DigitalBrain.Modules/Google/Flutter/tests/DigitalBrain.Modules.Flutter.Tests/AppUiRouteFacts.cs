@@ -1,0 +1,51 @@
+using System.Net.Http.Json;
+using System.Text.Json;
+using DigitalBrain;
+using DigitalBrain.Flutter.Chart;
+using DigitalBrain.Flutter.Table;
+using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Modules.Flutter.Tests.Composition;
+using DigitalBrain.Flutter;
+using DigitalBrain.Framework;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace DigitalBrain.Modules.Flutter.Tests;
+
+[Collection(FlutterHostCollection.Name)]
+public sealed class AppUiRouteFacts(FlutterHostFixture host)
+{
+    [Fact]
+    public void AppUiNodesAndEventsAreServedUnderTheBrainRoute()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddSingleton(typeof(IDigitalBrain), _ => null!);
+        IEndpointRouteBuilder app = builder.Build();
+        AppUiEndpoints.Map(app);
+
+        var routes = app.DataSources.SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>().Select(endpoint => $"{string.Join(",", endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods)} {endpoint.RoutePattern.RawText}").Order(StringComparer.Ordinal).ToArray();
+
+        Assert.All(routes, route => Assert.Contains(" /brains/{brainId}/", route));
+        Assert.Equal(["GET /brains/{brainId}/apps/node", "POST /brains/{brainId}/apps/event"], routes);
+    }
+
+    [Fact]
+    public async Task ATableAndAChartUnderAppsAreReadableAsAppNodes()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = host.Brain;
+        var ws = host.Workspace();
+        var scope = BrainScope.Create("owner", ws).Id;
+        await brain.Get<ITable>(scope + "/apps/dv/grid").Replace("People", [new("c", "Country")], [["us"]]);
+        await brain.Get<IChart>(scope + "/apps/dv/pie").Render("Share", "pie", [new("1", "us", 2)]);
+
+        var table = await brain.HttpClient.GetFromJsonAsync<JsonElement>($"/brains/{ws}/apps/node?kind=table&name={Uri.EscapeDataString(scope + "/apps/dv/grid")}", ct);
+        var chart = await brain.HttpClient.GetFromJsonAsync<JsonElement>($"/brains/{ws}/apps/node?kind=chart&name={Uri.EscapeDataString(scope + "/apps/dv/pie")}", ct);
+
+        Assert.Equal("People", table.GetProperty("title").GetString());
+        Assert.Equal("pie", chart.GetProperty("kind").GetString());
+    }
+}

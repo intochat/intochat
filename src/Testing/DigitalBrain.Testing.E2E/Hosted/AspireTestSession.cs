@@ -5,8 +5,7 @@ using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Client;
 using DigitalBrain.Client.Orleans;
-using DigitalBrain.Contracts;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -27,7 +26,8 @@ public sealed class AspireTestSession : IAsyncDisposable
     { App = app; _lifetime = lifetime; _options = options; _brain = brain; _serverName = serverName; }
 
     public DistributedApplication App { get; }
-    public IDigitalBrain Brain => _client!.Services.GetRequiredService<IDigitalBrain>();
+    public IDigitalBrains Brains => _client!.Services.GetRequiredService<IDigitalBrains>();
+    public IBrainSubscriptions Subscriptions => _client!.Services.GetRequiredService<IBrainSubscriptions>();
     public HttpClient HttpClient { get; private set; } = null!;
     public Uri? BrowserEndpoint { get; private set; }
     public string? BrowserReadySelector { get; private set; }
@@ -53,6 +53,19 @@ public sealed class AspireTestSession : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(declareTopology);
         return StartCoreAsync(_ => Task.FromResult(CreateModuleBuilder()),
             declareTopology, options, cancellationToken);
+    }
+
+    internal static void AllocateProjectHttpPorts(IEnumerable<IResource> resources)
+    {
+        foreach (var project in resources.OfType<ProjectResource>())
+        {
+            foreach (var endpoint in project.Annotations.OfType<EndpointAnnotation>().Where(e => e.UriScheme is "http" or "https"))
+            {
+                endpoint.Port = null;
+                endpoint.TargetPort = null;
+                endpoint.IsProxied = false;
+            }
+        }
     }
 
     private static IDistributedApplicationTestingBuilder CreateModuleBuilder()
@@ -122,9 +135,10 @@ public sealed class AspireTestSession : IAsyncDisposable
                 resource.Annotations.Add(new EnvironmentCallbackAnnotation(context =>
                 {
                     foreach (var (key, value) in TestLogging.QuietDefaults)
-                    { context.EnvironmentVariables[key.Replace(":", "__")] = value!; }
+                    { context.EnvironmentVariables[DigitalBrainConfiguration.EnvironmentName(key)] = value!; }
                 }));
             }
+            AllocateProjectHttpPorts(builder.Resources);
             foreach (var resource in hosts)
             {
                 if (privateSettings is not null)
@@ -231,7 +245,7 @@ public sealed class AspireTestSession : IAsyncDisposable
         using var deadline = new CancellationTokenSource(_options.CleanupTimeout);
         try
         {
-            await host.Services.GetRequiredService<IDigitalBrain>().DisposeAsync().AsTask().WaitAsync(deadline.Token).ConfigureAwait(false);
+            await ((IAsyncDisposable)host.Services.GetRequiredService<IDigitalBrains>()).DisposeAsync().AsTask().WaitAsync(deadline.Token).ConfigureAwait(false);
             await host.StopAsync(deadline.Token).ConfigureAwait(false);
         }
         finally { host.Dispose(); }

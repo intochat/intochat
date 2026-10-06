@@ -1,0 +1,286 @@
+import 'dart:async';
+
+import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
+import 'package:digitalbrain_ui/digitalbrain_ui.dart';
+import 'package:flutter/material.dart';
+
+import 'credential_store_io.dart'
+    if (dart.library.html) 'credential_store_web.dart'
+    as store;
+import 'login_screen.dart';
+
+/// Builds the signed-in shell once a client is available.
+typedef ShellBuilder = Widget Function(
+  DigitalBrainUiClient? client,
+  String? statusMessage,
+  Future<void> Function() switchAccount,
+);
+
+/// Creates a client for the given credentials, or throws if the kernel
+/// location cannot be resolved.
+typedef ClientFactory = DigitalBrainUiClient Function(
+  BasicCredentials? credentials,
+);
+
+DigitalBrainUiClient _fromEnvironment(BasicCredentials? credentials) =>
+    DigitalBrainUiClient.fromEnvironment(credentials: credentials);
+
+/// Stands between app start and the shell, prompting for credentials only when
+/// the kernel actually demands them.
+///
+/// An explicit 401 is the sole trigger for the login screen. An unreachable or
+/// ungated kernel falls through to the shell exactly as before, so local dev,
+/// Aspire runs, and the desktop build never see a prompt.
+final class BrainSessionGate extends StatefulWidget {
+  const BrainSessionGate({
+    super.key,
+    required this.builder,
+    this.createClient = _fromEnvironment,
+  });
+
+  final ShellBuilder builder;
+  final ClientFactory createClient;
+
+  @override
+  State<BrainSessionGate> createState() => _BrainSessionGateState();
+}
+
+enum _Phase { probing, login, ready, logoutFailed }
+
+final class _BrainSessionGateState extends State<BrainSessionGate> {
+  _Phase _phase = _Phase.probing;
+  DigitalBrainUiClient? _client;
+  String? _statusMessage;
+  String? _loginError;
+  List<SeededAccount> _seeded = const [];
+  String _lastUsername = '';
+
+  @override
+  void initState() {
+    super.initState();
+    final stored = store.readStoredCredentials();
+    _lastUsername = stored?.username ?? '';
+    unawaited(_attempt(stored, fromStartup: true));
+  }
+
+  /// Returns an error message when the credentials were rejected, else null.
+  Future<String?> _attempt(
+    BasicCredentials? credentials, {
+    bool fromStartup = false,
+  }) async {
+    final DigitalBrainUiClient client;
+    try {
+      client = widget.createClient(credentials);
+    } on Object catch (error) {
+      // No resolvable kernel URL: surface it in the shell as before.
+      debugPrint('DigitalBrain session failed: $error');
+      _enterShell(null, error.toString());
+      return null;
+    }
+
+    bool accepted;
+    try {
+      accepted = await client.checkAuth();
+    } on Object catch (error) {
+      // Unreachable kernel is not a credential failure. Let the shell open and
+      // report it, which is what it did before a gate existed.
+      debugPrint('DigitalBrain auth check failed: $error');
+      _enterShell(client, error.toString());
+      return null;
+    }
+
+    if (!accepted) {
+      client.close();
+      if (credentials != null) {
+        store.clearStoredCredentials();
+      }
+      if (mounted) {
+        setState(() {
+          _phase = _Phase.login;
+          _loginError = fromStartup && credentials == null
+              ? null
+              : 'Sign in failed. Check the username and password.';
+        });
+        unawaited(_loadSeeded());
+      }
+      return 'Sign in failed. Check the username and password.';
+    }
+
+    try {
+      await client.readSession();
+    } on Object {
+      client.close();
+      if (mounted) {
+        setState(() {
+          _phase = _Phase.login;
+          _loginError = 'Could not load your account. Please sign in again.';
+        });
+      }
+      return 'Could not load your account. Please sign in again.';
+    }
+    if (credentials != null) {
+      store.writeStoredCredentials(credentials);
+    }
+    _enterShell(client, null);
+    return null;
+  }
+
+  void _enterShell(DigitalBrainUiClient? client, String? statusMessage) {
+    if (!mounted) {
+      client?.close();
+      return;
+    }
+    setState(() {
+      _phase = _Phase.ready;
+      _client = client;
+      _statusMessage = statusMessage;
+    });
+  }
+
+  Future<String?> _signIn(
+    String username,
+    String password, {
+    bool register = false,
+  }) async {
+    _lastUsername = username;
+    final client = widget.createClient(null);
+    try {
+      await client.signIn(username, password, register: register);
+      store.clearStoredCredentials();
+      _enterShell(client, null);
+      return null;
+    } on Object {
+      client.close();
+      if (!register) {
+        // The bootstrap administrator can still use the configured Basic credential.
+        final basic = widget.createClient(
+          BasicCredentials(username: username, password: password),
+        );
+        try {
+          if (await basic.checkAuth()) {
+            // An open local server also answers true: only accept Basic if anonymous access is denied.
+            final anonymous = widget.createClient(null);
+            final gated = !(await anonymous.checkAuth());
+            anonymous.close();
+            if (gated) {
+              store.writeStoredCredentials(
+                BasicCredentials(username: username, password: password),
+              );
+              _enterShell(basic, null);
+              return null;
+            }
+          }
+        } on Object {
+          /* Show the same authentication error. */
+        }
+        basic.close();
+      }
+      return register
+          ? 'Account creation failed. Use a unique lowercase username and a password of at least 12 characters.'
+          : 'Sign in failed. Check the username and password.';
+    }
+  }
+
+  // Seeded accounts exist only on a development server; any failure simply hides them.
+  Future<void> _loadSeeded() async {
+    final client = widget.createClient(null);
+    try {
+      final accounts = await client.listSeededAccounts();
+      if (mounted) setState(() => _seeded = accounts);
+    } on Object {
+      if (mounted) setState(() => _seeded = const []);
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<String?> _continueAs(String username) async {
+    final client = widget.createClient(null);
+    try {
+      await client.signInSeeded(username);
+      store.clearStoredCredentials();
+      _enterShell(client, null);
+      return null;
+    } on Object {
+      client.close();
+      return 'Could not continue as $username.';
+    }
+  }
+
+  Future<void> _switchAccount() async {
+    final previous = _client;
+    setState(() {
+      _phase = _Phase.probing;
+      _client = null;
+    });
+    // Remove the shell and cancel its subscriptions before replacing the cookie.
+    await WidgetsBinding.instance.endOfFrame;
+    try {
+      await previous?.signOut();
+      store.clearStoredCredentials();
+      previous?.close();
+      if (mounted) {
+        setState(() {
+          _phase = _Phase.login;
+          _loginError = null;
+        });
+        unawaited(_loadSeeded());
+      }
+    } on Object {
+      if (mounted) {
+        setState(() {
+          _phase = _Phase.logoutFailed;
+          _client = previous;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _client?.close();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_phase == _Phase.ready) {
+      return widget.builder(_client, _statusMessage, _switchAccount);
+    }
+
+    return MaterialApp(
+      title: 'IntoChat',
+      debugShowCheckedModeBanner: false,
+      theme: UiTheme.dark(),
+      home: _phase == _Phase.logoutFailed
+          ? Scaffold(
+              body: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Could not end the session.'),
+                    TextButton(
+                      onPressed: _switchAccount,
+                      child: const Text('Retry sign out'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : _phase == _Phase.login
+          ? LoginScreen(
+              onSubmit: _signIn,
+              onRegister: (username, password) =>
+                  _signIn(username, password, register: true),
+              initialUsername: _lastUsername,
+              errorMessage: _loginError,
+              seededAccounts: _seeded,
+              onContinueAs: _continueAs,
+            )
+          : const ColoredBox(
+              color: UiPalette.surface,
+              child: Center(child: CircularProgressIndicator()),
+            ),
+    );
+  }
+}

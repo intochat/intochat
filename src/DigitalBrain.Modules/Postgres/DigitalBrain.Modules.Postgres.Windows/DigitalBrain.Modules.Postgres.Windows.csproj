@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>Shows Postgres platform and app tables in the workspace: Assistant tools, discovery and live table sources.</Description>
+    <RootNamespace>DigitalBrain.Modules.Postgres.Windows</RootNamespace>
+    <NoWarn>$(NoWarn);ORLEANSEXP005;CA1812</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../DigitalBrain.Modules.Postgres/DigitalBrain.Modules.Postgres.csproj" />
+    <ProjectReference Include="../../Supabase/DigitalBrain.Modules.Supabase/DigitalBrain.Modules.Supabase.csproj" />
+    <ProjectReference Include="../../DigitalBrain/Apps/DigitalBrain.Modules.Apps.Contracts/DigitalBrain.Modules.Apps.Contracts.csproj" />
+    <ProjectReference Include="../../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
+    <InternalsVisibleTo Include="DigitalBrain.Modules.Postgres.Windows.Tests" />
+  </ItemGroup>
+</Project>

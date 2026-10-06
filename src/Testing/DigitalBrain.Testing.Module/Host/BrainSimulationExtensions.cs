@@ -1,6 +1,5 @@
 using DigitalBrain;
-using DigitalBrain.Contracts;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using Orleans;
 
 namespace DigitalBrain.Testing.Module;
@@ -11,7 +10,7 @@ public static class BrainSimulationExtensions
 
     public static IClusterClient Cluster(this ModuleBrain brain) => (IClusterClient)Requires(brain).Grains;
 
-    public static IDigitalBrain Client(this ModuleBrain brain) => Requires(brain).Client;
+    public static IDigitalBrains Client(this ModuleBrain brain) => Requires(brain).Brains;
 
     public static Task DeactivateAsync(this ModuleBrain brain, INeuron neuron, CancellationToken cancellationToken = default)
         => Requires(brain).DeactivateAsync(neuron, cancellationToken);

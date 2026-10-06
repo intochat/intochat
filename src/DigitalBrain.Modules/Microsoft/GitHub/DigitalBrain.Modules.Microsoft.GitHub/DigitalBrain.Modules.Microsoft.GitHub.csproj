@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>GitHub repository and connection neurons.</Description>
+    <RootNamespace>DigitalBrain.Modules.Microsoft.GitHub</RootNamespace>
+    <NoWarn>$(NoWarn);ORLEANSEXP005</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="DigitalBrain.Modules.Microsoft.GitHub.Tests" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Octokit" />
+    <PackageReference Include="ModelContextProtocol.Core" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../DigitalBrain.Modules.Microsoft.GitHub.Contracts/DigitalBrain.Modules.Microsoft.GitHub.Contracts.csproj" />
+    <ProjectReference Include="../../../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
+  </ItemGroup>
+</Project>

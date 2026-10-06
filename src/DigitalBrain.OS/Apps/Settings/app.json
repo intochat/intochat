@@ -1,0 +1,17 @@
+{
+  "name": "settings",
+  "title": "Settings",
+  "description": "Workspace preferences: your display name and theme, edited on a settings surface.",
+  "version": "1.0.1",
+  "operations": [
+    {
+      "name": "open",
+      "description": "Compose the settings surface and answer the preferences."
+    },
+    {
+      "name": "read",
+      "description": "Answer the current preferences."
+    }
+  ],
+  "settings": []
+}

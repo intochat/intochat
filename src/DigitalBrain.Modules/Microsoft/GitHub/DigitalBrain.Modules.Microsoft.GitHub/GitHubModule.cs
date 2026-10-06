@@ -1,0 +1,40 @@
+using DigitalBrain;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Integrations;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Orleans.Hosting;
+
+namespace DigitalBrain.Microsoft.GitHub;
+
+public sealed class GitHubModule() : Module<GitHubModuleOptions>(new ModuleId("github"))
+{
+    public static IntegrationSchema Integration { get; } = IntegrationSchema.For("github", "GitHub")
+        .RequiresSecret("PrivateKeyPem")
+        .RequiresSetting("AppId")
+        .OffersSecret("ClientSecret")
+        .OffersSecret("WebhookSecret");
+    public static ConnectorDefinition Connector => new("github", "GitHub", ["app-installation", "oauth"], ["github"])
+    {
+        Neurons = [typeof(IRepository), typeof(IGitHubConnections)],
+        Signals = [typeof(Signals.RepositoryConnected), typeof(Signals.RepositoryRefused), typeof(Signals.RepositoryAccessRevoked), typeof(Signals.PullRequestChanged), typeof(Signals.GitHubConnectionRegistered)],
+    };
+
+    public override void Configure(ISiloBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        builder.Services.AddOptions<GitHubRepositoriesOptions>()
+            .Bind(builder.Configuration.GetSection(GitHubRepositoriesOptions.SectionName))
+            .Validate(options => { _ = options.CreateBindings(); return true; })
+            .ValidateOnStart();
+        builder.Services.AddSingleton(services =>
+            services.GetRequiredService<IOptions<GitHubRepositoriesOptions>>().Value.CreateBindings());
+        builder.Services.AddGitHubAuthentication(builder.Configuration);
+        builder.Services.AddSingleton<GitHubAppRegistration>();
+        builder.Services.AddSingleton<GitHubInstallationTokens>();
+        builder.Services.AddSingleton<IGitHubRepositorySource, GitHubRepositorySource>();
+        builder.Services.AddSingleton<GitHubSetupService>();
+        builder.Services.AddSingleton<GitHubWebhookIngress>();
+        builder.Services.AddSingleton<IHttpSurface, GitHubWebhookSurface>();
+    }
+}

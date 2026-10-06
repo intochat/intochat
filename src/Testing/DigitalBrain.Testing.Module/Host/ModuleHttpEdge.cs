@@ -1,10 +1,8 @@
-using DigitalBrain.Contracts;
-using DigitalBrain.Kernel;
-using DigitalBrain.Kernel.AspNetCore;
-using DigitalBrain.Kernel.Enforcement;
+using DigitalBrain;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Platform;
 using DigitalBrain.Platform.Identity;
-using DigitalBrain.Sdk;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -27,9 +25,9 @@ internal static class ModuleHttpEdge
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             [DigitalBrainNames.MasterKeyConfigurationKey] = masterKey,
-            ["DigitalBrain:Auth:Posture"] = "Open",
+            [Platform.Identity.Configuration.AuthOptions.PostureKey] = nameof(Platform.Identity.Configuration.IdentityPosture.Open),
         });
-        foreach (var definition in modules) { builder.Configuration.AddInMemoryCollection(definition.Configuration); }
+        foreach (var definition in modules) { builder.Configuration.AddInMemoryCollection(definition.Settings); }
         builder.Configuration.AddInMemoryCollection(options.Execution.PrivateConfiguration);
         builder.WebHost.UseUrls("http://127.0.0.1:0");
 
@@ -38,6 +36,7 @@ internal static class ModuleHttpEdge
         // silo's own factory and brain client.
         var silo = brain.SiloServices;
         builder.Services.AddSingleton(silo.GetRequiredService<IDigitalBrain>());
+        builder.Services.AddSingleton(silo.GetRequiredService<IDigitalBrains>());
         builder.Services.AddSingleton(silo.GetRequiredService<IGrainFactory>());
         foreach (var surface in silo.GetServices<IHttpSurface>()) { builder.Services.AddSingleton(surface); }
         builder.Services.AddIdentity();
@@ -61,7 +60,7 @@ internal static class ModuleHttpEdge
         app.UsePlatformHttp();
         foreach (var definition in modules)
         {
-            if (definition.CreateModule() is IHttpModule http) { http.Configure(app); }
+            if (definition.Module is IHttpModule http) { http.Configure(app); }
         }
         app.MapDigitalBrainPlatform();
         await app.StartAsync(cancellationToken);

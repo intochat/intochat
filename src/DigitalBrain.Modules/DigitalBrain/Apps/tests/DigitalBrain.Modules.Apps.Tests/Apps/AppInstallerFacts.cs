@@ -1,0 +1,214 @@
+using DigitalBrain.Modules.Apps.Tests;
+using DigitalBrain.Testing.Module;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace DigitalBrain.Apps.Tests.Apps;
+
+// Install copies a published version into the caller's brain and remembers where it came from;
+// Update replaces the program and keeps what the person chose, until the person edits it.
+public sealed class AppInstallerFacts
+{
+    private const string Spec = "## Scenario: Echoes\nIt echoes.";
+    private static readonly CancellationToken Ct = TestContext.Current.CancellationToken;
+
+    private static AppManifest Manifest() =>
+        new("Echo", "echoes", [new("ask", "ask it")], [new("Text", "what to say", "hi")], [new("gmail", "gmail")]);
+
+    private static Task<ModuleBrain> Start() => ModuleTest.Create().WithModule<AppsModule>().StartAsync(Ct);
+
+    private static AppInstaller Installer(ModuleBrain brain) => brain.SiloServices.GetRequiredService<AppInstaller>();
+
+    private static IApp Mine(ModuleBrain brain, string principal, string name = "echo") => brain.Get<IApp>(IApp.Key(Owner.Scope(principal), name));
+
+    private static async Task<IApp> Published(ModuleBrain brain, string publisher = "intochat")
+    {
+        Caller.Clear();
+        var app = Mine(brain, publisher);
+        await app.Create(Manifest(), Spec);
+        await app.BeginBuild(null);
+        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["synapses/echo.cs"] = "// v1" }, null);
+        await app.RecordVerdicts([new("Echoes", true, "ok")], green: true);
+        Owner.Stamp(publisher);
+        await app.Publish();
+        Caller.Clear();
+        return app;
+    }
+
+    private static async Task<string> PublishNewVersion(IApp app, string publisher = "intochat")
+    {
+        Caller.Clear();
+        await app.WriteBehavior("synapses/echo.cs", "// v2", Guid.NewGuid());
+        await app.RecordVerdicts([new("Echoes", true, "ok")], green: true);
+        Owner.Stamp(publisher);
+        var version = (await app.Publish()).Version;
+        Caller.Clear();
+        return version;
+    }
+
+    [Fact]
+    public async Task InstallCopiesThePublishedVersionLiveWithDefaultSettingsAndRecordsItsOrigin()
+    {
+        await using var brain = await Start();
+        var source = await Published(brain);
+        await source.Configure(new() { ["Text"] = "publisher's own" }, new() { ["gmail"] = "publisher-gmail" });
+
+        Owner.Stamp("alice");
+        var installed = await Installer(brain).Install("intochat", "echo", Ct);
+        Caller.Clear();
+
+        Assert.Equal(AppStatus.Live, installed.Status);
+        Assert.Equal((await source.ExportPublished()).Version, installed.Version);
+        Assert.Equal("hi", installed.Settings["Text"]);
+        Assert.Empty(installed.Connections);
+        Assert.Equal(new AppOrigin("account-intochat", "intochat", "intochat", "echo", installed.Version), installed.Origin);
+        Assert.False(installed.Edited);
+        Assert.Equal(installed.Version, (await Mine(brain, "alice").Read()).Version);
+    }
+
+    [Fact]
+    public async Task InstallingAnAppNotInTheMarketplaceIsNotFound()
+    {
+        await using var brain = await Start();
+        Owner.Stamp("alice");
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => Installer(brain).Install("intochat", "echo", Ct));
+        Caller.Clear();
+    }
+
+    [Fact]
+    public async Task InstallingOverAnAppOfTheSameNameIsRefusedAndLeavesItUntouched()
+    {
+        await using var brain = await Start();
+        await Published(brain);
+        var own = Mine(brain, "alice");
+        await own.Create(Manifest() with { Title = "Alice's echo" }, Spec);
+
+        Owner.Stamp("alice");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Installer(brain).Install("intochat", "echo", Ct));
+        Caller.Clear();
+        var after = await own.Read();
+        Assert.Equal("Alice's echo", after.Manifest.Title);
+        Assert.Null(after.Origin);
+    }
+
+    [Fact]
+    public async Task InstallingYourOwnPublishedAppIsRefused()
+    {
+        await using var brain = await Start();
+        await Published(brain);
+        Owner.Stamp("intochat");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Installer(brain).Install("intochat", "echo", Ct));
+        Caller.Clear();
+    }
+
+    [Fact]
+    public async Task UpdateReplacesTheProgramAndKeepsSettingsAndConnections()
+    {
+        await using var brain = await Start();
+        var source = await Published(brain);
+        Owner.Stamp("alice");
+        await Installer(brain).Install("intochat", "echo", Ct);
+        await Mine(brain, "alice").Configure(new() { ["Text"] = "alice's words" }, new() { ["gmail"] = "alice-gmail" });
+        var next = await PublishNewVersion(source);
+
+        Owner.Stamp("alice");
+        var updated = await Installer(brain).Update("echo", Ct);
+        Caller.Clear();
+
+        Assert.Equal(next, updated.Version);
+        Assert.Equal("// v2", updated.Files["synapses/echo.cs"]);
+        Assert.Equal("alice's words", updated.Settings["Text"]);
+        Assert.Equal("alice-gmail", updated.Connections["gmail"]);
+        Assert.Equal(next, updated.Origin!.Version);
+        Assert.False(updated.Edited);
+    }
+
+    [Fact]
+    public async Task AnEditedCopyRefusesUpdates()
+    {
+        await using var brain = await Start();
+        var source = await Published(brain);
+        Owner.Stamp("alice");
+        await Installer(brain).Install("intochat", "echo", Ct);
+        Caller.Clear();
+        await Mine(brain, "alice").WriteFile("notes.md", "mine now", Guid.NewGuid());
+        await PublishNewVersion(source);
+
+        Owner.Stamp("alice");
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => Installer(brain).Update("echo", Ct));
+        Caller.Clear();
+        Assert.Contains("edits", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task UpdatingWithNothingNewerIsANoOp()
+    {
+        await using var brain = await Start();
+        await Published(brain);
+        Owner.Stamp("alice");
+        var installed = await Installer(brain).Install("intochat", "echo", Ct);
+        var again = await Installer(brain).Update("echo", Ct);
+        Caller.Clear();
+        Assert.Equal(installed.Version, again.Version);
+        Assert.Equal(installed.Versions.Length, again.Versions.Length);
+    }
+
+    [Fact]
+    public async Task UpdatingAnAppThatWasNotInstalledIsRefused()
+    {
+        await using var brain = await Start();
+        await Mine(brain, "alice").Create(Manifest(), Spec);
+        Owner.Stamp("alice");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Installer(brain).Update("echo", Ct));
+        Caller.Clear();
+    }
+
+    [Fact]
+    public async Task AnEntryShowsInstalledAndAnUpdateOnlyForAnUneditedOlderCopy()
+    {
+        await using var brain = await Start();
+        var source = await Published(brain);
+        var marketplace = brain.Get<IMarketplace>(IMarketplace.Key);
+
+        Owner.Stamp("alice");
+        var before = await Installer(brain).Entry((await marketplace.Read("intochat", "echo"))!, Ct);
+        Assert.False(before.Installed);
+        Assert.False(before.UpdateAvailable);
+
+        await Installer(brain).Install("intochat", "echo", Ct);
+        var current = await Installer(brain).Entry((await marketplace.Read("intochat", "echo"))!, Ct);
+        Assert.True(current.Installed);
+        Assert.False(current.UpdateAvailable);
+
+        await PublishNewVersion(source);
+        Owner.Stamp("alice");
+        Assert.True((await Installer(brain).Entry((await marketplace.Read("intochat", "echo"))!, Ct)).UpdateAvailable);
+
+        Caller.Clear();
+        await Mine(brain, "alice").WriteFile("notes.md", "mine now", Guid.NewGuid());
+        Owner.Stamp("alice");
+        var edited = await Installer(brain).Entry((await marketplace.Read("intochat", "echo"))!, Ct);
+        Assert.True(edited.Installed);
+        Assert.False(edited.UpdateAvailable);
+
+        // The publisher sees its own listing as installed: the app is theirs.
+        Owner.Stamp("intochat");
+        Assert.True((await Installer(brain).Entry((await marketplace.Read("intochat", "echo"))!, Ct)).Installed);
+        Caller.Clear();
+    }
+
+    [Fact]
+    public async Task AnInstalledCopyKeepsWorkingAfterThePublisherDeletesTheApp()
+    {
+        await using var brain = await Start();
+        var source = await Published(brain);
+        Owner.Stamp("alice");
+        await Installer(brain).Install("intochat", "echo", Ct);
+        Caller.Clear();
+        await source.Delete();
+
+        Assert.Equal(AppStatus.Live, (await Mine(brain, "alice").Read()).Status);
+        Owner.Stamp("alice");
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => Installer(brain).Update("echo", Ct));
+        Caller.Clear();
+    }
+}

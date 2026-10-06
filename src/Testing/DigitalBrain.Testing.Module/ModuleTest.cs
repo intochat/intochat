@@ -1,8 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Client;
 using DigitalBrain.Client.Orleans;
-using DigitalBrain.Contracts;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 using DigitalBrain.Platform;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,7 +16,7 @@ public static class ModuleTest
     public static ModuleTestBuilder Create() => new();
     internal static async Task<ModuleBrain> StartAsync(ModuleOptions? options = null, CancellationToken cancellationToken = default)
     {
-        Orleans.Runtime.RequestContext.Remove(DigitalBrain.Kernel.Enforcement.CallerContextStamper.RequestContextKey);
+        Orleans.Runtime.RequestContext.Remove(DigitalBrain.Framework.Enforcement.CallerContextStamper.RequestContextKey);
         options ??= new();
         options.Execution.Validate();
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -38,11 +37,12 @@ public static class ModuleTest
             host.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 [DigitalBrainNames.MasterKeyConfigurationKey] = masterKey,
-                ["DigitalBrain:Auth:Posture"] = "Open",
+                [DigitalBrain.Framework.Platform.Integrations.IntegrationSchema.Key("csharp", "RunTokenKey")] = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)),
+                [Platform.Identity.Configuration.AuthOptions.PostureKey] = nameof(Platform.Identity.Configuration.IdentityPosture.Open),
             });
             foreach (var definition in modules)
             {
-                host.Configuration.AddInMemoryCollection(definition.Configuration);
+                host.Configuration.AddInMemoryCollection(definition.Settings);
             }
             host.Configuration.AddInMemoryCollection(options.Execution.PrivateConfiguration);
         });

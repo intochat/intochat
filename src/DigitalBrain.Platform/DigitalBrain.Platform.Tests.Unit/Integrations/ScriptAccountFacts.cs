@@ -1,0 +1,37 @@
+using DigitalBrain;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Integrations;
+using DigitalBrain.Testing.Module;
+using Orleans.Hosting;
+using Xunit;
+
+namespace DigitalBrain.Platform.Tests.Unit.Integrations;
+
+public sealed class ScriptAccountFacts
+{
+    [Fact]
+    public async Task RequestingAKnownKindReturnsAnOpaqueRefAndAnUnknownKindIsRejected()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<PostgresKindModule>().StartAsync(ct);
+        var accounts = brain.Get<IConnectionRequests>("brain-1");
+
+        var kind = Assert.Single(await accounts.ListKinds());
+        Assert.Equal("postgres", kind.Id);
+        Assert.Equal("Postgres", kind.DisplayName);
+        var account = await accounts.Request("postgres");
+        Assert.Equal("postgres", account.Kind);
+        Assert.False(string.IsNullOrWhiteSpace(account.Id));
+        Assert.Equal(account, Assert.Single(await accounts.ListPending()));
+        await Assert.ThrowsAsync<ArgumentException>(() => accounts.Request("missing"));
+    }
+
+    public sealed class PostgresKindModule() : Module(new ModuleId(nameof(PostgresKindModule)))
+    {
+        public static IntegrationSchema Integration { get; } = IntegrationSchema.For("postgres", "Postgres");
+        public static ConnectorDefinition Connector => new("postgres", "Postgres", ["connection-string"], []);
+
+        public override void Configure(ISiloBuilder silo) { }
+    }
+}

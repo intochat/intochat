@@ -47,7 +47,7 @@ jobs:
         env:
           ContainerImageTags: ${{ github.event.release.tag_name }};latest
         run: |
-          dotnet publish src/DigitalBrain/OS/DigitalBrain.OS.Host/DigitalBrain.OS.Host.csproj \
+          dotnet publish src/DigitalBrain/OS/DigitalBrain.OS/DigitalBrain.OS.csproj \
             -c Release -r linux-x64 /t:PublishContainer \
             -p:PublishProfile=Container \
             -p:EnableSdkContainerSupport=true \
@@ -148,7 +148,7 @@ jobs:
       url: https://purple-sky-0f80f110f.7.azurestaticapps.net/
     defaults:
       run:
-        working-directory: src/Modules/Google/Flutter/app/shell
+        working-directory: src/DigitalBrain.Modules/Google/Flutter/app/shell
     steps:
       - uses: actions/checkout@v7
 
@@ -159,11 +159,11 @@ jobs:
           cache: true
 
       - name: Resolve Flutter workspace
-        working-directory: src/Modules/Google/Flutter/app
+        working-directory: src/DigitalBrain.Modules/Google/Flutter/app
         run: flutter pub get --enforce-lockfile
 
       - name: Dart format
-        working-directory: src/Modules/Google/Flutter/app
+        working-directory: src/DigitalBrain.Modules/Google/Flutter/app
         run: dart format --output=none --set-exit-if-changed core ui shell
 
       - name: Web release build
@@ -178,7 +178,7 @@ jobs:
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
           action: upload
-          app_location: src/Modules/Google/Flutter/app/shell/build/web
+          app_location: src/DigitalBrain.Modules/Google/Flutter/app/shell/build/web
           api_location: ''
           output_location: ''
           skip_app_build: true

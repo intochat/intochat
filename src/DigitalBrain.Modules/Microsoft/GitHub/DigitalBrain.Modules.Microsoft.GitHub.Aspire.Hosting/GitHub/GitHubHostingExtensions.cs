@@ -1,0 +1,115 @@
+using Aspire.Hosting;
+using Aspire.Hosting.ApplicationModel;
+using DigitalBrain;
+using DigitalBrain.Aspire.Hosting;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Integrations;
+
+namespace DigitalBrain.Microsoft.GitHub;
+
+public static class GitHubHostingExtensions
+{
+    public static DigitalBrainModuleBuilder<DigitalBrain.Microsoft.GitHub.GitHubModuleHosting> WithGitHubRepository(
+        this DigitalBrainModuleBuilder<DigitalBrain.Microsoft.GitHub.GitHubModuleHosting> module, Action<GitHubRepositoryHostingOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(module);
+        ArgumentNullException.ThrowIfNull(configure);
+        var options = new GitHubRepositoryHostingOptions();
+        configure(options);
+        return module.WithGitHubRepository(options.BindingId, options.AppId, options.InstallationId, options.RepositoryId,
+            options.RepoOwner, options.RepoName, options.EndpointId, options.ApiHost, options.McpEndpoint);
+    }
+
+    public static DigitalBrainModuleBuilder<DigitalBrain.Microsoft.GitHub.GitHubModuleHosting> WithGitHubRepository(
+        this DigitalBrainModuleBuilder<DigitalBrain.Microsoft.GitHub.GitHubModuleHosting> module,
+        string bindingId, long appId, long installationId,
+        long repositoryId, string repositoryOwner, string repositoryName,
+        string? endpointId = null, Uri? apiHost = null, Uri? mcpEndpoint = null)
+    {
+        ArgumentNullException.ThrowIfNull(module);
+        ArgumentException.ThrowIfNullOrWhiteSpace(bindingId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(repositoryOwner);
+        ArgumentException.ThrowIfNullOrWhiteSpace(repositoryName);
+        if (appId < 1 || installationId < 1 || repositoryId < 1)
+        {
+            throw new ArgumentException("A GitHub App, installation and numeric repository identity are required.");
+        }
+        if (bindingId.Length > 80 || bindingId.Any(static character => !char.IsAsciiLetterOrDigit(character) && character != '-'))
+        {
+            throw new ArgumentException("The GitHub hosting binding must use at most 80 letters, digits or hyphens.", nameof(bindingId));
+        }
+        var state = module.GetOrAddProjection(static _ => new GitHubHostingState());
+        state.Add(bindingId, endpointId ?? bindingId, new GitHubProjection(module.DigitalBrainBuilder, bindingId, appId,
+            installationId, repositoryId, repositoryOwner, repositoryName, endpointId ?? bindingId, apiHost, mcpEndpoint));
+        return module;
+    }
+
+    private sealed class GitHubHostingState : DigitalBrainModuleProjection
+    {
+        private readonly Dictionary<string, GitHubProjection> _repositories = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _endpoints = new(StringComparer.Ordinal);
+
+        internal void Add(string id, string endpoint, GitHubProjection projection)
+        {
+            if (_repositories.Count >= 32 || _repositories.ContainsKey(id) || !_endpoints.Add(endpoint))
+            {
+                throw new InvalidOperationException("Configure at most 32 GitHub repositories with unique binding and endpoint identities.");
+            }
+            projection.SeedsIntegration = _repositories.Count == 0;
+            _repositories.Add(id, projection);
+        }
+
+        public override void Apply<TResource>(IResourceBuilder<TResource> builder)
+        {
+            foreach (var projection in _repositories.Values)
+            {
+                projection.Apply(builder);
+            }
+        }
+    }
+
+    private sealed class GitHubProjection(DigitalBrainBuilder brain, string id,
+        long appId, long installationId, long repositoryId, string repoOwner, string repoName,
+        string endpointId, Uri? apiHost, Uri? mcpEndpoint) : DigitalBrainModuleProjection
+    {
+        private IResourceBuilder<ParameterResource>? _privateKey;
+        private IResourceBuilder<ParameterResource>? _webhookSecret;
+
+        internal bool SeedsIntegration { get; set; }
+
+        public override void Apply<TResource>(IResourceBuilder<TResource> builder)
+        {
+            var microsoft = brain.GetOrAddModuleNode("github");
+            _privateKey ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName($"github-{id}-app-private-key"), secret: true)
+                .WithDescription("PEM private key for the configured GitHub App. Only the host receives this secret.")
+                .WithParentRelationship(microsoft);
+            _webhookSecret ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName($"github-{id}-webhook-secret"), secret: true)
+                .WithDescription("GitHub webhook HMAC secret (at least 16 characters). Forward only /integrations/github/webhook through HTTPS.")
+                .WithParentRelationship(microsoft);
+            var root = $"{GitHubModuleOptions.RepositoriesSectionName}:{id}";
+            builder
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "AppId"), appId.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "InstallationId"), installationId.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "RepositoryId"), repositoryId.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "RepoOwner"), repoOwner)
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "RepoName"), repoName)
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "EndpointId"), endpointId);
+            if (SeedsIntegration)
+            {
+                const string integrationRoot = IntegrationSchema.SectionName + ":github";
+                builder
+                    .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(integrationRoot, "AppId"), appId.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                    .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(integrationRoot, "PrivateKeyPem"), _privateKey)
+                    .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(integrationRoot, "WebhookSecret"), _webhookSecret);
+            }
+            if (apiHost is not null)
+            {
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "ApiHost"), apiHost.AbsoluteUri);
+            }
+            if (mcpEndpoint is not null)
+            {
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "McpEndpoint"), mcpEndpoint.AbsoluteUri);
+            }
+        }
+    }
+}

@@ -1,0 +1,21 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+
+namespace DigitalBrain.Apps;
+
+// Runs builder and verify jobs off the request path. The process is a cache: every job's
+// durable state (Building status, activity, verdicts) lives on the app neuron, so a lost
+// job costs one re-trigger, never data.
+internal sealed class AppWorkQueue(IServiceScopeFactory scopes, ILogger<AppWorkQueue> log)
+{
+    public void Enqueue(string job, Func<IServiceProvider, CancellationToken, Task> work)
+        => _ = Run(job, work);
+
+    private async Task Run(string job, Func<IServiceProvider, CancellationToken, Task> work)
+    {
+        await Task.Yield();
+        using var scope = scopes.CreateScope();
+        try { await work(scope.ServiceProvider, CancellationToken.None); }
+        catch (Exception error) { log.LogError(error, "App background job {Job} failed", job); }
+    }
+}

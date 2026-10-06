@@ -1,0 +1,18 @@
+[
+  "src/Aspire/DigitalBrain.Aspire.Hosting/DigitalBrainHostingOptions.cs",
+  "src/Aspire/DigitalBrain.Aspire.Server/ServerHostingExtensions.cs",
+  "src/Aspire/DigitalBrain.ServiceDefaults/Configuration/ServiceTelemetryOptions.cs",
+  "src/DigitalBrain/AppHost/DigitalBrain.AppHost/AppHost.cs",
+  "src/DigitalBrain/Deployment/DigitalBrain.Deployment/DigitalBrainDeployment.cs",
+  "src/DigitalBrain/DigitalBrain/DigitalBrainConfiguration.cs",
+  "src/DigitalBrain/DigitalBrain/DigitalBrainNames.cs",
+  "src/DigitalBrain/DigitalBrain/Edge/V1/ScriptEdgeProtocol.cs",
+  "src/DigitalBrain/Framework/DigitalBrain.Framework/Composition/ModuleSettingsValidation.cs",
+  "src/DigitalBrain/Framework/tests/DigitalBrain.Framework.Tests.Unit/ModuleIdFacts.cs",
+  "src/DigitalBrain/Framework/DigitalBrain.Framework/Platform/Identity/AuthOptions.cs",
+  "src/DigitalBrain/Framework/DigitalBrain.Framework/Platform/Identity/IdentityHostOptions.cs",
+  "src/DigitalBrain/Framework/DigitalBrain.Framework/Platform/Identity/KernelCorsOptions.cs",
+  "src/DigitalBrain/Framework/DigitalBrain.Framework/Platform/Integrations/IntegrationSchema.cs",
+  "src/DigitalBrain.Modules/AI/tests/DigitalBrain.Modules.AI.Tests/AIGrammarFacts.cs",
+  "src/DigitalBrain.Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Aspire.Hosting/ShellNames.cs"
+]

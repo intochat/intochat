@@ -1,238 +1,191 @@
 <Solution>
   <Folder Name="/Aspire/">
-    <Project Path="src/Aspire/DigitalBrain.Aspire.Client/DigitalBrain.Aspire.Client.csproj" />
-    <Project Path="src/Aspire/DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" />
-    <Project Path="src/Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />
+    <Project Path="src/DigitalBrain.Aspire/DigitalBrain.Aspire.Client/DigitalBrain.Aspire.Client.csproj" />
+    <Project Path="src/DigitalBrain.Aspire/DigitalBrain.Aspire.Hosting.Tests.E2E/DigitalBrain.Aspire.Hosting.Tests.E2E.csproj" />
+    <Project Path="src/DigitalBrain.Aspire/DigitalBrain.Aspire.Hosting.Tests.Unit/DigitalBrain.Aspire.Hosting.Tests.Unit.csproj" />
+    <Project Path="src/DigitalBrain.Aspire/DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" />
+    <Project Path="src/DigitalBrain.Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />
+    <Project Path="src/DigitalBrain.Aspire/DigitalBrain.ServiceDefaults/DigitalBrain.ServiceDefaults.csproj" />
   </Folder>
-  <Folder Name="/Aspire/tests/">
-    <Project Path="src/Aspire/tests/DigitalBrain.Aspire.Hosting.Tests.E2E/DigitalBrain.Aspire.Hosting.Tests.E2E.csproj" />
-    <Project Path="src/Aspire/tests/DigitalBrain.Aspire.Hosting.Tests.Unit/DigitalBrain.Aspire.Hosting.Tests.Unit.csproj" />
+  <Folder Name="/Client/">
+    <Project Path="src/DigitalBrain.Client/DigitalBrain.Client.Orleans/DigitalBrain.Client.Orleans.csproj" />
+    <Project Path="src/DigitalBrain.Client/DigitalBrain.Client/DigitalBrain.Client.csproj" />
+    <Project Path="src/DigitalBrain.Client/DigitalBrain.Client.Orleans.Tests.Unit/DigitalBrain.Client.Orleans.Tests.Unit.csproj" />
+    <Project Path="src/DigitalBrain.Client/DigitalBrain.Client.Tests.Unit/DigitalBrain.Client.Tests.Unit.csproj" />
   </Folder>
-  <Folder Name="/DigitalBrain/">
-    <Project Path="src/DigitalBrain/DigitalBrain.Contracts/DigitalBrain.Contracts.csproj" />
-    <Project Path="src/DigitalBrain/DigitalBrain/DigitalBrain.csproj" />
+  <Folder Name="/Deployment/">
+    <Project Path="src/DigitalBrain.Deployment/DigitalBrain.Deployment/DigitalBrain.Deployment.csproj" />
+    <Project Path="src/DigitalBrain.Deployment/DigitalBrain.Deployment.Tests/DigitalBrain.Deployment.Tests.csproj" />
   </Folder>
-  <Folder Name="/DigitalBrain/Client/">
-    <Project Path="src/DigitalBrain/Client/DigitalBrain.Client.Orleans/DigitalBrain.Client.Orleans.csproj" />
-    <Project Path="src/DigitalBrain/Client/DigitalBrain.Client/DigitalBrain.Client.csproj" />
+  <Folder Name="/Framework/">
+    <Project Path="src/DigitalBrain.Framework/DigitalBrain.Framework.Tests.E2E/DigitalBrain.Framework.Tests.E2E.csproj" />
+    <Project Path="src/DigitalBrain.Framework/DigitalBrain.Framework.Tests.Unit/DigitalBrain.Framework.Tests.Unit.csproj" />
+    <Project Path="src/DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
   </Folder>
-  <Folder Name="/DigitalBrain/Client/tests/">
-    <Project Path="src/DigitalBrain/Client/tests/DigitalBrain.Client.Orleans.Tests.Unit/DigitalBrain.Client.Orleans.Tests.Unit.csproj" />
-    <Project Path="src/DigitalBrain/Client/tests/DigitalBrain.Client.Tests.Unit/DigitalBrain.Client.Tests.Unit.csproj" />
+  <Folder Name="/Mcp/">
+    <Project Path="src/DigitalBrain.Mcp/DigitalBrain.Mcp.Tests.Unit/DigitalBrain.Mcp.Tests.Unit.csproj" />
+    <Project Path="src/DigitalBrain.Mcp/DigitalBrain.Mcp/DigitalBrain.Mcp.csproj" />
   </Folder>
-  <Folder Name="/DigitalBrain/Deployment/">
-    <Project Path="src/DigitalBrain/Deployment/DigitalBrain.Deployment/DigitalBrain.Deployment.csproj" />
-  </Folder>
-  <Folder Name="/DigitalBrain/Deployment/tests/">
-    <Project Path="src/DigitalBrain/Deployment/tests/DigitalBrain.Deployment.Tests/DigitalBrain.Deployment.Tests.csproj" />
-  </Folder>
-  <Folder Name="/DigitalBrain/Kernel/">
-    <Project Path="src/DigitalBrain/Kernel/DigitalBrain.Kernel.AspNetCore/DigitalBrain.Kernel.AspNetCore.csproj" />
-    <Project Path="src/DigitalBrain/Kernel/DigitalBrain.Kernel/DigitalBrain.Kernel.csproj" />
-  </Folder>
-  <Folder Name="/DigitalBrain/Kernel/tests/">
-    <Project Path="src/DigitalBrain/Kernel/tests/DigitalBrain.Kernel.Tests.E2E/DigitalBrain.Kernel.Tests.E2E.csproj" />
-    <Project Path="src/DigitalBrain/Kernel/tests/DigitalBrain.Kernel.Tests.Unit/DigitalBrain.Kernel.Tests.Unit.csproj" />
-  </Folder>
-  <Folder Name="/DigitalBrain/Mcp/">
-    <Project Path="src/DigitalBrain/Mcp/DigitalBrain.Mcp/DigitalBrain.Mcp.csproj" />
-  </Folder>
-  <Folder Name="/DigitalBrain/Mcp/tests/">
-    <Project Path="src/DigitalBrain/Mcp/tests/DigitalBrain.Mcp.Tests.Unit/DigitalBrain.Mcp.Tests.Unit.csproj" />
-  </Folder>
-  <Folder Name="/DigitalBrain/OS/">
-    <Project Path="src/DigitalBrain/OS/DigitalBrain.OS/DigitalBrain.OS.csproj" />
-    <Project Path="src/DigitalBrain/OS/DigitalBrain.OS.Host/DigitalBrain.OS.Host.csproj" />
-  </Folder>
-  <Folder Name="/DigitalBrain/OS/tests/">
-    <Project Path="src/DigitalBrain/OS/tests/DigitalBrain.OS.Tests.E2E/DigitalBrain.OS.Tests.E2E.csproj" />
-    <Project Path="src/DigitalBrain/OS/tests/DigitalBrain.OS.Tests.Unit/DigitalBrain.OS.Tests.Unit.csproj" />
-  </Folder>
-  <Folder Name="/DigitalBrain/Platform/">
-    <Project Path="src/DigitalBrain/Platform/DigitalBrain.Platform.Contracts/DigitalBrain.Platform.Contracts.csproj" />
-    <Project Path="src/DigitalBrain/Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
-  </Folder>
-  <Folder Name="/DigitalBrain/Platform/tests/">
-    <Project Path="src/DigitalBrain/Platform/tests/DigitalBrain.Platform.Tests.E2E/DigitalBrain.Platform.Tests.E2E.csproj" />
-    <Project Path="src/DigitalBrain/Platform/tests/DigitalBrain.Platform.Tests.Unit/DigitalBrain.Platform.Tests.Unit.csproj" />
-  </Folder>
-  <Folder Name="/DigitalBrain/Sdk/">
-    <Project Path="src/DigitalBrain/Sdk/DigitalBrain.Sdk/DigitalBrain.Sdk.csproj" />
-  </Folder>
-  <Folder Name="/DigitalBrain/Sdk/tests/">
-    <Project Path="src/DigitalBrain/Sdk/tests/DigitalBrain.Sdk.Tests.Unit/DigitalBrain.Sdk.Tests.Unit.csproj" />
-  </Folder>
-  <Folder Name="/IntoChat/">
-    <Project Path="src/IntoChat/IntoChat.AppHost/IntoChat.AppHost.csproj" />
-    <Project Path="src/IntoChat/IntoChat.ServiceDefaults/IntoChat.ServiceDefaults.csproj" />
-    <Project Path="src/IntoChat/IntoChat.Apps/IntoChat.Apps.csproj" />
-  </Folder>
-  <Folder Name="/IntoChat/tests/">
-    <Project Path="src/IntoChat/tests/IntoChat.Tests.E2E/IntoChat.Tests.E2E.csproj" />
-    <Project Path="src/IntoChat/tests/IntoChat.Tests.Unit/IntoChat.Tests.Unit.csproj" />
-  </Folder>
+  <Folder Name="/Modules/" />
   <Folder Name="/Modules/AI/">
-    <Project Path="src/Modules/AI/DigitalBrain.Modules.AI.Aspire.Hosting/DigitalBrain.Modules.AI.Aspire.Hosting.csproj" />
-    <Project Path="src/Modules/AI/DigitalBrain.Modules.AI.Contracts/DigitalBrain.Modules.AI.Contracts.csproj" />
-    <Project Path="src/Modules/AI/DigitalBrain.Modules.AI.Deployment/DigitalBrain.Modules.AI.Deployment.csproj" />
-    <Project Path="src/Modules/AI/DigitalBrain.Modules.AI/DigitalBrain.Modules.AI.csproj" />
+    <Project Path="src/DigitalBrain.Modules/AI/DigitalBrain.Modules.AI.Aspire.Hosting/DigitalBrain.Modules.AI.Aspire.Hosting.csproj" />
+    <Project Path="src/DigitalBrain.Modules/AI/DigitalBrain.Modules.AI.Contracts/DigitalBrain.Modules.AI.Contracts.csproj" />
+    <Project Path="src/DigitalBrain.Modules/AI/DigitalBrain.Modules.AI.Deployment/DigitalBrain.Modules.AI.Deployment.csproj" />
+    <Project Path="src/DigitalBrain.Modules/AI/DigitalBrain.Modules.AI/DigitalBrain.Modules.AI.csproj" />
   </Folder>
   <Folder Name="/Modules/AI/tests/">
-    <Project Path="src/Modules/AI/tests/DigitalBrain.Modules.AI.Tests/DigitalBrain.Modules.AI.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/AI/tests/DigitalBrain.Modules.AI.Tests/DigitalBrain.Modules.AI.Tests.csproj" />
   </Folder>
   <Folder Name="/Modules/ClickHouse/">
-    <Project Path="src/Modules/ClickHouse/DigitalBrain.Modules.ClickHouse.Aspire.Hosting/DigitalBrain.Modules.ClickHouse.Aspire.Hosting.csproj" />
-    <Project Path="src/Modules/ClickHouse/DigitalBrain.Modules.ClickHouse.Contracts/DigitalBrain.Modules.ClickHouse.Contracts.csproj" />
-    <Project Path="src/Modules/ClickHouse/DigitalBrain.Modules.ClickHouse.Deployment/DigitalBrain.Modules.ClickHouse.Deployment.csproj" />
-    <Project Path="src/Modules/ClickHouse/DigitalBrain.Modules.ClickHouse/DigitalBrain.Modules.ClickHouse.csproj" />
+    <Project Path="src/DigitalBrain.Modules/ClickHouse/DigitalBrain.Modules.ClickHouse.Aspire.Hosting/DigitalBrain.Modules.ClickHouse.Aspire.Hosting.csproj" />
+    <Project Path="src/DigitalBrain.Modules/ClickHouse/DigitalBrain.Modules.ClickHouse.Contracts/DigitalBrain.Modules.ClickHouse.Contracts.csproj" />
+    <Project Path="src/DigitalBrain.Modules/ClickHouse/DigitalBrain.Modules.ClickHouse.Deployment/DigitalBrain.Modules.ClickHouse.Deployment.csproj" />
+    <Project Path="src/DigitalBrain.Modules/ClickHouse/DigitalBrain.Modules.ClickHouse/DigitalBrain.Modules.ClickHouse.csproj" />
   </Folder>
   <Folder Name="/Modules/ClickHouse/tests/">
-    <Project Path="src/Modules/ClickHouse/tests/DigitalBrain.Modules.ClickHouse.Tests/DigitalBrain.Modules.ClickHouse.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/ClickHouse/tests/DigitalBrain.Modules.ClickHouse.Tests/DigitalBrain.Modules.ClickHouse.Tests.csproj" />
   </Folder>
+  <Folder Name="/Modules/DigitalBrain/" />
   <Folder Name="/Modules/DigitalBrain/Apps/">
-    <Project Path="src/Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps.Contracts/DigitalBrain.Modules.Apps.Contracts.csproj" />
-    <Project Path="src/Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps.Testing/DigitalBrain.Modules.Apps.Testing.csproj" />
-    <Project Path="src/Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps/DigitalBrain.Modules.Apps.csproj" />
+    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps.Contracts/DigitalBrain.Modules.Apps.Contracts.csproj" />
+    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps/DigitalBrain.Modules.Apps.csproj" />
   </Folder>
   <Folder Name="/Modules/DigitalBrain/Apps/tests/">
-    <Project Path="src/Modules/DigitalBrain/Apps/tests/DigitalBrain.Modules.Apps.Tests/DigitalBrain.Modules.Apps.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Apps/tests/DigitalBrain.Modules.Apps.Tests/DigitalBrain.Modules.Apps.Tests.csproj" />
   </Folder>
   <Folder Name="/Modules/DigitalBrain/Assistant/">
-    <Project Path="src/Modules/DigitalBrain/Assistant/DigitalBrain.Modules.Assistant.Contracts/DigitalBrain.Modules.Assistant.Contracts.csproj" />
-    <Project Path="src/Modules/DigitalBrain/Assistant/DigitalBrain.Modules.Assistant/DigitalBrain.Modules.Assistant.csproj" />
+    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Assistant/DigitalBrain.Modules.Assistant.Contracts/DigitalBrain.Modules.Assistant.Contracts.csproj" />
+    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Assistant/DigitalBrain.Modules.Assistant/DigitalBrain.Modules.Assistant.csproj" />
   </Folder>
   <Folder Name="/Modules/DigitalBrain/Assistant/tests/">
-    <Project Path="src/Modules/DigitalBrain/Assistant/tests/DigitalBrain.Modules.Assistant.Tests/DigitalBrain.Modules.Assistant.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Assistant/tests/DigitalBrain.Modules.Assistant.Tests/DigitalBrain.Modules.Assistant.Tests.csproj" />
   </Folder>
   <Folder Name="/Modules/DigitalBrain/Compute/">
-    <Project Path="src/Modules/DigitalBrain/Compute/DigitalBrain.Modules.Compute.Contracts/DigitalBrain.Modules.Compute.Contracts.csproj" />
-    <Project Path="src/Modules/DigitalBrain/Compute/DigitalBrain.Modules.Compute/DigitalBrain.Modules.Compute.csproj" />
+    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Compute/DigitalBrain.Modules.Compute.Contracts/DigitalBrain.Modules.Compute.Contracts.csproj" />
+    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Compute/DigitalBrain.Modules.Compute/DigitalBrain.Modules.Compute.csproj" />
   </Folder>
   <Folder Name="/Modules/DigitalBrain/Compute/tests/">
-    <Project Path="src/Modules/DigitalBrain/Compute/tests/DigitalBrain.Modules.Compute.Tests/DigitalBrain.Modules.Compute.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Compute/tests/DigitalBrain.Modules.Compute.Tests/DigitalBrain.Modules.Compute.Tests.csproj" />
   </Folder>
-  <Folder Name="/Modules/DigitalBrain/Registry/">
-    <Project Path="src/Modules/DigitalBrain/Registry/DigitalBrain.Modules.Registry.Contracts/DigitalBrain.Modules.Registry.Contracts.csproj" />
-    <Project Path="src/Modules/DigitalBrain/Registry/DigitalBrain.Modules.Registry/DigitalBrain.Modules.Registry.csproj" />
-  </Folder>
-  <Folder Name="/Modules/DigitalBrain/Registry/tests/">
-    <Project Path="src/Modules/DigitalBrain/Registry/tests/DigitalBrain.Modules.Registry.Tests/DigitalBrain.Modules.Registry.Tests.csproj" />
-  </Folder>
-  <Folder Name="/Modules/DigitalBrain/Specs/">
-    <Project Path="src/Modules/DigitalBrain/Specs/DigitalBrain.Modules.Specs.Contracts/DigitalBrain.Modules.Specs.Contracts.csproj" />
-    <Project Path="src/Modules/DigitalBrain/Specs/DigitalBrain.Modules.Specs/DigitalBrain.Modules.Specs.csproj" />
-  </Folder>
-  <Folder Name="/Modules/DigitalBrain/Specs/tests/">
-    <Project Path="src/Modules/DigitalBrain/Specs/tests/DigitalBrain.Modules.Specs.Tests/DigitalBrain.Modules.Specs.Tests.csproj" />
-  </Folder>
-  <Folder Name="/Modules/Files/">
-    <Project Path="src/Modules/Files/DigitalBrain.Modules.Files.Contracts/DigitalBrain.Modules.Files.Contracts.csproj" />
-    <Project Path="src/Modules/Files/DigitalBrain.Modules.Files/DigitalBrain.Modules.Files.csproj" />
-  </Folder>
-  <Folder Name="/Modules/Files/tests/">
-    <Project Path="src/Modules/Files/tests/DigitalBrain.Modules.Files.Tests/DigitalBrain.Modules.Files.Tests.csproj" />
-  </Folder>
+  <Folder Name="/Modules/Google/" />
   <Folder Name="/Modules/Google/Flutter/">
-    <Project Path="src/Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Aspire.Hosting/DigitalBrain.Modules.Flutter.Aspire.Hosting.csproj" />
-    <Project Path="src/Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Contracts/DigitalBrain.Modules.Flutter.Contracts.csproj" />
-    <Project Path="src/Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Testing/DigitalBrain.Modules.Flutter.Testing.csproj" />
-    <Project Path="src/Modules/Google/Flutter/DigitalBrain.Modules.Flutter/DigitalBrain.Modules.Flutter.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Aspire.Hosting/DigitalBrain.Modules.Flutter.Aspire.Hosting.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Contracts/DigitalBrain.Modules.Flutter.Contracts.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Google/Flutter/DigitalBrain.Modules.Flutter/DigitalBrain.Modules.Flutter.csproj" />
   </Folder>
   <Folder Name="/Modules/Google/Flutter/tests/">
-    <Project Path="src/Modules/Google/Flutter/tests/DigitalBrain.Modules.Flutter.Tests/DigitalBrain.Modules.Flutter.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Google/Flutter/tests/DigitalBrain.Modules.Flutter.Tests.Hosting/DigitalBrain.Modules.Flutter.Tests.Hosting.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Google/Flutter/tests/DigitalBrain.Modules.Flutter.Tests/DigitalBrain.Modules.Flutter.Tests.csproj" />
   </Folder>
   <Folder Name="/Modules/Google/Gmail/">
-    <Project Path="src/Modules/Google/Gmail/DigitalBrain.Modules.Google.Gmail.Aspire.Hosting/DigitalBrain.Modules.Google.Gmail.Aspire.Hosting.csproj" />
-    <Project Path="src/Modules/Google/Gmail/DigitalBrain.Modules.Google.Gmail.Contracts/DigitalBrain.Modules.Google.Gmail.Contracts.csproj" />
-    <Project Path="src/Modules/Google/Gmail/DigitalBrain.Modules.Google.Gmail/DigitalBrain.Modules.Google.Gmail.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Google/Gmail/DigitalBrain.Modules.Google.Gmail.Aspire.Hosting/DigitalBrain.Modules.Google.Gmail.Aspire.Hosting.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Google/Gmail/DigitalBrain.Modules.Google.Gmail.Contracts/DigitalBrain.Modules.Google.Gmail.Contracts.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Google/Gmail/DigitalBrain.Modules.Google.Gmail/DigitalBrain.Modules.Google.Gmail.csproj" />
   </Folder>
   <Folder Name="/Modules/Google/Gmail/tests/">
-    <Project Path="src/Modules/Google/Gmail/tests/DigitalBrain.Modules.Google.Gmail.Tests/DigitalBrain.Modules.Google.Gmail.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Google/Gmail/tests/DigitalBrain.Modules.Google.Gmail.Tests/DigitalBrain.Modules.Google.Gmail.Tests.csproj" />
   </Folder>
+  <Folder Name="/Modules/Microsoft/" />
   <Folder Name="/Modules/Microsoft/Aspire/">
-    <Project Path="src/Modules/Microsoft/Aspire/DigitalBrain.Modules.Microsoft.Aspire.Aspire.Hosting/DigitalBrain.Modules.Microsoft.Aspire.Aspire.Hosting.csproj" />
-    <Project Path="src/Modules/Microsoft/Aspire/DigitalBrain.Modules.Microsoft.Aspire.Contracts/DigitalBrain.Modules.Microsoft.Aspire.Contracts.csproj" />
-    <Project Path="src/Modules/Microsoft/Aspire/DigitalBrain.Modules.Microsoft.Aspire/DigitalBrain.Modules.Microsoft.Aspire.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/Aspire/DigitalBrain.Modules.Microsoft.Aspire.Aspire.Hosting/DigitalBrain.Modules.Microsoft.Aspire.Aspire.Hosting.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/Aspire/DigitalBrain.Modules.Microsoft.Aspire.Contracts/DigitalBrain.Modules.Microsoft.Aspire.Contracts.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/Aspire/DigitalBrain.Modules.Microsoft.Aspire/DigitalBrain.Modules.Microsoft.Aspire.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/Aspire/tests/">
-    <Project Path="src/Modules/Microsoft/Aspire/tests/DigitalBrain.Modules.Microsoft.Aspire.Tests/DigitalBrain.Modules.Microsoft.Aspire.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/Aspire/tests/DigitalBrain.Modules.Microsoft.Aspire.Tests/DigitalBrain.Modules.Microsoft.Aspire.Tests.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/CSharp/">
-    <Project Path="src/Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Aspire.Hosting/DigitalBrain.Modules.Microsoft.CSharp.Aspire.Hosting.csproj" />
-    <Project Path="src/Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Contracts/DigitalBrain.Modules.Microsoft.CSharp.Contracts.csproj" />
-    <Project Path="src/Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Deployment/DigitalBrain.Modules.Microsoft.CSharp.Deployment.csproj" />
-    <Project Path="src/Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Sandbox/DigitalBrain.Modules.Microsoft.CSharp.Sandbox.csproj" />
-    <Project Path="src/Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp/DigitalBrain.Modules.Microsoft.CSharp.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Aspire.Hosting/DigitalBrain.Modules.Microsoft.CSharp.Aspire.Hosting.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Contracts/DigitalBrain.Modules.Microsoft.CSharp.Contracts.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Deployment/DigitalBrain.Modules.Microsoft.CSharp.Deployment.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Sandbox/DigitalBrain.Modules.Microsoft.CSharp.Sandbox.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp/DigitalBrain.Modules.Microsoft.CSharp.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/CSharp/tests/">
-    <Project Path="src/Modules/Microsoft/CSharp/tests/DigitalBrain.Modules.Microsoft.CSharp.Tests/DigitalBrain.Modules.Microsoft.CSharp.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/CSharp/tests/DigitalBrain.Modules.Microsoft.CSharp.Tests/DigitalBrain.Modules.Microsoft.CSharp.Tests.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/GitHub/">
-    <Project Path="src/Modules/Microsoft/GitHub/DigitalBrain.Modules.Microsoft.GitHub.Aspire.Hosting/DigitalBrain.Modules.Microsoft.GitHub.Aspire.Hosting.csproj" />
-    <Project Path="src/Modules/Microsoft/GitHub/DigitalBrain.Modules.Microsoft.GitHub.Contracts/DigitalBrain.Modules.Microsoft.GitHub.Contracts.csproj" />
-    <Project Path="src/Modules/Microsoft/GitHub/DigitalBrain.Modules.Microsoft.GitHub/DigitalBrain.Modules.Microsoft.GitHub.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/GitHub/DigitalBrain.Modules.Microsoft.GitHub.Aspire.Hosting/DigitalBrain.Modules.Microsoft.GitHub.Aspire.Hosting.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/GitHub/DigitalBrain.Modules.Microsoft.GitHub.Contracts/DigitalBrain.Modules.Microsoft.GitHub.Contracts.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/GitHub/DigitalBrain.Modules.Microsoft.GitHub/DigitalBrain.Modules.Microsoft.GitHub.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/GitHub/tests/">
-    <Project Path="src/Modules/Microsoft/GitHub/tests/DigitalBrain.Modules.Microsoft.GitHub.Tests/DigitalBrain.Modules.Microsoft.GitHub.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/GitHub/tests/DigitalBrain.Modules.Microsoft.GitHub.Tests.Hosting/DigitalBrain.Modules.Microsoft.GitHub.Tests.Hosting.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/GitHub/tests/DigitalBrain.Modules.Microsoft.GitHub.Tests/DigitalBrain.Modules.Microsoft.GitHub.Tests.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/Playwright/">
-    <Project Path="src/Modules/Microsoft/Playwright/DigitalBrain.Modules.Microsoft.Playwright.Contracts/DigitalBrain.Modules.Microsoft.Playwright.Contracts.csproj" />
-    <Project Path="src/Modules/Microsoft/Playwright/DigitalBrain.Modules.Microsoft.Playwright/DigitalBrain.Modules.Microsoft.Playwright.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/Playwright/DigitalBrain.Modules.Microsoft.Playwright.Contracts/DigitalBrain.Modules.Microsoft.Playwright.Contracts.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/Playwright/DigitalBrain.Modules.Microsoft.Playwright/DigitalBrain.Modules.Microsoft.Playwright.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/Playwright/tests/">
-    <Project Path="src/Modules/Microsoft/Playwright/tests/DigitalBrain.Modules.Microsoft.Playwright.Tests/DigitalBrain.Modules.Microsoft.Playwright.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/Playwright/tests/DigitalBrain.Modules.Microsoft.Playwright.Tests/DigitalBrain.Modules.Microsoft.Playwright.Tests.csproj" />
   </Folder>
   <Folder Name="/Modules/Postgres/">
-    <Project Path="src/Modules/Postgres/DigitalBrain.Modules.Postgres.Aspire.Hosting/DigitalBrain.Modules.Postgres.Aspire.Hosting.csproj" />
-    <Project Path="src/Modules/Postgres/DigitalBrain.Modules.Postgres.Contracts/DigitalBrain.Modules.Postgres.Contracts.csproj" />
-    <Project Path="src/Modules/Postgres/DigitalBrain.Modules.Postgres/DigitalBrain.Modules.Postgres.csproj" />
-  </Folder>
-  <Folder Name="/Modules/Postgres/tests/">
-    <Project Path="src/Modules/Postgres/tests/DigitalBrain.Modules.Postgres.Tests/DigitalBrain.Modules.Postgres.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Postgres/DigitalBrain.Modules.Postgres.Aspire.Hosting/DigitalBrain.Modules.Postgres.Aspire.Hosting.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Postgres/DigitalBrain.Modules.Postgres.Contracts/DigitalBrain.Modules.Postgres.Contracts.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Postgres/DigitalBrain.Modules.Postgres/DigitalBrain.Modules.Postgres.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Postgres/DigitalBrain.Modules.Postgres.Windows/DigitalBrain.Modules.Postgres.Windows.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Postgres/tests/DigitalBrain.Modules.Postgres.Tests.Hosting/DigitalBrain.Modules.Postgres.Tests.Hosting.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Postgres/tests/DigitalBrain.Modules.Postgres.Tests/DigitalBrain.Modules.Postgres.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Postgres/tests/DigitalBrain.Modules.Postgres.Windows.Tests/DigitalBrain.Modules.Postgres.Windows.Tests.csproj" />
   </Folder>
   <Folder Name="/Modules/Qdrant/">
-    <Project Path="src/Modules/Qdrant/DigitalBrain.Modules.Qdrant.Aspire.Hosting/DigitalBrain.Modules.Qdrant.Aspire.Hosting.csproj" />
-    <Project Path="src/Modules/Qdrant/DigitalBrain.Modules.Qdrant.Contracts/DigitalBrain.Modules.Qdrant.Contracts.csproj" />
-    <Project Path="src/Modules/Qdrant/DigitalBrain.Modules.Qdrant.Deployment/DigitalBrain.Modules.Qdrant.Deployment.csproj" />
-    <Project Path="src/Modules/Qdrant/DigitalBrain.Modules.Qdrant/DigitalBrain.Modules.Qdrant.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Qdrant/DigitalBrain.Modules.Qdrant.Aspire.Hosting/DigitalBrain.Modules.Qdrant.Aspire.Hosting.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Qdrant/DigitalBrain.Modules.Qdrant.Contracts/DigitalBrain.Modules.Qdrant.Contracts.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Qdrant/DigitalBrain.Modules.Qdrant.Deployment/DigitalBrain.Modules.Qdrant.Deployment.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Qdrant/DigitalBrain.Modules.Qdrant/DigitalBrain.Modules.Qdrant.csproj" />
   </Folder>
   <Folder Name="/Modules/Qdrant/tests/">
-    <Project Path="src/Modules/Qdrant/tests/DigitalBrain.Modules.Qdrant.Tests/DigitalBrain.Modules.Qdrant.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Qdrant/tests/DigitalBrain.Modules.Qdrant.Tests/DigitalBrain.Modules.Qdrant.Tests.csproj" />
   </Folder>
   <Folder Name="/Modules/Salesforce/">
-    <Project Path="src/Modules/Salesforce/DigitalBrain.Modules.Salesforce.Aspire.Hosting/DigitalBrain.Modules.Salesforce.Aspire.Hosting.csproj" />
-    <Project Path="src/Modules/Salesforce/DigitalBrain.Modules.Salesforce.Contracts/DigitalBrain.Modules.Salesforce.Contracts.csproj" />
-    <Project Path="src/Modules/Salesforce/DigitalBrain.Modules.Salesforce/DigitalBrain.Modules.Salesforce.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Salesforce/DigitalBrain.Modules.Salesforce.Aspire.Hosting/DigitalBrain.Modules.Salesforce.Aspire.Hosting.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Salesforce/DigitalBrain.Modules.Salesforce.Contracts/DigitalBrain.Modules.Salesforce.Contracts.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Salesforce/DigitalBrain.Modules.Salesforce/DigitalBrain.Modules.Salesforce.csproj" />
   </Folder>
   <Folder Name="/Modules/Salesforce/tests/">
-    <Project Path="src/Modules/Salesforce/tests/DigitalBrain.Modules.Salesforce.Tests/DigitalBrain.Modules.Salesforce.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Salesforce/tests/DigitalBrain.Modules.Salesforce.Tests/DigitalBrain.Modules.Salesforce.Tests.csproj" />
   </Folder>
   <Folder Name="/Modules/Supabase/">
-    <Project Path="src/Modules/Supabase/DigitalBrain.Modules.Supabase.Aspire.Hosting/DigitalBrain.Modules.Supabase.Aspire.Hosting.csproj" />
-    <Project Path="src/Modules/Supabase/DigitalBrain.Modules.Supabase.Contracts/DigitalBrain.Modules.Supabase.Contracts.csproj" />
-    <Project Path="src/Modules/Supabase/DigitalBrain.Modules.Supabase/DigitalBrain.Modules.Supabase.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Supabase/DigitalBrain.Modules.Supabase.Aspire.Hosting/DigitalBrain.Modules.Supabase.Aspire.Hosting.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Supabase/DigitalBrain.Modules.Supabase.Contracts/DigitalBrain.Modules.Supabase.Contracts.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Supabase/DigitalBrain.Modules.Supabase/DigitalBrain.Modules.Supabase.csproj" />
   </Folder>
   <Folder Name="/Modules/Supabase/tests/">
-    <Project Path="src/Modules/Supabase/tests/DigitalBrain.Modules.Supabase.Tests/DigitalBrain.Modules.Supabase.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Supabase/tests/DigitalBrain.Modules.Supabase.Tests.Hosting/DigitalBrain.Modules.Supabase.Tests.Hosting.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Supabase/tests/DigitalBrain.Modules.Supabase.Tests/DigitalBrain.Modules.Supabase.Tests.csproj" />
   </Folder>
   <Folder Name="/Modules/Time/">
-    <Project Path="src/Modules/Time/DigitalBrain.Modules.Time.Contracts/DigitalBrain.Modules.Time.Contracts.csproj" />
-    <Project Path="src/Modules/Time/DigitalBrain.Modules.Time/DigitalBrain.Modules.Time.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Time/DigitalBrain.Modules.Time.Contracts/DigitalBrain.Modules.Time.Contracts.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Time/DigitalBrain.Modules.Time/DigitalBrain.Modules.Time.csproj" />
   </Folder>
   <Folder Name="/Modules/Time/tests/">
-    <Project Path="src/Modules/Time/tests/DigitalBrain.Modules.Time.Tests/DigitalBrain.Modules.Time.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Time/tests/DigitalBrain.Modules.Time.Tests/DigitalBrain.Modules.Time.Tests.csproj" />
   </Folder>
   <Folder Name="/Testing/">
+    <Project Path="src/Testing/DigitalBrain.Architecture.Tests/DigitalBrain.Architecture.Tests.csproj" />
+    <Project Path="src/Testing/DigitalBrain.Aspire.Testing/DigitalBrain.Aspire.Testing.csproj" />
     <Project Path="src/Testing/DigitalBrain.Testing.E2E/DigitalBrain.Testing.E2E.csproj" />
+    <Project Path="src/Testing/DigitalBrain.Testing.Module.Tests.Unit/DigitalBrain.Testing.Module.Tests.Unit.csproj" />
     <Project Path="src/Testing/DigitalBrain.Testing.Module/DigitalBrain.Testing.Module.csproj" />
+    <Project Path="src/Testing/DigitalBrain.Testing.Reference/DigitalBrain.Testing.Reference.csproj" />
     <Project Path="src/Testing/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
   </Folder>
-  <Folder Name="/Testing/tests/">
-    <Project Path="src/Testing/tests/DigitalBrain.Architecture.Tests/DigitalBrain.Architecture.Tests.csproj" />
-    <Project Path="src/Testing/tests/DigitalBrain.Testing.Module.Tests.Unit/DigitalBrain.Testing.Module.Tests.Unit.csproj" />
+  <Folder Name="/OS/">
+    <Project Path="src/DigitalBrain.OS/DigitalBrain.OS.Tests.E2E/DigitalBrain.OS.Tests.E2E.csproj" />
+    <Project Path="src/DigitalBrain.OS/DigitalBrain.OS.Tests.Unit/DigitalBrain.OS.Tests.Unit.csproj" />
+    <Project Path="src/DigitalBrain.OS/DigitalBrain.OS/DigitalBrain.OS.csproj" />
+  </Folder>
+  <Folder Name="/Platform/">
+    <Project Path="src/DigitalBrain.Platform/DigitalBrain.Platform.Contracts/DigitalBrain.Platform.Contracts.csproj" />
+    <Project Path="src/DigitalBrain.Platform/DigitalBrain.Platform.Tests.E2E/DigitalBrain.Platform.Tests.E2E.csproj" />
+    <Project Path="src/DigitalBrain.Platform/DigitalBrain.Platform.Tests.Unit/DigitalBrain.Platform.Tests.Unit.csproj" />
+    <Project Path="src/DigitalBrain.Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
     <File Path="Directory.Packages.props" />
   </Folder>
+  <Project Path="src/DigitalBrain.AppHost/DigitalBrain.AppHost.csproj" />
+  <Project Path="src/DigitalBrain/DigitalBrain.csproj" />
 </Solution>

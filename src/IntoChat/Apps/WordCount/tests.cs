@@ -1,42 +1,37 @@
-#:project /brain/src/Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps.Contracts/DigitalBrain.Modules.Apps.Contracts.csproj
+#:project /brain/src/DigitalBrain.Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps.Contracts/DigitalBrain.Modules.Apps.Contracts.csproj
 using DigitalBrain.Apps;
 
+// The host verifies a scratch copy of the app and names it in the "App" setting; the tests
+// drive that copy through its own operations and report one dbtest line per spec scenario.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
-var package = PackageId.Parse(brain.Setting("Package")!);
-var revision = brain.Setting("Revision")!;
+var app = brain.Get<IApp>(brain.Setting("App")!);
 var failures = 0;
 
-await Scenario("Words are separated by spaces", async (app, scope) =>
+await Scenario("Words are separated by spaces", async () =>
 {
-    var answer = await Ask(app, "ask", "the quick brown fox");
+    var answer = await Ask("ask", "the quick brown fox");
     if (answer != "4 words") { throw new InvalidOperationException($"The answer was \"{answer}\"."); }
 });
 
-await Scenario("Extra spaces do not count as words", async (app, scope) =>
+await Scenario("Extra spaces do not count as words", async () =>
 {
-    var answer = await Ask(app, "ask", "  hello    world  ");
+    var answer = await Ask("ask", "  hello    world  ");
     if (answer != "2 words") { throw new InvalidOperationException($"The answer was \"{answer}\"."); }
 });
 
-await Scenario("One word is singular", async (app, scope) =>
+await Scenario("One word is singular", async () =>
 {
-    var answer = await Ask(app, "ask", "hello");
+    var answer = await Ask("ask", "hello");
     if (answer != "1 word") { throw new InvalidOperationException($"The answer was \"{answer}\"."); }
 });
 
 return failures == 0 ? 0 : 1;
 
-async Task Scenario(string name, Func<IApp, string, Task> run)
+async Task Scenario(string name, Func<Task> run)
 {
-    // Scratch installs live inside the host-supplied brain scope, so the scenario's neurons
-    // are brain-owned for target authorization instead of failing closed as unclassified.
-    var brainScope = brain.Setting("BrainScope");
-    var scope = (brainScope is null ? "" : brainScope + "/") + $"specs/{package}@{revision}/{Guid.NewGuid():N}";
-    var app = brain.Get<IApp>(scope + "/app");
     try
     {
-        await app.Install(new InstallApp(Guid.NewGuid(), new(package, revision), new Dictionary<string, string>()));
-        await run(app, scope);
+        await run();
         Console.WriteLine($"dbtest:pass {name}");
     }
     catch (Exception error)
@@ -44,13 +39,9 @@ async Task Scenario(string name, Func<IApp, string, Task> run)
         failures++;
         Console.WriteLine($"dbtest:fail {name}\t{error.Message.ReplaceLineEndings(" ")}");
     }
-    finally
-    {
-        try { await app.Uninstall(new UninstallApp(Guid.NewGuid())); } catch (Exception) { }
-    }
 }
 
-async Task<string> Ask(IApp app, string operation, string input)
+async Task<string> Ask(string operation, string input)
 {
     var invocation = await app.Invoke(new InvokeApp(Guid.NewGuid(), operation, input));
     var deadline = DateTimeOffset.UtcNow.AddMinutes(5);

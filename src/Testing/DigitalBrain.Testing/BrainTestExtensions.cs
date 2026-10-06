@@ -1,8 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Client;
 using DigitalBrain.Client.Orleans;
-using DigitalBrain.Contracts;
-using DigitalBrain.Kernel;
+using DigitalBrain.Framework;
 
 namespace DigitalBrain.Testing;
 
@@ -11,7 +10,8 @@ public static class BrainTestExtensions
     public static async Task<SignalProbe<T>> Observe<T>(this IDigitalBrain brain, INeuron source, CancellationToken cancellationToken = default) where T : Signal
     {
         ArgumentNullException.ThrowIfNull(brain);
-        var subscription = await brain.SubscribeAsync<T>(source, cancellationToken).ConfigureAwait(false);
+        var subscriptions = brain as IBrainSubscriptions ?? throw new ArgumentException("Observe needs a brain that hands out subscription handles (the test harness brains do).", nameof(brain));
+        var subscription = await subscriptions.SubscribeAsync<T>(source, cancellationToken).ConfigureAwait(false);
         var tracked = brain as ITrackedBrain;
         var probe = new SignalProbe<T>(subscription, tracked?.BufferCapacity ?? new SubscriptionOptions().BufferCapacity, tracked?.Execution ?? new());
         tracked?.Track(probe);

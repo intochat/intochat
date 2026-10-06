@@ -1,0 +1,191 @@
+import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
+import 'package:digitalbrain_ui/digitalbrain_ui.dart';
+import 'package:flutter/material.dart';
+
+/// Credential prompt shown when the kernel answers 401 or the person switches account.
+/// A development deployment also lists its seeded accounts for one-step switching.
+///
+/// Deliberately minimal: one owner, no registration, no recovery. It exists to
+/// keep the dev stand off the open internet until real auth replaces it.
+final class LoginScreen extends StatefulWidget {
+  const LoginScreen({
+    super.key,
+    required this.onSubmit,
+    this.onRegister,
+    this.initialUsername = '',
+    this.errorMessage,
+    this.seededAccounts = const [],
+    this.onContinueAs,
+  });
+
+  /// Resolves to an error message to display, or null once signed in.
+  final Future<String?> Function(String username, String password) onSubmit;
+  final Future<String?> Function(String username, String password)? onRegister;
+  final String initialUsername;
+  final String? errorMessage;
+  final List<SeededAccount> seededAccounts;
+  final Future<String?> Function(String username)? onContinueAs;
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+final class _LoginScreenState extends State<LoginScreen> {
+  late final TextEditingController _username = TextEditingController(
+    text: widget.initialUsername,
+  );
+  final TextEditingController _password = TextEditingController();
+  final FocusNode _passwordFocus = FocusNode();
+
+  late String? _error = widget.errorMessage;
+  bool _busy = false;
+
+  Future<void> _continueAs(String username) async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final failure = await widget.onContinueAs!(username);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _error = failure;
+    });
+  }
+
+  bool _register = false;
+
+  @override
+  void dispose() {
+    _username.dispose();
+    _password.dispose();
+    _passwordFocus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_busy) {
+      return;
+    }
+    final username = _username.text.trim();
+    final password = _password.text;
+    if (username.isEmpty || password.isEmpty) {
+      setState(() => _error = 'Enter a username and password.');
+      return;
+    }
+
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+
+    final failure = await (_register ? widget.onRegister! : widget.onSubmit)(
+      username,
+      password,
+    );
+
+    // The gate swaps this screen out on success, so only failure lands here.
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _busy = false;
+      _error = failure;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: UiPalette.surface,
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('IntoChat', style: UiType.title),
+                const SizedBox(height: 8),
+                Text('Sign in to reach the kernel.', style: UiType.bodyMuted),
+                const SizedBox(height: 24),
+                if (widget.onContinueAs != null &&
+                    widget.seededAccounts.isNotEmpty) ...[
+                  for (final account in widget.seededAccounts)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: OutlinedButton(
+                        key: Key('continue-as-${account.username}'),
+                        onPressed: _busy
+                            ? null
+                            : () => _continueAs(account.username),
+                        child: Text('Continue as ${account.displayName}'),
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                ],
+                TextField(
+                  key: const Key('login-username'),
+                  controller: _username,
+                  enabled: !_busy,
+                  autofocus: true,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(labelText: 'Username'),
+                  onSubmitted: (_) => _passwordFocus.requestFocus(),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const Key('login-password'),
+                  controller: _password,
+                  focusNode: _passwordFocus,
+                  enabled: !_busy,
+                  obscureText: true,
+                  textInputAction: TextInputAction.done,
+                  decoration: const InputDecoration(labelText: 'Password'),
+                  onSubmitted: (_) => _submit(),
+                ),
+                const SizedBox(height: 20),
+                FilledButton(
+                  key: const Key('login-submit'),
+                  onPressed: _busy ? null : _submit,
+                  child: _busy
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(_register ? 'Create account' : 'Sign in'),
+                ),
+                if (widget.onRegister != null)
+                  TextButton(
+                    onPressed: _busy
+                        ? null
+                        : () => setState(() {
+                            _register = !_register;
+                            _error = null;
+                          }),
+                    child: Text(
+                      _register
+                          ? 'Already have an account? Sign in'
+                          : 'Create account',
+                    ),
+                  ),
+                if (_error case final error?) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    error,
+                    key: const Key('login-error'),
+                    style: UiType.body.copyWith(color: UiPalette.signal),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

@@ -7,7 +7,7 @@
       "title": "Show the researcher",
       "description": "When the open operation arrives, compose the window and return its surface.",
       "sourcePaths": [
-        "behaviors/surface.cs"
+        "synapses/surface.cs"
       ],
       "scenarioIds": [
         "00000000000000000000000000000001"
@@ -18,7 +18,7 @@
       "title": "Submit UI commands",
       "description": "When Research or Stop is clicked, invoke the corresponding app operation.",
       "sourcePaths": [
-        "behaviors/controls.cs"
+        "synapses/controls.cs"
       ],
       "scenarioIds": [
         "00000000000000000000000000000002",
@@ -31,7 +31,7 @@
       "title": "Research and store evidence",
       "description": "When research is requested, run the bounded browser/model algorithm and save verified evidence. Stop cancels the current run; result reads the stored company.\n\nProduction research uses the host's default LLM. Legacy Model settings do not pin a provider.\nScratch scenario installs may supply scripted/<key> as Model to run deterministic checks.",
       "sourcePaths": [
-        "behaviors/research.cs"
+        "synapses/research.cs"
       ],
       "scenarioIds": [
         "00000000000000000000000000000002",

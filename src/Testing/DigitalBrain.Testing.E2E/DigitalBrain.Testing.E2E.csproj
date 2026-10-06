@@ -2,11 +2,9 @@
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <Description>Tests against a brain in a real process: Aspire-managed storage, real HTTP, and a browser when a module runs a frontend.</Description>
-    <!-- Launched as the module runtime process by ModuleTestHost; never shipped as a native host. -->
-    <OutputType>Exe</OutputType>
-    <UseAppHost>false</UseAppHost>
     <DisableMSBuildAssemblyCopyCheck>true</DisableMSBuildAssemblyCopyCheck>
   </PropertyGroup>
+  <ItemGroup><InternalsVisibleTo Include="DigitalBrain.Platform.Tests.E2E" /></ItemGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Aspire.Hosting.Testing" />
@@ -16,11 +14,9 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
-    <ProjectReference Include="../../Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Contracts/DigitalBrain.Modules.Flutter.Contracts.csproj" />
-    <ProjectReference Include="../../Aspire/DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" />
-    <ProjectReference Include="../../Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />
-    <ProjectReference Include="../../DigitalBrain/Sdk/DigitalBrain.Sdk/DigitalBrain.Sdk.csproj" />
-    <ProjectReference Include="../../DigitalBrain/Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Aspire/DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Build/DigitalBrain.Testing.E2E.targets" Pack="true" PackagePath="buildTransitive/" />
@@ -28,38 +24,6 @@
     <None Include="Build/ModuleBuilderFactory.cs" Pack="true" PackagePath="buildTransitive/" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../../Modules/AI/DigitalBrain.Modules.AI.Aspire.Hosting/DigitalBrain.Modules.AI.Aspire.Hosting.csproj" />
-    <ProjectReference Include="../../DigitalBrain/OS/DigitalBrain.OS/DigitalBrain.OS.csproj" />
-    <ProjectReference Include="../../Modules/AI/DigitalBrain.Modules.AI/DigitalBrain.Modules.AI.csproj" />
-    <ProjectReference Include="../../Modules/ClickHouse/DigitalBrain.Modules.ClickHouse.Aspire.Hosting/DigitalBrain.Modules.ClickHouse.Aspire.Hosting.csproj" />
-    <ProjectReference Include="../../Modules/ClickHouse/DigitalBrain.Modules.ClickHouse/DigitalBrain.Modules.ClickHouse.csproj" />
-    <ProjectReference Include="../../Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps/DigitalBrain.Modules.Apps.csproj" />
-    <ProjectReference Include="../../Modules/DigitalBrain/Assistant/DigitalBrain.Modules.Assistant/DigitalBrain.Modules.Assistant.csproj" />
-    <ProjectReference Include="../../Modules/DigitalBrain/Compute/DigitalBrain.Modules.Compute.Contracts/DigitalBrain.Modules.Compute.Contracts.csproj" />
-    <ProjectReference Include="../../Modules/DigitalBrain/Compute/DigitalBrain.Modules.Compute/DigitalBrain.Modules.Compute.csproj" />
-    <ProjectReference Include="../../DigitalBrain/Kernel/DigitalBrain.Kernel/DigitalBrain.Kernel.csproj" />
-    <ProjectReference Include="../../Modules/DigitalBrain/Registry/DigitalBrain.Modules.Registry/DigitalBrain.Modules.Registry.csproj" />
-    <ProjectReference Include="../../Modules/DigitalBrain/Specs/DigitalBrain.Modules.Specs/DigitalBrain.Modules.Specs.csproj" />
-    <ProjectReference Include="../../Modules/Files/DigitalBrain.Modules.Files/DigitalBrain.Modules.Files.csproj" />
-    <ProjectReference Include="../../Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Aspire.Hosting/DigitalBrain.Modules.Flutter.Aspire.Hosting.csproj" />
-    <ProjectReference Include="../../Modules/Google/Flutter/DigitalBrain.Modules.Flutter/DigitalBrain.Modules.Flutter.csproj" />
-    <ProjectReference Include="../../Modules/Google/Gmail/DigitalBrain.Modules.Google.Gmail.Aspire.Hosting/DigitalBrain.Modules.Google.Gmail.Aspire.Hosting.csproj" />
-    <ProjectReference Include="../../Modules/Google/Gmail/DigitalBrain.Modules.Google.Gmail/DigitalBrain.Modules.Google.Gmail.csproj" />
-    <ProjectReference Include="../../Modules/Microsoft/Aspire/DigitalBrain.Modules.Microsoft.Aspire.Aspire.Hosting/DigitalBrain.Modules.Microsoft.Aspire.Aspire.Hosting.csproj" />
-    <ProjectReference Include="../../Modules/Microsoft/Aspire/DigitalBrain.Modules.Microsoft.Aspire/DigitalBrain.Modules.Microsoft.Aspire.csproj" />
-    <ProjectReference Include="../../Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Aspire.Hosting/DigitalBrain.Modules.Microsoft.CSharp.Aspire.Hosting.csproj" />
-    <ProjectReference Include="../../Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp/DigitalBrain.Modules.Microsoft.CSharp.csproj" />
-    <ProjectReference Include="../../Modules/Microsoft/GitHub/DigitalBrain.Modules.Microsoft.GitHub.Aspire.Hosting/DigitalBrain.Modules.Microsoft.GitHub.Aspire.Hosting.csproj" />
-    <ProjectReference Include="../../Modules/Microsoft/GitHub/DigitalBrain.Modules.Microsoft.GitHub/DigitalBrain.Modules.Microsoft.GitHub.csproj" />
-    <ProjectReference Include="../../Modules/Microsoft/Playwright/DigitalBrain.Modules.Microsoft.Playwright/DigitalBrain.Modules.Microsoft.Playwright.csproj" />
-    <ProjectReference Include="../../Modules/Postgres/DigitalBrain.Modules.Postgres.Aspire.Hosting/DigitalBrain.Modules.Postgres.Aspire.Hosting.csproj" />
-    <ProjectReference Include="../../Modules/Qdrant/DigitalBrain.Modules.Qdrant.Aspire.Hosting/DigitalBrain.Modules.Qdrant.Aspire.Hosting.csproj" />
-    <ProjectReference Include="../../Modules/Qdrant/DigitalBrain.Modules.Qdrant/DigitalBrain.Modules.Qdrant.csproj" />
-    <ProjectReference Include="../../Modules/Salesforce/DigitalBrain.Modules.Salesforce.Aspire.Hosting/DigitalBrain.Modules.Salesforce.Aspire.Hosting.csproj" />
-    <ProjectReference Include="../../Modules/Salesforce/DigitalBrain.Modules.Salesforce/DigitalBrain.Modules.Salesforce.csproj" />
-    <ProjectReference Include="../../Modules/Supabase/DigitalBrain.Modules.Supabase.Aspire.Hosting/DigitalBrain.Modules.Supabase.Aspire.Hosting.csproj" />
-    <ProjectReference Include="../../Modules/Supabase/DigitalBrain.Modules.Supabase/DigitalBrain.Modules.Supabase.csproj" />
-    <ProjectReference Include="../../Modules/Time/DigitalBrain.Modules.Time/DigitalBrain.Modules.Time.csproj" />
     <PackageReference Include="xunit.v3.extensibility.core" />
     <PackageReference Include="xunit.v3.assert" />
     <Using Include="Xunit" />
@@ -70,7 +34,5 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
   </ItemGroup>
-  <ItemGroup><ProjectReference Include="../../DigitalBrain/Client/DigitalBrain.Client.Orleans/DigitalBrain.Client.Orleans.csproj" /></ItemGroup>
-  <ItemGroup><ProjectReference Include="../../DigitalBrain/Kernel/DigitalBrain.Kernel.AspNetCore/DigitalBrain.Kernel.AspNetCore.csproj" /></ItemGroup>
-  <ItemGroup><ProjectReference Include="../../Modules/Postgres/DigitalBrain.Modules.Postgres/DigitalBrain.Modules.Postgres.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../DigitalBrain.Client/DigitalBrain.Client.Orleans/DigitalBrain.Client.Orleans.csproj" /></ItemGroup>
 </Project>

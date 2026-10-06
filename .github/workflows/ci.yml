@@ -52,7 +52,7 @@ jobs:
         run: dotnet build DigitalBrain.slnx -c Release --no-restore -v quiet -p:CodeGraphRefresh=false
 
       - name: Build the sample C# file app
-        run: dotnet build src/Modules/Microsoft/CSharp/Samples/timer-report.cs -c Release -v quiet -p:CodeGraphRefresh=false
+        run: dotnet build src/DigitalBrain.Modules/Microsoft/CSharp/Samples/timer-report.cs -c Release -v quiet -p:CodeGraphRefresh=false
 
       - name: Validate NuGet packages
         run: dotnet pack DigitalBrain.slnx -c Release --no-build -v quiet -o artifacts
@@ -78,19 +78,17 @@ jobs:
   dotnet-e2e:
     name: 'E2E: ${{ matrix.suite }}'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The os suite runs the reference-brain facts and the product-host facts in one serial assembly.
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
         include:
-          - suite: kernel
-            project: src/DigitalBrain/Kernel/tests/DigitalBrain.Kernel.Tests.E2E
+          - suite: framework
+            project: src/DigitalBrain/Framework/tests/DigitalBrain.Framework.Tests.E2E
             browser: true
           - suite: os
             project: src/DigitalBrain/OS/tests/DigitalBrain.OS.Tests.E2E
-            browser: true
-          - suite: intochat
-            project: src/IntoChat/tests/IntoChat.Tests.E2E
             browser: true
           - suite: aspire-hosting
             project: src/Aspire/tests/DigitalBrain.Aspire.Hosting.Tests.E2E
@@ -128,10 +126,10 @@ jobs:
       # test, never a wrong artifact.
       - name: Warm the shell image layer cache
         if: matrix.browser == true
-        run: docker build -f src/Modules/Google/Flutter/app/shell/Dockerfile src/Modules/Google/Flutter/app
+        run: docker build -f src/DigitalBrain.Modules/Google/Flutter/app/shell/Dockerfile src/DigitalBrain.Modules/Google/Flutter/app
 
       - name: Warm the sandbox image layer cache
-        run: docker build src/Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Sandbox
+        run: docker build src/DigitalBrain.Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Sandbox
 
       # Scripts restore inside the sandbox against its named NuGet volume; seeding it from the
       # host's packages (already restored for the suite) removes every in-sandbox download.
@@ -150,7 +148,7 @@ jobs:
     timeout-minutes: 35
     defaults:
       run:
-        working-directory: src/Modules/Google/Flutter/app/shell
+        working-directory: src/DigitalBrain.Modules/Google/Flutter/app/shell
     steps:
       - uses: actions/checkout@v7
 
@@ -161,15 +159,15 @@ jobs:
           cache: true
 
       - name: Resolve Flutter workspace
-        working-directory: src/Modules/Google/Flutter/app
+        working-directory: src/DigitalBrain.Modules/Google/Flutter/app
         run: flutter pub get --enforce-lockfile
 
       - name: Dart format
-        working-directory: src/Modules/Google/Flutter/app
+        working-directory: src/DigitalBrain.Modules/Google/Flutter/app
         run: dart format --output=none --set-exit-if-changed core ui shell
 
       - name: Analyze Flutter packages
-        working-directory: src/Modules/Google/Flutter/app
+        working-directory: src/DigitalBrain.Modules/Google/Flutter/app
         run: |
           (cd core && dart analyze --fatal-infos)
           (cd ui && flutter analyze --no-pub)
@@ -179,7 +177,7 @@ jobs:
         run: flutter build web --release --base-href "/" --no-tree-shake-icons --no-pub
 
       - name: Flutter widget and client tests
-        working-directory: src/Modules/Google/Flutter/app
+        working-directory: src/DigitalBrain.Modules/Google/Flutter/app
         run: |
           (cd ui && flutter test --no-pub)
           (cd shell && flutter test --no-pub)

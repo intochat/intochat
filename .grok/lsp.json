@@ -1,0 +1,22 @@
+{
+  "csharp": {
+    "command": "csharp-ls",
+    "args": ["--solution", "DigitalBrain.slnx", "--loglevel", "warning"],
+    "extensionToLanguage": {
+      ".cs": "csharp"
+    },
+    "startupTimeout": 120000
+  },
+  "dart": {
+    "command": "dart",
+    "args": ["language-server", "--protocol=lsp"],
+    "extensionToLanguage": {
+      ".dart": "dart"
+    },
+    "workspaceFolder": "src/DigitalBrain.Modules/Google/Flutter/app",
+    "initializationOptions": {
+      "onlyAnalyzeProjectsWithOpenFiles": true
+    },
+    "startupTimeout": 120000
+  }
+}

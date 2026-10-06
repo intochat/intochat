@@ -1,0 +1,45 @@
+using System.Reflection;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Integrations;
+
+namespace DigitalBrain.Platform.Integrations;
+
+internal static class ConnectorDiscovery
+{
+    internal static ConnectorDefinition[] Declared(Type module)
+    {
+        const BindingFlags flags = BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly;
+        return new[] { "Connector", "Connectors" }.SelectMany(name =>
+            (module.GetProperty(name, flags)?.GetValue(null) ?? module.GetField(name, flags)?.GetValue(null)) switch
+            {
+                ConnectorDefinition one => [one],
+                IEnumerable<ConnectorDefinition> many => many,
+                _ => [],
+            }).ToArray();
+    }
+
+    internal static ConnectorDefinition[] Collect(ModuleInventory inventory, IReadOnlyList<IntegrationSchema> schemas)
+    {
+        var connectors = inventory.Types.SelectMany(Declared).ToArray();
+        Validate(connectors, schemas);
+        return connectors;
+    }
+
+    internal static void Validate(ConnectorDefinition[] connectors, IReadOnlyList<IntegrationSchema> schemas)
+    {
+        if (connectors.GroupBy(c => c.Id, StringComparer.Ordinal).Any(g => g.Count() > 1))
+        { throw new InvalidOperationException("Connector identifiers must be unique."); }
+        foreach (var connector in connectors)
+        {
+            _ = IntegrationSchema.For(connector.Id, connector.DisplayName);
+            if (connector.AuthMethods.Length == 0 || connector.AuthMethods.Any(string.IsNullOrWhiteSpace)
+                || connector.AuthMethods.Distinct(StringComparer.Ordinal).Count() != connector.AuthMethods.Length)
+            { throw new InvalidOperationException($"Connector '{connector.Id}' must declare distinct authentication methods."); }
+            foreach (var id in connector.RequiredIntegrations.Concat(connector.OptionalIntegrations))
+            {
+                if (!schemas.Any(s => s.Id == id))
+                { throw new InvalidOperationException($"Connector '{connector.Id}' requires undeclared Integration '{id}'."); }
+            }
+        }
+    }
+}
