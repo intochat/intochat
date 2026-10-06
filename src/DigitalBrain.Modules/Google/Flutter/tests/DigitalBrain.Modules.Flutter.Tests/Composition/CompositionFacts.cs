@@ -33,4 +33,14 @@ public sealed class CompositionFacts
         await Assert.ThrowsAsync<ArgumentException>(() => layout.Set(new("row", [], double.NaN), 1));
         Assert.Equal(1, (await layout.Read()).Revision);
     }
+
+    [Fact]
+    public async Task ALayoutEmbedsTableAndChartNeurons()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        var layout = brain.Get<ILayout>("owner/a/apps/data/views/v1/layout");
+        await layout.Set(new("column", [new("table", "owner/a/apps/data/views/v1/table"), new("chart", "owner/a/apps/data/views/v1/chart")]), 0);
+        Assert.Equal(["table", "chart"], (await layout.Read()).Definition.Children.Select(c => c.Kind));
+    }
 }
