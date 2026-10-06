@@ -1,4 +1,4 @@
-#:project /brain/src/Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps.Contracts/DigitalBrain.Modules.Apps.Contracts.csproj
+#:project /brain/src/DigitalBrain.Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps.Contracts/DigitalBrain.Modules.Apps.Contracts.csproj
 using DigitalBrain.Apps;
 
 // The host verifies a scratch copy of the app and names it in the "App" setting; the tests

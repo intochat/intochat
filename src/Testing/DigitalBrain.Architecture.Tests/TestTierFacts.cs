@@ -141,7 +141,7 @@ public sealed class TestTierFacts
                 .Any(part => string.Equals(part, "tests", StringComparison.OrdinalIgnoreCase)));
 
     private static IEnumerable<string> ModuleTestProjects()
-        => TestProjects().Where(path => Relative(path).StartsWith("src/Modules/", StringComparison.Ordinal));
+        => TestProjects().Where(path => Relative(path).StartsWith("src/DigitalBrain.Modules/", StringComparison.Ordinal));
 
     private static IEnumerable<string> References(string project)
         => XDocument.Load(project).Descendants("ProjectReference")

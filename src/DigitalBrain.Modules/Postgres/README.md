@@ -81,7 +81,7 @@ customer-researcher package writes through `IPostgresTable` from its behavior sc
 Run tests per project:
 
 ```powershell
-dotnet test src/Modules/Postgres/tests/DigitalBrain.Modules.Postgres.Tests.Unit
+dotnet test src/DigitalBrain.Modules/Postgres/tests/DigitalBrain.Modules.Postgres.Tests.Unit
 ```
 
 The requested `docs/superpowers/specs/2026-09-29-programmable-brain-vision-design.md`

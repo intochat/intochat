@@ -13,7 +13,7 @@ public sealed class CSharpScriptCheckFacts
         var result = _check.Check(new Dictionary<string, string>
         {
             ["behaviors/hello.cs"] = """
-                #:project /brain/src/Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Contracts/DigitalBrain.Modules.Microsoft.CSharp.Contracts.csproj
+                #:project /brain/src/DigitalBrain.Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Contracts/DigitalBrain.Modules.Microsoft.CSharp.Contracts.csproj
                 var file = default(DigitalBrain.Microsoft.CSharp.ICSharpFile);
                 Console.WriteLine($"{args.Length} {file}");
                 await Task.CompletedTask;

@@ -13,7 +13,7 @@ public sealed partial class ModuleKeyGrammarFacts
     private static readonly string[] Allowed =
     [
         // Brain-scoped owner identity, not a module option; platform-owned by design review.
-        "src/Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Aspire.Hosting/ShellNames.cs",
+        "src/DigitalBrain.Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Aspire.Hosting/ShellNames.cs",
     ];
 
     [Fact]

@@ -10,7 +10,7 @@ namespace DigitalBrain.OS.Tests.E2E;
 public sealed class CSharpFileContainerFacts
 {
     private const string Source = """
-        #:project /brain/src/Modules/Time/DigitalBrain.Modules.Time.Contracts/DigitalBrain.Modules.Time.Contracts.csproj
+        #:project /brain/src/DigitalBrain.Modules/Time/DigitalBrain.Modules.Time.Contracts/DigitalBrain.Modules.Time.Contracts.csproj
         using DigitalBrain.Time.Timers.Signals;
         using ITimer = DigitalBrain.Time.Timers.ITimer;
 
@@ -25,7 +25,7 @@ public sealed class CSharpFileContainerFacts
         """;
 
     private const string TriggeredSource = """
-        #:project /brain/src/Modules/Time/DigitalBrain.Modules.Time.Contracts/DigitalBrain.Modules.Time.Contracts.csproj
+        #:project /brain/src/DigitalBrain.Modules/Time/DigitalBrain.Modules.Time.Contracts/DigitalBrain.Modules.Time.Contracts.csproj
         using DigitalBrain.Time.Timers.Signals;
 
         await using var brain = await DigitalBrainClient.ConnectAsync(args);

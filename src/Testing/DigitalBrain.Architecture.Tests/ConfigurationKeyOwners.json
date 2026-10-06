@@ -13,6 +13,6 @@
   "src/DigitalBrain/Framework/DigitalBrain.Framework/Platform/Identity/IdentityHostOptions.cs",
   "src/DigitalBrain/Framework/DigitalBrain.Framework/Platform/Identity/KernelCorsOptions.cs",
   "src/DigitalBrain/Framework/DigitalBrain.Framework/Platform/Integrations/IntegrationSchema.cs",
-  "src/Modules/AI/tests/DigitalBrain.Modules.AI.Tests/AIGrammarFacts.cs",
-  "src/Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Aspire.Hosting/ShellNames.cs"
+  "src/DigitalBrain.Modules/AI/tests/DigitalBrain.Modules.AI.Tests/AIGrammarFacts.cs",
+  "src/DigitalBrain.Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Aspire.Hosting/ShellNames.cs"
 ]

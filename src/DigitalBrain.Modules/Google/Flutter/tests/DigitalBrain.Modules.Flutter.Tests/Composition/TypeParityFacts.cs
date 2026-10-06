@@ -31,7 +31,7 @@ public sealed class TypeParityFacts
             .GetValue(null)!;
         Assert.Contains(secretKind, accepted);
 
-        var renderer = File.ReadAllText(PathInRepo("src/Modules/Google/Flutter/app/ui/lib/src/composition/neuron_view.dart"));
+        var renderer = File.ReadAllText(PathInRepo("src/DigitalBrain.Modules/Google/Flutter/app/ui/lib/src/composition/neuron_view.dart"));
         Assert.Contains($"obscureText: kind == '{secretKind}' || kind == 'password'", renderer);
     }
 
