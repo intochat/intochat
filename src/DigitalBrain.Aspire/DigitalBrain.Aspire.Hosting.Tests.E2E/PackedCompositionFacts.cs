@@ -28,7 +28,7 @@ public sealed class PackedCompositionFacts
             // The harness no longer drags modules in; one contracts package proves module
             // contracts stay consumable from the feed on their own.
             "src/DigitalBrain.Modules/AI/DigitalBrain.Modules.AI.Contracts/DigitalBrain.Modules.AI.Contracts.csproj",
-            "src/DigitalBrain/Client/DigitalBrain.Client/DigitalBrain.Client.csproj",
+            "src/DigitalBrain.Client/DigitalBrain.Client/DigitalBrain.Client.csproj",
             "src/Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj",
             "src/Aspire/DigitalBrain.Aspire.Client/DigitalBrain.Aspire.Client.csproj",
         };
