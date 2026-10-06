@@ -3,6 +3,7 @@ using System.Text.Json;
 using DigitalBrain.Apps;
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Postgres.Tables;
 
 namespace DigitalBrain.Postgres;
 
@@ -58,7 +59,7 @@ internal sealed class PostgresAppResources(DigitalBrain.IDigitalBrain brain)
         var errors = new List<PostgresAppDiscoveryError>();
         foreach (var app in installed)
         {
-            var owner = JsonSerializer.Serialize(new[] { scope, app });
+            var owner = new TableOwner(scope, app).Key;
             foreach (var table in await brain.Get<IPostgresTables>(owner).ReadTables().WaitAsync(ct))
             {
                 try { resources.Add(await brain.Get<IPostgresTableResource>(table).DescribeResource(owner).WaitAsync(ct)); }
@@ -82,7 +83,7 @@ internal sealed class PostgresAppResources(DigitalBrain.IDigitalBrain brain)
         { throw new PostgresQueryException("Select an app table resource returned by postgres_schema."); }
         if (!(await Installed(scope, ct)).Contains(identity[0], StringComparer.Ordinal))
         { throw new UnauthorizedAccessException("This app is not installed in the current brain."); }
-        var owner = JsonSerializer.Serialize(new[] { scope, identity[0] });
+        var owner = new TableOwner(scope, identity[0]).Key;
         var tables = await brain.Get<IPostgresTables>(owner).ReadTables().WaitAsync(ct);
         if (!tables.Contains(identity[1], StringComparer.Ordinal))
         { throw new UnauthorizedAccessException("This table is not owned by the installed app."); }

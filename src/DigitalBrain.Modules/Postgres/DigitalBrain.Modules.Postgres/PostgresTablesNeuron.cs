@@ -1,9 +1,9 @@
-using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 using Orleans.Runtime;
+using DigitalBrain.Postgres.Tables;
 
 namespace DigitalBrain.Postgres;
 
@@ -74,8 +74,8 @@ internal sealed class PostgresLifecycleGuard : IIncomingGrainCallFilter
         var contract = context.InterfaceMethod.DeclaringType;
         if (contract == typeof(IPostgresTables) && context.InterfaceMethod.Name == nameof(IPostgresTables.ReadTables))
         {
-            var scope = JsonSerializer.Deserialize<string?[]>(context.TargetId.Key.ToString())!;
-            if (scope.Length != 2 || scope[0] != BrainScope.CurrentId())
+            var scope = TableOwner.Parse(context.TargetId.Key.ToString()!);
+            if (scope.BrainId != BrainScope.CurrentId())
             { throw new UnauthorizedAccessException("This storage belongs to another brain."); }
             var caller = CallerContextStamper.Require();
             if (!CallerContextStamper.IsTrusted(caller) || caller.Kind == CallerKind.App)
@@ -90,8 +90,8 @@ internal sealed class PostgresLifecycleGuard : IIncomingGrainCallFilter
             { throw new UnauthorizedAccessException("Only the owning module may change table lifetime."); }
             var owner = contract == typeof(IPostgresTables) ? context.TargetId.Key.ToString()
                 : (string)context.Request.GetArgument(0)!;
-            var scope = JsonSerializer.Deserialize<string?[]>(owner)!;
-            if (scope.Length != 2 || scope[0] != BrainScope.CurrentId())
+            var scope = TableOwner.Parse(owner);
+            if (scope.BrainId != BrainScope.CurrentId())
             { throw new UnauthorizedAccessException("This storage belongs to another brain."); }
             if (contract == typeof(IPostgresTableLifetime) && source.Value.Key.ToString() != owner)
             { throw new UnauthorizedAccessException("This table belongs to another owner."); }

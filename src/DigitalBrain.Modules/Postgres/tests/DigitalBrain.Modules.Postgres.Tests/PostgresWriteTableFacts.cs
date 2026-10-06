@@ -9,6 +9,7 @@ using Npgsql;
 using Orleans;
 using Orleans.Runtime;
 using Orleans.Storage;
+using DigitalBrain.Postgres.Tables;
 
 namespace DigitalBrain.Modules.Postgres.Tests;
 
@@ -37,7 +38,7 @@ public sealed class PostgresWriteTableFacts
         await owner.Uninstall("brain", "app");
         await owner.Uninstall("brain", "app");
 
-        Assert.Equal(("db:original", PostgresTablePolicy.PhysicalName(JsonSerializer.Serialize(new[] { BrainScope.CurrentId(), "app" }), "pending-ddl")), Assert.Single(provider.Drops));
+        Assert.Equal(("db:original", PostgresTablePolicy.PhysicalName(new TableOwner(BrainScope.CurrentId(), "app").Key, "pending-ddl")), Assert.Single(provider.Drops));
         Assert.Equal(1, capacity.Resolutions);
     }
 
@@ -101,7 +102,7 @@ public sealed class PostgresWriteTableFacts
         await owner.Uninstall("brain", "app");
         await owner.Uninstall("brain", "app");
         await brain.DeactivateAsync(table, TestContext.Current.CancellationToken);
-        await brain.DeactivateAsync(brain.Get<IPostgresTables>(JsonSerializer.Serialize(new[] { BrainScope.CurrentId(), "app" })), TestContext.Current.CancellationToken);
+        await brain.DeactivateAsync(brain.Get<IPostgresTables>(new TableOwner(BrainScope.CurrentId(), "app").Key), TestContext.Current.CancellationToken);
         await owner.Uninstall("brain", "app");
         Stamp("brain", "new-file");
         await brain.AuthorizeCallerAsync();
@@ -118,7 +119,7 @@ public sealed class PostgresWriteTableFacts
         await using var brain = await Start(new MemoryTables());
         Stamp();
         await brain.AuthorizeCallerAsync();
-        var tables = brain.Get<IPostgresTables>(JsonSerializer.Serialize(new[] { BrainScope.CurrentId(), "app" }));
+        var tables = brain.Get<IPostgresTables>(new TableOwner(BrainScope.CurrentId(), "app").Key);
         await Assert.ThrowsAsync<UnauthorizedAccessException>(tables.Retire);
     }
 
@@ -449,5 +450,5 @@ public sealed class PostgresLifecycleTestApp : DigitalBrain.Framework.Neuron, IP
 {
     public override NeuronAccess Access(string operation) => NeuronAccess.PublicOperation;
     public Task Uninstall(string brain, string file)
-        => GrainFactory.GetGrain<IPostgresTables>(JsonSerializer.Serialize(new[] { BrainScope.Create("alice", brain).Id, file })).Retire();
+        => GrainFactory.GetGrain<IPostgresTables>(new TableOwner(BrainScope.Create("alice", brain).Id, file).Key).Retire();
 }

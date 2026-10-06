@@ -1,6 +1,6 @@
-using System.Text.Json;
 using DigitalBrain.Apps;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Postgres.Tables;
 
 namespace DigitalBrain.Postgres;
 
@@ -14,10 +14,10 @@ internal sealed class PostgresAppStorageHook(IServiceProvider services) : IAppSt
 
     public async Task OnRetired(string brainId, string appKey, string[] storageKeys, CancellationToken cancellationToken)
     {
-        await Grains.GetGrain<IPostgresTables>(JsonSerializer.Serialize(new[] { brainId, appKey })).Retire();
+        await Grains.GetGrain<IPostgresTables>(new TableOwner(brainId, appKey).Key).Retire();
         foreach (var key in storageKeys)
         {
-            await Grains.GetGrain<IPostgresTables>(JsonSerializer.Serialize(new[] { brainId, key })).Retire();
+            await Grains.GetGrain<IPostgresTables>(new TableOwner(brainId, key).Key).Retire();
         }
     }
 }

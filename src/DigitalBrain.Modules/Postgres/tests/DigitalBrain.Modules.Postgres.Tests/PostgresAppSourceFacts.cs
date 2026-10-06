@@ -8,6 +8,7 @@ using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Tables;
 using DigitalBrain.Supabase.Windows;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Postgres.Tables;
 
 namespace DigitalBrain.Modules.Postgres.Tests;
 
@@ -61,7 +62,7 @@ public sealed class PostgresAppSourceFacts
         Assert.Equal("pending-discovery", failure.TableId);
         Assert.Contains("not finished", failure.Message, StringComparison.Ordinal);
         await Assert.ThrowsAsync<PostgresQueryException>(() => brain.Get<IPostgresTableResource>("pending-discovery")
-            .DescribeResource(JsonSerializer.Serialize(new[] { scope, "install" })));
+            .DescribeResource(new TableOwner(scope, "install").Key));
     }
 
     [Fact]
@@ -105,7 +106,7 @@ public sealed class PostgresAppSourceFacts
         await brain.AuthorizeCallerAsync();
         var table = brain.Get<IPostgresTable>("research-resource");
         await table.Define(new([new("id", "text")], ["id"]));
-        var owner = JsonSerializer.Serialize(new[] { BrainScope.CurrentId(), "install" });
+        var owner = new TableOwner(BrainScope.CurrentId(), "install").Key;
         var resource = brain.Get<IPostgresTableResource>("research-resource");
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => resource.DescribeResource(owner));
         Stamp(CallerKind.Platform);
@@ -114,7 +115,7 @@ public sealed class PostgresAppSourceFacts
         Assert.Equal("db:research", discovered.Origin);
         Assert.Equal("install", discovered.AppId);
         Assert.Equal(["research-resource"], await brain.Get<IPostgresTables>(owner).ReadTables());
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => resource.DescribeResource(JsonSerializer.Serialize(new[] { BrainScope.CurrentId(), "other-install" })));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => resource.DescribeResource(new TableOwner(BrainScope.CurrentId(), "other-install").Key));
         Stamp(CallerKind.Platform, "other-brain");
         await brain.AuthorizeCallerAsync();
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => resource.DescribeResource(owner));

@@ -1,9 +1,9 @@
-using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 using Orleans.Runtime;
+using DigitalBrain.Postgres.Tables;
 
 namespace DigitalBrain.Postgres;
 
@@ -33,10 +33,7 @@ internal sealed partial class PostgresTableNeuron(IPostgresTableProvider provide
 
     private string Scope()
     {
-        var caller = CallerContextStamper.Require();
-        if (!CallerContextStamper.IsTrusted(caller) || (caller.Kind == DigitalBrain.Enforcement.CallerKind.App && string.IsNullOrWhiteSpace(caller.AppId)))
-        { throw new UnauthorizedAccessException("A trusted brain and app caller is required."); }
-        var scope = JsonSerializer.Serialize(new[] { BrainScope.CurrentId(), caller.AppId });
+        var scope = TableOwner.Current().Key;
         if (state.State.Owner is { } owner && owner != scope)
         { throw new UnauthorizedAccessException("This table belongs to another brain or app."); }
         return scope;

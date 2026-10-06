@@ -1,8 +1,8 @@
-using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Postgres.Tables;
 
 namespace DigitalBrain.Postgres;
 
@@ -24,13 +24,12 @@ internal sealed partial class PostgresTableNeuron : IPostgresTableResource
     public async Task<PostgresAppTableResource> DescribeResource(string owner)
     {
         var caller = CallerContextStamper.Require();
-        var scope = JsonSerializer.Deserialize<string?[]>(owner);
-        if (!CallerContextStamper.IsTrusted(caller) || caller.Kind == CallerKind.App
-            || scope is not { Length: 2 } || scope[0] != BrainScope.CurrentId()
-            || scope[1] is null || state.State.Owner != owner)
+        if (!CallerContextStamper.IsTrusted(caller) || caller.Kind == CallerKind.App) { throw new UnauthorizedAccessException("This table belongs to another brain or app."); }
+        var scope = TableOwner.Parse(owner);
+        if (scope.BrainId != BrainScope.CurrentId() || state.State.Owner != owner)
         { throw new UnauthorizedAccessException("This table belongs to another brain or app."); }
         await Tables(owner).RequireOpen();
         var table = state.State.Accepted ?? throw new PostgresQueryException("This table has not finished being defined.");
-        return new(scope[1]!, this.GetPrimaryKeyString(), PostgresCapacityKind.OriginOrPlatform(state.State.Origin), table);
+        return new(scope.AppId, this.GetPrimaryKeyString(), PostgresCapacityKind.OriginOrPlatform(state.State.Origin), table);
     }
 }

@@ -1,0 +1,37 @@
+using DigitalBrain.Enforcement;
+using DigitalBrain.Postgres.Tables;
+
+namespace DigitalBrain.Modules.Postgres.Tests.Tables;
+
+public sealed class TableOwnerFacts
+{
+    [Fact]
+    public void AnOwnerRoundTripsThroughItsGrainKey()
+    {
+        var owner = new TableOwner("brain-1", "brain-1/apps/notes");
+        Assert.Equal(owner, TableOwner.Parse(owner.Key));
+        Assert.Equal("[\"brain-1\",\"brain-1/apps/notes\"]", owner.Key);
+    }
+
+    [Theory]
+    [InlineData("not json")]
+    [InlineData("[\"one\"]")]
+    [InlineData("[\"one\",\"two\",\"three\"]")]
+    [InlineData("[\"\",\"app\"]")]
+    [InlineData("[\"brain\",null]")]
+    public void AMalformedKeyIsRefusedAsUnauthorized(string key)
+        => Assert.Throws<UnauthorizedAccessException>(() => TableOwner.Parse(key));
+
+    [Fact]
+    public void TheCurrentOwnerComesFromTheStampedCallerAndRequiresAnApp()
+    {
+        var caller = new CallerContext
+        {
+            PrincipalId = "alice", AccountId = "alice", BrainId = "brain-1",
+            Kind = CallerKind.App, AppId = "brain-1/apps/notes", StampedBy = TrustedEdge.AppProxy,
+        };
+        Assert.Equal(new TableOwner("brain-1", "brain-1/apps/notes"), TableOwner.Current(caller));
+        Assert.Throws<UnauthorizedAccessException>(() => TableOwner.Current(caller with { AppId = "" }));
+        Assert.Throws<UnauthorizedAccessException>(() => TableOwner.Current(caller with { StampedBy = TrustedEdge.Platform }));
+    }
+}
