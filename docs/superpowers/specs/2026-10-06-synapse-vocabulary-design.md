@@ -59,7 +59,6 @@ src/DigitalBrain/
   Brain/BrainSnapshot.cs
   Brain/EstablishBrain.cs
   Brain/Signals/Activated.cs
-  Brain/Signals/NeuronActivity.cs, NeuronActivated.cs, NeuronDeactivated.cs   (from Framework/Signals)
   Synapse/ISynapse.cs
   Synapse/SynapseSnapshot.cs
   Synapse/SynapseWatch.cs
@@ -94,7 +93,9 @@ public sealed record SynapseWatch([property: Id(0)] string Neuron, [property: Id
 public sealed record SynapseChanged([property: Id(0)] string SynapseId) : Signal;
 ```
 
-`ModuleLoaded` stays in Framework: it is a composition fact, not brain structure.
+`ModuleLoaded` stays in Framework: it is a composition fact, not brain structure. The per-grain
+`NeuronActivated`/`NeuronDeactivated` broadcast was deleted on 2026-10-06: nothing consumed it,
+and an activation ledger is the catalog design the registry spec rejected.
 
 `IDigitalBrain` shrinks to the program's view of the brain:
 

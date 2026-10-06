@@ -39,62 +39,8 @@ public sealed class RuntimeSignalFacts
             (await subscription.Reader.ReadAsync(TestContext.Current.CancellationToken)).ModuleType);
         Assert.Equal([typeof(RuntimeFixtureModule)], inventory.Types);
     }
-    [Fact]
-    public async Task LifecycleSignalsDoNotDependOnDerivedHooksCallingBase()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
-        using var signals = brain.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<NeuronActivity>();
-        var neuron = brain.Get<IRuntimeProbe>("runtime-probe");
-        await neuron.Ping();
-        var activated = Assert.IsType<NeuronActivated>(await signals.Reader.ReadAsync(ct).AsTask().WaitAsync(TimeSpan.FromSeconds(5), ct));
-        Assert.Contains("test.runtime-probe", activated.TypeIds);
-        Assert.Equal("runtime-probe", activated.Key);
-
-        await neuron.Deactivate();
-        var deactivated = Assert.IsType<NeuronDeactivated>(await signals.Reader.ReadAsync(ct).AsTask().WaitAsync(TimeSpan.FromSeconds(5), ct));
-        Assert.Equal(activated.ActivationId, deactivated.ActivationId);
-        Assert.Equal(activated.NeuronId, deactivated.NeuronId);
-
-        await neuron.Ping();
-        var again = Assert.IsType<NeuronActivated>(await signals.Reader.ReadAsync(ct).AsTask().WaitAsync(TimeSpan.FromSeconds(5), ct));
-        Assert.Equal(activated.NeuronId, again.NeuronId);
-        Assert.NotEqual(activated.ActivationId, again.ActivationId);
-    }
-
-    [Fact]
-    public async Task FailedActivationIsNotReportedAsActive()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
-        using var signals = brain.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<NeuronActivity>();
-        await Assert.ThrowsAsync<InvalidOperationException>(() => brain.Get<IRuntimeProbe>("fail").Ping());
-        await brain.Get<IRuntimeProbe>("healthy").Ping();
-
-        var firstActivation = Assert.IsType<NeuronActivated>(await signals.Reader.ReadAsync(ct).AsTask().WaitAsync(TimeSpan.FromSeconds(5), ct));
-        Assert.Equal("healthy", firstActivation.Key);
-    }
-
     public sealed class RuntimeFixtureModule() : Module(new(nameof(RuntimeFixtureModule)))
     {
         public override void Configure(ISiloBuilder silo) { }
     }
-}
-
-[Alias("test.runtime-probe")]
-public interface IRuntimeProbe : INeuron
-{
-    Task Ping();
-    Task Deactivate();
-}
-
-[GrainType("test-runtime-probe")]
-public sealed class RuntimeProbe : Neuron, IRuntimeProbe
-{
-    public override Task OnActivateAsync(CancellationToken cancellationToken)
-        => this.GetPrimaryKeyString() == "fail" ? throw new InvalidOperationException("activation failed") : Task.CompletedTask;
-
-    public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken) => Task.CompletedTask;
-    public Task Ping() => Task.CompletedTask;
-    public Task Deactivate() { DeactivateOnIdle(); return Task.CompletedTask; }
 }
