@@ -25,7 +25,7 @@ public sealed class PostgresWriteTableFacts
         await using var brain = await ModuleTest.Create().WithModule<PostgresModule>().ConfigureSilo(silo =>
         {
             silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=sample;Username=reader";
-            silo.Services.AddSingleton<IPostgresTableProvider>(provider);
+            silo.Services.AddSingleton<ITableStore>(provider);
             silo.Services.AddSingleton<ICapacity>(capacity);
         }).StartAsync(ct);
         Stamp();
@@ -39,7 +39,7 @@ public sealed class PostgresWriteTableFacts
         await owner.Uninstall("brain", "app");
         await owner.Uninstall("brain", "app");
 
-        Assert.Equal(("db:original", PostgresTablePolicy.PhysicalName(new TableOwner(BrainScope.CurrentId(), "app").Key, "pending-ddl")), Assert.Single(provider.Drops));
+        Assert.Equal(("db:original", TablePolicy.PhysicalName(new TableOwner(BrainScope.CurrentId(), "app").Key, "pending-ddl")), Assert.Single(provider.Drops));
         Assert.Equal(1, capacity.Resolutions);
     }
 
@@ -71,7 +71,7 @@ public sealed class PostgresWriteTableFacts
         await using var brain = await ModuleTest.Create().WithModule<PostgresModule>().ConfigureSilo(silo =>
         {
             silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=sample;Username=reader";
-            silo.Services.AddSingleton<IPostgresTableProvider>(new MemoryTables());
+            silo.Services.AddSingleton<ITableStore>(new MemoryTables());
             silo.Services.AddSingleton<IIncomingGrainCallFilter>(race);
             silo.Services.AddKeyedSingleton<IGrainStorage>("Default", race);
         }).StartAsync(ct);
@@ -280,7 +280,7 @@ public sealed class PostgresWriteTableFacts
             Assert.Equal("'; DROP TABLE --", JsonSerializer.Deserialize<string>(Assert.Single(Assert.Single(result.Rows))));
             await Assert.ThrowsAsync<PostgresQueryException>(() => brain.Get<IPostgresServer>("default").Query(new($"DELETE FROM public.{accepted.Table}")));
             Stamp();
-            var provider = brain.SiloServices.GetRequiredService<IPostgresTableProvider>();
+            var provider = brain.SiloServices.GetRequiredService<ITableStore>();
             await provider.DefineAsync(PostgresCapacityKind.PlatformOrigin, accepted.Table, Definition, ct);
             await Assert.ThrowsAsync<PostgresQueryException>(() => provider.DefineAsync(PostgresCapacityKind.PlatformOrigin, accepted.Table,
                 new([new("id", "text"), new("value", "number")], ["id"]), ct));
@@ -302,7 +302,7 @@ public sealed class PostgresWriteTableFacts
             await using var source = NpgsqlDataSource.Create(connection!);
             foreach (var name in new[] { accepted.Table, researchName, otherName }.OfType<string>())
             {
-                PostgresTablePolicy.Identifier(name);
+                TablePolicy.Identifier(name);
                 await using var cleanup = source.CreateCommand($"DROP TABLE public.\"{name}\"");
                 await cleanup.ExecuteNonQueryAsync(ct);
             }
@@ -359,14 +359,14 @@ public sealed class PostgresWriteTableFacts
             AppId = app
         });
 
-    private static Task<ModuleBrain> Start(IPostgresTableProvider? provider, string connection = "Host=localhost;Database=sample;Username=reader")
+    private static Task<ModuleBrain> Start(ITableStore? provider, string connection = "Host=localhost;Database=sample;Username=reader")
         => ModuleTest.Create().WithModule<PostgresModule>().ConfigureSilo(silo =>
         {
             silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = connection;
             if (provider is not null) { silo.Services.AddSingleton(provider); }
         }).StartAsync(TestContext.Current.CancellationToken);
 
-    internal sealed class MemoryTables : IPostgresTableProvider
+    internal sealed class MemoryTables : ITableStore
     {
         private readonly Dictionary<string, Dictionary<string, TableValue[]>> tables = [];
         public int Definitions { get; private set; }
@@ -434,7 +434,7 @@ public sealed class PostgresWriteTableFacts
         {
             saved[(name, id)] = state.State;
             state.RecordExists = true;
-            if (state.State is PostgresTablesState { Retired: true }) { Closed.TrySetResult(); }
+            if (state.State is TableIndexState { Retired: true }) { Closed.TrySetResult(); }
             return Task.CompletedTask;
         }
         public Task ClearStateAsync<T>(string name, GrainId id, IGrainState<T> state) => throw new NotSupportedException();

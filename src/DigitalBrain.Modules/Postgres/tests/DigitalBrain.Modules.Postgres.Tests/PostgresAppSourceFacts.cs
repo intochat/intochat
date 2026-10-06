@@ -17,7 +17,7 @@ public sealed class PostgresAppSourceFacts
     [Fact]
     public void DiscoveredAppStorageHasExplicitOpenArgumentsRatherThanAWindowTableId()
     {
-        var resource = new PostgresAppTableResource("workspace/apps/customer-researcher", "workspace/apps/customer-researcher/table",
+        var resource = new TableDescription("workspace/apps/customer-researcher", "workspace/apps/customer-researcher/table",
             "db:research", new("db_results", new([new("name", "text")], ["name"]), 1));
         var descriptor = JsonSerializer.SerializeToElement(PostgresAppResources.Describe(resource));
         Assert.False(descriptor.TryGetProperty("tableId", out _));
@@ -36,7 +36,7 @@ public sealed class PostgresAppSourceFacts
         await using var brain = await ModuleTest.Create().WithModule<PostgresModule>().ConfigureSilo(silo =>
         {
             silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=platform;Username=reader";
-            silo.Services.AddSingleton<IPostgresTableProvider>(provider);
+            silo.Services.AddSingleton<ITableStore>(provider);
             silo.Services.AddSingleton<ICapacity>(new ResearchCapacity());
         }).StartAsync(ct);
         Stamp(CallerKind.App);
@@ -61,14 +61,14 @@ public sealed class PostgresAppSourceFacts
         Assert.Equal("install", failure.AppId);
         Assert.Equal("pending-discovery", failure.TableId);
         Assert.Contains("not finished", failure.Message, StringComparison.Ordinal);
-        await Assert.ThrowsAsync<PostgresQueryException>(() => brain.Get<IPostgresTableResource>("pending-discovery")
-            .DescribeResource(new TableOwner(scope, "install").Key));
+        await Assert.ThrowsAsync<PostgresQueryException>(() => brain.Get<ITableDescriptor>("pending-discovery")
+            .Describe(new TableOwner(scope, "install").Key));
     }
 
     [Fact]
     public async Task AnUnavailablePinnedSourceReturnsAnActionableWindowError()
     {
-        var resource = new PostgresAppTableResource("install", "results", "db:research", new("db_results", new([new("name", "text")], ["name"]), 1));
+        var resource = new TableDescription("install", "results", "db:research", new("db_results", new([new("name", "text")], ["name"]), 1));
         var app = new PostgresAppLiveSource(() => Task.FromResult(resource), _ => throw new PostgresUnavailableException("This table's database is not reachable from this deployment."));
         var error = await Assert.ThrowsAsync<SupabaseTableSourceException>(() => app.DescribeAsync(PostgresAppLiveSource.Select(resource), TestContext.Current.CancellationToken));
         Assert.Contains("not reachable", error.Message, StringComparison.Ordinal);
@@ -99,7 +99,7 @@ public sealed class PostgresAppSourceFacts
         await using var brain = await ModuleTest.Create().WithModule<PostgresModule>().ConfigureSilo(silo =>
         {
             silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=platform;Username=reader";
-            silo.Services.AddSingleton<IPostgresTableProvider>(new PostgresWriteTableFacts.MemoryTables());
+            silo.Services.AddSingleton<ITableStore>(new PostgresWriteTableFacts.MemoryTables());
             silo.Services.AddSingleton<ICapacity>(new ResearchCapacity());
         }).StartAsync(ct);
         Stamp(CallerKind.App);
@@ -107,18 +107,18 @@ public sealed class PostgresAppSourceFacts
         var table = brain.Get<ITable>("research-resource");
         await table.Define(new([new("id", "text")], ["id"]));
         var owner = new TableOwner(BrainScope.CurrentId(), "install").Key;
-        var resource = brain.Get<IPostgresTableResource>("research-resource");
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => resource.DescribeResource(owner));
+        var resource = brain.Get<ITableDescriptor>("research-resource");
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => resource.Describe(owner));
         Stamp(CallerKind.Platform);
         await brain.AuthorizeCallerAsync();
-        var discovered = await resource.DescribeResource(owner);
+        var discovered = await resource.Describe(owner);
         Assert.Equal("db:research", discovered.Origin);
         Assert.Equal("install", discovered.AppId);
         Assert.Equal(["research-resource"], await brain.Get<ITableIndex>(owner).ReadTables());
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => resource.DescribeResource(new TableOwner(BrainScope.CurrentId(), "other-install").Key));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => resource.Describe(new TableOwner(BrainScope.CurrentId(), "other-install").Key));
         Stamp(CallerKind.Platform, "other-brain");
         await brain.AuthorizeCallerAsync();
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => resource.DescribeResource(owner));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => resource.Describe(owner));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Get<ITableIndex>(owner).ReadTables());
     }
 
@@ -147,7 +147,7 @@ public sealed class PostgresAppSourceFacts
         var ct = TestContext.Current.CancellationToken;
         var origins = new List<string>();
         var source = new RecordingSource();
-        var resource = new PostgresAppTableResource("install", "results", "db:research", new("db_results", new([new("name", "text")], ["name"]), 1));
+        var resource = new TableDescription("install", "results", "db:research", new("db_results", new([new("name", "text")], ["name"]), 1));
         var resolutions = 0;
         var app = new PostgresAppLiveSource(async () => { resolutions++; await Task.Yield(); return resource; }, origin => { origins.Add(origin); return source; });
         var sql = PostgresAppLiveSource.Select(resource);
@@ -163,7 +163,7 @@ public sealed class PostgresAppSourceFacts
     [Fact]
     public async Task ResourceNeverAcceptsAnArbitraryTableOrOriginThroughSql()
     {
-        var resource = new PostgresAppTableResource("install", "results", "db:research", new("db_results", new([new("name", "text")], ["name"]), 1));
+        var resource = new TableDescription("install", "results", "db:research", new("db_results", new([new("name", "text")], ["name"]), 1));
         var source = new RecordingSource();
         var app = new PostgresAppLiveSource(() => Task.FromResult(resource), _ => source);
         await Assert.ThrowsAsync<SupabaseTableValidationException>(() => app.DescribeAsync("SELECT name FROM someone_else", TestContext.Current.CancellationToken));

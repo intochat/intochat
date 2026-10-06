@@ -2,11 +2,10 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using DigitalBrain.Postgres.Tables;
 
-namespace DigitalBrain.Postgres;
+namespace DigitalBrain.Postgres.Tables;
 
-internal static class PostgresTablePolicy
+internal static class TablePolicy
 {
     public static string PhysicalName(string scope, string key)
         => "dbt_" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(scope + "\0" + key)))[..56];

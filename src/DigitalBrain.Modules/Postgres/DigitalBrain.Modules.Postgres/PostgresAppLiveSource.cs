@@ -1,14 +1,15 @@
 using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Tables;
+using DigitalBrain.Postgres.Tables;
 
 namespace DigitalBrain.Postgres;
 
 // Only this fixed projection is accepted. Filtering and aggregation use the existing parameterized
 // query-plan compiler; neither an origin nor a physical table name is accepted from the caller.
-internal sealed class PostgresAppLiveSource(Func<Task<PostgresAppTableResource>> resolve,
+internal sealed class PostgresAppLiveSource(Func<Task<TableDescription>> resolve,
     Func<string, ILiveTableSource> source) : ILiveTableSource
 {
-    public static string Select(PostgresAppTableResource resource)
+    public static string Select(TableDescription resource)
         => "SELECT " + string.Join(", ", resource.Table.Definition.Columns.Select(column => Quote(column.Name)))
             + " FROM " + Quote(resource.Table.Table);
 

@@ -1,8 +1,7 @@
-using DigitalBrain.Postgres.Tables;
 
-namespace DigitalBrain.Postgres;
+namespace DigitalBrain.Postgres.Tables;
 
-public interface IPostgresTableProvider
+public interface ITableStore
 {
     Task DefineAsync(string origin, string table, TableDefinition definition, CancellationToken ct);
     Task DropAsync(string origin, string table, CancellationToken ct);

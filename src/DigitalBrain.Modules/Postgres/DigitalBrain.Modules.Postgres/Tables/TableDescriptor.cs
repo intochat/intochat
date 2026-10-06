@@ -2,26 +2,25 @@ using DigitalBrain;
 using DigitalBrain.Enforcement;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
-using DigitalBrain.Postgres.Tables;
 
-namespace DigitalBrain.Postgres;
+namespace DigitalBrain.Postgres.Tables;
 
 [PlatformOnly]
-internal interface IPostgresTableResource : INeuron
+public interface ITableDescriptor : INeuron
 {
-    Task<PostgresAppTableResource> DescribeResource(string owner);
+    Task<TableDescription> Describe(string owner);
 }
 
 [GenerateSerializer]
-internal sealed record PostgresAppTableResource(
+public sealed record TableDescription(
     [property: Id(0)] string AppId,
     [property: Id(1)] string TableId,
     [property: Id(2)] string Origin,
     [property: Id(3)] AcceptedTable Table);
 
-internal sealed partial class PostgresTableNeuron : IPostgresTableResource
+internal sealed partial class TableNeuron : ITableDescriptor
 {
-    public async Task<PostgresAppTableResource> DescribeResource(string owner)
+    public async Task<TableDescription> Describe(string owner)
     {
         var caller = CallerContextStamper.Require();
         if (!CallerContextStamper.IsTrusted(caller) || caller.Kind == CallerKind.App) { throw new UnauthorizedAccessException("This table belongs to another brain or app."); }

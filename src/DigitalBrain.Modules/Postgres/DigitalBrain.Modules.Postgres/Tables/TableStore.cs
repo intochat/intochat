@@ -2,15 +2,14 @@ using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using NpgsqlTypes;
-using DigitalBrain.Postgres.Tables;
 
-namespace DigitalBrain.Postgres;
+namespace DigitalBrain.Postgres.Tables;
 
-internal sealed class PostgresTableProvider(IPostgresSourceRegistry registry) : IPostgresTableProvider
+internal sealed class TableStore(IPostgresSourceRegistry registry) : ITableStore
 {
     private static string Q(string identifier)
     {
-        PostgresTablePolicy.Identifier(identifier);
+        TablePolicy.Identifier(identifier);
         return "\"" + identifier + "\"";
     }
 
@@ -28,7 +27,7 @@ internal sealed class PostgresTableProvider(IPostgresSourceRegistry registry) : 
         }, ct);
     private static string Parameter(TableDefinition definition, TableValue value, int index)
     {
-        var type = PostgresTablePolicy.SqlType(definition.Columns.Single(c => c.Name == value.Column).Type);
+        var type = TablePolicy.SqlType(definition.Columns.Single(c => c.Name == value.Column).Type);
         return type == "jsonb" ? $"${index}::jsonb" : $"(${index}::jsonb #>> '{{}}')::{type}";
     }
     private static string Predicate(TableDefinition definition, TableValue[] key)
@@ -37,13 +36,13 @@ internal sealed class PostgresTableProvider(IPostgresSourceRegistry registry) : 
     public Task DefineAsync(string origin, string table, TableDefinition definition, CancellationToken ct)
         => Execute(origin, async (connection, transaction, token) =>
         {
-            definition = PostgresTablePolicy.Validate(definition);
+            definition = TablePolicy.Validate(definition);
             await using (var guard = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", connection, transaction))
             {
                 guard.Parameters.AddWithValue(table);
                 await guard.ExecuteNonQueryAsync(token);
             }
-            var columns = string.Join(",", definition.Columns.Select(c => $"{Q(c.Name)} {PostgresTablePolicy.SqlType(c.Type)}"));
+            var columns = string.Join(",", definition.Columns.Select(c => $"{Q(c.Name)} {TablePolicy.SqlType(c.Type)}"));
             await using (var create = new NpgsqlCommand($"CREATE TABLE IF NOT EXISTS {Table(table)} ({columns}, PRIMARY KEY ({string.Join(",", definition.PrimaryKey.Select(Q))}))", connection, transaction))
             { await create.ExecuteNonQueryAsync(token); }
             await using var inspect = new NpgsqlCommand("""
@@ -67,7 +66,7 @@ internal sealed class PostgresTableProvider(IPostgresSourceRegistry registry) : 
                 if (reader.GetBoolean(2) != reader.GetBoolean(3))
                 { throw new PostgresQueryException("Incompatible existing table nullability; migrations are not supported."); }
             }
-            if (!PostgresTablePolicy.Compatible(definition, new(actual.ToArray(), keys.ToArray())))
+            if (!TablePolicy.Compatible(definition, new(actual.ToArray(), keys.ToArray())))
             { throw new PostgresQueryException("Incompatible existing table schema; migrations are not supported."); }
             return true;
         }, ct);

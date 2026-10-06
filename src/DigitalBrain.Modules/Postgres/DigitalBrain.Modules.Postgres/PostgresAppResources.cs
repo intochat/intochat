@@ -7,17 +7,17 @@ using DigitalBrain.Postgres.Tables;
 
 namespace DigitalBrain.Postgres;
 
-internal sealed record PostgresAppDiscovery(PostgresAppTableResource[] Resources, PostgresAppDiscoveryError[] Errors);
+internal sealed record PostgresAppDiscovery(TableDescription[] Resources, PostgresAppDiscoveryError[] Errors);
 internal sealed record PostgresAppDiscoveryError(string AppId, string TableId, string Message);
 
 internal sealed class PostgresAppResources(DigitalBrain.IDigitalBrain brain)
 {
     public const string SourcePrefix = "postgres-app:";
 
-    public static string Source(PostgresAppTableResource resource)
+    public static string Source(TableDescription resource)
         => SourcePrefix + Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new[] { resource.AppId, resource.TableId })));
 
-    public static object Describe(PostgresAppTableResource resource) => new
+    public static object Describe(TableDescription resource) => new
     {
         resource = Source(resource),
         appId = resource.AppId,
@@ -55,21 +55,21 @@ internal sealed class PostgresAppResources(DigitalBrain.IDigitalBrain brain)
     internal async Task<PostgresAppDiscovery> CollectInstalled(string[] installed, CancellationToken ct)
     {
         var scope = Scope();
-        var resources = new List<PostgresAppTableResource>();
+        var resources = new List<TableDescription>();
         var errors = new List<PostgresAppDiscoveryError>();
         foreach (var app in installed)
         {
             var owner = new TableOwner(scope, app).Key;
             foreach (var table in await brain.Get<ITableIndex>(owner).ReadTables().WaitAsync(ct))
             {
-                try { resources.Add(await brain.Get<IPostgresTableResource>(table).DescribeResource(owner).WaitAsync(ct)); }
+                try { resources.Add(await brain.Get<ITableDescriptor>(table).Describe(owner).WaitAsync(ct)); }
                 catch (PostgresQueryException error) { errors.Add(new(app, table, error.Message)); }
             }
         }
         return new(resources.ToArray(), errors.ToArray());
     }
 
-    public async Task<PostgresAppTableResource> Resolve(string source, CancellationToken ct)
+    public async Task<TableDescription> Resolve(string source, CancellationToken ct)
     {
         var scope = Scope();
         string[] identity;
@@ -87,6 +87,6 @@ internal sealed class PostgresAppResources(DigitalBrain.IDigitalBrain brain)
         var tables = await brain.Get<ITableIndex>(owner).ReadTables().WaitAsync(ct);
         if (!tables.Contains(identity[1], StringComparer.Ordinal))
         { throw new UnauthorizedAccessException("This table is not owned by the installed app."); }
-        return await brain.Get<IPostgresTableResource>(identity[1]).DescribeResource(owner).WaitAsync(ct);
+        return await brain.Get<ITableDescriptor>(identity[1]).Describe(owner).WaitAsync(ct);
     }
 }

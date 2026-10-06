@@ -7,7 +7,7 @@ using Npgsql;
 
 namespace DigitalBrain.Postgres;
 
-internal static class PostgresCapacityKind
+public static class PostgresCapacityKind
 {
     public const string Kind = "postgres";
     public const string PlatformOrigin = "platform";
