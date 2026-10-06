@@ -7,13 +7,15 @@ namespace DigitalBrain.Supabase;
 
 public sealed class SupabaseProvider(NpgsqlDataSource source) : ISupabaseProvider
 {
-    public async Task<SupabaseQueryResult> QueryAsync(string sql, int maxRows, CancellationToken cancellationToken)
+    public async Task<SupabaseQueryResult> QueryAsync(string sql, int maxRows, IReadOnlyList<SupabaseParameter> parameters, CancellationToken cancellationToken)
     {
         sql = SupabaseQueryGuard.Normalize(sql);
         ArgumentOutOfRangeException.ThrowIfLessThan(maxRows, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(maxRows, SupabaseQuery.MaxRowsLimit);
         var started = Stopwatch.GetTimestamp();
-        var (columns, rows) = await ReadAsync($"SELECT * FROM ({sql}) AS q LIMIT $1", [maxRows + 1], maxRows + 1, cancellationToken).ConfigureAwait(false);
+        // The page limit binds after the caller's parameters so $1..$n in the SQL keep their meaning.
+        var bound = parameters.Select(parameter => parameter.Value is null ? DBNull.Value : (object)parameter.Value).Append(maxRows + 1).ToArray();
+        var (columns, rows) = await ReadAsync($"SELECT * FROM ({sql}) AS q LIMIT ${bound.Length}", bound, maxRows + 1, cancellationToken).ConfigureAwait(false);
         var truncated = rows.Count > maxRows;
         var page = rows.Take(maxRows).ToArray();
         return new(columns, page, page.Length, truncated, Stopwatch.GetElapsedTime(started).TotalMilliseconds);

@@ -24,7 +24,7 @@ internal sealed class CustomersDatabase : ISupabaseProvider
     public Task<SupabaseTableAggregate> AggregateAsync(QueryPlan plan, string function, string columnId, CancellationToken cancellationToken = default)
         => Task.FromResult(new SupabaseTableAggregate(columnId, function, Rows.Count.ToString(System.Globalization.CultureInfo.InvariantCulture)));
 
-    public Task<SupabaseQueryResult> QueryAsync(string sql, int maxRows, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<SupabaseQueryResult> QueryAsync(string sql, int maxRows, IReadOnlyList<SupabaseParameter> parameters, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<SupabaseConnection> PingAsync(CancellationToken cancellationToken) => Task.FromResult(new SupabaseConnection(true, "test", "16.0", SupabaseModule.ProviderName));
 }

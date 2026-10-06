@@ -29,6 +29,12 @@ internal sealed class SupabaseNeuron : Neuron, ISupabase
             throw new SupabaseQueryException($"maxRows must be between 1 and {SupabaseQuery.MaxRowsLimit}.");
         }
 
+        var parameters = query.Parameters ?? [];
+        if (parameters.Length > SupabaseQuery.MaxParameters)
+        {
+            throw new SupabaseQueryException($"A query takes at most {SupabaseQuery.MaxParameters} parameters.");
+        }
+
         string sql;
         try
         {
@@ -39,7 +45,7 @@ internal sealed class SupabaseNeuron : Neuron, ISupabase
             throw new SupabaseQueryException(error.Message);
         }
 
-        return await Provider.QueryAsync(sql, query.MaxRows, CancellationToken.None);
+        return await Provider.QueryAsync(sql, query.MaxRows, parameters, CancellationToken.None);
     }
 
     [ReadOnly]

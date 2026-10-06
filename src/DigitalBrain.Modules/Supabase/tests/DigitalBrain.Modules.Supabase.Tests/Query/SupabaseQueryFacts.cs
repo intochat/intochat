@@ -23,6 +23,25 @@ public sealed class SupabaseQueryFacts
     }
 
     [Fact]
+    public async Task ParametersReachTheProviderUnchanged()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var provider = new FakeSupabaseProvider();
+        await using var brain = await StartAsync(provider, ct);
+        await brain.Get<ISupabase>(SupabaseNames.DefaultNeuron).Query(new("select 1 where $1 = 'a'", 5, [new("x", "it's")]));
+        Assert.Equal("it's", Assert.Single(provider.LastParameters).Value);
+    }
+
+    [Fact]
+    public async Task MoreThanSixteenParametersAreRejected()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await StartAsync(new FakeSupabaseProvider(), ct);
+        var many = Enumerable.Range(0, 17).Select(i => new SupabaseParameter($"p{i}", "x")).ToArray();
+        await Assert.ThrowsAsync<SupabaseQueryException>(() => brain.Get<ISupabase>(SupabaseNames.DefaultNeuron).Query(new("select 1", 10, many)));
+    }
+
+    [Fact]
     public async Task ReadConnectionReportsTheProvider()
     {
         var ct = TestContext.Current.CancellationToken;

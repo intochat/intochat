@@ -51,7 +51,8 @@ public static partial class SupabaseQueryGuard
                 // Quoted function names must not bypass forbidden-function checks.
                 syntax.Append(' ').Append(identifier ? quoted.ToString() : "?").Append(' ');
             }
-            else if (character is ';' or '$' or '`' or '\\' ||
+            else if (character == '$' && index + 1 < sql.Length && char.IsAsciiDigit(sql[index + 1])) { syntax.Append(character); } // $n placeholder; dollar-quote tags cannot start with a digit.
+            else if (character is '$' or ';' or '`' or '\\' ||
                 (index + 1 < sql.Length && ((character == '-' && sql[index + 1] == '-') || (character == '/' && sql[index + 1] == '*'))))
             {
                 throw Invalid();

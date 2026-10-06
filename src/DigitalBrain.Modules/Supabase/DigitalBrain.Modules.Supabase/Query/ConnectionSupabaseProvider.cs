@@ -12,8 +12,8 @@ internal sealed class ConnectionSupabaseProvider(IModuleConnectionCredentials<Su
         await using var source = NpgsqlDataSource.Create(SupabaseConnectionSettings.Parse(connection).ConnectionString);
         return await operation(new SupabaseProvider(source));
     }
-    public Task<SupabaseQueryResult> QueryAsync(string sql, int maxRows, CancellationToken cancellationToken)
-        => Execute(provider => provider.QueryAsync(sql, maxRows, cancellationToken), cancellationToken);
+    public Task<SupabaseQueryResult> QueryAsync(string sql, int maxRows, IReadOnlyList<SupabaseParameter> parameters, CancellationToken cancellationToken)
+        => Execute(provider => provider.QueryAsync(sql, maxRows, parameters, cancellationToken), cancellationToken);
     public Task<IReadOnlyList<SupabaseColumn>> DescribeAsync(string sql, CancellationToken cancellationToken)
         => Execute(provider => provider.DescribeAsync(sql, cancellationToken), cancellationToken);
     public Task<SupabaseSchema> ReadSchemaAsync(string? table, CancellationToken cancellationToken)

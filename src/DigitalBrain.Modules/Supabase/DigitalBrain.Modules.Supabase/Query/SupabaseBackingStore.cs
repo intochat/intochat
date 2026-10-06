@@ -41,8 +41,8 @@ internal sealed class SupabaseBackingStore(IModuleIntegrations<SupabaseModule> i
     {
         if (options.Value.UseBackingStore) { _ = await Materialize(cancellationToken); }
     }
-    public async Task<SupabaseQueryResult> QueryAsync(string sql, int maxRows, CancellationToken cancellationToken)
-        => await (await Materialize(cancellationToken)).QueryAsync(sql, maxRows, cancellationToken);
+    public async Task<SupabaseQueryResult> QueryAsync(string sql, int maxRows, IReadOnlyList<SupabaseParameter> parameters, CancellationToken cancellationToken)
+        => await (await Materialize(cancellationToken)).QueryAsync(sql, maxRows, parameters, cancellationToken);
     public async Task<IReadOnlyList<SupabaseColumn>> DescribeAsync(string sql, CancellationToken cancellationToken)
         => await (await Materialize(cancellationToken)).DescribeAsync(sql, cancellationToken);
     public async Task<SupabaseSchema> ReadSchemaAsync(string? table, CancellationToken cancellationToken)

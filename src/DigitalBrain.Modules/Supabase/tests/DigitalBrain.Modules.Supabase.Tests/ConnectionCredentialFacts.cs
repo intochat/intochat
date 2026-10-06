@@ -18,7 +18,7 @@ public sealed class ConnectionCredentialFacts
         var credentials = new MissingConnection();
         var provider = new ConnectionSupabaseProvider(credentials);
         var ct = TestContext.Current.CancellationToken;
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => provider.QueryAsync("select 1", 1, ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => provider.QueryAsync("select 1", 1, [], ct));
         Assert.Equal(("supabase", "supabase", ct), credentials.Request);
     }
 

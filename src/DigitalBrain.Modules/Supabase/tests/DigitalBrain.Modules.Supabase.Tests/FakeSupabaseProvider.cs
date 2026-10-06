@@ -25,8 +25,11 @@ internal sealed class FakeSupabaseProvider : ISupabaseProvider
     // Every statement the provider was asked to run, so a test can prove a probe is read-only.
     public List<string> ExecutedSql { get; } = [];
 
-    public Task<SupabaseQueryResult> QueryAsync(string sql, int maxRows, CancellationToken cancellationToken)
+    public IReadOnlyList<SupabaseParameter> LastParameters { get; private set; } = [];
+
+    public Task<SupabaseQueryResult> QueryAsync(string sql, int maxRows, IReadOnlyList<SupabaseParameter> parameters, CancellationToken cancellationToken)
     {
+        LastParameters = parameters;
         ExecutedSql.Add(sql);
         return Task.FromResult(QueryResult);
     }

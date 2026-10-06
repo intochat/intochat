@@ -17,7 +17,7 @@ public interface ILiveTableSource
 // The interface between the neurons and a Supabase server.
 public interface ISupabaseProvider : ILiveTableSource
 {
-    Task<SupabaseQueryResult> QueryAsync(string sql, int maxRows, CancellationToken cancellationToken);
+    Task<SupabaseQueryResult> QueryAsync(string sql, int maxRows, IReadOnlyList<SupabaseParameter> parameters, CancellationToken cancellationToken);
 
     Task<SupabaseSchema> ReadSchemaAsync(string? table, CancellationToken cancellationToken);
 

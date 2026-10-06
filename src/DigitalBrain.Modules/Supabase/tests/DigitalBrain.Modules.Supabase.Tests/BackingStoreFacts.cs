@@ -31,7 +31,7 @@ public sealed class BackingStoreFacts
         var credentials = new MissingInfrastructure();
         await using var backing = new SupabaseBackingStore(credentials, Options.Create(new SupabaseModuleOptions { UseBackingStore = true }));
         var ct = TestContext.Current.CancellationToken;
-        await Assert.ThrowsAsync<InvalidOperationException>(() => backing.QueryAsync("select 1", 1, ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => backing.QueryAsync("select 1", 1, [], ct));
         Assert.Equal(("supabase", "Release", ct), credentials.Request);
     }
 
