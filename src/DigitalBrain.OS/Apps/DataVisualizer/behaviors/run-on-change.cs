@@ -26,15 +26,17 @@ while (!brain.Stopping.IsCancellationRequested)
 {
     try
     {
-        await foreach (var _ in brain.On<TextChanged>(registry, brain.Stopping)) { foreach (var view in await Views()) { await RunView(view.Id); } }
+        await using var registryChanges = await brain.SubscribeAsync<TextChanged>(registry, brain.Stopping);
+        await RunAll();
+        await foreach (var _ in registryChanges.ReadAllAsync(brain.Stopping)) { await RunAll(); }
     }
     catch (OperationCanceledException) when (brain.Stopping.IsCancellationRequested) { }
-    catch (Exception error)
-    {
-        Console.WriteLine($"registry stream stopped, resubscribing: {error.Message}");
-        await Task.Delay(TimeSpan.FromSeconds(1), brain.Stopping).ContinueWith(_ => { });
-    }
+    catch (Exception error) { Console.WriteLine($"registry stream stopped, resubscribing: {error.Message}"); }
+    await Task.Delay(TimeSpan.FromSeconds(1), brain.Stopping).ContinueWith(_ => { });
 }
+
+// Runs on every (re)subscribe too: a restarted script must not leave views stale until the next registry write.
+async Task RunAll() { foreach (var view in await Views()) { await RunView(view.Id); } }
 
 async Task Run(View? view)
 {
