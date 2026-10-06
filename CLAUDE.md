@@ -5,6 +5,12 @@ speaks in **signals**. Users program their brain at runtime by talking to it —
 itself — and what they build is shareable, forkable and verified before it reaches anyone else.
 IntoChat is one product on top of the OS; the Flutter shell is its workspace UI.
 
+## Non-negotiables
+
+- **LSP for all code work** (C# and Dart): symbols, references, usages, renames, diagnostics. Never grep code.
+- **Done means seen running**: Aspire resources Healthy → driven via `digitalbrain-mcp` → confirmed in traces/logs.
+- **Brainstorm only for design**: new concepts, contract/module-shape changes, open fronts. Everything else: do it and verify.
+
 ## The four words
 
 Everything is one of these. Anything that looks like a fifth concept is a design smell — stop and ask.
