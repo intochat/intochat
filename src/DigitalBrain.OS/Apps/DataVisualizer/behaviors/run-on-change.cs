@@ -26,9 +26,11 @@ while (!brain.Stopping.IsCancellationRequested)
 {
     try
     {
-        await using var registryChanges = await brain.SubscribeAsync<TextChanged>(registry, brain.Stopping);
+        // Prime the watch, then run once: the stream is opening while the first pass runs.
+        await using var registryChanges = brain.On<TextChanged>(registry, brain.Stopping).GetAsyncEnumerator(brain.Stopping);
+        var next = registryChanges.MoveNextAsync();
         await RunAll();
-        await foreach (var _ in registryChanges.ReadAllAsync(brain.Stopping)) { await RunAll(); }
+        while (await next) { await RunAll(); next = registryChanges.MoveNextAsync(); }
     }
     catch (OperationCanceledException) when (brain.Stopping.IsCancellationRequested) { }
     catch (Exception error) { Console.WriteLine($"registry stream stopped, resubscribing: {error.Message}"); }

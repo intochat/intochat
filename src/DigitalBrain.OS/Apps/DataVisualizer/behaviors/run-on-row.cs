@@ -30,9 +30,11 @@ while (!brain.Stopping.IsCancellationRequested)
 {
     try
     {
-        await using var registryChanges = await brain.SubscribeAsync<TextChanged>(registry, brain.Stopping);
+        // Prime the watch, then run once: the stream is opening while the first pass runs.
+        await using var registryChanges = brain.On<TextChanged>(registry, brain.Stopping).GetAsyncEnumerator(brain.Stopping);
+        var next = registryChanges.MoveNextAsync();
         await Reconcile();
-        await foreach (var _ in registryChanges.ReadAllAsync(brain.Stopping)) { await Reconcile(); }
+        while (await next) { await Reconcile(); next = registryChanges.MoveNextAsync(); }
     }
     catch (OperationCanceledException) when (brain.Stopping.IsCancellationRequested) { }
     catch (Exception error)
@@ -70,35 +72,17 @@ async Task Watch(View view, CancellationToken ct)
     await Pump<RowDeleted>(table, view.Id, ct);
 }
 
-async Task Pump<T>(INeuron source, string id, CancellationToken ct) where T : Signal
+Task Pump<T>(INeuron source, string id, CancellationToken ct) where T : Signal => Task.Run(async () =>
 {
-    var subscription = await brain.SubscribeAsync<T>(source, ct);
-    _ = Task.Run(async () =>
+    while (!ct.IsCancellationRequested)
     {
-        while (!ct.IsCancellationRequested)
-        {
-            try { await foreach (var _ in subscription.ReadAllAsync(ct)) { await RunView(id); } }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
-            catch (Exception error) { Console.WriteLine($"{typeof(T).Name} stream of {source} stopped, resubscribing: {error.Message}"); }
-            await Task.Delay(TimeSpan.FromSeconds(1), ct).ContinueWith(_ => { });
-            while (!ct.IsCancellationRequested)
-            {
-                try
-                {
-                    subscription = await brain.SubscribeAsync<T>(source, ct);
-                    await RunView(id);
-                    break;
-                }
-                catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
-                catch (Exception error)
-                {
-                    Console.WriteLine($"resubscribing {typeof(T).Name} failed: {error.Message}");
-                    await Task.Delay(TimeSpan.FromSeconds(1), ct).ContinueWith(_ => { });
-                }
-            }
-        }
-    }, CancellationToken.None);
-}
+        try { await foreach (var _ in brain.On<T>(source, ct)) { await RunView(id); } }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
+        catch (Exception error) { Console.WriteLine($"{typeof(T).Name} stream of {source} stopped, rewatching: {error.Message}"); }
+        await Task.Delay(TimeSpan.FromSeconds(1), ct).ContinueWith(_ => { });
+        if (!ct.IsCancellationRequested) { try { await RunView(id); } catch (Exception error) { Console.WriteLine($"rerun after rewatch failed: {error.Message}"); } }
+    }
+}, CancellationToken.None);
 
 async Task Run(View? view)
 {

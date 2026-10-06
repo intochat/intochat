@@ -17,9 +17,7 @@ var prefsRoot = brain.Setting("Brain") is { Length: > 0 } brainScope ? brainScop
 var displayName = brain.Get<ITextField>(prefsRoot + "/display-name");
 var theme = brain.Get<ITextField>(prefsRoot + "/theme");
 
-await using var invocations = await brain.SubscribeAsync<AppInvoked>(app, brain.Stopping);
-foreach (var missed in await app.Pending()) { await app.Respond(await Answer(missed.Id, missed.Operation)); }
-await foreach (var invoked in invocations.ReadAllAsync(brain.Stopping)) { await app.Respond(await Answer(invoked.InvocationId, invoked.Operation)); }
+await foreach (var invoked in app.Invocations(brain, brain.Stopping)) { await app.Respond(await Answer(invoked.InvocationId, invoked.Operation)); }
 
 async Task<AppResponse> Answer(Guid id, string operation)
 {
