@@ -80,8 +80,8 @@ public sealed class TestTierFacts
         {
             if (!References(project).Contains("DigitalBrain.Testing.E2E", StringComparer.Ordinal)) { continue; }
             var name = Path.GetFileNameWithoutExtension(project);
-            var relative = Relative(project);
-            if (relative.StartsWith("src/Testing/", StringComparison.Ordinal)
+            // The harness's own folder (Testing) and the product tier may consume it.
+            if (Repository.ProjectNamed(name).Folder == Repository.ProjectNamed("DigitalBrain.Testing.E2E").Folder
                 || productScope.Contains(name, StringComparer.Ordinal))
             { continue; }
             if (!baseline.Remove(name)) { offenders.Add(name); }
@@ -103,19 +103,19 @@ public sealed class TestTierFacts
             "E2ETest" + ".For<",
             "ProductE2E" + ".Create(",
         ];
-        // Paths: a Windows checkout can carry different directory casing than the git index.
+        // Keyed "<ProjectName>/<path inside the project>"; a Windows checkout can carry different
+        // directory casing than the git index.
         var baseline = Baseline().LegacyFullStackBootFacts.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var offenders = new List<string>();
-        foreach (var file in Directory.EnumerateFiles(Path.Combine(Root, "src"), "*Facts.cs", SearchOption.AllDirectories))
+        foreach (var file in Repository.ProjectFiles("*Facts.cs"))
         {
-            if (file.Split(Path.DirectorySeparatorChar).Any(part => part is "obj" or "bin")) { continue; }
             var source = File.ReadAllText(file);
             // Building a composition or application model is not a boot; a boot starts it.
             if (!source.Contains(".StartAsync(", StringComparison.Ordinal)) { continue; }
             var builders = boots.Append("DistributedApplication" + "TestingBuilder");
             if (!builders.Any(token => source.Contains(token, StringComparison.Ordinal))) { continue; }
-            var relative = Relative(file);
-            if (!baseline.Remove(relative)) { offenders.Add(relative); }
+            var key = Repository.ProjectKey(file);
+            if (!baseline.Remove(key)) { offenders.Add(key); }
         }
         Assert.True(offenders.Count == 0,
             "A full product stack boots once per suite, in a shared fixture; a fact leases it instead of booting its own: "
@@ -134,15 +134,13 @@ public sealed class TestTierFacts
         => JsonSerializer.Deserialize<TestTierBaseline>(
             File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestTierBaseline.json")))!;
 
-    private static readonly string Root = RepositoryRoot();
-
     private static IEnumerable<string> TestProjects()
-        => Directory.EnumerateFiles(Path.Combine(Root, "src"), "*.csproj", SearchOption.AllDirectories)
-            .Where(path => path.Split(Path.DirectorySeparatorChar)
-                .Any(part => string.Equals(part, "tests", StringComparison.OrdinalIgnoreCase)));
+        => Repository.Projects.Values
+            .Where(project => project.Name.EndsWith(".Tests", StringComparison.Ordinal) || project.Name.Contains(".Tests.", StringComparison.Ordinal))
+            .Select(project => project.Path);
 
     private static IEnumerable<string> ModuleTestProjects()
-        => TestProjects().Where(path => Relative(path).StartsWith("src/DigitalBrain.Modules/", StringComparison.Ordinal));
+        => TestProjects().Where(path => path.StartsWith(Repository.ModulesRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal));
 
     private static IEnumerable<string> References(string project)
         => XDocument.Load(project).Descendants("ProjectReference")
@@ -150,16 +148,4 @@ public sealed class TestTierFacts
             .OfType<string>()
             .Where(include => !include.Contains('@', StringComparison.Ordinal))
             .Select(include => Path.GetFileNameWithoutExtension(include.Replace('\\', '/')));
-
-    private static string Relative(string path) => Path.GetRelativePath(Root, path).Replace('\\', '/');
-
-    private static string RepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "DigitalBrain.slnx")))
-        {
-            directory = directory.Parent;
-        }
-        return directory?.FullName ?? throw new DirectoryNotFoundException("DigitalBrain.slnx was not found.");
-    }
 }

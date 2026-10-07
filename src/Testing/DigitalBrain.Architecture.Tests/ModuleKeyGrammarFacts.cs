@@ -4,7 +4,7 @@ namespace DigitalBrain.Architecture.Tests;
 
 // No module is exempt from the grammar: every DigitalBrain-prefixed key a module project
 // carries lives under DigitalBrain:Modules. The allowlist is closed — each entry is a
-// platform-owned contract a module restates at its boundary.
+// platform-owned contract a module restates at its boundary, keyed by project.
 public sealed partial class ModuleKeyGrammarFacts
 {
     [GeneratedRegex("\"\\$?DigitalBrain(:|__)(?!Modules[:_])[A-Za-z]", RegexOptions.CultureInvariant)]
@@ -13,17 +13,14 @@ public sealed partial class ModuleKeyGrammarFacts
     private static readonly string[] Allowed =
     [
         // Brain-scoped owner identity, not a module option; platform-owned by design review.
-        "src/DigitalBrain.Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Aspire.Hosting/ShellNames.cs",
+        "DigitalBrain.Modules.Flutter.Aspire.Hosting/ShellNames.cs",
     ];
 
     [Fact]
     public void ModuleKeysLiveUnderTheModulesSection()
     {
-        var root = RepositoryRoot();
-        var offenders = Directory.EnumerateFiles(Path.Combine(root, "src", "Modules"), "*.cs", SearchOption.AllDirectories)
-            .Where(path => !path.Split(Path.DirectorySeparatorChar).Any(part => part is "obj" or "bin"))
-            .Where(path => ForeignRootLiteral().IsMatch(File.ReadAllText(path)))
-            .Select(path => Path.GetRelativePath(root, path).Replace('\\', '/'))
+        var offenders = Repository.ProjectFiles("*.cs", path => ForeignRootLiteral().IsMatch(File.ReadAllText(path)), project => project.Name.StartsWith("DigitalBrain.Modules.", StringComparison.Ordinal))
+            .Select(Repository.ProjectKey)
             .Except(Allowed, StringComparer.Ordinal)
             .Order().ToArray();
 
@@ -31,15 +28,5 @@ public sealed partial class ModuleKeyGrammarFacts
             "Module-owned configuration lives under DigitalBrain:Modules:{id}; derive keys from "
             + "DigitalBrainConfiguration.ModuleSection/ModuleOptionsSection instead of a private root:\n"
             + string.Join('\n', offenders));
-    }
-
-    private static string RepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "DigitalBrain.slnx")))
-        {
-            directory = directory.Parent;
-        }
-        return directory?.FullName ?? throw new DirectoryNotFoundException("DigitalBrain.slnx was not found.");
     }
 }

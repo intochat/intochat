@@ -5,17 +5,6 @@ namespace DigitalBrain.OS.Tests.Unit;
 
 public sealed class IdentityHostOptionsFacts
 {
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "DigitalBrain.slnx")))
-        {
-            directory = directory.Parent;
-        }
-        return directory?.FullName
-            ?? throw new InvalidOperationException($"Repository root (DigitalBrain.slnx) was not found above {AppContext.BaseDirectory}.");
-    }
-
     [Fact]
     public void TheHostAppSettingsCarryTheDistributionIdentity()
     {
@@ -32,11 +21,10 @@ public sealed class IdentityHostOptionsFacts
     [Fact]
     public void TheAppHostAndTheImageStateTheSameIdentity()
     {
-        var root = FindRepositoryRoot();
         using var appHost = new ConfigurationManager();
-        appHost.AddJsonFile(Path.Combine(root, "src", "DigitalBrain.AppHost", "appsettings.json"));
+        appHost.AddJsonFile(Path.Combine(SolutionProjects.DirectoryOf("DigitalBrain.AppHost"), "appsettings.json"));
         using var image = new ConfigurationManager();
-        image.AddJsonFile(Path.Combine(root, "src", "DigitalBrain.OS", "DigitalBrain.OS", "appsettings.json"));
+        image.AddJsonFile(Path.Combine(SolutionProjects.DirectoryOf("DigitalBrain.OS"), "appsettings.json"));
         foreach (var key in new[]
         {
             nameof(IdentityHostOptions.CookieName),

@@ -7,7 +7,7 @@ namespace DigitalBrain.Modules.Flutter.Tests.Composition;
 
 public sealed class TypeParityFacts
 {
-    private static readonly string RepositoryRoot = FindRepositoryRoot();
+    private static readonly string FlutterApp = FindFlutterApp();
 
     [Fact]
     public void CatalogRegistersEveryFieldKindExactlyOnce()
@@ -38,21 +38,24 @@ public sealed class TypeParityFacts
             .GetValue(null)!;
         Assert.Contains(secretKind, accepted);
 
-        var renderer = File.ReadAllText(PathInRepo("src/DigitalBrain.Modules/Google/Flutter/app/ui/lib/src/composition/neuron_view.dart"));
+        var renderer = File.ReadAllText(Path.Combine(FlutterApp, "ui/lib/src/composition/neuron_view.dart".Replace('/', Path.DirectorySeparatorChar)));
         Assert.Contains($"obscureText: kind == '{secretKind}' || kind == 'password'", renderer);
     }
 
-    private static string PathInRepo(string relative) =>
-        Path.Combine(RepositoryRoot, relative.Replace('/', Path.DirectorySeparatorChar));
-
-    private static string FindRepositoryRoot()
+    // The Flutter workspace sits beside the module project (app/); the project is found through
+    // the solution by name, never by a path literal.
+    private static string FindFlutterApp()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "DigitalBrain.slnx")))
         {
             directory = directory.Parent;
         }
-        return directory?.FullName
+        var root = directory?.FullName
             ?? throw new InvalidOperationException($"Repository root (DigitalBrain.slnx) was not found above {AppContext.BaseDirectory}.");
+        var module = System.Xml.Linq.XDocument.Load(Path.Combine(root, "DigitalBrain.slnx")).Descendants("Project")
+            .Select(element => element.Attribute("Path")!.Value.Replace('\\', '/'))
+            .Single(path => Path.GetFileNameWithoutExtension(path) == "DigitalBrain.Modules.Flutter");
+        return Path.GetFullPath(Path.Combine(root, Path.GetDirectoryName(module)!, "..", "app"));
     }
 }

@@ -3,11 +3,8 @@
   "LegacyEndToEndReferencers": [],
   "LegacyAspireReferencingModuleTests": [],
   "LegacyFullStackBootFacts": [
-    "src/DigitalBrain/Framework/tests/DigitalBrain.Framework.Tests.E2E/ContentCaptureFacts.cs",
-    "src/DigitalBrain/Framework/tests/DigitalBrain.Framework.Tests.E2E/E2EBoundaryFacts.cs",
-    "src/DigitalBrain/Framework/tests/DigitalBrain.Framework.Tests.E2E/TraceBudgetFacts.cs",
-    "src/DigitalBrain/OS/tests/DigitalBrain.OS.Tests.E2E/CSharpFileContainerFacts.cs",
-    "src/DigitalBrain/OS/tests/DigitalBrain.OS.Tests.E2E/GoldenJourneyFacts.cs",
-    "src/DigitalBrain/OS/tests/DigitalBrain.OS.Tests.E2E/ShippedAppVerificationFacts.cs"
+    "DigitalBrain.Framework.Tests.E2E/ContentCaptureFacts.cs",
+    "DigitalBrain.Framework.Tests.E2E/E2EBoundaryFacts.cs",
+    "DigitalBrain.Framework.Tests.E2E/TraceBudgetFacts.cs"
   ]
 }

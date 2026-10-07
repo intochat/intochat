@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <RootNamespace>DigitalBrain.Framework.Tests.E2E</RootNamespace>
+    <!-- CI discovers E2E suites by csproj; this flag tells the leg to install the Playwright browser and warm the shell image. -->
+    <E2EBrowser>true</E2EBrowser>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Orleans.Sdk" />

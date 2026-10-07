@@ -9,21 +9,8 @@ namespace DigitalBrain.OS.Tests.Unit;
 // Keys that bind to nothing are a silent branding regression.
 public sealed class BrandingFacts
 {
-    private static readonly string RepositoryRoot = FindRepositoryRoot();
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "DigitalBrain.slnx")))
-        {
-            directory = directory.Parent;
-        }
-        return directory?.FullName
-            ?? throw new InvalidOperationException($"Repository root (DigitalBrain.slnx) was not found above {AppContext.BaseDirectory}.");
-    }
-
     private static string HostPath(string file)
-        => Path.Combine(RepositoryRoot, "src", "DigitalBrain.OS", "DigitalBrain.OS", file);
+        => Path.Combine(SolutionProjects.DirectoryOf("DigitalBrain.OS"), file);
 
     [Fact]
     public void TheHostAppSettingsCarryTheShellTitleWhereTheFlutterModuleBindsIt()

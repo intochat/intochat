@@ -6,19 +6,8 @@ namespace DigitalBrain.OS.Tests.Unit;
 // Shipped bundles are ordinary packages: they compile against platform contracts and ship as-is.
 public sealed class VendorAppFacts
 {
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "DigitalBrain.slnx")))
-        {
-            directory = directory.Parent;
-        }
-        return directory?.FullName
-            ?? throw new InvalidOperationException($"Repository root (DigitalBrain.slnx) was not found above {AppContext.BaseDirectory}.");
-    }
+    private static readonly DirectoryShippedAppSource Source = new(SolutionProjects.IntoChatApps, "intochat");
 
-    private static readonly DirectoryShippedAppSource Source =
-        new(Path.Combine(FindRepositoryRoot(), "src", "IntoChat", "Apps"), "intochat");
     [Fact]
     public void EveryFirstPartyAppShips()
         => Assert.Equal(["customer-researcher", "word-count"], Source.Load().Select(app => app.Name).Order());

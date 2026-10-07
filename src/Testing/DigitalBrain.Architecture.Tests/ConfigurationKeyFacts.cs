@@ -7,7 +7,8 @@ namespace DigitalBrain.Architecture.Tests;
 // DigitalBrainConfiguration). A raw "DigitalBrain:…" or "DigitalBrain__…" literal outside an
 // owner is how the AssistantTitle and identity drifts happened. The baseline is a ratchet: it
 // only shrinks. A new file that needs a key either speaks through an existing vocabulary type
-// or declares ownership by joining the baseline deliberately.
+// or declares ownership by joining the baseline deliberately. Entries are keyed
+// "<ProjectName>/<path inside the project>", so a directory move never touches the baseline.
 public sealed partial class ConfigurationKeyFacts
 {
     [GeneratedRegex("\"\\$?DigitalBrain(:|__)[A-Za-z]", RegexOptions.CultureInvariant)]
@@ -16,13 +17,10 @@ public sealed partial class ConfigurationKeyFacts
     [Fact]
     public void ConfigurationKeyLiteralsStayWithinTheOwnerBaseline()
     {
-        var root = RepositoryRoot();
-        var baselinePath = Path.Combine(root, "src", "Testing", "tests", "DigitalBrain.Architecture.Tests", "ConfigurationKeyOwners.json");
+        var baselinePath = Path.Combine(Repository.ProjectNamed("DigitalBrain.Architecture.Tests").Directory, "ConfigurationKeyOwners.json");
         var baseline = JsonSerializer.Deserialize<string[]>(File.ReadAllText(baselinePath))!.ToHashSet(StringComparer.Ordinal);
-        var current = Directory.EnumerateFiles(Path.Combine(root, "src"), "*.cs", SearchOption.AllDirectories)
-            .Where(path => !path.Split(Path.DirectorySeparatorChar).Any(part => part is "obj" or "bin"))
-            .Where(path => KeyLiteral().IsMatch(File.ReadAllText(path)))
-            .Select(path => Path.GetRelativePath(root, path).Replace('\\', '/'))
+        var current = Repository.ProjectFiles("*.cs", path => KeyLiteral().IsMatch(File.ReadAllText(path)))
+            .Select(Repository.ProjectKey)
             .ToHashSet(StringComparer.Ordinal);
 
         var intruders = current.Except(baseline).Order().ToArray();
@@ -35,15 +33,5 @@ public sealed partial class ConfigurationKeyFacts
         Assert.True(cured.Length == 0,
             "These files no longer carry key literals — shrink ConfigurationKeyOwners.json so the ratchet holds:\n"
             + string.Join('\n', cured));
-    }
-
-    private static string RepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "DigitalBrain.slnx")))
-        {
-            directory = directory.Parent;
-        }
-        return directory?.FullName ?? throw new DirectoryNotFoundException("DigitalBrain.slnx was not found.");
     }
 }
