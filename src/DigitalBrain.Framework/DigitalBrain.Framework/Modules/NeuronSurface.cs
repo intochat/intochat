@@ -20,27 +20,36 @@ public static class NeuronSurfaceTools
 }
 
 // The caller is stamped by the host before any of these run; each neuron's own access decides.
-public sealed class NeuronSurface(IDigitalBrain brain, NeuronContracts contracts, NeuronTypeSearch search)
+public sealed class NeuronSurface(IDigitalBrain brain, NeuronContracts contracts, NeuronTypeSearch search, IReadOnlySet<string>? allowed = null)
 {
     private static readonly HashSet<string> ObserverMethods = [nameof(INeuron.Watch), nameof(INeuron.Unwatch)];
     private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
     private static readonly MethodInfo GetNeuron = typeof(IDigitalBrain).GetMethod(nameof(IDigitalBrain.Get))!;
 
-    public IReadOnlyList<string> List() => [.. contracts.Names.Order(StringComparer.Ordinal)];
+    // The contracts one app composes: nothing outside them is listed, found or callable.
+    public NeuronSurface Restrict(IReadOnlyCollection<string> names)
+    {
+        foreach (var name in names) { _ = contracts.Find(name); }
+        return new(brain, contracts, search, names.ToHashSet(StringComparer.Ordinal));
+    }
 
-    public Task<IReadOnlyList<NeuronTypeHit>> Search(string query, CancellationToken ct) => search.Search(query, ct: ct);
+    public IReadOnlyList<string> List() => [.. contracts.Names.Where(Allowed).Order(StringComparer.Ordinal)];
+
+    public async Task<IReadOnlyList<NeuronTypeHit>> Search(string query, CancellationToken ct)
+        => allowed is null ? await search.Search(query, ct: ct).ConfigureAwait(false)
+            : [.. (await search.Search(query, take: 50, ct: ct).ConfigureAwait(false)).Where(hit => Allowed(hit.Type.Contract)).Take(10)];
 
     public string Get(string contract, string key)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
-        return Neuron(contracts.Find(contract), key).GetGrainId().ToString();
+        return Neuron(Contract(contract), key).GetGrainId().ToString();
     }
 
     public async Task<JsonElement?> Call(string contract, string key, string method, string arguments, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         ArgumentException.ThrowIfNullOrWhiteSpace(method);
-        var type = contracts.Find(contract);
+        var type = Contract(contract);
         JsonElement[] payload;
         try { payload = JsonSerializer.Deserialize<JsonElement[]>(arguments, Json) ?? []; }
         catch (JsonException error) { throw new ArgumentException("arguments must be a JSON array: " + error.Message, nameof(arguments)); }
@@ -64,6 +73,11 @@ public sealed class NeuronSurface(IDigitalBrain brain, NeuronContracts contracts
         var result = target.ReturnType.GetProperty(nameof(Task<object>.Result))!.GetValue(task);
         return JsonSerializer.SerializeToElement(result, target.ReturnType.GetGenericArguments()[0], Json);
     }
+
+    private bool Allowed(string name) => allowed is null || allowed.Contains(name);
+
+    private Type Contract(string name) => Allowed(name) ? contracts.Find(name)
+        : throw new ArgumentException($"{name} is not a contract this app composes. Pass a full type name from neurons_list.");
 
     private IAddressable Neuron(Type contract, string key)
         => (IAddressable)GetNeuron.MakeGenericMethod(contract).Invoke(brain, [new NeuronId(key)])!;
