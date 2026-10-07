@@ -27,6 +27,8 @@ namespace DigitalBrain.Microsoft.CSharp;
 
 public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp")), IHttpModule
 {
+    public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.Microsoft.CSharp.Files.ICSharpAppBinding).Assembly;
+
     public static IntegrationSchema Integration => IntegrationSchema.For("csharp", "CSharp run tokens").RequiresSecret("RunTokenKey");
 
     // The sandbox is the external system behind ICSharpFile, the way Gmail is behind IGmail. Declared so the

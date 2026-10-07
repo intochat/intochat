@@ -10,8 +10,8 @@ public sealed class NeuronSurfaceFacts
     [Fact]
     public void APlatformOnlyContractIsNotAddressable()
     {
-        var contracts = new NeuronContracts(NeuronContracts.Deployed());
-        Assert.DoesNotContain(typeof(IConnectionIndex).FullName!, contracts.Names);
+        var contracts = new ContractCatalog(ContractCatalog.Deployed());
+        Assert.DoesNotContain(typeof(IConnectionIndex).FullName!, contracts.Neurons);
         Assert.Throws<ArgumentException>(() => contracts.Find(typeof(IConnectionIndex).FullName!));
     }
 
@@ -27,21 +27,21 @@ public sealed class NeuronSurfaceFacts
     [Fact]
     public async Task WatchIsNotCallable()
     {
-        var surface = new NeuronSurface(new UnreachableBrain(), new NeuronContracts(NeuronContracts.Deployed()), null!);
+        var surface = new NeuronSurface(new UnreachableBrain(), new ContractCatalog(ContractCatalog.Deployed()), null!);
         await Assert.ThrowsAsync<ArgumentException>(() => surface.Call(typeof(DigitalBrain.Apps.IApp).FullName!, "b/apps/x", "Watch", "[null]", TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task MalformedArgumentsAreAnArgumentError()
     {
-        var surface = new NeuronSurface(new UnreachableBrain(), new NeuronContracts(NeuronContracts.Deployed()), null!);
+        var surface = new NeuronSurface(new UnreachableBrain(), new ContractCatalog(ContractCatalog.Deployed()), null!);
         await Assert.ThrowsAsync<ArgumentException>(() => surface.Call(typeof(DigitalBrain.Apps.IApp).FullName!, "b/apps/x", "Read", "{not json", TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task ARestrictedSurfaceRefusesAContractTheAppDidNotName()
     {
-        var surface = new NeuronSurface(new UnreachableBrain(), new NeuronContracts(NeuronContracts.Deployed()), null!)
+        var surface = new NeuronSurface(new UnreachableBrain(), new ContractCatalog(ContractCatalog.Deployed()), null!)
             .Restrict([typeof(DigitalBrain.Apps.IApp).FullName!]);
         Assert.Equal([typeof(DigitalBrain.Apps.IApp).FullName!], surface.List());
         await Assert.ThrowsAsync<ArgumentException>(() => surface.Call(typeof(DigitalBrain.Postgres.IPostgresServer).FullName!,
@@ -52,7 +52,7 @@ public sealed class NeuronSurfaceFacts
     [Fact]
     public void RestrictingToAnUnknownContractIsRefused()
     {
-        var surface = new NeuronSurface(new UnreachableBrain(), new NeuronContracts(NeuronContracts.Deployed()), null!);
+        var surface = new NeuronSurface(new UnreachableBrain(), new ContractCatalog(ContractCatalog.Deployed()), null!);
         Assert.Throws<ArgumentException>(() => surface.Restrict(["DigitalBrain.Nope.INope"]));
         Assert.Throws<ArgumentException>(() => surface.Restrict([typeof(IConnectionIndex).FullName!]));
     }

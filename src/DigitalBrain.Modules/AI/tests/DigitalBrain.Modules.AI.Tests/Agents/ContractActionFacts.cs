@@ -5,17 +5,23 @@ using DigitalBrain.Framework;
 using Microsoft.Extensions.AI;
 using Xunit;
 using DigitalBrain.Framework.Surface;
+using DigitalBrain.Framework.Contracts;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Modules.AI.Tests.Agents;
 
 public sealed class ContractActionFacts
 {
+    // The brain composes no Apps module, so the turn's contract is put on its surface directly.
+    private static Task<ModuleBrain> AppBrain(IChatClient client, CancellationToken ct)
+        => AgentFacts.Brain(client, ct, services => services.AddSingleton(new ContractCatalog([typeof(INeuron).Assembly, typeof(IApp).Assembly])));
+
     [Fact]
     public async Task ATurnOffersTheNeuronActionsOverOnlyItsContracts()
     {
         var ct = TestContext.Current.CancellationToken;
         var client = Scripted(NeuronSurfaceTools.ListName, []);
-        await using var brain = await AgentFacts.Brain(client, ct);
+        await using var brain = await AppBrain(client, ct);
         AgentFacts.StampUser();
         var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
         var events = await AgentFacts.Collect(agent, AgentTurn.Text("what can you reach?", contracts: [typeof(IApp).FullName!]), ct);
@@ -30,7 +36,7 @@ public sealed class ContractActionFacts
         var ct = TestContext.Current.CancellationToken;
         var client = Scripted(NeuronSurfaceTools.CallName, new() { ["contract"] = "DigitalBrain.Postgres.IPostgresServer",
             ["key"] = "connection/b/postgres/x", ["method"] = "ReadConnection", ["arguments"] = "[]" });
-        await using var brain = await AgentFacts.Brain(client, ct);
+        await using var brain = await AppBrain(client, ct);
         AgentFacts.StampUser();
         var events = await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key("main")), AgentTurn.Text("read it", contracts: [typeof(IApp).FullName!]), ct);
         Assert.Contains("not a contract this app composes", Assert.Single(events.OfType<AgentTurnEvent.ToolCompleted>()).Result);
@@ -41,7 +47,7 @@ public sealed class ContractActionFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var client = Scripted(null, []);
-        await using var brain = await AgentFacts.Brain(client, ct);
+        await using var brain = await AppBrain(client, ct);
         var events = await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key("main")), AgentTurn.Text("hi"), ct);
         Assert.Empty(client.OfferedTools);
         Assert.Single(events.OfType<AgentTurnEvent.Finished>());
@@ -52,7 +58,7 @@ public sealed class ContractActionFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var client = Scripted(null, []);
-        await using var brain = await AgentFacts.Brain(client, ct);
+        await using var brain = await AppBrain(client, ct);
         var events = await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key("main")), AgentTurn.Text("hi", contracts: ["DigitalBrain.Nope.INope"]), ct);
         Assert.Contains("DigitalBrain.Nope.INope", Assert.Single(events.OfType<AgentTurnEvent.Failed>()).Message);
         Assert.Equal(0, client.Calls);
@@ -63,7 +69,7 @@ public sealed class ContractActionFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var client = Scripted(NeuronSurfaceTools.ContextName, []);
-        await using var brain = await AgentFacts.Brain(client, ct);
+        await using var brain = await AppBrain(client, ct);
         AgentFacts.StampUser();
         var events = await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key("main")), AgentTurn.Text("who am I", contracts: [typeof(IApp).FullName!]), ct);
         Assert.Contains("conversationId", Assert.Single(events.OfType<AgentTurnEvent.ToolCompleted>()).Result, StringComparison.OrdinalIgnoreCase);

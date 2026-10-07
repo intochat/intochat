@@ -21,7 +21,6 @@ public sealed class SupabaseModule() : Module<SupabaseModuleOptions>(new ModuleI
         ArgumentNullException.ThrowIfNull(builder);
         var services = builder.Services;
         services.AddOptions<SupabaseModuleOptions>()
-            .Configure<IConfiguration>(static (options, configuration) => configuration.PopulateModuleOptions("supabase", options))
             .Validate(static options => string.Equals(options.Provider, ProviderName, StringComparison.OrdinalIgnoreCase),
                 "Supabase requires the Npgsql provider.");
         services.TryAddSingleton<SupabaseBackingStore>();

@@ -10,6 +10,8 @@ namespace DigitalBrain.Microsoft.GitHub;
 
 public sealed class GitHubModule() : Module<GitHubModuleOptions>(new ModuleId("github"))
 {
+    public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.Microsoft.GitHub.IRepository).Assembly;
+
     // ClientId sits beside ClientSecret so the Platform's OAuth flow reads both from one release.
     public static IntegrationSchema Integration { get; } = IntegrationSchema.For("github", "GitHub")
         .RequiresSecret("PrivateKeyPem")

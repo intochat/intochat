@@ -10,6 +10,8 @@ namespace DigitalBrain.Postgres;
 
 public sealed class PostgresModule() : Module<PostgresModuleOptions>(new ModuleId("postgres"))
 {
+    public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.Postgres.IPostgresServer).Assembly;
+
     public static IntegrationSchema Integration => IntegrationSchema.For("postgres", "Postgres").RequiresSecret("ConnectionString").OffersSecret("AdminConnection");
     public static ConnectorDefinition Connector => new("postgres", "Postgres", ["connection-string"], ["postgres"]) { Neurons = [typeof(IPostgresServer), typeof(ITable)], Signals = [typeof(TableDefined), typeof(RowUpserted), typeof(RowDeleted)] };
 

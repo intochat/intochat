@@ -30,6 +30,7 @@ public sealed record TweetWebhook(string Account, string Text);
 
 public sealed class TestTwitterModule() : Module(new ModuleId("twitter")), IHttpModule
 {
+    public override System.Reflection.Assembly? Contracts => typeof(ITwitterAccount).Assembly;
     public static DigitalBrain.Framework.Platform.Integrations.ConnectorDefinition Connector => new("twitter", "Twitter fixture", ["api-key"], []);
     public override void Configure(ISiloBuilder builder) { }
 

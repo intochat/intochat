@@ -29,7 +29,7 @@ public sealed class InferenceTransportFacts
             { Configure(options, provider); options.Ollama.Endpoint = endpoint.Url; })
             .AddSingleton<IAiCredentials>(new FixedAiCredentials().Ready(provider.ToLowerInvariant(), "test-only", endpoint.Url))
             .AddSingleton<ModelCatalog>().AddSingleton<InferenceService>()
-            .AddSingleton(new NeuronSurface(null!, new NeuronContracts(NeuronContracts.Deployed()), null!)).BuildServiceProvider();
+            .AddSingleton(new NeuronSurface(null!, new ContractCatalog(ContractCatalog.Deployed()), null!)).BuildServiceProvider();
         async Task<CapturedRequest> Serve()
         {
             await endpoint.ReplyOnce("application/json", provider == "Ollama" ? """

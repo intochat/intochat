@@ -46,11 +46,10 @@ public sealed class CSharpContractDiscovery(ContractCatalog catalog, ModuleInven
         var modules = installed.OrderBy(module => module.Key, StringComparer.Ordinal)
             .Select(module => new CSharpContractModule(module.Key, Directive(module.Value[0].ModuleId))).ToArray();
         // Discovery with no modules selected lists the module ids only; select ids to read their contracts.
-        var contracts = moduleIds.SelectMany(id => installed[id])
-            .OrderBy(type => type.Contract, StringComparer.Ordinal)
-            .SelectMany(type => (string[])
-                [$"{type.Contract} [neuron id: {type.Id}/<key>] — {type.Description} {{ {string.Join("; ", type.Methods)} }}",
-                 .. type.Signals ?? []])
+        var contracts = moduleIds.SelectMany(id => installed[id]
+                .OrderBy(type => type.Contract, StringComparer.Ordinal)
+                .Select(type => $"{type.Contract} [neuron id: {type.Id}/<key>] — {type.Description} {{ {string.Join("; ", type.Methods)} }}")
+                .Concat(catalog.Signals.Where(signal => string.Equals(signal.ModuleId, id, StringComparison.OrdinalIgnoreCase)).Select(signal => signal.Shape)))
             .Distinct(StringComparer.Ordinal)
             .ToList();
         var snapshot = new CSharpContractCatalogSnapshot(modules, contracts, Example);
@@ -63,9 +62,7 @@ public sealed class CSharpContractDiscovery(ContractCatalog catalog, ModuleInven
     }
 
     private string? Directive(string moduleId)
-        => inventory.Types.FirstOrDefault(module => NeuronType.ModuleIdOf(module) == moduleId) is { } module
-            ? ModuleInventory.ContractAssembliesOf(module.Assembly)
-                .Select(contracts => directives.Directive(contracts.GetName().Name!))
-                .FirstOrDefault(directive => directive is not null)
+        => inventory.Modules.FirstOrDefault(module => string.Equals(module.Id.Value, moduleId, StringComparison.OrdinalIgnoreCase))?.Contracts is { } contracts
+            ? directives.Directive(contracts.GetName().Name!)
             : null;
 }

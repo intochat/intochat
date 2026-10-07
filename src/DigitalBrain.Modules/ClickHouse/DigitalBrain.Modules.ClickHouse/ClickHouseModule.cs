@@ -13,6 +13,8 @@ namespace DigitalBrain.ClickHouse;
 
 public sealed class ClickHouseModule() : Module<ClickHouseModuleOptions>(new ModuleId("clickhouse"))
 {
+    public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.ClickHouse.Query.IClickHouse).Assembly;
+
     public static IntegrationSchema Integration => IntegrationSchema.For("clickhouse", "ClickHouse").RequiresSecret("ConnectionString");
     public static ConnectorDefinition Connector => new("clickhouse", "ClickHouse", ["connection-string"], ["clickhouse"]) { Neurons = [typeof(DigitalBrain.ClickHouse.Query.IClickHouse)], Signals = [] };
 
@@ -23,7 +25,6 @@ public sealed class ClickHouseModule() : Module<ClickHouseModuleOptions>(new Mod
         ArgumentNullException.ThrowIfNull(builder);
         var services = builder.Services;
         services.AddOptions<ClickHouseModuleOptions>()
-            .Configure<IConfiguration>(static (options, configuration) => configuration.PopulateModuleOptions("clickhouse", options))
             .Validate(static options => string.Equals(options.Provider, DriverProviderName, StringComparison.OrdinalIgnoreCase),
                 "ClickHouse requires the module option Provider=ClickHouse.");
         services.AddHttpClient(ClickHouseRegistration.HttpClientName, static client => client.Timeout = TimeSpan.FromMinutes(2));

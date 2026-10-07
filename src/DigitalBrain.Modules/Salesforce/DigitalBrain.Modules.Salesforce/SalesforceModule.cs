@@ -13,6 +13,8 @@ namespace DigitalBrain.Salesforce;
 // the code exchange and the refresh through the OAuth method below.
 public sealed class SalesforceModule() : Module<SalesforceModuleOptions>(new ModuleId("salesforce"))
 {
+    public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.Salesforce.ISalesforce).Assembly;
+
     public static IntegrationSchema[] Integrations => [IntegrationSchema.For("salesforce", "Salesforce").RequiresSecret("ConsumerKey").RequiresSecret("ConsumerSecret")];
     public static ConnectorDefinition[] Connectors => [new("salesforce", "Salesforce", ["org-oauth"], ["salesforce"])
     {

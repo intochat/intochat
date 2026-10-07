@@ -10,10 +10,12 @@ public static class BrainHosting
     public static ISiloBuilder AddDigitalBrain(this ISiloBuilder silo)
         => silo.AddDigitalBrain([]);
 
-    public static ISiloBuilder AddDigitalBrain(this ISiloBuilder silo, IEnumerable<Type> moduleTypes)
+    public static ISiloBuilder AddDigitalBrain(this ISiloBuilder silo, IEnumerable<Module> modules)
     {
         ArgumentNullException.ThrowIfNull(silo);
-        silo.Services.AddSingleton(new ModuleInventory(moduleTypes));
+        var inventory = new ModuleInventory(modules);
+        silo.Services.AddSingleton(inventory);
+        foreach (var module in inventory.Modules) { module.AddOptions(silo.Services); }
         silo.Services.AddContractCatalog();
         silo.Services.TryAddSingleton(TimeProvider.System);
         silo.Services.TryAddSingleton<ICallFilter, CallFilter>();

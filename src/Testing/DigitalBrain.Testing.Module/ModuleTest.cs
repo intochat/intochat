@@ -47,7 +47,7 @@ public static class ModuleTest
         HashSet<Type> siloServiceTypes = [];
         builder.ConfigureSilo((_, silo) =>
         {
-            silo.AddDigitalBrain(modules.Select(module => module.ModuleType));
+            silo.AddDigitalBrain(modules.Select(module => module.Module));
             silo.Services.AddDigitalBrainClient();
             silo.AddDigitalBrainPlatform();
             foreach (var module in modules) { module.Configure(silo); }

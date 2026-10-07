@@ -13,6 +13,8 @@ namespace DigitalBrain.Google.Gmail;
 
 public sealed class GmailModule() : Module<GmailModuleOptions>(new ModuleId("gmail")), IHttpModule
 {
+    public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.Google.Gmail.IGmail).Assembly;
+
     public const string HttpClientName = "DigitalBrain.Gmail";
 
     public static IntegrationSchema[] Integrations { get; } = [

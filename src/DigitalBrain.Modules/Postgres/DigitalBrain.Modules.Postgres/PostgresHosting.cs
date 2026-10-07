@@ -24,7 +24,6 @@ public static class PostgresHosting
         if (services.Any(descriptor => descriptor.ServiceType == typeof(PostgresRegistration))) { return silo; }
         services.AddSingleton<PostgresRegistration>();
         services.AddOptions<PostgresModuleOptions>()
-            .Configure<IConfiguration>((options, configuration) => configuration.PopulateModuleOptions("postgres", options))
             .Validate(options => !string.IsNullOrWhiteSpace(options.ConnectionName), "Postgres requires a connection name.")
             .ValidateOnStart();
         // Server

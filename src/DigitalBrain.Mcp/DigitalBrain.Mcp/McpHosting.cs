@@ -10,9 +10,7 @@ public static class McpHosting
 {
     public static void AddDigitalBrainMcp(this IServiceCollection services)
     {
-        var deployed = NeuronContracts.Deployed();
-        services.AddSingleton(new ContractCatalog(deployed));
-        services.AddSingleton(new NeuronContracts(deployed));
+        services.AddSingleton(new ContractCatalog(ContractCatalog.Deployed()));
         services.AddContractCatalog();
         services.AddIdentity();
         // Each request is a tool call in the caller's brain; a harness may hand in its own brain instead.

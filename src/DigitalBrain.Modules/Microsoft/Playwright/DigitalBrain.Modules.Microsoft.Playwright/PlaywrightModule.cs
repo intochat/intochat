@@ -7,6 +7,8 @@ namespace DigitalBrain.Microsoft.Playwright;
 
 public sealed class PlaywrightModule() : Module(new ModuleId("playwright"))
 {
+    public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.Microsoft.Playwright.IPlaywright).Assembly;
+
     public override void Configure(ISiloBuilder silo) => silo.AddPlaywright();
 }
 public static class PlaywrightHosting

@@ -63,6 +63,6 @@ internal static class Probe
     public static Task<ModuleBrain> Brain(IChatClient client, CancellationToken ct)
     {
         AgentFacts.StampUser();
-        return AgentFacts.Brain(client, ct, services => services.AddSingleton(new NeuronContracts([typeof(INeuron).Assembly, typeof(ILoopProbe).Assembly])));
+        return AgentFacts.Brain(client, ct, services => services.AddSingleton(new ContractCatalog([typeof(INeuron).Assembly, typeof(ILoopProbe).Assembly])));
     }
 }

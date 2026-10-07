@@ -15,11 +15,11 @@ namespace DigitalBrain.Apps;
 
 public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IHttpModule
 {
+    public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.Apps.IApp).Assembly;
+
     public override void Configure(ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
-        silo.Services.AddOptions<AppsOptions>()
-            .Configure<IConfiguration>((options, configuration) => configuration.PopulateModuleOptions("apps", options));
         silo.Services.TryAddSingleton(TimeProvider.System);
         silo.AddIncomingGrainCallFilter<MarketplaceWriteGuard>();
         silo.Services.TryAddSingleton<AppInstaller>();

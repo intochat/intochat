@@ -62,15 +62,6 @@ public sealed class ScriptContractsFacts
     }
 
     [Fact]
-    public void ThePlatformAssemblyIsNeverAContractsAssemblyOfAComposedModule()
-    {
-        var inventory = new ModuleInventory([typeof(DigitalBrain.Platform.PlatformHosting)]);
-
-        Assert.DoesNotContain(typeof(DigitalBrain.Platform.PlatformHosting).Assembly, inventory.ContractAssemblies());
-        Assert.Empty(ModuleInventory.ContractAssembliesOf(typeof(DigitalBrain.Platform.PlatformHosting).Assembly));
-    }
-
-    [Fact]
     public void TheIntegrationRegistrationContractIsAbsentFromTheScriptCatalogBecauseReleaseReliesOnThat()
     {
         var contracts = new ScriptContracts([typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration).Assembly]);

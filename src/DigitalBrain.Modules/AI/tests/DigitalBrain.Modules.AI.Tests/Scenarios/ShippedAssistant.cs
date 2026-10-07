@@ -14,7 +14,7 @@ internal static class ShippedAssistant
         while (!File.Exists(Path.Combine(directory!.FullName, "DigitalBrain.slnx"))) { directory = directory.Parent; }
         var chat = File.ReadAllText(Path.Combine(directory.FullName, "src", "DigitalBrain.OS", "Apps", "Assistant", "synapses", "chat.cs"));
         var list = Regex.Match(chat, @"string\[\] Contracts = \[(?<types>[^\]]*)\];").Groups["types"].Value;
-        var deployed = new NeuronContracts(NeuronContracts.Deployed()).Names;
+        var deployed = new ContractCatalog(ContractCatalog.Deployed()).Neurons;
         return [.. Regex.Matches(list, @"typeof\((?<name>\w+)\)").Select(match =>
             deployed.Single(name => name.EndsWith("." + match.Groups["name"].Value, StringComparison.Ordinal)))];
     }

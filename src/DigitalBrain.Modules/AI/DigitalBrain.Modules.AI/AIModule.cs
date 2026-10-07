@@ -19,6 +19,8 @@ namespace DigitalBrain.AI;
 
 public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai")), IHttpModule
 {
+    public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.AI.Agents.Context.IAgentContext).Assembly;
+
     public static IntegrationSchema[] Integrations => AiIntegrations.Definitions;
     public static ConnectorDefinition[] Connectors => ModelConnectors.All;
 
@@ -35,7 +37,6 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai")), IHttpMod
         AIClients.Add(services);
         services.TryAddSingleton<ModelCatalog>();
         services.TryAddSingleton<InferenceService>();
-        services.TryAddSingleton(new NeuronContracts(NeuronContracts.Deployed()));
         services.TryAddSingleton<NeuronSurface>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<AgentNeuron>, AgentResume>());
         services.AddSingleton<ICapabilitySource, AiModelCapabilities>();

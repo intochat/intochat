@@ -14,6 +14,8 @@ namespace DigitalBrain.Time;
 
 public sealed class TimeModule() : Module(new ModuleId("time"))
 {
+    public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.Time.Reminders.IReminder).Assembly;
+
     public static readonly string MinimumReminderPeriodKey =
         DigitalBrainConfiguration.ModuleOptionsSection(new ModuleId("time")) + ":MinimumReminderPeriod";
 

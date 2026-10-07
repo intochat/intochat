@@ -114,7 +114,7 @@ public sealed class ConnectorBindingFacts
     public void ModuleCannotAcquireAnUndeclaredIntegration()
     {
         var services = new ServiceCollection().BuildServiceProvider();
-        var bindings = new ModuleIntegrations<ExampleModule>(services, new ModuleInventory([typeof(ExampleModule)]));
+        var bindings = new ModuleIntegrations<ExampleModule>(services, new ModuleInventory([new ExampleModule()]));
         Assert.Throws<UnauthorizedAccessException>(() => bindings.Get("other"));
     }
 

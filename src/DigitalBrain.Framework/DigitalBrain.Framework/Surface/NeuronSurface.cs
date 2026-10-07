@@ -14,14 +14,14 @@ public static class NeuronSurfaceTools
     public const string ContextName = "neurons_context";
 
     public const string ListDescription = "List neuron contracts you can address. Pass the full type name to neurons_get and neurons_call.";
-    public const string SearchDescription = "Search neuron contracts by what they do. Returns each match's contract type name, methods and signals.";
+    public const string SearchDescription = "Search neuron contracts by what they do. Returns each match's contract type name, and methods.";
     public const string GetDescription = "Resolve a neuron. contract is a full type name from neurons_list; key is the grain key: an app is {brainScope}/apps/{name}, a connection is connection/{brain}/{connector}/{id}.";
     public const string CallDescription = "Call a neuron method. arguments is a JSON array, one element per method argument, omitting CancellationToken. Watch and Unwatch are not callable. To use an app: IApp.Invoke with {invocationId, operation, input}, then IApp.Await with that invocationId.";
     public const string ContextDescription = "Read who you are acting as and the current brain id and scope, for forming neuron keys.";
 }
 
 // The caller is stamped by the host before any of these run; each neuron's own access decides.
-public sealed class NeuronSurface(IDigitalBrain brain, NeuronContracts contracts, NeuronTypeSearch search, IReadOnlySet<string>? allowed = null)
+public sealed class NeuronSurface(IDigitalBrain brain, ContractCatalog contracts, NeuronTypeSearch search, IReadOnlySet<string>? allowed = null)
 {
     private static readonly HashSet<string> ObserverMethods = [nameof(INeuron.Watch), nameof(INeuron.Unwatch)];
     private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
@@ -34,7 +34,7 @@ public sealed class NeuronSurface(IDigitalBrain brain, NeuronContracts contracts
         return new(brain, contracts, search, names.ToHashSet(StringComparer.Ordinal));
     }
 
-    public IReadOnlyList<string> List() => [.. contracts.Names.Where(Allowed).Order(StringComparer.Ordinal)];
+    public IReadOnlyList<string> List() => [.. contracts.Neurons.Where(Allowed).Order(StringComparer.Ordinal)];
 
     public async Task<IReadOnlyList<NeuronTypeHit>> Search(string query, CancellationToken ct)
         => allowed is null ? await search.Search(query, ct: ct).ConfigureAwait(false)

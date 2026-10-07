@@ -14,6 +14,8 @@ namespace DigitalBrain.Compute;
 
 public sealed class ComputeModule() : Module(new ModuleId("compute")), IHttpModule
 {
+    public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.Compute.IAllowanceLedger).Assembly;
+
     public override void Configure(ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
