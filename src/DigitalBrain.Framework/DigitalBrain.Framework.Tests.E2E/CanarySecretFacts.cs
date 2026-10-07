@@ -37,7 +37,7 @@ public sealed class CanarySecretFacts(ReferenceBrainFixture host)
     }
 
     [Theory(Timeout = 300_000)]
-    [InlineData("supabase")]
+    [InlineData("postgres")]
     public async Task AConnectionTokenNeverAppearsInPlaintext(string source)
     {
         var ct = TestContext.Current.CancellationToken;

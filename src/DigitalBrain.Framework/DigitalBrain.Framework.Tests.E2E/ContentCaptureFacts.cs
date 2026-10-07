@@ -34,16 +34,12 @@ public sealed class ContentCaptureFacts
             // An ambient SDK setting cannot override the explicit module setting.
             ["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = "true",
         }, ct);
-        await UserConnections.AuthorizeSupabaseAsync(brain, "capture", ct);
+        await UserConnections.AuthorizeDatabaseAsync(brain, "capture", ct);
         await LeadData.SeedAsync(brain, "Capture", ct);
-        using var response = await brain.HttpClient.PostAsJsonAsync("/agent", new
-        {
-            brainId = "capture",
-            threadId = "capture",
-            runId = "capture-run",
-            messages = new[] { new { role = "user", content = OrdinaryContent } },
-        }, ct);
-        Assert.Contains("RUN_FINISHED", await response.Content.ReadAsStringAsync(ct));
+        // A person talks to the assistant app; its answer is the started run's id.
+        using var response = await brain.HttpClient.PostAsJsonAsync("/brains/capture/apps/assistant/ask",
+            new { operation = "send", input = OrdinaryContent }, ct);
+        Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync(ct));
         await WaitForAsync(() => collector.Snapshot().Any(IsGenAiSpan), ct);
         if (enabled)
         {
