@@ -52,6 +52,8 @@ internal sealed class Sessions(BehaviorLoader loader, ILoggerFactory loggers, Ht
     private async Task RunAsync(string identifier, Open open, SessionStart start, Uri edgeUrl)
     {
         await Task.Yield();
+        // A session outlives the request that started it; its work belongs to the traces of the signals it handles.
+        System.Diagnostics.Activity.Current = null;
         try
         {
             var connection = await SessionConnection.OpenAsync(edgeUrl, start.Token, Fingerprint, edge, open.Lifetime.Token).ConfigureAwait(false);

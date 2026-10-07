@@ -73,8 +73,10 @@ public sealed class SessionConnection : IAsyncDisposable
     public async Task<JsonElement?> InvokeAsync(RuntimeInvocation invocation, string? traceParent, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(invocation);
+        // The call becomes a span of the signal's trace, so HTTP instrumentation in the host parents to it too.
+        using var activity = traceParent is null ? null : new System.Diagnostics.Activity("DigitalBrain.Behavior.Invoke").SetParentId(traceParent).Start();
         using var response = await SendAsync(HttpMethod.Post, RuntimeProtocol.Invoke, invocation, HttpCompletionOption.ResponseContentRead, cancellationToken,
-            traceParent ?? System.Diagnostics.Activity.Current?.Id).ConfigureAwait(false);
+            System.Diagnostics.Activity.Current?.Id).ConfigureAwait(false);
         await EnsureSuccessAsync(response, invocation.Contract + "." + invocation.Method, cancellationToken).ConfigureAwait(false);
         return response.Content.Headers.ContentLength == 0 || response.StatusCode == HttpStatusCode.NoContent
             ? null
