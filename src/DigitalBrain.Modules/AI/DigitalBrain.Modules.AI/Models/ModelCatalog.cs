@@ -119,7 +119,10 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         switch (resolved.Provider)
         {
             case AiProvider.Host: return new NonDisposing(services.GetRequiredService<IChatClient>());
-            case AiProvider.Scripted: return new ScriptedChatClient(services.GetRequiredService<IGrainFactory>().GetGrain<IScriptedLLM>(resolved.Model));
+            // A host may bind a scripted key to its own deterministic client; otherwise the key names an IScriptedLLM.
+            case AiProvider.Scripted:
+                return services.GetKeyedService<IChatClient>(IScriptedLLM.ModelPrefix + resolved.Model) is { } bound
+                    ? new NonDisposing(bound) : new ScriptedChatClient(services.GetRequiredService<IGrainFactory>().GetGrain<IScriptedLLM>(resolved.Model));
         }
         var configuration = new AIOptions();
         configuration.Provider(resolved.Provider).Endpoint = resolved.Endpoint;

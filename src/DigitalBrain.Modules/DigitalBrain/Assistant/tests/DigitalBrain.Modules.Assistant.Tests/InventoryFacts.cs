@@ -41,10 +41,8 @@ public sealed class InventoryFacts
             var model = new InventoryModel(tool);
             using var services = new ServiceCollection().AddModelCatalog().AddSingleton<IChatClient>(model)
                 .AddSingleton<IEnumerable<IAgentToolFactory>>(host.SiloServices.GetServices<IAgentToolFactory>()).BuildServiceProvider();
-            var events = new List<AgentTurnEvent>();
-            await foreach (var item in new AgentTurnRunner(services).RunAsync(new("assistant", "run", BrainScope.CurrentId(), [],
-                "Which reminders and apps exist in this brain?", null, ToolNames: AssistantDefinition.Product.Tools), ct))
-            { events.Add(item); }
+            var events = await TurnLoops.Collect(services, BrainScope.CurrentId(), "Which reminders and apps exist in this brain?",
+                AssistantDefinition.Product.Tools, ct);
             Assert.Empty(events.OfType<AgentTurnEvent.Failed>());
             Assert.Contains(events.OfType<AgentTurnEvent.ToolCompleted>(), item => item.Name == tool);
             Assert.NotNull(model.Inventory);
@@ -77,10 +75,7 @@ public sealed class InventoryFacts
         var model = new InventoryModel("list_synapses");
         using var services = new ServiceCollection().AddModelCatalog().AddSingleton<IChatClient>(model)
             .AddSingleton<IEnumerable<IAgentToolFactory>>(host.SiloServices.GetServices<IAgentToolFactory>()).BuildServiceProvider();
-        var events = new List<AgentTurnEvent>();
-        await foreach (var item in new AgentTurnRunner(services).RunAsync(new("assistant", "run", scope, [],
-            "Which synapses exist in this brain?", null, ToolNames: AssistantDefinition.Product.Tools), ct))
-        { events.Add(item); }
+        var events = await TurnLoops.Collect(services, scope, "Which synapses exist in this brain?", AssistantDefinition.Product.Tools, ct);
         Assert.Empty(events.OfType<AgentTurnEvent.Failed>());
         Assert.NotNull(model.Inventory);
         Assert.All(model.Inventory.Records, record => Assert.Equal("microsoft.csharp.file", record.TypeId));

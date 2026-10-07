@@ -17,7 +17,7 @@ public sealed class HostedAgentFacts
     [Theory]
     [InlineData("OpenAI")]
     [InlineData("OpenRouter")]
-    public async Task RealProviderAdapterAnswersAndCommitsConversationBeforeSignal(string provider)
+    public async Task RealProviderAdapterAnswersAndCommitsTheTranscriptBeforeSignal(string provider)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         deadline.CancelAfter(TimeSpan.FromMinutes(5));
@@ -42,19 +42,21 @@ public sealed class HostedAgentFacts
                     [IntegrationSchema.Key(provider.ToLowerInvariant(), "Endpoint")] = endpoint.Url,
                 },
             }).StartAsync(ct);
-        var agent = brain.Get<IAgent>("hosted-assistant");
-        await using var replied = await brain.Observe<AgentReplied>(agent, ct);
-        var firstRequest = ReplyWithCompletion(endpoint, "first answer", ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("hosted-assistant"));
+        await using var completions = await brain.SubscribeAsync<TurnCompleted>(agent, ct);
+        await using var completed = completions.ReadAllAsync(ct).GetAsyncEnumerator(ct);
+        var firstRequest = ReplyWithStream(endpoint, "first answer", ct);
         var firstResponse = agent.GetResponse("first question", ct);
-        Assert.Equal("first answer", (await replied.NextAsync(ct: ct)).Text);
-        Assert.Equal(2, (await agent.GetHistory(ct)).Count);
+        Assert.True(await completed.MoveNextAsync());
+        Assert.Equal("first answer", completed.Current.Reply);
+        Assert.Equal(2, (await agent.Transcript()).Length);
         Assert.Equal("first answer", await firstResponse);
         using (var request = JsonDocument.Parse((await firstRequest).Body))
         {
             Assert.Equal("fixture-model", request.RootElement.GetProperty("model").GetString());
         }
 
-        var secondRequest = ReplyWithCompletion(endpoint, "second answer", ct);
+        var secondRequest = ReplyWithStream(endpoint, "second answer", ct);
         Assert.Equal("second answer", await agent.GetResponse("follow up", ct));
         using (var request = JsonDocument.Parse((await secondRequest).Body))
         {
@@ -62,14 +64,30 @@ public sealed class HostedAgentFacts
             Assert.Contains(messages, m => m.GetProperty("role").GetString() == "assistant"
                 && m.GetProperty("content").ToString().Contains("first answer", StringComparison.Ordinal));
         }
-        Assert.Equal(4, (await agent.GetHistory(ct)).Count);
+        Assert.Equal(4, (await agent.Transcript()).Length);
 
         var inferenceRequest = ReplyWithCompletion(endpoint, "standalone", ct);
         var result = await brain.Get<ILLM>("fixture").Generate(
             new InferenceRequest([new AiMessage("user", [new AiText("independent")])]), cancellationToken: ct);
         Assert.Equal("standalone", Assert.IsType<AiText>(Assert.Single(Assert.Single(result.Messages).Content)).Text);
         await inferenceRequest;
-        Assert.Equal(4, (await agent.GetHistory(ct)).Count);
+        Assert.Equal(4, (await agent.Transcript()).Length);
+    }
+
+    // The agent streams every turn, so the provider answers it as server-sent chunks.
+    private static Task<CapturedRequest> ReplyWithStream(LoopbackServer endpoint, string text, CancellationToken ct)
+    {
+        var id = Guid.NewGuid().ToString("N");
+        string Chunk(object delta, string? finish) => "data: " + JsonSerializer.Serialize(new
+        {
+            id,
+            @object = "chat.completion.chunk",
+            created = 1,
+            model = "fixture-model",
+            choices = new[] { new { index = 0, delta, finish_reason = finish } },
+        }) + "\n\n";
+        return endpoint.ReplyOnce("text/event-stream",
+            Chunk(new { role = "assistant", content = text }, null) + Chunk(new { }, "stop") + "data: [DONE]\n\n", ct);
     }
 
     private static Task<CapturedRequest> ReplyWithCompletion(LoopbackServer endpoint, string text, CancellationToken ct) =>

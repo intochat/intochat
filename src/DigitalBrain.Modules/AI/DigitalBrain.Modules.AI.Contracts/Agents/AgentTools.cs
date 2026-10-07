@@ -29,20 +29,6 @@ public interface IAgentToolSession : IAsyncDisposable
     IReadOnlyList<AIFunction> Tools { get; }
 }
 
-public sealed record AgentContextRequest(string ScopeId, string Message, string? PreviousMessage = null);
-
-// Text is what the model should know before it answers; Tools are registered tools it may need for it.
-public sealed record AgentContext(string? Text, IReadOnlyList<string> Tools)
-{
-    public static AgentContext None { get; } = new(null, []);
-}
-
-public interface IAgentContextProvider
-{
-    string Name { get; }
-    Task<AgentContext> Provide(AgentContextRequest request, CancellationToken ct);
-}
-
 // A tool result that also offers more registered tools to the rest of the turn; the model sees Result.
 public sealed record AgentToolOffer(IReadOnlyList<string> Tools, object? Result, AgentToolBinding? Binding = null, bool ReplaceSelection = false);
 public sealed record AgentToolBinding(string Source, string Resource);

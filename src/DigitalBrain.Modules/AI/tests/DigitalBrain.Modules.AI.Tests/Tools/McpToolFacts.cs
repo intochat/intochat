@@ -36,16 +36,13 @@ public sealed class McpToolFacts
     }
 
     [Fact]
-    public async Task RunnerDisposesMcpSessionAndDoesNotCompleteAfterProviderFailure()
+    public async Task TheTurnLoopDisposesMcpSessionAndDoesNotCompleteAfterProviderFailure()
     {
         using var handler = new ProtocolHandler { FailCall = true };
         using var services = new ServiceCollection().AddModelCatalog()
             .AddSingleton<IChatClient>(ToolCallingClient())
             .AddMcpAgentTools("mail", _ => Transport(handler)).BuildServiceProvider();
-        var events = new List<AgentTurnEvent>();
-        await foreach (var item in new AgentTurnRunner(services).RunAsync(
-            new("agent", "run", "scope", [], "lookup", null, ToolNames: ["mcp_mail_lookup"]), TestContext.Current.CancellationToken))
-        { events.Add(item); }
+        var events = await TurnLoops.Collect(services, "lookup", ["mcp_mail_lookup"], TestContext.Current.CancellationToken);
         Assert.Single(events.OfType<AgentTurnEvent.ToolStarted>());
         Assert.Single(events.OfType<AgentTurnEvent.ToolFailed>());
         Assert.Single(events.OfType<AgentTurnEvent.Failed>());

@@ -43,14 +43,14 @@
   },
   {
     "Type": "DigitalBrain.AI.Agents.AgentDefinition",
-    "Member": "ContextProviders",
+    "Member": "Contexts",
     "Representation": "array",
     "Payload": "MAHbAh1mJ2FpLmFnZW50LWRlZmluaXRpb27owAHBAcEBwQHBAcEBwQEBAYEAAAAAAAAAAAEBwQEpNQADQRlsZWdhY3ktdmFsdWXg4A==",
     "Expected": "[\"legacy-value\"]"
   },
   {
     "Type": "DigitalBrain.AI.Agents.AgentDefinition",
-    "Member": "ContextProviders",
+    "Member": "Contexts",
     "Representation": "list",
     "Payload": "MAHbAh1mJ2FpLmFnZW50LWRlZmluaXRpb27owAHBAcEBwQHBAcEBwQEBAYEAAAAAAAAAAAEBwQExAVnRtylXU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdGAxW1tzdHJpbmddXQADQRlsZWdhY3ktdmFsdWXg4A==",
     "Expected": "[\"legacy-value\"]"

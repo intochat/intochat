@@ -106,7 +106,7 @@ public sealed class TraceBudgetFacts
     private static CapturedSpan[] GrainCallSpans(TestTelemetryCollector collector, int from)
         => collector.Snapshot().Skip(from)
             .Where(span => string.Equals(span.Scope, OrleansSource, StringComparison.Ordinal)
-                && string.Equals(span.Name, "IAgent/ReadConversation", StringComparison.Ordinal))
+                && string.Equals(span.Name, "IAgent/Read", StringComparison.Ordinal))
             .ToArray();
 
     private static Dictionary<string, string> OtlpEnvironment(TestTelemetryCollector collector) => new(StringComparer.Ordinal)

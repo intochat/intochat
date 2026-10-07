@@ -31,8 +31,6 @@ public sealed class AssistantFeatureFacts
             .WithModule<SupabaseModule>()
             .ConfigureSilo(silo => silo.Services
                 .Configure<AIOptions>(options => { options.ModelProfiles["default"] = new() { Provider = "OpenAI", Model = "fixture", Capabilities = LlmCapabilities.Tools }; options.Default.Model = "default"; })
-                .AddSingleton<InjectedModelTurnRunner>()
-                .AddSingleton<IAgentTurnRunner>(services => services.GetRequiredService<InjectedModelTurnRunner>())
                 .AddSingleton<IChatClient>(new ScriptedAssistantModel())
                 .AddSingleton<CustomersDatabase>()
                 .AddSingleton<ISupabaseProvider>(services => services.GetRequiredService<CustomersDatabase>())

@@ -15,8 +15,8 @@ public sealed class AgentModelsFacts
     public async Task CompletedTurnReplaysWithoutTheRemovedProviderOrProfile()
     {
         await using var brain = await StartAsync(_ => { });
-        var completed = new AgentConversationTurn("run", "hello", "persisted answer", []);
-        var snapshot = new AgentConversationState(2, null, [completed]);
+        var completed = new AgentRun("run", AgentRunStatus.Completed, "hello", DateTimeOffset.UtcNow, Reply: "persisted answer");
+        var snapshot = new AgentState(2, new(), null, null, [completed]);
         var input = new AssistantRun("thread", "run", "hello", "owner", "profile:removed");
 
         var prepared = await AssistantTurnExecution.PrepareTurn(snapshot, input, async id => await CatalogOf(brain.SiloServices).Select(id));
@@ -26,8 +26,8 @@ public sealed class AgentModelsFacts
         await Assert.ThrowsAsync<ArgumentException>(() => AssistantTurnExecution.PrepareTurn(snapshot, input with { RunId = "fresh" }, async id => await CatalogOf(brain.SiloServices).Select(id)));
         await Assert.ThrowsAsync<InvalidOperationException>(() => AssistantTurnExecution.PrepareTurn(snapshot,
             input with { Message = "different message" }, async id => await CatalogOf(brain.SiloServices).Select(id)));
-        Assert.Null(snapshot.ActiveRunId);
-        Assert.Single(snapshot.Turns);
+        Assert.Null(snapshot.ActiveRun);
+        Assert.Single(snapshot.Runs);
     }
 
     [Fact]

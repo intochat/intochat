@@ -34,7 +34,7 @@ public sealed class AssistantTurnExecution(IServiceProvider services, IGrainFact
             || string.IsNullOrWhiteSpace(input.Message) || input.Message.Length > 32000)
         { throw new ArgumentException("A valid thread, run and message of at most 32000 characters are required."); }
         var agent = grains.GetGrain<IAgent>(AssistantConversations.Key(workspace, input.ThreadId));
-        var snapshot = await agent.ReadConversation(ct);
+        var snapshot = await agent.Read();
         var prepared = await PrepareTurn(snapshot, input, id => Execution.SelectModel(id, Options.Model));
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var events = Channel.CreateBounded<string>(new BoundedChannelOptions(64) { SingleReader = true, SingleWriter = true });
@@ -49,7 +49,7 @@ public sealed class AssistantTurnExecution(IServiceProvider services, IGrainFact
         {
             try
             {
-                await Execute(workspace, input, agent, snapshot, prepared, define,
+                await Execute(workspace, input, agent, prepared, define,
                     value => events.Writer.WriteAsync(JsonSerializer.Serialize(value), lifetime.Token).AsTask(), lifetime.Token);
                 events.Writer.TryComplete();
             }
@@ -60,79 +60,65 @@ public sealed class AssistantTurnExecution(IServiceProvider services, IGrainFact
     private static bool ValidId(string? value) => !string.IsNullOrWhiteSpace(value) && value.Length <= 200
         && !value.Any(character => char.IsControl(character) || character is '/' or '\\');
 
-    private async Task Execute(string workspace, AssistantRun input, IAgent agent, AgentConversationState snapshot,
+    private async Task Execute(string workspace, AssistantRun input, IAgent agent,
         PreparedTurn prepared, Func<string?, Task<AgentDefinition>> define, Func<object, Task> Emit, CancellationToken ct)
     {
         var configuration = Options;
         var priceBook = services.GetRequiredService<IPriceBook>();
         var usage = services.GetRequiredService<IIntentUsageSink>();
         var usageId = AssistantUsage.IntentId(workspace, input.ThreadId, input.RunId);
-        IAsyncEnumerable<AgentTurnEvent> Run(AgentTurnRequest request, CancellationToken token)
-            => Execution.Run(request, usageId, token);
         using var intent = IntentContext.Begin(usageId, workspace);
-        var userText = input.Message;
-        // Only the request that actually opened the active run may complete or interrupt it.
-        // A rejected concurrent submission must never mutate the owner's conversation turn.
-        var ownsRun = false;
+        // Usage is the run's only once the agent admitted it; a replay or a refused run has none.
         var recordUsage = false;
         var usageRevision = DateTimeOffset.UtcNow;
         var activity = new IntentActivity();
         var outcome = AgentRunOutcome.Succeeded;
-        async Task KeepFailedTurn(string failure)
+        async IAsyncEnumerable<AgentTurnEvent> Turn(AgentTurn turn)
         {
-            try { await agent.CompleteConversation(new(input.RunId, userText, failure, []), CancellationToken.None); }
-            catch { /* The run is no longer active; nothing to keep. */ }
-            ownsRun = false;
+            await foreach (var item in agent.Run(turn, ct))
+            {
+                if (item is AgentTurnEvent.Started) { recordUsage = true; usageRevision = DateTimeOffset.UtcNow; }
+                yield return item;
+            }
         }
         try
         {
             try
             {
-                // A retained response needs no model and must survive provider removal.
-                // Replay the snapshot directly so concurrent history trimming cannot turn it into a fresh run.
-                var state = prepared.Replay is not null ? snapshot
-                    : await agent.BeginConversation(new(input.RunId, userText), ct);
-                var replay = state.Turns.SingleOrDefault(turn => turn.RunId == input.RunId);
-                ownsRun = replay is null;
-                recordUsage = ownsRun;
-                usageRevision = DateTimeOffset.UtcNow;
                 await Emit(new { type = "RUN_STARTED", threadId = input.ThreadId, runId = input.RunId });
                 var messageId = input.RunId + "-reply";
                 await Emit(new { type = "TEXT_MESSAGE_START", messageId, role = "assistant" });
-                if (replay is not null)
+                // A retained response needs no model and must survive provider removal.
+                if (prepared.Replay is { } replay)
                 {
-                    await Emit(new { type = "TEXT_MESSAGE_CONTENT", messageId, delta = replay.AssistantText });
+                    await Emit(new { type = "TEXT_MESSAGE_CONTENT", messageId, delta = replay.Reply ?? "" });
                 }
                 else
                 {
-                    var text = new StringBuilder();
-                    var results = new List<string>();
-                    var definition = await define(state.Summary);
-                    var queryError = await RunModel(workspace, usageId, userText, definition, state, messageId, configuration, Run, Emit, text, results, activity, ct, prepared.Model);
+                    // The agent keeps its own transcript and summary; the definition carries neither.
+                    var definition = await define(null);
+                    var queryError = await RunModel(input.RunId, input.Message, definition, messageId, configuration, Turn, Emit,
+                        new StringBuilder(), [], activity, ct, prepared.Model, usageId);
                     if (queryError is not null) { throw new AssistantQueryException(queryError); }
-                    await agent.CompleteConversation(new(input.RunId, userText, text.ToString(), results), ct);
-                    ownsRun = false;
                 }
                 await Emit(new { type = "TEXT_MESSAGE_END", messageId });
                 await Emit(new { type = "RUN_FINISHED", threadId = input.ThreadId, runId = input.RunId });
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
-                // The client disconnected; the run is interrupted and its turn is dropped.
+                // The client disconnected; the agent cancels the run and keeps no turn.
                 outcome = AgentRunOutcome.Cancelled;
                 activity.CancelPending();
             }
             catch (Exception error) when (error.Message == DigitalBrain.Framework.Capacity.CapacityUnavailableException.RefusalMessage)
             {
                 outcome = AgentRunOutcome.Failed;
-                if (ownsRun) { await KeepFailedTurn(error.Message); }
                 if (!ct.IsCancellationRequested)
                 { await Emit(new { type = "RUN_ERROR", message = error.Message, code = "APP_REFUSED" }); }
             }
             catch (AssistantQueryException error)
             {
                 outcome = AgentRunOutcome.Failed;
-                if (ownsRun) { await KeepFailedTurn(error.Message); }
                 if (!ct.IsCancellationRequested)
                 { await Emit(new { type = "RUN_ERROR", message = "The table could not be opened: " + error.Message, code = "QUERY_INVALID" }); }
             }
@@ -141,7 +127,6 @@ public sealed class AssistantTurnExecution(IServiceProvider services, IGrainFact
                 outcome = AgentRunOutcome.Failed;
                 services.GetRequiredService<ILoggerFactory>().CreateLogger("Assistant").LogWarning(error,
                     "Workspace agent run failed for scope {ScopeId}, thread {ThreadId}, run {RunId}", workspace, input.ThreadId, input.RunId);
-                if (ownsRun) { await KeepFailedTurn(error.Message); }
                 if (!ct.IsCancellationRequested)
                 { await Emit(new { type = "RUN_ERROR", message = "The assistant could not complete this request. Try again and use the run ID when reporting the failure.", code = "AGENT_FAILED", runId = input.RunId }); }
             }
@@ -153,13 +138,6 @@ public sealed class AssistantTurnExecution(IServiceProvider services, IGrainFact
             try { await usage.FlushAsync(intent.Snapshot(), CancellationToken.None); }
             catch (Exception error)
             { services.GetRequiredService<ILoggerFactory>().CreateLogger("Assistant").LogWarning(error, "Workspace agent usage flush failed"); }
-            if (ownsRun)
-            {
-                // Release an interrupted run only after its usage batch is durable, so a
-                // retry with the same id can price the cumulative provider consumption.
-                try { await agent.InterruptConversation(input.RunId, CancellationToken.None); }
-                catch { /* Interrupt is idempotent; a cancelled run is already settled. */ }
-            }
             ComputeUsageItem? projection = null;
             if (recordUsage)
             {
@@ -223,29 +201,28 @@ public sealed class AssistantTurnExecution(IServiceProvider services, IGrainFact
         }
     }
 
-    public static async Task<PreparedTurn> PrepareTurn(AgentConversationState snapshot, AssistantRun input, Func<string?, Task<ModelSelection?>> select)
+    public static async Task<PreparedTurn> PrepareTurn(AgentState snapshot, AssistantRun input, Func<string?, Task<ModelSelection?>> select)
     {
-        var replay = snapshot.Turns.SingleOrDefault(turn => turn.RunId == input.RunId);
-        if (replay is not null)
-        {
-            if (replay.UserText != input.Message) { throw new InvalidOperationException("Run ID already belongs to another message."); }
-            return new(replay, null);
-        }
-        // Validation precedes BeginConversation: rejected choices never open or fail a turn.
+        var retained = snapshot.Runs.SingleOrDefault(run => run.RunId == input.RunId);
+        // Another message under a retained run id must never get that run's answer.
+        if (retained is not null && retained.UserText != input.Message) { throw new InvalidOperationException("Run ID already belongs to another message."); }
+        if (retained is { Status: AgentRunStatus.Completed }) { return new(retained, null); }
+        // Validation precedes the run: rejected choices never open or fail a turn.
         return new(null, await select(input.ModelProfile));
     }
 
-    public sealed record PreparedTurn(AgentConversationTurn? Replay, ModelSelection? Model);
+    public sealed record PreparedTurn(AgentRun? Replay, ModelSelection? Model);
 
-    public static async Task<string?> RunModel(string scope, string run, string message, AgentDefinition definition,
-        AgentConversationState state, string messageId, AssistantOptions configuration,
-        Func<AgentTurnRequest, CancellationToken, IAsyncEnumerable<AgentTurnEvent>> runner, Func<object, Task> emit, StringBuilder text, List<string> results, IntentActivity activity, CancellationToken ct, ModelSelection? modelSelection = null)
+    // The agent owns the turn: it keeps the transcript, commits it on completion and marks a failure itself.
+    public static async Task<string?> RunModel(string run, string message, AgentDefinition definition,
+        string messageId, AssistantOptions configuration, Func<AgentTurn, IAsyncEnumerable<AgentTurnEvent>> runner, Func<object, Task> emit,
+        StringBuilder text, List<string> results, IntentActivity activity, CancellationToken ct, ModelSelection? modelSelection = null, string? intent = null)
     {
         var finished = false;
         string? queryError = null;
         var model = modelSelection ?? (configuration.Model is { Length: > 0 } modelName ? new ModelSelection(modelName) : null);
-        await foreach (var item in runner(new("workspace-assistant", run, scope, state.Turns, message, model,
-            definition.Instructions, definition.Tools, ContextProviders: definition.ContextProviders), ct))
+        await foreach (var item in runner(new AgentTurn(new AiMessage("user", [new AiText(message)]), run, model,
+            definition.Instructions, definition.Tools, intent)).WithCancellation(ct))
         {
             switch (item)
             {

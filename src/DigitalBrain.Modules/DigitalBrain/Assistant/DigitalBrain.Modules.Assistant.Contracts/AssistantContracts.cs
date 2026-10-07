@@ -12,7 +12,7 @@ public interface IAssistant : INeuron
     [ReadOnly] Task<AssistantState> Read();
     Task<AssistantTranscriptionResult> Transcribe(string? base64, CancellationToken ct = default);
     [AlwaysInterleave, ResponseTimeout("00:10:00")] IAsyncEnumerable<string> Run(AssistantRun request, CancellationToken ct = default);
-    Task<AgentConversationState> ReadConversation(string threadId, CancellationToken ct = default);
+    Task<AgentState> ReadConversation(string threadId, CancellationToken ct = default);
     Task<ModelChoices> Models();
     Task Configure(AgentDefinition definition);
     Task<IAgent> Conversation(string threadId);
