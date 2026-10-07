@@ -8,23 +8,20 @@ namespace DigitalBrain.Framework;
 internal sealed class KernelNeuron(
     [PersistentState("kernel", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<State> store,
     IEnumerable<ICreationHandler> creation,
-    ILogger<KernelNeuron> logger) : Neuron, IKernel
+    ILogger<KernelNeuron> logger) : Neuron<State>(store), IKernel
 {
-    // Storage hands back an uninitialized record before the first write, so existence is the record's, not the object's.
-    internal bool IsCreated => store.RecordExists;
+    internal bool IsCreated => Exists;
 
     public Task<State> Read()
-        => Task.FromResult(IsCreated ? store.State : throw new InvalidOperationException("This brain has not been created."));
+        => Task.FromResult(IsCreated ? Snapshot : throw new InvalidOperationException("This brain has not been created."));
 
     public async Task Create(Owner owner)
     {
         ArgumentNullException.ThrowIfNull(owner);
         RequireCreator(owner);
         if (IsCreated) { return; }
-        store.State = new State(owner, DateTimeOffset.UtcNow);
-        await store.WriteStateAsync();
         var created = new Created(owner);
-        await PublishAsync(created);
+        await Save(new State(owner, DateTimeOffset.UtcNow), created);
         foreach (var handler in creation)
         {
             // One handler failing must not fail the brain; Activated handlers catch up later.
@@ -35,7 +32,7 @@ internal sealed class KernelNeuron(
         await PublishAsync(new Activated(owner));
     }
 
-    internal Task Woke() => IsCreated ? PublishAsync(new Activated(store.State.Owner)) : Task.CompletedTask;
+    internal Task Woke() => IsCreated ? PublishAsync(new Activated(Snapshot.Owner)) : Task.CompletedTask;
 
     // Creating is the platform's act, or the owner's own. Host code with no stamped caller is trusted.
     private static void RequireCreator(Owner owner)
