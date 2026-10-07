@@ -164,17 +164,11 @@ internal static class AppsEndpoints
         edited = snapshot.Edited,
     };
 
-    private static async Task<IResult> Ask(IApp app, string operation, string input, CancellationToken ct)
+    internal static async Task<IResult> Ask(IApp app, string operation, string input, CancellationToken ct)
     {
-        var invocation = await app.Invoke(new(Guid.NewGuid(), operation, input.Length == 0 ? "{}" : input)).WaitAsync(ct);
-        var started = TimeProvider.System.GetTimestamp();
-        while (invocation.Status == InvocationStatus.Pending && TimeProvider.System.GetElapsedTime(started) < TimeSpan.FromSeconds(30))
-        {
-            await Task.Delay(100, ct);
-            invocation = await app.ReadInvocation(invocation.Id).WaitAsync(ct);
-        }
-        if (invocation.Status == InvocationStatus.Pending)
-        { return Results.Json(new { error = "The app has not answered yet.", invocationId = invocation.Id }, statusCode: 408); }
+        var started = await app.Invoke(new(Guid.NewGuid(), operation, input.Length == 0 ? "{}" : input)).WaitAsync(ct);
+        // The app's answer is pushed when it responds; the request's own abort is the only limit.
+        var invocation = await app.Await(started.Id).WaitAsync(ct);
         if (invocation.Status != InvocationStatus.Completed || invocation.Output is null)
         { return Results.UnprocessableEntity(new { error = invocation.Error ?? "The app returned no output.", invocationId = invocation.Id }); }
         try

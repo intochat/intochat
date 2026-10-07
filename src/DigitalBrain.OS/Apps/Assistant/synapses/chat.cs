@@ -1,6 +1,8 @@
 #:project /brain/src/DigitalBrain.Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps.Contracts/DigitalBrain.Modules.Apps.Contracts.csproj
 #:project /brain/src/DigitalBrain.Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Contracts/DigitalBrain.Modules.Flutter.Contracts.csproj
 #:project /brain/src/DigitalBrain.Modules/AI/DigitalBrain.Modules.AI.Contracts/DigitalBrain.Modules.AI.Contracts.csproj
+#:project /brain/src/DigitalBrain.Modules/Postgres/DigitalBrain.Modules.Postgres.Contracts/DigitalBrain.Modules.Postgres.Contracts.csproj
+#:project /brain/src/DigitalBrain.Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Contracts/DigitalBrain.Modules.Microsoft.CSharp.Contracts.csproj
 using System.Text.Json;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Agents.Signals;
@@ -11,9 +13,13 @@ using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Button;
 using DigitalBrain.Flutter.Button.Signals;
 using DigitalBrain.Flutter.Card;
+using DigitalBrain.Flutter.Form;
 using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.TextField;
+using DigitalBrain.Flutter.Workspace;
+using DigitalBrain.Microsoft.CSharp.Files;
+using DigitalBrain.Postgres;
 
 // The conversation. The IAgent conversation is the transcript's source of truth; every card is
 // derived from it and from progress signals keyed by (run, sequence), so redelivery and a fresh
@@ -24,8 +30,9 @@ var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 string Name(string part) => appKey + "/" + part;
 var conversationChanged = new CancellationTokenSource();
-string[] Tools = ["neurons_context", "neurons_search", "neurons_list", "neurons_get", "neurons_call",
-    "csharp_contracts", "csharp_write", "csharp_run", "show_form", "show_view"];
+// What the model may act on: the contracts this app composes, checked by the compiler.
+string[] Contracts = [typeof(IPostgresServer).FullName!, typeof(IApp).FullName!, typeof(IAppIndex).FullName!,
+    typeof(IWorkspace).FullName!, typeof(IForm).FullName!, typeof(ICSharpFile).FullName!];
 
 await Task.WhenAll(Operations(), SendClicks(), NewClicks(), FollowConversation());
 return;
@@ -48,7 +55,7 @@ async Task<string> Send(string message)
     var model = choice.Length > 0 ? await brain.Get<IModelCatalog>("default").Select(choice) : null;
     var turn = AgentTurn.Text(message,
         instructions: snapshot.Files.GetValueOrDefault("prompts/system.md", ""),
-        tools: Tools) with { Model = model };
+        contracts: Contracts) with { Model = model };
     var runId = await (await Conversation()).Start(turn);
     await brain.Get<ICard>(Name($"turn-{runId}-user")).Set("You", message);
     await brain.Get<ICard>(Name($"turn-{runId}-answer")).Set("Assistant", "…");

@@ -42,7 +42,7 @@ public sealed class ModelCatalogFacts
         var resolved = await Catalog(brain).Resolve(new(IScriptedLLM.ModelPrefix + "turn-model"), requiresTools: true, ct);
         Assert.Equal((AiProvider.Scripted, "turn-model"), (resolved.Provider, resolved.Model));
         using var client = await Catalog(brain).CreateClient(resolved, ct);
-        var reply = await client.GetResponseAsync([new(Microsoft.Extensions.AI.ChatRole.User, "hi")], cancellationToken: ct);
+        var reply = await client.GetResponseAsync([new(global::Microsoft.Extensions.AI.ChatRole.User, "hi")], cancellationToken: ct);
         Assert.Equal("ok", reply.Text);
     }
 
