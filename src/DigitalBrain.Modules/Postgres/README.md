@@ -93,7 +93,19 @@ at `/brains/{id}/connections`. Provision deployment credentials with
 Integrations are what the deployment provisions; Connections are what users authorize.
 
 Postgres requires Integration `postgres:ConnectionString` for its selected platform source.
-Optional secret `AdminConnection` is required and validated when `ProvisionPerBrain` selects
-per-brain database provisioning. Both are released through module-scoped handles after Platform
-seeding; the retired capacity AdminConnection key is rejected. The Postgres owner migration
+Optional secret `AdminConnection` is required, and validated at startup, when option
+`DigitalBrain:Modules:postgres:Options:Isolation` is `DatabasePerBrain` (the code default is `Shared`;
+the AppHost selects `DatabasePerBrain`). Both are released through module-scoped handles after Platform
+seeding.
+
+## Table placement
+
+A table's placement is typed and pinned at its first Define: `Shared` (the platform database, brains
+kept apart by brain-scoped physical names), `BrainDatabase` (`brain_<sha256[..16]>`, created on first
+use over `AdminConnection` under `DatabasePerBrain`), or `Connection` (the user's own database). An app
+redirects its tables by declaring the reserved slot `{"name": "tables", "connector": "postgres"}` and
+binding it to one of the brain's Postgres connections; the isolation policy does not apply there.
+Connection table operations run inside the connection's neuron, so its credential never leaves it.
+A pinned table never moves: rebinding `tables` is refused (409) while the app owns tables, and an
+unavailable placement answers 503 (`ServiceUnavailableException`), never a fallback to Shared. The Postgres owner migration
 is invoked by Platform's narrow startup service after credential initialization.

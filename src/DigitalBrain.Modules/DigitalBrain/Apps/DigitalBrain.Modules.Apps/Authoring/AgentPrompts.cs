@@ -29,6 +29,8 @@ internal static class AgentPrompts
          "spec": "...full Markdown spec..."}
         Slots are the external accounts the app needs (empty for most apps); the person binds their
         own connection to each slot after install — never put account details in settings.
+        An app that stores tables may declare the optional slot {"name": "tables", "connector": "postgres"}
+        so the person can keep its tables in their own database; without it tables use the platform's.
         """;
 
     public const string Builder = """
