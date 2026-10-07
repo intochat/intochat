@@ -1,6 +1,7 @@
 using DigitalBrain.Apps.Signals;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Apps;
@@ -359,6 +360,31 @@ internal sealed class AppNeuron(
         await Persist(next);
     }
 
+
+    public async Task<AppSnapshot> SaveToSource()
+    {
+        RequireCreated();
+        if (ServiceProvider.GetService<IHostEnvironment>() is not { } environment || !environment.IsDevelopment())
+        { throw new InvalidOperationException("Save to source is only available in development."); }
+        if (Snapshot.Origin is not { Source: AppSource.Shipped } origin)
+        { throw new InvalidOperationException($"{Name()} is not a copy of a shipped app, so it has no source to save to."); }
+        var catalog = ServiceProvider.GetService<ShippedCatalog>()
+            ?? throw new InvalidOperationException("This host ships no apps.");
+        var exported = await Export();
+        var shipped = await catalog.Find(origin.Publisher, origin.Name);
+        var version = Bump(Newest(exported.Version, shipped?.Version ?? exported.Version), minor: false);
+        var saved = await catalog.SaveToSource(origin.Publisher, exported with { Name = origin.Name, Version = version });
+        var next = Snapshot.Clone();
+        next.Version = saved.Version;
+        next.Origin = origin with { Version = saved.Version };
+        next.Edited = false;
+        Record(next);
+        await Persist(next);
+        return Describe(Snapshot);
+    }
+
+    private static string Newest(string left, string right)
+        => Version.Parse(left) >= Version.Parse(right) ? left : right;
 
     public async Task Delete()
     {

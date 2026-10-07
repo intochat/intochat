@@ -115,6 +115,52 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('an edited copy of a shipped app saves to source on request', (
+    tester,
+  ) async {
+    var saved = false;
+    final calls = <String>[];
+    Future<dynamic> request(String method, String path, [Object? body]) async {
+      calls.add('$method $path');
+      if (method == 'POST' && path.endsWith('/save-to-source')) saved = true;
+      final version = saved ? '1.2.2' : '1.2.1';
+      return {
+        'name': 'greeter',
+        'manifest': {'title': 'Greeter'},
+        'spec': '',
+        'version': version,
+        'status': 'Live',
+        'origin': {
+          'publisher': 'intochat',
+          'source': {r'$source': 'shipped'},
+          'name': 'greeter',
+          'version': saved ? '1.2.2' : '1.2.0',
+        },
+        'edited': !saved,
+      };
+    }
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AppScreen(
+          workspaceId: 'workspace-alice',
+          name: 'greeter',
+          request: request,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('save-to-source')));
+    await tester.pumpAndSettle();
+
+    expect(
+      calls,
+      contains('POST /brains/workspace-alice/apps/greeter/save-to-source'),
+    );
+    expect(find.text('Installed from intochat/greeter v1.2.2'), findsOneWidget);
+    expect(find.byKey(const ValueKey('save-to-source')), findsNothing);
+  });
 }
 
 class _FakeCreatorServer {

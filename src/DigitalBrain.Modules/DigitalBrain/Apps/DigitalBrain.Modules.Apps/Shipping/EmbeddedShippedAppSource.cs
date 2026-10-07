@@ -7,8 +7,6 @@ namespace DigitalBrain.Apps;
 public sealed class EmbeddedShippedAppSource(System.Reflection.Assembly assembly, string resourcePrefix, string publisher) : IShippedAppSource
 {
     public string Publisher => publisher;
-    public bool Writable => false;
-    public void Write(AppBundle bundle) => throw new NotSupportedException("Embedded shipped apps are read-only.");
 
     public IReadOnlyList<AppBundle> Load()
     {

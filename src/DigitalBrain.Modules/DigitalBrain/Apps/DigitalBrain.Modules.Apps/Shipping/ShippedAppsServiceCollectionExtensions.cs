@@ -19,8 +19,9 @@ public static class ShippedAppsServiceCollectionExtensions
     }
 
     // Configuration names the sources: DigitalBrain:Modules:apps:Shipped:{vendor}:Path points at a
-    // directory of app folders the catalog lists under that vendor. The deployment decides, not the code.
-    public static IServiceCollection AddShippedApps(this IServiceCollection services, IConfiguration configuration)
+    // directory of app folders the catalog lists under that vendor. The deployment decides, not the code;
+    // a development host registers the folders writable for Save to source.
+    public static IServiceCollection AddShippedApps(this IServiceCollection services, IConfiguration configuration, bool development = false)
     {
         ArgumentNullException.ThrowIfNull(configuration);
         foreach (var source in configuration.GetSection(ConfigurationSection).GetChildren())
@@ -28,7 +29,7 @@ public static class ShippedAppsServiceCollectionExtensions
             var path = source["Path"];
             if (string.IsNullOrWhiteSpace(path))
             { throw new InvalidOperationException($"{ConfigurationSection}:{source.Key} names no Path."); }
-            services.AddShippedAppSource(new DirectoryShippedAppSource(path, source.Key));
+            services.AddShippedAppSource(new DirectoryShippedAppSource(path, source.Key, development));
         }
         return services;
     }

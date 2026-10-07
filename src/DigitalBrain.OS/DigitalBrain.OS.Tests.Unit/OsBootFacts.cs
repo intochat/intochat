@@ -91,8 +91,6 @@ public sealed class OsBootFacts
     private sealed class HelloSource : IShippedAppSource
     {
         public string Publisher => "os";
-        public bool Writable => false;
-        public void Write(AppBundle bundle) => throw new NotSupportedException();
         public IReadOnlyList<AppBundle> Load() =>
         [new("hello", "1.0.0", new("Hello", "Shows hello world", [new("open", "Open")], [new("Greeting", "what to say", "hello")], []),
             "## Scenario: Greets\nIt greets.", new() { ["synapses/hello.cs"] = "// b" })];

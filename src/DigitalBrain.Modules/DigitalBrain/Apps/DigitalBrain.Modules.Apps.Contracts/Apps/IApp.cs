@@ -36,6 +36,9 @@ public interface IApp : INeuron
     // Install records where the copy came from; recording it again (after an update) also
     // clears Edited, because the program is the publisher's again.
     Task RecordOrigin(AppOrigin origin);
+    // Development only, for a copy of a shipped app: writes this program back into the vendor's
+    // source folder as the next version, then re-attaches the copy to it.
+    [ResponseTimeout("00:10:00")] Task<AppSnapshot> SaveToSource();
     [ResponseTimeout("00:10:00")] Task Delete();
     Task<AppInvocation> Invoke(InvokeApp request);
     Task<AppInvocation> Respond(AppResponse response);

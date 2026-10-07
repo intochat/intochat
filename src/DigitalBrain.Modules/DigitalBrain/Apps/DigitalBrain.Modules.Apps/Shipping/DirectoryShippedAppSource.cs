@@ -2,8 +2,9 @@ namespace DigitalBrain.Apps;
 
 // App folders read from a directory on disk: one subfolder per app, the same shape the
 // embedded source reads from resources. Deployments point the host at a folder through
-// DigitalBrain:Modules:apps:Shipped:{source}:Path and name its publisher with :Account.
-public sealed class DirectoryShippedAppSource(string path, string publisher, bool writable = false) : IShippedAppSource
+// DigitalBrain:Modules:apps:Shipped:{vendor}:Path. A development host registers it writable, so
+// Save to source can write an edited app back into the repository folder.
+public sealed class DirectoryShippedAppSource(string path, string publisher, bool development = false) : IShippedAppSource
 {
     public string Publisher => publisher;
 
@@ -15,12 +16,12 @@ public sealed class DirectoryShippedAppSource(string path, string publisher, boo
             .Select(folder => ShippedAppFolder.ToBundle(folder.Name, ReadFolder(folder)))];
     }
 
-    public bool Writable => writable;
+    public bool Development => development;
 
-    // Publishing writes the published version back as files, so the repository diff is the change.
+    // Writes the bundle back as files, so the repository diff is the change.
     public void Write(AppBundle bundle)
     {
-        if (!writable) { throw new InvalidOperationException($"Shipped app directory '{path}' is read-only."); }
+        if (!development) { throw new InvalidOperationException($"Shipped app directory '{path}' is read-only."); }
         var root = new DirectoryInfo(path);
         root.Create();
         var folder = root.EnumerateDirectories().FirstOrDefault(candidate =>

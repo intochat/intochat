@@ -5,8 +5,5 @@ namespace DigitalBrain.Apps;
 public interface IShippedAppSource
 {
     string Publisher { get; }
-    // Development folders accept the publisher's published versions back.
-    bool Writable { get; }
     IReadOnlyList<AppBundle> Load();
-    void Write(AppBundle bundle);
 }

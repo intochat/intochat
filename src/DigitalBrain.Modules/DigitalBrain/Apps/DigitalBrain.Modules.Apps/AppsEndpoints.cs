@@ -85,6 +85,10 @@ internal static class AppsEndpoints
         apps.MapPost("/{name}/publish", (string name, IDigitalBrain brain) => Respond(async ()
             => Results.Ok(View(await App(brain, name).Publish()))));
 
+        // Development only: writes an edited copy of a shipped app back into the vendor's folder.
+        apps.MapPost("/{name}/save-to-source", (string name, IDigitalBrain brain) => Respond(async ()
+            => Results.Ok(View(await App(brain, name).SaveToSource()))));
+
         apps.MapPost("/{name}/update", (string name, [FromServices] AppInstaller installer, CancellationToken ct) => Respond(async ()
             => Results.Ok(View(await installer.Update(name, ct)))));
 

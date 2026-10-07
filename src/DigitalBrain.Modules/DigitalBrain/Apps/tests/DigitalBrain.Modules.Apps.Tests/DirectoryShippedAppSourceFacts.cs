@@ -74,7 +74,7 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
         Write("Echo/app.spec.md", "## Scenario: Echo\nEchoes.\n");
         Write("Echo/synapses/echo.cs", "// echo\n");
         Write("Echo/icon.svg", "<svg/>");
-        var source = new DirectoryShippedAppSource(_root, "vendor", writable: true);
+        var source = new DirectoryShippedAppSource(_root, "vendor", development: true);
         var loaded = Assert.Single(source.Load());
         Assert.Equal("icon.svg", loaded.Manifest.Icon);
 
@@ -100,7 +100,7 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
     [Fact]
     public void ANewAppGetsAFolderNamedAfterItsTitle()
     {
-        var source = new DirectoryShippedAppSource(_root, "vendor", writable: true);
+        var source = new DirectoryShippedAppSource(_root, "vendor", development: true);
         source.Write(new("lead-finder", "1.0.0", new("Lead finder", "Finds leads.", [], [], []), "## Scenario: Finds\nIt finds.\n",
             new() { ["synapses/finds.cs"] = "// t\n" }));
         Assert.True(File.Exists(Path.Combine(_root, "LeadFinder", "app.json")));
