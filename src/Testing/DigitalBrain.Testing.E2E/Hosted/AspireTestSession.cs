@@ -5,12 +5,12 @@ using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Aspire.Server;
 using DigitalBrain.Client.Orleans;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Orleans.Configuration;
-using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Testing.E2E;
 

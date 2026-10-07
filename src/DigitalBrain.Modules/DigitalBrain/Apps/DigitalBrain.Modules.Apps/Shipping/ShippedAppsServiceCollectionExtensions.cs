@@ -1,10 +1,10 @@
 using System.Reflection;
+using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Shipping;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
-using DigitalBrain.Framework;
 
 namespace DigitalBrain.Apps;
 

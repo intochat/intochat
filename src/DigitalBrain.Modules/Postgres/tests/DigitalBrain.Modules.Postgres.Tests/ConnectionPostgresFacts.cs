@@ -1,6 +1,6 @@
+using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Framework;
 using DigitalBrain.Postgres;
 using Microsoft.Extensions.DependencyInjection;
 

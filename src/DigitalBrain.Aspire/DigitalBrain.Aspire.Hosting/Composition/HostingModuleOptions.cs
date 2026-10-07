@@ -1,9 +1,9 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Framework;
-using Microsoft.Extensions.Configuration;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Modules;
+using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Aspire.Hosting;
 

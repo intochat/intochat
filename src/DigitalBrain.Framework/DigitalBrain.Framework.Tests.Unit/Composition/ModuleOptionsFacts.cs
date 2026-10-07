@@ -1,11 +1,11 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
-using Microsoft.Extensions.Configuration;
-using Orleans.Hosting;
-using Xunit;
-using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Modules;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Orleans.Hosting;
+using Xunit;
 
 namespace DigitalBrain.Framework.Tests.Unit;
 

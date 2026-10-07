@@ -1,7 +1,7 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Modules;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Framework.Tests.Unit;
 

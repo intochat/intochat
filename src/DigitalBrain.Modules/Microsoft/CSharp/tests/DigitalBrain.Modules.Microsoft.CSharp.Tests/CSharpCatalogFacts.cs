@@ -1,6 +1,8 @@
 using System.Reflection;
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Framework.Modules;
 using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Microsoft.CSharp.Authoring;
 using DigitalBrain.Microsoft.CSharp.Catalog;
@@ -8,8 +10,6 @@ using DigitalBrain.Microsoft.CSharp.Files;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Xunit;
-using DigitalBrain.Framework.Contracts;
-using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 

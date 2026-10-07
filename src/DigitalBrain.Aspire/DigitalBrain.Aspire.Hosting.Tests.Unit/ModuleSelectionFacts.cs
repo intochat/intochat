@@ -1,9 +1,9 @@
 using DigitalBrain;
 using DigitalBrain.Aspire.Server;
 using DigitalBrain.Framework;
-using Microsoft.Extensions.Configuration;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Modules;
+using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Aspire.Hosting.Tests.Unit;
 

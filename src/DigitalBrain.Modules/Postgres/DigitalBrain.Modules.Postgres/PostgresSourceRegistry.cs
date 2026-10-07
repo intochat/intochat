@@ -1,6 +1,6 @@
-using DigitalBrain.Postgres.Tables;
 using System.Collections.Concurrent;
 using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Postgres.Tables;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Npgsql;

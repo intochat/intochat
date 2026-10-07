@@ -4,8 +4,8 @@ using DigitalBrain.AI;
 using DigitalBrain.AI.Inference;
 using DigitalBrain.AI.Models.OpenAI;
 using DigitalBrain.Framework;
-using Microsoft.Extensions.Options;
 using DigitalBrain.Framework.Contracts;
+using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Apps;
 

@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
-using Orleans.Concurrency;
 using DigitalBrain.Framework.Contracts;
+using Orleans.Concurrency;
 
 namespace DigitalBrain.Framework.Platform.Connections;
 

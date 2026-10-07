@@ -1,12 +1,12 @@
 using DigitalBrain;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Modules;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Hosting;
-using DigitalBrain.Framework.Modules;
-using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Flutter;
 

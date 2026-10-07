@@ -1,9 +1,9 @@
-using DigitalBrain.Framework;
 using System.Net;
 using System.Text.Json;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Expander;
 using DigitalBrain.Flutter.Expander.Signals;
+using DigitalBrain.Framework;
 
 namespace DigitalBrain.Modules.Flutter.Tests.Expander;
 

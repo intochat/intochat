@@ -3,10 +3,10 @@ using Aspire.Hosting.ApplicationModel;
 using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Aspire.Hosting.Tests.Unit;
 

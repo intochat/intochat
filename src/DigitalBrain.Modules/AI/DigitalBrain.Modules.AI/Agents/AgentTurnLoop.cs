@@ -5,10 +5,10 @@ using DigitalBrain.AI.Agents.Context;
 using DigitalBrain.AI.Inference;
 using DigitalBrain.AI.Models;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Surface;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using DigitalBrain.Framework.Surface;
 
 namespace DigitalBrain.AI.Agents;
 

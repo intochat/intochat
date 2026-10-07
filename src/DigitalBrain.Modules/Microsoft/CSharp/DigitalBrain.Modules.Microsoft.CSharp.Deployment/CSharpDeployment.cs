@@ -1,13 +1,13 @@
 using DigitalBrain;
 using DigitalBrain.Deployment;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
 using Pulumi;
 using Pulumi.AzureNative.App;
 using Pulumi.AzureNative.App.Inputs;
 using Pulumi.AzureNative.Network;
 using Pulumi.Random;
 using NetworkInputs = Pulumi.AzureNative.Network.Inputs;
-using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Microsoft.CSharp;
 

@@ -1,5 +1,7 @@
 using System.Text.Json;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Framework.Modules;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Framework.Platform.Secrets;
 using DigitalBrain.Platform.Integrations;
@@ -8,8 +10,6 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using DigitalBrain.Framework.Contracts;
-using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Platform.Tests.Unit.Integrations;
 

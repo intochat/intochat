@@ -1,5 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Modules;
 using DigitalBrain.Time.Reminders;
 using DigitalBrain.Time.Timers;
 using Microsoft.Extensions.Configuration;
@@ -7,8 +9,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Orleans.Configuration;
 using Orleans.Hosting;
-using DigitalBrain.Framework.Configuration;
-using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Time;
 

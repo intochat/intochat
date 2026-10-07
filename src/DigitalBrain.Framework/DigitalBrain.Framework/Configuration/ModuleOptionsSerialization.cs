@@ -1,5 +1,5 @@
-using Microsoft.Extensions.Configuration;
 using DigitalBrain.Framework.Modules;
+using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Framework.Configuration;
 

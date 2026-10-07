@@ -1,8 +1,8 @@
-using DigitalBrain.Framework;
 using System.Net;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Button;
 using DigitalBrain.Flutter.Button.Signals;
+using DigitalBrain.Framework;
 
 namespace DigitalBrain.Modules.Flutter.Tests.Button;
 

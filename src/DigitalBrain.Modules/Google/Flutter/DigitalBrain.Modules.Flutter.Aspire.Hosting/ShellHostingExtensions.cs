@@ -4,12 +4,12 @@ using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Flutter;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Flutter.Aspire.Hosting;
 

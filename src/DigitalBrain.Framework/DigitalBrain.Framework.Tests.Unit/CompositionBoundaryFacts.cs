@@ -6,15 +6,15 @@ using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Aspire.Server;
 using DigitalBrain.Client.Runtime.V1;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Metering;
+using DigitalBrain.Framework.Modules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Orleans.Hosting;
-using DigitalBrain.Framework.Metering;
-using DigitalBrain.Framework.Configuration;
-using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Framework.Tests.Unit;
 

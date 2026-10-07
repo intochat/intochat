@@ -1,8 +1,8 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
-using DigitalBrain.Framework.Contracts;
 
 namespace DigitalBrain.Mcp.Tests.Unit;
 

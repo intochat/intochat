@@ -1,8 +1,8 @@
 using System.Reflection;
 using System.Reflection.Emit;
-using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Modules;
+using DigitalBrain.Framework.Platform.Integrations;
 
 namespace DigitalBrain.Architecture.Tests;
 

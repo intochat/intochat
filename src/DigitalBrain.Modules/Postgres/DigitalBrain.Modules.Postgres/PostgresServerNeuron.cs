@@ -1,5 +1,5 @@
-using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Postgres.Tables;
 using Orleans.Concurrency;
 

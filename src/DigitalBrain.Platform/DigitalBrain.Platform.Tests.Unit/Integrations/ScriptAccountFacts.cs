@@ -1,11 +1,11 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Modules;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Integrations;
 using DigitalBrain.Testing.Module;
 using Orleans.Hosting;
 using Xunit;
-using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Platform.Tests.Unit.Integrations;
 

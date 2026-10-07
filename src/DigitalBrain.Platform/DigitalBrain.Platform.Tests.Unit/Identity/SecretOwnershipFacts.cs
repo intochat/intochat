@@ -1,5 +1,5 @@
-using DigitalBrain.Framework;
 using System.Text;
+using DigitalBrain.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;

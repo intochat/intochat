@@ -1,8 +1,8 @@
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Modules;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Integrations;
 using Orleans.Hosting;
-using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Platform.Tests.Unit.Connections;
 

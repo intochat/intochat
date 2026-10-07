@@ -1,7 +1,7 @@
+using DigitalBrain.Framework.Modules;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Framework.Contracts;
 

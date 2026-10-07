@@ -1,11 +1,11 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Modules;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using DigitalBrain.Framework.Modules;
-using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Salesforce;
 

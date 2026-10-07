@@ -1,10 +1,10 @@
+using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Authority;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Serialization;
 using Orleans.Storage;
-using DigitalBrain.Framework;
 
 namespace DigitalBrain.Platform.Tests.Unit.Identity;
 

@@ -1,10 +1,10 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Modules;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.GitHub.Webhook;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Hosting;
-using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Microsoft.GitHub;
 

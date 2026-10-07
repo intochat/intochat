@@ -1,7 +1,7 @@
 using System.Reflection;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Framework.Modules;
+using DigitalBrain.Framework.Platform.Integrations;
 
 namespace DigitalBrain.Platform.Integrations;
 

@@ -3,7 +3,10 @@ using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Media;
 using DigitalBrain.AI.Models;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Framework.Modules;
 using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Framework.Surface;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -11,9 +14,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
-using DigitalBrain.Framework.Contracts;
-using DigitalBrain.Framework.Modules;
-using DigitalBrain.Framework.Surface;
 
 namespace DigitalBrain.AI;
 

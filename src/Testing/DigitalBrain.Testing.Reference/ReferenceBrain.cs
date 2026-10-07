@@ -6,6 +6,7 @@ using DigitalBrain.Apps;
 using DigitalBrain.ClickHouse;
 using DigitalBrain.Flutter;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Google.Gmail;
 using DigitalBrain.Platform.Identity.Configuration;
@@ -13,7 +14,6 @@ using DigitalBrain.Postgres;
 using DigitalBrain.Qdrant;
 using DigitalBrain.Salesforce;
 using DigitalBrain.Supabase;
-using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Testing.E2E;
 

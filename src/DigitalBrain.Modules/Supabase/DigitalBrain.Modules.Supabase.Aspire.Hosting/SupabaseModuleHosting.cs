@@ -1,9 +1,9 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Aspire.Hosting;
+using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
-using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Supabase.Aspire.Hosting;
 

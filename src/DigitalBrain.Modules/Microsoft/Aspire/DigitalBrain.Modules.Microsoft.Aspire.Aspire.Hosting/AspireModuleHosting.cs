@@ -4,8 +4,8 @@ using Aspire.Hosting.ApplicationModel;
 using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework;
-using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Framework.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Microsoft.Aspire;
 

@@ -1,12 +1,12 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Google.Gmail;
 using DigitalBrain.Testing.Module;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Modules.Google.Gmail.Tests;
 

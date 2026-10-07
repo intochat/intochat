@@ -8,10 +8,10 @@ using DigitalBrain.AI.Inference;
 using DigitalBrain.AI.Models;
 using DigitalBrain.AI.Models.Signals;
 using DigitalBrain.Framework;
-using Microsoft.Extensions.AI;
-using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Framework.Surface;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Modules.AI.Tests;
 

@@ -1,6 +1,6 @@
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Surface;
 
 namespace DigitalBrain.Mcp.Tests.Unit;

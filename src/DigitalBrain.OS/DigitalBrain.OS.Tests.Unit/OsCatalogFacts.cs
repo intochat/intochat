@@ -1,8 +1,8 @@
 using DigitalBrain;
 using DigitalBrain.Aspire.Server;
 using DigitalBrain.Framework;
-using DigitalBrain.OS;
 using DigitalBrain.Framework.Modules;
+using DigitalBrain.OS;
 
 namespace DigitalBrain.OS.Tests.Unit;
 

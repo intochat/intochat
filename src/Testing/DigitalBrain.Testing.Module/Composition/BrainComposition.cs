@@ -1,6 +1,6 @@
 using DigitalBrain.Framework;
-using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain.Framework.Modules;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Testing.Module;
 

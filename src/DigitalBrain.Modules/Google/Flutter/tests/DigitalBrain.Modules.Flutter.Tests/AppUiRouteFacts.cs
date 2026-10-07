@@ -1,7 +1,7 @@
 using System.Text.Json;
+using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Chart;
 using DigitalBrain.Flutter.Table;
-using DigitalBrain.Flutter;
 using DigitalBrain.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

@@ -1,11 +1,11 @@
 extern alias AppHost;
-using DigitalBrain.Framework.Configuration;
-using DigitalBrain.Framework.Modules;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
 using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Modules;
 using DigitalBrain.Testing.E2E;
 
 namespace DigitalBrain.OS.Tests.Unit;

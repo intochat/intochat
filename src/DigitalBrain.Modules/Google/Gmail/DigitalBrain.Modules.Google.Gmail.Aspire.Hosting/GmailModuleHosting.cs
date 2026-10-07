@@ -1,6 +1,6 @@
 using DigitalBrain.Aspire.Hosting;
-using Microsoft.Extensions.Configuration;
 using DigitalBrain.Framework.Configuration;
+using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Google.Gmail;
 

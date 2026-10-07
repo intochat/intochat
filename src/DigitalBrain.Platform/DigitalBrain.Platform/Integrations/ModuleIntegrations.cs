@@ -1,7 +1,7 @@
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Modules;
 using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
-using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Platform.Integrations;
 

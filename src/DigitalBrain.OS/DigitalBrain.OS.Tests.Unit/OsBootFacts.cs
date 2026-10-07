@@ -1,5 +1,5 @@
-using DigitalBrain.Framework;
 using DigitalBrain.Apps;
+using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;

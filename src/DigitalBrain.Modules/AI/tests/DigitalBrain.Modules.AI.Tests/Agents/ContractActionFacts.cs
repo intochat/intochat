@@ -2,11 +2,11 @@ using System.Text.Json;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.Apps;
 using DigitalBrain.Framework;
-using Microsoft.Extensions.AI;
-using Xunit;
-using DigitalBrain.Framework.Surface;
 using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Framework.Surface;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using Xunit;
 
 namespace DigitalBrain.Modules.AI.Tests.Agents;
 
@@ -34,8 +34,13 @@ public sealed class ContractActionFacts
     public async Task AContractTheTurnDidNotNameIsARepairableError()
     {
         var ct = TestContext.Current.CancellationToken;
-        var client = Scripted(NeuronSurfaceTools.CallName, new() { ["contract"] = "DigitalBrain.Postgres.IPostgresServer",
-            ["key"] = "connection/b/postgres/x", ["method"] = "ReadConnection", ["arguments"] = "[]" });
+        var client = Scripted(NeuronSurfaceTools.CallName, new()
+        {
+            ["contract"] = "DigitalBrain.Postgres.IPostgresServer",
+            ["key"] = "connection/b/postgres/x",
+            ["method"] = "ReadConnection",
+            ["arguments"] = "[]"
+        });
         await using var brain = await AppBrain(client, ct);
         AgentFacts.StampUser();
         var events = await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key("main")), AgentTurn.Text("read it", contracts: [typeof(IApp).FullName!]), ct);

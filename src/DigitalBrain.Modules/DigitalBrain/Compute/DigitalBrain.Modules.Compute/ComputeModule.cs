@@ -5,10 +5,10 @@ using DigitalBrain.Compute.Storage;
 using DigitalBrain.Compute.Usage;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Metering;
+using DigitalBrain.Framework.Modules;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Compute;
 

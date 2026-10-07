@@ -1,6 +1,6 @@
 using DigitalBrain.Framework;
-using Orleans.Metadata;
 using DigitalBrain.Framework.Contracts;
+using Orleans.Metadata;
 
 namespace DigitalBrain.Microsoft.Aspire;
 

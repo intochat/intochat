@@ -1,9 +1,9 @@
 using DigitalBrain.Client.Orleans;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Platform;
 using Microsoft.Extensions.Configuration;
 using Orleans.TestingHost;
-using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Testing.Module;
 

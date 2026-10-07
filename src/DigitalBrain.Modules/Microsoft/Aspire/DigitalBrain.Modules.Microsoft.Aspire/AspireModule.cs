@@ -1,12 +1,12 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Modules;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
-using DigitalBrain.Framework.Modules;
-using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Microsoft.Aspire;
 

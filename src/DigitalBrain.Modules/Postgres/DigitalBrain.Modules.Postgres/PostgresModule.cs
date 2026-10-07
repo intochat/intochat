@@ -1,10 +1,10 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Modules;
 using DigitalBrain.Framework.Platform.Integrations;
-using Orleans.Hosting;
 using DigitalBrain.Postgres.Tables;
 using DigitalBrain.Postgres.Tables.Signals;
-using DigitalBrain.Framework.Modules;
+using Orleans.Hosting;
 
 namespace DigitalBrain.Postgres;
 

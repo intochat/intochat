@@ -1,13 +1,13 @@
 using ClickHouse.Driver;
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Modules;
 using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
-using DigitalBrain.Framework.Modules;
-using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.ClickHouse;
 

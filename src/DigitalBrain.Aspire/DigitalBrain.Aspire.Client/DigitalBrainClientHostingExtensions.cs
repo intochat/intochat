@@ -1,10 +1,10 @@
 using DigitalBrain;
 using DigitalBrain.Client;
 using DigitalBrain.Client.Orleans;
+using DigitalBrain.Framework;
 using DigitalBrain.ServiceDefaults;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Hosting;
-using DigitalBrain.Framework;
 
 namespace DigitalBrain.Aspire.Client;
 

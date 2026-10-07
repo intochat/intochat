@@ -1,14 +1,14 @@
-using DigitalBrain.Framework;
 using System.Text.Json;
+using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Postgres;
+using DigitalBrain.Postgres.Tables;
+using DigitalBrain.Postgres.Tables.Signals;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Orleans;
 using Orleans.Runtime;
 using Orleans.Storage;
-using DigitalBrain.Postgres.Tables;
-using DigitalBrain.Postgres.Tables.Signals;
 
 namespace DigitalBrain.Modules.Postgres.Tests;
 

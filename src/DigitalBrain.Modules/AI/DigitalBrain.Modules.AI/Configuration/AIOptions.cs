@@ -1,9 +1,9 @@
 using System.Text.Json.Serialization;
 using DigitalBrain;
 using DigitalBrain.AI.Models;
-using Microsoft.Extensions.Configuration;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Modules;
+using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.AI;
 

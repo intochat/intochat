@@ -3,12 +3,12 @@ using Aspire.Hosting.ApplicationModel;
 using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Modules;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Postgres;
 using DigitalBrain.Postgres.Aspire.Hosting;
 using static DigitalBrain.Aspire.Testing.AspireCompositionTest;
-using DigitalBrain.Framework.Configuration;
-using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Modules.Postgres.Tests.Hosting;
 

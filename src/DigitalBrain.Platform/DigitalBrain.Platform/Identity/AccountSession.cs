@@ -1,6 +1,6 @@
-using DigitalBrain.Framework;
 using System.Security.Cryptography;
 using System.Text;
+using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.AspNetCore.Builder;

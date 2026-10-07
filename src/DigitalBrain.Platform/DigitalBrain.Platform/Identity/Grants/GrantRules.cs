@@ -1,5 +1,5 @@
-using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Identity;
 
 namespace DigitalBrain.Platform.Identity.Grants;
 

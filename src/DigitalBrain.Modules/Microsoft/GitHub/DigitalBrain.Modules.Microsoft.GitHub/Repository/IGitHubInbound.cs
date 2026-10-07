@@ -1,6 +1,6 @@
 using DigitalBrain.Framework;
-using Orleans.Concurrency;
 using DigitalBrain.Framework.Contracts;
+using Orleans.Concurrency;
 
 namespace DigitalBrain.Microsoft.GitHub;
 

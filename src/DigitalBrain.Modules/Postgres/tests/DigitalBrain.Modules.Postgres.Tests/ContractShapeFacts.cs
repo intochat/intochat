@@ -1,6 +1,6 @@
 using DigitalBrain.Framework;
-using DigitalBrain.Postgres;
 using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Postgres;
 
 namespace DigitalBrain.Modules.Postgres.Tests;
 

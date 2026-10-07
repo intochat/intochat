@@ -1,8 +1,8 @@
 using DigitalBrain.Framework;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using DigitalBrain.Platform.Identity;
 using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Framework.Surface;
+using DigitalBrain.Platform.Identity;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DigitalBrain.Mcp;
 

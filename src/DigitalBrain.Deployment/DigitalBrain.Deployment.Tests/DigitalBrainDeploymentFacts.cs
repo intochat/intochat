@@ -1,11 +1,11 @@
 using System.Collections.Immutable;
 using DeploymentKit.Enums;
 using DigitalBrain.Deployment;
-using Pulumi;
-using Pulumi.Testing;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Modules;
+using Pulumi;
+using Pulumi.Testing;
 
 namespace DigitalBrain.Deployment.Tests;
 

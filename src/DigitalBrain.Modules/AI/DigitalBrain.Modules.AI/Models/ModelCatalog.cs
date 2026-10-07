@@ -246,7 +246,11 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
 
     private static string? NormalizeReasoning(string? value) => value?.ToLowerInvariant() switch
     {
-        null => null, "none" => "none", "low" => "low", "medium" => "medium", "high" => "high",
+        null => null,
+        "none" => "none",
+        "low" => "low",
+        "medium" => "medium",
+        "high" => "high",
         "xhigh" or "extrahigh" or "extra-high" => "xhigh",
         _ => throw new ArgumentException("Reasoning must be none, low, medium, high or xhigh.", nameof(value)),
     };
@@ -255,8 +259,11 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
     {
         Effort = value switch
         {
-            "none" => ReasoningEffort.None, "low" => ReasoningEffort.Low, "medium" => ReasoningEffort.Medium,
-            "high" => ReasoningEffort.High, "xhigh" => ReasoningEffort.ExtraHigh,
+            "none" => ReasoningEffort.None,
+            "low" => ReasoningEffort.Low,
+            "medium" => ReasoningEffort.Medium,
+            "high" => ReasoningEffort.High,
+            "xhigh" => ReasoningEffort.ExtraHigh,
             _ => throw new ArgumentException("Invalid pinned reasoning effort.", nameof(value)),
         },
     };

@@ -1,8 +1,8 @@
-using DigitalBrain.Framework.Platform.Connections;
 using System.Net;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Google.Gmail;
 
 namespace DigitalBrain.Modules.Google.Gmail.Tests;

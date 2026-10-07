@@ -1,5 +1,5 @@
-using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Postgres;
 using DigitalBrain.Postgres.Tables;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,8 +19,11 @@ public sealed class TableLifecycleGuardFacts
         }).StartAsync(ct);
         CallerContextStamper.Stamp(new()
         {
-            PrincipalId = "alice", AccountId = "alice", BrainId = "brain",
-            Kind = CallerKind.Platform, StampedBy = TrustedEdge.Platform,
+            PrincipalId = "alice",
+            AccountId = "alice",
+            BrainId = "brain",
+            Kind = CallerKind.Platform,
+            StampedBy = TrustedEdge.Platform,
         });
         await brain.AuthorizeCallerAsync();
         var foreign = brain.Get<ITableIndex>(new TableOwner("other-brain", "install").Key);
@@ -30,8 +33,12 @@ public sealed class TableLifecycleGuardFacts
 
         CallerContextStamper.Stamp(new()
         {
-            PrincipalId = "alice", AccountId = "alice", BrainId = "brain",
-            Kind = CallerKind.App, AppId = "install", StampedBy = TrustedEdge.AppProxy,
+            PrincipalId = "alice",
+            AccountId = "alice",
+            BrainId = "brain",
+            Kind = CallerKind.App,
+            AppId = "install",
+            StampedBy = TrustedEdge.AppProxy,
         });
         await brain.AuthorizeCallerAsync();
         var own = brain.Get<ITableIndex>(new TableOwner(BrainScope.CurrentId(), "install").Key);
