@@ -126,6 +126,33 @@ public sealed class RuntimeEdgeFacts
         Assert.Equal(7, SignalJson.Number(Assert.Single(signals.Signals)));
     }
 
+    // The publish's trace rides the batch down the stream, so a behavior's reaction joins it.
+    [Fact(Timeout = 60_000)]
+    public async Task AnArrivalCarriesTheTraceThatPublishedIt()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var listener = new System.Diagnostics.ActivityListener
+        {
+            ShouldListenTo = _ => true,
+            Sample = (ref _) => System.Diagnostics.ActivitySamplingResult.AllDataAndRecorded,
+        };
+        System.Diagnostics.ActivitySource.AddActivityListener(listener);
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true, traced: true);
+        var session = await Assigned(brain, ct);
+        (await Report(brain, session, new RuntimeReport(Fingerprint: Fingerprint(brain)), ct)).EnsureSuccessStatusCode();
+        using var stream = await brain.HttpClient.SendAsync(Authorized(HttpMethod.Get, "/brains/acc-brain/" + RuntimeProtocol.Stream, session.Token), HttpCompletionOption.ResponseHeadersRead, ct);
+        await using var events = SseParser.Create(await stream.Content.ReadAsStreamAsync(ct)).EnumerateAsync(ct).GetAsyncEnumerator(ct);
+        (await Report(brain, session, new RuntimeReport(Subscribe: new("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(Pinged))), ct)).EnsureSuccessStatusCode();
+
+        using var click = new System.Diagnostics.Activity("click").Start();
+        await brain.Get<IPinger>("pinger").Ping(9);
+
+        SseItem<string> batch;
+        do { Assert.True(await events.MoveNextAsync()); batch = events.Current; } while (batch.EventType != SignalBatchEvent.Kind);
+        var signals = JsonSerializer.Deserialize<SignalBatchEvent>(batch.Data, RuntimeProtocol.Json)!;
+        Assert.Equal(click.TraceId.ToString(), signals.TraceParent!.Split('-')[1]);
+    }
+
     [Fact]
     public async Task ASecondStreamResendsAnUnacknowledgedBatch()
     {

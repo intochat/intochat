@@ -21,6 +21,7 @@ public sealed class CSharpModuleHosting : ModuleHosting<DigitalBrain.Microsoft.C
         var sandbox = brain.ApplicationBuilder.AddDockerfile(ResourceName, repository, dockerfilePath: Dockerfile)
             .WithHttpEndpoint(targetPort: 8080, name: "http")
             .WithHttpHealthCheck("/health")
+            .WithOtlpExporter()
             .WithVolume("digitalbrain-csharp-cache", "/cache")
             // Linux engines only resolve host.docker.internal, which sessions dial back to the brain on, with this mapping.
             .WithContainerRuntimeArgs("--add-host", "host.docker.internal:host-gateway")

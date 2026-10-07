@@ -12,24 +12,28 @@ internal sealed class SessionSignalSubscription<T> : IAsyncDisposable where T : 
 {
     private readonly SessionConnection _session;
     private readonly string _id;
+    private readonly BehaviorTrace _trace;
     private long _acknowledged;
 
-    private SessionSignalSubscription(SessionConnection session, string id)
+    private SessionSignalSubscription(SessionConnection session, string id, BehaviorTrace trace)
     {
         _session = session;
         _id = id;
+        _trace = trace;
     }
 
-    public static async Task<SessionSignalSubscription<T>> OpenAsync(SessionConnection session, string behavior, NeuronProxy source, CancellationToken cancellationToken)
+    public static async Task<SessionSignalSubscription<T>> OpenAsync(SessionConnection session, string behavior, NeuronProxy source, BehaviorTrace trace, CancellationToken cancellationToken)
     {
         var id = await session.SubscribeAsync(new SubscribeReport(behavior, source.Contract.FullName!, source.Key, typeof(T).Name), cancellationToken).ConfigureAwait(false);
-        return new SessionSignalSubscription<T>(session, id);
+        return new SessionSignalSubscription<T>(session, id, trace);
     }
 
     public async IAsyncEnumerable<T> ReadAllAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         await foreach (var batch in _session.Batches(_id).ReadAllAsync(cancellationToken).ConfigureAwait(false))
         {
+            // The behavior's reaction to these signals continues the trace that published them.
+            if (batch.TraceParent is { } traceParent) { _trace.TraceParent = traceParent; }
             foreach (var json in batch.Signals) { yield return JsonSerializer.Deserialize<T>(json, RuntimeProtocol.Json)!; }
             // Resuming here means the consumer asked for more: every signal of the batch was handled.
             await _session.AcknowledgeAsync(_id, batch.Watermark, cancellationToken).ConfigureAwait(false);

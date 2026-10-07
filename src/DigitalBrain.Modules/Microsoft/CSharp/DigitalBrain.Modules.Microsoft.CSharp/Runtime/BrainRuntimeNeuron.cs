@@ -187,7 +187,7 @@ internal sealed class BrainRuntimeNeuron(
     public Task<IReadOnlyList<SignalBatchEvent>> PendingBatches(string session)
     {
         RequireSpeaking(session);
-        return Task.FromResult<IReadOnlyList<SignalBatchEvent>>([.. Snapshot.Subscriptions.Where(s => s.Pending.Length > 0).Select(Batch)]);
+        return Task.FromResult<IReadOnlyList<SignalBatchEvent>>([.. Snapshot.Subscriptions.Where(s => s.Pending.Length > 0).Select(subscription => Batch(subscription))]);
     }
 
     public async Task<IReadOnlyList<AssignmentEvent>> Assignments(string session)
@@ -221,7 +221,9 @@ internal sealed class BrainRuntimeNeuron(
         await Save(Snapshot with { Subscriptions = next }, Changed());
         if (Snapshot.Session is { Status: SessionStatus.Connected } session)
         {
-            foreach (var subscription in arrived) { streams.TryPush(session.Id, SignalBatchEvent.Kind, Batch(subscription)); }
+            // The publish's trace rides along, so the behavior's reaction joins it.
+            var trace = System.Diagnostics.Activity.Current?.Id;
+            foreach (var subscription in arrived) { streams.TryPush(session.Id, SignalBatchEvent.Kind, Batch(subscription, trace)); }
         }
     }
 
@@ -305,7 +307,7 @@ internal sealed class BrainRuntimeNeuron(
     // can. A SAS signs the path and query, not the host, so the rewritten URL stays valid.
     private static Uri Reachable(Uri url) => url.IsLoopback ? new UriBuilder(url) { Host = DockerHost }.Uri : url;
 
-    private static SignalBatchEvent Batch(Subscription subscription) => new(subscription.Id, subscription.Pending, subscription.Watermark);
+    private static SignalBatchEvent Batch(Subscription subscription, string? trace = null) => new(subscription.Id, subscription.Pending, subscription.Watermark, trace);
 
     private BehaviorView View(BehaviorAssignment behavior)
         => new(behavior.Id, behavior.Hash, behavior.Status, behavior.Failures,

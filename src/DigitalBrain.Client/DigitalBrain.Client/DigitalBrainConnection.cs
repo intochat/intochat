@@ -10,23 +10,25 @@ public sealed class DigitalBrainConnection : IDigitalBrain, IAsyncDisposable
     private readonly SessionConnection _session;
     private readonly string _behavior;
     private readonly IReadOnlyDictionary<string, string> _settings;
+    private readonly BehaviorTrace _trace;
 
-    internal DigitalBrainConnection(SessionConnection session, string behavior, IReadOnlyDictionary<string, string> settings, CancellationToken stopping)
+    internal DigitalBrainConnection(SessionConnection session, string behavior, IReadOnlyDictionary<string, string> settings, CancellationToken stopping, BehaviorTrace trace)
     {
         _session = session;
         _behavior = behavior;
         _settings = settings;
         Stopping = stopping;
+        _trace = trace;
     }
 
     public CancellationToken Stopping { get; }
 
     public string? Setting(string name) => _settings.TryGetValue(name, out var value) ? value : null;
 
-    public T Get<T>(NeuronId id) where T : INeuron => NeuronProxy.Create<T>(_session, _behavior, id.Name);
+    public T Get<T>(NeuronId id) where T : INeuron => NeuronProxy.Create<T>(_session, _behavior, id.Name, _trace);
 
     public IKernel Self => _session.Brain is { Length: > 0 } brain
-        ? NeuronProxy.Create<IKernel>(_session, _behavior, brain)
+        ? NeuronProxy.Create<IKernel>(_session, _behavior, brain, _trace)
         : throw new InvalidOperationException("This session was not told its brain.");
 
     public IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
@@ -34,7 +36,7 @@ public sealed class DigitalBrainConnection : IDigitalBrain, IAsyncDisposable
         if (source is not NeuronProxy neuron) { throw new ArgumentException("Watch a neuron obtained from this connection's Get.", nameof(source)); }
         return new WatchStream<T>(async ct =>
         {
-            var subscription = await SessionSignalSubscription<T>.OpenAsync(_session, _behavior, neuron, ct).ConfigureAwait(false);
+            var subscription = await SessionSignalSubscription<T>.OpenAsync(_session, _behavior, neuron, _trace, ct).ConfigureAwait(false);
             return (subscription.ReadAllAsync(ct), subscription);
         });
     }

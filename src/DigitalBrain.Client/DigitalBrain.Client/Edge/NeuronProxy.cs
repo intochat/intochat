@@ -15,17 +15,19 @@ public class NeuronProxy : DispatchProxy
 
     private SessionConnection _session = null!;
     private string _behavior = "";
+    private BehaviorTrace _trace = new();
 
     internal Type Contract { get; private set; } = null!;
 
     internal string Key { get; private set; } = "";
 
-    internal static T Create<T>(SessionConnection session, string behavior, string key)
+    internal static T Create<T>(SessionConnection session, string behavior, string key, BehaviorTrace trace)
     {
         var proxy = (T)Create(typeof(T), typeof(NeuronProxy));
         var neuron = (NeuronProxy)(object)proxy;
         neuron._session = session;
         neuron._behavior = behavior;
+        neuron._trace = trace;
         neuron.Contract = typeof(T);
         neuron.Key = key;
         return proxy;
@@ -48,8 +50,8 @@ public class NeuronProxy : DispatchProxy
         }
         var invocation = new RuntimeInvocation(_behavior, Contract.FullName!, Key, targetMethod.Name, [.. arguments]);
         var returnType = targetMethod.ReturnType;
-        if (returnType == typeof(Task)) { return _session.InvokeAsync(invocation, cancellationToken); }
-        if (returnType == typeof(ValueTask)) { return new ValueTask(_session.InvokeAsync(invocation, cancellationToken)); }
+        if (returnType == typeof(Task)) { return _session.InvokeAsync(invocation, _trace.TraceParent, cancellationToken); }
+        if (returnType == typeof(ValueTask)) { return new ValueTask(_session.InvokeAsync(invocation, _trace.TraceParent, cancellationToken)); }
         if (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(Task<>))
         {
             return InvokeTypedMethod.MakeGenericMethod(returnType.GetGenericArguments()[0]).Invoke(this, [invocation, cancellationToken]);
@@ -59,7 +61,7 @@ public class NeuronProxy : DispatchProxy
 
     private async Task<TResult> InvokeTypedAsync<TResult>(RuntimeInvocation invocation, CancellationToken cancellationToken)
     {
-        var value = await _session.InvokeAsync(invocation, cancellationToken).ConfigureAwait(false);
+        var value = await _session.InvokeAsync(invocation, _trace.TraceParent, cancellationToken).ConfigureAwait(false);
         return value is { } json ? json.Deserialize<TResult>(RuntimeProtocol.Json)! : default!;
     }
 }

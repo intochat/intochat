@@ -14,11 +14,11 @@ public static class AmbientSession
         ArgumentException.ThrowIfNullOrWhiteSpace(behavior);
         ArgumentNullException.ThrowIfNull(settings);
         var previous = Current.Value;
-        Current.Value = new(session, behavior, new Dictionary<string, string>(settings, StringComparer.Ordinal), stopping);
+        Current.Value = new(session, behavior, new Dictionary<string, string>(settings, StringComparer.Ordinal), stopping, new BehaviorTrace());
         return new Exit(previous);
     }
 
-    internal sealed record Scope(SessionConnection Session, string Behavior, Dictionary<string, string> Settings, CancellationToken Stopping);
+    internal sealed record Scope(SessionConnection Session, string Behavior, Dictionary<string, string> Settings, CancellationToken Stopping, BehaviorTrace Trace);
 
     private sealed class Exit(Scope? previous) : IDisposable
     {

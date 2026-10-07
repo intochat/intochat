@@ -52,6 +52,26 @@ public sealed class SessionConnectionFacts
         Assert.Equal(2, (await brain.Acknowledged.Reader.ReadAsync(ct))["watermark"]!.GetValue<long>());
     }
 
+    // A click's trace continues through the stream into the calls the behavior makes in reaction.
+    [Fact(Timeout = 30_000)]
+    public async Task ASignalsTraceTravelsWithTheCallsItCauses()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        const string trace = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+        var brain = new FakeBrain { Streams = { Batch("s1", 1, trace, 1) } };
+        await using var session = await brain.OpenAsync(ct);
+        await using var connection = await Connect(session, "acc-brain/csharp/a", ct);
+
+        await foreach (var signal in connection.On<Changed>(connection.Get<ISource>("source"), ct))
+        {
+            await connection.Get<ISource>("source").Double(signal.Value);
+            break;
+        }
+
+        var invoke = Assert.Single(brain.Requests, request => request.Path.EndsWith(RuntimeProtocol.Invoke, StringComparison.Ordinal));
+        Assert.Equal("4bf92f3577b34da6a3ce929d0e0e4736", invoke.TraceParent!.Split('-')[1]);
+    }
+
     [Fact(Timeout = 30_000)]
     public async Task ReconnectResumesFromTheLastAcknowledgedWatermark()
     {
@@ -118,8 +138,10 @@ public sealed class SessionConnectionFacts
         { return await DigitalBrainClient.ConnectAsync([], ct); }
     }
 
-    private static string Batch(string subscription, long watermark, params int[] values)
-        => $"event: {SignalBatchEvent.Kind}\ndata: {JsonSerializer.Serialize(new SignalBatchEvent(subscription, [.. values.Select(value => JsonSerializer.Serialize(new { value }))], watermark), RuntimeProtocol.Json)}\n\n";
+    private static string Batch(string subscription, long watermark, params int[] values) => Batch(subscription, watermark, null, values);
+
+    private static string Batch(string subscription, long watermark, string? trace, params int[] values)
+        => $"event: {SignalBatchEvent.Kind}\ndata: {JsonSerializer.Serialize(new SignalBatchEvent(subscription, [.. values.Select(value => JsonSerializer.Serialize(new { value }))], watermark, trace), RuntimeProtocol.Json)}\n\n";
 
     // Speaks the brain side of the three routes. Each GET of the stream serves the next scripted body
     // after a ready event, then ends; once the script runs out, a stream stays open until cancelled.
@@ -127,7 +149,7 @@ public sealed class SessionConnectionFacts
     {
         public List<string> Streams { get; } = [];
         public bool RefuseFingerprint { get; init; }
-        public ConcurrentQueue<(string Path, string? Authorization, JsonNode? Body)> Requests { get; } = new();
+        public ConcurrentQueue<(string Path, string? Authorization, JsonNode? Body, string? TraceParent)> Requests { get; } = new();
         public System.Threading.Channels.Channel<JsonNode> Acknowledged { get; } = System.Threading.Channels.Channel.CreateUnbounded<JsonNode>();
         private int _streams;
 
@@ -142,7 +164,8 @@ public sealed class SessionConnectionFacts
             var path = request.RequestUri!.AbsolutePath;
             var text = request.Content is null ? "" : await request.Content.ReadAsStringAsync(cancellationToken);
             var body = text.Length == 0 ? null : JsonNode.Parse(text);
-            Requests.Enqueue((path, request.Headers.Authorization?.ToString(), body));
+            Requests.Enqueue((path, request.Headers.Authorization?.ToString(), body,
+                request.Headers.TryGetValues("traceparent", out var traces) ? traces.Single() : null));
             if (path.EndsWith(RuntimeProtocol.Stream, StringComparison.Ordinal))
             {
                 var index = Interlocked.Increment(ref _streams) - 1;

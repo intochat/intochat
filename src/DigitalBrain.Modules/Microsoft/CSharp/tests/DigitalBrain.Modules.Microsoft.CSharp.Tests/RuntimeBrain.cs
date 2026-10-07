@@ -4,6 +4,7 @@ using DigitalBrain.Microsoft.CSharp.Edge;
 using DigitalBrain.Microsoft.CSharp.Files;
 using DigitalBrain.Microsoft.CSharp.Sessions;
 using Microsoft.Extensions.DependencyInjection;
+using Orleans.Hosting;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
@@ -12,7 +13,7 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 // an installed module contract.
 internal static class RuntimeBrain
 {
-    public static Task<ModuleBrain> StartAsync(FakeSessionHost host, CancellationToken ct, bool http = false, IBehaviorAssemblies? assemblies = null, TimeProvider? time = null)
+    public static Task<ModuleBrain> StartAsync(FakeSessionHost host, CancellationToken ct, bool http = false, IBehaviorAssemblies? assemblies = null, TimeProvider? time = null, bool traced = false)
     {
         var builder = ModuleTest.Create().WithModule<CSharpModule>().WithReminders()
             .ConfigureSilo(silo =>
@@ -27,6 +28,8 @@ internal static class RuntimeBrain
                     options.SandboxUrl = FakeSessionHost.Url;
                 });
             });
+        // The product's server hosting propagates traces across grain calls; a fact about traces opts in.
+        if (traced) { builder = builder.ConfigureSilo(silo => silo.AddActivityPropagation()).ConfigureClient(client => client.AddActivityPropagation()); }
         return (http ? builder.WithHttpEdge() : builder).StartAsync(ct);
     }
 }

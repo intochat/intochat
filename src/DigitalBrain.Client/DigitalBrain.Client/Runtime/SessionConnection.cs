@@ -66,10 +66,15 @@ public sealed class SessionConnection : IAsyncDisposable
         }
     }
 
-    public async Task<JsonElement?> InvokeAsync(RuntimeInvocation invocation, CancellationToken cancellationToken)
+    public Task<JsonElement?> InvokeAsync(RuntimeInvocation invocation, CancellationToken cancellationToken)
+        => InvokeAsync(invocation, traceParent: null, cancellationToken);
+
+    // traceParent joins the call to the trace of the signal the behavior is reacting to.
+    public async Task<JsonElement?> InvokeAsync(RuntimeInvocation invocation, string? traceParent, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(invocation);
-        using var response = await SendAsync(HttpMethod.Post, RuntimeProtocol.Invoke, invocation, HttpCompletionOption.ResponseContentRead, cancellationToken).ConfigureAwait(false);
+        using var response = await SendAsync(HttpMethod.Post, RuntimeProtocol.Invoke, invocation, HttpCompletionOption.ResponseContentRead, cancellationToken,
+            traceParent ?? System.Diagnostics.Activity.Current?.Id).ConfigureAwait(false);
         await EnsureSuccessAsync(response, invocation.Contract + "." + invocation.Method, cancellationToken).ConfigureAwait(false);
         return response.Content.Headers.ContentLength == 0 || response.StatusCode == HttpStatusCode.NoContent
             ? null
@@ -177,10 +182,11 @@ public sealed class SessionConnection : IAsyncDisposable
         await EnsureSuccessAsync(response, operation, cancellationToken).ConfigureAwait(false);
     }
 
-    private Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, object? body, HttpCompletionOption completion, CancellationToken cancellationToken)
+    private Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, object? body, HttpCompletionOption completion, CancellationToken cancellationToken, string? traceParent = null)
     {
         var request = new HttpRequestMessage(method, path) { Content = body is null ? null : JsonContent.Create(body, body.GetType(), options: RuntimeProtocol.Json) };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _token);
+        if (traceParent is not null) { request.Headers.TryAddWithoutValidation("traceparent", traceParent); }
         return _http.SendAsync(request, completion, cancellationToken);
     }
 

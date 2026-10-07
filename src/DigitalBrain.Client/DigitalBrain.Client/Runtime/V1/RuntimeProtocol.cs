@@ -41,7 +41,8 @@ public sealed record RetireEvent([property: Id(0)] string Behavior) { public con
 [GenerateSerializer, Alias("microsoft.csharp.runtime.subscribed-event")]
 public sealed record SubscribedEvent([property: Id(0)] string Behavior, [property: Id(1)] string Contract, [property: Id(2)] string Key, [property: Id(3)] string Signal, [property: Id(4)] string Subscription) { public const string Kind = "subscribed"; }
 [GenerateSerializer, Alias("microsoft.csharp.runtime.signal-batch-event")]
-public sealed record SignalBatchEvent([property: Id(0)] string Subscription, [property: Id(1)] string[] Signals, [property: Id(2)] long Watermark) { public const string Kind = "signals"; }
+// TraceParent is the W3C trace of the latest arrival, so the calls a behavior makes in reaction join its trace.
+public sealed record SignalBatchEvent([property: Id(0)] string Subscription, [property: Id(1)] string[] Signals, [property: Id(2)] long Watermark, [property: Id(3)] string? TraceParent = null) { public const string Kind = "signals"; }
 [GenerateSerializer, Alias("microsoft.csharp.runtime.token-event")]
 public sealed record TokenEvent([property: Id(0)] string Token) { public const string Kind = "token"; }
 [GenerateSerializer, Alias("microsoft.csharp.runtime.ready-event")]
