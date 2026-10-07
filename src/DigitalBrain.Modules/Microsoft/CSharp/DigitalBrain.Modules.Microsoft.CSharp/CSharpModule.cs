@@ -11,6 +11,7 @@ using DigitalBrain.Microsoft.CSharp.Edge;
 using DigitalBrain.Microsoft.CSharp.Files;
 using DigitalBrain.Microsoft.CSharp.Files.Signals;
 using DigitalBrain.Microsoft.CSharp.Sandbox;
+using DigitalBrain.Microsoft.CSharp.Sessions;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -50,6 +51,8 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.TryAddSingleton<RunTokens>();
         builder.Services.AddSingleton<IIntegrationStartup>(services => services.GetRequiredService<RunTokens>());
+        builder.Services.TryAddSingleton<SessionTokens>();
+        builder.Services.AddSingleton<IIntegrationStartup>(services => services.GetRequiredService<SessionTokens>());
         builder.Services.TryAddSingleton<ScriptRunEnvironment>();
         // Explicit: DI would resolve the assemblies parameter as an empty IEnumerable<Assembly>.
         builder.Services.TryAddSingleton(provider => new ScriptContracts(provider.GetRequiredService<ContractCatalog>()));
