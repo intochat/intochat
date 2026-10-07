@@ -1,5 +1,6 @@
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Agents.Context;
+using DigitalBrain.AI.Tools;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;

@@ -4,6 +4,10 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Inference;
+using DigitalBrain.AI.Models;
+using DigitalBrain.AI.Models.Signals;
+using DigitalBrain.AI.Tools;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -81,7 +85,7 @@ public sealed class InferenceTransportFacts
             {"model":"fixture","created_at":"2026-09-22T00:00:00Z","message":{"role":"assistant","content":"done"},"done":true,"done_reason":"stop","prompt_eval_count":1,"eval_count":1}
             """ + "\n", ct);
         await services.GetRequiredService<InferenceService>().Generate(new([new("user", [new AiText("hi")])],
-            Options: new(Reasoning: "high", Provider: new DigitalBrain.AI.Ollama.OllamaInferenceOptions(ContextWindowTokens: 6144))), cancellationToken: ct);
+            Options: new(Reasoning: "high", Provider: new DigitalBrain.AI.Models.Ollama.OllamaInferenceOptions(ContextWindowTokens: 6144))), cancellationToken: ct);
         using var request = JsonDocument.Parse((await serve).Body);
         Assert.Equal("high", request.RootElement.GetProperty("think").GetString());
         Assert.Equal(6144, request.RootElement.GetProperty("options").GetProperty("num_ctx").GetInt32());

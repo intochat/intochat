@@ -1,8 +1,8 @@
 using DigitalBrain.AI;
 using DigitalBrain.AI.GroupChat;
 using DigitalBrain.AI.GroupChat.Signals;
-using DigitalBrain.AI.Ollama;
-using DigitalBrain.AI.Scripted;
+using DigitalBrain.AI.Models.Ollama;
+using DigitalBrain.AI.Models.Scripted;
 using Xunit;
 
 namespace DigitalBrain.Modules.AI.Tests;

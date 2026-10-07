@@ -1,5 +1,6 @@
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Inference;
 
 namespace DigitalBrain.Modules.AI.Tests;
 

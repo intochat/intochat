@@ -3,7 +3,7 @@
 #:project /brain/src/DigitalBrain.Modules/Microsoft/Playwright/DigitalBrain.Modules.Microsoft.Playwright.Contracts/DigitalBrain.Modules.Microsoft.Playwright.Contracts.csproj
 #:project /brain/src/DigitalBrain.Modules/AI/DigitalBrain.Modules.AI.Contracts/DigitalBrain.Modules.AI.Contracts.csproj
 using System.Text.Json;
-using DigitalBrain.AI.Scripted;
+using DigitalBrain.AI.Models.Scripted;
 using DigitalBrain.Apps;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Flutter.Surface;

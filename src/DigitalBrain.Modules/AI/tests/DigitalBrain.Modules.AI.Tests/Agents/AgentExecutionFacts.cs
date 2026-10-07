@@ -1,5 +1,6 @@
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Models;
 using DigitalBrain.Framework.Metering;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;

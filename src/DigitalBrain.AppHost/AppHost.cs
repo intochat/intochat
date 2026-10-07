@@ -1,10 +1,10 @@
 using Aspire.Hosting;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Aspire.Hosting;
-using DigitalBrain.AI.FoundryLocal;
-using DigitalBrain.AI.Ollama;
-using DigitalBrain.AI.OpenAI;
-using DigitalBrain.AI.OpenRouter;
+using DigitalBrain.AI.Models.FoundryLocal;
+using DigitalBrain.AI.Models.OpenAI;
+using DigitalBrain.AI.Models.OpenRouter;
+using DigitalBrain.AI.Models.Ollama;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.ClickHouse;
 using DigitalBrain.ClickHouse.Aspire.Hosting;

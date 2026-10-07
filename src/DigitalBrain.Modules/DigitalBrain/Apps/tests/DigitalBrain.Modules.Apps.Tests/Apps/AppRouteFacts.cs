@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.AI;
-using DigitalBrain.AI.Scripted;
+using DigitalBrain.AI.Models.Scripted;
 using DigitalBrain.Apps;
 using DigitalBrain.Framework;
 using DigitalBrain.Modules.Apps.Tests;

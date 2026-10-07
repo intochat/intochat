@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Text;
+using DigitalBrain.AI.Inference;
 
 namespace DigitalBrain.AI.Agents;
 

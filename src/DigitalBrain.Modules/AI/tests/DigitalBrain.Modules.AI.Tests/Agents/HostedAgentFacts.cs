@@ -5,6 +5,8 @@ using System.Text.Json;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Agents.Signals;
+using DigitalBrain.AI.Inference;
+using DigitalBrain.AI.Models;
 using DigitalBrain.Framework.Platform.Integrations;
 
 namespace DigitalBrain.Modules.AI.Tests.Agents;

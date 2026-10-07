@@ -1,7 +1,7 @@
 using DigitalBrain;
 using Orleans.Concurrency;
 
-namespace DigitalBrain.AI;
+namespace DigitalBrain.AI.Models;
 
 // The deployment's model list as a neuron, so other modules and the shell read it without
 // referencing the AI module. Never carries endpoints or secrets.

@@ -1,7 +1,8 @@
 using System.Text.Json;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
-using DigitalBrain.AI.Scripted;
+using DigitalBrain.AI.Inference;
+using DigitalBrain.AI.Models.Scripted;
 using Xunit;
 
 namespace DigitalBrain.Modules.AI.Tests;

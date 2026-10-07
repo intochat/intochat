@@ -1,7 +1,8 @@
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.AI;
-using DigitalBrain.AI.OpenAI;
+using DigitalBrain.AI.Inference;
+using DigitalBrain.AI.Models.OpenAI;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.Options;
 

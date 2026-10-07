@@ -2,6 +2,8 @@ using System.Runtime.CompilerServices;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Media;
+using DigitalBrain.AI.Models;
+using DigitalBrain.AI.Tools;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;

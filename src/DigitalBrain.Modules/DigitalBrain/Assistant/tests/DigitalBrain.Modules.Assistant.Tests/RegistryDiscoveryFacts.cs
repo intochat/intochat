@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Tools;
 using DigitalBrain.Apps;
 using DigitalBrain.Assistant;
 using DigitalBrain.Framework;

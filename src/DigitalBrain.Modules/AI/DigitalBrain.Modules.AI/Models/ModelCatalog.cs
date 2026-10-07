@@ -1,12 +1,13 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using DigitalBrain.AI.Scripted;
+using DigitalBrain.AI.Inference;
+using DigitalBrain.AI.Models.Scripted;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace DigitalBrain.AI;
+namespace DigitalBrain.AI.Models;
 
 // The one resolver from a model key to a client. A key is a marker name, a configured profile
 // name or "scripted/<key>"; null is the deployment default.

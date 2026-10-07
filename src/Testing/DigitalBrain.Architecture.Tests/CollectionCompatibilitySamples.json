@@ -84,42 +84,42 @@
     "Expected": "[{\"Round\":0,\"Speaker\":\"legacy-value\",\"Text\":\"legacy-value\"}]"
   },
   {
-    "Type": "DigitalBrain.AI.InferenceOptions",
+    "Type": "DigitalBrain.AI.Inference.InferenceOptions",
     "Member": "ProviderOptions",
     "Representation": "array",
     "Payload": "MAEYu0qyKWFpLmluZmVyZW5jZS1vcHRpb25z6MABwQHBAcEBMQHbNq1zdVN5c3RlbS5Db2xsZWN0aW9ucy5HZW5lcmljLkRpY3Rpb25hcnlgMltbc3RyaW5nXSxbc3RyaW5nXV0BA0EZbGVnYWN5LXZhbHVlwBHgwQHBAeA=",
     "Expected": "{\"legacy-value\":\"legacy-value\"}"
   },
   {
-    "Type": "DigitalBrain.AI.InferenceOptions",
+    "Type": "DigitalBrain.AI.Inference.InferenceOptions",
     "Member": "ProviderOptions",
     "Representation": "list",
     "Payload": "MAEYu0qyKWFpLmluZmVyZW5jZS1vcHRpb25z6MABwQHBAcEBMQHbNq1zdVN5c3RlbS5Db2xsZWN0aW9ucy5HZW5lcmljLkRpY3Rpb25hcnlgMltbc3RyaW5nXSxbc3RyaW5nXV0BA0EZbGVnYWN5LXZhbHVlwBHgwQHBAeA=",
     "Expected": "{\"legacy-value\":\"legacy-value\"}"
   },
   {
-    "Type": "DigitalBrain.AI.ScriptedLlmState",
+    "Type": "DigitalBrain.AI.Models.Scripted.ScriptedLlmState",
     "Member": "Replies",
     "Representation": "array",
     "Payload": "MAHLHf+NK2FpLmxsbS5zY3JpcHRlZC1zdGF0ZegoNQADQRlsZWdhY3ktdmFsdWXgAQHBAeA=",
     "Expected": "[\"legacy-value\"]"
   },
   {
-    "Type": "DigitalBrain.AI.ScriptedLlmState",
+    "Type": "DigitalBrain.AI.Models.Scripted.ScriptedLlmState",
     "Member": "Replies",
     "Representation": "list",
     "Payload": "MAHLHf+NK2FpLmxsbS5zY3JpcHRlZC1zdGF0ZegwAVnRtylXU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdGAxW1tzdHJpbmddXQADQRlsZWdhY3ktdmFsdWXgAQHBAeA=",
     "Expected": "[\"legacy-value\"]"
   },
   {
-    "Type": "DigitalBrain.AI.ScriptedLlmState",
+    "Type": "DigitalBrain.AI.Models.Scripted.ScriptedLlmState",
     "Member": "Prompts",
     "Representation": "array",
     "Payload": "MAHLHf+NK2FpLmxsbS5zY3JpcHRlZC1zdGF0ZejAAQEBKTUAA0EZbGVnYWN5LXZhbHVl4OA=",
     "Expected": "[\"legacy-value\"]"
   },
   {
-    "Type": "DigitalBrain.AI.ScriptedLlmState",
+    "Type": "DigitalBrain.AI.Models.Scripted.ScriptedLlmState",
     "Member": "Prompts",
     "Representation": "list",
     "Payload": "MAHLHf+NK2FpLmxsbS5zY3JpcHRlZC1zdGF0ZejAAQEBMQFZ0bcpV1N5c3RlbS5Db2xsZWN0aW9ucy5HZW5lcmljLkxpc3RgMVtbc3RyaW5nXV0AA0EZbGVnYWN5LXZhbHVl4OA=",

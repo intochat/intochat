@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
+using DigitalBrain.AI.Models;
 
-namespace DigitalBrain.AI;
+namespace DigitalBrain.AI.Inference;
 
 [GenerateSerializer, Alias("ai.message")]
 public sealed record AiMessage([property: Id(0)] string Role, [property: Id(1)] IReadOnlyList<AiContent> Content);

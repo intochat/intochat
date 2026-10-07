@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Tools;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Client;
@@ -16,7 +17,7 @@ public sealed class McpToolFacts
     public void TheMcpAllowlistRegistersExactlyTheListedServers()
     {
         var services = new ServiceCollection().AddModelCatalog();
-        AIModule.RegisterMcpBridge(services, "salesforce=https://mcp.example.test/tools;github=https://github.example.test/mcp");
+        McpAgentTools.Register(services, "salesforce=https://mcp.example.test/tools;github=https://github.example.test/mcp");
         Assert.Equal(2, services.Count(descriptor => descriptor.ServiceType == typeof(IAgentToolSource)));
     }
 
@@ -24,7 +25,7 @@ public sealed class McpToolFacts
     public void AnEmptyMcpAllowlistRegistersNoServer()
     {
         var services = new ServiceCollection().AddModelCatalog();
-        AIModule.RegisterMcpBridge(services, null);
+        McpAgentTools.Register(services, null);
         Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(IAgentToolSource));
     }
 
@@ -32,7 +33,7 @@ public sealed class McpToolFacts
     public void AMalformedMcpAllowlistEntryIsRejected()
     {
         var services = new ServiceCollection().AddModelCatalog();
-        Assert.Throws<InvalidOperationException>(() => AIModule.RegisterMcpBridge(services, "salesforce"));
+        Assert.Throws<InvalidOperationException>(() => McpAgentTools.Register(services, "salesforce"));
     }
 
     [Fact]
