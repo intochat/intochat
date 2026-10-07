@@ -52,7 +52,7 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
         var services = new ServiceCollection().AddShippedApps(configuration);
         using var provider = services.BuildServiceProvider();
         var source = Assert.Single(provider.GetServices<IShippedAppSource>());
-        Assert.Equal("vendor-account", source.Account);
+        Assert.Equal("vendor-account", source.Publisher);
         Assert.Equal("echo", Assert.Single(source.Load()).Name);
     }
 

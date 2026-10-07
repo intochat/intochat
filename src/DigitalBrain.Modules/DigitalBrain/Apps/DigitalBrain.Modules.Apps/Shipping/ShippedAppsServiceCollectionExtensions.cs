@@ -1,6 +1,5 @@
 using System.Reflection;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Platform.Shipping;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -17,16 +16,16 @@ public static class ShippedAppsServiceCollectionExtensions
     public static readonly string ShipOnStartupKey =
         DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.ModuleOptionsSection(new DigitalBrain.Framework.Modules.ModuleId("apps")) + ":ShipOnStartup";
 
-    public static IServiceCollection AddShippedApps(this IServiceCollection services, Assembly assembly, string resourcePrefix, string account)
+    public static IServiceCollection AddShippedApps(this IServiceCollection services, Assembly assembly, string resourcePrefix, string publisher)
     {
         ArgumentNullException.ThrowIfNull(assembly);
         ArgumentException.ThrowIfNullOrWhiteSpace(resourcePrefix);
-        ArgumentException.ThrowIfNullOrWhiteSpace(account);
-        return services.AddShippedAppSource(new EmbeddedShippedAppSource(assembly, resourcePrefix, account));
+        ArgumentException.ThrowIfNullOrWhiteSpace(publisher);
+        return services.AddShippedAppSource(new EmbeddedShippedAppSource(assembly, resourcePrefix, publisher));
     }
 
     // Configuration names the sources: DigitalBrain:Modules:apps:Shipped:{source}:Path points at a
-    // directory of app folders and :Account names the publisher account that owns them; :Writable
+    // directory of app folders and :Account names the vendor the catalog lists them under; :Writable
     // lets publishing write back into the folder (development). The deployment decides, not the code.
     public static IServiceCollection AddShippedApps(this IServiceCollection services, IConfiguration configuration)
     {
@@ -48,7 +47,7 @@ public static class ShippedAppsServiceCollectionExtensions
     private static IServiceCollection AddShippedAppSource(this IServiceCollection services, IShippedAppSource source)
     {
         services.AddSingleton(source);
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IShippedContentPublisher, ShippedAppPublisher>());
+        services.TryAddSingleton<ShippedCatalog>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ShippedAppWriteBack>());
         return services;
     }

@@ -31,7 +31,7 @@ public static class OsAppsHosting
             return services;
         }
         services.AddSingleton<OsAppsRegistered>();
-        services.AddShippedApps(typeof(OsCatalog).Assembly, "DigitalBrain.OS.Apps/", account: "os");
+        services.AddShippedApps(typeof(OsCatalog).Assembly, "DigitalBrain.OS.Apps/", publisher: "os");
         // The OS's apps belong to its own account; every distribution carries it.
         services.Configure<DigitalBrain.Platform.Identity.Configuration.SeededAccountOptions>(seeded =>
         {

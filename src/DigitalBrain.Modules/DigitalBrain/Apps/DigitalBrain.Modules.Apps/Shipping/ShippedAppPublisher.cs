@@ -16,7 +16,7 @@ internal sealed class ShippedAppPublisher(
     // comma-separated list of app names only those.
     public static readonly string ShipOnStartupKey = ShippedAppsServiceCollectionExtensions.ShipOnStartupKey;
 
-    public string[] Accounts => sources.Select(source => source.Account).Distinct(StringComparer.Ordinal).ToArray();
+    public string[] Accounts => sources.Select(source => source.Publisher).Distinct(StringComparer.Ordinal).ToArray();
 
     public async Task PublishAsync(PublisherBrain publisher, CancellationToken stoppingToken)
     {
@@ -26,7 +26,7 @@ internal sealed class ShippedAppPublisher(
             logger.LogInformation("Shipped apps stay unpublished: {Key} is off.", ShipOnStartupKey);
             return;
         }
-        foreach (var source in sources.Where(source => source.Account == publisher.Username))
+        foreach (var source in sources.Where(source => source.Publisher == publisher.Username))
         {
             foreach (var bundle in source.Load())
             {

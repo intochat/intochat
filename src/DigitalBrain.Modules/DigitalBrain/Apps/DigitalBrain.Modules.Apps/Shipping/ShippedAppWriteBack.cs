@@ -23,13 +23,13 @@ internal sealed class ShippedAppWriteBack(
             {
                 try
                 {
-                    var publisher = await publishers.Resolve(source.Account, stoppingToken);
+                    var publisher = await publishers.Resolve(source.Publisher, stoppingToken);
                     var app = grains.GetGrain<IApp>(IApp.Key(publisher.ScopeId, signal.Name));
                     if (signal.Publisher.Name != app.GetGrainId().ToString()) { continue; }
                     await ShippedAppSync.WriteIfFastForward(source, app, await app.ExportPublished(), logger);
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
-                { logger.LogWarning(error, "Writing {App} back to the {Account} folder failed.", signal.Name, source.Account); }
+                { logger.LogWarning(error, "Writing {App} back to the {Account} folder failed.", signal.Name, source.Publisher); }
             }
         }
     }

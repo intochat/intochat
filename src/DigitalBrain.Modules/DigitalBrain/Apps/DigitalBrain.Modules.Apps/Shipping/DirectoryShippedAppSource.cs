@@ -3,14 +3,14 @@ namespace DigitalBrain.Apps;
 // App folders read from a directory on disk: one subfolder per app, the same shape the
 // embedded source reads from resources. Deployments point the host at a folder through
 // DigitalBrain:Modules:apps:Shipped:{source}:Path and name its publisher with :Account.
-public sealed class DirectoryShippedAppSource(string path, string account, bool writable = false) : IShippedAppSource
+public sealed class DirectoryShippedAppSource(string path, string publisher, bool writable = false) : IShippedAppSource
 {
-    public string Account => account;
+    public string Publisher => publisher;
 
     public IReadOnlyList<AppBundle> Load()
     {
         var root = new DirectoryInfo(path);
-        if (!root.Exists) { throw new DirectoryNotFoundException($"Shipped app directory '{path}' for account '{account}' does not exist."); }
+        if (!root.Exists) { throw new DirectoryNotFoundException($"Shipped app directory '{path}' for publisher '{publisher}' does not exist."); }
         return [.. root.EnumerateDirectories().OrderBy(folder => folder.Name, StringComparer.Ordinal)
             .Select(folder => ShippedAppFolder.ToBundle(folder.Name, ReadFolder(folder)))];
     }

@@ -1,10 +1,10 @@
 namespace DigitalBrain.Apps;
 
-// Shipped apps are ordinary share bundles the host imports at startup into the publisher
-// account's own brain.
+// Shipped apps are ordinary share bundles the image carries. Publisher is a vendor name the
+// catalog lists them under, never resolved to a principal.
 public interface IShippedAppSource
 {
-    string Account { get; }
+    string Publisher { get; }
     // Development folders accept the publisher's published versions back.
     bool Writable { get; }
     IReadOnlyList<AppBundle> Load();

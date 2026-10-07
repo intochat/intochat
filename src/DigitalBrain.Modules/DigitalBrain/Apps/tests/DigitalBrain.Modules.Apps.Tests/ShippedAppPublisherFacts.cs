@@ -165,7 +165,7 @@ public sealed class ShippedAppPublisherFacts
 
     internal sealed class Source(string account, Dictionary<string, string> versions, string behavior = "// echo", string spec = "Echoes.") : IShippedAppSource
     {
-        public string Account => account;
+        public string Publisher => account;
         public bool Writable => false;
         public void Write(AppBundle bundle) => throw new NotSupportedException();
         public IReadOnlyList<AppBundle> Load() =>
