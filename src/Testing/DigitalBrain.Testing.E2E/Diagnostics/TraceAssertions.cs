@@ -13,14 +13,18 @@ public static class TraceAssertions
             || span.Scope.StartsWith("Microsoft.Extensions.AI", StringComparison.Ordinal)
             || span.Scope.StartsWith("Experimental.Microsoft.Extensions.AI", StringComparison.Ordinal);
 
-    public static Task WaitForAsync(Func<bool> condition, CancellationToken ct)
-        => WaitForAsync(condition, TimeSpan.FromSeconds(20), ct);
+    public static Task WaitForAsync(Func<bool> condition, CancellationToken ct,
+        [System.Runtime.CompilerServices.CallerArgumentExpression(nameof(condition))] string? what = null)
+        => WaitForAsync(condition, TimeSpan.FromSeconds(20), ct, what);
 
-    public static async Task WaitForAsync(Func<bool> condition, TimeSpan timeout, CancellationToken ct)
+    public static async Task WaitForAsync(Func<bool> condition, TimeSpan timeout, CancellationToken ct,
+        [System.Runtime.CompilerServices.CallerArgumentExpression(nameof(condition))] string? what = null)
     {
         var deadline = DateTimeOffset.UtcNow + timeout;
-        while (!condition() && DateTimeOffset.UtcNow < deadline)
+        while (!condition())
         {
+            if (DateTimeOffset.UtcNow >= deadline)
+            { throw new TimeoutException($"Waited {timeout.TotalSeconds:F0}s for: {what}"); }
             await Task.Delay(TimeSpan.FromMilliseconds(250), ct);
         }
     }
