@@ -1,4 +1,3 @@
-using DigitalBrain.Framework.Vectors;
 using DigitalBrain.Qdrant;
 using Xunit;
 

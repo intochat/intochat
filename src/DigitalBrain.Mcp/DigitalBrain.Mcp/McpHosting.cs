@@ -11,7 +11,7 @@ public static class McpHosting
         var deployed = NeuronContracts.Deployed();
         services.AddSingleton(new ContractCatalog(deployed));
         services.AddSingleton(new NeuronContracts(deployed));
-        services.AddContractCatalog(lexicalFallback: true);
+        services.AddContractCatalog();
         services.AddIdentity();
         // Each request is a tool call in the caller's brain; a harness may hand in its own brain instead.
         services.TryAddScoped<IDigitalBrain>(provider => provider.GetRequiredService<IDigitalBrains>().Open(

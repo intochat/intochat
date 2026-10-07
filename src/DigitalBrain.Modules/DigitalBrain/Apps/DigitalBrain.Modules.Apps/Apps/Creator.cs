@@ -13,7 +13,6 @@ namespace DigitalBrain.Apps;
 // neuron — never inside a request, never inside a grain turn.
 internal sealed class Creator(
     IGrainFactory grains,
-    ContractCatalog catalog,
     NeuronTypeSearch search,
     IOptions<AppsOptions> options,
     AppAuthoringPolicy policy,
@@ -156,7 +155,7 @@ internal sealed class Creator(
             return call.Name switch
             {
                 BuilderTools.SearchContracts => JsonSerializer.Serialize(
-                    await BuilderTools.Search(catalog, search, Parse<BuilderTools.SearchArguments>(call.ArgumentsJson).Query), Json),
+                    await BuilderTools.Search(search, Parse<BuilderTools.SearchArguments>(call.ArgumentsJson).Query, cancellationToken), Json),
                 BuilderTools.ReadContracts => JsonSerializer.Serialize(
                     await Require(csharp).ReadContracts(Parse<BuilderTools.ReadArguments>(call.ArgumentsJson).Modules ?? [], cancellationToken), Json),
                 BuilderTools.CheckCSharp => JsonSerializer.Serialize(

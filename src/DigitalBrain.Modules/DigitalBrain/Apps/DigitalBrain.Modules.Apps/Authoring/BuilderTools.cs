@@ -28,27 +28,7 @@ internal static class BuilderTools
 
     public sealed record ContractHit(string Module, string Contract, string Description);
 
-    public static async Task<IReadOnlyList<ContractHit>> Search(ContractCatalog catalog, NeuronTypeSearch search, string query)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(query);
-        try
-        {
-            return [.. (await search.Search(query)).Select(hit => Hit(hit.Type))];
-        }
-        // Without an embedding model the registry has no vector search; a name and description
-        // match over the full catalog still answers the Builder's question.
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            return [.. catalog.Read()
-                .Where(type => query.Split(' ', StringSplitOptions.RemoveEmptyEntries).Any(word =>
-                    type.Id.Contains(word, StringComparison.OrdinalIgnoreCase)
-                    || type.Name.Contains(word, StringComparison.OrdinalIgnoreCase)
-                    || type.Description.Contains(word, StringComparison.OrdinalIgnoreCase)))
-                .Take(10)
-                .Select(Hit)];
-        }
-    }
-
-    private static ContractHit Hit(NeuronType type) => new(type.ModuleId, type.Contract, type.Description);
+    public static async Task<IReadOnlyList<ContractHit>> Search(NeuronTypeSearch search, string query, CancellationToken ct)
+        => [.. (await search.Search(query, ct: ct).ConfigureAwait(false)).Select(hit => new ContractHit(hit.Type.ModuleId, hit.Type.Contract, hit.Type.Description))];
 }
 

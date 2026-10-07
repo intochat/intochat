@@ -11,7 +11,7 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 public sealed class ContractCatalogFacts
 {
     [Fact]
-    public async Task TypesAreDiscoveredFromSelectedModulesWithoutVectorServices()
+    public async Task TypesAreDiscoveredAndFoundByWordsWithoutAnEmbeddingModel()
     {
         await using var brain = await ModuleTest.Create().WithModule<TimeModule>().WithReminders()
             .StartAsync(TestContext.Current.CancellationToken);
@@ -24,7 +24,7 @@ public sealed class ContractCatalogFacts
         Assert.Contains(timer.Signals!, signal => signal.Contains("TimerTick", StringComparison.Ordinal) && signal.Contains("TimerId", StringComparison.Ordinal));
         Assert.Contains(types, type => type.Id == "reminder");
         Assert.DoesNotContain(types, type => type.Id == "test.registry-clock");
-        Assert.Empty(await brain.SiloServices.GetRequiredService<NeuronTypeSearch>().Search("schedule a timer", ct: TestContext.Current.CancellationToken));
+        Assert.Contains(await brain.SiloServices.GetRequiredService<NeuronTypeSearch>().Search("schedule a timer", ct: TestContext.Current.CancellationToken), hit => hit.Type.Id == "timer");
     }
 
     [Fact]
