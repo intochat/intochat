@@ -41,8 +41,8 @@ public sealed class AppPublishFacts
         Assert.Equal(published.Version, published.PublishedVersion);
         // Records holding arrays compare the array by reference, so the facts compare fields.
         var listing = Assert.Single(await Marketplace(brain).List());
-        Assert.Equal(("intochat", "account-intochat", "intochat", "echo", "Echo", "echoes", published.Version, "icon.svg"),
-            (listing.Publisher, listing.PublisherAccountId, listing.PublisherBrainId, listing.Name, listing.Title,
+        Assert.Equal(("intochat", new AppSource.Brain("account-intochat", "intochat"), "echo", "Echo", "echoes", published.Version, "icon.svg"),
+            (listing.Publisher, listing.Source, listing.Name, listing.Title,
              listing.Description, listing.Version, listing.Icon));
         Assert.Equal(published.Version, (await Marketplace(brain).Read("intochat", "echo"))!.Version);
     }
@@ -129,7 +129,7 @@ public sealed class AppPublishFacts
         await app.Publish();
         Caller.Clear();
 
-        var forged = new MarketplaceListing("intochat", "account-intochat", "intochat", "echo", "Echo", "forged", "9.9.9", null);
+        var forged = new MarketplaceListing("intochat", new AppSource.Brain("account-intochat", "intochat"), "echo", "Echo", "forged", "9.9.9", null);
         await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => Marketplace(brain).Upsert(forged));
         await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => Marketplace(brain).Remove("intochat", "echo"));
         Assert.Equal("echoes", (await Marketplace(brain).Read("intochat", "echo"))!.Description);
@@ -175,7 +175,7 @@ public sealed class AppPublishFacts
         await Assert.ThrowsAsync<InvalidOperationException>(sibling.Publish);
         Caller.Clear();
 
-        Assert.Equal("intochat", (await Marketplace(brain).Read("intochat", "echo"))!.PublisherBrainId);
+        Assert.Equal("intochat", ((AppSource.Brain)(await Marketplace(brain).Read("intochat", "echo"))!.Source).BrainId);
         await first.Delete();
         Assert.Null(await Marketplace(brain).Read("intochat", "echo"));
     }

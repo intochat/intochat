@@ -28,7 +28,7 @@ internal static class MarketplaceEndpoints
         {
             var listing = await Listing(brain, publisher, name, ct);
             if (listing.Icon is null) { return Results.NotFound(new { error = $"{publisher}/{name} has no icon." }); }
-            var bundle = await brain.Get<IApp>(IApp.Key(BrainScope.Create(listing.PublisherAccountId, listing.PublisherBrainId).Id, listing.Name))
+            var bundle = await brain.Get<IApp>(IApp.Key(listing.Source.RequireScope(), listing.Name))
                 .ExportPublished().WaitAsync(ct);
             return AppsEndpoints.Icon(listing.Icon, bundle.Files, $"{publisher}/{name}");
         }));

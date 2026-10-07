@@ -48,8 +48,11 @@ void main() {
     final entry = MarketplaceEntry.fromJson({
       'listing': {
         'publisher': 'intochat',
-        'publisherAccountId': 'acc-1',
-        'publisherBrainId': 'account-acc-1',
+        'source': {
+          r'$source': 'brain',
+          'accountId': 'acc-1',
+          'brainId': 'account-acc-1',
+        },
         'name': 'customer-researcher',
         'title': 'Customer Researcher',
         'description': 'Research companies',
@@ -60,6 +63,8 @@ void main() {
       'updateAvailable': true,
     });
     expect(entry.listing.title, 'Customer Researcher');
+    expect(entry.listing.source.brainId, 'account-acc-1');
+    expect(entry.listing.source.isShipped, isFalse);
     expect(entry.installed, isTrue);
     expect(entry.updateAvailable, isTrue);
   });

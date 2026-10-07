@@ -58,7 +58,7 @@ public sealed class AppInstallerFacts
         Assert.Equal((await source.ExportPublished()).Version, installed.Version);
         Assert.Equal("hi", installed.Settings["Text"]);
         Assert.Empty(installed.Connections);
-        Assert.Equal(new AppOrigin("account-intochat", "intochat", "intochat", "echo", installed.Version), installed.Origin);
+        Assert.Equal(new AppOrigin("intochat", new AppSource.Brain("account-intochat", "intochat"), "echo", installed.Version), installed.Origin);
         Assert.False(installed.Edited);
         Assert.Equal(installed.Version, (await Mine(brain, "alice").Read()).Version);
     }

@@ -123,7 +123,7 @@ internal sealed class OsDefaults(
             return;
         }
         // The publisher's own brain already owns its apps.
-        if (BrainScope.Create(listing.PublisherAccountId, listing.PublisherBrainId).Id == activated.BrainId) { return; }
+        if (listing.Source is AppSource.Brain source && BrainScope.Create(source.AccountId, source.BrainId).Id == activated.BrainId) { return; }
         // A default is offered once: one the brain already has counts as offered, and a person
         // who deletes it keeps it deleted.
         var index = grains.GetGrain<IAppIndex>(activated.BrainId);

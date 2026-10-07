@@ -39,8 +39,11 @@ class _FakeHome {
         {
           'listing': {
             'publisher': 'intochat',
-            'publisherAccountId': 'acc-1',
-            'publisherBrainId': 'account-acc-1',
+            'source': {
+              r'$source': 'brain',
+              'accountId': 'acc-1',
+              'brainId': 'account-acc-1',
+            },
             'name': 'customer-researcher',
             'title': 'Customer Researcher',
             'description': 'Research a company',
@@ -53,8 +56,11 @@ class _FakeHome {
         {
           'listing': {
             'publisher': 'os',
-            'publisherAccountId': 'acc-os',
-            'publisherBrainId': 'account-acc-os',
+            'source': {
+              r'$source': 'brain',
+              'accountId': 'acc-os',
+              'brainId': 'account-acc-os',
+            },
             'name': 'assistant',
             'title': 'Assistant',
             'description': 'Chat with your brain',

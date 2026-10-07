@@ -5,8 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 const _listingJson = {
   'publisher': 'intochat',
-  'publisherAccountId': 'acc-1',
-  'publisherBrainId': 'account-acc-1',
+  'source': {
+    r'$source': 'brain',
+    'accountId': 'acc-1',
+    'brainId': 'account-acc-1',
+  },
   'name': 'customer-researcher',
   'title': 'Customer Researcher',
   'description': 'Research a company and keep verified evidence.',
@@ -115,9 +118,7 @@ void main() {
     expect(opened, ['customer-researcher']);
   });
 
-  testWidgets('an installed copy offers its update', (
-    tester,
-  ) async {
+  testWidgets('an installed copy offers its update', (tester) async {
     final server = _FakeMarket(installed: true, update: true);
     await tester.pumpWidget(
       _host(

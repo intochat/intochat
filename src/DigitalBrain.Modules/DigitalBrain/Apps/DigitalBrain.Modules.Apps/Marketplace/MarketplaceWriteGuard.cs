@@ -12,8 +12,9 @@ internal sealed class MarketplaceWriteGuard : IIncomingGrainCallFilter
         if (context.Grain is MarketplaceNeuron marketplace
             && context.InterfaceMethod.Name is nameof(IMarketplace.Upsert) or nameof(IMarketplace.Remove))
         {
+            // An Upsert always names its owner: a listing whose source is not a brain has no app to write it.
             var owner = context.InterfaceMethod.Name == nameof(IMarketplace.Upsert)
-                ? MarketplaceNeuron.OwnerKey((MarketplaceListing)context.Request.GetArgument(0)!)
+                ? MarketplaceNeuron.OwnerKey((MarketplaceListing)context.Request.GetArgument(0)!) ?? ""
                 : marketplace.OwnerKey((string)context.Request.GetArgument(0)!, (string)context.Request.GetArgument(1)!);
             if (owner is not null
                 && (context.SourceId is not { } source || source.Type.ToString() != DigitalBrain.Framework.AppGrainType.Name || source.Key.ToString() != owner))
