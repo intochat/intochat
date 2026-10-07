@@ -7,26 +7,14 @@ namespace DigitalBrain.Microsoft.CSharp;
 
 public sealed class CSharpOptions : IModuleOptions
 {
-    // The repository the sandbox mounts at /brain; scripts compile against its contract projects.
-    public string? SourceRoot { get; set; }
-    // The IAspire neuron that starts the development sandbox and reports its URL.
-    public string AspireApplication { get; set; } = "DigitalBrain";
-    // The agent tools, the registry entry and the /csharp console routes. The script edge and the compile
+    // The agent tools, the registry entry and the /csharp console routes. The runtime edge and the compile
     // gate the Apps module uses are not authoring and stay on either way.
     public bool Authoring { get; set; } = true;
     // Signals buffered per subscription while nothing drains; past it the oldest is dropped and counted.
     public int MaximumPending { get; set; } = 64;
 
-    public CSharpOptions WithSandbox(string sourceRoot)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sourceRoot);
-        SourceRoot = Path.GetFullPath(sourceRoot);
-        return this;
-    }
-
     public void Validate()
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(AspireApplication);
         ArgumentOutOfRangeException.ThrowIfLessThan(MaximumPending, 1);
     }
 }
@@ -37,12 +25,10 @@ public sealed class CSharpDeploymentSettings
 {
     public static readonly string SectionName = DigitalBrainConfiguration.ModuleSection(new ModuleId("csharp")) + ":Deployment";
 
-    // The script edge URL runs dial; development derives it from this brain's own HTTP address.
+    // The runtime edge URL sessions dial; development derives it from this brain's own HTTP address.
     public string? EdgeUrl { get; set; }
-    // Production: the Azure Container Apps session pool management endpoint. Set, it replaces the Aspire sandbox.
+    // Production: the Azure Container Apps session pool management endpoint. Set, it replaces the local container.
     public string? SessionPoolEndpoint { get; set; }
-    // Development: the allocated csharp-sandbox endpoint the AppHost projects for direct health probes.
-    public string? SandboxProbeUrl { get; set; }
     // Development: the always-on csharp-sandbox container that hosts every brain's session.
     public string? SandboxUrl { get; set; }
 }

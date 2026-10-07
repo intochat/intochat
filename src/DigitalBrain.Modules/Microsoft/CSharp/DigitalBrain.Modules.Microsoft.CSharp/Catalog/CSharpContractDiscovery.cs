@@ -6,13 +6,12 @@ using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Microsoft.CSharp.Catalog;
 
-public sealed record CSharpContractModule(string Id, string? Directive);
+public sealed record CSharpContractModule(string Id);
 
 public sealed record CSharpContractCatalogSnapshot(IReadOnlyList<CSharpContractModule> Modules, IReadOnlyList<string> Contracts, string Example, bool Truncated = false);
 
-// What a script author (human or agent) sees: the shared neuron catalog, joined with the
-// #:project directive each module's contracts need in a file-based app.
-public sealed class CSharpContractDiscovery(ContractCatalog catalog, ModuleInventory inventory, CSharpDirectives directives)
+// What a script author (human or agent) sees: the shared neuron catalog by module.
+public sealed class CSharpContractDiscovery(ContractCatalog catalog)
 {
     private const int ResponseBudget = 24000;
 
@@ -28,8 +27,8 @@ public sealed class CSharpContractDiscovery(ContractCatalog catalog, ModuleInven
         {
             Console.WriteLine($"TimerTick {tick.TimerId} {tick.ObservedAt:O}");
         }
-        // Top-level statements run once; loop over brain.On<T>() to keep reacting to signals. A file that
-        // subscribes is woken by each signal that arrives while it is not running.
+        // Top-level statements run once; loop over brain.On<T>() to keep reacting to signals. A behavior stays
+        // loaded in its brain's session; signals that arrive while it reloads are buffered, not lost.
         // Console output is the log. Settings arrive through brain.Setting(name).
         """;
 

@@ -18,8 +18,8 @@ public sealed class ScriptContractsFacts
         var contracts = brain.SiloServices.GetRequiredService<ScriptContracts>();
 
         Assert.Equal(typeof(ICSharpFile), contracts.Find(typeof(ICSharpFile).FullName!));
-        // Aspire's contracts are deployed beside this host, but its module is not composed here.
-        Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Microsoft.Aspire.IAspire).FullName!));
+        // Time's contracts are deployed beside this host, but its module is not composed here.
+        Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Time.Timers.ITimer).FullName!));
     }
 
     [Fact]

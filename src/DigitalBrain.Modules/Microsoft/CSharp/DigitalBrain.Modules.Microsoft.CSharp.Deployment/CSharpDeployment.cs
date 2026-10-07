@@ -1,7 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Deployment;
 using DigitalBrain.Framework;
-using DigitalBrain.Microsoft.CSharp.Sandbox;
 using Pulumi;
 using Pulumi.AzureNative.App;
 using Pulumi.AzureNative.App.Inputs;
@@ -89,7 +88,7 @@ public sealed class CSharpDeployment : ModuleDeployment<CSharpModule>
                         Env = [new Pulumi.AzureNative.App.Inputs.EnvironmentVarArgs { Name = "Sandbox__IdleShutdown", Value = "00:05:00" }],
                     },
                 ],
-                Ingress = new SessionIngressArgs { TargetPort = CSharpSandbox.Port },
+                Ingress = new SessionIngressArgs { TargetPort = 8080 },
                 RegistryCredentials = new SessionRegistryCredentialsArgs { Server = foundation.RegistryLoginServer, Identity = foundation.RuntimeIdentityId },
             },
             DynamicPoolConfiguration = new DynamicPoolConfigurationArgs

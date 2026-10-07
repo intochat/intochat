@@ -11,7 +11,6 @@ using DigitalBrain.Microsoft.CSharp.Edge;
 using DigitalBrain.Microsoft.CSharp.Files;
 using DigitalBrain.Microsoft.CSharp.Files.Signals;
 using DigitalBrain.Microsoft.CSharp.Runtime;
-using DigitalBrain.Microsoft.CSharp.Sandbox;
 using DigitalBrain.Microsoft.CSharp.Sessions;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
@@ -32,8 +31,8 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
     public static IntegrationSchema Integration => IntegrationSchema.For("csharp", "CSharp run tokens").RequiresSecret("RunTokenKey");
 
     // The sandbox is the external system behind ICSharpFile, the way Gmail is behind IGmail. Declared so the
-    // catalog knows it, not offered to users: its only credential is the deployment's run-token key, no
-    // connection neuron serves it, and Platform requires one auth method, which "run-token" names.
+    // catalog knows it, not offered to users: its only credential is the deployment's session-token key
+    // (still named RunTokenKey), no connection neuron serves it, and Platform requires one auth method.
     public static ConnectorDefinition Connector { get; } = new("csharp", "C# sandbox", ["run-token"], [])
     {
         ExternalSystem = "C# sandbox",
@@ -57,18 +56,14 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         // Explicit: DI would resolve the assemblies parameter as an empty IEnumerable<Assembly>.
         builder.Services.TryAddSingleton(provider => new ScriptContracts(provider.GetRequiredService<ContractCatalog>()));
         builder.Services.TryAddSingleton<IContractVocabulary>(provider => new ContractVocabulary(provider.GetRequiredService<ContractCatalog>()));
-        builder.Services.TryAddSingleton<CSharpDirectives>();
         builder.Services.TryAddSingleton<CSharpContractDiscovery>();
         builder.Services.TryAddSingleton<CSharpScriptCheck>();
         builder.Services.TryAddSingleton<IBehaviorAssemblies>(provider =>
             provider.GetKeyedService<BlobServiceClient>(DigitalBrainNames.GrainState) is { } storage
                 ? new BlobBehaviorAssemblies(storage) : new MemoryBehaviorAssemblies());
+        // The session pool authenticates with the deployment's identity; the local container needs none.
         if (!string.IsNullOrWhiteSpace(builder.Configuration[CSharpDeploymentSettings.SectionName + ":SessionPoolEndpoint"]))
-        {
-            builder.Services.TryAddSingleton<TokenCredential>(_ => new DefaultAzureCredential());
-            builder.Services.AddHttpClient<ICSharpRunner, SessionPoolRunner>();
-        }
-        else { builder.Services.AddHttpClient<ICSharpRunner, AspireSandboxRunner>(); }
+        { builder.Services.TryAddSingleton<TokenCredential>(_ => new DefaultAzureCredential()); }
         builder.Services.AddHttpClient<SessionRunner>();
         builder.Services.TryAddSingleton<SessionStreams>();
         builder.Services.TryAddTransient<RuntimeEdge>();
