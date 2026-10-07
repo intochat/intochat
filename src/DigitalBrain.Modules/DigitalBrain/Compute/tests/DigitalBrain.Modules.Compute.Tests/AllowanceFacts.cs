@@ -332,7 +332,6 @@ public sealed class AllowanceFacts
             Kind = CallerKind.Assistant,
             StampedBy = TrustedEdge.AuthenticatedHttp,
             ConversationId = "chat-1",
-            IntentId = "intent-stage",
         },
         TargetNeuron = "neuron",
         Operation = "Render",

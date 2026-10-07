@@ -27,6 +27,5 @@ public sealed record CallerContext
     [Id(3)] public required CallerKind Kind { get; init; }
     [Id(4)] public required TrustedEdge StampedBy { get; init; }
     [Id(5)] public string? AppId { get; init; }
-    [Id(6)] public string? IntentId { get; init; }
-    [Id(7)] public string? ConversationId { get; init; }
+    [Id(6)] public string? ConversationId { get; init; }
 }
