@@ -27,8 +27,7 @@ public sealed class MarketplaceRouteFacts
         await source.Create(new("Echo", "echoes", [new("ask", "ask it")], [], [], Icon: "icon.svg"), Spec);
         await source.BeginBuild(null);
         await source.CompleteBuild(await source.CurrentBuildAttempt(),
-            new() { ["tests.cs"] = "// t", ["synapses/echo.cs"] = "// v1", ["icon.svg"] = "<svg id=\"echo\"/>" }, null);
-        await source.RecordVerdicts([new("Echoes", true, "ok")], green: true);
+            new() { ["synapses/echo.cs"] = "// v1", ["icon.svg"] = "<svg id=\"echo\"/>" }, null);
 
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddSingleton<IDigitalBrain>(brain.SiloServices.GetRequiredService<IDigitalBrain>());
@@ -53,7 +52,6 @@ public sealed class MarketplaceRouteFacts
         Assert.Equal(200, listed.Status);
         var entry = Assert.Single(Json(listed).EnumerateArray().ToArray());
         Assert.Equal("intochat", entry.GetProperty("listing").GetProperty("publisher").GetString());
-        Assert.Equal(["Echoes"], entry.GetProperty("listing").GetProperty("scenarios").EnumerateArray().Select(item => item.GetString()));
         Assert.False(entry.GetProperty("installed").GetBoolean());
 
         var icon = await Invoke("alice", "GET", "/brains/{brainId}/marketplace/{publisher}/{name}/icon", ("brainId", "alice"), ("publisher", "intochat"), ("name", "echo"));
@@ -83,10 +81,9 @@ public sealed class MarketplaceRouteFacts
         var again = await Invoke("alice", "POST", "/brains/{brainId}/marketplace/{publisher}/{name}/install", ("brainId", "alice"), ("publisher", "intochat"), ("name", "echo"));
         Assert.Equal(409, again.Status);
 
-        // The publisher ships a new green version; alice sees the update and takes it.
+        // The publisher ships a new version; alice sees the update and takes it.
         Caller.Clear();
         await source.WriteBehavior("synapses/echo.cs", "// v2", Guid.NewGuid());
-        await source.RecordVerdicts([new("Echoes", true, "ok")], green: true);
         var republished = await Invoke("intochat", "POST", "/brains/{brainId}/apps/{name}/publish", ("brainId", "intochat"), ("name", "echo"));
         var next = Json(republished).GetProperty("publishedVersion").GetString();
         var detail = await Invoke("alice", "GET", "/brains/{brainId}/marketplace/{publisher}/{name}", ("brainId", "alice"), ("publisher", "intochat"), ("name", "echo"));

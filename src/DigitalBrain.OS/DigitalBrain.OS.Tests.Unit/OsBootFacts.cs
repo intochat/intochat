@@ -37,7 +37,6 @@ public sealed class OsBootFacts
 
         Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
         await source.SaveSpec("## Scenario: Greets\nIt greets twice.", Guid.NewGuid());
-        await source.RecordVerdicts([new("Greets", true, "ok")], green: true);
         StampOs();
         await source.Publish();
 
@@ -152,7 +151,7 @@ public sealed class OsBootFacts
         return scope;
     }
 
-    // The os account's copy: created, built, recorded green and published. Building plays the
+    // The os account's copy: created, built and published. Building plays the
     // platform (unstamped); publishing speaks for the os account.
     private static async Task<string> SeedPublished(ModuleBrain brain, string name)
     {
@@ -161,8 +160,7 @@ public sealed class OsBootFacts
         await source.Create(new("Hello", "Shows hello world", [new("open", "Open")], [new("Greeting", "what to say", "hello")], []),
             "## Scenario: Greets\nIt greets.");
         await source.BeginBuild(null);
-        await source.CompleteBuild(await source.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["synapses/hello.cs"] = "// b" }, null);
-        await source.RecordVerdicts([new("Greets", true, "ok")], green: true);
+        await source.CompleteBuild(await source.CurrentBuildAttempt(), new() { ["synapses/hello.cs"] = "// b" }, null);
         StampOs();
         var published = await source.Publish();
         Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);

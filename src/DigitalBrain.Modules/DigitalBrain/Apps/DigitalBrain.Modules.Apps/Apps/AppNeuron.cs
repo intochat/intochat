@@ -204,7 +204,7 @@ internal sealed class AppNeuron(
             return Describe(Snapshot);
         }
         var existingBehaviors = Snapshot.Files.Keys.Where(AppFiles.IsSynapse).ToHashSet(StringComparer.Ordinal);
-        var firstTests = files.ContainsKey(AppFiles.TestsPath) && !next.Files.ContainsKey(AppFiles.TestsPath);
+        var firstBuild = Snapshot.Files.Count == 0;
         if (manifest is not null)
         {
             next.Manifest = manifest;
@@ -216,7 +216,7 @@ internal sealed class AppNeuron(
         var behaviorPaths = files.Keys.Where(AppFiles.IsSynapse).ToArray();
         var keys = Deployable()?.Keys(this.GetPrimaryKeyString(), next.ProgramGeneration, behaviorPaths) ?? [];
         next.StorageFiles = [.. next.StorageFiles.Concat(keys).Distinct(StringComparer.Ordinal)];
-        next.Version = Bump(next.Version, minor: firstTests);
+        next.Version = Bump(next.Version, minor: firstBuild);
         next.Status = AppStatus.Live;
         next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), "build finished"];
         Record(next);
@@ -284,7 +284,7 @@ internal sealed class AppNeuron(
         // (a listing whose bundle Install cannot read).
         await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).Upsert(new MarketplaceListing(
             caller.PrincipalId, caller.AccountId, caller.BrainId, name, manifest.Title, manifest.Description,
-            next.Version, manifest.Icon, AppVerifyJob.ScenarioNames(next.Spec)));
+            next.Version, manifest.Icon, []));
         return Describe(Snapshot);
     }
 

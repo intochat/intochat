@@ -34,7 +34,7 @@ public sealed class InventoryFacts
             var app = host.Get<IApp>(IApp.Key(scope, name));
             await app.Create(new(name, "Inventory", [], [], []), "## Scenario: Lists\nIt lists.");
             await app.BeginBuild(null);
-            await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t" }, null);
+            await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["notes.md"] = "// b" }, null);
         }
         foreach (var name in new[] { "one", "two" })
         {

@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Routing;
 namespace DigitalBrain.Apps;
 
 // The whole apps surface, one screenful: create and author are synchronous (one model call);
-// implement and verify answer 202 and finish in the background; sharing is export/import.
+// implement answers 202 and finishes in the background; sharing is export/import.
 internal static class AppsEndpoints
 {
     public sealed record TextRequest(string? Text);
@@ -70,13 +70,6 @@ internal static class AppsEndpoints
         apps.MapPost("/{name}/implement", (string name, TextRequest request, [FromServices] Creator creator, IDigitalBrain brain) => Respond(async () =>
         {
             var snapshot = await creator.Implement(brain, Key(name), request?.Text);
-            return Results.Accepted($"/brains/{BrainScope.CurrentId()}/apps/{name}", View(snapshot));
-        }));
-
-        apps.MapPost("/{name}/verify", (string name, HttpContext context, IDigitalBrain brain) => Respond(async () =>
-        {
-            var snapshot = await App(brain, name).BeginVerify();
-            AppVerifyJob.Enqueue(context.RequestServices, Key(name));
             return Results.Accepted($"/brains/{BrainScope.CurrentId()}/apps/{name}", View(snapshot));
         }));
 

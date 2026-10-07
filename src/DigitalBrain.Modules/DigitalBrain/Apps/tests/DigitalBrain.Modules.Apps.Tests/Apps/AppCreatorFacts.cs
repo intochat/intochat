@@ -79,29 +79,9 @@ public sealed class AppCreatorFacts
             Assert.NotEqual(AppStatus.Failed, change.Status);
         }
         var live = await app.Read();
-        Assert.Equal("// proof v1", live.Files["tests.cs"]);
+        Assert.Equal("// proof v1", live.Files["synapses/shout.cs"]);
         Assert.Equal("Shout in capitals.", live.Files["prompts/system.md"]);
         Assert.Equal("0.2.0", live.Version);
-    }
-
-    [Fact]
-    public async Task ABuilderReplyWithoutTestsFailsTheBuildWithTheReasonInActivity()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await StartAsync(ct);
-        await brain.Get<IScriptedLLM>("author").Script([Authored(Spec)]);
-        await brain.Get<IScriptedLLM>("builder").Script(["""{"files":{"prompts/system.md":"Shout."}}"""]);
-        var creator = brain.SiloServices.GetRequiredService<Creator>();
-        var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
-        await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
-        var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
-        await using var changes = await brain.SubscribeAsync<AppChanged>(app, ct);
-
-        await creator.Implement(digitalBrain, IApp.Key(Brain, "shouter"), null);
-
-        await foreach (var change in changes.ReadAllAsync(ct)) { if (change.Status == AppStatus.Failed) { break; } }
-        var failed = await app.Read();
-        Assert.Contains(failed.Activity, line => line.Contains("tests.cs", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -134,7 +114,7 @@ public sealed class AppCreatorFacts
         {
             operations = Array.Empty<object>(),
             settings = new[] { new { name = "Model", description = "Who answers.", @default = "IGemma4" } },
-            files = new Dictionary<string, string> { ["tests.cs"] = "// t" },
+            files = new Dictionary<string, string> { ["synapses/shout.cs"] = "// t" },
         })]);
         var creator = brain.SiloServices.GetRequiredService<Creator>();
         var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
@@ -159,7 +139,7 @@ public sealed class AppCreatorFacts
         await brain.Get<IScriptedLLM>("builder").Script([System.Text.Json.JsonSerializer.Serialize(new
         {
             operations = new[] { new { name = "shout", description = "Shout." } },
-            files = new Dictionary<string, string> { ["tests.cs"] = "// t" },
+            files = new Dictionary<string, string> { ["synapses/shout.cs"] = "// t" },
         })]);
         var creator = brain.SiloServices.GetRequiredService<Creator>();
         var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
@@ -182,7 +162,7 @@ public sealed class AppCreatorFacts
         await using var brain = await StartAsync(ct);
         await brain.Get<IScriptedLLM>("author").Script([Authored(Spec)]);
         await brain.Get<IScriptedLLM>("builder").Script([
-            """{"tool":"check_csharp","arguments":{"files":{"tests.cs":"var answer = 1;\nConsole.WriteLine(answer);"}}}""",
+            """{"tool":"check_csharp","arguments":{"files":{"synapses/shout.cs":"var answer = 1;\nConsole.WriteLine(answer);"}}}""",
             Built("// proof v1", "Shout in capitals."),
         ]);
         var creator = brain.SiloServices.GetRequiredService<Creator>();
@@ -194,7 +174,15 @@ public sealed class AppCreatorFacts
         await creator.Implement(digitalBrain, IApp.Key(Brain, "shouter"), null);
 
         await foreach (var change in changes.ReadAllAsync(ct)) { if (change.Status == AppStatus.Live) { break; } }
-        Assert.Equal("// proof v1", (await app.Read()).Files["tests.cs"]);
+        Assert.Equal("// proof v1", (await app.Read()).Files["synapses/shout.cs"]);
+    }
+
+    [Fact]
+    public void TheBuilderIsNotAskedForTests()
+    {
+        Assert.DoesNotContain("tests.cs", AgentPrompts.Builder, StringComparison.Ordinal);
+        Assert.DoesNotContain("dbtest", AgentPrompts.Builder, StringComparison.Ordinal);
+        Assert.DoesNotContain("## Scenario", AgentPrompts.Author, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -214,9 +202,9 @@ public sealed class AppCreatorFacts
         spec,
     });
 
-    private static string Built(string testsMarker, string systemPrompt) => System.Text.Json.JsonSerializer.Serialize(new
+    private static string Built(string behaviorMarker, string systemPrompt) => System.Text.Json.JsonSerializer.Serialize(new
     {
-        files = new Dictionary<string, string> { ["tests.cs"] = testsMarker, ["prompts/system.md"] = systemPrompt },
+        files = new Dictionary<string, string> { ["synapses/shout.cs"] = behaviorMarker, ["prompts/system.md"] = systemPrompt },
     });
 
     private static Task<ModuleBrain> StartAsync(CancellationToken ct) => ModuleTest.Create()
@@ -229,7 +217,6 @@ public sealed class AppCreatorFacts
         })
         .ConfigureSilo(silo =>
         {
-            silo.Services.AddSingleton<ITestScriptRunner>(_ => new ScriptedTestRunner());
             silo.Services.AddSingleton<IScriptSandbox>(new CreatorSandbox());
         })
         .StartAsync(ct);

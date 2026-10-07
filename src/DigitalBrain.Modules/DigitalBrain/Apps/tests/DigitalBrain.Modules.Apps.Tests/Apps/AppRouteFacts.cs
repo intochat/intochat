@@ -13,8 +13,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Apps.Tests.Apps;
 
-// The whole apps surface: create is synchronous, implement and verify answer 202 and finish
-// in the background, sharing rides export/import, and everything lives under the brain route.
+// The whole apps surface: create is synchronous, implement answers 202 and finishes in the
+// background, sharing rides export/import, and everything lives under the brain route.
 public sealed class AppRouteFacts
 {
     private const string Spec = """
@@ -26,8 +26,6 @@ public sealed class AppRouteFacts
     public async Task TheAppsSurfaceCreatesImplementsExportsAndDeletes()
     {
         var ct = TestContext.Current.CancellationToken;
-        var runner = new ScriptedTestRunner();
-        runner.BySourceMarker["// proof v1"] = (0, "dbtest:pass It shouts");
         await using var brain = await ModuleTest.Create()
             .WithModule<AIModule>()
             .WithModule<AppsModule>()
@@ -38,7 +36,6 @@ public sealed class AppRouteFacts
             })
             .ConfigureSilo(silo =>
             {
-                silo.Services.AddSingleton<ITestScriptRunner>(runner);
                 silo.Services.AddSingleton<IScriptSandbox>(new RouteSandbox());
             })
             .StartAsync(ct);
@@ -52,7 +49,7 @@ public sealed class AppRouteFacts
         })]);
         await brain.Get<IScriptedLLM>("builder").Script([JsonSerializer.Serialize(new
         {
-            files = new Dictionary<string, string> { ["tests.cs"] = "// proof v1", ["synapses/shout.cs"] = "// b" },
+            files = new Dictionary<string, string> { ["synapses/shout.cs"] = "// b" },
         })]);
 
         var log = new List<string>();
@@ -80,12 +77,7 @@ public sealed class AppRouteFacts
         var app = brain.Get<IApp>(scope + "/apps/shouter");
         await WaitFor(app, AppStatus.Live, ct);
 
-        // Verify answers 202 and the verdicts land in the background.
-        var verifying = await Invoke("POST", "/brains/{brainId}/apps/{name}/verify", new { }, ("brainId", "alice"), ("name", "shouter"));
-        Assert.Equal(202, verifying.Response.StatusCode);
-        await WaitForGreen(app, ct);
-
-        // A green version exports; the list shows the app; delete removes it.
+        // A live version exports; the list shows the app; delete removes it.
         var exported = await Invoke("GET", "/brains/{brainId}/apps/{name}/export", null, ("brainId", "alice"), ("name", "shouter"));
         Assert.Equal(200, exported.Response.StatusCode);
         Assert.Equal("shouter", Json(exported).GetProperty("name").GetString());
@@ -193,18 +185,6 @@ public sealed class AppRouteFacts
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(TimeSpan.FromSeconds(30));
         while ((await app.Read()).Status != status) { await Task.Delay(50, deadline.Token); }
-    }
-
-    private static async Task WaitForGreen(IApp app, CancellationToken ct)
-    {
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        deadline.CancelAfter(TimeSpan.FromSeconds(30));
-        while (true)
-        {
-            var snapshot = await app.Read();
-            if (snapshot.Versions.Any(version => version.Version == snapshot.Version && version.Green == true)) { return; }
-            await Task.Delay(50, deadline.Token);
-        }
     }
 
     private sealed class CapturingLoggerProvider(List<string> log) : global::Microsoft.Extensions.Logging.ILoggerProvider

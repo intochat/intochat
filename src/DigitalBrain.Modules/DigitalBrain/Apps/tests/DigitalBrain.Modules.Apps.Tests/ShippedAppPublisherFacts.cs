@@ -11,24 +11,18 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DigitalBrain.Modules.Apps.Tests;
 
-// Shipped apps are bundles the host verifies once and imports at startup into their publisher
-// account's own brain: a green bundle lands as a live app there, a red one stays out, and an
-// unchanged version is a no-op.
+// Shipped apps are bundles the host imports at startup into their publisher account's own brain: a
+// bundle that imports and publishes lands as a live app there, and an unchanged version is a no-op.
 public sealed class ShippedAppPublisherFacts
 {
     [Fact]
-    public async Task AGreenBundleImportsOnceARedOneStaysOutAndABumpedVersionReimports()
+    public async Task ABundleImportsOnceAndABumpedVersionReimports()
     {
         var ct = TestContext.Current.CancellationToken;
-        var runner = new ScriptedTestRunner();
-        runner.BySourceMarker["passing"] = (0, "dbtest:pass Echo");
-        runner.BySourceMarker["failing"] = (1, "dbtest:fail Echo\tWrong answer");
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
-            .ConfigureSilo(silo => silo.Services.AddSingleton<ITestScriptRunner>(runner)).StartAsync(ct);
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
         var first = await Register(brain, "first", ct);
-        var red = await Register(brain, "red", ct);
-        var versions = new Dictionary<string, string> { ["first"] = "1.0.0", ["red"] = "1.0.0" };
-        IShippedAppSource[] sources = [new Source("first", versions), new Source("red", versions, tests: "failing")];
+        var versions = new Dictionary<string, string> { ["first"] = "1.0.0" };
+        IShippedAppSource[] sources = [new Source("first", versions)];
 
         await Ship(brain, sources, "false", ct);
         var app = brain.Get<IApp>(IApp.Key(first.ScopeId, "echo"));
@@ -38,8 +32,8 @@ public sealed class ShippedAppPublisherFacts
         var imported = await app.Read();
         Assert.Equal(AppStatus.Live, imported.Status);
         Assert.Equal("1.0.0", imported.Version);
+        Assert.Equal("1.0.0", imported.PublishedVersion);
         Assert.Equal("1.0.0", (await app.Export()).Version);
-        Assert.Equal(AppStatus.Drafted, (await brain.Get<IApp>(IApp.Key(red.ScopeId, "echo")).Read()).Status);
 
         var before = (await app.Read()).Versions.Length;
         await Ship(brain, sources, "true", ct);
@@ -50,66 +44,36 @@ public sealed class ShippedAppPublisherFacts
         Assert.Equal("1.1.0", (await app.Read()).Version);
     }
 
-    // Regression: the tests script runs as an App caller of the publisher's brain and drives its
-    // scratch copy through the call filter. A pseudo-brain key ("intochat/apps/...") had no scope
-    // and every such call was refused, so no shipped app could ever go green.
     [Fact]
-    public async Task TheTestsScriptMayDriveItsScratchCopyInThePublishersBrain()
+    public async Task ABundleTheGateRefusesStaysOutAndTheOthersStillShip()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
-            .ConfigureSilo(silo => silo.Services.AddSingleton<ITestScriptRunner>(new EdgeLikeRunner()))
+            .ConfigureSilo(silo => silo.Services.AddSingleton<IScriptSandbox>(new BrokenEchoSandbox()))
             .StartAsync(ct);
-        EdgeLikeRunner.Client = brain.Grains;
-        var vendor = await Register(brain, "vendor", ct);
+        var first = await Register(brain, "first", ct);
+        var red = await Register(brain, "red", ct);
+        var versions = new Dictionary<string, string> { ["first"] = "1.0.0", ["red"] = "1.0.0" };
 
-        await Ship(brain, [new Source("vendor", new() { ["vendor"] = "1.0.0" })], "true", ct);
+        var publisher = await Ship(brain, [new Source("red", versions, behavior: "// broken"), new Source("first", versions)], "true", ct);
 
-        Assert.Equal(AppStatus.Live, (await brain.Get<IApp>(IApp.Key(vendor.ScopeId, "echo")).Read()).Status);
+        Assert.True(publisher.ExecuteTask!.IsCompletedSuccessfully);
+        Assert.Equal(AppStatus.Live, (await brain.Get<IApp>(IApp.Key(first.ScopeId, "echo")).Read()).Status);
+        // Import landed the files but Publish refused; the next startup retries the same bundle.
+        Assert.Null((await brain.Get<IApp>(IApp.Key(red.ScopeId, "echo")).Read()).PublishedVersion);
     }
 
     [Fact]
-    public async Task ADownstreamCancellationFailsThePackageWithoutStoppingThePublisher()
+    public async Task AnUnparsableBundleFailsThatPackageWithoutStoppingThePublisher()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
-            .ConfigureSilo(silo => silo.Services.AddSingleton<ITestScriptRunner>(new CancelledRunner())).StartAsync(ct);
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
         var first = await Register(brain, "first", ct);
 
-        var publisher = await Ship(brain, [new Source("first", new() { ["first"] = "1.0.0" })], "true", ct);
+        var publisher = await Ship(brain, [new Source("first", new() { ["first"] = "not-a-version" })], "true", ct);
 
         Assert.True(publisher.ExecuteTask!.IsCompletedSuccessfully);
         Assert.Equal(AppStatus.Drafted, (await brain.Get<IApp>(IApp.Key(first.ScopeId, "echo")).Read()).Status);
-    }
-
-    [Fact]
-    public async Task ABundleVerifiedByTheBuildGoesLiveWithoutRunningItsTests()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
-            .ConfigureSilo(silo => silo.Services.AddSingleton<ITestScriptRunner>(new CancelledRunner())).StartAsync(ct);
-        var first = await Register(brain, "first", ct);
-
-        await Ship(brain, [new Source("first", new() { ["first"] = "1.0.0" }, verifiedByBuild: true)], "true", ct);
-
-        var app = await brain.Get<IApp>(IApp.Key(first.ScopeId, "echo")).Read();
-        Assert.Equal(AppStatus.Live, app.Status);
-        Assert.Equal(["Echo"], app.Verdicts.Select(verdict => verdict.Name));
-    }
-
-    [Fact]
-    public async Task ABundleVerifiedByTheBuildGoesLiveWithoutAnyScenario()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
-            .ConfigureSilo(silo => silo.Services.AddSingleton<ITestScriptRunner>(new CancelledRunner())).StartAsync(ct);
-        var first = await Register(brain, "first", ct);
-
-        await Ship(brain, [new Source("first", new() { ["first"] = "1.0.0" }, verifiedByBuild: true, spec: "Echoes.")], "true", ct);
-
-        var app = await brain.Get<IApp>(IApp.Key(first.ScopeId, "echo")).Read();
-        Assert.Equal(AppStatus.Live, app.Status);
-        Assert.Empty(app.Verdicts);
     }
 
     [Fact]
@@ -161,7 +125,6 @@ public sealed class ShippedAppPublisherFacts
     {
         var content = new ShippedAppPublisher(
             brain.SiloServices.GetRequiredService<IGrainFactory>(),
-            brain.SiloServices.GetRequiredService<ITestScriptRunner>(),
             sources, new ConfigurationBuilder().AddInMemoryCollection(
                 new Dictionary<string, string?> { [ShippedAppPublisher.ShipOnStartupKey] = selection }).Build(),
             NullLogger<ShippedAppPublisher>.Instance);
@@ -200,42 +163,27 @@ public sealed class ShippedAppPublisherFacts
             .AddShippedContentPublishing()
             .BuildServiceProvider();
 
-    // Plays the sandbox edge: the script speaks as an App caller of the brain the runner was
-    // stamped with, through the client, so every call crosses the neuron call filter.
-    private sealed class EdgeLikeRunner : ITestScriptRunner
+    internal sealed class Source(string account, Dictionary<string, string> versions, string behavior = "// echo", string spec = "Echoes.") : IShippedAppSource
     {
-        public static IGrainFactory? Client { get; set; }
-
-        public async Task<AppTestRun> RunAsync(string appKey, string tests, CancellationToken cancellationToken)
-        {
-            var owner = CallerContextStamper.Require();
-            CallerContextStamper.Stamp(owner with { Kind = CallerKind.App, StampedBy = TrustedEdge.AppProxy });
-            try
-            {
-                await Client!.GetGrain<IApp>(appKey).Configure(new(), new());
-                return new([new("Echo", true, "")], 0);
-            }
-            catch (Exception error) when (error is not OperationCanceledException)
-            { return new([new("Echo", false, error.Message)], 1); }
-            finally { CallerContextStamper.Stamp(owner); }
-        }
-    }
-
-    private sealed class CancelledRunner : ITestScriptRunner
-    {
-        public Task<AppTestRun> RunAsync(string appKey, string tests, CancellationToken cancellationToken)
-            => throw new OperationCanceledException("The C# sandbox did not start.");
-    }
-
-    internal sealed class Source(string account, Dictionary<string, string> versions, string tests = "passing", bool verifiedByBuild = false, string spec = "## Scenario: Echo\nEchoes.") : IShippedAppSource
-    {
-        public bool VerifiedByBuild => verifiedByBuild;
         public string Account => account;
         public bool Writable => false;
         public void Write(AppBundle bundle) => throw new NotSupportedException();
         public IReadOnlyList<AppBundle> Load() =>
         [new("echo", versions[account], new("Echo", "Echo input", [new("ask", "Echo")], [], []),
-            spec, new() { [AppFiles.TestsPath] = tests })];
+            spec, new() { ["synapses/echo.cs"] = behavior })];
+    }
+
+    // Refuses exactly the broken behavior and accepts everything else.
+    private sealed class BrokenEchoSandbox : IScriptSandbox
+    {
+        public bool CanRun => true;
+        public string AuthoringDescription => "";
+        public Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken)
+            => Task.FromResult(new ScriptContractCatalog([], [], ""));
+        public ScriptCompilationCheck Check(IReadOnlyDictionary<string, string> files)
+            => files.Values.Any(source => source.Contains("broken", StringComparison.Ordinal))
+                ? new(false, [new("synapses/echo.cs", "CS1002", 1, "; expected")])
+                : new(true, []);
     }
 
     private sealed class StartedLifetime : IHostApplicationLifetime

@@ -26,8 +26,7 @@ public sealed class AppInstallerFacts
         var app = Mine(brain, publisher);
         await app.Create(Manifest(), Spec);
         await app.BeginBuild(null);
-        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["synapses/echo.cs"] = "// v1" }, null);
-        await app.RecordVerdicts([new("Echoes", true, "ok")], green: true);
+        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["synapses/echo.cs"] = "// v1" }, null);
         AppOwner.Stamp(publisher);
         await app.Publish();
         Caller.Clear();
@@ -38,7 +37,6 @@ public sealed class AppInstallerFacts
     {
         Caller.Clear();
         await app.WriteBehavior("synapses/echo.cs", "// v2", Guid.NewGuid());
-        await app.RecordVerdicts([new("Echoes", true, "ok")], green: true);
         AppOwner.Stamp(publisher);
         var version = (await app.Publish()).Version;
         Caller.Clear();

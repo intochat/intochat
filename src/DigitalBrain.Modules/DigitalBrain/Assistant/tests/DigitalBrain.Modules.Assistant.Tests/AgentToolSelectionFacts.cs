@@ -24,7 +24,7 @@ public sealed class AgentToolSelectionFacts
         var app = brain.Get<IApp>(IApp.Key(scope, name));
         await app.Create(new("Tools", "Installed tools", [new(operation, "Installed")], [], []), "## Scenario: Works\nIt works.");
         await app.BeginBuild(null);
-        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t" }, null);
+        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["notes.md"] = "// b" }, null);
         return app;
     }
 

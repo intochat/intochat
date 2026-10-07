@@ -37,7 +37,7 @@ public sealed class StorageHookFacts
         await app.Create(new("Hooked", "hooked", [], [], []), "## Scenario: Hooks\nIt hooks.");
         await app.BeginBuild(null);
 
-        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["synapses/track.cs"] = "// b" }, null);
+        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["synapses/track.cs"] = "// b" }, null);
         Assert.Empty(hook.Retired);
 
         await app.Delete();
@@ -65,12 +65,12 @@ public sealed class StorageHookFacts
         var app = brain.Get<IApp>(key);
         var manifest = new AppManifest("Replaced", "replaced", [], [new("Text", "what to say", "hi")], []);
         await app.Import(new("replaced", "1.0.0", manifest, "## Scenario: Stores\nIt stores.",
-            new() { ["tests.cs"] = "// t", ["synapses/keep.cs"] = "// v1", ["synapses/drop.cs"] = "// v1" }));
+            new() { ["synapses/keep.cs"] = "// v1", ["synapses/drop.cs"] = "// v1" }));
         await app.Configure(new() { ["Text"] = "mine" }, new() { ["gmail"] = "my-gmail" });
 
         var next = manifest with { Settings = [.. manifest.Settings, new("Mood", "how to say it", "calm")] };
         var replaced = await app.Replace(new("replaced", "1.1.0", next, "## Scenario: Stores\nIt stores more.",
-            new() { ["tests.cs"] = "// t", ["synapses/keep.cs"] = "// v2", ["synapses/new.cs"] = "// v2" }));
+            new() { ["synapses/keep.cs"] = "// v2", ["synapses/new.cs"] = "// v2" }));
 
         // The app's storage is never retired: only the removed behavior's file stops.
         Assert.Empty(hook.Retired);
@@ -99,7 +99,7 @@ public sealed class StorageHookFacts
         await Assert.ThrowsAsync<InvalidOperationException>(() => missing.Replace(new("missing", "1.0.0", manifest, "spec", new())));
 
         var app = brain.Get<IApp>(IApp.Key("hook-facts", "mine"));
-        await app.Import(new("mine", "1.0.0", manifest, "spec", new() { ["tests.cs"] = "// t" }));
+        await app.Import(new("mine", "1.0.0", manifest, "spec", new() { ["notes.md"] = "// t" }));
         await Assert.ThrowsAsync<InvalidDataException>(() => app.Replace(new("other", "1.1.0", manifest, "spec", new())));
         Assert.Equal("1.0.0", (await app.Read()).Version);
     }

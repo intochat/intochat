@@ -57,7 +57,7 @@ public sealed class RegistryDiscoveryFacts
             var researcher = brain.Get<IApp>(IApp.Key(scope, "researcher"));
             await researcher.Create(new("Researcher", "Research", [new("research", "Research")], [], []), "## Scenario: Researches\nIt researches.");
             await researcher.BeginBuild(null);
-            await researcher.CompleteBuild(await researcher.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t" }, null);
+            await researcher.CompleteBuild(await researcher.CurrentBuildAttempt(), new() { ["notes.md"] = "// b" }, null);
 
             using var services = new ServiceCollection().AddModelCatalog()
                 .AddSingleton<IChatClient>(new DiscoveryModel())

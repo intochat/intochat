@@ -25,7 +25,7 @@ public sealed class OsShippedAppFacts
     }
 
     [Fact]
-    public void EveryOsProgramAndTestsFileCompilesAgainstCurrentContracts()
+    public void EveryOsProgramCompilesAgainstCurrentContracts()
     {
         foreach (var app in Source.Load())
         {

@@ -16,7 +16,7 @@ public sealed class AppSharingFacts
         var app = brain.Get<IApp>(key);
         await app.Create(Manifest(), "## Scenario: Echoes\nIt echoes.");
         await app.BeginBuild(null);
-        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["synapses/echo.cs"] = "// b" }, null);
+        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["synapses/echo.cs"] = "// b" }, null);
         return app;
     }
 
@@ -26,7 +26,6 @@ public sealed class AppSharingFacts
         await using var brain = await Start();
         var app = await LiveApp(brain, IApp.Key("sharing-d", "clean"));
         await app.Configure(new() { ["Text"] = "my private value" }, new() { ["gmail"] = "my-gmail-connection" });
-        await app.RecordVerdicts([new("Echoes", true, "ok")], green: true);
         var bundle = await app.Export();
         var json = System.Text.Json.JsonSerializer.Serialize(bundle);
         Assert.DoesNotContain("my-gmail-connection", json, StringComparison.Ordinal);
@@ -40,7 +39,6 @@ public sealed class AppSharingFacts
         await using var brain = await Start();
         var source = await LiveApp(brain, IApp.Key("sharing-e", "original"));
         await source.Configure(new(), new() { ["gmail"] = "alice-gmail" });
-        await source.RecordVerdicts([new("Echoes", true, "ok")], green: true);
         var bundle = await source.Export();
 
         var copy = brain.Get<IApp>(IApp.Key("sharing-other-brain", "original"));
@@ -57,7 +55,7 @@ public sealed class AppSharingFacts
         await using var brain = await Start();
         var app = await LiveApp(brain, IApp.Key("sharing-f", "mine"));
         var before = await app.Read();
-        var bundle = new AppBundle("mine", "9.0.0", Manifest(), "## Scenario: Other\nOther.", new() { ["tests.cs"] = "// other" });
+        var bundle = new AppBundle("mine", "9.0.0", Manifest(), "## Scenario: Other\nOther.", new() { ["synapses/echo.cs"] = "// other" });
         await Assert.ThrowsAsync<InvalidOperationException>(() => app.Import(bundle));
         var after = await app.Read();
         Assert.Equal(before.Version, after.Version);
@@ -70,10 +68,10 @@ public sealed class AppSharingFacts
         await using var brain = await Start();
         var sneaky = brain.Get<IApp>(IApp.Key("sharing-h", "x/apps/y"));
         await Assert.ThrowsAsync<InvalidDataException>(() => sneaky.Import(
-            new("x/apps/y", "1.0.0", Manifest(), "spec", new() { ["tests.cs"] = "// t" })));
+            new("x/apps/y", "1.0.0", Manifest(), "spec", new() { ["synapses/echo.cs"] = "// t" })));
         var odd = brain.Get<IApp>(IApp.Key("sharing-h", "odd"));
         await Assert.ThrowsAsync<InvalidDataException>(() => odd.Import(
-            new("odd", "1.0.0-rc1", Manifest(), "spec", new() { ["tests.cs"] = "// t" })));
+            new("odd", "1.0.0-rc1", Manifest(), "spec", new() { ["synapses/echo.cs"] = "// t" })));
     }
 
     [Fact]
@@ -81,7 +79,7 @@ public sealed class AppSharingFacts
     {
         await using var brain = await Start();
         var copy = brain.Get<IApp>(IApp.Key("sharing-g", "forked"));
-        await copy.Import(new("forked", "1.2.0", Manifest(), "## Scenario: Echoes\nIt echoes.", new() { ["tests.cs"] = "// t" }));
+        await copy.Import(new("forked", "1.2.0", Manifest(), "## Scenario: Echoes\nIt echoes.", new() { ["synapses/echo.cs"] = "// t" }));
         var edited = await copy.WriteFile("notes.md", "my own notes", Guid.NewGuid());
         Assert.Equal("1.2.1", edited.Version);
         Assert.Contains(edited.Versions, version => version.Version == "1.2.0");
