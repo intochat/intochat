@@ -72,7 +72,7 @@ internal sealed record BrainBirth(string BrainId, string AccountId)
 // person sees in a new brain already has its apps. Every default installs through the same
 // Marketplace Install anyone uses; a present app is the person's, never replaced here.
 internal sealed class OsDefaults(
-    IGrainFactory grains, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger) : ICreationHandler
+    IGrainFactory grains, MarketplaceView marketplace, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger) : ICreationHandler
 {
     public OsApp[] Apps => [.. options.Value.Apps];
 
@@ -116,7 +116,7 @@ internal sealed class OsDefaults(
             Kind = CallerKind.Platform,
             StampedBy = TrustedEdge.Platform,
         });
-        var listing = await grains.GetGrain<IMarketplace>(IMarketplace.Key).Read(app.Publisher, app.Name).WaitAsync(cancellationToken);
+        var listing = await marketplace.Read(app.Publisher, app.Name, cancellationToken);
         if (listing is null)
         {
             logger.LogDebug("Default app {Publisher}/{App} is not in the Marketplace yet.", app.Publisher, app.Name);
@@ -172,15 +172,14 @@ internal sealed class OsBootService(LocalSignalHub signals, OsDefaults defaults)
 }
 
 // The host is ready when a new brain can be born complete: every default is in the Marketplace.
-internal sealed class OsDefaultsPublished(IGrainFactory grains, OsDefaults defaults) : IHealthCheck
+internal sealed class OsDefaultsPublished(MarketplaceView marketplace, OsDefaults defaults) : IHealthCheck
 {
     public async Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context, CancellationToken cancellationToken = default)
     {
-        var marketplace = grains.GetGrain<IMarketplace>(IMarketplace.Key);
         foreach (var app in defaults.Apps)
         {
-            if (await marketplace.Read(app.Publisher, app.Name).WaitAsync(cancellationToken) is null)
+            if (await marketplace.Read(app.Publisher, app.Name, cancellationToken) is null)
             { return HealthCheckResult.Unhealthy($"{app.Publisher}/{app.Name} is not published yet."); }
         }
         return HealthCheckResult.Healthy();

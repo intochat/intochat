@@ -16,6 +16,11 @@ public sealed class AppInstallerFacts
 
     private static Task<ModuleBrain> Start() => ModuleTest.Create().WithModule<AppsModule>().StartAsync(Ct);
 
+    // A host that ships os/greeter 1.2.0 from the image.
+    private static Task<ModuleBrain> StartShipping() => ModuleTest.Create().WithModule<AppsModule>()
+        .ConfigureSilo(silo => silo.Services.AddShippedApps(typeof(AppInstallerFacts).Assembly, "ShippedFixture/", "os"))
+        .StartAsync(Ct);
+
     private static AppInstaller Installer(ModuleBrain brain) => brain.SiloServices.GetRequiredService<AppInstaller>();
 
     private static IApp Mine(ModuleBrain brain, string principal, string name = "echo") => brain.Get<IApp>(IApp.Key(AppOwner.Scope(principal), name));
@@ -208,5 +213,73 @@ public sealed class AppInstallerFacts
         AppOwner.Stamp("alice");
         await Assert.ThrowsAsync<KeyNotFoundException>(() => Installer(brain).Update("echo", Ct));
         Caller.Clear();
+    }
+
+    [Fact]
+    public async Task InstallCopiesAShippedAppFromTheCatalogAndRecordsAShippedOrigin()
+    {
+        await using var brain = await StartShipping();
+        AppOwner.Stamp("alice");
+        var installed = await Installer(brain).Install("os", "greeter", Ct);
+        var entry = await Installer(brain).Entry((await brain.SiloServices.GetRequiredService<MarketplaceView>().Read("os", "greeter", Ct))!, Ct);
+        Caller.Clear();
+
+        Assert.Equal("1.2.0", installed.Version);
+        Assert.Equal("// greet\n", installed.Files["synapses/greet.cs"]);
+        Assert.Equal(new AppOrigin("os", new AppSource.Shipped(), "greeter", "1.2.0"), installed.Origin);
+        Assert.True(entry.Installed);
+        Assert.False(entry.UpdateAvailable);
+        Assert.Null(await brain.Get<IMarketplace>(IMarketplace.Key).Read("os", "greeter"));
+    }
+
+    [Fact]
+    public async Task TheMarketplaceListsShippedAppsBeforePeoplesListings()
+    {
+        await using var brain = await StartShipping();
+        await Published(brain);
+
+        var listings = await brain.SiloServices.GetRequiredService<MarketplaceView>().List(Ct);
+
+        Assert.Equal([("os", "greeter"), ("intochat", "echo")], listings.Select(listing => (listing.Publisher, listing.Name)));
+        Assert.IsType<AppSource.Shipped>(listings[0].Source);
+        Assert.IsType<AppSource.Brain>(listings[1].Source);
+    }
+
+    [Fact]
+    public async Task UpdatingACopyWhoseShippedAppIsGoneSaysItNoLongerShips()
+    {
+        await using var brain = await StartShipping();
+        var copy = Mine(brain, "alice", "retired");
+        await copy.Create(Manifest(), Spec);
+        await copy.RecordOrigin(new AppOrigin("os", new AppSource.Shipped(), "retired", "1.0.0"));
+
+        AppOwner.Stamp("alice");
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => Installer(brain).Update("retired", Ct));
+        Caller.Clear();
+        Assert.Contains("no longer ships", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ABundleNoLongerInTheCatalogSaysItNoLongerShips()
+    {
+        await using var brain = await StartShipping();
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => Installer(brain).Bundle(new AppSource.Shipped(), "os", "retired", Ct));
+        Assert.Contains("no longer ships", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task NoOnePublishesUnderACatalogVendorName()
+    {
+        await using var brain = await StartShipping();
+        var app = Mine(brain, "os");
+        await app.Create(Manifest(), Spec);
+        await app.BeginBuild(null);
+        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["synapses/echo.cs"] = "// v1" }, null);
+
+        AppOwner.Stamp("os");
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(app.Publish);
+        Caller.Clear();
+        Assert.Null(await brain.Get<IMarketplace>(IMarketplace.Key).Read("os", "echo"));
     }
 }

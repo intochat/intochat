@@ -22,6 +22,7 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
         ArgumentNullException.ThrowIfNull(silo);
         silo.Services.TryAddSingleton(TimeProvider.System);
         silo.AddIncomingGrainCallFilter<MarketplaceWriteGuard>();
+        silo.Services.TryAddSingleton<MarketplaceView>();
         silo.Services.TryAddSingleton<AppInstaller>();
         silo.Services.TryAddSingleton<AppWorkQueue>();
         silo.Services.TryAddSingleton<AppAuthoringPolicy>();

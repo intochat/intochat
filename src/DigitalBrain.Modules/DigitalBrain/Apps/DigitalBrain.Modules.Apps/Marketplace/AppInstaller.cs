@@ -1,23 +1,22 @@
-
 using DigitalBrain.Framework;
 
 namespace DigitalBrain.Apps;
 
-// The one way an app crosses brains: copy the publisher's published bundle into the caller's
-// brain and remember where it came from. The publisher's copy is read through ExportPublished,
-// which is public, so Install needs no authority beyond the caller's own brain.
-public sealed class AppInstaller(IGrainFactory grains)
+// The one way an app crosses brains: copy a listed bundle into the caller's brain and remember
+// where it came from. A person's bundle is read through ExportPublished, which is public; a shipped
+// one comes from the catalog. Install needs no authority beyond the caller's own brain.
+public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketplace, ShippedCatalog? catalog = null)
 {
     public async Task<AppSnapshot> Install(string publisher, string name, CancellationToken ct)
     {
         var scope = BrainScope.CurrentId();
-        var listing = await Listing(publisher, name, ct);
-        var publisherScope = listing.Source.RequireScope();
-        if (publisherScope == scope) { throw new InvalidOperationException($"{name} is already yours: you published it."); }
+        var listing = await marketplace.Read(publisher, name, ct)
+            ?? throw new KeyNotFoundException($"{publisher}/{name} is not in the Marketplace.");
+        if (listing.Source.Scope() == scope) { throw new InvalidOperationException($"{name} is already yours: you published it."); }
         var target = grains.GetGrain<IApp>(IApp.Key(scope, name));
         if ((await target.Read().WaitAsync(ct)).Manifest.Title.Length > 0)
         { throw new InvalidOperationException($"You already have an app named {name}."); }
-        var bundle = await grains.GetGrain<IApp>(IApp.Key(publisherScope, name)).ExportPublished().WaitAsync(ct);
+        var bundle = await Bundle(listing.Source, listing.Publisher, name, ct);
         await target.Import(bundle).WaitAsync(ct);
         await target.RecordOrigin(new(listing.Publisher, listing.Source, name, bundle.Version)).WaitAsync(ct);
         return await target.Read().WaitAsync(ct);
@@ -31,10 +30,9 @@ public sealed class AppInstaller(IGrainFactory grains)
         { throw new InvalidOperationException($"{name} was not installed from the Marketplace."); }
         if (current.Edited)
         { throw new InvalidOperationException($"{name} has your own edits; it no longer takes updates from {origin.Publisher}."); }
-        var listing = await Listing(origin.Publisher, origin.Name, ct);
+        var listing = await marketplace.Read(origin.Publisher, origin.Name, ct) ?? throw Gone(origin.Source, origin.Publisher, origin.Name);
         if (AppVersions.Compare(listing.Version, origin.Version) <= 0) { return current; }
-        var bundle = await grains.GetGrain<IApp>(IApp.Key(origin.Source.RequireScope(), origin.Name))
-            .ExportPublished().WaitAsync(ct);
+        var bundle = await Bundle(origin.Source, origin.Publisher, origin.Name, ct);
         // Replace swaps the program in place: settings, connections and stored data stay.
         await target.Replace(bundle with { Name = name }).WaitAsync(ct);
         await target.RecordOrigin(origin with { Version = bundle.Version }).WaitAsync(ct);
@@ -52,7 +50,19 @@ public sealed class AppInstaller(IGrainFactory grains)
         return new(listing, installed, update);
     }
 
-    private async Task<MarketplaceListing> Listing(string publisher, string name, CancellationToken ct)
-        => await grains.GetGrain<IMarketplace>(IMarketplace.Key).Read(publisher, name).WaitAsync(ct)
-            ?? throw new KeyNotFoundException($"{publisher}/{name} is not in the Marketplace.");
+    // The published bundle a source holds: a person's brain or the shipped catalog.
+    public async Task<AppBundle> Bundle(AppSource source, string publisher, string name, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        return source switch
+        {
+            AppSource.Brain => await grains.GetGrain<IApp>(IApp.Key(source.Scope()!, name)).ExportPublished().WaitAsync(ct),
+            AppSource.Shipped => (catalog is null ? null : await catalog.Find(publisher, name)) ?? throw Gone(source, publisher, name),
+            _ => throw new NotSupportedException($"Unknown app source {source.GetType().Name}."),
+        };
+    }
+
+    private static Exception Gone(AppSource source, string publisher, string name) => source is AppSource.Shipped
+        ? new InvalidOperationException($"{publisher}/{name} no longer ships.")
+        : new KeyNotFoundException($"{publisher}/{name} is not in the Marketplace.");
 }

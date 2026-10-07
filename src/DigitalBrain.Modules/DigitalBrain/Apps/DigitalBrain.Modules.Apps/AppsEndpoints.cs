@@ -20,11 +20,11 @@ internal static class AppsEndpoints
     {
         var apps = BrainRoutes.Group(endpoints, "/apps").AddEndpointFilter(ModuleRouteGuard.Guard);
 
-        apps.MapGet("", (IDigitalBrain brain, CancellationToken ct) => Respond(async () =>
+        apps.MapGet("", (IDigitalBrain brain, [FromServices] MarketplaceView marketplace, CancellationToken ct) => Respond(async () =>
         {
             var scope = BrainScope.CurrentId();
             var names = await brain.Get<IAppIndex>(scope).List().WaitAsync(ct);
-            var listings = await brain.Get<IMarketplace>(IMarketplace.Key).List().WaitAsync(ct);
+            var listings = await marketplace.List(ct);
             var items = new List<object>();
             foreach (var name in names)
             {
