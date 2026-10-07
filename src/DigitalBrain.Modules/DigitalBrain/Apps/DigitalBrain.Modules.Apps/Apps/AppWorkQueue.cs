@@ -3,8 +3,8 @@ using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Apps;
 
-// Runs builder and verify jobs off the request path. The process is a cache: every job's
-// durable state (Building status, activity, verdicts) lives on the app neuron, so a lost
+// Runs builder jobs off the request path. The process is a cache: every job's
+// durable state (Building status, activity) lives on the app neuron, so a lost
 // job costs one re-trigger, never data.
 internal sealed class AppWorkQueue(IServiceScopeFactory scopes, ILogger<AppWorkQueue> log)
 {
