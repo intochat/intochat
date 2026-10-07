@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Orleans.Configuration;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Testing.E2E;
 

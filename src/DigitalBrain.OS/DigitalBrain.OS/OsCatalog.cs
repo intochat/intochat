@@ -1,6 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Aspire.Server;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.OS;
 

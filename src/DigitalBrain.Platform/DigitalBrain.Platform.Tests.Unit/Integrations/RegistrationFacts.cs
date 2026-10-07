@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Platform.Tests.Unit.Integrations;
 

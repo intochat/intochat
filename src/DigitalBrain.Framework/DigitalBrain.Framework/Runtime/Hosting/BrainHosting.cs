@@ -1,5 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using DigitalBrain.Framework.Modules;
+using DigitalBrain.Framework.Contracts;
 
 namespace DigitalBrain.Framework;
 

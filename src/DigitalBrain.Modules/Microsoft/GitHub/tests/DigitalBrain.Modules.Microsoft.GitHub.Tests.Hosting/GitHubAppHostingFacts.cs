@@ -5,6 +5,7 @@ using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.GitHub;
 using static DigitalBrain.Aspire.Testing.AspireCompositionTest;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Modules.Microsoft.GitHub.Tests.Hosting;
 

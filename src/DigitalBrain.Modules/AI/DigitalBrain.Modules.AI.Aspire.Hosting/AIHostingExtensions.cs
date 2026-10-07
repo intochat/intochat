@@ -5,6 +5,7 @@ using DigitalBrain.AI.Models.FoundryLocal;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.AI.Aspire.Hosting;
 

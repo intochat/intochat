@@ -5,6 +5,7 @@ using DigitalBrain.Flutter.WebBrowser.Signals;
 using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.Playwright;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Framework.Contracts;
 
 namespace DigitalBrain.Modules.Flutter.Tests.WebBrowser;
 

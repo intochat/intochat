@@ -3,6 +3,8 @@ using DigitalBrain.AI.Agents;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Framework.Surface;
 
 namespace DigitalBrain.Modules.AI.Tests.Agents;
 

@@ -3,6 +3,8 @@ using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using DigitalBrain.Framework.Modules;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Supabase;
 

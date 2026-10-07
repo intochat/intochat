@@ -4,6 +4,7 @@ using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Microsoft.CSharp.Sandbox;
 using Microsoft.Extensions.Configuration;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Microsoft.CSharp;
 
@@ -13,7 +14,7 @@ public sealed class CSharpModuleHosting : ModuleHosting<DigitalBrain.Microsoft.C
     public override void Configure(DigitalBrainBuilder brain)
     {
         ArgumentNullException.ThrowIfNull(brain);
-        var options = brain.GetModuleConfiguration("csharp").GetModuleOptions<CSharpOptions>("csharp");
+        var options = HostingModuleOptions.GetModuleOptions<CSharpOptions>(brain.GetModuleConfiguration("csharp"), "csharp");
         // The same fallback the silo uses, so composing the module in a repository always declares
         // the sandbox; only a host without any repository (the session-pool path) has none.
         if (string.IsNullOrWhiteSpace(options.SourceRoot)) { options.SourceRoot = RepositoryRoot.Find(); }
@@ -41,14 +42,14 @@ public sealed class CSharpModuleHosting : ModuleHosting<DigitalBrain.Microsoft.C
     private sealed class SourceRootProjection(string sourceRoot) : DigitalBrainModuleProjection
     {
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
-            => builder.WithEnvironment(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(
-                DigitalBrain.Framework.DigitalBrainConfiguration.ModuleOptionsSection("csharp") + ":" + nameof(CSharpOptions.SourceRoot)), sourceRoot);
+            => builder.WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(
+                DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.ModuleOptionsSection("csharp") + ":" + nameof(CSharpOptions.SourceRoot)), sourceRoot);
     }
 
     private sealed class SandboxProbeProjection(EndpointReference endpoint) : DigitalBrainModuleProjection
     {
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
             => builder.WithEnvironment(
-                DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(CSharpDeploymentSettings.SectionName, nameof(CSharpDeploymentSettings.SandboxProbeUrl)), endpoint);
+                DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(CSharpDeploymentSettings.SectionName, nameof(CSharpDeploymentSettings.SandboxProbeUrl)), endpoint);
     }
 }

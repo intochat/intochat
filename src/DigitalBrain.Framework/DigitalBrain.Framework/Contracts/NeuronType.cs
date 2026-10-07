@@ -1,4 +1,5 @@
-namespace DigitalBrain.Framework;
+using DigitalBrain.Framework.Modules;
+namespace DigitalBrain.Framework.Contracts;
 
 [GenerateSerializer, Alias("registry.neuron-type")]
 public sealed record NeuronType(

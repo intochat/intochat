@@ -3,6 +3,7 @@ using DigitalBrain;
 using DigitalBrain.AI.Models;
 using Microsoft.Extensions.Configuration;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.AI;
 

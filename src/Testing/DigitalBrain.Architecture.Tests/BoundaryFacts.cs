@@ -112,7 +112,7 @@ public sealed class BoundaryFacts
     {
         for (var current = type.BaseType; current is not null; current = current.BaseType)
         {
-            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(DigitalBrain.Framework.Module<>))
+            if (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(DigitalBrain.Framework.Modules.Module<>))
             { return current.GetGenericArguments()[0]; }
         }
         return null;

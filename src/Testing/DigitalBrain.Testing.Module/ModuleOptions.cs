@@ -1,6 +1,7 @@
 using DigitalBrain.Framework;
 using Orleans;
 using Orleans.Hosting;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Testing.Module;
 

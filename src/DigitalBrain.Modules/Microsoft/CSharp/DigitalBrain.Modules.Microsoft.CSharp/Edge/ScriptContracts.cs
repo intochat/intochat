@@ -2,6 +2,7 @@ using System.Reflection;
 using DigitalBrain;
 using DigitalBrain.Client.Runtime;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Contracts;
 
 namespace DigitalBrain.Microsoft.CSharp.Edge;
 

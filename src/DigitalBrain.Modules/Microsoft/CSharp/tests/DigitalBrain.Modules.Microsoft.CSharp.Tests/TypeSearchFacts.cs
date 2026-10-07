@@ -1,6 +1,7 @@
 using DigitalBrain.Framework;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Framework.Contracts;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 

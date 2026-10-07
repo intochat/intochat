@@ -12,6 +12,7 @@ using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Postgres;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Framework.Surface;
 
 namespace DigitalBrain.Modules.AI.Tests.Scenarios;
 

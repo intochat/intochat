@@ -3,6 +3,7 @@ using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Supabase.Aspire.Hosting;
 
@@ -10,7 +11,7 @@ public sealed class SupabaseModuleHosting : ModuleHosting<DigitalBrain.Supabase.
 {
     public override void Configure(DigitalBrainBuilder brain)
     {
-        var options = brain.GetModuleConfiguration("supabase").GetModuleOptions<SupabaseModuleOptions>("supabase");
+        var options = HostingModuleOptions.GetModuleOptions<SupabaseModuleOptions>(brain.GetModuleConfiguration("supabase"), "supabase");
         if (!options.UseBackingStore) { return; }
         var module = new DigitalBrainModuleBuilder<DigitalBrain.Supabase.Aspire.Hosting.SupabaseModuleHosting>(brain);
         if (options.Hosting.Kind == SupabaseHostKind.External)
@@ -27,8 +28,8 @@ public sealed class SupabaseModuleHosting : ModuleHosting<DigitalBrain.Supabase.
         : DigitalBrainModuleProjection
     {
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
-            => builder.WithEnvironment(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Framework.DigitalBrainConfiguration.ModuleOptionsSection("supabase"), nameof(SupabaseModuleOptions.UseBackingStore)), "true")
-                .WithEnvironment(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("supabase", "ConnectionString")), database.Resource.ConnectionStringExpression)
+            => builder.WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.ModuleOptionsSection("supabase"), nameof(SupabaseModuleOptions.UseBackingStore)), "true")
+                .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("supabase", "ConnectionString")), database.Resource.ConnectionStringExpression)
                 .WithAnnotation(new WaitAnnotation(database.Resource, WaitType.WaitUntilHealthy, exitCode: 0));
     }
 }

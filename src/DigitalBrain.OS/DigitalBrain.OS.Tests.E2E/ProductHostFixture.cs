@@ -5,6 +5,7 @@ using DigitalBrain.Apps;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Aspire.Hosting;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.OS.Tests.E2E;
 

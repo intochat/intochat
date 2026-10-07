@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Flutter.Aspire.Hosting;
 

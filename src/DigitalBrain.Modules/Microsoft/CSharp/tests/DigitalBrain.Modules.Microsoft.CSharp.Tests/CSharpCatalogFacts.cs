@@ -8,6 +8,8 @@ using DigitalBrain.Microsoft.CSharp.Files;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Xunit;
+using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 

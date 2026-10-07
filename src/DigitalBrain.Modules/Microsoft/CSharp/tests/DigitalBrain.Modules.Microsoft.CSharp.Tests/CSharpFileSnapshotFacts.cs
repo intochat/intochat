@@ -1,58 +1,38 @@
-using DigitalBrain.Microsoft.CSharp;
-using DigitalBrain.Microsoft.CSharp.Edge;
 using DigitalBrain.Microsoft.CSharp.Files;
 using DigitalBrain.Microsoft.CSharp.Files.Signals;
+using DigitalBrain.Microsoft.CSharp.Runtime;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
 public sealed class CSharpFileSnapshotFacts
 {
     [Fact]
-    public async Task AStartedFileRunsAndListsOneSubscriptionPerStreamedSubscription()
+    public async Task AFileReportsTheStatusItsBrainRuntimeLastHeard()
     {
         var ct = TestContext.Current.CancellationToken;
-        var sandbox = new FakeSandbox();
-        await using var brain = await SandboxBrain.StartAsync(sandbox, ct);
-        var file = brain.Get<ICSharpFile>("workspace/files/running");
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        var file = brain.Get<ICSharpFile>("acc-brain/csharp/running");
         await file.Write("Console.WriteLine(1);", ct);
         var started = await file.Start(ct);
-        Assert.Equal(CSharpFileStatus.Running, started.Status);
-        Assert.Empty(started.Subscriptions);
+        var session = (await brain.Get<IBrainRuntime>(BrainRuntimeKeys.For("acc-brain")).Inspect(ct)).SessionId!;
 
-        var pinger = brain.Get<IPinger>("pinger").GetGrainId().ToString();
-        await file.AsReference<ICSharpFileEdge>().Subscribed(sandbox.LatestRunId, pinger, nameof(Pinged));
+        await brain.Grains().GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For("acc-brain"))
+            .Reported(session, new("acc-brain/csharp/running", started.Hash!, nameof(CSharpFileStatus.Running), null, null));
 
-        var inspected = await file.Inspect(ct);
-        Assert.Equal([new CSharpSubscriptionView(pinger, nameof(Pinged), 0, 0, 0)], inspected.Subscriptions);
-        Assert.Equal("Console.WriteLine(1);", inspected.Source);
-    }
-
-    [Fact]
-    public async Task AStoppedFileKeepsItsSourceAndIsNoLongerWanted()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await SandboxBrain.StartAsync(new FakeSandbox(), ct);
-        var file = brain.Get<ICSharpFile>("workspace/files/stopped");
-        await file.Write("Console.WriteLine(2);", ct);
-        await file.Start(ct);
-
-        var stopped = await file.Stop(ct);
-
-        Assert.False(stopped.ShouldRun);
-        Assert.Equal("Console.WriteLine(2);", stopped.Source);
+        Assert.Equal(CSharpFileStatus.Running, (await file.Inspect(ct)).Status);
     }
 
     [Fact]
     public async Task CSharpFileChangedIsPublishedOnWriteStartStopAndDelete()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await SandboxBrain.StartAsync(new FakeSandbox(), ct);
-        var file = brain.Get<ICSharpFile>("workspace/files/changes");
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        var file = brain.Get<ICSharpFile>("acc-brain/csharp/changes");
         await using var changes = await brain.Observe<CSharpFileChanged>(file, ct);
         await file.Write("Console.WriteLine(4);", ct);
         await file.Start(ct);
         await file.Stop(ct);
         await file.Delete(ct);
-        for (var i = 0; i < 4; i++) { Assert.Equal("workspace/files/changes", (await changes.NextAsync(ct: ct)).FileId); }
+        for (var i = 0; i < 4; i++) { Assert.Equal("acc-brain/csharp/changes", (await changes.NextAsync(ct: ct)).FileId); }
     }
 }

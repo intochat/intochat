@@ -15,7 +15,7 @@ final digest = {
     'settings': <String, String>{},
     'status': 0,
     'exitCode': null,
-    'startedAt': null,
+    'hash': null,
   },
 };
 

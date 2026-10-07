@@ -10,6 +10,8 @@ using AppManagedServiceIdentityType = Pulumi.AzureNative.App.ManagedServiceIdent
 using KeyVaultSecret = Pulumi.AzureNative.KeyVault.Secret;
 using KeyVaultSecretArgs = Pulumi.AzureNative.KeyVault.SecretArgs;
 using KeyVaultSecretPropertiesArgs = Pulumi.AzureNative.KeyVault.Inputs.SecretPropertiesArgs;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Deployment;
 

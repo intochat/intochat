@@ -1,7 +1,8 @@
 using System.ComponentModel;
 using System.Reflection;
+using DigitalBrain.Framework.Modules;
 
-namespace DigitalBrain.Framework;
+namespace DigitalBrain.Framework.Contracts;
 
 public sealed class ContractCatalog
 {

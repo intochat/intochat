@@ -6,7 +6,7 @@ using Xunit;
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
 // The sandbox is declared as a connector so the platform's catalog knows what it is the external system
-// behind. It is not offered to users: no connection neuron serves it (RunTokensFacts pins that side).
+// behind. It is not offered to users: no connection neuron serves it (SessionTokensFacts pins that side).
 public sealed class CSharpConnectorFacts
 {
     [Fact]

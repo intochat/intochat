@@ -2,6 +2,7 @@ using DigitalBrain;
 using DigitalBrain.Framework;
 using global::Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
+using DigitalBrain.Framework.Modules;
 namespace DigitalBrain.Microsoft.Playwright;
 
 public sealed class PlaywrightModule() : Module(new ModuleId("playwright"))

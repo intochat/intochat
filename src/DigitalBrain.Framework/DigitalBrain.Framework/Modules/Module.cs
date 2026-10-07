@@ -1,5 +1,5 @@
 
-namespace DigitalBrain.Framework;
+namespace DigitalBrain.Framework.Modules;
 
 public abstract class Module
 {

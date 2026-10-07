@@ -11,11 +11,11 @@ namespace DigitalBrain.Apps;
 public static class ShippedAppsServiceCollectionExtensions
 {
     public static readonly string ConfigurationSection =
-        DigitalBrain.Framework.DigitalBrainConfiguration.ModuleSection(new DigitalBrain.Framework.ModuleId("apps")) + ":Shipped";
+        DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.ModuleSection(new DigitalBrain.Framework.Modules.ModuleId("apps")) + ":Shipped";
     // The startup-shipping switch lives on the module's public surface so hosts and fixtures can
     // name it; ShippedAppPublisher (internal) is its reader.
     public static readonly string ShipOnStartupKey =
-        DigitalBrain.Framework.DigitalBrainConfiguration.ModuleOptionsSection(new DigitalBrain.Framework.ModuleId("apps")) + ":ShipOnStartup";
+        DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.ModuleOptionsSection(new DigitalBrain.Framework.Modules.ModuleId("apps")) + ":ShipOnStartup";
 
     public static IServiceCollection AddShippedApps(this IServiceCollection services, Assembly assembly, string resourcePrefix, string account)
     {

@@ -4,6 +4,7 @@ using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.Extensions.Configuration;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Aspire.Hosting;
 

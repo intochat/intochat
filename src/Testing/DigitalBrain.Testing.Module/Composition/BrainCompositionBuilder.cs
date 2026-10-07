@@ -1,5 +1,7 @@
 using DigitalBrain.Framework;
-using ModuleContract = DigitalBrain.Framework.Module;
+using ModuleContract = DigitalBrain.Framework.Modules.Module;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Testing.Module;
 

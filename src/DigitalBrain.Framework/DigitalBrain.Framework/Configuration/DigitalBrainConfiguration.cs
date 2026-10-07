@@ -1,6 +1,7 @@
 using System.Text.Json;
+using DigitalBrain.Framework.Modules;
 
-namespace DigitalBrain.Framework;
+namespace DigitalBrain.Framework.Configuration;
 
 // Configuration is the system's one value channel, and this is its grammar: a key path is
 // ':'-separated, its environment form swaps ':' for '__', and an options object flattens to

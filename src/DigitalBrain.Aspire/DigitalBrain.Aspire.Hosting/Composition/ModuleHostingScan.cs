@@ -1,6 +1,7 @@
 using System.Reflection;
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Aspire.Hosting;
 

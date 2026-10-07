@@ -4,6 +4,7 @@ using DigitalBrain.Apps;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.AI;
 using Xunit;
+using DigitalBrain.Framework.Surface;
 
 namespace DigitalBrain.Modules.AI.Tests.Agents;
 

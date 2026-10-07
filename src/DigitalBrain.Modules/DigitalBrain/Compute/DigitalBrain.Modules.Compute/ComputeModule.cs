@@ -8,6 +8,7 @@ using DigitalBrain.Framework.Metering;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Compute;
 

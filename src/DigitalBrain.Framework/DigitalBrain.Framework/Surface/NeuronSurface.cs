@@ -1,7 +1,8 @@
 using System.Reflection;
 using System.Text.Json;
+using DigitalBrain.Framework.Contracts;
 
-namespace DigitalBrain.Framework;
+namespace DigitalBrain.Framework.Surface;
 
 // One set of names and descriptions for the neuron tools, so the assistant and digitalbrain-mcp cannot drift.
 public static class NeuronSurfaceTools

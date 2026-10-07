@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Orleans;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Testing.E2E.Demo;
 

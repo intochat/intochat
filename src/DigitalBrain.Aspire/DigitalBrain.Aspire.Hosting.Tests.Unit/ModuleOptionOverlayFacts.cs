@@ -3,6 +3,8 @@ using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework;
 using Orleans.Hosting;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Aspire.Hosting.Tests.Unit;
 

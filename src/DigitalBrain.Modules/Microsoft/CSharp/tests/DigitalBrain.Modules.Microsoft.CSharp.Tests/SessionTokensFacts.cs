@@ -10,6 +10,34 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 public sealed class SessionTokensFacts
 {
     [Fact]
+    public async Task SessionTokenInfrastructureIsNotAUserConnector()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await DigitalBrain.Testing.Module.ModuleTest.Create().WithModule<CSharpModule>().WithHttpEdge().StartAsync(ct);
+        var response = await brain.HttpClient.GetAsync("/connectors", ct);
+        response.EnsureSuccessStatusCode();
+        using var catalog = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        Assert.DoesNotContain(catalog.RootElement.EnumerateArray(), item => item.GetProperty("id").GetString() == "csharp");
+        DigitalBrain.Framework.CallerContextStamper.Stamp(new()
+        {
+            PrincipalId = "owner",
+            AccountId = "owner",
+            BrainId = "owner",
+            Kind = DigitalBrain.Framework.CallerKind.User,
+            StampedBy = DigitalBrain.Framework.TrustedEdge.AuthenticatedHttp,
+        });
+        try
+        {
+            // No connection neuron serves "csharp", so a connection key naming it addresses nothing.
+            var key = DigitalBrain.Framework.Platform.Connections.ConnectionKeys.For(DigitalBrain.Framework.BrainScope.CurrentId(), "csharp", "internal");
+            var error = Assert.Throws<ArgumentException>(() => DigitalBrain.Framework.Platform.Connections.ConnectionGrains
+                .GetNeuronGrain<DigitalBrain.Framework.Platform.Connections.IConnection>(brain.Grains, brain.SiloServices, key));
+            Assert.Contains("No connection neuron serves connector 'csharp'", error.Message);
+        }
+        finally { Orleans.Runtime.RequestContext.Remove(DigitalBrain.Framework.CallerContextStamper.RequestContextKey); }
+    }
+
+    [Fact]
     public async Task AnIssuedTokenValidatesToItsBrainAndSession()
     {
         var tokens = await Tokens(null, TimeProvider.System);

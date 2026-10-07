@@ -1,4 +1,5 @@
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Testing.Module;
 

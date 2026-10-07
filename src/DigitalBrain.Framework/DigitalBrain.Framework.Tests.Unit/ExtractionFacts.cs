@@ -1,4 +1,6 @@
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Framework.Tests.Unit;
 

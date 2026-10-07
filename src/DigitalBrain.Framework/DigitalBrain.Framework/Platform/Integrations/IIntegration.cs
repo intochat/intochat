@@ -1,5 +1,6 @@
 using System.Text;
 using Orleans.Concurrency;
+using DigitalBrain.Framework.Contracts;
 
 namespace DigitalBrain.Framework.Platform.Integrations;
 

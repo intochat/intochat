@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Contracts;
 
 namespace DigitalBrain.Framework.Platform.Identity;
 

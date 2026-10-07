@@ -1,8 +1,9 @@
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using DigitalBrain.Framework.Modules;
 
-namespace DigitalBrain.Framework;
+namespace DigitalBrain.Framework.Contracts;
 
 public static class ContractCatalogHosting
 {

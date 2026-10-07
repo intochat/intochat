@@ -5,6 +5,7 @@ using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Microsoft.Aspire;
 

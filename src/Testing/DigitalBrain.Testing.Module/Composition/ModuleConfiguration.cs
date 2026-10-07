@@ -1,5 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
-using ModuleContract = DigitalBrain.Framework.Module;
+using ModuleContract = DigitalBrain.Framework.Modules.Module;
 
 namespace DigitalBrain.Testing.Module;
 

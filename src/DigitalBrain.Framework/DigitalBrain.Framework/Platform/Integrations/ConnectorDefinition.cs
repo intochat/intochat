@@ -1,4 +1,5 @@
 using DigitalBrain.Framework.Platform.Connections;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Framework.Platform.Integrations;
 

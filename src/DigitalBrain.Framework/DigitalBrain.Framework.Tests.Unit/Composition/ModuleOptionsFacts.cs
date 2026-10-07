@@ -3,6 +3,8 @@ using DigitalBrain.Framework;
 using Microsoft.Extensions.Configuration;
 using Orleans.Hosting;
 using Xunit;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Framework.Tests.Unit;
 

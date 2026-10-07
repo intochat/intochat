@@ -58,8 +58,8 @@ public static class SupabaseHostingExtensions
                 return;
             }
 
-            builder.WithEnvironment(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Framework.DigitalBrainConfiguration.ModuleOptionsSection("supabase"), nameof(SupabaseModuleOptions.UseBackingStore)), "true")
-                .WithEnvironment(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("supabase", "ConnectionString")), _connection);
+            builder.WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.ModuleOptionsSection("supabase"), nameof(SupabaseModuleOptions.UseBackingStore)), "true")
+                .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("supabase", "ConnectionString")), _connection);
         }
     }
 }

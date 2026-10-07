@@ -8,6 +8,7 @@ using Pulumi.AzureNative.App.Inputs;
 using Pulumi.AzureNative.Network;
 using Pulumi.Random;
 using NetworkInputs = Pulumi.AzureNative.Network.Inputs;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Microsoft.CSharp;
 

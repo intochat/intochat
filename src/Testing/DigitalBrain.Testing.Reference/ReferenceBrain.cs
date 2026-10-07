@@ -13,6 +13,7 @@ using DigitalBrain.Postgres;
 using DigitalBrain.Qdrant;
 using DigitalBrain.Salesforce;
 using DigitalBrain.Supabase;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Testing.E2E;
 

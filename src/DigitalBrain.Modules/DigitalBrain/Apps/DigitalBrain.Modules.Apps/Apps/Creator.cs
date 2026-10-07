@@ -5,6 +5,7 @@ using DigitalBrain.AI.Inference;
 using DigitalBrain.AI.Models.OpenAI;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.Options;
+using DigitalBrain.Framework.Contracts;
 
 namespace DigitalBrain.Apps;
 

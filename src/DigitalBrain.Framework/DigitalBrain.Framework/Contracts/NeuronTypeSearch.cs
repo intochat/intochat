@@ -1,6 +1,6 @@
 using Microsoft.Extensions.AI;
 
-namespace DigitalBrain.Framework;
+namespace DigitalBrain.Framework.Contracts;
 
 // By meaning when an embedding model is composed, by words otherwise. The catalog is small and lives
 // in memory, so its vectors do too: they are rebuilt whenever the catalog changes.

@@ -6,6 +6,7 @@ using DigitalBrain;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Aspire.Hosting;
 

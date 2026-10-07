@@ -8,6 +8,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using Orleans.Hosting;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Modules.Postgres.Tests;
 
@@ -161,7 +162,6 @@ public sealed class PostgresFacts
         services.AddSingleton<IPostgresProvider, PostgresTestControls>();
         await using var brain = await StartAsync();
         services.AddSingleton<DigitalBrain.IDigitalBrain>(brain);
-        services.AddSingleton(brain.SiloServices.GetRequiredService<IActivationCensus>());
         new PostgresTestSiloBuilder(services, configuration).AddPostgres();
         await using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
         var report = await provider.GetRequiredService<HealthCheckService>().CheckHealthAsync(TestContext.Current.CancellationToken);

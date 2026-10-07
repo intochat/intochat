@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
 
-namespace DigitalBrain.Framework;
+namespace DigitalBrain.Framework.Modules;
 
 public sealed class ModuleDefinition
 {

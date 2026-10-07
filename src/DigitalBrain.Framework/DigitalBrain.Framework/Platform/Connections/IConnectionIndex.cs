@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Contracts;
 namespace DigitalBrain.Framework.Platform.Connections;
 
 // One per brain, keyed by the brain scope id: the keys of its connection neurons, nothing else.

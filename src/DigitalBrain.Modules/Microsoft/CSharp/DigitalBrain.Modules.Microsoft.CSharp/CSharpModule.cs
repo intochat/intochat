@@ -19,6 +19,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Orleans.Hosting;
+using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Framework.Modules;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Microsoft.CSharp;
 
@@ -46,19 +49,14 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
             .Configure<IConfiguration>((target, configuration) => configuration.PopulateModuleOptions("csharp", target));
         builder.Services.AddOptions<CSharpDeploymentSettings>().BindConfiguration(CSharpDeploymentSettings.SectionName);
         builder.Services.TryAddSingleton<CSharpCatalogStore>();
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<CSharpFileNeuron>, CSharpFileActivation>());
         builder.Services.TryAddSingleton<CSharpToolService>();
         builder.Services.TryAddSingleton<DigitalBrain.Apps.IScriptSandbox, CSharpScriptSandbox>();
         builder.Services.TryAddSingleton(TimeProvider.System);
-        builder.Services.TryAddSingleton<RunTokens>();
-        builder.Services.AddSingleton<IIntegrationStartup>(services => services.GetRequiredService<RunTokens>());
         builder.Services.TryAddSingleton<SessionTokens>();
         builder.Services.AddSingleton<IIntegrationStartup>(services => services.GetRequiredService<SessionTokens>());
-        builder.Services.TryAddSingleton<ScriptRunEnvironment>();
         // Explicit: DI would resolve the assemblies parameter as an empty IEnumerable<Assembly>.
         builder.Services.TryAddSingleton(provider => new ScriptContracts(provider.GetRequiredService<ContractCatalog>()));
         builder.Services.TryAddSingleton<IContractVocabulary>(provider => new ContractVocabulary(provider.GetRequiredService<ContractCatalog>()));
-        builder.Services.TryAddTransient<ScriptEdge>();
         builder.Services.TryAddSingleton<CSharpDirectives>();
         builder.Services.TryAddSingleton<CSharpContractDiscovery>();
         builder.Services.TryAddSingleton<CSharpScriptCheck>();
@@ -83,7 +81,6 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
     public void Configure(IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
-        endpoints.MapScriptEdge();
         if (endpoints.ServiceProvider.GetRequiredService<IOptions<CSharpOptions>>().Value.Authoring) { CSharpAuthoringEndpoints.Map(endpoints); }
     }
 }

@@ -8,6 +8,7 @@ using DigitalBrain.Framework;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using DigitalBrain.Framework.Surface;
 
 namespace DigitalBrain.AI.Agents;
 

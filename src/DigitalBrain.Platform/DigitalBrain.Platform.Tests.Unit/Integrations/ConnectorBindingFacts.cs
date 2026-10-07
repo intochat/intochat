@@ -8,6 +8,7 @@ using DigitalBrain.Platform.Integrations;
 using DigitalBrain.Platform.Tests.Unit.Connections;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Platform.Tests.Unit.Integrations;
 

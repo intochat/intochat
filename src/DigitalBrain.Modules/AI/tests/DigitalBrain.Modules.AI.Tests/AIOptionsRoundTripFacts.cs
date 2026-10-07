@@ -3,6 +3,7 @@ using DigitalBrain.AI.Models;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.Configuration;
 using Xunit;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Modules.AI.Tests;
 

@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Flutter.Aspire.Hosting;
 

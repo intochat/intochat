@@ -30,7 +30,7 @@ public sealed class BrandingFacts
     {
         var configuration = new ConfigurationBuilder().AddJsonFile(HostPath("appsettings.json")).Build();
         var options = new DigitalBrain.Flutter.FlutterModuleOptions();
-        configuration.GetSection(DigitalBrain.Framework.DigitalBrainConfiguration.ModuleOptionsSection("flutter")).Bind(options);
+        configuration.GetSection(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.ModuleOptionsSection("flutter")).Bind(options);
         Assert.Equal("IntoChat", options.AssistantTitle);
     }
 }

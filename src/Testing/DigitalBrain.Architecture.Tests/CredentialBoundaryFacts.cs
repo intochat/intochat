@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Architecture.Tests;
 

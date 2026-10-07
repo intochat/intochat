@@ -25,14 +25,12 @@ public sealed class RecordingCSharpFile : Neuron, ICSharpFile, ICSharpAppBinding
     private (int ExitCode, string Logs)? Scripted =>
         ScriptedRuns.FirstOrDefault(pair => Key.StartsWith(pair.Key, StringComparison.Ordinal)) is { Key.Length: > 0 } match ? match.Value : null;
 
-    private CSharpFileSnapshot Current => Files.GetOrAdd(Key, key => new(key, "", new Dictionary<string, string>(), CSharpFileStatus.Stopped, null, null, false, 0));
+    private CSharpFileSnapshot Current => Files.GetOrAdd(Key, key => new(key, "", new Dictionary<string, string>(), null, CSharpFileStatus.Stopped, null, false, 0));
 
     public Task<CSharpFileSnapshot> Inspect(CancellationToken cancellationToken = default) => Task.FromResult(Current);
 
-    [ResponseTimeout("00:05:00")]
     public Task<CSharpFileSnapshot> Start(CancellationToken cancellationToken = default) => Task.FromResult(Run());
 
-    [ResponseTimeout("00:05:00")]
     public Task<CSharpFileSnapshot> Stop(CancellationToken cancellationToken = default) => Task.FromResult(Halt());
 
     public Task Write(string program, CancellationToken cancellationToken = default)
@@ -49,8 +47,8 @@ public sealed class RecordingCSharpFile : Neuron, ICSharpFile, ICSharpAppBinding
 
     private CSharpFileSnapshot Run()
         => Files[Key] = Scripted is { } scripted
-            ? Current with { Status = CSharpFileStatus.Exited, ExitCode = scripted.ExitCode, StartedAt = DateTimeOffset.UtcNow }
-            : Current with { Status = CSharpFileStatus.Running, StartedAt = DateTimeOffset.UtcNow };
+            ? Current with { Status = CSharpFileStatus.Exited, ExitCode = scripted.ExitCode }
+            : Current with { Status = CSharpFileStatus.Running };
 
     // Records swaps so facts can assert an edit kept the file rather than recreating it.
     public static ConcurrentDictionary<string, int> Swaps { get; } = new(StringComparer.Ordinal);
@@ -58,7 +56,7 @@ public sealed class RecordingCSharpFile : Neuron, ICSharpFile, ICSharpAppBinding
     public Task<CSharpFileSnapshot> Swap(string source, CancellationToken cancellationToken = default)
     {
         Swaps.AddOrUpdate(Key, 1, (_, count) => count + 1);
-        return Task.FromResult(Files[Key] = Current with { Source = source, Status = CSharpFileStatus.Running, StartedAt = DateTimeOffset.UtcNow });
+        return Task.FromResult(Files[Key] = Current with { Source = source, Status = CSharpFileStatus.Running });
     }
 
     private CSharpFileSnapshot Halt() => Files[Key] = Current with { Status = CSharpFileStatus.Stopped };

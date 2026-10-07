@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Xml.Linq;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Architecture.Tests;
 

@@ -13,6 +13,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Orleans.Hosting;
 using DigitalBrain.Framework.Metering;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Framework.Tests.Unit;
 

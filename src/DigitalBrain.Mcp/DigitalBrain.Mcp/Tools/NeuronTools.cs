@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Text.Json;
 using DigitalBrain.Framework;
 using ModelContextProtocol.Server;
+using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Framework.Surface;
 
 namespace DigitalBrain.Mcp;
 

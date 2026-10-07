@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using Npgsql;
 using Orleans.Hosting;
 using DigitalBrain.Postgres.Tables;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Postgres;
 

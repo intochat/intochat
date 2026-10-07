@@ -1,6 +1,8 @@
 using DigitalBrain.AI;
 using DigitalBrain.AI.Inference;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Apps;
 

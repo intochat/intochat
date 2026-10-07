@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace DigitalBrain.Framework;
+namespace DigitalBrain.Framework.Contracts;
 
 public sealed class NeuronContracts
 {

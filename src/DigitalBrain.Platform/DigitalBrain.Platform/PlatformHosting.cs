@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Platform;
 
@@ -24,8 +25,6 @@ public static class PlatformHosting
         var services = silo.Services;
         if (services.Any(service => service.ServiceType == typeof(PlatformRegistration))) { return; }
         services.AddSingleton<PlatformRegistration>();
-        services.TryAddSingleton<Discovery.ActivationCensus>();
-        services.TryAddSingleton<IActivationCensus>(provider => provider.GetRequiredService<Discovery.ActivationCensus>());
         services.AddIdentity();
         services.AddShippedContentPublishing();
         services.TryAddSingleton<DeploymentStorageIdentity>();

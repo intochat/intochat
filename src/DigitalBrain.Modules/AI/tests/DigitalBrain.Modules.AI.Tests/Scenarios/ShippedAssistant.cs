@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Contracts;
 
 namespace DigitalBrain.Modules.AI.Tests.Scenarios;
 

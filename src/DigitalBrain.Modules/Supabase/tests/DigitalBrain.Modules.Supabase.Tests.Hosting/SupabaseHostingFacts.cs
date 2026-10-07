@@ -7,6 +7,7 @@ using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Aspire.Hosting;
 using static DigitalBrain.Aspire.Testing.AspireCompositionTest;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Modules.Supabase.Tests.Hosting;
 

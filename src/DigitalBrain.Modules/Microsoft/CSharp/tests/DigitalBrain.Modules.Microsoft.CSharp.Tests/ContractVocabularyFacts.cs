@@ -3,6 +3,7 @@ using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Microsoft.CSharp.Catalog;
 using Xunit;
+using DigitalBrain.Framework.Contracts;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 

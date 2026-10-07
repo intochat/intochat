@@ -1,5 +1,6 @@
+using DigitalBrain.Framework.Modules;
 
-namespace DigitalBrain.Framework;
+namespace DigitalBrain.Framework.Configuration;
 
 public static class ModuleSettingsValidation
 {

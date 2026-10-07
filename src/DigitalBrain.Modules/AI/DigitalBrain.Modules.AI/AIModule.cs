@@ -11,6 +11,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
+using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Framework.Modules;
+using DigitalBrain.Framework.Surface;
 
 namespace DigitalBrain.AI;
 

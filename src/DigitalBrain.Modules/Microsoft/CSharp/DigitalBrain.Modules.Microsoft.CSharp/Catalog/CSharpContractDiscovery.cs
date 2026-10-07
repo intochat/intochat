@@ -1,6 +1,8 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Microsoft.CSharp.Catalog;
 

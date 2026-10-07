@@ -6,6 +6,7 @@ using DigitalBrain.Google.Gmail;
 using DigitalBrain.Testing.Module;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Modules.Google.Gmail.Tests;
 

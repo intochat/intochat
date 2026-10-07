@@ -4,6 +4,7 @@ using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp.Sandbox;
 using Microsoft.Extensions.Options;
 using Xunit;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 

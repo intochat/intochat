@@ -1,6 +1,7 @@
 using System.Reflection;
+using DigitalBrain.Framework.Contracts;
 
-namespace DigitalBrain.Framework;
+namespace DigitalBrain.Framework.Modules;
 
 // The modules selected for this host, available to modules without coupling hosting to their consumers.
 public sealed class ModuleInventory

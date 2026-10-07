@@ -4,6 +4,7 @@ using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol.Server;
+using DigitalBrain.Framework.Surface;
 
 namespace DigitalBrain.Mcp;
 

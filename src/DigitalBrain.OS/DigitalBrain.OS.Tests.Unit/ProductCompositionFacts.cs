@@ -1,3 +1,5 @@
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Modules;
 extern alias AppHost;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;

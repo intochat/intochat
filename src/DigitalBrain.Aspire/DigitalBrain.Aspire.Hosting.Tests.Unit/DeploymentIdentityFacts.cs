@@ -6,6 +6,7 @@ using DigitalBrain.Framework;
 using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Aspire.Hosting.Tests.Unit;
 

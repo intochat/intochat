@@ -3,6 +3,7 @@ using DigitalBrain.Framework;
 using DigitalBrain.Platform;
 using Microsoft.Extensions.Configuration;
 using Orleans.TestingHost;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Testing.Module;
 

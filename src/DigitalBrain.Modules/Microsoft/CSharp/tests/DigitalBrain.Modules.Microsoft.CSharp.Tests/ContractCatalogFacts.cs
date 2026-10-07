@@ -5,6 +5,8 @@ using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Time;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Hosting;
+using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 

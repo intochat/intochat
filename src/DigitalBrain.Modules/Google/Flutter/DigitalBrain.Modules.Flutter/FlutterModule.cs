@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Hosting;
+using DigitalBrain.Framework.Modules;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Flutter;
 
