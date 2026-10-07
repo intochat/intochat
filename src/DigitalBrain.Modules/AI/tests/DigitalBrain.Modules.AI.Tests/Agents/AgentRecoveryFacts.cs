@@ -1,4 +1,5 @@
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Agents.Signals;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
@@ -23,6 +24,13 @@ public sealed class AgentRecoveryFacts
             ActiveRun = new AgentRun("interrupted-run", AgentRunStatus.Running, "hello", DateTimeOffset.UtcNow)
             { ToolCalls = [new AgentToolCall("call", "lookup", "{}")] },
         }));
+
+        // Subscribing wakes the agent; the run's end still reaches a caller who only has signals.
+        await using var failures = await brain.SubscribeAsync<TurnFailed>(brain.Get<IAgent>(key), ct);
+        await using var failed = failures.ReadAllAsync(ct).GetAsyncEnumerator(ct);
+        Assert.True(await failed.MoveNextAsync());
+        Assert.Equal(("interrupted-run", false), (failed.Current.RunId, failed.Current.Cancelled));
+        Assert.Contains("outcomes may be unknown", failed.Current.Error, StringComparison.Ordinal);
 
         var state = await brain.Get<IAgent>(key).Read();
 

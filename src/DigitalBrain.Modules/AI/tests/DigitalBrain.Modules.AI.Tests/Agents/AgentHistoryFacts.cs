@@ -1,6 +1,7 @@
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace DigitalBrain.Modules.AI.Tests.Agents;
@@ -80,6 +81,45 @@ public sealed class AgentHistoryFacts
         Assert.Equal(4, (await agent.Transcript()).Length);
         Assert.Contains("message 0", (await agent.Read()).Summary, StringComparison.Ordinal);
         Assert.Contains(client.Requests[^1], message => message.Role == ChatRole.System && message.Text.Contains("message 0", StringComparison.Ordinal));
+    }
+
+    // A tool turn is four messages; a three-message budget must cut it whole, never between the
+    // call and its result, or providers reject every later turn.
+    [Fact]
+    public async Task TrimmingNeverSplitsAToolCallFromItsResult()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = new StubChatClient((messages, _, _) =>
+        {
+            var asked = messages.Last(message => message.Role == ChatRole.User).Text;
+            var answered = messages.SkipWhile(message => message.Role != ChatRole.User || message.Text != asked).Any(message => message.Role == ChatRole.Tool);
+            return Task.FromResult(new ChatResponse(asked == "use the tool" && !answered
+                ? new ChatMessage(ChatRole.Assistant, [new FunctionCallContent("call-1", "lookup", new Dictionary<string, object?>())])
+                : new ChatMessage(ChatRole.Assistant, "done: " + asked)));
+        });
+        await using var brain = await AgentFacts.Brain(client, ct, services => services.AddSingleton<IAgentToolFactory>(new LookupTool()));
+        var agent = brain.Get<IAgent>(AgentFacts.Key("trimmed"));
+        await agent.Configure(new() { MaxHistoryMessages = 3, Tools = ["lookup"] }, 0);
+        await agent.GetResponse("use the tool", ct);
+        await agent.GetResponse("second", ct);
+        await agent.GetResponse("third", ct);
+        Assert.All(client.Requests.Skip(2), Paired);
+        Assert.Equal(ChatRole.User, (await agent.Transcript()).Select(message => new ChatRole(message.Role)).First());
+        Assert.Contains("use the tool", (await agent.Read()).Summary, StringComparison.Ordinal);
+
+        static void Paired(ChatMessage[] request)
+        {
+            var history = request.Where(message => message.Role != ChatRole.System).ToArray();
+            Assert.Equal(ChatRole.User, history[0].Role);
+            var calls = history.SelectMany(message => message.Contents).OfType<FunctionCallContent>().Select(call => call.CallId).ToArray();
+            var results = history.SelectMany(message => message.Contents).OfType<FunctionResultContent>().Select(result => result.CallId).ToArray();
+            Assert.Equal(calls.Order(), results.Order());
+        }
+    }
+
+    private sealed class LookupTool : IAgentToolFactory
+    {
+        public IReadOnlyList<AIFunction> Create(Func<AgentToolContext> context) => [AIFunctionFactory.Create(() => "found", "lookup")];
     }
 
     // Replies with every user and assistant text joined by '|', so the fact sees what the model was given.
