@@ -368,6 +368,10 @@ public sealed class RegistrationFacts
         Assert.True(PlatformOnlyAttribute.AppliesTo(typeof(IIntegration)));
     }
 
+    // The one Framework contract a brain member calls directly: NeuronCallFilter enforces brain
+    // membership on it, and its OAuth sibling IConnectionInbound stays platform-only.
+    private static readonly Type UserFaceOfAConnection = typeof(DigitalBrain.Framework.Platform.Connections.IConnection);
+
     [Fact]
     public void EveryPublicNeuronContractInThePlatformAssemblyIsPlatformOnlyByAssemblyIdentity()
     {
@@ -377,7 +381,8 @@ public sealed class RegistrationFacts
         // IntegrationSchema lives in Framework: never a contracts assembly, so never
         // script-discovered — its neuron contracts still carry [PlatformOnly] type by type.
         Assert.All(typeof(IntegrationSchema).Assembly.GetExportedTypes()
-                .Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type) && type.Namespace!.Contains(".Platform.", StringComparison.Ordinal)),
+                .Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type) && type.Namespace!.Contains(".Platform.", StringComparison.Ordinal))
+                .Where(type => type != UserFaceOfAConnection),
             contract => Assert.True(PlatformOnlyAttribute.AppliesTo(contract)));
         Assert.All(platform.GetExportedTypes().Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type)),
             contract => Assert.True(PlatformOnlyAttribute.AppliesTo(contract)));
@@ -387,7 +392,7 @@ public sealed class RegistrationFacts
     public void EveryExportedPlatformContractRequiresPlatformAuthorization()
     {
         var contracts = typeof(ISecrets).Assembly.GetExportedTypes()
-            .Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type)).ToArray();
+            .Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type) && type != UserFaceOfAConnection).ToArray();
         Assert.NotEmpty(contracts);
         Assert.All(contracts, contract => Assert.True(PlatformOnlyAttribute.AppliesTo(contract)));
     }

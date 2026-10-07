@@ -1,3 +1,4 @@
+using ConnectionKeys = DigitalBrain.Framework.Platform.Connections.ConnectionKeys;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Framework.Platform.Integrations.Accounts;

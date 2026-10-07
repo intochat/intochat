@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Platform.Connections;
 using System.Net;
 using System.Text;
 using System.Text.Json;

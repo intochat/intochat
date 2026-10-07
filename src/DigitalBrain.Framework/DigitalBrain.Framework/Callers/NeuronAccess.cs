@@ -1,3 +1,5 @@
+using DigitalBrain.Framework.Platform.Connections;
+
 namespace DigitalBrain.Framework;
 
 // Supplied by the receiving module, never by a caller or a discovery result.
@@ -14,7 +16,7 @@ public sealed record NeuronAccess(string? Scope = null, bool Public = false)
     {
         if (key.StartsWith("connection/", StringComparison.Ordinal))
         {
-            try { return new(DigitalBrain.Framework.Platform.Integrations.ConnectionKeys.Parse(key).BrainId); }
+            try { return new(ConnectionKeys.Parse(key).BrainId); }
             catch (ArgumentException) { return Unclassified; }
         }
         var separator = key.AsSpan().IndexOfAny('/', ':');

@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
 using Orleans.Concurrency;
