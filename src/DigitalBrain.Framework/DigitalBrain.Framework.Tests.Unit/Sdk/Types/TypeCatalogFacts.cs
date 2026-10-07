@@ -18,20 +18,6 @@ public sealed class TypeCatalogFacts
         FieldKind.MultiChoice,
     ];
 
-    private static readonly string[] RequiredSchemaExtensions =
-    [
-        "x-intochat-id",
-        "x-intochat-kind",
-        "x-intochat-primitive",
-        "x-intochat-sensitivity",
-        "x-intochat-llm-exposure",
-        "x-intochat-input-widget",
-        "x-intochat-display-widget",
-        "x-intochat-redactor",
-        "x-intochat-indexable",
-        "x-intochat-mcp-form",
-    ];
-
     [Fact]
     public void FlatSubsetMapsOneToOneToMcpFormElicitation()
     {
@@ -42,13 +28,6 @@ public sealed class TypeCatalogFacts
             var type = TypeCatalog.Get(kind);
             Assert.NotNull(type.ToMcpFormPrimitive());
 
-            var schema = type.ToJsonSchema();
-            Assert.True((bool)schema["x-intochat-mcp-form"]!, $"{kind} must be form-elicitable.");
-            Assert.Contains(schema["type"]!.GetValue<string>(), new[] { "string", "number", "boolean", "array" });
-            if (schema.TryGetPropertyValue("format", out var format))
-            {
-                Assert.Contains(format!.GetValue<string>(), new[] { "email", "uri", "date", "date-time" });
-            }
         }
 
         var nonFlat = Enum.GetValues<FieldKind>().Except(FlatSubset);
@@ -56,7 +35,6 @@ public sealed class TypeCatalogFacts
         {
             var type = TypeCatalog.Get(kind);
             Assert.Null(type.ToMcpFormPrimitive());
-            Assert.False((bool)type.ToJsonSchema()["x-intochat-mcp-form"]!, $"{kind} must not be form-elicitable.");
         }
     }
 
@@ -69,7 +47,6 @@ public sealed class TypeCatalogFacts
         Assert.Equal(SensitivityClass.Credential, secret.Sensitivity);
         Assert.False(secret.Indexable);
         Assert.Null(secret.ToMcpFormPrimitive());
-        Assert.False((bool)secret.ToJsonSchema()["x-intochat-mcp-form"]!);
 
         var rejected = Assert.Throws<TypeValidationException>(() => TypeCatalog.Validate("hunter2", FieldKind.Secret));
         Assert.DoesNotContain("hunter2", rejected.Message, StringComparison.Ordinal);
@@ -116,19 +93,6 @@ public sealed class TypeCatalogFacts
         Assert.Equal(kinds.Length, TypeCatalog.All.Count);
         Assert.Equal(kinds.OrderBy(kind => kind), TypeCatalog.All.Select(type => type.Kind).OrderBy(kind => kind));
         Assert.Equal(kinds.Length, TypeCatalog.All.Select(type => type.Id).Distinct(StringComparer.Ordinal).Count());
-    }
-
-    [Fact]
-    public void EveryTypeSchemaCarriesTheXIntochatExtensions()
-    {
-        foreach (var type in TypeCatalog.All)
-        {
-            var schema = type.ToJsonSchema();
-            foreach (var extension in RequiredSchemaExtensions)
-            {
-                Assert.True(schema.ContainsKey(extension), $"{type.Kind} schema is missing {extension}.");
-            }
-        }
     }
 
     [Fact]

@@ -37,13 +37,6 @@ public static class ModuleOptionsSerialization
         return options;
     }
 
-    // The module list is the array under DigitalBrain:Modules; the per-module Options keys live beside its numeric entries.
-    public static string[] SelectedModuleNames(this IConfiguration configuration)
-    {
-        ArgumentNullException.ThrowIfNull(configuration);
-        return configuration.GetSection(DigitalBrainConfiguration.ModulesSectionName).Get<string[]>() ?? [];
-    }
-
     // Copies the bound options onto an instance the options system already created: every public read-write property.
     public static void PopulateModuleOptions<TOptions>(this IConfiguration configuration, string moduleName, TOptions target)
         where TOptions : class, IModuleOptions, new()

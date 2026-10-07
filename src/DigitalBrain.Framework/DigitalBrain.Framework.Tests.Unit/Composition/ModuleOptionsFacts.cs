@@ -65,9 +65,7 @@ public sealed class ModuleOptionsFacts
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 [DigitalBrainConfiguration.ModulesSectionName + ":0"] = "First.Module, First",
-                [DigitalBrainConfiguration.ModulesSectionName + ":1"] = "Second.Module, Second",
             }).Build();
-        Assert.Equal(["First.Module, First", "Second.Module, Second"], configuration.SelectedModuleNames());
         Assert.True(configuration.GetModuleOptions<FakeOptions>(nameof(FakeModule)).Flag);
     }
 
