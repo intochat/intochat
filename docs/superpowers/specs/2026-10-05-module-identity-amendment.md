@@ -45,7 +45,7 @@ Three sightings:
 A `readonly record struct ModuleId` in `DigitalBrain.Contracts`, next to
 `DigitalBrainConfiguration`: valid by construction (ASCII letters, digits, hyphens),
 `ToString()` is the value. `DigitalBrainConfiguration.ModuleSection` / `ModuleOptionsSection` /
-`BrainModuleOptionsSection` take `ModuleId`. The ad-hoc id validation inline in
+`CompositionModuleOptionsSection` take `ModuleId`. The ad-hoc id validation inline in
 `DigitalBrainBuilder.Register` is deleted — the grammar lives in one place, like the
 configuration key grammar.
 

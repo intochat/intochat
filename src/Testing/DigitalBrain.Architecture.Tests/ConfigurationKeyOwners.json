@@ -13,7 +13,6 @@
   "DigitalBrain.Framework/Platform/Integrations/IntegrationSchema.cs",
   "DigitalBrain.Framework/Runtime/Hosting/DigitalBrainNames.cs",
   "DigitalBrain.Modules.AI.Tests/AIGrammarFacts.cs",
-  "DigitalBrain.Modules.Flutter.Aspire.Hosting/ShellNames.cs",
   "DigitalBrain.Platform.Tests.Unit/Connections/OAuthFlowFacts.cs",
   "DigitalBrain.Platform.Tests.Unit/Connections/TwoConnectorFacts.cs",
   "DigitalBrain.ServiceDefaults/Configuration/ServiceTelemetryOptions.cs"

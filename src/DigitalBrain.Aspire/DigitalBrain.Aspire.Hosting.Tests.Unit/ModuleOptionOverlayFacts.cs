@@ -63,8 +63,8 @@ public sealed class ModuleOptionOverlayFacts
     public void TwoBrainsScopeInfrastructureAndAllowIndependentConfiguration()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        builder.Configuration[DigitalBrainConfiguration.BrainModuleOptionsSection("first", "scoped") + ":ConnectionName"] = "first-db";
-        builder.Configuration[DigitalBrainConfiguration.BrainModuleOptionsSection("second", "scoped") + ":ConnectionName"] = "second-db";
+        builder.Configuration[DigitalBrainConfiguration.CompositionModuleOptionsSection("first", "scoped") + ":ConnectionName"] = "first-db";
+        builder.Configuration[DigitalBrainConfiguration.CompositionModuleOptionsSection("second", "scoped") + ":ConnectionName"] = "second-db";
         var first = builder.AddDigitalBrain("first", options: new() { UseAzureStorage = true, PersistentStorage = false })
             .WithHosting<ScopedServerHosting>();
         var second = builder.AddDigitalBrain("second", options: new() { UseAzureStorage = true, PersistentStorage = false })

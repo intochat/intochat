@@ -21,11 +21,11 @@ public static class DigitalBrainConfiguration
 
     public static string ModuleOptionsSection(string moduleId) => ModuleOptionsSection(new ModuleId(moduleId));
 
-    public static string BrainModuleOptionsSection(string brainName, ModuleId moduleId)
-        => $"DigitalBrain:Brains:{brainName}:Modules:{moduleId}:Options";
+    public static string CompositionModuleOptionsSection(string compositionName, ModuleId moduleId)
+        => $"DigitalBrain:Compositions:{compositionName}:Modules:{moduleId}:Options";
 
-    public static string BrainModuleOptionsSection(string brainName, string moduleId)
-        => BrainModuleOptionsSection(brainName, new ModuleId(moduleId));
+    public static string CompositionModuleOptionsSection(string compositionName, string moduleId)
+        => CompositionModuleOptionsSection(compositionName, new ModuleId(moduleId));
 
     // The Platform's connection flow: where providers send browsers back, and per-connector token
     // endpoint overrides for test hosts.

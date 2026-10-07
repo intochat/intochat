@@ -51,7 +51,7 @@ public sealed class DigitalBrainBuilder
         var values = new Dictionary<string, string?>(replaceOptions ? [] : settings ?? new Dictionary<string, string?>(), StringComparer.OrdinalIgnoreCase);
         foreach (var pair in ApplicationBuilder.Configuration.GetSection(DigitalBrainConfiguration.ModuleOptionsSection(id)).AsEnumerable())
         { if (pair.Value is not null) { values[pair.Key] = pair.Value; } }
-        var scopedPrefix = DigitalBrainConfiguration.BrainModuleOptionsSection(Name, id);
+        var scopedPrefix = DigitalBrainConfiguration.CompositionModuleOptionsSection(Name, id);
         foreach (var pair in ApplicationBuilder.Configuration.GetSection(scopedPrefix).AsEnumerable())
         {
             if (pair.Value is not null) { values[DigitalBrainConfiguration.ModuleOptionsSection(id) + pair.Key[scopedPrefix.Length..]] = pair.Value; }

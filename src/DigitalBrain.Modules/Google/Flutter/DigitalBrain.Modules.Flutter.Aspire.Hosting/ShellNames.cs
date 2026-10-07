@@ -1,6 +1,5 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Flutter.Aspire.Hosting;
 
@@ -10,12 +9,9 @@ public static class ShellNames
     public const string UIBaseEnvironmentVariable = "DIGITALBRAIN_UI_BASE";
     public const string ShellEnvironmentVariable = "DIGITALBRAIN_SHELL";
     public const string ChatEnvironmentVariable = "DIGITALBRAIN_CHAT";
-    public const string OwnerKey = "DigitalBrain:Owner";
-    public static readonly string OwnerEnvironmentVariable = DigitalBrainConfiguration.EnvironmentName(OwnerKey);
     public const string FlutterCommandEnvironmentVariable = "FLUTTER_COMMAND";
     public const string DefaultShellName = "desk";
     public const string DefaultChatName = "main";
-    public const string DefaultOwner = "dev";
     public const string DefaultDeviceTarget = "windows";
     // web-server is Flutter's headless web device: it serves the app over HTTP without driving
     // a browser of its own, so the fixed FlutterWebPort below is a real, addressable endpoint.
