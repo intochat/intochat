@@ -4,7 +4,7 @@ namespace DigitalBrain.Microsoft.GitHub;
 
 internal static class GitHubWebhookHandler
 {
-    internal static (int? Number, bool Revoke, GitHubWebhookAcceptance? Failure) Classify(GitHubRepositoryBinding binding, JsonElement payload, string eventName)
+    internal static (int? Number, bool Revoke, GitHubWebhookAcceptance? Failure) Classify(GitHubRepository repository, JsonElement payload, string eventName)
     {
         if (payload.ValueKind != JsonValueKind.Object)
         {
@@ -14,10 +14,10 @@ internal static class GitHubWebhookHandler
         if (eventName == "ping")
         {
             var appId = Number(payload, "hook", "app_id");
-            return appId is null || appId == binding.AppId ? (null, false, null) : (null, false, GitHubWebhookAcceptance.Unauthorized);
+            return appId is null || appId == repository.AppId ? (null, false, null) : (null, false, GitHubWebhookAcceptance.Unauthorized);
         }
 
-        if (Number(payload, "installation", "id") != binding.InstallationId)
+        if (Number(payload, "installation", "id") != repository.InstallationId)
         {
             return (null, false, GitHubWebhookAcceptance.Unauthorized);
         }
@@ -30,11 +30,11 @@ internal static class GitHubWebhookHandler
 
         if (eventName == "installation_repositories")
         {
-            var removed = payload.TryGetProperty("repositories_removed", out var repositories) && repositories.ValueKind == JsonValueKind.Array && repositories.EnumerateArray().Any(repository => Number(repository, "id") == binding.RepositoryId);
+            var removed = payload.TryGetProperty("repositories_removed", out var repositories) && repositories.ValueKind == JsonValueKind.Array && repositories.EnumerateArray().Any(removed => Number(removed, "id") == repository.RepositoryId);
             return removed ? (null, true, null) : (null, false, GitHubWebhookAcceptance.Ignored);
         }
 
-        if (Number(payload, "repository", "id") != binding.RepositoryId)
+        if (Number(payload, "repository", "id") != repository.RepositoryId)
         {
             return (null, false, GitHubWebhookAcceptance.Unauthorized);
         }
@@ -44,7 +44,7 @@ internal static class GitHubWebhookHandler
             return (null, true, null);
         }
 
-        if (!string.Equals(String(payload, "repository", "name"), binding.RepoName, StringComparison.OrdinalIgnoreCase) || !string.Equals(String(payload, "repository", "owner", "login"), binding.RepoOwner, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(String(payload, "repository", "name"), repository.Name, StringComparison.OrdinalIgnoreCase) || !string.Equals(String(payload, "repository", "owner", "login"), repository.Owner, StringComparison.OrdinalIgnoreCase))
         {
             // A trusted rename/transfer requires explicit reauthorization of the coordinates.
             return (null, true, null);

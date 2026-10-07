@@ -4,33 +4,12 @@ using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.GitHub;
 using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace DigitalBrain.Modules.Microsoft.GitHub.Tests;
 
 public sealed class OAuthCredentialFacts
 {
-    [Fact]
-    public async Task OAuthOptionsAreClonedBeforeAsyncSecretRelease()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var secret = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var registration = new GitHubAppRegistration(new Bindings(new Handle(secret.Task)));
-        var settings = new GitHubOAuthConfiguration(Options.Create(new GitHubModuleOptions
-        { ClientId = "public-client-id", PublicOrigin = "https://example.test" }), registration);
-        var shared = new GitHubOAuthHandlerOptions { ClientId = "not-configured", ClientSecret = "not-configured" };
-        var request = shared.Copy();
-        var pending = settings.ConfigureAsync(request, ct);
-        Assert.False(pending.IsCompleted);
-        secret.SetResult("client-secret");
-        await pending;
-        Assert.Equal("public-client-id", request.ClientId);
-        Assert.Equal("client-secret", request.ClientSecret);
-        Assert.Equal("not-configured", shared.ClientId);
-        Assert.Equal("not-configured", shared.ClientSecret);
-    }
-
     [Fact]
     public async Task MissingOptionalOAuthCredentialsDoNotDisableInstallationAuth()
     {
@@ -54,12 +33,7 @@ public sealed class OAuthCredentialFacts
                 [IntegrationSchema.Key("github", "PrivateKeyPem")] = "test-key-not-used-by-webhooks",
                 [IntegrationSchema.Key("github", "WebhookSecret")] = original,
             },
-        }).WithModule<GitHubModule>().ConfigureSilo(silo =>
-        {
-            silo.Services.AddSingleton(new GitHubRepositoryBindings([new("repo", 11, 9, 7, "intochat", "digitalbrain")]));
-            silo.Services.AddSingleton<IGitHubRepositorySource>(new FakeGitHubRepositorySource());
-        }).StartAsync(ct);
-        await brain.Get<IRepository>("repo").Connect(new(7, 9, 11, "intochat", "digitalbrain"));
+        }).WithModule<GitHubModule>().StartAsync(ct);
         var ingress = brain.SiloServices.GetRequiredService<GitHubWebhookIngress>();
         var body = Encoding.UTF8.GetBytes("{\"hook\":{\"app_id\":7}}");
         Assert.Equal(GitHubWebhookAcceptance.Accepted, await ingress.HandleAsync(body, Headers(body, original), ct));

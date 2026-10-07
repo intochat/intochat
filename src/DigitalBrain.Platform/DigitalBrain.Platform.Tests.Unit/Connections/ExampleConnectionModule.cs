@@ -14,7 +14,8 @@ public sealed class ExampleConnectionModule() : Module(new ModuleId("example"))
         Neurons = [typeof(IExample)],
         OAuthMethods = [new("oauth", "https://provider.test/authorize", "https://provider.test/token", ["read"], "example-oauth")],
     };
-    public static IntegrationSchema Integration => IntegrationSchema.For("example-oauth", "Example OAuth").RequiresSecret("ClientId").RequiresSecret("ClientSecret");
+    // ClientSecret is optional, as GitHub's is, so a Ready integration can still lack an OAuth client.
+    public static IntegrationSchema Integration => IntegrationSchema.For("example-oauth", "Example OAuth").RequiresSecret("ClientId").OffersSecret("ClientSecret");
     public override void Configure(ISiloBuilder silo) { }
 }
 

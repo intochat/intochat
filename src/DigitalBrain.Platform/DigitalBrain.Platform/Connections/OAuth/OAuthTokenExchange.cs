@@ -49,7 +49,11 @@ internal sealed class OAuthTokenExchange(
             PrincipalId = IntegrationVault.CallerAppId, AccountId = IntegrationVault.Owner, BrainId = IntegrationVault.Owner,
             Kind = CallerKind.Platform, StampedBy = TrustedEdge.Platform, AppId = IntegrationVault.CallerAppId,
         }).WaitAsync(ct);
-        return (released.Values[method.ClientIdField], released.Values[method.ClientSecretField]);
+        // An optional client field can be missing from a Ready integration; refuse before any redirect.
+        if (!released.Values.TryGetValue(method.ClientIdField, out var id) || string.IsNullOrWhiteSpace(id)
+            || !released.Values.TryGetValue(method.ClientSecretField, out var secret) || string.IsNullOrWhiteSpace(secret))
+        { throw new InvalidOperationException($"Integration '{method.IntegrationId}' has no OAuth client configured."); }
+        return (id, secret);
     }
 
     private async Task<OAuthGrant> PostAsync(string connectorId, string authMethodId, string? target, Dictionary<string, string> form, CancellationToken ct)

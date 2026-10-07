@@ -115,6 +115,19 @@ public sealed class OAuthFlowFacts : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ALoginStartRefusesAReadyIntegrationWithoutAClientSecretBeforeRedirecting()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await _brain.Get<IIntegration>("integration/example-oauth").Clear("ClientSecret");
+        Assert.Equal(IntegrationStatus.Ready, (await _brain.Get<IIntegration>("integration/example-oauth").Read()).Status);
+        using var response = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/one/login", new { connectorId = "example", authMethodId = "oauth" }, ct);
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync(ct);
+        Assert.Contains("Integration 'example-oauth' has no OAuth client configured.", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("client-id", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ThePastedValueRoutesConnectProbeAndDisconnectOneConnection()
     {
         var ct = TestContext.Current.CancellationToken;

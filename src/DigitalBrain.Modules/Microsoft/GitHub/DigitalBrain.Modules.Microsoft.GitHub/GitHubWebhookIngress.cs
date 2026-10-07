@@ -2,10 +2,11 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using DigitalBrain.Framework.Platform.Connections;
 
 namespace DigitalBrain.Microsoft.GitHub;
 
-internal sealed class GitHubWebhookIngress(GitHubRepositoryBindings bindings, IGrainFactory grains, GitHubAppRegistration registration)
+internal sealed class GitHubWebhookIngress(IGrainFactory grains, GitHubAppRegistration registration)
 {
     public async Task<GitHubWebhookAcceptance> HandleAsync(ReadOnlyMemory<byte> body,
         IReadOnlyDictionary<string, string[]> headers, CancellationToken cancellationToken)
@@ -28,59 +29,59 @@ internal sealed class GitHubWebhookIngress(GitHubRepositoryBindings bindings, IG
             var installation = RoutingHint(payload, "installation", "id");
             var repository = RoutingHint(payload, "repository", "id");
             var app = RoutingHint(payload, "hook", "app_id");
-            var signature = Header(headers, "X-Hub-Signature-256");
-            var ping = eventName == "ping";
             var webhookSecret = await registration.ReadOptionalSecretAsync("WebhookSecret", cancellationToken);
-            if (webhookSecret is not { Length: >= 16 }) { return GitHubWebhookAcceptance.Unauthorized; }
-            var targets = bindings.All.Where(binding => installation is not null
-                ? binding.InstallationId == installation && (repository is null || binding.RepositoryId == repository)
-                : app is not null && binding.AppId == app).ToArray();
-            if (ping && installation is null && app is null)
+            if (webhookSecret is not { Length: >= 16 }
+                || !ValidateSignature(body.Span, Header(headers, "X-Hub-Signature-256"), webhookSecret))
             {
-                targets = bindings.All.Where(binding => ValidateSignature(body.Span, signature, webhookSecret)).ToArray();
+                return GitHubWebhookAcceptance.Unauthorized;
             }
-            if (targets.Length == 0)
+            if (installation is null)
             {
-                return ping ? GitHubWebhookAcceptance.Unauthorized : GitHubWebhookAcceptance.Ignored;
+                // An App-level ping proves the signed delivery path; no connection is addressed.
+                if (eventName != "ping") { return GitHubWebhookAcceptance.Ignored; }
+                return app is null || app == await registration.ReadAppIdAsync(cancellationToken)
+                    ? GitHubWebhookAcceptance.Accepted : GitHubWebhookAcceptance.Unauthorized;
             }
+            // Refresh no longer targets a single SHA because the receipt carries only the body hash.
+            if (RejectCheckPayloadWithInvalidHeadSha(payload, eventName))
+            {
+                return GitHubWebhookAcceptance.BadRequest;
+            }
+            var hash = Convert.ToHexStringLower(SHA256.HashData(body.Span));
             var results = new List<GitHubWebhookAcceptance>();
-            foreach (var binding in targets)
+            // Every connection of every brain on this installation; one target's failure never stops the rest.
+            foreach (var key in await grains.GetGrain<IGitHubRepositoryIndex>($"installation/{installation}").Read())
             {
-                if (!ValidateSignature(body.Span, signature, webhookSecret))
-                {
-                    results.Add(GitHubWebhookAcceptance.Unauthorized);
-                    continue;
-                }
-                var classification = GitHubWebhookHandler.Classify(binding, payload, eventName);
-                if (classification.Failure is { } failure)
-                {
-                    results.Add(failure);
-                    continue;
-                }
-                // Refresh no longer targets a single SHA because the receipt carries only the body hash.
-                if (RejectCheckPayloadWithInvalidHeadSha(payload, eventName))
-                {
-                    results.Add(GitHubWebhookAcceptance.BadRequest);
-                    continue;
-                }
                 using var activity = GitHubTelemetry.Source.StartActivity("github.webhook.accept", ActivityKind.Producer);
-                GitHubTelemetry.TagReceipt(activity, binding, delivery!, classification.Number);
-                var fact = new RepositoryEvent(delivery!, eventName,
-                    classification.Revoke ? "revoked" : GitHubWebhookHandler.String(payload, "action"),
-                    classification.Number, Convert.ToHexStringLower(SHA256.HashData(body.Span)));
                 try
                 {
-                    var accepted = await grains.GetGrain<IRepository>(binding.Id)
-                        .AcceptRepositoryEvent(fact, cancellationToken).ConfigureAwait(false);
+                    var target = grains.GetConnectionGrain<IGitHubInbound>(key);
+                    if (await target.Coordinates().ConfigureAwait(false) is not { } coordinates
+                        || repository is not null && coordinates.RepositoryId != repository)
+                    {
+                        continue;
+                    }
+                    var classification = GitHubWebhookHandler.Classify(coordinates, payload, eventName);
+                    if (classification.Failure is { } failure)
+                    {
+                        results.Add(failure);
+                        continue;
+                    }
+                    GitHubTelemetry.TagReceipt(activity, coordinates, delivery!, classification.Number);
+                    var fact = new RepositoryEvent(delivery!, eventName,
+                        classification.Revoke ? "revoked" : GitHubWebhookHandler.String(payload, "action"),
+                        classification.Number, hash, installation, repository, app);
+                    var accepted = await target.AcceptRepositoryEvent(fact, cancellationToken).ConfigureAwait(false);
                     results.Add(accepted ? GitHubWebhookAcceptance.Accepted : GitHubWebhookAcceptance.Duplicate);
                 }
-                catch (Exception error)
+                catch (Exception error) when (error is not OperationCanceledException)
                 {
                     GitHubTelemetry.Failed(activity, error);
                     results.Add(GitHubWebhookAcceptance.Unavailable);
                 }
             }
-            // Acknowledge only when every intended target durably accepted its delivery.
+            // Acknowledge only when every intended target durably accepted its delivery; a redelivery
+            // reaches the targets that already accepted it as a duplicate.
             foreach (var failure in new[] { GitHubWebhookAcceptance.Unavailable, GitHubWebhookAcceptance.Unauthorized, GitHubWebhookAcceptance.BadRequest })
             {
                 if (results.Contains(failure))

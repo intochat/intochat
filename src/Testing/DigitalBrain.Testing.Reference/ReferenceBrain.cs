@@ -7,7 +7,6 @@ using DigitalBrain.Flutter;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Google.Gmail;
-using DigitalBrain.Microsoft.GitHub;
 using DigitalBrain.Platform.Identity.Configuration;
 using DigitalBrain.Postgres;
 using DigitalBrain.Qdrant;
@@ -41,7 +40,6 @@ public static class ReferenceBrain
             .ConfigureModule<SupabaseModule, SupabaseModuleOptions>(database => database.WithPostgres())
             .ConfigureModule<GmailModule, GmailModuleOptions>(gmail => gmail.ProfileEndpoint = new(UnconfiguredProvider, "profile"))
             .ConfigureModule<SalesforceModule, SalesforceModuleOptions>(salesforce => salesforce.WithLocalMcp(new(UnconfiguredProvider, "mcp")))
-            .ConfigureModule<GitHubModule, GitHubModuleOptions>(github => github.WithGitHubRepositories(new Dictionary<string, GitHubRepositoryDeclaration>()))
             .ConfigureModule<FlutterModule, FlutterModuleOptions>(flutter => flutter.BackendOnly())
             .WithExecution(new()
             {

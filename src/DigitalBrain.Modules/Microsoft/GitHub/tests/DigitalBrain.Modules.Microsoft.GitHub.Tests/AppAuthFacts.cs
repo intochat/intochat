@@ -24,7 +24,7 @@ public sealed class AppAuthFacts
         var handler = new CapturingHandler();
         using var tokens = new GitHubInstallationTokens(brain.SiloServices.GetRequiredService<GitHubAppRegistration>(), handler, null);
 
-        await Assert.ThrowsAsync<GitHubAccessDeniedException>(() => tokens.GetTokenAsync(Binding(appId: 7), refresh: true, ct));
+        await Assert.ThrowsAsync<GitHubAccessDeniedException>(() => tokens.GetTokenAsync(Repository(appId: 7), refresh: true, ct));
 
         var jwt = Assert.IsType<string>(handler.Bearer).Split('.');
         Assert.True(appKey.VerifyData(Encoding.ASCII.GetBytes($"{jwt[0]}.{jwt[1]}"), Base64UrlDecode(jwt[2]), HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1));
@@ -40,13 +40,13 @@ public sealed class AppAuthFacts
         var handler = new CapturingHandler();
         using var tokens = new GitHubInstallationTokens(brain.SiloServices.GetRequiredService<GitHubAppRegistration>(), handler, null);
 
-        await Assert.ThrowsAsync<GitHubUnavailableException>(() => tokens.GetTokenAsync(Binding(appId: 7), refresh: true, ct));
+        await Assert.ThrowsAsync<GitHubUnavailableException>(() => tokens.GetTokenAsync(Repository(appId: 7), refresh: true, ct));
 
         Assert.Null(handler.Path);
     }
 
     [Fact]
-    public async Task ABindingOfAnotherAppIsNeverSignedForByTheRegisteredKey()
+    public async Task ARepositoryOfAnotherAppIsNeverSignedForByTheRegisteredKey()
     {
         var ct = TestContext.Current.CancellationToken;
         using var appKey = RSA.Create(2048);
@@ -54,9 +54,40 @@ public sealed class AppAuthFacts
         var handler = new CapturingHandler();
         using var tokens = new GitHubInstallationTokens(brain.SiloServices.GetRequiredService<GitHubAppRegistration>(), handler, null);
 
-        await Assert.ThrowsAsync<GitHubUnavailableException>(() => tokens.GetTokenAsync(Binding(appId: 8), refresh: true, ct));
+        await Assert.ThrowsAsync<GitHubUnavailableException>(() => tokens.GetTokenAsync(Repository(appId: 8), refresh: true, ct));
 
         Assert.Null(handler.Path);
+    }
+
+    [Fact]
+    public async Task AFullTokenCacheEvictsTheLeastRecentlyUsedConnectionInsteadOfRefusing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var appKey = RSA.Create(2048);
+        await using var brain = await Start(appKey.ExportPkcs8PrivateKeyPem(), "7", ct);
+        using var tokens = new GitHubInstallationTokens(brain.SiloServices.GetRequiredService<GitHubAppRegistration>(), new MintingHandler(), null, capacity: 2);
+
+        for (var connection = 0; connection < 5; connection++)
+        {
+            Assert.Equal($"token-{connection + 1}", await tokens.GetTokenAsync(Repository(7) with { Key = $"connection-{connection}" }, refresh: false, ct));
+            Assert.True(tokens.CachedConnections <= 2);
+        }
+        // The most recent connection is still cached; the first was evicted and mints again.
+        Assert.Equal("token-5", await tokens.GetTokenAsync(Repository(7) with { Key = "connection-4" }, refresh: false, ct));
+        Assert.Equal("token-6", await tokens.GetTokenAsync(Repository(7) with { Key = "connection-0" }, refresh: false, ct));
+        tokens.Forget("connection-0");
+        Assert.Equal("token-7", await tokens.GetTokenAsync(Repository(7) with { Key = "connection-0" }, refresh: false, ct));
+    }
+
+    [Fact]
+    public async Task ARateLimitedTokenMintIsUnavailableNotDenied()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var appKey = RSA.Create(2048);
+        await using var brain = await Start(appKey.ExportPkcs8PrivateKeyPem(), "7", ct);
+        using var tokens = new GitHubInstallationTokens(brain.SiloServices.GetRequiredService<GitHubAppRegistration>(), new RateLimitedHandler(), null);
+
+        await Assert.ThrowsAsync<GitHubUnavailableException>(() => tokens.GetTokenAsync(Repository(7), refresh: true, ct));
     }
 
     private static Task<ModuleBrain> Start(string? privateKeyPem, string? appId, CancellationToken cancellationToken)
@@ -74,11 +105,38 @@ public sealed class AppAuthFacts
             .StartAsync(cancellationToken);
     }
 
-    private static GitHubRepositoryBinding Binding(long appId)
-        => new("repo", 11, 9, appId, "intochat", "digitalbrain");
+    private static GitHubRepository Repository(long appId)
+        => new("repo", appId, 9, 11, "intochat", "digitalbrain");
 
     private static byte[] Base64UrlDecode(string text)
         => Convert.FromBase64String(text.Replace('-', '+').Replace('_', '/').PadRight((text.Length + 3) / 4 * 4, '='));
+
+    private sealed class MintingHandler : HttpMessageHandler
+    {
+        private int _minted;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var body = JsonSerializer.Serialize(new
+            {
+                token = $"token-{Interlocked.Increment(ref _minted)}",
+                expires_at = DateTimeOffset.UtcNow.AddHours(1),
+                repositories = new[] { new { id = 11 } },
+                permissions = new { contents = "read", metadata = "read" },
+            });
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Created) { Content = new StringContent(body, Encoding.UTF8, "application/json") });
+        }
+    }
+
+    private sealed class RateLimitedHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.Forbidden);
+            response.Headers.Add("X-RateLimit-Remaining", "0");
+            return Task.FromResult(response);
+        }
+    }
 
     private sealed class CapturingHandler : HttpMessageHandler
     {

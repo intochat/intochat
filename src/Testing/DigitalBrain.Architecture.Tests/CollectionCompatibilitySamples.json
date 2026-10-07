@@ -364,20 +364,6 @@
     "Expected": "[\"legacy-value\"]"
   },
   {
-    "Type": "DigitalBrain.Microsoft.GitHub.GitHubConnectionsState",
-    "Member": "Connections",
-    "Representation": "array",
-    "Payload": "MAEFIf9dN2RiLmdpdGh1Yi5jb25uZWN0aW9ucy1zdGF0ZegwAUUCnhFLZGIuZ2l0aHViLmdpdC1odWItY29ubmVjdGlvbi1yZWNvcmRbXQADIehAGWxlZ2FjeS12YWx1ZQEBAQEBAcELwQvBC+Dg4A==",
-    "Expected": "[{\"Id\":\"legacy-value\",\"AppId\":0,\"InstallationId\":0,\"RepositoryId\":0,\"RepositoryOwner\":\"legacy-value\",\"RepositoryName\":\"legacy-value\",\"Epoch\":\"legacy-value\"}]"
-  },
-  {
-    "Type": "DigitalBrain.Microsoft.GitHub.GitHubConnectionsState",
-    "Member": "Connections",
-    "Representation": "list",
-    "Payload": "MAEFIf9dN2RiLmdpdGh1Yi5jb25uZWN0aW9ucy1zdGF0ZegwAeT+qj6RU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdGAxW1tkYi5naXRodWIuZ2l0LWh1Yi1jb25uZWN0aW9uLXJlY29yZF1dAAMh6EAZbGVnYWN5LXZhbHVlAQEBAQEBwQvBC8EL4ODg",
-    "Expected": "[{\"Id\":\"legacy-value\",\"AppId\":0,\"InstallationId\":0,\"RepositoryId\":0,\"RepositoryOwner\":\"legacy-value\",\"RepositoryName\":\"legacy-value\",\"Epoch\":\"legacy-value\"}]"
-  },
-  {
     "Type": "DigitalBrain.Microsoft.GitHub.PullRequestSnapshot",
     "Member": "Checks",
     "Representation": "array",
