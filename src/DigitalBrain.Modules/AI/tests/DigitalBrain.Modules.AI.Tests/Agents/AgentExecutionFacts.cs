@@ -67,7 +67,7 @@ public sealed class AgentExecutionFacts
         Assert.Single(events.OfType<AgentTurnEvent.Failed>());
         Assert.Empty(events.OfType<AgentTurnEvent.Finished>());
         Assert.Equal(AgentRunStatus.Failed, Assert.Single((await agent.Read()).Runs).Status);
-        Assert.False((await brain.Get<IAgentExecution>("unavailable").Models()).Automatic.Available);
+        Assert.False((await brain.Get<IModelCatalog>("default").List()).Automatic.Available);
     }
 
     // The deployment's own client honors provider-neutral sampling; a provider-specific setting it
