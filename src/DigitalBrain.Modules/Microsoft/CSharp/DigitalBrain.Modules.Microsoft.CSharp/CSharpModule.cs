@@ -10,6 +10,7 @@ using DigitalBrain.Microsoft.CSharp.Catalog;
 using DigitalBrain.Microsoft.CSharp.Edge;
 using DigitalBrain.Microsoft.CSharp.Files;
 using DigitalBrain.Microsoft.CSharp.Files.Signals;
+using DigitalBrain.Microsoft.CSharp.Runtime;
 using DigitalBrain.Microsoft.CSharp.Sandbox;
 using DigitalBrain.Microsoft.CSharp.Sessions;
 using Microsoft.AspNetCore.Routing;
@@ -71,6 +72,8 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         }
         else { builder.Services.AddHttpClient<ICSharpRunner, AspireSandboxRunner>(); }
         builder.Services.AddHttpClient<SessionRunner>();
+        builder.Services.TryAddSingleton<SessionStreams>();
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<BrainRuntimeNeuron>, BrainRuntimeActivation>());
         if (authoring)
         {
             builder.Services.TryAddScoped(provider => provider.GetRequiredService<CSharpToolService>().ForScope(BrainScope.CurrentId()));
