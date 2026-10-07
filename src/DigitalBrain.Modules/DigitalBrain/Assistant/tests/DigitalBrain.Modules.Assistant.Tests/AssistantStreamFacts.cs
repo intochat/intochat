@@ -44,9 +44,8 @@ public sealed class AssistantStreamFacts
             silo.Services.AddSingleton<IAgentTurnRunner>(services => services.GetRequiredService<StreamScenarioRunner>());
             silo.Services.Configure<AIOptions>(options =>
             {
-                options.Default.Provider = "OpenAI";
-                options.Default.Model = "gpt-4.1-mini";
-                options.Default.Capabilities = LlmCapabilities.Tools;
+                options.ModelProfiles["default"] = new() { Provider = "OpenAI", Model = "gpt-4.1-mini", Capabilities = LlmCapabilities.Tools };
+                options.Default.Model = "default";
             });
         }).StartAsync(ct);
 

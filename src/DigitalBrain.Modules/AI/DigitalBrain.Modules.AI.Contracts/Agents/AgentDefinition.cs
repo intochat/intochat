@@ -6,7 +6,7 @@ public sealed record AgentDefinition
     [Id(0)] public string DisplayName { get; init; } = "Assistant";
     [Id(1)] public string Description { get; init; } = "";
     [Id(2)] public string Instructions { get; init; } = "";
-    [Id(3)] public AgentModelSelection? Model { get; init; }
+    [Id(3)] public ModelSelection? Model { get; init; }
     [Id(4)] public string[] Tools { get; init; } = [];
     [Id(5)] public string[] Capabilities { get; init; } = [];
     [Id(6)] public string[] RoutingExamples { get; init; } = [];

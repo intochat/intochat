@@ -8,8 +8,8 @@ public interface IAgentExecution : INeuron
 {
     [AlwaysInterleave, ResponseTimeout("00:10:00")]
     IAsyncEnumerable<AgentTurnEvent> Run(AgentTurnRequest request, string intentId, CancellationToken ct = default);
-    Task<ModelCatalog> Models(string? defaultModel = null);
-    Task<AgentModelSelection?> SelectModel(string? id, string? defaultModel = null);
+    Task<ModelChoices> Models(string? defaultModel = null);
+    Task<ModelSelection?> SelectModel(string? id, string? defaultModel = null);
     // A turn a script can hold: answers the run id at once and reports the turn as signals. It
     // keeps no state of its own, so a running turn never holds up starting another conversation's.
     [AlwaysInterleave] Task<string> Start(AgentTurnStart turn);

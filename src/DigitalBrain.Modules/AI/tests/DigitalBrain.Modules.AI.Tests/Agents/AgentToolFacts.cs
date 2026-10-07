@@ -10,7 +10,7 @@ public sealed class AgentToolFacts
     [Fact]
     public async Task AnUnserializableResultStillTerminatesTheToolAttempt()
     {
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(ScriptedClient())
+        using var services = new ServiceCollection().AddModelCatalog().AddSingleton<IChatClient>(ScriptedClient())
             .AddSingleton<IAgentToolFactory>(new UnserializableTool()).BuildServiceProvider();
         var events = new List<AgentTurnEvent>();
         await foreach (var item in new AgentTurnRunner(services).RunAsync(new("agent", "run", "scope", [], "ask", null, ToolNames: ["lookup"]), TestContext.Current.CancellationToken))
@@ -33,7 +33,7 @@ public sealed class AgentToolFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var tool = new ObservedStartTools();
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(ScriptedClient())
+        using var services = new ServiceCollection().AddModelCatalog().AddSingleton<IChatClient>(ScriptedClient())
             .AddSingleton<IAgentToolFactory>(tool).BuildServiceProvider();
         await foreach (var item in new AgentTurnRunner(services).RunAsync(new("agent", "run", "scope", [], "ask", null, ToolNames: ["lookup"]), ct))
         {
@@ -58,7 +58,7 @@ public sealed class AgentToolFacts
     public async Task ToolsUseActualCallIdentityAndNeverShareRunContext()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(ScriptedClient())
+        using var services = new ServiceCollection().AddModelCatalog().AddSingleton<IChatClient>(ScriptedClient())
             .AddSingleton<IAgentToolFactory, Tools>().BuildServiceProvider();
         var runner = new AgentTurnRunner(services);
         async Task<string[]> Run(string scope)
@@ -76,7 +76,7 @@ public sealed class AgentToolFacts
     [Fact]
     public async Task MissingSelectedToolFailsExplicitly()
     {
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(ScriptedClient()).BuildServiceProvider();
+        using var services = new ServiceCollection().AddModelCatalog().AddSingleton<IChatClient>(ScriptedClient()).BuildServiceProvider();
         var runner = new AgentTurnRunner(services);
         var events = new List<AgentTurnEvent>();
         await foreach (var item in runner.RunAsync(new("agent", "run", "scope", [], "ask", null, ToolNames: ["missing"]), TestContext.Current.CancellationToken)) { events.Add(item); }
@@ -87,7 +87,7 @@ public sealed class AgentToolFacts
     [Fact]
     public async Task DelayedToolFailureNeverFinishesTheRun()
     {
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(ScriptedClient())
+        using var services = new ServiceCollection().AddModelCatalog().AddSingleton<IChatClient>(ScriptedClient())
             .AddSingleton<IAgentToolFactory>(new Tools(fail: true)).BuildServiceProvider();
         var events = new List<AgentTurnEvent>();
         await foreach (var item in new AgentTurnRunner(services).RunAsync(new("agent", "run", "scope", [], "ask", null, ToolNames: ["lookup"]), TestContext.Current.CancellationToken)) { events.Add(item); }
@@ -104,7 +104,7 @@ public sealed class AgentToolFacts
     public async Task RepeatedUnavailableCallsStopAtTheModelCallBudget()
     {
         var calls = 0;
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(new StubChatClient((_, _, _) =>
+        using var services = new ServiceCollection().AddModelCatalog().AddSingleton<IChatClient>(new StubChatClient((_, _, _) =>
             Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant,
                 [new FunctionCallContent("unknown-" + ++calls, "unknown", new Dictionary<string, object?>())])))))
             .AddSingleton<IAgentToolFactory, Tools>().BuildServiceProvider();
@@ -123,7 +123,7 @@ public sealed class AgentToolFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var client = StubChatClient.Replying("done");
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(client)
+        using var services = new ServiceCollection().AddModelCatalog().AddSingleton<IChatClient>(client)
             .AddSingleton<IAgentContextProvider>(new FixedContext("capabilities", "Available: invoices"))
             .AddSingleton<IAgentContextProvider>(new FixedContext("unselected", "must not appear"))
             .AddSingleton<IAgentContextProvider>(new FailingContext())
@@ -141,7 +141,7 @@ public sealed class AgentToolFacts
     public async Task ContextToolsJoinTheTurnOnlyWhenTheHostRegistersThem()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(ScriptedClient())
+        using var services = new ServiceCollection().AddModelCatalog().AddSingleton<IChatClient>(ScriptedClient())
             .AddSingleton<IAgentToolFactory, Tools>()
             .AddSingleton<IAgentContextProvider>(new FixedContext("capabilities", "Available: lookup", ["lookup", "not_registered"]))
             .BuildServiceProvider();

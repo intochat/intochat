@@ -30,7 +30,7 @@ internal sealed class ScriptedLlmNeuron(
 
     public Task<IReadOnlyList<string>> Prompts() => Task.FromResult<IReadOnlyList<string>>(store.State.Prompts);
 
-    public Task<ModelDescriptor> Describe(AgentModelSelection? selection = null) => Task.FromResult(new ModelDescriptor(
+    public Task<ModelDescriptor> Describe(ModelSelection? selection = null) => Task.FromResult(new ModelDescriptor(
         ModelName, ModelName, null, "1", CapabilitySupport.Unsupported, CapabilitySupport.Unsupported, CapabilitySupport.Unsupported));
 
     public async Task<InferenceResult> Generate(InferenceRequest request, CancellationToken cancellationToken = default)

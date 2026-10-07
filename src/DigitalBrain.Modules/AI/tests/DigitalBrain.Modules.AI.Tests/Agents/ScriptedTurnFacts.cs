@@ -20,7 +20,7 @@ public sealed class ScriptedTurnFacts
 
         var events = new List<AgentTurnEvent>();
         await foreach (var item in brain.Get<IAgentExecution>("scripted").Run(new("agent", "run", "scope", [], "go",
-            new AgentModelSelection(Model: IScriptedLLM.ModelPrefix + "turn-model"), ToolNames: ["echo"]), "intent", ct))
+            new ModelSelection(IScriptedLLM.ModelPrefix + "turn-model"), ToolNames: ["echo"]), "intent", ct))
         { events.Add(item); }
 
         Assert.Equal("echo", Assert.Single(events.OfType<AgentTurnEvent.ToolStarted>()).Name);
@@ -41,7 +41,7 @@ public sealed class ScriptedTurnFacts
 
         var events = new List<AgentTurnEvent>();
         await foreach (var item in brain.Get<IAgentExecution>("scripted-empty").Run(new("agent", "run", "scope", [], "go",
-            new AgentModelSelection(Model: IScriptedLLM.ModelPrefix + "empty-model")), "intent", ct))
+            new ModelSelection(IScriptedLLM.ModelPrefix + "empty-model")), "intent", ct))
         { events.Add(item); }
 
         Assert.Contains("ran out of replies", Assert.Single(events.OfType<AgentTurnEvent.Failed>()).Message, StringComparison.Ordinal);

@@ -23,8 +23,8 @@ public sealed class AssistantTurnExecution(IServiceProvider services, IGrainFact
 {
     private AssistantOptions Options => services.GetRequiredService<IOptions<AssistantOptions>>().Value;
     private IAgentExecution Execution => grains.GetGrain<IAgentExecution>("assistant");
-    public Task<ModelCatalog> Models() => Execution.Models(Options.Model);
-    public Task<AgentModelSelection?> SelectModel(string? id) => Execution.SelectModel(id, Options.Model);
+    public Task<ModelChoices> Models() => Execution.Models(Options.Model);
+    public Task<ModelSelection?> SelectModel(string? id) => Execution.SelectModel(id, Options.Model);
 
 
     public async IAsyncEnumerable<string> Run(string workspace, AssistantRun input,
@@ -223,7 +223,7 @@ public sealed class AssistantTurnExecution(IServiceProvider services, IGrainFact
         }
     }
 
-    public static async Task<PreparedTurn> PrepareTurn(AgentConversationState snapshot, AssistantRun input, Func<string?, Task<AgentModelSelection?>> select)
+    public static async Task<PreparedTurn> PrepareTurn(AgentConversationState snapshot, AssistantRun input, Func<string?, Task<ModelSelection?>> select)
     {
         var replay = snapshot.Turns.SingleOrDefault(turn => turn.RunId == input.RunId);
         if (replay is not null)
@@ -235,15 +235,15 @@ public sealed class AssistantTurnExecution(IServiceProvider services, IGrainFact
         return new(null, await select(input.ModelProfile));
     }
 
-    public sealed record PreparedTurn(AgentConversationTurn? Replay, AgentModelSelection? Model);
+    public sealed record PreparedTurn(AgentConversationTurn? Replay, ModelSelection? Model);
 
     public static async Task<string?> RunModel(string scope, string run, string message, AgentDefinition definition,
         AgentConversationState state, string messageId, AssistantOptions configuration,
-        Func<AgentTurnRequest, CancellationToken, IAsyncEnumerable<AgentTurnEvent>> runner, Func<object, Task> emit, StringBuilder text, List<string> results, IntentActivity activity, CancellationToken ct, AgentModelSelection? modelSelection = null)
+        Func<AgentTurnRequest, CancellationToken, IAsyncEnumerable<AgentTurnEvent>> runner, Func<object, Task> emit, StringBuilder text, List<string> results, IntentActivity activity, CancellationToken ct, ModelSelection? modelSelection = null)
     {
         var finished = false;
         string? queryError = null;
-        var model = modelSelection ?? (configuration.Model is { Length: > 0 } modelName ? new AgentModelSelection(Model: modelName) : null);
+        var model = modelSelection ?? (configuration.Model is { Length: > 0 } modelName ? new ModelSelection(modelName) : null);
         await foreach (var item in runner(new("workspace-assistant", run, scope, state.Turns, message, model,
             definition.Instructions, definition.Tools, ContextProviders: definition.ContextProviders), ct))
         {

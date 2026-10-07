@@ -47,7 +47,7 @@ public sealed class AgentToolSelectionFacts
             Assert.Equal(selected, session.Tools.Select(tool => tool.Name));
         }
         // Resolve the selected tools in the real runner before it reaches the model.
-        using var services = new ServiceCollection().AddSingleton(source)
+        using var services = new ServiceCollection().AddModelCatalog().AddSingleton(source)
             .AddSingleton<IChatClient>(new ScriptedAssistantModel()).BuildServiceProvider();
         var events = new List<AgentTurnEvent>();
         await foreach (var item in new AgentTurnRunner(services).RunAsync(new("assistant", "run", scope, [], "hello", null, ToolNames: selected), ct))

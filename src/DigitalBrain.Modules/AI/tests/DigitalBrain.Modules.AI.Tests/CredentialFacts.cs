@@ -47,9 +47,8 @@ public sealed class CredentialFacts
             .WithModule<AIModule>()
             .ConfigureSilo(silo => silo.Services.Configure<AIOptions>(options =>
             {
-                options.Default.Provider = "OpenAI";
-                options.Default.Model = "test-model";
-                options.Default.Capabilities = LlmCapabilities.Tools;
+                options.ModelProfiles["default"] = new() { Provider = "OpenAI", Model = "test-model", Capabilities = LlmCapabilities.Tools };
+                options.Default.Model = "default";
             })).StartAsync(ct);
         var registration = brain.Get<IIntegration>("integration/openai");
         await using var changes = await brain.Observe<IntegrationChanged>(registration, ct);
@@ -121,8 +120,9 @@ public sealed class CredentialFacts
                 silo.Services.AddSingleton<TimeProvider>(clock);
                 silo.Services.Configure<AIOptions>(options =>
                 {
-                    options.Default.Provider = "OpenAI"; options.Default.Model = "test-model";
-                    if (defaultMode == 2) { options.Default.Profile = "pinned"; options.ModelProfiles["pinned"] = new() { Provider = "OpenAI", Model = "test-model" }; }
+                    var profile = defaultMode == 2 ? "pinned" : "default";
+                    options.ModelProfiles[profile] = new() { Provider = "OpenAI", Model = "test-model" };
+                    options.Default.Model = profile;
                 });
             }).StartAsync(ct);
         var registration = brain.Get<IIntegration>("integration/openai");
@@ -185,9 +185,8 @@ public sealed class CredentialFacts
                 silo.Services.AddSingleton<TimeProvider>(clock);
                 silo.Services.Configure<AIOptions>(options =>
                 {
-                    options.Default.Provider = "OpenAI";
-                    options.Default.Model = "test-model";
-                    options.Default.Capabilities = LlmCapabilities.Tools;
+                    options.ModelProfiles["default"] = new() { Provider = "OpenAI", Model = "test-model", Capabilities = LlmCapabilities.Tools };
+                    options.Default.Model = "default";
                 });
             }).StartAsync(ct);
         var registration = brain.Get<IIntegration>("integration/openai");

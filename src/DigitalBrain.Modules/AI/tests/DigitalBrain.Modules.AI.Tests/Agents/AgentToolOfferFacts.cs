@@ -12,7 +12,7 @@ public sealed class AgentToolOfferFacts
     public async Task AnOfferedToolJoinsTheRestOfTheTurn()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(FindThenCallClient())
+        using var services = new ServiceCollection().AddModelCatalog().AddSingleton<IChatClient>(FindThenCallClient())
             .AddSingleton<IAgentToolFactory>(new OfferingTools()).BuildServiceProvider();
         var events = new List<AgentTurnEvent>();
 
@@ -27,7 +27,7 @@ public sealed class AgentToolOfferFacts
     public async Task DiscoveryResolvesSourceToolsWithLiveContextAndDisposesSessions()
     {
         var source = new DynamicSource();
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(FindThenCallClient())
+        using var services = new ServiceCollection().AddModelCatalog().AddSingleton<IChatClient>(FindThenCallClient())
             .AddSingleton<IAgentToolFactory>(new DiscoveryTools("extra"))
             .AddSingleton<IAgentToolSource>(source).BuildServiceProvider();
         var events = new List<AgentTurnEvent>();
@@ -43,7 +43,7 @@ public sealed class AgentToolOfferFacts
     [Fact]
     public async Task UnknownOffersFailClearly()
     {
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(FindThenCallClient())
+        using var services = new ServiceCollection().AddModelCatalog().AddSingleton<IChatClient>(FindThenCallClient())
             .AddSingleton<IAgentToolFactory>(new DiscoveryTools("missing")).BuildServiceProvider();
         var events = new List<AgentTurnEvent>();
         await foreach (var item in new AgentTurnRunner(services).RunAsync(new("agent", "run", "scope", [], "ask", null, ToolNames: ["find"]), TestContext.Current.CancellationToken))
@@ -58,7 +58,7 @@ public sealed class AgentToolOfferFacts
             messages.SelectMany(message => message.Contents).OfType<FunctionResultContent>().Any()
                 ? new ChatMessage(ChatRole.Assistant, "recovered")
                 : new ChatMessage(ChatRole.Assistant, [new FunctionCallContent("missing-call", "extra", new Dictionary<string, object?>())]))));
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(client)
+        using var services = new ServiceCollection().AddModelCatalog().AddSingleton<IChatClient>(client)
             .AddSingleton<IAgentToolFactory>(new OfferingTools()).BuildServiceProvider();
         var events = new List<AgentTurnEvent>();
         await foreach (var item in new AgentTurnRunner(services).RunAsync(new("agent", "run", "scope", [], "ask", null, ToolNames: ["find"]), TestContext.Current.CancellationToken))
@@ -73,7 +73,7 @@ public sealed class AgentToolOfferFacts
     [Fact]
     public async Task UserWordsDoNotFilterExplicitlySelectedTools()
     {
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(new StubChatClient((_, options, _) =>
+        using var services = new ServiceCollection().AddModelCatalog().AddSingleton<IChatClient>(new StubChatClient((_, options, _) =>
         {
             Assert.Contains(options!.Tools!, tool => tool.Name == "supabase_schema");
             return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "done")));

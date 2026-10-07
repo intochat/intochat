@@ -18,7 +18,7 @@ public sealed class AgentTurnFacts
     public async Task RunModelForwardsTheSelectedProfileInsteadOfTheServerDefault()
     {
         var runner = new RecordingRunner();
-        var selected = new AgentModelSelection(Profile: "work");
+        var selected = new ModelSelection("work");
         var configuration = new AssistantOptions { Model = "IGpt56Luna" };
 
         await AssistantTurnExecution.RunModel("scope", "run", "hello", AssistantDefinition.Product, EmptyState, "reply",

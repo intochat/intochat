@@ -17,7 +17,7 @@ public sealed class ToolReceiptFacts
     [InlineData(true, "tool_failed")]
     public async Task RealRunnerFailuresReachReceiptsWithOneCallAndAReason(bool registered, string code)
     {
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(new CallingModel())
+        using var services = new ServiceCollection().AddModelCatalog().AddSingleton<IChatClient>(new CallingModel())
             .AddSingleton<IAgentToolFactory>(new FailingTool()).BuildServiceProvider();
         var activity = new IntentActivity();
         var emitted = new List<JsonElement>();

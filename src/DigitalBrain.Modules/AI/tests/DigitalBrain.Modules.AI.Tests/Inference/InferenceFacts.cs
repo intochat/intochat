@@ -17,9 +17,9 @@ public sealed class InferenceFacts
     [MemberData(nameof(OpenAiScopedOptions))]
     public void ProviderScopedOptionsApplyOnlyToTheirOwnProvider(InferenceOptions options)
     {
-        var model = new ResolvedAgentModel("OpenAI", "model", null, null, "revision", LlmCapabilities.Tools, null, null);
+        var model = new ResolvedModel(AiProvider.OpenAI, "model", null, null, "revision", LlmCapabilities.Tools, null, null);
         Assert.False(InferenceMapping.CreateOptions(model, options).AllowMultipleToolCalls);
-        Assert.Throws<ArgumentException>(() => InferenceMapping.CreateOptions(model with { Provider = "Anthropic" }, options));
+        Assert.Throws<ArgumentException>(() => InferenceMapping.CreateOptions(model with { Provider = AiProvider.Anthropic }, options));
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public sealed class InferenceFacts
     [Fact]
     public void ResolvedReasoningCannotBypassProfileAllowedValues()
     {
-        var model = new ResolvedAgentModel("OpenAI", "model", null, "profile", "revision", LlmCapabilities.None, "high", null);
+        var model = new ResolvedModel(AiProvider.OpenAI, "model", null, "profile", "revision", LlmCapabilities.None, "high", null);
         var descriptor = new ModelDescriptor("OpenAI", "model", "profile", "revision", CapabilitySupport.Unsupported,
             CapabilitySupport.Unsupported, CapabilitySupport.Unsupported, AllowedReasoning: ["none", "low"]);
         Assert.Throws<ArgumentException>(() => InferenceMapping.CreateOptions(model, null, descriptor));
@@ -44,15 +44,6 @@ public sealed class InferenceFacts
     {
         var content = new AiImage("data:image/png;base64," + new string('A', 12 * 1024 * 1024));
         Assert.Throws<ArgumentException>(() => InferenceMapping.ToContent(content));
-    }
-
-    [Fact]
-    public void RequestsCannotPromoteTheirOwnCapabilities()
-    {
-        var descriptor = new ModelDescriptor("OpenAI", "model", "profile", "revision", CapabilitySupport.Unsupported,
-            CapabilitySupport.Unsupported, CapabilitySupport.Unsupported);
-        Assert.Throws<ArgumentException>(() => InferenceMapping.ValidateRequest(new([new("user", [new AiText("hi")])],
-            Model: new(Capabilities: LlmCapabilities.Tools)), descriptor));
     }
 
     [Fact]
@@ -85,7 +76,7 @@ public sealed class InferenceFacts
     [Fact]
     public void UnknownProviderOptionsAreRejected()
         => Assert.Throws<ArgumentException>(() => InferenceMapping.CreateOptions(
-            new("OpenAI", "model", null, null, "revision", LlmCapabilities.None, null, null),
+            new(AiProvider.OpenAI, "model", null, null, "revision", LlmCapabilities.None, null, null),
             new(ProviderOptions: new Dictionary<string, string> { ["made-up"] = "true" })));
 
     [Fact]
@@ -105,12 +96,12 @@ public sealed class InferenceFacts
                 AllowedReasoning = ["none", "low"],
             };
         }).AddSingleton<IAiCredentials>(new FixedAiCredentials().Ready("openai", "test-only"))
-            .AddSingleton<ModelProfiles>().AddSingleton<InferenceService>().BuildServiceProvider();
-        var descriptor = await services.GetRequiredService<InferenceService>().Describe(new(Profile: "bounded"), cancellationToken: TestContext.Current.CancellationToken);
+            .AddSingleton<ModelCatalog>().AddSingleton<InferenceService>().BuildServiceProvider();
+        var descriptor = await services.GetRequiredService<InferenceService>().Describe(new("bounded"), cancellationToken: TestContext.Current.CancellationToken);
         Assert.Equal(4000, descriptor.ContextWindowTokens);
         Assert.Equal(500, descriptor.MaximumOutputTokens);
         Assert.Equal(CapabilitySupport.Unsupported, descriptor.TopP);
-        var model = await services.GetRequiredService<ModelProfiles>().Resolve(new(Profile: "bounded"), cancellationToken: TestContext.Current.CancellationToken);
+        var model = await services.GetRequiredService<ModelCatalog>().Resolve(new("bounded"), false, TestContext.Current.CancellationToken);
         Assert.Equal(0.5f, InferenceMapping.CreateOptions(model, new(Temperature: 0.5f), descriptor).Temperature);
         Assert.Throws<ArgumentException>(() => InferenceMapping.CreateOptions(model, new(TopP: 0.5f), descriptor));
         Assert.Throws<ArgumentException>(() => InferenceMapping.CreateOptions(model, new(MaxOutputTokens: 501), descriptor));
@@ -130,14 +121,14 @@ public sealed class InferenceFacts
                 options.ModelProfiles["custom"] = new() { Provider = "OpenAI", Model = "custom-model" };
             })).StartAsync(ct);
         var generic = brain.Get<ILLM>("generic");
-        var description = await generic.Describe(new(Profile: "custom"));
+        var description = await generic.Describe(new("custom"));
         Assert.Equal("custom-model", description.Model);
         Assert.Equal(CapabilitySupport.Unknown, description.Tools);
         Assert.Null(description.ContextWindowTokens);
         Assert.Equal("custom-model", (await brain.Get<ILLM>("custom").Describe()).Model);
         var typed = brain.Get<DigitalBrain.AI.OpenAI.IGpt56Sol>("typed");
         Assert.Equal("gpt-5.6-sol", (await typed.Describe()).Model);
-        await Assert.ThrowsAsync<ArgumentException>(() => typed.Describe(new(Profile: "custom")));
+        await Assert.ThrowsAsync<ArgumentException>(() => typed.Describe(new("custom")));
     }
 
     [Fact]

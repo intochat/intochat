@@ -7,7 +7,7 @@ public abstract class LlmNeuronBase(InferenceService inference, Type? marker = n
 {
     public override DigitalBrain.Framework.NeuronAccess Access(string operation)
         => new(DigitalBrain.Framework.BrainScope.CurrentId());
-    public Task<ModelDescriptor> Describe(AgentModelSelection? selection = null)
+    public Task<ModelDescriptor> Describe(ModelSelection? selection = null)
         => inference.Describe(Selection(selection), marker);
     public async Task<InferenceResult> Generate(InferenceRequest request, CancellationToken cancellationToken = default)
     {
@@ -50,11 +50,11 @@ public abstract class LlmNeuronBase(InferenceService inference, Type? marker = n
         }
     }
 
-    private AgentModelSelection? Selection(AgentModelSelection? selection)
+    private ModelSelection? Selection(ModelSelection? selection)
     {
         if (selection is not null) { return selection; }
         var key = this.GetPrimaryKeyString();
-        return key == "default" || (marker is not null && !inference.HasProfile(key)) ? null : new(Profile: key);
+        return key == "default" || (marker is not null && !inference.HasProfile(key)) ? null : new(key);
     }
 }
 
