@@ -1,8 +1,10 @@
 using Azure.Core;
 using Azure.Identity;
+using Azure.Storage.Blobs;
 using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Microsoft.CSharp.Assemblies;
 using DigitalBrain.Microsoft.CSharp.Authoring;
 using DigitalBrain.Microsoft.CSharp.Catalog;
 using DigitalBrain.Microsoft.CSharp.Edge;
@@ -56,6 +58,9 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         builder.Services.TryAddSingleton<CSharpDirectives>();
         builder.Services.TryAddSingleton<CSharpContractDiscovery>();
         builder.Services.TryAddSingleton<CSharpScriptCheck>();
+        builder.Services.TryAddSingleton<IBehaviorAssemblies>(provider =>
+            provider.GetKeyedService<BlobServiceClient>(DigitalBrainNames.GrainState) is { } storage
+                ? new BlobBehaviorAssemblies(storage) : new MemoryBehaviorAssemblies());
         if (!string.IsNullOrWhiteSpace(builder.Configuration[CSharpDeploymentSettings.SectionName + ":SessionPoolEndpoint"]))
         {
             builder.Services.TryAddSingleton<TokenCredential>(_ => new DefaultAzureCredential());

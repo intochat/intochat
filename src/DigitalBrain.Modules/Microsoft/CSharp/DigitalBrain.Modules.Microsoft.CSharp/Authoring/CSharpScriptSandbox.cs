@@ -1,8 +1,9 @@
 using DigitalBrain.Apps;
+using DigitalBrain.Microsoft.CSharp.Assemblies;
 
 namespace DigitalBrain.Microsoft.CSharp.Authoring;
 
-public sealed class CSharpScriptSandbox(CSharpToolService tools) : IScriptSandbox
+public sealed class CSharpScriptSandbox(CSharpToolService tools, IBehaviorAssemblies assemblies) : IScriptSandbox
 {
     public bool CanRun => tools.CanRun;
     public string AuthoringDescription => """
@@ -29,12 +30,13 @@ public sealed class CSharpScriptSandbox(CSharpToolService tools) : IScriptSandbo
             catalog.Contracts, catalog.Example, catalog.Truncated);
     }
 
-    public Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
+    public async Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
     {
         var checker = tools.Check ?? throw new InvalidOperationException("This host has no script compiler.");
         var result = checker.Compile(files);
-        return Task.FromResult(new ScriptCompilationCheck(result.Success,
+        foreach (var compiled in result.Assemblies.Values) { await assemblies.Put(compiled, cancellationToken); }
+        return new ScriptCompilationCheck(result.Success,
             [.. result.Errors.Select(error => new ScriptCompilationDiagnostic(error.File, error.Id, error.Line, error.Message))])
-        { Hashes = result.Assemblies.ToDictionary(file => file.Key, file => file.Value.Hash, StringComparer.Ordinal) });
+        { Hashes = result.Assemblies.ToDictionary(file => file.Key, file => file.Value.Hash, StringComparer.Ordinal) };
     }
 }
