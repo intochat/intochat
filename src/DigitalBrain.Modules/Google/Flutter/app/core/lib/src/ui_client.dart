@@ -887,7 +887,7 @@ final class DigitalBrainUiClient {
     Object? body,
   ]) async {
     // Creating or authoring an app is one model inference call; everything else on the
-    // apps surface (implement, verify) answers immediately with 202.
+    // apps surface (implement) answers immediately with 202.
     final authoring =
         method == 'POST' &&
         (path.endsWith('/apps') || path.endsWith('/author'));

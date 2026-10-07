@@ -5,8 +5,7 @@ public enum AppStatus { Drafted, Building, Live, Failed }
 [GenerateSerializer, Alias("apps.version")]
 public sealed record AppVersionSummary(
     [property: Id(0)] string Version,
-    [property: Id(1)] DateTimeOffset SavedAt,
-    [property: Id(2)] bool? Green);
+    [property: Id(1)] DateTimeOffset SavedAt);
 
 [GenerateSerializer, Alias("apps.snapshot2")]
 public sealed record AppSnapshot(
@@ -20,7 +19,6 @@ public sealed record AppSnapshot(
     [property: Id(7)] AppStatus Status,
     [property: Id(8)] string[] Activity,
     [property: Id(9)] AppVersionSummary[] Versions,
-    [property: Id(10)] AppScenarioVerdict[] Verdicts,
-    [property: Id(11)] string? PublishedVersion = null,
-    [property: Id(12)] AppOrigin? Origin = null,
-    [property: Id(13)] bool Edited = false);
+    [property: Id(10)] string? PublishedVersion = null,
+    [property: Id(11)] AppOrigin? Origin = null,
+    [property: Id(12)] bool Edited = false);

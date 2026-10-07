@@ -12,22 +12,20 @@ public sealed class AppState
     [Id(6)] public AppStatus Status { get; set; }
     [Id(7)] public string[] Activity { get; set; } = [];
     [Id(8)] public AppVersionRecord[] History { get; set; } = [];
-    [Id(9)] public AppScenarioVerdict[] Verdicts { get; set; } = [];
-    [Id(10)] public Dictionary<string, bool> Verified { get; set; } = [];
-    [Id(11)] public Guid BuildAttempt { get; set; }
-    [Id(12)] public DateTimeOffset BuildStartedAt { get; set; }
-    [Id(13)] public string? BrainScopeId { get; set; }
-    [Id(14)] public int ProgramGeneration { get; set; }
-    [Id(15)] public string[] StorageFiles { get; set; } = [];
-    [Id(16)] public string[] DeployedFiles { get; set; } = [];
-    [Id(17)] public Dictionary<string, string> BehaviorErrors { get; set; } = [];
-    [Id(18)] public List<AppInvocation> Invocations { get; set; } = [];
-    [Id(19)] public List<OperationReceipt> Receipts { get; set; } = [];
-    [Id(20)] public string? PublishedVersion { get; set; }
-    [Id(21)] public AppOrigin? Origin { get; set; }
-    [Id(22)] public bool Edited { get; set; }
-    [Id(23)] public AppVersionRecord? Published { get; set; }
-    [Id(24)] public string? Publisher { get; set; }
+    [Id(9)] public Guid BuildAttempt { get; set; }
+    [Id(10)] public DateTimeOffset BuildStartedAt { get; set; }
+    [Id(11)] public string? BrainScopeId { get; set; }
+    [Id(12)] public int ProgramGeneration { get; set; }
+    [Id(13)] public string[] StorageFiles { get; set; } = [];
+    [Id(14)] public string[] DeployedFiles { get; set; } = [];
+    [Id(15)] public Dictionary<string, string> BehaviorErrors { get; set; } = [];
+    [Id(16)] public List<AppInvocation> Invocations { get; set; } = [];
+    [Id(17)] public List<OperationReceipt> Receipts { get; set; } = [];
+    [Id(18)] public string? PublishedVersion { get; set; }
+    [Id(19)] public AppOrigin? Origin { get; set; }
+    [Id(20)] public bool Edited { get; set; }
+    [Id(21)] public AppVersionRecord? Published { get; set; }
+    [Id(22)] public string? Publisher { get; set; }
 
     public AppState Clone() => new()
     {
@@ -40,8 +38,6 @@ public sealed class AppState
         Status = Status,
         Activity = [.. Activity],
         History = [.. History],
-        Verdicts = [.. Verdicts],
-        Verified = new(Verified, StringComparer.Ordinal),
         BuildAttempt = BuildAttempt,
         BuildStartedAt = BuildStartedAt,
         BrainScopeId = BrainScopeId,

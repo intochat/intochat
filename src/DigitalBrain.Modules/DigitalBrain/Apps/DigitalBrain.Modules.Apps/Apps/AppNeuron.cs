@@ -6,8 +6,8 @@ using Microsoft.Extensions.Options;
 namespace DigitalBrain.Apps;
 
 // The app: the only durable thing in the module. Manifest, spec, files, connections,
-// semver history, status and activity all live here; builders and verifiers are caches
-// that write their results back in.
+// semver history, status and activity all live here; the Builder is a cache that writes
+// its results back in.
 [GrainType(DigitalBrain.Framework.AppGrainType.Name)]
 internal sealed class AppNeuron(
     [PersistentState("app2", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<AppState> store,
@@ -40,7 +40,7 @@ internal sealed class AppNeuron(
         next.Version = "0.1.0";
         next.Status = AppStatus.Drafted;
         Record(next);
-        await TrackUnlessScratch();
+        await GrainFactory.GetGrain<IAppIndex>(BrainId()).Track(Name());
         await Persist(next);
         return Describe(Snapshot);
     }
@@ -225,32 +225,6 @@ internal sealed class AppNeuron(
         return Describe(Snapshot);
     }
 
-    public async Task<AppSnapshot> BeginVerify()
-    {
-        RequireCreated();
-        if (!Snapshot.Files.ContainsKey(AppFiles.TestsPath))
-        { throw new InvalidOperationException($"This app has no {AppFiles.TestsPath} yet; implement it first."); }
-        var next = Snapshot.Clone();
-        next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), "verification started"];
-        await Persist(next);
-        return Describe(Snapshot);
-    }
-
-    public async Task RecordVerdicts(AppScenarioVerdict[] verdicts, bool green, string? version = null)
-    {
-        RequireCreated();
-        ArgumentNullException.ThrowIfNull(verdicts);
-        var tested = version ?? Snapshot.Version;
-        var next = Snapshot.Clone();
-        next.Verified[tested] = green;
-        // Verdicts for a version the app has moved past stay informative, never current facts.
-        if (tested == next.Version) { next.Verdicts = verdicts; }
-        next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1),
-            (green ? "verification green" : "verification red") + (tested == next.Version ? "" : $" (for {tested})")];
-        var name = Name();
-        await Save(next, new AppChanged(name, next.Version, next.Status), new AppVerified(name, tested, green));
-    }
-
     public Task<AppBundle> Export()
     {
         RequireCreated();
@@ -284,7 +258,7 @@ internal sealed class AppNeuron(
         // (a listing whose bundle Install cannot read).
         await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).Upsert(new MarketplaceListing(
             caller.PrincipalId, caller.AccountId, caller.BrainId, name, manifest.Title, manifest.Description,
-            next.Version, manifest.Icon, []));
+            next.Version, manifest.Icon));
         return Describe(Snapshot);
     }
 
@@ -321,7 +295,7 @@ internal sealed class AppNeuron(
         var behaviors = next.Files.Keys.Where(AppFiles.IsSynapse).ToArray();
         next.StorageFiles = Deployable()?.Keys(this.GetPrimaryKeyString(), next.ProgramGeneration, behaviors) ?? [];
         Record(next);
-        await TrackUnlessScratch();
+        await GrainFactory.GetGrain<IAppIndex>(BrainId()).Track(Name());
         await Persist(next);
         foreach (var path in behaviors) { await DeployBehavior(path, next.Files[path], swap: false); }
         return Describe(Snapshot);
@@ -453,12 +427,6 @@ internal sealed class AppNeuron(
 
     private IDeployableRuntime? Deployable() => deployables.FirstOrDefault(candidate => candidate.Name == AppFiles.Runtime);
 
-    // A verification scratch copy is working state, not one of the brain's apps.
-    private Task TrackUnlessScratch()
-        => Name().Contains(AppFiles.VerifyMarker, StringComparison.Ordinal)
-            ? Task.CompletedTask
-            : GrainFactory.GetGrain<IAppIndex>(BrainId()).Track(Name());
-
     private async Task DeployBehavior(string path, string source, bool swap)
     {
         if (Deployable() is not { } deployable) { return; }
@@ -579,9 +547,7 @@ internal sealed class AppNeuron(
         state.Version,
         state.Status,
         [.. state.Activity],
-        [.. state.History.Select(record => new AppVersionSummary(record.Version, record.SavedAt,
-            state.Verified.TryGetValue(record.Version, out var green) ? green : null))],
-        [.. state.Verdicts],
+        [.. state.History.Select(record => new AppVersionSummary(record.Version, record.SavedAt))],
         state.PublishedVersion,
         state.Origin,
         state.Edited);

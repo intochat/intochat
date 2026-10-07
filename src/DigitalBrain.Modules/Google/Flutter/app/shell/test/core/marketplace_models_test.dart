@@ -55,18 +55,13 @@ void main() {
         'description': 'Research companies',
         'version': '1.3.0',
         'icon': 'icon.svg',
-        'scenarios': ['Opening the researcher composes its surface'],
       },
       'installed': true,
       'updateAvailable': true,
     });
     expect(entry.listing.title, 'Customer Researcher');
-    expect(entry.listing.scenarios, [
-      'Opening the researcher composes its surface',
-    ]);
     expect(entry.installed, isTrue);
     expect(entry.updateAvailable, isTrue);
-    expect(() => entry.listing.scenarios.add('x'), throwsUnsupportedError);
   });
 
   test(

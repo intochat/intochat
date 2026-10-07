@@ -159,7 +159,6 @@ internal static class AppsEndpoints
         status = snapshot.Status.ToString(),
         activity = snapshot.Activity,
         versions = snapshot.Versions,
-        verdicts = snapshot.Verdicts,
         publishedVersion = snapshot.PublishedVersion,
         origin = snapshot.Origin,
         edited = snapshot.Edited,

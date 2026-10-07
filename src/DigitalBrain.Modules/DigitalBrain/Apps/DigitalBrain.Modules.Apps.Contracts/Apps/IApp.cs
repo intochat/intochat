@@ -20,13 +20,9 @@ public interface IApp : INeuron
     Task<Guid> CurrentBuildAttempt();
     Task Progress(string line);
     [ResponseTimeout("00:10:00")] Task<AppSnapshot> CompleteBuild(Guid attempt, Dictionary<string, string>? files, string? error, AppManifest? manifest = null);
-    Task<AppSnapshot> BeginVerify();
-    // Verdicts bind to the version that was actually tested; a run finishing after an edit
-    // marks that older version, never the current one.
-    Task RecordVerdicts(AppScenarioVerdict[] verdicts, bool green, string? version = null);
     Task<AppBundle> Export();
-    // Publishes the current green version: it becomes the Marketplace listing and the bundle
-    // every Install copies, until the next Publish.
+    // Publishes the current version once its scripts compile: it becomes the Marketplace listing and the
+    // bundle every Install copies, until the next Publish.
     Task<AppSnapshot> Publish();
     // The published version's bundle, readable by anyone: a published app is public by definition.
     Task<AppBundle> ExportPublished();

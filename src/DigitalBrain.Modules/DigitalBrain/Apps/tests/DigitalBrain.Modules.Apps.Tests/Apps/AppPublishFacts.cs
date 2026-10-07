@@ -129,7 +129,7 @@ public sealed class AppPublishFacts
         await app.Publish();
         Caller.Clear();
 
-        var forged = new MarketplaceListing("intochat", "account-intochat", "intochat", "echo", "Echo", "forged", "9.9.9", null, []);
+        var forged = new MarketplaceListing("intochat", "account-intochat", "intochat", "echo", "Echo", "forged", "9.9.9", null);
         await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => Marketplace(brain).Upsert(forged));
         await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => Marketplace(brain).Remove("intochat", "echo"));
         Assert.Equal("echoes", (await Marketplace(brain).Read("intochat", "echo"))!.Description);
