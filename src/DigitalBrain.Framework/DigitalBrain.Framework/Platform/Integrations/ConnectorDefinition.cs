@@ -1,3 +1,5 @@
+using DigitalBrain.Framework.Platform.Connections;
+
 namespace DigitalBrain.Framework.Platform.Integrations;
 
 public sealed record ConnectorDefinition(string Id, string DisplayName, string[] AuthMethods, string[] RequiredIntegrations)
@@ -6,6 +8,7 @@ public sealed record ConnectorDefinition(string Id, string DisplayName, string[]
     public string[] OptionalIntegrations { get; init; } = [];
     public Type[] Neurons { get; init; } = [];
     public Type[] Signals { get; init; } = [];
+    public OAuthMethod[] OAuthMethods { get; init; } = [];
 }
 
 public interface IIntegrationHandle

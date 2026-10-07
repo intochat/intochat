@@ -18,23 +18,9 @@ internal static class ConnectionEndpoints
 
     internal static void MapConnections(this IEndpointRouteBuilder endpoints)
     {
+        // The list and /requests moved to Connections.ConnectionEndpoints; this group keeps the
+        // registry's connect, probe and disconnect until the registry goes.
         var group = BrainRoutes.Group(endpoints, "/connections");
-        group.MapGet("", async (IGrainFactory grains, IEnumerable<IExternalConnection> external, CancellationToken cancellationToken) =>
-        {
-            var scope = CurrentScope();
-            var rows = ScopedConnections.Visible(scope, await grains.GetGrain<IConnectionRegistry>(scope.Id).List(cancellationToken))
-                .Select(Project).ToList();
-            foreach (var account in external)
-            {
-                if (await account.ReadAsync(grains, cancellationToken) is { } row) { rows.Add(row); }
-            }
-
-            return Results.Ok(rows);
-        });
-
-        group.MapGet("/requests", async (IGrainFactory grains) =>
-            Results.Ok(await grains.GetGrain<DigitalBrain.Integrations.IConnectionRequests>(CurrentScope().Id).ListPending()));
-
         group.MapPost("/connect", async (ConnectConnectionInput input, IGrainFactory grains, CancellationToken cancellationToken) =>
         {
             // The browser may supply a new value, never a reference into any vault.

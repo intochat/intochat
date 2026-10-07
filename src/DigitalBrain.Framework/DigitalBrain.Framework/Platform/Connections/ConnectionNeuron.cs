@@ -47,6 +47,9 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
         RequireMember();
         RequireAuthMethod(authMethodId);
+        // An OAuth method's token arrives only through AcceptGrant, after the Platform's code exchange.
+        if (Connector.OAuthMethods.Any(method => method.Id == authMethodId))
+        { throw new ArgumentException($"Authentication method '{authMethodId}' of connector '{Key.Connector}' is a browser login; start it from the login route.", nameof(authMethodId)); }
         Snapshot.AuthMethodId = authMethodId;
         Snapshot.Secrets = [Sealer.Seal(ValueSecret, value)];
         Snapshot.ExpiresAt = null;

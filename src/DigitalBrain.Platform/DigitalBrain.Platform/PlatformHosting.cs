@@ -1,7 +1,9 @@
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Platform.Capacity;
+using DigitalBrain.Platform.Connections;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Directory;
 using DigitalBrain.Platform.Identity.Grants;
@@ -51,6 +53,15 @@ public static class PlatformHosting
         services.TryAddSingleton<IGrantPolicySource, GrainGrantPolicySource>();
         services.TryAddSingleton<IIdentity, PlatformIdentity>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICallFilterStage, GrantCallFilterStage>());
+        services.AddOptions<ConnectionsOptions>().BindConfiguration(ConnectionsOptions.SectionName);
+        // Silo singletons: a restart takes the pending logins with it, so a callback fails closed.
+        services.TryAddSingleton<Connections.OAuth.OAuthLoginRequests>();
+        services.TryAddSingleton<Connections.OAuth.OAuthTokenExchange>();
+        services.TryAddSingleton<IOAuthTokenExchange>(provider => provider.GetRequiredService<Connections.OAuth.OAuthTokenExchange>());
+        services.TryAddSingleton<Connections.OAuth.OAuthLoginFlow>();
+        services.AddHttpClient(Connections.OAuth.OAuthTokenExchange.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+        services.AddSingleton<IHttpSurface, Connections.OAuth.OAuthCallback>();
     }
 
     public static IEndpointRouteBuilder MapDigitalBrainPlatform(this IEndpointRouteBuilder endpoints)
@@ -59,6 +70,7 @@ public static class PlatformHosting
         endpoints.MapSecrets();
         endpoints.MapIntegrations();
         endpoints.MapConnections();
+        endpoints.MapConnectionNeurons();
         endpoints.MapCapabilities();
         IdentityEndpoints.Map(endpoints);
         return endpoints;

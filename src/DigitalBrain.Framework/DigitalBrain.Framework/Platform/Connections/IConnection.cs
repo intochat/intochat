@@ -1,7 +1,10 @@
+using System.Text.Json.Serialization;
 using Orleans.Concurrency;
 
 namespace DigitalBrain.Framework.Platform.Connections;
 
+// The shell reads the status by name.
+[JsonConverter(typeof(JsonStringEnumConverter<ConnectionStatus>))]
 public enum ConnectionStatus
 {
     Connected = 0,

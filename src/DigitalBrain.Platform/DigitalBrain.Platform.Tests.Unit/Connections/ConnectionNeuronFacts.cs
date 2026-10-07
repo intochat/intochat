@@ -194,4 +194,19 @@ public sealed class ConnectionNeuronFacts
         try { await Assert.ThrowsAsync<ArgumentException>(() => brain.Get<IConnection>(Key()).Connect("password", "x")); }
         finally { Clear(); }
     }
+
+    [Fact]
+    public async Task ConnectRefusesAnOAuthMethodBecauseOnlyTheCallbackGrantsOne()
+    {
+        await using var brain = await Start();
+        Stamp(Alice);
+        await brain.AuthorizeCallerAsync();
+        try
+        {
+            var connection = brain.Get<IConnection>(Key());
+            await Assert.ThrowsAsync<ArgumentException>(() => connection.Connect("oauth", "pasted-token"));
+            Assert.Equal(ConnectionStatus.Disconnected, (await connection.Read()).Status);
+        }
+        finally { Clear(); }
+    }
 }

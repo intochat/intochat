@@ -9,7 +9,12 @@ namespace DigitalBrain.Platform.Tests.Unit.Connections;
 // "throws" throws an exception whose message carries a token-bearing URL.
 public sealed class ExampleConnectionModule() : Module(new ModuleId("example"))
 {
-    public static ConnectorDefinition Connector => new("example", "Example", ["api-key", "oauth"], []) { Neurons = [typeof(IExample)] };
+    public static ConnectorDefinition Connector => new("example", "Example", ["api-key", "oauth"], ["example-oauth"])
+    {
+        Neurons = [typeof(IExample)],
+        OAuthMethods = [new("oauth", "https://provider.test/authorize", "https://provider.test/token", ["read"], "example-oauth")],
+    };
+    public static IntegrationSchema Integration => IntegrationSchema.For("example-oauth", "Example OAuth").RequiresSecret("ClientId").RequiresSecret("ClientSecret");
     public override void Configure(ISiloBuilder silo) { }
 }
 
