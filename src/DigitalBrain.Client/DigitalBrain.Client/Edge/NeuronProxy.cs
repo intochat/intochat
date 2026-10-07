@@ -1,10 +1,11 @@
 using System.Reflection;
 using System.Text.Json;
-using DigitalBrain.Client.Edge.V1;
+using DigitalBrain.Client.Runtime;
+using DigitalBrain.Client.Runtime.V1;
 
 namespace DigitalBrain.Client;
 
-// A script's brain.Get<T>(id): every call on the contract becomes one edge invocation.
+// A behavior's brain.Get<T>(id): every call on the contract becomes one invocation in the behavior's name.
 // DispatchProxy needs a public, non-sealed type with a public constructor.
 #pragma warning disable CA1852
 public class NeuronProxy : DispatchProxy
@@ -12,17 +13,19 @@ public class NeuronProxy : DispatchProxy
 {
     private static readonly MethodInfo InvokeTypedMethod = typeof(NeuronProxy).GetMethod(nameof(InvokeTypedAsync), BindingFlags.NonPublic | BindingFlags.Instance)!;
 
-    private ScriptEdgeClient _edge = null!;
+    private SessionConnection _session = null!;
+    private string _behavior = "";
 
     internal Type Contract { get; private set; } = null!;
 
     internal string Key { get; private set; } = "";
 
-    internal static T Create<T>(ScriptEdgeClient edge, string key)
+    internal static T Create<T>(SessionConnection session, string behavior, string key)
     {
         var proxy = (T)Create(typeof(T), typeof(NeuronProxy));
         var neuron = (NeuronProxy)(object)proxy;
-        neuron._edge = edge;
+        neuron._session = session;
+        neuron._behavior = behavior;
         neuron.Contract = typeof(T);
         neuron.Key = key;
         return proxy;
@@ -41,12 +44,12 @@ public class NeuronProxy : DispatchProxy
                 cancellationToken = args?[index] is CancellationToken token ? token : CancellationToken.None;
                 continue;
             }
-            arguments.Add(JsonSerializer.SerializeToElement(args?[index], parameters[index].ParameterType, ScriptEdgeProtocol.Json));
+            arguments.Add(JsonSerializer.SerializeToElement(args?[index], parameters[index].ParameterType, RuntimeProtocol.Json));
         }
-        var invocation = new ScriptInvocation(Contract.FullName!, Key, targetMethod.Name, [.. arguments]);
+        var invocation = new RuntimeInvocation(_behavior, Contract.FullName!, Key, targetMethod.Name, [.. arguments]);
         var returnType = targetMethod.ReturnType;
-        if (returnType == typeof(Task)) { return _edge.InvokeAsync(invocation, cancellationToken); }
-        if (returnType == typeof(ValueTask)) { return new ValueTask(_edge.InvokeAsync(invocation, cancellationToken)); }
+        if (returnType == typeof(Task)) { return _session.InvokeAsync(invocation, cancellationToken); }
+        if (returnType == typeof(ValueTask)) { return new ValueTask(_session.InvokeAsync(invocation, cancellationToken)); }
         if (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(Task<>))
         {
             return InvokeTypedMethod.MakeGenericMethod(returnType.GetGenericArguments()[0]).Invoke(this, [invocation, cancellationToken]);
@@ -54,9 +57,9 @@ public class NeuronProxy : DispatchProxy
         throw new NotSupportedException($"{Contract.Name}.{targetMethod.Name} returns {returnType.Name}; scripts can call methods returning Task or Task<T>.");
     }
 
-    private async Task<TResult> InvokeTypedAsync<TResult>(ScriptInvocation invocation, CancellationToken cancellationToken)
+    private async Task<TResult> InvokeTypedAsync<TResult>(RuntimeInvocation invocation, CancellationToken cancellationToken)
     {
-        var value = await _edge.InvokeAsync(invocation, cancellationToken).ConfigureAwait(false);
-        return value is { } json ? json.Deserialize<TResult>(ScriptEdgeProtocol.Json)! : default!;
+        var value = await _session.InvokeAsync(invocation, cancellationToken).ConfigureAwait(false);
+        return value is { } json ? json.Deserialize<TResult>(RuntimeProtocol.Json)! : default!;
     }
 }
