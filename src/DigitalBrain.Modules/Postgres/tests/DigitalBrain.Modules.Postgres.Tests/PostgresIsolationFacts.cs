@@ -21,7 +21,7 @@ public sealed class PostgresIsolationFacts
             .ConfigureSilo(silo => silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=sample;Username=reader")
             .StartAsync(ct);
         var placements = brain.SiloServices.GetRequiredService<ITablePlacements>();
-        Assert.Equal(TablePlacement.Shared, await placements.Resolve(new TableOwner("brain-1", "brain-1/apps/x"), ct));
+        Assert.Equal(TablePlacement.Shared, await placements.Resolve(new TableOwner("brain-1", "behavior-x"), ct));
     }
 
     [Fact]
@@ -30,14 +30,14 @@ public sealed class PostgresIsolationFacts
         var ct = TestContext.Current.CancellationToken;
         var created = new List<string>();
         var databases = new BrainDatabases(new AdminSecret(Admin), (_, database, _) => { created.Add(database); return Task.CompletedTask; });
-        var placements = new TablePlacements(Options.Create(new PostgresModuleOptions { Isolation = PostgresIsolation.DatabasePerBrain }), databases);
+        var placements = new TablePlacements(Options.Create(new PostgresModuleOptions { Isolation = PostgresIsolation.DatabasePerBrain }), databases, new AppTablesSlot(null!));
 
-        var one = await placements.Resolve(new TableOwner("brain-1", "brain-1/apps/x"), ct);
-        var two = await placements.Resolve(new TableOwner("brain-2", "brain-2/apps/x"), ct);
+        var one = await placements.Resolve(new TableOwner("brain-1", "behavior-x"), ct);
+        var two = await placements.Resolve(new TableOwner("brain-2", "behavior-x"), ct);
 
         Assert.Equal(TablePlacement.BrainDatabase(BrainDatabases.DatabaseName("brain-1")), one);
         Assert.Equal(TablePlacement.BrainDatabase(BrainDatabases.DatabaseName("brain-2")), two);
-        Assert.Equal(one, await placements.Resolve(new TableOwner("brain-1", "brain-1/apps/y"), ct));
+        Assert.Equal(one, await placements.Resolve(new TableOwner("brain-1", "behavior-y"), ct));
         Assert.Equal(await databases.Ensure("brain-1", ct), await databases.Ensure("brain-1", ct));
         Assert.Equal([BrainDatabases.DatabaseName("brain-1"), BrainDatabases.DatabaseName("brain-2")], created);
     }

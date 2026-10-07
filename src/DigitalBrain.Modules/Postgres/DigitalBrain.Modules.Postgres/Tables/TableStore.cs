@@ -5,8 +5,16 @@ using NpgsqlTypes;
 
 namespace DigitalBrain.Postgres.Tables;
 
-internal sealed class TableStore(IPostgresSourceRegistry registry) : ITableStore
+internal sealed class TableStore : ITableStore
 {
+    private readonly IPostgresSourceRegistry? _registry;
+    private readonly string? _connectionString;
+
+    public TableStore(IPostgresSourceRegistry registry) => _registry = registry;
+
+    // A connection's own database: one source per call, disposed with it, like ConnectionPostgresProvider.
+    internal TableStore(string connectionString) => _connectionString = PostgresConnectionSettings.Parse(connectionString).ConnectionString;
+
     private static string Q(string identifier)
     {
         TablePolicy.Identifier(identifier);
@@ -124,7 +132,9 @@ internal sealed class TableStore(IPostgresSourceRegistry registry) : ITableStore
         deadline.CancelAfter(TimeSpan.FromSeconds(20));
         try
         {
-            await using var connection = await (await registry.Get(placement, deadline.Token)).OpenConnectionAsync(deadline.Token);
+            await using var owned = _connectionString is null ? null : NpgsqlDataSource.Create(_connectionString);
+            var source = owned ?? await _registry!.Get(placement, deadline.Token);
+            await using var connection = await source.OpenConnectionAsync(deadline.Token);
             await using var transaction = await connection.BeginTransactionAsync(deadline.Token);
             await using (var setup = new NpgsqlCommand("SET LOCAL statement_timeout='15s'; SET LOCAL lock_timeout='3s'; SET LOCAL timezone='UTC'", connection, transaction))
             { await setup.ExecuteNonQueryAsync(deadline.Token); }

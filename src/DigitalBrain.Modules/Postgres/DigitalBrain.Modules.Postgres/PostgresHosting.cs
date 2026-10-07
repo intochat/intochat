@@ -35,7 +35,9 @@ public static class PostgresHosting
         // Tables
         services.TryAddSingleton<ITableStore, TableStore>();
         services.TryAddSingleton(provider => new BrainDatabases(provider.GetRequiredService<IModuleIntegrations<PostgresModule>>().Get("postgres")));
+        services.TryAddSingleton<ITablesSlot, AppTablesSlot>();
         services.TryAddSingleton<ITablePlacements, TablePlacements>();
+        services.TryAddSingleton<IConnectionTableStores, ConnectionTableStores>();
         services.AddSingleton<IIncomingGrainCallFilter, TableLifecycleGuard>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Apps.IAppStorageHook, TableStorageHook>());
         return silo;

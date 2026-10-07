@@ -1,5 +1,6 @@
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework;
+using DigitalBrain.Postgres.Tables;
 using Orleans.Concurrency;
 
 namespace DigitalBrain.Postgres;
@@ -11,9 +12,9 @@ internal sealed class PostgresConnectionState : ConnectionState { }
 // serve the user's database from the connection string sealed in this neuron's own state.
 [GrainType("postgres")]
 internal sealed class PostgresServerNeuron(
-    IPostgresProvider platform, IConnectionPostgresProviderFactory connections,
+    IPostgresProvider platform, IConnectionPostgresProviderFactory connections, IConnectionTableStores tables,
     [PersistentState("postgres", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<PostgresConnectionState> store)
-    : ConnectionNeuron<PostgresConnectionState>(store), IPostgresServer
+    : ConnectionNeuron<PostgresConnectionState>(store), IPostgresServer, IPostgresTableHost
 {
     [ReadOnly]
     public Task<PostgresQueryResult> Query(PostgresQuery query)
@@ -55,14 +56,44 @@ internal sealed class PostgresServerNeuron(
         return ping.Connected ? ConnectionProbeResult.Connected() : ConnectionProbeResult.Failing("The database did not answer.");
     }
 
-    private Task<T> WithProvider<T>(Func<IPostgresProvider, Task<T>> operation)
+    Task IPostgresTableHost.Define(string table, TableDefinition definition)
+        => WithTables(store => Done(store.DefineAsync(TablePlacement.Shared, table, definition, CancellationToken.None)));
+    Task IPostgresTableHost.Drop(string table)
+        => WithTables(store => Done(store.DropAsync(TablePlacement.Shared, table, CancellationToken.None)));
+    Task<bool> IPostgresTableHost.Upsert(string table, TableDefinition definition, TableValue[] key, TableValue[] values)
+        => WithTables(store => store.UpsertAsync(TablePlacement.Shared, table, definition, key, values, CancellationToken.None));
+    Task<bool> IPostgresTableHost.Delete(string table, TableDefinition definition, TableValue[] key)
+        => WithTables(store => store.DeleteAsync(TablePlacement.Shared, table, definition, key, CancellationToken.None));
+    Task<TableValue[]?> IPostgresTableHost.Read(string table, TableDefinition definition, TableValue[] key)
+        => WithTables(store => store.ReadAsync(TablePlacement.Shared, table, definition, key, CancellationToken.None));
+    Task<TableValue[][]> IPostgresTableHost.Page(string table, TableDefinition definition, int offset, int limit)
+        => WithTables(store => store.PageAsync(TablePlacement.Shared, table, definition, offset, limit, CancellationToken.None));
+
+    private static async Task<bool> Done(Task operation) { await operation; return true; }
+
+    // Inside the user's database the deployment's isolation policy does not apply: tables keep their names.
+    private async Task<T> WithTables<T>(Func<ITableStore, Task<T>> operation)
     {
-        if (!ConnectionKeys.Is(this.GetPrimaryKeyString())) { return operation(platform); }
+        if (!ConnectionKeys.Is(this.GetPrimaryKeyString())) { throw new UnauthorizedAccessException("Only a connection hosts tables."); }
+        RequireOwnBrain();
+        try { return await UseCredentialAsync((credential, _) => operation(tables.ForConnectionString(credential.Value)), CancellationToken.None); }
+        catch (InvalidOperationException error) when (error is not PostgresQueryException)
+        { throw new PostgresUnavailableException("This table's connection is not available."); }
+    }
+
+    private void RequireOwnBrain()
+    {
         (string Brain, string Connector, string Connection) key;
         try { key = Key; }
         catch (ArgumentException) { throw new UnauthorizedAccessException("A canonical connection key is required."); }
         if (key.Connector != "postgres" || key.Brain != BrainScope.CurrentId())
         { throw new UnauthorizedAccessException("The connection belongs to another brain."); }
+    }
+
+    private Task<T> WithProvider<T>(Func<IPostgresProvider, Task<T>> operation)
+    {
+        if (!ConnectionKeys.Is(this.GetPrimaryKeyString())) { return operation(platform); }
+        RequireOwnBrain();
         return UseCredentialAsync((credential, _) => operation(connections.ForConnectionString(credential.Value)), CancellationToken.None);
     }
 }

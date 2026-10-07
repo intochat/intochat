@@ -48,13 +48,16 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
     // Retire can reach a table whose Define never persisted; there is nothing placed elsewhere to reclaim.
     private TablePlacement Pinned => state.State.Placement ?? TablePlacement.Shared;
 
+    private ITableStore Tables(TablePlacement placement)
+        => placement.Kind == TablePlacementKind.Connection ? new HostedTables(GrainFactory.GetGrain<IPostgresTableHost>(placement.Name!)) : provider;
+
     private ITableIndex Tables(string owner) => GrainFactory.GetGrain<ITableIndex>(owner);
 
     public async Task Retire(string owner)
     {
         if (state.State.Owner != owner) { return; }
         var table = state.State.Accepted?.Table ?? state.State.PhysicalTable ?? TablePolicy.PhysicalName(owner, this.GetPrimaryKeyString());
-        await provider.DropAsync(Pinned, table, CancellationToken.None);
+        await Tables(Pinned).DropAsync(Pinned, table, CancellationToken.None);
         await Persist(new());
     }
 
@@ -85,7 +88,7 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
         var placement = state.State.Placement ?? await placements.Resolve(TableOwner.Current(), CancellationToken.None);
         await Tables(scope).Register(this.GetPrimaryKeyString());
         await Persist(state.State with { Owner = scope, Placement = placement, Pending = normalized });
-        await provider.DefineAsync(placement, table, normalized, CancellationToken.None);
+        await Tables(placement).DefineAsync(placement, table, normalized, CancellationToken.None);
         var result = new AcceptedTable(table, normalized, 1);
         await Persist(new() { Owner = scope, Accepted = result, Placement = placement });
         await PublishAsync(new TableDefined(table, result.Revision));
@@ -97,7 +100,7 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
         var current = await Current();
         key = TablePolicy.Values(current.Definition, key, true);
         values = TablePolicy.Values(current.Definition, values, false);
-        var changed = await provider.UpsertAsync(Pinned, current.Table, current.Definition, key, values, CancellationToken.None);
+        var changed = await Tables(Pinned).UpsertAsync(Pinned, current.Table, current.Definition, key, values, CancellationToken.None);
         if (changed) { await PublishAsync(new RowUpserted(current.Table, key)); }
         return changed;
     }
@@ -106,7 +109,7 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
     {
         var current = await Current();
         key = TablePolicy.Values(current.Definition, key, true);
-        var changed = await provider.DeleteAsync(Pinned, current.Table, current.Definition, key, CancellationToken.None);
+        var changed = await Tables(Pinned).DeleteAsync(Pinned, current.Table, current.Definition, key, CancellationToken.None);
         if (changed) { await PublishAsync(new RowDeleted(current.Table, key)); }
         return changed;
     }
@@ -115,7 +118,7 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
     {
         var current = await Current();
         key = TablePolicy.Values(current.Definition, key, true);
-        return await provider.ReadAsync(Pinned, current.Table, current.Definition, key, CancellationToken.None);
+        return await Tables(Pinned).ReadAsync(Pinned, current.Table, current.Definition, key, CancellationToken.None);
     }
 
     public async Task<TableValue[][]> Page(int offset = 0, int limit = 200)
@@ -123,6 +126,17 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
         var current = await Current();
         if (offset < 0 || limit is < 1 or > PostgresQuery.MaxRowsLimit)
         { throw new PostgresQueryException($"Offset must be nonnegative and limit must be 1–{PostgresQuery.MaxRowsLimit}."); }
-        return await provider.PageAsync(Pinned, current.Table, current.Definition, offset, limit, CancellationToken.None);
+        return await Tables(Pinned).PageAsync(Pinned, current.Table, current.Definition, offset, limit, CancellationToken.None);
     }
+}
+
+// A Connection placement's store: every operation runs inside the connection's neuron.
+internal sealed class HostedTables(IPostgresTableHost host) : ITableStore
+{
+    public Task DefineAsync(TablePlacement placement, string table, TableDefinition definition, CancellationToken ct) => host.Define(table, definition);
+    public Task DropAsync(TablePlacement placement, string table, CancellationToken ct) => host.Drop(table);
+    public Task<bool> UpsertAsync(TablePlacement placement, string table, TableDefinition definition, TableValue[] key, TableValue[] values, CancellationToken ct) => host.Upsert(table, definition, key, values);
+    public Task<bool> DeleteAsync(TablePlacement placement, string table, TableDefinition definition, TableValue[] key, CancellationToken ct) => host.Delete(table, definition, key);
+    public Task<TableValue[]?> ReadAsync(TablePlacement placement, string table, TableDefinition definition, TableValue[] key, CancellationToken ct) => host.Read(table, definition, key);
+    public Task<TableValue[][]> PageAsync(TablePlacement placement, string table, TableDefinition definition, int offset, int limit, CancellationToken ct) => host.Page(table, definition, offset, limit);
 }
