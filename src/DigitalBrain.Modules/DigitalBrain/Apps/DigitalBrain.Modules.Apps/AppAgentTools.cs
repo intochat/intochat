@@ -15,7 +15,7 @@ internal sealed class AppAgentTools(IDigitalBrain brain) : IAgentToolSource
     public async Task<IAgentToolSession> OpenBoundAsync(string resource, IReadOnlyList<string> selectedToolNames, Func<AgentToolContext> context, CancellationToken ct)
     {
         var scope = context().ScopeId;
-        if (scope != DigitalBrain.Framework.Enforcement.BrainScope.CurrentId())
+        if (scope != DigitalBrain.Framework.BrainScope.CurrentId())
         { throw new UnauthorizedAccessException("An app tool must use the caller's current brain."); }
         var app = await brain.Get<IApp>(IApp.Key(scope, resource)).Read().WaitAsync(ct);
         if (app.Status != AppStatus.Live)

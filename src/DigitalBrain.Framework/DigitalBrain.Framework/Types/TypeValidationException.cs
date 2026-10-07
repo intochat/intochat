@@ -1,4 +1,4 @@
-namespace DigitalBrain.Framework.Types;
+namespace DigitalBrain.Framework;
 
 [GenerateSerializer, Alias("digitalbrain.type-validation")]
 public sealed class TypeValidationException(

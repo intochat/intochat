@@ -10,7 +10,6 @@ using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Types;
 using Microsoft.Extensions.AI;
 
 namespace DigitalBrain.Assistant;

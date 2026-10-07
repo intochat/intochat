@@ -1,5 +1,5 @@
 
-namespace DigitalBrain.Framework.Enforcement;
+namespace DigitalBrain.Framework;
 
 // The one enforcement point. It first validates that the caller carries a trusted-edge stamp,
 // then lets each registered stage decide. Stages are ordered increments: grants now, allowances

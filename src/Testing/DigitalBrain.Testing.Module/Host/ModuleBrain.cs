@@ -66,7 +66,7 @@ public sealed class ModuleBrain : IDigitalBrain, IBrainSubscriptions, IAsyncDisp
     T IDigitalBrain.Get<T>(NeuronId id) => _brains.Grain<T>(id.Name);
 
     // The brain of the caller the fact stamped.
-    public IKernel Self => _brains.Open(DigitalBrain.Framework.Enforcement.BrainScope.CurrentId()).Self;
+    public IKernel Self => _brains.Open(DigitalBrain.Framework.BrainScope.CurrentId()).Self;
 
     public Task<ISignalSubscription<T>> SubscribeAsync<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
         => _subscriptions.SubscribeAsync<T>(source, cancellationToken);

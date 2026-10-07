@@ -16,7 +16,7 @@ public static class ModuleTest
     public static ModuleTestBuilder Create() => new();
     internal static async Task<ModuleBrain> StartAsync(ModuleOptions? options = null, CancellationToken cancellationToken = default)
     {
-        Orleans.Runtime.RequestContext.Remove(DigitalBrain.Framework.Enforcement.CallerContextStamper.RequestContextKey);
+        Orleans.Runtime.RequestContext.Remove(DigitalBrain.Framework.CallerContextStamper.RequestContextKey);
         options ??= new();
         options.Execution.Validate();
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

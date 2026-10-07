@@ -1,5 +1,5 @@
 
-namespace DigitalBrain.Framework.Enforcement;
+namespace DigitalBrain.Framework;
 
 // One increment of the single enforcement point. A stage returns null to abstain or a decision to
 // settle the request. Lower Order runs first: allowance (P3) runs before grants so an app call that

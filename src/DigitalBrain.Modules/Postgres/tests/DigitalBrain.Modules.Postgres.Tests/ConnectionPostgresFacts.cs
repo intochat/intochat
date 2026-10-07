@@ -1,5 +1,5 @@
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Framework;
 using DigitalBrain.Postgres;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -76,8 +76,8 @@ public sealed class ConnectionPostgresFacts
             Assert.Equal(("postgres", "c1"), (connectorId, connectionId));
             return Task.FromResult(ConnectionString);
         }
-        public Task<DigitalBrain.Framework.Types.SecretRef> WriteSecretAsync(string connectionKey, string field, string displayName, string value, CancellationToken cancellationToken = default, string? targetBrainId = null) => throw new NotSupportedException();
-        public Task ConnectAsync(string connectionKey, string authMethodId, DigitalBrain.Framework.Types.SecretRef credential, CancellationToken cancellationToken = default, string? targetBrainId = null) => throw new NotSupportedException();
+        public Task<DigitalBrain.Framework.SecretRef> WriteSecretAsync(string connectionKey, string field, string displayName, string value, CancellationToken cancellationToken = default, string? targetBrainId = null) => throw new NotSupportedException();
+        public Task ConnectAsync(string connectionKey, string authMethodId, DigitalBrain.Framework.SecretRef credential, CancellationToken cancellationToken = default, string? targetBrainId = null) => throw new NotSupportedException();
         public Task<bool> IsConnectedAsync(string connectionKey, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }

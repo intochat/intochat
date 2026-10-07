@@ -30,8 +30,8 @@ internal sealed class CSharpFileTestRunner(IGrainFactory grains, TimeProvider cl
             {
                 ["App"] = appKey,
             };
-            if (DigitalBrain.Framework.Enforcement.CallerContextStamper.TryGet(out _))
-            { settings["BrainScope"] = DigitalBrain.Framework.Enforcement.BrainScope.CurrentId(); }
+            if (DigitalBrain.Framework.CallerContextStamper.TryGet(out _))
+            { settings["BrainScope"] = DigitalBrain.Framework.BrainScope.CurrentId(); }
             await file.Configure(settings, cancellationToken);
             await file.Start(cancellationToken);
             var snapshot = await file.Inspect(cancellationToken);

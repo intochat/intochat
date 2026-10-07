@@ -76,8 +76,8 @@ public static class ServerHostingExtensions
     {
         public Task StartAsync(CancellationToken cancellationToken)
         {
-            _ = services.GetRequiredService<DigitalBrain.Framework.Enforcement.IBrainAccess>();
-            if (!services.GetServices<DigitalBrain.Framework.Enforcement.ICallFilterStage>().Any())
+            _ = services.GetRequiredService<DigitalBrain.Framework.IBrainAccess>();
+            if (!services.GetServices<DigitalBrain.Framework.ICallFilterStage>().Any())
             { throw new InvalidOperationException("Register an authorization policy or AddDigitalBrainPlatform before starting the server."); }
             return Task.CompletedTask;
         }

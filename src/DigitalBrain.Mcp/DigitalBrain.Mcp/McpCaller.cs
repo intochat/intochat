@@ -1,5 +1,5 @@
+using DigitalBrain.Framework;
 using System.ComponentModel;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.Extensions.Options;

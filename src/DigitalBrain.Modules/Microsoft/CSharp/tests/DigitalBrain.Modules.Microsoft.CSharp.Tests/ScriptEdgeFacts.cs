@@ -3,7 +3,6 @@ using DigitalBrain;
 using DigitalBrain.Client;
 using DigitalBrain.Client.Edge.V1;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.CSharp;
 using Microsoft.AspNetCore.Builder;
@@ -211,13 +210,13 @@ public sealed class ScriptEdgeFacts
     public void TheWholePlatformAssemblyContributesNoScriptContractsEvenWithoutAttributesOnTheTypes()
     {
         var platform = typeof(DigitalBrain.Platform.PlatformHosting).Assembly;
-        Assert.True(DigitalBrain.Framework.Enforcement.PlatformAssemblyAttribute.IsPlatform(platform));
+        Assert.True(DigitalBrain.Framework.PlatformAssemblyAttribute.IsPlatform(platform));
         var contracts = new ScriptContracts([platform]);
 
         foreach (var neuronContract in platform.GetExportedTypes().Where(type => type.IsInterface && typeof(DigitalBrain.INeuron).IsAssignableFrom(type)))
         {
             Assert.Throws<ArgumentException>(() => contracts.Find(neuronContract.FullName!));
-            Assert.True(DigitalBrain.Framework.Enforcement.PlatformOnlyAttribute.AppliesTo(neuronContract));
+            Assert.True(DigitalBrain.Framework.PlatformOnlyAttribute.AppliesTo(neuronContract));
         }
     }
 
@@ -249,7 +248,7 @@ public sealed class ScriptEdgeFacts
     {
         var contracts = new ScriptContracts([typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration).Assembly]);
 
-        Assert.True(DigitalBrain.Framework.Enforcement.PlatformOnlyAttribute.AppliesTo(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration)));
+        Assert.True(DigitalBrain.Framework.PlatformOnlyAttribute.AppliesTo(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration)));
         Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration).FullName!));
     }
 

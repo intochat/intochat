@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Platform.Identity.Authority;
 using DigitalBrain.Platform.Identity.Configuration;

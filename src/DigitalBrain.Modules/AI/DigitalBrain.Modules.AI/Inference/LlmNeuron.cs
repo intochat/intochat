@@ -6,8 +6,8 @@ namespace DigitalBrain.AI;
 
 public abstract class LlmNeuronBase(InferenceService inference, Type? marker = null) : Neuron, ILLM
 {
-    public override DigitalBrain.Framework.Enforcement.NeuronAccess Access(string operation)
-        => new(DigitalBrain.Framework.Enforcement.BrainScope.CurrentId());
+    public override DigitalBrain.Framework.NeuronAccess Access(string operation)
+        => new(DigitalBrain.Framework.BrainScope.CurrentId());
     public Task<ModelDescriptor> Describe(AgentModelSelection? selection = null)
         => inference.Describe(Selection(selection), marker);
     public async Task<InferenceResult> Generate(InferenceRequest request, CancellationToken cancellationToken = default)

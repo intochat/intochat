@@ -1,4 +1,3 @@
-using DigitalBrain.Framework.Http;
 using Microsoft.AspNetCore.Http;
 
 namespace DigitalBrain.Framework.Tests.Unit;

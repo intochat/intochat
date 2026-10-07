@@ -1,4 +1,4 @@
-namespace DigitalBrain.Framework.Enforcement;
+namespace DigitalBrain.Framework;
 
 // Modules that own brain-scoped HTTP routes ask this seam whether the stamped principal may
 // reach a brain. Identity registers the directory-backed implementation.

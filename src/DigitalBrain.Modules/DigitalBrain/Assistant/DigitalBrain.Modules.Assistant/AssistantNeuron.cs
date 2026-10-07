@@ -21,9 +21,9 @@ internal sealed class AssistantNeuron(
     private string Key => this.GetPrimaryKeyString();
     // The model catalog is deployment-wide and already secret-free; the HTTP posture is its
     // gate. Everything else belongs to the assistant's own workspace.
-    public override DigitalBrain.Framework.Enforcement.NeuronAccess Access(string operation)
+    public override DigitalBrain.Framework.NeuronAccess Access(string operation)
         => operation is nameof(Models)
-            ? DigitalBrain.Framework.Enforcement.NeuronAccess.PublicOperation
+            ? DigitalBrain.Framework.NeuronAccess.PublicOperation
             : new(Workspace);
     public Task<AssistantState> Read() => Task.FromResult(Snapshot);
     // An assistant started for a workspace is keyed "{workspace}/applications/assistant".

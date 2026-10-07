@@ -1,4 +1,4 @@
-using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Platform.Enforcement;

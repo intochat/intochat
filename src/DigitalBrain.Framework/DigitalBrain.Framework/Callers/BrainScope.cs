@@ -1,6 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 
-namespace DigitalBrain.Framework.Enforcement;
+namespace DigitalBrain.Framework;
 
 // The brain a call is in. Its id is its kernel's grain key and the prefix of every neuron key inside it.
 public sealed record BrainScope(string Id, string Owner)

@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace DigitalBrain.Framework.Types;
+namespace DigitalBrain.Framework;
 
 public static class TypeCatalog
 {

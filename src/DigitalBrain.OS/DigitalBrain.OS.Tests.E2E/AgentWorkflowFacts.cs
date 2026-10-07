@@ -1,3 +1,4 @@
+using DigitalBrain.Framework;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Aspire.Hosting.Testing;
@@ -7,7 +8,6 @@ using DigitalBrain.AI.Metering;
 using DigitalBrain.Assistant;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Workspace;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Testing.E2E.Workspace;
 using Npgsql;

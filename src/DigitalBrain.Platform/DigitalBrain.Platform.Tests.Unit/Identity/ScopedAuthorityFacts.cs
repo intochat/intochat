@@ -1,4 +1,3 @@
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Authority;
@@ -59,13 +58,13 @@ public sealed class ScopedAuthorityFacts
         await using var brain = await ModuleTest.Create().StartAsync(TestContext.Current.CancellationToken);
         var authority = brain.Get<IBrainAuthority>(BrainScope.Create("account", "brain").Id);
         await authority.EnsureMember(new Member { PrincipalId = "alice", AccountId = "account", BrainId = "brain", DisplayName = "Alice", Role = MemberRole.Owner });
-        var caller = new DigitalBrain.Framework.Enforcement.CallerContext
+        var caller = new DigitalBrain.Framework.CallerContext
         {
             PrincipalId = "alice",
             AccountId = "account",
             BrainId = "brain",
-            Kind = DigitalBrain.Framework.Enforcement.CallerKind.User,
-            StampedBy = DigitalBrain.Framework.Enforcement.TrustedEdge.AuthenticatedHttp
+            Kind = DigitalBrain.Framework.CallerKind.User,
+            StampedBy = DigitalBrain.Framework.TrustedEdge.AuthenticatedHttp
         };
         var grant = new Grant { AppId = "app", WorkspaceId = "brain", SemanticTypeId = "person.email", Mode = GrantMode.Always };
         await authority.GrantAsOwner(caller, grant);
