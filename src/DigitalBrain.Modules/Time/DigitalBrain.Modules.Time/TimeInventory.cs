@@ -61,26 +61,3 @@ internal sealed class TimeInventoryWriter(IGrainFactory grains, ILogger<TimeInve
         catch (Exception error) { logger.LogWarning(error, "Time schedule inventory cleanup failed; cancellation continues"); }
     }
 }
-
-internal sealed class TimeInventoryProvider(IGrainFactory grains, IActivationCensus census) : IRegistryInventoryProvider
-{
-    public string Domain => "time";
-    public async Task<NeuronRecord[]> Persisted(string? typeId, CancellationToken ct)
-    {
-        var scope = BrainScope.CurrentId();
-        if (typeId is not (null or "timer" or "reminder")) { return []; }
-        return (await grains.GetGrain<ITimeInventory>(scope).Read().WaitAsync(ct))
-            .Where(item => typeId is null || item.TypeId == typeId)
-            .Select(item => new NeuronRecord(Domain, item.TypeId, item.Key,
-                $"{item.Key} — fires {item.Due:O}" + (item.Period is { } period ? $"; repeats every {period:c}" : "; once"))).ToArray();
-    }
-    public async Task<NeuronRecord[]> Active(string? typeId, CancellationToken ct)
-    {
-        _ = BrainScope.CurrentId();
-        var live = new List<ActivationRecord>();
-        foreach (var type in new[] { "timer", "reminder" }.Where(type => typeId is null || typeId == type))
-        { live.AddRange(await census.Activations(type, ct)); }
-        var identities = live.ToHashSet();
-        return (await Persisted(typeId, ct)).Where(record => identities.Contains(new(record.TypeId, record.Key))).ToArray();
-    }
-}

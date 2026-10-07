@@ -54,32 +54,22 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
             // Context may name tools this host does not register; only registered ones join the turn.
             string[] selected = [.. plan.ToolNames, .. contexts.SelectMany(entry => entry.Tools)
                 .Where(name => !plan.ToolNames.Contains(name) && factoryTools.Any(tool => tool.Name == name)).Distinct(StringComparer.Ordinal)];
-            var tools = new List<AIFunction>();
-            async Task AddTools(IReadOnlyList<string> names, AgentToolBinding? binding = null)
+            // A turn's tools are fixed here, once: factories, native tools and source sessions.
+            var available = factoryTools.Where(tool => selected.Contains(tool.Name)).ToList();
+            if (services.GetService<NativeTools>() is { } native) { available.AddRange(native.Resolve(selected)); }
+            foreach (var source in services.GetServices<IAgentToolSource>())
             {
-                var pending = names.Where(name => tools.All(tool => tool.Name != name)).Distinct(StringComparer.Ordinal).ToArray();
-                if (pending.Length == 0) { return; }
-                var available = factoryTools.Where(tool => pending.Contains(tool.Name)).ToList();
-                if (services.GetService<NativeTools>() is { } native) { available.AddRange(native.Resolve(pending)); }
-                foreach (var source in services.GetServices<IAgentToolSource>())
-                {
-                    if (binding is not null && source.SourceId != binding.Source) { continue; }
-                    // Session tools read the live call identity when invoked, after discovery.
-                    var session = binding is null
-                        ? await source.OpenAsync(pending, () => new(plan.ScopeId, plan.RunId, currentCall ?? ""), ct)
-                        : await source.OpenBoundAsync(binding.Resource, pending, () => new(plan.ScopeId, plan.RunId, currentCall ?? ""), ct);
-                    sessions.Add(session);
-                    available.AddRange(session.Tools.Where(tool => pending.Contains(tool.Name)));
-                }
-                tools.AddRange(pending.Select(name =>
-                {
-                    var matches = available.Where(tool => tool.Name == name).ToArray();
-                    return matches.Length == 1 ? matches[0]
-                        : throw new InvalidOperationException($"Selected or offered tool '{name}' must have exactly one registration (found {matches.Length}).");
-                }));
+                // Session tools read the live call identity when invoked.
+                var session = await source.OpenAsync(selected, () => new(plan.ScopeId, plan.RunId, currentCall ?? ""), ct);
+                sessions.Add(session);
+                available.AddRange(session.Tools.Where(tool => selected.Contains(tool.Name)));
             }
-            await AddTools(selected);
-            var initialTools = tools.Select(tool => tool.Name).ToHashSet(StringComparer.Ordinal);
+            var tools = selected.Select(name =>
+            {
+                var matches = available.Where(tool => tool.Name == name).ToArray();
+                return matches.Length == 1 ? matches[0]
+                    : throw new InvalidOperationException($"Selected tool '{name}' must have exactly one registration (found {matches.Length}).");
+            }).ToList();
 
             var catalog = services.GetRequiredService<ModelCatalog>();
             var selection = plan.Model;
@@ -169,7 +159,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
                             isError = true,
                             code = "tool_unavailable",
                             tool = call.Name,
-                            message = "This tool is not available in this turn. Use an advertised discovery tool to find registered capabilities before retrying.",
+                            message = "This tool is not available in this turn.",
                         };
                         var refusal = new ChatMessage(ChatRole.Tool, [new FunctionResultContent(call.CallId, unavailable)]);
                         messages.Add(refusal);
@@ -185,16 +175,6 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
                     {
                         result = await tool.InvokeAsync(new AIFunctionArguments(call.Arguments ?? new Dictionary<string, object?>()), ct);
                         ct.ThrowIfCancellationRequested();
-                        if (result is AgentToolOffer offer)
-                        {
-                            if (offer.Tools.Count > 32) { throw new InvalidOperationException("A capability may offer at most 32 tools. Select a smaller operation group."); }
-                            if (offer.ReplaceSelection) { tools.RemoveAll(item => !initialTools.Contains(item.Name)); }
-                            if (tools.Where(item => !initialTools.Contains(item.Name)).Select(item => item.Name).Union(offer.Tools, StringComparer.Ordinal).Count() > 32)
-                            { throw new InvalidOperationException("A turn may select at most 32 additional tools."); }
-                            await AddTools(offer.Tools, offer.Binding);
-                            options.Tools = [.. tools];
-                            result = offer.Result;
-                        }
                         serialized = JsonSerializer.Serialize(result);
                     }
                     catch (Exception error) { fault = ExceptionDispatchInfo.Capture(error); }

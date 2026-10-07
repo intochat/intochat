@@ -14,13 +14,10 @@ public sealed class AssistantModule() : Module(new ModuleId("assistant")), IHttp
     public override void Configure(ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
-        silo.Services.TryAddSingleton<RegistryDiscoveryService>();
         silo.Services.TryAddSingleton(new NeuronContracts(NeuronContracts.Deployed()));
         silo.Services.TryAddSingleton<NeuronSurface>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IAgentToolFactory, NeuronAgentTools>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IAgentToolFactory, WorkspaceFormTools>());
-        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IAgentToolFactory, RegistryDiscoveryTools>());
-        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IAgentToolFactory, RegistryInventoryTools>());
         silo.Services.AddOptions<AssistantOptions>().BindConfiguration("Assistant");
     }
 

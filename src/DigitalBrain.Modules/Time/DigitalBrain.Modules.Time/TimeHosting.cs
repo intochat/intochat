@@ -8,7 +8,6 @@ public static class TimeHosting
     {
         silo.Services.TryAddSingleton(TimeProvider.System);
         silo.Services.TryAddSingleton<TimeInventoryWriter>();
-        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Framework.IRegistryInventoryProvider, TimeInventoryProvider>());
         silo.Services.AddSingleton<IConfigurationValidator, ReminderConfiguration>();
         return silo;
     }

@@ -44,7 +44,6 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         builder.Services.AddOptions<CSharpDeploymentSettings>().BindConfiguration(CSharpDeploymentSettings.SectionName);
         builder.Services.TryAddSingleton<CSharpCatalogStore>();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<CSharpFileNeuron>, CSharpFileActivation>());
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IRegistryInventoryProvider, CSharpInventoryProvider>());
         builder.Services.TryAddSingleton<CSharpToolService>();
         builder.Services.TryAddSingleton<DigitalBrain.Apps.IScriptSandbox, CSharpScriptSandbox>();
         builder.Services.TryAddSingleton(TimeProvider.System);
@@ -67,7 +66,6 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         if (authoring)
         {
             builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IAgentToolFactory, CSharpAgentTools>());
-            builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IRegistryResourceProvider, CSharpRegistryResources>());
             builder.Services.TryAddScoped(provider => provider.GetRequiredService<CSharpToolService>().ForScope(BrainScope.CurrentId()));
         }
     }

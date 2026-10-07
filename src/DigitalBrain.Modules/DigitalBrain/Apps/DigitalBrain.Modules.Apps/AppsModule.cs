@@ -22,10 +22,7 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
         silo.Services.TryAddSingleton(TimeProvider.System);
         silo.AddIncomingGrainCallFilter<MarketplaceWriteGuard>();
         silo.Services.TryAddSingleton<AppInstaller>();
-        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Framework.IRegistryResourceProvider, AppsRegistryResources>());
-        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Framework.IRegistryInventoryProvider, AppsInventoryProvider>());
         silo.Services.TryAddSingleton<AppWorkQueue>();
-        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IAgentToolSource, AppAgentTools>());
         silo.Services.TryAddSingleton<AppAuthoringPolicy>();
         silo.Services.TryAddSingleton<Creator>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IDeployableRuntime, CSharpAppRuntime>());

@@ -20,17 +20,7 @@ public sealed class CSharpCompositionFacts
         Assert.True(brain.SiloServices.GetRequiredService<CSharpToolService>().CanRun);
         Assert.NotNull(brain.SiloServices.GetRequiredService<CSharpCatalogStore>());
         var factories = brain.SiloServices.GetServices<IAgentToolFactory>().OfType<CSharpAgentTools>();
-        var capabilities = brain.SiloServices.GetServices<IRegistryResourceProvider>().OfType<CSharpRegistryResources>();
-        if (authoring)
-        {
-            Assert.Single(factories);
-            var discovery = await Assert.Single(capabilities).Discover(TestContext.Current.CancellationToken);
-            Assert.Equal(CSharpAgentTools.Names.Order(StringComparer.Ordinal), Assert.Single(discovery.Capabilities).Tools.Order(StringComparer.Ordinal));
-        }
-        else
-        {
-            Assert.Empty(factories);
-            Assert.Empty(capabilities);
-        }
+        if (authoring) { Assert.Single(factories); }
+        else { Assert.Empty(factories); }
     }
 }

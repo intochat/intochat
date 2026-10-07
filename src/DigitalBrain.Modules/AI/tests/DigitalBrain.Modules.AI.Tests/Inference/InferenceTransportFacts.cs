@@ -58,7 +58,7 @@ public sealed class InferenceTransportFacts
     private sealed class ResourceTools : IAgentToolFactory
     {
         public IReadOnlyList<AIFunction> Create(Func<AgentToolContext> context) =>
-            [AIFunctionFactory.Create(() => new AgentToolOffer([], new ResourceCatalog(["research_results"])), new AIFunctionFactoryOptions
+            [AIFunctionFactory.Create(() => new ResourceCatalog(["research_results"]), new AIFunctionFactoryOptions
             { Name = "find", MarshalResult = static (result, _, _) => new ValueTask<object?>(result) })];
     }
 

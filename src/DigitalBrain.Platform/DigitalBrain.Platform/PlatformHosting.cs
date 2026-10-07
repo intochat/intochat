@@ -24,10 +24,8 @@ public static class PlatformHosting
         var services = silo.Services;
         if (services.Any(service => service.ServiceType == typeof(PlatformRegistration))) { return; }
         services.AddSingleton<PlatformRegistration>();
-        services.TryAddSingleton<IRegistry, Discovery.PlatformRegistry>();
         services.TryAddSingleton<Discovery.ActivationCensus>();
         services.TryAddSingleton<IActivationCensus>(provider => provider.GetRequiredService<Discovery.ActivationCensus>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IRegistryInventoryProvider, ConnectionsInventoryProvider>());
         services.AddIdentity();
         services.AddShippedContentPublishing();
         services.TryAddSingleton<DeploymentStorageIdentity>();
