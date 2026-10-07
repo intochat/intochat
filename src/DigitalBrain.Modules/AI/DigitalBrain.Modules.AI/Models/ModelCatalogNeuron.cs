@@ -2,7 +2,7 @@ using DigitalBrain.Framework;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 
-namespace DigitalBrain.AI;
+namespace DigitalBrain.AI.Models;
 
 [GrainType("ai.models"), StatelessWorker]
 internal sealed class ModelCatalogNeuron(ModelCatalog catalog) : Neuron, IModelCatalog

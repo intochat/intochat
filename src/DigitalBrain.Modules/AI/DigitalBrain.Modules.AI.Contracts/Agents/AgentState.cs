@@ -1,3 +1,5 @@
+using DigitalBrain.AI.Models;
+
 namespace DigitalBrain.AI.Agents;
 
 public enum AgentRunStatus { Running, Completed, Failed, Cancelled, Interrupted }

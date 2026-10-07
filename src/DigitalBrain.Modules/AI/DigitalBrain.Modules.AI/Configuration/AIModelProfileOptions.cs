@@ -1,3 +1,4 @@
+using DigitalBrain.AI.Models;
 using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.AI;

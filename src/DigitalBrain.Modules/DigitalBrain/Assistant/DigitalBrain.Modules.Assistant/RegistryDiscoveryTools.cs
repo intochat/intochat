@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Tools;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.AI;
 

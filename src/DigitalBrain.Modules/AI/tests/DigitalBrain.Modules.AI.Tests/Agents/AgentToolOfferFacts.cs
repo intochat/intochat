@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Tools;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;

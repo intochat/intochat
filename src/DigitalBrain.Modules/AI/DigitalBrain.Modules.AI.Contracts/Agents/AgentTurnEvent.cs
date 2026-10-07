@@ -1,3 +1,6 @@
+using DigitalBrain.AI.Inference;
+using DigitalBrain.AI.Models;
+
 namespace DigitalBrain.AI.Agents;
 
 [GenerateSerializer, Alias("ai.turn-event")]

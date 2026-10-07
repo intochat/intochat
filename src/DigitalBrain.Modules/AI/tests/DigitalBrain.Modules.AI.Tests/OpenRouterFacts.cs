@@ -1,5 +1,6 @@
 using DigitalBrain.AI;
-using DigitalBrain.AI.OpenRouter;
+using DigitalBrain.AI.Models;
+using DigitalBrain.AI.Models.OpenRouter;
 using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 

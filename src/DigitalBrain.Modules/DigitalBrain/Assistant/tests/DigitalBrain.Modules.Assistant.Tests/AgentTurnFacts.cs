@@ -4,6 +4,7 @@ using DigitalBrain;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Metering;
+using DigitalBrain.AI.Models;
 using DigitalBrain.Assistant;
 using DigitalBrain.Compute;
 using DigitalBrain.Framework;

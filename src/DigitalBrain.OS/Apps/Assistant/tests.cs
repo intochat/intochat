@@ -2,7 +2,7 @@
 #:project /brain/src/DigitalBrain.Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Contracts/DigitalBrain.Modules.Flutter.Contracts.csproj
 #:project /brain/src/DigitalBrain.Modules/AI/DigitalBrain.Modules.AI.Contracts/DigitalBrain.Modules.AI.Contracts.csproj
 using System.Text.Json;
-using DigitalBrain.AI.Scripted;
+using DigitalBrain.AI.Models.Scripted;
 using DigitalBrain.Apps;
 using DigitalBrain.Flutter.Card;
 using DigitalBrain.Flutter.Surface;

@@ -1,14 +1,14 @@
 using DigitalBrain;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Media;
-using DigitalBrain.AI.Web;
-using DigitalBrain.AI.WebSearch;
+using DigitalBrain.AI.Models;
+using DigitalBrain.AI.Tools;
+using DigitalBrain.AI.Tools.WebSearch;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Options;
 using Orleans.Hosting;
 
 namespace DigitalBrain.AI;
@@ -18,93 +18,29 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai"))
     public static readonly string McpServersKey = AIKeys.McpServers;
 
     public static IntegrationSchema[] Integrations => AiIntegrations.Definitions;
-    public static ConnectorDefinition[] Connectors => [.. AiIntegrations.Definitions.Select(Connector)];
-
-    private static ConnectorDefinition Connector(IntegrationSchema schema)
-    {
-        if (schema.Id == AiIntegrations.TavilyId) { return new(schema.Id, schema.DisplayName, ["api-key"], [schema.Id]); }
-        var provider = AiIntegrations.KeyedProviders.Single(provider => AiIntegrations.IdOf(provider) == schema.Id);
-        Type[] media = provider switch
-        {
-            AiProvider.OpenAI => [typeof(IImageGenerator), typeof(IEmbeddingModel), typeof(ISpeechRecognizer), typeof(ISpeechSynthesizer)],
-            AiProvider.Google => [typeof(IEmbeddingModel)],
-            _ => [],
-        };
-        Type[] signals = provider switch
-        {
-            AiProvider.OpenAI => [typeof(ImageGenerated), typeof(EmbeddingsGenerated), typeof(SpeechRecognized), typeof(SpeechSynthesized), typeof(MediaOperationFailed)],
-            AiProvider.Google => [typeof(EmbeddingsGenerated), typeof(MediaOperationFailed)],
-            _ => [],
-        };
-        return new(schema.Id, schema.DisplayName, ["api-key"], [schema.Id])
-        {
-            Neurons = [typeof(ILLM), .. LLMModel.All.Where(model => model.Provider == provider).Select(model => model.Marker), .. media],
-            Signals = [typeof(InferenceStarted), typeof(InferenceCompleted), typeof(InferenceFailed), .. signals],
-        };
-    }
+    public static ConnectorDefinition[] Connectors => ModelConnectors.All;
 
     public override void Configure(ISiloBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        AIOptionsRuntime.Register(builder.Services);
+        var services = builder.Services;
+        AIOptionsRuntime.Register(services);
         var options = AIOptionsRuntime.Read(builder.Configuration);
         var workspace = builder.Configuration.GetSection(AIWorkspaceOptions.SectionName).Get<AIWorkspaceOptions>() ?? new();
 
-        builder.Services.TryAddSingleton(TimeProvider.System);
-        builder.Services.TryAddSingleton<IAiCredentials, RegistrationCredentials>();
-        AIClients.Add(builder.Services);
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<Agents.AgentNeuron>, Agents.AgentResume>());
-        builder.Services.TryAddSingleton<ModelCatalog>();
-        builder.Services.AddSingleton<ICapabilitySource, AiModelCapabilities>();
-        builder.Services.TryAddSingleton<InferenceService>();
-        builder.Services.AddMediaNeurons();
-        AIClients.AddImageGeneration(builder.Services, options);
-        VoiceToTextHosting.Add(builder.Services, options);
-        WebSearchHosting.Add(builder.Services, options);
-        RegisterMcpBridge(builder.Services, builder.Configuration[McpServersKey]);
-
-        builder.Services.TryAddSingleton<NativeTools>();
-        builder.Services.TryAddSingleton<PlaywrightWebAgent>();
-        builder.Services.AddNativeTool("browse_web", services =>
-            Microsoft.Extensions.AI.AIFunctionFactory.Create(services.GetRequiredService<PlaywrightWebAgent>().ResearchAsync, "browse_web"));
-        builder.Services.AddNativeTool("lookup_company", services =>
-            Microsoft.Extensions.AI.AIFunctionFactory.Create(services.GetRequiredService<PlaywrightWebAgent>().LookupCompanyAsync, "lookup_company"));
-        if (options.Tavily.Enabled)
-        {
-            builder.Services.AddNativeTool("websearch", services => WebSearchFunction.Create(services.GetRequiredService<IWebSearch>()));
-        }
-
-        if (!string.IsNullOrWhiteSpace(workspace.RepositoryPath))
-        {
-            builder.Services.AddNativeTool("repositorydiff", services => new RepositoryDiffFunction(services.GetRequiredService<IOptions<AIWorkspaceOptions>>()).Function);
-        }
-    }
-
-    internal static void RegisterMcpBridge(IServiceCollection services, string? allowlist)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        if (string.IsNullOrWhiteSpace(allowlist))
-        {
-            return;
-        }
-
-        foreach (var entry in allowlist.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            var separator = entry.IndexOf('=');
-            if (separator <= 0 || separator == entry.Length - 1)
-            {
-                throw new InvalidOperationException($"MCP allowlist entry '{entry}' is not of the form id=https://endpoint.");
-            }
-
-            var serverId = entry[..separator].Trim();
-            var endpoint = entry[(separator + 1)..].Trim();
-            if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
-            {
-                throw new InvalidOperationException($"MCP allowlist entry '{serverId}' requires an absolute HTTP(S) endpoint.");
-            }
-
-            services.AddMcpAgentTools(serverId, uri);
-        }
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton<IAiCredentials, RegistrationCredentials>();
+        AIClients.Add(services);
+        services.TryAddSingleton<ModelCatalog>();
+        services.TryAddSingleton<InferenceService>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<AgentNeuron>, AgentResume>());
+        services.AddSingleton<ICapabilitySource, AiModelCapabilities>();
+        services.AddMediaNeurons();
+        AIClients.AddImageGeneration(services, options);
+        VoiceToTextHosting.Add(services, options);
+        WebSearchHosting.Add(services, options);
+        NativeToolRegistrations.Add(services, options, workspace);
+        McpAgentTools.Register(services, builder.Configuration[McpServersKey]);
     }
 }

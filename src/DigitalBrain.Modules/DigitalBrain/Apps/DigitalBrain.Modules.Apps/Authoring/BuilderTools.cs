@@ -1,4 +1,5 @@
 using DigitalBrain.AI;
+using DigitalBrain.AI.Inference;
 using DigitalBrain.Framework;
 
 namespace DigitalBrain.Apps;

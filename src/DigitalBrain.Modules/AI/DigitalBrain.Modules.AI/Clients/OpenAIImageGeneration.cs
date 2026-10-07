@@ -1,4 +1,6 @@
 using System.ClientModel;
+using DigitalBrain.AI.Media;
+using DigitalBrain.AI.Models;
 using OpenAI;
 using OpenAI.Images;
 

@@ -1,6 +1,14 @@
 using DigitalBrain;
 using DigitalBrain.AI.Interactions;
+using DigitalBrain.AI.Media;
 using DigitalBrain.AI.Metering;
+using DigitalBrain.AI.Models;
+using DigitalBrain.AI.Models.Anthropic;
+using DigitalBrain.AI.Models.Google;
+using DigitalBrain.AI.Models.Ollama;
+using DigitalBrain.AI.Models.OpenAI;
+using DigitalBrain.AI.Models.OpenRouter;
+using DigitalBrain.AI.Models.XAI;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Metering;
 using DigitalBrain.Framework.Platform.Integrations;
@@ -180,7 +188,7 @@ internal static class AIClients
         // The default embedding stays pinned to the local model unless explicitly
         // configured: silently switching it changes vector dimensions and orphans
         // every existing Qdrant collection.
-        var local = EmbeddingModel.All.Single(static model => model.Marker == typeof(Ollama.IEmbeddingGemma));
+        var local = EmbeddingModel.All.Single(static model => model.Marker == typeof(Models.Ollama.IEmbeddingGemma));
         if (string.IsNullOrEmpty(configuration.Ollama.Endpoint))
         {
             throw new InvalidOperationException(

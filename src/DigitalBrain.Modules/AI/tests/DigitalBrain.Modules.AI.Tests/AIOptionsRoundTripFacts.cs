@@ -1,4 +1,5 @@
 using DigitalBrain.AI;
+using DigitalBrain.AI.Models;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.Configuration;
 using Xunit;

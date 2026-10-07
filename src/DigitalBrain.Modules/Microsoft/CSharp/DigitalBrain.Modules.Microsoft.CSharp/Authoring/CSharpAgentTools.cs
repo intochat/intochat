@@ -1,4 +1,5 @@
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Tools;
 using Microsoft.Extensions.AI;
 
 namespace DigitalBrain.Microsoft.CSharp;

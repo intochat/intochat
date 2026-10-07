@@ -1,3 +1,6 @@
+using DigitalBrain.AI.Inference;
+using DigitalBrain.AI.Models;
+
 namespace DigitalBrain.AI.Agents;
 
 // Contexts are IAgentContext neuron keys the agent reads at the start of every turn.

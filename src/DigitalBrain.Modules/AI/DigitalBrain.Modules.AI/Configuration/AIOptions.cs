@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using DigitalBrain;
+using DigitalBrain.AI.Models;
 using Microsoft.Extensions.Configuration;
 using DigitalBrain.Framework;
 

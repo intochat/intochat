@@ -1,4 +1,5 @@
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Tools;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 

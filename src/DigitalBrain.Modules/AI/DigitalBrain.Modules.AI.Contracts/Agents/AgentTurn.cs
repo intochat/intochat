@@ -1,3 +1,6 @@
+using DigitalBrain.AI.Inference;
+using DigitalBrain.AI.Models;
+
 namespace DigitalBrain.AI.Agents;
 
 // One request to the agent. RunId is caller-chosen for replay (at most 200 characters) or null

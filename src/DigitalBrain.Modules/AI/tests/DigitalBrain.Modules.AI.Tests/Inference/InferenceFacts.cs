@@ -1,5 +1,7 @@
 using System.Text.Json;
 using DigitalBrain.AI;
+using DigitalBrain.AI.Inference;
+using DigitalBrain.AI.Models;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -9,7 +11,7 @@ public sealed class InferenceFacts
 {
     public static TheoryData<InferenceOptions> OpenAiScopedOptions => new()
     {
-        new InferenceOptions(Provider: new DigitalBrain.AI.OpenAI.OpenAIInferenceOptions(ParallelToolCalls: false)),
+        new InferenceOptions(Provider: new DigitalBrain.AI.Models.OpenAI.OpenAIInferenceOptions(ParallelToolCalls: false)),
         new InferenceOptions(ProviderOptions: new Dictionary<string, string> { ["parallel_tool_calls"] = "false" }),
     };
 
@@ -25,9 +27,9 @@ public sealed class InferenceFacts
     [Fact]
     public void TypedProviderSettingsSurviveJsonRoundTrip()
     {
-        var options = new InferenceOptions(Provider: new DigitalBrain.AI.OpenAI.OpenAIInferenceOptions(ParallelToolCalls: false));
+        var options = new InferenceOptions(Provider: new DigitalBrain.AI.Models.OpenAI.OpenAIInferenceOptions(ParallelToolCalls: false));
         var restored = JsonSerializer.Deserialize<InferenceOptions>(JsonSerializer.Serialize(options));
-        Assert.IsType<DigitalBrain.AI.OpenAI.OpenAIInferenceOptions>(restored!.Provider);
+        Assert.IsType<DigitalBrain.AI.Models.OpenAI.OpenAIInferenceOptions>(restored!.Provider);
     }
 
     [Fact]
@@ -126,7 +128,7 @@ public sealed class InferenceFacts
         Assert.Equal(CapabilitySupport.Unknown, description.Tools);
         Assert.Null(description.ContextWindowTokens);
         Assert.Equal("custom-model", (await brain.Get<ILLM>("custom").Describe()).Model);
-        var typed = brain.Get<DigitalBrain.AI.OpenAI.IGpt56Sol>("typed");
+        var typed = brain.Get<DigitalBrain.AI.Models.OpenAI.IGpt56Sol>("typed");
         Assert.Equal("gpt-5.6-sol", (await typed.Describe()).Model);
         await Assert.ThrowsAsync<ArgumentException>(() => typed.Describe(new("custom")));
     }

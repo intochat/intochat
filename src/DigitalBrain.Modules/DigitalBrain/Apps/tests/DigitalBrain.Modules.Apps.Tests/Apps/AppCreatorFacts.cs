@@ -1,5 +1,5 @@
 using DigitalBrain.AI;
-using DigitalBrain.AI.Scripted;
+using DigitalBrain.AI.Models.Scripted;
 using DigitalBrain.Apps;
 using DigitalBrain.Apps.Signals;
 using DigitalBrain.Modules.Apps.Tests;

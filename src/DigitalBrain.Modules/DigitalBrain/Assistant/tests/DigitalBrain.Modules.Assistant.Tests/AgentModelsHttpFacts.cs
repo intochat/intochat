@@ -5,7 +5,7 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
-using DigitalBrain.AI.OpenAI;
+using DigitalBrain.AI.Models.OpenAI;
 using DigitalBrain.Assistant;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Platform.Identity.Configuration;

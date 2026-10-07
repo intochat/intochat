@@ -1,3 +1,5 @@
+using DigitalBrain.AI.Models;
+using DigitalBrain.AI.Voice;
 using Microsoft.AI.Foundry.Local;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;

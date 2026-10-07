@@ -1,5 +1,6 @@
 using DigitalBrain.AI;
-using DigitalBrain.AI.Scripted;
+using DigitalBrain.AI.Models;
+using DigitalBrain.AI.Models.Scripted;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;

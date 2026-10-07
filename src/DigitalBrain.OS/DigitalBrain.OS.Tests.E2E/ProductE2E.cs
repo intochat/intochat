@@ -1,5 +1,5 @@
 using DigitalBrain.AI;
-using DigitalBrain.AI.OpenAI;
+using DigitalBrain.AI.Models.OpenAI;
 using DigitalBrain.Apps;
 using DigitalBrain.ClickHouse;
 using DigitalBrain.Flutter;

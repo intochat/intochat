@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Tools;
 using DigitalBrain.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

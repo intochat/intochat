@@ -3,6 +3,8 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.AI.Agents.Signals;
+using DigitalBrain.AI.Inference;
+using DigitalBrain.AI.Models;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Metering;
 using Microsoft.Extensions.DependencyInjection;

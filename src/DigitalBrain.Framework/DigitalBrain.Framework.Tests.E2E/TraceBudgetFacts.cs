@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using Aspire.Hosting;
 using Aspire.Hosting.Testing;
 using DigitalBrain.AI;
+using DigitalBrain.AI.Models;
 using DigitalBrain.Testing.E2E.Agent;
 using DigitalBrain.Testing.E2E.Workspace;
 using Npgsql;

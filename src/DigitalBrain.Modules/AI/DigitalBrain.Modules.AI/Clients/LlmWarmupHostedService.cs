@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using DigitalBrain.AI.Ollama;
+using DigitalBrain.AI.Models.Ollama;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;

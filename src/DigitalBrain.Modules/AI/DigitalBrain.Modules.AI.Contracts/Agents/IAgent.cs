@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.AI.Inference;
 using Orleans.Concurrency;
 
 namespace DigitalBrain.AI.Agents;

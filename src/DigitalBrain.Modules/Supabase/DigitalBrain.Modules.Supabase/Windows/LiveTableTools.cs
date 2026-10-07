@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Text.Json;
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Tools;
 using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Tables;
 using Microsoft.Extensions.AI;

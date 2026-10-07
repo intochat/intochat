@@ -1,3 +1,4 @@
+using DigitalBrain.AI.Models;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.Options;
