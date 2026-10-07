@@ -1,5 +1,7 @@
 using System.Text.Json;
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Files;
+using DigitalBrain.Microsoft.CSharp.Files.Signals;
 using Xunit;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;

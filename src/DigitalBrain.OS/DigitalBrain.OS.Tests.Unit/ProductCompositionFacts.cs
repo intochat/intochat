@@ -36,6 +36,20 @@ public sealed class ProductCompositionFacts
     }
 
     [Fact]
+    public async Task TheAppHostProjectsTheRepositoryRootIntoTheBrainForTheCSharpModule()
+    {
+        await using var appHost = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.DigitalBrain_AppHost>(
+            ["Parameters:Modules-digitalbrain-master-key=synthetic-composition-test-key-32chars"], TestContext.Current.CancellationToken);
+        var runtime = appHost.Resources.Single(resource => resource.Name == "IntoChat");
+        var environment = new Dictionary<string, object>();
+        var context = new EnvironmentCallbackContext(appHost.ExecutionContext, runtime, environment, TestContext.Current.CancellationToken);
+        foreach (var callback in runtime.Annotations.OfType<EnvironmentCallbackAnnotation>()) { await callback.Callback(context); }
+        var key = DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ModuleOptionsSection("csharp") + ":SourceRoot");
+        var root = Assert.IsType<string>(environment[key]);
+        Assert.True(File.Exists(Path.Combine(root, "DigitalBrain.slnx")));
+    }
+
+    [Fact]
     public async Task ProductMatchesTheReferenceCompositionModuleSet()
     {
         await using var appHost = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.DigitalBrain_AppHost>(

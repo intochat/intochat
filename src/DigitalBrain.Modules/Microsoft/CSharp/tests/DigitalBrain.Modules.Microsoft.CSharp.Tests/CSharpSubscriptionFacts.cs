@@ -1,6 +1,9 @@
 using DigitalBrain;
 using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Testing;
+using DigitalBrain.Microsoft.CSharp.Edge;
+using DigitalBrain.Microsoft.CSharp.Files;
+using DigitalBrain.Microsoft.CSharp.Files.Signals;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 

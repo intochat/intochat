@@ -1,4 +1,6 @@
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Authoring;
+using DigitalBrain.Microsoft.CSharp.Edge;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;

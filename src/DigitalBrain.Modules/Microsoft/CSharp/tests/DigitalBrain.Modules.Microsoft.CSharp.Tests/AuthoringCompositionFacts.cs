@@ -2,6 +2,8 @@ using System.Net;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Authoring;
+using DigitalBrain.Microsoft.CSharp.Edge;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 

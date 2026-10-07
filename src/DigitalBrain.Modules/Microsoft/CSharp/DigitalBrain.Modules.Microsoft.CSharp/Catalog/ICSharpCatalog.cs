@@ -1,6 +1,6 @@
 using Orleans.Metadata;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Catalog;
 
 // The human-facing names of a workspace's C# files, keyed "{scope}/csharp/catalog". Lives in the
 // module runtime assembly, not Contracts: the assistant's tools are its only caller.

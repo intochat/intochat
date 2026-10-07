@@ -2,6 +2,7 @@ using DigitalBrain.Framework;
 using System.Net.Http.Json;
 using DigitalBrain.Apps;
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Files;
 
 namespace DigitalBrain.OS.Tests.E2E;
 

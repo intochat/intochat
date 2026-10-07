@@ -1,4 +1,7 @@
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Edge;
+using DigitalBrain.Microsoft.CSharp.Files;
+using DigitalBrain.Microsoft.CSharp.Files.Signals;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 

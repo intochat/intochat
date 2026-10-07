@@ -1,4 +1,4 @@
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Sandbox;
 
 public static class CSharpSandbox
 {

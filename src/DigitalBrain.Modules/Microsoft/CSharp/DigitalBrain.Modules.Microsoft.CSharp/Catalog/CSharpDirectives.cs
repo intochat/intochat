@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
+using DigitalBrain.Microsoft.CSharp.Sandbox;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Catalog;
 
 // Maps a contracts assembly to the #:project line a sandbox script uses to reference it.
 // The directive is a sandbox concern, not a property of the neuron: the registry knows what

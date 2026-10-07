@@ -2,6 +2,8 @@ using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Tools;
 using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Authoring;
+using DigitalBrain.Microsoft.CSharp.Catalog;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;

@@ -1,6 +1,7 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.Aspire;
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Sandbox;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;

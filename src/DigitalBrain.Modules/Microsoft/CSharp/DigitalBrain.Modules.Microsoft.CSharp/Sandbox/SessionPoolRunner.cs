@@ -3,7 +3,7 @@ using System.Text;
 using Azure.Core;
 using Microsoft.Extensions.Options;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Sandbox;
 
 // Production: an Azure Container Apps custom-container session pool runs the Sandbox image, one
 // Hyper-V session per owner with that owner's scripts side by side. The pool allocates a session on

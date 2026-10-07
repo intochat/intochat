@@ -1,7 +1,7 @@
 using DigitalBrain;
 using Orleans.Metadata;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Files;
 
 // A C# program as a neuron: its source, its run in the sandbox, and the synapses it formed by
 // watching. Starting may build a sandbox on any runtime, hence the long timeouts.

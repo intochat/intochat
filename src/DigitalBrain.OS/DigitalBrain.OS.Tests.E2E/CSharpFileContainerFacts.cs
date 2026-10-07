@@ -1,6 +1,8 @@
 using DigitalBrain.Microsoft.Aspire;
 using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Time;
+using DigitalBrain.Microsoft.CSharp.Files;
+using DigitalBrain.Microsoft.CSharp.Sandbox;
 using ITimer = DigitalBrain.Time.Timers.ITimer;
 
 namespace DigitalBrain.OS.Tests.E2E;

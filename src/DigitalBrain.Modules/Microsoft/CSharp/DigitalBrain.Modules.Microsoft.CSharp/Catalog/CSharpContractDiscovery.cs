@@ -2,7 +2,7 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Framework;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Catalog;
 
 public sealed record CSharpContractModule(string Id, string? Directive);
 

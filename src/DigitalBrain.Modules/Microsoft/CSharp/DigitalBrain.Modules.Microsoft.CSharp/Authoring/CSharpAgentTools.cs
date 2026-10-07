@@ -2,7 +2,7 @@ using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Tools;
 using Microsoft.Extensions.AI;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Authoring;
 
 public sealed class CSharpAgentTools(CSharpToolService service) : IAgentToolFactory
 {

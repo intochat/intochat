@@ -1,4 +1,6 @@
-namespace DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Files;
+
+namespace DigitalBrain.Microsoft.CSharp.Catalog;
 
 [GenerateSerializer, Alias("csharp.description")]
 public sealed record CSharpDescription(

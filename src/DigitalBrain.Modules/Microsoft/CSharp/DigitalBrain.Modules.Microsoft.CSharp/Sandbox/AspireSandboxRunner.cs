@@ -4,7 +4,7 @@ using DigitalBrain.Microsoft.Aspire;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Sandbox;
 
 // Development: every owner shares the csharp-sandbox resource. It starts on demand through IAspire
 // and its URL comes from the resource state the AppHost reports, so nothing is wired until needed.

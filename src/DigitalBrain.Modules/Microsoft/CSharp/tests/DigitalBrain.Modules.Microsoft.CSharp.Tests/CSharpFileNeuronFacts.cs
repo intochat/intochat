@@ -1,4 +1,6 @@
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Files;
+using DigitalBrain.Microsoft.CSharp.Files.Signals;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Orleans.Runtime;
@@ -166,14 +168,22 @@ public sealed class CSharpFileNeuronFacts
     }
 
     [Fact]
-    public async Task AnUnsetSourceRootFallsBackToTheRepository()
+    public async Task ASourceRootTheHostConfiguresIsTheOneTheModuleReads()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var root = Path.GetFullPath(Path.GetTempPath());
+        await using var brain = await ModuleTest.Create().WithModule<CSharpModule, CSharpOptions>(options => options.WithSandbox(root)).StartAsync(ct);
+
+        Assert.Equal(root, brain.SiloServices.GetRequiredService<IOptions<CSharpOptions>>().Value.SourceRoot);
+    }
+
+    [Fact]
+    public async Task WithoutAConfiguredSourceRootTheModuleHasNoRepositoryAndInventsNone()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<CSharpModule>().StartAsync(ct);
 
-        var options = brain.SiloServices.GetRequiredService<IOptions<CSharpOptions>>().Value;
-
-        Assert.Equal(CSharpModule.FindRepositoryRoot(), options.SourceRoot);
+        Assert.Null(brain.SiloServices.GetRequiredService<IOptions<CSharpOptions>>().Value.SourceRoot);
     }
 
     [Fact]

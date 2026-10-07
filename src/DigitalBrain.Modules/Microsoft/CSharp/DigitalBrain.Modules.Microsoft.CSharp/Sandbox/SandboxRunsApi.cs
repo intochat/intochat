@@ -2,8 +2,9 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using DigitalBrain.Microsoft.CSharp.Files;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Sandbox;
 
 // The Sandbox project's run API. Production reaches the same API through the session pool, which
 // adds its own ?identifier= to pick the session, so the run id always travels in the path.
@@ -33,7 +34,7 @@ internal sealed class SandboxRunsApi(HttpClient http, Func<CancellationToken, Va
         await EnsureSuccessAsync(response, "inspect", cancellationToken).ConfigureAwait(false);
         var run = await response.Content.ReadFromJsonAsync<SandboxRunStatus>(cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException("The sandbox returned an empty run status.");
-        return new(run.Status == "Running" ? CSharpFileStatus.Running : CSharpFileStatus.Exited, run.ExitCode, run.StartedAt);
+        return new(run.Status == SandboxRunStates.Running ? CSharpFileStatus.Running : CSharpFileStatus.Exited, run.ExitCode, run.StartedAt);
     }
 
     public async Task<string> LogsAsync(Uri sandbox, string session, string runId, int tail, CancellationToken cancellationToken)

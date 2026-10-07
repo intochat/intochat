@@ -3,9 +3,11 @@ using System.Reflection;
 using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Catalog;
+using DigitalBrain.Microsoft.CSharp.Files;
 using ModelContextProtocol.Server;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Authoring;
 
 [McpServerToolType]
 public sealed class ScopedCSharpTools(IDigitalBrain brain, CSharpCatalogStore catalog, CSharpContractDiscovery? contracts, string scope, bool canRun)

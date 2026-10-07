@@ -1,5 +1,6 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Files;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 

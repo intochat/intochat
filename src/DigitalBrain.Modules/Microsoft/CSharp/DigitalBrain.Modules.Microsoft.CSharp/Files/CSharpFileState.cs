@@ -1,6 +1,6 @@
 using DigitalBrain.Framework;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Files;
 
 // Run is null until the file is first started. Active says the file is wanted: a stopped, finished or
 // disarmed file keeps its record so Inspect and ReadLogs still address its last run.

@@ -1,7 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Files;
 
 // One durable subscription a script declared by opening a signal stream. Pending[i] is signal number
 // Delivered + 1 + i: delivery is at-least-once, so a batch stays here until it is acknowledged and a
@@ -28,6 +28,3 @@ internal sealed record Subscription(
         return trim == 0 ? this : this with { Pending = Pending[trim..], Delivered = Delivered + trim };
     }
 }
-
-[GenerateSerializer, Alias("microsoft.csharp.pending-arrived")]
-internal sealed record CSharpPendingArrived([property: Id(0)] string FileId) : Signal;

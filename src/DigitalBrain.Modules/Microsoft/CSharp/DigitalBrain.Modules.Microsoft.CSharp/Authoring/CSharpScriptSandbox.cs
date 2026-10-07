@@ -1,6 +1,6 @@
 using DigitalBrain.Apps;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Authoring;
 
 public sealed class CSharpScriptSandbox(CSharpToolService tools) : IScriptSandbox
 {

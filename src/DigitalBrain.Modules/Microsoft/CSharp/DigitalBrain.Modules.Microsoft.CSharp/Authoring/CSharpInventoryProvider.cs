@@ -1,6 +1,8 @@
 using DigitalBrain.Framework;
+using DigitalBrain.Microsoft.CSharp.Catalog;
+using DigitalBrain.Microsoft.CSharp.Files;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Authoring;
 
 // Covers standalone files described in the existing authoring catalog. Direct grain callers
 // bypass that catalog; app-owned files are described by Apps, not duplicated here.

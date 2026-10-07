@@ -3,8 +3,9 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DigitalBrain.Client.Edge.V1;
 using DigitalBrain.Framework;
+using DigitalBrain.Microsoft.CSharp.Files;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Edge;
 
 // Everything a script does to the brain passes here: the run token must still speak for its file,
 // only neuron contracts from installed contract assemblies are callable, and each call carries the

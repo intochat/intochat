@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Edge;
 
 // What a run is told: where the brain's script edge is, the run's token and its settings.
 // Nothing about Orleans reaches the script.

@@ -1,7 +1,7 @@
 using DigitalBrain.Framework;
 using Orleans.Metadata;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Edge;
 
 [GenerateSerializer, Alias("microsoft.csharp.run-authorization")]
 internal sealed record RunAuthorization([property: Id(0)] bool Active, [property: Id(1)] CallerContext? Owner);

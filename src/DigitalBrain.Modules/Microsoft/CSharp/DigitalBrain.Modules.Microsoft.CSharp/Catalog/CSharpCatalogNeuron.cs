@@ -1,6 +1,6 @@
 using DigitalBrain.Framework;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Catalog;
 
 [GrainType("csharp.catalog")]
 internal sealed class CSharpCatalogNeuron([PersistentState("catalog", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<CSharpCatalogState> state)

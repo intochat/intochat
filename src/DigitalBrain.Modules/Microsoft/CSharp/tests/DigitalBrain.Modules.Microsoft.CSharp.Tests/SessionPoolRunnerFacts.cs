@@ -3,6 +3,8 @@ using System.Net;
 using System.Net.Http.Json;
 using Azure.Core;
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Files;
+using DigitalBrain.Microsoft.CSharp.Sandbox;
 using Xunit;
 using static Microsoft.Extensions.Options.Options;
 

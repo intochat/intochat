@@ -1,4 +1,4 @@
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Sandbox;
 
 internal sealed record CSharpRun(string Owner, string RunId, string Source, IReadOnlyDictionary<string, string> Environment);
 

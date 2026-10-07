@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Files;
 
 namespace DigitalBrain.Apps;
 

@@ -4,6 +4,12 @@ using DigitalBrain;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Microsoft.CSharp.Authoring;
+using DigitalBrain.Microsoft.CSharp.Catalog;
+using DigitalBrain.Microsoft.CSharp.Edge;
+using DigitalBrain.Microsoft.CSharp.Files;
+using DigitalBrain.Microsoft.CSharp.Files.Signals;
+using DigitalBrain.Microsoft.CSharp.Sandbox;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -34,11 +40,7 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         var authoring = builder.Configuration.GetModuleOptions<CSharpOptions>("csharp").Authoring;
         builder.AddIncomingGrainCallFilter<CSharpAppBindingGuard>();
         builder.Services.AddOptions<CSharpOptions>()
-            .Configure<IConfiguration>((options, configuration) => configuration.PopulateModuleOptions("csharp", options))
-            .PostConfigure(options =>
-        {
-            if (string.IsNullOrWhiteSpace(options.SourceRoot)) { options.SourceRoot = FindRepositoryRoot(); }
-        });
+            .Configure<IConfiguration>((target, configuration) => configuration.PopulateModuleOptions("csharp", target));
         builder.Services.AddOptions<CSharpDeploymentSettings>().BindConfiguration(CSharpDeploymentSettings.SectionName);
         builder.Services.TryAddSingleton<CSharpCatalogStore>();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<CSharpFileNeuron>, CSharpFileActivation>());
@@ -75,14 +77,5 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         ArgumentNullException.ThrowIfNull(endpoints);
         endpoints.MapScriptEdge();
         if (endpoints.ServiceProvider.GetRequiredService<IOptions<CSharpOptions>>().Value.Authoring) { CSharpAuthoringEndpoints.Map(endpoints); }
-    }
-
-    public static string? FindRepositoryRoot()
-    {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "DigitalBrain.slnx"))) { return directory.FullName; }
-        }
-        return null;
     }
 }

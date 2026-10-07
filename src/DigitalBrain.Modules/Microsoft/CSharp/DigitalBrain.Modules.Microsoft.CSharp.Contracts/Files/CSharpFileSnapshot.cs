@@ -1,4 +1,4 @@
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Files;
 
 [GenerateSerializer, Alias("microsoft.csharp.file-status")]
 public enum CSharpFileStatus { Stopped, Running, Restarting, Exited }

@@ -1,4 +1,6 @@
-namespace DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Files;
+
+namespace DigitalBrain.Microsoft.CSharp.Sandbox;
 
 internal sealed record CSharpRunState(CSharpFileStatus Status, int? ExitCode, DateTimeOffset? StartedAt)
 {

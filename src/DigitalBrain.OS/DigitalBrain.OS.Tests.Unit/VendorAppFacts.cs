@@ -1,4 +1,5 @@
 using DigitalBrain.Apps;
+using DigitalBrain.Microsoft.CSharp.Catalog;
 
 namespace DigitalBrain.OS.Tests.Unit;
 
@@ -28,7 +29,7 @@ public sealed class VendorAppFacts
         foreach (var app in Source.Load())
         {
             var sources = new Dictionary<string, string>(app.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal)));
-            var result = new DigitalBrain.Microsoft.CSharp.CSharpScriptCheck().Check(sources);
+            var result = new CSharpScriptCheck().Check(sources);
             Assert.True(result.Success, $"{app.Name}: {string.Join("; ", result.Errors.Select(error => $"{error.File}:{error.Line} {error.Message}"))}");
         }
     }

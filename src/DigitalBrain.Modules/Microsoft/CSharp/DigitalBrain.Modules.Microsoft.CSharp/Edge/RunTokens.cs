@@ -5,7 +5,7 @@ using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Edge;
 
 internal sealed record RunTokenClaims(string File, string Run, DateTimeOffset Expires);
 

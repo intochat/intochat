@@ -1,6 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Files;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
