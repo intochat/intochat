@@ -58,7 +58,7 @@ var cookieProtection = digitalBrain.AddBlobContainer(digitalBrain.Identity!.Prot
 
 var intoChatApps = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "IntoChat", "Apps"));
 
-var runtime = builder.AddProject<Projects.DigitalBrain_OS>("IntoChat")
+var runtime = builder.AddProject<Projects.DigitalBrain_OS>("OperatingSystem")
     .WithReference(digitalBrain)
     .WithEnvironment(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(IntoChatAccountKey + ":Username"), "intochat")
     .WithEnvironment(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(IntoChatAccountKey + ":DisplayName"), "IntoChat")
