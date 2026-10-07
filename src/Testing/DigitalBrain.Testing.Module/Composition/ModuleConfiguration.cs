@@ -1,4 +1,3 @@
-using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using ModuleContract = DigitalBrain.Framework.Module;
 

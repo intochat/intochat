@@ -1,5 +1,3 @@
-using Xunit;
-
 namespace DigitalBrain.Framework.Tests.Unit.Enforcement;
 
 public sealed class BrainScopeFacts

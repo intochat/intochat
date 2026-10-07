@@ -1,10 +1,8 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Google.Gmail;
-using DigitalBrain.Platform.Secrets;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
-using Xunit;
 
 namespace DigitalBrain.Modules.Google.Gmail.Tests;
 

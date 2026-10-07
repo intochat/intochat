@@ -7,8 +7,8 @@ using Microsoft.AspNetCore.Routing;
 
 namespace DigitalBrain.Salesforce;
 
-// The neutral accounts surface lives in the Sdk; Salesforce contributes its OAuth grant as an
-// external account and the browser-login discovery and start routes.
+// The neutral accounts surface is Framework's IExternalConnection; Salesforce contributes its OAuth
+// grant as an external account and the browser-login discovery and start routes.
 internal sealed class SalesforceExternalConnection : IExternalConnection
 {
     public const string OAuthConnectionId = "oauth:salesforce";

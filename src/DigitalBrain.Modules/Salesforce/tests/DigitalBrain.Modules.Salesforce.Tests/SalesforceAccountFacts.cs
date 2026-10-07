@@ -1,10 +1,8 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Salesforce;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using Xunit;
 
 namespace DigitalBrain.Modules.Salesforce.Tests;
 

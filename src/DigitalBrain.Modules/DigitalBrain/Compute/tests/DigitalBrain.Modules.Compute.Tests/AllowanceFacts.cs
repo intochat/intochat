@@ -1,7 +1,5 @@
 using DigitalBrain.Compute;
 using DigitalBrain.Compute.Allowances;
-using DigitalBrain.Compute.Billing;
-using DigitalBrain.Compute.Metering;
 using DigitalBrain.Framework;
 
 namespace DigitalBrain.Modules.Compute.Tests;

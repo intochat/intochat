@@ -3,8 +3,6 @@ using System.Text.Json;
 using DigitalBrain.Framework.Platform.Integrations.Accounts;
 using DigitalBrain.Platform.Integrations;
 using DigitalBrain.Platform.Integrations.Accounts;
-using DigitalBrain.Testing.Module;
-using Xunit;
 
 namespace DigitalBrain.Platform.Tests.Unit.Integrations;
 

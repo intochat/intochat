@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using DigitalBrain.AI.Agents;
-using DigitalBrain.Framework;
 using Microsoft.Extensions.AI;
 
 namespace DigitalBrain.Apps;

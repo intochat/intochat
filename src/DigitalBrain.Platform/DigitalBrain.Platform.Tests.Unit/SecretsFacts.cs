@@ -2,9 +2,7 @@ using DigitalBrain.Framework;
 using System.Security.Cryptography;
 using DigitalBrain.Framework.Platform.Secrets;
 using DigitalBrain.Platform.Secrets;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Xunit;
 
 namespace DigitalBrain.Platform.Tests.Unit;
 

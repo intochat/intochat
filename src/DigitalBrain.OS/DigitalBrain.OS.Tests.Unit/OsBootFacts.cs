@@ -1,13 +1,8 @@
 using DigitalBrain.Framework;
-using DigitalBrain;
 using DigitalBrain.Apps;
-using DigitalBrain.Framework.Platform.Identity;
-using DigitalBrain.OS;
-using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
-using Xunit;
 
 namespace DigitalBrain.OS.Tests.Unit;
 

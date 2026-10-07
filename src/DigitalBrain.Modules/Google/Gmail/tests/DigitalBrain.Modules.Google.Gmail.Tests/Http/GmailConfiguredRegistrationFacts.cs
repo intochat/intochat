@@ -2,9 +2,7 @@ using System.Net;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Google.Gmail;
-using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Xunit;
 
 namespace DigitalBrain.Modules.Google.Gmail.Tests;
 

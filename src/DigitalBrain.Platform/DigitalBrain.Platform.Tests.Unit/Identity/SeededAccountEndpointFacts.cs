@@ -1,16 +1,12 @@
 using System.Net;
-using System.Net.Http.Json;
 using System.Text.Json;
-using DigitalBrain;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Configuration;
 using DigitalBrain.Platform.Identity.Directory;
-using DigitalBrain.Testing.Module;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Xunit;
 
 namespace DigitalBrain.Platform.Tests.Unit.Identity;
 

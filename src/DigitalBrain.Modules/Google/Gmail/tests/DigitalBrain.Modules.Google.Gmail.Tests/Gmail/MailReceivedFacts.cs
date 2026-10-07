@@ -1,8 +1,6 @@
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Framework;
 using DigitalBrain.Google.Gmail;
-using DigitalBrain.Testing;
-using Xunit;
 
 namespace DigitalBrain.Modules.Google.Gmail.Tests;
 

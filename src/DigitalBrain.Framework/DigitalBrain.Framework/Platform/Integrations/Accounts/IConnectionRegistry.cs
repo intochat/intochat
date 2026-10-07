@@ -6,7 +6,7 @@ public static class ConnectionNames
     public const string NeuronType = "connections";
 }
 
-// The owner's accounts on external integrations. Credentials are stored in SDK Secrets and records
+// The owner's accounts on external integrations. Credentials are stored in Secrets and records
 // contain only references. Platform-only: the caller is read from the ambient stamp, and the
 // HTTP endpoints are the user's way in.
 [PlatformOnly]

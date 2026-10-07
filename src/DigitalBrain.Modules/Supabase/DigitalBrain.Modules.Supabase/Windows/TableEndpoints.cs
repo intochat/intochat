@@ -1,4 +1,3 @@
-using DigitalBrain;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Framework;
 using DigitalBrain.Supabase.Tables;
