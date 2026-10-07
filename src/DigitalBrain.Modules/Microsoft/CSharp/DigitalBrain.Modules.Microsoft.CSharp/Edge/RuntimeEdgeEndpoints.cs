@@ -35,7 +35,7 @@ internal static class RuntimeEdgeEndpoints
 
     private static IResult Refusal(HttpContext http, Exception error)
     {
-        if (error is DigitalBrain.Framework.Capacity.CapacityUnavailableException)
+        if (error is ServiceUnavailableException)
         {
             http.Response.Headers[RuntimeProtocol.RefusalHeader] = error.GetType().Name;
             return Results.Text(error.Message, statusCode: 503);

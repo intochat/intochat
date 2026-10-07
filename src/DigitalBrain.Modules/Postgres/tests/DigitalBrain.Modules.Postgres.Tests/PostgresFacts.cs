@@ -15,6 +15,10 @@ namespace DigitalBrain.Modules.Postgres.Tests;
 public sealed class PostgresFacts
 {
     [Fact]
+    public void APostgresOutageIsAServiceUnavailableRefusal()
+        => Assert.IsAssignableFrom<ServiceUnavailableException>(new PostgresUnavailableException("down"));
+
+    [Fact]
     public async Task ParametersAreBoundNotInterpolated()
     {
         await using var brain = await StartAsync();

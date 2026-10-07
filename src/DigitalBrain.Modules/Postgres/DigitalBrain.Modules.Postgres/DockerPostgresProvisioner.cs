@@ -52,5 +52,5 @@ internal sealed class DockerPostgresProvisioner(string adminConnection, Func<str
 internal sealed class InactivePostgresProvisioner : ICapacityProvisioner
 {
     public string Kind => PostgresCapacityKind.Kind + ":inactive";
-    public ValueTask<string> Ensure(CapacityScope scope, CancellationToken ct) => throw new CapacityUnavailableException();
+    public ValueTask<string> Ensure(CapacityScope scope, CancellationToken ct) => throw new PostgresUnavailableException("Postgres capacity is not provisioned.");
 }

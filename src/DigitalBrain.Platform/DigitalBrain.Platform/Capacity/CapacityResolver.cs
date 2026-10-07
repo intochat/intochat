@@ -23,6 +23,6 @@ internal sealed class CapacityResolver(
         ArgumentNullException.ThrowIfNull(scope);
         if (provisioners.LastOrDefault(provisioner => provisioner.Kind == kind) is { } provisioner)
         { return new(kind, await provisioner.Ensure(scope, ct)); }
-        throw new CapacityUnavailableException();
+        throw new ServiceUnavailableException("Capacity is not provisioned.");
     }
 }

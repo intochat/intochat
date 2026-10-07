@@ -38,7 +38,7 @@ public sealed class CapacityResolverFacts
     public async Task WithNothingRegisteredResolutionIsUnavailable()
     {
         var resolver = new CapacityResolver([], []);
-        await Assert.ThrowsAsync<CapacityUnavailableException>(
+        await Assert.ThrowsAsync<ServiceUnavailableException>(
             async () => await resolver.Resolve("postgres", Scope, TestContext.Current.CancellationToken));
     }
 
@@ -46,7 +46,7 @@ public sealed class CapacityResolverFacts
     public async Task AnExplicitProvisionRequiresAProvisionerEvenWhenASourceIsConfigured()
     {
         var resolver = new CapacityResolver([new Source("postgres", "platform")], []);
-        await Assert.ThrowsAsync<CapacityUnavailableException>(
+        await Assert.ThrowsAsync<ServiceUnavailableException>(
             async () => await resolver.Provision("postgres", Scope, TestContext.Current.CancellationToken));
     }
 }

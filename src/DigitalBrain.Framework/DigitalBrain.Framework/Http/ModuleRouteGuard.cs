@@ -7,7 +7,7 @@ public static class ModuleRouteGuard
     public static async ValueTask<object?> Guard(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         try { return await next(context); }
-        catch (Capacity.CapacityUnavailableException error) { return Results.Problem(error.Message, statusCode: StatusCodes.Status503ServiceUnavailable); }
+        catch (ServiceUnavailableException error) { return Results.Problem(error.Message, statusCode: StatusCodes.Status503ServiceUnavailable); }
         catch (FileNotFoundException) { return Results.Problem("The file no longer exists. Refresh Files.", statusCode: StatusCodes.Status404NotFound); }
         catch (KeyNotFoundException error) { return Results.Problem(error.Message, statusCode: StatusCodes.Status404NotFound); }
         catch (ArgumentException error) { return Results.Problem(error.Message, statusCode: StatusCodes.Status400BadRequest); }

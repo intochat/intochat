@@ -28,9 +28,9 @@ public sealed class PostgresCapacityFacts
             .ConfigureSilo(silo => silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=sample;Username=reader")
             .StartAsync(ct);
         var capacity = brain.SiloServices.GetRequiredService<ICapacity>();
-        var refusal = await Assert.ThrowsAsync<CapacityUnavailableException>(
+        var refusal = await Assert.ThrowsAsync<ServiceUnavailableException>(
             async () => await capacity.Provision("postgres", new("brain-1", "app-1"), ct));
-        Assert.Equal("Sorry, runtime provisioning is not accessible at the moment.", refusal.Message);
+        Assert.Equal("Capacity is not provisioned.", refusal.Message);
     }
 
     [Fact]
