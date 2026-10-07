@@ -30,6 +30,36 @@ public sealed partial class RepositoryPathLiteralFacts
             + string.Join('\n', offenders));
     }
 
+    // A fact names what it wants through the typed harness; the hosting ring decides the
+    // variable. Raw OTEL_/ASPNETCORE_/DOTNET_ names and "A__B" env spellings are forbidden in test
+    // code outside the harness itself, as is spelling an env name through EnvironmentName(...).
+    [GeneratedRegex("\"(OTEL_|ASPNETCORE_|DOTNET_|ASPIRE_)[A-Z0-9_]+\"|\"[A-Za-z0-9]+__[A-Za-z0-9_]+\"|EnvironmentName\\(", RegexOptions.CultureInvariant)]
+    private static partial Regex EnvironmentLiteral();
+
+    // Closed list: these facts assert on the projection itself (which variables the hosting and
+    // deployment rings write), so the variable names are their subject, not a way to configure a run.
+    private static readonly string[] ProjectionFacts =
+    [
+        "TelemetryProjectionFacts.cs", "HostEnvironmentFacts.cs", "ConfigurationFileFacts.cs", "ConfigurationGrammarFacts.cs",
+        "DeploymentIdentityFacts.cs", "DigitalBrainDeploymentFacts.cs", "GitHubAppHostingFacts.cs", "PostgresAspireHostingFacts.cs",
+        "SupabaseHostingFacts.cs", "ProductCompositionFacts.cs"
+    ];
+
+    [Fact]
+    public void TestsNameNoEnvironmentVariables()
+    {
+        var offenders = Repository.ProjectFiles("*.cs",
+                path => EnvironmentLiteral().IsMatch(File.ReadAllText(path)),
+                project => project.Name.Contains(".Tests", StringComparison.Ordinal)
+                    && !project.Directory.Contains(Path.DirectorySeparatorChar + "Testing" + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+            .Where(path => !ProjectionFacts.Contains(Path.GetFileName(path), StringComparer.Ordinal))
+            .Select(Repository.Relative)
+            .Order().ToArray();
+        Assert.True(offenders.Length == 0,
+            "Test code names environment variables; speak through the E2E builder (ExportingTelemetryTo, InEnvironment, ConfigureModule, WithHostConfiguration with a typed key):\n"
+            + string.Join('\n', offenders));
+    }
+
     [Fact]
     public void WorkflowPathsExist()
     {
