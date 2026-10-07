@@ -2,12 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-/// A stored credential is configured, never proof of working provider access.
 String connectionStatus(Object? status) => switch (status) {
-  'Configured' || 0 => 'Configured',
-  'Verified' => 'Verified',
-  'Expired' || 1 => 'Expired',
-  'Disconnected' || 3 => 'Disconnected',
+  'Connected' => 'Connected',
+  'Expired' => 'Expired',
+  'Failing' => 'Failing',
+  'Disconnected' => 'Disconnected',
   _ => 'Unavailable',
 };
 
@@ -122,12 +121,10 @@ class _ConnectWindowState extends State<ConnectWindow> {
     _value.clear();
     try {
       final result = await widget.request(
-        'connect',
+        '${Uri.encodeComponent(_connectionId.text.trim())}/connect',
         body: {
           'connectorId': source,
           'authMethodId': authMethod,
-          'connectionId': _connectionId.text.trim(),
-          'label': source,
           'value': secret,
         },
       );
@@ -136,7 +133,7 @@ class _ConnectWindowState extends State<ConnectWindow> {
       setState(() {
         _connectionId.clear();
         notice =
-            'Configured ${record['connectorId']} (${connectionStatus(record['status'])}).';
+            'Connected ${record['connectorId']} (${connectionStatus(record['status'])}).';
       });
       await load();
     } catch (failure) {
@@ -148,9 +145,9 @@ class _ConnectWindowState extends State<ConnectWindow> {
     }
   }
 
-  Future<void> probe(String id) => act('probe', id, 'Probed $id.');
+  Future<void> probe(String id) => act('$id/probe', id, 'Probed $id.');
   Future<void> disconnect(String id) =>
-      act('disconnect', id, 'Disconnected $id.');
+      act('$id/disconnect', id, 'Disconnected $id.');
 
   Future<void> act(String action, String id, String message) async {
     final ticket = ++generation;
@@ -160,7 +157,7 @@ class _ConnectWindowState extends State<ConnectWindow> {
       error = null;
     });
     try {
-      await widget.request(action, body: {'connectionId': id});
+      await widget.request(action);
       if (!mounted || ticket != generation) return;
       setState(() => notice = message);
       await load();
@@ -176,7 +173,7 @@ class _ConnectWindowState extends State<ConnectWindow> {
   Future<void> startOAuth() async {
     final open = widget.onOpen;
     if (source == null ||
-        widget.connectorRequest == null ||
+        authMethod == null ||
         open == null ||
         _connectionId.text.trim().isEmpty) {
       setState(() => error = 'Provide a connection name to authorize.');
@@ -187,12 +184,9 @@ class _ConnectWindowState extends State<ConnectWindow> {
       error = null;
     });
     try {
-      final result = await widget.connectorRequest!(
-        '$source/start',
-        body: {
-          'connectionId': _connectionId.text.trim(),
-          'authMethodId': authMethod,
-        },
+      final result = await widget.request(
+        '${Uri.encodeComponent(_connectionId.text.trim())}/login',
+        body: {'connectorId': source, 'authMethodId': authMethod},
       );
       final url = Uri.parse((result as Map)['url'] as String);
       if (!url.hasAuthority || !['https', 'http'].contains(url.scheme)) {
@@ -351,12 +345,12 @@ class _ConnectWindowState extends State<ConnectWindow> {
                   for (final connection in connections)
                     ListTile(
                       leading: Icon(
-                        connectionStatus(connection['status']) == 'Configured'
+                        connectionStatus(connection['status']) == 'Connected'
                             ? Icons.key_outlined
                             : Icons.error_outline,
                       ),
                       title: Text(
-                        '${connection['connectorId']} · ${connection['id']}',
+                        '${connection['connectorId']} · ${connection['connectionId']}',
                       ),
                       subtitle: Text(connectionStatus(connection['status'])),
                       trailing: Row(
@@ -366,14 +360,16 @@ class _ConnectWindowState extends State<ConnectWindow> {
                             tooltip: 'Probe connection',
                             onPressed: busy
                                 ? null
-                                : () => probe('${connection['id']}'),
+                                : () => probe('${connection['connectionId']}'),
                             icon: const Icon(Icons.network_check),
                           ),
                           IconButton(
                             tooltip: 'Disconnect',
                             onPressed: busy
                                 ? null
-                                : () => disconnect('${connection['id']}'),
+                                : () => disconnect(
+                                    '${connection['connectionId']}',
+                                  ),
                             icon: const Icon(Icons.link_off),
                           ),
                         ],

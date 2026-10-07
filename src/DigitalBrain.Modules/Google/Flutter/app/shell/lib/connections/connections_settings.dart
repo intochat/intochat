@@ -89,7 +89,7 @@ class _ConnectionsSettingsState extends State<ConnectionsSettings> {
       _error = null;
     });
     try {
-      await widget.request!(action, body: {'connectionId': id});
+      await widget.request!('${Uri.encodeComponent(id)}/$action');
       if (mounted && generation == _generation) await _load();
     } catch (_) {
       if (mounted && generation == _generation) {
@@ -101,7 +101,11 @@ class _ConnectionsSettingsState extends State<ConnectionsSettings> {
     }
   }
 
-  Future<void> _start(String provider, String connectionId) async {
+  Future<void> _start(
+    String connector,
+    String authMethod,
+    String connectionId,
+  ) async {
     final generation = _generation;
     final open = widget.onOpen!;
     setState(() {
@@ -109,9 +113,9 @@ class _ConnectionsSettingsState extends State<ConnectionsSettings> {
       _error = null;
     });
     try {
-      final result = await widget.connectorRequest!(
-        '$provider/start',
-        body: {'connectionId': connectionId},
+      final result = await widget.request!(
+        '${Uri.encodeComponent(connectionId)}/login',
+        body: {'connectorId': connector, 'authMethodId': authMethod},
       );
       final url = Uri.parse((result as Map)['url'] as String);
       if (!url.hasAuthority ||
@@ -122,7 +126,7 @@ class _ConnectionsSettingsState extends State<ConnectionsSettings> {
       await open(url);
       if (mounted && generation == _generation) {
         setState(
-          () => _notice = 'Authorization opened in your browser. Complete the provider steps, then refresh to see the authorized service. Configured credentials still require service verification.',
+          () => _notice = 'Authorization opened in your browser. Complete the provider steps, then refresh to see the authorized service.',
         );
       }
     } catch (_) {
@@ -174,9 +178,7 @@ class _ConnectionsSettingsState extends State<ConnectionsSettings> {
           ),
         ],
       ),
-      const Text(
-        'Connections belong to the selected brain. Configured credentials have not yet been verified.',
-      ),
+      const Text('Connections belong to the selected brain.'),
       const SizedBox(height: 16),
       if (_busy) const LinearProgressIndicator(),
       if (_error != null)
@@ -200,15 +202,11 @@ class _ConnectionsSettingsState extends State<ConnectionsSettings> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${_connectors.where((c) => c['id'] == row['connectorId']).firstOrNull?['displayName'] ?? row['connectorId']}${'${row['id']}'.startsWith('oauth:') ? '' : ' · ${row['id']}'}',
+                  '${_connectors.where((c) => c['id'] == row['connectorId']).firstOrNull?['displayName'] ?? row['connectorId']} · ${row['connectionId']}',
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
                 Text(connectionStatus(row['status'])),
                 if (row['account'] is String) Text(row['account'] as String),
-                if (row['connectorId'] == 'gmail')
-                  const Text(
-                    'Gmail credential only. Calendar and Drive access is not established.',
-                  ),
                 Wrap(
                   spacing: 8,
                   children: [
@@ -224,7 +222,8 @@ class _ConnectionsSettingsState extends State<ConnectionsSettings> {
                             ? null
                             : () => _start(
                                 '${row['connectorId']}',
-                                '${row['id']}',
+                                '${row['authMethodId']}',
+                                '${row['connectionId']}',
                               ),
                         icon: const Icon(Icons.login),
                         label: const Text('Reconnect'),
@@ -232,14 +231,14 @@ class _ConnectionsSettingsState extends State<ConnectionsSettings> {
                     TextButton.icon(
                       onPressed: _busy
                           ? null
-                          : () => _act('probe', '${row['id']}'),
+                          : () => _act('probe', '${row['connectionId']}'),
                       icon: const Icon(Icons.network_check),
                       label: const Text('Check credential'),
                     ),
                     TextButton.icon(
                       onPressed: _busy
                           ? null
-                          : () => _act('disconnect', '${row['id']}'),
+                          : () => _act('disconnect', '${row['connectionId']}'),
                       icon: const Icon(Icons.link_off),
                       label: const Text('Disconnect'),
                     ),

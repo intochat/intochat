@@ -1,3 +1,5 @@
+using System.Text.Json;
+using DigitalBrain.Framework.Platform.Connections;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,5 +31,17 @@ public sealed class ConnectionRouteFacts
         Assert.Contains("/brains/{brainId}/connections/{connectionId}/disconnect", routes);
         // The OAuth callback is Platform middleware, not a route; no connection route escapes the brain.
         Assert.DoesNotContain(routes, route => route.StartsWith("/connections", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ARowReachesTheShellWithItsStatusAsAName()
+    {
+        var row = new ConnectionView("gmail", "mail", "google-oauth", ConnectionStatus.Connected, "a@b.c", null, null, null);
+
+        var json = JsonSerializer.SerializeToElement(row, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+        Assert.Equal(JsonValueKind.String, json.GetProperty("status").ValueKind);
+        Assert.Equal("Connected", json.GetProperty("status").GetString());
+        Assert.Equal("mail", json.GetProperty("connectionId").GetString());
     }
 }
