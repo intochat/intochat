@@ -35,8 +35,8 @@ internal sealed class AssistantNeuron(
     public Task<AssistantTranscriptionResult> Transcribe(string? base64, CancellationToken ct = default)
         => new AssistantTranscription(GrainFactory.GetGrain<ISpeechRecognizer>(Key + "/voice")).Transcribe(base64, ct);
 
-    public async Task<AgentConversationState> ReadConversation(string threadId, CancellationToken ct = default)
-        => await (await Conversation(threadId)).ReadConversation(ct);
+    public async Task<AgentState> ReadConversation(string threadId, CancellationToken ct = default)
+        => await (await Conversation(threadId)).Read();
 
     public Task<ModelChoices> Models() => new AssistantTurnExecution(services, GrainFactory).Models();
 

@@ -49,9 +49,7 @@ public sealed class AgentToolSelectionFacts
         // Resolve the selected tools in the real runner before it reaches the model.
         using var services = new ServiceCollection().AddModelCatalog().AddSingleton(source)
             .AddSingleton<IChatClient>(new ScriptedAssistantModel()).BuildServiceProvider();
-        var events = new List<AgentTurnEvent>();
-        await foreach (var item in new AgentTurnRunner(services).RunAsync(new("assistant", "run", scope, [], "hello", null, ToolNames: selected), ct))
-        { events.Add(item); }
+        var events = await TurnLoops.Collect(services, scope, "hello", selected, ct);
         Assert.DoesNotContain(events, item => item is AgentTurnEvent.Failed);
         Assert.Contains(events, item => item is AgentTurnEvent.Completed);
         // Discovery has no model-controlled scope argument; the Registry tests cover caller isolation.

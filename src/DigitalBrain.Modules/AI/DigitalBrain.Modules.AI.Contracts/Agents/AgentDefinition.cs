@@ -1,5 +1,6 @@
 namespace DigitalBrain.AI.Agents;
 
+// Contexts are IAgentContext neuron keys the agent reads at the start of every turn.
 [GenerateSerializer, Alias("ai.agent-definition")]
 public sealed record AgentDefinition
 {
@@ -14,13 +15,5 @@ public sealed record AgentDefinition
     [Id(8)] public TimeSpan Timeout { get; init; } = TimeSpan.FromMinutes(2);
     [Id(9)] public int MaxHistoryMessages { get; init; } = 256;
     [Id(10)] public InferenceOptions? Options { get; init; }
-    [Id(11)] public string[] ContextProviders { get; init; } = [];
+    [Id(11)] public string[] Contexts { get; init; } = [];
 }
-
-[GenerateSerializer, Alias("ai.agent-metadata")]
-public sealed record AgentMetadata(
-    [property: Id(0)] string Id,
-    [property: Id(1)] string DisplayName,
-    [property: Id(2)] string Description,
-    [property: Id(3)] IReadOnlyList<string> Capabilities,
-    [property: Id(4)] IReadOnlyList<string> RoutingExamples);

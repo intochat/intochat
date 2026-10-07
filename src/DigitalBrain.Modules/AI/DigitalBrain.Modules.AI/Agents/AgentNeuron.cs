@@ -4,410 +4,338 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.AI.Agents.Signals;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Metering;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Orleans.Runtime;
 
 namespace DigitalBrain.AI.Agents;
 
-[GenerateSerializer, Alias("ai.agent-storage-envelope")]
-internal sealed record AgentStorageEnvelope
-{
-    [Id(0)] public string Json { get; init; } = "";
-}
-
-[GenerateSerializer, Alias("ai.agent-storage")]
+// Every message held here is built from concrete arrays: the storage serializer cannot bring
+// collection-expression wrappers back on reactivation.
+[GenerateSerializer, Alias("agent.storage")]
 internal sealed record AgentStorage
 {
     [Id(0)] public long Revision { get; init; }
     [Id(1)] public AgentDefinition Definition { get; init; } = new();
-    [Id(2)] public List<AiMessage> History { get; init; } = [];
-    [Id(3)] public AgentRunState? LastRun { get; init; }
-    [Id(4)] public List<AgentEvent> Events { get; init; } = [];
-    [Id(5)] public long EventSequence { get; init; }
-    [Id(6)] public List<AgentConversationTurn> Turns { get; init; } = [];
-    [Id(7)] public string? ActiveRun { get; init; }
-    [Id(8)] public string? HistorySummary { get; init; }
-    [Id(9)] public Dictionary<string, string> RunInputs { get; init; } = new(StringComparer.Ordinal);
-    [Id(10)] public string? ConversationSummary { get; init; }
+    [Id(2)] public AiMessage[] Transcript { get; init; } = [];
+    [Id(3)] public string? Summary { get; init; }
+    [Id(4)] public AgentRun? ActiveRun { get; init; }
+    [Id(5)] public AgentRun[] Runs { get; init; } = [];
 }
 
 [GrainType("agent")]
 internal sealed class AgentNeuron(
-    [PersistentState("agent", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<AgentStorageEnvelope> store,
-    IAgentTurnRunner runner) : Neuron, IAgent
+    [PersistentState("agent", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<AgentStorage> store) : Neuron, IAgent, IAgentDriver
 {
+    private const int KeptRuns = 64;
     private CancellationTokenSource? _active;
+    private string? _cancelBeforeDrive;
     private bool _mutating;
-    private AgentStorage _state = new();
+    private AgentStorage State => store.State;
+    private string Key => this.GetPrimaryKeyString();
+    // An agent's key starts with its brain scope; that scope is the tools' and the meter's.
+    private string Scope => Key.Contains('/', StringComparison.Ordinal) ? Key[..Key.IndexOf('/', StringComparison.Ordinal)] : Key;
+    private ILogger Logger => ServiceProvider.GetRequiredService<ILogger<AgentNeuron>>();
 
-    internal async Task ResumeAsync()
+    // A run the previous activation left open is interrupted: external tool outcomes may be unknown.
+    internal async Task Resume()
     {
-        _state = string.IsNullOrEmpty(store.State.Json) ? new() : JsonSerializer.Deserialize<AgentStorage>(store.State.Json)!;
-        if (_state.LastRun is { Status: AgentRunStatus.Running } interrupted)
+        if (State.ActiveRun is { } open)
         {
-            await Save(_state with
-            {
-                LastRun = interrupted with
-                {
-                    Status = AgentRunStatus.Interrupted,
-                    EndedAt = DateTimeOffset.UtcNow,
-                    Error = "Activation ended before the run committed; external tool outcomes may be unknown."
-                }
-            });
+            await Persist(State with { ActiveRun = null, Runs = Keep(State.Runs, Close(open, AgentRunStatus.Interrupted,
+                "Activation ended before the run committed; external tool outcomes may be unknown.")) });
         }
     }
 
-    public async Task Configure(AgentDefinition definition, long expectedRevision, CancellationToken ct = default)
+    public async Task Configure(AgentDefinition definition, long expectedRevision)
     {
-        ct.ThrowIfCancellationRequested();
         EnsureIdle();
         ArgumentNullException.ThrowIfNull(definition);
-        if (_state.Revision != expectedRevision) { throw new InvalidOperationException("Agent revision conflict."); }
+        if (State.Revision != expectedRevision) { throw new InvalidOperationException("Agent revision conflict."); }
         if (definition.MaxModelCalls is < 1 or > 128 || definition.Timeout <= TimeSpan.Zero || definition.Timeout > TimeSpan.FromMinutes(10)
             || definition.MaxHistoryMessages is < 2 or > 4096) { throw new ArgumentException("Invalid agent execution limits.", nameof(definition)); }
-        if (definition.Instructions.Length > 32000 || definition.Tools.Length > 128
-            || definition.Tools.Any(string.IsNullOrWhiteSpace) || definition.Tools.Distinct(StringComparer.Ordinal).Count() != definition.Tools.Length)
-        { throw new ArgumentException("Instructions or tool selection are invalid.", nameof(definition)); }
+        if (definition.Instructions.Length > 32000 || definition.Tools.Length > 128 || definition.Tools.Any(string.IsNullOrWhiteSpace)
+            || definition.Tools.Distinct(StringComparer.Ordinal).Count() != definition.Tools.Length
+            || definition.Contexts.Length > 32 || definition.Contexts.Any(key => string.IsNullOrWhiteSpace(key) || key.Length > 512))
+        { throw new ArgumentException("Instructions, tool selection or contexts are invalid.", nameof(definition)); }
         _mutating = true;
         try
         {
-            await Save(_state with
+            await Persist(State with
             {
-                Revision = _state.Revision + 1,
+                Revision = State.Revision + 1,
                 Definition = definition with
-                { Tools = definition.Tools.ToArray(), Capabilities = definition.Capabilities.ToArray(), RoutingExamples = definition.RoutingExamples.ToArray() }
+                {
+                    Tools = [.. definition.Tools],
+                    Capabilities = [.. definition.Capabilities],
+                    RoutingExamples = [.. definition.RoutingExamples],
+                    Contexts = [.. definition.Contexts],
+                },
             });
-            await Notify(new AgentConfigured(this.GetPrimaryKeyString(), _state.Revision));
+            await Notify(new AgentConfigured(Key, State.Revision));
         }
         finally { _mutating = false; }
     }
 
-    public async Task<AgentReply> Ask(AgentRequest request)
+    public Task<AgentState> Read() => Task.FromResult(new AgentState(State.Revision, State.Definition, State.Summary, State.ActiveRun, [.. State.Runs]));
+
+    public Task<AiMessage[]> Transcript() => Task.FromResult<AiMessage[]>([.. State.Transcript]);
+
+    public Task Cancel()
     {
-        ArgumentNullException.ThrowIfNull(request);
-        var response = await Respond(User(request.Message), request.Model, request.System, CancellationToken.None);
-        return new(response.Text);
-    }
-    public async Task<string> GetResponse(string prompt, CancellationToken ct = default) => (await GetRichResponse(prompt, ct)).Text;
-    public Task<AgentResponse> GetRichResponse(string prompt, CancellationToken ct = default) => GetRichResponse(User(prompt), ct);
-    public Task<AgentResponse> GetRichResponse(AiMessage message, CancellationToken ct = default) => Respond(message, null, null, ct);
-    public IAsyncEnumerable<string> GetResponseStream(string prompt, CancellationToken ct = default) => GetResponseStream(User(prompt), ct);
-    public async IAsyncEnumerable<string> GetResponseStream(AiMessage message, [EnumeratorCancellation] CancellationToken ct = default)
-    {
-        await foreach (var update in Execute(message, null, null, streaming: true, ct))
-        { if (update.Text is { } text) { yield return text; } }
-    }
-    private async Task<AgentResponse> Respond(AiMessage message, ModelSelection? model, string? instructions, CancellationToken ct)
-    {
-        AgentResponse? result = null;
-        await foreach (var update in Execute(message, model, instructions, streaming: false, ct)) { result = update.Response ?? result; }
-        return result ?? throw new InvalidOperationException("The run produced no result.");
+        if (_active is { } active) { active.Cancel(); }
+        // A started run whose driver has not picked it up yet is cancelled when it does.
+        else if (State.ActiveRun is { } pending) { _cancelBeforeDrive = pending.RunId; }
+        return Task.CompletedTask;
     }
 
-    private async IAsyncEnumerable<RunUpdate> Execute(AiMessage message, ModelSelection? model, string? instructions,
-        bool streaming, [EnumeratorCancellation] CancellationToken ct)
+    public async Task Clear()
     {
-        ct.ThrowIfCancellationRequested();
         EnsureIdle();
-        ArgumentNullException.ThrowIfNull(message);
-        if (message.Role != "user" || message.Content.Count == 0) { throw new ArgumentException("An agent accepts a non-empty user message.", nameof(message)); }
-        if (message.Content.Any(c => c is not (AiText or AiImage or AiAudio))
-            || message.Content.OfType<AiText>().Sum(t => (long)t.Text.Length) > 32000)
-        { throw new ArgumentException("User messages may contain bounded text, images or audio, never tool calls or reasoning.", nameof(message)); }
-        _ = InferenceMapping.ToChatMessage(message);
-        var definition = _state.Definition;
-        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        lifetime.CancelAfter(definition.Timeout);
-        _active = lifetime;
-        var run = new AgentRunState(Guid.NewGuid().ToString("N"), AgentRunStatus.Running, _state.Revision, DateTimeOffset.UtcNow,
-            Definition: definition with { Model = model ?? definition.Model, Instructions = instructions ?? definition.Instructions });
-        var completed = false;
-        var started = false;
-        var cancelled = false;
-        var suspended = false;
-        string? error = null;
+        _mutating = true;
         try
         {
-            await Save(_state with { LastRun = run });
-            started = true;
-            await Record(run.RunId, "started");
-            await Notify(new AgentRunChanged(this.GetPrimaryKeyString(), run));
-            var text = new StringBuilder();
-            AgentTurnEvent.Completed? output = null;
-            var bounded = BoundHistory(_state.History, Math.Max(1, definition.MaxHistoryMessages - 1), _state.HistorySummary);
-            var request = new AgentTurnRequest(this.GetPrimaryKeyString(), run.RunId, this.GetPrimaryKeyString(), [], "",
-                model ?? definition.Model, AppendSummary(instructions ?? definition.Instructions, bounded.Summary), definition.Tools,
-                bounded.Messages, message, streaming, definition.MaxModelCalls, definition.Timeout, definition.Options,
-                definition.ContextProviders);
-            await using var iterator = runner.RunAsync(request, lifetime.Token).GetAsyncEnumerator(lifetime.Token);
-            long sequence = 0;
-            while (true)
+            await Persist(State with { Revision = State.Revision + 1, Transcript = [], Summary = null, Runs = [] });
+            await Notify(new TranscriptCleared(Key, State.Revision));
+        }
+        finally { _mutating = false; }
+    }
+
+    public async Task<string> Start(AgentTurn turn)
+    {
+        var (runId, replay) = Admit(turn);
+        if (replay is not null)
+        {
+            await Notify(new TurnStarted(Key, runId, replay.UserText));
+            await Notify(new TurnCompleted(Key, runId, replay.Reply ?? ""));
+            return runId;
+        }
+        await Persist(State with { ActiveRun = new AgentRun(runId, AgentRunStatus.Running, UserText(turn.Message), DateTimeOffset.UtcNow) });
+        try { await this.AsReference<IAgentDriver>().Drive(turn with { RunId = runId }, runId); }
+        catch
+        {
+            await Persist(State with { ActiveRun = null });
+            throw;
+        }
+        return runId;
+    }
+
+    public async Task Drive(AgentTurn turn, string runId)
+    {
+        try { await foreach (var _ in Execute(turn, runId, CancellationToken.None)) { } }
+        catch (Exception error) { Logger.LogWarning(error, "Agent turn {RunId} ended with an error.", runId); }
+    }
+
+    public IAsyncEnumerable<AgentTurnEvent> Run(AgentTurn turn, CancellationToken ct = default) => Execute(turn, null, ct);
+
+    // started is the run id Start already admitted and recorded as active; null admits the turn here.
+    private async IAsyncEnumerable<AgentTurnEvent> Execute(AgentTurn turn, string? started, [EnumeratorCancellation] CancellationToken ct)
+    {
+        string runId;
+        AgentRun? replay;
+        if (started is null) { (runId, replay) = Admit(turn); }
+        else if (State.ActiveRun?.RunId == started && _active is null) { (runId, replay) = (started, null); }
+        else { throw new InvalidOperationException("The started run is no longer active."); }
+        if (replay is not null)
+        {
+            await Notify(new TurnStarted(Key, runId, replay.UserText));
+            yield return new AgentTurnEvent.Started(runId);
+            yield return new AgentTurnEvent.Text(replay.Reply ?? "");
+            yield return new AgentTurnEvent.Completed([new AiMessage("assistant", [new AiText(replay.Reply ?? "")])], replay.Usage);
+            await Notify(new TurnCompleted(Key, runId, replay.Reply ?? ""));
+            yield return new AgentTurnEvent.Finished();
+            yield break;
+        }
+
+        var definition = State.Definition;
+        var input = Stored(turn.Message);
+        var run = State.ActiveRun is { } active && active.RunId == runId ? active : new AgentRun(runId, AgentRunStatus.Running, UserText(input), DateTimeOffset.UtcNow);
+        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        lifetime.CancelAfter(definition.Timeout);
+        // Set before the first await, so an interleaved Run, Start, Configure or Clear sees this run.
+        _active = lifetime;
+        if (_cancelBeforeDrive == runId) { lifetime.Cancel(); }
+        _cancelBeforeDrive = null;
+        using var intent = IntentContext.Create(turn.Intent ?? runId, Scope);
+        var completed = false;
+        var yielding = false;
+        var text = new StringBuilder();
+        var sequence = 0;
+        AgentTurnEvent.Failed? failure = null;
+        try
+        {
+            await Persist(State with { ActiveRun = run });
+            await Notify(new TurnStarted(Key, runId, run.UserText));
+            var bounded = Bound(State.Transcript, Math.Max(1, definition.MaxHistoryMessages - 1), State.Summary);
+            var plan = new TurnPlan(Scope, runId, bounded.Messages, bounded.Summary, input,
+                turn.Instructions ?? definition.Instructions, turn.Tools ?? definition.Tools, definition.Contexts,
+                turn.Model ?? definition.Model, definition.Options, definition.MaxModelCalls, Streaming: true);
+            var loop = new AgentTurnLoop(ServiceProvider).Run(plan, lifetime.Token).GetAsyncEnumerator(lifetime.Token);
+            try
             {
-                bool moved;
-                try { moved = await iterator.MoveNextAsync(); }
-                catch (Exception exception)
+                while (true)
                 {
-                    cancelled = exception is OperationCanceledException;
-                    error = cancelled ? "The run was cancelled." : exception.Message;
-                    throw;
-                }
-                if (!moved) { break; }
-                switch (iterator.Current)
-                {
-                    case AgentTurnEvent.ModelSelected selected:
-                        run = run with { Model = selected.Model, Capabilities = selected.Descriptor };
-                        await Save(_state with { LastRun = run });
-                        break;
-                    case AgentTurnEvent.Text delta:
-                        text.Append(delta.Content);
-                        await Notify(new AgentOutputDelta(this.GetPrimaryKeyString(), run.RunId, ++sequence, delta.Content));
-                        suspended = true;
-                        yield return new(delta.Content, null);
-                        suspended = false;
-                        break;
-                    case AgentTurnEvent.Completed result: output = result; break;
-                    case AgentTurnEvent.ToolStarted tool: await Record(run.RunId, "tool-started", tool.CallId, tool.Name); break;
-                    case AgentTurnEvent.ToolCompleted tool: await Record(run.RunId, "tool-completed", tool.CallId, tool.Name, tool.Result); break;
-                    case AgentTurnEvent.ToolFailed tool:
-                        await Record(run.RunId, "tool-failed", tool.CallId, tool.Name,
-                        JsonSerializer.Serialize(new { isError = true, code = tool.Code, message = tool.Message })); break;
-                    case AgentTurnEvent.Failed failed:
-                        error = failed.Message;
-                        cancelled = failed.Cancelled;
-                        if (cancelled) { throw new OperationCanceledException(error, lifetime.Token); }
-                        throw new InvalidOperationException(error);
+                    bool moved;
+                    using (intent.Enter()) { moved = await loop.MoveNextAsync(); }
+                    if (!moved) { break; }
+                    switch (loop.Current)
+                    {
+                        case AgentTurnEvent.ModelSelected selected:
+                            run = run with { Model = selected.Model };
+                            await Persist(State with { ActiveRun = run });
+                            break;
+                        case AgentTurnEvent.Text delta:
+                            text.Append(delta.Content);
+                            await Notify(new TurnProgressed(Key, runId, "text", delta.Content, null, null, ++sequence));
+                            break;
+                        case AgentTurnEvent.ToolStarted tool:
+                            run = run with { ToolCalls = [.. run.ToolCalls, new AgentToolCall(tool.CallId, tool.Name, tool.Arguments)] };
+                            await Persist(State with { ActiveRun = run });
+                            await Notify(new TurnProgressed(Key, runId, "tool-call", null, tool.Name, tool.Arguments, ++sequence));
+                            break;
+                        case AgentTurnEvent.ToolCompleted tool:
+                            run = run with { ToolCalls = Settle(run.ToolCalls, tool.CallId, call => call with { Result = tool.Result }) };
+                            await Persist(State with { ActiveRun = run });
+                            await Notify(new TurnProgressed(Key, runId, "tool-result", null, tool.Name, tool.Result, ++sequence));
+                            if (Card(tool.Result) is { } card) { await Notify(new TurnProgressed(Key, runId, "card", null, tool.Name, card, ++sequence)); }
+                            break;
+                        case AgentTurnEvent.ToolFailed tool:
+                            run = run with { ToolCalls = Settle(run.ToolCalls, tool.CallId, call => call with { Code = tool.Code, Error = tool.Message }) };
+                            await Persist(State with { ActiveRun = run });
+                            await Notify(new TurnProgressed(Key, runId, "tool-result", tool.Message, tool.Name,
+                                JsonSerializer.Serialize(new { isError = true, code = tool.Code, message = tool.Message }), ++sequence));
+                            break;
+                        case AgentTurnEvent.Completed done:
+                            run = run with { Status = AgentRunStatus.Completed, EndedAt = DateTimeOffset.UtcNow, Reply = text.ToString(), Usage = done.Usage };
+                            var transcript = Bound([.. State.Transcript, input, .. done.Messages.Select(Stored)], definition.MaxHistoryMessages, State.Summary);
+                            await Persist(State with { Transcript = transcript.Messages, Summary = transcript.Summary, ActiveRun = null, Runs = Keep(State.Runs, run) });
+                            completed = true;
+                            if (done.Usage is not null) { await Notify(new TurnProgressed(Key, runId, "receipt", null, null, JsonSerializer.Serialize(done.Usage), ++sequence)); }
+                            break;
+                        case AgentTurnEvent.Failed failed:
+                            failure = failed;
+                            break;
+                    }
+                    yielding = true;
+                    yield return loop.Current;
+                    yielding = false;
                 }
             }
-            lifetime.Token.ThrowIfCancellationRequested();
-            if (output is null) { error = "The run ended without a completed response."; throw new InvalidOperationException(error); }
-            var response = new AgentResponse(run.RunId, text.ToString(), output.Messages, output.Usage);
-            run = run with { Status = AgentRunStatus.Completed, EndedAt = DateTimeOffset.UtcNow, Response = response };
-            var terminal = new AgentEvent(_state.EventSequence + 1, run.RunId, "completed", run.EndedAt.Value);
-            var history = BoundHistory([.. _state.History, message, .. output.Messages], definition.MaxHistoryMessages, _state.HistorySummary);
-            await Save(_state with
-            {
-                History = history.Messages,
-                HistorySummary = history.Summary,
-                LastRun = run,
-                EventSequence = terminal.Sequence,
-                Events = [.. _state.Events.TakeLast(255), terminal]
-            });
-            completed = true;
-            // Terminal state and history are already committed; notifications cannot undo them.
-            await Notify(new AgentRunChanged(this.GetPrimaryKeyString(), run));
-            await Notify(new AgentReplied(this.GetPrimaryKeyString(), response.Text, run.EndedAt.Value));
-            yield return new(null, response);
+            finally { using (intent.Enter()) { await loop.DisposeAsync(); } }
         }
         finally
         {
             try
             {
-                if (started && !completed)
+                if (completed) { await Notify(new TurnCompleted(Key, runId, text.ToString())); }
+                else
                 {
-                    var terminalCalls = _state.Events.Where(item => item.RunId == run.RunId && item.Kind is "tool-completed" or "tool-failed")
-                        .Select(item => item.CallId).ToHashSet();
-                    foreach (var pending in _state.Events.Where(item => item.RunId == run.RunId && item.Kind == "tool-started"
-                        && !terminalCalls.Contains(item.CallId)).ToArray())
-                    {
-                        await Record(run.RunId, "tool-failed", pending.CallId, pending.Tool,
-                            JsonSerializer.Serialize(new
-                            {
-                                isError = true,
-                                code = cancelled || lifetime.IsCancellationRequested ? "tool_cancelled" : "tool_interrupted",
-                                message = "Execution ended before the tool call completed."
-                            }));
-                    }
-                    run = run with
-                    {
-                        Status = cancelled || lifetime.IsCancellationRequested || suspended ? AgentRunStatus.Cancelled : AgentRunStatus.Failed,
-                        EndedAt = DateTimeOffset.UtcNow,
-                        Error = error ?? (suspended ? "The response stream was abandoned." : "Execution failed before committing its result.")
-                    };
-                    await Save(_state with { LastRun = run });
-                    await Record(run.RunId, run.Status.ToString().ToLowerInvariant());
-                    await Notify(new AgentRunChanged(this.GetPrimaryKeyString(), run));
+                    // Finally while yielding means the consumer stopped pulling: an abandoned stream is a cancelled run.
+                    var cancelled = yielding || failure?.Cancelled == true || lifetime.IsCancellationRequested;
+                    var error = failure?.Message ?? (yielding ? "The response stream was abandoned." : "Execution failed before committing its result.");
+                    run = Close(run, cancelled ? AgentRunStatus.Cancelled : AgentRunStatus.Failed, error, cancelled ? "tool_cancelled" : "tool_interrupted");
+                    await Persist(State with { ActiveRun = null, Runs = Keep(State.Runs, run) });
+                    await Notify(new TurnFailed(Key, runId, error, cancelled));
                 }
             }
-            finally { _active = null; }
-        }
-    }
-
-    public Task<IReadOnlyList<AiMessage>> GetHistory(CancellationToken ct = default)
-    { ct.ThrowIfCancellationRequested(); return Task.FromResult<IReadOnlyList<AiMessage>>(_state.History.ToArray()); }
-    public async Task ClearHistory(CancellationToken ct = default)
-    {
-        ct.ThrowIfCancellationRequested(); EnsureIdle(); _mutating = true;
-        try
-        {
-            await Save(_state with { History = [], HistorySummary = null, Revision = _state.Revision + 1 });
-            await Notify(new AgentHistoryCleared(this.GetPrimaryKeyString(), _state.Revision));
-        }
-        finally { _mutating = false; }
-    }
-
-    public Task<AgentConversationState> ReadConversation(CancellationToken ct = default)
-    { ct.ThrowIfCancellationRequested(); return Task.FromResult(Snapshot()); }
-
-    public async Task<AgentConversationState> BeginConversation(AgentConversationRequest request, CancellationToken ct = default)
-    {
-        ct.ThrowIfCancellationRequested();
-        EnsureIdle();
-        ArgumentNullException.ThrowIfNull(request);
-        if (string.IsNullOrWhiteSpace(request.RunId) || request.RunId.Length > 200)
-        { throw new ArgumentException("A conversation run needs an identity of at most 200 characters.", nameof(request)); }
-        if (string.IsNullOrWhiteSpace(request.Message) || request.Message.Length > 32000)
-        { throw new ArgumentException("A conversation run needs a message of at most 32000 characters.", nameof(request)); }
-        var existing = _state.Turns.FirstOrDefault(turn => turn.RunId == request.RunId);
-        if (existing is not null)
-        {
-            // A retained turn can be replayed only for the exact same request. Reusing a run id
-            // with a different payload must never return an unrelated stored answer.
-            if (existing.UserText != request.Message) { throw new InvalidOperationException("Run ID already belongs to another message."); }
-            return Snapshot();
-        }
-        if (_state.RunInputs.TryGetValue(request.RunId, out var previous) && previous != request.Message)
-        { throw new InvalidOperationException("Run ID already belongs to another message."); }
-        if (_state.ActiveRun is not null) { throw new InvalidOperationException("A conversation run is already active."); }
-        _mutating = true;
-        try
-        {
-            var inputs = new Dictionary<string, string>(_state.RunInputs, StringComparer.Ordinal) { [request.RunId] = request.Message };
-            await Save(_state with { Revision = _state.Revision + 1, ActiveRun = request.RunId, RunInputs = inputs });
-            return Snapshot();
-        }
-        finally { _mutating = false; }
-    }
-
-    public async Task<AgentConversationState> CompleteConversation(AgentConversationTurn turn, CancellationToken ct = default)
-    {
-        ct.ThrowIfCancellationRequested();
-        EnsureIdle();
-        ArgumentNullException.ThrowIfNull(turn);
-        if (_state.ActiveRun != turn.RunId || !_state.RunInputs.TryGetValue(turn.RunId, out var input) || input != turn.UserText)
-        { throw new InvalidOperationException("This run is no longer active."); }
-        _mutating = true;
-        try
-        {
-            var turns = new List<AgentConversationTurn>(_state.Turns) { turn with { ResultIds = turn.ResultIds.ToArray() } };
-            var bounded = BoundTurns(turns, _state.Definition.MaxHistoryMessages, _state.ConversationSummary);
-            await Save(_state with
+            finally
             {
-                Revision = _state.Revision + 1,
-                ActiveRun = null,
-                Turns = bounded.Turns,
-                ConversationSummary = bounded.Summary,
-                RunInputs = WithoutRun(_state.RunInputs, turn.RunId)
-            });
-            return Snapshot();
+                _active = null;
+                try { await ServiceProvider.GetRequiredService<IIntentUsageSink>().FlushAsync(intent.Snapshot(), CancellationToken.None); }
+                catch (Exception error) { Logger.LogWarning(error, "Agent usage flush failed for run {RunId}", runId); }
+            }
         }
-        finally { _mutating = false; }
     }
 
-    public async Task<AgentConversationState> InterruptConversation(string runId, CancellationToken ct = default)
+    // Validates the turn and decides whether it is a fresh run or a replay of a retained one.
+    private (string RunId, AgentRun? Replay) Admit(AgentTurn turn)
     {
-        ct.ThrowIfCancellationRequested();
-        EnsureIdle();
-        if (_state.ActiveRun != runId) { return Snapshot(); }
-        _mutating = true;
-        try
+        ArgumentNullException.ThrowIfNull(turn);
+        var message = turn.Message ?? throw new ArgumentException("An agent turn needs a message.", nameof(turn));
+        if (message.Role != "user" || message.Content is not { Count: > 0 }) { throw new ArgumentException("An agent accepts a non-empty user message.", nameof(turn)); }
+        if (message.Content.Any(content => content is not (AiText or AiImage or AiAudio)) || message.Content.OfType<AiText>().Sum(content => (long)content.Text.Length) is 0 or > 32000)
+        { throw new ArgumentException("User messages carry 1-32000 characters of text, with images or audio, never tool calls or reasoning.", nameof(turn)); }
+        if (turn.RunId is { Length: > 200 }) { throw new ArgumentException("A run id has at most 200 characters.", nameof(turn)); }
+        _ = InferenceMapping.ToChatMessage(message);
+        var runId = string.IsNullOrWhiteSpace(turn.RunId) ? Guid.NewGuid().ToString("N") : turn.RunId;
+        if (State.Runs.FirstOrDefault(run => run.RunId == runId) is { } retained)
         {
-            await Save(_state with { Revision = _state.Revision + 1, ActiveRun = null, RunInputs = WithoutRun(_state.RunInputs, runId) });
-            return Snapshot();
+            // A retained run id replays only for the same text; another text must never get an unrelated answer.
+            if (retained.UserText != UserText(message)) { throw new InvalidOperationException("Run ID already belongs to another message."); }
+            // A replay touches nothing, so it needs no idle agent; a run that did not complete is retried under its id.
+            if (retained.Status == AgentRunStatus.Completed) { return (runId, retained); }
         }
-        finally { _mutating = false; }
+        EnsureIdle();
+        return (runId, null);
     }
 
-    // Committed or interrupted run inputs are redundant once the turn carries its own user text;
-    // keeping them would grow the run-input map without bound and outlive turn eviction.
-    private static Dictionary<string, string> WithoutRun(Dictionary<string, string> inputs, string runId)
-    {
-        if (!inputs.ContainsKey(runId)) { return inputs; }
-        var next = new Dictionary<string, string>(inputs, StringComparer.Ordinal);
-        next.Remove(runId);
-        return next;
-    }
-
-    private AgentConversationState Snapshot() => new(_state.Revision, _state.ActiveRun, _state.Turns.ToArray(), _state.ConversationSummary);
-    public Task<AgentState> GetState(CancellationToken ct = default)
-    { ct.ThrowIfCancellationRequested(); return Task.FromResult(new AgentState(_state.Revision, _state.Definition, _state.LastRun, _state.History.Count)); }
-    public Task<AgentMetadata> GetMetadata(CancellationToken ct = default)
-    {
-        ct.ThrowIfCancellationRequested(); var definition = _state.Definition;
-        return Task.FromResult(new AgentMetadata(this.GetPrimaryKeyString(), definition.DisplayName, definition.Description, definition.Capabilities, definition.RoutingExamples));
-    }
-    public Task<AgentUsage?> GetLastUsage(CancellationToken ct = default)
-    { ct.ThrowIfCancellationRequested(); return Task.FromResult(_state.LastRun?.Response?.Usage); }
-    public Task<ModelDescriptor> GetCapabilities(CancellationToken ct = default)
-    {
-        ct.ThrowIfCancellationRequested();
-        return ServiceProvider.GetRequiredService<InferenceService>().Describe(_state.Definition.Model);
-    }
-    public Task<IReadOnlyList<AgentEvent>> GetEventLog(CancellationToken ct = default)
-    { ct.ThrowIfCancellationRequested(); return Task.FromResult<IReadOnlyList<AgentEvent>>(_state.Events.ToArray()); }
-    public Task Cancel(CancellationToken ct = default)
-    { ct.ThrowIfCancellationRequested(); _active?.Cancel(); return Task.CompletedTask; }
-
-    private async Task Record(string runId, string kind, string? callId = null, string? tool = null, string? result = null)
-    {
-        var item = new AgentEvent(_state.EventSequence + 1, runId, kind, DateTimeOffset.UtcNow, callId, tool, result);
-        await Save(_state with { EventSequence = item.Sequence, Events = [.. _state.Events.TakeLast(255), item] });
-        if (tool is not null) { await Notify(new AgentToolCallChanged(this.GetPrimaryKeyString(), item)); }
-    }
     private void EnsureIdle()
-    { if (_active is not null || _mutating) { throw new InvalidOperationException("This agent already has an active operation."); } }
-    private static AiMessage User(string prompt)
-    { ArgumentException.ThrowIfNullOrWhiteSpace(prompt); if (prompt.Length > 32000) { throw new ArgumentException("Prompt exceeds 32000 characters.", nameof(prompt)); } return new("user", [new AiText(prompt)]); }
-    private async Task Save(AgentStorage next)
+    {
+        if (_active is not null || _mutating || State.ActiveRun is not null) { throw new InvalidOperationException("This agent already has an active operation."); }
+    }
+
+    private static string UserText(AiMessage message) => string.Concat(message.Content.OfType<AiText>().Select(text => text.Text));
+
+    // ToArray, not a collection expression: targeting IReadOnlyList, [..] builds a wrapper type storage cannot read back.
+    private static AiMessage Stored(AiMessage message) => new(message.Role, message.Content.ToArray());
+
+    private static AgentRun Close(AgentRun run, AgentRunStatus status, string error, string openCallCode = "tool_interrupted") => run with
+    {
+        Status = status,
+        EndedAt = DateTimeOffset.UtcNow,
+        Error = error,
+        ToolCalls = [.. run.ToolCalls.Select(call => call.Result is null && call.Code is null
+            ? call with { Code = openCallCode, Error = "Execution ended before the tool call completed." } : call)],
+    };
+
+    private static AgentRun[] Keep(AgentRun[] runs, AgentRun run) => [.. runs.Where(item => item.RunId != run.RunId).TakeLast(KeptRuns - 1), run];
+
+    private static AgentToolCall[] Settle(AgentToolCall[] calls, string callId, Func<AgentToolCall, AgentToolCall> update)
+        => [.. calls.Select(call => call.CallId == callId ? update(call) : call)];
+
+    // Neuron<TState>.Save always publishes a signal; most agent writes have none, and a failed
+    // signal must never undo a committed write, so the agent persists on its own.
+    private async Task Persist(AgentStorage next)
     {
         var previous = store.State;
-        store.State = new() { Json = JsonSerializer.Serialize(next) };
-        try { await store.WriteStateAsync(); _state = next; }
+        store.State = next;
+        try { await store.WriteStateAsync(); }
         catch { store.State = previous; throw; }
     }
+
     private async Task Notify(Signal signal)
     {
         try { await PublishAsync(signal); }
-        catch (Exception exception)
+        catch (Exception error) { Logger.LogWarning(error, "Agent signal delivery failed; consumers can reconcile through Read and Transcript."); }
+    }
+
+    // A tool result may carry a UI card on its "_ui" channel; the card is its own progress item.
+    private static string? Card(string result)
+    {
+        try
         {
-            ServiceProvider.GetRequiredService<ILogger<AgentNeuron>>().LogWarning(exception,
-                "Agent signal delivery failed; consumers can reconcile through GetState and GetHistory.");
+            using var payload = JsonDocument.Parse(result);
+            return payload.RootElement.ValueKind == JsonValueKind.Object && payload.RootElement.TryGetProperty("_ui", out var card)
+                && card.ValueKind == JsonValueKind.Object ? card.GetRawText() : null;
         }
+        catch (JsonException) { return null; }
     }
-    private sealed record RunUpdate(string? Text, AgentResponse? Response);
 
-    // Both the message history and the conversation turns stay inside the configured budget.
-    // Overflow folds the oldest content into a bounded summary instead of failing the run.
-    private static (List<AiMessage> Messages, string? Summary) BoundHistory(
-        IReadOnlyList<AiMessage> messages, int maxMessages, string? summary)
+    // Overflow folds the oldest messages into a bounded summary instead of failing the run.
+    private static (AiMessage[] Messages, string? Summary) Bound(AiMessage[] messages, int maxMessages, string? summary)
     {
-        if (maxMessages < 1) { maxMessages = 1; }
-        if (messages.Count <= maxMessages) { return ([.. messages], summary); }
-        var drop = messages.Count - maxMessages;
-        var excerpts = messages.Take(drop)
-            .Select(message => string.Concat(message.Content.OfType<AiText>().Select(text => text.Text)));
-        return ([.. messages.Skip(drop)], MergeSummary(summary, excerpts));
+        if (messages.Length <= maxMessages) { return (messages, summary); }
+        var drop = messages.Length - maxMessages;
+        var added = string.Join(" ", messages.Take(drop).Select(UserText)
+            .Where(text => !string.IsNullOrWhiteSpace(text)).Select(text => text.Length <= 120 ? text : text[..120]));
+        var combined = added.Length == 0 ? summary : string.IsNullOrEmpty(summary) ? added : summary + " " + added;
+        return (messages[drop..], combined is { Length: > 4000 } ? combined[^4000..] : combined);
     }
+}
 
-    private static (List<AgentConversationTurn> Turns, string? Summary) BoundTurns(
-        IReadOnlyList<AgentConversationTurn> turns, int maxMessages, string? summary)
-    {
-        var maxTurns = Math.Max(1, maxMessages / 2);
-        if (turns.Count <= maxTurns) { return ([.. turns], summary); }
-        var drop = turns.Count - maxTurns;
-        return ([.. turns.Skip(drop)], MergeSummary(summary, turns.Take(drop).Select(turn => turn.UserText)));
-    }
-
-    private static string? MergeSummary(string? summary, IEnumerable<string> dropped)
-    {
-        var added = string.Join(" ", dropped
-            .Where(text => !string.IsNullOrWhiteSpace(text))
-            .Select(text => text.Length <= 120 ? text : text[..120]));
-        if (added.Length == 0) { return summary; }
-        var combined = string.IsNullOrEmpty(summary) ? added : summary + " " + added;
-        return combined.Length <= 4000 ? combined : combined[^4000..];
-    }
-
-    private static string AppendSummary(string instructions, string? summary) =>
-        string.IsNullOrEmpty(summary) ? instructions : instructions + "\nEarlier conversation summary: " + summary;
+// The framework resolves activation handlers from DI; AIModule registers this one.
+internal sealed class AgentResume : IActivationHandler<AgentNeuron>
+{
+    public Task Activated(AgentNeuron neuron, CancellationToken cancellationToken) => neuron.Resume();
 }

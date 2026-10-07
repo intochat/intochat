@@ -21,10 +21,10 @@ public sealed class ToolReceiptFacts
             .AddSingleton<IAgentToolFactory>(new FailingTool()).BuildServiceProvider();
         var activity = new IntentActivity();
         var emitted = new List<JsonElement>();
-        var runner = new AgentTurnRunner(services);
-        async Task Run() => await AssistantTurnExecution.RunModel("scope", "run", "hello",
-            new() { Tools = registered ? ["broken"] : [] }, new(0, null, [], null), "reply",
-            new(), runner.RunAsync, value => { emitted.Add(JsonSerializer.SerializeToElement(value)); return Task.CompletedTask; },
+        async Task Run() => await AssistantTurnExecution.RunModel("run", "hello",
+            new() { Tools = registered ? ["broken"] : [] }, "reply",
+            new(), turn => TurnLoops.Run(services, "scope", turn, TestContext.Current.CancellationToken),
+            value => { emitted.Add(JsonSerializer.SerializeToElement(value)); return Task.CompletedTask; },
             new StringBuilder(), [], activity, TestContext.Current.CancellationToken);
         if (registered) { await Assert.ThrowsAsync<InvalidOperationException>(Run); }
         else { await Run(); }

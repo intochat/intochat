@@ -38,9 +38,7 @@ public sealed class InferenceTransportFacts
                 """, ct);
         }
         var serve = Serve();
-        var events = new List<AgentTurnEvent>();
-        await foreach (var item in new AgentTurnRunner(services).RunAsync(new("agent", "run", "scope", [], "find tables", null,
-            ToolNames: ["find"], Streaming: false), ct)) { events.Add(item); }
+        var events = await TurnLoops.Collect(services, "find tables", ["find"], ct);
         Assert.Empty(events.OfType<AgentTurnEvent.Failed>());
         using var request = JsonDocument.Parse((await serve).Body);
         var result = request.RootElement.GetProperty("messages").EnumerateArray().Single(message => message.GetProperty("role").GetString() == "tool");
