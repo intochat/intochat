@@ -5,10 +5,9 @@ namespace DigitalBrain.Modules.Assistant.Tests;
 public sealed class AssistantDefinitionFacts
 {
     [Fact]
-    public void DefaultDefinitionStartsWithDiscoveryInsteadOfSelectingInstalledTools()
+    public void TheModuleAssistantHasTheShippedAssistantAppsTools()
     {
-        var definition = AssistantDefinition.For();
-        Assert.Equal(["discover_capabilities", "select_capability", "list_neurons", "list_active_neurons", "list_synapses", "show_form", "show_view"], definition.Tools);
+        Assert.Equal(ShippedAssistant.Tools(), AssistantDefinition.For().Tools);
     }
     [Fact]
     public void TheHostCanSupplyTheAssistantNameAndPackageGuidance()

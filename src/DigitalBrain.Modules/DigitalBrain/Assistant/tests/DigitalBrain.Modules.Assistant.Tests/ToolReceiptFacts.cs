@@ -26,7 +26,7 @@ public sealed class ToolReceiptFacts
             new() { Tools = registered ? ["broken"] : [] }, "reply",
             new(), turn => TurnLoops.Run(services, "scope", turn, TestContext.Current.CancellationToken),
             value => { emitted.Add(JsonSerializer.SerializeToElement(value)); return Task.CompletedTask; },
-            new StringBuilder(), [], activity, TestContext.Current.CancellationToken);
+            new StringBuilder(), activity, TestContext.Current.CancellationToken);
         if (registered) { await Assert.ThrowsAsync<InvalidOperationException>(Run); }
         else { await Run(); }
         using var intent = IntentContext.Begin("receipt", "scope");

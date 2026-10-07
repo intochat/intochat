@@ -24,7 +24,7 @@ public sealed class AgentTurnFacts
 
         await AssistantTurnExecution.RunModel("run", "hello", AssistantDefinition.Product, "reply",
             configuration, runner.Run, _ => Task.CompletedTask,
-            new StringBuilder(), [], new IntentActivity(), TestContext.Current.CancellationToken, selected);
+            new StringBuilder(), new IntentActivity(), TestContext.Current.CancellationToken, selected);
 
         Assert.Equal(selected, runner.Request!.Model);
     }
@@ -36,66 +36,27 @@ public sealed class AgentTurnFacts
         var runner = new RecordingRunner();
         var definition = new AgentDefinition { Instructions = "Application-owned instructions and summary", Tools = ["custom_tool"] };
         var text = new StringBuilder();
-        var results = new List<string>();
 
         await AssistantTurnExecution.RunModel("run", "hello", definition, "run-reply",
-            new AssistantOptions(), runner.Run, _ => Task.CompletedTask, text, results, new IntentActivity(), TestContext.Current.CancellationToken);
+            new AssistantOptions(), runner.Run, _ => Task.CompletedTask, text, new IntentActivity(), TestContext.Current.CancellationToken);
 
         Assert.NotNull(runner.Request);
         Assert.Equal(definition.Instructions, runner.Request!.Instructions);
         Assert.Equal(definition.Tools, runner.Request.Tools);
     }
 
-    // A stale open failure must not fail the run once a later live-table call succeeds.
+    // A refused or malformed call is answered to the model for repair; the run itself goes on.
     [Fact]
-    public async Task SuccessfulTableReadClearsAnEarlierTableFailure()
+    public async Task AToolErrorIsTheModelsToRepairAndDoesNotFailTheRun()
     {
         var runner = new ToolEventRunner(
-            new AgentTurnEvent.ToolCompleted("open", "show_supabase_query_table", """{"isError":true,"message":"PostgreSQL refused the query."}"""),
-            new AgentTurnEvent.ToolCompleted("read", "table_read", """{"windowId":"table-x","rows":[],"rowsRead":0}"""));
-        var results = new List<string>();
+            new AgentTurnEvent.ToolCompleted("call", "neurons_call", """{"isError":true,"message":"IApp has no method Read taking 3 arguments."}"""));
+        var emitted = new List<object>();
 
-        var queryError = await AssistantTurnExecution.RunModel("run", "how many?", AssistantDefinition.Product,
-            "run-reply", new AssistantOptions(), runner.Run, _ => Task.CompletedTask, new StringBuilder(), results, new IntentActivity(), TestContext.Current.CancellationToken);
+        await AssistantTurnExecution.RunModel("run", "read it", AssistantDefinition.Product, "run-reply", new AssistantOptions(), runner.Run,
+            value => { emitted.Add(value); return Task.CompletedTask; }, new StringBuilder(), new IntentActivity(), TestContext.Current.CancellationToken);
 
-        Assert.Null(queryError);
-        Assert.Empty(results);
-    }
-
-    [Fact]
-    public async Task FailedTableReadAfterASuccessStillFailsTheRun()
-    {
-        var runner = new ToolEventRunner(
-            new AgentTurnEvent.ToolCompleted("read", "table_read", """{"isError":true,"message":"No readable Public columns were requested."}"""));
-        var results = new List<string>();
-
-        var queryError = await AssistantTurnExecution.RunModel("run", "read it", AssistantDefinition.Product,
-            "run-reply", new AssistantOptions(), runner.Run, _ => Task.CompletedTask, new StringBuilder(), results, new IntentActivity(), TestContext.Current.CancellationToken);
-
-        Assert.Equal("No readable Public columns were requested.", queryError);
-    }
-
-    [Fact]
-    public async Task PostgresWindowResultIsRecorded()
-    {
-        var results = new List<string>();
-        var runner = new ToolEventRunner(new AgentTurnEvent.ToolCompleted("open", "show_postgres_query_table", """{"windowId":"pg-table","source":"postgres"}"""));
-        var error = await AssistantTurnExecution.RunModel("run", "show postgres", AssistantDefinition.Product,
-            "reply", new AssistantOptions(), runner.Run, _ => Task.CompletedTask,
-            new StringBuilder(), results, new IntentActivity(), TestContext.Current.CancellationToken);
-        Assert.Null(error);
-        Assert.Equal("pg-table", Assert.Single(results));
-    }
-    [Fact]
-    public async Task SchemaRetryDoesNotEraseFailedPostgresWindow()
-    {
-        var runner = new ToolEventRunner(
-            new AgentTurnEvent.ToolCompleted("open", "show_postgres_query_table", """{"isError":true,"message":"Query refused"}"""),
-            new AgentTurnEvent.ToolCompleted("schema", "postgres_schema", """{"database":"research","tables":[]}"""));
-        var error = await AssistantTurnExecution.RunModel("run", "show postgres", AssistantDefinition.Product,
-            "reply", new AssistantOptions(), runner.Run, _ => Task.CompletedTask,
-            new StringBuilder(), [], new IntentActivity(), TestContext.Current.CancellationToken);
-        Assert.Equal("Query refused", error);
+        Assert.Contains(emitted, value => value.ToString()!.Contains("TOOL_CALL_RESULT", StringComparison.Ordinal));
     }
 
     // The shadow Compute on a receipt is the intent's durable usage priced by the one price book.

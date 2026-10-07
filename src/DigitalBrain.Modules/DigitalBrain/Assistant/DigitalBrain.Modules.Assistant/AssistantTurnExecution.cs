@@ -100,9 +100,8 @@ public sealed class AssistantTurnExecution(IServiceProvider services, IGrainFact
                 {
                     // The agent keeps its own transcript and summary; the definition carries neither.
                     var definition = await define(null);
-                    var queryError = await RunModel(input.RunId, input.Message, definition, messageId, configuration, Turn, Emit,
-                        new StringBuilder(), [], activity, ct, prepared.Model, usageId);
-                    if (queryError is not null) { throw new AssistantQueryException(queryError); }
+                    await RunModel(input.RunId, input.Message, definition, messageId, configuration, Turn, Emit,
+                        new StringBuilder(), activity, ct, prepared.Model, usageId);
                 }
                 await Emit(new { type = "TEXT_MESSAGE_END", messageId });
                 await Emit(new { type = "RUN_FINISHED", threadId = input.ThreadId, runId = input.RunId });
@@ -118,12 +117,6 @@ public sealed class AssistantTurnExecution(IServiceProvider services, IGrainFact
                 outcome = AgentRunOutcome.Failed;
                 if (!ct.IsCancellationRequested)
                 { await Emit(new { type = "RUN_ERROR", message = error.Message, code = "APP_REFUSED" }); }
-            }
-            catch (AssistantQueryException error)
-            {
-                outcome = AgentRunOutcome.Failed;
-                if (!ct.IsCancellationRequested)
-                { await Emit(new { type = "RUN_ERROR", message = "The table could not be opened: " + error.Message, code = "QUERY_INVALID" }); }
             }
             catch (Exception error)
             {
@@ -217,12 +210,12 @@ public sealed class AssistantTurnExecution(IServiceProvider services, IGrainFact
     public sealed record PreparedTurn(AgentRun? Replay, ModelSelection? Model);
 
     // The agent owns the turn: it keeps the transcript, commits it on completion and marks a failure itself.
-    public static async Task<string?> RunModel(string run, string message, AgentDefinition definition,
+    // A tool that answers isError is the model's to repair; it does not fail the run.
+    public static async Task RunModel(string run, string message, AgentDefinition definition,
         string messageId, AssistantOptions configuration, Func<AgentTurn, IAsyncEnumerable<AgentTurnEvent>> runner, Func<object, Task> emit,
-        StringBuilder text, List<string> results, IntentActivity activity, CancellationToken ct, ModelSelection? modelSelection = null, string? intent = null)
+        StringBuilder text, IntentActivity activity, CancellationToken ct, ModelSelection? modelSelection = null, string? intent = null)
     {
         var finished = false;
-        string? queryError = null;
         var model = modelSelection ?? (configuration.Model is { Length: > 0 } modelName ? new ModelSelection(modelName) : null);
         await foreach (var item in runner(new AgentTurn(new AiMessage("user", [new AiText(message)]), run, model,
             definition.Instructions, definition.Tools, intent)).WithCancellation(ct))
@@ -240,26 +233,6 @@ public sealed class AssistantTurnExecution(IServiceProvider services, IGrainFact
                     await emit(new { type = "TOOL_CALL_END", toolCallId = tool.CallId });
                     break;
                 case AgentTurnEvent.ToolCompleted tool:
-                    if (IsLiveTableTool(tool.Name))
-                    {
-                        using var payload = JsonDocument.Parse(tool.Result);
-                        if (payload.RootElement.TryGetProperty("isError", out var isError) && isError.ValueKind == JsonValueKind.True)
-                        {
-                            if (!payload.RootElement.TryGetProperty("code", out var code) || code.GetString() != "tool_unavailable")
-                            { queryError = payload.RootElement.GetProperty("message").GetString(); }
-                        }
-                        else
-                        {
-                            // A successful live-table call settles any earlier table failure. Only the
-                            // open tool contributes a window id; read and refine stay on that window.
-                            if (tool.Name is not ("postgres_schema" or "supabase_schema")) { queryError = null; }
-                            if (tool.Name is "show_supabase_query_table" or "show_postgres_query_table")
-                            {
-                                var window = payload.RootElement.TryGetProperty("windowId", out var camel) ? camel : payload.RootElement.GetProperty("WindowId");
-                                results.Add(window.GetString()!);
-                            }
-                        }
-                    }
                     RecordToolActivity(activity, tool);
                     await emit(new { type = "TOOL_CALL_RESULT", toolCallId = tool.CallId, messageId = tool.CallId + "-result", role = "tool", content = tool.Result });
                     await EmitUiCard(tool.Result, emit);
@@ -275,10 +248,7 @@ public sealed class AssistantTurnExecution(IServiceProvider services, IGrainFact
         }
         if (!finished) { throw new InvalidOperationException("The model run did not finish."); }
         ct.ThrowIfCancellationRequested();
-        return queryError;
     }
-
-    private static bool IsLiveTableTool(string name) => name is "show_supabase_query_table" or "show_postgres_query_table" or "postgres_schema" or "supabase_schema" or "table_read" or "table_refine";
 
     private static async Task EmitUiCard(string result, Func<object, Task> emit)
     {
@@ -321,4 +291,3 @@ public sealed class AssistantTurnExecution(IServiceProvider services, IGrainFact
     }
 }
 
-internal sealed class AssistantQueryException(string message) : Exception(message);

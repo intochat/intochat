@@ -24,7 +24,8 @@ var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 string Name(string part) => appKey + "/" + part;
 var conversationChanged = new CancellationTokenSource();
-string[] Tools = ["discover_capabilities", "select_capability", "list_neurons", "list_active_neurons", "show_form", "show_view"];
+string[] Tools = ["neurons_context", "neurons_search", "neurons_list", "neurons_get", "neurons_call",
+    "csharp_contracts", "csharp_write", "csharp_run", "show_form", "show_view"];
 
 await Task.WhenAll(Operations(), SendClicks(), NewClicks(), FollowConversation());
 return;

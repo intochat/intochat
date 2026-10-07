@@ -244,10 +244,10 @@ internal sealed class StreamScenarioClient : IChatClient
     public void Dispose() { }
 }
 
-// The live-table tool the "tools" scenario calls: a window result carrying a table card.
+// The tool the "tools" scenario calls: a window result carrying a table card.
 internal sealed class ScenarioTools : IAgentToolFactory
 {
-    public const string Table = "show_supabase_query_table";
+    public const string Table = "scenario_table";
 
     public IReadOnlyList<AIFunction> Create(Func<AgentToolContext> context) =>
         [AIFunctionFactory.Create(() => JsonDocument.Parse("""{"windowId":"window","title":"Customers","rowsRead":2,"_ui":{"kind":"table"}}""").RootElement.Clone(), Table)];

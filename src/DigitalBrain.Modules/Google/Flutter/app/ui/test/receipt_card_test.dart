@@ -12,8 +12,8 @@ void main() {
     'shadow': true,
     'calls': [
       {
-        'appId': 'show_supabase_query_table',
-        'operation': 'show_supabase_query_table',
+        'appId': 'neurons_call',
+        'operation': 'neurons_call',
         'discovered': false,
         'succeeded': true,
       },
@@ -30,7 +30,7 @@ void main() {
 
   test('labels name the Compute preview and the sources it touched', () {
     expect(ReceiptCard.computeLabel(receipt), r'0.4 Compute ($0.004)');
-    expect(ReceiptCard.callLabels(receipt), ['show_supabase_query_table']);
+    expect(ReceiptCard.callLabels(receipt), ['neurons_call']);
     expect(ReceiptCard.touchedLabels(receipt), ['Active leads · 25 rows']);
   });
 
