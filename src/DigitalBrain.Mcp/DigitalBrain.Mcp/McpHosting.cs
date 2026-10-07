@@ -8,7 +8,9 @@ public static class McpHosting
 {
     public static void AddDigitalBrainMcp(this IServiceCollection services)
     {
-        services.AddSingleton(new ContractCatalog(NeuronContracts.Deployed()));
+        var deployed = NeuronContracts.Deployed();
+        services.AddSingleton(new ContractCatalog(deployed));
+        services.AddSingleton(new NeuronContracts(deployed));
         services.AddContractCatalog(lexicalFallback: true);
         services.AddIdentity();
         // Each request is a tool call in the caller's brain; a harness may hand in its own brain instead.
@@ -16,6 +18,7 @@ public static class McpHosting
             (CallerContextStamper.TryGet(out var caller) ? caller : provider.GetRequiredService<McpCaller>().Stamp()).BrainId));
         services.AddHttpContextAccessor();
         services.AddSingleton<McpCaller>();
+        services.AddScoped<NeuronSurface>();
         services.AddMcpServer().WithHttpTransport(options => options.Stateless = true)
             .WithTools<NeuronTools>().WithTools<McpCaller>();
     }
