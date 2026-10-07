@@ -1,103 +1,80 @@
 using System.Text;
 using System.Text.Json;
-using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Platform.Auth;
+using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Salesforce.Signals;
-using Orleans.Concurrency;
-using Orleans.Runtime;
 
 namespace DigitalBrain.Salesforce;
 
 [GrainType("salesforce")]
-internal sealed class SalesforceNeuron(
-    ISalesforceProvider provider,
-    SalesforceCredentialStore credentials,
-    ITokenHandoff handoff,
-    SalesforceWriteAccess writeAccess,
-    TimeProvider time,
-    [PersistentState("salesforce-vault", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<SalesforceState> state)
-    : Neuron, ISalesforce
+internal sealed class SalesforceNeuron : ConnectionNeuron<SalesforceState>, ISalesforce
 {
     private const int MaxWriteArgumentsBytes = 24 * 1024;
     private static readonly JsonSerializerOptions ArgumentJson = new(JsonSerializerDefaults.Web);
 
-    public async Task<SalesforceConnection> Connect(ConnectSalesforceConnection account)
+    // Salesforce's web-server flow omits expires_in. Without an expiry the base would never refresh
+    // ahead of the session timeout, so a grant without one is taken to live this long.
+    private static readonly TimeSpan DefaultSessionLifetime = TimeSpan.FromMinutes(60);
+
+    private readonly ISalesforceProvider _provider;
+    private readonly TimeProvider _time;
+    private readonly IPersistentState<SalesforceState> _state;
+
+    public SalesforceNeuron(
+        ISalesforceProvider provider,
+        TimeProvider time,
+        [PersistentState("salesforce", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<SalesforceState> state)
+        : base(state)
     {
-        ArgumentNullException.ThrowIfNull(account);
-        if (!Uri.TryCreate(account.InstanceUrl, UriKind.Absolute, out var instanceUrl) || instanceUrl.Scheme != Uri.UriSchemeHttps)
-        {
-            throw new SalesforceUnavailableException("Salesforce did not issue a valid HTTPS instance URL.");
-        }
-
-        var expiresAt = SalesforceTokenRefresh.Expiry(account.ExpiresInSeconds, time);
-        if (!handoff.TryTake(account.Nonce, out var tokens))
-        {
-            await RejectAsync(new TokenHandoffExpiredException().Message);
-            throw new SalesforceUnavailableException(new TokenHandoffExpiredException().Message);
-        }
-
-        try
-        {
-            SalesforceTokenRefresh.ValidateToken(tokens.AccessToken);
-            if (tokens.RefreshToken is not null)
-            {
-                SalesforceTokenRefresh.ValidateToken(tokens.RefreshToken);
-            }
-
-            var owner = string.IsNullOrWhiteSpace(account.SecretOwner) ? this.GetPrimaryKeyString() : account.SecretOwner;
-            var carryOver = (Current.InstanceUrl == account.InstanceUrl ? Current : new SalesforceState()) with { InstanceUrl = account.InstanceUrl };
-            state.State = await credentials.StoreAsync(owner, carryOver, tokens.AccessToken, tokens.RefreshToken, expiresAt, CancellationToken.None);
-            await state.WriteStateAsync();
-            var connection = Connection();
-            await PublishAsync(new SalesforceConnected(connection));
-            return connection;
-        }
-        catch (SalesforceUnavailableException error)
-        {
-            await RejectAsync(error.Message);
-            throw;
-        }
+        _provider = provider;
+        _time = time;
+        _state = state;
     }
 
-    public async Task<SalesforceConnection> Refresh(RefreshSalesforceConnection command)
+    // The token response names the org: its instance URL must be HTTPS. Another org drops the old org's writes.
+    protected override Task<OAuthGrant> AcceptGrantAsync(OAuthGrant grant)
     {
-        ArgumentNullException.ThrowIfNull(command);
+        Uri? url = null;
         try
         {
-            state.State = await credentials.RefreshAsync(RequireConnection(), CancellationToken.None);
-            await state.WriteStateAsync();
-            var connection = Connection();
-            await PublishAsync(new SalesforceRefreshed(connection));
-            return connection;
+            using var json = JsonDocument.Parse(grant.Response);
+            if (json.RootElement.ValueKind == JsonValueKind.Object
+                && json.RootElement.TryGetProperty("instance_url", out var instance) && instance.ValueKind == JsonValueKind.String)
+            { _ = Uri.TryCreate(instance.GetString(), UriKind.Absolute, out url); }
         }
-        catch (SalesforceNotConnectedException error)
-        {
-            state.State = new SalesforceState();
-            await state.WriteStateAsync();
-            await RejectAsync(error.Message);
-            throw;
-        }
-        catch (SalesforceUnavailableException error)
-        {
-            await RejectAsync(error.Message);
-            throw;
-        }
+        catch (JsonException) { url = null; }
+        if (url is null || url.Scheme != Uri.UriSchemeHttps || url.UserInfo.Length != 0)
+        { throw new SalesforceUnavailableException("Salesforce did not issue a valid HTTPS instance URL."); }
+        if (Snapshot.Account != url.AbsoluteUri) { Snapshot.PendingWrite = null; Snapshot.SubmittingWrite = null; }
+        Snapshot.Account = url.AbsoluteUri;
+        return Task.FromResult(WithSessionExpiry(grant));
     }
 
-    public async Task<SalesforceConnection> Disconnect(DisconnectSalesforce command)
+    // Refresh grants never pass through AcceptGrantAsync, so they get the same default lifetime here.
+    protected override async Task<OAuthGrant> RefreshAsync(Credential credential, CancellationToken ct)
+        => WithSessionExpiry(await base.RefreshAsync(credential, ct));
+
+    private OAuthGrant WithSessionExpiry(OAuthGrant grant)
+        => grant.ExpiresAt is null ? grant with { ExpiresAt = _time.GetUtcNow() + DefaultSessionLifetime } : grant;
+
+    // Salesforce, not the clock, says whether the stored token still works.
+    protected override async Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct)
     {
-        ArgumentNullException.ThrowIfNull(command);
-        state.State = new SalesforceState();
-        await state.WriteStateAsync();
-        await PublishAsync(new SalesforceDisconnected());
-        return new SalesforceConnection(false, null, null);
+        try
+        {
+            await _provider.InvokeAsync("getUserInfo", EmptyArguments(), credential.Value, ct);
+            return ConnectionProbeResult.Connected();
+        }
+        catch (SalesforceNotConnectedException) { return ConnectionProbeResult.Expired("The Salesforce access token was refused."); }
+        // These messages are the provider's own fixed sentences; they never carry the token.
+        catch (Exception error) when (error is SalesforceUnavailableException or SalesforceUnreachableException)
+        { return ConnectionProbeResult.Failing(error.Message); }
     }
 
     public async Task<SalesforceWritePreview> PrepareWrite(PrepareSalesforceWrite command)
     {
         ArgumentNullException.ThrowIfNull(command);
-        var connection = RequireConnection();
+        RequireConnection();
         if (command.Tool is not ("createRecord" or "updateRecord"))
         {
             throw new SalesforceUnavailableException("This Salesforce operation is not admitted.");
@@ -124,36 +101,32 @@ internal sealed class SalesforceNeuron(
         var schema = await ReadWriteSchemaAsync(command.Tool, CancellationToken.None);
         if (schema.Reason is { } reason)
         {
-            state.State = schema.Connection;
-            await state.WriteStateAsync();
-            await RejectAsync(reason);
             throw new SalesforceUnavailableException(reason);
         }
 
         var preview = new SalesforceWritePreview(
-            Guid.NewGuid().ToString("n"), command.Tool, schema.SchemaHash!, command.Arguments, time.GetUtcNow().AddMinutes(10));
-        state.State = schema.Connection with { PendingWrite = preview };
-        await state.WriteStateAsync();
-        await PublishAsync(new SalesforceWritePrepared(preview));
+            Guid.NewGuid().ToString("n"), command.Tool, schema.SchemaHash!, command.Arguments, _time.GetUtcNow().AddMinutes(10));
+        Snapshot.PendingWrite = preview;
+        await Save(Snapshot, new SalesforceWritePrepared(preview));
         return preview;
     }
 
     public async Task<SalesforceWritePreview> ConfirmWrite(ConfirmSalesforceWrite command)
     {
         ArgumentNullException.ThrowIfNull(command);
-        var preview = RequireConnection().PendingWrite;
-        if (preview is null || preview.PreviewId != command.PreviewId || preview.ExpiresAt <= time.GetUtcNow()
+        RequireConnection();
+        var preview = Snapshot.PendingWrite;
+        if (preview is null || preview.PreviewId != command.PreviewId || preview.ExpiresAt <= _time.GetUtcNow()
             || string.IsNullOrEmpty(preview.ToolSchemaHash) || preview.ToolSchemaHash != command.ToolSchemaHash)
         {
             throw new SalesforceUnavailableException("The Salesforce preview expired or changed. Prepare a fresh preview.");
         }
 
         var schema = await ReadWriteSchemaAsync(preview.Tool, CancellationToken.None);
-        if (schema.Reason is { } reason)
+        if (schema.Reason is not null)
         {
-            state.State = schema.Connection with { PendingWrite = null };
-            await state.WriteStateAsync();
-            await RejectAsync(reason);
+            Snapshot.PendingWrite = null;
+            await _state.WriteStateAsync();
             await PublishAsync(new SalesforceWriteUncertain(preview.PreviewId));
             return preview;
         }
@@ -163,8 +136,9 @@ internal sealed class SalesforceNeuron(
             throw new SalesforceUnavailableException("The Salesforce preview schema changed. Prepare a fresh preview.");
         }
 
-        state.State = schema.Connection with { PendingWrite = null, SubmittingWrite = preview };
-        await state.WriteStateAsync();
+        Snapshot.PendingWrite = null;
+        Snapshot.SubmittingWrite = preview;
+        await _state.WriteStateAsync();
         try
         {
             var recordId = await SubmitWriteAsync(preview, CancellationToken.None);
@@ -172,15 +146,11 @@ internal sealed class SalesforceNeuron(
         }
         finally
         {
-            state.State = Current with { SubmittingWrite = null };
-            await state.WriteStateAsync();
+            Snapshot.SubmittingWrite = null;
+            await _state.WriteStateAsync();
         }
     }
 
-    [ReadOnly]
-    public Task<SalesforceConnection> ReadConnection() => Task.FromResult(Connection());
-
-    [ReadOnly]
     public async Task<SalesforceQueryResult> Query(SoqlQuery query, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(query);
@@ -193,11 +163,10 @@ internal sealed class SalesforceNeuron(
             throw new SalesforceUnavailableException("Use one SELECT with an outer WHERE and positive LIMIT. Comments, multiple statements and locking queries are not allowed.");
         }
 
-        var result = await ReadAsync("soqlQuery", JsonSerializer.SerializeToElement(query, ArgumentJson), cancellationToken).ConfigureAwait(true);
+        var result = await ReadAsync("soqlQuery", JsonSerializer.SerializeToElement(query, ArgumentJson), cancellationToken);
         return new SalesforceQueryResult(result.GetRawText(), result.GetProperty("totalSize").GetInt32());
     }
 
-    [ReadOnly]
     public async Task<SalesforceSchema> ReadSchema(ReadSalesforceSchema query, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(query);
@@ -210,21 +179,18 @@ internal sealed class SalesforceNeuron(
         var arguments = objectName is null
             ? EmptyArguments()
             : JsonSerializer.SerializeToElement(new Dictionary<string, string> { ["object-name"] = objectName });
-        return new SalesforceSchema((await ReadAsync("getObjectSchema", arguments, cancellationToken).ConfigureAwait(true)).GetRawText());
+        return new SalesforceSchema((await ReadAsync("getObjectSchema", arguments, cancellationToken)).GetRawText());
     }
 
-    [ReadOnly]
     public async Task<SalesforceUserInfo> ReadUserInfo(CancellationToken cancellationToken = default)
-        => new((await ReadAsync("getUserInfo", EmptyArguments(), cancellationToken).ConfigureAwait(true)).GetRawText());
+        => new((await ReadAsync("getUserInfo", EmptyArguments(), cancellationToken)).GetRawText());
 
     private async Task<string?> SubmitWriteAsync(SalesforceWritePreview preview, CancellationToken cancellationToken)
     {
         try
         {
-            var connection = RequireConnection();
-            var accessToken = await credentials.AccessTokenAsync(connection, cancellationToken).ConfigureAwait(true);
             using var arguments = JsonDocument.Parse(preview.Arguments);
-            var result = await provider.InvokeAsync(preview.Tool, arguments.RootElement, accessToken, cancellationToken).ConfigureAwait(true);
+            var result = await WithTokenAsync((token, ct) => _provider.InvokeAsync(preview.Tool, arguments.RootElement, token, ct), cancellationToken);
             if (result.ValueKind != JsonValueKind.Object
                 || result.TryGetProperty("id", out var record) && record.ValueKind is not (JsonValueKind.String or JsonValueKind.Null))
             {
@@ -241,67 +207,69 @@ internal sealed class SalesforceNeuron(
             await PublishAsync(new RecordWritten(preview with { RecordId = recordId }));
             return recordId;
         }
-        catch (SalesforceNotConnectedException error)
-        {
-            await RejectAsync(error.Message);
-            await PublishAsync(new SalesforceWriteUncertain(preview.PreviewId));
-            return null;
-        }
-        catch (SalesforceUnavailableException)
+        catch (Exception error) when (error is SalesforceNotConnectedException or SalesforceUnavailableException)
         {
             await PublishAsync(new SalesforceWriteUncertain(preview.PreviewId));
             return null;
         }
     }
 
-    private async Task<(SalesforceState Connection, string? SchemaHash, string? Reason)> ReadWriteSchemaAsync(string tool, CancellationToken cancellationToken)
+    // A refused refresh has already marked the connection Expired; a provider refusal marks it Failing.
+    private async Task<(string? SchemaHash, string? Reason)> ReadWriteSchemaAsync(string tool, CancellationToken cancellationToken)
     {
         try
         {
-            return await writeAccess.ReadAsync(tool, RequireConnection(), cancellationToken).ConfigureAwait(true);
+            return (await WithTokenAsync((token, ct) => _provider.ReadToolSchemaHashAsync(tool, token, ct), cancellationToken), null);
         }
         catch (SalesforceNotConnectedException error)
         {
-            return (new SalesforceState(), null, error.Message);
+            return (null, error.Message);
         }
-        catch (SalesforceUnavailableException error)
+        catch (Exception error) when (error is SalesforceUnavailableException or SalesforceUnreachableException)
         {
-            return (Current, null, error.Message);
+            await MarkFailing(error.Message);
+            return (null, error.Message);
         }
     }
 
-    private async Task<JsonElement> ReadAsync(string tool, JsonElement arguments, CancellationToken cancellationToken)
+    private Task<JsonElement> ReadAsync(string tool, JsonElement arguments, CancellationToken cancellationToken)
     {
-        var connection = RequireConnection();
-        if (connection.ExpiresAt <= time.GetUtcNow())
-        {
-            throw new SalesforceNotConnectedException("The Salesforce access token expired. Refresh the connection.");
-        }
-
-        var accessToken = await credentials.AccessTokenAsync(connection, cancellationToken).ConfigureAwait(true);
-        return await provider.InvokeAsync(tool, arguments, accessToken, cancellationToken).ConfigureAwait(true);
+        RequireConnection();
+        return WithTokenAsync((token, ct) => _provider.InvokeAsync(tool, arguments, token, ct), cancellationToken);
     }
 
-    private Task RejectAsync(string reason) => PublishAsync(new SalesforceConnectionRejected(reason));
-
-    private SalesforceState RequireConnection()
+    // Every provider call opens the token through the base, which refreshes it first when it is about
+    // to lapse. A refresh that fails marks the connection, so its status says why calls stop working.
+    private async Task<T> WithTokenAsync<T>(Func<string, CancellationToken, Task<T>> call, CancellationToken cancellationToken)
     {
-        if (Current is not { AccessToken.IsSet: true, InstanceUrl: not null, ExpiresAt: not null } connection)
+        var opened = false;
+        try
+        {
+            return await UseCredentialAsync((credential, ct) =>
+            {
+                opened = true;
+                return call(credential.Value, ct);
+            }, cancellationToken);
+        }
+        catch (Exception error) when (!opened && error is not OperationCanceledException)
+        {
+            // A token endpoint reply may carry a secret; only the exception type is kept.
+            var detail = $"Salesforce refused the token refresh ({error.GetType().Name}). Reconnect Salesforce.";
+            await (error is HttpRequestException ? MarkFailing(detail) : MarkExpired(detail));
+            throw new SalesforceNotConnectedException("The Salesforce token refresh failed. Reconnect Salesforce.");
+        }
+    }
+
+    // Expired or Failing still serve: a refresh or a later probe moves the status back to Connected.
+    private void RequireConnection()
+    {
+        // Reading Key refuses a key that is not a canonical connection key naming this connector.
+        _ = Key;
+        if (Snapshot.Status == ConnectionStatus.Disconnected || Snapshot.Secrets.Length == 0 || Snapshot.Account is null)
         {
             throw new SalesforceNotConnectedException();
         }
-
-        return connection;
     }
-
-    private SalesforceConnection Connection() => ToConnection(Current);
-
-    private static SalesforceConnection ToConnection(SalesforceState connection)
-        => connection.AccessToken is { IsSet: true }
-            ? new SalesforceConnection(true, connection.InstanceUrl, connection.ExpiresAt)
-            : new SalesforceConnection(false, null, null);
-
-    private SalesforceState Current => state.State ?? new SalesforceState();
 
     private static JsonElement EmptyArguments()
     {

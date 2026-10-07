@@ -18,7 +18,7 @@ internal sealed class SalesforceMcpProvider(Uri? endpoint) : ISalesforceProvider
         {
             throw new SalesforceUnavailableException("This Salesforce operation is not allowed.");
         }
-        SalesforceTokenRefresh.ValidateToken(accessToken);
+        ValidateToken(accessToken);
         if (endpoint is null)
         {
             throw new SalesforceUnavailableException("Salesforce MCP is not configured.");
@@ -65,7 +65,7 @@ internal sealed class SalesforceMcpProvider(Uri? endpoint) : ISalesforceProvider
         {
             throw new SalesforceUnavailableException("This Salesforce operation is not allowed.");
         }
-        SalesforceTokenRefresh.ValidateToken(accessToken);
+        ValidateToken(accessToken);
         if (endpoint is null)
         {
             throw new SalesforceUnavailableException("Salesforce MCP is not configured.");
@@ -88,6 +88,14 @@ internal sealed class SalesforceMcpProvider(Uri? endpoint) : ISalesforceProvider
         catch (Exception)
         {
             throw new SalesforceUnreachableException("Salesforce is unavailable. Check service access and try again later.");
+        }
+    }
+
+    private static void ValidateToken(string? token)
+    {
+        if (string.IsNullOrWhiteSpace(token) || token.Length > 16384 || token.Any(c => char.IsControl(c) || char.IsWhiteSpace(c)))
+        {
+            throw new SalesforceUnavailableException("Salesforce did not issue a valid bearer token.");
         }
     }
 
