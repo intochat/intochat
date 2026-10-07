@@ -141,8 +141,11 @@ Task<ModelChoice[]> List(CancellationToken ct);
 `ResolvedModel` keeps provider, model id, endpoint, revision hash, capabilities, reasoning and max
 output tokens. `Resolve` with null selection returns the deployment default: the configured default
 model, else the first catalogued model whose provider has credentials. The `"scripted/"` branch
-lives in `Resolve` once, returning provider `Scripted`; `CreateClient` returns the
-`ScriptedChatClient` for it. `List` reports availability from credential readiness and skips Ollama
+is handled by a `ScriptedProviderFactory` like any other provider: `AiProvider` gains `Scripted`,
+`Resolve` returns a `ResolvedModel` with that provider, and `CreateClient` returns the
+`ScriptedChatClient` adapter over the `IScriptedLLM` grain. The scripted model stays a neuron
+because scripts and tests program it and read its prompts back across the sandbox boundary, and
+its reply queue and recorded prompts are grain state. `List` reports availability from credential readiness and skips Ollama
 models not installed on the configured server. `ModelChoice` keeps its shape (id, label, provider,
 model, available, capabilities) so the Flutter picker does not change.
 
@@ -160,9 +163,10 @@ Agents/                  IAgent, AgentDefinition, AgentTurn, AgentTurnEvent, Age
 Agents/Signals/          AgentConfigured, TurnStarted, TurnProgressed, TurnCompleted, TurnFailed, TranscriptCleared
 Agents/Context/          IAgentContext, ContextEntry, ContextSnapshot
 Agents/Context/Signals/  ContextUpdated, ContextRemoved
-Models/                  ILLM, AiModel, LLMModel, AiProvider, ModelSelection, ResolvedModel, ModelDescriptor, ModelChoice, IScriptedLLM
+Models/                  ILLM, AiModel, LLMModel, AiProvider, ModelSelection, ResolvedModel, ModelDescriptor, ModelChoice
 Models/Signals/          InferenceStarted, InferenceCompleted, InferenceFailed
 Models/<Vendor>/         one file per model (marker + LLMModel)
+Models/Scripted/         IScriptedLLM
 Inference/               AiMessage, AiContent and derived, InferenceRequest/Result/Update/Options
 Tools/                   IAgentToolFactory, IAgentToolSource, IAgentToolSession, AgentToolOffer, AgentToolBinding, INativeToolContributor
 Media/, Voice/, Embeddings/, GroupChat/   content unchanged, namespaces fixed
@@ -174,8 +178,9 @@ Module:
 AIModule.cs              registrations only; connector definitions in Models/ModelConnectors.cs
 Agents/                  AgentNeuron, AgentTurnLoop
 Agents/Context/          AgentContextNeuron
-Models/                  ModelCatalog, InferenceService, LlmNeuronBase, ScriptedChatClient, ScriptedLlmNeuron
+Models/                  ModelCatalog, InferenceService, LlmNeuronBase
 Models/<Vendor>/         <Vendor>ProviderFactory, ModelNeurons
+Models/Scripted/         ScriptedProviderFactory, ScriptedLlmNeuron, ScriptedChatClient
 Tools/                   NativeTools, ScreenedFunction, McpAgentTools, Web/, WebSearch/, Workspace/
 Configuration/, Integrations/, Metering/, Media/, Voice/, GroupChat/   stay
 ```
