@@ -38,23 +38,9 @@ ordinary tables in `public`. The existing general SQL read surface retains its
 configured database-role visibility; table-neuron ownership does not change that
 surface's read permissions.
 
-The assistant first calls `discover_capabilities`, backed by Registry's trusted-caller
-discovery and module providers. Postgres contributes explicit tool bindings and app-owned
-resources; a resource enumeration failure reports a partial error without hiding platform
-Postgres tools. Neither installed apps nor exact database-name spelling suppress discovery.
-
-The assistant can then call `postgres_schema(appTables: true)` to discover tables of currently
-installed apps in its brain. It receives a resource handle, installed app identity, declared
-columns, and the pinned capacity origin. `show_postgres_query_table(resource: handle, title: ...)`
-opens that table at its actual origin; use `table_read` and `table_refine` to read, filter,
-sort, and aggregate it. The resource path accepts no caller-selected origin or arbitrary SQL.
-Every read checks the current installation, owner index, table owner, and brain again.
-App callers cannot use this host-only discovery path.
-
-Omitting `appTables` or `resource` retains the existing administrator-configured platform
-SQL connection. Its database role still defines visibility, including platform-origin app
-tables. Resource ownership checks do not replace PostgreSQL role permissions on that legacy
-SQL connection. Provisioned app databases are reached only through validated resources.
+A database a person adds is a `postgres` connection, `connection/{brain}/postgres/{id}`, served by
+`IPostgresServer` (`ReadSchema`, `Query`). The assistant and `digitalbrain-mcp` reach it through
+`neurons_call`; data is shown by the Data Visualizer app, whose `db` slot binds to that connection.
 
 ## Assessment before implementation
 
