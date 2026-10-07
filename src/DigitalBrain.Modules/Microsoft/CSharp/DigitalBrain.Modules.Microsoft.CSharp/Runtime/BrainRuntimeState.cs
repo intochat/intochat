@@ -13,7 +13,8 @@ internal sealed record BehaviorAssignment(
     [property: Id(4)] string? AppId,
     [property: Id(5)] CSharpFileStatus Status,
     [property: Id(6)] int? ExitCode,
-    [property: Id(7)] int Failures);
+    [property: Id(7)] int Failures,
+    [property: Id(8)] DateTimeOffset? LastFailure = null);
 
 // The one session that runs this brain's behaviors. Started is when it was last launched, so a session
 // that never connects is relaunched like one that stopped heartbeating; TokenIssued drives rotation.

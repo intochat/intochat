@@ -95,15 +95,18 @@ internal sealed class RuntimeEdge(SessionTokens tokens, ScriptContracts contract
         var channel = streams.Open(claims.Session);
         var assignments = await runtime.Assignments(claims.Session).ConfigureAwait(false);
         var pending = await runtime.PendingBatches(claims.Session).ConfigureAwait(false);
-        return Streaming(claims.Session, channel, assignments, pending, cancellationToken);
+        return Streaming(claims.Session, tokens.Issue(claims.Brain, claims.Session), channel, assignments, pending, cancellationToken);
     }
 
-    private async IAsyncEnumerable<SseItem<string>> Streaming(string session, System.Threading.Channels.Channel<(string Kind, object Payload)> channel,
+    // Ready names the whole desired set, then a fresh token: a host reconnecting after a missed rotation
+    // keeps speaking, and one that missed a retirement unloads it.
+    private async IAsyncEnumerable<SseItem<string>> Streaming(string session, string token, System.Threading.Channels.Channel<(string Kind, object Payload)> channel,
         IReadOnlyList<AssignmentEvent> assignments, IReadOnlyList<SignalBatchEvent> pending, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         try
         {
-            yield return Item(ReadyEvent.Kind, new ReadyEvent(session));
+            yield return Item(ReadyEvent.Kind, new ReadyEvent(session, [.. assignments.Select(assignment => assignment.Behavior)]));
+            yield return Item(TokenEvent.Kind, new TokenEvent(token));
             foreach (var assignment in assignments) { yield return Item(AssignmentEvent.Kind, assignment); }
             foreach (var batch in pending) { yield return Item(SignalBatchEvent.Kind, batch); }
             await foreach (var (kind, payload) in channel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false)) { yield return Item(kind, payload); }

@@ -20,6 +20,12 @@ internal sealed class FakeSessionHost : HttpMessageHandler
     public bool Absent { get; set; }
     // A proxy that accepts the connection for a backend that is gone: no answer, ever.
     public bool Hang { get; set; }
+    // Holds every stop until released, so a fact can see what reaches the host while a stop is in flight.
+    public TaskCompletionSource? HoldStops { get; set; }
+    // A start arrived while a stop was still in flight: the two can land in either order.
+    public bool StartDuringStop { get; private set; }
+
+    private int _stopping;
 
     public async Task<(string Method, string Path, JsonNode? Body)> NextAsync(Func<(string Method, string Path, JsonNode? Body), bool> match, CancellationToken ct)
     {
@@ -39,6 +45,13 @@ internal sealed class FakeSessionHost : HttpMessageHandler
         Requests.Enqueue((request.Method.Method, path, body));
         _seen.Writer.TryWrite((request.Method.Method, path, body));
         if (Hang) { await Task.Delay(Timeout.Infinite, cancellationToken); }
+        if (IsStart((request.Method.Method, path, body)) && Volatile.Read(ref _stopping) > 0) { StartDuringStop = true; }
+        if (HoldStops is { } hold && IsStop((request.Method.Method, path, body)))
+        {
+            Interlocked.Increment(ref _stopping);
+            try { await hold.Task.WaitAsync(cancellationToken); }
+            finally { Interlocked.Decrement(ref _stopping); }
+        }
         return path.Split('/') switch
         {
             ["sessions", var id] when request.Method == HttpMethod.Post => Started(id, body!),

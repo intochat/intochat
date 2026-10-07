@@ -13,7 +13,7 @@ public sealed record CompiledBehavior(byte[] Assembly, byte[] Symbols, string Ha
 
 public sealed record ScriptCompilation(bool Success, IReadOnlyList<ScriptDiagnostic> Errors, IReadOnlyDictionary<string, CompiledBehavior> Assemblies);
 
-// The single compiler: compiles each behavior in-process against this host's loaded assemblies and,
+// The single compiler: compiles each behavior in-process against what the sandbox carries and,
 // when every file is clean, emits one assembly per file named by its content hash. The sandbox only
 // loads what this emits. The implicit console usings plus the script client's namespaces are imported.
 public sealed class CSharpScriptCheck
@@ -66,10 +66,31 @@ public sealed class CSharpScriptCheck
         return new(errors.Count == 0, errors, errors.Count == 0 ? assemblies : new Dictionary<string, CompiledBehavior>());
     }
 
+    // Exactly what the sandbox image carries: the .NET runtime, plus the vocabulary, the client and every
+    // contract assembly with what they depend on. Nothing else this host loads (the framework ring, the
+    // platform, drivers, the compiler) is a behavior's to reach; it would compile here and fail to load there.
     private static MetadataReference[] LoadReferences()
-        => [.. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
+    {
+        var available = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
             .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
             .Where(File.Exists)
-            .DistinctBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
-            .Select(path => (MetadataReference)MetadataReference.CreateFromFile(path))];
+            .DistinctBy(Path.GetFileNameWithoutExtension, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(path => Path.GetFileNameWithoutExtension(path)!, StringComparer.OrdinalIgnoreCase);
+        var runtime = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
+        var carried = new HashSet<string>(available.Where(entry => Path.GetDirectoryName(entry.Value) == runtime).Select(entry => entry.Key), StringComparer.OrdinalIgnoreCase);
+        var pending = new Stack<string>(available.Keys.Where(name => name is "DigitalBrain" or "DigitalBrain.Client"
+            || name.EndsWith(".Contracts", StringComparison.OrdinalIgnoreCase)));
+        while (pending.TryPop(out var name))
+        {
+            if (!carried.Add(name)) { continue; }
+            using var image = new System.Reflection.PortableExecutable.PEReader(File.OpenRead(available[name]));
+            var metadata = System.Reflection.Metadata.PEReaderExtensions.GetMetadataReader(image);
+            foreach (var handle in metadata.AssemblyReferences)
+            {
+                var dependency = metadata.GetString(metadata.GetAssemblyReference(handle).Name);
+                if (available.ContainsKey(dependency) && !carried.Contains(dependency)) { pending.Push(dependency); }
+            }
+        }
+        return [.. carried.Select(name => (MetadataReference)MetadataReference.CreateFromFile(available[name]))];
+    }
 }

@@ -16,15 +16,17 @@ internal sealed class BehaviorRun : IAsyncDisposable
     private readonly RunLog _log;
     private AssemblyLoadContext? _context;
 
-    private BehaviorRun(string id, string hash, AssemblyLoadContext context, int logLines)
+    private BehaviorRun(AssignmentEvent assignment, AssemblyLoadContext context, int logLines)
     {
-        Id = id;
-        Hash = hash;
+        Assignment = assignment;
+        Id = assignment.Behavior;
+        Hash = assignment.Hash;
         _context = context;
         _log = new RunLog(logLines);
         Completion = Task.FromResult(0);
     }
 
+    public AssignmentEvent Assignment { get; }
     public string Id { get; }
     public string Hash { get; }
     public Task<int> Completion { get; private set; }
@@ -35,7 +37,7 @@ internal sealed class BehaviorRun : IAsyncDisposable
 
     public static BehaviorRun Start(SessionConnection session, AssignmentEvent assignment, AssemblyLoadContext context, Assembly assembly, int logLines, ILogger logger)
     {
-        var run = new BehaviorRun(assignment.Behavior, assignment.Hash, context, logLines);
+        var run = new BehaviorRun(assignment, context, logLines);
         var entry = assembly.EntryPoint ?? throw new InvalidOperationException($"{assignment.Behavior} has no entry point.");
         run.Completion = Task.Run(() => run.ExecuteAsync(session, assignment.Settings, entry, logger));
         return run;
@@ -71,11 +73,11 @@ internal sealed class BehaviorRun : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        if (_context is null) { return; }
+        // A session's disposal and the run's own exit can both dispose it; the first one in does.
+        if (Interlocked.Exchange(ref _context, null) is not { } context) { return; }
         await _stopping.CancelAsync().ConfigureAwait(false);
         await Task.WhenAny(Completion, Task.Delay(StopGrace)).ConfigureAwait(false);
-        _context.Unload();
-        _context = null;
+        context.Unload();
         _stopping.Dispose();
     }
 }

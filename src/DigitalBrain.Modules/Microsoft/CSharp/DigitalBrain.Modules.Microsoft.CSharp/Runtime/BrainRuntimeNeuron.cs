@@ -40,6 +40,8 @@ internal sealed class BrainRuntimeNeuron(
     // Orleans reminders fire at most once a minute.
     private static readonly TimeSpan ReconcilePeriod = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan SilenceLimit = TimeSpan.FromMinutes(2);
+    // Crashes further apart than this are not a streak; the count starts again.
+    private static readonly TimeSpan FailureWindow = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan AssemblyUrlLifetime = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan LogsCap = TimeSpan.FromSeconds(10);
     // Rotated well inside SessionTokens.Lifetime, so a reminder that fires late still beats expiry.
@@ -49,6 +51,8 @@ internal sealed class BrainRuntimeNeuron(
 
     private readonly Dictionary<string, INeuron> _watched = new(StringComparer.Ordinal);
     private IGrainTimer? _watchRenewal;
+    // The tail of this activation's sandbox calls; each runs after the one before it, whatever its outcome.
+    private Task _sandboxCalls = Task.CompletedTask;
 
     private string RuntimeId => this.GetPrimaryKeyString();
     private string Brain => RuntimeId[..RuntimeId.LastIndexOf('/')];
@@ -145,6 +149,9 @@ internal sealed class BrainRuntimeNeuron(
             await Save(Snapshot with { Subscriptions = [.. Snapshot.Subscriptions, existing] }, Changed());
             await WatchSourcesAsync();
         }
+        // A reloaded behavior subscribes again: what waited for it while it was down goes out now.
+        else if (existing.Pending.Length > 0 && Snapshot.Session is { Status: SessionStatus.Connected })
+        { streams.TryPush(session, SignalBatchEvent.Kind, Batch(existing)); }
         return existing.Id;
     }
 
@@ -158,8 +165,9 @@ internal sealed class BrainRuntimeNeuron(
         await Save(Snapshot with { Subscriptions = [.. Snapshot.Subscriptions.Select(s => s == found ? trimmed : s)] }, Changed());
     }
 
-    // Failures are per behavior: a crashing one is reloaded until MaximumFailures, then disarmed and
-    // unloaded while the rest of the brain keeps running.
+    // Failures are per behavior: a crashing one is reloaded after a backoff until it has failed
+    // MaximumFailures times in a row (each within FailureWindow of the last), then disarmed and unloaded
+    // while the rest of the brain keeps running.
     public async Task Reported(string session, BehaviorStatusReport status)
     {
         RequireSpeaking(session);
@@ -167,13 +175,16 @@ internal sealed class BrainRuntimeNeuron(
         var found = Snapshot.Behaviors.FirstOrDefault(existing => existing.Id == status.Behavior && existing.Hash == status.Hash);
         if (found is null || found.Status == CSharpFileStatus.Disarmed) { return; }
         var failed = status.Error is not null || status.Status == nameof(CSharpFileStatus.Exited) && status.ExitCode is not 0;
-        var failures = failed ? found.Failures + 1 : found.Failures;
+        var now = time.GetUtcNow();
+        var inARow = found.LastFailure is { } last && now - last < FailureWindow;
+        var failures = failed ? (inARow ? found.Failures : 0) + 1 : found.Failures;
         var next = found with
         {
             Status = failures >= MaximumFailures ? CSharpFileStatus.Disarmed
                 : Enum.TryParse<CSharpFileStatus>(status.Status, out var reported) ? reported : found.Status,
             ExitCode = status.ExitCode,
             Failures = failures,
+            LastFailure = failed ? now : found.LastFailure,
         };
         await Save(Snapshot with { Behaviors = [.. Snapshot.Behaviors.Select(existing => existing == found ? next : existing)] }, Changed());
         if (next.Status == CSharpFileStatus.Disarmed)
@@ -181,7 +192,20 @@ internal sealed class BrainRuntimeNeuron(
             logger.LogWarning("Behavior {Behavior} of brain {Brain} failed {Failures} times and is disarmed: {Error}", next.Id, Brain, failures, status.Error);
             streams.TryPush(session, RetireEvent.Kind, new RetireEvent(next.Id));
         }
-        else if (failed) { streams.TryPush(session, AssignmentEvent.Kind, await AssignmentFor(next)); }
+        else if (failed) { ReloadLater(session, next.Id, next.Hash, TimeSpan.FromSeconds(1 << (failures - 1))); }
+    }
+
+    // One-shot: reloads the behavior if, by then, the same session still runs it at the same hash.
+    private void ReloadLater(string session, string behavior, string hash, TimeSpan delay)
+    {
+        IGrainTimer? timer = null;
+        timer = this.RegisterGrainTimer(async _ =>
+        {
+            timer?.Dispose();
+            if (Snapshot.Session?.Id == session
+                && Snapshot.Behaviors.FirstOrDefault(existing => existing.Id == behavior && existing.Hash == hash) is { Status: not CSharpFileStatus.Disarmed } current)
+            { streams.TryPush(session, AssignmentEvent.Kind, await AssignmentFor(current)); }
+        }, new GrainTimerCreationOptions { DueTime = delay, Period = Timeout.InfiniteTimeSpan });
     }
 
     public Task<IReadOnlyList<SignalBatchEvent>> PendingBatches(string session)
@@ -235,11 +259,10 @@ internal sealed class BrainRuntimeNeuron(
         var before = Snapshot.Session?.Id;
         await EnsureSessionAsync();
         if (Snapshot.Session is not { } session || session.Id != before) { return; }
-        if (session.TokenIssued < time.GetUtcNow() - TokenRotation)
-        {
-            await Save(Snapshot with { Session = session with { TokenIssued = time.GetUtcNow() } }, Changed());
-            streams.TryPush(session.Id, TokenEvent.Kind, new TokenEvent(tokens.Issue(Brain, session.Id)));
-        }
+        // Rotated only once the host has it; a rotation its stream missed is retried on the next reminder.
+        if (session.TokenIssued < time.GetUtcNow() - TokenRotation
+            && streams.TryPush(session.Id, TokenEvent.Kind, new TokenEvent(tokens.Issue(Brain, session.Id))))
+        { await Save(Snapshot with { Session = session with { TokenIssued = time.GetUtcNow() } }, Changed()); }
     }
 
     // A source's own signal may be what activated this runtime, so watching it now would deadlock;
@@ -268,15 +291,20 @@ internal sealed class BrainRuntimeNeuron(
     private bool Silent(SessionRecord session) => (session.LastHeartbeat ?? session.Started) < time.GetUtcNow() - SilenceLimit;
 
     // The sandbox is called off this runtime's turn: a host that is down, slow or behind a proxy that never
-    // answers must not hold the brain's runtime. A failure is the reminder's to retry.
+    // answers must not hold the brain's runtime. The calls still reach the host in the order they were made,
+    // so a stop never lands after the start that follows it. A failure is the reminder's to retry.
     private void OffTurn<T>(Func<T, CancellationToken, Task> call, T argument, string what)
     {
         var brain = Brain;
-        _ = Task.Run(async () =>
+        var previous = _sandboxCalls;
+        _sandboxCalls = Task.Run(async () =>
         {
+            await previous;
             try { await call(argument, CancellationToken.None); }
             catch (Exception error) when (error is HttpRequestException or TaskCanceledException)
             { logger.LogWarning(error, "The sandbox did not {What} brain {Brain}'s session; its reminder retries.", what, brain); }
+            catch (Exception error)
+            { logger.LogError(error, "Could not {What} brain {Brain}'s sandbox session; its reminder retries.", what, brain); }
         });
     }
 

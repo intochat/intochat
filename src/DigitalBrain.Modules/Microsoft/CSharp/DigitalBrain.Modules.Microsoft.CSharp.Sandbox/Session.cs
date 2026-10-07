@@ -6,8 +6,8 @@ using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Microsoft.CSharp.Sandbox;
 
-// One brain's connection and its loaded behaviors. The control loop follows the brain's stream: an
-// assignment loads (or swaps) one behavior, a retirement unloads it, a logs request is answered from
+// One brain's connection and its loaded behaviors. The control loop follows the brain's stream: ready
+// names the desired set, an assignment loads (or swaps) one behavior, a retirement unloads it, a logs request is answered from
 // its ring buffer. Every load and every exit is reported, so the brain counts failures per behavior.
 internal sealed class Session(SessionConnection connection, BehaviorLoader loader, ILogger logger) : IAsyncDisposable
 {
@@ -24,6 +24,7 @@ internal sealed class Session(SessionConnection connection, BehaviorLoader loade
             {
                 switch (kind)
                 {
+                    case ReadyEvent.Kind: await KeepOnlyAsync(JsonSerializer.Deserialize<ReadyEvent>(data, RuntimeProtocol.Json)!.Behaviors, cancellationToken).ConfigureAwait(false); break;
                     case AssignmentEvent.Kind: await AssignAsync(JsonSerializer.Deserialize<AssignmentEvent>(data, RuntimeProtocol.Json)!, cancellationToken).ConfigureAwait(false); break;
                     case RetireEvent.Kind: await RetireAsync(JsonSerializer.Deserialize<RetireEvent>(data, RuntimeProtocol.Json)!.Behavior, cancellationToken).ConfigureAwait(false); break;
                     case LogsRequestEvent.Kind: await AnswerLogsAsync(JsonSerializer.Deserialize<LogsRequestEvent>(data, RuntimeProtocol.Json)!, cancellationToken).ConfigureAwait(false); break;
@@ -41,6 +42,8 @@ internal sealed class Session(SessionConnection connection, BehaviorLoader loade
         await _changes.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            // A reconnecting stream resends every assignment: one already running as assigned keeps running.
+            if (_behaviors.TryGetValue(assignment.Behavior, out var current) && Same(current.Assignment, assignment)) { return; }
             // A swap unloads only this behavior; the others keep running.
             if (_behaviors.TryRemove(assignment.Behavior, out var previous)) { await previous.DisposeAsync().ConfigureAwait(false); }
             BehaviorRun run;
@@ -58,17 +61,36 @@ internal sealed class Session(SessionConnection connection, BehaviorLoader loade
         finally { _changes.Release(); }
     }
 
+    private static bool Same(AssignmentEvent running, AssignmentEvent assigned)
+        => running.Hash == assigned.Hash && running.Settings.Count == assigned.Settings.Count
+            && running.Settings.All(setting => assigned.Settings.TryGetValue(setting.Key, out var value) && value == setting.Value);
+
     private async Task RetireAsync(string behavior, CancellationToken cancellationToken)
+    {
+        await _changes.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try { await UnloadAsync(behavior, cancellationToken).ConfigureAwait(false); }
+        finally { _changes.Release(); }
+    }
+
+    // The brain's whole desired set, sent on every (re)connect: a retirement pushed while the stream was down
+    // never arrived, so whatever this session holds beyond the set is unloaded now.
+    private async Task KeepOnlyAsync(string[] wanted, CancellationToken cancellationToken)
     {
         await _changes.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (!_behaviors.TryRemove(behavior, out var run)) { return; }
-            await run.DisposeAsync().ConfigureAwait(false);
-            logger.LogInformation("Unloaded behavior {Behavior} {Hash}", run.Id, run.Hash);
-            await ReportAsync(new(run.Id, run.Hash, "Stopped", 0, null), cancellationToken).ConfigureAwait(false);
+            foreach (var behavior in _behaviors.Keys.Except(wanted, StringComparer.Ordinal).ToArray())
+            { await UnloadAsync(behavior, cancellationToken).ConfigureAwait(false); }
         }
         finally { _changes.Release(); }
+    }
+
+    private async Task UnloadAsync(string behavior, CancellationToken cancellationToken)
+    {
+        if (!_behaviors.TryRemove(behavior, out var run)) { return; }
+        await run.DisposeAsync().ConfigureAwait(false);
+        logger.LogInformation("Unloaded behavior {Behavior} {Hash}", run.Id, run.Hash);
+        await ReportAsync(new(run.Id, run.Hash, "Stopped", 0, null), cancellationToken).ConfigureAwait(false);
     }
 
     // An exit the brain did not ask for: reported once, unless the run was retired or swapped first.

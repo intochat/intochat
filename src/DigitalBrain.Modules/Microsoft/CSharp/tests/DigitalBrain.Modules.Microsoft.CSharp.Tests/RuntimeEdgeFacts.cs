@@ -70,7 +70,7 @@ public sealed class RuntimeEdgeFacts
     }
 
     [Fact]
-    public async Task TheStreamSendsReadyThenAssignmentsAndInvokeReachesANeuron()
+    public async Task TheStreamSendsReadyAFreshTokenThenAssignmentsAndInvokeReachesANeuron()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true);
@@ -81,6 +81,12 @@ public sealed class RuntimeEdgeFacts
         await using var events = SseParser.Create(await stream.Content.ReadAsStreamAsync(ct)).EnumerateAsync(ct).GetAsyncEnumerator(ct);
         Assert.True(await events.MoveNextAsync());
         Assert.Equal(ReadyEvent.Kind, events.Current.EventType);
+        Assert.Equal(["acc-brain/csharp/a"], JsonSerializer.Deserialize<ReadyEvent>(events.Current.Data, RuntimeProtocol.Json)!.Behaviors);
+        // Every stream hands the host a fresh token, so one that reconnects after a missed rotation keeps speaking.
+        Assert.True(await events.MoveNextAsync());
+        Assert.Equal(TokenEvent.Kind, events.Current.EventType);
+        var fresh = JsonSerializer.Deserialize<TokenEvent>(events.Current.Data, RuntimeProtocol.Json)!.Token;
+        Assert.Equal(session.Id, brain.SiloServices.GetRequiredService<SessionTokens>().Validate(fresh)!.Session);
         Assert.True(await events.MoveNextAsync());
         Assert.Equal(AssignmentEvent.Kind, events.Current.EventType);
         Assert.Contains("acc-brain/csharp/a", events.Current.Data, StringComparison.Ordinal);
@@ -168,7 +174,7 @@ public sealed class RuntimeEdgeFacts
         using var stream = await brain.HttpClient.SendAsync(Authorized(HttpMethod.Get, "/brains/acc-brain/" + RuntimeProtocol.Stream, session.Token), HttpCompletionOption.ResponseHeadersRead, ct);
         await using var events = SseParser.Create(await stream.Content.ReadAsStreamAsync(ct)).EnumerateAsync(ct).GetAsyncEnumerator(ct);
 
-        Assert.Equal([ReadyEvent.Kind, AssignmentEvent.Kind, SignalBatchEvent.Kind], await Kinds(events, 3));
+        Assert.Equal([ReadyEvent.Kind, TokenEvent.Kind, AssignmentEvent.Kind, SignalBatchEvent.Kind], await Kinds(events, 4));
     }
 
     [Fact]

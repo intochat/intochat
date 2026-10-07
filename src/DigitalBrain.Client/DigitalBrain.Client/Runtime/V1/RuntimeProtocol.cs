@@ -46,7 +46,8 @@ public sealed record SignalBatchEvent([property: Id(0)] string Subscription, [pr
 [GenerateSerializer, Alias("microsoft.csharp.runtime.token-event")]
 public sealed record TokenEvent([property: Id(0)] string Token) { public const string Kind = "token"; }
 [GenerateSerializer, Alias("microsoft.csharp.runtime.ready-event")]
-public sealed record ReadyEvent([property: Id(0)] string Session) { public const string Kind = "ready"; }
+// Behaviors is the brain's whole desired set: a host that reconnects unloads whatever it holds beyond it.
+public sealed record ReadyEvent([property: Id(0)] string Session, [property: Id(1)] string[] Behaviors) { public const string Kind = "ready"; }
 [GenerateSerializer, Alias("microsoft.csharp.runtime.logs-request-event")]
 public sealed record LogsRequestEvent([property: Id(0)] string Behavior, [property: Id(1)] int Tail, [property: Id(2)] string Request) { public const string Kind = "logs"; }
 

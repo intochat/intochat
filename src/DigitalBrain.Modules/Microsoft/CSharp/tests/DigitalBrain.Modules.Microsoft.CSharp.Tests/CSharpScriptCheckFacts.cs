@@ -25,6 +25,20 @@ public sealed class CSharpScriptCheckFacts
         Assert.Empty(result.Errors);
     }
 
+    // The sandbox carries the runtime, the vocabulary, the client and the contracts; a behavior that
+    // compiles here against anything else (the framework ring, the platform, a driver) could never load there.
+    [Theory]
+    [InlineData("DigitalBrain.Framework.BrainScope.CurrentId();")]
+    [InlineData("Console.WriteLine(typeof(Microsoft.CodeAnalysis.SyntaxTree));")]
+    [InlineData("Console.WriteLine(typeof(Microsoft.AspNetCore.Http.HttpContext));")]
+    public void ABehaviorCompilesOnlyAgainstWhatTheSandboxCarries(string line)
+    {
+        var result = _check.Compile(new Dictionary<string, string> { ["synapses/reach.cs"] = line + "\nawait Task.CompletedTask;\n" });
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Errors, error => error.Id is "CS0234" or "CS0246" or "CS0400");
+    }
+
     [Fact]
     public void ACompilingScriptEmitsAnAssemblyNamedByItsContentHash()
     {
