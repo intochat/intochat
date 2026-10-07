@@ -33,17 +33,32 @@ public sealed partial class RepositoryPathLiteralFacts
     // A fact names what it wants through the typed harness; the hosting ring decides the
     // variable. Raw OTEL_/ASPNETCORE_/DOTNET_ names and "A__B" env spellings are forbidden in test
     // code outside the harness itself, as is spelling an env name through EnvironmentName(...).
-    [GeneratedRegex("\"(OTEL_|ASPNETCORE_|DOTNET_|ASPIRE_)[A-Z0-9_]+\"|\"[A-Za-z0-9]+__[A-Za-z0-9_]+\"|EnvironmentName\\(", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("\\$?\"(OTEL_|ASPNETCORE_|DOTNET_|ASPIRE_)|\"[A-Za-z0-9]+__[A-Za-z0-9_]+\"|\"__[A-Za-z0-9]|[A-Za-z0-9}]__\"|EnvironmentName\\(",RegexOptions.CultureInvariant)]
     private static partial Regex EnvironmentLiteral();
 
-    // Closed list: these facts assert on the projection itself (which variables the hosting and
-    // deployment rings write), so the variable names are their subject, not a way to configure a run.
+    // Closed list, keyed <Project>/<path inside it>: these facts assert on the projection itself
+    // (which variables the hosting and deployment rings write), so the variable names are their
+    // subject, not a way to configure a run.
     private static readonly string[] ProjectionFacts =
     [
-        "TelemetryProjectionFacts.cs", "HostEnvironmentFacts.cs", "ConfigurationFileFacts.cs", "ConfigurationGrammarFacts.cs",
-        "DeploymentIdentityFacts.cs", "DigitalBrainDeploymentFacts.cs", "GitHubAppHostingFacts.cs", "PostgresAspireHostingFacts.cs",
-        "SupabaseHostingFacts.cs", "ProductCompositionFacts.cs"
+        "DigitalBrain.OS.Tests.Unit/TelemetryProjectionFacts.cs",
+        "DigitalBrain.Aspire.Hosting.Tests.Unit/HostEnvironmentFacts.cs",
+        "DigitalBrain.Aspire.Hosting.Tests.Unit/ConfigurationFileFacts.cs",
+        "DigitalBrain.Aspire.Hosting.Tests.Unit/ConfigurationGrammarFacts.cs",
+        "DigitalBrain.Aspire.Hosting.Tests.Unit/DeploymentIdentityFacts.cs",
+        "DigitalBrain.Deployment.Tests/DigitalBrainDeploymentFacts.cs",
+        "DigitalBrain.Modules.Microsoft.GitHub.Tests.Hosting/GitHubAppHostingFacts.cs",
+        "DigitalBrain.Modules.Postgres.Tests.Hosting/PostgresAspireHostingFacts.cs",
+        "DigitalBrain.Modules.Supabase.Tests.Hosting/SupabaseHostingFacts.cs",
+        "DigitalBrain.OS.Tests.Unit/ProductCompositionFacts.cs"
     ];
+
+    [Fact]
+    public void ProjectionFactsExist()
+    {
+        var missing = ProjectionFacts.Where(key => !File.Exists(Repository.FromProjectKey(key))).ToArray();
+        Assert.True(missing.Length == 0, "Exempted projection facts that no longer exist:\n" + string.Join('\n', missing));
+    }
 
     [Fact]
     public void TestsNameNoEnvironmentVariables()
@@ -52,8 +67,8 @@ public sealed partial class RepositoryPathLiteralFacts
                 path => EnvironmentLiteral().IsMatch(File.ReadAllText(path)),
                 project => project.Name.Contains(".Tests", StringComparison.Ordinal)
                     && !project.Directory.Contains(Path.DirectorySeparatorChar + "Testing" + Path.DirectorySeparatorChar, StringComparison.Ordinal))
-            .Where(path => !ProjectionFacts.Contains(Path.GetFileName(path), StringComparer.Ordinal))
-            .Select(Repository.Relative)
+            .Select(Repository.ProjectKey)
+            .Where(key => !ProjectionFacts.Contains(key, StringComparer.Ordinal))
             .Order().ToArray();
         Assert.True(offenders.Length == 0,
             "Test code names environment variables; speak through the E2E builder (ExportingTelemetryTo, InEnvironment, ConfigureModule, WithHostConfiguration with a typed key):\n"
