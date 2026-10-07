@@ -101,11 +101,4 @@ public sealed class PostgresCapacityFacts
             => Task.FromResult(new IntegrationSnapshot { IntegrationId = IntegrationId, Status = IntegrationStatus.Ready });
         public Task<string> ReadSecretAsync(string field, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
-
-    [Fact]
-    public void TheRegistryAnswersThePlatformSourceForANullOrLegacyOrigin()
-    {
-        Assert.Equal(PostgresCapacityKind.PlatformOrigin, PostgresCapacityKind.OriginOrPlatform(null));
-        Assert.Equal("db:brain_x", PostgresCapacityKind.OriginOrPlatform("db:brain_x"));
-    }
 }

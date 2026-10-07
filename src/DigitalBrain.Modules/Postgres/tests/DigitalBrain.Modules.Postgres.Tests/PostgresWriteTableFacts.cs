@@ -16,7 +16,7 @@ namespace DigitalBrain.Modules.Postgres.Tests;
 public sealed class PostgresWriteTableFacts
 {
     [Fact]
-    public async Task TeardownReclaimsPendingDdlAtItsPinnedOriginAfterCapacityChangesAndRestart()
+    public async Task TeardownReclaimsPendingDdlAtItsPinnedPlacementAfterCapacityChangesAndRestart()
     {
         var ct = TestContext.Current.CancellationToken;
         var provider = new MemoryTables { LoseDefineResponse = true };
@@ -38,7 +38,7 @@ public sealed class PostgresWriteTableFacts
         await owner.Uninstall("brain", "app");
         await owner.Uninstall("brain", "app");
 
-        Assert.Equal(("db:original", TablePolicy.PhysicalName(new TableOwner(BrainScope.CurrentId(), "app").Key, "pending-ddl")), Assert.Single(provider.Drops));
+        Assert.Equal((TablePlacement.BrainDatabase("original"), TablePolicy.PhysicalName(new TableOwner(BrainScope.CurrentId(), "app").Key, "pending-ddl")), Assert.Single(provider.Drops));
         Assert.Equal(1, capacity.Resolutions);
     }
 
@@ -129,6 +129,21 @@ public sealed class PostgresWriteTableFacts
         await table.Upsert(Key(), [new("fresh", "true")]);
         await owner.Uninstall("brain", "app");
         Assert.Single(await table.Page());
+    }
+
+    [Fact]
+    public async Task EveryOperationOfAPlatformTableRunsAtItsPinnedSharedPlacement()
+    {
+        var provider = new MemoryTables();
+        await using var brain = await Start(provider);
+        Stamp();
+        await brain.AuthorizeCallerAsync();
+        var table = brain.Get<ITable>("shared");
+        await table.Define(Definition);
+        await table.Upsert(Key(), Values("one"));
+        await brain.Get<IPostgresLifecycleTestApp>("shared-install").Uninstall("brain", "app");
+
+        Assert.Equal([("Define", TablePlacement.Shared), ("Upsert", TablePlacement.Shared), ("Drop", TablePlacement.Shared)], provider.Placements);
     }
 
     [Fact]
@@ -298,8 +313,8 @@ public sealed class PostgresWriteTableFacts
             await Assert.ThrowsAsync<PostgresQueryException>(() => brain.Get<IPostgresServer>("default").Query(new($"DELETE FROM public.{accepted.Table}")));
             Stamp();
             var provider = brain.SiloServices.GetRequiredService<ITableStore>();
-            await provider.DefineAsync(PostgresCapacityKind.PlatformOrigin, accepted.Table, Definition, ct);
-            await Assert.ThrowsAsync<PostgresQueryException>(() => provider.DefineAsync(PostgresCapacityKind.PlatformOrigin, accepted.Table,
+            await provider.DefineAsync(TablePlacement.Shared, accepted.Table, Definition, ct);
+            await Assert.ThrowsAsync<PostgresQueryException>(() => provider.DefineAsync(TablePlacement.Shared, accepted.Table,
                 new([new("id", "text"), new("value", "number")], ["id"]), ct));
             Stamp("other-brain");
             var other = brain.Get<ITable>("other-" + Guid.NewGuid().ToString("N"));
@@ -388,29 +403,32 @@ public sealed class PostgresWriteTableFacts
         private readonly Dictionary<string, Dictionary<string, TableValue[]>> tables = [];
         public int Definitions { get; private set; }
         public bool LoseDefineResponse { get; set; }
-        public List<(string Origin, string Table)> Drops { get; } = [];
-        public Task DropAsync(string origin, string table, CancellationToken ct)
-        { Drops.Add((origin, table)); tables.Remove(table); return Task.CompletedTask; }
-        public Task DefineAsync(string origin, string table, TableDefinition definition, CancellationToken ct)
+        public List<(TablePlacement Placement, string Table)> Drops { get; } = [];
+        public List<(string Operation, TablePlacement Placement)> Placements { get; } = [];
+        public Task DropAsync(TablePlacement placement, string table, CancellationToken ct)
+        { Drops.Add((placement, table)); Placements.Add(("Drop", placement)); tables.Remove(table); return Task.CompletedTask; }
+        public Task DefineAsync(TablePlacement placement, string table, TableDefinition definition, CancellationToken ct)
         {
+            Placements.Add(("Define", placement));
             Definitions++;
             tables.TryAdd(table, []);
             if (LoseDefineResponse) { LoseDefineResponse = false; throw new IOException("Lost the response after DDL."); }
             return Task.CompletedTask;
         }
         private static string RowKey(TableValue[] key) => JsonSerializer.Serialize(key);
-        public Task<bool> UpsertAsync(string origin, string table, TableDefinition definition, TableValue[] key, TableValue[] values, CancellationToken ct)
+        public Task<bool> UpsertAsync(TablePlacement placement, string table, TableDefinition definition, TableValue[] key, TableValue[] values, CancellationToken ct)
         {
+            Placements.Add(("Upsert", placement));
             var row = key.Concat(values).ToArray();
             var changed = !tables[table].TryGetValue(RowKey(key), out var previous) || !row.SequenceEqual(previous);
             tables[table][RowKey(key)] = row;
             return Task.FromResult(changed);
         }
-        public Task<bool> DeleteAsync(string origin, string table, TableDefinition definition, TableValue[] key, CancellationToken ct)
+        public Task<bool> DeleteAsync(TablePlacement placement, string table, TableDefinition definition, TableValue[] key, CancellationToken ct)
             => Task.FromResult(tables[table].Remove(RowKey(key)));
-        public Task<TableValue[]?> ReadAsync(string origin, string table, TableDefinition definition, TableValue[] key, CancellationToken ct)
+        public Task<TableValue[]?> ReadAsync(TablePlacement placement, string table, TableDefinition definition, TableValue[] key, CancellationToken ct)
             => Task.FromResult(tables[table].GetValueOrDefault(RowKey(key)));
-        public Task<TableValue[][]> PageAsync(string origin, string table, TableDefinition definition, int offset, int limit, CancellationToken ct)
+        public Task<TableValue[][]> PageAsync(TablePlacement placement, string table, TableDefinition definition, int offset, int limit, CancellationToken ct)
             => Task.FromResult(tables[table].OrderBy(p => p.Key, StringComparer.Ordinal).Skip(offset).Take(limit).Select(p => p.Value).ToArray());
     }
 

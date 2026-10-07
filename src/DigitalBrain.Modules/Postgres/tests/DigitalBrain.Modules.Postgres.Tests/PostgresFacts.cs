@@ -87,7 +87,7 @@ public sealed class PostgresFacts
         silo.AddPostgres();
         await using var provider = services.BuildServiceProvider();
         Assert.Null(provider.GetService<NpgsqlDataSource>());
-        var source = await provider.GetRequiredService<IPostgresSourceRegistry>().Get("platform", TestContext.Current.CancellationToken);
+        var source = await provider.GetRequiredService<IPostgresSourceRegistry>().Get(DigitalBrain.Postgres.Tables.TablePlacement.Shared, TestContext.Current.CancellationToken);
         Assert.Equal("analytics", new NpgsqlConnectionStringBuilder(source.ConnectionString).Database);
         Assert.Single(provider.GetServices<IPostgresProvider>());
         Assert.Single(provider.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value.Registrations, registration => registration.Name == "postgres");
@@ -130,7 +130,7 @@ public sealed class PostgresFacts
         new PostgresTestSiloBuilder(services, configuration).AddPostgres();
         await using var provider = services.BuildServiceProvider();
         var error = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await provider.GetRequiredService<IPostgresSourceRegistry>().Get("platform", TestContext.Current.CancellationToken));
+            await provider.GetRequiredService<IPostgresSourceRegistry>().Get(DigitalBrain.Postgres.Tables.TablePlacement.Shared, TestContext.Current.CancellationToken));
         Assert.DoesNotContain("secret-value", error.ToString(), StringComparison.Ordinal);
     }
 
