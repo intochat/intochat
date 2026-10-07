@@ -173,19 +173,19 @@ public sealed class AppPublishFacts
         Owner.Stamp("intochat");
         await first.Publish();
         Caller.Clear();
-        var siblingScope = DigitalBrain.Framework.Enforcement.BrainScope.Create("account-intochat", "second").Id;
+        var siblingScope = DigitalBrain.Framework.BrainScope.Create("account-intochat", "second").Id;
         var sibling = brain.Get<IApp>(IApp.Key(siblingScope, "echo"));
         await sibling.Create(Manifest(), Spec);
         await sibling.BeginBuild(null);
         await sibling.CompleteBuild(await sibling.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["synapses/echo.cs"] = "// b" }, null);
         await sibling.RecordVerdicts([new("Echoes", true, "ok"), new("Quiet", true, "ok")], green: true);
-        DigitalBrain.Framework.Enforcement.CallerContextStamper.Stamp(new DigitalBrain.Framework.Enforcement.CallerContext
+        DigitalBrain.Framework.CallerContextStamper.Stamp(new DigitalBrain.Framework.CallerContext
         {
             PrincipalId = "intochat",
             AccountId = "account-intochat",
             BrainId = "second",
-            Kind = DigitalBrain.Framework.Enforcement.CallerKind.Platform,
-            StampedBy = DigitalBrain.Framework.Enforcement.TrustedEdge.Platform,
+            Kind = DigitalBrain.Framework.CallerKind.Platform,
+            StampedBy = DigitalBrain.Framework.TrustedEdge.Platform,
         });
 
         await Assert.ThrowsAsync<InvalidOperationException>(sibling.Publish);

@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace DigitalBrain.Framework.Enforcement;
+namespace DigitalBrain.Framework;
 
 // Marks the platform ring: nothing in such an assembly is ever a program-visible contract.
 // Scheduled to go together with PlatformOnlyAttribute.

@@ -1,6 +1,5 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Signals;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 

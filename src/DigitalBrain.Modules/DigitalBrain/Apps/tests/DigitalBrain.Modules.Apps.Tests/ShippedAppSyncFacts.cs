@@ -173,13 +173,13 @@ public sealed class ShippedAppSyncFacts : IDisposable
         var version = (await app.Read()).Version;
         await app.RecordVerdicts([new("Echo", true, "")], green: true, version);
         // Publishing acts as the publisher, the way the shell's signed-in session does.
-        DigitalBrain.Framework.Enforcement.CallerContextStamper.Stamp(new DigitalBrain.Framework.Enforcement.CallerContext
+        DigitalBrain.Framework.CallerContextStamper.Stamp(new DigitalBrain.Framework.CallerContext
         {
             PrincipalId = publisher.Username,
             AccountId = publisher.AccountId,
             BrainId = publisher.BrainId,
-            Kind = DigitalBrain.Framework.Enforcement.CallerKind.Platform,
-            StampedBy = DigitalBrain.Framework.Enforcement.TrustedEdge.Platform,
+            Kind = DigitalBrain.Framework.CallerKind.Platform,
+            StampedBy = DigitalBrain.Framework.TrustedEdge.Platform,
         });
         try { await app.Publish(); }
         finally { Caller.Clear(); }

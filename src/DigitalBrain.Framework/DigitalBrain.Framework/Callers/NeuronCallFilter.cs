@@ -1,5 +1,5 @@
 
-namespace DigitalBrain.Framework.Enforcement;
+namespace DigitalBrain.Framework;
 
 internal sealed class NeuronCallFilter(ICallFilter filter) : IIncomingGrainCallFilter
 {

@@ -1,4 +1,4 @@
-namespace DigitalBrain.Framework.Enforcement;
+namespace DigitalBrain.Framework;
 
 // Supplied by the receiving module, never by a caller or a discovery result.
 public sealed record NeuronAccess(string? Scope = null, bool Public = false)

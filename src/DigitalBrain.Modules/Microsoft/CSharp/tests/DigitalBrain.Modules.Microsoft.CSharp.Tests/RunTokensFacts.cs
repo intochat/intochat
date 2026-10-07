@@ -18,21 +18,21 @@ public sealed class RunTokensFacts
         response.EnsureSuccessStatusCode();
         using var catalog = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
         Assert.DoesNotContain(catalog.RootElement.EnumerateArray(), item => item.GetProperty("id").GetString() == "csharp");
-        DigitalBrain.Framework.Enforcement.CallerContextStamper.Stamp(new()
+        DigitalBrain.Framework.CallerContextStamper.Stamp(new()
         {
             PrincipalId = "owner",
             AccountId = "owner",
             BrainId = "owner",
-            Kind = DigitalBrain.Framework.Enforcement.CallerKind.User,
-            StampedBy = DigitalBrain.Framework.Enforcement.TrustedEdge.AuthenticatedHttp,
+            Kind = DigitalBrain.Framework.CallerKind.User,
+            StampedBy = DigitalBrain.Framework.TrustedEdge.AuthenticatedHttp,
         });
         try
         {
-            var error = await Assert.ThrowsAsync<ArgumentException>(() => brain.Get<DigitalBrain.Framework.Platform.Integrations.Accounts.IConnectionRegistry>(DigitalBrain.Framework.Enforcement.BrainScope.CurrentId())
+            var error = await Assert.ThrowsAsync<ArgumentException>(() => brain.Get<DigitalBrain.Framework.Platform.Integrations.Accounts.IConnectionRegistry>(DigitalBrain.Framework.BrainScope.CurrentId())
                 .Connect(new() { IntegrationId = "csharp", ConnectionId = "internal", AuthMethodId = "run-token", Value = "meaningless" }, ct));
             Assert.Contains("not offered by the deployment", error.Message);
         }
-        finally { Orleans.Runtime.RequestContext.Remove(DigitalBrain.Framework.Enforcement.CallerContextStamper.RequestContextKey); }
+        finally { Orleans.Runtime.RequestContext.Remove(DigitalBrain.Framework.CallerContextStamper.RequestContextKey); }
     }
 
     [Fact]

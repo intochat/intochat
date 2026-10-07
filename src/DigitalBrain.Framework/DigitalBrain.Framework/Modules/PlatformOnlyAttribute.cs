@@ -1,4 +1,4 @@
-namespace DigitalBrain.Framework.Enforcement;
+namespace DigitalBrain.Framework;
 
 // Reserved for trusted platform code: left out of the program catalog, refused by the program
 // edge, because a program could otherwise forge the caller context such a contract trusts.

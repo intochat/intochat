@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Google.Gmail;
 using DigitalBrain.Testing;
@@ -22,13 +21,13 @@ public sealed class GmailWatchWebhookFacts(GmailHostFixture host)
         await host.ConnectForPushAsync("member", "scoped-push");
         var key = ConnectionKeys.For(BrainScope.Create("owner", "member").Id, "gmail", "scoped-push");
         var inbound = brain.Grains.GetGrain<IGmailInbound>(key);
-        var caller = new DigitalBrain.Framework.Enforcement.CallerContext
+        var caller = new DigitalBrain.Framework.CallerContext
         {
             PrincipalId = "owner",
             AccountId = "owner",
             BrainId = "other",
-            Kind = DigitalBrain.Framework.Enforcement.CallerKind.User,
-            StampedBy = DigitalBrain.Framework.Enforcement.TrustedEdge.AuthenticatedHttp,
+            Kind = DigitalBrain.Framework.CallerKind.User,
+            StampedBy = DigitalBrain.Framework.TrustedEdge.AuthenticatedHttp,
         };
         CallerContextStamper.Stamp(caller);
         try
@@ -110,7 +109,7 @@ public sealed class GmailWatchWebhookFacts(GmailHostFixture host)
         var gmail = brain.Get<IGmail>(key);
         await using var mail = await brain.Observe<MailReceived>(gmail, ct);
         await brain.Grains.GetGrain<IGmailInbound>(gmail.GetGrainId()).AcceptWatchPush(new("wrong", "other@gmail.com"));
-        CallerContextStamper.Stamp(new DigitalBrain.Framework.Enforcement.CallerContext { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = DigitalBrain.Framework.Enforcement.CallerKind.User, StampedBy = DigitalBrain.Framework.Enforcement.TrustedEdge.AuthenticatedHttp });
+        CallerContextStamper.Stamp(new DigitalBrain.Framework.CallerContext { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = DigitalBrain.Framework.CallerKind.User, StampedBy = DigitalBrain.Framework.TrustedEdge.AuthenticatedHttp });
         await brain.Grains.GetGrain<DigitalBrain.Framework.Platform.Integrations.Accounts.IConnectionRegistry>(BrainScope.CurrentId()).Disconnect("restricted-push", ct);
         Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
         await brain.Grains.GetGrain<IGmailInbound>(gmail.GetGrainId()).AcceptWatchPush(new("disconnected", "user@gmail.com"));

@@ -3,7 +3,6 @@ using System.Threading.Channels;
 using DigitalBrain;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.Logging;
-using DigitalBrain.Framework.Signals;
 
 namespace DigitalBrain.Client.Orleans;
 

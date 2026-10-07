@@ -1,5 +1,5 @@
 
-namespace DigitalBrain.Framework.Signals;
+namespace DigitalBrain.Framework;
 
 public interface ILocalSignalHub
 {

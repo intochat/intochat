@@ -1,5 +1,4 @@
 using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Framework.Types;
 using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Tables;
 using DigitalBrain.Supabase.Tables.Signals;

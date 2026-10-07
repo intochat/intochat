@@ -1,6 +1,5 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Signals;
 using DigitalBrain.Framework.Vectors;
 using DigitalBrain.Qdrant;
 using Microsoft.Extensions.AI;

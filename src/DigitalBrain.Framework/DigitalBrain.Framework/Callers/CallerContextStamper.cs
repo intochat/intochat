@@ -1,6 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 
-namespace DigitalBrain.Framework.Enforcement;
+namespace DigitalBrain.Framework;
 
 // A caller context is stamped only at a trusted edge: authenticated HTTP, the app proxy or the
 // scheduler. Stamping validates that the claimed edge may speak for that caller kind, then places

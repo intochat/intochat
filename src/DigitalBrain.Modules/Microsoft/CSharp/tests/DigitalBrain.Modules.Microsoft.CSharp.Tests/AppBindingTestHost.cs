@@ -15,8 +15,8 @@ public interface IAppBindingTestHost : INeuron
 [GrainType(DigitalBrain.Framework.AppGrainType.Name)]
 public sealed class AppBindingTestHost : Neuron, IAppBindingTestHost
 {
-    public override DigitalBrain.Framework.Enforcement.NeuronAccess Access(string operation)
-        => DigitalBrain.Framework.Enforcement.NeuronAccess.PublicOperation;
+    public override DigitalBrain.Framework.NeuronAccess Access(string operation)
+        => DigitalBrain.Framework.NeuronAccess.PublicOperation;
     public Task Bind(string file, string? overrideApp = null)
         => GrainFactory.GetGrain<ICSharpAppBinding>(file).BindApp(overrideApp ?? this.GetPrimaryKeyString());
     public async Task Start(string file)

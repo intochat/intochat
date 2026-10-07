@@ -1,5 +1,5 @@
 using DigitalBrain.Flutter;
-using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework;
 using DigitalBrain.Testing.Module;
 using Xunit;
 

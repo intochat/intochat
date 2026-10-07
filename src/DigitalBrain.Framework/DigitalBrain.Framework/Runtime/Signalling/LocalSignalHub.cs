@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
-using DigitalBrain.Framework.Signals;
 
 namespace DigitalBrain.Framework;
 

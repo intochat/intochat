@@ -1,4 +1,4 @@
-using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework;
 using DigitalBrain.Platform.Identity.Authority;
 using Orleans;
 

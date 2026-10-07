@@ -1,5 +1,4 @@
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Auth;
 using Microsoft.AspNetCore.Authentication.OAuth;
 using Microsoft.AspNetCore.Http;
@@ -70,7 +69,7 @@ internal static class SalesforceAuthentication
                                 .Deposit(new OAuthTokens(context.AccessToken!, context.RefreshToken));
                             var grains = context.HttpContext.RequestServices.GetRequiredService<IGrainFactory>();
                             var workspace = BrowserLoginWorkspace.FromScope(BrowserLoginCorrelation.Scope(context.Properties));
-                            var owner = workspace?.Registry ?? (DigitalBrain.Framework.Enforcement.CallerContextStamper.TryGet(out var caller)
+                            var owner = workspace?.Registry ?? (DigitalBrain.Framework.CallerContextStamper.TryGet(out var caller)
                                 ? caller.PrincipalId
                                 : null);
                             await grains.GetGrain<ISalesforce>(workspace?.Registry ?? "salesforce")

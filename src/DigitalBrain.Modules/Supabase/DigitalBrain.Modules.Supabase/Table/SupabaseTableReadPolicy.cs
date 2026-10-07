@@ -1,4 +1,4 @@
-using DigitalBrain.Framework.Types;
+using DigitalBrain.Framework;
 using DigitalBrain.Supabase.Tables;
 
 namespace DigitalBrain.Supabase;

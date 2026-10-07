@@ -1,5 +1,5 @@
 
-namespace DigitalBrain.Framework.Types;
+namespace DigitalBrain.Framework;
 
 public static class SecretReferences
 {

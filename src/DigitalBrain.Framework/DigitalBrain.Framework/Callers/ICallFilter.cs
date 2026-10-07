@@ -1,5 +1,5 @@
 
-namespace DigitalBrain.Framework.Enforcement;
+namespace DigitalBrain.Framework;
 
 [GenerateSerializer, Alias("enforcement.call-decision")]
 public sealed record CallDecision

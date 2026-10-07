@@ -2,10 +2,8 @@ using System.Security.Claims;
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Framework.Platform.Secrets;
-using DigitalBrain.Framework.Types;
 using DigitalBrain.Platform.Integrations;
 using DigitalBrain.Platform.Secrets;
 using DigitalBrain.Testing;
@@ -324,7 +322,7 @@ public sealed class RegistrationFacts
         await registration.Configure(Values(("ApiKey", Canary)));
         var script = Caller(CallerKind.App, TrustedEdge.AppProxy);
 
-        DigitalBrain.Framework.Enforcement.CallerContextStamper.Stamp(script);
+        DigitalBrain.Framework.CallerContextStamper.Stamp(script);
         try
         {
             await Assert.ThrowsAsync<InvalidOperationException>(() => registration.Configure(Values(("ApiKey", OtherCanary))));
@@ -345,7 +343,7 @@ public sealed class RegistrationFacts
         var registration = Registration(brain, "openai");
         await registration.Configure(Values(("ApiKey", Canary)));
 
-        DigitalBrain.Framework.Enforcement.CallerContextStamper.Stamp(Caller(CallerKind.App, TrustedEdge.AppProxy));
+        DigitalBrain.Framework.CallerContextStamper.Stamp(Caller(CallerKind.App, TrustedEdge.AppProxy));
         try
         {
             var released = await registration.Release(Caller(CallerKind.Platform, TrustedEdge.Platform));

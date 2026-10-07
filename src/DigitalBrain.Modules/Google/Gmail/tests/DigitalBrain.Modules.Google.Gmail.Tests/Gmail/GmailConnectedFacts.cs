@@ -1,5 +1,4 @@
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Google.Gmail;
 using DigitalBrain.Platform.Secrets;
@@ -19,11 +18,11 @@ public sealed class GmailConnectedFacts
             .WithExecution(new() { PrivateConfiguration = GmailHostFixture.ConfiguredRegistration() })
             .ConfigureSilo(silo => silo.Services.AddSingleton<IGmailTokenExchange>(new FakeGmailTokens()))
             .StartAsync(ct);
-        CallerContextStamper.Stamp(new DigitalBrain.Framework.Enforcement.CallerContext { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = DigitalBrain.Framework.Enforcement.CallerKind.User, StampedBy = DigitalBrain.Framework.Enforcement.TrustedEdge.AuthenticatedHttp });
+        CallerContextStamper.Stamp(new DigitalBrain.Framework.CallerContext { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = DigitalBrain.Framework.CallerKind.User, StampedBy = DigitalBrain.Framework.TrustedEdge.AuthenticatedHttp });
         var gmail = brain.Get<IGmail>(ConnectionKeys.For(BrainScope.CurrentId(), "gmail", "primary"));
         Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
         await using var connected = await brain.Observe<GmailConnected>(gmail, ct);
-        CallerContextStamper.Stamp(new DigitalBrain.Framework.Enforcement.CallerContext { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = DigitalBrain.Framework.Enforcement.CallerKind.User, StampedBy = DigitalBrain.Framework.Enforcement.TrustedEdge.AuthenticatedHttp });
+        CallerContextStamper.Stamp(new DigitalBrain.Framework.CallerContext { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = DigitalBrain.Framework.CallerKind.User, StampedBy = DigitalBrain.Framework.TrustedEdge.AuthenticatedHttp });
         await brain.Grains.GetGrain<IGmailInbound>(gmail.GetGrainId()).AcceptAuthorizationCode("fake-code", "owner");
         Assert.Equal("user@gmail.com", (await connected.NextAsync(ct: ct)).EmailAddress);
 
