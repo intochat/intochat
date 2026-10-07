@@ -40,6 +40,8 @@ public interface IApp : INeuron
     Task<AppInvocation> Invoke(InvokeApp request);
     Task<AppInvocation> Respond(AppResponse response);
     Task<AppInvocation> ReadInvocation(Guid invocationId);
+    // Completes when the app's script answers the invocation; at once if it already has.
+    [Orleans.Concurrency.AlwaysInterleave, ResponseTimeout("00:05:00")] Task<AppInvocation> Await(Guid invocationId);
     Task<IReadOnlyList<AppInvocation>> Pending();
 
     static string Key(string brainId, string name) => $"{brainId}/apps/{name}";

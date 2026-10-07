@@ -414,7 +414,21 @@ internal sealed class AppNeuron(
         var next = Snapshot.Clone();
         next.Invocations[index] = completed;
         await Save(next, new AppInvocationCompleted(completed));
+        if (waiters.Remove(response.InvocationId, out var waiter)) { waiter.TrySetResult(completed); }
         return completed;
+    }
+
+    // Await only reads, so it interleaves with Respond; waiters are in memory and die with the activation.
+    private readonly Dictionary<Guid, TaskCompletionSource<AppInvocation>> waiters = [];
+
+    public Task<AppInvocation> Await(Guid invocationId)
+    {
+        var invocation = Snapshot.Invocations.Find(item => item.Id == invocationId)
+            ?? throw new KeyNotFoundException($"No invocation {invocationId}.");
+        if (invocation.Status != InvocationStatus.Pending) { return Task.FromResult(invocation); }
+        if (!waiters.TryGetValue(invocationId, out var waiter))
+        { waiters[invocationId] = waiter = new(TaskCreationOptions.RunContinuationsAsynchronously); }
+        return waiter.Task;
     }
 
     public Task<AppInvocation> ReadInvocation(Guid invocationId)
