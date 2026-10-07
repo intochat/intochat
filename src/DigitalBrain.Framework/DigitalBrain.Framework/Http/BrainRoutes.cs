@@ -18,6 +18,17 @@ public static class BrainRoutes
         return group;
     }
 
+    // For edges that authenticate their own caller, such as a sandbox session's token: the same
+    // /brains/{brainId} root and id validation, without the membership filter.
+    public static RouteGroupBuilder SessionGroup(IEndpointRouteBuilder endpoints, string suffix = "")
+    {
+        ArgumentNullException.ThrowIfNull(endpoints);
+        var group = endpoints.MapGroup("/brains/{brainId}" + suffix);
+        group.AddEndpointFilter(async (context, next) =>
+            await ValidateId(context.HttpContext) is { } invalid ? invalid : await next(context));
+        return group;
+    }
+
     internal static ValueTask<IResult?> ValidateId(HttpContext http)
         => ValueTask.FromResult<IResult?>(
             BrainScope.IsValidId(http.Request.RouteValues["brainId"] as string) ? null : Results.BadRequest());

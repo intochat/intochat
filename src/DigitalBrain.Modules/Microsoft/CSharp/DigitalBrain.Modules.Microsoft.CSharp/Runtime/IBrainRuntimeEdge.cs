@@ -1,5 +1,6 @@
 using DigitalBrain.Client.Runtime.V1;
 using DigitalBrain.Framework;
+using Orleans.Concurrency;
 using Orleans.Metadata;
 
 namespace DigitalBrain.Microsoft.CSharp.Runtime;
@@ -18,7 +19,8 @@ internal interface IBrainRuntimeEdge : IGrainWithStringKey
     Task Assign(string behavior, string hash, Dictionary<string, string> settings, CallerContext? owner, string? appId);
     Task Retire(string behavior);
     Task<BehaviorView?> Describe(string behavior);
-    Task<string> Logs(string behavior, int tail);
+    // Interleaved: it waits on the host, never on this runtime's state.
+    [AlwaysInterleave] Task<string> Logs(string behavior, int tail);
     Task<SessionAuthorization> Authorize(string session);
     Task<BehaviorIdentity?> Identity(string session, string behavior);
     Task Connected(string session, string fingerprint);

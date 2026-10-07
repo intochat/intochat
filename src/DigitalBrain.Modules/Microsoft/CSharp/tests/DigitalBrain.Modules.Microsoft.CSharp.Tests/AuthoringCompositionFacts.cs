@@ -24,7 +24,7 @@ public sealed class AuthoringCompositionFacts
         // What the Apps publish gate and the runtime edge need stays composed.
         Assert.True(off.SiloServices.GetRequiredService<CSharpToolService>().CanRun);
         Assert.NotNull(off.SiloServices.GetRequiredService<DigitalBrain.Apps.IScriptSandbox>());
-        Assert.NotNull(off.SiloServices.GetRequiredService<DigitalBrain.Microsoft.CSharp.Sessions.SessionTokens>());
+        Assert.NotNull(off.SiloServices.GetRequiredService<DigitalBrain.Microsoft.CSharp.Edge.RuntimeEdge>());
     }
 
     [Fact]

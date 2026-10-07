@@ -41,6 +41,9 @@ internal sealed class BrainRuntimeNeuron(
     private static readonly TimeSpan ReconcilePeriod = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan SilenceLimit = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan AssemblyUrlLifetime = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan LogsCap = TimeSpan.FromSeconds(10);
+    // Rotated well inside SessionTokens.Lifetime, so a reminder that fires late still beats expiry.
+    private static readonly TimeSpan TokenRotation = TimeSpan.FromMinutes(40);
     // Development sandboxes reach the brain on the Docker host.
     internal const string DockerHost = "host.docker.internal";
 
@@ -94,8 +97,10 @@ internal sealed class BrainRuntimeNeuron(
     public Task<BehaviorView?> Describe(string behavior)
         => Task.FromResult(Snapshot.Behaviors.FirstOrDefault(existing => existing.Id == behavior) is { } found ? View(found) : null);
 
-    // Filled in by the runtime edge, which asks the host over the stream.
-    public Task<string> Logs(string behavior, int tail) => Task.FromResult("");
+    public Task<string> Logs(string behavior, int tail)
+        => Snapshot.Session is { Status: SessionStatus.Connected } session
+            ? streams.RequestLogsAsync(session.Id, behavior, Math.Clamp(tail, 1, 5000), LogsCap)
+            : Task.FromResult("");
 
     public Task<SessionAuthorization> Authorize(string session)
         => Task.FromResult(new SessionAuthorization(Speaks(session), Brain));
@@ -230,7 +235,12 @@ internal sealed class BrainRuntimeNeuron(
         var silentSince = time.GetUtcNow() - SilenceLimit;
         if (session is null || session.Status == SessionStatus.Refused || (session.LastHeartbeat ?? session.Started) < silentSince
             || !await runner.Exists(Brain, CancellationToken.None))
-        { await EnsureSessionAsync(); }
+        { await EnsureSessionAsync(); return; }
+        if (session.TokenIssued < time.GetUtcNow() - TokenRotation)
+        {
+            await Save(Snapshot with { Session = session with { TokenIssued = time.GetUtcNow() } }, Changed());
+            streams.TryPush(session.Id, TokenEvent.Kind, new TokenEvent(tokens.Issue(Brain, session.Id)));
+        }
     }
 
     // A source's own signal may be what activated this runtime, so watching it now would deadlock;
@@ -244,7 +254,7 @@ internal sealed class BrainRuntimeNeuron(
     private async Task EnsureSessionAsync()
     {
         var id = Guid.NewGuid().ToString("N");
-        await Save(Snapshot with { Session = new(id, SessionStatus.Starting, null, null, time.GetUtcNow()) }, Changed());
+        await Save(Snapshot with { Session = new(id, SessionStatus.Starting, null, null, time.GetUtcNow(), time.GetUtcNow()) }, Changed());
         await reminders.RegisterOrUpdateReminder(this.GetGrainId(), ReconcileReminder, ReconcilePeriod, ReconcilePeriod);
         await runner.Ensure(new(Brain, id, tokens.Issue(Brain, id), EdgeUrl()), CancellationToken.None);
     }

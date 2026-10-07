@@ -16,14 +16,15 @@ internal sealed record BehaviorAssignment(
     [property: Id(7)] int Failures);
 
 // The one session that runs this brain's behaviors. Started is when it was last launched, so a session
-// that never connects is relaunched like one that stopped heartbeating.
+// that never connects is relaunched like one that stopped heartbeating; TokenIssued drives rotation.
 [GenerateSerializer, Alias("microsoft.csharp.session-record")]
 internal sealed record SessionRecord(
     [property: Id(0)] string Id,
     [property: Id(1)] SessionStatus Status,
     [property: Id(2)] string? Fingerprint,
     [property: Id(3)] DateTimeOffset? LastHeartbeat,
-    [property: Id(4)] DateTimeOffset Started);
+    [property: Id(4)] DateTimeOffset Started,
+    [property: Id(5)] DateTimeOffset TokenIssued);
 
 [GenerateSerializer, Alias("microsoft.csharp.runtime-state")]
 internal sealed record BrainRuntimeState

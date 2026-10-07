@@ -1,0 +1,131 @@
+using System.Net.ServerSentEvents;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
+using DigitalBrain.Client.Runtime;
+using DigitalBrain.Client.Runtime.V1;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Microsoft.CSharp.Runtime;
+using DigitalBrain.Microsoft.CSharp.Sessions;
+using Microsoft.AspNetCore.Http;
+
+namespace DigitalBrain.Microsoft.CSharp.Edge;
+
+// Everything a sandbox session does to its brain passes here: the token must speak for this brain and
+// for the session its runtime currently records, only neuron contracts from installed contract
+// assemblies are callable, and each call carries the behavior owner's caller context re-stamped as an
+// app behind the app proxy.
+internal sealed class RuntimeEdge(SessionTokens tokens, ScriptContracts contracts, IGrainFactory grains, SessionStreams streams)
+{
+    private static readonly HashSet<string> ObserverMethods = [nameof(INeuron.Watch), nameof(INeuron.Unwatch)];
+
+    public async Task<(SessionClaims Claims, IBrainRuntimeEdge Runtime)> AuthorizeAsync(string brainId, string? token)
+    {
+        var claims = tokens.Validate(token) ?? throw new UnauthorizedAccessException("The session token is missing, invalid or expired.");
+        if (claims.Brain != brainId) { throw new UnauthorizedAccessException("The session token speaks for another brain."); }
+        var runtime = grains.GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For(brainId));
+        return (await runtime.Authorize(claims.Session).ConfigureAwait(false)).Active
+            ? (claims, runtime)
+            : throw new UnauthorizedAccessException("This session no longer speaks for its brain.");
+    }
+
+    public async Task<JsonElement?> InvokeAsync(string brainId, string? token, RuntimeInvocation invocation, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(invocation);
+        var (claims, runtime) = await AuthorizeAsync(brainId, token).ConfigureAwait(false);
+        var identity = await runtime.Identity(claims.Session, invocation.Behavior).ConfigureAwait(false)
+            ?? throw new ArgumentException($"{invocation.Behavior} is not a behavior of this brain.");
+        var contract = Callable(invocation.Contract);
+        var method = contract.GetMethods().Concat(contract.GetInterfaces().SelectMany(inherited => inherited.GetMethods()))
+            .Where(candidate => candidate.Name == invocation.Method && !ObserverMethods.Contains(candidate.Name))
+            .SingleOrDefault(candidate => candidate.GetParameters().Count(IsArgument) == invocation.Arguments.Length)
+            ?? throw new ArgumentException($"{contract.Name} has no method {invocation.Method} taking {invocation.Arguments.Length} arguments.");
+        var parameters = method.GetParameters();
+        var values = new object?[parameters.Length];
+        for (int index = 0, argument = 0; index < parameters.Length; index++)
+        {
+            values[index] = IsArgument(parameters[index])
+                ? invocation.Arguments[argument++].Deserialize(parameters[index].ParameterType, RuntimeProtocol.Json)
+                : cancellationToken;
+        }
+        var neuron = grains.GetGrain(contract, invocation.Key);
+        Stamp(identity, invocation.Behavior);
+        object? returned;
+        try { returned = method.Invoke(neuron, values); }
+        catch (TargetInvocationException error) when (error.InnerException is not null) { throw error.InnerException; }
+        if (returned is not Task task) { throw new NotSupportedException($"{contract.Name}.{method.Name} does not return a Task."); }
+        await task.ConfigureAwait(false);
+        if (!method.ReturnType.IsGenericType) { return null; }
+        var result = method.ReturnType.GetProperty(nameof(Task<object>.Result))!.GetValue(task);
+        return JsonSerializer.SerializeToElement(result, method.ReturnType.GetGenericArguments()[0], RuntimeProtocol.Json);
+    }
+
+    public async Task<IResult> ReportAsync(string brainId, string? token, RuntimeReport report)
+    {
+        ArgumentNullException.ThrowIfNull(report);
+        var (claims, runtime) = await AuthorizeAsync(brainId, token).ConfigureAwait(false);
+        if (report.Fingerprint is { } fingerprint)
+        {
+            await runtime.Connected(claims.Session, fingerprint).ConfigureAwait(false);
+            return ContractsFingerprint.Covers(fingerprint, contracts.Fingerprint)
+                ? Results.Ok()
+                : Results.Conflict("The sandbox image carries other contracts than this brain; rebuild it from the same build.");
+        }
+        if (report.Subscribe is { } subscribe)
+        {
+            // Registered before the first batch is sent, so a refusal surfaces here and not on the stream.
+            if (grains.GetGrain(Callable(subscribe.Contract), subscribe.Key) is not INeuron source) { throw new ArgumentException($"{subscribe.Contract} is not a neuron."); }
+            var id = await runtime.Subscribed(claims.Session, subscribe.Behavior, source.GetGrainId().ToString(), subscribe.Signal).ConfigureAwait(false);
+            return Results.Ok(new { subscription = id });
+        }
+        if (report.Acknowledge is { } acknowledge) { await runtime.Acknowledge(claims.Session, acknowledge.Subscription, acknowledge.Watermark).ConfigureAwait(false); return Results.Ok(); }
+        if (report.Status is { } status) { await runtime.Reported(claims.Session, status).ConfigureAwait(false); return Results.Ok(); }
+        if (report.Logs is { } logs) { streams.CompleteLogs(logs.Request, logs.Text); return Results.Ok(); }
+        if (report.Heartbeat) { await runtime.Heartbeat(claims.Session).ConfigureAwait(false); return Results.Ok(); }
+        return Results.BadRequest("A report carries exactly one member.");
+    }
+
+    // Authorizes before the first byte, so a refused token is a 401 and not an empty stream. The
+    // channel opens before assignments and pending batches are read, so nothing pushed meanwhile is lost;
+    // a batch sent twice is deduplicated by its watermark on the host.
+    public async Task<IAsyncEnumerable<SseItem<string>>> OpenStreamAsync(string brainId, string? token, CancellationToken cancellationToken)
+    {
+        var (claims, runtime) = await AuthorizeAsync(brainId, token).ConfigureAwait(false);
+        var channel = streams.Open(claims.Session);
+        var assignments = await runtime.Assignments(claims.Session).ConfigureAwait(false);
+        var pending = await runtime.PendingBatches(claims.Session).ConfigureAwait(false);
+        return Streaming(claims.Session, channel, assignments, pending, cancellationToken);
+    }
+
+    private async IAsyncEnumerable<SseItem<string>> Streaming(string session, System.Threading.Channels.Channel<(string Kind, object Payload)> channel,
+        IReadOnlyList<AssignmentEvent> assignments, IReadOnlyList<SignalBatchEvent> pending, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        try
+        {
+            yield return Item(ReadyEvent.Kind, new ReadyEvent(session));
+            foreach (var assignment in assignments) { yield return Item(AssignmentEvent.Kind, assignment); }
+            foreach (var batch in pending) { yield return Item(SignalBatchEvent.Kind, batch); }
+            await foreach (var (kind, payload) in channel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false)) { yield return Item(kind, payload); }
+        }
+        finally { streams.Close(session, channel); }
+    }
+
+    private Type Callable(string name)
+    {
+        var contract = contracts.Find(name);
+        // The catalog already omits platform-only contracts; refuse here too, whatever the catalog holds.
+        return PlatformOnlyAttribute.AppliesTo(contract) ? throw new ArgumentException($"{contract.Name} is not a neuron contract scripts may call.") : contract;
+    }
+
+    // A behavior started without a caller (tests, the platform) calls without a stamp, as grain code does.
+    private static void Stamp(BehaviorIdentity identity, string behavior)
+    {
+        if (identity.Owner is { } owner)
+        { CallerContextStamper.Stamp(owner with { Kind = CallerKind.App, StampedBy = TrustedEdge.AppProxy, AppId = identity.AppId ?? behavior }); }
+    }
+
+    private static SseItem<string> Item(string kind, object payload) => new(JsonSerializer.Serialize(payload, payload.GetType(), RuntimeProtocol.Json), kind);
+
+    private static bool IsArgument(ParameterInfo parameter) => parameter.ParameterType != typeof(CancellationToken);
+}

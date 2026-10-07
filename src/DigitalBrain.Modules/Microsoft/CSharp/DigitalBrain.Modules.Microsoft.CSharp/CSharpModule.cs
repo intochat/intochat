@@ -71,6 +71,7 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         else { builder.Services.AddHttpClient<ICSharpRunner, AspireSandboxRunner>(); }
         builder.Services.AddHttpClient<SessionRunner>();
         builder.Services.TryAddSingleton<SessionStreams>();
+        builder.Services.TryAddTransient<RuntimeEdge>();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<BrainRuntimeNeuron>, BrainRuntimeActivation>());
         if (authoring)
         {
@@ -81,6 +82,7 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
     public void Configure(IEndpointRouteBuilder endpoints)
     {
         ArgumentNullException.ThrowIfNull(endpoints);
+        endpoints.MapRuntimeEdge();
         if (endpoints.ServiceProvider.GetRequiredService<IOptions<CSharpOptions>>().Value.Authoring) { CSharpAuthoringEndpoints.Map(endpoints); }
     }
 }

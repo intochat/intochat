@@ -34,6 +34,7 @@ public sealed class CSharpRouteFacts
     {
         var builder = WebApplication.CreateBuilder();
         DigitalBrain.Testing.TestLogging.Apply(builder.Configuration);
+        builder.Services.AddSingleton<DigitalBrain.Microsoft.CSharp.Edge.RuntimeEdge>(_ => null!);
         builder.Services.AddSingleton(new ScopedCSharpTools(null!, null!, null, "scope", canRun: false));
         builder.Services.Configure<CSharpOptions>(options => options.Authoring = false);
         var app = builder.Build();
@@ -47,6 +48,7 @@ public sealed class CSharpRouteFacts
         var builder = WebApplication.CreateBuilder();
         DigitalBrain.Testing.TestLogging.Apply(builder.Configuration);
         builder.Configuration.AddInMemoryCollection(settings.Select(setting => new KeyValuePair<string, string?>(setting.Key, setting.Value)));
+        builder.Services.AddSingleton<DigitalBrain.Microsoft.CSharp.Edge.RuntimeEdge>(_ => null!);
         builder.Services.AddSingleton(new ScopedCSharpTools(null!, null!, null, "scope", canRun: false));
         var app = builder.Build();
         new CSharpModule().Configure(app);
