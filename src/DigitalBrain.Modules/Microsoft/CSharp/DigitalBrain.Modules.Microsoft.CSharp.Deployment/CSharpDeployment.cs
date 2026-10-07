@@ -11,13 +11,15 @@ using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Microsoft.CSharp;
 
-// Scripts run in a custom-container session pool: one Hyper-V session per owner running the Sandbox
-// image. The pool has its own environment and subnet, whose NSG lets sessions out on HTTPS only (the
-// script edge and package restores); limiting that to the edge alone needs Azure Firewall rules.
+// Behaviors run in a custom-container session pool: one Hyper-V session per brain running the Sandbox
+// image, every behavior of that brain loaded into it. The pool has its own environment and subnet, whose
+// NSG lets sessions out on HTTPS only (the runtime edge and assembly downloads); limiting that to those
+// alone needs Azure Firewall rules.
 public sealed class CSharpDeployment : ModuleDeployment<CSharpModule>
 {
-    // Settings: "sandboxImage" (the Sandbox image in the registry) and "sessionExecutorRoleId", the id of
-    // the built-in "Azure ContainerApps Session Executor" role:
+    // Settings: "sandboxImage" (the Sandbox image in the registry), "sandboxSessions" (how many brains can
+    // have a live session at once, default 100) and "sessionExecutorRoleId", the id of the built-in
+    // "Azure ContainerApps Session Executor" role:
     // az role definition list --name "Azure ContainerApps Session Executor" --query "[0].name" -o tsv
     public override void Deploy(ModuleDeploymentContext context)
     {
@@ -84,8 +86,6 @@ public sealed class CSharpDeployment : ModuleDeployment<CSharpModule>
                         Name = "sandbox",
                         Image = context.Settings.Require("sandboxImage"),
                         Resources = new SessionContainerResourcesArgs { Cpu = 1, Memory = "2Gi" },
-                        // A session with no runs exits and frees itself; the pool keeps a session until its container exits.
-                        Env = [new Pulumi.AzureNative.App.Inputs.EnvironmentVarArgs { Name = "Sandbox__IdleShutdown", Value = "00:05:00" }],
                     },
                 ],
                 Ingress = new SessionIngressArgs { TargetPort = 8080 },
@@ -93,14 +93,16 @@ public sealed class CSharpDeployment : ModuleDeployment<CSharpModule>
             },
             DynamicPoolConfiguration = new DynamicPoolConfigurationArgs
             {
+                // A session lives while its brain has behaviors; the brain stops it when the set empties. The daily
+                // recycle is the pool's cap, and the brain runtime's reminder relaunches the session after it.
                 LifecycleConfiguration = new LifecycleConfigurationArgs { LifecycleType = LifecycleType.OnContainerExit, MaxAlivePeriodInSeconds = 86400 },
             },
-            ScaleConfiguration = new ScaleConfigurationArgs { MaxConcurrentSessions = 20, ReadySessionInstances = 1 },
+            ScaleConfiguration = new ScaleConfigurationArgs { MaxConcurrentSessions = context.Settings.GetInt32("sandboxSessions") ?? 100, ReadySessionInstances = 2 },
             SessionNetworkConfiguration = new SessionNetworkConfigurationArgs { Status = SessionNetworkStatus.EgressEnabled },
         }, new CustomResourceOptions { DependsOn = [.. context.RuntimeGrants] });
         context.GrantRuntime("sandbox-sessions", context.Settings.Require("sessionExecutorRoleId"), pool.Id);
 
-        // Run tokens must verify on every silo, so the key is generated once and kept in state and Key Vault.
+        // Session tokens must verify on every silo, so the key is generated once and kept in state and Key Vault.
         var runTokenKey = new RandomId(name + "-run-token-key", new RandomIdArgs { ByteLength = 32 },
             new CustomResourceOptions { AdditionalSecretOutputs = ["hex", "b64Std", "b64Url", "dec"] });
         context.SetRuntimeEnvironment(DigitalBrainConfiguration.EnvironmentName(
