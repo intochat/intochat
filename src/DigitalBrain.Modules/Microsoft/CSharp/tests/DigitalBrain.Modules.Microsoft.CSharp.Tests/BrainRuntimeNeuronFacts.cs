@@ -45,6 +45,29 @@ public sealed class BrainRuntimeNeuronFacts
         Assert.Single(host.Requests, FakeSessionHost.IsStart);
     }
 
+    // Local blob storage listens on the developer's loopback, which a sandbox container cannot reach.
+    [Fact]
+    public async Task ALoopbackAssemblyUrlReachesTheHostThroughTheDockerHost()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, assemblies: new LoopbackAssemblies());
+        await Edge(brain).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
+        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
+
+        var assignment = Assert.Single(await Edge(brain).Assignments(session));
+
+        Assert.Equal("http://host.docker.internal:10000/devstoreaccount1/behaviors/hash-a?sig=x", assignment.Assembly.ToString());
+        Assert.Equal("host.docker.internal", assignment.Symbols.Host);
+    }
+
+    private sealed class LoopbackAssemblies : DigitalBrain.Microsoft.CSharp.Assemblies.IBehaviorAssemblies
+    {
+        public Task Put(DigitalBrain.Microsoft.CSharp.Catalog.CompiledBehavior behavior, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<bool> Exists(string hash, CancellationToken cancellationToken) => Task.FromResult(true);
+        public Task<Uri> ReadUrl(string name, TimeSpan lifetime, CancellationToken cancellationToken)
+            => Task.FromResult(new Uri("http://127.0.0.1:10000/devstoreaccount1/behaviors/" + name + "?sig=x"));
+    }
+
     [Fact]
     public async Task TouchWithNothingAssignedStartsNothing()
     {

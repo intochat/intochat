@@ -12,13 +12,13 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 // an installed module contract.
 internal static class RuntimeBrain
 {
-    public static Task<ModuleBrain> StartAsync(FakeSessionHost host, CancellationToken ct, bool http = false)
+    public static Task<ModuleBrain> StartAsync(FakeSessionHost host, CancellationToken ct, bool http = false, IBehaviorAssemblies? assemblies = null)
     {
         var builder = ModuleTest.Create().WithModule<CSharpModule>().WithReminders()
             .ConfigureSilo(silo =>
             {
                 silo.Services.AddHttpClient<SessionRunner>().ConfigurePrimaryHttpMessageHandler(() => host);
-                silo.Services.AddSingleton<IBehaviorAssemblies>(new MemoryBehaviorAssemblies());
+                silo.Services.AddSingleton(assemblies ?? new MemoryBehaviorAssemblies());
                 silo.Services.AddSingleton(new ScriptContracts([typeof(IPinger).Assembly, typeof(ICSharpFile).Assembly]));
                 silo.Services.PostConfigure<CSharpDeploymentSettings>(options =>
                 {

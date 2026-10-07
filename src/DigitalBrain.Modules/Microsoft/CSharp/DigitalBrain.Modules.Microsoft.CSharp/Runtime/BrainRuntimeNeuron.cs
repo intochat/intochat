@@ -287,9 +287,13 @@ internal sealed class BrainRuntimeNeuron(
 
     private async Task<AssignmentEvent> AssignmentFor(BehaviorAssignment behavior)
         => new(behavior.Id, behavior.Hash,
-            await assemblies.ReadUrl(behavior.Hash, AssemblyUrlLifetime, CancellationToken.None),
-            await assemblies.ReadUrl(behavior.Hash + ".pdb", AssemblyUrlLifetime, CancellationToken.None),
+            Reachable(await assemblies.ReadUrl(behavior.Hash, AssemblyUrlLifetime, CancellationToken.None)),
+            Reachable(await assemblies.ReadUrl(behavior.Hash + ".pdb", AssemblyUrlLifetime, CancellationToken.None)),
             behavior.Settings);
+
+    // Local blob storage answers on this machine's loopback, which no sandbox can reach; the Docker host
+    // can. A SAS signs the path and query, not the host, so the rewritten URL stays valid.
+    private static Uri Reachable(Uri url) => url.IsLoopback ? new UriBuilder(url) { Host = DockerHost }.Uri : url;
 
     private static SignalBatchEvent Batch(Subscription subscription) => new(subscription.Id, subscription.Pending, subscription.Watermark);
 
