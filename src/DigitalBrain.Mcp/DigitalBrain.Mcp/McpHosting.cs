@@ -1,4 +1,5 @@
 using DigitalBrain.Framework;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Platform.Identity;
 using ModelContextProtocol.AspNetCore;
@@ -12,6 +13,8 @@ public static class McpHosting
         services.AddSingleton(new ContractCatalog(NeuronContracts.Deployed()));
         services.AddContractCatalog(lexicalFallback: true);
         services.AddIdentity();
+        // Each request is a tool call in the caller's brain; a harness may hand in its own brain instead.
+        services.TryAddScoped<IDigitalBrain>(provider => provider.GetRequiredService<IDigitalBrains>().Open(provider.GetRequiredService<McpCaller>().Stamp().BrainId));
         services.AddHttpContextAccessor();
         services.AddSingleton<McpCaller>();
         services.AddMcpServer().WithHttpTransport(options => options.Stateless = true)

@@ -1,4 +1,5 @@
 using System.Reflection;
+using DigitalBrain.Framework.Enforcement;
 
 namespace DigitalBrain.Architecture.Tests;
 

@@ -12,7 +12,7 @@ namespace DigitalBrain.Framework.Tests.Unit;
 public sealed class OrleansDashboardFacts
 {
     [Fact]
-    public async Task TheOrleansDashboardIsMappedBehindAuthenticationWhenTheServerOptsIn()
+    public async Task TheOrleansDashboardAnswersOnlyAuthenticatedCallersWhenTheServerOptsIn()
     {
         var ct = TestContext.Current.CancellationToken;
         var builder = WebApplication.CreateBuilder();
@@ -22,17 +22,15 @@ public sealed class OrleansDashboardFacts
         builder.Services.AddSingleton<IBrainAccess, AllowEveryone>();
         builder.Services.AddSingleton<ICallFilterStage, AllowEverything>();
         builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie();
-        builder.Services.AddAuthorization();
         await using var app = builder.Build();
         app.UseAuthentication();
-        app.UseAuthorization();
         app.MapOrleansDashboard();
         await app.StartAsync(ct);
         try
         {
             using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { BaseAddress = new Uri(app.Urls.Single()) };
             var anonymous = await http.GetAsync(OrleansDashboard.Path + "/", ct);
-            Assert.Contains(anonymous.StatusCode, new[] { HttpStatusCode.Unauthorized, HttpStatusCode.Redirect, HttpStatusCode.Found });
+            Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
             Assert.Equal(HttpStatusCode.NotFound, (await http.GetAsync("/", ct)).StatusCode);
         }
         finally { await app.StopAsync(ct); }

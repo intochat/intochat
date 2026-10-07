@@ -47,7 +47,7 @@ public sealed class OsBootFacts
         await source.Publish();
 
         StampBrainOwner();
-        var neuron = brain.Get<IBrain>(scope);
+        var neuron = brain.Get<IKernel>(scope);
         await brain.DeactivateAsync(neuron, ct);
         await neuron.Read();
         await Task.Delay(500, ct);
@@ -67,7 +67,7 @@ public sealed class OsBootFacts
 
         await SeedPublished(brain, "later");
         StampBrainOwner();
-        var neuron = brain.Get<IBrain>(scope);
+        var neuron = brain.Get<IKernel>(scope);
         await brain.DeactivateAsync(neuron, ct);
         await neuron.Read();
         await WaitForAsync(brain.Get<IApp>(IApp.Key(scope, "later")), snapshot => snapshot.Status == AppStatus.Live, ct);
@@ -101,7 +101,7 @@ public sealed class OsBootFacts
 
         StampBrainOwner();
         await app.Delete();
-        var neuron = brain.Get<IBrain>(scope);
+        var neuron = brain.Get<IKernel>(scope);
         await brain.DeactivateAsync(neuron, ct);
         await neuron.Read();
         await Task.Delay(1000, ct);
@@ -153,7 +153,7 @@ public sealed class OsBootFacts
         var scope = BrainScope.Create("acct", "home").Id;
         StampBrainOwner();
         await brain.AuthorizeCallerAsync();
-        await brain.Get<IBrain>(scope).Establish(new("home", "acct"));
+        await brain.Get<IKernel>(scope).Create(new Owner("acct"));
         return scope;
     }
 

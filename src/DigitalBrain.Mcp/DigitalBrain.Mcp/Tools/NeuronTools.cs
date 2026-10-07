@@ -71,7 +71,7 @@ internal sealed class NeuronTools(IDigitalBrain brain, McpCaller caller, NeuronT
     private IAddressable Neuron(string contract, string key) => Neuron(Contracts.Find(contract), key);
 
     private IAddressable Neuron(Type contract, string key)
-        => (IAddressable)GetNeuron.MakeGenericMethod(contract).Invoke(brain, [key])!;
+        => (IAddressable)GetNeuron.MakeGenericMethod(contract).Invoke(brain, [new NeuronId(key)])!;
 
     private static bool IsArgument(ParameterInfo parameter) => parameter.ParameterType != typeof(CancellationToken);
 }
