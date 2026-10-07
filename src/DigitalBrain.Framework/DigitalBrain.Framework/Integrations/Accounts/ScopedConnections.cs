@@ -7,5 +7,5 @@ namespace DigitalBrain.Framework.Integrations.Accounts;
 public static class ScopedConnections
 {
     public static Connection[] Visible(BrainScope scope, Connection[] records)
-        => [.. records.Where(record => record.WorkspaceId == scope.Name || record.WorkspaceId == scope.Id).DistinctBy(record => record.Id)];
+        => [.. records.Where(record => record.WorkspaceId == scope.Id).DistinctBy(record => record.Id)];
 }

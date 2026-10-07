@@ -15,8 +15,8 @@ internal static class ProblemReportEndpoint
         {
             var caller = CallerContextStamper.Require();
             var scope = BrainScope.Create(caller.AccountId, caller.BrainId);
-            var report = await brain.Get<IProblemReports>(scope.Id).Add(scope.Name, input.IntentId!, input.Message!.Trim()).WaitAsync(ct);
-            return Results.Created($"/brains/{scope.Name}/reports", report);
+            var report = await brain.Get<IProblemReports>(scope.Id).Add(scope.Id, input.IntentId!, input.Message!.Trim()).WaitAsync(ct);
+            return Results.Created($"/brains/{scope.Id}/reports", report);
         }
         catch (ArgumentException error) { return Results.BadRequest(new { error = error.Message }); }
     }

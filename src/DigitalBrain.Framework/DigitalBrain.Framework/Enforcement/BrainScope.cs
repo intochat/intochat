@@ -2,11 +2,8 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace DigitalBrain.Framework.Enforcement;
 
-/// <summary>
-/// The brain a call is in. The brain's id is its kernel's grain key and the prefix of every
-/// neuron key inside it; there is no second, derived id.
-/// </summary>
-public sealed record BrainScope(string Id, string Owner, string Name)
+// The brain a call is in. Its id is its kernel's grain key and the prefix of every neuron key inside it.
+public sealed record BrainScope(string Id, string Owner)
 {
     public static string CurrentId()
     {
@@ -20,7 +17,7 @@ public sealed record BrainScope(string Id, string Owner, string Name)
         if (!IsValidId(name))
         { throw new ArgumentException("A brain ID must contain 1–200 characters without path separators.", nameof(name)); }
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
-        return new(name, owner, name);
+        return new(name, owner);
     }
 
     // Brain, thread and run ids travel in routes and grain keys: 1-200 characters, no control

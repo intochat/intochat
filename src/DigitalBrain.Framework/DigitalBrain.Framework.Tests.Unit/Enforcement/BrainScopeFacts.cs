@@ -14,6 +14,14 @@ public sealed class BrainScopeFacts
     }
 
     [Fact]
+    public void AScopeIsItsIdAndOwnerOnly()
+    {
+        var scope = BrainScope.Create("alice", "one");
+        Assert.Equal(("one", "alice"), (scope.Id, scope.Owner));
+        Assert.Equal(2, typeof(BrainScope).GetConstructors().Single().GetParameters().Length);
+    }
+
+    [Fact]
     public void AnUnstampedCallCannotResolveABrain()
         => Assert.Throws<InvalidOperationException>(() => _ = BrainScope.CurrentId());
 
