@@ -22,9 +22,9 @@ namespace DigitalBrain.Assistant;
 public sealed class AssistantTurnExecution(IServiceProvider services, IGrainFactory grains)
 {
     private AssistantOptions Options => services.GetRequiredService<IOptions<AssistantOptions>>().Value;
-    private IAgentExecution Execution => grains.GetGrain<IAgentExecution>("assistant");
-    public Task<ModelChoices> Models() => Execution.Models(Options.Model);
-    public Task<ModelSelection?> SelectModel(string? id) => Execution.SelectModel(id, Options.Model);
+    private IModelCatalog Catalog => grains.GetGrain<IModelCatalog>("default");
+    public Task<ModelChoices> Models() => Catalog.List(Options.Model);
+    public Task<ModelSelection?> SelectModel(string? id) => Catalog.Select(id, Options.Model);
 
 
     public async IAsyncEnumerable<string> Run(string workspace, AssistantRun input,
@@ -35,7 +35,7 @@ public sealed class AssistantTurnExecution(IServiceProvider services, IGrainFact
         { throw new ArgumentException("A valid thread, run and message of at most 32000 characters are required."); }
         var agent = grains.GetGrain<IAgent>(AssistantConversations.Key(workspace, input.ThreadId));
         var snapshot = await agent.Read();
-        var prepared = await PrepareTurn(snapshot, input, id => Execution.SelectModel(id, Options.Model));
+        var prepared = await PrepareTurn(snapshot, input, SelectModel);
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var events = Channel.CreateBounded<string>(new BoundedChannelOptions(64) { SingleReader = true, SingleWriter = true });
         var execution = Produce();

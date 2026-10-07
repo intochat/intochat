@@ -64,8 +64,8 @@ public sealed class GoldenJourneyFacts
             Assert.True(london.FilteredRows < london.TotalRows, "only London did not narrow the same window.");
 
             await AskAsync(brain, workspaceId, "thread", $"{workspaceId}-count", "how many?", token);
-            var conversation = await brain.Get<IAgent>(AssistantConversations.Key(scope.Id, "thread")).ReadConversation(token);
-            var answer = conversation.Turns[^1].AssistantText;
+            var conversation = await brain.Get<IAgent>(AssistantConversations.Key(scope.Id, "thread")).Read();
+            var answer = conversation.Runs[^1].Reply ?? "";
             Assert.Contains(london.FilteredRows.ToString(), answer, StringComparison.Ordinal);
             Assert.Single((await workspace.Read()).Windows);
         }, ct);

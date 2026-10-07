@@ -52,16 +52,16 @@ class WorkspaceClient extends http.BaseClient {
         request.url.queryParameters['kind'] == 'layout' &&
         (request.url.queryParameters['name'] ?? '').endsWith('/messages')) {
       application['children'] = [
-        for (final turn in history) ...[
-          {'kind': 'card', 'name': "${turn['runId']}/user"},
-          {'kind': 'card', 'name': "${turn['runId']}/assistant"},
+        for (final run in history) ...[
+          {'kind': 'card', 'name': "${run['runId']}/user"},
+          {'kind': 'card', 'name': "${run['runId']}/assistant"},
         ],
       ];
     }
     if (request.url.queryParameters['kind'] == 'card') {
       final name = request.url.queryParameters['name']!;
-      final turn = history.firstWhere(
-        (turn) => name.startsWith('${turn['runId']}/'),
+      final run = history.firstWhere(
+        (run) => name.startsWith('${run['runId']}/'),
       );
       return http.StreamedResponse(
         Stream.value(
@@ -69,8 +69,8 @@ class WorkspaceClient extends http.BaseClient {
             jsonEncode({
               'title': '',
               'body': name.endsWith('/user')
-                  ? turn['userText']
-                  : turn['assistantText'],
+                  ? run['userText']
+                  : run['reply'],
               'children': [],
             }),
           ),
@@ -81,7 +81,7 @@ class WorkspaceClient extends http.BaseClient {
     final value =
         application ??
         (request.url.path.contains('/conversations/')
-            ? {'revision': 4, 'activeRunId': null, 'turns': history}
+            ? {'revision': 4, 'activeRun': null, 'runs': history}
             : request.url.path.contains('/tables/')
             ? tableJson(1, 'From database')
             : {
