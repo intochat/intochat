@@ -16,7 +16,6 @@ public static class BrainHosting
         silo.Services.AddSingleton(new ModuleInventory(moduleTypes));
         silo.Services.AddContractCatalog();
         silo.Services.TryAddSingleton(TimeProvider.System);
-        silo.AddStartupTask<RuntimeStartupTask>();
         silo.Services.TryAddSingleton<ICallFilter, CallFilter>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, NeuronCallFilter>());
         silo.Services.TryAddSingleton<LocalSignalHub>();

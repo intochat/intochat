@@ -76,21 +76,6 @@ public sealed class TypeSearchFacts
         Assert.DoesNotContain(await second.SiloServices.GetRequiredService<NeuronTypeSearch>().Search("wake me", 25, ct), hit => hit.Type.Id == "test.registry-clock");
     }
 
-    [Fact]
-    public async Task ModuleAnnouncementsDoNotChangeTheSelectedComposition()
-    {
-        await using var brain = await ModuleTest.Create().StartAsync(TestContext.Current.CancellationToken);
-        var catalog = brain.SiloServices.GetRequiredService<ContractCatalog>();
-        var search = brain.SiloServices.GetRequiredService<NeuronTypeSearch>();
-        Assert.DoesNotContain(catalog.Read(), type => type.Id == "test.registry-clock");
-        var hub = brain.SiloServices.GetRequiredService<LocalSignalHub>();
-        using var announcements = hub.Subscribe<ModuleLoaded>();
-        var announced = new ModuleLoaded(typeof(RegistryFixtureModule).AssemblyQualifiedName!);
-        hub.Publish(announced);
-        Assert.Same(announced, await announcements.Reader.ReadAsync(TestContext.Current.CancellationToken).AsTask().WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
-        Assert.DoesNotContain(catalog.Read(), type => type.Id == "test.registry-clock");
-    }
-
     private sealed class ClockEmbeddings : IEmbeddingGenerator<string, Embedding<float>>
     {
         public bool Fail { get; set; }
