@@ -1,22 +1,18 @@
 using System.Security.Cryptography;
 using System.Text.Json;
-using DigitalBrain.Framework;
-using Orleans;
 
 namespace DigitalBrain.Microsoft.CSharp;
 
-public sealed record CSharpDescription(string Id, string Name, string Purpose, DateTimeOffset CreatedAt);
+[GenerateSerializer, Alias("csharp.description")]
+public sealed record CSharpDescription(
+    [property: Id(0)] string Id,
+    [property: Id(1)] string Name,
+    [property: Id(2)] string Purpose,
+    [property: Id(3)] DateTimeOffset CreatedAt);
 
-// The workspace owns the human-facing names of its files; the ICSharpFile neuron owns source and execution.
-public sealed class CSharpCatalogStore
+// Validates ids and descriptions before the catalog neuron sees them; the ICSharpFile neuron owns source and execution.
+public sealed class CSharpCatalogStore(IDigitalBrain brain)
 {
-    private const int MaxFilesPerWorkspace = 500;
-    private readonly IDocumentStore<CSharpCatalog> _workspaces;
-
-    public CSharpCatalogStore(IGrainFactory grains) : this(new GrainDocumentStore<CSharpCatalog>(grains, "csharp-catalog")) { }
-
-    internal CSharpCatalogStore(IDocumentStore<CSharpCatalog> workspaces) => _workspaces = workspaces;
-
     public static string FileKey(string scope, string id)
     {
         ValidateFileId(scope, id);
@@ -35,34 +31,14 @@ public sealed class CSharpCatalogStore
         ValidateFileId(scope, id);
         if (name is { Length: > 120 } || purpose is { Length: > 4000 })
         { throw new ArgumentException("A name is at most 120 characters and a purpose at most 4000."); }
-        return _workspaces.UpdateAsync(scope, catalog =>
-        {
-            if (!catalog.Files.TryGetValue(id, out var current))
-            {
-                if (catalog.Files.Count >= MaxFilesPerWorkspace)
-                { throw new InvalidOperationException($"This workspace has reached its {MaxFilesPerWorkspace}-file limit."); }
-                current = new(id, id, "", DateTimeOffset.UtcNow);
-            }
-            return catalog.Files[id] = current with
-            {
-                Name = string.IsNullOrWhiteSpace(name) ? current.Name : name.Trim(),
-                Purpose = purpose?.Trim() ?? current.Purpose,
-            };
-        }, ct);
+        return Catalog(scope).Describe(id, name, purpose).WaitAsync(ct);
     }
 
-    public Task<CSharpDescription[]> List(string scope, CancellationToken ct)
-        => _workspaces.ReadAsync(scope, catalog => catalog.Files.Values.OrderBy(file => file.Name, StringComparer.OrdinalIgnoreCase).ToArray(), ct);
+    public Task<CSharpDescription[]> List(string scope, CancellationToken ct) => Catalog(scope).List().WaitAsync(ct);
 
-    public Task<CSharpDescription> Read(string scope, string id, CancellationToken ct)
-        => _workspaces.ReadAsync(scope, catalog => catalog.Files.TryGetValue(id, out var file)
-            ? file
-            : throw new KeyNotFoundException($"{id} is not a C# file in this workspace."), ct);
+    public Task<CSharpDescription> Read(string scope, string id, CancellationToken ct) => Catalog(scope).Read(id).WaitAsync(ct);
 
-    public Task Remove(string scope, string id, CancellationToken ct) => _workspaces.UpdateAsync(scope, catalog => catalog.Files.Remove(id), ct);
-}
+    public Task Remove(string scope, string id, CancellationToken ct) => Catalog(scope).Remove(id).WaitAsync(ct);
 
-public sealed class CSharpCatalog
-{
-    public Dictionary<string, CSharpDescription> Files { get; set; } = new(StringComparer.Ordinal);
+    private ICSharpCatalog Catalog(string scope) => brain.Get<ICSharpCatalog>(ICSharpCatalog.Key(scope));
 }

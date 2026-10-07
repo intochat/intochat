@@ -68,31 +68,6 @@ public sealed class PersistenceFacts
     }
 
     [Fact]
-    public async Task ClusterDocumentStoreWritesThroughGrainState()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var store = new GrainDocumentStore<CounterState>(brain.Grains(), "persistence-facts");
-        await store.UpdateAsync("doc", state => state.Value = 42, ct);
-        var (_, payload) = await brain.Grains().GetGrain<IDocumentGrain>("persistence-facts/doc").ReadAsync();
-        Assert.Contains("42", payload ?? string.Empty, StringComparison.Ordinal);
-        Assert.Equal(42, await store.ReadAsync("doc", state => state.Value, ct));
-    }
-
-    [Fact]
-    public async Task ReservedButUncommittedDocumentsRemainInvisibleAndCanBeRetried()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var store = new GrainDocumentStore<CounterState>(brain.Grains(), "reservation-facts");
-        await Assert.ThrowsAsync<IOException>(() => store.UpdateAsync<int>("doc", _ => throw new IOException("Interrupted before commit"), ct));
-        Assert.Empty(await store.ListIdsAsync(ct));
-        await store.UpdateAsync("doc", state => state.Value = 42, ct);
-        Assert.Equal(["doc"], await store.ListIdsAsync(ct));
-        Assert.Equal(42, await store.ReadAsync("doc", state => state.Value, ct));
-    }
-
-    [Fact]
     public async Task DeactivationKeepsStateAndDoesNotReplaySignals()
     {
         var ct = TestContext.Current.CancellationToken;

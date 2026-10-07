@@ -6,13 +6,11 @@ namespace DigitalBrain.Framework.Tests.Unit.Enforcement;
 public sealed class BrainScopeFacts
 {
     [Fact]
-    public void TheDerivationIsStableAndDistinctPerOwnerAndName()
+    public void TheIdIsTheBrainNameWhoeverOwnsIt()
     {
-        var id = BrainScope.Create("alice", "one").Id;
-        Assert.StartsWith("workspace-", id); // storage artifact, preserved on purpose
-        Assert.Equal(id, BrainScope.Create("alice", "one").Id);
-        Assert.NotEqual(id, BrainScope.Create("bob", "one").Id);
-        Assert.NotEqual(id, BrainScope.Create("alice", "two").Id);
+        Assert.Equal("one", BrainScope.Create("alice", "one").Id);
+        Assert.Equal(BrainScope.Create("alice", "one").Id, BrainScope.Create("bob", "one").Id);
+        Assert.NotEqual(BrainScope.Create("alice", "one").Id, BrainScope.Create("alice", "two").Id);
     }
 
     [Fact]

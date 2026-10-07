@@ -7,11 +7,11 @@ using Xunit;
 namespace DigitalBrain.Framework.Tests.Unit.Enforcement;
 
 // A brain someone uses is a brain the OS knows about: a development owner never registers, so
-// the first allowed request establishes its brain, and its Activated starts the OS boot.
+// the first allowed request creates its brain, and its Activated starts the OS boot.
 public sealed class BrainPresenceFacts
 {
     [Fact]
-    public async Task AnAllowedRequestEstablishesItsBrainSoItsActivationIsAnnounced()
+    public async Task AnAllowedRequestCreatesItsBrainSoItsActivationIsAnnounced()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().StartAsync(ct);
@@ -30,7 +30,7 @@ public sealed class BrainPresenceFacts
             {
                 RequestServices = new ServiceCollection()
                     .AddSingleton<IBrainAccess, AllowEveryone>()
-                    .AddSingleton(brain.SiloServices.GetRequiredService<IDigitalBrain>())
+                    .AddSingleton(brain.SiloServices.GetRequiredService<IDigitalBrains>())
                     .BuildServiceProvider(),
             };
 
@@ -39,8 +39,8 @@ public sealed class BrainPresenceFacts
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
             deadline.CancelAfter(TimeSpan.FromSeconds(10));
             var activated = await activations.Reader.ReadAsync(deadline.Token);
-            Assert.Equal(BrainScope.Create("owner", "owner").Id, activated.BrainId);
-            Assert.Equal(("owner", "owner"), (activated.OwnerAccountId, activated.Name));
+            Assert.Equal("owner", activated.Owner.AccountId);
+            Assert.EndsWith("/" + BrainScope.Create("owner", "owner").Id, activated.Publisher.Name, StringComparison.Ordinal);
         }
         finally { Orleans.Runtime.RequestContext.Clear(); }
     }

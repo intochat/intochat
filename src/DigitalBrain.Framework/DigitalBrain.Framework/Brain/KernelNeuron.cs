@@ -10,16 +10,20 @@ internal sealed class KernelNeuron(
     IEnumerable<ICreationHandler> creation,
     ILogger<KernelNeuron> logger) : Neuron, IKernel
 {
-    internal bool IsCreated => store.State is not null;
+    // Storage hands back an uninitialized record before the first write, so existence is the record's, not the object's.
+    internal bool IsCreated => store.RecordExists;
+
+    // The kernel's key is the brain id itself.
+    public override NeuronAccess Access(string operation) => new(this.GetPrimaryKeyString());
 
     public Task<State> Read()
-        => Task.FromResult(store.State ?? throw new InvalidOperationException("This brain has not been created."));
+        => Task.FromResult(IsCreated ? store.State : throw new InvalidOperationException("This brain has not been created."));
 
     public async Task Create(Owner owner)
     {
         ArgumentNullException.ThrowIfNull(owner);
         RequireCreator(owner);
-        if (store.State is not null) { return; }
+        if (IsCreated) { return; }
         store.State = new State(owner, DateTimeOffset.UtcNow);
         await store.WriteStateAsync();
         var created = new Created(owner);
@@ -34,7 +38,7 @@ internal sealed class KernelNeuron(
         await PublishAsync(new Activated(owner));
     }
 
-    internal Task Woke() => store.State is { } state ? PublishAsync(new Activated(state.Owner)) : Task.CompletedTask;
+    internal Task Woke() => IsCreated ? PublishAsync(new Activated(store.State.Owner)) : Task.CompletedTask;
 
     // Creating is the platform's act, or the owner's own. Host code with no stamped caller is trusted.
     private static void RequireCreator(Owner owner)
