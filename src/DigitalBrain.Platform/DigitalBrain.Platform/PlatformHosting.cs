@@ -9,7 +9,6 @@ using DigitalBrain.Platform.Identity.Directory;
 using DigitalBrain.Platform.Identity.Grants;
 using DigitalBrain.Platform.Integrations;
 using DigitalBrain.Platform.Secrets;
-using DigitalBrain.Platform.Shipping;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -25,11 +24,8 @@ public static class PlatformHosting
         if (services.Any(service => service.ServiceType == typeof(PlatformRegistration))) { return; }
         services.AddSingleton<PlatformRegistration>();
         services.AddIdentity();
-        services.AddShippedContentPublishing();
         services.TryAddSingleton<DeploymentStorageIdentity>();
         silo.AddStartupTask<IdentityStartup>();
-        silo.AddStartupTask<SeededAccountsStartup>();
-        services.TryAddSingleton<DigitalBrain.Framework.Platform.Identity.IPublisherDirectory, PublisherDirectory>();
         services.AddMasterKeyWrapper();
         services.TryAddSingleton<IReadOnlyList<IntegrationSchema>>(provider =>
             IntegrationDiscovery.Collect(provider.GetRequiredService<ModuleInventory>().Types));

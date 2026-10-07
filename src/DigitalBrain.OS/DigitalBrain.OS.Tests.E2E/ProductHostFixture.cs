@@ -25,7 +25,6 @@ public sealed class ProductHostFixture : ReferenceBrainFixture
             {
                 ["OTEL_EXPORTER_OTLP_ENDPOINT"] = Collector.Endpoint.AbsoluteUri,
                 ["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/protobuf",
-                [DigitalBrainConfiguration.EnvironmentName(ShippedAppsServiceCollectionExtensions.ShipOnStartupKey)] = "settings,assistant,datavisualizer,customer-researcher",
             })
             .StartAsync(cancellationToken);
 }

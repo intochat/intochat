@@ -1,9 +1,7 @@
-import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:digitalbrain_ui/digitalbrain_ui.dart';
 import 'package:flutter/material.dart';
 
 /// Credential prompt shown when the kernel answers 401 or the person switches account.
-/// A development deployment also lists its seeded accounts for one-step switching.
 ///
 /// Deliberately minimal: one owner, no registration, no recovery. It exists to
 /// keep the dev stand off the open internet until real auth replaces it.
@@ -14,8 +12,6 @@ final class LoginScreen extends StatefulWidget {
     this.onRegister,
     this.initialUsername = '',
     this.errorMessage,
-    this.seededAccounts = const [],
-    this.onContinueAs,
   });
 
   /// Resolves to an error message to display, or null once signed in.
@@ -23,8 +19,6 @@ final class LoginScreen extends StatefulWidget {
   final Future<String?> Function(String username, String password)? onRegister;
   final String initialUsername;
   final String? errorMessage;
-  final List<SeededAccount> seededAccounts;
-  final Future<String?> Function(String username)? onContinueAs;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -39,20 +33,6 @@ final class _LoginScreenState extends State<LoginScreen> {
 
   late String? _error = widget.errorMessage;
   bool _busy = false;
-
-  Future<void> _continueAs(String username) async {
-    if (_busy) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    final failure = await widget.onContinueAs!(username);
-    if (!mounted) return;
-    setState(() {
-      _busy = false;
-      _error = failure;
-    });
-  }
 
   bool _register = false;
 
@@ -112,21 +92,6 @@ final class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 8),
                 Text('Sign in to reach the kernel.', style: UiType.bodyMuted),
                 const SizedBox(height: 24),
-                if (widget.onContinueAs != null &&
-                    widget.seededAccounts.isNotEmpty) ...[
-                  for (final account in widget.seededAccounts)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: OutlinedButton(
-                        key: Key('continue-as-${account.username}'),
-                        onPressed: _busy
-                            ? null
-                            : () => _continueAs(account.username),
-                        child: Text('Continue as ${account.displayName}'),
-                      ),
-                    ),
-                  const SizedBox(height: 16),
-                ],
                 TextField(
                   key: const Key('login-username'),
                   controller: _username,

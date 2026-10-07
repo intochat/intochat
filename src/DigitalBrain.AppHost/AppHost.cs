@@ -24,12 +24,10 @@ using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Aspire.Hosting;
 using Microsoft.Extensions.Configuration;
 
-// The AppHost owns its deployment keys: the published ports, the seeded IntoChat publisher
-// account, and the vendor's shipped-apps binding (leaves under
+// The AppHost owns its deployment keys: the published ports and the IntoChat vendor's shipped-apps binding (leaves under
 // ShippedAppsServiceCollectionExtensions.ConfigurationSection).
 const string UiPortKey = "DigitalBrain:Http:UiPort";
 const string McpPortKey = "DigitalBrain:Http:McpPort";
-const string IntoChatAccountKey = "DigitalBrain:Auth:Accounts:0";
 const string IntoChatShippedAppsKey = "DigitalBrain:Modules:apps:Shipped:intochat";
 
 var builder = DistributedApplication.CreateBuilder(args);
@@ -60,26 +58,13 @@ var intoChatApps = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..",
 
 var runtime = builder.AddProject<Projects.DigitalBrain_OS>("OperatingSystem")
     .WithReference(digitalBrain)
-    .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(IntoChatAccountKey + ":Username"), "intochat")
-    .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(IntoChatAccountKey + ":DisplayName"), "IntoChat")
     .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsKey + ":Path"), intoChatApps)
-    .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsKey + ":Account"), "intochat")
     .WaitFor(cookieProtection)
     .WithHttpEndpoint(
         port: builder.Configuration.GetValue(UiPortKey, 5080),
         name: "http",
         isProxied: false)
     .WithHttpHealthCheck("/health", endpointName: "http");
-
-// Development only: a known IntoChat password for one-step switching, and publishing in the shell
-// writes the apps folder back. A published deployment ships neither.
-if (builder.ExecutionContext.IsRunMode)
-{
-    runtime
-        .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(IntoChatAccountKey + ":Password"),
-            builder.Configuration[IntoChatAccountKey + ":Password"] ?? "intochat-development")
-        .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsKey + ":Writable"), "true");
-}
 
 builder.AddProject<Projects.DigitalBrain_Mcp>("digitalbrain-mcp")
     .WithReference(digitalBrain.AsClient(shareHttpIdentity: true))

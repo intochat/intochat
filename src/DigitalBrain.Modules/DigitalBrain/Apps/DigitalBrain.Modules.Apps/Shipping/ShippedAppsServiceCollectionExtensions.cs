@@ -2,7 +2,6 @@ using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Hosting;
 
 namespace DigitalBrain.Apps;
 
@@ -10,10 +9,6 @@ public static class ShippedAppsServiceCollectionExtensions
 {
     public static readonly string ConfigurationSection =
         DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.ModuleSection(new DigitalBrain.Framework.Modules.ModuleId("apps")) + ":Shipped";
-    // The startup-shipping switch lives on the module's public surface so hosts and fixtures can
-    // name it; ShippedAppPublisher (internal) is its reader.
-    public static readonly string ShipOnStartupKey =
-        DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.ModuleOptionsSection(new DigitalBrain.Framework.Modules.ModuleId("apps")) + ":ShipOnStartup";
 
     public static IServiceCollection AddShippedApps(this IServiceCollection services, Assembly assembly, string resourcePrefix, string publisher)
     {
@@ -23,9 +18,8 @@ public static class ShippedAppsServiceCollectionExtensions
         return services.AddShippedAppSource(new EmbeddedShippedAppSource(assembly, resourcePrefix, publisher));
     }
 
-    // Configuration names the sources: DigitalBrain:Modules:apps:Shipped:{source}:Path points at a
-    // directory of app folders and :Account names the vendor the catalog lists them under; :Writable
-    // lets publishing write back into the folder (development). The deployment decides, not the code.
+    // Configuration names the sources: DigitalBrain:Modules:apps:Shipped:{vendor}:Path points at a
+    // directory of app folders the catalog lists under that vendor. The deployment decides, not the code.
     public static IServiceCollection AddShippedApps(this IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
@@ -34,11 +28,7 @@ public static class ShippedAppsServiceCollectionExtensions
             var path = source["Path"];
             if (string.IsNullOrWhiteSpace(path))
             { throw new InvalidOperationException($"{ConfigurationSection}:{source.Key} names no Path."); }
-            var account = source["Account"];
-            if (string.IsNullOrWhiteSpace(account))
-            { throw new InvalidOperationException($"{ConfigurationSection}:{source.Key} names no Account."); }
-            var writable = bool.TryParse(source["Writable"], out var flag) && flag;
-            services.AddShippedAppSource(new DirectoryShippedAppSource(path, account, writable));
+            services.AddShippedAppSource(new DirectoryShippedAppSource(path, source.Key));
         }
         return services;
     }
@@ -47,7 +37,6 @@ public static class ShippedAppsServiceCollectionExtensions
     {
         services.AddSingleton(source);
         services.TryAddSingleton<ShippedCatalog>();
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ShippedAppWriteBack>());
         return services;
     }
 }

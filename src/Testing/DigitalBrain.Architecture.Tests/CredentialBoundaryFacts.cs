@@ -26,7 +26,7 @@ public sealed class CredentialBoundaryFacts
     // makes none. The authenticated edge constructs user stamps only, so it is the one other site
     // that may call the constructor.
     [Fact]
-    public void OnlyTheIntegrationReleaseAndTheShippedPublisherConstructAPlatformStamp()
+    public void OnlyTheIntegrationReleaseConstructsAPlatformStamp()
     {
         var platform = ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == "DigitalBrain.Platform");
         var methods = platform.GetTypes().Where(t => t.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true)
@@ -35,9 +35,9 @@ public sealed class CredentialBoundaryFacts
             .ToArray();
         string[] Sites(Func<MethodBase, bool> does) => [.. methods.Where(does).Select(m => Outermost(m.DeclaringType!).FullName!).Distinct().Order()];
 
-        Assert.Equal(["DigitalBrain.Platform.Integrations.IntegrationNeuron", "DigitalBrain.Platform.Shipping.ShippedContentHosting"],
+        Assert.Equal(["DigitalBrain.Platform.Integrations.IntegrationNeuron"],
             Sites(SetsAPlatformStamp));
-        Assert.Equal(["DigitalBrain.Platform.Identity.AccountSession", "DigitalBrain.Platform.Integrations.IntegrationNeuron", "DigitalBrain.Platform.Shipping.ShippedContentHosting"],
+        Assert.Equal(["DigitalBrain.Platform.Identity.AccountSession", "DigitalBrain.Platform.Integrations.IntegrationNeuron"],
             Sites(m => Calls(m).Any(c => c.IsConstructor && c.DeclaringType == typeof(CallerContext))));
     }
 

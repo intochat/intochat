@@ -12,7 +12,6 @@ import 'session_http_client_io.dart'
     as transport;
 import 'host_environment.dart';
 import 'models/installed_app.dart';
-import 'models/marketplace.dart';
 import 'models/brain_models.dart';
 import 'models/compute_usage.dart';
 import 'models/model_catalog.dart';
@@ -110,34 +109,6 @@ final class DigitalBrainUiClient {
       'POST',
       register ? '/identity/register' : '/identity/login',
       body: {'principalId': username, 'password': password},
-      timeout: const Duration(seconds: 15),
-    );
-    _useSession(jsonDecode(response.body) as Map<String, dynamic>);
-  }
-
-  /// Accounts the deployment seeded for development; empty unless the server runs in open posture.
-  Future<List<SeededAccount>> listSeededAccounts() async {
-    try {
-      final response = await _request(
-        'GET',
-        '/identity/seeded-accounts',
-        timeout: const Duration(seconds: 10),
-      );
-      return [
-        for (final item in jsonDecode(response.body) as List)
-          SeededAccount.fromJson(Map<String, dynamic>.from(item as Map)),
-      ];
-    } on UiRequestException catch (error) {
-      if (error.statusCode == 404) return const [];
-      rethrow;
-    }
-  }
-
-  Future<void> signInSeeded(String username) async {
-    final response = await _request(
-      'POST',
-      '/identity/seeded-accounts/${Uri.encodeComponent(username)}/login',
-      body: const {},
       timeout: const Duration(seconds: 15),
     );
     _useSession(jsonDecode(response.body) as Map<String, dynamic>);

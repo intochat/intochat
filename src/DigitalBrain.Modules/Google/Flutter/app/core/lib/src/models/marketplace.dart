@@ -85,12 +85,3 @@ class MarketplaceEntry {
         updateAvailable: json['updateAvailable'] == true,
       );
 }
-
-class SeededAccount {
-  const SeededAccount({required this.username, required this.displayName});
-  final String username, displayName;
-  factory SeededAccount.fromJson(Map<String, dynamic> json) => SeededAccount(
-    username: json['username'] as String,
-    displayName: json['displayName'] as String? ?? json['username'] as String,
-  );
-}

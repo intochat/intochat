@@ -74,69 +74,6 @@ void main() {
       expect(find.text('alice|alice-account'), findsNothing);
     },
   );
-
-  testWidgets('switching offers the seeded accounts and continues as one', (
-    tester,
-  ) async {
-    var principal = 'owner';
-    await tester.pumpWidget(
-      BrainSessionGate(
-        createClient: (_) => DigitalBrainUiClient(
-          baseUri: Uri.parse('http://kernel'),
-          httpClient: MockClient((request) async {
-            switch (request.url.path) {
-              case '/auth/check':
-                return http.Response('', 204);
-              case '/identity/logout':
-                return http.Response('', 204);
-              case '/identity/seeded-accounts':
-                return http.Response(
-                  jsonEncode([
-                    {'username': 'intochat', 'displayName': 'IntoChat'},
-                  ]),
-                  200,
-                );
-              case '/identity/seeded-accounts/intochat/login':
-                principal = 'intochat';
-              case '/identity/session':
-                break;
-              default:
-                return http.Response('', 404);
-            }
-            return http.Response(
-              jsonEncode({
-                'principalId': principal,
-                'accountId': '$principal-account',
-                'brainId': '$principal-home',
-              }),
-              200,
-            );
-          }),
-        ),
-        builder: (client, status, switchAccount) => MaterialApp(
-          home: Scaffold(
-            body: Column(
-              children: [
-                Text(client!.workspaceIdentity),
-                TextButton(
-                  onPressed: switchAccount,
-                  child: const Text('Switch account'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('owner|owner-account'), findsOneWidget);
-    await tester.tap(find.text('Switch account'));
-    await tester.pumpAndSettle();
-    expect(find.text('Continue as IntoChat'), findsOneWidget);
-    await tester.tap(find.byKey(const Key('continue-as-intochat')));
-    await tester.pumpAndSettle();
-    expect(find.text('intochat|intochat-account'), findsOneWidget);
-  });
 }
 
 class _SessionShell extends StatefulWidget {
