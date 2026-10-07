@@ -1,4 +1,7 @@
+using DigitalBrain;
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
@@ -30,8 +33,8 @@ public sealed class CSharpSubscriptionFacts
             await Eventually(async () => (await file.Inspect(ct)).Subscriptions.All(s => s.Pending == 1), ct);
 
             // A resumed Stop loop can drain first regardless of publication order.
-            var stopped = Assert.Single(await edge.DrainPending(sandbox.LatestRunId, stop.GetGrainId().ToString(), nameof(Pinged)));
-            var requested = Assert.Single(await edge.DrainPending(sandbox.LatestRunId, research.GetGrainId().ToString(), nameof(Pinged)));
+            var stopped = Assert.Single((await edge.DrainPending(sandbox.LatestRunId, stop.GetGrainId().ToString(), nameof(Pinged))).Signals);
+            var requested = Assert.Single((await edge.DrainPending(sandbox.LatestRunId, research.GetGrainId().ToString(), nameof(Pinged))).Signals);
             return [stopped, requested];
         }
 
@@ -63,7 +66,7 @@ public sealed class CSharpSubscriptionFacts
         await pinger.Ping(2);
         await Eventually(async () => (await file.Inspect(ct)).Subscriptions.Single().Pending == 2, ct);
         var drained = await edge.DrainPending(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged));
-        Assert.Equal(2, drained.Count);
+        Assert.Equal(2, drained.Signals.Length);
     }
 
     [Fact]
@@ -80,7 +83,7 @@ public sealed class CSharpSubscriptionFacts
         await edge.Subscribed(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged));
         await pinger.Ping(7);
 
-        await Eventually(async () => (await edge.DrainPending(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged))) is { Count: > 0 }, ct);
+        await Eventually(async () => (await edge.DrainPending(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged))) is { Signals.Length: > 0 }, ct);
         Assert.Single((await file.Inspect(ct)).Subscriptions);
     }
 
@@ -99,10 +102,10 @@ public sealed class CSharpSubscriptionFacts
         await Eventually(async () => (await file.Inspect(ct)).Subscriptions.Single().Pending == 2, ct);
 
         var drained = await edge.DrainPending(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged));
-        Assert.Equal(2, drained.Count);
-        Assert.Contains("\"number\":1", drained[0], StringComparison.Ordinal);
-        Assert.Contains("\"number\":2", drained[1], StringComparison.Ordinal);
-        Assert.Empty(await edge.DrainPending(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged)));
+        Assert.Equal(2, drained.Signals.Length);
+        Assert.Equal([1, 2], drained.Signals.Select(SignalJson.Number));
+        await edge.Acknowledge(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged), drained.Watermark);
+        Assert.Empty((await edge.DrainPending(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged))).Signals);
     }
 
     [Fact]
@@ -120,26 +123,128 @@ public sealed class CSharpSubscriptionFacts
         await two.Ping(9);
         await Eventually(async () => (await file.Inspect(ct)).Subscriptions.Any(s => s.Pending > 0), ct);
 
-        Assert.Empty(await edge.DrainPending(sandbox.LatestRunId, one.GetGrainId().ToString(), nameof(Pinged)));
-        Assert.Single(await edge.DrainPending(sandbox.LatestRunId, two.GetGrainId().ToString(), nameof(Pinged)));
+        Assert.Empty((await edge.DrainPending(sandbox.LatestRunId, one.GetGrainId().ToString(), nameof(Pinged))).Signals);
+        Assert.Single((await edge.DrainPending(sandbox.LatestRunId, two.GetGrainId().ToString(), nameof(Pinged))).Signals);
     }
 
     [Fact]
-    public async Task PendingSignalsAreBoundedAndTheOldestAreDropped()
+    public async Task DrainingDoesNotClearUntilTheBatchIsAcknowledged()
     {
         var ct = TestContext.Current.CancellationToken;
         var sandbox = new FakeSandbox();
         await using var brain = await SandboxBrain.StartAsync(sandbox, ct);
         var pinger = brain.Get<IPinger>("pinger");
-        var file = await Subscribed(brain, sandbox, "workspace/bounded", pinger, ct);
+        var file = await Subscribed(brain, sandbox, "workspace/acknowledging", pinger, ct);
         var edge = file.AsReference<ICSharpFileEdge>();
+        var source = pinger.GetGrainId().ToString();
+        await using var arrivals = await brain.Observe<CSharpPendingArrived>(file, ct);
+        await pinger.Ping(1);
+        await pinger.Ping(2);
+        await Arrivals(arrivals, 2, ct);
 
-        for (var number = 0; number < CSharpFileNeuron.MaximumPending + 5; number++) { await pinger.Ping(number); }
-        await Eventually(async () => (await file.Inspect(ct)).Subscriptions.Single().Pending == CSharpFileNeuron.MaximumPending, ct);
+        var first = await edge.DrainPending(sandbox.LatestRunId, source, nameof(Pinged));
+        var again = await edge.DrainPending(sandbox.LatestRunId, source, nameof(Pinged));
 
-        var drained = await edge.DrainPending(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged));
-        Assert.Equal(CSharpFileNeuron.MaximumPending, drained.Count);
-        Assert.Contains("\"number\":5", drained[0], StringComparison.Ordinal); // 0..4 were dropped
+        Assert.Equal(2, first.Signals.Length);
+        Assert.Equal(2, first.Watermark);
+        Assert.Equal(first.Signals, again.Signals);
+
+        await edge.Acknowledge(sandbox.LatestRunId, source, nameof(Pinged), first.Watermark);
+
+        Assert.Empty((await edge.DrainPending(sandbox.LatestRunId, source, nameof(Pinged))).Signals);
+        var view = Assert.Single((await file.Inspect(ct)).Subscriptions);
+        Assert.Equal((0, 2L, 0L), (view.Pending, view.Delivered, view.Dropped));
+    }
+
+    [Fact]
+    public async Task AnAcknowledgementNeverTrimsPastWhatIsPendingOrBelowWhatWasDelivered()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new FakeSandbox();
+        await using var brain = await SandboxBrain.StartAsync(sandbox, ct);
+        var pinger = brain.Get<IPinger>("pinger");
+        var file = await Subscribed(brain, sandbox, "workspace/clamped", pinger, ct);
+        var edge = file.AsReference<ICSharpFileEdge>();
+        var source = pinger.GetGrainId().ToString();
+        await using var arrivals = await brain.Observe<CSharpPendingArrived>(file, ct);
+        for (var number = 1; number <= 3; number++) { await pinger.Ping(number); }
+        await Arrivals(arrivals, 3, ct);
+
+        await edge.Acknowledge(sandbox.LatestRunId, source, nameof(Pinged), 1);
+        var afterOne = Assert.Single((await file.Inspect(ct)).Subscriptions);
+        Assert.Equal((2, 1L), (afterOne.Pending, afterOne.Delivered));
+
+        await edge.Acknowledge(sandbox.LatestRunId, source, nameof(Pinged), 0);   // stale: nothing to do
+        Assert.Equal(2, Assert.Single((await file.Inspect(ct)).Subscriptions).Pending);
+
+        await edge.Acknowledge(sandbox.LatestRunId, source, nameof(Pinged), 99);  // forged: only what exists
+        var settled = Assert.Single((await file.Inspect(ct)).Subscriptions);
+        Assert.Equal((0, 3L), (settled.Pending, settled.Delivered));
+    }
+
+    [Fact]
+    public async Task OverflowPastTheCapCountsTheDropAndPublishesFileChangedWhileTheCapItselfDropsNothing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new FakeSandbox();
+        await using var brain = await SandboxBrain.StartAsync(sandbox, ct, silo => silo.Services.PostConfigure<CSharpOptions>(options => options.MaximumPending = 3));
+        var pinger = brain.Get<IPinger>("pinger");
+        var file = await Subscribed(brain, sandbox, "workspace/overflowing", pinger, ct);
+        var edge = file.AsReference<ICSharpFileEdge>();
+        var source = pinger.GetGrainId().ToString();
+        await using var arrivals = await brain.Observe<CSharpPendingArrived>(file, ct);
+        await using var changes = await brain.Observe<CSharpFileChanged>(file, ct);
+
+        for (var number = 1; number <= 3; number++) { await pinger.Ping(number); }
+        await Arrivals(arrivals, 3, ct);
+        var atCap = Assert.Single((await file.Inspect(ct)).Subscriptions);
+        Assert.Equal((3, 0L, 0L), (atCap.Pending, atCap.Delivered, atCap.Dropped));   // nothing is dropped below the cap
+
+        await pinger.Ping(4);
+        await Arrivals(arrivals, 1, ct);
+
+        Assert.Equal("workspace/overflowing", (await changes.NextAsync(ct: ct)).FileId);   // the overflow is a published fact
+        var overflowed = Assert.Single((await file.Inspect(ct)).Subscriptions);
+        Assert.Equal((3, 1L, 1L), (overflowed.Pending, overflowed.Delivered, overflowed.Dropped));
+        var batch = await edge.DrainPending(sandbox.LatestRunId, source, nameof(Pinged));
+        Assert.Equal(4, batch.Watermark);
+        Assert.Equal([2, 3, 4], batch.Signals.Select(SignalJson.Number));
+    }
+
+    [Fact]
+    public async Task AnAcknowledgementOlderThanAnOverflowDoesNotDiscardTheNewestSignals()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new FakeSandbox();
+        await using var brain = await SandboxBrain.StartAsync(sandbox, ct, silo => silo.Services.PostConfigure<CSharpOptions>(options => options.MaximumPending = 3));
+        var pinger = brain.Get<IPinger>("pinger");
+        var file = await Subscribed(brain, sandbox, "workspace/racing", pinger, ct);
+        var edge = file.AsReference<ICSharpFileEdge>();
+        var source = pinger.GetGrainId().ToString();
+        await using var arrivals = await brain.Observe<CSharpPendingArrived>(file, ct);
+        for (var number = 1; number <= 3; number++) { await pinger.Ping(number); }
+        await Arrivals(arrivals, 3, ct);
+        var inFlight = await edge.DrainPending(sandbox.LatestRunId, source, nameof(Pinged));   // 1..3, watermark 3
+
+        await pinger.Ping(4);                                                                 // drops 1
+        await Arrivals(arrivals, 1, ct);
+        await edge.Acknowledge(sandbox.LatestRunId, source, nameof(Pinged), inFlight.Watermark);
+
+        var view = Assert.Single((await file.Inspect(ct)).Subscriptions);
+        Assert.Equal((1, 3L, 1L), (view.Pending, view.Delivered, view.Dropped));
+        Assert.Equal([4], (await edge.DrainPending(sandbox.LatestRunId, source, nameof(Pinged))).Signals.Select(SignalJson.Number));
+    }
+
+    [Fact]
+    public void TheCapIsAnOptionThatMustBeAtLeastOne()
+    {
+        Assert.Equal(64, new CSharpOptions().MaximumPending);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CSharpOptions { MaximumPending = 0 }.Validate());
+    }
+
+    private static async Task Arrivals<T>(SignalProbe<T> probe, int count, CancellationToken ct) where T : Signal
+    {
+        for (var i = 0; i < count; i++) { await probe.NextAsync(ct: ct); }
     }
 
     [Fact]

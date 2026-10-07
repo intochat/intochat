@@ -9,6 +9,8 @@ public sealed class CSharpOptions : IModuleOptions
     public string? SourceRoot { get; set; }
     // The IAspire neuron that starts the development sandbox and reports its URL.
     public string AspireApplication { get; set; } = "DigitalBrain";
+    // Signals buffered per subscription while nothing drains; past it the oldest is dropped and counted.
+    public int MaximumPending { get; set; } = 64;
 
     public CSharpOptions WithSandbox(string sourceRoot)
     {
@@ -17,7 +19,11 @@ public sealed class CSharpOptions : IModuleOptions
         return this;
     }
 
-    public void Validate() => ArgumentException.ThrowIfNullOrWhiteSpace(AspireApplication);
+    public void Validate()
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(AspireApplication);
+        ArgumentOutOfRangeException.ThrowIfLessThan(MaximumPending, 1);
+    }
 }
 
 // Deployment-owned values under the module's section; they are not user options, so they

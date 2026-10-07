@@ -5,6 +5,7 @@ using DigitalBrain.Client.Edge.V1;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Testing;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
@@ -372,6 +373,56 @@ public sealed class ScriptEdgeFacts
         try { await file.Start(ct); }
         finally { Orleans.Runtime.RequestContext.Clear(); }
         return sandbox.Requests.Last(FakeSandbox.IsStart).Body!["environment"]![DigitalBrainConfiguration.EnvironmentName(ScriptEdgeProtocol.TokenSetting)]!.GetValue<string>();
+    }
+
+    [Fact]
+    public async Task ABatchWhoseEdgeDiedMidwayIsRedeliveredAfterReconnectUntilItIsAcknowledged()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new FakeSandbox();
+        await using var brain = await Brain(sandbox, ct);
+        var edge = brain.SiloServices.GetRequiredService<ScriptEdge>();
+        const string fileId = "workspace-a/redelivery";
+        var token = await StartAsAlice(brain, sandbox, fileId, ct);
+        var file = brain.Get<ICSharpFile>(fileId);
+        var pinger = brain.Get<IPinger>("pinger");
+        var contract = typeof(IPinger).FullName!;
+
+        using var dying = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var firstConnection = await edge.OpenSignalsAsync(token, contract, "pinger", nameof(Pinged), dying.Token);
+        await using var arrivals = await brain.Observe<CSharpPendingArrived>(file, ct);
+        await pinger.Ping(1);
+        await pinger.Ping(2);
+        await arrivals.NextAsync(ct: ct);
+        await arrivals.NextAsync(ct: ct);
+        await using (var first = firstConnection.GetAsyncEnumerator(dying.Token))
+        {
+            // The connection dies after one signal of a two-signal batch was handed on.
+            Assert.Equal([1], (await ReadAsync(first, 1)).Select(SignalJson.Number));
+        }
+        await dying.CancelAsync();
+        Assert.Equal(2, Assert.Single((await file.Inspect(ct)).Subscriptions).Pending);
+
+        using var live = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var secondConnection = await edge.OpenSignalsAsync(token, contract, "pinger", nameof(Pinged), live.Token);
+        await using var second = secondConnection.GetAsyncEnumerator(live.Token);
+        Assert.Equal([1, 2], (await ReadAsync(second, 2)).Select(SignalJson.Number));
+
+        // Asking for more is what hands the batch over: the edge acknowledges, publishing CSharpFileChanged.
+        await using var changes = await brain.Observe<CSharpFileChanged>(file, ct);
+        var more = second.MoveNextAsync().AsTask();
+        await changes.NextAsync(ct: ct);
+        var view = Assert.Single((await file.Inspect(ct)).Subscriptions);
+        Assert.Equal((0, 2L), (view.Pending, view.Delivered));
+        await live.CancelAsync();
+        try { await more; } catch (OperationCanceledException) { }
+    }
+
+    private static async Task<string[]> ReadAsync(IAsyncEnumerator<string> stream, int count)
+    {
+        var items = new List<string>();
+        while (items.Count < count && await stream.MoveNextAsync()) { items.Add(stream.Current); }
+        return [.. items];
     }
 
     [Fact]

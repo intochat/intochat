@@ -73,7 +73,11 @@ internal sealed class ScriptEdge(RunTokens tokens, ScriptContracts contracts, IG
             var doorbellAlive = true;
             while (!cancellationToken.IsCancellationRequested)
             {
-                foreach (var json in await file.DrainPending(run, neuron, signal).ConfigureAwait(false)) { yield return json; }
+                var batch = await file.DrainPending(run, neuron, signal).ConfigureAwait(false);
+                foreach (var json in batch.Signals) { yield return json; }
+                // Resuming here means the consumer asked for more: every signal of the batch reached the stream.
+                // A connection that dies mid-batch never gets here, so the whole batch is drained again.
+                if (batch.Signals.Length > 0) { await file.Acknowledge(run, neuron, signal, batch.Watermark).ConfigureAwait(false); }
                 if (doorbellAlive)
                 {
                     ring ??= NextRingAsync(rings);

@@ -20,7 +20,7 @@ public sealed class CSharpFileSnapshotFacts
         await file.AsReference<ICSharpFileEdge>().Subscribed(sandbox.LatestRunId, pinger, nameof(Pinged));
 
         var inspected = await file.Inspect(ct);
-        Assert.Equal([new CSharpSubscriptionView(pinger, nameof(Pinged), 0)], inspected.Subscriptions);
+        Assert.Equal([new CSharpSubscriptionView(pinger, nameof(Pinged), 0, 0, 0)], inspected.Subscriptions);
         Assert.Equal("Console.WriteLine(1);", inspected.Source);
     }
 

@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using DigitalBrain.Client.Edge.V1;
 using DigitalBrain.Framework;
+using Microsoft.Extensions.Options;
 using Orleans.Timers;
 
 namespace DigitalBrain.Microsoft.CSharp;
@@ -14,13 +15,14 @@ internal sealed partial class CSharpFileNeuron(
     [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<CSharpFileState> store,
     ICSharpRunner runner,
     ScriptRunEnvironment environment,
-    IReminderRegistry reminders)
+    IReminderRegistry reminders,
+    IOptions<CSharpOptions> options)
     : Neuron<CSharpFileState>(store), ICSharpFile, ICSharpAppBinding, ICSharpFileTrigger, ICSharpFileEdge, IRemindable, INeuronObserver
 {
     public override NeuronAccess Access(string operation) =>
         // The script edge's inbound operations authenticate with the run token the edge has
         // already verified; the neuron re-checks the run id itself. Same rule as a webhook.
-        operation is nameof(ICSharpFileEdge.Authorize) or nameof(ICSharpFileEdge.Subscribed) or nameof(ICSharpFileEdge.DrainPending)
+        operation is nameof(ICSharpFileEdge.Authorize) or nameof(ICSharpFileEdge.Subscribed) or nameof(ICSharpFileEdge.DrainPending) or nameof(ICSharpFileEdge.Acknowledge)
             ? NeuronAccess.PublicOperation
         : Snapshot.AppBrain is { } appScope ? new(appScope)
         : Snapshot.OwnerContext is { } owner ? new(BrainScope.Create(owner.AccountId, owner.BrainId).Id)
@@ -34,7 +36,6 @@ internal sealed partial class CSharpFileNeuron(
 
     internal const int MaximumSourceBytes = 128 * 1024;
     internal const int MaximumFailures = 5;
-    internal const int MaximumPending = 64;
     internal const string ReconcileReminder = "reconcile";
     // Orleans reminders fire at most once a minute.
     internal static readonly TimeSpan ReconcilePeriod = TimeSpan.FromMinutes(1);
@@ -170,16 +171,20 @@ internal sealed partial class CSharpFileNeuron(
     {
         var json = JsonSerializer.Serialize(signal, signal.GetType(), ScriptEdgeProtocol.Json);
         var name = signal.GetType().Name;
-        var changed = false;
+        var cap = options.Value.MaximumPending;
+        var matched = false;
+        var overflowed = false;
         var next = Snapshot.Subscriptions.Select(s =>
         {
             if (s.Signal != name || s.Neuron != signal.Publisher.Name) { return s; }
-            changed = true;
-            var pending = s.Pending.Length >= MaximumPending ? s.Pending.Skip(1).Append(json) : s.Pending.Append(json);
-            return s with { Pending = pending.ToArray() };
+            matched = true;
+            var arrived = s.Arrive(json, cap);
+            overflowed |= arrived.Dropped > s.Dropped;
+            return arrived;
         }).ToArray();
-        if (!changed) { return; }
-        await Save(Snapshot with { Subscriptions = next }, new CSharpPendingArrived(FileId));
+        if (!matched) { return; }
+        // The arrival rings the doorbell; an overflow is also a durable change subscribers can see.
+        await Save(Snapshot with { Subscriptions = next }, new CSharpPendingArrived(FileId), overflowed ? new CSharpFileChanged(FileId) : null);
         await WakeAsync();
     }
 
@@ -215,22 +220,29 @@ internal sealed partial class CSharpFileNeuron(
         ArgumentException.ThrowIfNullOrWhiteSpace(signal);
         if (!Snapshot.Subscriptions.Any(existing => existing.Neuron == neuron && existing.Signal == signal))
         {
-            await Save(Snapshot with { Subscriptions = [.. Snapshot.Subscriptions, new(neuron, signal, [])] }, new CSharpFileChanged(FileId));
+            await Save(Snapshot with { Subscriptions = [.. Snapshot.Subscriptions, new(neuron, signal, [], 0, 0)] }, new CSharpFileChanged(FileId));
         }
         await WatchSourcesAsync();
     }
 
-    public async Task<IReadOnlyList<string>> DrainPending(string runId, string neuron, string signal)
+    public async Task<PendingBatch> DrainPending(string runId, string neuron, string signal)
     {
         await RequireSpeakingRun(runId);
         var subscription = Snapshot.Subscriptions.FirstOrDefault(s => s.Neuron == neuron && s.Signal == signal);
-        if (subscription is null or { Pending.Length: 0 }) { return []; }
-        var drained = subscription.Pending;
+        return subscription is null ? new([], 0) : new(subscription.Pending, subscription.Watermark);
+    }
+
+    public async Task Acknowledge(string runId, string neuron, string signal, long watermark)
+    {
+        await RequireSpeakingRun(runId);
+        var subscription = Snapshot.Subscriptions.FirstOrDefault(s => s.Neuron == neuron && s.Signal == signal);
+        if (subscription is null) { return; }
+        var trimmed = subscription.Acknowledge(watermark);
+        if (trimmed.Delivered == subscription.Delivered) { return; }
         await Save(Snapshot with
         {
-            Subscriptions = Snapshot.Subscriptions.Select(s => s == subscription ? s with { Pending = [] } : s).ToArray(),
+            Subscriptions = Snapshot.Subscriptions.Select(s => s == subscription ? trimmed : s).ToArray(),
         }, new CSharpFileChanged(FileId));
-        return drained;
     }
 
     private async Task RequireSpeakingRun(string runId)
@@ -392,7 +404,7 @@ internal sealed partial class CSharpFileNeuron(
             Snapshot is { ShouldRun: true, Trigger: null, Subscriptions.Length: 0 } && run is not { Status: CSharpFileStatus.Running } and not { Status: CSharpFileStatus.Exited, ExitCode: 0 }
                 ? CSharpFileStatus.Restarting : run.Status,
             run.ExitCode, run.StartedAt, Snapshot.ShouldRun, Snapshot.Failures, Snapshot.Trigger)
-        { Subscriptions = Snapshot.Subscriptions.Select(s => new CSharpSubscriptionView(s.Neuron, s.Signal, s.Pending.Length)).ToArray() };
+        { Subscriptions = Snapshot.Subscriptions.Select(s => new CSharpSubscriptionView(s.Neuron, s.Signal, s.Pending.Length, s.Delivered, s.Dropped)).ToArray() };
 
     [GeneratedRegex("^[A-Za-z0-9_]{1,128}$")]
     private static partial Regex SettingName();

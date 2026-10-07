@@ -22,5 +22,7 @@ public sealed record CSharpFileSnapshot(
 public sealed record CSharpSubscriptionView(
     [property: Id(0)] string Neuron,
     [property: Id(1)] string Signal,
-    [property: Id(2)] int Pending);
+    [property: Id(2)] int Pending,
+    [property: Id(3)] long Delivered,
+    [property: Id(4)] long Dropped);
 
