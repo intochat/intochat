@@ -1,16 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
-  <!-- The Dockerfile builds this project alone, outside the repository's Directory.Build.props,
-       so everything it needs is stated here and it takes no package or project references. -->
   <PropertyGroup>
-    <TargetFramework>net11.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Description>Sandbox host: compiles and runs single-file C# apps it receives over HTTP.</Description>
+    <Description>Sandbox host: one process holding each brain's session and its compiled behaviors.</Description>
     <RootNamespace>DigitalBrain.Modules.Microsoft.CSharp.Sandbox</RootNamespace>
-    <!-- The source-generated kill() import sends SIGTERM so dotnet run can stop the script gracefully. -->
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <!-- The protocol, the session connection and the client behaviors connect through; shared, never reloaded per behavior. -->
+    <ProjectReference Include="../../../../DigitalBrain.Client/DigitalBrain.Client/DigitalBrain.Client.csproj" />
     <InternalsVisibleTo Include="DigitalBrain.Modules.Microsoft.CSharp.Tests" />
   </ItemGroup>
 </Project>
