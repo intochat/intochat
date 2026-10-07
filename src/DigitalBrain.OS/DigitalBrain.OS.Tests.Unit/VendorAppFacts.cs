@@ -29,7 +29,7 @@ public sealed class VendorAppFacts
         foreach (var app in Source.Load())
         {
             var sources = new Dictionary<string, string>(app.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal)));
-            var result = new CSharpScriptCheck().Check(sources);
+            var result = new CSharpScriptCheck().Compile(sources);
             Assert.True(result.Success, $"{app.Name}: {string.Join("; ", result.Errors.Select(error => $"{error.File}:{error.Line} {error.Message}"))}");
         }
     }
@@ -40,14 +40,6 @@ public sealed class VendorAppFacts
     [Fact]
     public void TheResearcherPackageUsesOnlyPlatformContracts()
     {
-        string[] platform =
-        [
-            "/brain/src/DigitalBrain.Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps.Contracts/DigitalBrain.Modules.Apps.Contracts.csproj",
-            "/brain/src/DigitalBrain.Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Contracts/DigitalBrain.Modules.Flutter.Contracts.csproj",
-            "/brain/src/DigitalBrain.Modules/Microsoft/Playwright/DigitalBrain.Modules.Microsoft.Playwright.Contracts/DigitalBrain.Modules.Microsoft.Playwright.Contracts.csproj",
-            "/brain/src/DigitalBrain.Modules/AI/DigitalBrain.Modules.AI.Contracts/DigitalBrain.Modules.AI.Contracts.csproj",
-            "/brain/src/DigitalBrain.Modules/Postgres/DigitalBrain.Modules.Postgres.Contracts/DigitalBrain.Modules.Postgres.Contracts.csproj",
-        ];
         var researcher = Source.Load().Single(app => app.Name == "customer-researcher");
         Assert.Equal(["synapses/controls.cs", "synapses/research.cs", "synapses/surface.cs"],
             researcher.Files.Keys.Where(AppFiles.IsSynapse).Order(StringComparer.Ordinal));
@@ -55,8 +47,7 @@ public sealed class VendorAppFacts
         Assert.All(sources, source =>
         {
             Assert.DoesNotContain("CustomerResearcher.Contracts", source, StringComparison.Ordinal);
-            foreach (var directive in source.Split('\n').Select(line => line.Trim()).Where(line => line.StartsWith("#:project", StringComparison.Ordinal)))
-            { Assert.Contains(directive["#:project".Length..].Trim(), platform); }
+            Assert.DoesNotContain("#:", source, StringComparison.Ordinal);
         });
     }
 

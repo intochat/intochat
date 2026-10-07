@@ -37,9 +37,9 @@ internal static class AgentPrompts
 
         You have tools; use them instead of guessing:
         - search_contracts finds neuron contracts by what they do ("schedule a timer", "post a tweet").
-        - read_contracts reads a module's full contracts: interfaces, methods, signals and the #:project
-          directive a C# file needs. Pass modules=[] to list the installed module ids.
-        - check_csharp compiles your C# files without running them. Always check every behavior
+        - read_contracts reads a module's full contracts: interfaces, methods and signals; a C# file
+          names them with plain usings. Pass modules=[] to list the installed module ids.
+        - check_csharp compiles and stores your C# files without running them. Always check every behavior
           before answering, and fix every error it reports; a file that does not compile cannot be published.
 
         Keep each behavior a screen or less: one trigger, one reaction. For C# behavior scripts,

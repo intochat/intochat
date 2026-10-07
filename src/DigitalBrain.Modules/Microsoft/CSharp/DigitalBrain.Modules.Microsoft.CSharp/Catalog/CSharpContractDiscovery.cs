@@ -15,9 +15,8 @@ public sealed class CSharpContractDiscovery(ContractCatalog catalog, ModuleInven
     private const int ResponseBudget = 24000;
 
     public const string Example = """
-        #:project /brain/src/DigitalBrain.Modules/Time/DigitalBrain.Modules.Time.Contracts/DigitalBrain.Modules.Time.Contracts.csproj
-        // Add one #:project line per module whose contracts you use (copy them from Directive).
-        // DigitalBrain.Client is referenced for you; DigitalBrain, DigitalBrain.Client, and DigitalBrain are imported.
+        // Plain C#: every installed contract is referenced; name the ones you use with usings.
+        // System, collections, LINQ, tasks, DigitalBrain and DigitalBrain.Client are imported.
         using ITimer = DigitalBrain.Time.Timers.ITimer;
         using DigitalBrain.Time.Timers.Signals;
 

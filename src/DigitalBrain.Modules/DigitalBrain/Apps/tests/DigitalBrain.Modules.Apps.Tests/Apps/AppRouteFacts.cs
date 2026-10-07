@@ -217,6 +217,6 @@ public sealed class AppRouteFacts
         public string AuthoringDescription => "csharp uses sandbox contracts.";
         public Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken)
             => Task.FromResult(new ScriptContractCatalog([], [], ""));
-        public ScriptCompilationCheck Check(IReadOnlyDictionary<string, string> files) => new(true, []);
+        public Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken) => Task.FromResult(new ScriptCompilationCheck(true, []));
     }
 }

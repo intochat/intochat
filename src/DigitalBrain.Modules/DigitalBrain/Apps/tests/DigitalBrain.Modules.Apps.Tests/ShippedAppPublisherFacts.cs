@@ -180,10 +180,10 @@ public sealed class ShippedAppPublisherFacts
         public string AuthoringDescription => "";
         public Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken)
             => Task.FromResult(new ScriptContractCatalog([], [], ""));
-        public ScriptCompilationCheck Check(IReadOnlyDictionary<string, string> files)
-            => files.Values.Any(source => source.Contains("broken", StringComparison.Ordinal))
-                ? new(false, [new("synapses/echo.cs", "CS1002", 1, "; expected")])
-                : new(true, []);
+        public Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
+            => Task.FromResult(files.Values.Any(source => source.Contains("broken", StringComparison.Ordinal))
+                ? new ScriptCompilationCheck(false, [new("synapses/echo.cs", "CS1002", 1, "; expected")])
+                : new ScriptCompilationCheck(true, []));
     }
 
     private sealed class StartedLifetime : IHostApplicationLifetime

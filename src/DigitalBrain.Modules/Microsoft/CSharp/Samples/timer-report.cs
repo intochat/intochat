@@ -1,14 +1,8 @@
-#!/usr/bin/env dotnet
-#:project ../../../../DigitalBrain.Client/DigitalBrain.Client/DigitalBrain.Client.csproj
-#:project ../../../Time/DigitalBrain.Modules.Time.Contracts/DigitalBrain.Modules.Time.Contracts.csproj
-#:property PublishAot=false
-
 using DigitalBrain.Client;
 using DigitalBrain.Time.Timers.Signals;
 using ITimer = DigitalBrain.Time.Timers.ITimer;
 
-// Run it as a C# file: the sandbox supplies DigitalBrain:Edge and DigitalBrain:Token and references the
-// client project for you, so keep only the contracts #:project line there.
+// A behavior: the brain compiles it and loads it into its sandbox session; settings arrive with the assignment.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var timer = brain.Get<ITimer>(brain.Setting("TimerId") ?? "tea");
 var stopAfterFirstTick = brain.Setting("Smoke") == "true";

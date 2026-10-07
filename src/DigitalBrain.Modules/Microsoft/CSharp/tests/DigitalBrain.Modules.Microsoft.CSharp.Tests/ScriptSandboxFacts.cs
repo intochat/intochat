@@ -18,9 +18,9 @@ public sealed class ScriptSandboxFacts
         Assert.True(sandbox.CanRun);
         var contracts = await sandbox.ReadContracts(["csharp"], ct);
         Assert.Contains(contracts.Contracts, line => line.Contains(typeof(ICSharpFile).FullName!, StringComparison.Ordinal));
-        var invalid = sandbox.Check(new Dictionary<string, string> { ["app.cs"] = "Console.WriteLine(doesNotExist);" });
+        var invalid = await sandbox.Compile(new Dictionary<string, string> { ["app.cs"] = "Console.WriteLine(doesNotExist);" }, ct);
         Assert.False(invalid.Success);
         Assert.Contains(invalid.Errors, error => error.Id == "CS0103" && error.File == "app.cs");
-        Assert.True(sandbox.Check(new Dictionary<string, string> { ["app.cs"] = "Console.WriteLine(1);" }).Success);
+        Assert.True((await sandbox.Compile(new Dictionary<string, string> { ["app.cs"] = "Console.WriteLine(1);" }, ct)).Success);
     }
 }

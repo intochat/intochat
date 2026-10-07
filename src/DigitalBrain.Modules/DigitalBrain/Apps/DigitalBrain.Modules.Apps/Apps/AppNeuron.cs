@@ -225,19 +225,19 @@ internal sealed class AppNeuron(
         return Describe(Snapshot);
     }
 
-    public Task<AppBundle> Export()
+    public async Task<AppBundle> Export()
     {
         RequireCreated();
-        RequireCompiles();
+        await RequireCompiles();
         var manifest = Snapshot.Manifest!;
-        return Task.FromResult(new AppBundle(Name(), Snapshot.Version, manifest, Snapshot.Spec,
-            new(Snapshot.Files, StringComparer.Ordinal)));
+        return new AppBundle(Name(), Snapshot.Version, manifest, Snapshot.Spec,
+            new(Snapshot.Files, StringComparer.Ordinal));
     }
 
     public async Task<AppSnapshot> Publish()
     {
         RequireCreated();
-        RequireCompiles();
+        await RequireCompiles();
         if (!CallerContextStamper.TryGet(out var caller))
         { throw new InvalidOperationException("Publishing needs a signed-in publisher."); }
         if (BrainScope.Create(caller.AccountId, caller.BrainId).Id != BrainId())
@@ -511,7 +511,7 @@ internal sealed class AppNeuron(
 
     // The publish gate: every script in the bundle compiles against the installed contracts. A host
     // without a script compiler cannot run apps either, so it has nothing to refuse.
-    private void RequireCompiles()
+    private async Task RequireCompiles()
     {
         var scripts = Snapshot.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal))
             .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
@@ -519,7 +519,7 @@ internal sealed class AppNeuron(
         var sandbox = ServiceProvider.GetService<IScriptSandbox>();
         if (sandbox is null) { return; }
         ScriptCompilationCheck check;
-        try { check = sandbox.Check(scripts); }
+        try { check = await sandbox.Compile(scripts, CancellationToken.None); }
         catch (InvalidOperationException) { return; }
         if (check.Success) { return; }
         throw new InvalidOperationException($"Version {Snapshot.Version} does not compile: "

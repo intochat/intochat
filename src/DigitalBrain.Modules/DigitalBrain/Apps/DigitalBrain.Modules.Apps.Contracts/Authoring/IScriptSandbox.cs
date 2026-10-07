@@ -5,10 +5,15 @@ public interface IScriptSandbox
     bool CanRun { get; }
     string AuthoringDescription { get; }
     Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken);
-    ScriptCompilationCheck Check(IReadOnlyDictionary<string, string> files);
+    // Compiles and stores every file; Hashes maps each path to its stored assembly when Success.
+    Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken);
 }
 
-public sealed record ScriptContractModule(string Id, string? Directive);
+public sealed record ScriptContractModule(string Id);
 public sealed record ScriptContractCatalog(IReadOnlyList<ScriptContractModule> Modules, IReadOnlyList<string> Contracts, string Example, bool Truncated = false);
 public sealed record ScriptCompilationDiagnostic(string File, string Id, int Line, string Message);
-public sealed record ScriptCompilationCheck(bool Success, IReadOnlyList<ScriptCompilationDiagnostic> Errors);
+
+public sealed record ScriptCompilationCheck(bool Success, IReadOnlyList<ScriptCompilationDiagnostic> Errors)
+{
+    public IReadOnlyDictionary<string, string> Hashes { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
+}

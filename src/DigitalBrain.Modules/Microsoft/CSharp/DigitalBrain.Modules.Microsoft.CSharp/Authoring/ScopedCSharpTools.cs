@@ -16,10 +16,10 @@ public sealed class ScopedCSharpTools(IDigitalBrain brain, CSharpCatalogStore ca
 
     public bool CanRun => canRun;
 
-    [McpServerTool(Name = "csharp_contracts"), Description("Discover installed module IDs, neuron contracts with their signals, the #:project directive per module and an example single-file C# app. Pass modules=[] first, then select exact returned IDs (for example time and flutter).")]
+    [McpServerTool(Name = "csharp_contracts"), Description("Discover installed module IDs, neuron contracts with their signals and an example single-file C# app. Pass modules=[] first, then select exact returned IDs (for example time and flutter).")]
     public Task<CSharpContractCatalogSnapshot> Contracts(string[] modules, CancellationToken ct) => RequireModule().Read(modules, ct);
 
-    [McpServerTool(Name = "csharp_write"), Description("Save the full source of a single-file C# app and its readable name and purpose. The app connects with `await using var brain = await DigitalBrainClient.ConnectAsync(args);` and operates neurons through brain.Get<T>(id) and brain.On<TSignal>(neuron). Copy the #:project lines for the contracts you use from csharp_contracts. Saving does not restart a running app; use csharp_run start.")]
+    [McpServerTool(Name = "csharp_write"), Description("Save the full source of a single-file C# app and its readable name and purpose. The app connects with `await using var brain = await DigitalBrainClient.ConnectAsync(args);` and operates neurons through brain.Get<T>(id) and brain.On<TSignal>(neuron). Name the contracts you use with plain usings. Saving does not restart a running app; use csharp_run start.")]
     public async Task<CSharpFileView> Write(string id, string source, string? name, string? purpose, CancellationToken ct)
     {
         // The catalog enforces name, purpose and per-workspace limits before any source is stored.

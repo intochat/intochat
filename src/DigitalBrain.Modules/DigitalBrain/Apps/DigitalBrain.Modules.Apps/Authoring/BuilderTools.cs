@@ -16,9 +16,9 @@ internal static class BuilderTools
     [
         new(SearchContracts, "Search this brain's neuron contracts by what they do (for example \"schedule a timer\" or \"send an email\"). Returns matching contracts with their module id.",
             """{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}"""),
-        new(ReadContracts, "Read the full contracts of the given module ids: every neuron interface with its methods and signals, and the #:project directive a C# file needs to use them. Pass modules=[] to list the installed module ids.",
+        new(ReadContracts, "Read the full contracts of the given module ids: every neuron interface with its methods and signals; a C# file uses them with plain usings. Pass modules=[] to list the installed module ids.",
             """{"type":"object","properties":{"modules":{"type":"array","items":{"type":"string"}}},"required":["modules"]}"""),
-        new(CheckCSharp, "Compile the given C# files (path to full source, for example synapses/notify.cs) without running them. Returns the compile errors; fix them all before answering.",
+        new(CheckCSharp, "Compile and store the given C# files (path to full source, for example synapses/notify.cs) without running them. Returns the compile errors; fix them all before answering.",
             """{"type":"object","properties":{"files":{"type":"object","additionalProperties":{"type":"string"}}},"required":["files"]}"""),
     ];
 

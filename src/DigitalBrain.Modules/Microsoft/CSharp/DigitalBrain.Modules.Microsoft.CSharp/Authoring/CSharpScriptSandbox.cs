@@ -8,8 +8,7 @@ public sealed class CSharpScriptSandbox(CSharpToolService tools) : IScriptSandbo
     public string AuthoringDescription => """
         - "csharp": one C# file-based app per concern under "files" as "synapses/<name>.cs" (a single
                   synapse is fine). Each synapse answers invocations or reacts to signals through the brain
-                  client. The invocation-answering shape (change only the Answer function, keep the #:project line):
-                    #:project /brain/src/DigitalBrain.Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps.Contracts/DigitalBrain.Modules.Apps.Contracts.csproj
+                  client. Each is plain C#: usings name the contracts. The invocation-answering shape (change only the Answer function):
                     using DigitalBrain.Apps;
                     using DigitalBrain.Apps.Signals;
 
@@ -26,14 +25,16 @@ public sealed class CSharpScriptSandbox(CSharpToolService tools) : IScriptSandbo
     {
         var discovery = tools.Discovery ?? throw new InvalidOperationException("This host has no script contract discovery.");
         var catalog = await discovery.Read(modules, cancellationToken);
-        return new([.. catalog.Modules.Select(module => new ScriptContractModule(module.Id, module.Directive))],
+        return new([.. catalog.Modules.Select(module => new ScriptContractModule(module.Id))],
             catalog.Contracts, catalog.Example, catalog.Truncated);
     }
 
-    public ScriptCompilationCheck Check(IReadOnlyDictionary<string, string> files)
+    public Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
     {
         var checker = tools.Check ?? throw new InvalidOperationException("This host has no script compiler.");
-        var result = checker.Check(files);
-        return new(result.Success, [.. result.Errors.Select(error => new ScriptCompilationDiagnostic(error.File, error.Id, error.Line, error.Message))]);
+        var result = checker.Compile(files);
+        return Task.FromResult(new ScriptCompilationCheck(result.Success,
+            [.. result.Errors.Select(error => new ScriptCompilationDiagnostic(error.File, error.Id, error.Line, error.Message))])
+        { Hashes = result.Assemblies.ToDictionary(file => file.Key, file => file.Value.Hash, StringComparer.Ordinal) });
     }
 }

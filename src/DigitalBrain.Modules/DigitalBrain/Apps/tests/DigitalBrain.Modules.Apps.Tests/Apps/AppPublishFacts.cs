@@ -232,7 +232,7 @@ public sealed class AppPublishFacts
         public string AuthoringDescription => "";
         public Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken)
             => Task.FromResult(new ScriptContractCatalog([], [], ""));
-        public ScriptCompilationCheck Check(IReadOnlyDictionary<string, string> files)
-            => new(errors.Length == 0, [.. errors.Select(error => new ScriptCompilationDiagnostic(error.File, "CS0029", error.Line, error.Message))]);
+        public Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
+            => Task.FromResult(new ScriptCompilationCheck(errors.Length == 0, [.. errors.Select(error => new ScriptCompilationDiagnostic(error.File, "CS0029", error.Line, error.Message))]));
     }
 }

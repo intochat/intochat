@@ -159,7 +159,7 @@ internal sealed class Creator(
                 BuilderTools.ReadContracts => JsonSerializer.Serialize(
                     await Require(csharp).ReadContracts(Parse<BuilderTools.ReadArguments>(call.ArgumentsJson).Modules ?? [], cancellationToken), Json),
                 BuilderTools.CheckCSharp => JsonSerializer.Serialize(
-                    Require(csharp).Check(Parse<BuilderTools.CheckArguments>(call.ArgumentsJson).Files ?? new Dictionary<string, string>()), Json),
+                    await Require(csharp).Compile(Parse<BuilderTools.CheckArguments>(call.ArgumentsJson).Files ?? new Dictionary<string, string>(), cancellationToken), Json),
                 _ => throw new ArgumentException($"Unknown tool '{call.Name}'."),
             };
         }
