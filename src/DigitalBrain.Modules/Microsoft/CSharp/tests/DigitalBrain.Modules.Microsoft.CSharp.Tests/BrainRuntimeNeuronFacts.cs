@@ -21,11 +21,11 @@ public sealed class BrainRuntimeNeuronFacts
 
         await Edge(brain).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
 
-        var started = Assert.Single(host.Requests, FakeSessionHost.IsStart);
+        var started = await host.NextAsync(FakeSessionHost.IsStart, ct);
         Assert.Equal("http://edge.test/brains/acc-brain/", started.Body!["edgeUrl"]!.GetValue<string>());
         Assert.Equal(SessionStatus.Starting, (await Runtime(brain).Inspect(ct)).Session);
         await Edge(brain).Retire("acc-brain/csharp/a");
-        Assert.Contains(host.Requests, request => request.Path.EndsWith("/stop", StringComparison.Ordinal));
+        await host.NextAsync(FakeSessionHost.IsStop, ct);
         Assert.Equal(SessionStatus.None, (await Runtime(brain).Inspect(ct)).Session);
     }
 
@@ -42,7 +42,7 @@ public sealed class BrainRuntimeNeuronFacts
         Assert.Equal(CSharpFileStatus.Starting, (await Edge(brain).Describe("acc-brain/csharp/a"))!.Status);
         host.Absent = false;
         await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default);
-        Assert.Single(host.Requests, FakeSessionHost.IsStart);
+        await host.NextAsync(FakeSessionHost.IsStart, ct);
     }
 
     // Local blob storage listens on the developer's loopback, which a sandbox container cannot reach.
@@ -140,21 +140,55 @@ public sealed class BrainRuntimeNeuronFacts
         Assert.DoesNotContain(await Edge(brain).Assignments(session), assignment => assignment.Behavior == "acc-brain/csharp/a");
     }
 
-    [Fact]
-    public async Task AReminderRelaunchesASessionTheHostLost()
+    // The host forgot the session (its container was replaced): the reminder ensures the same session again.
+    [Fact(Timeout = 60_000)]
+    public async Task AReminderEnsuresTheSessionAgainWhenTheHostLostIt()
     {
         var ct = TestContext.Current.CancellationToken;
         var host = new FakeSessionHost();
         await using var brain = await RuntimeBrain.StartAsync(host, ct);
         await Edge(brain).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
-        var first = (await Runtime(brain).Inspect(ct)).SessionId;
+        var first = await host.NextAsync(FakeSessionHost.IsStart, ct);
         host.Sessions.Clear();
 
         await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default);
 
-        Assert.Equal(2, host.Requests.Count(FakeSessionHost.IsStart));
-        Assert.NotEqual(first, (await Runtime(brain).Inspect(ct)).SessionId);
-        Assert.False((await Edge(brain).Authorize(first!)).Active);
+        var again = await host.NextAsync(FakeSessionHost.IsStart, ct);
+        Assert.Equal(first.Body!["session"]!.GetValue<string>(), again.Body!["session"]!.GetValue<string>());
+    }
+
+    // Heartbeats are the detector: a session silent past the limit is replaced, and its token stops speaking.
+    [Fact(Timeout = 60_000)]
+    public async Task ASilentSessionIsReplacedByANewOne()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new FakeSessionHost();
+        var time = new MovableTime();
+        await using var brain = await RuntimeBrain.StartAsync(host, ct, time: time);
+        await Edge(brain).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
+        await host.NextAsync(FakeSessionHost.IsStart, ct);
+        var silent = (await Runtime(brain).Inspect(ct)).SessionId!;
+
+        time.Now += TimeSpan.FromMinutes(3);
+        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default);
+
+        var relaunched = await host.NextAsync(FakeSessionHost.IsStart, ct);
+        Assert.NotEqual(silent, relaunched.Body!["session"]!.GetValue<string>());
+        Assert.False((await Edge(brain).Authorize(silent)).Active);
+    }
+
+    // A sandbox endpoint that accepts connections and never answers must not hold the runtime's turn.
+    [Fact(Timeout = 30_000)]
+    public async Task AHangingSandboxNeverHoldsTheRuntime()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new FakeSessionHost { Hang = true };
+        await using var brain = await RuntimeBrain.StartAsync(host, ct);
+
+        await Edge(brain).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
+        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default);
+
+        Assert.Equal(SessionStatus.Starting, (await Runtime(brain).Inspect(ct)).Session);
     }
 
     [Fact]

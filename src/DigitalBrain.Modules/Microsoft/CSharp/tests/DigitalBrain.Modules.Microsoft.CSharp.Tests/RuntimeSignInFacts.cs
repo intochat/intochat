@@ -14,12 +14,13 @@ public sealed class RuntimeSignInFacts
         var host = new FakeSessionHost();
         await using var brain = await RuntimeBrain.StartAsync(host, ct);
         await brain.Grains().GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For("brain")).Assign("brain/csharp/a", "hash-a", [], null, null);
+        await host.NextAsync(FakeSessionHost.IsStart, ct);
         host.Sessions.Clear();
-        host.Requests.Clear();
 
         await SignInAsync(brain, ct);
 
-        Assert.Single(host.Requests, FakeSessionHost.IsStart);
+        await host.NextAsync(FakeSessionHost.IsStart, ct);
+        Assert.Single(host.Sessions);
     }
 
     [Fact(Timeout = 60_000)]

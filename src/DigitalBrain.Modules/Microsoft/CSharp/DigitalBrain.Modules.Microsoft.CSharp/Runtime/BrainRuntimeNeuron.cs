@@ -66,8 +66,7 @@ internal sealed class BrainRuntimeNeuron(
 
     public async Task Touch(CancellationToken cancellationToken = default)
     {
-        if (Snapshot.Behaviors.Length == 0) { return; }
-        if (Snapshot.Session is null or { Status: SessionStatus.Refused } || !await runner.Exists(Brain, cancellationToken)) { await EnsureSessionAsync(); }
+        if (Snapshot.Behaviors.Length > 0) { await EnsureSessionAsync(); }
     }
 
     public async Task Assign(string behavior, string hash, Dictionary<string, string> settings, CallerContext? owner, string? appId)
@@ -119,7 +118,7 @@ internal sealed class BrainRuntimeNeuron(
         {
             logger.LogError("Sandbox session {Session} of brain {Brain} carries other contracts than this silo; refused. Rebuild the sandbox image from this build.", session, Brain);
             await Save(Snapshot with { Session = Snapshot.Session! with { Status = SessionStatus.Refused, Fingerprint = fingerprint } }, Changed());
-            await StopHostAsync();
+            OffTurn(runner.Stop, Brain, "stop");
             return;
         }
         await Save(Snapshot with { Session = Snapshot.Session! with { Status = SessionStatus.Connected, Fingerprint = fingerprint, LastHeartbeat = time.GetUtcNow() } }, Changed());
@@ -231,11 +230,9 @@ internal sealed class BrainRuntimeNeuron(
         if (reminderName != ReconcileReminder) { return; }
         if (Snapshot.Behaviors.Length == 0) { await EndSessionAsync(); return; }
         if (_watched.Count == 0 && Snapshot.Subscriptions.Length > 0) { await WatchSourcesAsync(); }
-        var session = Snapshot.Session;
-        var silentSince = time.GetUtcNow() - SilenceLimit;
-        if (session is null || session.Status == SessionStatus.Refused || (session.LastHeartbeat ?? session.Started) < silentSince
-            || !await runner.Exists(Brain, CancellationToken.None))
-        { await EnsureSessionAsync(); return; }
+        var before = Snapshot.Session?.Id;
+        await EnsureSessionAsync();
+        if (Snapshot.Session is not { } session || session.Id != before) { return; }
         if (session.TokenIssued < time.GetUtcNow() - TokenRotation)
         {
             await Save(Snapshot with { Session = session with { TokenIssued = time.GetUtcNow() } }, Changed());
@@ -251,14 +248,34 @@ internal sealed class BrainRuntimeNeuron(
     }
 
     // A new session id per launch: the previous session's token stops speaking for this brain.
+    // One rule for assignment, sign-in and the reminder. A missing, refused or silent session is replaced by
+    // a new one (the old token stops speaking); a live one is ensured again, which the host treats as a no-op
+    // unless it lost the session. Heartbeats are the detector; nothing here probes the host.
     private async Task EnsureSessionAsync()
     {
-        var id = Guid.NewGuid().ToString("N");
-        await Save(Snapshot with { Session = new(id, SessionStatus.Starting, null, null, time.GetUtcNow(), time.GetUtcNow()) }, Changed());
-        await reminders.RegisterOrUpdateReminder(this.GetGrainId(), ReconcileReminder, ReconcilePeriod, ReconcilePeriod);
-        // A host that is not up yet is not this call's failure: the session stays Starting and the reminder retries.
-        try { await runner.Ensure(new(Brain, id, tokens.Issue(Brain, id), EdgeUrl()), CancellationToken.None); }
-        catch (HttpRequestException error) { logger.LogWarning(error, "The sandbox is not reachable for brain {Brain}; its reminder retries the session.", Brain); }
+        var session = Snapshot.Session;
+        if (session is null || session.Status == SessionStatus.Refused || Silent(session))
+        {
+            session = new(Guid.NewGuid().ToString("N"), SessionStatus.Starting, null, null, time.GetUtcNow(), time.GetUtcNow());
+            await Save(Snapshot with { Session = session }, Changed());
+            await reminders.RegisterOrUpdateReminder(this.GetGrainId(), ReconcileReminder, ReconcilePeriod, ReconcilePeriod);
+        }
+        OffTurn(runner.Ensure, new SessionStart(Brain, session.Id, tokens.Issue(Brain, session.Id), EdgeUrl()), "start");
+    }
+
+    private bool Silent(SessionRecord session) => (session.LastHeartbeat ?? session.Started) < time.GetUtcNow() - SilenceLimit;
+
+    // The sandbox is called off this runtime's turn: a host that is down, slow or behind a proxy that never
+    // answers must not hold the brain's runtime. A failure is the reminder's to retry.
+    private void OffTurn<T>(Func<T, CancellationToken, Task> call, T argument, string what)
+    {
+        var brain = Brain;
+        _ = Task.Run(async () =>
+        {
+            try { await call(argument, CancellationToken.None); }
+            catch (Exception error) when (error is HttpRequestException or TaskCanceledException)
+            { logger.LogWarning(error, "The sandbox did not {What} brain {Brain}'s session; its reminder retries.", what, brain); }
+        });
     }
 
     private async Task EndSessionAsync()
@@ -266,15 +283,8 @@ internal sealed class BrainRuntimeNeuron(
         if (await reminders.GetReminder(this.GetGrainId(), ReconcileReminder) is { } reminder)
         { await reminders.UnregisterReminder(this.GetGrainId(), reminder); }
         if (Snapshot.Session is null) { return; }
-        await StopHostAsync();
+        OffTurn(runner.Stop, Brain, "stop");
         await Save(Snapshot with { Session = null }, Changed());
-    }
-
-    // A host that is already gone has nothing left to stop.
-    private async Task StopHostAsync()
-    {
-        try { await runner.Stop(Brain, CancellationToken.None); }
-        catch (HttpRequestException error) { logger.LogWarning(error, "The sandbox is not reachable to stop brain {Brain}'s session.", Brain); }
     }
 
     private bool Speaks(string session)

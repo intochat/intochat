@@ -44,9 +44,11 @@ public sealed class RuntimeEdgeFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var host = new FakeSessionHost();
-        await using var brain = await RuntimeBrain.StartAsync(host, ct, http: true);
+        var time = new MovableTime();
+        await using var brain = await RuntimeBrain.StartAsync(host, ct, http: true, time: time);
         var stale = await Assigned(brain, ct);
-        host.Sessions.Clear();
+        // Silent past the limit: the next touch replaces the session.
+        time.Now += TimeSpan.FromMinutes(3);
         await brain.Get<IBrainRuntime>(BrainRuntimeKeys.For("acc-brain")).Touch(ct);
 
         using var response = await Report(brain, stale, new RuntimeReport(Heartbeat: true), ct);

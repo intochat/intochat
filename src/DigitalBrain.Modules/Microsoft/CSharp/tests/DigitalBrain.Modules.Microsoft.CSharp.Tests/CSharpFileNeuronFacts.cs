@@ -23,7 +23,7 @@ public sealed class CSharpFileNeuronFacts
         Assert.True(started.ShouldRun);
         var view = await Edge(brain).Describe("acc-brain/csharp/report");
         Assert.Equal(started.Hash, view!.Hash);
-        Assert.Single(host.Requests, FakeSessionHost.IsStart);
+        await host.NextAsync(FakeSessionHost.IsStart, ct);
         var assignment = Assert.Single(await Edge(brain).Assignments((await brain.Get<IBrainRuntime>(BrainRuntimeKeys.For("acc-brain")).Inspect(ct)).SessionId!));
         Assert.Equal("tea", assignment.Settings["TimerId"]);
     }
