@@ -37,8 +37,8 @@ public sealed class CSharpSubscriptionFacts
 
         var staleResearch = await Replay(researchFirst: true);
         var freshResearch = await Replay(researchFirst: false);
-        Assert.Equal([1, 1], staleResearch.Select(SignalJson.Number));
-        Assert.Equal(staleResearch.Select(SignalJson.Number), freshResearch.Select(SignalJson.Number));
+        Assert.Equal(new[] { "{\"number\":1}", "{\"number\":1}" }, staleResearch);
+        Assert.Equal(staleResearch, freshResearch);
     }
 
     [Fact]
@@ -327,7 +327,7 @@ public sealed class CSharpSubscriptionFacts
         await file.Start(ct);
 
         await Assert.ThrowsAsync<ArgumentException>(() => file.AsReference<ICSharpFileEdge>()
-            .Subscribed(sandbox.LatestRunId, file.GetGrainId().ToString(), nameof(CSharpFileChanged)));
+            .Subscribed(sandbox.LatestRunId, file.GetGrainId().ToString(), nameof(SynapseChanged)));
     }
 
     private static Task Reconcile(ICSharpFile file)
