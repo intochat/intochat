@@ -16,7 +16,60 @@ public sealed class StorageHookFacts
             Retired.Add((brainId, appKey, storageKeys));
             return Task.CompletedTask;
         }
+
+        public List<string> Rebinds { get; } = [];
+        public bool Refuse { get; set; }
+
+        public Task RequireRebindable(string brainId, string appKey, string slot, CancellationToken cancellationToken)
+        {
+            Rebinds.Add(slot);
+            return Refuse ? throw new InvalidOperationException("The data depends on this binding.") : Task.CompletedTask;
+        }
     }
+
+    [Fact]
+    public async Task ConfigureAsksStorageHooksBeforeChangingASlotBinding()
+    {
+        var hook = new RecordingHook();
+        await using var brain = await StartWith(hook);
+        var app = brain.Get<IApp>(IApp.Key("hook-facts", "rebound"));
+        await app.Create(new("Rebound", "rebound", [], [], [new("db", "postgres")]), "## Scenario: Binds\nIt binds.");
+
+        await app.Configure([], new() { ["db"] = "c1" });
+        await app.Configure([], new() { ["db"] = "c1" });
+        await app.Configure(new() { ["Text"] = "settings alone" }, []);
+        Assert.Equal(["db"], hook.Rebinds);
+
+        await app.Configure([], new() { ["db"] = "c2" });
+        Assert.Equal(["db", "db"], hook.Rebinds);
+    }
+
+    [Fact]
+    public async Task ARefusingHookLeavesTheBindingUnchanged()
+    {
+        var hook = new RecordingHook();
+        await using var brain = await StartWith(hook);
+        var app = brain.Get<IApp>(IApp.Key("hook-facts", "refused"));
+        await app.Create(new("Refused", "refused", [], [], [new("db", "postgres")]), "## Scenario: Binds\nIt binds.");
+        await app.Configure([], new() { ["db"] = "c1" });
+
+        hook.Refuse = true;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => app.Configure(new() { ["Text"] = "new" }, new() { ["db"] = "c2" }));
+
+        var snapshot = await app.Read();
+        Assert.Equal("c1", snapshot.Connections["db"]);
+        Assert.False(snapshot.Settings.ContainsKey("Text"));
+    }
+
+    private static Task<ModuleBrain> StartWith(RecordingHook hook)
+        => ModuleTest.Create().WithModule<AppsModule>()
+            .ConfigureSilo(silo =>
+            {
+                silo.Services.RemoveAll<IDeployableRuntime>();
+                silo.Services.AddSingleton<IDeployableRuntime>(new DeployableRuntimeFacts.FakeRuntime());
+                silo.Services.AddSingleton<IAppStorageHook>(hook);
+            })
+            .StartAsync(TestContext.Current.CancellationToken);
 
     [Fact]
     public async Task ADeleteDrivesTheRegisteredStorageHookWithTheAppsKeys()

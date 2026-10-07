@@ -120,6 +120,13 @@ internal sealed class AppNeuron(
     public async Task<AppSnapshot> Configure(Dictionary<string, string> settings, Dictionary<string, string> connections)
     {
         RequireCreated();
+        // A storage hook vetoes a binding change its data depends on, before anything changes.
+        foreach (var (slot, id) in connections ?? [])
+        {
+            if (Snapshot.Connections.TryGetValue(slot, out var current) && current == id) { continue; }
+            foreach (var hook in storageHooks)
+            { await hook.RequireRebindable(Snapshot.BrainScopeId ?? "", this.GetPrimaryKeyString(), slot, CancellationToken.None); }
+        }
         var next = Snapshot.Clone();
         foreach (var (name, value) in settings ?? []) { next.Settings[name] = value; }
         foreach (var (slot, id) in connections ?? []) { next.Connections[slot] = id; }

@@ -6,4 +6,7 @@ namespace DigitalBrain.Apps;
 public interface IAppStorageHook
 {
     Task OnRetired(string brainId, string appKey, string[] storageKeys, CancellationToken cancellationToken);
+
+    // Throws when the app's stored data depends on the slot's current binding.
+    Task RequireRebindable(string brainId, string appKey, string slot, CancellationToken cancellationToken) => Task.CompletedTask;
 }
