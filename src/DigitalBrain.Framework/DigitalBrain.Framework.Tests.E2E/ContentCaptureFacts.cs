@@ -15,8 +15,6 @@ namespace DigitalBrain.Framework.Tests.E2E;
 public sealed class ContentCaptureFacts
 {
     private const string OrdinaryContent = "Show active leads";
-    private static readonly string EnableSensitiveKey =
-        DigitalBrainConfiguration.EnvironmentName(AIKeys.TelemetryEnableSensitiveData);
 
     [Theory(Timeout = 300_000)]
     [InlineData(true)]
@@ -26,15 +24,7 @@ public sealed class ContentCaptureFacts
         var ct = TestContext.Current.CancellationToken;
         await using var collector = TestTelemetryCollector.Start();
         await using var model = await ScriptedModelServer.StartAsync(ct);
-        await using var brain = await CaptureTest.CreateAsync(model, collector, new Dictionary<string, string>
-        {
-            ["ASPNETCORE_ENVIRONMENT"] = "Production",
-            [DigitalBrainConfiguration.EnvironmentName(ModuleSettingsValidation.TestingSectionPrefix + "Enabled")] = "true",
-            ["IntoChat__Profile"] = "developer",
-            [EnableSensitiveKey] = enabled ? "true" : "false",
-            // An ambient SDK setting cannot override the explicit module setting.
-            ["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = "true",
-        }, ct);
+        await using var brain = await CaptureTest.CreateAsync(model, collector, enabled, ct);
         await UserConnections.AuthorizeDatabaseAsync(brain, "capture", ct);
         await LeadData.SeedAsync(brain, "Capture", ct);
         // A person talks to the assistant app; its answer is the started run's id.
@@ -64,20 +54,18 @@ public sealed class ContentCaptureFacts
 
     private static class CaptureTest
     {
+        // Every boot already carries OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true from Aspire,
+        // so the ambient SDK setting never overrides the explicit module setting in either case.
         public static Task<E2EBrain> CreateAsync(ScriptedModelServer model, TestTelemetryCollector collector,
-            IReadOnlyDictionary<string, string> environment, CancellationToken ct)
-        {
-            var primary = new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["OTEL_EXPORTER_OTLP_ENDPOINT"] = collector.Endpoint.AbsoluteUri,
-                ["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/protobuf",
-                [EnableSensitiveKey] = "true",
-            };
-            foreach (var (key, value) in environment) { primary[key] = value; }
-            return ReferenceBrain.Create()
-                .ConfigureModule<AIModule, AIOptions>(ai => ai.WithModelEndpoint(AiProvider.OpenAI, model.Endpoint))
-                .WithResourceEnvironment(primary)
+            bool enableSensitiveData, CancellationToken ct)
+            => ReferenceBrain.Create()
+                .ConfigureModule<AIModule, AIOptions>(ai =>
+                {
+                    ai.WithModelEndpoint(AiProvider.OpenAI, model.Endpoint);
+                    ai.Telemetry.EnableSensitiveData = enableSensitiveData;
+                })
+                .InEnvironment("Production")
+                .ExportingTelemetryTo(collector)
                 .StartAsync(ct);
-        }
     }
 }

@@ -14,7 +14,6 @@ namespace DigitalBrain.Framework.Tests.E2E;
 // Orleans activity source is registered once (a duplicate doubles every call).
 public sealed class TraceBudgetFacts
 {
-    private const string OtlpEndpointKey = "OTEL_EXPORTER_OTLP_ENDPOINT";
     private const string OrleansSource = "Microsoft.Orleans.Application";
 
     [Fact(Timeout = 420_000)]
@@ -25,7 +24,7 @@ public sealed class TraceBudgetFacts
         await using var model = await ScriptedModelServer.StartAsync(ct);
         await using var brain = await ReferenceBrain.Create()
             .ConfigureModule<AIModule, AIOptions>(ai => ai.WithModelEndpoint(AiProvider.OpenAI, model.Endpoint))
-            .WithResourceEnvironment(OtlpEnvironment(collector))
+            .ExportingTelemetryTo(collector)
             .StartAsync(ct);
 
         await UserConnections.AuthorizeDatabaseAsync(brain, "trace", ct);
@@ -66,7 +65,7 @@ public sealed class TraceBudgetFacts
         var ct = TestContext.Current.CancellationToken;
         await using var collector = TestTelemetryCollector.Start();
         await using var brain = await ReferenceBrain.Create()
-            .WithResourceEnvironment(OtlpEnvironment(collector))
+            .ExportingTelemetryTo(collector)
             .StartAsync(ct);
 
         // The model catalog route drives exactly one silo-internal grain call. Warm the
@@ -102,12 +101,6 @@ public sealed class TraceBudgetFacts
             .Where(span => string.Equals(span.Scope, OrleansSource, StringComparison.Ordinal)
                 && string.Equals(span.Name, "IModelCatalog/List", StringComparison.Ordinal))
             .ToArray();
-
-    private static Dictionary<string, string> OtlpEnvironment(TestTelemetryCollector collector) => new(StringComparer.Ordinal)
-    {
-        [OtlpEndpointKey] = collector.Endpoint.AbsoluteUri,
-        ["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/protobuf",
-    };
 
 
     private static string Describe(IEnumerable<CapturedSpan> spans)

@@ -145,13 +145,6 @@ public sealed class AspireTestSession : IAsyncDisposable
                     resource.Annotations.Add(new EnvironmentCallbackAnnotation(context =>
                         context.EnvironmentVariables[ServerHostingExtensions.ConfigurationFileEnvironmentVariable] = privateSettings.FilePath));
                 }
-                if (options.ResourceEnvironment.Count > 0)
-                {
-                    resource.Annotations.Add(new EnvironmentCallbackAnnotation(context =>
-                    {
-                        foreach (var (key, value) in options.ResourceEnvironment) { context.EnvironmentVariables[key] = value; }
-                    }));
-                }
                 // The AppHost publishes a fixed port. A testing builder also copies launchSettings ports,
                 // so clear both or every session binds the same endpoint. The endpoint also stays
                 // unproxied: the proxy buffers the Aspire bridge's SSE command stream, so commands

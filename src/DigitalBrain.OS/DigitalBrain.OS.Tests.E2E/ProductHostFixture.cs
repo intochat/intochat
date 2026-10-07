@@ -21,10 +21,6 @@ public sealed class ProductHostFixture : ReferenceBrainFixture
             .WithHostConfiguration(FlutterHostOptions.WebContainerKey, "true")
             .WithBrowser(new() { PrimarySession = false, AssertionTimeout = TimeSpan.FromMinutes(2) })
             .WithStartupTimeout(TimeSpan.FromMinutes(15))
-            .WithResourceEnvironment(new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["OTEL_EXPORTER_OTLP_ENDPOINT"] = Collector.Endpoint.AbsoluteUri,
-                ["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/protobuf",
-            })
+            .ExportingTelemetryTo(Collector)
             .StartAsync(cancellationToken);
 }
