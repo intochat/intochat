@@ -16,6 +16,18 @@ namespace DigitalBrain.Microsoft.CSharp;
 public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp")), IHttpModule
 {
     public static IntegrationSchema Integration => IntegrationSchema.For("csharp", "CSharp run tokens").RequiresSecret("RunTokenKey");
+
+    // The sandbox is the external system behind ICSharpFile, the way Gmail is behind IGmail. Its only
+    // credential is the deployment's run-token key, so there is nothing for a user to authorize beyond
+    // the token a run is issued; Platform requires one auth method, and "run-token" names that one.
+    public static ConnectorDefinition Connector { get; } = new("csharp", "C# sandbox", ["run-token"], [])
+    {
+        ExternalSystem = "C# sandbox",
+        OptionalIntegrations = ["csharp"],
+        Neurons = [typeof(ICSharpFile)],
+        Signals = [typeof(CSharpFileChanged)],
+    };
+
     public override void Configure(ISiloBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
