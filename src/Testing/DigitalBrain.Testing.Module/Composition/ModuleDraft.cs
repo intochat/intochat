@@ -1,14 +1,16 @@
+using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
+using ModuleContract = DigitalBrain.Framework.Module;
 
-namespace DigitalBrain.Framework;
+namespace DigitalBrain.Testing.Module;
 
 internal sealed class ModuleDraft
 {
-    public Module Module { get; }
+    public ModuleContract Module { get; }
     public ModuleOptionsSlot? Options { get; private init; }
     public List<Action<IServiceCollection>> LocalServices { get; } = [];
 
-    public ModuleDraft(Module module)
+    public ModuleDraft(ModuleContract module)
     {
         Module = module;
         Options = ModuleOptionsSlot.For(module.GetType());

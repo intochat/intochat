@@ -1,4 +1,6 @@
-namespace DigitalBrain.Framework;
+using DigitalBrain.Framework;
+
+namespace DigitalBrain.Testing.Module;
 
 public static class ModuleComposition
 {

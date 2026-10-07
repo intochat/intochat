@@ -1,6 +1,7 @@
 using System.Text.Json;
+using DigitalBrain.Framework;
 
-namespace DigitalBrain.Framework;
+namespace DigitalBrain.Testing.Module;
 
 internal abstract class ModuleOptionsSlot
 {

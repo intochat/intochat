@@ -1,8 +1,10 @@
+using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
+using ModuleContract = DigitalBrain.Framework.Module;
 
-namespace DigitalBrain.Framework;
+namespace DigitalBrain.Testing.Module;
 
-public sealed class ModuleConfiguration<TModule> where TModule : Module, new()
+public sealed class ModuleConfiguration<TModule> where TModule : ModuleContract, new()
 {
     private readonly ModuleDraft _draft;
     internal ModuleConfiguration(ModuleDraft draft) => _draft = draft;

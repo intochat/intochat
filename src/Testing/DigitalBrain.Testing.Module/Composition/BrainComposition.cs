@@ -1,6 +1,7 @@
+using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace DigitalBrain.Framework;
+namespace DigitalBrain.Testing.Module;
 
 public sealed class BrainComposition
 {
