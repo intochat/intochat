@@ -9,16 +9,14 @@ internal sealed class KernelNeuron(
     IEnumerable<ICreationHandler> creation,
     ILogger<KernelNeuron> logger) : Neuron<State>(store), IKernel
 {
-    internal bool IsCreated => Exists;
-
     public Task<State> Read()
-        => Task.FromResult(IsCreated ? Snapshot : throw new InvalidOperationException("This brain has not been created."));
+        => Task.FromResult(Exists ? Snapshot : throw new InvalidOperationException("This brain has not been created."));
 
     public async Task Create(Owner owner)
     {
         ArgumentNullException.ThrowIfNull(owner);
         RequireCreator(owner);
-        if (IsCreated) { return; }
+        if (Exists) { return; }
         var created = new Created(owner);
         await Save(new State(owner, DateTimeOffset.UtcNow), created);
         foreach (var handler in creation)
@@ -31,7 +29,7 @@ internal sealed class KernelNeuron(
         await PublishAsync(new Activated(owner));
     }
 
-    internal Task Woke() => IsCreated ? PublishAsync(new Activated(Snapshot.Owner)) : Task.CompletedTask;
+    internal Task Woke() => Exists ? PublishAsync(new Activated(Snapshot.Owner)) : Task.CompletedTask;
 
     // Creating is the platform's act, or the owner's own. Host code with no stamped caller is trusted.
     private static void RequireCreator(Owner owner)
