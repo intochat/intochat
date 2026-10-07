@@ -22,7 +22,8 @@ internal sealed class IdentityDirectoryNeuron : Neuron, IIdentityDirectory
     public async Task<Member?> FindMemberAsync(string principalId, string accountId, string brainId, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return await GrainFactory.GetGrain<IBrainAuthority>(BrainScope.Create(accountId, brainId).Id).Membership(principalId);
+        return await GrainFactory.GetGrain<IBrainAuthority>(BrainScope.Create(accountId, brainId).Id).Membership(principalId) is { } member
+            && member.AccountId == accountId ? member : null;
     }
     public async Task<bool> CanAccessAsync(string principalId, string accountId, string brainId, CancellationToken cancellationToken = default)
         => await FindMemberAsync(principalId, accountId, brainId, cancellationToken) is not null;

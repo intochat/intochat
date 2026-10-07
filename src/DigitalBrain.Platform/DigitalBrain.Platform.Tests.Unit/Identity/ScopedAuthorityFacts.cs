@@ -88,15 +88,17 @@ public sealed class ScopedAuthorityFacts
     }
 
     [Fact]
-    public async Task SameBrainNameInAnotherAccountDoesNotShareMembership()
+    public async Task ABrainIdBelongsToOneAccountAndAnotherCannotClaimOrReachIt()
     {
-        await using var brain = await ModuleTest.Create().StartAsync(TestContext.Current.CancellationToken);
-        var first = brain.Get<IBrainAuthority>(BrainScope.Create("first", "shared-name").Id);
-        var second = brain.Get<IBrainAuthority>(BrainScope.Create("second", "shared-name").Id);
-        await first.EnsureMember(new Member { PrincipalId = "alice", AccountId = "first", BrainId = "shared-name", DisplayName = "Alice", Role = MemberRole.Owner });
-        await second.Initialize("second", "shared-name");
-        Assert.NotNull(await first.Membership("alice"));
-        Assert.Null(await second.Membership("alice"));
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        var authority = brain.Get<IBrainAuthority>(BrainScope.Create("first", "shared-name").Id);
+        await authority.EnsureMember(new Member { PrincipalId = "alice", AccountId = "first", BrainId = "shared-name", DisplayName = "Alice", Role = MemberRole.Owner });
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => brain.Get<IBrainAuthority>(BrainScope.Create("second", "shared-name").Id).Initialize("second", "shared-name"));
+        var access = brain.SiloServices.GetRequiredService<IBrainAccess>();
+        Assert.True(await access.CanAccessAsync("alice", "first", "shared-name", ct));
+        Assert.False(await access.CanAccessAsync("alice", "second", "shared-name", ct));
     }
 
     [Fact]
