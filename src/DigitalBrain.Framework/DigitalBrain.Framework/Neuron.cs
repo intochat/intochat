@@ -54,16 +54,14 @@ public abstract class Neuron : Grain, INeuron
     }
 }
 
-public abstract class Neuron<TState>(IPersistentState<TState> store) : Neuron where TState : class, new()
+// Storage hands back a non-null record before the first write: built with the state's parameterless
+// constructor when it has one, uninitialized otherwise.
+public abstract class Neuron<TState>(IPersistentState<TState> store) : Neuron where TState : class
 {
-    protected TState Snapshot
-    {
-        get
-        {
-            store.State ??= new TState();
-            return store.State;
-        }
-    }
+    protected TState Snapshot => store.State;
+
+    // Existence is the record's, not the object's.
+    protected bool Exists => store.RecordExists;
 
     protected async Task Save(TState next, Signal changed, Signal? acted = null)
     {
