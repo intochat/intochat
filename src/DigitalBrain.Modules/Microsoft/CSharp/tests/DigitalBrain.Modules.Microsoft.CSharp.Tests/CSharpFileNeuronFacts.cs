@@ -23,7 +23,7 @@ public sealed class CSharpFileNeuronFacts
         var sandbox = new FakeSandbox();
         await using var brain = await Brain(sandbox, ct);
         var file = brain.Get<ICSharpFile>("workspace/report");
-        await using var changes = await brain.Observe<SynapseChanged>(file, ct);
+        await using var changes = await brain.Observe<CSharpFileChanged>(file, ct);
 
         await file.Write("Console.WriteLine(\"hi\");", ct);
         await file.Configure(new Dictionary<string, string> { ["TimerId"] = "tea" }, ct);
@@ -34,7 +34,7 @@ public sealed class CSharpFileNeuronFacts
         var start = Assert.Single(sandbox.Requests, FakeSandbox.IsStart);
         Assert.Equal("Console.WriteLine(\"hi\");", start.Body!["source"]!.GetValue<string>());
         Assert.Equal("tea", start.Body["environment"]!["CSharpFile__Settings__TimerId"]!.GetValue<string>());
-        Assert.Equal("workspace/report", (await changes.NextAsync(ct: ct)).SynapseId);
+        Assert.Equal("workspace/report", (await changes.NextAsync(ct: ct)).FileId);
         Assert.Equal("hi", await file.ReadLogs(cancellationToken: ct));
 
         await file.Delete(ct);

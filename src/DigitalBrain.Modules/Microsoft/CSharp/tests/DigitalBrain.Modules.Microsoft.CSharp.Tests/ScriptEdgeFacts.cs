@@ -176,7 +176,7 @@ public sealed class ScriptEdgeFacts
 
         await foreach (var signal in signals)
         {
-            Assert.Equal("""{"number":5}""", signal);
+            Assert.Equal(5, SignalJson.Number(signal));
             break;
         }
         await stop.CancelAsync();
@@ -375,18 +375,16 @@ public sealed class ScriptEdgeFacts
     }
 
     [Fact]
-    public async Task AScriptCanCallReadOnASynapseAndInspectOnTheCSharpFileWithoutAmbiguity()
+    public async Task AScriptCanCallInspectOnTheCSharpFile()
     {
         var ct = TestContext.Current.CancellationToken;
         var sandbox = new FakeSandbox();
         await using var brain = await SandboxBrain.StartAsync(sandbox, ct, silo => silo.Services.AddSingleton(new ScriptContracts([typeof(IPinger).Assembly, typeof(ICSharpFile).Assembly])));
-        const string fileId = "workspace/synapses/edge-read";
+        const string fileId = "workspace-a/files/edge-inspect";
         var token = await StartAsAlice(brain, sandbox, fileId, ct);
         var edge = brain.SiloServices.GetRequiredService<ScriptEdge>();
-        var synapse = await edge.InvokeAsync(token, (typeof(ICSharpFile).FullName!, fileId, nameof(ISynapse.Read), []), ct);
-        Assert.True(synapse!.Value.TryGetProperty("program", out _));
-        var rich = await edge.InvokeAsync(token, (typeof(ICSharpFile).FullName!, fileId, nameof(ICSharpFile.Inspect), []), ct);
-        Assert.True(rich!.Value.TryGetProperty("status", out _));
+        var inspected = await edge.InvokeAsync(token, (typeof(ICSharpFile).FullName!, fileId, nameof(ICSharpFile.Inspect), []), ct);
+        Assert.True(inspected!.Value.TryGetProperty("status", out _));
     }
 
     [Fact]

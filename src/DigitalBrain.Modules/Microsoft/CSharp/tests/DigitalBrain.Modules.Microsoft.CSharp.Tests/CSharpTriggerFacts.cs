@@ -26,8 +26,8 @@ public sealed class CSharpTriggerFacts
         await Eventually(() => sandbox.Started == 2, ct);
 
         var runs = sandbox.Requests.Where(FakeSandbox.IsStart).ToArray();
-        Assert.Equal("""{"number":7}""", runs[0].Body!["environment"]!["CSharpFile__Trigger"]!.GetValue<string>());
-        Assert.Equal("""{"number":8}""", runs[1].Body!["environment"]!["CSharpFile__Trigger"]!.GetValue<string>());
+        Assert.Equal(7, SignalJson.Number(runs[0].Body!["environment"]!["CSharpFile__Trigger"]!.GetValue<string>()));
+        Assert.Equal(8, SignalJson.Number(runs[1].Body!["environment"]!["CSharpFile__Trigger"]!.GetValue<string>()));
     }
 
     [Fact]
