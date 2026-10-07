@@ -34,6 +34,9 @@ public static class CallerContextStamper
             ? context
             : throw new UntrustedCallerException("No caller context was stamped at a trusted edge.");
 
+    // A call the agent runtime makes on a model's behalf carries the conversation it serves.
+    public static bool IsModelOriginated(CallerContext caller) => caller.ConversationId is not null;
+
     public static bool IsTrusted(CallerContext context) =>
         !string.IsNullOrWhiteSpace(context.PrincipalId)
         && !string.IsNullOrWhiteSpace(context.AccountId)

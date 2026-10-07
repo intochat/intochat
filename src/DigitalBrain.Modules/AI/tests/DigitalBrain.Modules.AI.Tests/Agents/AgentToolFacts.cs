@@ -20,94 +20,38 @@ public sealed class AgentToolFacts
     }
 
     [Fact]
-    public async Task AnUnserializableResultStillTerminatesTheToolAttempt()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await AgentFacts.Brain(ScriptedClient(), ct, services => services.AddSingleton<IAgentToolFactory>(new UnserializableTool()));
-        var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
-        var events = await AgentFacts.Collect(agent, AgentTurn.Text("ask", tools: ["lookup"]), ct);
-        Assert.Single(events.OfType<AgentTurnEvent.ToolStarted>());
-        Assert.Single(events.OfType<AgentTurnEvent.ToolFailed>());
-        Assert.Single(events.OfType<AgentTurnEvent.Failed>());
-        Assert.Empty(events.OfType<AgentTurnEvent.ToolCompleted>());
-        Assert.Equal("tool_failed", Assert.Single((await agent.Read()).Runs[^1].ToolCalls).Code);
-    }
-
-    private sealed class UnserializableTool : IAgentToolFactory
-    {
-        public IReadOnlyList<AIFunction> Create(Func<AgentToolContext> context) =>
-            [AIFunctionFactory.Create(() => new { unsupported = typeof(AgentToolFacts) }, new AIFunctionFactoryOptions
-            { Name = "lookup", MarshalResult = static (value, _, _) => ValueTask.FromResult(value) })];
-    }
-
-    [Fact]
     public async Task ToolDoesNotExecuteUntilTheAgentHasRecordedItsStart()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await AgentFacts.Brain(ScriptedClient(), ct, services => services.AddSingleton<IAgentToolFactory, RecordedStartTools>());
-        var events = await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key("main")), AgentTurn.Text("ask", tools: ["lookup"]), ct);
+        await using var brain = await Probe.Brain(ScriptedClient(Probe.Call("actual-call", nameof(ILoopProbe.SeenByAgent), $"[\"{AgentFacts.Key("main")}\"]")), ct);
+        var events = await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key("main")), AgentTurn.Text("ask", contracts: [Probe.Contract]), ct);
         Assert.Equal("\"recorded\"", Assert.Single(events.OfType<AgentTurnEvent.ToolCompleted>()).Result);
     }
 
-    // The tool reads the agent while the turn runs: its own call must already be in the active run.
-    private sealed class RecordedStartTools(IGrainFactory grains) : IAgentToolFactory
-    {
-        public IReadOnlyList<AIFunction> Create(Func<AgentToolContext> context) =>
-            [AIFunctionFactory.Create(async () =>
-            {
-                var call = context().CallId;
-                var run = (await grains.GetGrain<IAgent>(AgentFacts.Key("main")).Read()).ActiveRun;
-                return run?.ToolCalls.Any(item => item.CallId == call) == true ? "recorded" : "unrecorded";
-            }, "lookup")];
-    }
-
     [Fact]
-    public async Task ToolsUseActualCallIdentityAndNeverShareRunContext()
+    public async Task EachTurnMarksItsCallsWithItsOwnConversation()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await AgentFacts.Brain(ScriptedClient(), ct, services => services.AddSingleton<IAgentToolFactory>(new Tools()));
-        async Task<string> Run(string scope)
+        await using var brain = await Probe.Brain(ScriptedClient(Probe.Call("actual-call", nameof(ILoopProbe.Conversation))), ct);
+        async Task<string> Run(string name)
         {
-            var events = await AgentFacts.Collect(brain.Get<IAgent>(scope + "/agents/main"), AgentTurn.Text("ask", runId: "run-" + scope, tools: ["lookup"]), ct);
-            Assert.Single(events.OfType<AgentTurnEvent.ToolCompleted>());
-            return string.Concat(events.OfType<AgentTurnEvent.Text>().Select(item => item.Content));
+            var events = await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key(name)), AgentTurn.Text("ask", runId: "run-" + name, contracts: [Probe.Contract]), ct);
+            return Assert.Single(events.OfType<AgentTurnEvent.ToolCompleted>()).Result;
         }
         var results = await Task.WhenAll(Run("alpha"), Run("beta"));
-        Assert.Contains("alpha/run-alpha/actual-call", results[0], StringComparison.Ordinal);
-        Assert.Contains("beta/run-beta/actual-call", results[1], StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task MissingSelectedToolFailsExplicitly()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await AgentFacts.Brain(ScriptedClient(), ct);
-        var events = await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key("main")), AgentTurn.Text("ask", tools: ["missing"]), ct);
-        Assert.Contains("missing", Assert.Single(events.OfType<AgentTurnEvent.Failed>()).Message, StringComparison.Ordinal);
-        Assert.Empty(events.OfType<AgentTurnEvent.Finished>());
+        Assert.Equal($"\"{AgentFacts.Key("alpha")}\"", results[0]);
+        Assert.Equal($"\"{AgentFacts.Key("beta")}\"", results[1]);
     }
 
     [Fact]
     public async Task DelayedToolFailureNeverFinishesTheRun()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await AgentFacts.Brain(ScriptedClient(), ct, services => services.AddSingleton<IAgentToolFactory>(new Tools(fail: true)));
-        var events = await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key("main")), AgentTurn.Text("ask", tools: ["lookup"]), ct);
+        await using var brain = await Probe.Brain(ScriptedClient(Probe.Call("actual-call", nameof(ILoopProbe.Fail))), ct);
+        var events = await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key("main")), AgentTurn.Text("ask", contracts: [Probe.Contract]), ct);
         Assert.Single(events.OfType<AgentTurnEvent.Failed>());
         Assert.Empty(events.OfType<AgentTurnEvent.Finished>());
         Assert.Empty(events.OfType<AgentTurnEvent.ToolCompleted>());
-    }
-
-    private sealed class Tools(bool fail = false) : IAgentToolFactory
-    {
-        public IReadOnlyList<AIFunction> Create(Func<AgentToolContext> context) =>
-            [AIFunctionFactory.Create(async () =>
-            {
-                await Task.Yield();
-                if (fail) { throw new IOException("Tool failed after starting"); }
-                var value = context();
-                return value.ScopeId + "/" + value.RunId + "/" + value.CallId;
-            }, "lookup")];
     }
 
     [Fact]
@@ -117,10 +61,10 @@ public sealed class AgentToolFacts
         var calls = 0;
         var client = new StubChatClient((_, _, _) => Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant,
             [new FunctionCallContent("unknown-" + Interlocked.Increment(ref calls), "unknown", new Dictionary<string, object?>())]))));
-        await using var brain = await AgentFacts.Brain(client, ct, services => services.AddSingleton<IAgentToolFactory>(new Tools()));
+        await using var brain = await Probe.Brain(client, ct);
         var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
         await agent.Configure(new() { MaxModelCalls = 2 }, 0);
-        var events = await AgentFacts.Collect(agent, AgentTurn.Text("ask", tools: ["lookup"]), ct);
+        var events = await AgentFacts.Collect(agent, AgentTurn.Text("ask", contracts: [Probe.Contract]), ct);
         Assert.Contains("budget", Assert.Single(events.OfType<AgentTurnEvent.Failed>()).Message, StringComparison.Ordinal);
         Assert.Equal(2, calls);
         Assert.Equal(2, events.OfType<AgentTurnEvent.ToolStarted>().Count());
@@ -205,22 +149,22 @@ public sealed class AgentToolFacts
     }
 
     [Fact]
-    public async Task ContextToolsJoinTheTurnOnlyWhenTheHostRegistersThem()
+    public async Task ContextContractsJoinTheTurnOnlyWhenTheHostDeploysThem()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await AgentFacts.Brain(ScriptedClient(), ct, services => services.AddSingleton<IAgentToolFactory>(new Tools()));
-        await brain.Get<IAgentContext>(AgentFacts.Key("main") + "/context").Set(new("capabilities", "Available: lookup", ["lookup", "not_registered"]));
+        await using var brain = await Probe.Brain(ScriptedClient(Probe.Call("actual-call", nameof(ILoopProbe.Echo), "[\"ping\"]")), ct);
+        await brain.Get<IAgentContext>(AgentFacts.Key("main") + "/context").Set(new("capabilities", "Available: probe", [Probe.Contract, "DigitalBrain.Nope.INope"]));
         var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
         await agent.Configure(new() { Contexts = [AgentFacts.Key("main") + "/context"] }, 0);
         var events = await AgentFacts.Collect(agent, AgentTurn.Text("ask"), ct);
-        Assert.Equal("lookup", Assert.Single(events.OfType<AgentTurnEvent.ToolCompleted>()).Name);
+        Assert.Equal("\"echo:ping\"", Assert.Single(events.OfType<AgentTurnEvent.ToolCompleted>()).Result);
     }
 
-    private static StubChatClient ScriptedClient(string toolName = "lookup") => new((messages, _, _) =>
+    private static StubChatClient ScriptedClient(FunctionCallContent call) => new((messages, _, _) =>
     {
         var result = messages.SelectMany(m => m.Contents).OfType<FunctionResultContent>().LastOrDefault();
         return Task.FromResult(new ChatResponse(result is null
-            ? new ChatMessage(ChatRole.Assistant, [new FunctionCallContent("actual-call", toolName, new Dictionary<string, object?>())])
+            ? new ChatMessage(ChatRole.Assistant, [call])
             : new ChatMessage(ChatRole.Assistant, result.Result!.ToString())));
     });
 }

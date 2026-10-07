@@ -13,9 +13,6 @@ public static class AssistantDefinition
     {
         DisplayName = options?.DisplayName ?? "Workspace assistant",
         Instructions = NeuronInstructions + "\n" + options?.Instructions,
-        // The same tools the shipped assistant app asks for.
-        Tools = ["neurons_context", "neurons_search", "neurons_list", "neurons_get", "neurons_call",
-            "csharp_contracts", "csharp_write", "csharp_run", "show_form", "show_view"],
     };
 
     private static string ReadInstructions()

@@ -3,6 +3,7 @@ using DigitalBrain.AI.Models;
 
 namespace DigitalBrain.AI.Agents;
 
+// Contracts are full type names of the neuron contracts the model may act on.
 // Contexts are IAgentContext neuron keys the agent reads at the start of every turn.
 [GenerateSerializer, Alias("ai.agent-definition")]
 public sealed record AgentDefinition
@@ -11,7 +12,7 @@ public sealed record AgentDefinition
     [Id(1)] public string Description { get; init; } = "";
     [Id(2)] public string Instructions { get; init; } = "";
     [Id(3)] public ModelSelection? Model { get; init; }
-    [Id(4)] public string[] Tools { get; init; } = [];
+    [Id(4)] public string[] Contracts { get; init; } = [];
     [Id(5)] public string[] Capabilities { get; init; } = [];
     [Id(6)] public string[] RoutingExamples { get; init; } = [];
     [Id(7)] public int MaxModelCalls { get; init; } = 16;

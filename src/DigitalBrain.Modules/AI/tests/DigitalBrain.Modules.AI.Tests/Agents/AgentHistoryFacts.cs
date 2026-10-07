@@ -96,12 +96,12 @@ public sealed class AgentHistoryFacts
             var asked = messages.Last(message => message.Role == ChatRole.User).Text;
             var answered = messages.SkipWhile(message => message.Role != ChatRole.User || message.Text != asked).Any(message => message.Role == ChatRole.Tool);
             return Task.FromResult(new ChatResponse(asked == "use the tool" && !answered
-                ? new ChatMessage(ChatRole.Assistant, [new FunctionCallContent("call-1", "lookup", new Dictionary<string, object?>())])
+                ? new ChatMessage(ChatRole.Assistant, [Probe.Call("call-1", nameof(ILoopProbe.Echo), "[\"found\"]")])
                 : new ChatMessage(ChatRole.Assistant, "done: " + asked)));
         });
-        await using var brain = await AgentFacts.Brain(client, ct, services => services.AddSingleton<IAgentToolFactory>(new LookupTool()));
+        await using var brain = await Probe.Brain(client, ct);
         var agent = brain.Get<IAgent>(AgentFacts.Key("trimmed"));
-        await agent.Configure(new() { MaxHistoryMessages = 3, Tools = ["lookup"] }, 0);
+        await agent.Configure(new() { MaxHistoryMessages = 3, Contracts = [Probe.Contract] }, 0);
         await agent.GetResponse("use the tool", ct);
         await agent.GetResponse("second", ct);
         await agent.GetResponse("third", ct);
@@ -121,14 +121,14 @@ public sealed class AgentHistoryFacts
             var asked = messages.Last(message => message.Role == ChatRole.User).Text;
             var answered = messages.SkipWhile(message => message.Role != ChatRole.User || message.Text != asked).Any(message => message.Role == ChatRole.Tool);
             return Task.FromResult(new ChatResponse(asked == "dump everything" && !answered
-                ? new ChatMessage(ChatRole.Assistant, [new FunctionCallContent("call-1", "dump", new Dictionary<string, object?>())])
+                ? new ChatMessage(ChatRole.Assistant, [Probe.Call("call-1", nameof(ILoopProbe.Dump))])
                 : new ChatMessage(ChatRole.Assistant, "done: " + asked)));
         });
-        await using var brain = await AgentFacts.Brain(client, ct, services => services.AddSingleton<IAgentToolFactory>(new DumpTool()));
+        await using var brain = await Probe.Brain(client, ct);
         var agent = brain.Get<IAgent>(AgentFacts.Key("large-result"));
-        await agent.Configure(new() { Tools = ["dump"] }, 0);
+        await agent.Configure(new() { Contracts = [Probe.Contract] }, 0);
         await agent.GetResponse("dump everything", ct);
-        Assert.True(Size(client.Requests[1]) > DumpTool.Characters);
+        Assert.True(Size(client.Requests[1]) > LoopProbe.DumpCharacters);
         await agent.GetResponse("second", ct);
         await agent.GetResponse("third", ct);
 
@@ -137,7 +137,7 @@ public sealed class AgentHistoryFacts
         using (var preview = System.Text.Json.JsonDocument.Parse(stored.ResultJson))
         {
             Assert.True(preview.RootElement.GetProperty("truncated").GetBoolean());
-            Assert.Equal(DumpTool.Characters + 2, preview.RootElement.GetProperty("characters").GetInt32());
+            Assert.Equal(LoopProbe.DumpCharacters + 2, preview.RootElement.GetProperty("characters").GetInt32());
         }
         Assert.All(client.Requests.Skip(2), request =>
         {
@@ -182,17 +182,6 @@ public sealed class AgentHistoryFacts
             FunctionResultContent result => System.Text.Json.JsonSerializer.Serialize(result.Result).Length,
             _ => 0,
         }));
-
-    private sealed class DumpTool : IAgentToolFactory
-    {
-        public const int Characters = 300_000;
-        public IReadOnlyList<AIFunction> Create(Func<AgentToolContext> context) => [AIFunctionFactory.Create(() => new string('r', Characters), "dump")];
-    }
-
-    private sealed class LookupTool : IAgentToolFactory
-    {
-        public IReadOnlyList<AIFunction> Create(Func<AgentToolContext> context) => [AIFunctionFactory.Create(() => "found", "lookup")];
-    }
 
     // Replies with every user and assistant text joined by '|', so the fact sees what the model was given.
     private static StubChatClient HistoryClient() => new((messages, _, _) => Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant,

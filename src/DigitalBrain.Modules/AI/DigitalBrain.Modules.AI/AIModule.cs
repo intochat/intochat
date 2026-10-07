@@ -34,6 +34,8 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai"))
         AIClients.Add(services);
         services.TryAddSingleton<ModelCatalog>();
         services.TryAddSingleton<InferenceService>();
+        services.TryAddSingleton(new NeuronContracts(NeuronContracts.Deployed()));
+        services.TryAddSingleton<NeuronSurface>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<AgentNeuron>, AgentResume>());
         services.AddSingleton<ICapabilitySource, AiModelCapabilities>();
         services.AddMediaNeurons();

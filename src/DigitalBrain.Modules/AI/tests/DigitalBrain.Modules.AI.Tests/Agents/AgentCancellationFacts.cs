@@ -1,6 +1,5 @@
 using System.Runtime.CompilerServices;
 using DigitalBrain.AI.Agents;
-using DigitalBrain.AI.Tools;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -13,14 +12,16 @@ public sealed class AgentCancellationFacts
     public async Task CancellationClosesThePersistedToolAttempt()
     {
         var ct = TestContext.Current.CancellationToken;
-        var tool = new WaitingTool();
+        var key = AgentFacts.Scope + "/probes/cancel-tool";
+        var entered = LoopProbe.Entered.GetOrAdd(key, _ => new(TaskCreationOptions.RunContinuationsAsynchronously));
         var client = new StubChatClient((_, _, _) => Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant,
-            [new FunctionCallContent("pending", "wait", new Dictionary<string, object?>())]))));
-        await using var brain = await AgentFacts.Brain(client, ct, services => services.AddSingleton<IAgentToolFactory>(tool));
+            [Probe.Call("pending", nameof(ILoopProbe.Wait), key: key)]))));
+        await using var brain = await Probe.Brain(client, ct);
         var agent = brain.Get<IAgent>(AgentFacts.Key("cancel-tool"));
-        await agent.Configure(new() { Tools = ["wait"] }, 0);
+        await agent.Configure(new() { Contracts = [Probe.Contract] }, 0);
         var response = agent.GetResponse("wait", ct);
-        await tool.Entered.Task.WaitAsync(ct);
+        // A turn that ends before the probe is entered fails the fact instead of waiting forever.
+        Assert.Same(entered.Task, await Task.WhenAny(entered.Task, response));
         Assert.Equal("pending", Assert.Single((await agent.Read()).ActiveRun!.ToolCalls).CallId);
         await agent.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => response);
@@ -30,17 +31,6 @@ public sealed class AgentCancellationFacts
         Assert.Equal(("pending", "tool_cancelled", null), (call.CallId, call.Code, call.Result));
         await brain.DeactivateAsync(agent, ct);
         Assert.Equal(call, Assert.Single((await agent.Read()).Runs[^1].ToolCalls));
-    }
-
-    private sealed class WaitingTool : IAgentToolFactory
-    {
-        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public IReadOnlyList<AIFunction> Create(Func<AgentToolContext> context)
-        {
-            async Task<string> Wait(CancellationToken ct)
-            { Entered.TrySetResult(); await Task.Delay(Timeout.InfiniteTimeSpan, ct); return "done"; }
-            return [AIFunctionFactory.Create(Wait, "wait")];
-        }
     }
 
     [Fact]

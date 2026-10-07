@@ -14,14 +14,14 @@ public sealed class PersistedCollectionFacts
     {
         var definition = new AgentDefinition
         {
-            Tools = ["search", "read"],
+            Contracts = ["DigitalBrain.Apps.IApp", "DigitalBrain.Apps.IAppIndex"],
             Capabilities = ["research"],
             RoutingExamples = ["find evidence"],
             Contexts = ["research/agents/main/context"],
             Options = new(ProviderOptions: new Dictionary<string, string>() { ["mode"] = "precise" }),
         };
         var restored = JsonSerializer.Deserialize<AgentDefinition>(JsonSerializer.Serialize(definition))!;
-        Assert.Equal(definition.Tools, restored.Tools);
+        Assert.Equal(definition.Contracts, restored.Contracts);
         Assert.Equal(definition.Capabilities, restored.Capabilities);
         Assert.Equal(definition.RoutingExamples, restored.RoutingExamples);
         Assert.Equal(definition.Contexts, restored.Contexts);

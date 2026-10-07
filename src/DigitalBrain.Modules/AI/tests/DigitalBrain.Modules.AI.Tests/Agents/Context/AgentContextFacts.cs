@@ -53,7 +53,7 @@ public sealed class AgentContextFacts
         await brain.DeactivateAsync(context, ct);
         var entry = Assert.Single((await context.Read()).Entries);
         Assert.Equal(("capabilities", "kept"), (entry.Name, entry.Text));
-        Assert.Equal(["lookup"], entry.Tools);
+        Assert.Equal(["lookup"], entry.Contracts);
     }
 
     [Fact]

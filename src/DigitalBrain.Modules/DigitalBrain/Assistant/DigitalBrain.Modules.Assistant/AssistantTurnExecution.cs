@@ -218,7 +218,7 @@ public sealed class AssistantTurnExecution(IServiceProvider services, IGrainFact
         var finished = false;
         var model = modelSelection ?? (configuration.Model is { Length: > 0 } modelName ? new ModelSelection(modelName) : null);
         await foreach (var item in runner(new AgentTurn(new AiMessage("user", [new AiText(message)]), run, model,
-            definition.Instructions, definition.Tools, intent)).WithCancellation(ct))
+            definition.Instructions, definition.Contracts, intent)).WithCancellation(ct))
         {
             switch (item)
             {

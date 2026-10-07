@@ -5,6 +5,7 @@ using DigitalBrain.AI.Agents.Context;
 using DigitalBrain.AI.Inference;
 using DigitalBrain.AI.Models;
 using DigitalBrain.AI.Tools;
+using DigitalBrain.Framework;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -12,8 +13,8 @@ using Microsoft.Extensions.Logging;
 namespace DigitalBrain.AI.Agents;
 
 // Everything one turn needs, settled by the agent before the loop starts.
-internal sealed record TurnPlan(string ScopeId, string RunId, AiMessage[] Transcript, string? Summary, AiMessage Input, string Instructions,
-    string[] ToolNames, string[] Contexts, ModelSelection? Model, InferenceOptions? Options, int MaxModelCalls, bool Streaming);
+internal sealed record TurnPlan(string ScopeId, string Conversation, string RunId, AiMessage[] Transcript, string? Summary, AiMessage Input, string Instructions,
+    string[] Contracts, string[] Contexts, ModelSelection? Model, InferenceOptions? Options, int MaxModelCalls, bool Streaming);
 
 // Providers propose calls; this is the single, bounded tool invocation loop. It is pulled, not
 // pushed: the consumer persists each event before asking for the next, so nothing external starts
@@ -42,34 +43,25 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
     private async IAsyncEnumerable<AgentTurnEvent> Steps(TurnPlan plan, [EnumeratorCancellation] CancellationToken ct)
     {
         if (plan.MaxModelCalls is < 1 or > 128) { throw new ArgumentOutOfRangeException(nameof(plan), "MaxModelCalls must be between 1 and 128."); }
-        if (plan.ToolNames.Distinct(StringComparer.Ordinal).Count() != plan.ToolNames.Length) { throw new ArgumentException("Tool names must be unique.", nameof(plan)); }
+        if (plan.Contracts.Distinct(StringComparer.Ordinal).Count() != plan.Contracts.Length) { throw new ArgumentException("Contracts must be unique.", nameof(plan)); }
         var sessions = new List<IAgentToolSession>();
         try
         {
             yield return new AgentTurnEvent.Started(plan.RunId);
             string? currentCall = null;
-            AgentToolContext Context() => new(plan.ScopeId, plan.RunId, currentCall ?? throw new InvalidOperationException("No active tool call."));
             var contexts = await ReadContexts(plan.Contexts, ct);
-            var factoryTools = services.GetServices<IAgentToolFactory>().SelectMany(factory => factory.Create(Context)).ToList();
-            // Context may name tools this host does not register; only registered ones join the turn.
-            string[] selected = [.. plan.ToolNames, .. contexts.SelectMany(entry => entry.Tools)
-                .Where(name => !plan.ToolNames.Contains(name) && factoryTools.Any(tool => tool.Name == name)).Distinct(StringComparer.Ordinal)];
-            // A turn's tools are fixed here, once: factories, native tools and source sessions.
-            var available = factoryTools.Where(tool => selected.Contains(tool.Name)).ToList();
-            if (services.GetService<NativeTools>() is { } native) { available.AddRange(native.Resolve(selected)); }
+            var surface = services.GetRequiredService<NeuronSurface>();
+            // Context may name contracts this host does not deploy; only deployed ones join the turn.
+            string[] composed = [.. plan.Contracts, .. contexts.SelectMany(entry => entry.Contracts)
+                .Where(name => !plan.Contracts.Contains(name) && surface.List().Contains(name)).Distinct(StringComparer.Ordinal)];
+            // The model's actions are fixed here, once: the neuron surface over the contracts the app composed.
+            var tools = composed.Length == 0 ? new List<AIFunction>() : [.. ContractActions.Create(surface.Restrict(composed), plan.Conversation)];
             foreach (var source in services.GetServices<IAgentToolSource>())
             {
                 // Session tools read the live call identity when invoked.
-                var session = await source.OpenAsync(selected, () => new(plan.ScopeId, plan.RunId, currentCall ?? ""), ct);
+                var session = await source.OpenAsync([], () => new(plan.ScopeId, plan.RunId, currentCall ?? ""), ct);
                 sessions.Add(session);
-                available.AddRange(session.Tools.Where(tool => selected.Contains(tool.Name)));
             }
-            var tools = selected.Select(name =>
-            {
-                var matches = available.Where(tool => tool.Name == name).ToArray();
-                return matches.Length == 1 ? matches[0]
-                    : throw new InvalidOperationException($"Selected tool '{name}' must have exactly one registration (found {matches.Length}).");
-            }).ToList();
 
             var catalog = services.GetRequiredService<ModelCatalog>();
             var selection = plan.Model;

@@ -66,10 +66,10 @@ internal sealed class AgentNeuron(
         if (State.Revision != expectedRevision) { throw new InvalidOperationException("Agent revision conflict."); }
         if (definition.MaxModelCalls is < 1 or > 128 || definition.Timeout <= TimeSpan.Zero || definition.Timeout > TimeSpan.FromMinutes(10)
             || definition.MaxHistoryMessages is < 2 or > 4096) { throw new ArgumentException("Invalid agent execution limits.", nameof(definition)); }
-        if (definition.Instructions.Length > 32000 || definition.Tools.Length > 128 || definition.Tools.Any(string.IsNullOrWhiteSpace)
-            || definition.Tools.Distinct(StringComparer.Ordinal).Count() != definition.Tools.Length
+        if (definition.Instructions.Length > 32000 || definition.Contracts.Length > 128 || definition.Contracts.Any(string.IsNullOrWhiteSpace)
+            || definition.Contracts.Distinct(StringComparer.Ordinal).Count() != definition.Contracts.Length
             || definition.Contexts.Length > 32 || definition.Contexts.Any(key => string.IsNullOrWhiteSpace(key) || key.Length > 512))
-        { throw new ArgumentException("Instructions, tool selection or contexts are invalid.", nameof(definition)); }
+        { throw new ArgumentException("Instructions, contracts or contexts are invalid.", nameof(definition)); }
         _mutating = true;
         try
         {
@@ -78,7 +78,7 @@ internal sealed class AgentNeuron(
                 Revision = State.Revision + 1,
                 Definition = definition with
                 {
-                    Tools = [.. definition.Tools],
+                    Contracts = [.. definition.Contracts],
                     Capabilities = [.. definition.Capabilities],
                     RoutingExamples = [.. definition.RoutingExamples],
                     Contexts = [.. definition.Contexts],
@@ -192,9 +192,9 @@ internal sealed class AgentNeuron(
             if (State.ActiveRun != run) { await Persist(State with { ActiveRun = run }); }
             await Notify(new TurnStarted(Key, runId, run.UserText));
             var bounded = Bound(State.Transcript, Math.Max(1, definition.MaxHistoryMessages - 1), Math.Max(0, MaxHistoryCharacters - Size(input)), State.Summary);
-            var plan = new TurnPlan(Scope, runId, bounded.Messages, bounded.Summary, input,
-                turn.Instructions ?? definition.Instructions, turn.Tools ?? definition.Tools, definition.Contexts,
-                turn.Model ?? definition.Model, definition.Options, definition.MaxModelCalls, Streaming: true);
+            var plan = new TurnPlan(Scope, Key, runId, bounded.Messages, bounded.Summary, input,
+                turn.Instructions ?? definition.Instructions, turn.Contracts ?? definition.Contracts, definition.Contexts,
+                turn.Model ?? definition.Model, definition.Options, definition.MaxModelCalls, true);
             var loop = new AgentTurnLoop(ServiceProvider).Run(plan, lifetime.Token).GetAsyncEnumerator(lifetime.Token);
             try
             {

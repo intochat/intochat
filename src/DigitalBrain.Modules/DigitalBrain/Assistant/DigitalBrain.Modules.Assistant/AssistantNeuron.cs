@@ -65,7 +65,7 @@ internal sealed class AssistantNeuron(
                 // Optional host modules may be absent. Their default tools must not
                 // make an otherwise standalone Assistant unusable. App-declared
                 // tools can also come from dynamic sources resolved by the runner.
-                Tools = definition.Tools.Where(tool => registered.Contains(tool) || native?.Contains(tool) == true).ToArray(),
+                Contracts = definition.Contracts,
             };
         }
         if (!string.IsNullOrEmpty(summary))

@@ -1,7 +1,6 @@
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Models.Scripted;
-using DigitalBrain.AI.Tools;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -13,19 +12,21 @@ public sealed class ScriptedTurnFacts
     public async Task AScriptedProfilePlaysAToolCallThenAnswersWithoutAnyProvider()
     {
         var ct = TestContext.Current.CancellationToken;
-        var echo = AIFunctionFactory.Create((string word) => "echo:" + word, "echo");
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>()
-            .ConfigureSilo(silo => silo.Services.AddSingleton<IAgentToolFactory>(new FixedTools(echo))).StartAsync(ct);
+        await using var brain = await Probe.Brain(StubChatClient.Replying("unused"), ct);
+        // The scripted model is test infrastructure outside the brain: it is scripted unstamped.
+        Orleans.Runtime.RequestContext.Clear();
         var model = brain.Get<IScriptedLLM>("turn-model");
-        await model.Script(["""{"tool":"echo","arguments":{"word":"ping"}}""", "Done."]);
+        await model.Script([$$$"""{"tool":"neurons_call","arguments":{"contract":"{{{Probe.Contract}}}","key":"research/probes/main","method":"Echo","arguments":"[\"ping\"]"}}""", "Done."]);
+        AgentFacts.StampUser();
 
         var events = await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key("scripted")),
-            AgentTurn.Text("go", model: IScriptedLLM.ModelPrefix + "turn-model", tools: ["echo"]), ct);
+            AgentTurn.Text("go", model: IScriptedLLM.ModelPrefix + "turn-model", contracts: [Probe.Contract]), ct);
 
-        Assert.Equal("echo", Assert.Single(events.OfType<AgentTurnEvent.ToolStarted>()).Name);
+        Assert.Equal("neurons_call", Assert.Single(events.OfType<AgentTurnEvent.ToolStarted>()).Name);
         Assert.Contains("echo:ping", Assert.Single(events.OfType<AgentTurnEvent.ToolCompleted>()).Result, StringComparison.Ordinal);
         Assert.Equal("Done.", Assert.Single(events.OfType<AgentTurnEvent.Text>()).Content);
         Assert.Single(events.OfType<AgentTurnEvent.Finished>());
+        Orleans.Runtime.RequestContext.Clear();
         var prompts = await model.Prompts();
         Assert.Equal(2, prompts.Count);
         Assert.Contains("echo:ping", prompts[1], StringComparison.Ordinal);
@@ -59,10 +60,5 @@ public sealed class ScriptedTurnFacts
 
         Assert.Empty(events.OfType<AgentTurnEvent.Failed>());
         Assert.Equal("Tuned.", Assert.Single(events.OfType<AgentTurnEvent.Text>()).Content);
-    }
-
-    private sealed class FixedTools(params AIFunction[] tools) : IAgentToolFactory
-    {
-        public IReadOnlyList<AIFunction> Create(Func<AgentToolContext> context) => tools;
     }
 }

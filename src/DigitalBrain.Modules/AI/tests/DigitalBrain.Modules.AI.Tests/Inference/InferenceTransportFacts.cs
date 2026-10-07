@@ -7,7 +7,7 @@ using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Inference;
 using DigitalBrain.AI.Models;
 using DigitalBrain.AI.Models.Signals;
-using DigitalBrain.AI.Tools;
+using DigitalBrain.Framework;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -19,7 +19,7 @@ public sealed class InferenceTransportFacts
     [InlineData("OpenAI")]
     [InlineData("OpenRouter")]
     [InlineData("Ollama")]
-    public async Task OfferedResourceArraysReachTheRealModelAdapterAsJson(string provider)
+    public async Task OfferedContractListsReachTheRealModelAdapterAsJson(string provider)
     {
         var ct = TestContext.Current.CancellationToken;
         using var endpoint = new LoopbackServer();
@@ -27,13 +27,13 @@ public sealed class InferenceTransportFacts
             { Configure(options, provider); options.Ollama.Endpoint = endpoint.Url; })
             .AddSingleton<IAiCredentials>(new FixedAiCredentials().Ready(provider.ToLowerInvariant(), "test-only", endpoint.Url))
             .AddSingleton<ModelCatalog>().AddSingleton<InferenceService>()
-            .AddSingleton<IAgentToolFactory>(new ResourceTools()).BuildServiceProvider();
+            .AddSingleton(new NeuronSurface(null!, new NeuronContracts(NeuronContracts.Deployed()), null!)).BuildServiceProvider();
         async Task<CapturedRequest> Serve()
         {
             await endpoint.ReplyOnce("application/json", provider == "Ollama" ? """
-                {"model":"test-model","created_at":"2026-10-03T00:00:00Z","message":{"role":"assistant","content":"","tool_calls":[{"function":{"name":"find","arguments":{}}}]},"done":true,"done_reason":"stop"}
+                {"model":"test-model","created_at":"2026-10-03T00:00:00Z","message":{"role":"assistant","content":"","tool_calls":[{"function":{"name":"neurons_list","arguments":{}}}]},"done":true,"done_reason":"stop"}
                 """ : """
-                {"id":"one","object":"chat.completion","created":1,"model":"test-model","choices":[{"index":0,"message":{"role":"assistant","tool_calls":[{"id":"find-1","type":"function","function":{"name":"find","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}
+                {"id":"one","object":"chat.completion","created":1,"model":"test-model","choices":[{"index":0,"message":{"role":"assistant","tool_calls":[{"id":"find-1","type":"function","function":{"name":"neurons_list","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}
                 """, ct);
             return await endpoint.ReplyOnce("application/json", provider == "Ollama" ? """
                 {"model":"test-model","created_at":"2026-10-03T00:00:00Z","message":{"role":"assistant","content":"done"},"done":true,"done_reason":"stop"}
@@ -42,7 +42,8 @@ public sealed class InferenceTransportFacts
                 """, ct);
         }
         var serve = Serve();
-        var events = await TurnLoops.Collect(services, "find tables", ["find"], ct);
+        Agents.AgentFacts.StampUser();
+        var events = await TurnLoops.Collect(services, "find contracts", [typeof(DigitalBrain.Apps.IApp).FullName!], ct);
         Assert.Empty(events.OfType<AgentTurnEvent.Failed>());
         using var request = JsonDocument.Parse((await serve).Body);
         var result = request.RootElement.GetProperty("messages").EnumerateArray().Single(message => message.GetProperty("role").GetString() == "tool");
@@ -50,16 +51,7 @@ public sealed class InferenceTransportFacts
         { Assert.False(request.RootElement.GetProperty("options").TryGetProperty("num_ctx", out _)); }
         using var payload = JsonDocument.Parse(result.GetProperty("content").GetString()!);
         var root = provider == "Ollama" ? payload.RootElement.GetProperty("Result") : payload.RootElement;
-        Assert.True(root.TryGetProperty("Tables", out var tables) || root.TryGetProperty("tables", out tables), payload.RootElement.GetRawText());
-        Assert.Equal("research_results", tables[0].GetString());
-    }
-
-    private sealed record ResourceCatalog(string[] Tables);
-    private sealed class ResourceTools : IAgentToolFactory
-    {
-        public IReadOnlyList<AIFunction> Create(Func<AgentToolContext> context) =>
-            [AIFunctionFactory.Create(() => new ResourceCatalog(["research_results"]), new AIFunctionFactoryOptions
-            { Name = "find", MarshalResult = static (result, _, _) => new ValueTask<object?>(result) })];
+        Assert.Equal(typeof(DigitalBrain.Apps.IApp).FullName, root[0].GetString());
     }
 
     [Fact]
