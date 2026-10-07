@@ -18,6 +18,9 @@ internal sealed class FakeBrainEdge : HttpMessageHandler
 
     public ConcurrentDictionary<string, byte[]> Blobs { get; } = new(StringComparer.Ordinal);
     public Channel<JsonNode> Reports { get; } = Channel.CreateUnbounded<JsonNode>();
+    // Holds every report until released, as a brain busy with the very call that started the session would.
+    public TaskCompletionSource Busy { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public bool HoldReports { get; init; }
     private readonly Channel<string> _events = Channel.CreateUnbounded<string>();
 
     public void Serve(CompiledBehavior behavior)
@@ -59,6 +62,7 @@ internal sealed class FakeBrainEdge : HttpMessageHandler
         }
         if (uri.AbsolutePath.EndsWith(RuntimeProtocol.Report, StringComparison.Ordinal))
         {
+            if (HoldReports) { await Busy.Task.WaitAsync(cancellationToken); }
             Reports.Writer.TryWrite(JsonNode.Parse(await request.Content!.ReadAsStringAsync(cancellationToken))!);
             return new(HttpStatusCode.OK);
         }

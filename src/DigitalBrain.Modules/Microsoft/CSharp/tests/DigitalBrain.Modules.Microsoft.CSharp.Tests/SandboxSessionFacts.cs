@@ -29,6 +29,22 @@ public sealed class SandboxSessionFacts
         Assert.False(control.IsCompleted);
     }
 
+    // The brain starts a session from inside a grain turn; the host dialing back before answering would
+    // wait on that very turn. A start is accepted at once and the session connects on its own.
+    [Fact(Timeout = 60_000)]
+    public async Task AStartIsAcceptedBeforeTheSessionDialsBack()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var edge = new FakeBrainEdge { HoldReports = true };
+        var sessions = new Sessions(BehaviorLoaderFacts.Loader(edge), NullLoggerFactory.Instance, edge);
+
+        await sessions.StartAsync("b-1", new SessionStart("acc-brain", "s1", "token", FakeBrainEdge.Edge), ct);
+
+        Assert.True(sessions.Contains("b-1"));
+        edge.Busy.SetResult();
+        await sessions.StopAsync("b-1");
+    }
+
     [Fact(Timeout = 60_000)]
     public async Task AnExitedBehaviorIsReportedWithItsExitCode()
     {
