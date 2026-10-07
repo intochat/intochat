@@ -25,7 +25,7 @@ public sealed class HostedAgentFacts
         using var endpoint = new LoopbackServer();
         await using var brain = await ModuleTest.Create().WithModule<AIModule, AIOptions>(options =>
             {
-                options.Default.Profile = "fixture";
+                options.Default.Model = "fixture";
                 options.ModelProfiles.Add("fixture", new AIModelProfileOptions
                 {
                     Provider = provider,

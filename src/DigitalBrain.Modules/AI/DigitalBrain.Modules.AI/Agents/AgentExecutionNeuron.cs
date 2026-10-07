@@ -1,21 +1,18 @@
 using System.Runtime.CompilerServices;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using DigitalBrain.Framework.Metering;
 
 namespace DigitalBrain.AI.Agents;
 
 [GrainType("ai.agent-execution")]
 internal sealed class AgentExecutionNeuron(IAgentTurnRunner runner, IIntentUsageSink usage,
-    ModelProfiles profiles, IOptionsMonitor<AIOptions> options, ILogger<AgentExecutionNeuron> logger) : Neuron, IAgentExecution, IAgentTurnDriver
+    ModelCatalog catalog, ILogger<AgentExecutionNeuron> logger) : Neuron, IAgentExecution, IAgentTurnDriver
 {
     public override NeuronAccess Access(string operation) => new(BrainScope.CurrentId());
 
-    public Task<ModelCatalog> Models(string? defaultModel = null)
-        => new AgentModelCatalog(profiles, options, defaultModel).Read();
-    public Task<AgentModelSelection?> SelectModel(string? id, string? defaultModel = null)
-        => new AgentModelCatalog(profiles, options, defaultModel).Select(id);
+    public Task<ModelChoices> Models(string? defaultModel = null) => catalog.List(defaultModel, CancellationToken.None);
+    public Task<ModelSelection?> SelectModel(string? id, string? defaultModel = null) => catalog.Select(id, defaultModel, CancellationToken.None);
 
     public async IAsyncEnumerable<AgentTurnEvent> Run(AgentTurnRequest request, string intentId,
         [EnumeratorCancellation] CancellationToken ct = default)
@@ -116,10 +113,9 @@ internal sealed class AgentExecutionNeuron(IAgentTurnRunner runner, IIntentUsage
         }
     }
 
-    private async Task<AgentModelSelection?> ModelFor(string model)
+    private async Task<ModelSelection?> ModelFor(string model)
         => model.Length == 0 ? null
-        : model.StartsWith(DigitalBrain.AI.Scripted.IScriptedLLM.ModelPrefix, StringComparison.Ordinal) ? new(Model: model)
-        : await SelectModel(model) ?? throw new ArgumentException($"Model '{model}' is not in the catalog.");
+        : await catalog.Select(model, null, CancellationToken.None) ?? throw new ArgumentException($"Model '{model}' is not in the catalog.");
 
     // A tool result may carry a UI card on its "_ui" channel; the card is its own progress item.
     private static string? Card(string result)

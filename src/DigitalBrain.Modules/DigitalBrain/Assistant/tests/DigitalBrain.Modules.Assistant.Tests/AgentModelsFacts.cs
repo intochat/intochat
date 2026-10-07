@@ -19,13 +19,13 @@ public sealed class AgentModelsFacts
         var snapshot = new AgentConversationState(2, null, [completed]);
         var input = new AssistantRun("thread", "run", "hello", "owner", "profile:removed");
 
-        var prepared = await AssistantTurnExecution.PrepareTurn(snapshot, input, async id => await Catalog(brain.SiloServices).Select(id));
+        var prepared = await AssistantTurnExecution.PrepareTurn(snapshot, input, async id => await CatalogOf(brain.SiloServices).Select(id));
 
         Assert.Equal(completed, prepared.Replay);
         Assert.Null(prepared.Model);
-        await Assert.ThrowsAsync<ArgumentException>(() => AssistantTurnExecution.PrepareTurn(snapshot, input with { RunId = "fresh" }, async id => await Catalog(brain.SiloServices).Select(id)));
+        await Assert.ThrowsAsync<ArgumentException>(() => AssistantTurnExecution.PrepareTurn(snapshot, input with { RunId = "fresh" }, async id => await CatalogOf(brain.SiloServices).Select(id)));
         await Assert.ThrowsAsync<InvalidOperationException>(() => AssistantTurnExecution.PrepareTurn(snapshot,
-            input with { Message = "different message" }, async id => await Catalog(brain.SiloServices).Select(id)));
+            input with { Message = "different message" }, async id => await CatalogOf(brain.SiloServices).Select(id)));
         Assert.Null(snapshot.ActiveRunId);
         Assert.Single(snapshot.Turns);
     }
@@ -39,7 +39,7 @@ public sealed class AgentModelsFacts
             options.ModelProfiles["no-tools"] = new() { Provider = "OpenAI", Model = "text-only" };
             options.ModelProfiles["unconfigured"] = new() { Provider = "Google", Model = "remote-chat", Capabilities = LlmCapabilities.Tools };
         }, "secret-api-key", "https://private.example/v1");
-        var catalog = Catalog(brain.SiloServices);
+        var catalog = CatalogOf(brain.SiloServices);
         var result = await catalog.Read();
         Assert.True(result.Automatic.Available);
         Assert.Contains(result.Models, model => model.Id == "profile:work");
@@ -57,7 +57,7 @@ public sealed class AgentModelsFacts
     public async Task UnconfiguredDeploymentHasUnavailableAutomaticAndNoChoices()
     {
         await using var brain = await StartAsync(_ => { });
-        var catalog = Catalog(brain.SiloServices);
+        var catalog = CatalogOf(brain.SiloServices);
         Assert.False((await catalog.Read()).Automatic.Available);
         Assert.Empty((await catalog.Read()).Models);
         await Assert.ThrowsAsync<ArgumentException>(() => catalog.Select(null));
@@ -70,10 +70,10 @@ public sealed class AgentModelsFacts
         {
             options.ModelProfiles["work"] = new() { Provider = "OpenAI", Model = "private-chat", Capabilities = LlmCapabilities.Tools };
         }, "configured", model: "IGpt56Luna");
-        var catalog = Catalog(brain.SiloServices);
-        Assert.Equal(new AgentModelSelection(Model: "IGpt56Luna"), await catalog.Select(null));
-        Assert.Equal(new AgentModelSelection(Profile: "work"), await catalog.Select("profile:work"));
-        Assert.Equal(new AgentModelSelection(Model: "IGpt56Sol"), await catalog.Select("preset:IGpt56Sol"));
+        var catalog = CatalogOf(brain.SiloServices);
+        Assert.Equal(new ModelSelection("IGpt56Luna"), await catalog.Select(null));
+        Assert.Equal(new ModelSelection("work"), await catalog.Select("profile:work"));
+        Assert.Equal(new ModelSelection("IGpt56Sol"), await catalog.Select("preset:IGpt56Sol"));
         await Assert.ThrowsAsync<ArgumentException>(() => catalog.Select("https://attacker.example/model"));
         await Assert.ThrowsAsync<ArgumentException>(() => catalog.Select("profile:missing"));
     }
@@ -83,7 +83,7 @@ public sealed class AgentModelsFacts
     {
         await using var brain = await StartAsync(_ => { }, "configured");
 
-        var unavailable = await Assert.ThrowsAsync<ProviderUnavailableException>(() => Catalog(brain.SiloServices).Select("preset:IGemini31Pro"));
+        var unavailable = await Assert.ThrowsAsync<ProviderUnavailableException>(() => CatalogOf(brain.SiloServices).Select("preset:IGemini31Pro"));
 
         Assert.Equal("google", unavailable.Integration);
         Assert.Equal("Unconfigured", unavailable.Status);
@@ -111,7 +111,7 @@ public sealed class AgentModelsFacts
     public async Task AutomaticWithoutServerOverrideKeepsAiDefault()
     {
         await using var brain = await StartAsync(_ => { }, "configured");
-        Assert.Null(await Catalog(brain.SiloServices).Select(null));
+        Assert.Null(await CatalogOf(brain.SiloServices).Select(null));
     }
 
     private static Task<ModuleBrain> StartAsync(Action<AIOptions> configure, string? apiKey = null, string? endpoint = null, string? model = null)
@@ -128,7 +128,12 @@ public sealed class AgentModelsFacts
             .ConfigureSilo(silo => silo.Services.Configure(configure))
             .StartAsync(TestContext.Current.CancellationToken);
 
-    private static AgentModelCatalog Catalog(IServiceProvider services) => new(
-        services.GetRequiredService<ModelProfiles>(), services.GetRequiredService<IOptionsMonitor<AIOptions>>(),
-        services.GetRequiredService<IOptions<AssistantOptions>>().Value.Model);
+    private sealed record Catalog(ModelCatalog Models, string? Default)
+    {
+        public Task<ModelChoices> Read() => Models.List(Default, TestContext.Current.CancellationToken);
+        public Task<ModelSelection?> Select(string? id) => Models.Select(id, Default, TestContext.Current.CancellationToken);
+    }
+
+    private static Catalog CatalogOf(IServiceProvider services) => new(
+        services.GetRequiredService<ModelCatalog>(), services.GetRequiredService<IOptions<AssistantOptions>>().Value.Model);
 }

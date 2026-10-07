@@ -15,7 +15,7 @@ public sealed class McpToolFacts
     [Fact]
     public void TheMcpAllowlistRegistersExactlyTheListedServers()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddModelCatalog();
         AIModule.RegisterMcpBridge(services, "salesforce=https://mcp.example.test/tools;github=https://github.example.test/mcp");
         Assert.Equal(2, services.Count(descriptor => descriptor.ServiceType == typeof(IAgentToolSource)));
     }
@@ -23,7 +23,7 @@ public sealed class McpToolFacts
     [Fact]
     public void AnEmptyMcpAllowlistRegistersNoServer()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddModelCatalog();
         AIModule.RegisterMcpBridge(services, null);
         Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(IAgentToolSource));
     }
@@ -31,7 +31,7 @@ public sealed class McpToolFacts
     [Fact]
     public void AMalformedMcpAllowlistEntryIsRejected()
     {
-        var services = new ServiceCollection();
+        var services = new ServiceCollection().AddModelCatalog();
         Assert.Throws<InvalidOperationException>(() => AIModule.RegisterMcpBridge(services, "salesforce"));
     }
 
@@ -39,7 +39,7 @@ public sealed class McpToolFacts
     public async Task RunnerDisposesMcpSessionAndDoesNotCompleteAfterProviderFailure()
     {
         using var handler = new ProtocolHandler { FailCall = true };
-        using var services = new ServiceCollection()
+        using var services = new ServiceCollection().AddModelCatalog()
             .AddSingleton<IChatClient>(ToolCallingClient())
             .AddMcpAgentTools("mail", _ => Transport(handler)).BuildServiceProvider();
         var events = new List<AgentTurnEvent>();
@@ -90,7 +90,7 @@ public sealed class McpToolFacts
     }
 
     private static AgentToolContext Context() => new("scope", "run", "call");
-    private static ServiceProvider Services(ProtocolHandler handler) => new ServiceCollection()
+    private static ServiceProvider Services(ProtocolHandler handler) => new ServiceCollection().AddModelCatalog()
         .AddMcpAgentTools("mail", _ => Transport(handler)).BuildServiceProvider();
     private static HttpClientTransport Transport(ProtocolHandler handler) => new(
             new() { Endpoint = new("https://mcp.invalid"), TransportMode = HttpTransportMode.StreamableHttp },

@@ -38,7 +38,7 @@ internal sealed class AssistantNeuron(
     public async Task<AgentConversationState> ReadConversation(string threadId, CancellationToken ct = default)
         => await (await Conversation(threadId)).ReadConversation(ct);
 
-    public Task<ModelCatalog> Models() => new AssistantTurnExecution(services, GrainFactory).Models();
+    public Task<ModelChoices> Models() => new AssistantTurnExecution(services, GrainFactory).Models();
 
     public Task<IAgent> Conversation(string threadId)
     {

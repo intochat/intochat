@@ -138,12 +138,17 @@ internal static class AIClients
     private static async Task<IChatClient> DefaultChatClientAsync(IServiceProvider provider, CancellationToken cancellationToken)
     {
         var configuration = provider.GetRequiredService<IOptions<AIOptions>>().Value;
-        if (!string.IsNullOrWhiteSpace(configuration.Default.Profile)
-            || !string.IsNullOrWhiteSpace(configuration.Default.Provider)
+        // A default that names a profile, or pins reasoning or output tokens, resolves through the catalog.
+        // This client runs the tools it is offered (PlaywrightWebAgent relies on that), so it keeps
+        // function invocation and rejects tools its model does not declare.
+        var defaultModel = configuration.Default.Model;
+        if ((defaultModel is { Length: > 0 } && configuration.ModelProfiles.ContainsKey(defaultModel))
             || configuration.Default.Reasoning is not null || configuration.Default.MaxOutputTokens is not null)
         {
-            var profiles = provider.GetRequiredService<ModelProfiles>();
-            return await profiles.CreateClient(await profiles.Resolve(null, cancellationToken: cancellationToken), cancellationToken);
+            var catalog = provider.GetRequiredService<ModelCatalog>();
+            var resolved = await catalog.Resolve(null, requiresTools: false, cancellationToken);
+            if (resolved.Provider is AiProvider.Host) { throw new InvalidOperationException("No chat provider is configured. Provision a provider integration or configure an Ollama endpoint."); }
+            return await catalog.CreateClient(resolved, cancellationToken, invokesTools: true);
         }
         var model = configuration.Default.Model is { Length: > 0 } markerName
             ? LLMModel.FindByMarkerName(markerName)

@@ -20,9 +20,9 @@ public sealed class InferenceTransportFacts
         var ct = TestContext.Current.CancellationToken;
         using var endpoint = new LoopbackServer();
         using var services = new ServiceCollection().AddOptions().Configure<AIOptions>(options =>
-            { Configure(options); options.Default.Provider = provider; options.Ollama.Endpoint = endpoint.Url; })
+            { Configure(options, provider); options.Ollama.Endpoint = endpoint.Url; })
             .AddSingleton<IAiCredentials>(new FixedAiCredentials().Ready(provider.ToLowerInvariant(), "test-only", endpoint.Url))
-            .AddSingleton<ModelProfiles>().AddSingleton<InferenceService>()
+            .AddSingleton<ModelCatalog>().AddSingleton<InferenceService>()
             .AddSingleton<IAgentToolFactory>(new ResourceTools()).BuildServiceProvider();
         async Task<CapturedRequest> Serve()
         {
@@ -68,7 +68,7 @@ public sealed class InferenceTransportFacts
         using var services = new ServiceCollection().AddOptions().Configure<AIOptions>(options =>
         {
             options.Ollama.Endpoint = endpoint.Url;
-            options.Default.Profile = "local";
+            options.Default.Model = "local";
             options.ModelProfiles["local"] = new()
             {
                 Provider = "Ollama",
@@ -78,7 +78,7 @@ public sealed class InferenceTransportFacts
                 ContextWindowTokens = 8192
             };
         }).AddSingleton<IAiCredentials>(new FixedAiCredentials())
-            .AddSingleton<ModelProfiles>().AddSingleton<InferenceService>().BuildServiceProvider();
+            .AddSingleton<ModelCatalog>().AddSingleton<InferenceService>().BuildServiceProvider();
         var serve = endpoint.ReplyOnce("application/x-ndjson", """
             {"model":"fixture","created_at":"2026-09-22T00:00:00Z","message":{"role":"assistant","content":"done"},"done":true,"done_reason":"stop","prompt_eval_count":1,"eval_count":1}
             """ + "\n", ct);
@@ -95,7 +95,7 @@ public sealed class InferenceTransportFacts
         var ct = TestContext.Current.CancellationToken;
         using var endpoint = new LoopbackServer();
         await using var brain = await ModuleTest.Create().WithRegistrations(AiRegistrationSeeds.OpenAI(endpoint: endpoint.Url)).WithModule<AIModule>()
-            .ConfigureSilo(silo => silo.Services.Configure<AIOptions>(Configure))
+            .ConfigureSilo(silo => silo.Services.Configure<AIOptions>(options => Configure(options, "OpenAI")))
             .StartAsync(ct);
         var serve = endpoint.ReplyOnce("application/json", """
             {"id":"response-1","object":"chat.completion","created":1,"model":"test-model","choices":[{"index":0,"message":{"role":"assistant","content":null,"tool_calls":[{"id":"call-1","type":"function","function":{"name":"lookup","arguments":"{\"id\":42}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}
@@ -176,14 +176,13 @@ public sealed class InferenceTransportFacts
     }
 
     private static ServiceProvider Services(string endpoint, string provider)
-        => new ServiceCollection().AddOptions().Configure<AIOptions>(options => { Configure(options); options.Default.Provider = provider; })
+        => new ServiceCollection().AddOptions().Configure<AIOptions>(options => Configure(options, provider))
             .AddSingleton<IAiCredentials>(new FixedAiCredentials().Ready(provider.ToLowerInvariant(), "test-only", endpoint))
-            .AddSingleton<ModelProfiles>().AddSingleton<InferenceService>().BuildServiceProvider();
+            .AddSingleton<ModelCatalog>().AddSingleton<InferenceService>().BuildServiceProvider();
 
-    private static void Configure(AIOptions options)
+    private static void Configure(AIOptions options, string provider)
     {
-        options.Default.Provider = "OpenAI";
-        options.Default.Model = "test-model";
-        options.Default.Capabilities = LlmCapabilities.Tools;
+        options.ModelProfiles["default"] = new() { Provider = provider, Model = "test-model", Capabilities = LlmCapabilities.Tools };
+        options.Default.Model = "default";
     }
 }

@@ -99,54 +99,29 @@ public sealed class AgentTurnRunner(IServiceProvider services) : IAgentTurnRunne
             await AddTools(selected).ConfigureAwait(false);
             var initialTools = tools.Select(tool => tool.Name).ToHashSet(StringComparer.Ordinal);
 
-            var configuration = services.GetService<IOptions<AIOptions>>()?.Value;
-            var configured = configuration is not null && (configuration.Default.Profile is not null
-                || configuration.Default.Model is not null || configuration.Default.Provider is not null
-                || configuration.Ollama.Endpoint is not null
-                || (await Task.WhenAll(AiIntegrations.KeyedProviders.Select(provider => services.GetRequiredService<IAiCredentials>().IsReady(AiIntegrations.IdOf(provider), ct)))).Any(ready => ready));
-            IChatClient client;
-            bool owned;
-            ChatOptions options;
-            ModelDescriptor? descriptor = null;
-            // A scripted model plays the provider: the publish gate drives whole tool-calling turns
-            // through IScriptedLLM, with no provider configuration.
-            var scripted = request.Model?.Model is { } name && name.StartsWith(DigitalBrain.AI.Scripted.IScriptedLLM.ModelPrefix, StringComparison.Ordinal)
-                ? name[DigitalBrain.AI.Scripted.IScriptedLLM.ModelPrefix.Length..] : null;
-            if (scripted is not null)
+            var catalog = services.GetRequiredService<ModelCatalog>();
+            var selection = request.Model;
+            if (request.Options?.Reasoning is not null || request.Options?.MaxOutputTokens is not null)
             {
-                client = new ScriptedChatClient(services.GetRequiredService<IGrainFactory>().GetGrain<DigitalBrain.AI.Scripted.IScriptedLLM>(scripted));
-                options = new();
-                owned = true;
-            }
-            else if (request.Model is not null || configured || request.Options is not null)
-            {
-                var profiles = services.GetRequiredService<ModelProfiles>();
-                var selection = request.Model;
-                if (request.Options?.Reasoning is not null || request.Options?.MaxOutputTokens is not null)
+                selection = (selection ?? new()) with
                 {
-                    selection = (selection ?? new()) with
-                    {
-                        Reasoning = request.Options.Reasoning ?? selection?.Reasoning,
-                        MaxOutputTokens = request.Options.MaxOutputTokens ?? selection?.MaxOutputTokens
-                    };
-                }
-                var resolved = await profiles.Resolve(selection, requiresTools: tools.Count > 0, cancellationToken: ct);
-                descriptor = services.GetRequiredService<InferenceService>().DescribeResolved(resolved);
+                    Reasoning = request.Options.Reasoning ?? selection?.Reasoning,
+                    MaxOutputTokens = request.Options.MaxOutputTokens ?? selection?.MaxOutputTokens
+                };
+            }
+            var resolved = await catalog.Resolve(selection, requiresTools: tools.Count > 0, ct);
+            ChatOptions options;
+            if (resolved.Provider is AiProvider.Host) { options = new(); }
+            else
+            {
+                var descriptor = catalog.Describe(resolved);
                 InferenceMapping.ValidateRequest(new InferenceRequest(
                     [.. request.Messages ?? [], request.Input ?? new AiMessage("user", [new AiText(request.Message)])],
                     selection, request.Options), descriptor);
                 options = InferenceMapping.CreateOptions(resolved, request.Options is null ? null : request.Options with { Reasoning = null }, descriptor);
-                client = await profiles.CreateInferenceClient(resolved, ct);
-                owned = true;
                 await WriteObserved(events, new AgentTurnEvent.ModelSelected(resolved, descriptor), ct).ConfigureAwait(false);
             }
-            else
-            {
-                client = services.GetRequiredService<IChatClient>();
-                options = new();
-                owned = false;
-            }
-            using var ownedClient = owned ? client : null;
+            using var client = await catalog.CreateClient(resolved, ct);
             options.Instructions = request.Instructions;
             options.Tools = tools.Cast<AITool>().ToList();
             var messages = request.Messages?.Select(InferenceMapping.ToChatMessage).ToList() ?? [];

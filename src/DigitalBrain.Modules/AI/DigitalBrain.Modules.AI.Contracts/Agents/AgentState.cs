@@ -24,7 +24,7 @@ public sealed record AgentRunState(
     [property: Id(4)] DateTimeOffset? EndedAt = null,
     [property: Id(5)] AgentResponse? Response = null,
     [property: Id(6)] string? Error = null,
-    [property: Id(7)] ResolvedAgentModel? Model = null,
+    [property: Id(7)] ResolvedModel? Model = null,
     [property: Id(8)] ModelDescriptor? Capabilities = null,
     [property: Id(9)] AgentDefinition? Definition = null);
 

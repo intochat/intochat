@@ -58,7 +58,7 @@ public sealed class RegistryDiscoveryFacts
             await researcher.BeginBuild(null);
             await researcher.CompleteBuild(await researcher.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t" }, null);
 
-            using var services = new ServiceCollection()
+            using var services = new ServiceCollection().AddModelCatalog()
                 .AddSingleton<IChatClient>(new DiscoveryModel())
                 .AddSingleton<IAgentToolFactory>(new RegistryDiscoveryTools(brain.Grains))
                 .AddSingleton<IAgentToolFactory>(database)

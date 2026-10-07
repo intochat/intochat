@@ -39,7 +39,7 @@ public sealed class InventoryFacts
         {
             Stamp(name);
             var model = new InventoryModel(tool);
-            using var services = new ServiceCollection().AddSingleton<IChatClient>(model)
+            using var services = new ServiceCollection().AddModelCatalog().AddSingleton<IChatClient>(model)
                 .AddSingleton<IEnumerable<IAgentToolFactory>>(host.SiloServices.GetServices<IAgentToolFactory>()).BuildServiceProvider();
             var events = new List<AgentTurnEvent>();
             await foreach (var item in new AgentTurnRunner(services).RunAsync(new("assistant", "run", BrainScope.CurrentId(), [],
@@ -75,7 +75,7 @@ public sealed class InventoryFacts
         await app.BeginBuild(null);
         await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["synapses/app.cs"] = "// p" }, null);
         var model = new InventoryModel("list_synapses");
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(model)
+        using var services = new ServiceCollection().AddModelCatalog().AddSingleton<IChatClient>(model)
             .AddSingleton<IEnumerable<IAgentToolFactory>>(host.SiloServices.GetServices<IAgentToolFactory>()).BuildServiceProvider();
         var events = new List<AgentTurnEvent>();
         await foreach (var item in new AgentTurnRunner(services).RunAsync(new("assistant", "run", scope, [],

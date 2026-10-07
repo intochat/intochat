@@ -16,7 +16,7 @@ public sealed class AgentStreamingFacts
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         deadline.CancelAfter(TimeSpan.FromSeconds(15));
         var client = new BurstProvider();
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(client.Client).BuildServiceProvider();
+        using var services = new ServiceCollection().AddModelCatalog().AddSingleton<IChatClient>(client.Client).BuildServiceProvider();
         await using var stream = new AgentTurnRunner(services).RunAsync(new("agent", "run", "scope", [], "hello", null, Streaming: true), deadline.Token).GetAsyncEnumerator(deadline.Token);
         Assert.True(await stream.MoveNextAsync());
         Assert.IsType<AgentTurnEvent.Started>(stream.Current);

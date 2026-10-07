@@ -65,8 +65,6 @@ internal static class InferenceMapping
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(descriptor);
-        if (request.Model?.Capabilities is not null)
-        { throw new ArgumentException("Capabilities must be declared in a host model profile, not by an inference request.", nameof(request)); }
         if (request.Messages is not { Count: > 0 }) { throw new ArgumentException("At least one message is required.", nameof(request)); }
         if (request.Messages.SelectMany(m => m.Content).Any(c => c is AiImage) && descriptor.Vision != CapabilitySupport.Supported)
         { throw new ArgumentException("The model does not declare vision support.", nameof(request)); }
@@ -91,7 +89,7 @@ internal static class InferenceMapping
         { throw new ArgumentException("The model does not declare structured output support.", nameof(options)); }
     }
 
-    internal static ChatOptions CreateOptions(ResolvedAgentModel model, InferenceOptions? settings, ModelDescriptor? descriptor = null)
+    internal static ChatOptions CreateOptions(ResolvedModel model, InferenceOptions? settings, ModelDescriptor? descriptor = null)
     {
         settings ??= new();
         ValidateOptions(settings, descriptor);
@@ -105,8 +103,8 @@ internal static class InferenceMapping
         if (settings.TopP is { } topP && (!float.IsFinite(topP) || topP < 0 || topP > 1))
         { throw new ArgumentOutOfRangeException(nameof(settings), "TopP must be finite and between 0 and 1."); }
         if (settings.MaxOutputTokens is <= 0) { throw new ArgumentOutOfRangeException(nameof(settings), "MaxOutputTokens must be positive."); }
-        var options = ModelProfiles.CreateOptions(model);
-        if (model.Provider == "Ollama" && model.Reasoning is { } effort)
+        var options = ModelCatalog.CreateOptions(model);
+        if (model.Provider == AiProvider.Ollama && model.Reasoning is { } effort)
         {
             options.AdditionalProperties ??= [];
             options.AdditionalProperties["think"] = effort switch
@@ -123,10 +121,10 @@ internal static class InferenceMapping
         switch (settings.Provider)
         {
             case null: break;
-            case OpenAI.OpenAIInferenceOptions openai when model.Provider == "OpenAI":
+            case OpenAI.OpenAIInferenceOptions openai when model.Provider == AiProvider.OpenAI:
                 options.AllowMultipleToolCalls = openai.ParallelToolCalls;
                 break;
-            case Ollama.OllamaInferenceOptions ollama when model.Provider == "Ollama":
+            case Ollama.OllamaInferenceOptions ollama when model.Provider == AiProvider.Ollama:
                 options.AdditionalProperties ??= [];
                 if (ollama.ContextWindowTokens is { } context)
                 {
@@ -145,7 +143,7 @@ internal static class InferenceMapping
         // Only explicitly mapped extensions are accepted; arbitrary SDK objects never cross the contract.
         foreach (var option in settings.ProviderOptions ?? new Dictionary<string, string>())
         {
-            options.AllowMultipleToolCalls = model.Provider == "OpenAI" && option.Key == "parallel_tool_calls" && bool.TryParse(option.Value, out var parallel)
+            options.AllowMultipleToolCalls = model.Provider == AiProvider.OpenAI && option.Key == "parallel_tool_calls" && bool.TryParse(option.Value, out var parallel)
                 ? parallel : throw new ArgumentException($"Unsupported {model.Provider} option '{option.Key}' or invalid value.", nameof(settings));
         }
         options.Temperature = settings.Temperature;

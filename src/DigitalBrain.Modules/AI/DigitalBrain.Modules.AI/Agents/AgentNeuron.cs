@@ -98,14 +98,14 @@ internal sealed class AgentNeuron(
         await foreach (var update in Execute(message, null, null, streaming: true, ct))
         { if (update.Text is { } text) { yield return text; } }
     }
-    private async Task<AgentResponse> Respond(AiMessage message, AgentModelSelection? model, string? instructions, CancellationToken ct)
+    private async Task<AgentResponse> Respond(AiMessage message, ModelSelection? model, string? instructions, CancellationToken ct)
     {
         AgentResponse? result = null;
         await foreach (var update in Execute(message, model, instructions, streaming: false, ct)) { result = update.Response ?? result; }
         return result ?? throw new InvalidOperationException("The run produced no result.");
     }
 
-    private async IAsyncEnumerable<RunUpdate> Execute(AiMessage message, AgentModelSelection? model, string? instructions,
+    private async IAsyncEnumerable<RunUpdate> Execute(AiMessage message, ModelSelection? model, string? instructions,
         bool streaming, [EnumeratorCancellation] CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
