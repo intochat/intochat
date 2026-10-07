@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Hosting;

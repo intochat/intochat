@@ -1,11 +1,14 @@
-namespace DigitalBrain.Framework;
+using DigitalBrain.Framework;
+using ModuleContract = DigitalBrain.Framework.Module;
+
+namespace DigitalBrain.Testing.Module;
 
 public sealed class BrainCompositionBuilder
 {
     private readonly Dictionary<Type, ModuleDraft> _modules = [];
 
     public BrainCompositionBuilder WithModule<TModule>(Action<ModuleConfiguration<TModule>>? configure = null)
-        where TModule : Module, new()
+        where TModule : ModuleContract, new()
     {
         Declare<TModule>(out var draft);
         configure?.Invoke(new(draft));
@@ -23,7 +26,7 @@ public sealed class BrainCompositionBuilder
     }
 
     // Adds missing module requirements; explicitly declared modules keep their configuration.
-    public BrainCompositionBuilder RequireModules(IEnumerable<Module> modules)
+    public BrainCompositionBuilder RequireModules(IEnumerable<ModuleContract> modules)
     {
         ArgumentNullException.ThrowIfNull(modules);
         foreach (var module in modules.Where(module => !_modules.ContainsKey(module.GetType())))
@@ -32,7 +35,7 @@ public sealed class BrainCompositionBuilder
     }
 
     public BrainCompositionBuilder ConfigureModule<TModule>(Action<ModuleConfiguration<TModule>> configure)
-        where TModule : Module, new()
+        where TModule : ModuleContract, new()
     {
         ArgumentNullException.ThrowIfNull(configure);
         configure(new(RequireDeclared<TModule>()));
@@ -54,7 +57,7 @@ public sealed class BrainCompositionBuilder
         return new(modules, _modules.Values.SelectMany(m => m.LocalServices).ToArray());
     }
 
-    private void Declare<TModule>(out ModuleDraft draft) where TModule : Module, new()
+    private void Declare<TModule>(out ModuleDraft draft) where TModule : ModuleContract, new()
     {
         if (_modules.ContainsKey(typeof(TModule)))
         { throw new InvalidOperationException($"{typeof(TModule).Name} is already declared. Use ConfigureModule to change it."); }

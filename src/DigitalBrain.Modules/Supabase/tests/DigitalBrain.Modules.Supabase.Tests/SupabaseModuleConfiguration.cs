@@ -1,8 +1,9 @@
-using DigitalBrain.Framework;
+using DigitalBrain.Supabase;
+using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace DigitalBrain.Supabase;
+namespace DigitalBrain.Modules.Supabase.Tests;
 
 public static class SupabaseModuleConfiguration
 {
