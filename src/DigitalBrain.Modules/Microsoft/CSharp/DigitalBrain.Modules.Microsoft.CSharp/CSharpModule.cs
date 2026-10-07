@@ -1,7 +1,7 @@
 using Azure.Core;
 using Azure.Identity;
 using DigitalBrain;
-using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Tools;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.CSharp.Authoring;
@@ -23,9 +23,9 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
 {
     public static IntegrationSchema Integration => IntegrationSchema.For("csharp", "CSharp run tokens").RequiresSecret("RunTokenKey");
 
-    // The sandbox is the external system behind ICSharpFile, the way Gmail is behind IGmail. Its only
-    // credential is the deployment's run-token key, so there is nothing for a user to authorize beyond
-    // the token a run is issued; Platform requires one auth method, and "run-token" names that one.
+    // The sandbox is the external system behind ICSharpFile, the way Gmail is behind IGmail. Declared so the
+    // catalog knows it, not offered to users: its only credential is the deployment's run-token key, no
+    // connection neuron serves it, and Platform requires one auth method, which "run-token" names.
     public static ConnectorDefinition Connector { get; } = new("csharp", "C# sandbox", ["run-token"], [])
     {
         ExternalSystem = "C# sandbox",

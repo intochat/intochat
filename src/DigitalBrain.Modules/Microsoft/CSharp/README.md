@@ -3,13 +3,12 @@
 ## Connections and deployment credentials
 
 The sandbox is declared as the `csharp` connector: the external system behind the `ICSharpFile`
-neuron, whose public signal is `CSharpFileChanged`. It appears in `GET /connectors`. Its only
-credential is the deployment's run-token key, the optional Integration `csharp`, so a user has
-nothing to authorize beyond the token each run is issued (the connector names the auth method
-`run-token` because Platform requires one). Platform delivers credentials through scoped async
-handles authorized by the Integration schema. Credential values never belong in module options.
-Provision deployment credentials with `DigitalBrain:Integrations:{id}:{Field}`; ordinary options
-stay under `DigitalBrain:Modules:{id}:Options`.
+neuron, whose public signal is `CSharpFileChanged`. It is declared, not offered: no connection
+neuron serves it, so it does not appear in `GET /connectors` and a connection key naming it
+addresses nothing. Its only credential is the deployment's run-token key, the optional Integration
+`csharp`; the connector names the auth method `run-token` because Platform requires one. Credential
+values never belong in module options. Provision deployment credentials with
+`DigitalBrain:Integrations:{id}:{Field}`; ordinary options stay under `DigitalBrain:Modules:{id}:Options`.
 
 Integrations are what the deployment provisions; Connections are what users authorize.
 
