@@ -1,4 +1,4 @@
-namespace DigitalBrain.Framework.Platform.Integrations.Accounts;
+namespace DigitalBrain.Platform.Integrations.Accounts;
 
 public enum ConnectionProbeOutcome
 {

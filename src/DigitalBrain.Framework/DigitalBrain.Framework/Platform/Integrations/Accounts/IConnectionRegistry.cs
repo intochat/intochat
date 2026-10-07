@@ -38,9 +38,3 @@ public sealed record ConnectConnection
     [Id(4)] public string? SecretReference { get; init; }
     [Id(5)] public string AuthMethodId { get; init; } = "";
 }
-
-[GenerateSerializer, Alias("connections.status-changed")]
-public sealed record ConnectionStatusChanged(string ConnectionId, string IntegrationId, ConnectionStatus Status) : Signal;
-
-[GenerateSerializer, Alias("connections.disconnected")]
-public sealed record ConnectionDisconnected(string ConnectionId) : Signal;

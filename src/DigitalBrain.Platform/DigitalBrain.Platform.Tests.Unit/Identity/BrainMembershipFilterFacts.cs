@@ -1,5 +1,6 @@
 using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Identity;
+using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Grants;
 using Xunit;
 
