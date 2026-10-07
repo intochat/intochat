@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace DigitalBrain.Microsoft.GitHub;
+namespace DigitalBrain.Microsoft.GitHub.Webhook;
 
 internal static class GitHubWebhookHandler
 {

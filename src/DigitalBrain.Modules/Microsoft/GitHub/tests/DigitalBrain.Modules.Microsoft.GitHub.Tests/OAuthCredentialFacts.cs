@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.GitHub;
+using DigitalBrain.Microsoft.GitHub.Webhook;
 using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;

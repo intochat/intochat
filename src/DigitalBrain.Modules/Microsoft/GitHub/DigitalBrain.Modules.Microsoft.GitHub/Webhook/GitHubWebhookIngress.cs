@@ -4,7 +4,7 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain.Framework.Platform.Connections;
 
-namespace DigitalBrain.Microsoft.GitHub;
+namespace DigitalBrain.Microsoft.GitHub.Webhook;
 
 internal sealed class GitHubWebhookIngress(IGrainFactory grains, GitHubAppRegistration registration)
 {

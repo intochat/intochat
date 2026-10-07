@@ -63,7 +63,9 @@ Ring boundaries and config-key ownership are enforced by `src/Testing/DigitalBra
 ## Connectors, integrations, configuration
 
 - **Connector** — `ConnectorDefinition` a module ships: auth methods, neurons/signals, required/optional Integrations.
-- **Connection** — what a *user* authorizes, per brain at `/brains/{id}/connections`.
+- **Connection** — what a *user* authorizes, per brain at `/brains/{id}/connections`. A connection is the
+  connector's own neuron at `connection/{brain}/{connector}/{id}` holding sealed credential state; modules
+  receive deployment credentials through `IModuleIntegrations<TModule>`.
 - **Integration** — what the *deployment* provisions, `DigitalBrain:Integrations:{id}:{Field}`, `[PlatformOnly]`.
   Modules receive credentials only through `IModuleIntegrations<TModule>` — never read credential config.
 - **Configuration** — options are plain config at `DigitalBrain:Modules:{id}:Options:{Property}`, every key

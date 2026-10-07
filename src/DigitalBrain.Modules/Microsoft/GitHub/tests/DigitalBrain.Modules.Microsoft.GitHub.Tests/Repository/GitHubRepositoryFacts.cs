@@ -4,6 +4,7 @@ using DigitalBrain.Framework.Platform.Connections.Signals;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.GitHub;
 using DigitalBrain.Microsoft.GitHub.Signals;
+using DigitalBrain.Microsoft.GitHub.Webhook;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Modules.Microsoft.GitHub.Tests.Repository;

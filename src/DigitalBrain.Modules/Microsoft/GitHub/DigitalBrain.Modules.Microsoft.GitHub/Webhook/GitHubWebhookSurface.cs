@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Net.Http.Headers;
 
-namespace DigitalBrain.Microsoft.GitHub;
+namespace DigitalBrain.Microsoft.GitHub.Webhook;
 
 internal sealed class GitHubWebhookSurface(GitHubWebhookIngress ingress) : IHttpSurface
 {
