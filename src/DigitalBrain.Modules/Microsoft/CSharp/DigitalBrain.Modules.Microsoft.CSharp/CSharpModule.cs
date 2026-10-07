@@ -68,6 +68,7 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         builder.Services.TryAddSingleton<SessionStreams>();
         builder.Services.TryAddTransient<RuntimeEdge>();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<BrainRuntimeNeuron>, BrainRuntimeActivation>());
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Framework.Platform.Identity.ISignInHandler, RuntimeSignIn>());
         if (authoring)
         {
             builder.Services.TryAddScoped(provider => provider.GetRequiredService<CSharpToolService>().ForScope(BrainScope.CurrentId()));

@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Platform.Identity;
@@ -113,7 +115,30 @@ internal static class IdentityEndpoints
             new Claim(RoleClaim, member.Role.ToString()),
         ], CookieAuthenticationDefaults.AuthenticationScheme);
         await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
+        await SignedInAsync(member, http);
         return Results.Ok(member);
+    }
+
+    // Modules react to a sign-in as the member who just proved who they are; none of them can fail it.
+    private static async Task SignedInAsync(Member member, HttpContext http)
+    {
+        var handlers = http.RequestServices.GetServices<ISignInHandler>().ToArray();
+        if (handlers.Length == 0) { return; }
+        CallerContextStamper.Stamp(new CallerContext
+        {
+            PrincipalId = member.PrincipalId,
+            AccountId = member.AccountId,
+            BrainId = member.BrainId,
+            Kind = CallerKind.User,
+            StampedBy = TrustedEdge.AuthenticatedHttp,
+        });
+        var logger = http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(ISignInHandler));
+        foreach (var handler in handlers)
+        {
+            try { await handler.SignedIn(member, http.RequestAborted); }
+            catch (Exception error) when (error is not OperationCanceledException)
+            { logger.LogWarning(error, "Sign-in handler {Handler} failed for {Principal}", handler.GetType().Name, member.PrincipalId); }
+        }
     }
 
     private static IResult Session(HttpContext http)
