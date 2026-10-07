@@ -1,8 +1,11 @@
+using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Agents.Signals;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using Orleans.Runtime;
+using Orleans.Storage;
 
 namespace DigitalBrain.Modules.AI.Tests.Agents;
 
@@ -102,6 +105,133 @@ public sealed class AgentTurnStartFacts
             Assert.Equal("first", (await agent.Read()).ActiveRun!.UserText);
         }
         finally { release.TrySetResult(); }
+    }
+
+    // Cancel can arrive after Start recorded the run and before its driver picked it up; the
+    // driver then ends the run as cancelled instead of answering it.
+    [Fact]
+    public async Task CancelBeforeTheDriverStartsEndsTheStartedRunCancelled()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var writes = new AgentWrites();
+        await using var brain = await Brain(StubChatClient.Replying("never"), writes, ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
+        using var signals = brain.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<Signal>();
+        var held = writes.HoldNext();
+        var start = agent.Start(AgentTurn.Text("hi", runId: "run-1"));
+        await held.WaitAsync(ct);
+        await agent.Cancel();
+        writes.Release();
+        Assert.Equal("run-1", await start);
+        var failed = Assert.IsType<TurnFailed>((await UntilEnd(signals, "run-1", ct))[^1]);
+        Assert.True(failed.Cancelled);
+        var state = await agent.Read();
+        Assert.Null(state.ActiveRun);
+        Assert.Equal(AgentRunStatus.Cancelled, Assert.Single(state.Runs).Status);
+        Assert.Empty(await agent.Transcript());
+    }
+
+    // A run that outlives its Timeout failed; only a caller's Cancel or an abandoned stream is a cancellation.
+    [Fact]
+    public async Task ARunThatOutlivesItsTimeoutFailsRatherThanCancels()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = new StubChatClient(async (_, _, token) =>
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            return new ChatResponse(new ChatMessage(ChatRole.Assistant, "never"));
+        });
+        await using var brain = await AgentFacts.Brain(client, ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
+        await agent.Configure(new() { Timeout = TimeSpan.FromMilliseconds(200) }, 0);
+        using var signals = brain.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<Signal>();
+        var runId = await agent.Start(AgentTurn.Text("slow"));
+        var failed = Assert.IsType<TurnFailed>((await UntilEnd(signals, runId, ct))[^1]);
+        Assert.False(failed.Cancelled);
+        Assert.Contains("timeout", failed.Error, StringComparison.Ordinal);
+        Assert.Equal(AgentRunStatus.Failed, Assert.Single((await agent.Read()).Runs).Status);
+        var streamed = await Assert.ThrowsAsync<InvalidOperationException>(() => agent.GetResponse("slow again", ct));
+        Assert.Contains("timeout", streamed.Message, StringComparison.Ordinal);
+    }
+
+    // A turn whose outcome cannot be stored still announces its end, and the agent recovers from
+    // storage instead of refusing every later operation.
+    [Fact]
+    public async Task AStorageFaultAtTheEndOfATurnStillEndsItAndTheAgentRecovers()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var writes = new AgentWrites();
+        var client = new StubChatClient(async (messages, _, _) =>
+        {
+            if (messages[^1].Text == "first") { entered.TrySetResult(); await release.Task; }
+            return new ChatResponse(new ChatMessage(ChatRole.Assistant, "done"));
+        });
+        await using var brain = await Brain(client, writes, ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
+        using var signals = brain.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<Signal>();
+        var runId = await agent.Start(AgentTurn.Text("first"));
+        await entered.Task.WaitAsync(ct);
+        writes.Fail = true;
+        release.TrySetResult();
+        // Bounded so a regression that never announces the end fails instead of hanging the suite.
+        var failed = Assert.IsType<TurnFailed>((await UntilEnd(signals, runId, ct).WaitAsync(TimeSpan.FromSeconds(30), ct))[^1]);
+        Assert.False(failed.Cancelled);
+        writes.Fail = false;
+        var state = await agent.Read();
+        Assert.Null(state.ActiveRun);
+        Assert.Equal(AgentRunStatus.Interrupted, Assert.Single(state.Runs).Status);
+        Assert.Empty(await agent.Transcript());
+        Assert.Equal("done", await agent.GetResponse("second", ct));
+    }
+
+    private static Task<ModuleBrain> Brain(StubChatClient client, AgentWrites writes, CancellationToken ct)
+        => ModuleTest.Create().WithModule<AIModule>().ConfigureSilo(silo =>
+        {
+            silo.Services.AddSingleton<IChatClient>(client);
+            var original = silo.Services.Last(service => service.ServiceType == typeof(IGrainStorage) && Equals(service.ServiceKey, DigitalBrainNames.DefaultGrainStorage));
+            silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.DefaultGrainStorage, (services, key) =>
+                new AgentWriteStorage((IGrainStorage)original.KeyedImplementationFactory!(services, key), writes));
+        }).StartAsync(ct);
+
+    // Controls the agent's own writes: fail them, or hold the next one until released.
+    private sealed class AgentWrites
+    {
+        private readonly TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private TaskCompletionSource? _held;
+        public volatile bool Fail;
+
+        public Task HoldNext()
+        {
+            _held = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            return _held.Task;
+        }
+
+        public void Release() => _gate.TrySetResult();
+
+        public async Task Write()
+        {
+            if (Fail) { throw new IOException("Injected storage failure."); }
+            if (Interlocked.Exchange(ref _held, null) is { } held)
+            {
+                held.TrySetResult();
+                await _gate.Task;
+            }
+        }
+    }
+
+    private sealed class AgentWriteStorage(IGrainStorage inner, AgentWrites writes) : IGrainStorage
+    {
+        public Task ReadStateAsync<T>(string name, GrainId id, IGrainState<T> state) => inner.ReadStateAsync(name, id, state);
+
+        public async Task WriteStateAsync<T>(string name, GrainId id, IGrainState<T> state)
+        {
+            if (name == "agent") { await writes.Write(); }
+            await inner.WriteStateAsync(name, id, state);
+        }
+
+        public Task ClearStateAsync<T>(string name, GrainId id, IGrainState<T> state) => inner.ClearStateAsync(name, id, state);
     }
 
     // Every signal of the run, from its start to its completion or failure.

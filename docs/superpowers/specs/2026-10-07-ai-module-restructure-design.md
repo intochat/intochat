@@ -66,7 +66,10 @@ Revision, Definition, Summary: string?, ActiveRun: AgentRun?, Runs: AgentRun[]
 
 `AgentRun`: id, status (Running, Completed, Failed, Cancelled, Interrupted), started/ended, resolved
 model, usage, error, user text, tool calls (call id, name, arguments, result or failure). `Runs` is a
-bounded log. Overflowing transcript folds into `Summary` as today.
+bounded log. Overflowing transcript folds into `Summary` as today. History is bounded by size as well as
+count: a committed tool result over 4,000 characters is stored as a JSON preview (`truncated`,
+`characters`, `preview`), and replayed history keeps at most 120,000 characters, trimmed on the same
+turn boundaries with the dropped text folded into `Summary`.
 
 Turn loop: a private helper the grain owns. It builds messages from transcript, context and input,
 resolves the model through `ModelCatalog`, calls the client, invokes tools (factory tools, native
@@ -92,7 +95,8 @@ without its result. The `Start` driver is the module-internal `IAgentDriver`, re
 The Assistant has no context to write yet, so its agent's `Contexts` is empty; its conversation key
 is `{workspace}/agents/conversation-<hash>`.
 
-Access: an agent's key starts with its brain scope; `Access` returns `BrainScope.CurrentId()`.
+Access: an agent's key starts with its brain scope; the agent keeps the framework's default `Access`
+(`NeuronAccess.ForBrainKey(key)`), and its tools and meter use the same scope.
 
 ## Section 2: the context neuron
 
@@ -142,9 +146,10 @@ One resolver, `Module/Models/ModelCatalog.cs`, a singleton:
 
 ```csharp
 Task<ResolvedModel> Resolve(ModelSelection? selection, bool requiresTools, CancellationToken ct);
-Task<IChatClient> CreateClient(ResolvedModel model, CancellationToken ct);
+Task<IChatClient> CreateClient(ResolvedModel model, CancellationToken ct, bool invokesTools = false);
 ModelDescriptor Describe(ResolvedModel model);
-Task<ModelChoice[]> List(CancellationToken ct);
+Task<ModelChoices> List(string? defaultModel, CancellationToken ct);
+Task<ModelSelection?> Select(string? id, string? defaultModel, CancellationToken ct);
 ```
 
 `ResolvedModel` keeps provider, model id, endpoint, revision hash, capabilities, reasoning and max
@@ -205,7 +210,7 @@ Configuration/, Integrations/, Metering/, Media/, Voice/, GroupChat/   stay
 ```
 
 Deleted: `AgentExecutionNeuron`, `IAgentExecution`, `IAgentTurnDriver`, `IAgentTurnRunner`,
-`AgentTurnRunner`, `AgentActivation` (resume moves into `OnActivateAsync`), `AgentConversation.cs`,
+`AgentTurnRunner`, `AgentActivation` (resume moves into the `AgentResume` activation handler, since `Neuron.OnActivateAsync` is sealed), `AgentConversation.cs`,
 `AgentRequest`, `AgentReply`, `AgentTurnStart`, `AgentTurnRequest`, `AgentModelSelection`,
 `ModelProfiles`, `AgentModelCatalog`, `Providers.cs`.
 

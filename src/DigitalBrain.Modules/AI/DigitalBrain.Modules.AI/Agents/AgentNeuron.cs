@@ -31,13 +31,17 @@ internal sealed class AgentNeuron(
     [PersistentState("agent", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<AgentStorage> store) : Neuron, IAgent, IAgentDriver
 {
     private const int KeptRuns = 64;
+    // Replayed history is bounded by size as well as count: tool results (capability listings,
+    // table queries) would otherwise grow every turn until the provider refuses the context.
+    internal const int MaxHistoryCharacters = 120_000;
+    internal const int MaxStoredToolResultCharacters = 4_000;
     private CancellationTokenSource? _active;
     private string? _cancelBeforeDrive;
     private bool _mutating;
     private AgentStorage State => store.State;
     private string Key => this.GetPrimaryKeyString();
-    // An agent's key starts with its brain scope; that scope is the tools' and the meter's.
-    private string Scope => Key.Contains('/', StringComparison.Ordinal) ? Key[..Key.IndexOf('/', StringComparison.Ordinal)] : Key;
+    // The brain the access check sees is the tools' and the meter's.
+    private string Scope => NeuronAccess.ForBrainKey(Key).Scope ?? Key;
     private ILogger Logger => ServiceProvider.GetRequiredService<ILogger<AgentNeuron>>();
 
     // A run the previous activation left open is interrupted: external tool outcomes may be unknown.
@@ -122,7 +126,9 @@ internal sealed class AgentNeuron(
         try { await this.AsReference<IAgentDriver>().Drive(turn with { RunId = runId }, runId); }
         catch
         {
-            await Persist(State with { ActiveRun = null });
+            // The caller learns why the hand-off failed; a failure to undo it must not replace that.
+            try { await Persist(State with { ActiveRun = null }); }
+            catch (Exception error) { Abandon(error, runId); }
             throw;
         }
         return runId;
@@ -166,8 +172,10 @@ internal sealed class AgentNeuron(
         var definition = State.Definition;
         var input = Stored(turn.Message);
         var run = State.ActiveRun is { } active && active.RunId == runId ? active : new AgentRun(runId, AgentRunStatus.Running, UserText(input), DateTimeOffset.UtcNow);
-        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        lifetime.CancelAfter(definition.Timeout);
+        // The timeout has its own source, so a run that ran out of time is told apart from a cancelled one.
+        using var timeout = new CancellationTokenSource(definition.Timeout);
+        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(ct, timeout.Token);
+        var timedOut = $"The run exceeded its {definition.Timeout} timeout.";
         // Set before the first await, so an interleaved Run, Start, Configure or Clear sees this run.
         _active = lifetime;
         if (_cancelBeforeDrive == runId) { lifetime.Cancel(); }
@@ -182,7 +190,7 @@ internal sealed class AgentNeuron(
         {
             await Persist(State with { ActiveRun = run });
             await Notify(new TurnStarted(Key, runId, run.UserText));
-            var bounded = Bound(State.Transcript, Math.Max(1, definition.MaxHistoryMessages - 1), State.Summary);
+            var bounded = Bound(State.Transcript, Math.Max(1, definition.MaxHistoryMessages - 1), Math.Max(0, MaxHistoryCharacters - Size(input)), State.Summary);
             var plan = new TurnPlan(Scope, runId, bounded.Messages, bounded.Summary, input,
                 turn.Instructions ?? definition.Instructions, turn.Tools ?? definition.Tools, definition.Contexts,
                 turn.Model ?? definition.Model, definition.Options, definition.MaxModelCalls, Streaming: true);
@@ -194,7 +202,8 @@ internal sealed class AgentNeuron(
                     bool moved;
                     using (intent.Enter()) { moved = await loop.MoveNextAsync(); }
                     if (!moved) { break; }
-                    switch (loop.Current)
+                    var current = loop.Current;
+                    switch (current)
                     {
                         case AgentTurnEvent.ModelSelected selected:
                             run = run with { Model = selected.Model };
@@ -223,17 +232,19 @@ internal sealed class AgentNeuron(
                             break;
                         case AgentTurnEvent.Completed done:
                             run = run with { Status = AgentRunStatus.Completed, EndedAt = DateTimeOffset.UtcNow, Reply = text.ToString(), Usage = done.Usage };
-                            var transcript = Bound([.. State.Transcript, input, .. done.Messages.Select(Stored)], definition.MaxHistoryMessages, State.Summary);
+                            var transcript = Bound([.. State.Transcript, input, .. done.Messages.Select(Compacted)], definition.MaxHistoryMessages, MaxHistoryCharacters, State.Summary);
                             await Persist(State with { Transcript = transcript.Messages, Summary = transcript.Summary, ActiveRun = null, Runs = Keep(State.Runs, run) });
                             completed = true;
                             if (done.Usage is not null) { await Notify(new TurnProgressed(Key, runId, "receipt", null, null, JsonSerializer.Serialize(done.Usage), ++sequence)); }
                             break;
                         case AgentTurnEvent.Failed failed:
-                            failure = failed;
+                            // The loop sees only a cancelled token; a run out of time failed, it was not cancelled.
+                            failure = failed.Cancelled && TimedOut(timeout, ct) ? new(timedOut, Cancelled: false) : failed;
+                            current = failure;
                             break;
                     }
                     yielding = true;
-                    yield return loop.Current;
+                    yield return current;
                     yielding = false;
                 }
             }
@@ -247,10 +258,14 @@ internal sealed class AgentNeuron(
                 else
                 {
                     // Finally while yielding means the consumer stopped pulling: an abandoned stream is a cancelled run.
-                    var cancelled = yielding || failure?.Cancelled == true || lifetime.IsCancellationRequested;
-                    var error = failure?.Message ?? (yielding ? "The response stream was abandoned." : "Execution failed before committing its result.");
+                    var expired = !yielding && TimedOut(timeout, ct);
+                    var cancelled = !expired && (yielding || failure?.Cancelled == true || lifetime.IsCancellationRequested);
+                    var error = expired ? timedOut
+                        : failure?.Message ?? (yielding ? "The response stream was abandoned." : "Execution failed before committing its result.");
                     run = Close(run, cancelled ? AgentRunStatus.Cancelled : AgentRunStatus.Failed, error, cancelled ? "tool_cancelled" : "tool_interrupted");
-                    await Persist(State with { ActiveRun = null, Runs = Keep(State.Runs, run) });
+                    // The end is announced whether or not it could be stored: a Start caller must never wait forever.
+                    try { await Persist(State with { ActiveRun = null, Runs = Keep(State.Runs, run) }); }
+                    catch (Exception persist) { Abandon(persist, runId); }
                     await Notify(new TurnFailed(Key, runId, error, cancelled));
                 }
             }
@@ -295,6 +310,44 @@ internal sealed class AgentNeuron(
     // ToArray, not a collection expression: targeting IReadOnlyList, [..] builds a wrapper type storage cannot read back.
     private static AiMessage Stored(AiMessage message) => new(message.Role, message.Content.ToArray());
 
+    // A committed tool result keeps a bounded preview: the turn that called the tool saw all of it,
+    // later turns only need to know what it was. The result stays valid JSON, paired with its call.
+    private static AiMessage Compacted(AiMessage message) => new(message.Role, message.Content.Select(content => content switch
+    {
+        AiToolResult result when result.ResultJson.Length > MaxStoredToolResultCharacters => new AiToolResult(result.CallId, JsonSerializer.Serialize(new
+        {
+            truncated = true,
+            characters = result.ResultJson.Length,
+            preview = Preview(result.ResultJson),
+        })),
+        _ => content,
+    }).ToArray());
+
+    // Never cut a surrogate pair in half: the preview must stay valid UTF-16 to serialize.
+    private static string Preview(string json)
+        => json[..(char.IsHighSurrogate(json[MaxStoredToolResultCharacters - 1]) ? MaxStoredToolResultCharacters - 1 : MaxStoredToolResultCharacters)];
+
+    // What a message costs the model in text; media is priced by the provider per item, not by its URI.
+    private static long Size(AiMessage message) => message.Content.Sum(content => (long)(content switch
+    {
+        AiText text => text.Text.Length,
+        AiReasoning reasoning => reasoning.Text.Length,
+        AiToolCall call => call.Name.Length + call.ArgumentsJson.Length,
+        AiToolResult result => result.ResultJson.Length,
+        _ => 0,
+    }));
+
+    // Only the run's own time limit is a timeout; the caller's token and Cancel are cancellations.
+    private static bool TimedOut(CancellationTokenSource timeout, CancellationToken caller) => timeout.IsCancellationRequested && !caller.IsCancellationRequested;
+
+    // The stored state no longer matches what this activation holds; a fresh activation reads the
+    // stored run back and Resume closes it as interrupted.
+    private void Abandon(Exception error, string runId)
+    {
+        Logger.LogError(error, "Agent run {RunId} could not store its outcome; the agent deactivates to recover from storage.", runId);
+        this.DeactivateOnIdle();
+    }
+
     private static AgentRun Close(AgentRun run, AgentRunStatus status, string error, string openCallCode = "tool_interrupted") => run with
     {
         Status = status,
@@ -337,13 +390,15 @@ internal sealed class AgentNeuron(
         catch (JsonException) { return null; }
     }
 
-    // Overflow folds the oldest messages into a bounded summary instead of failing the run.
-    private static (AiMessage[] Messages, string? Summary) Bound(AiMessage[] messages, int maxMessages, string? summary)
+    // Overflow, by count or by size, folds the oldest messages into a bounded summary instead of failing the run.
+    private static (AiMessage[] Messages, string? Summary) Bound(AiMessage[] messages, int maxMessages, long maxCharacters, string? summary)
     {
-        if (messages.Length <= maxMessages) { return (messages, summary); }
+        var drop = Math.Max(0, messages.Length - maxMessages);
+        var size = messages.Skip(drop).Sum(Size);
+        while (drop < messages.Length && size > maxCharacters) { size -= Size(messages[drop]); drop++; }
+        if (drop == 0) { return (messages, summary); }
         // Cut on a turn boundary: history always starts at a user message, so a tool call is never
         // kept without its result or a result without its call. A turn too long to keep goes whole.
-        var drop = messages.Length - maxMessages;
         while (drop < messages.Length && messages[drop].Role != "user") { drop++; }
         var added = string.Join(" ", messages.Take(drop).Select(UserText)
             .Where(text => !string.IsNullOrWhiteSpace(text)).Select(text => text.Length <= 120 ? text : text[..120]));
