@@ -14,7 +14,7 @@ namespace DigitalBrain.Platform.Integrations.Accounts;
 
 // The owner's account registry. A credential is written to the shared secrets grain and the
 // record holds only its SecretRef; the value is released only inside the read-only probe.
-[GrainType(ConnectionNames.NeuronType)] // alias predates the integrations rename; persisted, do not touch
+[GrainType(ConnectionNames.NeuronType)]
 internal sealed class ConnectionsNeuron : Neuron<ConnectionsState>, IConnectionRegistry
 {
     private readonly IGrainFactory _grains;

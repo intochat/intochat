@@ -1,6 +1,6 @@
 namespace DigitalBrain.Framework.Capacity;
 
-[GenerateSerializer, Alias("DigitalBrain.Kernel.Capacity.CapacityUnavailableException")]
+[GenerateSerializer, Alias("capacity.unavailable")]
 public sealed class CapacityUnavailableException : Exception
 {
     public const string RefusalMessage = "Sorry, runtime provisioning is not accessible at the moment.";

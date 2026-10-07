@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Framework;
 
-/// <summary>The brain's first neuron: its state, its creation, its lifecycle signals.</summary>
+// The brain's first neuron: its state, its creation, its lifecycle signals.
 [GrainType("kernel")]
 internal sealed class KernelNeuron(
     [PersistentState("kernel", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<State> store,
@@ -49,7 +49,7 @@ internal sealed class KernelNeuron(
     }
 }
 
-/// <summary>Publishes <see cref="Activated"/> on every wake of a created brain.</summary>
+// Publishes Activated on every wake of a created brain.
 internal sealed class KernelActivation : IActivationHandler<KernelNeuron>
 {
     public Task Activated(KernelNeuron neuron, CancellationToken cancellationToken) => neuron.Woke();

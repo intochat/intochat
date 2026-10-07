@@ -1,13 +1,9 @@
 using System.Text;
-using DigitalBrain;
-using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 using Orleans.Concurrency;
 
-// Orleans aliases retain the original wire identities across the SDK namespace rename.
 namespace DigitalBrain.Framework.Platform.Integrations;
 
-[Alias("DigitalBrain.Framework.Platform.Integrations.RegistrationStatus")]
 public enum IntegrationStatus
 {
     Unconfigured = 0,

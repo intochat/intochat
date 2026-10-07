@@ -1,11 +1,8 @@
-using DigitalBrain;
-using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Types;
 
 namespace DigitalBrain.Framework.Platform.Secrets;
 
-// Keep the existing Orleans identity so stored credentials remain addressable.
 [Orleans.Metadata.DefaultGrainType("vault")]
 [Alias("vault")]
 [PlatformOnly]

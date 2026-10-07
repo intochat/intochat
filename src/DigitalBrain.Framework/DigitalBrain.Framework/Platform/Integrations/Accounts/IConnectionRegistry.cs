@@ -1,12 +1,10 @@
-using DigitalBrain;
-using DigitalBrain.Framework;
 using DigitalBrain.Framework.Enforcement;
 
 namespace DigitalBrain.Framework.Platform.Integrations.Accounts;
 
 public static class ConnectionNames
 {
-    // alias predates the integrations rename; persisted, do not touch
+   
     public const string NeuronType = "connections";
 }
 
@@ -14,7 +12,7 @@ public static class ConnectionNames
 // contain only references. Platform-only: the caller is read from the ambient stamp, and the
 // HTTP endpoints are the user's way in.
 [PlatformOnly]
-[Alias("connections")] // alias predates the integrations rename; persisted, do not touch
+[Alias("connections")]
 [Orleans.Metadata.DefaultGrainType(ConnectionNames.NeuronType)]
 public interface IConnectionRegistry : INeuron
 {
@@ -27,7 +25,7 @@ public interface IConnectionRegistry : INeuron
     Task Disconnect(string connectionId, CancellationToken cancellationToken = default);
 }
 
-[GenerateSerializer, Alias("connections.connect")] // alias predates the integrations rename; persisted, do not touch
+[GenerateSerializer, Alias("connections.connect")]
 public sealed record ConnectConnection
 {
     [Id(0)] public required string IntegrationId { get; init; }
@@ -42,9 +40,8 @@ public sealed record ConnectConnection
     [Id(5)] public string AuthMethodId { get; init; } = "";
 }
 
-// Signal aliases kept: see task-6 report; a durable subscription buffer may hold serialized signals.
-[GenerateSerializer, Alias("connections.status-changed")] // alias predates the integrations rename; persisted, do not touch
+[GenerateSerializer, Alias("connections.status-changed")]
 public sealed record ConnectionStatusChanged(string ConnectionId, string IntegrationId, ConnectionStatus Status) : Signal;
 
-[GenerateSerializer, Alias("connections.disconnected")] // alias predates the integrations rename; persisted, do not touch
+[GenerateSerializer, Alias("connections.disconnected")]
 public sealed record ConnectionDisconnected(string ConnectionId) : Signal;

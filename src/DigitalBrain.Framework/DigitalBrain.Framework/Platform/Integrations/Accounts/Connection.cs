@@ -2,7 +2,6 @@ using DigitalBrain.Framework.Types;
 
 namespace DigitalBrain.Framework.Platform.Integrations.Accounts;
 
-[Alias("DigitalBrain.Framework.Platform.Integrations.Accounts.AccountStatus")]
 public enum ConnectionStatus
 {
     Connected = 0,
@@ -11,7 +10,7 @@ public enum ConnectionStatus
     Disconnected = 3,
 }
 
-[GenerateSerializer, Alias("connections.connection")] // alias predates the integrations rename; persisted, do not touch
+[GenerateSerializer, Alias("connections.connection")]
 public sealed record Connection
 {
     [Id(0)] public required string Id { get; init; }

@@ -6,14 +6,8 @@ using Orleans.Utilities;
 
 namespace DigitalBrain.Framework;
 
-/// <summary>
-/// The grain every neuron is: observable, and activated through the activation pipeline.
-/// </summary>
-/// <remarks>
-/// Activation is sealed. A module that needs work on activation registers an
-/// <see cref="IActivationHandler{TNeuron}"/> for its neuron type instead of overriding the grain
-/// lifecycle, so the runtime owns the order and the failure handling.
-/// </remarks>
+// Every neuron is observable and activated through IActivationHandler<T>; OnActivateAsync is
+// sealed so the runtime owns the order and the failure handling.
 public abstract class Neuron : Grain, INeuron
 {
     public virtual NeuronAccess Access(string operation) => NeuronAccess.ForBrainKey(this.GetPrimaryKeyString());
@@ -26,7 +20,7 @@ public abstract class Neuron : Grain, INeuron
 
     protected TimeSpan ObserverRenewal => TimeSpan.FromTicks(ServiceProvider.GetRequiredService<IOptions<ObserverOptions>>().Value.Lease.Ticks / 5);
 
-    /// <summary>This neuron's id as stamped on its signals. Transitional: the full grain id until keys are brain-owned.</summary>
+    // Transitional: the full grain id until keys are brain-owned.
     public NeuronId Id => new(this.GetGrainId().ToString());
 
     public sealed override async Task OnActivateAsync(CancellationToken cancellationToken)

@@ -1,20 +1,12 @@
 namespace DigitalBrain.Framework.Enforcement;
 
-/// <summary>
-/// Marks a neuron contract as reserved for trusted platform code: it is left out of the catalog
-/// programs see, and the program edge refuses to invoke it.
-/// </summary>
-/// <remarks>
-/// Exists because a program could otherwise forge the caller context such a contract trusts.
-/// Scheduled to go once module contracts are declared rather than discovered.
-/// </remarks>
+// Reserved for trusted platform code: left out of the program catalog, refused by the program
+// edge, because a program could otherwise forge the caller context such a contract trusts.
+// Scheduled to go once module contracts are declared rather than discovered.
 [AttributeUsage(AttributeTargets.Interface, AllowMultiple = false, Inherited = false)]
 public sealed class PlatformOnlyAttribute : Attribute
 {
-    /// <summary>
-    /// Whether <paramref name="contract"/> is platform-only: marked itself, inheriting a marked
-    /// interface, or declared in a <see cref="PlatformAssemblyAttribute"/> assembly.
-    /// </summary>
+    // Marked itself, inheriting a marked interface, or declared in a platform assembly.
     public static bool AppliesTo(Type contract)
     {
         ArgumentNullException.ThrowIfNull(contract);

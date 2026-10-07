@@ -2,14 +2,8 @@ using DigitalBrain.Framework.Enforcement;
 
 namespace DigitalBrain.Framework;
 
-/// <summary>
-/// The caller's brain. What silo code gets when it asks DI for <see cref="IDigitalBrain"/>.
-/// </summary>
-/// <remarks>
-/// Only <see cref="Self"/> needs the stamped caller today. Resolving is transitional: keys are
-/// still module-composed, so an id is the grain key as given, and silo-internal neurons may
-/// resolve with no caller stamped. Prefixing by brain lands with brain-owned keys.
-/// </remarks>
+// What silo code gets for IDigitalBrain. Transitional: keys are still module-composed, so Get
+// resolves the raw key and only Self needs the stamped caller.
 internal sealed class CurrentBrain(IDigitalBrains brains) : IDigitalBrain
 {
     public T Get<T>(NeuronId id) where T : INeuron => brains.Grain<T>(id.Name);

@@ -1,14 +1,7 @@
 namespace DigitalBrain.Framework;
 
-/// <summary>
-/// A step of the activation pipeline for one neuron type. Registered in DI by the module that
-/// owns the neuron; the runtime runs every handler for the activating neuron's type, in
-/// registration order, before the first call reaches it.
-/// </summary>
-/// <remarks>
-/// Replaces overriding the grain lifecycle: modules say what happens on activation, the runtime
-/// says when. A handler that throws fails the activation, as a lifecycle override would.
-/// </remarks>
+// Runs once per activation of TNeuron, in registration order, before the first call reaches it;
+// a throw fails the activation. Modules register these instead of overriding the grain lifecycle.
 public interface IActivationHandler<in TNeuron> : IActivationHandler where TNeuron : Neuron
 {
     Task Activated(TNeuron neuron, CancellationToken cancellationToken);
@@ -16,7 +9,7 @@ public interface IActivationHandler<in TNeuron> : IActivationHandler where TNeur
     Task IActivationHandler.Activated(Neuron neuron, CancellationToken cancellationToken) => Activated((TNeuron)neuron, cancellationToken);
 }
 
-/// <summary>The untyped form the runtime dispatches through; implement the generic one.</summary>
+// The untyped form the runtime dispatches through; implement the generic one.
 public interface IActivationHandler
 {
     Task Activated(Neuron neuron, CancellationToken cancellationToken);

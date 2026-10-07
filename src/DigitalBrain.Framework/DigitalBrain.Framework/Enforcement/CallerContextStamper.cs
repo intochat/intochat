@@ -1,6 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using DigitalBrain.Framework.Enforcement;
-using Orleans.Runtime;
 
 namespace DigitalBrain.Framework.Enforcement;
 
@@ -54,5 +52,5 @@ public static class CallerContextStamper
     };
 }
 
-[GenerateSerializer, Alias("DigitalBrain.Kernel.Enforcement.UntrustedCallerException")]
+[GenerateSerializer, Alias("enforcement.untrusted-caller")]
 public sealed class UntrustedCallerException(string message) : Exception(message);

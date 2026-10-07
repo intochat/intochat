@@ -63,8 +63,8 @@ public sealed class RegistryFacts
             StampedBy = TrustedEdge.AuthenticatedHttp
         });
         await host.AuthorizeCallerAsync();
-        var neuron = host.Get<IBrain>(BrainScope.CurrentId());
-        await neuron.Read();
+        var neuron = host.Get<IKernel>(BrainScope.CurrentId());
+        await neuron.Create(new Owner("owner"));
         await host.DeactivateAsync(neuron, ct);
         var registry = host.SiloServices.GetRequiredService<IRegistry>();
         var first = await registry.Active(ct: ct);
@@ -72,7 +72,7 @@ public sealed class RegistryFacts
         Assert.DoesNotContain(first.Records, record => record.Domain == "delayed");
         Assert.Contains((await registry.Active(ct: ct)).Records, record => record.Domain == "delayed");
         await host.DeactivateAsync(neuron, ct);
-        Assert.DoesNotContain(await host.SiloServices.GetRequiredService<IActivationCensus>().Activations("brain", ct),
+        Assert.DoesNotContain(await host.SiloServices.GetRequiredService<IActivationCensus>().Activations("kernel", ct),
             record => record.Key == BrainScope.CurrentId());
     }
 
@@ -83,7 +83,7 @@ public sealed class RegistryFacts
         public async Task<NeuronRecord[]> Active(string? typeId, CancellationToken ct)
         {
             await membershipRead.WaitAsync(ct);
-            return (await census.Activations("brain", ct)).Where(record => record.Key == BrainScope.CurrentId())
+            return (await census.Activations("kernel", ct)).Where(record => record.Key == BrainScope.CurrentId())
                 .Select(record => new NeuronRecord(Domain, record.TypeId, record.Key, "Brain")).ToArray();
         }
     }
@@ -95,7 +95,7 @@ public sealed class RegistryFacts
         public async Task<NeuronRecord[]> Active(string? typeId, CancellationToken ct)
         {
             _ = await census.Activations("unused", ct);
-            await brain.Get<IBrain>(BrainScope.CurrentId()).Read();
+            await brain.Get<IKernel>(BrainScope.CurrentId()).Create(new Owner("owner"));
             completed.TrySetResult();
             return [];
         }
@@ -106,10 +106,10 @@ public sealed class RegistryFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var host = await ModuleTest.Create().StartAsync(ct);
-        var first = host.Get<IBrain>(BrainScope.Create("owner", "one").Id);
-        var second = host.Get<IBrain>(BrainScope.Create("owner", "two").Id);
-        await first.Read();
-        await second.Read();
+        var first = host.Get<IKernel>(BrainScope.Create("owner", "one").Id);
+        var second = host.Get<IKernel>(BrainScope.Create("owner", "two").Id);
+        await first.Create(new Owner("owner"));
+        await second.Create(new Owner("owner"));
         var census = host.SiloServices.GetRequiredService<IActivationCensus>();
         var type = first.GetGrainId().Type.ToString();
         var records = await census.Activations(type, ct);
