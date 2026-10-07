@@ -7,7 +7,7 @@ internal sealed class SupabaseHealthCheck(ISupabaseBackingStore provider, IOptio
 {
     public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {
-        if (!options.Value.UseBackingStore) { return HealthCheckResult.Healthy("Supabase user connections are available; deployment backing storage is not selected."); }
+        if (!options.Value.UseBackingStore) { return HealthCheckResult.Healthy("Supabase deployment backing storage is not selected."); }
         var connection = await provider.PingAsync(cancellationToken).ConfigureAwait(false);
         return connection.Connected
             ? HealthCheckResult.Healthy($"Supabase {connection.ServerVersion} serves database '{connection.Database}'.")

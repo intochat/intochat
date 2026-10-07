@@ -126,7 +126,6 @@
   </Folder>
   <Folder Name="/Modules/Supabase/">
     <Project Path="src/DigitalBrain.Modules/Supabase/DigitalBrain.Modules.Supabase.Aspire.Hosting/DigitalBrain.Modules.Supabase.Aspire.Hosting.csproj" />
-    <Project Path="src/DigitalBrain.Modules/Supabase/DigitalBrain.Modules.Supabase.Contracts/DigitalBrain.Modules.Supabase.Contracts.csproj" />
     <Project Path="src/DigitalBrain.Modules/Supabase/DigitalBrain.Modules.Supabase/DigitalBrain.Modules.Supabase.csproj" />
     <Project Path="src/DigitalBrain.Modules/Supabase/tests/DigitalBrain.Modules.Supabase.Tests.Hosting/DigitalBrain.Modules.Supabase.Tests.Hosting.csproj" />
     <Project Path="src/DigitalBrain.Modules/Supabase/tests/DigitalBrain.Modules.Supabase.Tests/DigitalBrain.Modules.Supabase.Tests.csproj" />

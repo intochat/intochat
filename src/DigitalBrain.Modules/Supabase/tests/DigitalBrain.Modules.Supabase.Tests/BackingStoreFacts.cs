@@ -25,13 +25,13 @@ public sealed class BackingStoreFacts
     }
 
     [Fact]
-    public async Task BackingStoreQueryUsesItsDeploymentCredentialWithoutAUserStamp()
+    public async Task BackingStorePingUsesItsDeploymentCredentialWithoutAUserStamp()
     {
         Orleans.Runtime.RequestContext.Clear();
         var credentials = new MissingInfrastructure();
         await using var backing = new SupabaseBackingStore(credentials, Options.Create(new SupabaseModuleOptions { UseBackingStore = true }));
         var ct = TestContext.Current.CancellationToken;
-        await Assert.ThrowsAsync<InvalidOperationException>(() => backing.QueryAsync("select 1", 1, [], ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => backing.PingAsync(ct));
         Assert.Equal(("supabase", "Release", ct), credentials.Request);
     }
 
@@ -44,8 +44,7 @@ public sealed class BackingStoreFacts
         Assert.False(options.Value.UseBackingStore);
         var check = new SupabaseHealthCheck(brain.SiloServices.GetRequiredService<ISupabaseBackingStore>(), options);
         Assert.Equal(HealthStatus.Healthy, (await check.CheckHealthAsync(new HealthCheckContext(), ct)).Status);
-        Assert.Empty(SupabaseModule.Connector.RequiredIntegrations);
-        Assert.Equal(["supabase"], SupabaseModule.Connector.OptionalIntegrations);
+        Assert.Null(typeof(SupabaseModule).GetProperty("Connector"));
     }
 
     [Fact]

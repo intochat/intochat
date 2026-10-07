@@ -345,38 +345,6 @@ final class DigitalBrainUiClient {
     );
   }
 
-  Future<TableSnapshot> readWorkspaceTable(
-    String workspaceId,
-    String tableId, {
-    int offset = 0,
-    int limit = 25,
-    Future<void>? cancelled,
-  }) async => TableSnapshot.fromJson(
-    Map<String, dynamic>.from(
-      await _tableRequest(
-        'GET',
-        '/brains/${Uri.encodeComponent(workspaceId)}/tables/${Uri.encodeComponent(tableId)}?offset=$offset&limit=$limit',
-        cancelled: cancelled,
-      ) as Map,
-    ),
-  );
-
-  Future<TableSnapshot> updateWorkspaceTable(
-    String workspaceId,
-    String tableId,
-    TableViewUpdate update, {
-    Future<void>? cancelled,
-  }) async => TableSnapshot.fromJson(
-    Map<String, dynamic>.from(
-      await _tableRequest(
-        'POST',
-        '/brains/${Uri.encodeComponent(workspaceId)}/tables/${Uri.encodeComponent(tableId)}/view',
-        body: update.toJson(),
-        cancelled: cancelled,
-      ) as Map,
-    ),
-  );
-
   Stream<WorkspaceRevision> watchWorkspace(String workspaceId) {
     final abort = Completer<void>();
     StreamSubscription<String>? incoming;

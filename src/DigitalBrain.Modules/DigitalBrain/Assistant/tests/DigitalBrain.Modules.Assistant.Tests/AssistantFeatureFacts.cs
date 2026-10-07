@@ -9,8 +9,6 @@ using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.VoiceInput;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Supabase;
-using DigitalBrain.Supabase.Tables;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,15 +24,12 @@ public sealed class AssistantFeatureFacts
         var ct = TestContext.Current.CancellationToken;
         return await ModuleTest.Create().WithExecution(new TestExecutionOptions
         {
-            PrivateConfiguration = new Dictionary<string, string?> { [IntegrationSchema.Key("openai", "ApiKey")] = "test-no-network", [IntegrationSchema.Key("supabase", "ConnectionString")] = "Host=localhost;Database=fixture;Username=test;Password=test" },
+            PrivateConfiguration = new Dictionary<string, string?> { [IntegrationSchema.Key("openai", "ApiKey")] = "test-no-network" },
         })
             .WithModule<AssistantModule>().RequireModules([new DigitalBrain.Apps.AppsModule(), new DigitalBrain.AI.AIModule(), new DigitalBrain.Compute.ComputeModule(), new DigitalBrain.Flutter.FlutterModule()])
-            .WithModule<SupabaseModule>()
             .ConfigureSilo(silo => silo.Services
                 .Configure<AIOptions>(options => { options.ModelProfiles["default"] = new() { Provider = "OpenAI", Model = "fixture", Capabilities = LlmCapabilities.Tools }; options.Default.Model = "default"; })
                 .AddSingleton<IChatClient>(new ScriptedAssistantModel())
-                .AddSingleton<CustomersDatabase>()
-                .AddSingleton<ISupabaseProvider>(services => services.GetRequiredService<CustomersDatabase>())
                 .AddSingleton<IAudioTranscriptionService>(new TextTranscriber()))
             .StartAsync(ct);
     }
