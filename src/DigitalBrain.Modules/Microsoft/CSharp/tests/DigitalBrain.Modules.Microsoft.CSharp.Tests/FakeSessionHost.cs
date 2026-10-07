@@ -12,9 +12,12 @@ internal sealed class FakeSessionHost : HttpMessageHandler
 
     public ConcurrentDictionary<string, JsonNode> Sessions { get; } = new(StringComparer.Ordinal);
     public ConcurrentQueue<(string Method, string Path, JsonNode? Body)> Requests { get; } = new();
+    // Nothing listens: every request fails to connect, as when the sandbox container is not up yet.
+    public bool Absent { get; set; }
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
+        if (Absent) { throw new HttpRequestException("No connection could be made because the target machine actively refused it."); }
         var path = request.RequestUri!.AbsolutePath.Trim('/');
         var text = request.Content is null ? "" : await request.Content.ReadAsStringAsync(cancellationToken);
         var body = text.Length == 0 ? null : JsonNode.Parse(text);

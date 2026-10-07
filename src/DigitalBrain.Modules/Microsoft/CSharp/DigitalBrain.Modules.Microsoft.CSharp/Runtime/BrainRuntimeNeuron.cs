@@ -119,7 +119,7 @@ internal sealed class BrainRuntimeNeuron(
         {
             logger.LogError("Sandbox session {Session} of brain {Brain} carries other contracts than this silo; refused. Rebuild the sandbox image from this build.", session, Brain);
             await Save(Snapshot with { Session = Snapshot.Session! with { Status = SessionStatus.Refused, Fingerprint = fingerprint } }, Changed());
-            await runner.Stop(Brain, CancellationToken.None);
+            await StopHostAsync();
             return;
         }
         await Save(Snapshot with { Session = Snapshot.Session! with { Status = SessionStatus.Connected, Fingerprint = fingerprint, LastHeartbeat = time.GetUtcNow() } }, Changed());
@@ -256,7 +256,9 @@ internal sealed class BrainRuntimeNeuron(
         var id = Guid.NewGuid().ToString("N");
         await Save(Snapshot with { Session = new(id, SessionStatus.Starting, null, null, time.GetUtcNow(), time.GetUtcNow()) }, Changed());
         await reminders.RegisterOrUpdateReminder(this.GetGrainId(), ReconcileReminder, ReconcilePeriod, ReconcilePeriod);
-        await runner.Ensure(new(Brain, id, tokens.Issue(Brain, id), EdgeUrl()), CancellationToken.None);
+        // A host that is not up yet is not this call's failure: the session stays Starting and the reminder retries.
+        try { await runner.Ensure(new(Brain, id, tokens.Issue(Brain, id), EdgeUrl()), CancellationToken.None); }
+        catch (HttpRequestException error) { logger.LogWarning(error, "The sandbox is not reachable for brain {Brain}; its reminder retries the session.", Brain); }
     }
 
     private async Task EndSessionAsync()
@@ -264,8 +266,15 @@ internal sealed class BrainRuntimeNeuron(
         if (await reminders.GetReminder(this.GetGrainId(), ReconcileReminder) is { } reminder)
         { await reminders.UnregisterReminder(this.GetGrainId(), reminder); }
         if (Snapshot.Session is null) { return; }
-        await runner.Stop(Brain, CancellationToken.None);
+        await StopHostAsync();
         await Save(Snapshot with { Session = null }, Changed());
+    }
+
+    // A host that is already gone has nothing left to stop.
+    private async Task StopHostAsync()
+    {
+        try { await runner.Stop(Brain, CancellationToken.None); }
+        catch (HttpRequestException error) { logger.LogWarning(error, "The sandbox is not reachable to stop brain {Brain}'s session.", Brain); }
     }
 
     private bool Speaks(string session)

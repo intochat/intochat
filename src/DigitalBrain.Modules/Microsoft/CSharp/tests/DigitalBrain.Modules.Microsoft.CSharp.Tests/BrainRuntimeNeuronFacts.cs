@@ -30,6 +30,22 @@ public sealed class BrainRuntimeNeuronFacts
     }
 
     [Fact]
+    public async Task AnAbsentSandboxLeavesTheSessionStartingForTheReminderToRetry()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new FakeSessionHost { Absent = true };
+        await using var brain = await RuntimeBrain.StartAsync(host, ct);
+
+        await Edge(brain).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
+
+        Assert.Equal(SessionStatus.Starting, (await Runtime(brain).Inspect(ct)).Session);
+        Assert.Equal(CSharpFileStatus.Starting, (await Edge(brain).Describe("acc-brain/csharp/a"))!.Status);
+        host.Absent = false;
+        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default);
+        Assert.Single(host.Requests, FakeSessionHost.IsStart);
+    }
+
+    [Fact]
     public async Task TouchWithNothingAssignedStartsNothing()
     {
         var ct = TestContext.Current.CancellationToken;
