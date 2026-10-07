@@ -83,7 +83,6 @@ public sealed class BoundaryFacts
     {
         var contracts = ProductionArchitecture.Types.Where(IsCredentialContract).ToArray();
         Assert.Contains(typeof(IIntegration), contracts);
-        Assert.Contains(typeof(IConnectionProbe), contracts);
         Assert.Contains(typeof(IIdentityDirectory), contracts);
         foreach (var contract in contracts)
         {

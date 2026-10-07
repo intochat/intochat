@@ -1,8 +1,7 @@
 using DigitalBrain.Framework.Enforcement;
-
 using DigitalBrain.Framework.Platform.Integrations.Accounts;
 
-namespace DigitalBrain.Framework.Integrations.Accounts;
+namespace DigitalBrain.Platform.Integrations.Accounts;
 
 public static class ScopedConnections
 {

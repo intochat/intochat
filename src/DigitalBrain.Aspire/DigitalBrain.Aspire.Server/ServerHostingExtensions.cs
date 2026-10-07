@@ -18,13 +18,18 @@ public static class ServerHostingExtensions
     // A standalone container affirms it so a missing clustering connection fails loudly.
     public const string StandaloneKey = "DigitalBrain:Standalone";
 
+    // An optional JSON file of additional configuration the server loads last (the secrets-file
+    // pattern): deployment credentials, test seeds, any setting that must not travel as plain env.
+    public const string ConfigurationFileKey = "DigitalBrain:ConfigurationFile";
+    public const string ConfigurationFileEnvironmentVariable = "DigitalBrain__ConfigurationFile";
+
     public static IHostApplicationBuilder AddDigitalBrainServer(this IHostApplicationBuilder builder, Action<DigitalBrainServerBuilder> configure)
     {
         ArgumentNullException.ThrowIfNull(builder);
         // Every DigitalBrain server carries the process defaults; hosts cannot forget them.
         builder.AddServiceDefaults();
 
-        if (builder.Configuration[DigitalBrainNames.ConfigurationFileKey] is { Length: > 0 } configurationFile)
+        if (builder.Configuration[ConfigurationFileKey] is { Length: > 0 } configurationFile)
         { builder.Configuration.AddJsonFile(configurationFile, optional: false, reloadOnChange: false); }
 
         ArgumentNullException.ThrowIfNull(configure);
