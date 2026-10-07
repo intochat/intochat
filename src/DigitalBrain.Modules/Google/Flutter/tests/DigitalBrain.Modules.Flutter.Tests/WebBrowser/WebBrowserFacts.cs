@@ -4,6 +4,7 @@ using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.WebBrowser;
 using DigitalBrain.Flutter.WebBrowser.Signals;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Microsoft.Playwright;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
@@ -41,7 +42,7 @@ public sealed class WebBrowserFacts
         var signal = await connected.NextAsync(ct: ct);
         Assert.Equal("research/browser", signal.Name);
         Assert.Equal(Session, signal.SessionId);
-        Assert.False(string.IsNullOrEmpty(signal.Publisher));
+        Assert.False(string.IsNullOrEmpty(signal.Publisher.Name));
         Assert.Equal(new BrowserConnected("research/browser", Session), Assert.Single(await handler.Events()));
     }
 

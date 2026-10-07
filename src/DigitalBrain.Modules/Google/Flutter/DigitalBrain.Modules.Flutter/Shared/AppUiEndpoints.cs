@@ -33,8 +33,8 @@ internal static class AppUiEndpoints
 {
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        var apps = BrainRoutes.Group(endpoints, "/apps");
-        apps.MapGet("/node", (string kind, string name, IDigitalBrain brain, CancellationToken ct) => ModuleHttp.Respond(async () =>
+        var apps = BrainRoutes.Group(endpoints, "/apps").AddEndpointFilter(ModuleRouteGuard.Guard);
+        apps.MapGet("/node", async (string kind, string name, IDigitalBrain brain, CancellationToken ct) =>
         {
             var scope = BrainScope.CurrentId();
             if (!OwnsUi(scope, name)) { throw new UnauthorizedAccessException("The UI belongs to another brain."); }
@@ -58,8 +58,8 @@ internal static class AppUiEndpoints
                 UIVocabulary.WebBrowserType => Results.Ok(await brain.Get<IWebBrowser>(name).Read().WaitAsync(ct)),
                 _ => throw new ArgumentException("Unknown app UI kind.")
             };
-        }));
-        apps.MapPost("/event", (UiEvent input, IDigitalBrain brain, CancellationToken ct) => ModuleHttp.Respond(async () =>
+        });
+        apps.MapPost("/event", async (UiEvent input, IDigitalBrain brain, CancellationToken ct) =>
         {
             var scope = BrainScope.CurrentId();
             if (!OwnsUi(scope, input.Name)) { throw new UnauthorizedAccessException(); }
@@ -109,7 +109,7 @@ internal static class AppUiEndpoints
                 default: throw new ArgumentException("Unknown UI event.");
             }
             return Results.Ok(new { delivered = true });
-        }));
+        });
     }
 
     private static bool OwnsUi(string scope, string name) =>

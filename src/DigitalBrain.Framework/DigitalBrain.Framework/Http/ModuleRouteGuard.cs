@@ -1,16 +1,19 @@
 using Microsoft.AspNetCore.Http;
 namespace DigitalBrain.Framework.Http;
 
+// The one map from a module route's exceptions to HTTP: every brain-scoped group adds it once.
 public static class ModuleRouteGuard
 {
     public static async ValueTask<object?> Guard(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         try { return await next(context); }
         catch (Capacity.CapacityUnavailableException error) { return Results.Problem(error.Message, statusCode: StatusCodes.Status503ServiceUnavailable); }
+        catch (FileNotFoundException) { return Results.Problem("The file no longer exists. Refresh Files.", statusCode: StatusCodes.Status404NotFound); }
+        catch (KeyNotFoundException error) { return Results.Problem(error.Message, statusCode: StatusCodes.Status404NotFound); }
         catch (ArgumentException error) { return Results.Problem(error.Message, statusCode: StatusCodes.Status400BadRequest); }
         catch (UnauthorizedAccessException error) { return Results.Problem(error.Message, statusCode: StatusCodes.Status403Forbidden); }
-        catch (KeyNotFoundException error) { return Results.Problem(error.Message, statusCode: StatusCodes.Status404NotFound); }
         catch (InvalidOperationException error) { return Results.Problem(error.Message, statusCode: StatusCodes.Status409Conflict); }
         catch (InvalidDataException error) { return Results.Problem(error.Message, statusCode: StatusCodes.Status422UnprocessableEntity); }
+        catch (IOException) { return Results.Problem("The local file could not be accessed. Check its permissions and retry.", statusCode: StatusCodes.Status503ServiceUnavailable); }
     }
 }
