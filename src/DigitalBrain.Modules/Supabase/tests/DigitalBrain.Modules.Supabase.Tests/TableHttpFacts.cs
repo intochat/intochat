@@ -71,7 +71,9 @@ public sealed class TableHttpFacts
 
     private sealed class FakeBrain(Func<SupabaseTableSnapshot?> tableRead, Action? onGrainTouched) : IDigitalBrain
     {
-        public T Get<T>(string id) where T : class, INeuron
+        public IKernel Self => throw new NotSupportedException();
+
+        public T Get<T>(NeuronId id) where T : INeuron
         {
             onGrainTouched?.Invoke();
             var proxy = DispatchProxy.Create<T, GrainProxy>();

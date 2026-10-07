@@ -97,7 +97,7 @@ public sealed class GmailWatchWebhookFacts(GmailHostFixture host)
         CallerContextStamper.Stamp(new DigitalBrain.Framework.CallerContext { PrincipalId = "owner", AccountId = "owner", BrainId = "revoked", Kind = DigitalBrain.Framework.CallerKind.User, StampedBy = DigitalBrain.Framework.TrustedEdge.AuthenticatedHttp });
         try
         {
-            await brain.Grains.GetGrain<IConnectionInbound>(revoked).AcceptGrant(new("google-oauth", "stale-token", TokenEndpointStub.RevokedRefreshToken, DateTimeOffset.UtcNow.AddSeconds(-1), GmailScopes.Read, null, "{}"));
+            await brain.Grains.GetConnectionInbound(revoked).AcceptGrant(new("google-oauth", "stale-token", TokenEndpointStub.RevokedRefreshToken, DateTimeOffset.UtcNow.AddSeconds(-1), GmailScopes.Read, null, "{}"));
         }
         finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
         await host.ConnectForPushAsync("healthy", "live");

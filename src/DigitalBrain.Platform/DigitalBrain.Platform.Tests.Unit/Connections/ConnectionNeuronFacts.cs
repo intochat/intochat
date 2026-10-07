@@ -121,9 +121,9 @@ public sealed class ConnectionNeuronFacts
         Stamp(Alice with { BrainId = "other" });
         try
         {
-            await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => brain.Grains.GetGrain<IConnectionInbound>(Key()).AcceptGrant(grant));
+            await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => brain.Grains.GetConnectionInbound(Key()).AcceptGrant(grant));
             Stamp(Alice);
-            var view = await brain.Grains.GetGrain<IConnectionInbound>(Key()).AcceptGrant(grant);
+            var view = await brain.Grains.GetConnectionInbound(Key()).AcceptGrant(grant);
             Assert.Equal(ConnectionStatus.Connected, view.Status);
             Assert.Equal(grant.ExpiresAt, view.ExpiresAt);
         }
@@ -221,7 +221,7 @@ public sealed class ConnectionNeuronFacts
         await brain.AuthorizeCallerAsync();
         try
         {
-            var inbound = brain.Grains.GetGrain<IConnectionInbound>(Key());
+            var inbound = brain.Grains.GetConnectionInbound(Key());
             var example = brain.Get<IExample>(Key());
             await inbound.AcceptGrant(new("oauth", "access-0", "refresh-0", DateTimeOffset.UtcNow.AddSeconds(-1), "read", null, "{}"));
             Assert.Equal("len:8", await example.Echo());

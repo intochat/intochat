@@ -15,7 +15,17 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
     private static readonly TimeSpan RefreshLead = TimeSpan.FromSeconds(30);
 
     private (string Brain, string Connector, string Connection)? _key;
-    protected (string Brain, string Connector, string Connection) Key => _key ??= ConnectionKeys.Parse(this.GetPrimaryKeyString());
+    protected (string Brain, string Connector, string Connection) Key => _key ??= OwnKey();
+
+    // ConnectionGrains resolves a key by its connector, so the connector is this neuron's grain type;
+    // a key reaching another type (an explicit GetGrain) is refused rather than served as the wrong connector.
+    private (string, string, string) OwnKey()
+    {
+        var key = ConnectionKeys.Parse(this.GetPrimaryKeyString());
+        if (key.ConnectorId != this.GetGrainId().Type.ToString())
+        { throw new ArgumentException("A connection key must name the connector this neuron serves.", "key"); }
+        return key;
+    }
 
     // The brain in the key decides who may call; a connector cannot widen it.
     public sealed override NeuronAccess Access(string operation) => base.Access(operation);

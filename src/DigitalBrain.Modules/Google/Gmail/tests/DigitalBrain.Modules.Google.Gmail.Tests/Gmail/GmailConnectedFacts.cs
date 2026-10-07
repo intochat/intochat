@@ -26,7 +26,7 @@ public sealed class GmailConnectedFacts
         try
         {
             await using var connected = await brain.Observe<ConnectionConnected>(brain.Get<IGmail>(key), ct);
-            var view = await brain.Grains.GetGrain<IConnectionInbound>(key).AcceptGrant(new("google-oauth", "access-token", "refresh-token", DateTimeOffset.UtcNow.AddHours(1), GmailScopes.Read, null, "{}"));
+            var view = await brain.Grains.GetConnectionInbound(key).AcceptGrant(new("google-oauth", "access-token", "refresh-token", DateTimeOffset.UtcNow.AddHours(1), GmailScopes.Read, null, "{}"));
             Assert.Equal("user@gmail.com", view.Account);
             Assert.Equal("user@gmail.com", (await connected.NextAsync(ct: ct)).Account);
             Assert.Equal([key], await brain.Grains.GetGrain<IGmailMailboxIndex>("user@gmail.com").Read());
@@ -52,7 +52,7 @@ public sealed class GmailConnectedFacts
         StampOwner();
         try
         {
-            await brain.Grains.GetGrain<IConnectionInbound>(key).AcceptGrant(new("google-oauth", "stale-token", "refresh-token", DateTimeOffset.UtcNow.AddSeconds(-1), GmailScopes.Read, null, "{}"));
+            await brain.Grains.GetConnectionInbound(key).AcceptGrant(new("google-oauth", "stale-token", "refresh-token", DateTimeOffset.UtcNow.AddSeconds(-1), GmailScopes.Read, null, "{}"));
             await using var mail = await brain.Observe<MailReceived>(brain.Get<IGmail>(key), ct);
             Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
             // A refreshed token living under the refresh lead makes the second push refresh again.
@@ -89,7 +89,7 @@ public sealed class GmailConnectedFacts
         StampOwner();
         try
         {
-            await brain.Grains.GetGrain<IConnectionInbound>(key).AcceptGrant(new("google-oauth", "stale-token", "refresh-token", DateTimeOffset.UtcNow.AddSeconds(-1), GmailScopes.Read, null, "{}"));
+            await brain.Grains.GetConnectionInbound(key).AcceptGrant(new("google-oauth", "stale-token", "refresh-token", DateTimeOffset.UtcNow.AddSeconds(-1), GmailScopes.Read, null, "{}"));
             stub.ProfileStatus = StatusCodes.Status401Unauthorized;
             Assert.Equal(ConnectionStatus.Expired, (await brain.Get<IConnection>(key).Probe()).Status);
             await using var mail = await brain.Observe<MailReceived>(brain.Get<IGmail>(key), ct);
@@ -115,7 +115,7 @@ public sealed class GmailConnectedFacts
         StampOwner();
         try
         {
-            await brain.Grains.GetGrain<IConnectionInbound>(key).AcceptGrant(new("google-oauth", "probe-token", "refresh-token", DateTimeOffset.UtcNow.AddHours(1), GmailScopes.Read, null, "{}"));
+            await brain.Grains.GetConnectionInbound(key).AcceptGrant(new("google-oauth", "probe-token", "refresh-token", DateTimeOffset.UtcNow.AddHours(1), GmailScopes.Read, null, "{}"));
             var connection = brain.Get<IConnection>(key);
 
             var healthy = await connection.Probe();

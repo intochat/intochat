@@ -61,3 +61,36 @@ internal sealed class ExampleConnectionNeuron(
 
     public Task<string> SeenValue() => Task.FromResult(_seen ?? "");
 }
+
+// A second connector beside "example", so a silo holds two IConnection implementations and every
+// connection grain must resolve by the connector in its key, not by the contract.
+public sealed class SampleConnectionModule() : Module(new ModuleId("sample"))
+{
+    public static ConnectorDefinition Connector => new("sample", "Sample", ["api-key", "oauth"], ["sample-oauth"])
+    {
+        Neurons = [typeof(ISample)],
+        OAuthMethods = [new("oauth", "https://sample.test/authorize", "https://sample.test/token", ["read"], "sample-oauth")],
+    };
+    public static IntegrationSchema Integration => IntegrationSchema.For("sample-oauth", "Sample OAuth").RequiresSecret("ClientId").RequiresSecret("ClientSecret");
+    public override void Configure(ISiloBuilder silo) { }
+}
+
+[Alias("sample"), Orleans.Metadata.DefaultGrainType("sample")]
+public interface ISample : INeuron
+{
+    Task<string> Kind();
+}
+
+[GenerateSerializer, Alias("sample.state")]
+public sealed class SampleState : ConnectionState { }
+
+[GrainType("sample")]
+internal sealed class SampleConnectionNeuron(
+    [PersistentState("sample", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<SampleState> store)
+    : ConnectionNeuron<SampleState>(store), ISample
+{
+    protected override Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct)
+        => Task.FromResult(ConnectionProbeResult.Connected("sample"));
+
+    public Task<string> Kind() => Task.FromResult("sample");
+}

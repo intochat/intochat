@@ -1,5 +1,6 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Connections;
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Platform.Connections.OAuth;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -22,17 +23,20 @@ internal static class ConnectionEndpoints
             var scope = BrainScope.CurrentId();
             var rows = new List<ConnectionView>();
             foreach (var key in await grains.GetGrain<IConnectionIndex>(scope).List())
-            { rows.Add(await grains.GetGrain<IConnection>(key).Read()); }
+            { rows.Add(await grains.GetConnection(key).Read()); }
             return Results.Ok(rows);
         });
 
         group.MapGet("/requests", async (IGrainFactory grains) =>
             Results.Ok(await grains.GetGrain<DigitalBrain.Integrations.IConnectionRequests>(BrainScope.CurrentId()).ListPending()));
 
-        group.MapPost("/{connectionId}/connect", async (string connectionId, ConnectInput input, IGrainFactory grains) =>
+        group.MapPost("/{connectionId}/connect", async (string connectionId, ConnectInput input, IGrainFactory grains, [FromServices] IReadOnlyList<ConnectorDefinition> connectors) =>
         {
             if (string.IsNullOrWhiteSpace(input.ConnectorId) || string.IsNullOrWhiteSpace(input.AuthMethodId) || string.IsNullOrWhiteSpace(input.Value)) { return Results.BadRequest(); }
-            try { return Results.Ok(await grains.GetGrain<IConnection>(ConnectionKeys.For(BrainScope.CurrentId(), input.ConnectorId, connectionId)).Connect(input.AuthMethodId, input.Value)); }
+            // The connector names the grain type, so an undeclared one would address no neuron at all.
+            if (!connectors.Any(connector => connector.Id == input.ConnectorId))
+            { return Results.BadRequest(new { error = $"No composed module declares connector '{input.ConnectorId}'." }); }
+            try { return Results.Ok(await grains.GetConnection(ConnectionKeys.For(BrainScope.CurrentId(), input.ConnectorId, connectionId)).Connect(input.AuthMethodId, input.Value)); }
             catch (ArgumentException error) { return Results.BadRequest(new { error = error.Message }); }
         });
 
@@ -46,12 +50,12 @@ internal static class ConnectionEndpoints
         });
 
         group.MapPost("/{connectionId}/probe", async (string connectionId, IGrainFactory grains) =>
-            await Find(grains, connectionId) is { } key ? Results.Ok(await grains.GetGrain<IConnection>(key).Probe()) : Results.NotFound());
+            await Find(grains, connectionId) is { } key ? Results.Ok(await grains.GetConnection(key).Probe()) : Results.NotFound());
 
         group.MapPost("/{connectionId}/disconnect", async (string connectionId, IGrainFactory grains) =>
         {
             if (await Find(grains, connectionId) is not { } key) { return Results.NotFound(); }
-            await grains.GetGrain<IConnection>(key).Disconnect();
+            await grains.GetConnection(key).Disconnect();
             return Results.Ok();
         });
     }

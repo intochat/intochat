@@ -1,4 +1,5 @@
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Connections;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -21,7 +22,9 @@ internal sealed class BrainClient(IClusterClient cluster, IOptions<SubscriptionO
         return new OrleansBrain(this, brainId);
     }
 
-    public T Grain<T>(string key) where T : INeuron => cluster.GetGrain<T>(key);
+    // A connection key names its grain type (several connectors share IConnection); any other key
+    // resolves by the contract's default grain type.
+    public T Grain<T>(string key) where T : INeuron => cluster.GetNeuronGrain<T>(cluster.ServiceProvider, key);
 
     // Either token ends the watch: the one given here, or the enumerator's. See WatchStream for
     // why the stream is hand-written.

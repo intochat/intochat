@@ -42,7 +42,7 @@ internal sealed class OAuthCallback : IHttpSurface
                 var grant = await exchange.ExchangeCodeAsync(connector, login.AuthMethodId, code, login.CodeVerifier, flow.CallbackUri(connector).AbsoluteUri, login.Target, context.RequestAborted);
                 using (CallerContextScope.Scoped(login.Owner))
                 {
-                    await context.RequestServices.GetRequiredService<IGrainFactory>().GetGrain<IConnectionInbound>(login.ConnectionKey).AcceptGrant(grant);
+                    await context.RequestServices.GetRequiredService<IGrainFactory>().GetConnectionInbound(login.ConnectionKey).AcceptGrant(grant);
                 }
                 await LoginPage.WriteAsync(context, $"{connector} connected", "You can close this tab. DigitalBrain is continuing your request.", 200);
             }

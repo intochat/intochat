@@ -11,7 +11,7 @@ public sealed class SupabaseQueryFacts
     public async Task QueryReturnsTypedRows()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<SupabaseModule>(m => m.WithProvider<FakeSupabaseProvider>()).ConfigureSilo(silo => silo.Configuration[IntegrationSchema.Key("supabase", "ConnectionString")] = "Host=localhost;Database=test;Username=reader").StartAsync(ct);
+        await using var brain = await ModuleTest.Create().WithModule<SupabaseModule>().ConfigureSilo(silo => silo.Services.AddSingleton<ISupabaseBackingStore>(new FakeSupabaseProvider())).ConfigureSilo(silo => silo.Configuration[IntegrationSchema.Key("supabase", "ConnectionString")] = "Host=localhost;Database=test;Username=reader").StartAsync(ct);
         var supabase = brain.Get<ISupabase>(SupabaseNames.DefaultNeuron);
 
         var result = await supabase.Query(new("select id from people"));
@@ -84,6 +84,6 @@ public sealed class SupabaseQueryFacts
 
     private static Task<ModuleBrain> StartAsync(FakeSupabaseProvider provider, CancellationToken ct)
         => ModuleTest.Create().WithModule<SupabaseModule>().ConfigureSilo(silo => silo.Configuration[IntegrationSchema.Key("supabase", "ConnectionString")] = "Host=localhost;Database=test;Username=reader")
-            .ConfigureSilo(silo => silo.Services.AddSingleton<ISupabaseProvider>(provider))
+            .ConfigureSilo(silo => silo.Services.AddSingleton<ISupabaseBackingStore>(provider))
             .StartAsync(ct);
 }

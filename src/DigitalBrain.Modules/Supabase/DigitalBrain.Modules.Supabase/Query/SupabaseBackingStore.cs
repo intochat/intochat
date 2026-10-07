@@ -6,7 +6,8 @@ using Npgsql;
 
 namespace DigitalBrain.Supabase;
 
-// Deployment-owned database access; user neurons and table tools use ConnectionSupabaseProvider.
+// Deployment-owned database access, served only to SupabaseNeuron's integration key ("default").
+// Live tables and user queries reach a brain's own project through its connection neuron.
 internal interface ISupabaseBackingStore : ISupabaseProvider { }
 
 internal sealed class SupabaseBackingStore(IModuleIntegrations<SupabaseModule> integrations, IOptions<SupabaseModuleOptions> options)

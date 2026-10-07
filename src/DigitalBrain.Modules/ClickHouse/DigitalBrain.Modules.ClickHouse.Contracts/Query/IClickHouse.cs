@@ -3,7 +3,7 @@ using Orleans.Concurrency;
 
 namespace DigitalBrain.ClickHouse.Query;
 
-[Alias("clickhouse")]
+[Alias("clickhouse"), Orleans.Metadata.DefaultGrainType(ClickHouseNames.NeuronType)]
 public interface IClickHouse : INeuron
 {
     [ReadOnly]
