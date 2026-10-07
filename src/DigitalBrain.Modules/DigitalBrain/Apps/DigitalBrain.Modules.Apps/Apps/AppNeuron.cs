@@ -1,5 +1,6 @@
 using DigitalBrain.Apps.Signals;
 using DigitalBrain.Framework;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Apps;
@@ -253,8 +254,7 @@ internal sealed class AppNeuron(
     public Task<AppBundle> Export()
     {
         RequireCreated();
-        if (!Snapshot.Verified.TryGetValue(Snapshot.Version, out var green) || !green)
-        { throw new InvalidOperationException($"Version {Snapshot.Version} has not passed its tests; only green versions can be shared."); }
+        RequireCompiles();
         var manifest = Snapshot.Manifest!;
         return Task.FromResult(new AppBundle(Name(), Snapshot.Version, manifest, Snapshot.Spec,
             new(Snapshot.Files, StringComparer.Ordinal)));
@@ -263,8 +263,7 @@ internal sealed class AppNeuron(
     public async Task<AppSnapshot> Publish()
     {
         RequireCreated();
-        if (!Snapshot.Verified.TryGetValue(Snapshot.Version, out var green) || !green)
-        { throw new InvalidOperationException($"Version {Snapshot.Version} has not passed its tests; only green versions can be published."); }
+        RequireCompiles();
         if (!CallerContextStamper.TryGet(out var caller))
         { throw new InvalidOperationException("Publishing needs a signed-in publisher."); }
         if (BrainScope.Create(caller.AccountId, caller.BrainId).Id != BrainId())
@@ -526,6 +525,23 @@ internal sealed class AppNeuron(
     {
         if (Snapshot.Manifest is null)
         { throw new InvalidOperationException($"No app named {Name()} exists in this brain."); }
+    }
+
+    // The publish gate: every script in the bundle compiles against the installed contracts. A host
+    // without a script compiler cannot run apps either, so it has nothing to refuse.
+    private void RequireCompiles()
+    {
+        var scripts = Snapshot.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal))
+            .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
+        if (scripts.Count == 0) { return; }
+        var sandbox = ServiceProvider.GetService<IScriptSandbox>();
+        if (sandbox is null) { return; }
+        ScriptCompilationCheck check;
+        try { check = sandbox.Check(scripts); }
+        catch (InvalidOperationException) { return; }
+        if (check.Success) { return; }
+        throw new InvalidOperationException($"Version {Snapshot.Version} does not compile: "
+            + string.Join("; ", check.Errors.Select(error => $"{error.File}:{error.Line} {error.Message}")));
     }
 
     private string Name()

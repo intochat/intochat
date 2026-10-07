@@ -135,7 +135,7 @@ public sealed class AppRouteFacts
     }
 
     [Fact]
-    public async Task ExportOfARedAppAndImportClashesAnswer409()
+    public async Task ImportOverAnExistingAppAnswers409()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
@@ -151,10 +151,6 @@ public sealed class AppRouteFacts
         await using var edge = builder.Build();
         new AppsModule().Configure(edge);
         var endpoints = ((IEndpointRouteBuilder)edge).DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().ToArray();
-
-        var exported = await Invoke("GET", "/brains/{brainId}/apps/{name}/export", null, ("brainId", "alice"), ("name", "red"));
-        exported.Body.Position = 0;
-        Assert.True(exported.StatusCode == 409, $"{exported.StatusCode}: {await new StreamReader(exported.Body).ReadToEndAsync(ct)}");
 
         var clash = await Invoke("POST", "/brains/{brainId}/apps/import",
             new { name = "red", version = "1.0.0", manifest = new { title = "Red", description = "", operations = Array.Empty<object>(), settings = Array.Empty<object>(), slots = Array.Empty<object>() }, spec = "x", files = new Dictionary<string, string>() },

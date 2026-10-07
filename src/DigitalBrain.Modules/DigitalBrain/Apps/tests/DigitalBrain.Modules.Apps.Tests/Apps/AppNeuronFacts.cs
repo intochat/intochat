@@ -132,17 +132,14 @@ public sealed class AppNeuronFacts
     }
 
     [Fact]
-    public async Task ExportRefusesUnverifiedVersionsAndStripsConnections()
+    public async Task ExportStripsConnectionsAndPrivateSettings()
     {
         await using var brain = await Start();
         var app = brain.Get<IApp>(IApp.Key(Brain, "export"));
         await app.Create(Manifest(), "spec");
         await app.Configure(new() { ["Text"] = "secret greeting" }, new() { ["gmail"] = "my-connection" });
-        await Assert.ThrowsAsync<InvalidOperationException>(app.Export);
-        var current = await app.Read();
-        await app.RecordVerdicts([new("Echoes", true, "ok")], green: true);
         var bundle = await app.Export();
-        Assert.Equal(current.Version, bundle.Version);
+        Assert.Equal((await app.Read()).Version, bundle.Version);
         Assert.DoesNotContain("my-connection", System.Text.Json.JsonSerializer.Serialize(bundle), StringComparison.Ordinal);
         Assert.DoesNotContain("secret greeting", System.Text.Json.JsonSerializer.Serialize(bundle), StringComparison.Ordinal);
     }
@@ -175,21 +172,6 @@ public sealed class AppNeuronFacts
         Assert.Empty(imported.Connections);
         Assert.Equal("// b", imported.Files["synapses/echo.cs"]);
         await Assert.ThrowsAsync<InvalidOperationException>(() => app.Import(bundle));
-    }
-
-    [Fact]
-    public async Task VerdictsRecordedForAnOlderVersionDoNotMarkTheCurrentOneGreen()
-    {
-        await using var brain = await Start();
-        var app = brain.Get<IApp>(IApp.Key(Brain, "stale-verdict"));
-        await app.Create(Manifest(), "## Scenario: Echoes\nIt echoes.");
-        var tested = (await app.Read()).Version;
-        await app.SaveSpec("## Scenario: Echoes\nIt echoes twice.", Guid.NewGuid());
-        await app.RecordVerdicts([new("Echoes", true, "ok")], green: true, tested);
-        await Assert.ThrowsAsync<InvalidOperationException>(app.Export);
-        var snapshot = await app.Read();
-        Assert.True(snapshot.Versions.Single(version => version.Version == tested).Green);
-        Assert.Null(snapshot.Versions.Single(version => version.Version == snapshot.Version).Green);
     }
 
     [Fact]

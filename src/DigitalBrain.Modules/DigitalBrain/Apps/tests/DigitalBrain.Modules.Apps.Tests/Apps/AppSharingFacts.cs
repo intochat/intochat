@@ -2,7 +2,7 @@ using DigitalBrain.Testing.Module;
 
 namespace DigitalBrain.Apps.Tests.Apps;
 
-// The share gate: only green versions leave a brain, and what leaves carries no credentials.
+// The share gate: what leaves a brain compiles and carries no credentials.
 public sealed class AppSharingFacts
 {
     private static AppManifest Manifest() =>
@@ -18,34 +18,6 @@ public sealed class AppSharingFacts
         await app.BeginBuild(null);
         await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["synapses/echo.cs"] = "// b" }, null);
         return app;
-    }
-
-    [Fact]
-    public async Task ExportingARedVersionIsRefused()
-    {
-        await using var brain = await Start();
-        var app = await LiveApp(brain, IApp.Key("sharing-a", "red"));
-        await app.RecordVerdicts([new("Echoes", false, "broken")], green: false);
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(app.Export);
-        Assert.Contains("green", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task ExportingBeforeAnyVerificationIsRefused()
-    {
-        await using var brain = await Start();
-        var app = await LiveApp(brain, IApp.Key("sharing-b", "unverified"));
-        await Assert.ThrowsAsync<InvalidOperationException>(app.Export);
-    }
-
-    [Fact]
-    public async Task AVersionSavedAfterTheGreenRunCannotRideThatVerdict()
-    {
-        await using var brain = await Start();
-        var app = await LiveApp(brain, IApp.Key("sharing-c", "moved-on"));
-        await app.RecordVerdicts([new("Echoes", true, "ok")], green: true);
-        await app.WriteFile("notes.md", "changed after the green run", Guid.NewGuid());
-        await Assert.ThrowsAsync<InvalidOperationException>(app.Export);
     }
 
     [Fact]

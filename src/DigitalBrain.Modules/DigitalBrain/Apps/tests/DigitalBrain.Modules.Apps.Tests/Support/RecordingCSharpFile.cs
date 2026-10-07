@@ -28,16 +28,11 @@ public sealed class RecordingCSharpFile : Neuron, ICSharpFile, ICSharpAppBinding
 
     public Task<CSharpFileSnapshot> Inspect(CancellationToken cancellationToken = default) => Task.FromResult(Current);
 
-    public Task<SynapseSnapshot> Read(CancellationToken cancellationToken = default) => Task.FromResult(AsSynapse(Current));
+    [ResponseTimeout("00:05:00")]
+    public Task<CSharpFileSnapshot> Start(CancellationToken cancellationToken = default) => Task.FromResult(Run());
 
-    private static SynapseSnapshot AsSynapse(CSharpFileSnapshot file) => new(file.Id, file.Source,
-        file.Status is CSharpFileStatus.Running or CSharpFileStatus.Restarting,
-        [.. file.Subscriptions.Select(s => new SynapseWatch(s.Neuron, s.Signal, s.Pending)), .. file.Trigger is { } t ? new[] { new SynapseWatch(t.Neuron, t.Signal, 0) } : []],
-        null);
-
-    Task<SynapseSnapshot> ISynapse.Start(CancellationToken cancellationToken) => Task.FromResult(AsSynapse(Run()));
-
-    Task<SynapseSnapshot> ISynapse.Stop(CancellationToken cancellationToken) => Task.FromResult(AsSynapse(Halt()));
+    [ResponseTimeout("00:05:00")]
+    public Task<CSharpFileSnapshot> Stop(CancellationToken cancellationToken = default) => Task.FromResult(Halt());
 
     public Task Write(string program, CancellationToken cancellationToken = default)
         => Task.FromResult(Files[Key] = Current with { Source = program });

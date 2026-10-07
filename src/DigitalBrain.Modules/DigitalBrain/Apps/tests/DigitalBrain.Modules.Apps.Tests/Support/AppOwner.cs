@@ -1,9 +1,10 @@
+using DigitalBrain.Framework;
 
 namespace DigitalBrain.Modules.Apps.Tests;
 
 // A brain owner acting through the platform edge: publishing and installing act in the
 // stamped caller's brain, so facts that cross brains stamp who they speak for.
-internal static class Owner
+internal static class AppOwner
 {
     public static string Scope(string principal) => BrainScope.Create("account-" + principal, principal).Id;
 
