@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Testing.E2E.Diagnostics;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
@@ -75,6 +76,9 @@ public sealed class E2ETestBuilder<TAppHost> where TAppHost : class
         return WithHostConfiguration("ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL", collector.Endpoint.AbsoluteUri)
             .WithHostConfiguration("ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL", "");
     }
+
+    public E2ETestBuilder<TAppHost> InEnvironment(string environmentName)
+        => WithHostConfiguration(DigitalBrainHostingOptions.EnvironmentKey, environmentName);
 
     // Hosting-layer configuration for the AppHost builder itself (not a resource), such as
     // DigitalBrain:Modules:flutter:Hosting:WebContainer.
