@@ -108,15 +108,85 @@ public sealed class AgentHistoryFacts
         Assert.All(client.Requests.Skip(2), Paired);
         Assert.Equal(ChatRole.User, (await agent.Transcript()).Select(message => new ChatRole(message.Role)).First());
         Assert.Contains("use the tool", (await agent.Read()).Summary, StringComparison.Ordinal);
+    }
 
-        static void Paired(ChatMessage[] request)
+    // A capability listing or a table query can return far more than a model needs on later turns:
+    // the turn that called it sees all of it, the committed transcript keeps a bounded preview.
+    [Fact]
+    public async Task ALargeToolResultIsCommittedAsABoundedPreviewAndLaterRequestsStayWithinTheBudget()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = new StubChatClient((messages, _, _) =>
         {
-            var history = request.Where(message => message.Role != ChatRole.System).ToArray();
-            Assert.Equal(ChatRole.User, history[0].Role);
-            var calls = history.SelectMany(message => message.Contents).OfType<FunctionCallContent>().Select(call => call.CallId).ToArray();
-            var results = history.SelectMany(message => message.Contents).OfType<FunctionResultContent>().Select(result => result.CallId).ToArray();
-            Assert.Equal(calls.Order(), results.Order());
+            var asked = messages.Last(message => message.Role == ChatRole.User).Text;
+            var answered = messages.SkipWhile(message => message.Role != ChatRole.User || message.Text != asked).Any(message => message.Role == ChatRole.Tool);
+            return Task.FromResult(new ChatResponse(asked == "dump everything" && !answered
+                ? new ChatMessage(ChatRole.Assistant, [new FunctionCallContent("call-1", "dump", new Dictionary<string, object?>())])
+                : new ChatMessage(ChatRole.Assistant, "done: " + asked)));
+        });
+        await using var brain = await AgentFacts.Brain(client, ct, services => services.AddSingleton<IAgentToolFactory>(new DumpTool()));
+        var agent = brain.Get<IAgent>(AgentFacts.Key("large-result"));
+        await agent.Configure(new() { Tools = ["dump"] }, 0);
+        await agent.GetResponse("dump everything", ct);
+        Assert.True(Size(client.Requests[1]) > DumpTool.Characters);
+        await agent.GetResponse("second", ct);
+        await agent.GetResponse("third", ct);
+
+        var stored = Assert.Single((await agent.Transcript()).SelectMany(message => message.Content).OfType<AiToolResult>());
+        Assert.True(stored.ResultJson.Length < AgentNeuron.MaxStoredToolResultCharacters + 200);
+        using (var preview = System.Text.Json.JsonDocument.Parse(stored.ResultJson))
+        {
+            Assert.True(preview.RootElement.GetProperty("truncated").GetBoolean());
+            Assert.Equal(DumpTool.Characters + 2, preview.RootElement.GetProperty("characters").GetInt32());
         }
+        Assert.All(client.Requests.Skip(2), request =>
+        {
+            Assert.True(Size(request) <= AgentNeuron.MaxHistoryCharacters);
+            Paired(request);
+        });
+    }
+
+    // Count alone does not bound a transcript: a few long turns fold into the summary on a turn boundary.
+    [Fact]
+    public async Task HistoryBeyondTheCharacterBudgetFoldsIntoTheSummary()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = StubChatClient.Replying("ok");
+        await using var brain = await AgentFacts.Brain(client, ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("long-turns"));
+        for (var i = 0; i < 6; i++) { await agent.GetResponse($"turn {i} " + new string('x', 30_000), ct); }
+        Assert.True(Size(client.Requests[^1]) <= AgentNeuron.MaxHistoryCharacters);
+        Assert.Equal(ChatRole.User, client.Requests[^1].First(message => message.Role != ChatRole.System).Role);
+        Assert.Contains("turn 0", (await agent.Read()).Summary, StringComparison.Ordinal);
+        var transcript = await agent.Transcript();
+        Assert.Equal("user", transcript[0].Role);
+        Assert.True(transcript.Length < 12);
+        Assert.Contains(client.Requests[^1], message => message.Role == ChatRole.System && message.Text.Contains("turn 0", StringComparison.Ordinal));
+    }
+
+    private static void Paired(ChatMessage[] request)
+    {
+        var history = request.Where(message => message.Role != ChatRole.System).ToArray();
+        Assert.Equal(ChatRole.User, history[0].Role);
+        var calls = history.SelectMany(message => message.Contents).OfType<FunctionCallContent>().Select(call => call.CallId).ToArray();
+        var results = history.SelectMany(message => message.Contents).OfType<FunctionResultContent>().Select(result => result.CallId).ToArray();
+        Assert.Equal(calls.Order(), results.Order());
+    }
+
+    // The text a request carries outside its system messages, measured as the agent measures history.
+    private static long Size(ChatMessage[] request) => request.Where(message => message.Role != ChatRole.System)
+        .SelectMany(message => message.Contents).Sum(content => (long)(content switch
+        {
+            TextContent text => text.Text.Length,
+            FunctionCallContent call => call.Name.Length + System.Text.Json.JsonSerializer.Serialize(call.Arguments).Length,
+            FunctionResultContent result => System.Text.Json.JsonSerializer.Serialize(result.Result).Length,
+            _ => 0,
+        }));
+
+    private sealed class DumpTool : IAgentToolFactory
+    {
+        public const int Characters = 300_000;
+        public IReadOnlyList<AIFunction> Create(Func<AgentToolContext> context) => [AIFunctionFactory.Create(() => new string('r', Characters), "dump")];
     }
 
     private sealed class LookupTool : IAgentToolFactory

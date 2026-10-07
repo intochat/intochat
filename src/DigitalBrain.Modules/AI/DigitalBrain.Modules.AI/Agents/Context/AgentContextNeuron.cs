@@ -21,8 +21,9 @@ internal sealed class AgentContextNeuron(
     {
         ArgumentNullException.ThrowIfNull(entry);
         if (string.IsNullOrWhiteSpace(entry.Name) || entry.Name.Length > 200) { throw new ArgumentException("A context entry needs a name of at most 200 characters.", nameof(entry)); }
-        if (entry.Text.Length > 32000) { throw new ArgumentException("A context entry holds at most 32000 characters.", nameof(entry)); }
-        if (entry.Tools.Length > 128 || entry.Tools.Any(string.IsNullOrWhiteSpace)) { throw new ArgumentException("A context entry names at most 128 non-empty tools.", nameof(entry)); }
+        // Entries arrive as JSON from digitalbrain-mcp and scripts, where a missing field is null.
+        if (entry.Text is null || entry.Text.Length > 32000) { throw new ArgumentException("A context entry holds text of at most 32000 characters.", nameof(entry)); }
+        if (entry.Tools is null || entry.Tools.Length > 128 || entry.Tools.Any(string.IsNullOrWhiteSpace)) { throw new ArgumentException("A context entry names at most 128 non-empty tools.", nameof(entry)); }
         var kept = entry with { Tools = entry.Tools.ToArray() };
         var index = Array.FindIndex(Snapshot.Entries, item => item.Name == entry.Name);
         ContextEntry[] entries = index < 0 ? [.. Snapshot.Entries, kept] : [.. Snapshot.Entries[..index], kept, .. Snapshot.Entries[(index + 1)..]];

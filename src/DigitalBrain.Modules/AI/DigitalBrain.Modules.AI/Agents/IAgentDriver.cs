@@ -6,6 +6,7 @@ internal interface IAgentDriver : IGrainWithStringKey
 {
     [Orleans.Concurrency.OneWay, Orleans.Concurrency.AlwaysInterleave] Task Drive(AgentTurn turn, string runId);
 
-    // Resume closes a left-open run during activation and announces it here, after activation.
-    [Orleans.Concurrency.OneWay] Task Interrupted(string runId, string error);
+    // Resume closes a left-open run during activation and announces it here, after activation. It
+    // only publishes, so it interleaves rather than waiting behind a new turn.
+    [Orleans.Concurrency.OneWay, Orleans.Concurrency.AlwaysInterleave] Task Interrupted(string runId, string error);
 }

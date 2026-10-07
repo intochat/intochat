@@ -57,7 +57,7 @@ public sealed class AgentContextFacts
     }
 
     [Fact]
-    public async Task AnEntryNeedsABoundedNameAndText()
+    public async Task AnEntryNeedsABoundedNameTextAndTools()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<AIModule>().StartAsync(ct);
@@ -65,5 +65,9 @@ public sealed class AgentContextFacts
         await Assert.ThrowsAsync<ArgumentException>(() => context.Set(new("", "x", [])));
         await Assert.ThrowsAsync<ArgumentException>(() => context.Set(new(new string('n', 201), "x", [])));
         await Assert.ThrowsAsync<ArgumentException>(() => context.Set(new("big", new string('x', 32001), [])));
+        // JSON from digitalbrain-mcp or a script leaves a missing field null.
+        await Assert.ThrowsAsync<ArgumentException>(() => context.Set(new("no-text", null!, [])));
+        await Assert.ThrowsAsync<ArgumentException>(() => context.Set(new("no-tools", "x", null!)));
+        Assert.Empty((await context.Read()).Entries);
     }
 }
