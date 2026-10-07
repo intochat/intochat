@@ -8,12 +8,12 @@ using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Directory;
 using DigitalBrain.Platform.Identity.Grants;
 using DigitalBrain.Platform.Integrations;
-using DigitalBrain.Platform.Integrations.Accounts;
 using DigitalBrain.Platform.Secrets;
 using DigitalBrain.Platform.Shipping;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Platform;
 
@@ -27,25 +27,19 @@ public static class PlatformHosting
         services.TryAddSingleton<IRegistry, Discovery.PlatformRegistry>();
         services.TryAddSingleton<Discovery.ActivationCensus>();
         services.TryAddSingleton<IActivationCensus>(provider => provider.GetRequiredService<Discovery.ActivationCensus>());
-        services.TryAddEnumerable(ServiceDescriptor.Singleton<IRegistryInventoryProvider, Discovery.ConnectionsInventoryProvider>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IRegistryInventoryProvider, ConnectionsInventoryProvider>());
         services.AddIdentity();
         services.AddShippedContentPublishing();
         services.TryAddSingleton<DeploymentStorageIdentity>();
         silo.AddStartupTask<IdentityStartup>();
         silo.AddStartupTask<SeededAccountsStartup>();
         services.TryAddSingleton<DigitalBrain.Framework.Platform.Identity.IPublisherDirectory, PublisherDirectory>();
-        services.TryAddSingleton<DigitalBrain.Framework.Platform.Auth.ITokenHandoff, Auth.TokenHandoff>();
-        services.TryAddSingleton<DigitalBrain.Framework.Platform.Auth.IOAuthCredentials, Auth.OAuthCredentials>();
         services.AddMasterKeyWrapper();
         services.TryAddSingleton<IReadOnlyList<IntegrationSchema>>(provider =>
             IntegrationDiscovery.Collect(provider.GetRequiredService<ModuleInventory>().Types));
         services.TryAddSingleton<IReadOnlyList<ConnectorDefinition>>(provider =>
             ConnectorDiscovery.Collect(provider.GetRequiredService<ModuleInventory>(), provider.GetRequiredService<IReadOnlyList<IntegrationSchema>>()));
         services.TryAddSingleton(typeof(IModuleIntegrations<>), typeof(ModuleIntegrations<>));
-        services.TryAddSingleton(typeof(IModuleConnectionCredentials<>), typeof(ModuleConnectionCredentials<>));
-        services.TryAddSingleton<IConnectionProbe, CredentialPresenceProbe>();
-        services.TryAddSingleton<ConnectionCredentialProbe>();
-        services.TryAddSingleton<IntegrationCredentials>();
         services.TryAddSingleton<ConnectorCatalog>();
         services.TryAddSingleton<ICapabilities, Capabilities>();
         silo.AddStartupTask<IntegrationSeeder>();
@@ -62,6 +56,8 @@ public static class PlatformHosting
         services.AddHttpClient(Connections.OAuth.OAuthTokenExchange.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
         services.AddSingleton<IHttpSurface, Connections.OAuth.OAuthCallback>();
+        // "Request starting" lines carry the callback's query (code and state); never log them, whatever the host's level.
+        services.AddLogging(logging => logging.AddFilter(Connections.OAuth.OAuthCallback.RequestLogCategory, LogLevel.Warning));
     }
 
     public static IEndpointRouteBuilder MapDigitalBrainPlatform(this IEndpointRouteBuilder endpoints)
@@ -69,7 +65,6 @@ public static class PlatformHosting
         ArgumentNullException.ThrowIfNull(endpoints);
         endpoints.MapSecrets();
         endpoints.MapIntegrations();
-        endpoints.MapConnections();
         endpoints.MapConnectionNeurons();
         endpoints.MapCapabilities();
         IdentityEndpoints.Map(endpoints);

@@ -13,7 +13,7 @@ internal static class IntegrationCatalog
         foreach (var definition in definitions)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var snapshot = await grains.GetGrain<IIntegration>(IntegrationVault.GrainKeyPrefix + definition.Id).Read();
+            var snapshot = await grains.GetGrain<IIntegration>(IntegrationNeuron.KeyPrefix + definition.Id).Read();
             entries.Add(new IntegrationCatalogEntry(definition.Id, definition.DisplayName, snapshot.Status.ToString(), snapshot.MissingFields));
         }
 

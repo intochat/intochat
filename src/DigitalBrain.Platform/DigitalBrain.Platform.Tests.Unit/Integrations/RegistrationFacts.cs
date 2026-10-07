@@ -213,22 +213,25 @@ public sealed class RegistrationFacts
     }
 
     [Fact]
-    public async Task ClearingAFieldReturnsToPartialAndRemovesTheVaultEntry()
+    public async Task ClearingAFieldReturnsToPartialAndReleaseNoLongerHasIt()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartAsync(ct);
-        var registration = Registration(brain, "openai");
-        await registration.Configure(Values(("ApiKey", Canary)));
-        var vaultReference = SecretReferences.For(IntegrationVault.Owner, IntegrationVault.SecretName("openai", "ApiKey"), "ApiKey", true);
-        var platform = Caller(CallerKind.Platform, TrustedEdge.Platform) with { AppId = "test" };
-        Assert.Equal(Canary, await brain.Get<ISecrets>(IntegrationVault.Owner).Resolve(platform, vaultReference, ct));
+        var registration = Registration(brain, "google");
+        await registration.Configure(Values(("ClientId", Canary + "-id"), ("ClientSecret", Canary), ("RedirectPath", "/callback")));
+        var platform = Caller(CallerKind.Platform, TrustedEdge.Platform);
+        Assert.Equal(Canary, (await registration.Release(platform)).Values["ClientSecret"]);
 
-        var snapshot = await registration.Clear("ApiKey");
+        var snapshot = await registration.Clear("ClientSecret");
 
-        Assert.Equal(IntegrationStatus.Unconfigured, snapshot.Status);
-        Assert.Equal(["ApiKey"], snapshot.MissingFields);
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => brain.Get<ISecrets>(IntegrationVault.Owner).Resolve(platform, vaultReference, ct));
+        Assert.Equal(IntegrationStatus.Partial, snapshot.Status);
+        Assert.Equal(["ClientSecret"], snapshot.MissingFields);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => registration.Release(platform));
+        await registration.Configure(Values(("ClientSecret", OtherCanary)));
+        var released = await registration.Release(platform);
+        Assert.Equal(OtherCanary, released.Values["ClientSecret"]);
+        Assert.Equal(Canary + "-id", released.Values["ClientId"]);
+        Assert.Equal("/callback", released.Values["RedirectPath"]);
     }
 
     [Fact]
@@ -398,9 +401,10 @@ public sealed class RegistrationFacts
     }
 
     [Fact]
-    public void TheVaultOwnerCannotBeAPrincipalId()
+    public void TheRegistrationsPlatformCallerCannotBeAnyAccount()
     {
-        Assert.DoesNotMatch("^[a-z0-9][a-z0-9-]*$", IntegrationVault.Owner);
+        Assert.DoesNotMatch("^[a-z0-9][a-z0-9-]*$", IntegrationNeuron.PlatformCaller.AccountId);
+        Assert.DoesNotMatch("^[a-z0-9][a-z0-9-]*$", IntegrationNeuron.PlatformCaller.BrainId);
     }
 
     private static CallerContext Http(string principal) => new()

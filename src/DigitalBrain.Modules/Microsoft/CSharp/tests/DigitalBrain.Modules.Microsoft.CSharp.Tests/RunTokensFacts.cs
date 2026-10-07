@@ -28,9 +28,11 @@ public sealed class RunTokensFacts
         });
         try
         {
-            var error = await Assert.ThrowsAsync<ArgumentException>(() => brain.Get<DigitalBrain.Framework.Platform.Integrations.Accounts.IConnectionRegistry>(DigitalBrain.Framework.BrainScope.CurrentId())
-                .Connect(new() { IntegrationId = "csharp", ConnectionId = "internal", AuthMethodId = "run-token", Value = "meaningless" }, ct));
-            Assert.Contains("not offered by the deployment", error.Message);
+            // No connection neuron serves "csharp", so a connection key naming it addresses nothing.
+            var key = DigitalBrain.Framework.Platform.Connections.ConnectionKeys.For(DigitalBrain.Framework.BrainScope.CurrentId(), "csharp", "internal");
+            var error = Assert.Throws<ArgumentException>(() => DigitalBrain.Framework.Platform.Connections.ConnectionGrains
+                .GetNeuronGrain<DigitalBrain.Framework.Platform.Connections.IConnection>(brain.Grains, brain.SiloServices, key));
+            Assert.Contains("No connection neuron serves connector 'csharp'", error.Message);
         }
         finally { Orleans.Runtime.RequestContext.Remove(DigitalBrain.Framework.CallerContextStamper.RequestContextKey); }
     }

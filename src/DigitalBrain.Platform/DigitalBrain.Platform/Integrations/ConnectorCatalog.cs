@@ -20,7 +20,7 @@ internal sealed class ConnectorCatalog(IReadOnlyList<ConnectorDefinition> connec
             // Read every distinct dependency for freshness; only replace its cached snapshot on change.
             foreach (var dependency in connectors.SelectMany(c => c.RequiredIntegrations).Distinct(StringComparer.Ordinal))
             {
-                var snapshot = await grains.GetGrain<IIntegration>(IntegrationVault.GrainKeyPrefix + dependency).Read().WaitAsync(cancellationToken);
+                var snapshot = await grains.GetGrain<IIntegration>(IntegrationNeuron.KeyPrefix + dependency).Read().WaitAsync(cancellationToken);
                 if (!_snapshots.TryGetValue(dependency, out var previous) || previous.Revision != snapshot.Revision || previous.Status != snapshot.Status)
                 { _snapshots[dependency] = snapshot; }
             }

@@ -87,6 +87,31 @@ public sealed class TwoConnectorFacts : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AConnectionIdTakenByAnotherConnectorIsRefusedSoProbeAndDisconnectNameOneConnection()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var first = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/shared/connect", new { connectorId = "example", authMethodId = "api-key", value = "hunter2" }, ct);
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        using var connect = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/shared/connect", new { connectorId = "sample", authMethodId = "api-key", value = "other" }, ct);
+        Assert.Equal(HttpStatusCode.Conflict, connect.StatusCode);
+        using var login = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/shared/login", new { connectorId = "sample", authMethodId = "oauth" }, ct);
+        Assert.Equal(HttpStatusCode.Conflict, login.StatusCode);
+        using var again = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/shared/connect", new { connectorId = "example", authMethodId = "api-key", value = "rotated" }, ct);
+        Assert.Equal(HttpStatusCode.OK, again.StatusCode);
+
+        using var probe = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/shared/probe", new { }, ct);
+        Assert.Equal("example", (await probe.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("connectorId").GetString());
+        CallerContextStamper.Stamp(new() { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
+        try { Assert.Equal(ConnectionStatus.Disconnected, (await _brain.Get<IConnection>(Key("sample", "shared")).Read()).Status); }
+        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+
+        using var disconnect = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/shared/disconnect", new { }, ct);
+        Assert.Equal(HttpStatusCode.OK, disconnect.StatusCode);
+        using var reuse = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/shared/connect", new { connectorId = "sample", authMethodId = "api-key", value = "other" }, ct);
+        Assert.Equal(HttpStatusCode.OK, reuse.StatusCode);
+    }
+
+    [Fact]
     public void AKeyWhoseConnectorIsNoConnectionNeuronIsRefusedBeforeAnyGrainIsAddressed()
     {
         foreach (var connector in new[] { "nosuch", "connection.index" })

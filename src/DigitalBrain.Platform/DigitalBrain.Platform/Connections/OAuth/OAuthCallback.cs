@@ -16,6 +16,9 @@ internal sealed class OAuthCallback : IHttpSurface
     private const string Prefix = "/connections/oauth/";
     private const string Suffix = "/callback";
 
+    // ASP.NET Core's per-request Information log, which prints the full query string.
+    internal const string RequestLogCategory = "Microsoft.AspNetCore.Hosting.Diagnostics";
+
     public void Map(IApplicationBuilder app)
     {
         app.Use(async (context, next) =>

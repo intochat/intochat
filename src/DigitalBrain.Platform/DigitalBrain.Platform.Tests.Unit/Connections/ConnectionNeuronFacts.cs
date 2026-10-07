@@ -186,6 +186,51 @@ public sealed class ConnectionNeuronFacts
     }
 
     [Fact]
+    public async Task InventoryListsOnlyTheAmbientBrainsConnectionsWithoutSecrets()
+    {
+        const string canary = "canary-connection-4b8e12";
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Start();
+        try
+        {
+            foreach (var name in new[] { "one", "two" })
+            {
+                Stamp(Alice with { BrainId = name });
+                await brain.AuthorizeCallerAsync();
+                await brain.Grains.GetConnection(ConnectionKeys.For(BrainScope.CurrentId(), "example", name)).Connect("api-key", canary);
+            }
+
+            var provider = brain.SiloServices.GetServices<IRegistryInventoryProvider>().Single(p => p.Domain == "connections");
+            foreach (var name in new[] { "one", "two" })
+            {
+                Stamp(Alice with { BrainId = name });
+                var scope = BrainScope.CurrentId();
+                var key = ConnectionKeys.For(scope, "example", name);
+                // Tracked but never activated, and tracked under a connector this silo does not compose.
+                var dormant = ConnectionKeys.For(scope, "example", "dormant");
+                var index = brain.Grains.GetGrain<IConnectionIndex>(scope);
+                await index.Track(dormant);
+                await index.Track(ConnectionKeys.For(scope, "nosuch", "gone"));
+
+                var connected = new NeuronRecord("connections", "example", key, "example/" + name);
+                var asleep = new NeuronRecord("connections", "example", dormant, "example/dormant");
+                Assert.Equal([connected, asleep], await provider.Persisted(null, ct));
+                Assert.Equal([connected], await provider.Active(null, ct));
+                Assert.Empty(await provider.Persisted("sample", ct));
+                Assert.DoesNotContain(canary, System.Text.Json.JsonSerializer.Serialize(await provider.Persisted(null, ct)), StringComparison.Ordinal);
+
+                await brain.Grains.GetConnection(dormant).Read();
+                Assert.Equal([connected, asleep], await provider.Active(null, ct));
+
+                await brain.Grains.GetConnection(key).Disconnect();
+                await brain.Grains.GetConnection(dormant).Disconnect();
+                Assert.Empty(await provider.Persisted(null, ct));
+            }
+        }
+        finally { Clear(); }
+    }
+
+    [Fact]
     public async Task ConnectRefusesAnAuthMethodTheConnectorDoesNotDeclare()
     {
         await using var brain = await Start();

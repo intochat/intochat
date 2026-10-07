@@ -5,6 +5,8 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Testing.Module;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Platform.Tests.Unit.Connections;
 
@@ -65,6 +67,14 @@ public sealed class OAuthFlowFacts : IAsyncLifetime
             Assert.NotNull(view.ExpiresAt);
         }
         finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+    }
+
+    [Fact]
+    public void TheHostNeverLogsACallbacksQueryWhateverItsLevel()
+    {
+        var filters = _brain.SiloServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<LoggerFilterOptions>>().Value;
+        var rule = Assert.Single(filters.Rules, rule => rule.CategoryName == "Microsoft.AspNetCore.Hosting.Diagnostics" && rule.ProviderName is null);
+        Assert.Equal(LogLevel.Warning, rule.LogLevel);
     }
 
     [Fact]

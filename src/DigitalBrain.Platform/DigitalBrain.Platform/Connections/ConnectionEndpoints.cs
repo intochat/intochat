@@ -2,6 +2,7 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Platform.Connections.OAuth;
+using DigitalBrain.Platform.Integrations;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -30,19 +31,23 @@ internal static class ConnectionEndpoints
         group.MapGet("/requests", async (IGrainFactory grains) =>
             Results.Ok(await grains.GetGrain<DigitalBrain.Integrations.IConnectionRequests>(BrainScope.CurrentId()).ListPending()));
 
-        group.MapPost("/{connectionId}/connect", async (string connectionId, ConnectInput input, IGrainFactory grains, [FromServices] IReadOnlyList<ConnectorDefinition> connectors) =>
+        group.MapPost("/{connectionId}/connect", async (string connectionId, ConnectInput input, IGrainFactory grains, [FromServices] IReadOnlyList<ConnectorDefinition> connectors, [FromServices] ConnectorCatalog catalog, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(input.ConnectorId) || string.IsNullOrWhiteSpace(input.AuthMethodId) || string.IsNullOrWhiteSpace(input.Value)) { return Results.BadRequest(); }
             // The connector names the grain type, so an undeclared one would address no neuron at all.
             if (!connectors.Any(connector => connector.Id == input.ConnectorId))
             { return Results.BadRequest(new { error = $"No composed module declares connector '{input.ConnectorId}'." }); }
+            if (await Unavailable(catalog, connectors, input.ConnectorId, ct) is { } unavailable) { return unavailable; }
+            if (await TakenByAnotherConnector(grains, connectionId, input.ConnectorId) is { } taken) { return taken; }
             try { return Results.Ok(await grains.GetConnection(ConnectionKeys.For(BrainScope.CurrentId(), input.ConnectorId, connectionId)).Connect(input.AuthMethodId, input.Value)); }
             catch (ArgumentException error) { return Results.BadRequest(new { error = error.Message }); }
         });
 
-        group.MapPost("/{connectionId}/login", async (string connectionId, LoginInput input, [FromServices] OAuthLoginFlow flow, CancellationToken ct) =>
+        group.MapPost("/{connectionId}/login", async (string connectionId, LoginInput input, [FromServices] IGrainFactory grains, [FromServices] OAuthLoginFlow flow, [FromServices] IReadOnlyList<ConnectorDefinition> connectors, [FromServices] ConnectorCatalog catalog, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(input.ConnectorId) || string.IsNullOrWhiteSpace(input.AuthMethodId)) { return Results.BadRequest(); }
+            if (await Unavailable(catalog, connectors, input.ConnectorId, ct) is { } unavailable) { return unavailable; }
+            if (await TakenByAnotherConnector(grains, connectionId, input.ConnectorId) is { } taken) { return taken; }
             var key = ConnectionKeys.For(BrainScope.CurrentId(), input.ConnectorId, connectionId);
             try { return Results.Ok(new { url = (await flow.StartAsync(key, input.AuthMethodId, input.Target, CallerContextStamper.Require(), ct)).AbsoluteUri }); }
             catch (ArgumentException error) { return Results.BadRequest(new { error = error.Message }); }
@@ -50,18 +55,44 @@ internal static class ConnectionEndpoints
         });
 
         group.MapPost("/{connectionId}/probe", async (string connectionId, IGrainFactory grains) =>
-            await Find(grains, connectionId) is { } key ? Results.Ok(await grains.GetConnection(key).Probe()) : Results.NotFound());
+        {
+            var keys = await Tracked(grains, connectionId);
+            return keys.Length switch
+            {
+                0 => Results.NotFound(),
+                1 => Results.Ok(await grains.GetConnection(keys[0]).Probe()),
+                _ => Ambiguous(connectionId),
+            };
+        });
 
         group.MapPost("/{connectionId}/disconnect", async (string connectionId, IGrainFactory grains) =>
         {
-            if (await Find(grains, connectionId) is not { } key) { return Results.NotFound(); }
-            await grains.GetConnection(key).Disconnect();
+            var keys = await Tracked(grains, connectionId);
+            if (keys.Length != 1) { return keys.Length == 0 ? Results.NotFound() : Ambiguous(connectionId); }
+            await grains.GetConnection(keys[0]).Disconnect();
             return Results.Ok();
         });
     }
 
-    // The connection id is unique per brain across connectors; the index knows the full key.
-    private static async Task<string?> Find(IGrainFactory grains, string connectionId)
-        => (await grains.GetGrain<IConnectionIndex>(BrainScope.CurrentId()).List())
-            .FirstOrDefault(key => ConnectionKeys.Parse(key).ConnectionId == connectionId);
+    // Probe and disconnect name a connection by id alone, so connect and login refuse an id the brain
+    // already tracks under another connector; the index then holds at most one key per id.
+    private static async Task<string[]> Tracked(IGrainFactory grains, string connectionId)
+        => [.. (await grains.GetGrain<IConnectionIndex>(BrainScope.CurrentId()).List())
+            .Where(key => ConnectionKeys.Parse(key).ConnectionId == connectionId)];
+
+    private static async Task<IResult?> TakenByAnotherConnector(IGrainFactory grains, string connectionId, string connectorId)
+        => (await Tracked(grains, connectionId)).Any(key => ConnectionKeys.Parse(key).ConnectorId != connectorId)
+            ? Results.Json(new { error = $"Connection '{connectionId}' already belongs to another connector in this brain." }, statusCode: StatusCodes.Status409Conflict)
+            : null;
+
+    // A declared connector whose required Integrations the deployment has not made Ready is hidden by
+    // the catalog; it takes no new connection either. Names the connector only, never a field value.
+    private static async Task<IResult?> Unavailable(ConnectorCatalog catalog, IReadOnlyList<ConnectorDefinition> connectors, string connectorId, CancellationToken ct)
+        => connectors.Any(connector => connector.Id == connectorId) && !(await catalog.ListAsync(ct)).Any(entry => entry.Id == connectorId)
+            ? Results.Json(new { error = $"Connector '{connectorId}' is not offered by this deployment." }, statusCode: StatusCodes.Status409Conflict)
+            : null;
+
+    // Only a race between two connects can leave two keys; never pick one silently.
+    private static IResult Ambiguous(string connectionId)
+        => Results.Json(new { error = $"Connection '{connectionId}' names more than one connector in this brain." }, statusCode: StatusCodes.Status409Conflict);
 }

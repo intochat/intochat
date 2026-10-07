@@ -2,9 +2,10 @@ using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Integrations;
+using DigitalBrain.Platform.Integrations;
 using Orleans.Concurrency;
 
-namespace DigitalBrain.Platform.Integrations.Accounts;
+namespace DigitalBrain.Platform.Connections;
 
 [GenerateSerializer, Alias("integrations.script-accounts")]
 public sealed class ConnectionRequestsState
@@ -12,7 +13,7 @@ public sealed class ConnectionRequestsState
     [Id(0)] public ConnectionRef[] Pending { get; set; } = [];
 }
 
-// Script-facing accounts. Grain type "integrations.accounts" does not collide with the credential registry ("connections").
+// Script-facing connection requests: a script asks for a connector kind; the user connects it.
 [GrainType("integrations.accounts")]
 internal sealed class ConnectionRequestsNeuron(
     [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ConnectionRequestsState> store,

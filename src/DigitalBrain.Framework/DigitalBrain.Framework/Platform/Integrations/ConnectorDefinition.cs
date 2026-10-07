@@ -29,11 +29,3 @@ public interface IIntegrationStartup
 {
     Task InitializeAsync(CancellationToken cancellationToken);
 }
-
-public interface IModuleConnectionCredentials<TModule> where TModule : Module
-{
-    Task<SecretRef> WriteSecretAsync(string connectionKey, string field, string displayName, string value, CancellationToken cancellationToken = default, string? targetBrainId = null);
-    Task<string> ReadConnectionAsync(string connectorId, string connectionId, CancellationToken cancellationToken = default);
-    Task ConnectAsync(string connectionKey, string authMethodId, SecretRef credential, CancellationToken cancellationToken = default, string? targetBrainId = null);
-    Task<bool> IsConnectedAsync(string connectionKey, CancellationToken cancellationToken = default);
-}

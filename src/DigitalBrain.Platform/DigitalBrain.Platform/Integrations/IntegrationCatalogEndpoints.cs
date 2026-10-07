@@ -31,7 +31,7 @@ internal static class IntegrationCatalogEndpoints
             if (!definitions.Any(definition => definition.Id == id)) { return Results.NotFound(); }
             try
             {
-                var registration = grains.GetGrain<IIntegration>(IntegrationVault.GrainKeyPrefix + id);
+                var registration = grains.GetGrain<IIntegration>(IntegrationNeuron.KeyPrefix + id);
                 return Results.Ok(await registration.Configure(new ConfigureIntegration { Values = body.Values ?? [] }));
             }
             catch (ArgumentException error)
@@ -47,7 +47,7 @@ internal static class IntegrationCatalogEndpoints
             if (!definitions.Any(definition => definition.Id == id)) { return Results.NotFound(); }
             try
             {
-                return Results.Ok(await grains.GetGrain<IIntegration>(IntegrationVault.GrainKeyPrefix + id).Clear(field));
+                return Results.Ok(await grains.GetGrain<IIntegration>(IntegrationNeuron.KeyPrefix + id).Clear(field));
             }
             catch (ArgumentException error)
             {

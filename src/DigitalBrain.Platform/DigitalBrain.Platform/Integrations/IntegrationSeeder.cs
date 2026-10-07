@@ -46,7 +46,7 @@ internal sealed class IntegrationSeeder(
             return;
         }
 
-        var registration = grains.GetGrain<IIntegration>(IntegrationVault.GrainKeyPrefix + definition.Id);
+        var registration = grains.GetGrain<IIntegration>(IntegrationNeuron.KeyPrefix + definition.Id);
         var after = await registration.SeedIfUnconfigured(new ConfigureIntegration { Values = values });
         logger.LogInformation("Integration {IntegrationId} is {Status} after seeding.", definition.Id, after.Status);
     }

@@ -37,18 +37,13 @@ internal sealed class OAuthTokenExchange(
     internal string TokenEndpoint(string connectorId, OAuthMethod method)
         => options.Value.TokenEndpoints.TryGetValue(connectorId, out var endpoint) ? endpoint : method.TokenEndpoint;
 
-    // The Integration neuron's Release demands a platform stamp: this is one of the two places the
-    // Platform ring manufactures one, and it never leaves this method.
+    // The Integration neuron's Release demands its own platform stamp; the client values never leave this method.
     internal async Task<(string Id, string Secret)> ClientAsync(OAuthMethod method, CancellationToken ct)
     {
-        var integration = grains.GetGrain<IIntegration>(IntegrationVault.GrainKeyPrefix + method.IntegrationId);
+        var integration = grains.GetGrain<IIntegration>(IntegrationNeuron.KeyPrefix + method.IntegrationId);
         if ((await integration.Read().WaitAsync(ct)).Status != IntegrationStatus.Ready)
         { throw new InvalidOperationException($"Integration '{method.IntegrationId}' is not configured."); }
-        var released = await integration.Release(new CallerContext
-        {
-            PrincipalId = IntegrationVault.CallerAppId, AccountId = IntegrationVault.Owner, BrainId = IntegrationVault.Owner,
-            Kind = CallerKind.Platform, StampedBy = TrustedEdge.Platform, AppId = IntegrationVault.CallerAppId,
-        }).WaitAsync(ct);
+        var released = await integration.Release(IntegrationNeuron.PlatformCaller).WaitAsync(ct);
         // An optional client field can be missing from a Ready integration; refuse before any redirect.
         if (!released.Values.TryGetValue(method.ClientIdField, out var id) || string.IsNullOrWhiteSpace(id)
             || !released.Values.TryGetValue(method.ClientSecretField, out var secret) || string.IsNullOrWhiteSpace(secret))
