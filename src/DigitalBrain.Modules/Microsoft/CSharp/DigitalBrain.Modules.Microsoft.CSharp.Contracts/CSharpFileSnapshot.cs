@@ -12,10 +12,9 @@ public sealed record CSharpFileSnapshot(
     [property: Id(4)] int? ExitCode,
     [property: Id(5)] DateTimeOffset? StartedAt,
     [property: Id(6)] bool ShouldRun,
-    [property: Id(7)] int Failures,
-    [property: Id(8)] CSharpTrigger? Trigger)
+    [property: Id(7)] int Failures)
 {
-    [Id(9)] public IReadOnlyList<CSharpSubscriptionView> Subscriptions { get; init; } = [];
+    [Id(8)] public IReadOnlyList<CSharpSubscriptionView> Subscriptions { get; init; } = [];
 }
 
 [GenerateSerializer, Alias("microsoft.csharp.subscription-view")]

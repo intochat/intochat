@@ -376,26 +376,22 @@ public sealed class CSharpSubscriptionFacts
     }
 
     [Fact]
-    public async Task AnArmedFileIgnoresSameTypedSignalsFromOtherWatchedSources()
+    public async Task AWakeRunIsNotToldWhichSignalWokeItBecauseTheStreamCarriesIt()
     {
         var ct = TestContext.Current.CancellationToken;
         var sandbox = new FakeSandbox();
         await using var brain = await SandboxBrain.StartAsync(sandbox, ct);
-        var tea = brain.Get<IPinger>("tea");
-        var other = brain.Get<IPinger>("other");
-        var file = brain.Get<ICSharpFile>("workspace/mixed");
-        await file.Write("Console.WriteLine(1);", ct);
-        await file.Arm(new(tea.GetGrainId().ToString(), nameof(Pinged)), ct);
-        await file.AsReference<ICSharpFileEdge>().Subscribed("triggered-run", other.GetGrainId().ToString(), nameof(Pinged));
+        var pinger = brain.Get<IPinger>("pinger");
+        var file = await Subscribed(brain, sandbox, "workspace/untriggered", pinger, ct);
+        sandbox.ExitLatest(0);
+        await Reconcile(file);
 
-        await other.Ping(9);
-        await Eventually(() => sandbox.Started == 1, ct);
-        await tea.Ping(1);
+        await pinger.Ping(1);
         await Eventually(() => sandbox.Started == 2, ct);
 
-        var starts = sandbox.Requests.Where(FakeSandbox.IsStart).ToArray();
-        Assert.Null(starts[0].Body!["environment"]!["CSharpFile__Trigger"]);   // other's ping woke, it did not fire the trigger
-        Assert.Contains("\"number\":1", starts[1].Body!["environment"]!["CSharpFile__Trigger"]!.GetValue<string>(), StringComparison.Ordinal);
+        var wake = sandbox.Requests.Last(FakeSandbox.IsStart);
+        Assert.Null(wake.Body!["environment"]!["CSharpFile__Trigger"]);
+        Assert.Equal(1, Assert.Single((await file.Inspect(ct)).Subscriptions).Pending);   // the signal waits for the stream, not the environment
     }
 
     [Fact]

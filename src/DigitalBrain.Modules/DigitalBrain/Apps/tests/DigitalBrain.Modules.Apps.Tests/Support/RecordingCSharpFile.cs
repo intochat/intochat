@@ -24,7 +24,7 @@ public sealed class RecordingCSharpFile : Neuron, ICSharpFile, ICSharpAppBinding
     private (int ExitCode, string Logs)? Scripted =>
         ScriptedRuns.FirstOrDefault(pair => Key.StartsWith(pair.Key, StringComparison.Ordinal)) is { Key.Length: > 0 } match ? match.Value : null;
 
-    private CSharpFileSnapshot Current => Files.GetOrAdd(Key, key => new(key, "", new Dictionary<string, string>(), CSharpFileStatus.Stopped, null, null, false, 0, null));
+    private CSharpFileSnapshot Current => Files.GetOrAdd(Key, key => new(key, "", new Dictionary<string, string>(), CSharpFileStatus.Stopped, null, null, false, 0));
 
     public Task<CSharpFileSnapshot> Inspect(CancellationToken cancellationToken = default) => Task.FromResult(Current);
 
@@ -59,9 +59,6 @@ public sealed class RecordingCSharpFile : Neuron, ICSharpFile, ICSharpAppBinding
         Swaps.AddOrUpdate(Key, 1, (_, count) => count + 1);
         return Task.FromResult(Files[Key] = Current with { Source = source, Status = CSharpFileStatus.Running, StartedAt = DateTimeOffset.UtcNow });
     }
-
-    public Task<CSharpFileSnapshot> Arm(CSharpTrigger trigger, CancellationToken cancellationToken = default)
-        => Task.FromResult(Files[Key] = Current with { Trigger = trigger });
 
     private CSharpFileSnapshot Halt() => Files[Key] = Current with { Status = CSharpFileStatus.Stopped };
 

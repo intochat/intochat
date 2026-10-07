@@ -9,14 +9,14 @@ using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Microsoft.CSharp;
 
-// What a run is told: where the brain's script edge is, the run's token, its settings and, for a
-// triggered run, the signal that started it. Nothing about Orleans reaches the script.
+// What a run is told: where the brain's script edge is, the run's token and its settings.
+// Nothing about Orleans reaches the script.
 internal sealed class ScriptRunEnvironment(RunTokens tokens, IOptions<CSharpDeploymentSettings> options, IServiceProvider services)
 {
     // Development sandboxes reach the brain on the Docker host.
     internal const string DockerHost = "host.docker.internal";
 
-    public IReadOnlyDictionary<string, string> Create(string fileId, string runId, IReadOnlyDictionary<string, string> settings, Signal? trigger)
+    public IReadOnlyDictionary<string, string> Create(string fileId, string runId, IReadOnlyDictionary<string, string> settings)
     {
         var environment = new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -24,7 +24,6 @@ internal sealed class ScriptRunEnvironment(RunTokens tokens, IOptions<CSharpDepl
             [DigitalBrainConfiguration.EnvironmentName(ScriptEdgeProtocol.TokenSetting)] = tokens.Issue(fileId, runId),
         };
         foreach (var (name, value) in settings) { environment["CSharpFile__Settings__" + name] = value; }
-        if (trigger is not null) { environment["CSharpFile__Trigger"] = JsonSerializer.Serialize(trigger, trigger.GetType(), JsonSerializerOptions.Web); }
         return environment;
     }
 
