@@ -13,9 +13,6 @@ internal sealed class KernelNeuron(
     // Storage hands back an uninitialized record before the first write, so existence is the record's, not the object's.
     internal bool IsCreated => store.RecordExists;
 
-    // The kernel's key is the brain id itself.
-    public override NeuronAccess Access(string operation) => new(this.GetPrimaryKeyString());
-
     public Task<State> Read()
         => Task.FromResult(IsCreated ? store.State : throw new InvalidOperationException("This brain has not been created."));
 

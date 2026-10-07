@@ -1,5 +1,4 @@
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
 
 namespace DigitalBrain.Microsoft.CSharp;
 
@@ -8,14 +7,6 @@ internal sealed class CSharpCatalogNeuron([PersistentState("catalog", DigitalBra
     : Neuron, ICSharpCatalog
 {
     private const int MaxFilesPerWorkspace = 500;
-
-    // The key's first segment is the brain; the catalog belongs to it whatever the id looks like.
-    public override NeuronAccess Access(string operation)
-    {
-        var key = this.GetPrimaryKeyString();
-        var scope = key.LastIndexOf("/csharp/catalog", StringComparison.Ordinal) is var at and > 0 ? key[..at] : key;
-        return new NeuronAccess(scope);
-    }
 
     public async Task<CSharpDescription> Describe(string id, string? name, string? purpose)
     {

@@ -15,6 +15,8 @@ internal sealed class NeuronCallFilter(ICallFilter filter) : IIncomingGrainCallF
         { await context.Invoke(); return; }
 
         var access = neuron.Access(context.InterfaceMethod.Name);
+        // A neuron keyed by the brain id itself (workspace, app index, kernel) is in that brain.
+        if (access == NeuronAccess.Unclassified && neuron.GetPrimaryKeyString() == caller.BrainId) { access = new(caller.BrainId); }
         // Module services can call through an injected client after leaving the grain
         // scheduler. Preserve that provenance without changing the end-user identity.
         var internalCall = Orleans.Runtime.RequestContext.Get(ModuleCall) is true

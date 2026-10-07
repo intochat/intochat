@@ -4,7 +4,6 @@ namespace DigitalBrain.Framework.Platform.Integrations.Accounts;
 
 public static class ConnectionNames
 {
-   
     public const string NeuronType = "connections";
 }
 

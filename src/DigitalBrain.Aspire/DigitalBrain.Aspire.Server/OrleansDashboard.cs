@@ -1,12 +1,13 @@
+using DigitalBrain.Framework.Enforcement;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Aspire.Server;
 
-// Co-hosted in the silo, so it ships in every image: Aspire, standalone or container. Mapped
-// behind the host's authentication because grain state and method profiles are operator data;
-// the platform pipeline authenticates but has no authorization middleware, so the gate is a filter.
+// Co-hosted in the silo, so it ships in every image: Aspire, standalone or container. Grain state
+// and method profiles are operator data, so only a request the host stamped a caller on gets in:
+// the same rule as every other route, whatever the identity posture.
 public static class OrleansDashboard
 {
     public const string Path = "/orleans";
@@ -18,7 +19,7 @@ public static class OrleansDashboard
         {
             global::Orleans.Dashboard.ServiceCollectionExtensions.MapOrleansDashboard(app, routePrefix: Path)
                 .AddEndpointFilter(static async (context, next) =>
-                    context.HttpContext.User.Identity?.IsAuthenticated == true ? await next(context) : Results.Unauthorized());
+                    CallerContextStamper.TryGet(out _) ? await next(context) : Results.Unauthorized());
         }
         return app;
     }
