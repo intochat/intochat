@@ -182,11 +182,11 @@ Agents/                  IAgent, AgentDefinition, AgentTurn, AgentTurnEvent, Age
 Agents/Signals/          AgentConfigured, TurnStarted, TurnProgressed, TurnCompleted, TurnFailed, TranscriptCleared
 Agents/Context/          IAgentContext, ContextEntry, ContextSnapshot
 Agents/Context/Signals/  ContextUpdated, ContextRemoved
-Models/                  ILLM, AiModel, LLMModel, AiProvider, ModelAddress, ModelSelection, ResolvedModel, ModelDescriptor, IModelCatalog, ModelChoice, ModelChoices
+Models/                  ILLM, AiModel, LLMModel, AiProvider, ModelAddress, ModelSelection, ResolvedModel, IModelCatalog, ModelChoice, ModelChoices
 Models/Signals/          InferenceStarted, InferenceCompleted, InferenceFailed
 Models/<Vendor>/         one file per model (marker + LLMModel)
 Models/Scripted/         IScriptedLLM
-Inference/               AiMessage, AiContent and derived, InferenceRequest/Result/Update/Options
+Inference/               AiMessage, AiContent and derived, InferenceRequest/Result/Update/Options, ModelDescriptor, CapabilitySupport
 Tools/                   IAgentToolFactory, IAgentToolSource, IAgentToolSession, AgentToolOffer, AgentToolBinding, INativeToolContributor, NativeTools, ScreenedFunction
 Media/, Voice/, Embeddings/, GroupChat/   content unchanged, namespaces fixed (IEmbedding in Embeddings/, IImageGeneration and IImageModel in Media/, ITranscription in Voice/)
 ```
