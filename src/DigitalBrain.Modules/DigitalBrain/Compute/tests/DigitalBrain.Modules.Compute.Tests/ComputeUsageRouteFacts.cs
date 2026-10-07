@@ -48,4 +48,39 @@ public sealed class ComputeUsageRouteFacts
             Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
         }
     }
+
+    // The usage route reaches the records store on the person's behalf; the store is keyed
+    // "usage/{account}/{brain}" and must not be read as if "usage" were a brain id.
+    [Fact]
+    public async Task AMemberReadsTheirOwnUsageThroughTheRoute()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<ComputeModule>().StartAsync(ct);
+        await brain.Get<DigitalBrain.Framework.Platform.Identity.IIdentityDirectory>(DigitalBrain.Framework.Platform.Identity.IdentityGrains.Directory)
+            .ShareBrainAsync("account", "own", "owner", "Owner", DigitalBrain.Framework.Platform.Identity.MemberRole.Owner, ct);
+        var store = brain.SiloServices.GetRequiredService<IUsageStore>();
+        await store.AppendAsync("account", "own", "first", "{}", ct);
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddSingleton<IDigitalBrain>(brain.SiloServices.GetRequiredService<IDigitalBrain>());
+        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<IBrainAccess>());
+        builder.Services.AddSingleton(store);
+        await using var app = builder.Build();
+        new ComputeModule().Configure(app);
+        var endpoint = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>().Single(route => route.RoutePattern.RawText == "/brains/{brainId}/compute/usage");
+        CallerContextStamper.Stamp(new CallerContext
+        {
+            PrincipalId = "owner",
+            AccountId = "account",
+            BrainId = "own",
+            Kind = CallerKind.User,
+            StampedBy = TrustedEdge.AuthenticatedHttp,
+        });
+        var context = new DefaultHttpContext { RequestServices = app.Services, RequestAborted = ct };
+        context.Request.Method = "GET";
+        context.Request.RouteValues["brainId"] = "own";
+        context.Response.Body = new MemoryStream();
+        await endpoint.RequestDelegate!(context);
+        Assert.Equal(StatusCodes.Status200OK, context.Response.StatusCode);
+    }
 }

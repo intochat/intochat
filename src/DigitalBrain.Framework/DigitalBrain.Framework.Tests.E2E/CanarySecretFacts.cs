@@ -44,9 +44,10 @@ public sealed class CanarySecretFacts(ReferenceBrainFixture host)
         await using var brain = await host.LeaseAsync(ct);
         var collector = host.Collector;
 
+        // POST /brains/{brainId}/connections/{connectionId}/connect with a ConnectInput body.
         using var seeded = await brain.HttpClient.PostAsJsonAsync(
-            $"/brains/{Owner}/connections/connect",
-            new { connectorId = source, connectionId = $"conn-{source}", label = source, value = Canary },
+            $"/brains/{Owner}/connections/conn-{source}/connect",
+            new { connectorId = source, authMethodId = "connection-string", value = Canary },
             ct);
         Assert.Equal(System.Net.HttpStatusCode.OK, seeded.StatusCode);
         var seedBody = await seeded.Content.ReadAsStringAsync(ct);
@@ -69,9 +70,9 @@ public sealed class CanarySecretFacts(ReferenceBrainFixture host)
         await using var brain = await host.LeaseAsync(ct);
         var collector = host.Collector;
 
+        // The brain id is the scope: a UI part named under it belongs to that brain.
         const string workspace = "form-canary";
-        var scope = Scope(Owner, workspace);
-        var form = brain.Get<DigitalBrain.Flutter.Form.IForm>(scope + "/apps/forms/intake");
+        var form = brain.Get<DigitalBrain.Flutter.Form.IForm>(workspace + "/apps/forms/intake");
         await form.Define(new("Intake", [new("password", "Password", DigitalBrain.Flutter.Form.FormFieldKind.Secret)]));
 
         using var seeded = await brain.HttpClient.PostAsJsonAsync(
@@ -86,7 +87,7 @@ public sealed class CanarySecretFacts(ReferenceBrainFixture host)
 
         using var evented = await brain.HttpClient.PostAsJsonAsync(
             $"/brains/{workspace}/apps/event",
-            new { kind = "form", name = scope + "/apps/forms/intake", action = "secret", field = "password", value = reference },
+            new { kind = "form", name = workspace + "/apps/forms/intake", action = "secret", field = "password", value = reference },
             ct);
         Assert.Equal(System.Net.HttpStatusCode.OK, evented.StatusCode);
 
@@ -103,13 +104,4 @@ public sealed class CanarySecretFacts(ReferenceBrainFixture host)
         Assert.DoesNotContain(collector.LogSnapshot(), log => TextOf(log).Contains(Canary, StringComparison.Ordinal));
         Assert.Empty(collector.Errors());
     }
-
-    private static string Scope(string owner, string workspace)
-    {
-        var digest = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(owner + "\0" + workspace));
-        return "workspace-" + Convert.ToHexStringLower(digest);
-    }
-
-
-
 }

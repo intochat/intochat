@@ -34,8 +34,15 @@ internal sealed class BrainAuthorityGrain(
     public async Task ProvisionOwner(Member owner)
     {
         await Initialize(owner.AccountId, owner.BrainId);
-        if (State.OwnerProvisioned) { return; }
         if (owner.Role != MemberRole.Owner) { throw new ArgumentException("An owner is required."); }
+        if (State.OwnerProvisioned)
+        {
+            // Provisioning happens once: a retry is a no-op, and a revoked owner stays revoked. A
+            // different principal holding the owner role is the one thing that must not pass quietly.
+            var current = State.Members.Values.FirstOrDefault(member => member.Role == MemberRole.Owner);
+            if (current is null || current.PrincipalId == owner.PrincipalId) { return; }
+            throw new InvalidOperationException($"Brain {owner.BrainId} already belongs to {current.PrincipalId}; {owner.PrincipalId} cannot be provisioned as its owner.");
+        }
         await Persist(State with { Members = new(State.Members) { [owner.PrincipalId] = owner }, OwnerProvisioned = true });
     }
     public async Task EnsureMember(Member member)
@@ -57,19 +64,21 @@ internal sealed class BrainAuthorityGrain(
     public async Task<CallDecision?> Authorize(CallRequest request)
     {
         var caller = request.Caller;
-        // The grain-side mirror of OpenOwnerBrainAccess at the HTTP edge: with the declared
-        // Open posture, an untouched brain belongs to the first trusted caller acting in their
-        // own scope. Secured deployments and provisioned brains are untouched.
+        // The grain-side mirror of OpenOwnerBrainAccess at the HTTP edge: with the declared Open
+        // posture, an untouched brain under the synthetic owner's account belongs to the synthetic
+        // owner, whoever reaches it first. A caller is never crowned: a registered account's brain
+        // is provisioned by its account before it is born, so it never arrives here untouched.
         if (State.AccountId is null && auth.Value.Posture == IdentityPosture.Open
+            && caller.AccountId == AccountSession.DefaultLogin
             && BrainScope.Create(caller.AccountId, caller.BrainId).Id == this.GetPrimaryKeyString())
         {
             await ProvisionOwner(new Member
             {
-                PrincipalId = caller.PrincipalId,
-                AccountId = caller.AccountId,
+                PrincipalId = AccountSession.DefaultLogin,
+                AccountId = AccountSession.DefaultLogin,
                 BrainId = caller.BrainId,
                 Role = MemberRole.Owner,
-                DisplayName = caller.PrincipalId,
+                DisplayName = AccountSession.DefaultLogin,
             });
         }
         if (State.AccountId != caller.AccountId || State.BrainId != caller.BrainId)
