@@ -2,7 +2,7 @@ using System.Reflection;
 using DigitalBrain;
 using DigitalBrain.Framework;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Edge;
 
 // The neuron contracts scripts may call: interfaces from the composed modules' contract
 // assemblies, nothing else. Composing a module is what exposes its contracts to scripts.

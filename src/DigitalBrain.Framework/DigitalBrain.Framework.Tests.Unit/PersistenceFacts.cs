@@ -1,10 +1,3 @@
-using DigitalBrain;
-using DigitalBrain.Framework;
-using DigitalBrain.Testing;
-using DigitalBrain.Testing.Module;
-using Orleans;
-using Orleans.Runtime;
-using Xunit;
 namespace DigitalBrain.Framework.Tests.Unit;
 
 [Alias("test.counter")]
@@ -35,17 +28,26 @@ public sealed class CounterNeuron([PersistentState("state", "Default")] IPersist
 [GenerateSerializer]
 public sealed class ProbeState { [Id(0)] public int Value { get; set; } }
 
-public sealed class ProbeNeuron(IPersistentState<ProbeState> state) : Neuron<ProbeState>(state)
+[Alias("test.probe")]
+public interface IProbe : INeuron
+{
+    Task<bool> Saved();
+    Task Set(int value);
+}
+
+[GrainType("test-probe")]
+public sealed class ProbeNeuron([PersistentState("state", "Default")] IPersistentState<ProbeState> state) : Neuron<ProbeState>(state), IProbe
 {
     public int Value => Snapshot.Value;
+    public Task<bool> Saved() => Task.FromResult(Exists);
     public Task Set(int value) => Save(new ProbeState { Value = value }, new Number(value));
 }
 
-internal sealed class FailingProbeState(ProbeState initial) : IPersistentState<ProbeState>
+internal sealed class FailingProbeState(ProbeState initial, bool exists = true) : IPersistentState<ProbeState>
 {
     public ProbeState State { get; set; } = initial;
     public string Etag => string.Empty;
-    public bool RecordExists => true;
+    public bool RecordExists => exists;
     public bool FailNextWrite { get; set; }
     public Task ClearStateAsync() => Task.CompletedTask;
     public Task ReadStateAsync() => Task.CompletedTask;
@@ -65,6 +67,28 @@ public sealed class PersistenceFacts
         await Assert.ThrowsAsync<InvalidOperationException>(() => neuron.Set(9));
         Assert.Equal(7, neuron.Value);
         Assert.Equal(7, storage.State.Value);
+    }
+
+    [Fact]
+    public async Task AFailedFirstWriteLeavesTheRecordAbsent()
+    {
+        var store = new FailingProbeState(new ProbeState(), exists: false) { FailNextWrite = true };
+        var probe = new ProbeNeuron(store);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => probe.Set(1));
+        Assert.False(await probe.Saved());
+    }
+
+    [Fact]
+    public async Task ExistsIsFalseUntilTheFirstSaveAndSurvivesReactivation()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        var probe = brain.Get<IProbe>("fresh");
+        Assert.False(await probe.Saved());
+        await probe.Set(2);
+        Assert.True(await probe.Saved());
+        await brain.DeactivateAsync(probe, ct);
+        Assert.True(await probe.Saved());
     }
 
     [Fact]

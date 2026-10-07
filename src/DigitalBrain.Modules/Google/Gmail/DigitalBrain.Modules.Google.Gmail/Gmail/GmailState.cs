@@ -1,17 +1,11 @@
-using DigitalBrain.Framework.Types;
+using DigitalBrain.Framework.Platform.Connections;
 
 namespace DigitalBrain.Google.Gmail;
 
 [GenerateSerializer, Alias("db.gmail.state")]
-internal sealed record GmailState
+internal sealed class GmailState : ConnectionState
 {
-    [Id(0)] public string? Subject { get; init; }
-    [Id(1)] public string? Email { get; init; }
-    [Id(4)] public string GrantedScopes { get; init; } = "";
-    [Id(5)] public DateTimeOffset? ExpiresAt { get; init; }
-    [Id(6)] public bool CanCompose { get; init; }
-    [Id(7)] public GmailDraftPreview? PendingDraft { get; init; }
-    [Id(8)] public GmailDraftPreview? SubmittingDraft { get; init; }
-    [Id(9)] public SecretRef? Credential { get; init; }
-    [Id(10)] public SecretRef? RefreshCredential { get; init; }
+    [Id(8)] public bool CanCompose { get; set; }
+    [Id(9)] public GmailDraftPreview? PendingDraft { get; set; }
+    [Id(10)] public GmailDraftPreview? SubmittingDraft { get; set; }
 }

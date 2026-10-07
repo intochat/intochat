@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Tools;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Client;
@@ -15,37 +16,34 @@ public sealed class McpToolFacts
     [Fact]
     public void TheMcpAllowlistRegistersExactlyTheListedServers()
     {
-        var services = new ServiceCollection();
-        AIModule.RegisterMcpBridge(services, "salesforce=https://mcp.example.test/tools;github=https://github.example.test/mcp");
+        var services = new ServiceCollection().AddModelCatalog();
+        McpAgentTools.Register(services, "salesforce=https://mcp.example.test/tools;github=https://github.example.test/mcp");
         Assert.Equal(2, services.Count(descriptor => descriptor.ServiceType == typeof(IAgentToolSource)));
     }
 
     [Fact]
     public void AnEmptyMcpAllowlistRegistersNoServer()
     {
-        var services = new ServiceCollection();
-        AIModule.RegisterMcpBridge(services, null);
+        var services = new ServiceCollection().AddModelCatalog();
+        McpAgentTools.Register(services, null);
         Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(IAgentToolSource));
     }
 
     [Fact]
     public void AMalformedMcpAllowlistEntryIsRejected()
     {
-        var services = new ServiceCollection();
-        Assert.Throws<InvalidOperationException>(() => AIModule.RegisterMcpBridge(services, "salesforce"));
+        var services = new ServiceCollection().AddModelCatalog();
+        Assert.Throws<InvalidOperationException>(() => McpAgentTools.Register(services, "salesforce"));
     }
 
     [Fact]
-    public async Task RunnerDisposesMcpSessionAndDoesNotCompleteAfterProviderFailure()
+    public async Task TheTurnLoopDisposesMcpSessionAndDoesNotCompleteAfterProviderFailure()
     {
         using var handler = new ProtocolHandler { FailCall = true };
-        using var services = new ServiceCollection()
+        using var services = new ServiceCollection().AddModelCatalog()
             .AddSingleton<IChatClient>(ToolCallingClient())
             .AddMcpAgentTools("mail", _ => Transport(handler)).BuildServiceProvider();
-        var events = new List<AgentTurnEvent>();
-        await foreach (var item in new AgentTurnRunner(services).RunAsync(
-            new("agent", "run", "scope", [], "lookup", null, ToolNames: ["mcp_mail_lookup"]), TestContext.Current.CancellationToken))
-        { events.Add(item); }
+        var events = await TurnLoops.Collect(services, "lookup", ["mcp_mail_lookup"], TestContext.Current.CancellationToken);
         Assert.Single(events.OfType<AgentTurnEvent.ToolStarted>());
         Assert.Single(events.OfType<AgentTurnEvent.ToolFailed>());
         Assert.Single(events.OfType<AgentTurnEvent.Failed>());
@@ -90,7 +88,7 @@ public sealed class McpToolFacts
     }
 
     private static AgentToolContext Context() => new("scope", "run", "call");
-    private static ServiceProvider Services(ProtocolHandler handler) => new ServiceCollection()
+    private static ServiceProvider Services(ProtocolHandler handler) => new ServiceCollection().AddModelCatalog()
         .AddMcpAgentTools("mail", _ => Transport(handler)).BuildServiceProvider();
     private static HttpClientTransport Transport(ProtocolHandler handler) => new(
             new() { Endpoint = new("https://mcp.invalid"), TransportMode = HttpTransportMode.StreamableHttp },

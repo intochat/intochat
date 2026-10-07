@@ -1,6 +1,4 @@
 using System.Net;
-using System.Net.Http.Json;
-using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Configuration;
@@ -101,7 +99,7 @@ public sealed class AuthPostureFacts
         app.UsePlatformHttp();
         app.MapGet("/health", static () => Results.Ok());
         app.MapGet("/probe", static () => Results.Text(
-            DigitalBrain.Framework.Enforcement.CallerContextStamper.TryGet(out var caller) ? caller.PrincipalId : ""));
+            DigitalBrain.Framework.CallerContextStamper.TryGet(out var caller) ? caller.PrincipalId : ""));
         await app.StartAsync(ct);
         return app;
     }

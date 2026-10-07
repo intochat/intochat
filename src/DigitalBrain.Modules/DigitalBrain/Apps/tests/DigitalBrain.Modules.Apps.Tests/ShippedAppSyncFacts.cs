@@ -155,31 +155,24 @@ public sealed class ShippedAppSyncFacts : IDisposable
     }
 
     private static Task<ModuleBrain> StartAsync(CancellationToken ct)
-    {
-        var runner = new ScriptedTestRunner();
-        runner.BySourceMarker["passing"] = (0, "dbtest:pass Echo");
-        return ModuleTest.Create().WithModule<AppsModule>()
-            .ConfigureSilo(silo => silo.Services.AddSingleton<ITestScriptRunner>(runner)).StartAsync(ct);
-    }
+        => ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
 
     private static AppBundle Bundle(string version, string behavior) =>
         new("echo", version, new("Echo", "Echo input", [new("ask", "Echo")], [], []),
-            $"## Scenario: Echo\n{behavior}\n", new() { [AppFiles.TestsPath] = "passing" });
+            $"Echo: {behavior}\n", new() { ["synapses/echo.cs"] = behavior });
 
-    // An edit in the brain, verified green and published, as the publisher would do in the shell.
+    // An edit in the brain, published, as the publisher would do in the shell.
     private static async Task PublishEdit(IApp app, PublisherBrain publisher, string behavior)
     {
-        await app.SaveSpec($"## Scenario: Echo\n{behavior}\n", Guid.NewGuid());
-        var version = (await app.Read()).Version;
-        await app.RecordVerdicts([new("Echo", true, "")], green: true, version);
+        await app.SaveSpec($"Echo: {behavior}\n", Guid.NewGuid());
         // Publishing acts as the publisher, the way the shell's signed-in session does.
-        DigitalBrain.Framework.Enforcement.CallerContextStamper.Stamp(new DigitalBrain.Framework.Enforcement.CallerContext
+        DigitalBrain.Framework.CallerContextStamper.Stamp(new DigitalBrain.Framework.CallerContext
         {
             PrincipalId = publisher.Username,
             AccountId = publisher.AccountId,
             BrainId = publisher.BrainId,
-            Kind = DigitalBrain.Framework.Enforcement.CallerKind.Platform,
-            StampedBy = DigitalBrain.Framework.Enforcement.TrustedEdge.Platform,
+            Kind = DigitalBrain.Framework.CallerKind.Platform,
+            StampedBy = DigitalBrain.Framework.TrustedEdge.Platform,
         });
         try { await app.Publish(); }
         finally { Caller.Clear(); }

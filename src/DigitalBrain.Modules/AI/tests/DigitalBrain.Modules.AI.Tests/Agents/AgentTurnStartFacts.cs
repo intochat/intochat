@@ -1,163 +1,251 @@
-using DigitalBrain;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Agents.Signals;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
-using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
-using Xunit;
+using Orleans.Runtime;
+using Orleans.Storage;
 
-namespace DigitalBrain.Modules.AI.Tests;
+namespace DigitalBrain.Modules.AI.Tests.Agents;
 
 // A script cannot hold a stream across the edge, so a turn starts with a run id and reports
-// itself as signals the script subscribes to; the conversation keeps the transcript.
+// itself as signals the script subscribes to; the agent keeps the transcript.
 public sealed class AgentTurnStartFacts
 {
-    private static void StampUser() => CallerContextStamper.Stamp(new CallerContext
-    {
-        PrincipalId = "owner",
-        AccountId = "owner",
-        BrainId = "research",
-        Kind = CallerKind.User,
-        StampedBy = TrustedEdge.AuthenticatedHttp,
-    });
-
-    private static Task<ModuleBrain> Start(IChatClient client, CancellationToken ct) => ModuleTest.Create().WithModule<AIModule>()
-        .ConfigureSilo(silo => silo.Services.AddSingleton(client)).StartAsync(ct);
-
     [Fact]
     public async Task StartAnswersARunIdAndPublishesTheTextThenCompletion()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(StubChatClient.Replying("hello there"), ct);
+        await using var brain = await AgentFacts.Brain(StubChatClient.Replying("hello there"), ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
         using var signals = brain.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<Signal>();
-        StampUser();
-        try
-        {
-            var scope = BrainScope.CurrentId();
-            var execution = brain.Get<IAgentExecution>(scope + "/apps/assistant/execution");
-
-            var runId = await execution.Start(new(scope + "/apps/assistant/conversations/main", "", "Be brief.", [], "hi"));
-
-            var seen = await UntilEnd(signals, runId, ct);
-            Assert.IsType<AgentTurnCompleted>(seen[^1]);
-            var text = Assert.Single(seen.OfType<AgentTurnProgressed>(), progressed => progressed.Kind == "text");
-            Assert.Equal(("hello there", runId, 1), (text.Text, text.RunId, text.Sequence));
-            var conversation = await brain.Get<IAgent>(scope + "/apps/assistant/conversations/main").ReadConversation(ct);
-            var turn = Assert.Single(conversation.Turns);
-            Assert.Equal(("hi", "hello there"), (turn.UserText, turn.AssistantText));
-            Assert.Null(conversation.ActiveRunId);
-        }
-        finally { Orleans.Runtime.RequestContext.Clear(); }
+        var runId = await agent.Start(AgentTurn.Text("hi", instructions: "Be brief."));
+        var seen = await UntilEnd(signals, runId, ct);
+        Assert.Equal("hi", Assert.IsType<TurnStarted>(seen[0]).UserText);
+        var completed = Assert.IsType<TurnCompleted>(seen[^1]);
+        Assert.Equal("hello there", completed.Reply);
+        var text = Assert.Single(seen.OfType<TurnProgressed>(), step => step.Kind == "text");
+        Assert.Equal(("hello there", runId, 1), (text.Text, text.RunId, text.Sequence));
+        var state = await agent.Read();
+        Assert.Null(state.ActiveRun);
+        Assert.Equal(("hi", "hello there"), (Assert.Single(state.Runs).UserText, state.Runs[0].Reply));
+        Assert.Equal(2, (await agent.Transcript()).Length);
     }
 
     [Fact]
-    public async Task AFailingTurnPublishesFailedAndKeepsTheFailureInTheConversation()
+    public async Task AFailingTurnPublishesFailedAndKeepsTheFailureInTheRun()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(StubChatClient.Failing("provider down"), ct);
+        await using var brain = await AgentFacts.Brain(StubChatClient.Failing("provider down"), ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
         using var signals = brain.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<Signal>();
-        StampUser();
-        try
-        {
-            var scope = BrainScope.CurrentId();
-            var execution = brain.Get<IAgentExecution>(scope + "/apps/assistant/execution");
-
-            var runId = await execution.Start(new(scope + "/apps/assistant/conversations/main", "", "", [], "hi"));
-
-            var failed = Assert.IsType<AgentTurnFailed>((await UntilEnd(signals, runId, ct))[^1]);
-            Assert.Contains("provider down", failed.Error, StringComparison.Ordinal);
-            var turn = Assert.Single((await brain.Get<IAgent>(scope + "/apps/assistant/conversations/main").ReadConversation(ct)).Turns);
-            Assert.StartsWith("The turn failed:", turn.AssistantText, StringComparison.Ordinal);
-        }
-        finally { Orleans.Runtime.RequestContext.Clear(); }
+        var runId = await agent.Start(AgentTurn.Text("hi"));
+        var failed = Assert.IsType<TurnFailed>((await UntilEnd(signals, runId, ct))[^1]);
+        Assert.Contains("provider down", failed.Error, StringComparison.Ordinal);
+        Assert.False(failed.Cancelled);
+        var run = Assert.Single((await agent.Read()).Runs);
+        Assert.Equal(AgentRunStatus.Failed, run.Status);
+        Assert.Contains("provider down", run.Error, StringComparison.Ordinal);
+        Assert.Empty(await agent.Transcript());
     }
 
     [Fact]
-    public async Task StartRefusesAConversationOutsideTheCallersBrain()
+    public async Task StartReplaysACompletedRunIdWithTheSameSignalsAndRefusesAnotherText()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(StubChatClient.Replying("never"), ct);
-        StampUser();
-        try
-        {
-            var execution = brain.Get<IAgentExecution>(BrainScope.CurrentId() + "/apps/assistant/execution");
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-                execution.Start(new("workspace-" + new string('0', 64) + "/conversations/main", "", "", [], "hi")));
-        }
-        finally { Orleans.Runtime.RequestContext.Clear(); }
+        var client = StubChatClient.Replying("once");
+        await using var brain = await AgentFacts.Brain(client, ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
+        using var signals = brain.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<Signal>();
+        Assert.Equal("run-1", await agent.Start(AgentTurn.Text("hi", runId: "run-1")));
+        await UntilEnd(signals, "run-1", ct);
+        Assert.Equal("run-1", await agent.Start(AgentTurn.Text("hi", runId: "run-1")));
+        var replay = await UntilEnd(signals, "run-1", ct);
+        Assert.IsType<TurnStarted>(replay[0]);
+        Assert.Equal("once", Assert.IsType<TurnCompleted>(replay[^1]).Reply);
+        Assert.Single(client.Requests);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => agent.Start(AgentTurn.Text("other", runId: "run-1")));
+        Assert.Single((await agent.Read()).Runs);
     }
 
-    // One app, two conversations: a turn still running in one must not hold up starting the other.
     [Fact]
-    public async Task StartingATurnIsNotHeldUpByAnotherConversationsRunningTurn()
+    public async Task StartingATurnIsNotHeldUpByAnotherAgentsRunningTurn()
     {
         var ct = TestContext.Current.CancellationToken;
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var client = new StubChatClient(async (_, _, _) =>
-        {
-            await release.Task;
-            return new ChatResponse(new ChatMessage(ChatRole.Assistant, "done"));
-        });
-        await using var brain = await Start(client, ct);
-        StampUser();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = new StubChatClient(async (_, _, _) => { entered.TrySetResult(); await release.Task; return new ChatResponse(new ChatMessage(ChatRole.Assistant, "done")); });
+        await using var brain = await AgentFacts.Brain(client, ct);
         try
         {
-            var scope = BrainScope.CurrentId();
-            var execution = brain.Get<IAgentExecution>(scope + "/apps/assistant/execution");
-            await execution.Start(new(scope + "/apps/assistant/conversations/one", "", "", [], "first"));
-            await Task.Delay(300, ct);
-
-            var second = execution.Start(new(scope + "/apps/assistant/conversations/two", "", "", [], "second"));
-
+            await brain.Get<IAgent>(AgentFacts.Key("one")).Start(AgentTurn.Text("first"));
+            await entered.Task.WaitAsync(ct);
+            var second = brain.Get<IAgent>(AgentFacts.Key("two")).Start(AgentTurn.Text("second"));
             Assert.Same(second, await Task.WhenAny(second, Task.Delay(TimeSpan.FromSeconds(5), ct)));
-            release.TrySetResult();
             Assert.NotEmpty(await second);
         }
-        finally { release.TrySetResult(); Orleans.Runtime.RequestContext.Clear(); }
+        finally { release.TrySetResult(); }
     }
 
-    // A second message while the conversation's turn still runs is refused, never interleaved.
+    // A second message while the agent's turn still runs is refused, never interleaved.
     [Fact]
-    public async Task ASecondTurnInTheSameConversationIsRefusedWhileOneRuns()
+    public async Task ASecondTurnIsRefusedWhileOneRuns()
     {
         var ct = TestContext.Current.CancellationToken;
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var client = new StubChatClient(async (_, _, _) =>
-        {
-            await release.Task;
-            return new ChatResponse(new ChatMessage(ChatRole.Assistant, "done"));
-        });
-        await using var brain = await Start(client, ct);
-        StampUser();
+        var client = new StubChatClient(async (_, _, _) => { await release.Task; return new ChatResponse(new ChatMessage(ChatRole.Assistant, "done")); });
+        await using var brain = await AgentFacts.Brain(client, ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
         try
         {
-            var scope = BrainScope.CurrentId();
-            var execution = brain.Get<IAgentExecution>(scope + "/apps/assistant/execution");
-            var conversation = scope + "/apps/assistant/conversations/main";
-            await execution.Start(new(conversation, "", "", [], "first"));
-
-            await Assert.ThrowsAsync<InvalidOperationException>(() => execution.Start(new(conversation, "", "", [], "second")))
-                .WaitAsync(TimeSpan.FromSeconds(5), ct);
+            await agent.Start(AgentTurn.Text("first"));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => agent.Start(AgentTurn.Text("second"))).WaitAsync(TimeSpan.FromSeconds(5), ct);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => AgentFacts.Collect(agent, AgentTurn.Text("third"), ct)).WaitAsync(TimeSpan.FromSeconds(5), ct);
+            Assert.Equal("first", (await agent.Read()).ActiveRun!.UserText);
         }
-        finally { release.TrySetResult(); Orleans.Runtime.RequestContext.Clear(); }
+        finally { release.TrySetResult(); }
     }
 
-    // Every signal of the run, ending with its completion or failure.
+    // Cancel can arrive after Start recorded the run and before its driver picked it up; the
+    // driver then ends the run as cancelled instead of answering it.
+    [Fact]
+    public async Task CancelBeforeTheDriverStartsEndsTheStartedRunCancelled()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var writes = new AgentWrites();
+        await using var brain = await Brain(StubChatClient.Replying("never"), writes, ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
+        using var signals = brain.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<Signal>();
+        var held = writes.HoldNext();
+        var start = agent.Start(AgentTurn.Text("hi", runId: "run-1"));
+        await held.WaitAsync(ct);
+        await agent.Cancel();
+        writes.Release();
+        Assert.Equal("run-1", await start);
+        var failed = Assert.IsType<TurnFailed>((await UntilEnd(signals, "run-1", ct))[^1]);
+        Assert.True(failed.Cancelled);
+        var state = await agent.Read();
+        Assert.Null(state.ActiveRun);
+        Assert.Equal(AgentRunStatus.Cancelled, Assert.Single(state.Runs).Status);
+        Assert.Empty(await agent.Transcript());
+    }
+
+    // A run that outlives its Timeout failed; only a caller's Cancel or an abandoned stream is a cancellation.
+    [Fact]
+    public async Task ARunThatOutlivesItsTimeoutFailsRatherThanCancels()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = new StubChatClient(async (_, _, token) =>
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            return new ChatResponse(new ChatMessage(ChatRole.Assistant, "never"));
+        });
+        await using var brain = await AgentFacts.Brain(client, ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
+        await agent.Configure(new() { Timeout = TimeSpan.FromMilliseconds(200) }, 0);
+        using var signals = brain.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<Signal>();
+        var runId = await agent.Start(AgentTurn.Text("slow"));
+        var failed = Assert.IsType<TurnFailed>((await UntilEnd(signals, runId, ct))[^1]);
+        Assert.False(failed.Cancelled);
+        Assert.Contains("timeout", failed.Error, StringComparison.Ordinal);
+        Assert.Equal(AgentRunStatus.Failed, Assert.Single((await agent.Read()).Runs).Status);
+        var streamed = await Assert.ThrowsAsync<InvalidOperationException>(() => agent.GetResponse("slow again", ct));
+        Assert.Contains("timeout", streamed.Message, StringComparison.Ordinal);
+    }
+
+    // A turn whose outcome cannot be stored still announces its end, and the agent recovers from
+    // storage instead of refusing every later operation.
+    [Fact]
+    public async Task AStorageFaultAtTheEndOfATurnStillEndsItAndTheAgentRecovers()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var writes = new AgentWrites();
+        var client = new StubChatClient(async (messages, _, _) =>
+        {
+            if (messages[^1].Text == "first") { entered.TrySetResult(); await release.Task; }
+            return new ChatResponse(new ChatMessage(ChatRole.Assistant, "done"));
+        });
+        await using var brain = await Brain(client, writes, ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
+        using var signals = brain.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<Signal>();
+        var runId = await agent.Start(AgentTurn.Text("first"));
+        await entered.Task.WaitAsync(ct);
+        writes.Fail = true;
+        release.TrySetResult();
+        // Bounded so a regression that never announces the end fails instead of hanging the suite.
+        var failed = Assert.IsType<TurnFailed>((await UntilEnd(signals, runId, ct).WaitAsync(TimeSpan.FromSeconds(30), ct))[^1]);
+        Assert.False(failed.Cancelled);
+        writes.Fail = false;
+        var state = await agent.Read();
+        Assert.Null(state.ActiveRun);
+        Assert.Equal(AgentRunStatus.Interrupted, Assert.Single(state.Runs).Status);
+        Assert.Empty(await agent.Transcript());
+        Assert.Equal("done", await agent.GetResponse("second", ct));
+    }
+
+    private static Task<ModuleBrain> Brain(StubChatClient client, AgentWrites writes, CancellationToken ct)
+        => ModuleTest.Create().WithModule<AIModule>().ConfigureSilo(silo =>
+        {
+            silo.Services.AddSingleton<IChatClient>(client);
+            var original = silo.Services.Last(service => service.ServiceType == typeof(IGrainStorage) && Equals(service.ServiceKey, DigitalBrainNames.DefaultGrainStorage));
+            silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.DefaultGrainStorage, (services, key) =>
+                new AgentWriteStorage((IGrainStorage)original.KeyedImplementationFactory!(services, key), writes));
+        }).StartAsync(ct);
+
+    // Controls the agent's own writes: fail them, or hold the next one until released.
+    private sealed class AgentWrites
+    {
+        private readonly TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private TaskCompletionSource? _held;
+        public volatile bool Fail;
+
+        public Task HoldNext()
+        {
+            _held = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            return _held.Task;
+        }
+
+        public void Release() => _gate.TrySetResult();
+
+        public async Task Write()
+        {
+            if (Fail) { throw new IOException("Injected storage failure."); }
+            if (Interlocked.Exchange(ref _held, null) is { } held)
+            {
+                held.TrySetResult();
+                await _gate.Task;
+            }
+        }
+    }
+
+    private sealed class AgentWriteStorage(IGrainStorage inner, AgentWrites writes) : IGrainStorage
+    {
+        public Task ReadStateAsync<T>(string name, GrainId id, IGrainState<T> state) => inner.ReadStateAsync(name, id, state);
+
+        public async Task WriteStateAsync<T>(string name, GrainId id, IGrainState<T> state)
+        {
+            if (name == "agent") { await writes.Write(); }
+            await inner.WriteStateAsync(name, id, state);
+        }
+
+        public Task ClearStateAsync<T>(string name, GrainId id, IGrainState<T> state) => inner.ClearStateAsync(name, id, state);
+    }
+
+    // Every signal of the run, from its start to its completion or failure.
     private static async Task<List<Signal>> UntilEnd(LocalSignalHub.Subscription<Signal> signals, string runId, CancellationToken ct)
     {
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        deadline.CancelAfter(TimeSpan.FromSeconds(20));
         var seen = new List<Signal>();
-        await foreach (var signal in signals.Reader.ReadAllAsync(deadline.Token))
+        await foreach (var signal in signals.Reader.ReadAllAsync(ct))
         {
             switch (signal)
             {
-                case AgentTurnProgressed progressed when progressed.RunId == runId: seen.Add(signal); break;
-                case AgentTurnCompleted completed when completed.RunId == runId: seen.Add(signal); return seen;
-                case AgentTurnFailed failed when failed.RunId == runId: seen.Add(signal); return seen;
+                case TurnStarted started when started.RunId == runId: seen.Add(signal); break;
+                case TurnProgressed progressed when progressed.RunId == runId: seen.Add(signal); break;
+                case TurnCompleted completed when completed.RunId == runId: seen.Add(signal); return seen;
+                case TurnFailed failed when failed.RunId == runId: seen.Add(signal); return seen;
             }
         }
         return seen;

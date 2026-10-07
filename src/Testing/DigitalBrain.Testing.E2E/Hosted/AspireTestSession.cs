@@ -1,9 +1,8 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting.Testing;
-using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
-using DigitalBrain.Client;
+using DigitalBrain.Aspire.Server;
 using DigitalBrain.Client.Orleans;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.Configuration;
@@ -11,7 +10,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Orleans.Configuration;
-using Orleans.Hosting;
 
 namespace DigitalBrain.Testing.E2E;
 
@@ -144,7 +142,7 @@ public sealed class AspireTestSession : IAsyncDisposable
                 if (privateSettings is not null)
                 {
                     resource.Annotations.Add(new EnvironmentCallbackAnnotation(context =>
-                        context.EnvironmentVariables[DigitalBrainNames.ConfigurationFileEnvironmentVariable] = privateSettings.FilePath));
+                        context.EnvironmentVariables[ServerHostingExtensions.ConfigurationFileEnvironmentVariable] = privateSettings.FilePath));
                 }
                 if (options.ResourceEnvironment.Count > 0)
                 {

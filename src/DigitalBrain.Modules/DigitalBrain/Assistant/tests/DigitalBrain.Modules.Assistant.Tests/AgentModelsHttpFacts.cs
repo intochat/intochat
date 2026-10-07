@@ -5,7 +5,7 @@ using System.Text;
 using System.Text.Json;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
-using DigitalBrain.AI.OpenAI;
+using DigitalBrain.AI.Models.OpenAI;
 using DigitalBrain.Assistant;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Platform.Identity.Configuration;
@@ -70,11 +70,11 @@ public sealed class AgentModelsHttpFacts
         Assert.Equal("application/json", rejected.Content.Headers.ContentType?.MediaType);
         using var failure = JsonDocument.Parse(await rejected.Content.ReadAsStringAsync(ct));
         Assert.Equal("MODEL_UNAVAILABLE", failure.RootElement.GetProperty("code").GetString());
-        var conversation = await brain.HttpClient.GetFromJsonAsync<AgentConversationState>(
+        var conversation = await brain.HttpClient.GetFromJsonAsync<AgentState>(
             "/brains/model-validation/conversations/thread", ct);
         Assert.NotNull(conversation);
-        Assert.Null(conversation.ActiveRunId);
-        Assert.Empty(conversation.Turns);
+        Assert.Null(conversation.ActiveRun);
+        Assert.Empty(conversation.Runs);
         Assert.Equal(0, conversation.Revision);
     }
 }

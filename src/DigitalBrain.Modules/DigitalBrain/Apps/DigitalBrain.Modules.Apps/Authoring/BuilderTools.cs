@@ -1,4 +1,5 @@
 using DigitalBrain.AI;
+using DigitalBrain.AI.Inference;
 using DigitalBrain.Framework;
 
 namespace DigitalBrain.Apps;
@@ -17,7 +18,7 @@ internal static class BuilderTools
             """{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}"""),
         new(ReadContracts, "Read the full contracts of the given module ids: every neuron interface with its methods and signals, and the #:project directive a C# file needs to use them. Pass modules=[] to list the installed module ids.",
             """{"type":"object","properties":{"modules":{"type":"array","items":{"type":"string"}}},"required":["modules"]}"""),
-        new(CheckCSharp, "Compile the given C# files (path to full source, for example tests.cs and synapses/notify.cs) without running them. Returns the compile errors; fix them all before answering.",
+        new(CheckCSharp, "Compile the given C# files (path to full source, for example synapses/notify.cs) without running them. Returns the compile errors; fix them all before answering.",
             """{"type":"object","properties":{"files":{"type":"object","additionalProperties":{"type":"string"}}},"required":["files"]}"""),
     ];
 

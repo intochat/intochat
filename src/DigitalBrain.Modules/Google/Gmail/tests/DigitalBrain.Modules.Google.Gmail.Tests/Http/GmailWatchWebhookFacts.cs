@@ -1,13 +1,9 @@
+using DigitalBrain.Framework.Platform.Connections;
 using System.Net;
-using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
-using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Google.Gmail;
-using DigitalBrain.Testing;
-using Xunit;
 
 namespace DigitalBrain.Modules.Google.Gmail.Tests;
 
@@ -22,13 +18,13 @@ public sealed class GmailWatchWebhookFacts(GmailHostFixture host)
         await host.ConnectForPushAsync("member", "scoped-push");
         var key = ConnectionKeys.For(BrainScope.Create("owner", "member").Id, "gmail", "scoped-push");
         var inbound = brain.Grains.GetGrain<IGmailInbound>(key);
-        var caller = new DigitalBrain.Framework.Enforcement.CallerContext
+        var caller = new DigitalBrain.Framework.CallerContext
         {
             PrincipalId = "owner",
             AccountId = "owner",
             BrainId = "other",
-            Kind = DigitalBrain.Framework.Enforcement.CallerKind.User,
-            StampedBy = DigitalBrain.Framework.Enforcement.TrustedEdge.AuthenticatedHttp,
+            Kind = DigitalBrain.Framework.CallerKind.User,
+            StampedBy = DigitalBrain.Framework.TrustedEdge.AuthenticatedHttp,
         };
         CallerContextStamper.Stamp(caller);
         try
@@ -90,6 +86,39 @@ public sealed class GmailWatchWebhookFacts(GmailHostFixture host)
     }
 
     [Fact]
+    public async Task ARevokedRefreshExpiresItsConnectionAndTheFanOutStillReachesTheOthers()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = host.Brain;
+        brain.HttpClient.DefaultRequestHeaders.Authorization = new("Bearer", "test-google-push");
+        var revoked = ConnectionKeys.For(BrainScope.Create("owner", "revoked").Id, "gmail", "lapsed");
+        var healthy = ConnectionKeys.For(BrainScope.Create("owner", "healthy").Id, "gmail", "live");
+        // The revoked connection is indexed first, so the loop meets its failure before the healthy one.
+        CallerContextStamper.Stamp(new DigitalBrain.Framework.CallerContext { PrincipalId = "owner", AccountId = "owner", BrainId = "revoked", Kind = DigitalBrain.Framework.CallerKind.User, StampedBy = DigitalBrain.Framework.TrustedEdge.AuthenticatedHttp });
+        try
+        {
+            await brain.Grains.GetConnectionInbound(revoked).AcceptGrant(new("google-oauth", "stale-token", TokenEndpointStub.RevokedRefreshToken, DateTimeOffset.UtcNow.AddSeconds(-1), GmailScopes.Read, null, "{}"));
+        }
+        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+        await host.ConnectForPushAsync("healthy", "live");
+        var index = await brain.Grains.GetGrain<IGmailMailboxIndex>("user@gmail.com").Read();
+        Assert.True(Array.IndexOf(index, revoked) < Array.IndexOf(index, healthy));
+        await using var healthyMail = await brain.Observe<MailReceived>(brain.Get<IGmail>(healthy), ct);
+        var data = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { emailAddress = "user@gmail.com", historyId = "after-revoke" })));
+        using var response = await brain.HttpClient.PostAsJsonAsync("/google/gmail/watch", new { message = new { data, messageId = "after-revoke" } }, ct);
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        Assert.Equal("after-revoke", (await healthyMail.NextAsync(ct: ct)).HistoryId);
+        CallerContextStamper.Stamp(new DigitalBrain.Framework.CallerContext { PrincipalId = "owner", AccountId = "owner", BrainId = "revoked", Kind = DigitalBrain.Framework.CallerKind.User, StampedBy = DigitalBrain.Framework.TrustedEdge.AuthenticatedHttp });
+        try
+        {
+            var view = await brain.Get<IConnection>(revoked).Read();
+            Assert.Equal(ConnectionStatus.Expired, view.Status);
+            Assert.DoesNotContain(TokenEndpointStub.RevokedRefreshToken, view.Detail ?? "", StringComparison.Ordinal);
+        }
+        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+    }
+
+    [Fact]
     public async Task WatchEndpointRejectsUnverifiedDelivery()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -110,8 +139,8 @@ public sealed class GmailWatchWebhookFacts(GmailHostFixture host)
         var gmail = brain.Get<IGmail>(key);
         await using var mail = await brain.Observe<MailReceived>(gmail, ct);
         await brain.Grains.GetGrain<IGmailInbound>(gmail.GetGrainId()).AcceptWatchPush(new("wrong", "other@gmail.com"));
-        CallerContextStamper.Stamp(new DigitalBrain.Framework.Enforcement.CallerContext { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = DigitalBrain.Framework.Enforcement.CallerKind.User, StampedBy = DigitalBrain.Framework.Enforcement.TrustedEdge.AuthenticatedHttp });
-        await brain.Grains.GetGrain<DigitalBrain.Framework.Platform.Integrations.Accounts.IConnectionRegistry>(BrainScope.CurrentId()).Disconnect("restricted-push", ct);
+        CallerContextStamper.Stamp(new DigitalBrain.Framework.CallerContext { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = DigitalBrain.Framework.CallerKind.User, StampedBy = DigitalBrain.Framework.TrustedEdge.AuthenticatedHttp });
+        await brain.Get<IConnection>(key).Disconnect();
         Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
         await brain.Grains.GetGrain<IGmailInbound>(gmail.GetGrainId()).AcceptWatchPush(new("disconnected", "user@gmail.com"));
         using var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));

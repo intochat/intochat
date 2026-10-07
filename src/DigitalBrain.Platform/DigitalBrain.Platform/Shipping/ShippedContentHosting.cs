@@ -1,6 +1,6 @@
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Framework.Platform.Shipping;
+using DigitalBrain.Framework;
 using DigitalBrain.Platform.Enforcement;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -15,6 +15,16 @@ public static class ShippedContentHosting
         services.AddHostedService<ShippedContentStartup>();
         return services;
     }
+
+    // Shipped content is published as its publisher account, stamped by the Platform itself.
+    internal static CallerContext PublisherCaller(PublisherBrain publisher) => new()
+    {
+        PrincipalId = publisher.Username,
+        AccountId = publisher.AccountId,
+        BrainId = publisher.BrainId,
+        Kind = CallerKind.Platform,
+        StampedBy = TrustedEdge.Platform,
+    };
 }
 
 internal sealed class ShippedContentStartup(
@@ -42,14 +52,7 @@ internal sealed class ShippedContentStartup(
                     logger.LogError(error, "Shipped content for {Account} stays out: the account does not exist.", account);
                     continue;
                 }
-                using var _ = CallerContextScope.Scoped(new CallerContext
-                {
-                    PrincipalId = publisher.Username,
-                    AccountId = publisher.AccountId,
-                    BrainId = publisher.BrainId,
-                    Kind = CallerKind.Platform,
-                    StampedBy = TrustedEdge.Platform,
-                });
+                using var _ = CallerContextScope.Scoped(ShippedContentHosting.PublisherCaller(publisher));
                 await source.PublishAsync(publisher, stoppingToken).WaitAsync(stoppingToken);
             }
         }

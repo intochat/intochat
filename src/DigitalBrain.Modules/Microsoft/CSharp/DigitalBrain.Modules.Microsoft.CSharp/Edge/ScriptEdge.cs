@@ -1,13 +1,11 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using DigitalBrain;
-using DigitalBrain.Client;
 using DigitalBrain.Client.Edge.V1;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Microsoft.CSharp.Files;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Edge;
 
 // Everything a script does to the brain passes here: the run token must still speak for its file,
 // only neuron contracts from installed contract assemblies are callable, and each call carries the
@@ -76,7 +74,11 @@ internal sealed class ScriptEdge(RunTokens tokens, ScriptContracts contracts, IG
             var doorbellAlive = true;
             while (!cancellationToken.IsCancellationRequested)
             {
-                foreach (var json in await file.DrainPending(run, neuron, signal).ConfigureAwait(false)) { yield return json; }
+                var batch = await file.DrainPending(run, neuron, signal).ConfigureAwait(false);
+                foreach (var json in batch.Signals) { yield return json; }
+                // Resuming here means the consumer asked for more: every signal of the batch reached the stream.
+                // A connection that dies mid-batch never gets here, so the whole batch is drained again.
+                if (batch.Signals.Length > 0) { await file.Acknowledge(run, neuron, signal, batch.Watermark).ConfigureAwait(false); }
                 if (doorbellAlive)
                 {
                     ring ??= NextRingAsync(rings);

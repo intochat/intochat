@@ -3,9 +3,12 @@ using DigitalBrain;
 using DigitalBrain.Client;
 using DigitalBrain.Client.Edge.V1;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Testing;
+using DigitalBrain.Microsoft.CSharp.Edge;
+using DigitalBrain.Microsoft.CSharp.Files;
+using DigitalBrain.Microsoft.CSharp.Files.Signals;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,16 +27,16 @@ public sealed class ScriptEdgeFacts
         CallerContextStamper.Stamp(Alice);
         await brain.AuthorizeCallerAsync();
         var host = brain.Get<IAppBindingTestHost>("victim-app");
-        await host.Bind("predictable-behavior");
-        await host.Start("predictable-behavior");
-        var file = brain.Get<ICSharpFile>("predictable-behavior");
+        await host.Bind(Key("predictable-behavior"));
+        await host.Start(Key("predictable-behavior"));
+        var file = brain.Get<ICSharpFile>(Key("predictable-behavior"));
         CallerContextStamper.Stamp(Alice with { Kind = CallerKind.App, StampedBy = TrustedEdge.AppProxy, AppId = "victim-app" });
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => file.Write("malicious source", ct));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => file.Configure(new Dictionary<string, string>(), ct));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => file.Start(ct));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => file.Stop(ct));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => file.Delete(ct));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => file.Arm(new("tests/trigger", "Signal"), ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => file.Swap("malicious source", ct));
         Orleans.Runtime.RequestContext.Clear();
     }
 
@@ -43,18 +46,18 @@ public sealed class ScriptEdgeFacts
         var ct = TestContext.Current.CancellationToken;
         var sandbox = new FakeSandbox();
         await using var brain = await Brain(sandbox, ct);
-        var oldToken = await StartAsAlice(brain, sandbox, "reused-file", ct);
+        var oldToken = await StartAsAlice(brain, sandbox, Key("reused-file"), ct);
         CallerContextStamper.Stamp(Alice);
         await brain.AuthorizeCallerAsync();
-        await brain.Get<IAppBindingTestHost>("bound-app").Bind("reused-file");
+        await brain.Get<IAppBindingTestHost>("bound-app").Bind(Key("reused-file"));
         Orleans.Runtime.RequestContext.Clear();
         CallerContextStamper.Stamp(Alice);
         await brain.AuthorizeCallerAsync();
-        await brain.Get<IAppBindingTestHost>("bound-app").Start("reused-file");
+        await brain.Get<IAppBindingTestHost>("bound-app").Start(Key("reused-file"));
         Orleans.Runtime.RequestContext.Clear();
         var currentToken = sandbox.Requests.Last(FakeSandbox.IsStart).Body!["environment"]![DigitalBrainConfiguration.EnvironmentName(ScriptEdgeProtocol.TokenSetting)]!.GetValue<string>();
         var run = brain.SiloServices.GetRequiredService<RunTokens>().Validate(currentToken)!;
-        await brain.Get<ICSharpFileEdge>("reused-file").Subscribed(run.Run, brain.Get<IPinger>("pinger").GetGrainId().ToString(), nameof(Pinged));
+        await brain.Get<ICSharpFileEdge>(Key("reused-file")).Subscribed(run.Run, brain.Get<IPinger>("pinger").GetGrainId().ToString(), nameof(Pinged));
         var edge = brain.SiloServices.GetRequiredService<ScriptEdge>();
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => edge.InvokeAsync(oldToken, Call("Caller"), ct));
         Assert.Equal("alice App AppProxy bound-app", (await edge.InvokeAsync(currentToken, Call("Caller"), ct))!.Value.GetString());
@@ -69,12 +72,12 @@ public sealed class ScriptEdgeFacts
         CallerContextStamper.Stamp(Alice);
         await brain.AuthorizeCallerAsync();
         var host = brain.Get<IAppBindingTestHost>("stable-app");
-        await host.Bind("behavior-one");
-        await host.Bind("behavior-two");
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => host.Bind("behavior-three", "someone-else"));
+        await host.Bind(Key("behavior-one"));
+        await host.Bind(Key("behavior-two"));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => host.Bind(Key("behavior-three"), "someone-else"));
         Orleans.Runtime.RequestContext.Clear();
         var edge = brain.SiloServices.GetRequiredService<ScriptEdge>();
-        foreach (var file in new[] { "behavior-one", "behavior-two" })
+        foreach (var file in new[] { Key("behavior-one"), Key("behavior-two") })
         {
             CallerContextStamper.Stamp(Alice);
             await brain.AuthorizeCallerAsync();
@@ -83,10 +86,10 @@ public sealed class ScriptEdgeFacts
             var token = sandbox.Requests.Last(FakeSandbox.IsStart).Body!["environment"]![DigitalBrainConfiguration.EnvironmentName(ScriptEdgeProtocol.TokenSetting)]!.GetValue<string>();
             Assert.Equal("alice App AppProxy stable-app", (await edge.InvokeAsync(token, Call("Caller"), ct))!.Value.GetString());
         }
-        var standalone = brain.Get<ICSharpFile>("standalone");
+        var standalone = brain.Get<ICSharpFile>(Key("standalone"));
         await standalone.Configure(new Dictionary<string, string> { ["App"] = "someone-else" }, ct);
-        var standaloneToken = await StartAsAlice(brain, sandbox, "standalone", ct);
-        Assert.Equal("alice App AppProxy standalone", (await edge.InvokeAsync(standaloneToken, Call("Caller"), ct))!.Value.GetString());
+        var standaloneToken = await StartAsAlice(brain, sandbox, Key("standalone"), ct);
+        Assert.Equal("alice App AppProxy " + Key("standalone"), (await edge.InvokeAsync(standaloneToken, Call("Caller"), ct))!.Value.GetString());
     }
 
     [Fact]
@@ -177,7 +180,7 @@ public sealed class ScriptEdgeFacts
 
         await foreach (var signal in signals)
         {
-            Assert.Equal("""{"number":5}""", signal);
+            Assert.Equal(5, SignalJson.Number(signal));
             break;
         }
         await stop.CancelAsync();
@@ -211,13 +214,13 @@ public sealed class ScriptEdgeFacts
     public void TheWholePlatformAssemblyContributesNoScriptContractsEvenWithoutAttributesOnTheTypes()
     {
         var platform = typeof(DigitalBrain.Platform.PlatformHosting).Assembly;
-        Assert.True(DigitalBrain.Framework.Enforcement.PlatformAssemblyAttribute.IsPlatform(platform));
+        Assert.True(DigitalBrain.Framework.PlatformAssemblyAttribute.IsPlatform(platform));
         var contracts = new ScriptContracts([platform]);
 
         foreach (var neuronContract in platform.GetExportedTypes().Where(type => type.IsInterface && typeof(DigitalBrain.INeuron).IsAssignableFrom(type)))
         {
             Assert.Throws<ArgumentException>(() => contracts.Find(neuronContract.FullName!));
-            Assert.True(DigitalBrain.Framework.Enforcement.PlatformOnlyAttribute.AppliesTo(neuronContract));
+            Assert.True(DigitalBrain.Framework.PlatformOnlyAttribute.AppliesTo(neuronContract));
         }
     }
 
@@ -226,13 +229,13 @@ public sealed class ScriptEdgeFacts
     {
         var contracts = new ScriptContracts([
             typeof(DigitalBrain.Integrations.IConnectionRequests).Assembly,
-            typeof(DigitalBrain.Framework.Platform.Integrations.Accounts.IConnectionRegistry).Assembly,
+            typeof(DigitalBrain.Framework.Platform.Connections.IConnectionIndex).Assembly,
         ]);
 
         Assert.Equal(
             typeof(DigitalBrain.Integrations.IConnectionRequests),
             contracts.Find(typeof(DigitalBrain.Integrations.IConnectionRequests).FullName!));
-        Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Framework.Platform.Integrations.Accounts.IConnectionRegistry).FullName!));
+        Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Framework.Platform.Connections.IConnectionIndex).FullName!));
     }
 
     [Fact]
@@ -249,7 +252,7 @@ public sealed class ScriptEdgeFacts
     {
         var contracts = new ScriptContracts([typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration).Assembly]);
 
-        Assert.True(DigitalBrain.Framework.Enforcement.PlatformOnlyAttribute.AppliesTo(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration)));
+        Assert.True(DigitalBrain.Framework.PlatformOnlyAttribute.AppliesTo(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration)));
         Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration).FullName!));
     }
 
@@ -376,18 +379,85 @@ public sealed class ScriptEdgeFacts
     }
 
     [Fact]
-    public async Task AScriptCanCallReadOnASynapseAndInspectOnTheCSharpFileWithoutAmbiguity()
+    public async Task ABatchWhoseEdgeDiedMidwayIsRedeliveredAfterReconnectUntilItIsAcknowledged()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new FakeSandbox();
+        await using var brain = await Brain(sandbox, ct);
+        var edge = brain.SiloServices.GetRequiredService<ScriptEdge>();
+        const string fileId = "workspace-a/redelivery";
+        var token = await StartAsAlice(brain, sandbox, fileId, ct);
+        var file = brain.Get<ICSharpFile>(fileId);
+        var pinger = brain.Get<IPinger>("pinger");
+        var contract = typeof(IPinger).FullName!;
+
+        using var dying = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var firstConnection = await edge.OpenSignalsAsync(token, contract, "pinger", nameof(Pinged), dying.Token);
+        await using var arrivals = await brain.Observe<CSharpPendingArrived>(file, ct);
+        await pinger.Ping(1);
+        await pinger.Ping(2);
+        await arrivals.NextAsync(ct: ct);
+        await arrivals.NextAsync(ct: ct);
+        await using (var first = firstConnection.GetAsyncEnumerator(dying.Token))
+        {
+            // The connection dies after one signal of a two-signal batch was handed on.
+            Assert.Equal([1], (await ReadAsync(first, 1)).Select(SignalJson.Number));
+        }
+        await dying.CancelAsync();
+        Assert.Equal(2, Assert.Single((await file.Inspect(ct)).Subscriptions).Pending);
+
+        using var live = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var secondConnection = await edge.OpenSignalsAsync(token, contract, "pinger", nameof(Pinged), live.Token);
+        await using var second = secondConnection.GetAsyncEnumerator(live.Token);
+        Assert.Equal([1, 2], (await ReadAsync(second, 2)).Select(SignalJson.Number));
+
+        // Asking for more is what hands the batch over: the edge acknowledges, publishing CSharpFileChanged.
+        await using var changes = await brain.Observe<CSharpFileChanged>(file, ct);
+        var more = second.MoveNextAsync().AsTask();
+        await changes.NextAsync(ct: ct);
+        var view = Assert.Single((await file.Inspect(ct)).Subscriptions);
+        Assert.Equal((0, 2L), (view.Pending, view.Delivered));
+        await live.CancelAsync();
+        try { await more; } catch (OperationCanceledException) { }
+    }
+
+    private static async Task<string[]> ReadAsync(IAsyncEnumerator<string> stream, int count)
+    {
+        var items = new List<string>();
+        while (items.Count < count && await stream.MoveNextAsync()) { items.Add(stream.Current); }
+        return [.. items];
+    }
+
+    [Fact]
+    public async Task AFileKeyedUnderAnotherBrainRefusesTheCaller()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Brain(new FakeSandbox(), ct);
+        CallerContextStamper.Stamp(Alice);
+        try
+        {
+            await brain.AuthorizeCallerAsync();
+            var elsewhere = brain.Get<ICSharpFile>(CSharpFileKeys.For("another-brain", "file"));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => elsewhere.Inspect(ct));
+            var own = brain.Get<ICSharpFile>(Key("file"));
+            Assert.Equal(CSharpFileStatus.Stopped, (await own.Inspect(ct)).Status);
+        }
+        finally { Orleans.Runtime.RequestContext.Clear(); }
+    }
+
+    private static string Key(string name) => CSharpFileKeys.For(Alice.BrainId, name);
+
+    [Fact]
+    public async Task AScriptCanCallInspectOnTheCSharpFile()
     {
         var ct = TestContext.Current.CancellationToken;
         var sandbox = new FakeSandbox();
         await using var brain = await SandboxBrain.StartAsync(sandbox, ct, silo => silo.Services.AddSingleton(new ScriptContracts([typeof(IPinger).Assembly, typeof(ICSharpFile).Assembly])));
-        const string fileId = "workspace/synapses/edge-read";
+        const string fileId = "workspace-a/files/edge-inspect";
         var token = await StartAsAlice(brain, sandbox, fileId, ct);
         var edge = brain.SiloServices.GetRequiredService<ScriptEdge>();
-        var synapse = await edge.InvokeAsync(token, (typeof(ICSharpFile).FullName!, fileId, nameof(ISynapse.Read), []), ct);
-        Assert.True(synapse!.Value.TryGetProperty("program", out _));
-        var rich = await edge.InvokeAsync(token, (typeof(ICSharpFile).FullName!, fileId, nameof(ICSharpFile.Inspect), []), ct);
-        Assert.True(rich!.Value.TryGetProperty("status", out _));
+        var inspected = await edge.InvokeAsync(token, (typeof(ICSharpFile).FullName!, fileId, nameof(ICSharpFile.Inspect), []), ct);
+        Assert.True(inspected!.Value.TryGetProperty("status", out _));
     }
 
     [Fact]

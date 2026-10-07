@@ -1,3 +1,5 @@
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Salesforce;
 using Xunit;
 
@@ -6,13 +8,33 @@ namespace DigitalBrain.Modules.Salesforce.Tests;
 public sealed class SalesforceEndpointFacts
 {
     [Fact]
+    public void TheModuleMapsNoRoutesBecauseLoginAndCallbackAreThePlatforms()
+        => Assert.False(typeof(IHttpModule).IsAssignableFrom(typeof(SalesforceModule)));
+
+    [Fact]
+    public void TheOrgOAuthMethodReadsItsClientFromTheDeclaredSalesforceIntegration()
+    {
+        var connector = Assert.Single(SalesforceModule.Connectors);
+        var method = Assert.Single(connector.OAuthMethods);
+        var integration = Assert.Single(SalesforceModule.Integrations, schema => schema.Id == method.IntegrationId);
+
+        Assert.Contains(method.Id, connector.AuthMethods);
+        Assert.Contains(method.IntegrationId, connector.RequiredIntegrations);
+        Assert.Contains(method.ClientIdField, integration.SecretFields);
+        Assert.Contains(method.ClientSecretField, integration.SecretFields);
+        Assert.Equal(["mcp_api", "refresh_token"], method.Scopes);
+        Assert.True(method.Pkce);
+    }
+
+    [Fact]
     public void LocalProtocolFixtureRequiresAnExplicitLoopbackChoice()
     {
-        var options = new SalesforceMcpOptions { Endpoint = "http://127.0.0.1:1234/mcp" };
-        Assert.Throws<InvalidOperationException>(options.ResolveEndpoint);
-        options.AllowLoopback = true;
-        Assert.Equal(options.Endpoint, options.ResolveEndpoint()!.AbsoluteUri);
-        options.Endpoint = "http://example.com/mcp";
-        Assert.Throws<InvalidOperationException>(options.ResolveEndpoint);
+        var options = new SalesforceModuleOptions { McpEndpoint = new("http://127.0.0.1:1234/mcp") };
+        Assert.Throws<InvalidOperationException>(options.ResolveMcpEndpoint);
+        options.AllowLoopbackMcp = true;
+        Assert.Equal(options.McpEndpoint, options.ResolveMcpEndpoint());
+        options.McpEndpoint = new("http://example.com/mcp");
+        Assert.Throws<InvalidOperationException>(options.ResolveMcpEndpoint);
+        Assert.Equal(SalesforceModule.DefaultMcpEndpoint, new SalesforceModuleOptions().ResolveMcpEndpoint());
     }
 }

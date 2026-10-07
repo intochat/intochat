@@ -1,4 +1,7 @@
 using DigitalBrain.AI;
+using DigitalBrain.AI.Models;
+using DigitalBrain.AI.Models.OpenAI;
+using DigitalBrain.AI.Models.Signals;
 using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.AI;
 using Xunit;

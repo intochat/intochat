@@ -16,7 +16,6 @@ public sealed class DirectoryShippedAppSource(string path, string account, bool 
     }
 
     public bool Writable => writable;
-    public bool VerifiedByBuild => false;
 
     // Publishing writes the published version back as files, so the repository diff is the change.
     public void Write(AppBundle bundle)

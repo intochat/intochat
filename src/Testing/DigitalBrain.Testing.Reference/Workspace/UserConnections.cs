@@ -1,8 +1,7 @@
+using DigitalBrain.Framework;
 using System.Net;
-using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using DigitalBrain.Framework.Enforcement;
 
 namespace DigitalBrain.Testing.E2E.Workspace;
 
@@ -24,16 +23,15 @@ public static class UserConnections
         Identities.Add(brain, identity);
         var connection = await brain.GetConnectionStringAsync("supabase-database", cancellationToken)
             ?? throw new InvalidOperationException("The reference fixture has no Supabase test database.");
-        using var response = await brain.HttpClient.PostAsJsonAsync($"/brains/{Uri.EscapeDataString(brainId)}/connections/connect", new
+        using var response = await brain.HttpClient.PostAsJsonAsync($"/brains/{Uri.EscapeDataString(brainId)}/connections/supabase/connect", new
         {
             connectorId = "supabase",
-            connectionId = "supabase",
             authMethodId = "connection-string",
             value = connection,
         }, cancellationToken);
         response.EnsureSuccessStatusCode();
         var row = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
-        if (row.GetProperty("status").GetString() != "Configured")
+        if (row.GetProperty("status").GetString() != "Connected")
         { throw new InvalidOperationException("The test user's Supabase connection is unavailable."); }
     }
 

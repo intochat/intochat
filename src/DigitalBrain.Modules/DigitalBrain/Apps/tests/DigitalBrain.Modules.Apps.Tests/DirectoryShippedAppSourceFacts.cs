@@ -73,7 +73,6 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
             {"name":"echo","title":"Echo","description":"Echoes.","version":"1.0.0","icon":"icon.svg","operations":[{"name":"ask","description":"Echo"}],"settings":[{"name":"Tone","description":"how","default":"flat"}]}
             """);
         Write("Echo/app.spec.md", "## Scenario: Echo\nEchoes.\n");
-        Write("Echo/tests.cs", "// tests\n");
         Write("Echo/synapses/echo.cs", "// echo\n");
         Write("Echo/icon.svg", "<svg/>");
         var source = new DirectoryShippedAppSource(_root, "vendor", writable: true);
@@ -104,7 +103,7 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
     {
         var source = new DirectoryShippedAppSource(_root, "vendor", writable: true);
         source.Write(new("lead-finder", "1.0.0", new("Lead finder", "Finds leads.", [], [], []), "## Scenario: Finds\nIt finds.\n",
-            new() { [AppFiles.TestsPath] = "// t\n" }));
+            new() { ["synapses/finds.cs"] = "// t\n" }));
         Assert.True(File.Exists(Path.Combine(_root, "LeadFinder", "app.json")));
         Assert.Equal("lead-finder", Assert.Single(source.Load()).Name);
     }

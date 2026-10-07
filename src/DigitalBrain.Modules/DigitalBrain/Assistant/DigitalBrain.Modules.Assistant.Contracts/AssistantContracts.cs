@@ -1,6 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Models;
 using DigitalBrain.Flutter.Chat;
 using Orleans.Concurrency;
 
@@ -12,8 +13,8 @@ public interface IAssistant : INeuron
     [ReadOnly] Task<AssistantState> Read();
     Task<AssistantTranscriptionResult> Transcribe(string? base64, CancellationToken ct = default);
     [AlwaysInterleave, ResponseTimeout("00:10:00")] IAsyncEnumerable<string> Run(AssistantRun request, CancellationToken ct = default);
-    Task<AgentConversationState> ReadConversation(string threadId, CancellationToken ct = default);
-    Task<ModelCatalog> Models();
+    Task<AgentState> ReadConversation(string threadId, CancellationToken ct = default);
+    Task<ModelChoices> Models();
     Task Configure(AgentDefinition definition);
     Task<IAgent> Conversation(string threadId);
     Task<AgentDefinition> DefineTurn(string? summary);

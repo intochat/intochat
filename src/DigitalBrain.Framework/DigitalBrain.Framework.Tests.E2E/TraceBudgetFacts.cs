@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using Aspire.Hosting;
 using Aspire.Hosting.Testing;
 using DigitalBrain.AI;
+using DigitalBrain.AI.Models;
 using DigitalBrain.Testing.E2E.Agent;
 using DigitalBrain.Testing.E2E.Workspace;
 using Npgsql;
@@ -106,7 +107,7 @@ public sealed class TraceBudgetFacts
     private static CapturedSpan[] GrainCallSpans(TestTelemetryCollector collector, int from)
         => collector.Snapshot().Skip(from)
             .Where(span => string.Equals(span.Scope, OrleansSource, StringComparison.Ordinal)
-                && string.Equals(span.Name, "IAgent/ReadConversation", StringComparison.Ordinal))
+                && string.Equals(span.Name, "IAgent/Read", StringComparison.Ordinal))
             .ToArray();
 
     private static Dictionary<string, string> OtlpEnvironment(TestTelemetryCollector collector) => new(StringComparer.Ordinal)

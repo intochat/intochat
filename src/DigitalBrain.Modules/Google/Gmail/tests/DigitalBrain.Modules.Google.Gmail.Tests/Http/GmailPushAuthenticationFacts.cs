@@ -31,7 +31,5 @@ public sealed class GmailPushAuthenticationFacts
         var payload = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("{\"emailAddress\":\"unconnected@gmail.com\",\"historyId\":\"1\"}"));
         using var accepted = await brain.HttpClient.PostAsJsonAsync("/google/gmail/watch", new { message = new { data = payload } }, ct);
         Assert.Equal(HttpStatusCode.Accepted, accepted.StatusCode);
-        using var callback = await brain.HttpClient.GetAsync("/google/gmail/oauth/callback?code=fake", ct);
-        Assert.Equal(HttpStatusCode.Unauthorized, callback.StatusCode);
     }
 }

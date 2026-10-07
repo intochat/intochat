@@ -1,12 +1,20 @@
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Connections;
 using Orleans.Concurrency;
 
 namespace DigitalBrain.ClickHouse.Query;
 
-// Read-only door to the configured database. Nothing is persisted: every query, schema read and
-// ping is served live by the provider, so the neuron carries no snapshot of its own.
+[GenerateSerializer, Alias("clickhouse.connection-state")]
+internal sealed class ClickHouseConnectionState : ConnectionState { }
+
+// Read-only door to a database. The integration key ("default") serves the deployment's database
+// and holds no state; a connection key serves the user's database from the connection string
+// sealed in this neuron's own state. Every query, schema read and ping is served live.
 [GrainType(ClickHouseNames.NeuronType)]
-internal sealed class ClickHouseNeuron(IClickHouseProvider provider) : Neuron, IClickHouse
+internal sealed class ClickHouseNeuron(
+    IClickHouseProvider provider, IClickHouseSourceFactory sources,
+    [PersistentState("clickhouse", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ClickHouseConnectionState> store)
+    : ConnectionNeuron<ClickHouseConnectionState>(store), IClickHouse
 {
     private const int MaxTableNameLength = 255;
 
@@ -33,7 +41,7 @@ internal sealed class ClickHouseNeuron(IClickHouseProvider provider) : Neuron, I
             throw new ClickHouseQueryException(error.Message);
         }
 
-        return await provider.QueryAsync(query.Sql, query.MaxRows, cancellationToken).ConfigureAwait(true);
+        return await WithProvider(source => source.QueryAsync(query.Sql, query.MaxRows, cancellationToken), cancellationToken).ConfigureAwait(true);
     }
 
     [ReadOnly]
@@ -46,10 +54,27 @@ internal sealed class ClickHouseNeuron(IClickHouseProvider provider) : Neuron, I
             throw new ClickHouseQueryException("table must be a plain table name: letters, digits and underscores.");
         }
 
-        return await provider.ReadSchemaAsync(table, cancellationToken).ConfigureAwait(true);
+        return await WithProvider(source => source.ReadSchemaAsync(table, cancellationToken), cancellationToken).ConfigureAwait(true);
     }
 
     [ReadOnly]
     public Task<ClickHouseConnection> ReadConnection(CancellationToken cancellationToken = default)
-        => provider.PingAsync(cancellationToken);
+        => WithProvider(source => source.PingAsync(cancellationToken), cancellationToken);
+
+    protected override async Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct)
+    {
+        var ping = await sources.ForConnectionString(credential.Value).PingAsync(ct).ConfigureAwait(true);
+        return ping.Connected ? ConnectionProbeResult.Connected() : ConnectionProbeResult.Failing("The database did not answer.");
+    }
+
+    private Task<T> WithProvider<T>(Func<IClickHouseProvider, Task<T>> operation, CancellationToken cancellationToken)
+    {
+        if (!ConnectionKeys.Is(this.GetPrimaryKeyString())) { return operation(provider); }
+        (string Brain, string Connector, string Connection) key;
+        try { key = Key; }
+        catch (ArgumentException) { throw new UnauthorizedAccessException("A canonical connection key is required."); }
+        if (key.Connector != "clickhouse" || key.Brain != BrainScope.CurrentId())
+        { throw new UnauthorizedAccessException("The connection belongs to another brain."); }
+        return UseCredentialAsync((credential, _) => operation(sources.ForConnectionString(credential.Value)), cancellationToken);
+    }
 }

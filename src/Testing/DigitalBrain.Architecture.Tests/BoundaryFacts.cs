@@ -1,11 +1,8 @@
 using ArchUnitNET.Fluent;
 using ArchUnitNET.xUnitV3;
-using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Framework.Platform.Integrations.Accounts;
 using DigitalBrain.Framework.Platform.Secrets;
-using static ArchUnitNET.Fluent.ArchRuleDefinition;
 
 namespace DigitalBrain.Architecture.Tests;
 
@@ -83,7 +80,6 @@ public sealed class BoundaryFacts
     {
         var contracts = ProductionArchitecture.Types.Where(IsCredentialContract).ToArray();
         Assert.Contains(typeof(IIntegration), contracts);
-        Assert.Contains(typeof(IConnectionProbe), contracts);
         Assert.Contains(typeof(IIdentityDirectory), contracts);
         foreach (var contract in contracts)
         {

@@ -23,12 +23,10 @@ class MarketplaceListing {
     required this.description,
     required this.version,
     required this.icon,
-    required this.scenarios,
   });
   final String publisher, publisherAccountId, publisherBrainId;
   final String name, title, description, version;
   final String? icon;
-  final List<String> scenarios;
   factory MarketplaceListing.fromJson(Map<String, dynamic> json) =>
       MarketplaceListing(
         publisher: json['publisher'] as String? ?? '',
@@ -39,10 +37,6 @@ class MarketplaceListing {
         description: json['description'] as String? ?? '',
         version: json['version'] as String? ?? '',
         icon: json['icon'] as String?,
-        scenarios: List.unmodifiable([
-          for (final scenario in json['scenarios'] as List? ?? const [])
-            scenario as String,
-        ]),
       );
 }
 

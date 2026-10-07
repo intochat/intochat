@@ -43,14 +43,14 @@
   },
   {
     "Type": "DigitalBrain.AI.Agents.AgentDefinition",
-    "Member": "ContextProviders",
+    "Member": "Contexts",
     "Representation": "array",
     "Payload": "MAHbAh1mJ2FpLmFnZW50LWRlZmluaXRpb27owAHBAcEBwQHBAcEBwQEBAYEAAAAAAAAAAAEBwQEpNQADQRlsZWdhY3ktdmFsdWXg4A==",
     "Expected": "[\"legacy-value\"]"
   },
   {
     "Type": "DigitalBrain.AI.Agents.AgentDefinition",
-    "Member": "ContextProviders",
+    "Member": "Contexts",
     "Representation": "list",
     "Payload": "MAHbAh1mJ2FpLmFnZW50LWRlZmluaXRpb27owAHBAcEBwQHBAcEBwQEBAYEAAAAAAAAAAAEBwQExAVnRtylXU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdGAxW1tzdHJpbmddXQADQRlsZWdhY3ktdmFsdWXg4A==",
     "Expected": "[\"legacy-value\"]"
@@ -84,42 +84,42 @@
     "Expected": "[{\"Round\":0,\"Speaker\":\"legacy-value\",\"Text\":\"legacy-value\"}]"
   },
   {
-    "Type": "DigitalBrain.AI.InferenceOptions",
+    "Type": "DigitalBrain.AI.Inference.InferenceOptions",
     "Member": "ProviderOptions",
     "Representation": "array",
     "Payload": "MAEYu0qyKWFpLmluZmVyZW5jZS1vcHRpb25z6MABwQHBAcEBMQHbNq1zdVN5c3RlbS5Db2xsZWN0aW9ucy5HZW5lcmljLkRpY3Rpb25hcnlgMltbc3RyaW5nXSxbc3RyaW5nXV0BA0EZbGVnYWN5LXZhbHVlwBHgwQHBAeA=",
     "Expected": "{\"legacy-value\":\"legacy-value\"}"
   },
   {
-    "Type": "DigitalBrain.AI.InferenceOptions",
+    "Type": "DigitalBrain.AI.Inference.InferenceOptions",
     "Member": "ProviderOptions",
     "Representation": "list",
     "Payload": "MAEYu0qyKWFpLmluZmVyZW5jZS1vcHRpb25z6MABwQHBAcEBMQHbNq1zdVN5c3RlbS5Db2xsZWN0aW9ucy5HZW5lcmljLkRpY3Rpb25hcnlgMltbc3RyaW5nXSxbc3RyaW5nXV0BA0EZbGVnYWN5LXZhbHVlwBHgwQHBAeA=",
     "Expected": "{\"legacy-value\":\"legacy-value\"}"
   },
   {
-    "Type": "DigitalBrain.AI.ScriptedLlmState",
+    "Type": "DigitalBrain.AI.Models.Scripted.ScriptedLlmState",
     "Member": "Replies",
     "Representation": "array",
     "Payload": "MAHLHf+NK2FpLmxsbS5zY3JpcHRlZC1zdGF0ZegoNQADQRlsZWdhY3ktdmFsdWXgAQHBAeA=",
     "Expected": "[\"legacy-value\"]"
   },
   {
-    "Type": "DigitalBrain.AI.ScriptedLlmState",
+    "Type": "DigitalBrain.AI.Models.Scripted.ScriptedLlmState",
     "Member": "Replies",
     "Representation": "list",
     "Payload": "MAHLHf+NK2FpLmxsbS5zY3JpcHRlZC1zdGF0ZegwAVnRtylXU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdGAxW1tzdHJpbmddXQADQRlsZWdhY3ktdmFsdWXgAQHBAeA=",
     "Expected": "[\"legacy-value\"]"
   },
   {
-    "Type": "DigitalBrain.AI.ScriptedLlmState",
+    "Type": "DigitalBrain.AI.Models.Scripted.ScriptedLlmState",
     "Member": "Prompts",
     "Representation": "array",
     "Payload": "MAHLHf+NK2FpLmxsbS5zY3JpcHRlZC1zdGF0ZejAAQEBKTUAA0EZbGVnYWN5LXZhbHVl4OA=",
     "Expected": "[\"legacy-value\"]"
   },
   {
-    "Type": "DigitalBrain.AI.ScriptedLlmState",
+    "Type": "DigitalBrain.AI.Models.Scripted.ScriptedLlmState",
     "Member": "Prompts",
     "Representation": "list",
     "Payload": "MAHLHf+NK2FpLmxsbS5zY3JpcHRlZC1zdGF0ZejAAQEBMQFZ0bcpV1N5c3RlbS5Db2xsZWN0aW9ucy5HZW5lcmljLkxpc3RgMVtbc3RyaW5nXV0AA0EZbGVnYWN5LXZhbHVl4OA=",
@@ -362,20 +362,6 @@
     "Representation": "list",
     "Payload": "MAEBRXTOM21pY3Jvc29mdC5hc3BpcmUucmVzb3VyY2XowAHBAcEBwQExAVnRtylXU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdGAxW1tzdHJpbmddXQADQRlsZWdhY3ktdmFsdWXg4A==",
     "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.Microsoft.GitHub.GitHubConnectionsState",
-    "Member": "Connections",
-    "Representation": "array",
-    "Payload": "MAEFIf9dN2RiLmdpdGh1Yi5jb25uZWN0aW9ucy1zdGF0ZegwAUUCnhFLZGIuZ2l0aHViLmdpdC1odWItY29ubmVjdGlvbi1yZWNvcmRbXQADIehAGWxlZ2FjeS12YWx1ZQEBAQEBAcELwQvBC+Dg4A==",
-    "Expected": "[{\"Id\":\"legacy-value\",\"AppId\":0,\"InstallationId\":0,\"RepositoryId\":0,\"RepositoryOwner\":\"legacy-value\",\"RepositoryName\":\"legacy-value\",\"Epoch\":\"legacy-value\"}]"
-  },
-  {
-    "Type": "DigitalBrain.Microsoft.GitHub.GitHubConnectionsState",
-    "Member": "Connections",
-    "Representation": "list",
-    "Payload": "MAEFIf9dN2RiLmdpdGh1Yi5jb25uZWN0aW9ucy1zdGF0ZegwAeT+qj6RU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdGAxW1tkYi5naXRodWIuZ2l0LWh1Yi1jb25uZWN0aW9uLXJlY29yZF1dAAMh6EAZbGVnYWN5LXZhbHVlAQEBAQEBwQvBC8EL4ODg",
-    "Expected": "[{\"Id\":\"legacy-value\",\"AppId\":0,\"InstallationId\":0,\"RepositoryId\":0,\"RepositoryOwner\":\"legacy-value\",\"RepositoryName\":\"legacy-value\",\"Epoch\":\"legacy-value\"}]"
   },
   {
     "Type": "DigitalBrain.Microsoft.GitHub.PullRequestSnapshot",

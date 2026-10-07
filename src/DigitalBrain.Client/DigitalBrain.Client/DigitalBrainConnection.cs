@@ -32,12 +32,6 @@ public sealed class DigitalBrainConnection : IDigitalBrain, IAsyncDisposable
     // Environment variables spell configuration sections with "__", so "Account__twitter" arrives as "Account:twitter".
     public string? Setting(string name) => Configuration["CSharpFile:Settings:" + name.Replace("__", ":", StringComparison.Ordinal)];
 
-    // A run started by an armed file's trigger carries that signal; other runs have none.
-    public T Trigger<T>() where T : Signal
-        => Configuration["CSharpFile:Trigger"] is { Length: > 0 } json
-            ? JsonSerializer.Deserialize<T>(json, ScriptEdgeProtocol.Json) ?? throw new InvalidOperationException("The trigger signal is empty.")
-            : throw new InvalidOperationException("This run was not started by a trigger.");
-
     internal static DigitalBrainConnection ForTests(HttpClient http) => new(new ConfigurationBuilder().Build(), http);
 
     public T Get<T>(NeuronId id) where T : INeuron => NeuronProxy.Create<T>(_edge, id.Name);

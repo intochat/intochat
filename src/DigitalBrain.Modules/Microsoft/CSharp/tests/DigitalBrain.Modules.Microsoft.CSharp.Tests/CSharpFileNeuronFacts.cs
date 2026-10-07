@@ -1,4 +1,6 @@
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Files;
+using DigitalBrain.Microsoft.CSharp.Files.Signals;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Orleans.Runtime;
@@ -23,7 +25,7 @@ public sealed class CSharpFileNeuronFacts
         var sandbox = new FakeSandbox();
         await using var brain = await Brain(sandbox, ct);
         var file = brain.Get<ICSharpFile>("workspace/report");
-        await using var changes = await brain.Observe<SynapseChanged>(file, ct);
+        await using var changes = await brain.Observe<CSharpFileChanged>(file, ct);
 
         await file.Write("Console.WriteLine(\"hi\");", ct);
         await file.Configure(new Dictionary<string, string> { ["TimerId"] = "tea" }, ct);
@@ -34,7 +36,7 @@ public sealed class CSharpFileNeuronFacts
         var start = Assert.Single(sandbox.Requests, FakeSandbox.IsStart);
         Assert.Equal("Console.WriteLine(\"hi\");", start.Body!["source"]!.GetValue<string>());
         Assert.Equal("tea", start.Body["environment"]!["CSharpFile__Settings__TimerId"]!.GetValue<string>());
-        Assert.Equal("workspace/report", (await changes.NextAsync(ct: ct)).SynapseId);
+        Assert.Equal("workspace/report", (await changes.NextAsync(ct: ct)).FileId);
         Assert.Equal("hi", await file.ReadLogs(cancellationToken: ct));
 
         await file.Delete(ct);
@@ -166,14 +168,39 @@ public sealed class CSharpFileNeuronFacts
     }
 
     [Fact]
-    public async Task AnUnsetSourceRootFallsBackToTheRepository()
+    public async Task ASourceRootTheHostConfiguresIsTheOneTheModuleReads()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var root = Path.GetFullPath(Path.GetTempPath());
+        await using var brain = await ModuleTest.Create().WithModule<CSharpModule, CSharpOptions>(options => options.WithSandbox(root)).StartAsync(ct);
+
+        Assert.Equal(root, brain.SiloServices.GetRequiredService<IOptions<CSharpOptions>>().Value.SourceRoot);
+    }
+
+    [Fact]
+    public async Task WithoutAConfiguredSourceRootTheModuleHasNoRepositoryAndInventsNone()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<CSharpModule>().StartAsync(ct);
 
-        var options = brain.SiloServices.GetRequiredService<IOptions<CSharpOptions>>().Value;
+        Assert.Null(brain.SiloServices.GetRequiredService<IOptions<CSharpOptions>>().Value.SourceRoot);
+    }
 
-        Assert.Equal(CSharpModule.FindRepositoryRoot(), options.SourceRoot);
+    [Fact]
+    public async Task AFailedLaunchKeepsTheIntentSoTheReconcileRetries()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Brain(new FakeSandbox(), ct);
+        var aspire = brain.Get<IFakeAspireProbe>(new CSharpOptions().AspireApplication);
+        await aspire.FailStarts();
+        var file = brain.Get<ICSharpFile>("workspace/retrying");
+        await file.Write("Console.WriteLine(1);", ct);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => file.Start(ct));
+        Assert.True((await file.Inspect(ct)).ShouldRun);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Reconcile(file));
+        Assert.Equal(2, await aspire.Starts());   // the reconcile asked the sandbox to start again
     }
 
     private static async Task<ICSharpFile> Started(ModuleBrain brain, string id, CancellationToken ct)

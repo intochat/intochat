@@ -1,4 +1,5 @@
 using DigitalBrain.AI;
+using DigitalBrain.AI.Models;
 using DigitalBrain.Flutter;
 using DigitalBrain.Testing.E2E.Agent;
 using DigitalBrain.Testing.E2E.Diagnostics;

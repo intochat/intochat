@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Http;
-namespace DigitalBrain.Framework.Http;
+namespace DigitalBrain.Framework;
 
 // The map from a module route's exceptions to HTTP; a group that throws plain neuron errors adds it once.
 public static class ModuleRouteGuard

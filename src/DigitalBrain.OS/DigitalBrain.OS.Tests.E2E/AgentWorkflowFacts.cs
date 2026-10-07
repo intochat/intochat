@@ -1,13 +1,15 @@
+using DigitalBrain.AI.Models;
+using DigitalBrain.Framework;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Aspire.Hosting.Testing;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Agents.Signals;
 using DigitalBrain.AI.Metering;
 using DigitalBrain.Assistant;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Workspace;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Testing.E2E.Workspace;
 using Npgsql;
@@ -46,13 +48,13 @@ public sealed class AgentWorkflowFacts(ReferenceBrainFixture host) : BrainFact(h
         Assert.NotEmpty((await brain.Get<IIntentUsage>(ComputeUsageEndpoints.IntentId(BrainScope.Create("owner", "failures").Id, "thread", "invalid")).ReadAsync(ct)).Entries);
         // P1.2: a failed run keeps its turn in the conversation history.
         var failedAgent = brain.Get<IAgent>(AssistantConversations.Key(BrainScope.Create("owner", "failures").Id, "thread"));
-        Assert.Contains((await failedAgent.ReadConversation(ct)).Turns, turn => turn.RunId == "invalid");
+        Assert.Contains((await failedAgent.Read()).Runs, run => run.RunId == "invalid");
         model.Sql = "select company from leads";
         model.BeforeTable = token => LeadData.DropAsync(brain, token);
         var unavailable = await Ask("unavailable");
         Assert.Contains("RUN_ERROR", unavailable);
         Assert.DoesNotContain("RUN_FINISHED", unavailable);
-        Assert.Contains((await failedAgent.ReadConversation(ct)).Turns, turn => turn.RunId == "unavailable");
+        Assert.Contains((await failedAgent.Read()).Runs, run => run.RunId == "unavailable");
         Assert.Single((await workspace.Read()).Windows);
     }
 
@@ -73,13 +75,25 @@ public sealed class AgentWorkflowFacts(ReferenceBrainFixture host) : BrainFact(h
         var duplicateStream = await duplicate.Content.ReadAsStringAsync(ct);
         Assert.Contains("RUN_ERROR", duplicateStream);
         Assert.DoesNotContain("RUN_FINISHED", duplicateStream);
-        response.Dispose();
         var scope = BrainScope.Create("owner", "cancel").Id;
         var conversation = brain.Get<IAgent>(AssistantConversations.Key(scope, "thread"));
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
         deadline.CancelAfter(TimeSpan.FromSeconds(30));
-        while ((await conversation.ReadConversation(ct)).ActiveRunId is not null) { await Task.Delay(100, deadline.Token); }
-        Assert.Empty((await conversation.ReadConversation(ct)).Turns);
+        // Subscribed before the disconnect, so the cancelled run's end cannot be missed.
+        await using (var failures = await brain.SubscribeAsync<TurnFailed>(conversation, deadline.Token))
+        {
+            response.Dispose();
+            await foreach (var failed in failures.ReadAllAsync(deadline.Token))
+            {
+                if (failed.RunId != "cancel-run") { continue; }
+                Assert.True(failed.Cancelled, failed.Error);
+                break;
+            }
+        }
+        var cancelledState = await conversation.Read();
+        Assert.Null(cancelledState.ActiveRun);
+        Assert.Equal(AgentRunStatus.Cancelled, Assert.Single(cancelledState.Runs).Status);
+        Assert.Empty(await conversation.Transcript());
         Assert.Empty((await brain.Get<IWorkspace>(scope).Read()).Windows);
 
         // An interrupted run can be retried with its original ID. Keep one activity, update its
@@ -138,10 +152,11 @@ public sealed class AgentWorkflowFacts(ReferenceBrainFixture host) : BrainFact(h
         Assert.Contains("RUN_FINISHED", await replay.Content.ReadAsStringAsync(ct));
         Assert.Equal(count, model.Requests.Count);
         Assert.Equal(recordedCount, (await usage.ReadAsync(ct)).Entries.Length);
-        var history = await brain.HttpClient.GetFromJsonAsync<AgentConversationState>("/brains/agent/conversations/thread", ct);
-        Assert.Equal(Assert.Single(state.Windows).Id, Assert.Single(Assert.Single(history!.Turns).ResultIds));
-        var otherHistory = await brain.HttpClient.GetFromJsonAsync<AgentConversationState>("/brains/other/conversations/thread", ct);
-        Assert.Empty(otherHistory!.Turns);
+        var history = await brain.HttpClient.GetFromJsonAsync<AgentState>("/brains/agent/conversations/thread", ct);
+        var opened = Assert.Single(Assert.Single(history!.Runs).ToolCalls, call => call.Name == "show_supabase_query_table");
+        Assert.Contains(Assert.Single(state.Windows).Id, opened.Result, StringComparison.Ordinal);
+        var otherHistory = await brain.HttpClient.GetFromJsonAsync<AgentState>("/brains/other/conversations/thread", ct);
+        Assert.Empty(otherHistory!.Runs);
         using var next = await brain.HttpClient.PostAsJsonAsync("/agent", input with { runId = "next" }, ct);
         Assert.Contains("RUN_FINISHED", await next.Content.ReadAsStringAsync(ct));
         Assert.Contains("Opened Active leads", model.Requests[count].GetRawText());

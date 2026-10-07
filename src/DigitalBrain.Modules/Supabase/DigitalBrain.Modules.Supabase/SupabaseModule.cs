@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Tools;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Supabase.Windows;
@@ -34,9 +35,12 @@ public sealed class SupabaseModule() : Module<SupabaseModuleOptions>(new ModuleI
             .Configure<IConfiguration>(static (options, configuration) => configuration.PopulateModuleOptions("supabase", options))
             .Validate(static options => string.Equals(options.Provider, ProviderName, StringComparison.OrdinalIgnoreCase),
                 "Supabase requires the Npgsql provider.");
-        services.TryAddSingleton<ISupabaseProvider, ConnectionSupabaseProvider>();
         services.TryAddSingleton<SupabaseBackingStore>();
         services.TryAddSingleton<ISupabaseBackingStore>(provider => provider.GetRequiredService<SupabaseBackingStore>());
+        // Live tables and their tools read the calling brain's own connection neuron, never the
+        // deployment store; only the integration key ("default") of SupabaseNeuron serves that.
+        services.TryAddSingleton<ISupabaseProvider, AmbientSupabaseSource>();
+        services.TryAddSingleton<ISupabaseSourceFactory, NpgsqlSupabaseSourceFactory>();
         services.AddSingleton<IIntegrationStartup>(provider => provider.GetRequiredService<SupabaseBackingStore>());
         services.AddLiveTables();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Framework.IRegistryResourceProvider, SupabaseRegistryResources>());

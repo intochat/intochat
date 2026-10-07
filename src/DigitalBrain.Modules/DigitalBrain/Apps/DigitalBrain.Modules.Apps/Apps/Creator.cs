@@ -1,7 +1,8 @@
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.AI;
-using DigitalBrain.AI.OpenAI;
+using DigitalBrain.AI.Inference;
+using DigitalBrain.AI.Models.OpenAI;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.Options;
 
@@ -87,8 +88,6 @@ internal sealed class Creator(
             var files = new Dictionary<string, string>(built.Files ?? new Dictionary<string, string>(), StringComparer.Ordinal);
             if (files.Count == 0)
             { await app.CompleteBuild(attempt, null, "the Builder produced no files"); return; }
-            if (!files.ContainsKey(AppFiles.TestsPath) && !snapshot.Files.ContainsKey(AppFiles.TestsPath))
-            { await app.CompleteBuild(attempt, null, $"the implementation must include {AppFiles.TestsPath}, the scenarios' proof"); return; }
             // Manifest changes land with the files, inside the attempt check: a stale
             // worker's manifest is discarded with its files.
             var manifest = built.Operations is { Length: > 0 } || built.Settings is { Count: > 0 }

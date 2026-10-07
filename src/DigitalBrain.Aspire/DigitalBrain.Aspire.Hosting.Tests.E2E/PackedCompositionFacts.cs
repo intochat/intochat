@@ -93,7 +93,7 @@ public sealed class PackedCompositionFacts
         File.Copy(Path.Combine(root, "global.json"), Path.Combine(consumer, "global.json"));
         foreach (var (id, source) in new[]
         {
-            ("DigitalBrain.Modules.AI.Contracts", "_ = typeof(DigitalBrain.AI.ILLM);"),
+            ("DigitalBrain.Modules.AI.Contracts", "_ = typeof(DigitalBrain.AI.Models.ILLM);"),
             ("DigitalBrain.Client", "_ = typeof(DigitalBrain.Client.DigitalBrainClient);"),
             ("DigitalBrain.Testing.Module", "await using var brain = await DigitalBrain.Testing.Module.ModuleTest.Create().StartAsync();"),
             ("DigitalBrain.Aspire.Server", "var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder(); DigitalBrain.Aspire.Server.ServerHostingExtensions.AddDigitalBrainServer(builder, _ => { });"),

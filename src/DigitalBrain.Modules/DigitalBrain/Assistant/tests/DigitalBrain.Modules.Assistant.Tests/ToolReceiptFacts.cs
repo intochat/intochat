@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Tools;
 using DigitalBrain.Assistant;
 using DigitalBrain.Compute;
 using DigitalBrain.Framework;
@@ -17,14 +18,14 @@ public sealed class ToolReceiptFacts
     [InlineData(true, "tool_failed")]
     public async Task RealRunnerFailuresReachReceiptsWithOneCallAndAReason(bool registered, string code)
     {
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(new CallingModel())
+        using var services = new ServiceCollection().AddModelCatalog().AddSingleton<IChatClient>(new CallingModel())
             .AddSingleton<IAgentToolFactory>(new FailingTool()).BuildServiceProvider();
         var activity = new IntentActivity();
         var emitted = new List<JsonElement>();
-        var runner = new AgentTurnRunner(services);
-        async Task Run() => await AssistantTurnExecution.RunModel("scope", "run", "hello",
-            new() { Tools = registered ? ["broken"] : [] }, new(0, null, [], null), "reply",
-            new(), runner.RunAsync, value => { emitted.Add(JsonSerializer.SerializeToElement(value)); return Task.CompletedTask; },
+        async Task Run() => await AssistantTurnExecution.RunModel("run", "hello",
+            new() { Tools = registered ? ["broken"] : [] }, "reply",
+            new(), turn => TurnLoops.Run(services, "scope", turn, TestContext.Current.CancellationToken),
+            value => { emitted.Add(JsonSerializer.SerializeToElement(value)); return Task.CompletedTask; },
             new StringBuilder(), [], activity, TestContext.Current.CancellationToken);
         if (registered) { await Assert.ThrowsAsync<InvalidOperationException>(Run); }
         else { await Run(); }

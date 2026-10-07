@@ -1,13 +1,13 @@
 using System.Runtime.CompilerServices;
-using DigitalBrain;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Media;
+using DigitalBrain.AI.Models;
+using DigitalBrain.AI.Tools;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Orleans.Concurrency;
-using Orleans.Runtime;
 
 namespace DigitalBrain.Assistant;
 
@@ -21,9 +21,9 @@ internal sealed class AssistantNeuron(
     private string Key => this.GetPrimaryKeyString();
     // The model catalog is deployment-wide and already secret-free; the HTTP posture is its
     // gate. Everything else belongs to the assistant's own workspace.
-    public override DigitalBrain.Framework.Enforcement.NeuronAccess Access(string operation)
+    public override DigitalBrain.Framework.NeuronAccess Access(string operation)
         => operation is nameof(Models)
-            ? DigitalBrain.Framework.Enforcement.NeuronAccess.PublicOperation
+            ? DigitalBrain.Framework.NeuronAccess.PublicOperation
             : new(Workspace);
     public Task<AssistantState> Read() => Task.FromResult(Snapshot);
     // An assistant started for a workspace is keyed "{workspace}/applications/assistant".
@@ -37,10 +37,10 @@ internal sealed class AssistantNeuron(
     public Task<AssistantTranscriptionResult> Transcribe(string? base64, CancellationToken ct = default)
         => new AssistantTranscription(GrainFactory.GetGrain<ISpeechRecognizer>(Key + "/voice")).Transcribe(base64, ct);
 
-    public async Task<AgentConversationState> ReadConversation(string threadId, CancellationToken ct = default)
-        => await (await Conversation(threadId)).ReadConversation(ct);
+    public async Task<AgentState> ReadConversation(string threadId, CancellationToken ct = default)
+        => await (await Conversation(threadId)).Read();
 
-    public Task<ModelCatalog> Models() => new AssistantTurnExecution(services, GrainFactory).Models();
+    public Task<ModelChoices> Models() => new AssistantTurnExecution(services, GrainFactory).Models();
 
     public Task<IAgent> Conversation(string threadId)
     {

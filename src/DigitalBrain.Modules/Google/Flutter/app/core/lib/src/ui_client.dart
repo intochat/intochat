@@ -817,23 +817,14 @@ final class DigitalBrainUiClient {
     String path, {
     Map<String, Object?>? body,
   }) {
-    if (path.isEmpty) return jsonRequest('GET', '/connectors');
-    if (path == 'gmail/start') {
-      final connection = body?['connectionId'];
-      if (connection is! String || connection.isEmpty) {
-        throw ArgumentError('A Gmail connection name is required.');
-      }
-      return jsonRequest(
-        'POST',
-        '/brains/${Uri.encodeComponent(workspaceId)}/connections/${Uri.encodeComponent(connection)}/gmail/login',
-        body,
+    if (path.isNotEmpty) {
+      throw ArgumentError.value(
+        path,
+        'path',
+        'The connector route is the catalog only.',
       );
     }
-    return jsonRequest(
-      body == null ? 'GET' : 'POST',
-      '/brains/${Uri.encodeComponent(workspaceId)}/connections/services/$path',
-      body,
-    );
+    return jsonRequest('GET', '/connectors');
   }
 
   Future<Object?> workspaceConnectionsRequest(
@@ -896,7 +887,7 @@ final class DigitalBrainUiClient {
     Object? body,
   ]) async {
     // Creating or authoring an app is one model inference call; everything else on the
-    // apps surface (implement, verify) answers immediately with 202.
+    // apps surface (implement) answers immediately with 202.
     final authoring =
         method == 'POST' &&
         (path.endsWith('/apps') || path.endsWith('/author'));

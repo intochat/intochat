@@ -7,7 +7,7 @@ import '../apps/app_screen.dart';
 import '../apps/apps_request.dart';
 import 'app_icon.dart';
 
-// One app before or after install: what it is, who publishes it, the scenarios its tests pin,
+// One app before or after install: what it is, who publishes it,
 // and the single next step — Install, Open or Update. A copy you edited is yours: it keeps
 // working but no longer receives the publisher's updates.
 class AppDetailScreen extends StatefulWidget {
@@ -188,9 +188,6 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     final origin = _map(app?['origin']);
     final publisher = listing?.publisher ?? origin['publisher'] as String?;
     final version = listing?.version ?? '${app?['version'] ?? ''}';
-    final verdicts = app?['verdicts'] is List
-        ? (app!['verdicts'] as List).map(_map).toList()
-        : const <Map<String, dynamic>>[];
     final edited = app?['edited'] == true && origin.isNotEmpty;
     final iconPath = listing?.icon != null
         ? '${_marketPath(listing!.publisher, listing.name)}/icon'
@@ -311,31 +308,6 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                     ),
                   ),
                 ),
-              const SizedBox(height: 24),
-              Text('Scenarios', style: textTheme.titleMedium),
-              if (verdicts.isNotEmpty)
-                for (final verdict in verdicts)
-                  ListTile(
-                    key: ValueKey('scenario-${verdict['name']}'),
-                    dense: true,
-                    leading: Icon(
-                      verdict['passed'] == true
-                          ? Icons.check_circle
-                          : Icons.cancel,
-                      color: verdict['passed'] == true
-                          ? Colors.green
-                          : Colors.red,
-                    ),
-                    title: Text('${verdict['name']}'),
-                  )
-              else
-                for (final scenario in listing?.scenarios ?? const <String>[])
-                  ListTile(
-                    key: ValueKey('scenario-$scenario'),
-                    dense: true,
-                    leading: const Icon(Icons.radio_button_unchecked),
-                    title: Text(scenario),
-                  ),
             ],
           ),
         ),

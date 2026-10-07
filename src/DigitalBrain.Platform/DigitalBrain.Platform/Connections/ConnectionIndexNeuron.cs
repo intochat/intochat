@@ -1,0 +1,44 @@
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Connections;
+
+namespace DigitalBrain.Platform.Connections;
+
+[GenerateSerializer, Alias("connection.index-state")]
+internal sealed class ConnectionIndexState
+{
+    [Id(0)] public string[] Keys { get; set; } = [];
+}
+
+[GrainType("connection.index")]
+internal sealed class ConnectionIndexNeuron : Neuron<ConnectionIndexState>, IConnectionIndex
+{
+    private readonly IPersistentState<ConnectionIndexState> _store;
+
+    public ConnectionIndexNeuron(
+        [PersistentState("connections", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ConnectionIndexState> store)
+        : base(store) => _store = store;
+
+    public Task<string[]> List() => Task.FromResult<string[]>([.. Snapshot.Keys]);
+
+    public async Task Track(string connectionKey)
+    {
+        Require(connectionKey);
+        if (Snapshot.Keys.Contains(connectionKey, StringComparer.Ordinal)) { return; }
+        Snapshot.Keys = [.. Snapshot.Keys, connectionKey];
+        await _store.WriteStateAsync();
+    }
+
+    public async Task Untrack(string connectionKey)
+    {
+        Require(connectionKey);
+        if (!Snapshot.Keys.Contains(connectionKey, StringComparer.Ordinal)) { return; }
+        Snapshot.Keys = [.. Snapshot.Keys.Where(key => key != connectionKey)];
+        await _store.WriteStateAsync();
+    }
+
+    private void Require(string connectionKey)
+    {
+        if (ConnectionKeys.Parse(connectionKey).BrainId != this.GetPrimaryKeyString())
+        { throw new ArgumentException("The connection belongs to another brain.", nameof(connectionKey)); }
+    }
+}

@@ -25,12 +25,15 @@ public interface ISupabaseProvider : ILiveTableSource
 }
 
 // One page of a live table: the base query plus the ui view, compiled server-side.
+// Serializable: a live table's page is served inside the brain's own connection neuron.
+[GenerateSerializer, Alias("supabase.query-plan")]
 public sealed record QueryPlan(
-    string BaseSql,
-    IReadOnlyList<SupabaseColumn> Columns,
-    IReadOnlyList<SupabaseTableFilter> Filters,
-    SupabaseTableSort? Sort,
-    int Offset,
-    int Limit);
+    [property: Id(0)] string BaseSql,
+    [property: Id(1)] IReadOnlyList<SupabaseColumn> Columns,
+    [property: Id(2)] IReadOnlyList<SupabaseTableFilter> Filters,
+    [property: Id(3)] SupabaseTableSort? Sort,
+    [property: Id(4)] int Offset,
+    [property: Id(5)] int Limit);
 
-public sealed record QueryPage(IReadOnlyList<SupabaseTableRow> Rows, long Total, long Filtered);
+[GenerateSerializer, Alias("supabase.query-page")]
+public sealed record QueryPage([property: Id(0)] IReadOnlyList<SupabaseTableRow> Rows, [property: Id(1)] long Total, [property: Id(2)] long Filtered);

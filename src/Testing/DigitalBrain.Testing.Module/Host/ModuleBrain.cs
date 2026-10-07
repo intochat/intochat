@@ -1,11 +1,7 @@
-using DigitalBrain;
-using DigitalBrain.Client;
 using DigitalBrain.Client.Orleans;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Orleans;
-using Orleans.Runtime;
 using Orleans.TestingHost;
 
 namespace DigitalBrain.Testing.Module;
@@ -66,7 +62,7 @@ public sealed class ModuleBrain : IDigitalBrain, IBrainSubscriptions, IAsyncDisp
     T IDigitalBrain.Get<T>(NeuronId id) => _brains.Grain<T>(id.Name);
 
     // The brain of the caller the fact stamped.
-    public IKernel Self => _brains.Open(DigitalBrain.Framework.Enforcement.BrainScope.CurrentId()).Self;
+    public IKernel Self => _brains.Open(DigitalBrain.Framework.BrainScope.CurrentId()).Self;
 
     public Task<ISignalSubscription<T>> SubscribeAsync<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
         => _subscriptions.SubscribeAsync<T>(source, cancellationToken);

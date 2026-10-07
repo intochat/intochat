@@ -3,15 +3,12 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Agents.Signals;
+using DigitalBrain.AI.Models.Scripted;
+using DigitalBrain.AI.Tools;
 using DigitalBrain.Assistant;
-using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Button;
-using DigitalBrain.Flutter.Chat;
-using DigitalBrain.Flutter.FileInput;
-using DigitalBrain.Flutter.Surface;
-using DigitalBrain.Flutter.Workspace;
-using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Testing.Module;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -33,21 +30,18 @@ public sealed class AssistantStreamFacts
         }
     }
 
+    // The Assistant's model is a scripted key bound to the scenario client, so the real agent,
+    // catalog and tool loop run every turn without a provider.
     private static async Task<ModuleBrain> StartBrain(CancellationToken ct) => await ModuleTest.Create().WithExecution(new TestExecutionOptions
     {
-        PrivateConfiguration = new Dictionary<string, string?> { [IntegrationSchema.Key("openai", "ApiKey")] = "test-no-network" },
+        PrivateConfiguration = new Dictionary<string, string?> { ["Assistant:Model"] = IScriptedLLM.ModelPrefix + "stream" },
     }).WithModule<AssistantModule>()
         .RequireModules([new DigitalBrain.Apps.AppsModule(), new DigitalBrain.AI.AIModule(), new DigitalBrain.Compute.ComputeModule(), new DigitalBrain.Flutter.FlutterModule()])
         .ConfigureSilo(silo =>
         {
-            silo.Services.AddSingleton<StreamScenarioRunner>();
-            silo.Services.AddSingleton<IAgentTurnRunner>(services => services.GetRequiredService<StreamScenarioRunner>());
-            silo.Services.Configure<AIOptions>(options =>
-            {
-                options.Default.Provider = "OpenAI";
-                options.Default.Model = "gpt-4.1-mini";
-                options.Default.Capabilities = LlmCapabilities.Tools;
-            });
+            silo.Services.AddSingleton<StreamScenarioClient>();
+            silo.Services.AddKeyedSingleton<IChatClient>(IScriptedLLM.ModelPrefix + "stream", (services, _) => services.GetRequiredService<StreamScenarioClient>());
+            silo.Services.AddSingleton<IAgentToolFactory>(new ScenarioTools());
         }).StartAsync(ct);
 
     [Fact]
@@ -60,9 +54,10 @@ public sealed class AssistantStreamFacts
         var events = await Collect(app, new("one", "run", "hello", "owner"), ct);
         Assert.Equal(["RUN_STARTED", "TEXT_MESSAGE_START", "TEXT_MESSAGE_CONTENT", "TEXT_MESSAGE_CONTENT", "TEXT_MESSAGE_END", "RUN_FINISHED", "RECEIPT"], events.Select(Type));
         Assert.Equal("Hello world", Text(events));
-        Assert.Equal("Hello world", Assert.Single((await app.ReadConversation("one", ct)).Turns).AssistantText);
-        Assert.Empty((await app.ReadConversation("two", ct)).Turns);
-        Assert.Empty((await brain.Grains.GetGrain<IAssistant>(AssistantConversations.AssistantKey(key.Split("/applications/")[0] + "-other")).ReadConversation("one", ct)).Turns);
+        Assert.Equal("Hello world", Assert.Single((await app.ReadConversation("one", ct)).Runs).Reply);
+        Assert.Equal(2, (await (await app.Conversation("one")).Transcript()).Length);
+        Assert.Empty((await app.ReadConversation("two", ct)).Runs);
+        Assert.Empty((await brain.Grains.GetGrain<IAssistant>(AssistantConversations.AssistantKey(key.Split("/applications/")[0] + "-other")).ReadConversation("one", ct)).Runs);
     }
 
     [Fact]
@@ -72,18 +67,18 @@ public sealed class AssistantStreamFacts
         await using var brain = await StartBrain(ct);
         const string key = "stream-replayisidem/applications/assistant";
         var app = brain.Get<IAssistant>(key);
-        var runner = brain.SiloServices.GetRequiredService<StreamScenarioRunner>();
+        var model = brain.SiloServices.GetRequiredService<StreamScenarioClient>();
         var request = new AssistantRun("one", "run", "replay", "owner");
         await Collect(app, request, ct);
-        var before = runner.Count("replay");
+        var before = model.Count("replay");
         var replay = await Collect(app, request, ct);
         Assert.Equal("Hello world", Text(replay));
-        Assert.Equal(before, runner.Count("replay"));
+        Assert.Equal(before, model.Count("replay"));
         Assert.DoesNotContain(replay, item => Type(item) == "RECEIPT");
         await Assert.ThrowsAsync<InvalidOperationException>(() => Collect(app, request with { Message = "different" }, ct));
         var state = await app.ReadConversation("one", ct);
-        Assert.Null(state.ActiveRunId);
-        Assert.Equal("replay", Assert.Single(state.Turns).UserText);
+        Assert.Null(state.ActiveRun);
+        Assert.Equal("replay", Assert.Single(state.Runs).UserText);
     }
 
     [Fact]
@@ -95,8 +90,8 @@ public sealed class AssistantStreamFacts
         var app = brain.Get<IAssistant>(key);
         await Assert.ThrowsAsync<ArgumentException>(() => Collect(app, new("one", "run", "hello", "owner", "profile:missing"), ct));
         var state = await app.ReadConversation("one", ct);
-        Assert.Null(state.ActiveRunId);
-        Assert.Empty(state.Turns);
+        Assert.Null(state.ActiveRun);
+        Assert.Empty(state.Runs);
         Assert.Contains(await Collect(app, new("one", "run", "hello", "owner"), ct), item => Type(item) == "RUN_FINISHED");
     }
 
@@ -112,7 +107,9 @@ public sealed class AssistantStreamFacts
         Assert.Equal("failed", error.GetProperty("runId").GetString());
         Assert.DoesNotContain("scripted failure", error.GetProperty("message").GetString()!, StringComparison.Ordinal);
         Assert.DoesNotContain("data connection", error.GetProperty("message").GetString()!, StringComparison.OrdinalIgnoreCase);
-        Assert.Null((await app.ReadConversation("one", ct)).ActiveRunId);
+        var state = await app.ReadConversation("one", ct);
+        Assert.Null(state.ActiveRun);
+        Assert.Equal(AgentRunStatus.Failed, Assert.Single(state.Runs).Status);
         Assert.Contains(await Collect(app, new("one", "next", "hello", "owner"), ct), item => Type(item) == "RUN_FINISHED");
     }
 
@@ -123,18 +120,21 @@ public sealed class AssistantStreamFacts
         await using var brain = await StartBrain(ct);
         const string key = "stream-cancellation/applications/assistant";
         var app = brain.Get<IAssistant>(key);
+        await using var failures = await brain.SubscribeAsync<TurnFailed>(await app.Conversation("one"), ct);
+        await using var failed = failures.ReadAllAsync(ct).GetAsyncEnumerator(ct);
         using var cancel = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var runner = brain.SiloServices.GetRequiredService<StreamScenarioRunner>();
+        var model = brain.SiloServices.GetRequiredService<StreamScenarioClient>();
         var reading = Collect(app, new("one", "cancelled", "wait", "owner"), cancel.Token);
-        await runner.Waiting.Task.WaitAsync(TimeSpan.FromSeconds(15), ct);
+        await model.Waiting.Task.WaitAsync(ct);
         await cancel.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reading);
-        await runner.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(15), ct);
-        var deadline = DateTime.UtcNow.AddSeconds(10);
-        while ((await app.ReadConversation("one", ct)).ActiveRunId is not null && DateTime.UtcNow < deadline)
-        { await Task.Delay(20, ct); }
-        Assert.Null((await app.ReadConversation("one", ct)).ActiveRunId);
-        Assert.Empty((await app.ReadConversation("one", ct)).Turns);
+        await model.Cancelled.Task.WaitAsync(ct);
+        Assert.True(await failed.MoveNextAsync());
+        Assert.True(failed.Current.Cancelled);
+        var state = await app.ReadConversation("one", ct);
+        Assert.Null(state.ActiveRun);
+        Assert.Equal(AgentRunStatus.Cancelled, Assert.Single(state.Runs).Status);
+        Assert.Empty(await (await app.Conversation("one")).Transcript());
         Assert.Contains(await Collect(app, new("one", "next", "hello", "owner"), ct), item => Type(item) == "RUN_FINISHED");
     }
 
@@ -145,23 +145,23 @@ public sealed class AssistantStreamFacts
         await using var brain = await StartBrain(ct);
         const string key = "stream-concurrentsu/applications/assistant";
         var app = brain.Get<IAssistant>(key);
-        var runner = brain.SiloServices.GetRequiredService<StreamScenarioRunner>();
+        var model = brain.SiloServices.GetRequiredService<StreamScenarioClient>();
         var owner = Collect(app, new("one", "same", "hold", "owner"), ct);
-        await runner.Holding.Task.WaitAsync(TimeSpan.FromSeconds(15), ct);
+        await model.Holding.Task.WaitAsync(ct);
         try
         {
             var rejected = await Collect(app, new("one", "same", "intruder", "owner"), ct);
             Assert.Contains(rejected, item => Type(item) == "RUN_ERROR");
             var active = await app.ReadConversation("one", ct);
-            Assert.Equal("same", active.ActiveRunId);
-            Assert.Empty(active.Turns);
+            Assert.Equal("same", active.ActiveRun?.RunId);
+            Assert.Empty(active.Runs);
         }
-        finally { runner.Release.TrySetResult(); }
+        finally { model.Release.TrySetResult(); }
         Assert.Contains(await owner, item => Type(item) == "RUN_FINISHED");
         var state = await app.ReadConversation("one", ct);
-        Assert.Null(state.ActiveRunId);
-        Assert.Equal("hold", Assert.Single(state.Turns).UserText);
-        Assert.Equal(0, runner.Count("intruder"));
+        Assert.Null(state.ActiveRun);
+        Assert.Equal("hold", Assert.Single(state.Runs).UserText);
+        Assert.Equal(0, model.Count("intruder"));
     }
 
     [Fact]
@@ -170,7 +170,9 @@ public sealed class AssistantStreamFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartBrain(ct);
         const string key = "stream-tooleventsan/applications/assistant";
-        var events = await Collect(brain.Get<IAssistant>(key), new("one", "tools", "tools", "owner"), ct);
+        var app = brain.Get<IAssistant>(key);
+        await app.Configure(new AgentDefinition { Tools = [ScenarioTools.Table] });
+        var events = await Collect(app, new("one", "tools", "tools", "owner"), ct);
         foreach (var type in new[] { "TOOL_CALL_START", "TOOL_CALL_ARGS", "TOOL_CALL_END", "TOOL_CALL_RESULT", "UI_CARD", "RECEIPT" })
         { Assert.Single(events, item => Type(item) == type); }
         Assert.Equal("table", events.Single(item => Type(item) == "UI_CARD").GetProperty("card").GetProperty("kind").GetString());
@@ -191,70 +193,62 @@ public sealed class AssistantStreamFacts
         }
         return result;
     }
-
 }
 
-internal sealed class StreamScenarioRunner : IAgentTurnRunner
+// The scenario a turn plays is named by the person's last message.
+internal sealed class StreamScenarioClient : IChatClient
 {
     private readonly ConcurrentDictionary<string, int> _calls = new();
     public TaskCompletionSource Waiting { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public TaskCompletionSource Cancelled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    public TaskCompletionSource UiHolding { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public TaskCompletionSource Holding { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public int Count(string message) => _calls.GetValueOrDefault(message);
-    public async IAsyncEnumerable<AgentTurnEvent> RunAsync(AgentTurnRequest request, [EnumeratorCancellation] CancellationToken ct)
+
+    public async Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
     {
-        _calls.AddOrUpdate(request.Message, 1, (_, count) => count + 1);
-        if (request.Message == "ui-wait")
-        {
-            UiHolding.TrySetResult();
-            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
-        }
-        if (request.Message == "hold")
+        var updates = new List<ChatResponseUpdate>();
+        await foreach (var update in GetStreamingResponseAsync(messages, options, cancellationToken)) { updates.Add(update); }
+        return updates.ToChatResponse();
+    }
+
+    public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var history = messages.ToArray();
+        var message = history.Last(item => item.Role == ChatRole.User).Text;
+        _calls.AddOrUpdate(message, 1, (_, count) => count + 1);
+        if (message == "hold")
         {
             Holding.TrySetResult();
-            await Release.Task.WaitAsync(ct);
+            await Release.Task.WaitAsync(cancellationToken);
         }
-        if (request.Message == "wait")
+        if (message == "wait")
         {
             Waiting.TrySetResult();
-            try { await Task.Delay(Timeout.InfiniteTimeSpan, ct); }
+            try { await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken); }
             finally { Cancelled.TrySetResult(); }
         }
-        if (request.Message == "fail") { yield return new AgentTurnEvent.Failed("scripted failure"); yield break; }
-        if (request.Message.StartsWith("refuse:", StringComparison.Ordinal)) { yield return new AgentTurnEvent.Failed(request.Message[7..]); yield break; }
-        if (request.Message == "long-answer")
+        if (message == "fail") { throw new InvalidOperationException("scripted failure"); }
+        if (message.StartsWith("refuse:", StringComparison.Ordinal)) { throw new InvalidOperationException(message[7..]); }
+        if (message == "tools" && !history.SelectMany(item => item.Contents).OfType<FunctionResultContent>().Any())
         {
-            yield return new AgentTurnEvent.Text(new string('a', 32_000));
-            yield return new AgentTurnEvent.Text(new string('b', 8_123));
-            yield return new AgentTurnEvent.Finished();
+            yield return new(ChatRole.Assistant, [new FunctionCallContent("call", ScenarioTools.Table, new Dictionary<string, object?>())]);
             yield break;
         }
-        if (request.Message == "window-handles")
-        {
-            yield return new AgentTurnEvent.ToolStarted("table-call", "show_supabase_query_table", "{}");
-            yield return new AgentTurnEvent.ToolCompleted("table-call", "show_supabase_query_table", "{\"windowId\":\"table-result\",\"title\":\"Customers\",\"kind\":\"table\"}");
-            yield return new AgentTurnEvent.ToolStarted("form-call", "show_form", "{}");
-            yield return new AgentTurnEvent.ToolCompleted("form-call", "show_form", "{\"windowId\":\"form-result\",\"title\":\"Details\",\"formId\":\"form-neuron\"}");
-        }
-        if (request.Message == "tools")
-        {
-            yield return new AgentTurnEvent.ToolStarted("call", "show_supabase_query_table", "{}");
-            yield return new AgentTurnEvent.ToolCompleted("call", "show_supabase_query_table", "{\"windowId\":\"window\",\"title\":\"Customers\",\"rowsRead\":2,\"_ui\":{\"kind\":\"table\"}}");
-        }
-        if (request.Message == "card-actions")
-        {
-            yield return new AgentTurnEvent.ToolStarted("reference", "reference", "{}");
-            yield return new AgentTurnEvent.ToolCompleted("reference", "reference", """
-                {"_ui":{"title":"Reference","actions":[
-                  {"label":"Docs","url":"https://example.com"},
-                  {"label":"Open table","id":"table-result","windowId":"table-result","remoteManaged":true,"kind":"table"}
-                ]}}
-                """);
-        }
-        yield return new AgentTurnEvent.Text("Hello ");
-        yield return new AgentTurnEvent.Text("world");
-        yield return new AgentTurnEvent.Finished();
+        yield return new(ChatRole.Assistant, "Hello ");
+        yield return new(ChatRole.Assistant, "world");
     }
+
+    public object? GetService(Type serviceType, object? serviceKey = null) => null;
+    public void Dispose() { }
+}
+
+// The live-table tool the "tools" scenario calls: a window result carrying a table card.
+internal sealed class ScenarioTools : IAgentToolFactory
+{
+    public const string Table = "show_supabase_query_table";
+
+    public IReadOnlyList<AIFunction> Create(Func<AgentToolContext> context) =>
+        [AIFunctionFactory.Create(() => JsonDocument.Parse("""{"windowId":"window","title":"Customers","rowsRead":2,"_ui":{"kind":"table"}}""").RootElement.Clone(), Table)];
 }

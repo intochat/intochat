@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
-    <Description>Salesforce module: browser sign-in, connection policy and confirmed record writes.</Description>
+    <Description>Salesforce module: one org connection neuron, bounded queries and confirmed record writes.</Description>
     <RootNamespace>DigitalBrain.Modules.Salesforce</RootNamespace>
     <NoWarn>$(NoWarn);ORLEANSEXP005</NoWarn>
   </PropertyGroup>

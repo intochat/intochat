@@ -1,6 +1,8 @@
 using DigitalBrain.Microsoft.Aspire;
 using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Time;
+using DigitalBrain.Microsoft.CSharp.Files;
+using DigitalBrain.Microsoft.CSharp.Sandbox;
 using ITimer = DigitalBrain.Time.Timers.ITimer;
 
 namespace DigitalBrain.OS.Tests.E2E;
@@ -24,15 +26,6 @@ public sealed class CSharpFileContainerFacts
         }
         """;
 
-    private const string TriggeredSource = """
-        #:project /brain/src/DigitalBrain.Modules/Time/DigitalBrain.Modules.Time.Contracts/DigitalBrain.Modules.Time.Contracts.csproj
-        using DigitalBrain.Time.Timers.Signals;
-
-        await using var brain = await DigitalBrainClient.ConnectAsync(args);
-        var tick = brain.Trigger<TimerTick>();
-        Console.WriteLine($"triggered by {tick.TimerId}");
-        """;
-
     [Fact]
     public async Task TheSandboxStartsOnDemandRunsScriptsSideBySideAndComesBackAfterItStops()
     {
@@ -45,10 +38,8 @@ public sealed class CSharpFileContainerFacts
             .StartAsync(ct);
         var aspire = brain.Get<IAspire>("sandbox-e2e");
         var timerId = "csharp-e2e-" + Guid.NewGuid().ToString("N")[..8];
-        var listener = brain.Get<ICSharpFile>("e2e/" + timerId);
-        var broken = brain.Get<ICSharpFile>("e2e/broken-" + timerId);
-        var triggerTimerId = "csharp-trigger-" + Guid.NewGuid().ToString("N")[..8];
-        var triggered = brain.Get<ICSharpFile>("e2e/triggered-" + timerId);
+        var listener = brain.Get<ICSharpFile>(CSharpFileKeys.For("e2e", timerId));
+        var broken = brain.Get<ICSharpFile>(CSharpFileKeys.For("e2e", "broken-" + timerId));
         try
         {
             await listener.Write(Source, ct);
@@ -78,22 +69,11 @@ public sealed class CSharpFileContainerFacts
             await Logs(listener, "script tick " + timerId, ct);
             var finished = await Until(listener, snapshot => snapshot.Status == CSharpFileStatus.Exited, ct);
             Assert.Equal(0, finished.ExitCode);
-
-            // An armed file runs nothing until its trigger fires, then runs once with the signal.
-            await triggered.Write(TriggeredSource, ct);
-            var triggerTimer = brain.Get<ITimer>(triggerTimerId);
-            Assert.Equal(CSharpFileStatus.Stopped, (await triggered.Arm(new(triggerTimer.GetGrainId().ToString(), "TimerTick"), ct)).Status);
-            await triggerTimer.Start(TimeSpan.Zero);
-            await Logs(triggered, "triggered by " + triggerTimerId, ct);
-            var ran = await Until(triggered, snapshot => snapshot.Status == CSharpFileStatus.Exited, ct);
-            Assert.Equal(0, ran.ExitCode);
-            Assert.True(ran.ShouldRun);
         }
         finally
         {
             await listener.Delete(CancellationToken.None);
             await broken.Delete(CancellationToken.None);
-            await triggered.Delete(CancellationToken.None);
         }
         Assert.Equal(CSharpFileStatus.Stopped, (await listener.Inspect(ct)).Status);
     }

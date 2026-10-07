@@ -1,4 +1,6 @@
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Catalog;
+using DigitalBrain.Microsoft.CSharp.Files;
 using Xunit;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
@@ -14,7 +16,7 @@ public sealed class CSharpScriptCheckFacts
         {
             ["synapses/hello.cs"] = """
                 #:project /brain/src/DigitalBrain.Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Contracts/DigitalBrain.Modules.Microsoft.CSharp.Contracts.csproj
-                var file = default(DigitalBrain.Microsoft.CSharp.ICSharpFile);
+                var file = default(DigitalBrain.Microsoft.CSharp.Files.ICSharpFile);
                 Console.WriteLine($"{args.Length} {file}");
                 await Task.CompletedTask;
                 """,

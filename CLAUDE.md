@@ -63,7 +63,9 @@ Ring boundaries and config-key ownership are enforced by `src/Testing/DigitalBra
 ## Connectors, integrations, configuration
 
 - **Connector** — `ConnectorDefinition` a module ships: auth methods, neurons/signals, required/optional Integrations.
-- **Connection** — what a *user* authorizes, per brain at `/brains/{id}/connections`.
+- **Connection** — what a *user* authorizes, per brain at `/brains/{id}/connections`. A connection is the
+  connector's own neuron at `connection/{brain}/{connector}/{id}` holding sealed credential state; modules
+  receive deployment credentials through `IModuleIntegrations<TModule>`.
 - **Integration** — what the *deployment* provisions, `DigitalBrain:Integrations:{id}:{Field}`, `[PlatformOnly]`.
   Modules receive credentials only through `IModuleIntegrations<TModule>` — never read credential config.
 - **Configuration** — options are plain config at `DigitalBrain:Modules:{id}:Options:{Property}`, every key
@@ -75,19 +77,17 @@ A user app is an app neuron (`IApp`, keyed `{brainScope}/apps/{name}`) holding t
 
 ```
 app.json         manifest: title, icon, operations, settings, account slots
-app.spec.md      the program in natural language; "## Scenario: <name>" headings
-tests.cs         deterministic checks printing dbtest:pass/fail lines per scenario
-behaviors/*.cs   implementation, one script per concern → one ICSharpFile each
+app.spec.md      the program in natural language
+synapses/*.cs    implementation, one small script per reaction → one ICSharpFile each
 ```
 
 - **Spec is the program, the LLM is a compiler.** The Creator (`Apps/Creator.cs`,
-  `Apps/Authoring/AgentPrompts.cs`) writes the spec, then the tests and behaviors. There is no model at
-  runtime or in the publish gate. **The type system is the grammar:** a scenario is expressible
-  exactly when its test compiles against the installed contracts.
-- **Tests are the publish gate.** `AppVerifyJob` runs `tests.cs` against a scratch copy. Green means
-  exit 0, at least one scenario, and every scenario passed; silence never passes. Tests use scripted
-  models, never live ones. "(live)" scenarios are exempt. `IApp.Publish`/Export refuse anything that
-  isn't green.
+  `Apps/Authoring/AgentPrompts.cs`) writes the spec, then the behaviors. There is no model at
+  runtime. **The type system is the grammar:** a behavior is expressible exactly when it compiles
+  against the installed contracts.
+- **Compilation is the publish gate.** `IApp.Publish`/Export refuse a bundle whose `.cs` files do
+  not compile (`IScriptSandbox.Check`). There are no per-app tests; verification is seeing the app
+  run through `aspire run` and `digitalbrain-mcp`.
 - **Subscriptions are code, durability is the brain's.** `brain.On<T>(source)` is a durable subscription
   inside the grain, with a watermark. Script processes are caches: they get reaped and re-run from the
   top. So setup must be cheap and idempotent, state lives in neurons, delivery is at-least-once (dedup
@@ -96,7 +96,7 @@ behaviors/*.cs   implementation, one script per concern → one ICSharpFile each
   bundle, records `Origin`, and binds settings and slots to the installer's own connections. Updates
   replace the program and keep the data. Editing the program detaches the copy from its origin.
   First-party apps (`os`, `intochat` accounts) ship from `src/DigitalBrain.OS/Apps` and
-  `src/IntoChat/Apps`, and are verified and published at startup.
+  `src/IntoChat/Apps`, and are published at startup.
 
 Open design fronts (don't improvise): cross-app subscription scopes, renderable palette / UiPart,
 run-token tightening.
@@ -177,3 +177,6 @@ make a check pass.
 - **No self-calls on non-reentrant grains**, because they deadlock. For signal-triggered work, use a
   one-way self-reference: `this.AsReference<T>()`.
 - **`ObserverManager` watches need lease renewal.**
+- **A reshaped grain state fails at activation or silo start** as an Orleans `wireType`/deserialisation
+  error (e.g. `integration.registration/integration/clickhouse` read at `IntegrationSeeder`). Wipe the local
+  storage volume (Azurite); no migration shims.

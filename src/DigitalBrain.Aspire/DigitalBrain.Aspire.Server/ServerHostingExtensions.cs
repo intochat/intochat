@@ -1,10 +1,7 @@
 using Azure.Data.Tables;
-using DigitalBrain;
 using DigitalBrain.Client.Orleans;
 using DigitalBrain.Framework;
 using DigitalBrain.ServiceDefaults;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -18,13 +15,18 @@ public static class ServerHostingExtensions
     // A standalone container affirms it so a missing clustering connection fails loudly.
     public const string StandaloneKey = "DigitalBrain:Standalone";
 
+    // An optional JSON file of additional configuration the server loads last (the secrets-file
+    // pattern): deployment credentials, test seeds, any setting that must not travel as plain env.
+    public const string ConfigurationFileKey = "DigitalBrain:ConfigurationFile";
+    public const string ConfigurationFileEnvironmentVariable = "DigitalBrain__ConfigurationFile";
+
     public static IHostApplicationBuilder AddDigitalBrainServer(this IHostApplicationBuilder builder, Action<DigitalBrainServerBuilder> configure)
     {
         ArgumentNullException.ThrowIfNull(builder);
         // Every DigitalBrain server carries the process defaults; hosts cannot forget them.
         builder.AddServiceDefaults();
 
-        if (builder.Configuration[DigitalBrainNames.ConfigurationFileKey] is { Length: > 0 } configurationFile)
+        if (builder.Configuration[ConfigurationFileKey] is { Length: > 0 } configurationFile)
         { builder.Configuration.AddJsonFile(configurationFile, optional: false, reloadOnChange: false); }
 
         ArgumentNullException.ThrowIfNull(configure);
@@ -71,8 +73,8 @@ public static class ServerHostingExtensions
     {
         public Task StartAsync(CancellationToken cancellationToken)
         {
-            _ = services.GetRequiredService<DigitalBrain.Framework.Enforcement.IBrainAccess>();
-            if (!services.GetServices<DigitalBrain.Framework.Enforcement.ICallFilterStage>().Any())
+            _ = services.GetRequiredService<DigitalBrain.Framework.IBrainAccess>();
+            if (!services.GetServices<DigitalBrain.Framework.ICallFilterStage>().Any())
             { throw new InvalidOperationException("Register an authorization policy or AddDigitalBrainPlatform before starting the server."); }
             return Task.CompletedTask;
         }

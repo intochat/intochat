@@ -6,17 +6,14 @@ using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Apps;
 
-// Brings every shipped bundle into its publisher's brain at startup: import it when green, skip
-// it when the installed version already matches. A bundle compiled into the host is green by
-// its build; a folder bundle is verified here, and a red one stays out and says why in the log.
+// Brings every shipped bundle into its publisher's brain at startup: import it, publish it, skip it
+// when the installed version already matches. A bundle Publish refuses stays out and says why in the log.
 internal sealed class ShippedAppPublisher(
-    IGrainFactory grains, ITestScriptRunner runner,
-    IEnumerable<IShippedAppSource> sources, IConfiguration configuration,
+    IGrainFactory grains, IEnumerable<IShippedAppSource> sources, IConfiguration configuration,
     ILogger<ShippedAppPublisher> logger) : IShippedContentPublisher
 {
-    // Verifying a shipped app runs real sandbox scripts. A test host declares what it needs:
-    // "true" (default) ships everything, "false" nothing, and a comma-separated list of app
-    // names ships only those.
+    // A test host declares what ships: "true" (default) everything, "false" nothing, a
+    // comma-separated list of app names only those.
     public static readonly string ShipOnStartupKey = ShippedAppsServiceCollectionExtensions.ShipOnStartupKey;
 
     public string[] Accounts => sources.Select(source => source.Account).Distinct(StringComparer.Ordinal).ToArray();
@@ -35,7 +32,7 @@ internal sealed class ShippedAppPublisher(
             {
                 stoppingToken.ThrowIfCancellationRequested();
                 if (selection is not null && !selection.Contains(bundle.Name)) { continue; }
-                try { await Ship(publisher, source, bundle, stoppingToken).WaitAsync(stoppingToken); }
+                try { await Ship(publisher, source, bundle).WaitAsync(stoppingToken); }
                 // Only the host's own shutdown stops shipping; a downstream cancellation or
                 // timeout is this bundle's failure, not the process's.
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { throw; }
@@ -45,7 +42,7 @@ internal sealed class ShippedAppPublisher(
         }
     }
 
-    private async Task Ship(PublisherBrain publisher, IShippedAppSource source, AppBundle bundle, CancellationToken cancellationToken)
+    private async Task Ship(PublisherBrain publisher, IShippedAppSource source, AppBundle bundle)
     {
         var app = grains.GetGrain<IApp>(IApp.Key(publisher.ScopeId, bundle.Name));
         var installed = await app.Read();
@@ -64,25 +61,11 @@ internal sealed class ShippedAppPublisher(
             if (source.Writable) { await ShippedAppSync.WriteIfFastForward(source, app, await app.ExportPublished(), logger); }
             return;
         }
-        var (verdicts, green) = source.VerifiedByBuild ? ByBuild(bundle) : await AppVerifyJob.RunBundle(grains, runner, bundle,
-                IApp.Key(publisher.ScopeId, bundle.Name + AppFiles.VerifyMarker + Guid.NewGuid().ToString("N")), cancellationToken);
-        if (!green)
-        {
-            logger.LogWarning("{Account}/{App} stays out: verification failed: {Failures}", publisher.Username, bundle.Name,
-                string.Join("; ", verdicts.Where(verdict => !verdict.Passed).Select(verdict => $"{verdict.Name}: {verdict.Message}")));
-            return;
-        }
-        // Replace keeps the publisher brain's settings, connections and stored data (B3).
+        // Replace keeps the publisher brain's settings, connections and stored data.
         if (installed.Manifest.Title.Length > 0) { await app.Replace(bundle); }
         else { await app.Import(bundle); }
-        await app.RecordVerdicts(verdicts, green: true, bundle.Version);
         await app.Publish();
     }
-
-    // The build is the verdict for a first-party bundle, which may declare no scenario at all.
-    private static (AppScenarioVerdict[] Verdicts, bool Green) ByBuild(AppBundle bundle)
-        => (AppVerifyJob.Scenarios(bundle.Spec).Order(StringComparer.Ordinal)
-            .Select(name => new AppScenarioVerdict(name, true, "Verified by the build.")).ToArray(), true);
 
     // null means every app; an empty set means none.
     private static HashSet<string>? Selection(string? configured) => configured?.Trim().ToLowerInvariant() switch

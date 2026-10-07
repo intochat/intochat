@@ -1,4 +1,6 @@
-namespace DigitalBrain.AI;
+using DigitalBrain.AI.Models;
+
+namespace DigitalBrain.AI.Voice;
 
 // Not decoration: the gpt-4o transcribe models accept only text and json, while
 // verbose json and the subtitle formats are whisper-1's alone. Declaring it lets
@@ -26,12 +28,12 @@ public abstract class TranscriptionModel : AiModel
     // what the retired WhisperModel.Priority used to express.
     public static IReadOnlyList<TranscriptionModel> All { get; } =
     [
-        new OpenAI.Gpt4oMiniTranscribe(),
-        new OpenAI.Gpt4oTranscribe(),
-        new OpenAI.Whisper1(),
-        new FoundryLocal.WhisperLargeV3Turbo(),
-        new FoundryLocal.WhisperSmall(),
-        new FoundryLocal.WhisperTiny(),
+        new Models.OpenAI.Gpt4oMiniTranscribe(),
+        new Models.OpenAI.Gpt4oTranscribe(),
+        new Models.OpenAI.Whisper1(),
+        new Models.FoundryLocal.WhisperLargeV3Turbo(),
+        new Models.FoundryLocal.WhisperSmall(),
+        new Models.FoundryLocal.WhisperTiny(),
     ];
 
     public static TranscriptionModel? FindByMarker(Type marker)

@@ -1,40 +1,41 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Microsoft.GitHub.Webhook;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Orleans.Hosting;
 
 namespace DigitalBrain.Microsoft.GitHub;
 
 public sealed class GitHubModule() : Module<GitHubModuleOptions>(new ModuleId("github"))
 {
+    // ClientId sits beside ClientSecret so the Platform's OAuth flow reads both from one release.
     public static IntegrationSchema Integration { get; } = IntegrationSchema.For("github", "GitHub")
         .RequiresSecret("PrivateKeyPem")
         .RequiresSetting("AppId")
+        .OffersSetting("ClientId")
         .OffersSecret("ClientSecret")
         .OffersSecret("WebhookSecret");
-    public static ConnectorDefinition Connector => new("github", "GitHub", ["app-installation", "oauth"], ["github"])
+
+    // GitHub App permissions belong to the installation, so the user authorization asks for no scopes.
+    public static ConnectorDefinition Connector => new("github", "GitHub", ["oauth"], ["github"])
     {
-        Neurons = [typeof(IRepository), typeof(IGitHubConnections)],
-        Signals = [typeof(Signals.RepositoryConnected), typeof(Signals.RepositoryRefused), typeof(Signals.RepositoryAccessRevoked), typeof(Signals.PullRequestChanged), typeof(Signals.GitHubConnectionRegistered)],
+        Neurons = [typeof(IRepository)],
+        Signals = [typeof(Signals.PullRequestChanged)],
+        OAuthMethods = [new("oauth", "https://github.com/login/oauth/authorize", "https://github.com/login/oauth/access_token", [], "github", "ClientId", "ClientSecret")],
     };
 
     public override void Configure(ISiloBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        builder.Services.AddOptions<GitHubRepositoriesOptions>()
-            .Bind(builder.Configuration.GetSection(GitHubRepositoriesOptions.SectionName))
-            .Validate(options => { _ = options.CreateBindings(); return true; })
-            .ValidateOnStart();
-        builder.Services.AddSingleton(services =>
-            services.GetRequiredService<IOptions<GitHubRepositoriesOptions>>().Value.CreateBindings());
-        builder.Services.AddGitHubAuthentication(builder.Configuration);
         builder.Services.AddSingleton<GitHubAppRegistration>();
         builder.Services.AddSingleton<GitHubInstallationTokens>();
+        builder.Services.AddSingleton<IGitHubInstallationVerifier>(services => services.GetRequiredService<GitHubInstallationTokens>());
         builder.Services.AddSingleton<IGitHubRepositorySource, GitHubRepositorySource>();
-        builder.Services.AddSingleton<GitHubSetupService>();
+        builder.Services.AddSingleton<IGitHubUserAccess, GitHubUserAccess>();
         builder.Services.AddSingleton<GitHubWebhookIngress>();
         builder.Services.AddSingleton<IHttpSurface, GitHubWebhookSurface>();
+        builder.Services.AddHttpClient(GitHubUserAccess.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(30))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
     }
 }

@@ -3,9 +3,11 @@ using System.Reflection;
 using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Catalog;
+using DigitalBrain.Microsoft.CSharp.Files;
 using ModelContextProtocol.Server;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Authoring;
 
 [McpServerToolType]
 public sealed class ScopedCSharpTools(IDigitalBrain brain, CSharpCatalogStore catalog, CSharpContractDiscovery? contracts, string scope, bool canRun)
@@ -36,14 +38,6 @@ public sealed class ScopedCSharpTools(IDigitalBrain brain, CSharpCatalogStore ca
         "delete" => await Delete(id, ct),
         _ => throw new ArgumentException("Use action status, start, stop, logs or delete.", nameof(action)),
     };
-
-    [McpServerTool(Name = "csharp_arm"), Description("Run a saved C# app on a trigger instead of keeping it up: every signal of the given type from the given neuron starts one run, and the app reads that signal with brain.Trigger<TSignal>() and exits. neuron is the neuron id \"<grain type>/<key>\" from csharp_contracts, for example timer/tea; signal is the signal type name, for example TimerTick. Nothing runs between signals. stop disarms it; after 5 failing runs in a row it disarms itself.")]
-    public async Task<CSharpFileView> Arm(string id, string neuron, string signal, CancellationToken ct)
-    {
-        if (!canRun) { throw new InvalidOperationException("This host has no C# sandbox, so it cannot run C# files."); }
-        var description = await catalog.Read(scope, id, ct);
-        return new(description, await File(id).Arm(new(neuron, signal), ct));
-    }
 
     public async Task<IReadOnlyList<CSharpFileView>> List(CancellationToken ct)
     {
@@ -89,7 +83,7 @@ public sealed class ScopedCSharpTools(IDigitalBrain brain, CSharpCatalogStore ca
     private ICSharpFile File(string id)
     {
         RequireModule();
-        return brain.Get<ICSharpFile>(CSharpCatalogStore.FileKey(scope, id));
+        return brain.Get<ICSharpFile>(CSharpFileKeys.For(scope, id));
     }
 
     private CSharpContractDiscovery RequireModule()

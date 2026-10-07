@@ -5,7 +5,7 @@ namespace DigitalBrain.Modules.Supabase.Tests;
 
 // A scripted stand-in for the Npgsql-backed provider so the neuron contracts and signals can be
 // exercised without Docker, a database or the network. Cells are JSON text, as on the wire.
-internal sealed class FakeSupabaseProvider : ISupabaseProvider
+internal sealed class FakeSupabaseProvider : ISupabaseBackingStore
 {
     public IReadOnlyList<SupabaseColumn> Described { get; set; } = [new("id", "int4", SupabaseTypeMap.Number)];
 

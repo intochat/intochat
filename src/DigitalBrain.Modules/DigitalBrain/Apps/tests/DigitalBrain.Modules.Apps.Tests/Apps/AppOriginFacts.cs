@@ -17,7 +17,7 @@ public sealed class AppOriginFacts
     {
         var app = brain.Get<IApp>(key);
         await app.Import(new("echo", "1.0.0", Manifest(), "## Scenario: Echoes\nIt echoes.",
-            new() { ["tests.cs"] = "// t", ["icon.svg"] = "<svg/>" }));
+            new() { ["icon.svg"] = "<svg/>" }));
         await app.RecordOrigin(Origin);
         return app;
     }

@@ -4,6 +4,7 @@ using DigitalBrain;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Metering;
+using DigitalBrain.AI.Models;
 using DigitalBrain.Assistant;
 using DigitalBrain.Compute;
 using DigitalBrain.Framework;
@@ -18,11 +19,11 @@ public sealed class AgentTurnFacts
     public async Task RunModelForwardsTheSelectedProfileInsteadOfTheServerDefault()
     {
         var runner = new RecordingRunner();
-        var selected = new AgentModelSelection(Profile: "work");
+        var selected = new ModelSelection("work");
         var configuration = new AssistantOptions { Model = "IGpt56Luna" };
 
-        await AssistantTurnExecution.RunModel("scope", "run", "hello", AssistantDefinition.Product, EmptyState, "reply",
-            configuration, runner.RunAsync, _ => Task.CompletedTask,
+        await AssistantTurnExecution.RunModel("run", "hello", AssistantDefinition.Product, "reply",
+            configuration, runner.Run, _ => Task.CompletedTask,
             new StringBuilder(), [], new IntentActivity(), TestContext.Current.CancellationToken, selected);
 
         Assert.Equal(selected, runner.Request!.Model);
@@ -33,17 +34,16 @@ public sealed class AgentTurnFacts
     public async Task RunModelPreservesTheApplicationDefinitionWithoutRecomposingIt()
     {
         var runner = new RecordingRunner();
-        var state = new AgentConversationState(3, null, [new("old-run", "earlier", "answer", [])], "the user asked about invoices");
         var definition = new AgentDefinition { Instructions = "Application-owned instructions and summary", Tools = ["custom_tool"] };
         var text = new StringBuilder();
         var results = new List<string>();
 
-        await AssistantTurnExecution.RunModel("scope", "run", "hello", definition, state, "run-reply",
-            new AssistantOptions(), runner.RunAsync, _ => Task.CompletedTask, text, results, new IntentActivity(), TestContext.Current.CancellationToken);
+        await AssistantTurnExecution.RunModel("run", "hello", definition, "run-reply",
+            new AssistantOptions(), runner.Run, _ => Task.CompletedTask, text, results, new IntentActivity(), TestContext.Current.CancellationToken);
 
         Assert.NotNull(runner.Request);
         Assert.Equal(definition.Instructions, runner.Request!.Instructions);
-        Assert.Equal(definition.Tools, runner.Request.ToolNames);
+        Assert.Equal(definition.Tools, runner.Request.Tools);
     }
 
     // A stale open failure must not fail the run once a later live-table call succeeds.
@@ -55,8 +55,8 @@ public sealed class AgentTurnFacts
             new AgentTurnEvent.ToolCompleted("read", "table_read", """{"windowId":"table-x","rows":[],"rowsRead":0}"""));
         var results = new List<string>();
 
-        var queryError = await AssistantTurnExecution.RunModel("scope", "run", "how many?", AssistantDefinition.Product,
-            EmptyState, "run-reply", new AssistantOptions(), runner.RunAsync, _ => Task.CompletedTask, new StringBuilder(), results, new IntentActivity(), TestContext.Current.CancellationToken);
+        var queryError = await AssistantTurnExecution.RunModel("run", "how many?", AssistantDefinition.Product,
+            "run-reply", new AssistantOptions(), runner.Run, _ => Task.CompletedTask, new StringBuilder(), results, new IntentActivity(), TestContext.Current.CancellationToken);
 
         Assert.Null(queryError);
         Assert.Empty(results);
@@ -69,8 +69,8 @@ public sealed class AgentTurnFacts
             new AgentTurnEvent.ToolCompleted("read", "table_read", """{"isError":true,"message":"No readable Public columns were requested."}"""));
         var results = new List<string>();
 
-        var queryError = await AssistantTurnExecution.RunModel("scope", "run", "read it", AssistantDefinition.Product,
-            EmptyState, "run-reply", new AssistantOptions(), runner.RunAsync, _ => Task.CompletedTask, new StringBuilder(), results, new IntentActivity(), TestContext.Current.CancellationToken);
+        var queryError = await AssistantTurnExecution.RunModel("run", "read it", AssistantDefinition.Product,
+            "run-reply", new AssistantOptions(), runner.Run, _ => Task.CompletedTask, new StringBuilder(), results, new IntentActivity(), TestContext.Current.CancellationToken);
 
         Assert.Equal("No readable Public columns were requested.", queryError);
     }
@@ -80,8 +80,8 @@ public sealed class AgentTurnFacts
     {
         var results = new List<string>();
         var runner = new ToolEventRunner(new AgentTurnEvent.ToolCompleted("open", "show_postgres_query_table", """{"windowId":"pg-table","source":"postgres"}"""));
-        var error = await AssistantTurnExecution.RunModel("scope", "run", "show postgres", AssistantDefinition.Product,
-            EmptyState, "reply", new AssistantOptions(), runner.RunAsync, _ => Task.CompletedTask,
+        var error = await AssistantTurnExecution.RunModel("run", "show postgres", AssistantDefinition.Product,
+            "reply", new AssistantOptions(), runner.Run, _ => Task.CompletedTask,
             new StringBuilder(), results, new IntentActivity(), TestContext.Current.CancellationToken);
         Assert.Null(error);
         Assert.Equal("pg-table", Assert.Single(results));
@@ -92,12 +92,11 @@ public sealed class AgentTurnFacts
         var runner = new ToolEventRunner(
             new AgentTurnEvent.ToolCompleted("open", "show_postgres_query_table", """{"isError":true,"message":"Query refused"}"""),
             new AgentTurnEvent.ToolCompleted("schema", "postgres_schema", """{"database":"research","tables":[]}"""));
-        var error = await AssistantTurnExecution.RunModel("scope", "run", "show postgres", AssistantDefinition.Product,
-            EmptyState, "reply", new AssistantOptions(), runner.RunAsync, _ => Task.CompletedTask,
+        var error = await AssistantTurnExecution.RunModel("run", "show postgres", AssistantDefinition.Product,
+            "reply", new AssistantOptions(), runner.Run, _ => Task.CompletedTask,
             new StringBuilder(), [], new IntentActivity(), TestContext.Current.CancellationToken);
         Assert.Equal("Query refused", error);
     }
-    private static AgentConversationState EmptyState => new(0, null, [], null);
 
     // The shadow Compute on a receipt is the intent's durable usage priced by the one price book.
     [Fact]
@@ -113,9 +112,9 @@ public sealed class AgentTurnFacts
         Assert.Equal(250m + 1000m, compute);
     }
 
-    private sealed class ToolEventRunner(params AgentTurnEvent[] events) : IAgentTurnRunner
+    private sealed class ToolEventRunner(params AgentTurnEvent[] events)
     {
-        public async IAsyncEnumerable<AgentTurnEvent> RunAsync(AgentTurnRequest request, [EnumeratorCancellation] CancellationToken ct)
+        public async IAsyncEnumerable<AgentTurnEvent> Run(AgentTurn _)
         {
             await Task.Yield();
             foreach (var item in events) { yield return item; }
@@ -123,12 +122,12 @@ public sealed class AgentTurnFacts
         }
     }
 
-    private sealed class RecordingRunner : IAgentTurnRunner
+    private sealed class RecordingRunner
     {
-        public AgentTurnRequest? Request { get; private set; }
-        public async IAsyncEnumerable<AgentTurnEvent> RunAsync(AgentTurnRequest request, [EnumeratorCancellation] CancellationToken ct)
+        public AgentTurn? Request { get; private set; }
+        public async IAsyncEnumerable<AgentTurnEvent> Run(AgentTurn turn)
         {
-            Request = request;
+            Request = turn;
             await Task.Yield();
             yield return new AgentTurnEvent.Finished();
         }

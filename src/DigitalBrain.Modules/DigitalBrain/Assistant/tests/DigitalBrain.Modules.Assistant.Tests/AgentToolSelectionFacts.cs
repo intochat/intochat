@@ -1,8 +1,8 @@
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Tools;
 using DigitalBrain.Apps;
 using DigitalBrain.Assistant;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -24,7 +24,7 @@ public sealed class AgentToolSelectionFacts
         var app = brain.Get<IApp>(IApp.Key(scope, name));
         await app.Create(new("Tools", "Installed tools", [new(operation, "Installed")], [], []), "## Scenario: Works\nIt works.");
         await app.BeginBuild(null);
-        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t" }, null);
+        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["notes.md"] = "// b" }, null);
         return app;
     }
 
@@ -48,11 +48,9 @@ public sealed class AgentToolSelectionFacts
             Assert.Equal(selected, session.Tools.Select(tool => tool.Name));
         }
         // Resolve the selected tools in the real runner before it reaches the model.
-        using var services = new ServiceCollection().AddSingleton(source)
+        using var services = new ServiceCollection().AddModelCatalog().AddSingleton(source)
             .AddSingleton<IChatClient>(new ScriptedAssistantModel()).BuildServiceProvider();
-        var events = new List<AgentTurnEvent>();
-        await foreach (var item in new AgentTurnRunner(services).RunAsync(new("assistant", "run", scope, [], "hello", null, ToolNames: selected), ct))
-        { events.Add(item); }
+        var events = await TurnLoops.Collect(services, scope, "hello", selected, ct);
         Assert.DoesNotContain(events, item => item is AgentTurnEvent.Failed);
         Assert.Contains(events, item => item is AgentTurnEvent.Completed);
         // Discovery has no model-controlled scope argument; the Registry tests cover caller isolation.

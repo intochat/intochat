@@ -60,7 +60,7 @@ public static class GmailHostingExtensions
             _clientId ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("gmail-client-id"))
                 .WithDescription(
                     "OAuth client ID for a Google web client configured for the [Gmail MCP server](https://developers.google.com/workspace/gmail/api/guides/configure-mcp-server). "
-                    + "Register <your deployment origin>/google/gmail/oauth/callback. This value provisions the Google OAuth Integration.",
+                    + "Register <your deployment origin>/connections/oauth/gmail/callback. This value provisions the Google OAuth Integration.",
                     enableMarkdown: true)
                 .WithParentRelationship(module);
             _clientSecret ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("gmail-client-secret"), secret: true)
@@ -75,11 +75,11 @@ public static class GmailHostingExtensions
                 .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(Root, "ClientSecret"), _clientSecret);
             if (_publicOrigin is { } origin)
             {
-                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ModuleOptionsSection("gmail"), "PublicOrigin"), origin.AbsoluteUri);
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ConnectionsPublicOriginKey), origin.AbsoluteUri);
             }
             else
             {
-                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ModuleOptionsSection("gmail"), "PublicOrigin"), builder.GetEndpoint("http"));
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ConnectionsPublicOriginKey), builder.GetEndpoint("http"));
             }
         }
     }

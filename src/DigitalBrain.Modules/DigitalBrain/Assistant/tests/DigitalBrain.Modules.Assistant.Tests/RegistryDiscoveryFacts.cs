@@ -1,9 +1,9 @@
 using System.Runtime.CompilerServices;
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Tools;
 using DigitalBrain.Apps;
 using DigitalBrain.Assistant;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -57,17 +57,15 @@ public sealed class RegistryDiscoveryFacts
             var researcher = brain.Get<IApp>(IApp.Key(scope, "researcher"));
             await researcher.Create(new("Researcher", "Research", [new("research", "Research")], [], []), "## Scenario: Researches\nIt researches.");
             await researcher.BeginBuild(null);
-            await researcher.CompleteBuild(await researcher.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t" }, null);
+            await researcher.CompleteBuild(await researcher.CurrentBuildAttempt(), new() { ["notes.md"] = "// b" }, null);
 
-            using var services = new ServiceCollection()
+            using var services = new ServiceCollection().AddModelCatalog()
                 .AddSingleton<IChatClient>(new DiscoveryModel())
                 .AddSingleton<IAgentToolFactory>(new RegistryDiscoveryTools(brain.Grains))
                 .AddSingleton<IAgentToolFactory>(database)
                 .AddSingleton(brain.SiloServices.GetRequiredService<IAgentToolSource>()).BuildServiceProvider();
-            var events = new List<AgentTurnEvent>();
-            await foreach (var item in new AgentTurnRunner(services).RunAsync(new("assistant", "run", scope, [],
-                "show me data from postges, wich tables are there?", null, ToolNames: ["discover_capabilities", "select_capability"]), ct))
-            { events.Add(item); }
+            var events = await TurnLoops.Collect(services, scope, "show me data from postges, wich tables are there?",
+                ["discover_capabilities", "select_capability"], ct);
 
             Assert.Empty(events.OfType<AgentTurnEvent.Failed>());
             Assert.Equal(["discover_capabilities", "select_capability", "postgres_schema"], events.OfType<AgentTurnEvent.ToolCompleted>().Select(item => item.Name));

@@ -1,5 +1,6 @@
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Edge;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -18,21 +19,23 @@ public sealed class RunTokensFacts
         response.EnsureSuccessStatusCode();
         using var catalog = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
         Assert.DoesNotContain(catalog.RootElement.EnumerateArray(), item => item.GetProperty("id").GetString() == "csharp");
-        DigitalBrain.Framework.Enforcement.CallerContextStamper.Stamp(new()
+        DigitalBrain.Framework.CallerContextStamper.Stamp(new()
         {
             PrincipalId = "owner",
             AccountId = "owner",
             BrainId = "owner",
-            Kind = DigitalBrain.Framework.Enforcement.CallerKind.User,
-            StampedBy = DigitalBrain.Framework.Enforcement.TrustedEdge.AuthenticatedHttp,
+            Kind = DigitalBrain.Framework.CallerKind.User,
+            StampedBy = DigitalBrain.Framework.TrustedEdge.AuthenticatedHttp,
         });
         try
         {
-            var error = await Assert.ThrowsAsync<ArgumentException>(() => brain.Get<DigitalBrain.Framework.Platform.Integrations.Accounts.IConnectionRegistry>(DigitalBrain.Framework.Enforcement.BrainScope.CurrentId())
-                .Connect(new() { IntegrationId = "csharp", ConnectionId = "internal", AuthMethodId = "run-token", Value = "meaningless" }, ct));
-            Assert.Contains("not offered by the deployment", error.Message);
+            // No connection neuron serves "csharp", so a connection key naming it addresses nothing.
+            var key = DigitalBrain.Framework.Platform.Connections.ConnectionKeys.For(DigitalBrain.Framework.BrainScope.CurrentId(), "csharp", "internal");
+            var error = Assert.Throws<ArgumentException>(() => DigitalBrain.Framework.Platform.Connections.ConnectionGrains
+                .GetNeuronGrain<DigitalBrain.Framework.Platform.Connections.IConnection>(brain.Grains, brain.SiloServices, key));
+            Assert.Contains("No connection neuron serves connector 'csharp'", error.Message);
         }
-        finally { Orleans.Runtime.RequestContext.Remove(DigitalBrain.Framework.Enforcement.CallerContextStamper.RequestContextKey); }
+        finally { Orleans.Runtime.RequestContext.Remove(DigitalBrain.Framework.CallerContextStamper.RequestContextKey); }
     }
 
     [Fact]

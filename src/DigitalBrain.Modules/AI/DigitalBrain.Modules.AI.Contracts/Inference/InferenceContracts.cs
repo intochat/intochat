@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
+using DigitalBrain.AI.Models;
 
-namespace DigitalBrain.AI;
+namespace DigitalBrain.AI.Inference;
 
 [GenerateSerializer, Alias("ai.message")]
 public sealed record AiMessage([property: Id(0)] string Role, [property: Id(1)] IReadOnlyList<AiContent> Content);
@@ -39,7 +40,7 @@ public sealed record InferenceOptions(
 [GenerateSerializer, Alias("ai.inference-request")]
 public sealed record InferenceRequest(
     [property: Id(0)] IReadOnlyList<AiMessage> Messages,
-    [property: Id(1)] AgentModelSelection? Model = null,
+    [property: Id(1)] ModelSelection? Model = null,
     [property: Id(2)] InferenceOptions? Options = null,
     [property: Id(3)] IReadOnlyList<InferenceTool>? Tools = null);
 [GenerateSerializer, Alias("ai.inference-usage")]

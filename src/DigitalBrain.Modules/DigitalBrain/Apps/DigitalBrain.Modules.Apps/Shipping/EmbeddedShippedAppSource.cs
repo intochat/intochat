@@ -8,7 +8,6 @@ public sealed class EmbeddedShippedAppSource(System.Reflection.Assembly assembly
 {
     public string Account => account;
     public bool Writable => false;
-    public bool VerifiedByBuild => true;
     public void Write(AppBundle bundle) => throw new NotSupportedException("Embedded shipped apps are read-only.");
 
     public IReadOnlyList<AppBundle> Load()

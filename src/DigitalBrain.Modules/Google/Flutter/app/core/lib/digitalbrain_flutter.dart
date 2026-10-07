@@ -5,6 +5,7 @@ export 'src/models/installed_app.dart';
 export 'src/models/marketplace.dart';
 export 'src/models/brain_models.dart';
 export 'src/models/compute_usage.dart';
+export 'src/models/connection.dart';
 export 'src/models/model_catalog.dart';
 export 'src/models/grant_summary.dart';
 export 'src/models/session_capabilities.dart';

@@ -25,7 +25,7 @@ public sealed class BrandingFacts
     }
 
     private static string HostPath(string file)
-        => Path.Combine(RepositoryRoot, "src", "DigitalBrain", "OS", "DigitalBrain.OS", file);
+        => Path.Combine(RepositoryRoot, "src", "DigitalBrain.OS", "DigitalBrain.OS", file);
 
     [Fact]
     public void TheHostAppSettingsCarryTheAssistantBrandingWhereTheModuleBindsIt()

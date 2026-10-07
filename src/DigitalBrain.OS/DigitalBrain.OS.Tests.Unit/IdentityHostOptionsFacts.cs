@@ -34,9 +34,9 @@ public sealed class IdentityHostOptionsFacts
     {
         var root = FindRepositoryRoot();
         using var appHost = new ConfigurationManager();
-        appHost.AddJsonFile(Path.Combine(root, "src", "DigitalBrain", "AppHost", "DigitalBrain.AppHost", "appsettings.json"));
+        appHost.AddJsonFile(Path.Combine(root, "src", "DigitalBrain.AppHost", "appsettings.json"));
         using var image = new ConfigurationManager();
-        image.AddJsonFile(Path.Combine(root, "src", "DigitalBrain", "OS", "DigitalBrain.OS", "appsettings.json"));
+        image.AddJsonFile(Path.Combine(root, "src", "DigitalBrain.OS", "DigitalBrain.OS", "appsettings.json"));
         foreach (var key in new[]
         {
             nameof(IdentityHostOptions.CookieName),

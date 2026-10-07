@@ -1,6 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Deployment;
 using DigitalBrain.Framework;
+using DigitalBrain.Microsoft.CSharp.Sandbox;
 using Pulumi;
 using Pulumi.AzureNative.App;
 using Pulumi.AzureNative.App.Inputs;

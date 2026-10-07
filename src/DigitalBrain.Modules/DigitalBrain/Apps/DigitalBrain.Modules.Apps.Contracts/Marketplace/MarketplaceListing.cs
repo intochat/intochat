@@ -11,5 +11,4 @@ public sealed record MarketplaceListing(
     [property: Id(4)] string Title,
     [property: Id(5)] string Description,
     [property: Id(6)] string Version,
-    [property: Id(7)] string? Icon,
-    [property: Id(8)] string[] Scenarios);
+    [property: Id(7)] string? Icon);

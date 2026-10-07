@@ -3,7 +3,7 @@ using Orleans.Concurrency;
 
 namespace DigitalBrain.Supabase;
 
-[Alias("supabase")]
+[Alias("supabase"), Orleans.Metadata.DefaultGrainType(SupabaseNames.NeuronType)]
 public interface ISupabase : INeuron
 {
     // Server-side caps.

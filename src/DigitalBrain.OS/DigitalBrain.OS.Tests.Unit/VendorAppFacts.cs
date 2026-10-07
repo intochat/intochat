@@ -1,8 +1,9 @@
 using DigitalBrain.Apps;
+using DigitalBrain.Microsoft.CSharp.Catalog;
 
 namespace DigitalBrain.OS.Tests.Unit;
 
-// Shipped bundles execute through their tests.cs share gate.
+// Shipped bundles are ordinary packages: they compile against platform contracts and ship as-is.
 public sealed class VendorAppFacts
 {
     private static string FindRepositoryRoot()
@@ -23,18 +24,18 @@ public sealed class VendorAppFacts
         => Assert.Equal(["customer-researcher", "word-count"], Source.Load().Select(app => app.Name).Order());
 
     [Fact]
-    public void EveryShippedProgramAndTestsFileCompilesAgainstCurrentContracts()
+    public void EveryShippedProgramCompilesAgainstCurrentContracts()
     {
         foreach (var app in Source.Load())
         {
             var sources = new Dictionary<string, string>(app.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal)));
-            var result = new DigitalBrain.Microsoft.CSharp.CSharpScriptCheck().Check(sources);
+            var result = new CSharpScriptCheck().Check(sources);
             Assert.True(result.Success, $"{app.Name}: {string.Join("; ", result.Errors.Select(error => $"{error.File}:{error.Line} {error.Message}"))}");
         }
     }
 
     // The researcher is the proof that a first-party app is an ordinary package: every contract its
-    // scripts compile against is a platform module a user's own app could name, so its tests verify
+    // scripts compile against is a platform module a user's own app could name, so it runs
     // on a host where no CustomerResearcher module is composed.
     [Fact]
     public void TheResearcherPackageUsesOnlyPlatformContracts()
@@ -60,11 +61,10 @@ public sealed class VendorAppFacts
     }
 
     [Fact]
-    public void EveryShippedAppCarriesSpecAndTests()
+    public void EveryShippedAppCarriesASpec()
         => Assert.All(Source.Load(), app =>
         {
             Assert.False(string.IsNullOrWhiteSpace(app.Spec), $"{app.Name} has no {AppFiles.SpecPath}.");
-            Assert.False(string.IsNullOrWhiteSpace(app.Files.GetValueOrDefault(AppFiles.TestsPath)), $"{app.Name} has no {AppFiles.TestsPath}.");
         });
 
 }

@@ -1,9 +1,6 @@
 using System.Net;
-using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
-using DigitalBrain;
-using DigitalBrain.Framework;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.AspNetCore.Authentication;
@@ -29,7 +26,7 @@ public sealed class IdentityHostingFacts
         var builder = WebApplication.CreateBuilder();
         builder.Configuration[AuthOptions.PostureKey] = "Secured";
         builder.Services.AddSingleton<IDigitalBrain>(brain);
-        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Framework.Enforcement.IBrainAccess>());
+        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Framework.IBrainAccess>());
         builder.Services.AddIdentity();
         await using var app = builder.Build();
         app.Urls.Add("http://127.0.0.1:0");

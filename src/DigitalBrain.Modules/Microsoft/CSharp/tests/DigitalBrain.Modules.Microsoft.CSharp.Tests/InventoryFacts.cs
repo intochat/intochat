@@ -1,6 +1,7 @@
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Catalog;
+using DigitalBrain.Microsoft.CSharp.Files;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
@@ -11,7 +12,7 @@ public sealed class InventoryFacts
     public async Task InventoryReadsOnlyTheAmbientBrainsExistingAuthoringCatalog()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var host = await ModuleTest.Create().WithModule<CSharpAuthoringModule>().StartAsync(ct);
+        await using var host = await ModuleTest.Create().WithModule<CSharpModule>().StartAsync(ct);
         var catalog = host.SiloServices.GetRequiredService<CSharpCatalogStore>();
         foreach (var brain in new[] { "one", "two" })
         {
@@ -25,7 +26,7 @@ public sealed class InventoryFacts
             Stamp(brain);
             var record = Assert.Single(await provider.Persisted(null, ct));
             Assert.Equal(brain + " file", record.Display);
-            Assert.Equal(CSharpCatalogStore.FileKey(BrainScope.CurrentId(), "file"), record.Key);
+            Assert.Equal(CSharpFileKeys.For(BrainScope.CurrentId(), "file"), record.Key);
             Assert.Empty(await provider.Active(null, ct));
             Assert.Empty(await provider.Persisted("other", ct));
             await catalog.Remove(BrainScope.CurrentId(), "file", ct);

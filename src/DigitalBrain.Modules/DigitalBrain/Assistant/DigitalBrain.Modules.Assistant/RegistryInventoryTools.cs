@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Tools;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
 using Microsoft.Extensions.AI;
 
 namespace DigitalBrain.Assistant;

@@ -1,4 +1,10 @@
+using DigitalBrain;
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Testing;
+using DigitalBrain.Microsoft.CSharp.Edge;
+using DigitalBrain.Microsoft.CSharp.Files;
+using DigitalBrain.Microsoft.CSharp.Files.Signals;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
@@ -30,15 +36,15 @@ public sealed class CSharpSubscriptionFacts
             await Eventually(async () => (await file.Inspect(ct)).Subscriptions.All(s => s.Pending == 1), ct);
 
             // A resumed Stop loop can drain first regardless of publication order.
-            var stopped = Assert.Single(await edge.DrainPending(sandbox.LatestRunId, stop.GetGrainId().ToString(), nameof(Pinged)));
-            var requested = Assert.Single(await edge.DrainPending(sandbox.LatestRunId, research.GetGrainId().ToString(), nameof(Pinged)));
+            var stopped = Assert.Single((await edge.DrainPending(sandbox.LatestRunId, stop.GetGrainId().ToString(), nameof(Pinged))).Signals);
+            var requested = Assert.Single((await edge.DrainPending(sandbox.LatestRunId, research.GetGrainId().ToString(), nameof(Pinged))).Signals);
             return [stopped, requested];
         }
 
         var staleResearch = await Replay(researchFirst: true);
         var freshResearch = await Replay(researchFirst: false);
-        Assert.Equal(new[] { "{\"number\":1}", "{\"number\":1}" }, staleResearch);
-        Assert.Equal(staleResearch, freshResearch);
+        Assert.Equal([1, 1], staleResearch.Select(SignalJson.Number));
+        Assert.Equal(staleResearch.Select(SignalJson.Number), freshResearch.Select(SignalJson.Number));
     }
 
     [Fact]
@@ -63,7 +69,7 @@ public sealed class CSharpSubscriptionFacts
         await pinger.Ping(2);
         await Eventually(async () => (await file.Inspect(ct)).Subscriptions.Single().Pending == 2, ct);
         var drained = await edge.DrainPending(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged));
-        Assert.Equal(2, drained.Count);
+        Assert.Equal(2, drained.Signals.Length);
     }
 
     [Fact]
@@ -80,7 +86,7 @@ public sealed class CSharpSubscriptionFacts
         await edge.Subscribed(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged));
         await pinger.Ping(7);
 
-        await Eventually(async () => (await edge.DrainPending(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged))) is { Count: > 0 }, ct);
+        await Eventually(async () => (await edge.DrainPending(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged))) is { Signals.Length: > 0 }, ct);
         Assert.Single((await file.Inspect(ct)).Subscriptions);
     }
 
@@ -99,10 +105,10 @@ public sealed class CSharpSubscriptionFacts
         await Eventually(async () => (await file.Inspect(ct)).Subscriptions.Single().Pending == 2, ct);
 
         var drained = await edge.DrainPending(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged));
-        Assert.Equal(2, drained.Count);
-        Assert.Contains("\"number\":1", drained[0], StringComparison.Ordinal);
-        Assert.Contains("\"number\":2", drained[1], StringComparison.Ordinal);
-        Assert.Empty(await edge.DrainPending(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged)));
+        Assert.Equal(2, drained.Signals.Length);
+        Assert.Equal([1, 2], drained.Signals.Select(SignalJson.Number));
+        await edge.Acknowledge(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged), drained.Watermark);
+        Assert.Empty((await edge.DrainPending(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged))).Signals);
     }
 
     [Fact]
@@ -120,26 +126,128 @@ public sealed class CSharpSubscriptionFacts
         await two.Ping(9);
         await Eventually(async () => (await file.Inspect(ct)).Subscriptions.Any(s => s.Pending > 0), ct);
 
-        Assert.Empty(await edge.DrainPending(sandbox.LatestRunId, one.GetGrainId().ToString(), nameof(Pinged)));
-        Assert.Single(await edge.DrainPending(sandbox.LatestRunId, two.GetGrainId().ToString(), nameof(Pinged)));
+        Assert.Empty((await edge.DrainPending(sandbox.LatestRunId, one.GetGrainId().ToString(), nameof(Pinged))).Signals);
+        Assert.Single((await edge.DrainPending(sandbox.LatestRunId, two.GetGrainId().ToString(), nameof(Pinged))).Signals);
     }
 
     [Fact]
-    public async Task PendingSignalsAreBoundedAndTheOldestAreDropped()
+    public async Task DrainingDoesNotClearUntilTheBatchIsAcknowledged()
     {
         var ct = TestContext.Current.CancellationToken;
         var sandbox = new FakeSandbox();
         await using var brain = await SandboxBrain.StartAsync(sandbox, ct);
         var pinger = brain.Get<IPinger>("pinger");
-        var file = await Subscribed(brain, sandbox, "workspace/bounded", pinger, ct);
+        var file = await Subscribed(brain, sandbox, "workspace/acknowledging", pinger, ct);
         var edge = file.AsReference<ICSharpFileEdge>();
+        var source = pinger.GetGrainId().ToString();
+        await using var arrivals = await brain.Observe<CSharpPendingArrived>(file, ct);
+        await pinger.Ping(1);
+        await pinger.Ping(2);
+        await Arrivals(arrivals, 2, ct);
 
-        for (var number = 0; number < CSharpFileNeuron.MaximumPending + 5; number++) { await pinger.Ping(number); }
-        await Eventually(async () => (await file.Inspect(ct)).Subscriptions.Single().Pending == CSharpFileNeuron.MaximumPending, ct);
+        var first = await edge.DrainPending(sandbox.LatestRunId, source, nameof(Pinged));
+        var again = await edge.DrainPending(sandbox.LatestRunId, source, nameof(Pinged));
 
-        var drained = await edge.DrainPending(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged));
-        Assert.Equal(CSharpFileNeuron.MaximumPending, drained.Count);
-        Assert.Contains("\"number\":5", drained[0], StringComparison.Ordinal); // 0..4 were dropped
+        Assert.Equal(2, first.Signals.Length);
+        Assert.Equal(2, first.Watermark);
+        Assert.Equal(first.Signals, again.Signals);
+
+        await edge.Acknowledge(sandbox.LatestRunId, source, nameof(Pinged), first.Watermark);
+
+        Assert.Empty((await edge.DrainPending(sandbox.LatestRunId, source, nameof(Pinged))).Signals);
+        var view = Assert.Single((await file.Inspect(ct)).Subscriptions);
+        Assert.Equal((0, 2L, 0L), (view.Pending, view.Delivered, view.Dropped));
+    }
+
+    [Fact]
+    public async Task AnAcknowledgementNeverTrimsPastWhatIsPendingOrBelowWhatWasDelivered()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new FakeSandbox();
+        await using var brain = await SandboxBrain.StartAsync(sandbox, ct);
+        var pinger = brain.Get<IPinger>("pinger");
+        var file = await Subscribed(brain, sandbox, "workspace/clamped", pinger, ct);
+        var edge = file.AsReference<ICSharpFileEdge>();
+        var source = pinger.GetGrainId().ToString();
+        await using var arrivals = await brain.Observe<CSharpPendingArrived>(file, ct);
+        for (var number = 1; number <= 3; number++) { await pinger.Ping(number); }
+        await Arrivals(arrivals, 3, ct);
+
+        await edge.Acknowledge(sandbox.LatestRunId, source, nameof(Pinged), 1);
+        var afterOne = Assert.Single((await file.Inspect(ct)).Subscriptions);
+        Assert.Equal((2, 1L), (afterOne.Pending, afterOne.Delivered));
+
+        await edge.Acknowledge(sandbox.LatestRunId, source, nameof(Pinged), 0);   // stale: nothing to do
+        Assert.Equal(2, Assert.Single((await file.Inspect(ct)).Subscriptions).Pending);
+
+        await edge.Acknowledge(sandbox.LatestRunId, source, nameof(Pinged), 99);  // forged: only what exists
+        var settled = Assert.Single((await file.Inspect(ct)).Subscriptions);
+        Assert.Equal((0, 3L), (settled.Pending, settled.Delivered));
+    }
+
+    [Fact]
+    public async Task OverflowPastTheCapCountsTheDropAndPublishesFileChangedWhileTheCapItselfDropsNothing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new FakeSandbox();
+        await using var brain = await SandboxBrain.StartAsync(sandbox, ct, silo => silo.Services.PostConfigure<CSharpOptions>(options => options.MaximumPending = 3));
+        var pinger = brain.Get<IPinger>("pinger");
+        var file = await Subscribed(brain, sandbox, "workspace/overflowing", pinger, ct);
+        var edge = file.AsReference<ICSharpFileEdge>();
+        var source = pinger.GetGrainId().ToString();
+        await using var arrivals = await brain.Observe<CSharpPendingArrived>(file, ct);
+        await using var changes = await brain.Observe<CSharpFileChanged>(file, ct);
+
+        for (var number = 1; number <= 3; number++) { await pinger.Ping(number); }
+        await Arrivals(arrivals, 3, ct);
+        var atCap = Assert.Single((await file.Inspect(ct)).Subscriptions);
+        Assert.Equal((3, 0L, 0L), (atCap.Pending, atCap.Delivered, atCap.Dropped));   // nothing is dropped below the cap
+
+        await pinger.Ping(4);
+        await Arrivals(arrivals, 1, ct);
+
+        Assert.Equal("workspace/overflowing", (await changes.NextAsync(ct: ct)).FileId);   // the overflow is a published fact
+        var overflowed = Assert.Single((await file.Inspect(ct)).Subscriptions);
+        Assert.Equal((3, 1L, 1L), (overflowed.Pending, overflowed.Delivered, overflowed.Dropped));
+        var batch = await edge.DrainPending(sandbox.LatestRunId, source, nameof(Pinged));
+        Assert.Equal(4, batch.Watermark);
+        Assert.Equal([2, 3, 4], batch.Signals.Select(SignalJson.Number));
+    }
+
+    [Fact]
+    public async Task AnAcknowledgementOlderThanAnOverflowDoesNotDiscardTheNewestSignals()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new FakeSandbox();
+        await using var brain = await SandboxBrain.StartAsync(sandbox, ct, silo => silo.Services.PostConfigure<CSharpOptions>(options => options.MaximumPending = 3));
+        var pinger = brain.Get<IPinger>("pinger");
+        var file = await Subscribed(brain, sandbox, "workspace/racing", pinger, ct);
+        var edge = file.AsReference<ICSharpFileEdge>();
+        var source = pinger.GetGrainId().ToString();
+        await using var arrivals = await brain.Observe<CSharpPendingArrived>(file, ct);
+        for (var number = 1; number <= 3; number++) { await pinger.Ping(number); }
+        await Arrivals(arrivals, 3, ct);
+        var inFlight = await edge.DrainPending(sandbox.LatestRunId, source, nameof(Pinged));   // 1..3, watermark 3
+
+        await pinger.Ping(4);                                                                 // drops 1
+        await Arrivals(arrivals, 1, ct);
+        await edge.Acknowledge(sandbox.LatestRunId, source, nameof(Pinged), inFlight.Watermark);
+
+        var view = Assert.Single((await file.Inspect(ct)).Subscriptions);
+        Assert.Equal((1, 3L, 1L), (view.Pending, view.Delivered, view.Dropped));
+        Assert.Equal([4], (await edge.DrainPending(sandbox.LatestRunId, source, nameof(Pinged))).Signals.Select(SignalJson.Number));
+    }
+
+    [Fact]
+    public void TheCapIsAnOptionThatMustBeAtLeastOne()
+    {
+        Assert.Equal(64, new CSharpOptions().MaximumPending);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CSharpOptions { MaximumPending = 0 }.Validate());
+    }
+
+    private static async Task Arrivals<T>(SignalProbe<T> probe, int count, CancellationToken ct) where T : Signal
+    {
+        for (var i = 0; i < count; i++) { await probe.NextAsync(ct: ct); }
     }
 
     [Fact]
@@ -271,26 +379,22 @@ public sealed class CSharpSubscriptionFacts
     }
 
     [Fact]
-    public async Task AnArmedFileIgnoresSameTypedSignalsFromOtherWatchedSources()
+    public async Task AWakeRunIsNotToldWhichSignalWokeItBecauseTheStreamCarriesIt()
     {
         var ct = TestContext.Current.CancellationToken;
         var sandbox = new FakeSandbox();
         await using var brain = await SandboxBrain.StartAsync(sandbox, ct);
-        var tea = brain.Get<IPinger>("tea");
-        var other = brain.Get<IPinger>("other");
-        var file = brain.Get<ICSharpFile>("workspace/mixed");
-        await file.Write("Console.WriteLine(1);", ct);
-        await file.Arm(new(tea.GetGrainId().ToString(), nameof(Pinged)), ct);
-        await file.AsReference<ICSharpFileEdge>().Subscribed("triggered-run", other.GetGrainId().ToString(), nameof(Pinged));
+        var pinger = brain.Get<IPinger>("pinger");
+        var file = await Subscribed(brain, sandbox, "workspace/untriggered", pinger, ct);
+        sandbox.ExitLatest(0);
+        await Reconcile(file);
 
-        await other.Ping(9);
-        await Eventually(() => sandbox.Started == 1, ct);
-        await tea.Ping(1);
+        await pinger.Ping(1);
         await Eventually(() => sandbox.Started == 2, ct);
 
-        var starts = sandbox.Requests.Where(FakeSandbox.IsStart).ToArray();
-        Assert.Null(starts[0].Body!["environment"]!["CSharpFile__Trigger"]);   // other's ping woke, it did not fire the trigger
-        Assert.Contains("\"number\":1", starts[1].Body!["environment"]!["CSharpFile__Trigger"]!.GetValue<string>(), StringComparison.Ordinal);
+        var wake = sandbox.Requests.Last(FakeSandbox.IsStart);
+        Assert.Null(wake.Body!["environment"]!["CSharpFile__Trigger"]);
+        Assert.Equal(1, Assert.Single((await file.Inspect(ct)).Subscriptions).Pending);   // the signal waits for the stream, not the environment
     }
 
     [Fact]
@@ -327,10 +431,125 @@ public sealed class CSharpSubscriptionFacts
         await file.Start(ct);
 
         await Assert.ThrowsAsync<ArgumentException>(() => file.AsReference<ICSharpFileEdge>()
-            .Subscribed(sandbox.LatestRunId, file.GetGrainId().ToString(), nameof(SynapseChanged)));
+            .Subscribed(sandbox.LatestRunId, file.GetGrainId().ToString(), nameof(CSharpFileChanged)));
     }
 
-    private static Task Reconcile(ICSharpFile file)
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AFileWithAndWithoutSubscriptionsDisarmsAfterTheSameNumberOfFailedRuns(bool subscribed)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new FakeSandbox();
+        await using var brain = await SandboxBrain.StartAsync(sandbox, ct);
+        var pinger = brain.Get<IPinger>("pinger");
+        var file = brain.Get<ICSharpFile>("workspace/one-path/" + subscribed);
+        await file.Write("Console.WriteLine(1);", ct);
+        await file.Start(ct);
+        if (subscribed)
+        {
+            await file.AsReference<ICSharpFileEdge>().Subscribed(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged));
+            await using var arrivals = await brain.Observe<CSharpPendingArrived>(file, ct);
+            await pinger.Ping(1);                       // waits for the stream; nothing drains it
+            await arrivals.NextAsync(ct: ct);
+        }
+
+        while ((await file.Inspect(ct)).ShouldRun)
+        {
+            sandbox.ExitLatest(1);
+            await Reconcile(file);
+        }
+
+        var disarmed = await file.Inspect(ct);
+        Assert.Equal(CSharpFileNeuron.MaximumFailures, sandbox.Started);
+        Assert.Equal(CSharpFileNeuron.MaximumFailures, disarmed.Failures);
+        Assert.Empty(disarmed.Subscriptions);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AStaleRunTokenStopsSpeakingAfterARestart(bool subscribed)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new FakeSandbox();
+        await using var brain = await SandboxBrain.StartAsync(sandbox, ct);
+        var pinger = brain.Get<IPinger>("pinger");
+        var file = brain.Get<ICSharpFile>("workspace/stale/" + subscribed);
+        await file.Write("Console.WriteLine(1);", ct);
+        await file.Start(ct);
+        var first = sandbox.LatestRunId;
+        var edge = file.AsReference<ICSharpFileEdge>();
+        if (subscribed) { await edge.Subscribed(first, pinger.GetGrainId().ToString(), nameof(Pinged)); }
+
+        await file.Swap("Console.WriteLine(2);", ct);
+
+        Assert.NotEqual(first, sandbox.LatestRunId);
+        Assert.False((await edge.Authorize(first)).Active);
+        Assert.True((await edge.Authorize(sandbox.LatestRunId)).Active);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AFileWhoseRunIsLostWhileSomethingIsDueReportsRestarting(bool subscribed)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new FakeSandbox();
+        await using var brain = await SandboxBrain.StartAsync(sandbox, ct);
+        var pinger = brain.Get<IPinger>("pinger");
+        var file = brain.Get<ICSharpFile>("workspace/restarting/" + subscribed);
+        await file.Write("Console.WriteLine(1);", ct);
+        await file.Start(ct);
+        if (subscribed)
+        {
+            await file.AsReference<ICSharpFileEdge>().Subscribed(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged));
+            await using var arrivals = await brain.Observe<CSharpPendingArrived>(file, ct);
+            await pinger.Ping(1);
+            await arrivals.NextAsync(ct: ct);
+        }
+
+        sandbox.LoseEveryRun();
+
+        Assert.Equal(CSharpFileStatus.Restarting, (await file.Inspect(ct)).Status);
+    }
+
+    [Fact]
+    public async Task ASubscribedFileThatFinishedCleanlyWithNothingPendingIsWaitingNotRestarting()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new FakeSandbox();
+        await using var brain = await SandboxBrain.StartAsync(sandbox, ct);
+        var file = await Subscribed(brain, sandbox, "workspace/waiting", brain.Get<IPinger>("pinger"), ct);
+
+        sandbox.ExitLatest(0);
+
+        var waiting = await file.Inspect(ct);
+        Assert.Equal(CSharpFileStatus.Exited, waiting.Status);
+        Assert.True(waiting.ShouldRun);
+    }
+
+    [Fact]
+    public async Task SwappingKeepsTheWatermarkAndTheDropCount()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new FakeSandbox();
+        await using var brain = await SandboxBrain.StartAsync(sandbox, ct, silo => silo.Services.PostConfigure<CSharpOptions>(options => options.MaximumPending = 2));
+        var pinger = brain.Get<IPinger>("pinger");
+        var file = await Subscribed(brain, sandbox, "workspace/swap-watermark", pinger, ct);
+        var edge = file.AsReference<ICSharpFileEdge>();
+        await using var arrivals = await brain.Observe<CSharpPendingArrived>(file, ct);
+        for (var number = 1; number <= 3; number++) { await pinger.Ping(number); }   // 1 dropped
+        await Arrivals(arrivals, 3, ct);
+        await edge.Acknowledge(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged), 2);
+
+        await file.Swap("Console.WriteLine(2);", ct);
+
+        var view = Assert.Single((await file.Inspect(ct)).Subscriptions);
+        Assert.Equal((1, 2L, 1L), (view.Pending, view.Delivered, view.Dropped));
+    }
+
+    internal static Task Reconcile(ICSharpFile file)
         => file.AsReference<IRemindable>().ReceiveReminder(CSharpFileNeuron.ReconcileReminder, default);
 
     // Starts the file (always-on) so a real run id exists, then registers the subscription as that run.

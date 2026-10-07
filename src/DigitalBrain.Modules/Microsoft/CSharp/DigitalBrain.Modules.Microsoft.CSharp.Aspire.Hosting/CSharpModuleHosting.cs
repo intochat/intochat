@@ -2,6 +2,7 @@ using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
+using DigitalBrain.Microsoft.CSharp.Sandbox;
 using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Microsoft.CSharp;
@@ -33,6 +34,15 @@ public sealed class CSharpModuleHosting : ModuleHosting<DigitalBrain.Microsoft.C
         // so the silo can always probe the sandbox directly - the resource-state bridge is an
         // optimization, not the only truth (its watch can die mid-session).
         brain.AddProjection(new SandboxProbeProjection(sandbox.GetEndpoint("http")));
+        brain.AddProjection(new SourceRootProjection(options.SourceRoot));
+    }
+
+    // The silo reads the same root the sandbox mounts; the module no longer searches for it.
+    private sealed class SourceRootProjection(string sourceRoot) : DigitalBrainModuleProjection
+    {
+        public override void Apply<TResource>(IResourceBuilder<TResource> builder)
+            => builder.WithEnvironment(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(
+                DigitalBrain.Framework.DigitalBrainConfiguration.ModuleOptionsSection("csharp") + ":" + nameof(CSharpOptions.SourceRoot)), sourceRoot);
     }
 
     private sealed class SandboxProbeProjection(EndpointReference endpoint) : DigitalBrainModuleProjection

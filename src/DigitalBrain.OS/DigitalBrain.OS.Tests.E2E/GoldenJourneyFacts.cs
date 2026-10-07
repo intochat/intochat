@@ -1,3 +1,5 @@
+using DigitalBrain.AI.Models;
+using DigitalBrain.Framework;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Aspire.Hosting.Testing;
@@ -5,7 +7,6 @@ using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.Assistant;
 using DigitalBrain.Flutter.Workspace;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Supabase.Tables;
 using DigitalBrain.Testing.E2E;
@@ -64,8 +65,8 @@ public sealed class GoldenJourneyFacts
             Assert.True(london.FilteredRows < london.TotalRows, "only London did not narrow the same window.");
 
             await AskAsync(brain, workspaceId, "thread", $"{workspaceId}-count", "how many?", token);
-            var conversation = await brain.Get<IAgent>(AssistantConversations.Key(scope.Id, "thread")).ReadConversation(token);
-            var answer = conversation.Turns[^1].AssistantText;
+            var conversation = await brain.Get<IAgent>(AssistantConversations.Key(scope.Id, "thread")).Read();
+            var answer = conversation.Runs[^1].Reply ?? "";
             Assert.Contains(london.FilteredRows.ToString(), answer, StringComparison.Ordinal);
             Assert.Single((await workspace.Read()).Windows);
         }, ct);

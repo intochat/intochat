@@ -1,31 +1,42 @@
-using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Framework.Platform.Secrets;
-using DigitalBrain.Platform.Secrets;
-using Orleans.Runtime;
+using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Platform.Integrations;
 
 [GrainType("integration.registration")]
 internal sealed class IntegrationNeuron : Neuron<IntegrationState>, IIntegration
 {
+    internal const string KeyPrefix = "integration/";
+
+    // The Platform's own stamp for releasing a registration to module code. ":" cannot occur in a
+    // principal id (^[a-z0-9][a-z0-9-]*$), so no account can ever be this caller.
+    internal static readonly CallerContext PlatformCaller = new()
+    {
+        PrincipalId = "integration.registration",
+        AccountId = ":integrations",
+        BrainId = ":integrations",
+        Kind = CallerKind.Platform,
+        StampedBy = TrustedEdge.Platform,
+        AppId = "integration.registration",
+    };
+
     private const int MaxValueLength = 16 * 1024;
 
     private readonly IReadOnlyList<IntegrationSchema> _definitions;
-    private readonly IGrainFactory _grains;
-    private readonly IntegrationCredentials _credentials;
+    private readonly ISecretSealer _sealer;
+    private readonly ILogger<IntegrationNeuron> _logger;
     private IntegrationSchema? _definition;
 
     public IntegrationNeuron(
         [PersistentState("registration", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<IntegrationState> store,
         IReadOnlyList<IntegrationSchema> definitions,
-        IGrainFactory grains, IntegrationCredentials credentials) : base(store)
+        ISecretSealer sealer, ILogger<IntegrationNeuron> logger) : base(store)
     {
         _definitions = definitions;
-        _grains = grains;
-        _credentials = credentials;
+        _sealer = sealer;
+        _logger = logger;
     }
 
     private IntegrationSchema Definition => _definition ??= Resolve();
@@ -70,10 +81,14 @@ internal sealed class IntegrationNeuron : Neuron<IntegrationState>, IIntegration
         var next = CopyOf(Snapshot);
         foreach (var (field, value) in values)
         {
-            next.References[field] = await _credentials.Store(Definition, field, value);
+            Audit("store", field);
             if (Definition.IsSetting(field))
             {
                 next.Settings[field] = value;
+            }
+            else
+            {
+                next.Secrets = [.. next.Secrets.Where(secret => secret.Name != field), _sealer.Seal(field, value)];
             }
         }
 
@@ -91,22 +106,22 @@ internal sealed class IntegrationNeuron : Neuron<IntegrationState>, IIntegration
             throw new ArgumentException($"The field is not part of this integration; it accepts: {string.Join(", ", Definition.AllFields)}.");
         }
 
-        if (!Snapshot.References.ContainsKey(field))
+        if (!Has(Snapshot, field))
         {
             return SnapshotOf(Snapshot);
         }
 
+        Audit("remove", field);
         var next = CopyOf(Snapshot);
-        next.References.Remove(field);
+        next.Secrets = [.. next.Secrets.Where(secret => secret.Name != field)];
         next.Settings.Remove(field);
-        await _credentials.Remove(Definition, field);
         next.Revision++;
         var snapshot = SnapshotOf(next);
         await Save(next, new IntegrationChanged(Definition.Id, snapshot.Status));
         return snapshot;
     }
 
-    public async Task<ReleasedIntegration> Release(CallerContext caller)
+    public Task<ReleasedIntegration> Release(CallerContext caller)
     {
         // Release is unreachable from scripts ([PlatformOnly]); an app-stamped ambient context is a platform call chain, not an app caller.
         // Values leave only to trusted platform code: a module's own grain call stamped by the Platform
@@ -123,15 +138,13 @@ internal sealed class IntegrationNeuron : Neuron<IntegrationState>, IIntegration
             throw new InvalidOperationException("The registration is not fully configured.");
         }
 
-        var vault = _grains.GetGrain<ISecrets>(IntegrationVault.Owner);
-        var releaser = caller with { AppId = IntegrationVault.CallerAppId };
-        var values = new Dictionary<string, string>(Snapshot.References.Count, StringComparer.Ordinal);
-        foreach (var (field, reference) in Snapshot.References)
+        var values = new Dictionary<string, string>(Snapshot.Settings, StringComparer.Ordinal);
+        foreach (var secret in Snapshot.Secrets)
         {
-            values[field] = await vault.Resolve(releaser, reference);
+            values[secret.Name] = _sealer.Open(secret);
         }
 
-        return new ReleasedIntegration { Values = values, Snapshot = SnapshotOf(Snapshot) };
+        return Task.FromResult(new ReleasedIntegration { Values = values, Snapshot = SnapshotOf(Snapshot) });
     }
 
     // Scripts run under an App stamp; nothing an installed app does may touch a provider registration,
@@ -144,18 +157,29 @@ internal sealed class IntegrationNeuron : Neuron<IntegrationState>, IIntegration
         }
     }
 
+    // Field names only; never a value.
+    private void Audit(string operation, string field)
+    {
+        var actor = CallerContextStamper.TryGet(out var current) ? current : PlatformCaller;
+        _logger.LogInformation("Registration {Operation} for {Provider}/{Field} requested by {Actor} in {Account}/{Brain}.",
+            operation, Definition.Id, field, actor.PrincipalId, actor.AccountId, actor.BrainId);
+    }
+
+    private static bool Has(IntegrationState state, string field)
+        => state.Settings.ContainsKey(field) || state.Secrets.Any(secret => secret.Name == field);
+
     private static IntegrationState CopyOf(IntegrationState state) => new()
     {
-        References = new(state.References, StringComparer.Ordinal),
+        Secrets = [.. state.Secrets],
         Settings = new(state.Settings, StringComparer.Ordinal),
         Revision = state.Revision,
     };
 
     private IntegrationSnapshot SnapshotOf(IntegrationState state)
     {
-        var missing = Definition.RequiredFields.Where(field => !state.References.ContainsKey(field)).ToArray();
+        var missing = Definition.RequiredFields.Where(field => !Has(state, field)).ToArray();
         var status = missing.Length == 0 ? IntegrationStatus.Ready
-            : state.References.Count == 0 ? IntegrationStatus.Unconfigured
+            : state.Secrets.Length == 0 && state.Settings.Count == 0 ? IntegrationStatus.Unconfigured
             : IntegrationStatus.Partial;
         return new IntegrationSnapshot { IntegrationId = Definition.Id, Status = status, MissingFields = missing, Settings = new(state.Settings, StringComparer.Ordinal), Revision = state.Revision };
     }
@@ -163,9 +187,9 @@ internal sealed class IntegrationNeuron : Neuron<IntegrationState>, IIntegration
     private IntegrationSchema Resolve()
     {
         var key = this.GetPrimaryKeyString();
-        if (key.StartsWith(IntegrationVault.GrainKeyPrefix, StringComparison.Ordinal))
+        if (key.StartsWith(KeyPrefix, StringComparison.Ordinal))
         {
-            var id = key[IntegrationVault.GrainKeyPrefix.Length..];
+            var id = key[KeyPrefix.Length..];
             var found = _definitions.FirstOrDefault(definition => definition.Id == id);
             if (found is not null)
             {
@@ -175,5 +199,4 @@ internal sealed class IntegrationNeuron : Neuron<IntegrationState>, IIntegration
 
         throw new InvalidOperationException("No composed module declares this integration.");
     }
-
 }

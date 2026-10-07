@@ -1,4 +1,6 @@
 using DigitalBrain.AI;
+using DigitalBrain.AI.Inference;
+using DigitalBrain.AI.Models;
 using Orleans.Concurrency;
 using Orleans.Runtime;
 

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Models;
 using DigitalBrain.Assistant;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Surface;
@@ -30,9 +31,7 @@ public sealed class AssistantFeatureFacts
             .WithModule<AssistantModule>().RequireModules([new DigitalBrain.Apps.AppsModule(), new DigitalBrain.AI.AIModule(), new DigitalBrain.Compute.ComputeModule(), new DigitalBrain.Flutter.FlutterModule()])
             .WithModule<SupabaseModule>()
             .ConfigureSilo(silo => silo.Services
-                .Configure<AIOptions>(options => { options.Default.Provider = "OpenAI"; options.Default.Model = "fixture"; options.Default.Capabilities = LlmCapabilities.Tools; })
-                .AddSingleton<InjectedModelTurnRunner>()
-                .AddSingleton<IAgentTurnRunner>(services => services.GetRequiredService<InjectedModelTurnRunner>())
+                .Configure<AIOptions>(options => { options.ModelProfiles["default"] = new() { Provider = "OpenAI", Model = "fixture", Capabilities = LlmCapabilities.Tools }; options.Default.Model = "default"; })
                 .AddSingleton<IChatClient>(new ScriptedAssistantModel())
                 .AddSingleton<CustomersDatabase>()
                 .AddSingleton<ISupabaseProvider>(services => services.GetRequiredService<CustomersDatabase>())

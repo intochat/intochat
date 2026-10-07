@@ -2,7 +2,7 @@ using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Framework;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Catalog;
 
 public sealed record CSharpContractModule(string Id, string? Directive);
 
@@ -27,9 +27,8 @@ public sealed class CSharpContractDiscovery(ContractCatalog catalog, ModuleInven
         {
             Console.WriteLine($"TimerTick {tick.TimerId} {tick.ObservedAt:O}");
         }
-        // Top-level statements run once; loop over brain.On<T>() to keep reacting to signals.
-        // Or arm the file on a trigger instead: each signal then starts one run that reads it with
-        // var tick = brain.Trigger<TimerTick>(); and exits, so nothing runs between signals.
+        // Top-level statements run once; loop over brain.On<T>() to keep reacting to signals. A file that
+        // subscribes is woken by each signal that arrives while it is not running.
         // Console output is the log. Settings arrive through brain.Setting(name).
         """;
 

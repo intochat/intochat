@@ -1,12 +1,8 @@
 using System.Security.Claims;
-using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Platform.Identity.Authority;
 using DigitalBrain.Platform.Identity.Configuration;
-using DigitalBrain.Platform.Identity.Directory;
-using DigitalBrain.Platform.Identity.Grants;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;

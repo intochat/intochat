@@ -12,10 +12,6 @@ const _listingJson = {
   'description': 'Research a company and keep verified evidence.',
   'version': '1.3.0',
   'icon': null,
-  'scenarios': [
-    'Opening the researcher composes its surface',
-    'Stopping an idle researcher is safe',
-  ],
 };
 
 class _FakeMarket {
@@ -44,13 +40,6 @@ class _FakeMarket {
       'version': '1.2.0',
     },
     'edited': edited,
-    'verdicts': [
-      {
-        'name': 'Opening the researcher composes its surface',
-        'passed': true,
-        'message': '',
-      },
-    ],
   };
 
   Future<dynamic> request(String method, String path, [Object? body]) async {
@@ -108,12 +97,6 @@ void main() {
       find.text('Research a company and keep verified evidence.'),
       findsOneWidget,
     );
-    expect(
-      find.byKey(
-        const ValueKey('scenario-Stopping an idle researcher is safe'),
-      ),
-      findsOneWidget,
-    );
     expect(find.byKey(const ValueKey('open-app')), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('install-app')));
@@ -132,7 +115,7 @@ void main() {
     expect(opened, ['customer-researcher']);
   });
 
-  testWidgets('an installed copy offers its update and shows verdicts', (
+  testWidgets('an installed copy offers its update', (
     tester,
   ) async {
     final server = _FakeMarket(installed: true, update: true);
@@ -153,13 +136,6 @@ void main() {
       server.calls,
       contains('GET /brains/b1/marketplace/intochat/customer-researcher'),
     );
-    final passed = tester.widget<ListTile>(
-      find.byKey(
-        const ValueKey('scenario-Opening the researcher composes its surface'),
-      ),
-    );
-    expect((passed.leading as Icon).icon, Icons.check_circle);
-
     await tester.tap(find.byKey(const ValueKey('update-app')));
     await tester.pumpAndSettle();
     expect(

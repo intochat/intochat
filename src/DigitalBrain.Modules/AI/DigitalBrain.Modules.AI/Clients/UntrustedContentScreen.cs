@@ -2,6 +2,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using DigitalBrain.AI.Interactions;
+using DigitalBrain.AI.Models;
+using DigitalBrain.AI.Models.OpenAI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
 

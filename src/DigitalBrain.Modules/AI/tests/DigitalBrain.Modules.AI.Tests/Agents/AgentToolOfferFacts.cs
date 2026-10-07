@@ -1,10 +1,11 @@
 using System.Runtime.CompilerServices;
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Tools;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
-namespace DigitalBrain.Modules.AI.Tests;
+namespace DigitalBrain.Modules.AI.Tests.Agents;
 
 public sealed class AgentToolOfferFacts
 {
@@ -12,12 +13,9 @@ public sealed class AgentToolOfferFacts
     public async Task AnOfferedToolJoinsTheRestOfTheTurn()
     {
         var ct = TestContext.Current.CancellationToken;
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(FindThenCallClient())
-            .AddSingleton<IAgentToolFactory>(new OfferingTools()).BuildServiceProvider();
-        var events = new List<AgentTurnEvent>();
+        await using var brain = await AgentFacts.Brain(FindThenCallClient(), ct, services => services.AddSingleton<IAgentToolFactory>(new OfferingTools()));
 
-        await foreach (var item in new AgentTurnRunner(services).RunAsync(new("agent", "run", "scope", [], "ask", null, ToolNames: ["find"]), ct))
-        { events.Add(item); }
+        var events = await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key("main")), AgentTurn.Text("ask", tools: ["find"]), ct);
 
         Assert.Equal(["find", "extra"], events.OfType<AgentTurnEvent.ToolCompleted>().Select(completed => completed.Name));
         Assert.Contains("extra ran", events.OfType<AgentTurnEvent.Text>().Last().Content, StringComparison.Ordinal);
@@ -26,13 +24,11 @@ public sealed class AgentToolOfferFacts
     [Fact]
     public async Task DiscoveryResolvesSourceToolsWithLiveContextAndDisposesSessions()
     {
+        var ct = TestContext.Current.CancellationToken;
         var source = new DynamicSource();
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(FindThenCallClient())
-            .AddSingleton<IAgentToolFactory>(new DiscoveryTools("extra"))
-            .AddSingleton<IAgentToolSource>(source).BuildServiceProvider();
-        var events = new List<AgentTurnEvent>();
-        await foreach (var item in new AgentTurnRunner(services).RunAsync(new("agent", "run", "scope", [], "postgres", null, ToolNames: ["find"]), TestContext.Current.CancellationToken))
-        { events.Add(item); }
+        await using var brain = await AgentFacts.Brain(FindThenCallClient(), ct, services => services
+            .AddSingleton<IAgentToolFactory>(new DiscoveryTools("extra")).AddSingleton<IAgentToolSource>(source));
+        var events = await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key("main")), AgentTurn.Text("postgres", tools: ["find"]), ct);
         Assert.Empty(events.OfType<AgentTurnEvent.Failed>());
         Assert.Equal("call-2", source.InvokedContext?.CallId);
         Assert.Null(source.InvokedContext?.DatabaseSource);
@@ -43,11 +39,9 @@ public sealed class AgentToolOfferFacts
     [Fact]
     public async Task UnknownOffersFailClearly()
     {
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(FindThenCallClient())
-            .AddSingleton<IAgentToolFactory>(new DiscoveryTools("missing")).BuildServiceProvider();
-        var events = new List<AgentTurnEvent>();
-        await foreach (var item in new AgentTurnRunner(services).RunAsync(new("agent", "run", "scope", [], "ask", null, ToolNames: ["find"]), TestContext.Current.CancellationToken))
-        { events.Add(item); }
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await AgentFacts.Brain(FindThenCallClient(), ct, services => services.AddSingleton<IAgentToolFactory>(new DiscoveryTools("missing")));
+        var events = await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key("main")), AgentTurn.Text("ask", tools: ["find"]), ct);
         Assert.Contains("missing", Assert.Single(events.OfType<AgentTurnEvent.Failed>()).Message, StringComparison.Ordinal);
     }
 
@@ -58,11 +52,9 @@ public sealed class AgentToolOfferFacts
             messages.SelectMany(message => message.Contents).OfType<FunctionResultContent>().Any()
                 ? new ChatMessage(ChatRole.Assistant, "recovered")
                 : new ChatMessage(ChatRole.Assistant, [new FunctionCallContent("missing-call", "extra", new Dictionary<string, object?>())]))));
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(client)
-            .AddSingleton<IAgentToolFactory>(new OfferingTools()).BuildServiceProvider();
-        var events = new List<AgentTurnEvent>();
-        await foreach (var item in new AgentTurnRunner(services).RunAsync(new("agent", "run", "scope", [], "ask", null, ToolNames: ["find"]), TestContext.Current.CancellationToken))
-        { events.Add(item); }
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await AgentFacts.Brain(client, ct, services => services.AddSingleton<IAgentToolFactory>(new OfferingTools()));
+        var events = await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key("main")), AgentTurn.Text("ask", tools: ["find"]), ct);
         Assert.Empty(events.OfType<AgentTurnEvent.Failed>());
         Assert.Single(events.OfType<AgentTurnEvent.ToolStarted>());
         Assert.Contains(events.OfType<AgentTurnEvent.Text>(), item => item.Content == "recovered");
@@ -73,14 +65,14 @@ public sealed class AgentToolOfferFacts
     [Fact]
     public async Task UserWordsDoNotFilterExplicitlySelectedTools()
     {
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(new StubChatClient((_, options, _) =>
+        var ct = TestContext.Current.CancellationToken;
+        var client = new StubChatClient((_, options, _) =>
         {
             Assert.Contains(options!.Tools!, tool => tool.Name == "supabase_schema");
             return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, "done")));
-        })).AddSingleton<IAgentToolFactory>(new NamedTools()).BuildServiceProvider();
-        var events = new List<AgentTurnEvent>();
-        await foreach (var item in new AgentTurnRunner(services).RunAsync(new("agent", "run", "scope", [], "postgres", null, ToolNames: ["supabase_schema"]), TestContext.Current.CancellationToken))
-        { events.Add(item); }
+        });
+        await using var brain = await AgentFacts.Brain(client, ct, services => services.AddSingleton<IAgentToolFactory>(new NamedTools()));
+        var events = await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key("main")), AgentTurn.Text("postgres", tools: ["supabase_schema"]), ct);
         Assert.Empty(events.OfType<AgentTurnEvent.Failed>());
         Assert.Single(events.OfType<AgentTurnEvent.Finished>());
     }

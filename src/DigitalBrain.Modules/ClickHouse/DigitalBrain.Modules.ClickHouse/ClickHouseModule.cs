@@ -28,6 +28,7 @@ public sealed class ClickHouseModule() : Module<ClickHouseModuleOptions>(new Mod
         services.TryAddSingleton<IntegrationClickHouseProvider>();
         services.TryAddSingleton<IClickHouseProvider>(provider => provider.GetRequiredService<IntegrationClickHouseProvider>());
         services.AddSingleton<IIntegrationStartup>(provider => provider.GetRequiredService<IntegrationClickHouseProvider>());
+        services.TryAddSingleton<IClickHouseSourceFactory, ClickHouseClientSourceFactory>();
         services.AddHealthChecks().AddCheck<ClickHouseHealthCheck>("clickhouse", tags: ["ready"]);
     }
 }

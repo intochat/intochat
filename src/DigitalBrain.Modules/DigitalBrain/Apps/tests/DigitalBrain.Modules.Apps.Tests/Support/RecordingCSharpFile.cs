@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Files;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Modules.Apps.Tests;
@@ -24,20 +25,15 @@ public sealed class RecordingCSharpFile : Neuron, ICSharpFile, ICSharpAppBinding
     private (int ExitCode, string Logs)? Scripted =>
         ScriptedRuns.FirstOrDefault(pair => Key.StartsWith(pair.Key, StringComparison.Ordinal)) is { Key.Length: > 0 } match ? match.Value : null;
 
-    private CSharpFileSnapshot Current => Files.GetOrAdd(Key, key => new(key, "", new Dictionary<string, string>(), CSharpFileStatus.Stopped, null, null, false, 0, null));
+    private CSharpFileSnapshot Current => Files.GetOrAdd(Key, key => new(key, "", new Dictionary<string, string>(), CSharpFileStatus.Stopped, null, null, false, 0));
 
     public Task<CSharpFileSnapshot> Inspect(CancellationToken cancellationToken = default) => Task.FromResult(Current);
 
-    public Task<SynapseSnapshot> Read(CancellationToken cancellationToken = default) => Task.FromResult(AsSynapse(Current));
+    [ResponseTimeout("00:05:00")]
+    public Task<CSharpFileSnapshot> Start(CancellationToken cancellationToken = default) => Task.FromResult(Run());
 
-    private static SynapseSnapshot AsSynapse(CSharpFileSnapshot file) => new(file.Id, file.Source,
-        file.Status is CSharpFileStatus.Running or CSharpFileStatus.Restarting,
-        [.. file.Subscriptions.Select(s => new SynapseWatch(s.Neuron, s.Signal, s.Pending)), .. file.Trigger is { } t ? new[] { new SynapseWatch(t.Neuron, t.Signal, 0) } : []],
-        null);
-
-    Task<SynapseSnapshot> ISynapse.Start(CancellationToken cancellationToken) => Task.FromResult(AsSynapse(Run()));
-
-    Task<SynapseSnapshot> ISynapse.Stop(CancellationToken cancellationToken) => Task.FromResult(AsSynapse(Halt()));
+    [ResponseTimeout("00:05:00")]
+    public Task<CSharpFileSnapshot> Stop(CancellationToken cancellationToken = default) => Task.FromResult(Halt());
 
     public Task Write(string program, CancellationToken cancellationToken = default)
         => Task.FromResult(Files[Key] = Current with { Source = program });
@@ -64,9 +60,6 @@ public sealed class RecordingCSharpFile : Neuron, ICSharpFile, ICSharpAppBinding
         Swaps.AddOrUpdate(Key, 1, (_, count) => count + 1);
         return Task.FromResult(Files[Key] = Current with { Source = source, Status = CSharpFileStatus.Running, StartedAt = DateTimeOffset.UtcNow });
     }
-
-    public Task<CSharpFileSnapshot> Arm(CSharpTrigger trigger, CancellationToken cancellationToken = default)
-        => Task.FromResult(Files[Key] = Current with { Trigger = trigger });
 
     private CSharpFileSnapshot Halt() => Files[Key] = Current with { Status = CSharpFileStatus.Stopped };
 

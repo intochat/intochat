@@ -1,7 +1,5 @@
 using System.Reflection;
 using System.Reflection.Emit;
-using DigitalBrain;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Framework;
 
@@ -12,13 +10,59 @@ public sealed class CredentialBoundaryFacts
     private static readonly OpCode[] Codes = typeof(OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static)
         .Where(f => f.FieldType == typeof(OpCode)).Select(f => (OpCode)f.GetValue(null)!).ToArray();
 
+    // A with-expression copies an ambient stamp without the constructor, so a module may not set a
+    // Platform Kind or StampedBy that way either. Downgrading a copy (ScriptEdge to App) stays legal.
     [Fact]
     public void NoModuleConstructsACallerContext()
     {
-        var offenders = ModuleMethods().Where(m => Calls(m).Any(c => c.IsConstructor && c.DeclaringType == typeof(CallerContext)))
+        var offenders = ModuleMethods().Where(m => Calls(m).Any(c => c.IsConstructor && c.DeclaringType == typeof(CallerContext)) || SetsAPlatformStamp(m))
             .Select(m => m.DeclaringType!.FullName + "." + m.Name).Order().ToArray();
         Assert.Empty(offenders);
     }
+
+    // A platform stamp is any CallerContext whose Kind or StampedBy is set to Platform, by an object
+    // initializer or by a with-expression. The OAuth callback stamps the owner recorded at login and
+    // makes none. The authenticated edge constructs user stamps only, so it is the one other site
+    // that may call the constructor.
+    [Fact]
+    public void OnlyTheIntegrationReleaseAndTheShippedPublisherConstructAPlatformStamp()
+    {
+        var platform = ProductionArchitecture.Assemblies.Single(a => a.GetName().Name == "DigitalBrain.Platform");
+        var methods = platform.GetTypes().Where(t => t.Namespace?.StartsWith("OrleansCodeGen", StringComparison.Ordinal) != true)
+            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly).Cast<MethodBase>()
+                .Concat(t.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)))
+            .ToArray();
+        string[] Sites(Func<MethodBase, bool> does) => [.. methods.Where(does).Select(m => Outermost(m.DeclaringType!).FullName!).Distinct().Order()];
+
+        Assert.Equal(["DigitalBrain.Platform.Integrations.IntegrationNeuron", "DigitalBrain.Platform.Shipping.ShippedContentHosting"],
+            Sites(SetsAPlatformStamp));
+        Assert.Equal(["DigitalBrain.Platform.Identity.AccountSession", "DigitalBrain.Platform.Integrations.IntegrationNeuron", "DigitalBrain.Platform.Shipping.ShippedContentHosting"],
+            Sites(m => Calls(m).Any(c => c.IsConstructor && c.DeclaringType == typeof(CallerContext))));
+    }
+
+    private static Type Outermost(Type type) => type.DeclaringType is { } outer ? Outermost(outer) : type;
+
+    private static bool SetsAPlatformStamp(MethodBase method)
+    {
+        int? constant = null;
+        foreach (var (code, operand) in Instructions(method))
+        {
+            if ((code == OpCodes.Call || code == OpCodes.Callvirt) && Resolve(method, operand) is { } called
+                && called.DeclaringType == typeof(CallerContext)
+                && ((called.Name == "set_Kind" && constant == (int)CallerKind.Platform)
+                    || (called.Name == "set_StampedBy" && constant == (int)TrustedEdge.Platform)))
+            { return true; }
+            constant = Constant(code, operand);
+        }
+        return false;
+    }
+
+    private static readonly OpCode[] SmallConstants = [OpCodes.Ldc_I4_0, OpCodes.Ldc_I4_1, OpCodes.Ldc_I4_2, OpCodes.Ldc_I4_3, OpCodes.Ldc_I4_4, OpCodes.Ldc_I4_5, OpCodes.Ldc_I4_6, OpCodes.Ldc_I4_7, OpCodes.Ldc_I4_8];
+
+    private static int? Constant(OpCode code, int operand)
+        => Array.IndexOf(SmallConstants, code) is var small and >= 0 ? small
+            : code == OpCodes.Ldc_I4_S || code == OpCodes.Ldc_I4 ? operand
+            : null;
 
     [Fact]
     public void OptionsAndContractsConfigurationCannotCarrySecrets()
@@ -54,6 +98,14 @@ public sealed class CredentialBoundaryFacts
             .Cast<MethodBase>().Concat(t.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static)));
 
     private static IEnumerable<MethodBase> Calls(MethodBase method)
+        => Instructions(method).Where(i => i.Code.OperandType == OperandType.InlineMethod)
+            .Select(i => Resolve(method, i.Operand)).OfType<MethodBase>();
+
+    private static MethodBase? Resolve(MethodBase method, int token)
+        => method.Module.ResolveMethod(token, method.DeclaringType?.GetGenericArguments(), method.IsGenericMethod ? method.GetGenericArguments() : null);
+
+    // Each opcode with its inline 1- or 4-byte operand (0 for any other operand shape).
+    private static IEnumerable<(OpCode Code, int Operand)> Instructions(MethodBase method)
     {
         var bytes = method.GetMethodBody()?.GetILAsByteArray();
         if (bytes is null) { yield break; }
@@ -62,12 +114,12 @@ public sealed class CredentialBoundaryFacts
             short value = bytes[position++];
             if (value == 0xfe) { value = unchecked((short)(0xfe00 | bytes[position++])); }
             var code = Codes.Single(c => c.Value == value);
-            if (code.OperandType == OperandType.InlineMethod)
+            yield return (code, code.OperandType switch
             {
-                var token = BitConverter.ToInt32(bytes, position);
-                var called = method.Module.ResolveMethod(token, method.DeclaringType?.GetGenericArguments(), method.IsGenericMethod ? method.GetGenericArguments() : null);
-                if (called is not null) { yield return called; }
-            }
+                OperandType.ShortInlineI => unchecked((sbyte)bytes[position]),
+                OperandType.InlineI or OperandType.InlineMethod => BitConverter.ToInt32(bytes, position),
+                _ => 0,
+            });
             position += code.OperandType switch
             {
                 OperandType.InlineNone => 0,

@@ -1,8 +1,6 @@
 using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Platform.Identity;
-using ModelContextProtocol.AspNetCore;
 
 namespace DigitalBrain.Mcp;
 

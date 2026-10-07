@@ -1,74 +1,80 @@
-using DigitalBrain;
+using System.Net;
+using System.Net.Http.Headers;
+using System.Text.Json;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
-using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Framework.Platform.Integrations.Accounts;
+using DigitalBrain.Framework.Platform.Connections;
 using Microsoft.Extensions.DependencyInjection;
-using Orleans.Runtime;
 
 namespace DigitalBrain.Google.Gmail;
 
 [GrainType("gmail")]
 internal sealed class GmailNeuron(
-    [PersistentState("gmail-vault", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<GmailState> store)
-    : Neuron<GmailState>(store), IGmail, IGmailInbound
+    [PersistentState("gmail", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<GmailState> store)
+    : ConnectionNeuron<GmailState>(store), IGmail, IGmailInbound
 {
+    // Verified Pub/Sub delivery arrives unstamped; the connection's own state decides. A stamped
+    // caller from another brain is refused, so it cannot inject mail into this one.
     public async Task AcceptWatchPush(GmailWatchPush push)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(push.EmailAddress);
         ArgumentException.ThrowIfNullOrWhiteSpace(push.HistoryId);
-        if (!string.Equals(Snapshot.Email, push.EmailAddress, StringComparison.OrdinalIgnoreCase)) { return; }
-        var key = this.GetPrimaryKeyString();
-        if (!key.StartsWith("connection/", StringComparison.Ordinal)) { return; }
-        if (CallerContextStamper.TryGet(out _))
+        if (CallerContextStamper.TryGet(out var caller) && BrainScope.Create(caller.AccountId, caller.BrainId).Id != Key.Brain)
+        { throw new UnauthorizedAccessException($"Only the owning brain can deliver to connection gmail/{Key.Connection}."); }
+        // Expired or Failing still receive: a probe may have seen a lapsed access token that the
+        // refresh below renews, and the refresh moves the status back to Connected.
+        if (Snapshot.Status == ConnectionStatus.Disconnected || Snapshot.Secrets.Length == 0) { return; }
+        if (!string.Equals(Snapshot.Account, push.EmailAddress, StringComparison.OrdinalIgnoreCase)) { return; }
+        // Refreshing here keeps the watch alive across token expiry without a Gmail API call.
+        try { await UseCredentialAsync((_, _) => Task.FromResult(true), CancellationToken.None); }
+        catch (Exception error) when (error is not OperationCanceledException)
         {
-            if (!await ServiceProvider.GetRequiredService<IModuleConnectionCredentials<GmailModule>>().IsConnectedAsync(key)) { return; }
-        }
-        else
-        {
-            // Verified Pub/Sub delivery enters this internal contract without a user stamp.
-            // Keep the cluster's unstamped read path; never fabricate a user or Platform caller.
-            var (brain, connector, connection) = ConnectionKeys.Parse(key);
-            if (!(await GrainFactory.GetGrain<IConnectionRegistry>(brain).List())
-                .Any(c => c.Id == connection && c.IntegrationId == connector && c.Status == ConnectionStatus.Connected)) { return; }
+            // One revoked grant must not fail the fan-out to every other connection on this mailbox.
+            // The message may carry a provider reply; only the type is kept.
+            await MarkExpired($"Google refused the Gmail token refresh ({error.GetType().Name}). Reconnect Gmail.");
+            return;
         }
         await PublishAsync(new MailReceived(push.EmailAddress, push.HistoryId));
     }
 
-    public async Task AcceptAuthorizationCode(string authorizationCode, string? targetBrainId = null)
+    // The grant proves the mailbox: Google's profile endpoint names the address the token reads.
+    protected override async Task<OAuthGrant> AcceptGrantAsync(OAuthGrant grant)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(authorizationCode);
-        _ = ConnectionKeys.Parse(this.GetPrimaryKeyString());
-        var tokens = ServiceProvider.GetRequiredService<IGmailTokenExchange>();
-        var grant = await tokens.ExchangeAuthorizationCodeAsync(authorizationCode, CancellationToken.None)
-            .ConfigureAwait(ConfigureAwaitOptions.ContinueOnCapturedContext);
-        GmailTokenPolicy.ValidateToken(grant.AccessToken);
-        if (grant.RefreshToken is not null)
-        {
-            GmailTokenPolicy.ValidateToken(grant.RefreshToken);
-        }
-
-        var email = grant.Email;
+        using var profile = await ProfileAsync(grant.AccessToken, CancellationToken.None);
+        if (!profile.IsSuccessStatusCode) { throw new GmailUnavailableException("Google did not verify the mailbox identity. Reconnect Gmail."); }
+        using var json = JsonDocument.Parse(await profile.Content.ReadAsStringAsync());
+        var email = json.RootElement.TryGetProperty("emailAddress", out var address) && address.ValueKind == JsonValueKind.String ? address.GetString() : null;
         if (string.IsNullOrWhiteSpace(email)) { throw new GmailUnavailableException("Google did not verify the mailbox identity. Reconnect Gmail."); }
-        var key = this.GetPrimaryKeyString();
-        if (!key.StartsWith("connection/", StringComparison.Ordinal)) { throw new GmailNotConnectedException("Reconnect Gmail as a named connection."); }
-        var credentials = ServiceProvider.GetRequiredService<IModuleConnectionCredentials<GmailModule>>();
-        var credential = await credentials.WriteSecretAsync(key, "gmail.access", "Gmail access token", grant.AccessToken, targetBrainId: targetBrainId);
-        var refreshCredential = grant.RefreshToken is null ? null
-            : await credentials.WriteSecretAsync(key, "gmail.refresh", "Gmail refresh token", grant.RefreshToken, targetBrainId: targetBrainId);
-        if (Snapshot.Email is { } previous && !string.Equals(previous, email, StringComparison.OrdinalIgnoreCase))
-        { await GrainFactory.GetGrain<IGmailMailboxIndex>(previous.ToLowerInvariant()).Remove(key); }
-        var expiresAt = GmailTokenPolicy.Expiry(grant.ExpiresInSeconds, ServiceProvider.GetRequiredService<TimeProvider>());
-        await credentials.ConnectAsync(key, "google-oauth", credential, targetBrainId: targetBrainId);
-        await Save(Snapshot with
-        {
-            Email = email,
-            Credential = credential,
-            RefreshCredential = refreshCredential,
-            GrantedScopes = grant.GrantedScopes ?? "",
-            ExpiresAt = expiresAt,
-        }, new GmailConnected(email)).ConfigureAwait(ConfigureAwaitOptions.ContinueOnCapturedContext);
-        await GrainFactory.GetGrain<IGmailMailboxIndex>(email.ToLowerInvariant()).Add(key);
+        if (Snapshot.Account is { } previous && !string.Equals(previous, email, StringComparison.OrdinalIgnoreCase))
+        { await GrainFactory.GetGrain<IGmailMailboxIndex>(previous.ToLowerInvariant()).Remove(this.GetPrimaryKeyString()); }
+        Snapshot.Account = email;
+        return grant;
     }
 
+    // Google, not the clock, says whether the stored token still reads the mailbox.
+    protected override async Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct)
+    {
+        using var profile = await ProfileAsync(credential.Value, ct);
+        return profile.StatusCode switch
+        {
+            HttpStatusCode.OK => ConnectionProbeResult.Connected(),
+            HttpStatusCode.Unauthorized => ConnectionProbeResult.Expired("The Gmail access token was refused."),
+            var status => ConnectionProbeResult.Failing($"Google answered the profile check with HTTP {(int)status}."),
+        };
+    }
+
+    protected override Task OnConnectedAsync()
+        => Snapshot.Account is { } email ? GrainFactory.GetGrain<IGmailMailboxIndex>(email.ToLowerInvariant()).Add(this.GetPrimaryKeyString()) : Task.CompletedTask;
+
+    // The base calls this before it clears Account.
+    protected override Task OnDisconnectedAsync()
+        => Snapshot.Account is { } email ? GrainFactory.GetGrain<IGmailMailboxIndex>(email.ToLowerInvariant()).Remove(this.GetPrimaryKeyString()) : Task.CompletedTask;
+
+    private async Task<HttpResponseMessage> ProfileAsync(string accessToken, CancellationToken ct)
+    {
+        var options = ServiceProvider.GetRequiredService<GmailModuleOptions>();
+        using var client = ServiceProvider.GetRequiredService<IHttpClientFactory>().CreateClient(GmailModule.HttpClientName);
+        using var request = new HttpRequestMessage(HttpMethod.Get, options.ProfileEndpoint);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        return await client.SendAsync(request, ct);
+    }
 }

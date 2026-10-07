@@ -2,10 +2,12 @@
 
 ## Connections and deployment credentials
 
-The module declares deployment infrastructure through its IntegrationSchema and has no
-user-connectable ConnectorDefinition. Platform delivers credentials through scoped async
-handles authorized by that schema. Credential values never belong in module options, and
-CSharp does not appear in `GET /connectors`. Provision deployment credentials with
+The sandbox is declared as the `csharp` connector: the external system behind the `ICSharpFile`
+neuron, whose public signal is `CSharpFileChanged`. It is declared, not offered: no connection
+neuron serves it, so it does not appear in `GET /connectors` and a connection key naming it
+addresses nothing. Its only credential is the deployment's run-token key, the optional Integration
+`csharp`; the connector names the auth method `run-token` because Platform requires one. Credential
+values never belong in module options. Provision deployment credentials with
 `DigitalBrain:Integrations:{id}:{Field}`; ordinary options stay under `DigitalBrain:Modules:{id}:Options`.
 
 Integrations are what the deployment provisions; Connections are what users authorize.

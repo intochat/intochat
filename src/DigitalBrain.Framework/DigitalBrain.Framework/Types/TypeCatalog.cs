@@ -1,7 +1,6 @@
 using System.Globalization;
-using System.Text.Json.Nodes;
 
-namespace DigitalBrain.Framework.Types;
+namespace DigitalBrain.Framework;
 
 public static class TypeCatalog
 {
@@ -14,9 +13,6 @@ public static class TypeCatalog
 
     public static IReadOnlyList<SemanticType> All => Catalog;
 
-    public static IReadOnlyList<FieldKind> McpFormKinds { get; } =
-        [.. Catalog.Where(type => type.ToMcpFormPrimitive() is not null).Select(type => type.Kind)];
-
     public static SemanticType Get(FieldKind kind) =>
         ByKind.TryGetValue(kind, out var type)
             ? type
@@ -27,33 +23,6 @@ public static class TypeCatalog
 
     private static Definition DefinitionFor(FieldKind kind) => Definitions.TryGetValue(kind, out var definition)
         ? definition : throw new ArgumentOutOfRangeException(nameof(kind), kind, "No semantic type is registered for this field kind.");
-
-    public static JsonObject ToJson()
-    {
-        var types = new JsonArray();
-        foreach (var type in Catalog)
-        {
-            types.Add(new JsonObject
-            {
-                ["id"] = type.Id,
-                ["kind"] = type.Kind.ToString(),
-                ["primitive"] = type.Primitive.ToString(),
-                ["sensitivity"] = type.Sensitivity.ToString(),
-                ["llmExposure"] = type.LlmExposure.ToString(),
-                ["inputWidget"] = type.InputWidget.ToString(),
-                ["displayWidget"] = type.DisplayWidget.ToString(),
-                ["redactor"] = type.Redactor.ToString(),
-                ["indexable"] = type.Indexable,
-            });
-        }
-
-        return new JsonObject
-        {
-            ["version"] = "v0",
-            ["closed"] = true,
-            ["types"] = types,
-        };
-    }
 
     private static Definition[] BuildDefinitions() =>
     [

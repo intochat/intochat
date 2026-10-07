@@ -1,25 +1,29 @@
-using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Files;
+
+// Run is null until the file is first started. Active says the file is wanted: a stopped, finished or
+// disarmed file keeps its record so Inspect and ReadLogs still address its last run.
+[GenerateSerializer, Alias("microsoft.csharp.run-record")]
+internal sealed record RunRecord(
+    // A new run per launch, so a stale run can never be addressed again.
+    [property: Id(0)] string Id,
+    // The principal who started it; production keys its sandbox session (one container per user) by it.
+    [property: Id(1)] string Owner,
+    // The caller who started it; the script edge speaks for this caller as an app.
+    [property: Id(2)] CallerContext? Caller,
+    // Consecutive non-zero exits since the last Start.
+    [property: Id(3)] int Failures,
+    [property: Id(4)] bool Active);
 
 [GenerateSerializer, Alias("microsoft.csharp.file-state")]
 internal sealed record CSharpFileState
 {
-    [Id(0)] public string Source { get; init; } = "";
+    [Id(0)] public string Program { get; init; } = "";
     [Id(1)] public Dictionary<string, string> Settings { get; init; } = new(StringComparer.Ordinal);
-    // A new sandbox run per Start, so a stale run can never be addressed again.
-    [Id(2)] public string RunId { get; init; } = "";
-    [Id(3)] public bool ShouldRun { get; init; }
-    // Consecutive non-zero exits since the last Start.
-    [Id(4)] public int Failures { get; init; }
-    // The principal who started it; production keys its sandbox session (one container per user) by it.
-    [Id(5)] public string Owner { get; init; } = "";
-    // Set by Arm: runs start on this trigger's signals instead of staying up.
-    [Id(6)] public CSharpTrigger? Trigger { get; init; }
-    // The caller who started or armed it; the script edge speaks for this caller as an app.
-    [Id(7)] public CallerContext? OwnerContext { get; init; }
-    // Durable subscriptions the current script registered by streaming; they outlive its runs.
-    [Id(8)] public ScriptSubscription[] Subscriptions { get; init; } = [];
-    [Id(9)] public string? AppId { get; init; }
-    [Id(10)] public string? AppBrain { get; init; }
+    // Durable subscriptions the current program registered by streaming; they outlive its runs.
+    [Id(2)] public Subscription[] Subscriptions { get; init; } = [];
+    [Id(3)] public RunRecord? Run { get; init; }
+    [Id(4)] public string? AppId { get; init; }
+    [Id(5)] public string? AppBrain { get; init; }
 }

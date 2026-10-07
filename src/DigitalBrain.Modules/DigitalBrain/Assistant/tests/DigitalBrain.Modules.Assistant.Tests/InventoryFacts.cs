@@ -1,11 +1,11 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Tools;
 using DigitalBrain.Apps;
 using DigitalBrain.Assistant;
 using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Time;
 using DigitalBrain.Time.Reminders;
 using Microsoft.Extensions.AI;
@@ -34,18 +34,16 @@ public sealed class InventoryFacts
             var app = host.Get<IApp>(IApp.Key(scope, name));
             await app.Create(new(name, "Inventory", [], [], []), "## Scenario: Lists\nIt lists.");
             await app.BeginBuild(null);
-            await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t" }, null);
+            await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["notes.md"] = "// b" }, null);
         }
         foreach (var name in new[] { "one", "two" })
         {
             Stamp(name);
             var model = new InventoryModel(tool);
-            using var services = new ServiceCollection().AddSingleton<IChatClient>(model)
+            using var services = new ServiceCollection().AddModelCatalog().AddSingleton<IChatClient>(model)
                 .AddSingleton<IEnumerable<IAgentToolFactory>>(host.SiloServices.GetServices<IAgentToolFactory>()).BuildServiceProvider();
-            var events = new List<AgentTurnEvent>();
-            await foreach (var item in new AgentTurnRunner(services).RunAsync(new("assistant", "run", BrainScope.CurrentId(), [],
-                "Which reminders and apps exist in this brain?", null, ToolNames: AssistantDefinition.Product.Tools), ct))
-            { events.Add(item); }
+            var events = await TurnLoops.Collect(services, BrainScope.CurrentId(), "Which reminders and apps exist in this brain?",
+                AssistantDefinition.Product.Tools, ct);
             Assert.Empty(events.OfType<AgentTurnEvent.Failed>());
             Assert.Contains(events.OfType<AgentTurnEvent.ToolCompleted>(), item => item.Name == tool);
             Assert.NotNull(model.Inventory);
@@ -76,12 +74,9 @@ public sealed class InventoryFacts
         await app.BeginBuild(null);
         await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["synapses/app.cs"] = "// p" }, null);
         var model = new InventoryModel("list_synapses");
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(model)
+        using var services = new ServiceCollection().AddModelCatalog().AddSingleton<IChatClient>(model)
             .AddSingleton<IEnumerable<IAgentToolFactory>>(host.SiloServices.GetServices<IAgentToolFactory>()).BuildServiceProvider();
-        var events = new List<AgentTurnEvent>();
-        await foreach (var item in new AgentTurnRunner(services).RunAsync(new("assistant", "run", scope, [],
-            "Which synapses exist in this brain?", null, ToolNames: AssistantDefinition.Product.Tools), ct))
-        { events.Add(item); }
+        var events = await TurnLoops.Collect(services, scope, "Which synapses exist in this brain?", AssistantDefinition.Product.Tools, ct);
         Assert.Empty(events.OfType<AgentTurnEvent.Failed>());
         Assert.NotNull(model.Inventory);
         Assert.All(model.Inventory.Records, record => Assert.Equal("microsoft.csharp.file", record.TypeId));

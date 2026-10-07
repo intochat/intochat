@@ -1,4 +1,4 @@
-namespace DigitalBrain.Framework.Types;
+namespace DigitalBrain.Framework;
 
 public enum FieldKind
 {

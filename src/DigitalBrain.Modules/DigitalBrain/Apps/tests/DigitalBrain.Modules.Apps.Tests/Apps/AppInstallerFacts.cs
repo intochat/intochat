@@ -18,7 +18,7 @@ public sealed class AppInstallerFacts
 
     private static AppInstaller Installer(ModuleBrain brain) => brain.SiloServices.GetRequiredService<AppInstaller>();
 
-    private static IApp Mine(ModuleBrain brain, string principal, string name = "echo") => brain.Get<IApp>(IApp.Key(Owner.Scope(principal), name));
+    private static IApp Mine(ModuleBrain brain, string principal, string name = "echo") => brain.Get<IApp>(IApp.Key(AppOwner.Scope(principal), name));
 
     private static async Task<IApp> Published(ModuleBrain brain, string publisher = "intochat")
     {
@@ -26,9 +26,8 @@ public sealed class AppInstallerFacts
         var app = Mine(brain, publisher);
         await app.Create(Manifest(), Spec);
         await app.BeginBuild(null);
-        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["synapses/echo.cs"] = "// v1" }, null);
-        await app.RecordVerdicts([new("Echoes", true, "ok")], green: true);
-        Owner.Stamp(publisher);
+        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["synapses/echo.cs"] = "// v1" }, null);
+        AppOwner.Stamp(publisher);
         await app.Publish();
         Caller.Clear();
         return app;
@@ -38,8 +37,7 @@ public sealed class AppInstallerFacts
     {
         Caller.Clear();
         await app.WriteBehavior("synapses/echo.cs", "// v2", Guid.NewGuid());
-        await app.RecordVerdicts([new("Echoes", true, "ok")], green: true);
-        Owner.Stamp(publisher);
+        AppOwner.Stamp(publisher);
         var version = (await app.Publish()).Version;
         Caller.Clear();
         return version;
@@ -52,7 +50,7 @@ public sealed class AppInstallerFacts
         var source = await Published(brain);
         await source.Configure(new() { ["Text"] = "publisher's own" }, new() { ["gmail"] = "publisher-gmail" });
 
-        Owner.Stamp("alice");
+        AppOwner.Stamp("alice");
         var installed = await Installer(brain).Install("intochat", "echo", Ct);
         Caller.Clear();
 
@@ -69,7 +67,7 @@ public sealed class AppInstallerFacts
     public async Task InstallingAnAppNotInTheMarketplaceIsNotFound()
     {
         await using var brain = await Start();
-        Owner.Stamp("alice");
+        AppOwner.Stamp("alice");
         await Assert.ThrowsAsync<KeyNotFoundException>(() => Installer(brain).Install("intochat", "echo", Ct));
         Caller.Clear();
     }
@@ -82,7 +80,7 @@ public sealed class AppInstallerFacts
         var own = Mine(brain, "alice");
         await own.Create(Manifest() with { Title = "Alice's echo" }, Spec);
 
-        Owner.Stamp("alice");
+        AppOwner.Stamp("alice");
         await Assert.ThrowsAsync<InvalidOperationException>(() => Installer(brain).Install("intochat", "echo", Ct));
         Caller.Clear();
         var after = await own.Read();
@@ -95,7 +93,7 @@ public sealed class AppInstallerFacts
     {
         await using var brain = await Start();
         await Published(brain);
-        Owner.Stamp("intochat");
+        AppOwner.Stamp("intochat");
         await Assert.ThrowsAsync<InvalidOperationException>(() => Installer(brain).Install("intochat", "echo", Ct));
         Caller.Clear();
     }
@@ -105,12 +103,12 @@ public sealed class AppInstallerFacts
     {
         await using var brain = await Start();
         var source = await Published(brain);
-        Owner.Stamp("alice");
+        AppOwner.Stamp("alice");
         await Installer(brain).Install("intochat", "echo", Ct);
         await Mine(brain, "alice").Configure(new() { ["Text"] = "alice's words" }, new() { ["gmail"] = "alice-gmail" });
         var next = await PublishNewVersion(source);
 
-        Owner.Stamp("alice");
+        AppOwner.Stamp("alice");
         var updated = await Installer(brain).Update("echo", Ct);
         Caller.Clear();
 
@@ -127,13 +125,13 @@ public sealed class AppInstallerFacts
     {
         await using var brain = await Start();
         var source = await Published(brain);
-        Owner.Stamp("alice");
+        AppOwner.Stamp("alice");
         await Installer(brain).Install("intochat", "echo", Ct);
         Caller.Clear();
         await Mine(brain, "alice").WriteFile("notes.md", "mine now", Guid.NewGuid());
         await PublishNewVersion(source);
 
-        Owner.Stamp("alice");
+        AppOwner.Stamp("alice");
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => Installer(brain).Update("echo", Ct));
         Caller.Clear();
         Assert.Contains("edits", error.Message, StringComparison.Ordinal);
@@ -144,7 +142,7 @@ public sealed class AppInstallerFacts
     {
         await using var brain = await Start();
         await Published(brain);
-        Owner.Stamp("alice");
+        AppOwner.Stamp("alice");
         var installed = await Installer(brain).Install("intochat", "echo", Ct);
         var again = await Installer(brain).Update("echo", Ct);
         Caller.Clear();
@@ -157,7 +155,7 @@ public sealed class AppInstallerFacts
     {
         await using var brain = await Start();
         await Mine(brain, "alice").Create(Manifest(), Spec);
-        Owner.Stamp("alice");
+        AppOwner.Stamp("alice");
         await Assert.ThrowsAsync<InvalidOperationException>(() => Installer(brain).Update("echo", Ct));
         Caller.Clear();
     }
@@ -169,7 +167,7 @@ public sealed class AppInstallerFacts
         var source = await Published(brain);
         var marketplace = brain.Get<IMarketplace>(IMarketplace.Key);
 
-        Owner.Stamp("alice");
+        AppOwner.Stamp("alice");
         var before = await Installer(brain).Entry((await marketplace.Read("intochat", "echo"))!, Ct);
         Assert.False(before.Installed);
         Assert.False(before.UpdateAvailable);
@@ -180,18 +178,18 @@ public sealed class AppInstallerFacts
         Assert.False(current.UpdateAvailable);
 
         await PublishNewVersion(source);
-        Owner.Stamp("alice");
+        AppOwner.Stamp("alice");
         Assert.True((await Installer(brain).Entry((await marketplace.Read("intochat", "echo"))!, Ct)).UpdateAvailable);
 
         Caller.Clear();
         await Mine(brain, "alice").WriteFile("notes.md", "mine now", Guid.NewGuid());
-        Owner.Stamp("alice");
+        AppOwner.Stamp("alice");
         var edited = await Installer(brain).Entry((await marketplace.Read("intochat", "echo"))!, Ct);
         Assert.True(edited.Installed);
         Assert.False(edited.UpdateAvailable);
 
         // The publisher sees its own listing as installed: the app is theirs.
-        Owner.Stamp("intochat");
+        AppOwner.Stamp("intochat");
         Assert.True((await Installer(brain).Entry((await marketplace.Read("intochat", "echo"))!, Ct)).Installed);
         Caller.Clear();
     }
@@ -201,13 +199,13 @@ public sealed class AppInstallerFacts
     {
         await using var brain = await Start();
         var source = await Published(brain);
-        Owner.Stamp("alice");
+        AppOwner.Stamp("alice");
         await Installer(brain).Install("intochat", "echo", Ct);
         Caller.Clear();
         await source.Delete();
 
         Assert.Equal(AppStatus.Live, (await Mine(brain, "alice").Read()).Status);
-        Owner.Stamp("alice");
+        AppOwner.Stamp("alice");
         await Assert.ThrowsAsync<KeyNotFoundException>(() => Installer(brain).Update("echo", Ct));
         Caller.Clear();
     }

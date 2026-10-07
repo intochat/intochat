@@ -2,6 +2,9 @@ using System.Reflection;
 using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Authoring;
+using DigitalBrain.Microsoft.CSharp.Catalog;
+using DigitalBrain.Microsoft.CSharp.Files;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -15,17 +18,17 @@ public sealed class CSharpCatalogFacts
     [InlineData("other/program")]
     [InlineData("C:\\private")]
     public void ModelCannotSelectAnExternalScopeOrPath(string id)
-        => Assert.Throws<ArgumentException>(() => CSharpCatalogStore.FileKey("workspace-trusted", id));
+        => Assert.Throws<ArgumentException>(() => CSharpFileKeys.For("workspace-trusted", id));
 
     [Fact]
     public void WorkspacesReceiveDifferentNeuronKeys()
-        => Assert.NotEqual(CSharpCatalogStore.FileKey("workspace-a", "invoice"), CSharpCatalogStore.FileKey("workspace-b", "invoice"));
+        => Assert.NotEqual(CSharpFileKeys.For("workspace-a", "invoice"), CSharpFileKeys.For("workspace-b", "invoice"));
 
     [Fact]
     public async Task CatalogKeepsTheNameWhenOnlyPurposeIsOmittedAndSurvivesDeactivation()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<CSharpAuthoringModule>().StartAsync(ct);
+        await using var brain = await ModuleTest.Create().WithModule<CSharpModule>().StartAsync(ct);
         var store = new CSharpCatalogStore(brain.SiloServices.GetRequiredService<IDigitalBrain>());
 
         await store.Describe("workspace-one", "timer", "Timer status", "Show ticks", ct);
@@ -43,7 +46,7 @@ public sealed class CSharpCatalogFacts
     public async Task WorkspacesKeepSeparateCatalogs()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<CSharpAuthoringModule>().StartAsync(ct);
+        await using var brain = await ModuleTest.Create().WithModule<CSharpModule>().StartAsync(ct);
         var store = new CSharpCatalogStore(brain.SiloServices.GetRequiredService<IDigitalBrain>());
 
         await store.Describe("workspace-one", "timer", "Timer", "", ct);
@@ -56,11 +59,22 @@ public sealed class CSharpCatalogFacts
     public async Task CatalogRejectsInvalidIdsAndOversizedDescriptions()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<CSharpAuthoringModule>().StartAsync(ct);
+        await using var brain = await ModuleTest.Create().WithModule<CSharpModule>().StartAsync(ct);
         var store = new CSharpCatalogStore(brain.SiloServices.GetRequiredService<IDigitalBrain>());
 
         await Assert.ThrowsAsync<ArgumentException>(() => store.Describe("workspace-one", "../timer", "Name", "", ct));
         await Assert.ThrowsAsync<ArgumentException>(() => store.Describe("workspace-one", "timer", "Name", new string('x', 4001), ct));
+        Assert.Empty(await store.List("workspace-one", ct));
+    }
+
+    [Fact]
+    public async Task AuthoringCannotNameAnAppProgramBecauseThoseKeysBelongToTheAppsModule()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<CSharpModule>().StartAsync(ct);
+        var store = new CSharpCatalogStore(brain.SiloServices.GetRequiredService<IDigitalBrain>());
+
+        await Assert.ThrowsAsync<ArgumentException>(() => store.Describe("workspace-one", "app-0123456789abcdef0123456789abcdef", "Name", "", ct));
         Assert.Empty(await store.List("workspace-one", ct));
     }
 
