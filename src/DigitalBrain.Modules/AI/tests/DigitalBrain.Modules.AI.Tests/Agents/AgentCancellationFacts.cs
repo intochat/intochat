@@ -75,6 +75,19 @@ public sealed class AgentCancellationFacts
         Assert.Contains("Provider unavailable", run.Error, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task ProviderTimeoutWithoutTheRunTokenCancelledFailsTheRunInsteadOfCancellingIt()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = new StubChatClient((_, _, _) => throw new TaskCanceledException("The provider request timed out."));
+        await using var brain = await AgentFacts.Brain(client, ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("provider-timeout"));
+        await Assert.ThrowsAnyAsync<Exception>(() => agent.GetResponse("hello", ct));
+        var run = (await agent.Read()).Runs[^1];
+        Assert.Equal(AgentRunStatus.Failed, run.Status);
+        Assert.Contains("timed out", run.Error, StringComparison.Ordinal);
+    }
+
     private sealed class WaitingProvider(bool fail = false)
     {
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);

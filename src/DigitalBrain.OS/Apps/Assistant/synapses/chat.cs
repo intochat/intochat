@@ -4,6 +4,7 @@
 using System.Text.Json;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Agents.Signals;
+using DigitalBrain.AI.Models;
 using DigitalBrain.Apps;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter;
@@ -41,10 +42,13 @@ async Task<IAgent> Conversation() => brain.Get<IAgent>(Name("conversations/" + a
 async Task<string> Send(string message)
 {
     var snapshot = await app.Read();
-    var runId = await (await Conversation()).Start(AgentTurn.Text(message,
-        model: snapshot.Settings.GetValueOrDefault("Model", ""),
+    // The setting is a catalog choice id; the catalog refuses one that is unknown or unavailable.
+    var choice = snapshot.Settings.GetValueOrDefault("Model", "");
+    var model = choice.Length > 0 ? await brain.Get<IModelCatalog>("default").Select(choice) : null;
+    var turn = AgentTurn.Text(message,
         instructions: snapshot.Files.GetValueOrDefault("prompts/system.md", ""),
-        tools: Tools));
+        tools: Tools) with { Model = model };
+    var runId = await (await Conversation()).Start(turn);
     await brain.Get<ICard>(Name($"turn-{runId}-user")).Set("You", message);
     await brain.Get<ICard>(Name($"turn-{runId}-answer")).Set("Assistant", "…");
     await RenderAsync();
