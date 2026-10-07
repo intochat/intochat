@@ -70,6 +70,7 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
             builder.Services.AddHttpClient<ICSharpRunner, SessionPoolRunner>();
         }
         else { builder.Services.AddHttpClient<ICSharpRunner, AspireSandboxRunner>(); }
+        builder.Services.AddHttpClient<SessionRunner>();
         if (authoring)
         {
             builder.Services.TryAddScoped(provider => provider.GetRequiredService<CSharpToolService>().ForScope(BrainScope.CurrentId()));

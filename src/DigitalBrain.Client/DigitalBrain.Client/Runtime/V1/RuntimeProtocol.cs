@@ -36,3 +36,6 @@ public sealed record SignalBatchEvent(string Subscription, string[] Signals, lon
 public sealed record TokenEvent(string Token) { public const string Kind = "token"; }
 public sealed record ReadyEvent(string Session) { public const string Kind = "ready"; }
 public sealed record LogsRequestEvent(string Behavior, int Tail, string Request) { public const string Kind = "logs"; }
+
+// What the brain posts to the sandbox host to open (or reopen) its session: the host dials EdgeUrl back.
+public sealed record SessionStart(string Brain, string Session, string Token, string EdgeUrl);

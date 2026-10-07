@@ -41,4 +41,6 @@ public sealed class CSharpDeploymentSettings
     public string? SessionPoolEndpoint { get; set; }
     // Development: the allocated csharp-sandbox endpoint the AppHost projects for direct health probes.
     public string? SandboxProbeUrl { get; set; }
+    // Development: the always-on csharp-sandbox container that hosts every brain's session.
+    public string? SandboxUrl { get; set; }
 }
