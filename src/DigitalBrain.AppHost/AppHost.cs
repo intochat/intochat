@@ -52,8 +52,7 @@ var digitalBrain = builder.AddDigitalBrain("Modules", new DigitalBrainHostingOpt
     .WithHosting<GitHubModuleHosting>()
     .WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp())
     .WithHosting<AspireModuleHosting>()
-    .WithHosting<CSharpModuleHosting>()
-    .WithHosting<CSharpAuthoringModuleHosting>();
+    .WithHosting<CSharpModuleHosting>();
 
 var cookieProtection = digitalBrain.AddBlobContainer(digitalBrain.Identity!.ProtectionContainerName);
 

@@ -25,7 +25,7 @@ public sealed class CSharpCatalogFacts
     public async Task CatalogKeepsTheNameWhenOnlyPurposeIsOmittedAndSurvivesDeactivation()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<CSharpAuthoringModule>().StartAsync(ct);
+        await using var brain = await ModuleTest.Create().WithModule<CSharpModule>().StartAsync(ct);
         var store = new CSharpCatalogStore(brain.SiloServices.GetRequiredService<IDigitalBrain>());
 
         await store.Describe("workspace-one", "timer", "Timer status", "Show ticks", ct);
@@ -43,7 +43,7 @@ public sealed class CSharpCatalogFacts
     public async Task WorkspacesKeepSeparateCatalogs()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<CSharpAuthoringModule>().StartAsync(ct);
+        await using var brain = await ModuleTest.Create().WithModule<CSharpModule>().StartAsync(ct);
         var store = new CSharpCatalogStore(brain.SiloServices.GetRequiredService<IDigitalBrain>());
 
         await store.Describe("workspace-one", "timer", "Timer", "", ct);
@@ -56,7 +56,7 @@ public sealed class CSharpCatalogFacts
     public async Task CatalogRejectsInvalidIdsAndOversizedDescriptions()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<CSharpAuthoringModule>().StartAsync(ct);
+        await using var brain = await ModuleTest.Create().WithModule<CSharpModule>().StartAsync(ct);
         var store = new CSharpCatalogStore(brain.SiloServices.GetRequiredService<IDigitalBrain>());
 
         await Assert.ThrowsAsync<ArgumentException>(() => store.Describe("workspace-one", "../timer", "Name", "", ct));

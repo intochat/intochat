@@ -20,7 +20,6 @@ public static class OsCatalog
         new DigitalBrain.Flutter.FlutterModule(),
         new DigitalBrain.Google.Gmail.GmailModule(),
         new DigitalBrain.Microsoft.Aspire.AspireModule(),
-        new DigitalBrain.Microsoft.CSharp.CSharpAuthoringModule(),
         new DigitalBrain.Microsoft.CSharp.CSharpModule(),
         new DigitalBrain.Microsoft.GitHub.GitHubModule(),
         new DigitalBrain.Microsoft.Playwright.PlaywrightModule(),

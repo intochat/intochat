@@ -13,7 +13,7 @@ public sealed class CSharpRouteFacts
     public void CSharpAuthoringIsServedOnlyUnderTheBrainRoute()
     {
         var (_, endpoints) = MapAuthoringRoutes();
-        var routes = endpoints.Select(endpoint => $"{string.Join(",", endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods)} {endpoint.RoutePattern.RawText}").Order(StringComparer.Ordinal).ToArray();
+        var routes = endpoints.Where(endpoint => endpoint.RoutePattern.RawText!.Contains("/csharp", StringComparison.Ordinal)).Select(endpoint => $"{string.Join(",", endpoint.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods)} {endpoint.RoutePattern.RawText}").Order(StringComparer.Ordinal).ToArray();
 
         Assert.Equal(
             [
@@ -34,6 +34,7 @@ public sealed class CSharpRouteFacts
         DigitalBrain.Testing.TestLogging.Apply(builder.Configuration);
         builder.Services.AddSingleton<ScriptEdge>(_ => null!);
         builder.Services.AddSingleton(new ScopedCSharpTools(null!, null!, null, "scope", canRun: false));
+        builder.Services.Configure<CSharpOptions>(options => options.Authoring = false);
         var app = builder.Build();
         new CSharpModule().Configure(app);
         var routes = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>();
@@ -45,9 +46,10 @@ public sealed class CSharpRouteFacts
         var builder = WebApplication.CreateBuilder();
         DigitalBrain.Testing.TestLogging.Apply(builder.Configuration);
         builder.Configuration.AddInMemoryCollection(settings.Select(setting => new KeyValuePair<string, string?>(setting.Key, setting.Value)));
+        builder.Services.AddSingleton<ScriptEdge>(_ => null!);
         builder.Services.AddSingleton(new ScopedCSharpTools(null!, null!, null, "scope", canRun: false));
         var app = builder.Build();
-        new CSharpAuthoringModule().Configure(app);
+        new CSharpModule().Configure(app);
         return (app, ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().ToArray());
     }
 }

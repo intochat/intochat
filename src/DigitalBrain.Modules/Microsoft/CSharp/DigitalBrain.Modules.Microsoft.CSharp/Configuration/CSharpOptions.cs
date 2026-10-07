@@ -9,6 +9,9 @@ public sealed class CSharpOptions : IModuleOptions
     public string? SourceRoot { get; set; }
     // The IAspire neuron that starts the development sandbox and reports its URL.
     public string AspireApplication { get; set; } = "DigitalBrain";
+    // The agent tools, the registry entry and the /csharp console routes. The script edge and the compile
+    // gate the Apps module uses are not authoring and stay on either way.
+    public bool Authoring { get; set; } = true;
     // Signals buffered per subscription while nothing drains; past it the oldest is dropped and counted.
     public int MaximumPending { get; set; } = 64;
 

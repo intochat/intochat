@@ -10,7 +10,7 @@ public sealed class InventoryFacts
     public async Task InventoryReadsOnlyTheAmbientBrainsExistingAuthoringCatalog()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var host = await ModuleTest.Create().WithModule<CSharpAuthoringModule>().StartAsync(ct);
+        await using var host = await ModuleTest.Create().WithModule<CSharpModule>().StartAsync(ct);
         var catalog = host.SiloServices.GetRequiredService<CSharpCatalogStore>();
         foreach (var brain in new[] { "one", "two" })
         {
