@@ -209,4 +209,49 @@ public sealed class ConnectionNeuronFacts
         }
         finally { Clear(); }
     }
+
+    [Fact]
+    public async Task ARefreshWithoutANewRefreshTokenKeepsTheSealedOneAndANewGrantWithoutOneClearsIt()
+    {
+        var exchange = new RecordingTokenExchange();
+        await using var brain = await ModuleTest.Create().WithModule<ExampleConnectionModule>()
+            .ConfigureSilo(silo => silo.Services.AddSingleton<IOAuthTokenExchange>(exchange))
+            .StartAsync(TestContext.Current.CancellationToken);
+        Stamp(Alice);
+        await brain.AuthorizeCallerAsync();
+        try
+        {
+            var inbound = brain.Grains.GetGrain<IConnectionInbound>(Key());
+            var example = brain.Get<IExample>(Key());
+            await inbound.AcceptGrant(new("oauth", "access-0", "refresh-0", DateTimeOffset.UtcNow.AddSeconds(-1), "read", null, "{}"));
+            Assert.Equal("len:8", await example.Echo());
+            Assert.Equal("len:8", await example.Echo());
+            Assert.Equal(["refresh-0", "refresh-0"], exchange.RefreshTokens);
+            Assert.Equal("access-2", await example.SeenValue());
+
+            await inbound.AcceptGrant(new("oauth", "access-9", null, DateTimeOffset.UtcNow.AddSeconds(-1), "read", null, "{}"));
+            await example.Echo();
+            Assert.Equal(2, exchange.RefreshTokens.Count);
+            Assert.Equal("access-9", await example.SeenValue());
+        }
+        finally { Clear(); }
+    }
+
+    // Answers every refresh like Google: a new, already-lapsing access token and no refresh token.
+    private sealed class RecordingTokenExchange : IOAuthTokenExchange
+    {
+        public List<string> RefreshTokens { get; } = [];
+
+        public Task<OAuthGrant> ExchangeCodeAsync(string connectorId, string authMethodId, string code, string codeVerifier, string redirectUri, string? target, CancellationToken ct)
+            => throw new NotSupportedException();
+
+        public Task<OAuthGrant> RefreshAsync(string connectorId, string authMethodId, string refreshToken, CancellationToken ct)
+        {
+            lock (RefreshTokens)
+            {
+                RefreshTokens.Add(refreshToken);
+                return Task.FromResult(new OAuthGrant(authMethodId, $"access-{RefreshTokens.Count}", null, DateTimeOffset.UtcNow.AddSeconds(-1), "read", null, "{}"));
+            }
+        }
+    }
 }

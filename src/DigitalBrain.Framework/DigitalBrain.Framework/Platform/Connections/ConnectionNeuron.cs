@@ -67,7 +67,7 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
         RequireAuthMethod(grant.AuthMethodId);
         // The module's override sets Snapshot.Account (mailbox, instance url, owner/repo) and may throw.
         var accepted = await AcceptGrantAsync(grant);
-        Seal(accepted);
+        Seal(accepted, keepRefresh: false);
         Snapshot.AuthMethodId = accepted.AuthMethodId;
         await Transition(ConnectionStatus.Connected, null);
         await Track();
@@ -116,7 +116,7 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
         if (Snapshot.ExpiresAt is { } expiry && expiry <= Clock.GetUtcNow() + RefreshLead && credential.Refresh is not null)
         {
             var refreshed = await RefreshAsync(credential, ct);
-            Seal(refreshed);
+            Seal(refreshed, keepRefresh: true);
             await Transition(ConnectionStatus.Connected, null);
             credential = Open();
         }
@@ -137,11 +137,16 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
         return new(value ?? throw new InvalidOperationException("The connection holds no credential."), refresh);
     }
 
-    private void Seal(OAuthGrant grant)
+    // A refresh response usually omits the refresh token (Google does), so a refresh keeps the sealed
+    // one unless the provider rotates it. A new grant replaces both, and without one clears it.
+    private void Seal(OAuthGrant grant, bool keepRefresh)
     {
-        Snapshot.Secrets = grant.RefreshToken is null
+        var refresh = grant.RefreshToken is { } rotated ? Sealer.Seal(RefreshSecret, rotated)
+            : keepRefresh ? Snapshot.Secrets.FirstOrDefault(secret => secret.Name == RefreshSecret)
+            : null;
+        Snapshot.Secrets = refresh is null
             ? [Sealer.Seal(AccessSecret, grant.AccessToken)]
-            : [Sealer.Seal(AccessSecret, grant.AccessToken), Sealer.Seal(RefreshSecret, grant.RefreshToken)];
+            : [Sealer.Seal(AccessSecret, grant.AccessToken), refresh];
         Snapshot.ExpiresAt = grant.ExpiresAt;
         Snapshot.Scopes = grant.Scopes;
     }

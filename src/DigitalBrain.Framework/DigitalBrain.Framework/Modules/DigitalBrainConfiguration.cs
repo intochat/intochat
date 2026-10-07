@@ -26,6 +26,18 @@ public static class DigitalBrainConfiguration
     public static string BrainModuleOptionsSection(string brainName, string moduleId)
         => BrainModuleOptionsSection(brainName, new ModuleId(moduleId));
 
+    // The Platform's connection flow: where providers send browsers back, and per-connector token
+    // endpoint overrides for test hosts.
+    public const string ConnectionsSectionName = "DigitalBrain:Connections";
+
+    public const string ConnectionsPublicOriginKey = ConnectionsSectionName + ":PublicOrigin";
+
+    public static string ConnectionsTokenEndpointKey(string connectorId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectorId);
+        return $"{ConnectionsSectionName}:TokenEndpoints:{connectorId}";
+    }
+
     public static string EnvironmentName(string configurationKey)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(configurationKey);

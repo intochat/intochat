@@ -1,4 +1,3 @@
-
 using DigitalBrain.Framework;
 
 namespace DigitalBrain.Google.Gmail;
@@ -7,5 +6,4 @@ namespace DigitalBrain.Google.Gmail;
 internal interface IGmailInbound : INeuron
 {
     Task AcceptWatchPush(GmailWatchPush push);
-    Task AcceptAuthorizationCode(string authorizationCode, string? targetBrainId = null);
 }

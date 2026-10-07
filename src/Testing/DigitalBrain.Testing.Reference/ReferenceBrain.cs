@@ -4,6 +4,7 @@ using DigitalBrain.AI.OpenAI;
 using DigitalBrain.Apps;
 using DigitalBrain.ClickHouse;
 using DigitalBrain.Flutter;
+using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Google.Gmail;
 using DigitalBrain.Microsoft.GitHub;
@@ -38,7 +39,7 @@ public static class ReferenceBrain
                 options.PersistentStorage = false;
             }))
             .ConfigureModule<SupabaseModule, SupabaseModuleOptions>(database => database.WithPostgres())
-            .ConfigureModule<GmailModule, GmailModuleOptions>(gmail => gmail.WithTokenEndpoint(new(UnconfiguredProvider, "token")))
+            .ConfigureModule<GmailModule, GmailModuleOptions>(gmail => gmail.ProfileEndpoint = new(UnconfiguredProvider, "profile"))
             .ConfigureModule<SalesforceModule, SalesforceModuleOptions>(salesforce => salesforce.WithLocalMcp(new(UnconfiguredProvider, "mcp")))
             .ConfigureModule<GitHubModule, GitHubModuleOptions>(github => github.WithGitHubRepositories(new Dictionary<string, GitHubRepositoryDeclaration>()))
             .ConfigureModule<FlutterModule, FlutterModuleOptions>(flutter => flutter.BackendOnly())
@@ -51,6 +52,7 @@ public static class ReferenceBrain
                     ["Parameters:Modules-digitalbrain-master-key"] = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)),
                     ["Parameters:modules-gmail-client-id"] = "fixture-client",
                     ["Parameters:modules-gmail-client-secret"] = "fixture-secret",
+                    [DigitalBrainConfiguration.ConnectionsTokenEndpointKey("gmail")] = new Uri(UnconfiguredProvider, "token").AbsoluteUri,
                     ["Parameters:modules-salesforce-consumer-key"] = "fixture-client",
                     ["Parameters:modules-salesforce-consumer-secret"] = "fixture-secret",
                 }, privateConfiguration),
