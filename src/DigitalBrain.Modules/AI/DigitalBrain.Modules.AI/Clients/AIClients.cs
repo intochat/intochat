@@ -1,5 +1,4 @@
 using DigitalBrain;
-using DigitalBrain.AI.Interactions;
 using DigitalBrain.AI.Media;
 using DigitalBrain.AI.Metering;
 using DigitalBrain.AI.Models;
@@ -44,7 +43,6 @@ internal static class AIClients
 
     internal static void Add(IServiceCollection services)
     {
-        services.TryAddSingleton<IUntrustedContentScreen, UntrustedContentScreen>();
         services.TryAddSingleton<IIntentUsageSink>(provider => new GrainIntentUsageSink(
             provider.GetRequiredService<IGrainFactory>(), provider.GetService<IMeterSink>()));
         foreach (var model in LLMModel.All)

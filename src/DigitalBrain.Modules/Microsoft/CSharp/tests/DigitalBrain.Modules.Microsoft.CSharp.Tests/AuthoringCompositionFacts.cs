@@ -1,5 +1,4 @@
 using System.Net;
-using DigitalBrain.AI.Tools;
 using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Microsoft.CSharp.Authoring;
@@ -12,18 +11,16 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 public sealed class AuthoringCompositionFacts
 {
     [Fact(Timeout = 120_000)]
-    public async Task AuthoringOffHidesTheToolsAndTheRoutesButKeepsTheScriptEdge()
+    public async Task AuthoringOffHidesTheRoutesButKeepsTheScriptEdge()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var on = await ModuleTest.Create().WithModule<CSharpModule>().WithReminders().WithHttpEdge().StartAsync(ct);
         using var available = await on.HttpClient.GetAsync("/brains/authoring-on/csharp/", ct);
         Assert.Equal(HttpStatusCode.OK, available.StatusCode);
-        Assert.Single(on.SiloServices.GetServices<IAgentToolFactory>().OfType<CSharpAgentTools>());
 
         await using var off = await ModuleTest.Create().WithModule<CSharpModule, CSharpOptions>(options => options.Authoring = false).WithReminders().WithHttpEdge().StartAsync(ct);
         using var unavailable = await off.HttpClient.GetAsync("/brains/authoring-off/csharp/", ct);
         Assert.Equal(HttpStatusCode.NotFound, unavailable.StatusCode);
-        Assert.Empty(off.SiloServices.GetServices<IAgentToolFactory>().OfType<CSharpAgentTools>());
         // What the Apps publish gate and the script edge need stays composed.
         Assert.True(off.SiloServices.GetRequiredService<CSharpToolService>().CanRun);
         Assert.NotNull(off.SiloServices.GetRequiredService<DigitalBrain.Apps.IScriptSandbox>());

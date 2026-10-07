@@ -69,6 +69,16 @@ public sealed class ContractActionFacts
         Assert.False(CallerContextStamper.TryGet(out var after) && CallerContextStamper.IsModelOriginated(after));
     }
 
+    [Fact]
+    public void ThereIsNoToolVocabulary()
+    {
+        var contracts = typeof(AgentTurn).Assembly;
+        Assert.Null(contracts.GetType("DigitalBrain.AI.Tools.IAgentToolFactory"));
+        Assert.Null(contracts.GetType("DigitalBrain.AI.Tools.IAgentToolSource"));
+        Assert.Null(contracts.GetType("DigitalBrain.AI.Tools.NativeTools"));
+        Assert.Null(typeof(AgentTurn).GetProperty("Tools"));
+    }
+
     private static RecordingClient Scripted(string? tool, Dictionary<string, object?> arguments) => new(tool, arguments);
 
     // Calls the scripted action once, then answers with the action's result as text.

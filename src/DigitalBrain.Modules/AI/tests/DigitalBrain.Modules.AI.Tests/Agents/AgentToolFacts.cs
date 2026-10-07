@@ -1,6 +1,5 @@
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Agents.Context;
-using DigitalBrain.AI.Tools;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -9,16 +8,6 @@ namespace DigitalBrain.Modules.AI.Tests.Agents;
 
 public sealed class AgentToolFacts
 {
-    [Fact]
-    public void AToolCannotChangeTheTurnsToolSet()
-    {
-        var contracts = typeof(IAgentToolFactory).Assembly;
-        Assert.Null(contracts.GetType("DigitalBrain.AI.Tools.AgentToolOffer"));
-        Assert.Null(contracts.GetType("DigitalBrain.AI.Tools.AgentToolBinding"));
-        Assert.Null(typeof(IAgentToolSource).GetMethod("OpenBoundAsync"));
-        Assert.Null(typeof(AgentToolContext).GetProperty("DatabaseSource"));
-    }
-
     [Fact]
     public async Task ToolDoesNotExecuteUntilTheAgentHasRecordedItsStart()
     {

@@ -1,6 +1,5 @@
 using DigitalBrain;
 using DigitalBrain.AI.Agents;
-using DigitalBrain.AI.Tools;
 using DigitalBrain.Framework;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,8 +15,6 @@ public sealed class AssistantModule() : Module(new ModuleId("assistant")), IHttp
         ArgumentNullException.ThrowIfNull(silo);
         silo.Services.TryAddSingleton(new NeuronContracts(NeuronContracts.Deployed()));
         silo.Services.TryAddSingleton<NeuronSurface>();
-        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IAgentToolFactory, NeuronAgentTools>());
-        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IAgentToolFactory, WorkspaceFormTools>());
         silo.Services.AddOptions<AssistantOptions>().BindConfiguration("Assistant");
     }
 

@@ -1,7 +1,6 @@
 using Azure.Core;
 using Azure.Identity;
 using DigitalBrain;
-using DigitalBrain.AI.Tools;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.CSharp.Authoring;
@@ -65,7 +64,6 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         else { builder.Services.AddHttpClient<ICSharpRunner, AspireSandboxRunner>(); }
         if (authoring)
         {
-            builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IAgentToolFactory, CSharpAgentTools>());
             builder.Services.TryAddScoped(provider => provider.GetRequiredService<CSharpToolService>().ForScope(BrainScope.CurrentId()));
         }
     }

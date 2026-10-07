@@ -3,7 +3,6 @@ using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Media;
 using DigitalBrain.AI.Models;
-using DigitalBrain.AI.Tools;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -52,20 +51,12 @@ internal sealed class AssistantNeuron(
 
     public Task<AgentDefinition> DefineTurn(string? summary)
     {
-        var registered = services.GetServices<IAgentToolFactory>()
-            .SelectMany(factory => factory.Create(() => throw new InvalidOperationException("No tool call is active.")))
-            .Select(tool => tool.Name).ToHashSet(StringComparer.Ordinal);
         var definition = Snapshot.Definition ?? AssistantDefinition.For(options: services.GetRequiredService<IOptions<AssistantOptions>>().Value);
         if (Snapshot.Definition is null)
         {
-            var native = services.GetService<NativeTools>();
             definition = definition with
             {
                 Instructions = definition.Instructions + $"\nThe user's workspace is the ui.workspace neuron \"{Workspace}\".",
-                // Optional host modules may be absent. Their default tools must not
-                // make an otherwise standalone Assistant unusable. App-declared
-                // tools can also come from dynamic sources resolved by the runner.
-                Contracts = definition.Contracts,
             };
         }
         if (!string.IsNullOrEmpty(summary))
