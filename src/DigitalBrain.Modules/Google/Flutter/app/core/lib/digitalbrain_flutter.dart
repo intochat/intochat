@@ -1,4 +1,3 @@
-export 'src/agent_events.dart';
 export 'src/basic_credentials.dart';
 export 'src/host_environment.dart';
 export 'src/models/installed_app.dart';

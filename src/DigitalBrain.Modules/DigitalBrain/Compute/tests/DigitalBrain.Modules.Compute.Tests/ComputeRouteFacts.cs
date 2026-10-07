@@ -20,6 +20,6 @@ public sealed class ComputeRouteFacts
         var routes = app.DataSources.SelectMany(source => source.Endpoints)
             .OfType<RouteEndpoint>().Select(endpoint => endpoint.RoutePattern.RawText!).ToArray();
 
-        Assert.Equal(["/compute/limits", "/compute/summary"], routes.Order().ToArray());
+        Assert.Equal(["/brains/{brainId}/compute/usage", "/compute/limits", "/compute/summary"], routes.Order(StringComparer.Ordinal).ToArray());
     }
 }

@@ -33,5 +33,6 @@ public sealed class ComputeModule() : Module(new ModuleId("compute")), IHttpModu
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         ComputeEndpoints.Map(endpoints);
+        ComputeUsageEndpoints.Map(endpoints);
     }
 }

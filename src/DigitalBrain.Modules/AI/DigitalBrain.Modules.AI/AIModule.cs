@@ -4,6 +4,9 @@ using DigitalBrain.AI.Media;
 using DigitalBrain.AI.Models;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -11,7 +14,7 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.AI;
 
-public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai"))
+public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai")), IHttpModule
 {
     public static IntegrationSchema[] Integrations => AiIntegrations.Definitions;
     public static ConnectorDefinition[] Connectors => ModelConnectors.All;
@@ -36,5 +39,12 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai"))
         services.AddMediaNeurons();
         AIClients.AddImageGeneration(services, options);
         VoiceToTextHosting.Add(services, options);
+    }
+
+    // The deployment's model list for the shell's model picker; never endpoints or secrets.
+    public void Configure(IEndpointRouteBuilder endpoints)
+    {
+        ArgumentNullException.ThrowIfNull(endpoints);
+        endpoints.MapGet("/ai/models", async (IDigitalBrain brain) => Results.Ok(await brain.Get<IModelCatalog>("default").List()));
     }
 }

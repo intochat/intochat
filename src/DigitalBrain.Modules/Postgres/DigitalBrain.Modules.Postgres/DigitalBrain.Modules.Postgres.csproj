@@ -11,6 +11,5 @@
     <ProjectReference Include="../../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
     <PackageReference Include="Npgsql" />
     <InternalsVisibleTo Include="DigitalBrain.Modules.Postgres.Tests" />
-    <InternalsVisibleTo Include="DigitalBrain.Modules.Assistant.Tests" />
   </ItemGroup>
 </Project>

@@ -1,4 +1,3 @@
-using DigitalBrain.Assistant;
 using DigitalBrain.Compute;
 using DigitalBrain.Compute.Usage;
 using DigitalBrain.Framework;
@@ -7,7 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace DigitalBrain.Modules.Assistant.Tests;
+namespace DigitalBrain.Modules.Compute.Tests;
 
 public sealed class ComputeUsageRouteFacts
 {
@@ -28,7 +27,7 @@ public sealed class ComputeUsageRouteFacts
         builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<IBrainAccess>());
         builder.Services.AddSingleton(store);
         await using var app = builder.Build();
-        new AssistantModule().Configure(app);
+        new ComputeModule().Configure(app);
         var endpoint = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints)
             .OfType<RouteEndpoint>().Single(route => route.RoutePattern.RawText == "/brains/{brainId}/compute/usage");
         CallerContextStamper.Stamp(new CallerContext

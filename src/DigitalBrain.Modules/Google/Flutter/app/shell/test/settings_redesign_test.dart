@@ -1,4 +1,3 @@
-import 'dart:convert';
 
 import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:digitalbrain_flutter_shell/workspace/model_settings.dart';
@@ -8,8 +7,6 @@ import 'package:digitalbrain_flutter_shell/workspace/workspace_settings.dart';
 import 'package:digitalbrain_flutter_shell/workspace/workspace_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 
 import 'workspace_data_window_test.dart' show WorkspaceClient;
 import 'workspace_remote_controller_test.dart' show MemoryPersistence;
@@ -28,27 +25,6 @@ const catalog = ChatModelCatalog(
 );
 
 void main() {
-  test('unavailable model response tells user how to recover', () async {
-    final client = DigitalBrainUiClient(
-      baseUri: Uri.parse('http://test'),
-      httpClient: MockClient(
-        (_) async => http.Response('{"code":"MODEL_UNAVAILABLE"}', 400),
-      ),
-    );
-    await expectLater(
-      client
-          .runAgent(workspaceId: 'w', threadId: 't', runId: 'r', text: 'Hi')
-          .toList(),
-      throwsA(
-        predicate(
-          (error) => error.toString().contains(
-            'Choose another model beside the composer',
-          ),
-        ),
-      ),
-    );
-  });
-
   test(
     'model default applies to new conversations and survives reload',
     () async {
@@ -69,27 +45,6 @@ void main() {
       restored.dispose();
     },
   );
-
-  test('agent transport includes chosen catalog ID', () async {
-    String? sent;
-    final client = DigitalBrainUiClient(
-      baseUri: Uri.parse('http://test'),
-      httpClient: MockClient((request) async {
-        sent = (jsonDecode(request.body) as Map)['modelProfile'] as String?;
-        return http.Response('data: {"type":"RUN_FINISHED"}\n\n', 200);
-      }),
-    );
-    await client
-        .runAgent(
-          workspaceId: 'w',
-          threadId: 't',
-          runId: 'r',
-          text: 'Hi',
-          modelProfile: 'profile:fast',
-        )
-        .toList();
-    expect(sent, 'profile:fast');
-  });
 
   testWidgets('connected gear opens unified settings and visible UI Kit', (
     tester,

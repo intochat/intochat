@@ -1,28 +1,23 @@
 using System.Net;
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.AI;
-using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Models.OpenAI;
-using DigitalBrain.Assistant;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Xunit;
 
-namespace DigitalBrain.Modules.Assistant.Tests;
+namespace DigitalBrain.Modules.AI.Tests;
 
-public sealed class AgentModelsHttpFacts
+public sealed class ModelRouteFacts
 {
-    [Fact(Timeout = 120_000)]
-    public async Task CatalogIsGatedAndUnknownSelectionDoesNotCreateATurn()
+    [Fact]
+    public async Task TheModelCatalogRouteIsGatedAndCarriesNoEndpointsOrSecrets()
     {
         var ct = TestContext.Current.CancellationToken;
         const string apiKey = "model-catalog-secret-canary";
-        await using var brain = await ModuleTest.Create()
-            .WithModule<AIModule>().WithModule<AssistantModule>()
+        await using var brain = await ModuleTest.Create().WithModule<AIModule>()
             .WithExecution(new()
             {
                 PrivateConfiguration = new Dictionary<string, string?>
@@ -46,35 +41,10 @@ public sealed class AgentModelsHttpFacts
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync(ct);
         Assert.DoesNotContain(apiKey, body, StringComparison.Ordinal);
-        Assert.DoesNotContain("127.0.0.1", body, StringComparison.Ordinal);
         Assert.DoesNotContain("endpoint", body, StringComparison.OrdinalIgnoreCase);
         using var catalog = JsonDocument.Parse(body);
         Assert.True(catalog.RootElement.GetProperty("automatic").GetProperty("available").GetBoolean());
         Assert.Contains(catalog.RootElement.GetProperty("models").EnumerateArray(),
             model => model.GetProperty("id").GetString() == "preset:IGpt56Luna");
-
-        // With authentication on, brain routes require directory membership; grant the owner
-        // this workspace so the fact measures model validation, not access control.
-        await brain.Get<DigitalBrain.Framework.Platform.Identity.IIdentityDirectory>(DigitalBrain.Framework.Platform.Identity.IdentityGrains.Directory)
-            .ShareBrainAsync("owner", "model-validation", "owner", "Owner", DigitalBrain.Framework.Platform.Identity.MemberRole.Owner, ct);
-
-        using var rejected = await brain.HttpClient.PostAsJsonAsync("/agent", new
-        {
-            brainId = "model-validation",
-            threadId = "thread",
-            runId = "unknown-model",
-            modelProfile = "profile:does-not-exist",
-            messages = new[] { new { role = "user", content = "Hello" } },
-        }, ct);
-        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
-        Assert.Equal("application/json", rejected.Content.Headers.ContentType?.MediaType);
-        using var failure = JsonDocument.Parse(await rejected.Content.ReadAsStringAsync(ct));
-        Assert.Equal("MODEL_UNAVAILABLE", failure.RootElement.GetProperty("code").GetString());
-        var conversation = await brain.HttpClient.GetFromJsonAsync<AgentState>(
-            "/brains/model-validation/conversations/thread", ct);
-        Assert.NotNull(conversation);
-        Assert.Null(conversation.ActiveRun);
-        Assert.Empty(conversation.Runs);
-        Assert.Equal(0, conversation.Revision);
     }
 }

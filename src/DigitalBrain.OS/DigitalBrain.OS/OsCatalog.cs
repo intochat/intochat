@@ -15,7 +15,6 @@ public static class OsCatalog
         new DigitalBrain.AI.AIModule(),
         new DigitalBrain.ClickHouse.ClickHouseModule(),
         new DigitalBrain.Apps.AppsModule(),
-        new DigitalBrain.Assistant.AssistantModule(),
         new DigitalBrain.Compute.ComputeModule(),
         new DigitalBrain.Flutter.FlutterModule(),
         new DigitalBrain.Google.Gmail.GmailModule(),

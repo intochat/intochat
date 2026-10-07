@@ -1,14 +1,14 @@
 [
   {
     "Type": "DigitalBrain.AI.Agents.AgentDefinition",
-    "Member": "Tools",
+    "Member": "Contracts",
     "Representation": "array",
     "Payload": "MAHbAh1mJ2FpLmFnZW50LWRlZmluaXRpb27owAHBAcEBwQEpNQADQRlsZWdhY3ktdmFsdWXgwQHBAQEBgQAAAAAAAAAAAQHBAcEB4A==",
     "Expected": "[\"legacy-value\"]"
   },
   {
     "Type": "DigitalBrain.AI.Agents.AgentDefinition",
-    "Member": "Tools",
+    "Member": "Contracts",
     "Representation": "list",
     "Payload": "MAHbAh1mJ2FpLmFnZW50LWRlZmluaXRpb27owAHBAcEBwQExAVnRtylXU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdGAxW1tzdHJpbmddXQADQRlsZWdhY3ktdmFsdWXgwQHBAQEBgQAAAAAAAAAAAQHBAcEB4A==",
     "Expected": "[\"legacy-value\"]"
@@ -123,62 +123,6 @@
     "Member": "Prompts",
     "Representation": "list",
     "Payload": "MAHLHf+NK2FpLmxsbS5zY3JpcHRlZC1zdGF0ZejAAQEBMQFZ0bcpV1N5c3RlbS5Db2xsZWN0aW9ucy5HZW5lcmljLkxpc3RgMVtbc3RyaW5nXV0AA0EZbGVnYWN5LXZhbHVl4OA=",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.Assistant.AssistantState",
-    "Member": "Threads",
-    "Representation": "array",
-    "Payload": "MAFPJwX6KWFwcHMuYXNzaXN0YW50LXN0YXRl6AABwQHBATEBssF/GCVhc3Npc3RhbnQudGhyZWFkW10AAyHoQBlsZWdhY3ktdmFsdWXBEcERwRExAXSvFSwfdWkuY2hhdC1lbnRyeVtdAAMh6MARAQHBEeDgKTUAA8ER4Ck1AAPBEeDBEcERwRHg4MEB4A==",
-    "Expected": "[{\"Id\":\"legacy-value\",\"Title\":\"legacy-value\",\"Draft\":\"legacy-value\",\"ModelProfile\":\"legacy-value\",\"Messages\":[{\"Id\":\"legacy-value\",\"Role\":0,\"Text\":\"legacy-value\"}],\"Receipts\":[\"legacy-value\"],\"Results\":[\"legacy-value\"],\"Error\":\"legacy-value\",\"Status\":\"legacy-value\",\"TurnId\":\"legacy-value\"}]"
-  },
-  {
-    "Type": "DigitalBrain.Assistant.AssistantState",
-    "Member": "Threads",
-    "Representation": "list",
-    "Payload": "MAFPJwX6KWFwcHMuYXNzaXN0YW50LXN0YXRl6AABwQHBATEBaHMCcWtTeXN0ZW0uQ29sbGVjdGlvbnMuR2VuZXJpYy5MaXN0YDFbW2Fzc2lzdGFudC50aHJlYWRdXQADIehAGWxlZ2FjeS12YWx1ZcERwRHBETEBoTlxMmVTeXN0ZW0uQ29sbGVjdGlvbnMuR2VuZXJpYy5MaXN0YDFbW3VpLmNoYXQtZW50cnldXQADIejAEQEBwRHg4DEBWdG3KVdTeXN0ZW0uQ29sbGVjdGlvbnMuR2VuZXJpYy5MaXN0YDFbW3N0cmluZ11dAAPBEeA5CQADwRHgwRHBEcER4ODBAeA=",
-    "Expected": "[{\"Id\":\"legacy-value\",\"Title\":\"legacy-value\",\"Draft\":\"legacy-value\",\"ModelProfile\":\"legacy-value\",\"Messages\":[{\"Id\":\"legacy-value\",\"Role\":0,\"Text\":\"legacy-value\"}],\"Receipts\":[\"legacy-value\"],\"Results\":[\"legacy-value\"],\"Error\":\"legacy-value\",\"Status\":\"legacy-value\",\"TurnId\":\"legacy-value\"}]"
-  },
-  {
-    "Type": "DigitalBrain.Assistant.AssistantThread",
-    "Member": "Messages",
-    "Representation": "array",
-    "Payload": "MAFUNrIoIWFzc2lzdGFudC50aHJlYWTowAHBAcEBwQExAXSvFSwfdWkuY2hhdC1lbnRyeVtdAAMh6EAZbGVnYWN5LXZhbHVlAQHBE+DgwQHBAcEBwQHBAeA=",
-    "Expected": "[{\"Id\":\"legacy-value\",\"Role\":0,\"Text\":\"legacy-value\"}]"
-  },
-  {
-    "Type": "DigitalBrain.Assistant.AssistantThread",
-    "Member": "Messages",
-    "Representation": "list",
-    "Payload": "MAFUNrIoIWFzc2lzdGFudC50aHJlYWTowAHBAcEBwQExAaE5cTJlU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdGAxW1t1aS5jaGF0LWVudHJ5XV0AAyHoQBlsZWdhY3ktdmFsdWUBAcET4ODBAcEBwQHBAcEB4A==",
-    "Expected": "[{\"Id\":\"legacy-value\",\"Role\":0,\"Text\":\"legacy-value\"}]"
-  },
-  {
-    "Type": "DigitalBrain.Assistant.AssistantThread",
-    "Member": "Receipts",
-    "Representation": "array",
-    "Payload": "MAFUNrIoIWFzc2lzdGFudC50aHJlYWTowAHBAcEBwQHBASk1AANBGWxlZ2FjeS12YWx1ZeDBAcEBwQHBAeA=",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.Assistant.AssistantThread",
-    "Member": "Receipts",
-    "Representation": "list",
-    "Payload": "MAFUNrIoIWFzc2lzdGFudC50aHJlYWTowAHBAcEBwQHBATEBWdG3KVdTeXN0ZW0uQ29sbGVjdGlvbnMuR2VuZXJpYy5MaXN0YDFbW3N0cmluZ11dAANBGWxlZ2FjeS12YWx1ZeDBAcEBwQHBAeA=",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.Assistant.AssistantThread",
-    "Member": "Results",
-    "Representation": "array",
-    "Payload": "MAFUNrIoIWFzc2lzdGFudC50aHJlYWTowAHBAcEBwQHBAcEBKTUAA0EZbGVnYWN5LXZhbHVl4MEBwQHBAeA=",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.Assistant.AssistantThread",
-    "Member": "Results",
-    "Representation": "list",
-    "Payload": "MAFUNrIoIWFzc2lzdGFudC50aHJlYWTowAHBAcEBwQHBAcEBMQFZ0bcpV1N5c3RlbS5Db2xsZWN0aW9ucy5HZW5lcmljLkxpc3RgMVtbc3RyaW5nXV0AA0EZbGVnYWN5LXZhbHVl4MEBwQHBAeA=",
     "Expected": "[\"legacy-value\"]"
   },
   {

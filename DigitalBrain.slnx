@@ -47,13 +47,6 @@
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps/DigitalBrain.Modules.Apps.csproj" />
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Apps/tests/DigitalBrain.Modules.Apps.Tests/DigitalBrain.Modules.Apps.Tests.csproj" />
   </Folder>
-  <Folder Name="/Modules/DigitalBrain/Assistant/">
-    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Assistant/DigitalBrain.Modules.Assistant.Contracts/DigitalBrain.Modules.Assistant.Contracts.csproj" />
-    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Assistant/DigitalBrain.Modules.Assistant/DigitalBrain.Modules.Assistant.csproj" />
-  </Folder>
-  <Folder Name="/Modules/DigitalBrain/Assistant/tests/">
-    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Assistant/tests/DigitalBrain.Modules.Assistant.Tests/DigitalBrain.Modules.Assistant.Tests.csproj" />
-  </Folder>
   <Folder Name="/Modules/DigitalBrain/Compute/">
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Compute/DigitalBrain.Modules.Compute.Contracts/DigitalBrain.Modules.Compute.Contracts.csproj" />
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Compute/DigitalBrain.Modules.Compute/DigitalBrain.Modules.Compute.csproj" />

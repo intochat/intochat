@@ -5,7 +5,6 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
-import 'agent_events.dart';
 import 'basic_credentials.dart';
 import 'cookie_http_client.dart';
 import 'session_http_client_io.dart'
@@ -452,110 +451,6 @@ final class DigitalBrainUiClient {
     return response.body.isEmpty ? null : jsonDecode(response.body);
   }
 
-  /// Transcribes a recording into editable draft text without sending a chat turn.
-  Future<String> transcribeWorkspaceAudio(
-    String workspaceId,
-    Uint8List audio,
-  ) async {
-    final result = await _tableRequest(
-      'POST',
-      '/brains/${Uri.encodeComponent(workspaceId)}/voice',
-      body: {'audio': base64Encode(audio)},
-      timeout: const Duration(minutes: 3),
-    );
-    return (result as Map)['text'] as String;
-  }
-
-  /// Reads the server-owned conversation history.
-  Future<Map<String, dynamic>> readWorkspaceConversation(
-    String workspaceId,
-    String threadId,
-  ) async => Map<String, dynamic>.from(
-    await _tableRequest(
-      'GET',
-      '/brains/${Uri.encodeComponent(workspaceId)}/conversations/${Uri.encodeComponent(threadId)}',
-    ) as Map,
-  );
-
-  /// Canceling the subscription aborts both pending HTTP and response streaming.
-  Stream<AgentEvent> runAgent({
-    required String workspaceId,
-    required String threadId,
-    required String runId,
-    String? parentRunId,
-    String? modelProfile,
-    required String text,
-  }) {
-    final abort = Completer<void>();
-    StreamSubscription<AgentEvent>? incoming;
-    late StreamController<AgentEvent> controller;
-    controller = StreamController<AgentEvent>(
-      onListen: () async {
-        try {
-          final request =
-              http.AbortableRequest(
-                  'POST',
-                  baseUri.resolve('/agent'),
-                  abortTrigger: abort.future,
-                )
-                ..headers.addAll({
-                  'accept': 'text/event-stream',
-                  'content-type': 'application/json',
-                })
-                ..body = jsonEncode({
-                  'threadId': threadId,
-                  'brainId': workspaceId,
-                  'runId': runId,
-                  'parentRunId': ?parentRunId,
-                  'modelProfile': ?modelProfile,
-                  'messages': [
-                    {'id': _uuid.v4(), 'role': 'user', 'content': text},
-                  ],
-                  'tools': <Object>[],
-                  'context': <Object>[],
-                  'state': <String, Object>{},
-                  'forwardedProps': <String, Object>{},
-                });
-          final response = await _http.send(request);
-          if (abort.isCompleted) {
-            await response.stream.listen(null).cancel();
-            return;
-          }
-          if (response.statusCode != 200) {
-            final failure = await http.Response.fromStream(response);
-            try {
-              final payload = jsonDecode(failure.body);
-              if (payload is Map && payload['code'] == 'MODEL_UNAVAILABLE') {
-                throw const ModelUnavailableException();
-              }
-            } on FormatException {
-              // Non-JSON infrastructure failures retain the status-only message.
-            }
-            throw StateError('Agent request failed (${response.statusCode}).');
-          }
-          incoming = decodeAgentEvents(response.stream).listen(
-            controller.add,
-            onError: (Object error, StackTrace stack) {
-              if (!abort.isCompleted) controller.addError(error, stack);
-            },
-            onDone: controller.close,
-            cancelOnError: false,
-          );
-        } catch (error, stack) {
-          if (!abort.isCompleted) {
-            controller.addError(error, stack);
-            unawaited(controller.close());
-          }
-        }
-      },
-      onCancel: () async {
-        if (!abort.isCompleted) abort.complete();
-        await incoming?.cancel();
-      },
-    );
-    return controller.stream;
-  }
-
   Stream<BrainSnapshot> watchBrain({required String chatName}) {
     final abort = Completer<void>();
     late StreamController<BrainSnapshot> controller;
@@ -893,13 +788,6 @@ final class UiRequestException extends StateError {
 
   @override
   String toString() => detail ?? super.toString();
-}
-
-final class ModelUnavailableException implements Exception {
-  const ModelUnavailableException();
-  @override
-  String toString() =>
-      'This model is no longer available. Choose another model beside the composer.';
 }
 
 final class CSharpFileRequestException implements Exception {
