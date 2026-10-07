@@ -36,6 +36,7 @@ public sealed class ScriptEdgeFacts
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => file.Start(ct));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => file.Stop(ct));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => file.Delete(ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => file.Swap("malicious source", ct));
         Orleans.Runtime.RequestContext.Clear();
     }
 

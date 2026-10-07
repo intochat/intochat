@@ -13,7 +13,12 @@ public sealed record CSharpDescription(
 public sealed class CSharpCatalogStore(IDigitalBrain brain)
 {
     // The same rule that keys the file neuron, so a description can never exist for an id no file could have.
-    private static void ValidateFileId(string scope, string id) => _ = CSharpFileKeys.For(scope, id);
+    private static void ValidateFileId(string scope, string id)
+    {
+        _ = CSharpFileKeys.For(scope, id);
+        // app-{digest} names are the Apps module's program keys; authoring never describes or reaches one.
+        if (id.StartsWith("app-", StringComparison.Ordinal)) { throw new ArgumentException("Names starting with app- are reserved for app programs.", nameof(id)); }
+    }
 
     public Task<CSharpDescription> Describe(string scope, string id, string? name, string? purpose, CancellationToken ct)
     {

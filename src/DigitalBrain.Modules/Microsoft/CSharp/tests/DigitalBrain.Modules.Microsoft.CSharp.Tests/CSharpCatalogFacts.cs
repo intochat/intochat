@@ -68,6 +68,17 @@ public sealed class CSharpCatalogFacts
     }
 
     [Fact]
+    public async Task AuthoringCannotNameAnAppProgramBecauseThoseKeysBelongToTheAppsModule()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<CSharpModule>().StartAsync(ct);
+        var store = new CSharpCatalogStore(brain.SiloServices.GetRequiredService<IDigitalBrain>());
+
+        await Assert.ThrowsAsync<ArgumentException>(() => store.Describe("workspace-one", "app-0123456789abcdef0123456789abcdef", "Name", "", ct));
+        Assert.Empty(await store.List("workspace-one", ct));
+    }
+
+    [Fact]
     public async Task AHostWithoutTheCSharpModuleRefusesToRunFiles()
     {
         var ct = TestContext.Current.CancellationToken;
