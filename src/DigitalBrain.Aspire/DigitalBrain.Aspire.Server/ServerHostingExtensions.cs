@@ -56,6 +56,7 @@ public static class ServerHostingExtensions
             // Orleans hosting already registers one activity-propagation filter pair. An explicit
             // `silo.AddActivityPropagation()` here registered a second pair and doubled every grain
             // call to 4 spans (measured); it was removed so exactly one registration remains.
+            if (definition.Dashboard) { global::Orleans.Dashboard.ServiceCollectionExtensions.AddDashboard(silo); }
             silo.AddDigitalBrain(modules.Select(module => module.GetType()));
             foreach (var module in modules)
             {

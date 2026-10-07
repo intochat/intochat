@@ -9,7 +9,6 @@ public static class DigitalBrainNames
     public const string Reminders = "reminders";
     public const string GrainState = "grainstate";
     public const string DefaultGrainStorage = "Default";
-    public const string OrleansDashboardPath = "/orleans";
     public const string MasterKeyConfigurationKey = "DigitalBrain:MasterKey";
     public const string MasterKeyEnvironmentVariable = "DigitalBrain__MasterKey";
     // An optional JSON file of additional configuration the runtime loads last (the secrets-file
