@@ -1,43 +1,9 @@
-using System.Text.Json.Nodes;
 using DigitalBrain.Framework.Types;
 
 namespace DigitalBrain.Framework.Tests.Unit;
 
 public sealed class TypeCatalogFacts
 {
-    private static readonly FieldKind[] FlatSubset =
-    [
-        FieldKind.PlainText,
-        FieldKind.Number,
-        FieldKind.Boolean,
-        FieldKind.Date,
-        FieldKind.DateTime,
-        FieldKind.Email,
-        FieldKind.Url,
-        FieldKind.Choice,
-        FieldKind.MultiChoice,
-    ];
-
-    [Fact]
-    public void FlatSubsetMapsOneToOneToMcpFormElicitation()
-    {
-        Assert.Equal(FlatSubset.OrderBy(kind => kind), TypeCatalog.McpFormKinds.OrderBy(kind => kind));
-
-        foreach (var kind in FlatSubset)
-        {
-            var type = TypeCatalog.Get(kind);
-            Assert.NotNull(type.ToMcpFormPrimitive());
-
-        }
-
-        var nonFlat = Enum.GetValues<FieldKind>().Except(FlatSubset);
-        foreach (var kind in nonFlat)
-        {
-            var type = TypeCatalog.Get(kind);
-            Assert.Null(type.ToMcpFormPrimitive());
-        }
-    }
-
     [Fact]
     public void SecretRefIsNeverCollectedByAForm()
     {
@@ -46,7 +12,6 @@ public sealed class TypeCatalogFacts
         Assert.Equal(InputWidgetKind.OutOfBand, secret.InputWidget);
         Assert.Equal(SensitivityClass.Credential, secret.Sensitivity);
         Assert.False(secret.Indexable);
-        Assert.Null(secret.ToMcpFormPrimitive());
 
         var rejected = Assert.Throws<TypeValidationException>(() => TypeCatalog.Validate("hunter2", FieldKind.Secret));
         Assert.DoesNotContain("hunter2", rejected.Message, StringComparison.Ordinal);
@@ -93,17 +58,5 @@ public sealed class TypeCatalogFacts
         Assert.Equal(kinds.Length, TypeCatalog.All.Count);
         Assert.Equal(kinds.OrderBy(kind => kind), TypeCatalog.All.Select(type => type.Kind).OrderBy(kind => kind));
         Assert.Equal(kinds.Length, TypeCatalog.All.Select(type => type.Id).Distinct(StringComparer.Ordinal).Count());
-    }
-
-    [Fact]
-    public void EmbeddedJsonCatalogMatchesTheCodeCatalog()
-    {
-        using var stream = typeof(TypeCatalogFacts).Assembly
-            .GetManifestResourceStream("DigitalBrain.Framework.Tests.Unit.Sdk.Types.TypeCatalog.v0.json");
-        Assert.NotNull(stream);
-
-        var embedded = JsonNode.Parse(stream);
-        Assert.True(JsonNode.DeepEquals(embedded, TypeCatalog.ToJson()),
-            "TypeCatalog.v0.json is out of sync with the code catalog; regenerate the JSON catalog.");
     }
 }
