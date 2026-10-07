@@ -151,6 +151,31 @@ public sealed class AgentToolFacts
         Assert.Equal("Available: invoices", messages[0].Text);
     }
 
+    // A user stamped into one brain cannot read another brain's context: the read throws, the
+    // agent logs and skips it, and the model still gets the context it may read.
+    [Fact]
+    public async Task AContextThatFailsToReadIsSkippedAndTheOthersReachTheModel()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = StubChatClient.Replying("done");
+        await using var brain = await AgentFacts.Brain(client, ct);
+        await brain.Get<IAgentContext>("elsewhere/agents/x/context").Set(new("secret", "must not appear", []));
+        await brain.Get<IAgentContext>(AgentFacts.Key("main") + "/context").Set(new("capabilities", "Available: invoices", []));
+        var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
+        await agent.Configure(new() { Contexts = ["elsewhere/agents/x/context", AgentFacts.Key("main") + "/context"] }, 0);
+        AgentFacts.StampUser();
+        try
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Get<IAgentContext>("elsewhere/agents/x/context").Read());
+            var events = await AgentFacts.Collect(agent, AgentTurn.Text("ask"), ct);
+            Assert.Single(events.OfType<AgentTurnEvent.Finished>());
+        }
+        finally { Orleans.Runtime.RequestContext.Clear(); }
+        var messages = Assert.Single(client.Requests);
+        Assert.Equal([ChatRole.System, ChatRole.User], messages.Select(message => message.Role));
+        Assert.Equal("Available: invoices", messages[0].Text);
+    }
+
     [Fact]
     public async Task ATurnReadsTheLatestContext()
     {

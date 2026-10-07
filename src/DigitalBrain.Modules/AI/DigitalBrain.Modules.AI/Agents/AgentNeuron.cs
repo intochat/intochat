@@ -43,10 +43,15 @@ internal sealed class AgentNeuron(
     {
         if (State.ActiveRun is { } open)
         {
-            await Persist(State with { ActiveRun = null, Runs = Keep(State.Runs, Close(open, AgentRunStatus.Interrupted,
-                "Activation ended before the run committed; external tool outcomes may be unknown.")) });
+            const string Error = "Activation ended before the run committed; external tool outcomes may be unknown.";
+            await Persist(State with { ActiveRun = null, Runs = Keep(State.Runs, Close(open, AgentRunStatus.Interrupted, Error)) });
+            // Announced once activation is done, so the request that woke the agent (a subscription, a
+            // late Drive) is served first and a Start caller still gets the run's end.
+            await this.AsReference<IAgentDriver>().Interrupted(open.RunId, Error);
         }
     }
+
+    public Task Interrupted(string runId, string error) => Notify(new TurnFailed(Key, runId, error, Cancelled: false));
 
     public async Task Configure(AgentDefinition definition, long expectedRevision)
     {
@@ -136,7 +141,15 @@ internal sealed class AgentNeuron(
         AgentRun? replay;
         if (started is null) { (runId, replay) = Admit(turn); }
         else if (State.ActiveRun?.RunId == started && _active is null) { (runId, replay) = (started, null); }
-        else { throw new InvalidOperationException("The started run is no longer active."); }
+        else
+        {
+            // Whoever closed the run (a Resume, a Run that took it over) published its end; a run
+            // recorded nowhere gets its end here, so a Start caller is never left waiting.
+            Logger.LogWarning("Agent run {RunId} was no longer active when its driver arrived.", started);
+            if (State.ActiveRun?.RunId != started && State.Runs.All(run => run.RunId != started))
+            { await Notify(new TurnFailed(Key, started, "The run was lost before it started.", Cancelled: false)); }
+            yield break;
+        }
         if (replay is not null)
         {
             await Notify(new TurnStarted(Key, runId, replay.UserText));
@@ -326,7 +339,10 @@ internal sealed class AgentNeuron(
     private static (AiMessage[] Messages, string? Summary) Bound(AiMessage[] messages, int maxMessages, string? summary)
     {
         if (messages.Length <= maxMessages) { return (messages, summary); }
+        // Cut on a turn boundary: history always starts at a user message, so a tool call is never
+        // kept without its result or a result without its call. A turn too long to keep goes whole.
         var drop = messages.Length - maxMessages;
+        while (drop < messages.Length && messages[drop].Role != "user") { drop++; }
         var added = string.Join(" ", messages.Take(drop).Select(UserText)
             .Where(text => !string.IsNullOrWhiteSpace(text)).Select(text => text.Length <= 120 ? text : text[..120]));
         var combined = added.Length == 0 ? summary : string.IsNullOrEmpty(summary) ? added : summary + " " + added;

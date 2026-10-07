@@ -5,4 +5,7 @@ namespace DigitalBrain.AI.Agents;
 internal interface IAgentDriver : IGrainWithStringKey
 {
     [Orleans.Concurrency.OneWay, Orleans.Concurrency.AlwaysInterleave] Task Drive(AgentTurn turn, string runId);
+
+    // Resume closes a left-open run during activation and announces it here, after activation.
+    [Orleans.Concurrency.OneWay] Task Interrupted(string runId, string error);
 }
