@@ -431,7 +431,122 @@ public sealed class CSharpSubscriptionFacts
             .Subscribed(sandbox.LatestRunId, file.GetGrainId().ToString(), nameof(CSharpFileChanged)));
     }
 
-    private static Task Reconcile(ICSharpFile file)
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AFileWithAndWithoutSubscriptionsDisarmsAfterTheSameNumberOfFailedRuns(bool subscribed)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new FakeSandbox();
+        await using var brain = await SandboxBrain.StartAsync(sandbox, ct);
+        var pinger = brain.Get<IPinger>("pinger");
+        var file = brain.Get<ICSharpFile>("workspace/one-path/" + subscribed);
+        await file.Write("Console.WriteLine(1);", ct);
+        await file.Start(ct);
+        if (subscribed)
+        {
+            await file.AsReference<ICSharpFileEdge>().Subscribed(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged));
+            await using var arrivals = await brain.Observe<CSharpPendingArrived>(file, ct);
+            await pinger.Ping(1);                       // waits for the stream; nothing drains it
+            await arrivals.NextAsync(ct: ct);
+        }
+
+        while ((await file.Inspect(ct)).ShouldRun)
+        {
+            sandbox.ExitLatest(1);
+            await Reconcile(file);
+        }
+
+        var disarmed = await file.Inspect(ct);
+        Assert.Equal(CSharpFileNeuron.MaximumFailures, sandbox.Started);
+        Assert.Equal(CSharpFileNeuron.MaximumFailures, disarmed.Failures);
+        Assert.Empty(disarmed.Subscriptions);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AStaleRunTokenStopsSpeakingAfterARestart(bool subscribed)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new FakeSandbox();
+        await using var brain = await SandboxBrain.StartAsync(sandbox, ct);
+        var pinger = brain.Get<IPinger>("pinger");
+        var file = brain.Get<ICSharpFile>("workspace/stale/" + subscribed);
+        await file.Write("Console.WriteLine(1);", ct);
+        await file.Start(ct);
+        var first = sandbox.LatestRunId;
+        var edge = file.AsReference<ICSharpFileEdge>();
+        if (subscribed) { await edge.Subscribed(first, pinger.GetGrainId().ToString(), nameof(Pinged)); }
+
+        await file.Swap("Console.WriteLine(2);", ct);
+
+        Assert.NotEqual(first, sandbox.LatestRunId);
+        Assert.False((await edge.Authorize(first)).Active);
+        Assert.True((await edge.Authorize(sandbox.LatestRunId)).Active);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AFileWhoseRunIsLostWhileSomethingIsDueReportsRestarting(bool subscribed)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new FakeSandbox();
+        await using var brain = await SandboxBrain.StartAsync(sandbox, ct);
+        var pinger = brain.Get<IPinger>("pinger");
+        var file = brain.Get<ICSharpFile>("workspace/restarting/" + subscribed);
+        await file.Write("Console.WriteLine(1);", ct);
+        await file.Start(ct);
+        if (subscribed)
+        {
+            await file.AsReference<ICSharpFileEdge>().Subscribed(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged));
+            await using var arrivals = await brain.Observe<CSharpPendingArrived>(file, ct);
+            await pinger.Ping(1);
+            await arrivals.NextAsync(ct: ct);
+        }
+
+        sandbox.LoseEveryRun();
+
+        Assert.Equal(CSharpFileStatus.Restarting, (await file.Inspect(ct)).Status);
+    }
+
+    [Fact]
+    public async Task ASubscribedFileThatFinishedCleanlyWithNothingPendingIsWaitingNotRestarting()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new FakeSandbox();
+        await using var brain = await SandboxBrain.StartAsync(sandbox, ct);
+        var file = await Subscribed(brain, sandbox, "workspace/waiting", brain.Get<IPinger>("pinger"), ct);
+
+        sandbox.ExitLatest(0);
+
+        var waiting = await file.Inspect(ct);
+        Assert.Equal(CSharpFileStatus.Exited, waiting.Status);
+        Assert.True(waiting.ShouldRun);
+    }
+
+    [Fact]
+    public async Task SwappingKeepsTheWatermarkAndTheDropCount()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new FakeSandbox();
+        await using var brain = await SandboxBrain.StartAsync(sandbox, ct, silo => silo.Services.PostConfigure<CSharpOptions>(options => options.MaximumPending = 2));
+        var pinger = brain.Get<IPinger>("pinger");
+        var file = await Subscribed(brain, sandbox, "workspace/swap-watermark", pinger, ct);
+        var edge = file.AsReference<ICSharpFileEdge>();
+        await using var arrivals = await brain.Observe<CSharpPendingArrived>(file, ct);
+        for (var number = 1; number <= 3; number++) { await pinger.Ping(number); }   // 1 dropped
+        await Arrivals(arrivals, 3, ct);
+        await edge.Acknowledge(sandbox.LatestRunId, pinger.GetGrainId().ToString(), nameof(Pinged), 2);
+
+        await file.Swap("Console.WriteLine(2);", ct);
+
+        var view = Assert.Single((await file.Inspect(ct)).Subscriptions);
+        Assert.Equal((1, 2L, 1L), (view.Pending, view.Delivered, view.Dropped));
+    }
+
+    internal static Task Reconcile(ICSharpFile file)
         => file.AsReference<IRemindable>().ReceiveReminder(CSharpFileNeuron.ReconcileReminder, default);
 
     // Starts the file (always-on) so a real run id exists, then registers the subscription as that run.

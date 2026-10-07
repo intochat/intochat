@@ -176,6 +176,23 @@ public sealed class CSharpFileNeuronFacts
         Assert.Equal(CSharpModule.FindRepositoryRoot(), options.SourceRoot);
     }
 
+    [Fact]
+    public async Task AFailedLaunchKeepsTheIntentSoTheReconcileRetries()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Brain(new FakeSandbox(), ct);
+        var aspire = brain.Get<IFakeAspireProbe>(new CSharpOptions().AspireApplication);
+        await aspire.FailStarts();
+        var file = brain.Get<ICSharpFile>("workspace/retrying");
+        await file.Write("Console.WriteLine(1);", ct);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => file.Start(ct));
+        Assert.True((await file.Inspect(ct)).ShouldRun);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Reconcile(file));
+        Assert.Equal(2, await aspire.Starts());   // the reconcile asked the sandbox to start again
+    }
+
     private static async Task<ICSharpFile> Started(ModuleBrain brain, string id, CancellationToken ct)
     {
         var file = brain.Get<ICSharpFile>(id);
