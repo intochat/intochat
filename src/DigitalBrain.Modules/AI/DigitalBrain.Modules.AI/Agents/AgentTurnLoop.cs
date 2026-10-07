@@ -29,7 +29,9 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
             try { if (!await steps.MoveNextAsync()) { break; } }
             catch (Exception error)
             {
-                failure = new(error is OperationCanceledException ? "The run was interrupted." : error.Message, error is OperationCanceledException);
+                // Only the run's own token makes a cancellation; a provider or tool timing out is a failure.
+                var cancelled = error is OperationCanceledException && ct.IsCancellationRequested;
+                failure = new(cancelled ? "The run was interrupted." : error.Message, cancelled);
                 break;
             }
             yield return steps.Current;
@@ -94,9 +96,11 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
                 case AiProvider.Host:
                     // The deployment's own client: provider-neutral settings pass through, provider
                     // settings it cannot honor fail here rather than being dropped.
-                    options = InferenceMapping.CreateOptions(resolved, settings, new ModelDescriptor(resolved.Provider.ToString(), resolved.Model, null,
+                    var hostDescriptor = new ModelDescriptor(resolved.Provider.ToString(), resolved.Model, null,
                         resolved.Revision, CapabilitySupport.Supported, CapabilitySupport.Supported, CapabilitySupport.Supported,
-                        Temperature: CapabilitySupport.Supported, TopP: CapabilitySupport.Supported));
+                        Temperature: CapabilitySupport.Supported, TopP: CapabilitySupport.Supported);
+                    options = InferenceMapping.CreateOptions(resolved, settings, hostDescriptor);
+                    yield return new AgentTurnEvent.ModelSelected(resolved, hostDescriptor);
                     break;
                 case AiProvider.Scripted:
                     // A scripted model plays its script; sampling and media declarations do not apply to it.
@@ -228,15 +232,18 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
     // A context that is missing or fails leaves the turn without it rather than failing the turn.
     private async Task<List<ContextEntry>> ReadContexts(string[] keys, CancellationToken ct)
     {
-        var entries = new List<ContextEntry>();
-        foreach (var key in keys)
+        if (keys.Length == 0) { return []; }
+        var grains = services.GetRequiredService<IGrainFactory>();
+        async Task<IEnumerable<ContextEntry>> Read(string key)
         {
-            try { entries.AddRange((await services.GetRequiredService<IGrainFactory>().GetGrain<IAgentContext>(key).Read().WaitAsync(ct)).Entries); }
+            try { return (await grains.GetGrain<IAgentContext>(key).Read().WaitAsync(ct)).Entries; }
             catch (Exception error) when (error is not OperationCanceledException)
             {
                 services.GetService<ILoggerFactory>()?.CreateLogger<AgentTurnLoop>().LogWarning(error, "Context {Context} could not be read; the turn continues without it.", key);
+                return [];
             }
         }
-        return entries;
+        // The reads overlap; Task.WhenAll keeps the results in the order of keys.
+        return [.. (await Task.WhenAll(keys.Select(Read))).SelectMany(entries => entries)];
     }
 }

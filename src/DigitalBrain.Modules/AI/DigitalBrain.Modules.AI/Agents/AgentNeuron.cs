@@ -188,7 +188,8 @@ internal sealed class AgentNeuron(
         AgentTurnEvent.Failed? failure = null;
         try
         {
-            await Persist(State with { ActiveRun = run });
+            // Start already stored this run; only a Run admits it here.
+            if (State.ActiveRun != run) { await Persist(State with { ActiveRun = run }); }
             await Notify(new TurnStarted(Key, runId, run.UserText));
             var bounded = Bound(State.Transcript, Math.Max(1, definition.MaxHistoryMessages - 1), Math.Max(0, MaxHistoryCharacters - Size(input)), State.Summary);
             var plan = new TurnPlan(Scope, runId, bounded.Messages, bounded.Summary, input,
@@ -259,7 +260,8 @@ internal sealed class AgentNeuron(
                 {
                     // Finally while yielding means the consumer stopped pulling: an abandoned stream is a cancelled run.
                     var expired = !yielding && TimedOut(timeout, ct);
-                    var cancelled = !expired && (yielding || failure?.Cancelled == true || lifetime.IsCancellationRequested);
+                    // A recorded failure is authoritative; abandonment and the token only decide when none was recorded.
+                    var cancelled = !expired && (failure is not null ? failure.Cancelled : yielding || lifetime.IsCancellationRequested);
                     var error = expired ? timedOut
                         : failure?.Message ?? (yielding ? "The response stream was abandoned." : "Execution failed before committing its result.");
                     run = Close(run, cancelled ? AgentRunStatus.Cancelled : AgentRunStatus.Failed, error, cancelled ? "tool_cancelled" : "tool_interrupted");
