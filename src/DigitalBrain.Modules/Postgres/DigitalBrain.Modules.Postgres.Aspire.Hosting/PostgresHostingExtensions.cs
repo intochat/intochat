@@ -83,7 +83,7 @@ internal static class PostgresHostingExtensions
                     .WithAnnotation(new WaitAnnotation(_database.Resource, WaitType.WaitUntilHealthy, exitCode: 0));
                 if (_server is not null)
                 {
-                    builder.WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.ModuleOptionsSection("postgres"), "ProvisionPerBrain"), "true");
+                    builder.WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.ModuleOptionsSection("postgres"), "Isolation"), "DatabasePerBrain");
                     var server = _server.Resource;
                     builder.WithEnvironment(context =>
                         context.EnvironmentVariables[DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "AdminConnection"))] = server.ConnectionStringExpression);

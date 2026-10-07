@@ -14,7 +14,7 @@ internal sealed record TableState
 }
 
 [GrainType(GrainType)]
-internal sealed partial class TableNeuron(ITableStore provider, DigitalBrain.Framework.Capacity.ICapacity capacity,
+internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements placements,
     [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<TableState> state) : Neuron, ITable, ITableLifetime
 {
     public const string GrainType = "postgres.table";
@@ -47,9 +47,6 @@ internal sealed partial class TableNeuron(ITableStore provider, DigitalBrain.Fra
 
     // Retire can reach a table whose Define never persisted; there is nothing placed elsewhere to reclaim.
     private TablePlacement Pinned => state.State.Placement ?? TablePlacement.Shared;
-
-    private static TablePlacement Placement(string origin)
-        => origin.StartsWith("db:", StringComparison.Ordinal) ? TablePlacement.BrainDatabase(origin[3..]) : TablePlacement.Shared;
 
     private ITableIndex Tables(string owner) => GrainFactory.GetGrain<ITableIndex>(owner);
 
@@ -85,8 +82,7 @@ internal sealed partial class TableNeuron(ITableStore provider, DigitalBrain.Fra
         // The placement is pinned at first Define; a later policy or binding never moves a table.
         if (state.State.Pending is { } pending && !TablePolicy.Compatible(pending, normalized))
         { throw new PostgresQueryException("Incompatible table redefinition; migrations are not supported."); }
-        var placement = state.State.Placement
-            ?? Placement((await capacity.Resolve("postgres", new(BrainScope.CurrentId(), CallerContextStamper.Require().AppId))).Origin);
+        var placement = state.State.Placement ?? await placements.Resolve(TableOwner.Current(), CancellationToken.None);
         await Tables(scope).Register(this.GetPrimaryKeyString());
         await Persist(state.State with { Owner = scope, Placement = placement, Pending = normalized });
         await provider.DefineAsync(placement, table, normalized, CancellationToken.None);

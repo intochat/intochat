@@ -2,7 +2,6 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Platform.Capacity;
 using DigitalBrain.Platform.Connections;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Directory;
@@ -40,7 +39,6 @@ public static class PlatformHosting
         services.TryAddSingleton<ConnectorCatalog>();
         services.TryAddSingleton<ICapabilities, Capabilities>();
         silo.AddStartupTask<IntegrationSeeder>();
-        services.AddCapacity();
         services.TryAddSingleton<IGrantPolicySource, GrainGrantPolicySource>();
         services.TryAddSingleton<IIdentity, PlatformIdentity>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICallFilterStage, GrantCallFilterStage>());

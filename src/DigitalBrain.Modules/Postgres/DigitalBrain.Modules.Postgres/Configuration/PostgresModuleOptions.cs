@@ -7,7 +7,7 @@ namespace DigitalBrain.Postgres;
 public sealed class PostgresModuleOptions : IModuleOptions
 {
     public string ConnectionName { get; set; } = "postgres";
-    public bool ProvisionPerBrain { get; set; }
+    public PostgresIsolation Isolation { get; set; } = PostgresIsolation.Shared;
     public PostgresResourceOptions Hosting { get; set; } = new();
 
     public PostgresModuleOptions WithConnection(string name)

@@ -1,26 +1,11 @@
 using DigitalBrain.Postgres.Tables;
 using System.Collections.Concurrent;
-using DigitalBrain.Framework.Capacity;
 using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Npgsql;
 
 namespace DigitalBrain.Postgres;
-
-public static class PostgresCapacityKind
-{
-    public const string Kind = "postgres";
-    public const string PlatformOrigin = "platform";
-    public const string DatabasePrefix = "db:";
-}
-
-// Hosted runs can provision one database per brain; other deployments use the configured source.
-internal sealed class PostgresConfiguredSource(bool active) : ICapacityConfiguredSource
-{
-    public string Kind => active ? PostgresCapacityKind.Kind : PostgresCapacityKind.Kind + ":inactive";
-    public string Origin => PostgresCapacityKind.PlatformOrigin;
-}
 
 public interface IPostgresSourceRegistry
 {
@@ -51,14 +36,15 @@ internal sealed class PostgresSourceRegistry(IModuleIntegrations<PostgresModule>
             var handle = integrations.Get("postgres");
             var snapshot = await handle.ReadAsync(ct);
             if (snapshot.Status != IntegrationStatus.Ready) { throw new PostgresUnavailableException("The Postgres integration is unavailable."); }
-            var needAdmin = options.Value.ProvisionPerBrain || placement.Kind == TablePlacementKind.BrainDatabase;
+            var perBrain = options.Value.Isolation == PostgresIsolation.DatabasePerBrain;
+            var needAdmin = perBrain || placement.Kind == TablePlacementKind.BrainDatabase;
             if (_platform is null || _revision != snapshot.Revision || needAdmin && !_adminMaterialized)
             {
                 var released = await handle.ReleaseAsync(ct);
                 if (released.Snapshot.Status != IntegrationStatus.Ready) { throw new PostgresUnavailableException("The Postgres integration is unavailable."); }
                 var platform = PostgresConnectionSettings.Parse(released.Values["ConnectionString"]);
                 var admin = needAdmin && released.Values.TryGetValue("AdminConnection", out var value) ? PostgresConnectionSettings.Parse(value) : null;
-                if (options.Value.ProvisionPerBrain && admin is null) { throw new InvalidOperationException("AdminConnection is required for per-brain provisioning."); }
+                if (perBrain && admin is null) { throw new InvalidOperationException("AdminConnection is required when Postgres isolation is DatabasePerBrain."); }
                 _platform = platform;
                 _admin = admin;
                 _adminMaterialized = needAdmin;

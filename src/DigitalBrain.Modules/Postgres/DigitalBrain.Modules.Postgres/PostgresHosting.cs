@@ -1,5 +1,4 @@
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Capacity;
 using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,15 +31,11 @@ public static class PostgresHosting
         services.AddSingleton<IIntegrationStartup>(provider => provider.GetRequiredService<PostgresSourceRegistry>());
         services.TryAddSingleton<IPostgresProvider, IntegrationPostgresProvider>();
         services.TryAddSingleton<IConnectionPostgresProviderFactory, ConnectionPostgresProviderFactory>();
-        services.AddSingleton<ICapacityConfiguredSource>(provider =>
-            new PostgresConfiguredSource(active: !provider.GetRequiredService<IOptions<PostgresModuleOptions>>().Value.ProvisionPerBrain));
-        services.AddSingleton<ICapacityProvisioner>(provider =>
-            provider.GetRequiredService<IOptions<PostgresModuleOptions>>().Value.ProvisionPerBrain
-                ? new DockerPostgresProvisioner(provider.GetRequiredService<IModuleIntegrations<PostgresModule>>().Get("postgres"))
-                : new InactivePostgresProvisioner());
         services.AddHealthChecks().AddCheck<PostgresHealthCheck>("postgres", tags: ["ready"]);
         // Tables
         services.TryAddSingleton<ITableStore, TableStore>();
+        services.TryAddSingleton(provider => new BrainDatabases(provider.GetRequiredService<IModuleIntegrations<PostgresModule>>().Get("postgres")));
+        services.TryAddSingleton<ITablePlacements, TablePlacements>();
         services.AddSingleton<IIncomingGrainCallFilter, TableLifecycleGuard>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Apps.IAppStorageHook, TableStorageHook>());
         return silo;

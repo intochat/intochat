@@ -1,30 +1,28 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
-using DigitalBrain.Framework.Capacity;
 using DigitalBrain.Framework.Platform.Integrations;
 using Npgsql;
 
 namespace DigitalBrain.Postgres;
 
-// Local runtime provisioning: one database per brain on the Aspire-hosted server, created over the
-// admin connection run-mode hosting passes in. Publish mode never configures that connection, so
-// this class is absent from production and provisioning refuses there by construction.
-internal sealed class DockerPostgresProvisioner(string adminConnection, Func<string, string, CancellationToken, Task>? createDatabase = null) : ICapacityProvisioner
+// DatabasePerBrain isolation: one database per brain on the deployment's server, created over the
+// AdminConnection integration secret the first time a brain places a table.
+internal sealed class BrainDatabases(IIntegrationHandle integration, Func<string, string, CancellationToken, Task>? createDatabase = null)
 {
-    public DockerPostgresProvisioner(IIntegrationHandle integration) : this(string.Empty) => _integration = integration;
-    private readonly IIntegrationHandle? _integration;
-
-    public string Kind => PostgresCapacityKind.Kind;
+    private readonly ConcurrentDictionary<string, string> _ensured = new(StringComparer.Ordinal);
 
     public static string DatabaseName(string brainId)
         => "brain_" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(brainId)))[..16];
 
-    public async ValueTask<string> Ensure(CapacityScope scope, CancellationToken ct)
+    public async Task<string> Ensure(string brainId, CancellationToken ct)
     {
-        var database = DatabaseName(scope.BrainId);
-        var admin = _integration is null ? adminConnection : await _integration.ReadSecretAsync("AdminConnection", ct);
+        var database = DatabaseName(brainId);
+        if (_ensured.ContainsKey(database)) { return database; }
+        var admin = await integration.ReadSecretAsync("AdminConnection", ct);
         await (createDatabase ?? CreateDatabase)(admin, database, ct);
-        return PostgresCapacityKind.DatabasePrefix + database;
+        _ensured[database] = database;
+        return database;
     }
 
     private static async Task CreateDatabase(string adminConnection, string database, CancellationToken ct)
@@ -46,11 +44,4 @@ internal sealed class DockerPostgresProvisioner(string adminConnection, Func<str
         catch (PostgresException) { throw; }
         catch (NpgsqlException) { throw new PostgresUnavailableException("Postgres is unreachable or the database connection failed."); }
     }
-}
-
-// Registered when no admin connection is configured; an inactive kind never matches a lookup.
-internal sealed class InactivePostgresProvisioner : ICapacityProvisioner
-{
-    public string Kind => PostgresCapacityKind.Kind + ":inactive";
-    public ValueTask<string> Ensure(CapacityScope scope, CancellationToken ct) => throw new PostgresUnavailableException("Postgres capacity is not provisioned.");
 }

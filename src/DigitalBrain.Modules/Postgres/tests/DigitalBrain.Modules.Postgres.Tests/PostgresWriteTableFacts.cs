@@ -1,6 +1,5 @@
 using DigitalBrain.Framework;
 using System.Text.Json;
-using DigitalBrain.Framework.Capacity;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Postgres;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,22 +15,22 @@ namespace DigitalBrain.Modules.Postgres.Tests;
 public sealed class PostgresWriteTableFacts
 {
     [Fact]
-    public async Task TeardownReclaimsPendingDdlAtItsPinnedPlacementAfterCapacityChangesAndRestart()
+    public async Task TeardownReclaimsPendingDdlAtItsPinnedPlacementAfterThePolicyChangesAndRestart()
     {
         var ct = TestContext.Current.CancellationToken;
         var provider = new MemoryTables { LoseDefineResponse = true };
-        var capacity = new ChangingCapacity();
+        var placements = new ChangingPlacements();
         await using var brain = await ModuleTest.Create().WithModule<PostgresModule>().ConfigureSilo(silo =>
         {
             silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=sample;Username=reader";
             silo.Services.AddSingleton<ITableStore>(provider);
-            silo.Services.AddSingleton<ICapacity>(capacity);
+            silo.Services.AddSingleton<ITablePlacements>(placements);
         }).StartAsync(ct);
         Stamp();
         await brain.AuthorizeCallerAsync();
         var table = brain.Get<ITable>("pending-ddl");
         await Assert.ThrowsAsync<IOException>(() => table.Define(Definition));
-        capacity.Origin = "db:replacement";
+        placements.Placement = TablePlacement.BrainDatabase("replacement");
         await brain.DeactivateAsync(table, ct);
 
         var owner = brain.Get<IPostgresLifecycleTestApp>("pending-install");
@@ -39,7 +38,7 @@ public sealed class PostgresWriteTableFacts
         await owner.Uninstall("brain", "app");
 
         Assert.Equal((TablePlacement.BrainDatabase("original"), TablePolicy.PhysicalName(new TableOwner(BrainScope.CurrentId(), "app").Key, "pending-ddl")), Assert.Single(provider.Drops));
-        Assert.Equal(1, capacity.Resolutions);
+        Assert.Equal(1, placements.Resolutions);
     }
 
     [Fact]
@@ -432,14 +431,12 @@ public sealed class PostgresWriteTableFacts
             => Task.FromResult(tables[table].OrderBy(p => p.Key, StringComparer.Ordinal).Skip(offset).Take(limit).Select(p => p.Value).ToArray());
     }
 
-    private sealed class ChangingCapacity : ICapacity
+    private sealed class ChangingPlacements : ITablePlacements
     {
-        public string Origin { get; set; } = "db:original";
+        public TablePlacement Placement { get; set; } = TablePlacement.BrainDatabase("original");
         public int Resolutions { get; private set; }
-        public ValueTask<ResolvedCapacity> Resolve(string kind, CapacityScope scope, CancellationToken ct = default)
-        { Resolutions++; return ValueTask.FromResult(new ResolvedCapacity(kind, Origin)); }
-        public ValueTask<ResolvedCapacity> Provision(string kind, CapacityScope scope, CancellationToken ct = default)
-            => throw new InvalidOperationException("Teardown must never provision capacity.");
+        public Task<TablePlacement> Resolve(TableOwner owner, CancellationToken ct)
+        { Resolutions++; return Task.FromResult(Placement); }
     }
 
     private sealed class RetirementRace : IIncomingGrainCallFilter, IGrainStorage

@@ -96,7 +96,7 @@ public sealed class PostgresAspireHostingFacts
         => Assert.Equal("postgres", new PostgresModuleHosting().Module.ToString());
 
     [Fact]
-    public async Task HostedPostgresInRunModePassesTheAdminConnectionToTheBrain()
+    public async Task HostedPostgresInRunModeSelectsDatabasePerBrainWithTheAdminConnection()
     {
         var builder = CreateBuilder();
         var brain = builder.AddDigitalBrain("brain", options: new() { UseAzureStorage = true, PersistentStorage = false });
@@ -104,6 +104,7 @@ public sealed class PostgresAspireHostingFacts
         var consumer = builder.AddExecutable("consumer", "unused", ".").WithReference(brain);
         var environment = await EnvironmentOf(builder, consumer.Resource, TestContext.Current.CancellationToken);
         Assert.Contains(DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "AdminConnection")), environment.Keys);
+        Assert.Equal("DatabasePerBrain", environment[DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ModuleOptionsSection("postgres"), "Isolation")]);
     }
 
     [Fact]
