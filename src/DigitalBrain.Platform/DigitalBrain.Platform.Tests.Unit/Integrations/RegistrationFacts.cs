@@ -1,20 +1,13 @@
-using System.Security.Claims;
 using System.Text.Json;
-using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Framework.Platform.Secrets;
 using DigitalBrain.Platform.Integrations;
-using DigitalBrain.Platform.Secrets;
-using DigitalBrain.Testing;
-using DigitalBrain.Testing.Module;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Orleans.Hosting;
-using Xunit;
 
 namespace DigitalBrain.Platform.Tests.Unit.Integrations;
 
@@ -381,7 +374,7 @@ public sealed class RegistrationFacts
         var platform = typeof(IntegrationDiscovery).Assembly;
 
         Assert.True(PlatformAssemblyAttribute.IsPlatform(platform));
-        // IntegrationSchema lives in the Kernel now: never a contracts assembly, so never
+        // IntegrationSchema lives in Framework: never a contracts assembly, so never
         // script-discovered — its neuron contracts still carry [PlatformOnly] type by type.
         Assert.All(typeof(IntegrationSchema).Assembly.GetExportedTypes()
                 .Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type) && type.Namespace!.Contains(".Platform.", StringComparison.Ordinal)),
@@ -404,9 +397,6 @@ public sealed class RegistrationFacts
     {
         Assert.DoesNotMatch("^[a-z0-9][a-z0-9-]*$", IntegrationVault.Owner);
     }
-
-    private static IConfiguration Config(params (string Key, string Value)[] values)
-        => new ConfigurationBuilder().AddInMemoryCollection(values.ToDictionary(pair => pair.Key, pair => (string?)pair.Value)).Build();
 
     private static CallerContext Http(string principal) => new()
     {

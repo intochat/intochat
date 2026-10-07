@@ -3,10 +3,6 @@ using DigitalBrain.Framework;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Authority;
 using DigitalBrain.Platform.Identity.Grants;
-using DigitalBrain.Testing.Module;
-using Microsoft.Extensions.DependencyInjection;
-using Orleans;
-using Xunit;
 
 namespace DigitalBrain.Platform.Tests.Unit.Identity;
 

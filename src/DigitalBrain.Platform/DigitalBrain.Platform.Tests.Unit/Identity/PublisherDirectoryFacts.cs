@@ -1,8 +1,6 @@
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Framework;
-using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
-using Xunit;
 
 namespace DigitalBrain.Platform.Tests.Unit.Identity;
 

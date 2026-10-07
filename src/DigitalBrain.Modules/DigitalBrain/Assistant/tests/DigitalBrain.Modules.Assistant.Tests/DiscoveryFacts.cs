@@ -1,6 +1,5 @@
 using DigitalBrain.Assistant;
 using DigitalBrain.Framework;
-using Orleans.Runtime;
 
 namespace DigitalBrain.Modules.Assistant.Tests;
 

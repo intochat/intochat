@@ -3,7 +3,6 @@
     <RootNamespace>DigitalBrain.Framework.Tests.Unit</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <None Update="Identity/LegacyState/*.orleans" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="Microsoft.Orleans.Sdk" />
     <ProjectReference Include="../../Testing/DigitalBrain.Testing.Module/DigitalBrain.Testing.Module.csproj" />
     <ProjectReference Include="../../DigitalBrain.Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />

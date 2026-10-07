@@ -1,4 +1,3 @@
-using DigitalBrain;
 using DigitalBrain.Framework;
 
 namespace DigitalBrain.Postgres.Tables;

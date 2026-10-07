@@ -1,4 +1,3 @@
-using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Platform;
 using DigitalBrain.Platform.Identity;
@@ -6,7 +5,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Orleans;
 
 namespace DigitalBrain.Testing.Module;
 
