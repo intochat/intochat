@@ -14,7 +14,8 @@ public static class McpHosting
         services.AddContractCatalog(lexicalFallback: true);
         services.AddIdentity();
         // Each request is a tool call in the caller's brain; a harness may hand in its own brain instead.
-        services.TryAddScoped<IDigitalBrain>(provider => provider.GetRequiredService<IDigitalBrains>().Open(provider.GetRequiredService<McpCaller>().Stamp().BrainId));
+        services.TryAddScoped<IDigitalBrain>(provider => provider.GetRequiredService<IDigitalBrains>().Open(
+            (CallerContextStamper.TryGet(out var caller) ? caller : provider.GetRequiredService<McpCaller>().Stamp()).BrainId));
         services.AddHttpContextAccessor();
         services.AddSingleton<McpCaller>();
         services.AddMcpServer().WithHttpTransport(options => options.Stateless = true)

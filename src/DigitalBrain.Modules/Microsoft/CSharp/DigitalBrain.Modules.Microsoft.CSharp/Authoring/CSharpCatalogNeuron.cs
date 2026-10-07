@@ -22,7 +22,8 @@ internal sealed class CSharpCatalogNeuron([PersistentState("catalog", DigitalBra
             Name = string.IsNullOrWhiteSpace(name) ? current.Name : name.Trim(),
             Purpose = purpose?.Trim() ?? current.Purpose,
         };
-        await Write(new Dictionary<string, CSharpDescription>(files, StringComparer.Ordinal) { [id] = described });
+        files[id] = described;
+        await state.WriteStateAsync();
         return described;
     }
 
@@ -35,17 +36,7 @@ internal sealed class CSharpCatalogNeuron([PersistentState("catalog", DigitalBra
 
     public async Task Remove(string id)
     {
-        if (!state.State.Files.ContainsKey(id)) { return; }
-        var files = new Dictionary<string, CSharpDescription>(state.State.Files, StringComparer.Ordinal);
-        files.Remove(id);
-        await Write(files);
-    }
-
-    private async Task Write(Dictionary<string, CSharpDescription> files)
-    {
-        var previous = state.State;
-        state.State = new CSharpCatalogState { Files = files };
-        try { await state.WriteStateAsync(); }
-        catch { state.State = previous; throw; }
+        if (!state.State.Files.Remove(id)) { return; }
+        await state.WriteStateAsync();
     }
 }

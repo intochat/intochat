@@ -18,6 +18,8 @@ public sealed record NeuronAccess(string? Scope = null, bool Public = false)
             catch (ArgumentException) { return Unclassified; }
         }
         var separator = key.AsSpan().IndexOfAny('/', ':');
-        return separator > 0 && BrainScope.IsValidId(key[..separator]) ? new(key[..separator]) : Unclassified;
+        if (separator <= 0) { return Unclassified; }
+        var scope = key[..separator];
+        return BrainScope.IsValidId(scope) ? new(scope) : Unclassified;
     }
 }
