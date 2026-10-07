@@ -1,6 +1,3 @@
-using System.Security.Cryptography;
-using System.Text.Json;
-
 namespace DigitalBrain.Microsoft.CSharp;
 
 [GenerateSerializer, Alias("csharp.description")]
@@ -13,18 +10,8 @@ public sealed record CSharpDescription(
 // Validates ids and descriptions before the catalog neuron sees them; the ICSharpFile neuron owns source and execution.
 public sealed class CSharpCatalogStore(IDigitalBrain brain)
 {
-    public static string FileKey(string scope, string id)
-    {
-        ValidateFileId(scope, id);
-        return "csharp-" + Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new[] { scope, id })));
-    }
-
-    private static void ValidateFileId(string scope, string id)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(scope);
-        if (string.IsNullOrWhiteSpace(id) || id.Length > 100 || id.Any(c => !char.IsAsciiLetterOrDigit(c) && c is not '-' and not '_'))
-        { throw new ArgumentException("Use a C# file ID containing 1–100 ASCII letters, digits, hyphens or underscores.", nameof(id)); }
-    }
+    // The same rule that keys the file neuron, so a description can never exist for an id no file could have.
+    private static void ValidateFileId(string scope, string id) => _ = CSharpFileKeys.For(scope, id);
 
     public Task<CSharpDescription> Describe(string scope, string id, string? name, string? purpose, CancellationToken ct)
     {

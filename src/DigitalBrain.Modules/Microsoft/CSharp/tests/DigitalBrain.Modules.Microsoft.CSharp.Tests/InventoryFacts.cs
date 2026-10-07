@@ -24,7 +24,7 @@ public sealed class InventoryFacts
             Stamp(brain);
             var record = Assert.Single(await provider.Persisted(null, ct));
             Assert.Equal(brain + " file", record.Display);
-            Assert.Equal(CSharpCatalogStore.FileKey(BrainScope.CurrentId(), "file"), record.Key);
+            Assert.Equal(CSharpFileKeys.For(BrainScope.CurrentId(), "file"), record.Key);
             Assert.Empty(await provider.Active(null, ct));
             Assert.Empty(await provider.Persisted("other", ct));
             await catalog.Remove(BrainScope.CurrentId(), "file", ct);

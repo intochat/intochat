@@ -36,8 +36,8 @@ public sealed class CSharpFileContainerFacts
             .StartAsync(ct);
         var aspire = brain.Get<IAspire>("sandbox-e2e");
         var timerId = "csharp-e2e-" + Guid.NewGuid().ToString("N")[..8];
-        var listener = brain.Get<ICSharpFile>("e2e/" + timerId);
-        var broken = brain.Get<ICSharpFile>("e2e/broken-" + timerId);
+        var listener = brain.Get<ICSharpFile>(CSharpFileKeys.For("e2e", timerId));
+        var broken = brain.Get<ICSharpFile>(CSharpFileKeys.For("e2e", "broken-" + timerId));
         try
         {
             await listener.Write(Source, ct);

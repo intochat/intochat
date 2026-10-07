@@ -15,11 +15,11 @@ public sealed class CSharpCatalogFacts
     [InlineData("other/program")]
     [InlineData("C:\\private")]
     public void ModelCannotSelectAnExternalScopeOrPath(string id)
-        => Assert.Throws<ArgumentException>(() => CSharpCatalogStore.FileKey("workspace-trusted", id));
+        => Assert.Throws<ArgumentException>(() => CSharpFileKeys.For("workspace-trusted", id));
 
     [Fact]
     public void WorkspacesReceiveDifferentNeuronKeys()
-        => Assert.NotEqual(CSharpCatalogStore.FileKey("workspace-a", "invoice"), CSharpCatalogStore.FileKey("workspace-b", "invoice"));
+        => Assert.NotEqual(CSharpFileKeys.For("workspace-a", "invoice"), CSharpFileKeys.For("workspace-b", "invoice"));
 
     [Fact]
     public async Task CatalogKeepsTheNameWhenOnlyPurposeIsOmittedAndSurvivesDeactivation()

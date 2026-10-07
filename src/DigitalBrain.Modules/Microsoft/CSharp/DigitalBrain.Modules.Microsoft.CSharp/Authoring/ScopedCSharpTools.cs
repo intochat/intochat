@@ -81,7 +81,7 @@ public sealed class ScopedCSharpTools(IDigitalBrain brain, CSharpCatalogStore ca
     private ICSharpFile File(string id)
     {
         RequireModule();
-        return brain.Get<ICSharpFile>(CSharpCatalogStore.FileKey(scope, id));
+        return brain.Get<ICSharpFile>(CSharpFileKeys.For(scope, id));
     }
 
     private CSharpContractDiscovery RequireModule()

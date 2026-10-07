@@ -13,7 +13,7 @@ internal sealed class CSharpInventoryProvider(CSharpCatalogStore catalog, IActiv
         var scope = BrainScope.CurrentId();
         if (typeId is not null && typeId != Type) { return []; }
         return (await catalog.List(scope, ct)).Select(file => new NeuronRecord(Domain, Type,
-            CSharpCatalogStore.FileKey(scope, file.Id), file.Name)).ToArray();
+            CSharpFileKeys.For(scope, file.Id), file.Name)).ToArray();
     }
     public async Task<NeuronRecord[]> Active(string? typeId, CancellationToken ct)
     {

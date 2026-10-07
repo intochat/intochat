@@ -251,6 +251,7 @@ public sealed class AppNeuronFacts
         // Deployed programs are keyed by the app runtime's hashed file key, never by their bundle path.
         var deployed = Assert.Single(RecordingCSharpFile.Files.Values, file => file.Source == "// p");
         Assert.Contains(deployed.Id, Enumerable.Range(0, 3).Select(generation => AppProgramKey.For(IApp.Key(Brain, "keyed"), generation, "synapses/new.cs")));
-        Assert.StartsWith("app-csharp-", deployed.Id, StringComparison.Ordinal);
+        Assert.StartsWith(Brain + "/csharp/app-", deployed.Id, StringComparison.Ordinal);
+        Assert.DoesNotContain("keyed", deployed.Id, StringComparison.Ordinal);   // unguessable from the app's name
     }
 }

@@ -20,19 +20,12 @@ internal sealed partial class CSharpFileNeuron(
     : Neuron<CSharpFileState>(store), ICSharpFile, ICSharpAppBinding, ICSharpFileTrigger, ICSharpFileEdge, IRemindable, INeuronObserver
 {
     public override NeuronAccess Access(string operation) =>
-        // The script edge's inbound operations authenticate with the run token the edge has
-        // already verified; the neuron re-checks the run id itself. Same rule as a webhook.
-        operation is nameof(ICSharpFileEdge.Authorize) or nameof(ICSharpFileEdge.Subscribed) or nameof(ICSharpFileEdge.DrainPending) or nameof(ICSharpFileEdge.Acknowledge)
+        // The script edge's inbound operations authenticate with the run token the edge has already
+        // verified; the neuron re-checks the run id itself. Same rule as a webhook.
+        operation is nameof(ICSharpFileEdge.Authorize) or nameof(ICSharpFileEdge.Subscribed)
+            or nameof(ICSharpFileEdge.DrainPending) or nameof(ICSharpFileEdge.Acknowledge)
             ? NeuronAccess.PublicOperation
-        : Snapshot.AppBrain is { } appScope ? new(appScope)
-        : Snapshot.OwnerContext is { } owner ? new(BrainScope.Create(owner.AccountId, owner.BrainId).Id)
-        : base.Access(operation) is { Scope: not null } scoped ? scoped
-        : operation == nameof(Write) && Snapshot.Source.Length == 0
-            ? new(BrainScope.CurrentId())
-        // A file without source (never written, or deleted) has nothing to protect, and the
-        // uninstall view legitimately reads the emptied files it just deleted.
-        : Snapshot.Source.Length == 0 ? NeuronAccess.PublicOperation
-        : NeuronAccess.Unclassified;
+            : base.Access(operation);
 
     internal const int MaximumSourceBytes = 128 * 1024;
     internal const int MaximumFailures = 5;
@@ -79,8 +72,7 @@ internal sealed partial class CSharpFileNeuron(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(program);
         if (Encoding.UTF8.GetByteCount(program) > MaximumSourceBytes) { throw new ArgumentException($"Source exceeds {MaximumSourceBytes} bytes.", nameof(program)); }
-        var owner = CallerContextStamper.TryGet(out var caller) ? caller : Snapshot.OwnerContext;
-        return Save(Snapshot with { Source = program, OwnerContext = Snapshot.OwnerContext ?? owner }, new CSharpFileChanged(FileId));
+        return Save(Snapshot with { Source = program }, new CSharpFileChanged(FileId));
     }
 
     public Task Configure(IReadOnlyDictionary<string, string> settings, CancellationToken cancellationToken = default)
