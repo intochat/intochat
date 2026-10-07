@@ -63,6 +63,17 @@ internal sealed class ExampleConnectionNeuron(
     public Task<string> SeenValue() => Task.FromResult(_seen ?? "");
 }
 
+// A connector declared and offered with a paste and an OAuth method, but served by no connection
+// neuron (as the AI providers' api-key connectors are): no route may address a grain for it.
+public sealed class UnservedConnectorModule() : Module(new ModuleId("unserved"))
+{
+    public static ConnectorDefinition Connector => new("unserved", "Unserved", ["api-key", "oauth"], ["sample-oauth"])
+    {
+        OAuthMethods = [new("oauth", "https://unserved.test/authorize", "https://unserved.test/token", ["read"], "sample-oauth")],
+    };
+    public override void Configure(ISiloBuilder silo) { }
+}
+
 // A second connector beside "example", so a silo holds two IConnection implementations and every
 // connection grain must resolve by the connector in its key, not by the contract.
 public sealed class SampleConnectionModule() : Module(new ModuleId("sample"))

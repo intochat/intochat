@@ -19,19 +19,23 @@ internal static class ConnectionEndpoints
     {
         var group = BrainRoutes.Group(endpoints, "/connections");
 
-        group.MapGet("", async (IGrainFactory grains) =>
+        group.MapGet("", async (IGrainFactory grains, [FromServices] IReadOnlyList<ConnectorDefinition> connectors) =>
         {
             var scope = BrainScope.CurrentId();
             var rows = new List<ConnectionView>();
             foreach (var key in await grains.GetGrain<IConnectionIndex>(scope).List())
-            { rows.Add(await grains.GetConnection(key).Read()); }
+            {
+                // A connector no longer composed has no neuron to read; its key is skipped, not fatal.
+                if (!connectors.Any(connector => connector.Id == ConnectionKeys.Parse(key).ConnectorId)) { continue; }
+                rows.Add(await grains.GetConnection(key).Read());
+            }
             return Results.Ok(rows);
         });
 
         group.MapGet("/requests", async (IGrainFactory grains) =>
             Results.Ok(await grains.GetGrain<DigitalBrain.Integrations.IConnectionRequests>(BrainScope.CurrentId()).ListPending()));
 
-        group.MapPost("/{connectionId}/connect", async (string connectionId, ConnectInput input, IGrainFactory grains, [FromServices] IReadOnlyList<ConnectorDefinition> connectors, [FromServices] ConnectorCatalog catalog, CancellationToken ct) =>
+        group.MapPost("/{connectionId}/connect", async (string connectionId, ConnectInput input, HttpContext context, IGrainFactory grains, [FromServices] IReadOnlyList<ConnectorDefinition> connectors, [FromServices] ConnectorCatalog catalog, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(input.ConnectorId) || string.IsNullOrWhiteSpace(input.AuthMethodId) || string.IsNullOrWhiteSpace(input.Value)) { return Results.BadRequest(); }
             // The connector names the grain type, so an undeclared one would address no neuron at all.
@@ -39,17 +43,23 @@ internal static class ConnectionEndpoints
             { return Results.BadRequest(new { error = $"No composed module declares connector '{input.ConnectorId}'." }); }
             if (await Unavailable(catalog, connectors, input.ConnectorId, ct) is { } unavailable) { return unavailable; }
             if (await TakenByAnotherConnector(grains, connectionId, input.ConnectorId) is { } taken) { return taken; }
-            try { return Results.Ok(await grains.GetConnection(ConnectionKeys.For(BrainScope.CurrentId(), input.ConnectorId, connectionId)).Connect(input.AuthMethodId, input.Value)); }
+            // A declared connector may ship no connection neuron; the manifest check refuses it by name.
+            try { return Results.Ok(await grains.GetNeuronGrain<IConnection>(context.RequestServices, ConnectionKeys.For(BrainScope.CurrentId(), input.ConnectorId, connectionId)).Connect(input.AuthMethodId, input.Value)); }
             catch (ArgumentException error) { return Results.BadRequest(new { error = error.Message }); }
         });
 
-        group.MapPost("/{connectionId}/login", async (string connectionId, LoginInput input, [FromServices] IGrainFactory grains, [FromServices] OAuthLoginFlow flow, [FromServices] IReadOnlyList<ConnectorDefinition> connectors, [FromServices] ConnectorCatalog catalog, CancellationToken ct) =>
+        group.MapPost("/{connectionId}/login", async (string connectionId, LoginInput input, HttpContext context, [FromServices] IGrainFactory grains, [FromServices] OAuthLoginFlow flow, [FromServices] IReadOnlyList<ConnectorDefinition> connectors, [FromServices] ConnectorCatalog catalog, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(input.ConnectorId) || string.IsNullOrWhiteSpace(input.AuthMethodId)) { return Results.BadRequest(); }
             if (await Unavailable(catalog, connectors, input.ConnectorId, ct) is { } unavailable) { return unavailable; }
             if (await TakenByAnotherConnector(grains, connectionId, input.ConnectorId) is { } taken) { return taken; }
             var key = ConnectionKeys.For(BrainScope.CurrentId(), input.ConnectorId, connectionId);
-            try { return Results.Ok(new { url = (await flow.StartAsync(key, input.AuthMethodId, input.Target, CallerContextStamper.Require(), ct)).AbsoluteUri }); }
+            try
+            {
+                // The callback grants into this key's neuron; refuse now rather than after the provider round trip.
+                _ = grains.GetNeuronGrain<IConnection>(context.RequestServices, key);
+                return Results.Ok(new { url = (await flow.StartAsync(key, input.AuthMethodId, input.Target, CallerContextStamper.Require(), ct)).AbsoluteUri });
+            }
             catch (ArgumentException error) { return Results.BadRequest(new { error = error.Message }); }
             catch (InvalidOperationException error) { return Results.Json(new { error = error.Message }, statusCode: StatusCodes.Status409Conflict); }
         });
@@ -80,8 +90,11 @@ internal static class ConnectionEndpoints
         => [.. (await grains.GetGrain<IConnectionIndex>(BrainScope.CurrentId()).List())
             .Where(key => ConnectionKeys.Parse(key).ConnectionId == connectionId)];
 
+    internal static async Task<bool> IsTakenByAnotherConnector(IGrainFactory grains, string connectionId, string connectorId)
+        => (await Tracked(grains, connectionId)).Any(key => ConnectionKeys.Parse(key).ConnectorId != connectorId);
+
     private static async Task<IResult?> TakenByAnotherConnector(IGrainFactory grains, string connectionId, string connectorId)
-        => (await Tracked(grains, connectionId)).Any(key => ConnectionKeys.Parse(key).ConnectorId != connectorId)
+        => await IsTakenByAnotherConnector(grains, connectionId, connectorId)
             ? Results.Json(new { error = $"Connection '{connectionId}' already belongs to another connector in this brain." }, statusCode: StatusCodes.Status409Conflict)
             : null;
 

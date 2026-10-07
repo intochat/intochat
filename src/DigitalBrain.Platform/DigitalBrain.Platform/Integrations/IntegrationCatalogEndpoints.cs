@@ -1,5 +1,6 @@
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Connections;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -11,8 +12,11 @@ internal static class IntegrationCatalogEndpoints
 {
     internal static void MapIntegrations(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/connectors", async ([FromServices] ConnectorCatalog catalog, CancellationToken cancellationToken) =>
-            CallerContextStamper.TryGet(out _) ? Results.Ok(await catalog.ListAsync(cancellationToken)) : Results.Unauthorized());
+        // The shell picks from this list, so a connector no connection neuron serves is not offered to it.
+        endpoints.MapGet("/connectors", async (HttpContext context, [FromServices] ConnectorCatalog catalog, CancellationToken cancellationToken) =>
+            CallerContextStamper.TryGet(out _)
+                ? Results.Ok((await catalog.ListAsync(cancellationToken)).Where(entry => ConnectionGrains.IsConnectionGrainType(context.RequestServices, entry.Id)).ToArray())
+                : Results.Unauthorized());
         // Deliberately not brain-scoped: registrations are deployment info, not workspace data.
         var group = endpoints.MapGroup("/integrations");
         group.AddEndpointFilter(async (context, next) =>

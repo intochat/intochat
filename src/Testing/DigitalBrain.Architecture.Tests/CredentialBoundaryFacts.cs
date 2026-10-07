@@ -10,10 +10,12 @@ public sealed class CredentialBoundaryFacts
     private static readonly OpCode[] Codes = typeof(OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static)
         .Where(f => f.FieldType == typeof(OpCode)).Select(f => (OpCode)f.GetValue(null)!).ToArray();
 
+    // A with-expression copies an ambient stamp without the constructor, so a module may not set a
+    // Platform Kind or StampedBy that way either. Downgrading a copy (ScriptEdge to App) stays legal.
     [Fact]
     public void NoModuleConstructsACallerContext()
     {
-        var offenders = ModuleMethods().Where(m => Calls(m).Any(c => c.IsConstructor && c.DeclaringType == typeof(CallerContext)))
+        var offenders = ModuleMethods().Where(m => Calls(m).Any(c => c.IsConstructor && c.DeclaringType == typeof(CallerContext)) || SetsAPlatformStamp(m))
             .Select(m => m.DeclaringType!.FullName + "." + m.Name).Order().ToArray();
         Assert.Empty(offenders);
     }

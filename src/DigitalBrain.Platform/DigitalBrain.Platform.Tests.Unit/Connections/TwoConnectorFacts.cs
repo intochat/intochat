@@ -19,7 +19,7 @@ public sealed class TwoConnectorFacts : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
         _stub = await TokenEndpointStub.StartAsync(ct);
-        _brain = await ModuleTest.Create().WithModule<ExampleConnectionModule>().WithModule<SampleConnectionModule>()
+        _brain = await ModuleTest.Create().WithModule<ExampleConnectionModule>().WithModule<SampleConnectionModule>().WithModule<UnservedConnectorModule>()
             .WithExecution(new()
             {
                 PrivateConfiguration = new Dictionary<string, string?>
@@ -109,6 +109,64 @@ public sealed class TwoConnectorFacts : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, disconnect.StatusCode);
         using var reuse = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/shared/connect", new { connectorId = "sample", authMethodId = "api-key", value = "other" }, ct);
         Assert.Equal(HttpStatusCode.OK, reuse.StatusCode);
+    }
+
+    [Fact]
+    public async Task ADeclaredConnectorWithoutAConnectionNeuronIsRefusedAtConnectAndLoginAndNotOfferedToTheShell()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var connect = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/keys/connect", new { connectorId = "unserved", authMethodId = "api-key", value = "sk-pasted-secret" }, ct);
+        var body = await connect.Content.ReadAsStringAsync(ct);
+        Assert.True(connect.StatusCode == HttpStatusCode.BadRequest, body);
+        Assert.Contains("No connection neuron serves connector 'unserved'", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("sk-pasted-secret", body, StringComparison.Ordinal);
+
+        using var login = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/keys/login", new { connectorId = "unserved", authMethodId = "oauth" }, ct);
+        var loginBody = await login.Content.ReadAsStringAsync(ct);
+        Assert.True(login.StatusCode == HttpStatusCode.BadRequest, loginBody);
+        Assert.Contains("No connection neuron serves connector 'unserved'", loginBody, StringComparison.Ordinal);
+
+        var offered = (await _brain.HttpClient.GetFromJsonAsync<JsonElement>("/connectors", ct)).EnumerateArray().Select(entry => entry.GetProperty("id").GetString()).ToArray();
+        Assert.Contains("example", offered);
+        Assert.Contains("sample", offered);
+        Assert.DoesNotContain("unserved", offered);
+        Assert.Empty((await _brain.HttpClient.GetFromJsonAsync<JsonElement>("/brains/owner/connections", ct)).EnumerateArray());
+    }
+
+    [Fact]
+    public async Task TheConnectionListSkipsAKeyWhoseConnectorIsNoLongerComposed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await _brain.Grains.GetGrain<IConnectionIndex>(BrainScope.Create("owner", "owner").Id).Track(Key("retired", "orphan"));
+        using var connect = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/kept/connect", new { connectorId = "example", authMethodId = "api-key", value = "hunter2" }, ct);
+        Assert.Equal(HttpStatusCode.OK, connect.StatusCode);
+
+        using var list = await _brain.HttpClient.GetAsync("/brains/owner/connections", ct);
+        Assert.True(list.StatusCode == HttpStatusCode.OK, await list.Content.ReadAsStringAsync(ct));
+        var ids = (await list.Content.ReadFromJsonAsync<JsonElement>(ct)).EnumerateArray().Select(row => row.GetProperty("connectionId").GetString()).ToArray();
+        Assert.Equal(["kept"], ids);
+    }
+
+    [Fact]
+    public async Task ACallbackForAnIdAnotherConnectorTookDuringTheLoginIsRefusedAndTracksNothing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var login = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/work/login", new { connectorId = "example", authMethodId = "oauth" }, ct);
+        login.EnsureSuccessStatusCode();
+        var state = System.Web.HttpUtility.ParseQueryString(new Uri((await login.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("url").GetString()!).Query)["state"];
+        using var connect = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/work/connect", new { connectorId = "sample", authMethodId = "api-key", value = "other" }, ct);
+        Assert.Equal(HttpStatusCode.OK, connect.StatusCode);
+
+        using var callback = await _brain.HttpClient.GetAsync($"/connections/oauth/example/callback?code=fake-code&state={state}", ct);
+        Assert.Equal(HttpStatusCode.BadRequest, callback.StatusCode);
+        Assert.DoesNotContain("fake-code", await callback.Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
+
+        Assert.Equal([Key("sample", "work")], await _brain.Grains.GetGrain<IConnectionIndex>(BrainScope.Create("owner", "owner").Id).List());
+        CallerContextStamper.Stamp(new() { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
+        try { Assert.Equal(ConnectionStatus.Disconnected, (await _brain.Get<IConnection>(Key("example", "work")).Read()).Status); }
+        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+        using var probe = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/work/probe", new { }, ct);
+        Assert.Equal(HttpStatusCode.OK, probe.StatusCode);
     }
 
     [Fact]

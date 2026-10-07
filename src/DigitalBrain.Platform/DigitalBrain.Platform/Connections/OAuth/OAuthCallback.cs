@@ -36,7 +36,7 @@ internal sealed class OAuthCallback : IHttpSurface
                 await LoginPage.WriteAsync(context, "This login link expired or was already used", "Return to DigitalBrain and connect again.", 400);
                 return;
             }
-            var (_, keyConnector, _) = ConnectionKeys.Parse(login.ConnectionKey);
+            var (_, keyConnector, connectionId) = ConnectionKeys.Parse(login.ConnectionKey);
             if (keyConnector != connector) { await LoginPage.WriteAsync(context, "Invalid callback", "Return to DigitalBrain and connect again.", 400); return; }
             try
             {
@@ -45,7 +45,15 @@ internal sealed class OAuthCallback : IHttpSurface
                 var grant = await exchange.ExchangeCodeAsync(connector, login.AuthMethodId, code, login.CodeVerifier, flow.CallbackUri(connector).AbsoluteUri, login.Target, context.RequestAborted);
                 using (CallerContextScope.Scoped(login.Owner))
                 {
-                    await context.RequestServices.GetRequiredService<IGrainFactory>().GetConnectionInbound(login.ConnectionKey).AcceptGrant(grant);
+                    var grains = context.RequestServices.GetRequiredService<IGrainFactory>();
+                    // Another connector may have taken this id while the browser was at the provider;
+                    // granting anyway would leave two keys under one id that probe and disconnect refuse.
+                    if (await ConnectionEndpoints.IsTakenByAnotherConnector(grains, connectionId, connector))
+                    {
+                        await LoginPage.WriteAsync(context, $"{connector} connection needs attention", "Return to DigitalBrain and connect again.", 400);
+                        return;
+                    }
+                    await grains.GetConnectionInbound(login.ConnectionKey).AcceptGrant(grant);
                 }
                 await LoginPage.WriteAsync(context, $"{connector} connected", "You can close this tab. DigitalBrain is continuing your request.", 200);
             }

@@ -8,6 +8,8 @@ internal sealed record PendingLogin(string ConnectionKey, string AuthMethodId, s
 
 // A ten-minute capability for an in-flight browser redirect. Process memory on purpose: losing
 // it on restart costs the user one more click and can never connect the wrong brain.
+// Pending logins are per process; the OS host is single-replica (DigitalBrainDeployment
+// MinReplicas = MaxReplicas = 1), so a callback reaching another replica would fail closed.
 internal sealed class OAuthLoginRequests(IOptions<ConnectionsOptions> options, TimeProvider clock)
 {
     private readonly Dictionary<string, PendingLogin> _pending = new(StringComparer.Ordinal);

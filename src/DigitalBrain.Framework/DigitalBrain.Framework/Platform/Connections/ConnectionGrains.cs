@@ -37,8 +37,9 @@ public static class ConnectionGrains
         return grains.GetGrain<T>(GrainId.Create(connector, key));
     }
 
-    private static bool IsConnectionGrainType(IServiceProvider services, string connector)
+    public static bool IsConnectionGrainType(IServiceProvider services, string connector)
     {
+        ArgumentNullException.ThrowIfNull(services);
         var connection = services.GetRequiredService<GrainInterfaceTypeResolver>().GetGrainInterfaceType(typeof(IConnection)).ToString();
         return services.GetRequiredService<GrainPropertiesResolver>().TryGetGrainProperties(GrainType.Create(connector), out var grain)
             && grain.Properties.Any(property => property.Key.StartsWith(WellKnownGrainTypeProperties.ImplementedInterfacePrefix, StringComparison.Ordinal)

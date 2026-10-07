@@ -179,3 +179,6 @@ make a check pass.
 - **No self-calls on non-reentrant grains**, because they deadlock. For signal-triggered work, use a
   one-way self-reference: `this.AsReference<T>()`.
 - **`ObserverManager` watches need lease renewal.**
+- **A reshaped grain state fails at activation or silo start** as an Orleans `wireType`/deserialisation
+  error (e.g. `integration.registration/integration/clickhouse` read at `IntegrationSeeder`). Wipe the local
+  storage volume (Azurite); no migration shims.

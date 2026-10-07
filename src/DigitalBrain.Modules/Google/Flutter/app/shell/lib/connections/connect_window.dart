@@ -145,9 +145,10 @@ class _ConnectWindowState extends State<ConnectWindow> {
     }
   }
 
-  Future<void> probe(String id) => act('$id/probe', id, 'Probed $id.');
+  Future<void> probe(String id) =>
+      act('${Uri.encodeComponent(id)}/probe', id, 'Probed $id.');
   Future<void> disconnect(String id) =>
-      act('$id/disconnect', id, 'Disconnected $id.');
+      act('${Uri.encodeComponent(id)}/disconnect', id, 'Disconnected $id.');
 
   Future<void> act(String action, String id, String message) async {
     final ticket = ++generation;

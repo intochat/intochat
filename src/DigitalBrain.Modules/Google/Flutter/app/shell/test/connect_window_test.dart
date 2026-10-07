@@ -134,6 +134,40 @@ void main() {
     ]);
     expect(harness.records, isEmpty);
   });
+
+  testWidgets('encodes a connection id with a space or slash as one segment', (
+    tester,
+  ) async {
+    final harness = _Harness()
+      ..records = [
+        {
+          'connectorId': 'supabase',
+          'connectionId': 'work db/2',
+          'authMethodId': 'connection-string',
+          'status': 'Connected',
+        },
+      ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ConnectWindow(
+            request: harness.request,
+            connectorRequest: harness.catalog,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Probe connection'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Disconnect'));
+    await tester.pumpAndSettle();
+    expect(
+      harness.calls.map((call) => call.$1).where((path) => path.isNotEmpty),
+      ['work%20db%2F2/probe', 'work%20db%2F2/disconnect'],
+    );
+  });
 }
 
 final class _Harness {

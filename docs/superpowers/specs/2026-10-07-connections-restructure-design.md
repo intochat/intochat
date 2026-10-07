@@ -475,8 +475,10 @@ above where they disagree. This section records where, so the spec stays true.
 ### Open items
 
 - The OAuth callback is not bound to the browser session that started the login (no correlation
-  cookie): a forwarded provider URL could complete a login into the starter's brain. Same exposure as
-  the deleted `BrowserLoginSurface`.
+  cookie): a provider URL forwarded to a victim connects the victim's account into the attacker's
+  brain. Same exposure as the deleted `BrowserLoginSurface`. Cheap partial mitigation: provider prompt
+  parameters (force account choice/consent). Real fix: compare the identity cookie at the callback with
+  `login.Owner`.
 - Refresh-on-401 in the base: a token rejected before its recorded expiry is not refreshed.
 - Status is advisory: a successful call never moves `Failing` back to `Connected`.
 - `ConnectionsOptions.TokenEndpoints` is not `[PlatformOnly]` and not checked for https.
@@ -484,3 +486,14 @@ above where they disagree. This section records where, so the spec stays true.
 - The request-log filter (`Microsoft.AspNetCore.Hosting.Diagnostics` at Warning, keeping `code` and
   `state` out of request lines) is asserted through options only.
 - The GitHub installation-token cache is per silo.
+- `IConnection` is a Framework-ring contract, so `digitalbrain-mcp` cannot address it: reading,
+  probing and disconnecting a connection through MCP, and an assistant "connect" tool, are not
+  available.
+- The connector catalog does not expose `OAuthMethods` (the shell guesses which methods are browser
+  logins), and the shell sends no `target`, so GitHub cannot be connected from the UI; GitHub is not
+  in `OsCatalog`.
+- Connect marks a pasted value `Connected` without probing it.
+- Each module hosting writes `DigitalBrain:Connections:PublicOrigin`; the last writer wins.
+- Platform-stamp sites outside the architecture scan: `OsApps.cs` in the OS host constructs a fourth
+  one; `ScriptEdge.cs` copies the ambient stamp `with` a downgrade to App (not a Platform stamp).
+- `GmailState` retains unused `CanCompose`, `PendingDraft` and `SubmittingDraft` fields.
