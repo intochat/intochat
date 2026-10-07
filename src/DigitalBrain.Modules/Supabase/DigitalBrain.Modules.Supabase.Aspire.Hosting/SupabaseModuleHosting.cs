@@ -11,7 +11,7 @@ public sealed class SupabaseModuleHosting : ModuleHosting<DigitalBrain.Supabase.
 {
     public override void Configure(DigitalBrainBuilder brain)
     {
-        var options = HostingModuleOptions.GetModuleOptions<SupabaseModuleOptions>(brain.GetModuleConfiguration("supabase"), "supabase");
+        var options = brain.GetModuleConfiguration("supabase").GetModuleOptions<SupabaseModuleOptions>("supabase");
         if (!options.UseBackingStore) { return; }
         var module = new DigitalBrainModuleBuilder<DigitalBrain.Supabase.Aspire.Hosting.SupabaseModuleHosting>(brain);
         if (options.Hosting.Kind == SupabaseHostKind.External)

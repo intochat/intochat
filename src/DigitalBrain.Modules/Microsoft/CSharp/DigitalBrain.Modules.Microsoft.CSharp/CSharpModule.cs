@@ -47,8 +47,6 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         ArgumentNullException.ThrowIfNull(builder);
         var authoring = builder.Configuration.GetModuleOptions<CSharpOptions>("csharp").Authoring;
         builder.AddIncomingGrainCallFilter<CSharpAppBindingGuard>();
-        builder.Services.AddOptions<CSharpOptions>()
-            .Configure<IConfiguration>((target, configuration) => configuration.PopulateModuleOptions("csharp", target));
         builder.Services.AddOptions<CSharpDeploymentSettings>().BindConfiguration(CSharpDeploymentSettings.SectionName);
         builder.Services.TryAddSingleton<CSharpCatalogStore>();
         builder.Services.TryAddSingleton<CSharpToolService>();

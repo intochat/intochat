@@ -14,7 +14,7 @@ public sealed class CSharpModuleHosting : ModuleHosting<DigitalBrain.Microsoft.C
     public override void Configure(DigitalBrainBuilder brain)
     {
         ArgumentNullException.ThrowIfNull(brain);
-        var options = HostingModuleOptions.GetModuleOptions<CSharpOptions>(brain.GetModuleConfiguration("csharp"), "csharp");
+        var options = brain.GetModuleConfiguration("csharp").GetModuleOptions<CSharpOptions>("csharp");
         // The same fallback the silo uses, so composing the module in a repository always declares
         // the sandbox; only a host without any repository (the session-pool path) has none.
         if (string.IsNullOrWhiteSpace(options.SourceRoot)) { options.SourceRoot = RepositoryRoot.Find(); }

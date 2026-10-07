@@ -40,7 +40,7 @@ public sealed class ModuleOptionOverlayFacts
                 Delay = 42,
                 Bindings = new() { ["live"] = "service" }
             }, "example"));
-        var options = HostingModuleOptions.GetModuleOptions<OverlaidOptions>(brain.GetModuleConfiguration("example"), "example");
+        var options = brain.GetModuleConfiguration("example").GetModuleOptions<OverlaidOptions>("example");
         Assert.Equal("fixture", options.Endpoint);
         Assert.Equal(7, options.Delay);
         Assert.Empty(options.Bindings);
@@ -98,7 +98,7 @@ public sealed class ModuleOptionOverlayFacts
         var brain = builder.AddDigitalBrain("modules", options: new() { UseAzureStorage = true, PersistentStorage = false })
             .WithModule(new OverlaidModule(), settings: HostingModuleOptions.Flatten(new OverlaidOptions { Endpoint = "declared", Delay = 42 }, "OverlaidModule"));
 
-        var options = HostingModuleOptions.GetModuleOptions<OverlaidOptions>(brain.GetModuleConfiguration("OverlaidModule"), "OverlaidModule");
+        var options = brain.GetModuleConfiguration("OverlaidModule").GetModuleOptions<OverlaidOptions>("OverlaidModule");
         Assert.Equal("from-args", options.Endpoint);
         Assert.Equal(42, options.Delay);
         Assert.Equal("added", options.Bindings["extra"]);

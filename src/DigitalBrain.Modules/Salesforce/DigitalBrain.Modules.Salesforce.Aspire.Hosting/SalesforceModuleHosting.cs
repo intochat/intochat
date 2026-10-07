@@ -1,4 +1,5 @@
 using DigitalBrain.Aspire.Hosting;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Salesforce.Aspire.Hosting;
 

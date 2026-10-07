@@ -32,18 +32,6 @@ public static class ModuleOptionsSerialization
         return options;
     }
 
-    // Copies the bound options onto an instance the options system already created: every public read-write property.
-    public static void PopulateModuleOptions<TOptions>(this IConfiguration configuration, string moduleName, TOptions target)
-        where TOptions : class, IModuleOptions, new()
-    {
-        ArgumentNullException.ThrowIfNull(target);
-        var bound = configuration.GetModuleOptions<TOptions>(moduleName);
-        foreach (var property in typeof(TOptions).GetProperties().Where(p => p.GetMethod is { IsPublic: true } && p.SetMethod is { IsPublic: true }))
-        {
-            property.SetValue(target, property.GetValue(bound));
-        }
-    }
-
     internal static bool IsOptionsKey(string key)
         => key.Split(':') is [var root, var modules, var name, var options, ..]
             && root.Equals("DigitalBrain", StringComparison.OrdinalIgnoreCase)

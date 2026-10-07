@@ -1,5 +1,6 @@
 using DigitalBrain.Aspire.Hosting;
 using Microsoft.Extensions.Configuration;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Postgres.Aspire.Hosting;
 
