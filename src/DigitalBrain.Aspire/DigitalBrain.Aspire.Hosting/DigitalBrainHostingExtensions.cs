@@ -121,6 +121,15 @@ public static class DigitalBrainHostingExtensions
         foreach (var pair in brain.Settings)
         { builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(pair.Key), pair.Value ?? ""); }
 
+        // Aspire's OTLP injection prefers gRPC; a host that names only an HTTP collector gets http/protobuf.
+        var configuration = builder.ApplicationBuilder.Configuration;
+        if (string.IsNullOrEmpty(configuration["ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL"])
+            && configuration["ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL"] is { Length: > 0 } http)
+        {
+            builder.WithEnvironment("OTEL_EXPORTER_OTLP_ENDPOINT", http);
+            builder.WithEnvironment("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf");
+        }
+
         WaitUntilHealthy(builder, brain.StartupDependencies);
 
         foreach (var projection in brain.Projections)

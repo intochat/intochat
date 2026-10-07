@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Testing.E2E.Diagnostics;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Modules;
@@ -65,6 +66,14 @@ public sealed class E2ETestBuilder<TAppHost> where TAppHost : class
         foreach (var (key, value) in environment) { merged[key] = value; }
         _execution = _execution with { ResourceEnvironment = merged };
         return this;
+    }
+
+    // The collector plugs into the AppHost's own OTLP setting; Aspire projects it to every resource.
+    public E2ETestBuilder<TAppHost> ExportingTelemetryTo(TestTelemetryCollector collector)
+    {
+        ArgumentNullException.ThrowIfNull(collector);
+        return WithHostConfiguration("ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL", collector.Endpoint.AbsoluteUri)
+            .WithHostConfiguration("ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL", "");
     }
 
     // Hosting-layer configuration for the AppHost builder itself (not a resource), such as

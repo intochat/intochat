@@ -72,7 +72,8 @@ public sealed class TestTelemetryCollector : IAsyncDisposable
             if (path.EndsWith("/v1/traces", StringComparison.Ordinal))
             {
                 var parsed = OtlpTraceParser.Parse(buffer.ToArray());
-                lock (_gate) { _spans.AddRange(parsed); }
+                // The dotnet launcher inherits the resource environment and reports its own CLI telemetry; it is not the host.
+                lock (_gate) { _spans.AddRange(parsed.Where(span => span.Scope != "dotnet-cli")); }
             }
             else if (path.EndsWith("/v1/logs", StringComparison.Ordinal))
             {
