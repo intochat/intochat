@@ -43,7 +43,7 @@ public sealed class CSharpContractDiscovery(ContractCatalog catalog)
         if (unknown.Length > 0)
         { throw new ArgumentException($"Unknown module IDs: {string.Join(", ", unknown)}. Installed module IDs: {string.Join(", ", installed.Keys.Order(StringComparer.Ordinal))}."); }
         var modules = installed.OrderBy(module => module.Key, StringComparer.Ordinal)
-            .Select(module => new CSharpContractModule(module.Key, Directive(module.Value[0].ModuleId))).ToArray();
+            .Select(module => new CSharpContractModule(module.Key)).ToArray();
         // Discovery with no modules selected lists the module ids only; select ids to read their contracts.
         var contracts = moduleIds.SelectMany(id => installed[id]
                 .OrderBy(type => type.Contract, StringComparer.Ordinal)
@@ -59,9 +59,4 @@ public sealed class CSharpContractDiscovery(ContractCatalog catalog)
         }
         return Task.FromResult(snapshot);
     }
-
-    private string? Directive(string moduleId)
-        => inventory.Modules.FirstOrDefault(module => string.Equals(module.Id.Value, moduleId, StringComparison.OrdinalIgnoreCase))?.Contracts is { } contracts
-            ? directives.Directive(contracts.GetName().Name!)
-            : null;
 }

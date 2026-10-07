@@ -20,7 +20,7 @@ Everything is one of these. Anything that looks like a fifth concept is a design
 |------|-----------|---------|
 | **Neuron** | Stateful, addressable grain. State lives here, never in a process. | `INeuron`, `IBrain` |
 | **Signal** | Typed fact. `Signal.Publisher` is kernel-stamped; provenance is inviolable, no publish-as-someone-else. | `Signal` |
-| **Behavior** | C# script (`dotnet run app.cs` in the sandbox) that subscribes and acts through neuron contracts. The unit of user-programmed logic. | `brain.On<T>(source)` |
+| **Behavior** | C# compiled by the brain, loaded into the brain's sandbox session; it subscribes and acts through neuron contracts. The unit of user-programmed logic. | `brain.On<T>(source)` |
 | **Connector** | Bridge from an edge neuron to its external system — Gmail, Twitter, and the Flutter shell (the *human's* connector). | `ConnectorDefinition` |
 
 UI is not a layer: a button is an edge neuron whose external system is a person, so

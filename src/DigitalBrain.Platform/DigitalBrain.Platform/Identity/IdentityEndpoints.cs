@@ -124,14 +124,7 @@ internal static class IdentityEndpoints
     {
         var handlers = http.RequestServices.GetServices<ISignInHandler>().ToArray();
         if (handlers.Length == 0) { return; }
-        CallerContextStamper.Stamp(new CallerContext
-        {
-            PrincipalId = member.PrincipalId,
-            AccountId = member.AccountId,
-            BrainId = member.BrainId,
-            Kind = CallerKind.User,
-            StampedBy = TrustedEdge.AuthenticatedHttp,
-        });
+        CallerContextStamper.Stamp(AccountSession.ForMember(member));
         var logger = http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(ISignInHandler));
         foreach (var handler in handlers)
         {
