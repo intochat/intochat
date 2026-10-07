@@ -142,8 +142,16 @@ internal sealed class TableStore : ITableStore
             await transaction.CommitAsync(deadline.Token);
             return result;
         }
-        catch (PostgresException error) { throw new PostgresQueryException($"PostgreSQL refused the table operation (SQLSTATE {error.SqlState})."); }
+        catch (PostgresException error) { throw Refusal(error); }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new PostgresQueryException("The table operation timed out."); }
         catch (NpgsqlException) { throw new PostgresUnavailableException("Postgres is unreachable or the database connection failed."); }
     }
+
+    // Connection-phase failures (08 connection, 28 authorization, 3D000 missing database, 57P0x
+    // server shutdown/start) mean the placement is unreachable: 503, never a 409 query refusal.
+    internal static Exception Refusal(PostgresException error)
+        => error.SqlState.StartsWith("08", StringComparison.Ordinal) || error.SqlState.StartsWith("28", StringComparison.Ordinal)
+            || error.SqlState is "3D000" || error.SqlState.StartsWith("57P0", StringComparison.Ordinal)
+            ? new PostgresUnavailableException("This table's database is unreachable or refused the connection.")
+            : new PostgresQueryException($"PostgreSQL refused the table operation (SQLSTATE {error.SqlState}).");
 }

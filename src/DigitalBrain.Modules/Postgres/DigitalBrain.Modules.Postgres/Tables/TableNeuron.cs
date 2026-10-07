@@ -57,7 +57,10 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
     {
         if (state.State.Owner != owner) { return; }
         var table = state.State.Accepted?.Table ?? state.State.PhysicalTable ?? TablePolicy.PhysicalName(owner, this.GetPrimaryKeyString());
-        await Tables(Pinned).DropAsync(Pinned, table, CancellationToken.None);
+        try { await Tables(Pinned).DropAsync(Pinned, table, CancellationToken.None); }
+        // A revoked or deleted connection holds the user's own database: nothing here can reach it,
+        // and an uninstall must still retire the app's other tables.
+        catch (Exception error) when (Pinned.Kind == TablePlacementKind.Connection && error is ServiceUnavailableException or UnauthorizedAccessException) { }
         await Persist(new());
     }
 

@@ -72,6 +72,27 @@ public sealed class ConnectionPlacementFacts
         Assert.Empty(shared.Placements);
     }
 
+    [Fact]
+    public async Task UninstallStillReclaimsTheAppsOtherTablesWhenItsBoundConnectionIsGone()
+    {
+        var shared = new PostgresWriteTableFacts.MemoryTables();
+        var slot = new BoundSlot();
+        await using var brain = await Start(shared, new ConnectionTables(), slot);
+        await Connect(brain, "c1");
+        slot.Bind(App, "c1");
+        StampApp();
+        await brain.AuthorizeCallerAsync();
+        await brain.Get<ITable>("in-connection").Define(Definition);
+        slot.Unbind(App);
+        var kept = await brain.Get<ITable>("in-shared").Define(Definition);
+
+        StampUser();
+        await brain.Get<IConnection>(ConnectionKeys.For(BrainScope.CurrentId(), "postgres", "c1")).Disconnect();
+        await brain.Get<IPostgresLifecycleTestApp>("uninstall").Uninstall("brain", App);
+
+        Assert.Equal([(TablePlacement.Shared, kept.Table)], shared.Drops);
+    }
+
     private static string App => IApp.Key(BrainScope.Create("alice", "brain").Id, "a");
 
     private static async Task Connect(ModuleBrain brain, string id)
@@ -108,6 +129,7 @@ public sealed class ConnectionPlacementFacts
     {
         private readonly Dictionary<string, string> bound = [];
         public void Bind(string app, string connection) => bound[app] = connection;
+        public void Unbind(string app) => bound.Remove(app);
         public Task<string?> BoundConnection(TableOwner owner)
             => Task.FromResult(bound.TryGetValue(owner.AppId, out var id) ? ConnectionKeys.For(owner.BrainId, "postgres", id) : null);
     }
