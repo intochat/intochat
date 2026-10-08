@@ -69,7 +69,7 @@ public static class ServiceDefaultsExtensions
         var integration = builder.Configuration.Get<TelemetryIntegrationOptions>() ?? new();
         var configuredSampleRatio = options.SampleRatio;
         var sampleRatio = Math.Clamp(configuredSampleRatio ?? 1d, 0d, 1d);
-        var rootSampler = new SuppressAzureStorageSampler(new TraceIdRatioBasedSampler(sampleRatio));
+        var rootSampler = new SuppressNoiseSampler(new TraceIdRatioBasedSampler(sampleRatio));
 
         builder.Logging.AddOpenTelemetry(logging =>
         {
@@ -106,7 +106,7 @@ public static class ServiceDefaultsExtensions
                 .AddMeter("Microsoft.Orleans"))
             .WithTracing(tracing => tracing
                 .SetSampler(new ParentBasedSampler(rootSampler))
-                .AddProcessor(new SuppressAzureStorageActivityProcessor())
+                .AddProcessor(new SuppressNoiseActivityProcessor())
                 .AddSource(builder.Environment.ApplicationName)
                 .AddSource(TelemetryPrefix)
                 .AddSource($"{TelemetryPrefix}.*")
@@ -121,7 +121,9 @@ public static class ServiceDefaultsExtensions
                 .AddAspNetCoreInstrumentation(options =>
                     options.Filter = context =>
                         !context.Request.Path.StartsWithSegments(HealthPath, StringComparison.OrdinalIgnoreCase)
-                        && !context.Request.Path.StartsWithSegments(AlivePath, StringComparison.OrdinalIgnoreCase))
+                        && !context.Request.Path.StartsWithSegments(AlivePath, StringComparison.OrdinalIgnoreCase)
+                        // RuntimeProtocol.Report: the sandbox session heartbeat POST, every 20 s per brain session.
+                        && !context.Request.Path.Value!.EndsWith("/runtime/v1/report", StringComparison.Ordinal))
                 .AddHttpClientInstrumentation(options =>
                 {
                     options.FilterHttpRequestMessage = static request => !IsAzuriteRequest(request);
@@ -147,6 +149,18 @@ public static class ServiceDefaultsExtensions
             || name.StartsWith("QueueClient.", StringComparison.Ordinal)
             || name.StartsWith("QueueServiceClient.", StringComparison.Ordinal);
 
+    // Keepalive traffic is not a trace anyone reads: the sandbox session heartbeat, the authorize
+    // call it rides on, and neuron watch renewals. Dropping them keeps an idle brain quiet.
+    private static readonly HashSet<string> KeepaliveSpanNames = new(StringComparer.Ordinal)
+    {
+        "IBrainRuntimeEdge/Heartbeat",
+        "IBrainRuntimeEdge/Authorize",
+        "INeuron/Watch",
+        "INeuron/Unwatch",
+    };
+
+    private static bool IsKeepaliveName(string name) => KeepaliveSpanNames.Contains(name);
+
     private static bool IsAzureStorageNoiseSource(string sourceName)
         => sourceName.StartsWith("Azure.Data.Tables", StringComparison.Ordinal)
             || sourceName.StartsWith("Azure.Storage", StringComparison.Ordinal)
@@ -170,11 +184,11 @@ public static class ServiceDefaultsExtensions
             && IsAzureStorageNamespace(azNamespace);
     }
 
-    private sealed class SuppressAzureStorageSampler(Sampler inner) : Sampler
+    private sealed class SuppressNoiseSampler(Sampler inner) : Sampler
     {
         public override SamplingResult ShouldSample(in SamplingParameters samplingParameters)
         {
-            if (IsAzureStorageNoiseName(samplingParameters.Name))
+            if (IsAzureStorageNoiseName(samplingParameters.Name) || IsKeepaliveName(samplingParameters.Name))
             {
                 return new SamplingResult(SamplingDecision.Drop);
             }
@@ -183,7 +197,7 @@ public static class ServiceDefaultsExtensions
         }
     }
 
-    private sealed class SuppressAzureStorageActivityProcessor : BaseProcessor<Activity>
+    private sealed class SuppressNoiseActivityProcessor : BaseProcessor<Activity>
     {
         public override void OnEnd(Activity activity)
         {
