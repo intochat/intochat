@@ -1,5 +1,4 @@
 using System.Text.Json;
-using DigitalBrain.Flutter.Button;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Agents.Signals;
 using DigitalBrain.Client;
@@ -16,7 +15,6 @@ using var writer = new SemaphoreSlim(1, 1);
 // Disposable delivery caches only. Every behavior start rebuilds these from authoritative state.
 (string Source, long Generation, long Version)? projected = null;
 (string Source, long Generation)? configured = null;
-string? stopAction = null;
 
 while (!brain.Stopping.IsCancellationRequested)
 {
@@ -44,27 +42,27 @@ async Task Selection(int generation, CancellationTokenSource scope)
 
 async Task Started(IAgent agent, string source, long generation, CancellationToken ct)
 {
-    await foreach (var signal in brain.On<TurnStarted>(agent, () => Project(agent, source, generation), ct)) { await Project(agent, source, generation, signal.Version); }
+    await foreach (var signal in brain.On<TurnStarted>(agent, () => Project(agent, source, generation, ct), ct)) { await Project(agent, source, generation, ct, signal.Version); }
 }
 
 async Task Progress(IAgent agent, string source, long generation, CancellationToken ct)
 {
-    await foreach (var signal in brain.On<TurnProgressed>(agent, () => Project(agent, source, generation), ct)) { await Project(agent, source, generation, signal.Version); }
+    await foreach (var signal in brain.On<TurnProgressed>(agent, () => Project(agent, source, generation, ct), ct)) { await Project(agent, source, generation, ct, signal.Version); }
 }
 
 async Task Completed(IAgent agent, string source, long generation, CancellationToken ct)
 {
-    await foreach (var signal in brain.On<TurnCompleted>(agent, () => Project(agent, source, generation), ct)) { await Project(agent, source, generation, signal.Version); }
+    await foreach (var signal in brain.On<TurnCompleted>(agent, () => Project(agent, source, generation, ct), ct)) { await Project(agent, source, generation, ct, signal.Version); }
 }
 
 async Task Failed(IAgent agent, string source, long generation, CancellationToken ct)
 {
-    await foreach (var signal in brain.On<TurnFailed>(agent, () => Project(agent, source, generation), ct)) { await Project(agent, source, generation, signal.Version); }
+    await foreach (var signal in brain.On<TurnFailed>(agent, () => Project(agent, source, generation, ct), ct)) { await Project(agent, source, generation, ct, signal.Version); }
 }
 
-async Task Project(IAgent agent, string source, long generation, long signalVersion = 0)
+async Task Project(IAgent agent, string source, long generation, CancellationToken ct, long signalVersion = 0)
 {
-    await writer.WaitAsync(brain.Stopping);
+    await writer.WaitAsync(ct);
     try
     {
         if (signalVersion > 0 && projected is { } previous && previous.Source == source
@@ -72,8 +70,8 @@ async Task Project(IAgent agent, string source, long generation, long signalVers
         var state = await agent.Read();
         var identity = (source, generation, state.Version);
         if (projected == identity) { return; }
-        // A callback already in flight when New was clicked cannot repaint the old conversation.
-        if ((await pointer.Read()).Version != generation) { return; }
+        // The previous scope is cancelled and drained before the next generation starts.
+        ct.ThrowIfCancellationRequested();
         if (configured != (source, generation))
         {
             await brain.Get<IComposer>(appKey + "/composer").Configure(source, generation);
@@ -93,14 +91,12 @@ async Task Project(IAgent agent, string source, long generation, long signalVers
                 Status = run.Status.ToString().ToLowerInvariant(), Error = run.Error,
                 Activities = [.. run.ToolCalls.Select(call => new ChatActivity(call.CallId, call.Name, call.Arguments, call.Result, call.Error))],
             },
-        })]));
-        var running = state.ActiveRun;
-        var action = JsonSerializer.Serialize(new { source, runId = running?.RunId ?? "" });
-        if (stopAction != action)
+        })])
         {
-            await brain.Get<IButton>(appKey + "/stop").Set("Stop", action, running is not null);
-            stopAction = action;
-        }
+            Actions = state.ActiveRun is { } running
+                ? [new("stop/" + running.RunId, "Stop", JsonSerializer.Serialize(new { runId = running.RunId }))]
+                : [],
+        });
         projected = identity;
     }
     finally { writer.Release(); }

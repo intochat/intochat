@@ -22,6 +22,13 @@ internal sealed class ChatNeuron(
             || message.Activities.Select(activity => activity.Id).Distinct(StringComparer.Ordinal).Count() != message.Activities.Length)
             || projection.Messages.Select(message => message.Id).Distinct(StringComparer.Ordinal).Count() != projection.Messages.Length)
         { throw new ArgumentException("Chat messages and activities need unique stable IDs and valid content."); }
+        ArgumentNullException.ThrowIfNull(projection.Actions);
+        if (projection.Actions.Length > 16 || projection.Actions.Any(action => action is null
+            || string.IsNullOrWhiteSpace(action.Id) || action.Id.Length > 256
+            || string.IsNullOrWhiteSpace(action.Label) || action.Label.Length > 256
+            || action.Payload is null || action.Payload.Length > 32_000)
+            || projection.Actions.Select(action => action.Id).Distinct(StringComparer.Ordinal).Count() != projection.Actions.Length)
+        { throw new ArgumentException("Chat actions need unique stable IDs, labels, and bounded payloads."); }
 
         if (store.State.Projection is { } current)
         {
@@ -37,12 +44,31 @@ internal sealed class ChatNeuron(
         {
             Name = this.GetPrimaryKeyString(),
             Revision = checked(previous.Revision + 1),
-            Projection = projection with { Messages = [.. projection.Messages.Select(message => message with { Activities = [.. message.Activities] })] },
+            Projection = projection with
+            {
+                Messages = [.. projection.Messages.Select(message => message with { Activities = [.. message.Activities] })],
+                Actions = [.. projection.Actions],
+            },
         };
         try { await store.WriteStateAsync(); }
         catch { store.State = previous; throw; }
         await PublishAsync(new ChatChanged(this.GetPrimaryKeyString(), store.State.Revision));
     }
 
-    public Task<ChatState> Read() => Task.FromResult(store.State);
+    public async Task Activate(string source, long generation, string actionId)
+    {
+        var projection = store.State.Projection;
+        if (projection is null || projection.Source != source || projection.Generation != generation
+            || (projection.Actions ?? []).FirstOrDefault(action => action.Id == actionId) is not { Enabled: true } action)
+        { throw new InvalidOperationException("This chat action is no longer available."); }
+        // Use the canonical payload. Streaming versions do not invalidate the same action identity.
+        var activated = new ChatActionActivated(this.GetPrimaryKeyString(), source, generation,
+            action.Id, action.Payload, Guid.NewGuid());
+        await PublishAsync(activated);
+        await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString()).Dispatch(activated);
+    }
+
+    public Task<ChatState> Read() => Task.FromResult(store.State.Projection is { Actions: null } legacy
+        ? store.State with { Projection = legacy with { Actions = [] } }
+        : store.State);
 }

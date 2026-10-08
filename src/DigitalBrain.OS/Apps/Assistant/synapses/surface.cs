@@ -46,7 +46,7 @@ async Task ComposeAsync()
     await brain.Get<IButton>(Name("new")).Set("New conversation", "new");
     var header = brain.Get<ILayout>(Name("header"));
     await header.Set(new LayoutDefinition("row",
-        [Ref(UIVocabulary.TextType, "status"), Ref(UIVocabulary.ButtonType, "stop"), Ref(UIVocabulary.ButtonType, "new")], Extents: [0, 72, 160]), (await header.Read()).Revision);
+        [Ref(UIVocabulary.TextType, "status"), Ref(UIVocabulary.ButtonType, "new")], Extents: [0, 160]), (await header.Read()).Revision);
     var main = brain.Get<ILayout>(Name("main"));
     await main.Set(new LayoutDefinition("column",
         [Ref(UIVocabulary.LayoutType, "header"), Ref(UIVocabulary.ChatType, "transcript"), Ref(UIVocabulary.ComposerType, "composer")],

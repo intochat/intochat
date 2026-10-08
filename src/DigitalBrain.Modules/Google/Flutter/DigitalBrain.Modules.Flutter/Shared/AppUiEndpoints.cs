@@ -62,6 +62,9 @@ internal static class AppUiEndpoints
             if (!OwnsUi(scope, input.Name)) { throw new UnauthorizedAccessException(); }
             switch (input.Kind)
             {
+                case UIVocabulary.ChatType:
+                    await brain.Get<IChat>(input.Name).Activate(input.Context ?? "", input.Revision, input.Action ?? "").WaitAsync(ct);
+                    break;
                 case UIVocabulary.ComposerType:
                     var composer = brain.Get<IComposer>(input.Name);
                     switch (input.Action)

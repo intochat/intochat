@@ -7,6 +7,8 @@ namespace DigitalBrain.Flutter.Chat;
 public interface IChat : INeuron
 {
     Task Project(ChatProjection projection);
+    // IDs identify immutable intents within a generation; use a new ID when the action target changes.
+    Task Activate(string source, long generation, string actionId);
     [ReadOnly] Task<ChatState> Read();
 }
 
@@ -15,7 +17,26 @@ public sealed record ChatProjection(
     [property: Id(0)] string Source,
     [property: Id(1)] long Generation,
     [property: Id(2)] long Version,
-    [property: Id(3)] ChatEntry[] Messages);
+    [property: Id(3)] ChatEntry[] Messages)
+{
+    [Id(4)] public ChatAction[] Actions { get; init; } = [];
+}
+
+[GenerateSerializer, Alias("ui.chat-action")]
+public sealed record ChatAction(
+    [property: Id(0)] string Id,
+    [property: Id(1)] string Label,
+    [property: Id(2)] string Payload,
+    [property: Id(3)] bool Enabled = true);
+
+[GenerateSerializer, Alias("ui.chat-action-activated")]
+public sealed record ChatActionActivated(
+    [property: Id(0)] string Name,
+    [property: Id(1)] string Source,
+    [property: Id(2)] long Generation,
+    [property: Id(3)] string ActionId,
+    [property: Id(4)] string Payload,
+    [property: Id(5)] Guid RequestId) : Signal;
 
 [GenerateSerializer, Alias("ui.chat-state")]
 public sealed record ChatState

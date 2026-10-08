@@ -281,7 +281,7 @@ class _NeuronViewState extends State<NeuronView> {
         );
       case 'chat':
         final projection = data['projection'] as Map? ?? const {};
-        return UiChatTranscript(
+        final transcript = UiChatTranscript(
           key: ValueKey('${projection['source']}:${projection['generation']}'),
           messages: [
             for (final message
@@ -290,6 +290,45 @@ class _NeuronViewState extends State<NeuronView> {
               Map<String, dynamic>.from(message),
           ],
           markdown: _markdown,
+        );
+        final actions = (projection['actions'] as List? ?? const [])
+            .whereType<Map>()
+            .toList();
+        return Column(
+          children: [
+            Expanded(child: transcript),
+            if (actions.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    for (final action in actions)
+                      OutlinedButton(
+                        onPressed:
+                            enabled &&
+                                widget.onAction != null &&
+                                action['enabled'] != false
+                            ? () => unawaited(
+                                _dispatch({
+                                  'kind': 'chat',
+                                  'name': widget.name,
+                                  'action': action['id'],
+                                  'context': projection['source'],
+                                  'revision': projection['generation'],
+                                }).catchError((Object _) {}),
+                              )
+                            : null,
+                        child: Text('${action['label'] ?? ''}'),
+                      ),
+                  ],
+                ),
+              ),
+          ],
         );
       case 'surface':
       case 'layout':

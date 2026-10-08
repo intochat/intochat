@@ -35,11 +35,14 @@ before the answer.
 When the model fails, the turn's status is failed with the failure as its answer; a following
 message is answered normally in the same conversation.
 
-Stop is a behavior-composed button, enabled while the selected conversation is running.
-Its typed signal captures the server-current conversation and run identity when Click executes;
-replay or delayed signal delivery cancels only that run. A client Click request delayed before
-server execution still uses the then-current button action. Projection updates are serialized and cancellation preserves
-the durable conversation, partial answer and inspectable activity.
+Stop is a behavior-defined chat action, present while the selected conversation is running.
+Messages and actions share one versioned projection. Its ID includes the immutable run ID; clicks
+carry the displayed source, generation and action ID, and the chat neuron publishes only the current
+matching action's canonical payload. A delayed click cannot cancel a newer run or conversation.
+Streaming versions keep the same action valid. Replay or delayed signal delivery cancels only the
+captured run. Cancellation preserves durable history, the partial answer and inspectable activity.
+Selection changes cancel and drain the old projection scope before following the next conversation;
+the chat and composer also reject older generations. No separate Stop projection can race the chat.
 
 Projection may cache successfully delivered source versions during a behavior lifetime to avoid
 repeating identical writes. Versioned lifecycle signals at or below a successfully projected version
