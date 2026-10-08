@@ -68,7 +68,7 @@ internal sealed class AgentNeuron(
         EnsureIdle();
         ArgumentNullException.ThrowIfNull(definition);
         if (State.Revision != expectedRevision) { throw new InvalidOperationException("Agent revision conflict."); }
-        if (definition.MaxModelCalls is < 1 or > 128 || definition.Timeout <= TimeSpan.Zero || definition.Timeout > TimeSpan.FromMinutes(10)
+        if (definition.MaxModelCalls is < 1 or > 512 || definition.Timeout <= TimeSpan.Zero || definition.Timeout > TimeSpan.FromMinutes(60)
             || definition.MaxHistoryMessages is < 2 or > 4096) { throw new ArgumentException("Invalid agent execution limits.", nameof(definition)); }
         if (definition.Instructions.Length > 32000 || definition.Contracts.Length > 128 || definition.Contracts.Any(string.IsNullOrWhiteSpace)
             || definition.Contracts.Distinct(StringComparer.Ordinal).Count() != definition.Contracts.Length

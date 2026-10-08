@@ -42,7 +42,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
 
     private async IAsyncEnumerable<AgentTurnEvent> Steps(TurnPlan plan, [EnumeratorCancellation] CancellationToken ct)
     {
-        if (plan.MaxModelCalls is < 1 or > 128) { throw new ArgumentOutOfRangeException(nameof(plan), "MaxModelCalls must be between 1 and 128."); }
+        if (plan.MaxModelCalls is < 1 or > 512) { throw new ArgumentOutOfRangeException(nameof(plan), "MaxModelCalls must be between 1 and 512."); }
         if (plan.Contracts.Distinct(StringComparer.Ordinal).Count() != plan.Contracts.Length) { throw new ArgumentException("Contracts must be unique.", nameof(plan)); }
         yield return new AgentTurnEvent.Started(plan.RunId);
         string? currentCall = null;
