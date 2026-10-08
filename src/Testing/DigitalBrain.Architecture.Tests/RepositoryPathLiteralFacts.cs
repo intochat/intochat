@@ -33,7 +33,7 @@ public sealed partial class RepositoryPathLiteralFacts
     // A fact names what it wants through the typed harness; the hosting ring decides the
     // variable. Raw OTEL_/ASPNETCORE_/DOTNET_ names and "A__B" env spellings are forbidden in test
     // code outside the harness itself, as is spelling an env name through EnvironmentName(...).
-    [GeneratedRegex("\\$?\"(OTEL_|ASPNETCORE_|DOTNET_|ASPIRE_)|\"[A-Za-z0-9]+__[A-Za-z0-9_]+\"|\"__[A-Za-z0-9]|[A-Za-z0-9}]__\"|EnvironmentName\\(",RegexOptions.CultureInvariant)]
+    [GeneratedRegex("\\$?\"(OTEL_|ASPNETCORE_|DOTNET_|ASPIRE_)|\"[A-Za-z0-9]+__[A-Za-z0-9_]+\"|\"__[A-Za-z0-9\"]|[A-Za-z0-9}]__\"|\\}__[A-Za-z0-9]|EnvironmentName\\(", RegexOptions.CultureInvariant)]
     private static partial Regex EnvironmentLiteral();
 
     // Closed list, keyed <Project>/<path inside it>: these facts assert on the projection itself
