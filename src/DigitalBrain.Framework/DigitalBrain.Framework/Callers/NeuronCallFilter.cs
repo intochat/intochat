@@ -15,6 +15,21 @@ internal sealed class NeuronCallFilter(ICallFilter filter) : IIncomingGrainCallF
             || IsPlatformOnly(neuron, context.InterfaceMethod.DeclaringType!))
         { await context.Invoke(); return; }
 
+        // A kernel-stamped fact is delivered by its publishing grain, not by the user
+        // whose operation happened to produce it. Only that verified delivery boundary
+        // enters internal context; ordinary calls and fabricated callbacks keep policy checks.
+        if (context.InterfaceMethod.DeclaringType == typeof(INeuronObserver)
+            && context.InterfaceMethod.Name == nameof(INeuronObserver.OnSignalAsync)
+            && context.SourceId is { } publisher
+            && !publisher.Type.ToString().StartsWith("sys.client", StringComparison.Ordinal)
+            && context.Request.GetArgument(0) is Signal signal && signal.Publisher.Name == publisher.ToString())
+        {
+            Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
+            try { await context.Invoke(); }
+            finally { Orleans.Runtime.RequestContext.Set(CallerContextStamper.RequestContextKey, caller); }
+            return;
+        }
+
         var access = neuron.Access(context.InterfaceMethod.Name);
         // A neuron keyed by the brain id itself (workspace, app index, kernel) is in that brain.
         if (access == NeuronAccess.Unclassified && neuron.GetPrimaryKeyString() == caller.BrainId) { access = new(caller.BrainId); }

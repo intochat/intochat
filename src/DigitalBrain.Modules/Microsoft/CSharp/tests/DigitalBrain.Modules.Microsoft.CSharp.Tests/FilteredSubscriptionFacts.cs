@@ -6,6 +6,39 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
 public sealed class FilteredSubscriptionFacts
 {
+    [Theory]
+    [InlineData("subscriber-brain")]
+    [InlineData("publisher-brain")]
+    public async Task APublicSourceDeliversToASubscribedRuntime(string publisherBrain)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        var edge = brain.Grains.GetGrain<IBrainRuntimeEdge>("subscriber-brain/runtime");
+        var runtime = brain.Get<IBrainRuntime>("subscriber-brain/runtime");
+        await edge.Assign("subscriber-brain/csharp/a", "hash-a", [], null, null);
+        var session = (await runtime.Inspect(ct)).SessionId!;
+        var source = brain.Get<IPinger>("public-pinger");
+        await edge.Subscribed(session, "subscriber-brain/csharp/a", source.GetGrainId().ToString(), nameof(Pinged));
+        await using var changes = await brain.Observe<BrainRuntimeChanged>(runtime, ct);
+        var caller = CallerContextStamper.Stamp(new()
+        {
+            PrincipalId = "publisher-owner", AccountId = "publisher-account", BrainId = publisherBrain,
+            Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp,
+        });
+        try
+        {
+            await brain.AuthorizeCallerAsync();
+            await source.Ping(7);
+            Assert.Equal(caller, CallerContextStamper.Require());
+        }
+        finally
+        {
+            Orleans.Runtime.RequestContext.Clear();
+        }
+        await changes.NextAsync(ct: ct).WaitAsync(TimeSpan.FromSeconds(5), ct);
+        Assert.Single(await edge.PendingBatches(session));
+    }
+
     [Fact]
     public async Task RetryingAFailedFilterExpansionInstallsItBeforeReportingReadiness()
     {
