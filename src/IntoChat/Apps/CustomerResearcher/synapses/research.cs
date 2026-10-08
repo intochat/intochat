@@ -20,7 +20,6 @@ var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var status = brain.Get<IText>(appKey + "/status");
 var modelSetting = brain.Setting("Model") ?? "";
-var browserSetting = brain.Setting("Browser") ?? "";
 var table = brain.Get<ITable>(appKey + "/table");
 var sync = new object();
 var defined = false;
@@ -94,9 +93,7 @@ async Task RunAsync(string query, Guid? invocation)
     lock (sync) { if (ReferenceEquals(running, run)) { running = null; } }
 }
 
-IPlaywright Browser() => browserSetting.StartsWith("scripted/", StringComparison.Ordinal)
-    ? brain.Get<IScriptedBrowser>(browserSetting["scripted/".Length..])
-    : brain.Get<IPlaywright>(appKey + "/browser");
+IPlaywright Browser() => brain.Get<IPlaywright>(appKey + "/browser");
 
 ILLM Model() => modelSetting.StartsWith(IScriptedLLM.ModelPrefix, StringComparison.Ordinal)
     ? brain.Get<IScriptedLLM>(modelSetting[IScriptedLLM.ModelPrefix.Length..])
