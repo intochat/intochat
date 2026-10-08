@@ -51,9 +51,21 @@ jobs:
 
       - name: Validate NuGet packages
         run: dotnet pack DigitalBrain.slnx -c Release --no-build -v quiet -o artifacts
- 
+
+      - name: Install Playwright browser and system dependencies
+        run: pwsh src/DigitalBrain.Framework/DigitalBrain.Framework.Tests.E2E/bin/Release/net11.0/playwright.ps1 install --with-deps chromium
+
+      # The AppHosts build the shell and sandbox images themselves; these run the SAME Dockerfiles
+      # over the SAME contexts, so the in-test builds hit a warm layer cache instead of a cold build
+      # inside a fact's HTTP timeout.
+      - name: Warm the shell image layer cache
+        run: docker build -f src/DigitalBrain.Modules/Google/Flutter/app/shell/Dockerfile src/DigitalBrain.Modules/Google/Flutter/app
+
+      - name: Warm the sandbox image layer cache
+        run: docker build -f src/DigitalBrain.Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Sandbox/Dockerfile .
+
       - name: Test
-        run: dotnet test
+        run: dotnet test -c Release --no-build
 
       - name: Save NuGet package cache
         if: github.ref == 'refs/heads/master' && steps.nuget-cache.outputs.cache-hit != 'true'
