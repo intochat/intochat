@@ -107,7 +107,11 @@ public sealed class TraceBudgetFacts(ReferenceBrainFixture host)
         var lines = new List<string>();
         void Walk(CapturedSpan span, int depth)
         {
-            lines.Add($"{new string(' ', depth * 2)}{span.Scope}:{span.Name}[kind={span.Kind}]");
+            // Only routing identities: never dump request bodies, model content or credentials.
+            var source = span.Attributes.GetValueOrDefault("orleans.rpc.source_id", "-");
+            var target = span.Attributes.GetValueOrDefault("orleans.rpc.target_id", "-");
+            var contract = span.Attributes.GetValueOrDefault("orleans.rpc.service", "-");
+            lines.Add($"{new string(' ', depth * 2)}{span.Scope}:{span.Name}[kind={span.Kind}] source={source} target={target} contract={contract}");
             foreach (var child in byParent[span.SpanId]) { Walk(child, depth + 1); }
         }
 
