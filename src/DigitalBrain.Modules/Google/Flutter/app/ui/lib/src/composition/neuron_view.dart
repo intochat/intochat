@@ -458,9 +458,13 @@ class _NeuronViewState extends State<NeuronView> {
           ],
         );
       case 'table':
-        final columns = (definition['columns'] as List? ?? []).whereType<Map>().toList();
+        final columns = (definition['columns'] as List? ?? [])
+            .whereType<Map>()
+            .toList();
         if (columns.isEmpty) return const SizedBox.shrink();
-        final rows = (definition['rows'] as List? ?? []).whereType<List>().toList();
+        final rows = (definition['rows'] as List? ?? [])
+            .whereType<List>()
+            .toList();
         return SingleChildScrollView(
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,

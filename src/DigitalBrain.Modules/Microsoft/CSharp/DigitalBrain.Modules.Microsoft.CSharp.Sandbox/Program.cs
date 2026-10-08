@@ -1,6 +1,6 @@
+using System.Diagnostics;
 using DigitalBrain.Client.Runtime.V1;
 using DigitalBrain.Microsoft.CSharp.Sandbox;
-using System.Diagnostics;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Trace;

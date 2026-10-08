@@ -1,9 +1,9 @@
 using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
-using DigitalBrain.Testing.E2E.Diagnostics;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Modules;
+using DigitalBrain.Testing.E2E.Diagnostics;
 
 namespace DigitalBrain.Testing.E2E;
 

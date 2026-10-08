@@ -68,9 +68,7 @@ class WorkspaceClient extends http.BaseClient {
           utf8.encode(
             jsonEncode({
               'title': '',
-              'body': name.endsWith('/user')
-                  ? run['userText']
-                  : run['reply'],
+              'body': name.endsWith('/user') ? run['userText'] : run['reply'],
               'children': [],
             }),
           ),

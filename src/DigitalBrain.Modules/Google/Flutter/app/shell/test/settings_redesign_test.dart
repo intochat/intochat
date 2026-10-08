@@ -1,4 +1,3 @@
-
 import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:digitalbrain_flutter_shell/workspace/model_settings.dart';
 import 'package:digitalbrain_flutter_shell/workspace/workspace_app.dart';

@@ -51,7 +51,10 @@ void main() {
     expect(find.byKey(const Key('ui_chart_Share')), findsOneWidget);
   });
 
-  Future<void> pumpTable(WidgetTester tester, Map<String, dynamic> state) async {
+  Future<void> pumpTable(
+    WidgetTester tester,
+    Map<String, dynamic> state,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
