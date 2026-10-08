@@ -1088,6 +1088,18 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     try {
       final result = await client.openApp(project.id, application, arguments);
       if (!mounted) return;
+      // The app may have committed its window before the watch invalidation
+      // reaches us. Reconcile that state before revealing a remote artifact.
+      final workspace = await client.readWorkspace(
+        project.id,
+        cancelled: _remoteCancelled.future,
+      );
+      if (!mounted) return;
+      store.reconcileWorkspace(
+        project,
+        workspace,
+        openedWindowId: result['id'] as String?,
+      );
       final opened = Map<String, dynamic>.from(result as Map);
       if (opened['surface'] is String) {
         opened['surface'] = {'kind': 'surface', 'name': opened['surface']};
