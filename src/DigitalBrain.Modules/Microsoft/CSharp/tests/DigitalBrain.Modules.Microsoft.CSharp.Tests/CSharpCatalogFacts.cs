@@ -120,6 +120,8 @@ public sealed class CSharpCatalogFacts
 
         public IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
             => throw new NotSupportedException();
+        public IAsyncEnumerable<T> On<T>(INeuron source, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : Signal
+            => throw new NotSupportedException();
     }
 
     public class CallRecorder : DispatchProxy

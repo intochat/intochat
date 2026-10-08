@@ -26,6 +26,9 @@ public interface IDigitalBrain
     /// </summary>
     IAsyncEnumerable<T> On<T>(INeuron neuron, CancellationToken cancellationToken = default) where T : Signal;
 
+    // Runs recovery after registration and before yielding queued signals, even if none have arrived.
+    IAsyncEnumerable<T> On<T>(INeuron neuron, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : Signal;
+
     /// <summary>
     /// The brain's own neuron: the first one, which publishes <see cref="Created"/> and
     /// <see cref="Activated"/>, so a program can watch its brain like any other neuron.

@@ -56,9 +56,13 @@ public sealed class BehaviorRun : IAsyncDisposable
             => _ready.GetOrAdd((source, type), _ => new(TaskCreationOptions.RunContinuationsAsynchronously));
         public T Get<T>(NeuronId id) where T : INeuron => inner.Get<T>(id);
         public IKernel Self => inner.Self;
-        public async IAsyncEnumerable<T> On<T>(INeuron source, [EnumeratorCancellation] CancellationToken cancellationToken = default) where T : Signal
+        public IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
+            => On<T>(source, static () => Task.CompletedTask, cancellationToken);
+        public async IAsyncEnumerable<T> On<T>(INeuron source, Func<Task> onSubscribed,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default) where T : Signal
         {
             await using var subscription = await SubscribeAsync<T>(source, cancellationToken).ConfigureAwait(false);
+            await onSubscribed().ConfigureAwait(false);
             await foreach (var signal in subscription.ReadAllAsync(cancellationToken).ConfigureAwait(false)) { yield return signal; }
         }
         public async Task<ISignalSubscription<T>> SubscribeAsync<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal

@@ -5,11 +5,13 @@ namespace DigitalBrain.Client.Orleans;
 // consumer may dispose it while a read is in flight (a primed enumerator, a break, a failing
 // handler). Disposal cancels the pending read, lets it settle, and only then releases the
 // subscription, so an early exit never throws and never leaks the watch.
-internal sealed class WatchStream<T>(Func<CancellationToken, Task<(IAsyncEnumerable<T> Signals, IAsyncDisposable Handle)>> open) : IAsyncEnumerable<T>
+internal sealed class WatchStream<T>(Func<CancellationToken, Task<(IAsyncEnumerable<T> Signals, IAsyncDisposable Handle)>> open,
+    Func<Task>? onSubscribed = null) : IAsyncEnumerable<T>
 {
-    public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default) => new Enumerator(open, cancellationToken);
+    public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default) => new Enumerator(open, cancellationToken, onSubscribed);
 
-    private sealed class Enumerator(Func<CancellationToken, Task<(IAsyncEnumerable<T> Signals, IAsyncDisposable Handle)>> open, CancellationToken cancellationToken) : IAsyncEnumerator<T>
+    private sealed class Enumerator(Func<CancellationToken, Task<(IAsyncEnumerable<T> Signals, IAsyncDisposable Handle)>> open,
+        CancellationToken cancellationToken, Func<Task>? onSubscribed) : IAsyncEnumerator<T>
     {
         private readonly CancellationTokenSource _lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         private IAsyncEnumerator<T>? _signals;
@@ -36,6 +38,7 @@ internal sealed class WatchStream<T>(Func<CancellationToken, Task<(IAsyncEnumera
                     var (signals, handle) = await open(_lifetime.Token).ConfigureAwait(false);
                     _handle = handle;
                     _signals = signals.GetAsyncEnumerator(_lifetime.Token);
+                    if (onSubscribed is not null) { await onSubscribed().ConfigureAwait(false); }
                 }
                 return await _signals.MoveNextAsync().ConfigureAwait(false);
             }

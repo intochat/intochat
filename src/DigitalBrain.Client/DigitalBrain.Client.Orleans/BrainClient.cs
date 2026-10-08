@@ -29,7 +29,12 @@ internal sealed class BrainClient(IClusterClient cluster, IOptions<SubscriptionO
     // Either token ends the watch: the one given here, or the enumerator's. See WatchStream for
     // why the stream is hand-written.
     public IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
-        => new WatchStream<T>(async ct =>
+        => On<T>(source, static () => Task.CompletedTask, cancellationToken);
+
+    public IAsyncEnumerable<T> On<T>(INeuron source, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : Signal
+    {
+        ArgumentNullException.ThrowIfNull(onSubscribed);
+        return new WatchStream<T>(async ct =>
         {
             if (!cancellationToken.CanBeCanceled)
             {
@@ -43,7 +48,8 @@ internal sealed class BrainClient(IClusterClient cluster, IOptions<SubscriptionO
                 return (subscription.ReadAllAsync(linked.Token), new LinkedHandle(subscription, linked));
             }
             catch { linked.Dispose(); throw; }
-        });
+        }, onSubscribed);
+    }
 
     private sealed class LinkedHandle(IAsyncDisposable subscription, CancellationTokenSource linked) : IAsyncDisposable
     {

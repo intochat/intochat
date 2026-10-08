@@ -66,7 +66,10 @@ public sealed class VocabularyRingFacts
     public void TheBrainSeenByAProgramHasExactlyGetOnAndSelf()
     {
         var methods = typeof(IDigitalBrain).GetMethods().Where(m => !m.IsSpecialName).Select(m => m.Name).Order().ToArray();
-        Assert.Equal(["Get", "On"], methods);
+        Assert.Equal(["Get", "On", "On"], methods);
+        var watches = typeof(IDigitalBrain).GetMethods().Where(m => m.Name == "On").OrderBy(m => m.GetParameters().Length).ToArray();
+        Assert.Equal([typeof(INeuron), typeof(CancellationToken)], watches[0].GetParameters().Select(p => p.ParameterType));
+        Assert.Equal([typeof(INeuron), typeof(Func<Task>), typeof(CancellationToken)], watches[1].GetParameters().Select(p => p.ParameterType));
         var self = Assert.Single(typeof(IDigitalBrain).GetProperties());
         Assert.Equal("Self", self.Name);
         Assert.Equal(typeof(IKernel), self.PropertyType);
