@@ -8,10 +8,20 @@ namespace DigitalBrain.Microsoft.CSharp.Sandbox;
 
 // One brain's connection and its loaded behaviors. The control loop follows the brain's stream: ready
 // names the desired set, an assignment loads (or swaps) one behavior, a retirement unloads it, a logs request is answered from
-// its ring buffer. Every load and every exit is reported, so the brain counts failures per behavior.
-internal sealed class Session(SessionConnection connection, BehaviorLoader loader, ILogger logger) : IAsyncDisposable
+// its ring buffer. Every load and every exit is reported. A behavior the brain did not retire is the
+// host's to keep alive: an exit is reported and the behavior is loaded again after a growing backoff,
+// until the brain retires it or assigns it a different hash.
+internal sealed class Session(SessionConnection connection, BehaviorLoader loader, ILogger logger, TimeSpan? reloadBase = null) : IAsyncDisposable
 {
+    private static readonly TimeSpan ReloadCap = TimeSpan.FromSeconds(60);
+
+    private readonly TimeSpan _reloadBase = reloadBase ?? TimeSpan.FromSeconds(1);
     private readonly ConcurrentDictionary<string, BehaviorRun> _behaviors = new(StringComparer.Ordinal);
+    // Per behavior, the assignment whose run last failed and how many times it has exited, which sizes
+    // the next backoff. Held across reloads: only a clean exit, a new hash or a retirement forgets it.
+    private readonly ConcurrentDictionary<string, FailedRun> _failures = new(StringComparer.Ordinal);
+    // Behaviors the brain retired: a reload that fires after a retirement does nothing.
+    private readonly ConcurrentDictionary<string, byte> _retired = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _changes = new(1, 1);
 
     public IReadOnlyDictionary<string, BehaviorRun> Behaviors => _behaviors;
@@ -44,8 +54,12 @@ internal sealed class Session(SessionConnection connection, BehaviorLoader loade
         await _changes.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            // The brain assigned it again, so it is wanted again.
+            _retired.TryRemove(assignment.Behavior, out _);
             // A reconnecting stream resends every assignment: one already running as assigned keeps running.
             if (_behaviors.TryGetValue(assignment.Behavior, out var current) && Same(current.Assignment, assignment)) { return; }
+            // A different hash is a different program, so the backoff an earlier one earned does not hold it back.
+            if (_failures.TryGetValue(assignment.Behavior, out var failed) && failed.Assignment.Hash != assignment.Hash) { _failures.TryRemove(assignment.Behavior, out _); }
             // A swap unloads only this behavior; the others keep running.
             if (_behaviors.TryRemove(assignment.Behavior, out var previous)) { await previous.DisposeAsync().ConfigureAwait(false); }
             BehaviorRun run;
@@ -89,20 +103,54 @@ internal sealed class Session(SessionConnection connection, BehaviorLoader loade
 
     private async Task UnloadAsync(string behavior, CancellationToken cancellationToken)
     {
-        if (!_behaviors.TryRemove(behavior, out var run)) { return; }
+        // Retired for good: a reload already scheduled for it is now unwanted.
+        _retired[behavior] = 0;
+        if (!_behaviors.TryRemove(behavior, out var run))
+        {
+            // A behavior that exited on its own holds nothing to stop, but the brain still expects the
+            // retirement answered against the hash it last ran.
+            if (_failures.TryRemove(behavior, out var failed))
+            { await ReportAsync(new(behavior, failed.Assignment.Hash, "Stopped", 0, null), cancellationToken).ConfigureAwait(false); }
+            return;
+        }
+        _failures.TryRemove(behavior, out _);
         await run.DisposeAsync().ConfigureAwait(false);
         logger.LogInformation("Unloaded behavior {Behavior} {Hash}", run.Id, run.Hash);
         await ReportAsync(new(run.Id, run.Hash, "Stopped", 0, null), cancellationToken).ConfigureAwait(false);
     }
 
-    // An exit the brain did not ask for: reported once, unless the run was retired or swapped first.
+    // An exit the brain did not ask for: reported, then reloaded after a backoff for as long as the
+    // assignment stands. A clean exit is not a failure, so it is not reloaded.
     private async Task ReportExitAsync(BehaviorRun run)
     {
         var exit = await run.Completion.ConfigureAwait(false);
-        if (!_behaviors.TryGetValue(run.Id, out var current) || current != run) { return; }
-        _behaviors.TryRemove(new(run.Id, run));
+        if (!_behaviors.TryRemove(new(run.Id, run))) { return; }
+        // Counted before the exit is reported, so a retirement arriving with that report cancels the reload.
+        var attempt = 1;
+        if (exit == 0) { _failures.TryRemove(run.Id, out _); }
+        else
+        {
+            attempt = _failures.TryGetValue(run.Id, out var failed) && failed.Assignment.Hash == run.Hash ? failed.Count + 1 : 1;
+            _failures[run.Id] = new(run.Assignment, attempt);
+        }
         await ReportAsync(new(run.Id, run.Hash, "Exited", exit, run.Error), connection.Stopping).ConfigureAwait(false);
         await run.DisposeAsync().ConfigureAwait(false);
+        if (exit == 0) { return; }
+        var delay = TimeSpan.FromTicks(Math.Min(_reloadBase.Ticks << Math.Min(attempt - 1, 6), ReloadCap.Ticks));
+        _ = ReloadLaterAsync(run.Assignment, delay);
+    }
+
+    private async Task ReloadLaterAsync(AssignmentEvent assignment, TimeSpan delay)
+    {
+        try
+        {
+            await Task.Delay(delay, connection.Stopping).ConfigureAwait(false);
+            // Still wanted at this hash, and nothing else loaded it meanwhile.
+            if (_retired.ContainsKey(assignment.Behavior) || _behaviors.ContainsKey(assignment.Behavior)) { return; }
+            logger.LogInformation("Reloading behavior {Behavior} {Hash}", assignment.Behavior, assignment.Hash);
+            await AssignAsync(assignment, connection.Stopping).ConfigureAwait(false);
+        }
+        catch (Exception error) when (error is OperationCanceledException or ObjectDisposedException) { }
     }
 
     private Task AnswerLogsAsync(LogsRequestEvent request, CancellationToken cancellationToken)
@@ -122,4 +170,7 @@ internal sealed class Session(SessionConnection connection, BehaviorLoader loade
         await connection.DisposeAsync().ConfigureAwait(false);
         _changes.Dispose();
     }
+
+    // A run that exited with a failure, and the hash it ran, kept until the failure count is forgotten.
+    private sealed record FailedRun(AssignmentEvent Assignment, int Count);
 }

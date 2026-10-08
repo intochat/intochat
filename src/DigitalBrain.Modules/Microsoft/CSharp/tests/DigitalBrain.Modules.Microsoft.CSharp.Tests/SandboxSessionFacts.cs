@@ -152,4 +152,32 @@ public sealed class SandboxSessionFacts
         Assert.Equal(("Exited", 1), (exited["status"]!.GetValue<string>(), exited["exitCode"]!.GetValue<int>()));
         Assert.Contains("boom", exited["error"]!.GetValue<string>(), StringComparison.Ordinal);
     }
+
+    // A behavior the brain did not retire is the host's to keep alive: an exit is reported and the
+    // behavior is loaded again after a backoff, for as long as the assignment stands.
+    [Fact(Timeout = 60_000)]
+    public async Task AnExitedBehaviorIsReloadedUntilItIsRetired()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var edge = new FakeBrainEdge();
+        var crashing = BehaviorLoaderFacts.Compile("var brain = await DigitalBrainClient.ConnectAsync(args);\nthrow new InvalidOperationException(\"boom\");\n");
+        edge.Serve(crashing);
+        await using var connection = await BehaviorLoaderFacts.Open(edge, ct);
+        await using var session = new Session(connection, BehaviorLoaderFacts.Loader(edge), NullLogger.Instance, TimeSpan.FromMilliseconds(50));
+        var control = session.RunAsync(ct);
+
+        edge.Push(AssignmentEvent.Kind, edge.Assignment("acc-brain/apps/demo/synapses/a.cs", crashing));
+        var first = await edge.StatusAsync("acc-brain/apps/demo/synapses/a.cs", ct, status: "Exited");
+        Assert.Equal(1, first["exitCode"]!.GetValue<int>());
+        var second = await edge.StatusAsync("acc-brain/apps/demo/synapses/a.cs", ct, status: "Running");   // reloaded
+        Assert.NotNull(second);
+        await edge.StatusAsync("acc-brain/apps/demo/synapses/a.cs", ct, status: "Exited");
+
+        edge.Push(RetireEvent.Kind, new RetireEvent("acc-brain/apps/demo/synapses/a.cs"));
+        await edge.StatusAsync("acc-brain/apps/demo/synapses/a.cs", ct, status: "Stopped");
+        var reportsAfterRetire = edge.RecordedReports.Count;
+        await Task.Delay(300, ct);
+        Assert.Equal(reportsAfterRetire, edge.RecordedReports.Count);   // no reload after retire
+        Assert.False(control.IsCompleted);
+    }
 }
