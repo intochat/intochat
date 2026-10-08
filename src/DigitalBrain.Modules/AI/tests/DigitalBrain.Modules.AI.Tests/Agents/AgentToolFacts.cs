@@ -8,6 +8,44 @@ namespace DigitalBrain.Modules.AI.Tests.Agents;
 
 public sealed class AgentToolFacts
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RecoverableToolRefusalsRetainTheirResultAndDiagnosticWithoutFailingTheTurn(bool unavailable)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var request = unavailable
+            ? new FunctionCallContent("refused-call", "unknown", new Dictionary<string, object?>())
+            : Probe.Call("refused-call", "MissingMethod");
+        await using var brain = await Probe.Brain(ScriptedClient(request), ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
+        var events = await AgentFacts.Collect(agent, AgentTurn.Text("ask", contracts: [Probe.Contract]), ct);
+        var result = Assert.Single(events.OfType<AgentTurnEvent.ToolCompleted>()).Result;
+        using var payload = System.Text.Json.JsonDocument.Parse(result);
+        Assert.True(payload.RootElement.GetProperty("isError").GetBoolean());
+        var run = Assert.Single((await agent.Read()).Runs);
+        Assert.Equal(AgentRunStatus.Completed, run.Status);
+        var call = Assert.Single(run.ToolCalls);
+        Assert.Equal(result, call.Result);
+        Assert.Equal(payload.RootElement.GetProperty("message").GetString(), call.Error);
+        Assert.Equal(unavailable ? "tool_unavailable" : "tool_error", call.Code);
+        Assert.Single(events.OfType<AgentTurnEvent.Finished>());
+    }
+
+    [Fact]
+    public async Task ErrorShapedTextInsideASuccessfulResultIsNotAToolFailure()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Probe.Brain(ScriptedClient(Probe.Call("echo-call", nameof(ILoopProbe.Echo),
+            System.Text.Json.JsonSerializer.Serialize(new[] { "{\"isError\":true,\"message\":\"quoted data\"}" }))), ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("main"));
+        await AgentFacts.Collect(agent, AgentTurn.Text("ask", contracts: [Probe.Contract]), ct);
+        var call = Assert.Single(Assert.Single((await agent.Read()).Runs).ToolCalls);
+        Assert.NotNull(call.Result);
+        Assert.Null(call.Error);
+        Assert.Null(call.Code);
+    }
+
     [Fact]
     public async Task ToolDoesNotExecuteUntilTheAgentHasRecordedItsStart()
     {
