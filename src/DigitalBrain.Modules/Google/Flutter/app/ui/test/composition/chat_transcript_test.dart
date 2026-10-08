@@ -1,8 +1,62 @@
 import 'package:digitalbrain_ui/digitalbrain_ui.dart';
+import 'package:digitalbrain_ui/src/chat/ui_chat_transcript.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets(
+    'activity summary keeps the final answer visible in a short chat',
+    (tester) async {
+      tester.view.physicalSize = const Size(360, 320);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: UiChatTranscript(
+              messages: [
+                {
+                  'id': 'answer',
+                  'role': 1,
+                  'text': 'Six companies are ready.',
+                  'status': 'completed',
+                  'activities': List.generate(
+                    8,
+                    (i) => {
+                      'id': 'call-$i',
+                      'title': 'Lookup $i',
+                      'input': 'company $i',
+                      'result': 'Verified source $i',
+                    },
+                  ),
+                },
+              ],
+              markdown: (text) => Text(text),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Six companies are ready.').hitTestable(),
+        findsOneWidget,
+      );
+      expect(find.text('Lookup 7'), findsNothing);
+      await tester.tap(find.text('8 activities'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Lookup 7'));
+      await tester.tap(find.text('Lookup 7'));
+      await tester.pumpAndSettle();
+      expect(find.text('Verified source 7'), findsOneWidget);
+      await tester.ensureVisible(find.text('8 activities'));
+      await tester.tap(find.text('8 activities'));
+      await tester.pumpAndSettle();
+      expect(find.text('Lookup 7'), findsNothing);
+      expect(find.text('Verified source 7'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'streaming preserves the reading position until latest is requested',
     (tester) async {
@@ -102,6 +156,9 @@ void main() {
       expect(find.text('Assistant'), findsOneWidget);
       expect(find.text('private result details'), findsNothing);
       expect(tester.takeException(), isNull);
+      await tester.ensureVisible(find.text('1 activity'));
+      await tester.tap(find.text('1 activity'));
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.text('Query database'));
       await tester.tap(find.text('Query database'));
       await tester.pumpAndSettle();
