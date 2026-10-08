@@ -16,9 +16,17 @@ await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 
-await foreach (var invoked in app.Invocations(brain, brain.Stopping))
-{ if (invoked.Operation == "open") { await app.Respond(await OpenAsync(invoked.InvocationId, invoked.Input == "docked")); } }
-return;
+await foreach (var _ in brain.On<AppInvoked>(app, Reconcile, brain.Stopping)) { await Reconcile(); }
+
+async Task Reconcile()
+{
+    foreach (var request in (await app.Pending()).Where(item => item.Operation == "open"))
+    {
+        try { await app.Respond(await OpenAsync(request.Id, request.Input == "docked")); }
+        catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
+        { await app.Respond(new(request.Id, null, error.Message)); }
+    }
+}
 
 // Docked: the shell renders the surface in its side panel, so no workspace window opens.
 async Task<AppResponse> OpenAsync(Guid id, bool docked)
@@ -44,14 +52,13 @@ async Task ComposeAsync()
     await brain.Get<IButton>(Name("stop")).Set("Stop", "stop");
     var toolbar = brain.Get<ILayout>(Name("toolbar"));
     await toolbar.Set(new LayoutDefinition("row",
-        [Ref(UIVocabulary.TextFieldType, "company"), Ref(UIVocabulary.ButtonType, "research"), Ref(UIVocabulary.ButtonType, "stop"), Ref(UIVocabulary.TextType, "status")],
-        Extents: [0, 110, 80, 280]), (await toolbar.Read()).Revision);
+        [Ref(UIVocabulary.ButtonType, "research"), Ref(UIVocabulary.ButtonType, "stop")]), (await toolbar.Read()).Revision);
 
     await brain.Get<IWebBrowser>(Name("browser")).Configure(Name("browser"), Name("status"));
     var main = brain.Get<ILayout>(Name("main"));
     await main.Set(new LayoutDefinition("column",
-        [Ref(UIVocabulary.LayoutType, "toolbar"), Ref(UIVocabulary.WebBrowserType, "browser")],
-        Extents: [64, 0]), (await main.Read()).Revision);
+        [Ref(UIVocabulary.TextFieldType, "company"), Ref(UIVocabulary.LayoutType, "toolbar"), Ref(UIVocabulary.TextType, "status"), Ref(UIVocabulary.WebBrowserType, "browser")],
+        Extents: [60, 40, 64, 0]), (await main.Read()).Revision);
 
     var surface = brain.Get<ISurface>(Name("surface"));
     await surface.Set(new SurfaceDefinition("Customer Researcher", [Ref(UIVocabulary.LayoutType, "main")]), (await surface.Read()).Revision);
