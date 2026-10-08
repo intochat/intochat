@@ -16,8 +16,11 @@ public sealed record ScriptCompilation(bool Success, IReadOnlyList<ScriptDiagnos
 // The single compiler: compiles each behavior in-process against what the sandbox carries and,
 // when every file is clean, emits one assembly per file named by its content hash. The sandbox only
 // loads what this emits. The implicit console usings plus the script client's namespaces are imported.
+// Files under lib/ are shared: each one is compiled into every program file's assembly and yields none itself.
 public sealed class CSharpScriptCheck
 {
+    public const string LibraryPrefix = "lib/";
+
     private const string GlobalUsings = """
         global using System;
         global using System.Collections.Generic;
@@ -36,27 +39,39 @@ public sealed class CSharpScriptCheck
     private static readonly CSharpCompilationOptions Options = new(OutputKind.ConsoleApplication, deterministic: true, nullableContextOptions: NullableContextOptions.Enable);
     private static readonly EmitOptions Emit = new(debugInformationFormat: DebugInformationFormat.PortablePdb);
 
+    public static bool IsLibrary(string path)
+        => path.StartsWith(LibraryPrefix, StringComparison.Ordinal) && path.EndsWith(".cs", StringComparison.Ordinal);
+
     public ScriptCompilation Compile(IReadOnlyDictionary<string, string> files)
     {
         ArgumentNullException.ThrowIfNull(files);
-        if (files.Count == 0) { throw new ArgumentException("Pass at least one file to compile.", nameof(files)); }
+        var libraries = files.Where(file => IsLibrary(file.Key)).OrderBy(file => file.Key, StringComparer.Ordinal).ToArray();
+        var programs = files.Where(file => !IsLibrary(file.Key)).OrderBy(file => file.Key, StringComparer.Ordinal).ToArray();
+        if (programs.Length == 0) { throw new ArgumentException("Pass at least one program file to compile; lib/ files are shared, not programs.", nameof(files)); }
         var errors = new List<ScriptDiagnostic>();
         var assemblies = new Dictionary<string, CompiledBehavior>(StringComparer.Ordinal);
-        foreach (var (path, source) in files.OrderBy(file => file.Key, StringComparer.Ordinal))
+        var shared = libraries.Select(library =>
+        {
+            ArgumentNullException.ThrowIfNull(library.Value, library.Key);
+            return CSharpSyntaxTree.ParseText(SourceText.From(library.Value, Encoding.UTF8), Parse, library.Key);
+        }).Append(CSharpSyntaxTree.ParseText(SourceText.From(GlobalUsings, Encoding.UTF8), Parse, "GlobalUsings.cs")).ToArray();
+        var reportedLibraryErrors = false;
+        foreach (var (path, source) in programs)
         {
             ArgumentNullException.ThrowIfNull(source, path);
-            var trees = new[]
-            {
-                CSharpSyntaxTree.ParseText(SourceText.From(source, Encoding.UTF8), Parse, path),
-                CSharpSyntaxTree.ParseText(SourceText.From(GlobalUsings, Encoding.UTF8), Parse, "GlobalUsings.cs"),
-            };
+            var trees = shared.Prepend(CSharpSyntaxTree.ParseText(SourceText.From(source, Encoding.UTF8), Parse, path)).ToArray();
             var compilation = CSharpCompilation.Create("behavior", trees, References.Value, Options);
             using var assembly = new MemoryStream();
             using var symbols = new MemoryStream();
             var emitted = compilation.Emit(assembly, symbols, options: Emit);
-            errors.AddRange(emitted.Diagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-                .Select(diagnostic => new ScriptDiagnostic(path, diagnostic.Id,
-                    diagnostic.Location.GetLineSpan().StartLinePosition.Line + 1, diagnostic.GetMessage())));
+            foreach (var diagnostic in emitted.Diagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
+            {
+                var file = diagnostic.Location.SourceTree?.FilePath ?? path;
+                // A library error shows once, not once per program that includes it.
+                if (file != path) { if (reportedLibraryErrors) { continue; } }
+                errors.Add(new ScriptDiagnostic(file, diagnostic.Id, diagnostic.Location.GetLineSpan().StartLinePosition.Line + 1, diagnostic.GetMessage()));
+            }
+            reportedLibraryErrors = true;
             if (emitted.Success)
             {
                 var bytes = assembly.ToArray();
