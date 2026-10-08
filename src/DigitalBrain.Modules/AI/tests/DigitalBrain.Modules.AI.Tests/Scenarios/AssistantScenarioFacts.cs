@@ -110,7 +110,7 @@ public sealed class AssistantScenarioFacts
             },
         })
             .WithModule<AIModule>().RequireModules([new AppsModule(), new DigitalBrain.Compute.ComputeModule(), new DigitalBrain.Flutter.FlutterModule()])
-            .WithModule<CSharpModule>().WithModule<PostgresModule>().WithReminders()
+            .WithModule<CSharpModule>().WithModule<PostgresModule>().WithModule<DigitalBrain.Machine.MachineModule>().WithReminders()
             // No provider is provisioned, so the turn runs on the host's own chat client: the script.
             .ConfigureSilo(silo => silo.Services
                 .AddSingleton(model)

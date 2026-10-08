@@ -3,6 +3,7 @@ using DigitalBrain.AI.Models;
 using DigitalBrain.Apps;
 using DigitalBrain.Client;
 using DigitalBrain.Integrations;
+using DigitalBrain.Machine;
 using DigitalBrain.Flutter.Chat;
 using DigitalBrain.Flutter.Form;
 using DigitalBrain.Flutter.Workspace;
@@ -14,7 +15,8 @@ var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var composer = brain.Get<IComposer>(appKey + "/composer");
 string[] contracts = [typeof(IConnectionRequests).FullName!, typeof(IPostgresServer).FullName!, typeof(IApp).FullName!, typeof(IAppIndex).FullName!,
-    typeof(IWorkspace).FullName!, typeof(IForm).FullName!, typeof(ICSharpFile).FullName!];
+    typeof(IWorkspace).FullName!, typeof(IForm).FullName!, typeof(ICSharpFile).FullName!,
+    typeof(IConsole).FullName!, typeof(IFileSystem).FullName!];
 
 await foreach (var _ in brain.On<ComposerSubmitted>(composer, Reconcile, brain.Stopping)) { await Reconcile(); }
 

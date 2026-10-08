@@ -5,6 +5,7 @@ using DigitalBrain.AI.Models;
 using DigitalBrain.Apps;
 using DigitalBrain.Client;
 using DigitalBrain.Integrations;
+using DigitalBrain.Machine;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Button;
 using DigitalBrain.Flutter.Button.Signals;
@@ -24,7 +25,8 @@ var app = brain.Get<IApp>(appKey);
 string Name(string part) => appKey + "/" + part;
 // What the model may act on: the contracts this app composes, checked by the compiler.
 string[] Contracts = [typeof(IConnectionRequests).FullName!, typeof(IPostgresServer).FullName!, typeof(IApp).FullName!, typeof(IAppIndex).FullName!,
-    typeof(IWorkspace).FullName!, typeof(IForm).FullName!, typeof(ICSharpFile).FullName!];
+    typeof(IWorkspace).FullName!, typeof(IForm).FullName!, typeof(ICSharpFile).FullName!,
+    typeof(IConsole).FullName!, typeof(IFileSystem).FullName!];
 
 await ConversationId();
 // A failed loop must reach the runtime supervisor, rather than leave its sibling waiting forever.
