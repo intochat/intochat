@@ -25,7 +25,7 @@
   "settings": [
     {
       "name": "Model",
-      "description": "Uses the host default LLM. Scenario tests may override with scripted/<key>.",
+      "description": "Uses the host default LLM.",
       "default": ""
     },
     {

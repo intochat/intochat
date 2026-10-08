@@ -15,7 +15,6 @@ When Research or Stop is clicked, invoke the corresponding app operation.
 When research is requested, run the bounded browser/model algorithm and save verified evidence. Research invocations form a durable sequential queue. Stop cancels active and queued requests; result reads the stored company. The reserved tables slot binds storage through an existing Postgres connection.
 
 Production research uses the host's default LLM. Legacy Model settings do not pin a provider.
-Scratch scenario installs may supply scripted/<key> as Model to run deterministic checks.
 
 ## Scenario: Opening the researcher composes its surface
 

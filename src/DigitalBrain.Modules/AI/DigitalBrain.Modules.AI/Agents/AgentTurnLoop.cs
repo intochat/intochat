@@ -75,11 +75,6 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
                 options = InferenceMapping.CreateOptions(resolved, settings, hostDescriptor);
                 yield return new AgentTurnEvent.ModelSelected(resolved, hostDescriptor);
                 break;
-            case AiProvider.Scripted:
-                // A scripted model plays its script; sampling and media declarations do not apply to it.
-                options = ModelCatalog.CreateOptions(resolved);
-                yield return new AgentTurnEvent.ModelSelected(resolved, catalog.Describe(resolved));
-                break;
             default:
                 var descriptor = catalog.Describe(resolved);
                 InferenceMapping.ValidateRequest(new InferenceRequest([.. plan.Transcript, plan.Input], selection, plan.Options), descriptor);

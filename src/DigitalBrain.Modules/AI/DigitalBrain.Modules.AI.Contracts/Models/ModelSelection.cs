@@ -1,6 +1,6 @@
 namespace DigitalBrain.AI.Models;
 
-// Model is a marker name ("IFable5"), a configured profile name, or "scripted/<key>"; null is the
+// Model is a marker name ("IFable5"), a configured profile name; null is the
 // deployment default. Reasoning and MaxOutputTokens override what the model or profile pins.
 [GenerateSerializer, Alias("ai.model-selection")]
 public sealed record ModelSelection(
