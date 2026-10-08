@@ -66,15 +66,30 @@ public sealed class ScriptedModelServer : IAsyncDisposable
         if (backgroundReply is not null)
         {
             Assert.False(request.TryGetProperty("tools", out var tools) && tools.GetArrayLength() > 0);
-            return Completion(new { role = "assistant", content = backgroundReply }, "stop");
+            return Completion(request, new { role = "assistant", content = backgroundReply }, "stop");
         }
         // Any other request is a conversation turn: it is recorded and answered in plain words.
         _requests.Enqueue(request);
-        return Completion(new { role = "assistant", content = "You said: " + lastUser }, "stop");
+        return Completion(request, new { role = "assistant", content = "You said: " + lastUser }, "stop");
     }
 
-    private static IResult Completion(object message, string reason)
+    // A streaming request is answered as a stream: the delta, the finish, then the usage chunk the
+    // SDK reads token counts from. A plain JSON body to a streaming client parses as no events.
+    private static IResult Completion(JsonElement request, object message, string reason)
     {
+        if (request.TryGetProperty("stream", out var stream) && stream.ValueKind == JsonValueKind.True)
+        {
+            static object Chunk(object[] choices, object? usage) => new { id = "fixture-response", @object = "chat.completion.chunk", created = 1, model = "gpt-5.6-luna", choices, usage };
+            var events = new[]
+            {
+                Chunk([new { index = 0, delta = message, finish_reason = (string?)null }], null),
+                Chunk([new { index = 0, delta = new { }, finish_reason = (string?)reason }], null),
+                Chunk([], new { prompt_tokens = 1, completion_tokens = 1, total_tokens = 2 }),
+            };
+            var body = string.Concat(events.Select(chunk => "data: " + JsonSerializer.Serialize(chunk) + "\n\n")) + "data: [DONE]\n\n";
+            return Results.Text(body, "text/event-stream");
+        }
+
         return Results.Json(new { id = "fixture-response", @object = "chat.completion", created = 1, model = "gpt-5.6-luna", choices = new[] { new { index = 0, message, finish_reason = reason } }, usage = new { prompt_tokens = 1, completion_tokens = 1, total_tokens = 2 } });
     }
 

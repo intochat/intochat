@@ -21,8 +21,7 @@ public sealed class ContentCaptureOnFacts(ProductionBrainFixture host)
             new { operation = "send", input = "Show active leads" }, ct);
         Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync(ct));
         await WaitForAsync(() => host.Collector.Snapshot().Skip(before).Any(span => TextOf(span).Contains("Show active leads", StringComparison.Ordinal)), TimeSpan.FromSeconds(60), ct);
-        // The usage span ends after the content-carrying one, so it exports later.
-        await WaitForAsync(() => host.Collector.Snapshot().Skip(before).Any(span => span.Attributes.Keys.Any(key => key.StartsWith("gen_ai.usage", StringComparison.Ordinal))), TimeSpan.FromSeconds(60), ct);
+        Assert.Contains(host.Collector.Snapshot().Skip(before), span => span.Attributes.Keys.Any(key => key.StartsWith("gen_ai.usage", StringComparison.Ordinal)));
         Assert.Empty(host.Collector.Errors());
     }
 }
