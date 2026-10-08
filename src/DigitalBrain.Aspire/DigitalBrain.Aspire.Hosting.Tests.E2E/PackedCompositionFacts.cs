@@ -56,8 +56,11 @@ public sealed class PackedCompositionFacts
                 Assert.True(File.Exists(Path.Combine(feed, id + "." + version + ".nupkg")), "Unpacked dependency: " + id);
                 if (packageId == "DigitalBrain" || packageId.EndsWith(".Contracts", StringComparison.Ordinal))
                 { Assert.True(id == "DigitalBrain" || id.EndsWith(".Contracts", StringComparison.Ordinal), $"Contract package {packageId} depends on implementation {id}."); }
-                if (packageId is "DigitalBrain.Client" or "DigitalBrain.Client.Orleans")
+                // The behavior client stays off the framework; the Orleans client runs beside a silo and uses it.
+                if (packageId == "DigitalBrain.Client")
                 { Assert.DoesNotContain(id, new[] { "DigitalBrain.Framework", "DigitalBrain.Platform", "DigitalBrain.Aspire.Server" }); }
+                if (packageId == "DigitalBrain.Client.Orleans")
+                { Assert.DoesNotContain(id, new[] { "DigitalBrain.Platform", "DigitalBrain.Aspire.Server" }); }
             }
         }
         var consumer = Path.Combine(scratch, "consumer");

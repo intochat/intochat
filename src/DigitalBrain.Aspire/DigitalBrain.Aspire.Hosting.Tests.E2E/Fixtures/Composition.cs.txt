@@ -39,7 +39,7 @@ await using (var session = await AspireTestSession.StartAsync(
         }
     }, ct))
 {
-    var identity = session.Brain.Get<IIdentityDirectory>(IdentityGrains.Directory);
+    var identity = session.Brains.Grain<IIdentityDirectory>(IdentityGrains.Directory);
     await identity.RegisterAsync("packed-user", "package-test-password", "Package test", ct);
     (await session.HttpClient.PostAsJsonAsync("/identity/login", new { PrincipalId = "packed-user", Password = "package-test-password" }, ct)).EnsureSuccessStatusCode();
     await session.App.ResourceNotifications.WaitForResourceHealthyAsync("packed-client", ct);
@@ -70,7 +70,7 @@ await using (var memory = await AspireTestSession.StartAsync(new TestExecutionOp
         .WithReference(brain).WithHttpEndpoint(name: "http", env: "ASPNETCORE_HTTP_PORTS").WithHttpHealthCheck("/health");
 }, ct))
 {
-    await memory.Brain.Get<IIdentityDirectory>(IdentityGrains.Directory).RegisterAsync("memory-user", "package-test-password", "Memory test", ct);
+    await memory.Brains.Grain<IIdentityDirectory>(IdentityGrains.Directory).RegisterAsync("memory-user", "package-test-password", "Memory test", ct);
     (await memory.HttpClient.PostAsJsonAsync("/identity/login", new { PrincipalId = "memory-user", Password = "package-test-password" }, ct)).EnsureSuccessStatusCode();
 }
 Console.WriteLine("Packed AppHost/server/client and two-brain isolation passed.");
