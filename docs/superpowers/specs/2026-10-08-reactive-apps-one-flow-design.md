@@ -88,38 +88,47 @@ Surface edges:
 - An app that needs to re-trigger itself (`refresh` in DataVisualizer, `refresh-connections` in
   Settings) calls `app.Request(...)` and the reacting synapse handles it; nothing awaits it.
 
-### 2. One assembly per app, deployed by hash
+### 2. One program per app, deployed by the brain runtime
 
-`AppNeuron` compiles the bundle's `.cs` files (synapses and shared `lib/*.cs`) into one assembly and
-assigns its hash to the brain runtime:
+A Roslyn compilation has one entry point, so a program is one assembly per `synapses/*.cs`, each
+compiled together with every `lib/*.cs` (shared classes), and the program's hash is the hash of its
+synapse hashes. The compiler is the existing `CSharpScriptCheck`, extended to share `lib/`.
+
+The CSharp module exposes one public neuron contract for programs, so the Apps module never sees
+the compiler or the assembly store:
 
 ```csharp
-private async Task Deploy()
+// CSharp.Contracts
+[Alias("microsoft.csharp.programs"), DefaultGrainType("microsoft.csharp.runtime")]
+public interface IBrainPrograms : IGrainWithStringKey
 {
-    var sources = Snapshot.Files.Where(f => f.Key.EndsWith(".cs", StringComparison.Ordinal))
-        .ToDictionary(f => f.Key, f => f.Value, StringComparer.Ordinal);
-    if (sources.Count == 0) { await Runtime.Retire(this.GetPrimaryKeyString()); return; }
-    var compiled = compiler.Compile(sources);
-    if (!compiled.Success) { throw new InvalidOperationException("Does not compile: " + Describe(compiled.Errors)); }
-    await assemblies.Put(compiled.Assembly, CancellationToken.None);
-    await Runtime.Assign(this.GetPrimaryKeyString(), compiled.Assembly.Hash, Configuration(), Snapshot.Owner!);
+    // Compiles, stores and runs: a source that does not compile throws and assigns nothing.
+    Task<ProgramView> Assign(string owner, Dictionary<string, string> sources, Dictionary<string, string> settings);
+    Task Retire(string owner);
+    Task<ProgramView?> Describe(string owner);
 }
+public sealed record ProgramView(string Owner, string Hash, IReadOnlyList<BehaviorView> Behaviors);
+```
+
+`AppNeuron` deploys through a one-method seam in Apps.Contracts, `IAppRuntime`
+(`Deploy(appKey, sources, configuration)`, `Retire(appKey)`), implemented in the Apps module by
+`CSharpAppRuntime` calling `IBrainPrograms` for the app's brain:
+
+```csharp
+private Task Deploy() => runtime is null ? Task.CompletedTask
+    : runtime.Deploy(this.GetPrimaryKeyString(), Sources(), Configuration(), CancellationToken.None);
 ```
 
 Every mutation that touches a `.cs` file or a setting ends with `await Deploy();` (`WriteBehavior`,
-`CompleteBuild`, `Configure`, `Rollback`, `Import`, `Replace`). `Delete` calls `Runtime.Retire`.
-A write whose program does not compile fails the write with the compiler's message; nothing is
-stored "red".
+`CompleteBuild`, `Configure`, `Rollback`, `Import`, `Replace`). `Delete` calls `Retire`. A write
+whose program does not compile fails the write with the compiler's message; nothing is stored "red".
 
-Removed: `IDeployableRuntime`, `RuntimeDeployment`, `CSharpAppRuntime`, `AppProgramKey`,
-`ICSharpAppBinding` and `CSharpAppBindingGuard`, `BindApp`/`RequireBoundAccess`/`AppId`/`AppBrain`
-on `CSharpFileNeuron`; from `AppState`: `StorageFiles`, `DeployedFiles`, `BehaviorErrors`,
-`ProgramGeneration`, `Invocations`. `IAppStorageHook` keeps working on the app key alone
-(`OnRetired(brain, appKey)`), since storage is per app, not per file.
-
-The compiler is the existing `CSharpScriptCheck`, extended to compile a set of files into one
-assembly where each `synapses/*.cs` is a top-level program (its own entry point) and `lib/*.cs`
-are ordinary classes shared by all of them. Publish keeps `IScriptSandbox.Check` as the gate.
+Removed: `IDeployableRuntime`, `RuntimeDeployment`, `AppProgramKey`, `ICSharpAppBinding` and
+`CSharpAppBindingGuard`, `BindApp`/`RequireBoundAccess`/`AppId`/`AppBrain` on `CSharpFileNeuron`;
+from `AppState`: `StorageFiles`, `DeployedFiles`, `BehaviorErrors`, `ProgramGeneration`,
+`Invocations`. `AppState` gains `Principal` (the caller context captured on `Create`/`Import`, the
+identity the program acts as). `IAppStorageHook.OnRetired(brainId, appKey, ct)` loses the storage
+keys: storage is per app, not per file.
 
 ### 3. The runtime grain assigns programs, not files
 
@@ -127,28 +136,28 @@ are ordinary classes shared by all of them. Publish keeps `IScriptSandbox.Check`
 
 ```csharp
 // Owner is the app key (or a standalone file key); Principal is who the program acts as.
-internal sealed record ProgramAssignment(string Owner, string Hash, Dictionary<string, string> Settings, CallerContext Principal);
+internal sealed record ProgramAssignment(string Owner, string Hash, Dictionary<string, string> Settings,
+    CallerContext? Principal, BehaviorAssembly[] Behaviors);
+internal sealed record BehaviorAssembly(string Path, string Hash);   // behavior id = Owner + "/" + Path
 ```
 
-`Assign(owner, hash, settings, principal)` replaces the file-keyed `Assign`; `Retire(owner)` likewise.
-A subscription is keyed by behavior `{hash}/{synapse path}`; `Retire` and a re-`Assign` with a new
-hash drop the old hash's subscriptions. Identity for calls (`Identity(session, behavior)`) resolves
-the behavior's program by hash and answers its principal and owner (the app it acts as).
+`Assign(owner, …)` replaces every behavior of that owner at once; `Retire(owner)` removes them. A
+behavior id is `{owner}/{path}`, stable across edits, so an edited synapse keeps its subscriptions
+and their buffered signals (today's Swap semantics). Subscriptions of a path the new program lacks
+are dropped. `Identity(session, behavior)` finds the program whose owner prefixes the behavior id
+and answers `(Principal, Owner)`; the edge stamps calls as app `Owner`.
 
-Removed: per-behavior `Status`, `Failures`, `LastFailure`, `ExitCode`; `Reported`, `ReloadLater`,
-`MaximumFailures`, disarming; the contracts-fingerprint refusal on `Connected` (the hash includes the
-contracts fingerprint, so a host built from other contracts simply cannot load the assembly and
-reports that). `Describe` answers `(hash, running synapses, last error per synapse)` from the
-sandbox's latest report, kept in memory on the grain, not persisted.
+Removed: per-behavior `Status`, `Failures`, `LastFailure`, `ExitCode` from state; `ReloadLater`,
+`MaximumFailures`, disarming. `Reported` keeps the sandbox's last status per behavior in memory
+only, for `Describe`. The contracts-fingerprint refusal on `Connected` stays.
 
-### 4. The sandbox loads one assembly per program
+### 4. The sandbox is unchanged on the wire
 
-`AssignmentEvent(Owner, Hash, AssemblyUrl, SymbolsUrl, Settings, Synapses[])`. The session keeps
-`owner → ProgramRun`; a `ProgramRun` holds one `BehaviorRun` per synapse entry point (as today,
-one task each, `AmbientSession` with behavior id `{hash}/{path}`). An assignment with the hash
-already running is a no-op; a new hash disposes the old run and starts the new one. A synapse that
-exits with an error is logged, reported once, and restarted by the sandbox with the exponential
-backoff it has now, forever: nothing is disarmed. `RetireEvent(Owner)` unloads the program.
+`AssignmentEvent`, `RetireEvent`, `ReadyEvent` and the batches keep their shape: the runtime sends
+one `AssignmentEvent` per synapse (behavior id `{owner}/{path}`) and one `RetireEvent` per removed
+synapse. The only sandbox change: a behavior that exits with an error is restarted by the sandbox
+itself with exponential backoff (1 s, 2 s, 4 s … capped at 60 s) for as long as it stays assigned.
+Nothing is disarmed.
 
 ### 5. Shipped apps
 
