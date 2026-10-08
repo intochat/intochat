@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Agents.Signals;
@@ -28,6 +29,11 @@ public sealed class AgentTurnStartFacts
         var text = Assert.Single(seen.OfType<TurnProgressed>(), step => step.Kind == "text");
         Assert.Equal(("hello there", runId, 1), (text.Text, text.RunId, text.Sequence));
         var state = await agent.Read();
+        var startedVersion = SignalVersion(seen[0]);
+        Assert.True(startedVersion > 0);
+        Assert.True(SignalVersion(text) > startedVersion);
+        Assert.Equal(state.Version, SignalVersion(completed));
+        Assert.All(seen, signal => Assert.InRange(SignalVersion(signal), startedVersion, state.Version));
         Assert.Null(state.ActiveRun);
         Assert.Equal(("hi", "hello there"), (Assert.Single(state.Runs).UserText, state.Runs[0].Reply));
         Assert.Equal(2, (await agent.Transcript()).Length);
@@ -44,7 +50,9 @@ public sealed class AgentTurnStartFacts
         var failed = Assert.IsType<TurnFailed>((await UntilEnd(signals, runId, ct))[^1]);
         Assert.Contains("provider down", failed.Error, StringComparison.Ordinal);
         Assert.False(failed.Cancelled);
-        var run = Assert.Single((await agent.Read()).Runs);
+        var state = await agent.Read();
+        Assert.Equal(state.Version, SignalVersion(failed));
+        var run = Assert.Single(state.Runs);
         Assert.Equal(AgentRunStatus.Failed, run.Status);
         Assert.Contains("provider down", run.Error, StringComparison.Ordinal);
         Assert.Empty(await agent.Transcript());
@@ -62,6 +70,8 @@ public sealed class AgentTurnStartFacts
         await UntilEnd(signals, "run-1", ct);
         Assert.Equal("run-1", await agent.Start(AgentTurn.Text("hi", runId: "run-1")));
         var replay = await UntilEnd(signals, "run-1", ct);
+        var version = (await agent.Read()).Version;
+        Assert.All(replay, signal => Assert.Equal(version, SignalVersion(signal)));
         Assert.IsType<TurnStarted>(replay[0]);
         Assert.Equal("once", Assert.IsType<TurnCompleted>(replay[^1]).Reply);
         Assert.Single(client.Requests);
@@ -86,6 +96,13 @@ public sealed class AgentTurnStartFacts
             Assert.NotEmpty(await second);
         }
         finally { release.TrySetResult(); }
+    }
+
+    private static long SignalVersion(Signal signal)
+    {
+        var payload = JsonSerializer.SerializeToElement(signal, signal.GetType());
+        Assert.True(payload.TryGetProperty("Version", out var version), "Lifecycle signals must identify their persisted conversation version.");
+        return version.GetInt64();
     }
 
     // A second message while the agent's turn still runs is refused, never interleaved.
@@ -178,6 +195,9 @@ public sealed class AgentTurnStartFacts
         // Bounded so a regression that never announces the end fails instead of hanging the suite.
         var failed = Assert.IsType<TurnFailed>((await UntilEnd(signals, runId, ct).WaitAsync(TimeSpan.FromSeconds(30), ct))[^1]);
         Assert.False(failed.Cancelled);
+        // A projection must re-read even if it already rendered the last committed version:
+        // that read reactivates the agent and recovers the uncommitted terminal outcome.
+        Assert.Equal(0, SignalVersion(failed));
         writes.Fail = false;
         var state = await agent.Read();
         Assert.Null(state.ActiveRun);

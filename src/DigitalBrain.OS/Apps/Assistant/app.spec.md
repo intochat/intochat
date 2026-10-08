@@ -42,4 +42,6 @@ server execution still uses the then-current button action. Projection updates a
 the durable conversation, partial answer and inspectable activity.
 
 Projection may cache successfully delivered source versions during a behavior lifetime to avoid
-repeating identical writes. Restart always reconstructs from neurons; no cache owns conversation state.
+repeating identical writes. Versioned lifecycle signals at or below a successfully projected version
+may also skip the source read. Startup, reconnect and unversioned signals still reconcile from neurons.
+Restart always reconstructs from neurons; no cache owns conversation state.

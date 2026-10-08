@@ -275,9 +275,10 @@ internal sealed class AgentNeuron(
                         : failure?.Message ?? (yielding ? "The response stream was abandoned." : "Execution failed before committing its result.");
                     run = Close(run, cancelled ? AgentRunStatus.Cancelled : AgentRunStatus.Failed, error, cancelled ? "tool_cancelled" : "tool_interrupted");
                     // The end is announced whether or not it could be stored: a Start caller must never wait forever.
+                    var persisted = true;
                     try { await Persist(State with { ActiveRun = null, Runs = Keep(State.Runs, run) }); }
-                    catch (Exception persist) { Abandon(persist, runId); }
-                    await Notify(new TurnFailed(Key, runId, error, cancelled));
+                    catch (Exception persist) { persisted = false; Abandon(persist, runId); }
+                    await Notify(new TurnFailed(Key, runId, error, cancelled), persisted);
                 }
             }
             finally
@@ -383,8 +384,19 @@ internal sealed class AgentNeuron(
         catch { store.State = previous; throw; }
     }
 
-    private async Task Notify(Signal signal)
+    private async Task Notify(Signal signal, bool persisted = true)
     {
+        // Failed persistence needs a fresh Read to reactivate/recover the abandoned run,
+        // even when a consumer already projected the last committed version.
+        var version = persisted ? State.Version : 0;
+        signal = signal switch
+        {
+            TurnStarted started => started with { Version = version },
+            TurnProgressed progressed => progressed with { Version = version },
+            TurnCompleted completed => completed with { Version = version },
+            TurnFailed failed => failed with { Version = version },
+            _ => signal,
+        };
         try { await PublishAsync(signal); }
         catch (Exception error) { Logger.LogWarning(error, "Agent signal delivery failed; consumers can reconcile through Read and Transcript."); }
     }

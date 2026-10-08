@@ -44,29 +44,31 @@ async Task Selection(int generation, CancellationTokenSource scope)
 
 async Task Started(IAgent agent, string source, long generation, CancellationToken ct)
 {
-    await foreach (var _ in brain.On<TurnStarted>(agent, () => Project(agent, source, generation), ct)) { await Project(agent, source, generation); }
+    await foreach (var signal in brain.On<TurnStarted>(agent, () => Project(agent, source, generation), ct)) { await Project(agent, source, generation, signal.Version); }
 }
 
 async Task Progress(IAgent agent, string source, long generation, CancellationToken ct)
 {
-    await foreach (var _ in brain.On<TurnProgressed>(agent, () => Project(agent, source, generation), ct)) { await Project(agent, source, generation); }
+    await foreach (var signal in brain.On<TurnProgressed>(agent, () => Project(agent, source, generation), ct)) { await Project(agent, source, generation, signal.Version); }
 }
 
 async Task Completed(IAgent agent, string source, long generation, CancellationToken ct)
 {
-    await foreach (var _ in brain.On<TurnCompleted>(agent, () => Project(agent, source, generation), ct)) { await Project(agent, source, generation); }
+    await foreach (var signal in brain.On<TurnCompleted>(agent, () => Project(agent, source, generation), ct)) { await Project(agent, source, generation, signal.Version); }
 }
 
 async Task Failed(IAgent agent, string source, long generation, CancellationToken ct)
 {
-    await foreach (var _ in brain.On<TurnFailed>(agent, () => Project(agent, source, generation), ct)) { await Project(agent, source, generation); }
+    await foreach (var signal in brain.On<TurnFailed>(agent, () => Project(agent, source, generation), ct)) { await Project(agent, source, generation, signal.Version); }
 }
 
-async Task Project(IAgent agent, string source, long generation)
+async Task Project(IAgent agent, string source, long generation, long signalVersion = 0)
 {
     await writer.WaitAsync(brain.Stopping);
     try
     {
+        if (signalVersion > 0 && projected is { } previous && previous.Source == source
+            && previous.Generation == generation && previous.Version >= signalVersion) { return; }
         var state = await agent.Read();
         var identity = (source, generation, state.Version);
         if (projected == identity) { return; }
