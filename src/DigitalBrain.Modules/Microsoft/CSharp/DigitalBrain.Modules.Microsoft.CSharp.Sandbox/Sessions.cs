@@ -8,9 +8,10 @@ namespace DigitalBrain.Microsoft.CSharp.Sandbox;
 // The sessions this process holds: many locally (one container serves every brain), one in a pool
 // session (the pool routes by identifier). A start is accepted at once and the session dials the brain
 // on its own: the brain starts sessions from inside a grain turn, and answering only after dialing back
-// would wait on that very turn. A start for the session already held is a no-op; a start with a new
-// session id replaces the old one, whose token no longer speaks for the brain. A session that cannot
-// connect is forgotten, so the brain's next check finds it gone and starts it again.
+// would wait on that very turn. A start with a new session id replaces the old one, whose token no
+// longer speaks for the brain. Ensuring a held session refreshes its token so a restarted brain can
+// restore credentials without replacing behaviors. A session that cannot connect is forgotten, so
+// the brain's next check finds it gone and starts it again.
 internal sealed class Sessions(BehaviorLoader loader, ILoggerFactory loggers, HttpMessageHandler? edge = null)
 {
     private readonly ConcurrentDictionary<string, Open> _open = new(StringComparer.Ordinal);
@@ -31,9 +32,10 @@ internal sealed class Sessions(BehaviorLoader loader, ILoggerFactory loggers, Ht
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_open.TryGetValue(identifier, out var current) && current.Id == start.Session) { return; }
+            if (_open.TryGetValue(identifier, out var current) && current.Id == start.Session)
+            { current.RefreshToken(start.Token); return; }
             await StopCoreAsync(identifier).ConfigureAwait(false);
-            var open = new Open(start.Session);
+            var open = new Open(start.Session, start.Token);
             _open[identifier] = open;
             open.Running = RunAsync(identifier, open, start, edgeUrl);
         }
@@ -56,10 +58,22 @@ internal sealed class Sessions(BehaviorLoader loader, ILoggerFactory loggers, Ht
         System.Diagnostics.Activity.Current = null;
         try
         {
-            var connection = await SessionConnection.OpenAsync(edgeUrl, start.Token, Fingerprint, edge, open.Lifetime.Token).ConfigureAwait(false);
-            open.Session = new Session(connection, loader, loggers.CreateLogger("Session " + start.Brain));
+            SessionConnection connection;
+            while (true)
+            {
+                var token = open.Token;
+                try
+                {
+                    connection = await SessionConnection.OpenAsync(edgeUrl, token, Fingerprint, edge, open.Lifetime.Token).ConfigureAwait(false);
+                    break;
+                }
+                // An ensure can refresh credentials while the original handshake is in flight.
+                catch (Exception error) when (error is not OperationCanceledException && token != open.Token) { }
+            }
+            var session = new Session(connection, loader, loggers.CreateLogger("Session " + start.Brain));
+            open.Attach(session);
             _logger.LogInformation("Session {Session} of brain {Brain} connected", start.Session, start.Brain);
-            await open.Session.RunAsync(open.Lifetime.Token).ConfigureAwait(false);
+            await session.RunAsync(open.Lifetime.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (open.Lifetime.IsCancellationRequested) { }
         catch (Exception error)
@@ -79,11 +93,22 @@ internal sealed class Sessions(BehaviorLoader loader, ILoggerFactory loggers, Ht
         return true;
     }
 
-    private sealed class Open(string id)
+    private sealed class Open(string id, string token)
     {
+        private readonly object gate = new();
+        private string latestToken = token;
         public string Id { get; } = id;
+        public string Token { get { lock (gate) { return latestToken; } } }
         public CancellationTokenSource Lifetime { get; } = new();
         public Task Running { get; set; } = Task.CompletedTask;
-        public Session? Session { get; set; }
+        public Session? Session { get; private set; }
+        public void RefreshToken(string value)
+        {
+            lock (gate) { latestToken = value; Session?.RefreshToken(value); }
+        }
+        public void Attach(Session session)
+        {
+            lock (gate) { session.RefreshToken(latestToken); Session = session; }
+        }
     }
 }

@@ -16,6 +16,8 @@ internal sealed class Session(SessionConnection connection, BehaviorLoader loade
 
     public IReadOnlyDictionary<string, BehaviorRun> Behaviors => _behaviors;
 
+    internal void RefreshToken(string token) => connection.TryUpdateToken(token);
+
     public async Task RunAsync(CancellationToken cancellationToken)
     {
         await foreach (var (kind, data) in connection.Control.WithCancellation(cancellationToken).ConfigureAwait(false))

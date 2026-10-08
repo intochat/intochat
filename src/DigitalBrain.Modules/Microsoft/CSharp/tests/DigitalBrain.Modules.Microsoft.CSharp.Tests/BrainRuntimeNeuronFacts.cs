@@ -220,6 +220,30 @@ public sealed class BrainRuntimeNeuronFacts
         Assert.Equal(first.Body!["session"]!.GetValue<string>(), again.Body!["session"]!.GetValue<string>());
     }
 
+    [Fact(Timeout = 30_000)]
+    public async Task ReactivationRelaunchesBehaviorsWithoutWaitingForAReminder()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new FakeSessionHost();
+        var time = new MovableTime();
+        await using var brain = await RuntimeBrain.StartAsync(host, ct, time: time);
+        await Edge(brain).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
+        var first = await host.NextAsync(FakeSessionHost.IsStart, ct);
+        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
+        await Edge(brain).Connected(session, brain.SiloServices.GetRequiredService<ScriptContracts>().Fingerprint);
+        await brain.DeactivateAsync(Runtime(brain), ct);
+        time.Now += TimeSpan.FromSeconds(30);
+
+        var resumed = await Runtime(brain).Inspect(ct);
+        var again = await host.NextAsync(FakeSessionHost.IsStart, ct).WaitAsync(TimeSpan.FromSeconds(5), ct);
+
+        Assert.NotEqual(session, resumed.SessionId);
+        Assert.Equal(resumed.SessionId, again.Body!["session"]!.GetValue<string>());
+        Assert.NotEqual(first.Body!["token"]!.GetValue<string>(), again.Body["token"]!.GetValue<string>());
+        Assert.False((await Edge(brain).Authorize(session)).Active);
+        Assert.Single(resumed.Behaviors);
+    }
+
     // Heartbeats are the detector: a session silent past the limit is replaced, and its token stops speaking.
     [Fact(Timeout = 60_000)]
     public async Task ASilentSessionIsReplacedByANewOne()

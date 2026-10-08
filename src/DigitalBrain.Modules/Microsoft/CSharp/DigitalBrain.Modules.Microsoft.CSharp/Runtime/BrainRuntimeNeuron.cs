@@ -274,19 +274,22 @@ internal sealed class BrainRuntimeNeuron(
 
     // A source's own signal may be what activated this runtime, so watching it now would deadlock;
     // the renewal timer's first tick watches it right after activation instead.
-    internal void ResumeWatches()
+    internal Task ResumeAsync()
     {
         if (Snapshot.Subscriptions.Length > 0) { RenewSourceWatches(dueTime: TimeSpan.Zero); }
+        // Signals may have arrived while watches were absent. Relaunch disposable behaviors so
+        // their subscribe-then-read recovery runs against durable state, with fresh credentials.
+        return Snapshot.Behaviors.Length > 0 ? EnsureSessionAsync(restart: true) : Task.CompletedTask;
     }
 
     // A new session id per launch: the previous session's token stops speaking for this brain.
     // One rule for assignment, sign-in and the reminder. A missing, refused or silent session is replaced by
-    // a new one (the old token stops speaking); a live one is ensured again, which the host treats as a no-op
-    // unless it lost the session. Heartbeats are the detector; nothing here probes the host.
-    private async Task EnsureSessionAsync()
+    // a new one (the old token stops speaking); a live one is ensured again, refreshing its token or
+    // restoring it if the host lost it. Heartbeats are the detector; nothing here probes the host.
+    private async Task EnsureSessionAsync(bool restart = false)
     {
         var session = Snapshot.Session;
-        if (session is null || session.Status == SessionStatus.Refused || Silent(session))
+        if (restart || session is null || session.Status == SessionStatus.Refused || Silent(session))
         {
             session = new(Guid.NewGuid().ToString("N"), SessionStatus.Starting, null, null, time.GetUtcNow(), time.GetUtcNow());
             await Save(Snapshot with { Session = session }, Changed());
