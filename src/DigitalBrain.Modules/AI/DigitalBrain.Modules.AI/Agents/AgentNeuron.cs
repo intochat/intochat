@@ -102,6 +102,12 @@ internal sealed class AgentNeuron(
         return Task.CompletedTask;
     }
 
+    public Task CancelRun(string runId)
+    {
+        // A delayed/replayed UI command must never cancel a later turn.
+        return State.ActiveRun?.RunId == runId ? Cancel() : Task.CompletedTask;
+    }
+
     public async Task Clear()
     {
         EnsureIdle();

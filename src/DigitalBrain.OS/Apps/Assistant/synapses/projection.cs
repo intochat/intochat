@@ -1,3 +1,5 @@
+using System.Text.Json;
+using DigitalBrain.Flutter.Button;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Agents.Signals;
 using DigitalBrain.Client;
@@ -10,6 +12,7 @@ await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var pointer = brain.Get<IText>(appKey + "/conversation");
 var chat = brain.Get<IChat>(appKey + "/transcript");
+using var writer = new SemaphoreSlim(1, 1);
 
 while (!brain.Stopping.IsCancellationRequested)
 {
@@ -57,6 +60,9 @@ async Task Failed(IAgent agent, string source, long generation, CancellationToke
 
 async Task Project(IAgent agent, string source, long generation)
 {
+    await writer.WaitAsync(brain.Stopping);
+    try
+    {
     var state = await agent.Read();
     // A callback already in flight when New was clicked cannot repaint the old conversation.
     if ((await pointer.Read()).Version != generation) { return; }
@@ -76,4 +82,9 @@ async Task Project(IAgent agent, string source, long generation)
             Activities = [.. run.ToolCalls.Select(call => new ChatActivity(call.CallId, call.Name, call.Arguments, call.Result, call.Error))],
         },
     })]));
+    var running = state.ActiveRun;
+    await brain.Get<IButton>(appKey + "/stop").Set("Stop",
+        JsonSerializer.Serialize(new { source, runId = running?.RunId ?? "" }), running is not null);
+    }
+    finally { writer.Release(); }
 }

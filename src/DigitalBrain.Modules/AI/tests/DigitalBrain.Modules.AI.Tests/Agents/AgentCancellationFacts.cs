@@ -78,6 +78,32 @@ public sealed class AgentCancellationFacts
         Assert.Contains("timed out", run.Error, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task DelayedStopCannotCancelTheNextRun()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var provider = new WaitingProvider();
+        await using var brain = await AgentFacts.Brain(provider.Client, ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("cancel-specific-run"));
+        var first = agent.GetResponse("first", ct);
+        await provider.Entered.Task.WaitAsync(ct);
+        var firstId = (await agent.Read()).ActiveRun!.RunId;
+        await agent.CancelRun(firstId);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+        var second = agent.GetResponse("second", ct);
+        AgentState state;
+        do { ct.ThrowIfCancellationRequested(); state = await agent.Read(); } while (state.ActiveRun is null && !second.IsCompleted);
+        var secondId = state.ActiveRun!.RunId;
+        Assert.NotEqual(firstId, secondId);
+        await agent.CancelRun(firstId);
+        Assert.Equal(secondId, (await agent.Read()).ActiveRun!.RunId);
+        Assert.False(second.IsCompleted);
+        await agent.CancelRun(secondId);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => second);
+        Assert.Null((await agent.Read()).ActiveRun);
+        Assert.All((await agent.Read()).Runs, run => Assert.Equal(AgentRunStatus.Cancelled, run.Status));
+    }
+
     private sealed class WaitingProvider(bool fail = false)
     {
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);

@@ -13,6 +13,7 @@ public interface IAgent : INeuron
     [AlwaysInterleave, ResponseTimeout("00:10:00")] IAsyncEnumerable<AgentTurnEvent> Run(AgentTurn turn, CancellationToken ct = default);
     [AlwaysInterleave] Task<string> Start(AgentTurn turn);
     [AlwaysInterleave] Task Cancel();
+    [AlwaysInterleave] Task CancelRun(string runId);
     [ReadOnly, AlwaysInterleave] Task<AgentState> Read();
     [ReadOnly, AlwaysInterleave] Task<AiMessage[]> Transcript();
     [AlwaysInterleave] Task Clear();
