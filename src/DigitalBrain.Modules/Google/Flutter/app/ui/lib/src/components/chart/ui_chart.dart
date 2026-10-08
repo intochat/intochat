@@ -38,7 +38,7 @@ final class UiChart extends StatelessWidget {
 
   static String axisLabel(String label) => label.length <= axisLabelLength
       ? label
-      : '${label.substring(0, axisLabelLength - 1)}…';
+      : '${label.substring(0, axisLabelLength - 1)}\u2026';
 
   @override
   Widget build(BuildContext context) {
@@ -94,9 +94,9 @@ final class UiChart extends StatelessWidget {
                       ),
                     )
                   : switch (kind) {
-                      'line' => _lineChart(tone, maxY),
+                      'line' => _categoryViewport(_lineChart(tone, maxY)),
                       'pie' => _pieChart(tone),
-                      _ => _barChart(tone, maxY),
+                      _ => _categoryViewport(_barChart(tone, maxY)),
                     },
             ),
           ],
@@ -104,6 +104,36 @@ final class UiChart extends StatelessWidget {
       ),
     );
   }
+
+  Widget _categoryViewport(Widget chart) => LayoutBuilder(
+    builder: (context, constraints) {
+      var labelWidth = 0.0;
+      for (final point in part.points) {
+        final painter = TextPainter(
+          text: TextSpan(
+            text: axisLabel(point.label),
+            style: const TextStyle(
+              fontSize: 11,
+              fontFamily: UiType.bodyFamily,
+              fontFamilyFallback: UiType.bodyFallback,
+            ),
+          ),
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+        )..layout();
+        if (painter.width > labelWidth) labelWidth = painter.width;
+        painter.dispose();
+      }
+      final minimumWidth = part.points.length * (labelWidth + 24) + 48;
+      final width = constraints.maxWidth < minimumWidth
+          ? minimumWidth
+          : constraints.maxWidth;
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SizedBox(width: width, height: height, child: chart),
+      );
+    },
+  );
 
   Widget _barChart(_ChartTone tone, double maxY) {
     return BarChart(

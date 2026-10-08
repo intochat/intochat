@@ -1,15 +1,28 @@
 # Data Visualizer
 
-A view is a program: one SQL statement against the Postgres database connected to the `db` slot, or one
-app-owned table, shown as a table or a chart. Filters are parameters of that program, never text pasted
-into it. Every view has its own window: filter fields on top, the table or chart below, and a status line.
-Views live in the app's registry neuron. Without a connected database a SQL view's status line reads
-"Connect a Postgres database to this app."
+A view is a source SELECT against the Postgres database bound to db, or an app-owned table,
+rendered by generic table/chart neurons. The durable registry retains its definition; filter
+field neurons retain current values. The workspace owns windows, never a local script cache.
 
-| behavior | when | reacts |
-|----------|------|--------|
-| operations | the app is invoked (open, show, refine, read, close) | composes windows, edits the registry, answers |
-| run-on-change | the view registry changes | every view runs again |
-| run-on-filter | a view's filter field changes | that view runs again |
-| run-on-row | a row of an app table behind a view is upserted or deleted | that view runs again |
-| run-on-tick | a view's refresh reminder ticks | that view runs again |
+SQL filters name output columns. The app quotes these identifiers and binds equality values
+as positional parameters in an outer SELECT before the 200-row display limit. Blank means
+all rows. Use base SQL without LIMIT when filters must search the whole source. A deliberate
+SQL LIMIT defines a source subset (for example a top-ten aggregation).
+
+A chart's first output column supplies labels and its second supplies finite numeric values.
+Invalid values fail visibly rather than turning into invented zeroes. Both charts and tables
+clear stale data after query failures. Empty results have an explicit status. Read returns
+current chart points or table rows plus status after waiting for refresh.
+
+| behavior | responsibility |
+|----------|----------------|
+| operations | Recover pending open/show/refine/read/close operations; compose reusable UI and manage the registry. A show invocation has a deterministic view ID, so replay cannot append another view. |
+| query | Sole query/result writer. Drain durable refresh invocations, coalesce requests, read current filters and retry superseded reads before acknowledging. |
+| run-on-change | Request refresh after durable registration and registry changes. |
+| run-on-filter | Concurrently watch every filter; rebuild subscriptions when registry definitions change. |
+| run-on-row | One upsert/delete subscription per distinct source table, refreshing all dependent views without competing readers. |
+| run-on-tick | Watch each configured refresh reminder. |
+
+Subscriptions reconcile only after registration. Process state contains no authoritative data.
+Refresh delivery can repeat; it reads current source state and cannot create windows. Query
+results cannot overtake one another because only the query behavior publishes them.

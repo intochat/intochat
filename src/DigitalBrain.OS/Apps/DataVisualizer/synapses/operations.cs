@@ -1,11 +1,15 @@
 using System.Text.Json;
+using System.Globalization;
 using DigitalBrain.Apps;
+using DigitalBrain.Apps.Signals;
+using DigitalBrain.Client;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Card;
 using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.TextField;
+using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Time.Reminders;
 
 
@@ -17,13 +21,18 @@ var app = brain.Get<IApp>(appKey);
 var registry = brain.Get<IText>(appKey + "/views");
 var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 
-await foreach (var invoked in app.Invocations(brain, brain.Stopping))
+await foreach (var _ in brain.On<AppInvoked>(app, Reconcile, brain.Stopping)) { await Reconcile(); }
+
+async Task Reconcile()
 {
-    try { await app.Respond(new AppResponse(invoked.InvocationId, await Answer(invoked.Operation, invoked.Input), null)); }
-    catch (Exception error) { await app.Respond(new AppResponse(invoked.InvocationId, null, error.Message)); }
+    foreach (var request in (await app.Pending()).Where(item => item.Operation != "refresh"))
+    {
+        try { await app.Respond(new(request.Id, await Answer(request.Id, request.Operation, request.Input), null)); }
+        catch (Exception error) when (!brain.Stopping.IsCancellationRequested) { await app.Respond(new(request.Id, null, error.Message)); }
+    }
 }
 
-async Task<string> Answer(string operation, string input)
+async Task<string> Answer(Guid invocationId, string operation, string input)
 {
     switch (operation)
     {
@@ -42,13 +51,15 @@ async Task<string> Answer(string operation, string input)
             if (source != "sql" && !source.StartsWith("apptable:", StringComparison.Ordinal)) { throw new ArgumentException("source is sql or apptable:<tableId>."); }
             var sql = request.TryGetProperty("sql", out var s) ? s.GetString() ?? "" : "";
             if (source == "sql" && sql.Length is 0 or > 20_000) { throw new ArgumentException("A SQL view needs 1-20000 characters of SQL."); }
-            var filters = request.TryGetProperty("filters", out var f) ? f.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => x.Length > 0).Take(16).ToArray() : [];
+            var filters = request.TryGetProperty("filters", out var f) ? f.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => x.Length > 0).Distinct(StringComparer.Ordinal).Take(16).ToArray() : [];
             var refresh = request.TryGetProperty("refreshSeconds", out var r) && r.TryGetInt32(out var seconds) ? Math.Clamp(seconds, 0, 86_400) : 0;
-            var view = new View("v-" + Guid.NewGuid().ToString("N")[..12], request.GetProperty("title").GetString() ?? "View", kind, source, sql, filters, refresh);
-            var views = (await Views()).Append(view).ToArray();
+            var view = new View("v-" + invocationId.ToString("N"), request.GetProperty("title").GetString() ?? "View", kind, source, sql, filters, refresh);
+            var existing = await Views();
+            var views = existing.Any(item => item.Id == view.Id) ? existing : existing.Append(view).ToArray();
             await Compose(view);
             await Save(views);
             await ComposeHome(views);
+            await Refresh(view.Id);
             return JsonSerializer.Serialize(new { view = view.Id, window = new { id = $"{appKey}/views/{view.Id}/window", title = view.Title, surface = $"{appKey}/views/{view.Id}/surface" } }, json);
         }
         case "refine":
@@ -69,33 +80,47 @@ async Task<string> Answer(string operation, string input)
                 var changed = view with { Sql = sql.GetString() ?? view.Sql };
                 await Save(views.Select(v => v.Id == id ? changed : v).ToArray());
             }
-            else
-            {
-                // Filter fields changed, nothing in the registry did; a registry write is still the one
-                // signal the runner listens to.
-                await Save(views);
-            }
+            await Refresh(id);
             return JsonSerializer.Serialize(new { view = id }, json);
         }
         case "read":
         {
             var id = input.Trim();
-            _ = (await Views()).FirstOrDefault(v => v.Id == id) ?? throw new InvalidOperationException("No view " + id);
+            var view = (await Views()).FirstOrDefault(v => v.Id == id) ?? throw new InvalidOperationException("No view " + id);
+            await Refresh(id);
+            var status = await brain.Get<ICard>($"{appKey}/views/{id}/status").Read();
+            if (view.Kind == "chart")
+            {
+                var chart = await brain.Get<DigitalBrain.Flutter.Chart.IChart>($"{appKey}/views/{id}/chart").Read();
+                return JsonSerializer.Serialize(new { view = id, kind = "chart", chart.Title, chart.Points, status }, json);
+            }
             var table = await brain.Get<DigitalBrain.Flutter.Table.ITable>($"{appKey}/views/{id}/table").Read();
-            return JsonSerializer.Serialize(new { view = id, columns = table.Columns.Select(c => c.Id), rows = table.Rows }, json);
+            return JsonSerializer.Serialize(new { view = id, columns = table.Columns.Select(c => c.Id), rows = table.Rows, status }, json);
         }
         case "close":
         {
             var id = input.Trim();
             var views = await Views();
-            if (views.All(v => v.Id != id)) { throw new InvalidOperationException("No view " + id); }
+
             await brain.Get<IReminder>($"{appKey}/views/{id}/refresh").Stop();
             await Save(views.Where(v => v.Id != id).ToArray());
             await ComposeHome(views.Where(v => v.Id != id).ToArray());
+            var workspace = brain.Get<IWorkspace>(brain.Setting("Brain")!);
+            var current = await workspace.Read();
+            if (current.Windows.Any(window => window.IsOpen && window.Id == $"{appKey}/views/{id}/window"))
+            { await workspace.Close($"{appKey}/views/{id}/window", current.Revision); }
             return JsonSerializer.Serialize(new { closed = id }, json);
         }
         default: throw new ArgumentException("Unknown operation " + operation);
     }
+}
+
+async Task Refresh(string view)
+{
+    var id = Guid.NewGuid();
+    await app.Invoke(new(id, "refresh", view));
+    var response = await app.Await(id);
+    if (response.Error is not null) { throw new InvalidOperationException(response.Error); }
 }
 
 async Task<View[]> Views()
@@ -112,7 +137,7 @@ async Task Compose(View view)
     var children = new List<UiChildRef>();
     foreach (var column in view.Filters)
     {
-        await brain.Get<ITextField>($"{root}/filter/{column}").Configure(column, "text");
+        await brain.Get<ITextField>($"{root}/filter/{column}").Configure(CultureInfo.InvariantCulture.TextInfo.ToTitleCase(column.Replace('_', ' ')), "text");
         children.Add(new("textfield", $"{root}/filter/{column}"));
     }
     children.Add(new("card", $"{root}/status"));
