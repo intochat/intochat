@@ -49,6 +49,18 @@ public sealed class E2EBoundaryFacts
     }
 
     [Fact]
+    public void AHeadlessRunUsesTheContainerBrowserAndAPersonDebuggingGetsALocalOne()
+    {
+        Assert.Equal(BrowserLocation.Container, BrowserOptionsResolver.Resolve(new() { Headless = true }, false, false).Location);
+        Assert.Equal(BrowserLocation.Local, BrowserOptionsResolver.Resolve(new() { Headless = true }, false, true).Location);
+        Assert.Equal(BrowserLocation.Local, BrowserOptionsResolver.Resolve(new() { Headless = false }, false, false).Location);
+        Assert.Equal(BrowserLocation.Local, BrowserOptionsResolver.Resolve(new() { Headless = true }, false, false, "local").Location);
+        Assert.Equal(BrowserLocation.Container, BrowserOptionsResolver.Resolve(new() { Headless = true, Location = BrowserLocation.Container }, false, true, "local").Location);
+        Assert.Throws<ArgumentException>(() => BrowserOptionsResolver.Resolve(new() { Headless = true }, false, false, "cloud"));
+        Assert.Throws<InvalidOperationException>(() => BrowserOptionsResolver.Resolve(new() { Headless = false, Location = BrowserLocation.Container }, false, false));
+    }
+
+    [Fact]
     public async Task InvalidBrowserOptionsFailBeforeAcquiringResources()
         => await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => E2ETest.For<E2EBoundaryFacts>()
             .WithBrowser(new() { SlowMoMilliseconds = -1 }).StartAsync(TestContext.Current.CancellationToken));

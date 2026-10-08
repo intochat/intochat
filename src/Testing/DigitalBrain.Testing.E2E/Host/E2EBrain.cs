@@ -95,12 +95,19 @@ public sealed class E2EBrain : IDigitalBrain, IBrainSubscriptions, IAsyncDisposa
                     value => { value.Dispose(); return Task.CompletedTask; }, deadline.Token).ConfigureAwait(false);
                 _lifetime.Own("playwright", new AsyncAction(() => { playwright.Dispose(); return ValueTask.CompletedTask; }));
                 using var cancelLaunch = deadline.Token.Register(playwright.Dispose);
-                _browser = await playwright.Chromium.LaunchAsync(new()
-                {
-                    Headless = _options.Headless,
-                    SlowMo = _options.SlowMoMilliseconds,
-                    Timeout = Remaining(),
-                }).ConfigureAwait(false);
+                _browser = _session.BrowserServer is { } server
+                    ? await playwright.Chromium.ConnectAsync(server.ToString(), new()
+                    {
+                        ExposeNetwork = BrowserContainer.ExposedNetwork,
+                        SlowMo = _options.SlowMoMilliseconds,
+                        Timeout = Remaining(),
+                    }).ConfigureAwait(false)
+                    : await playwright.Chromium.LaunchAsync(new()
+                    {
+                        Headless = _options.Headless,
+                        SlowMo = _options.SlowMoMilliseconds,
+                        Timeout = Remaining(),
+                    }).ConfigureAwait(false);
                 _lifetime.Own("browser", _browser);
             }
             deadline.Token.ThrowIfCancellationRequested();

@@ -16,7 +16,7 @@ public static class E2ETest
         var browser = Resolve(browserOptions);
         var identity = NewIdentity();
         var args = ComposeHostArguments(optionOverrides, identity, options.HostConfiguration);
-        var session = await AspireTestSession.StartAsync<TAppHost>(args, WithArtifacts(options, identity), cancellationToken).ConfigureAwait(false);
+        var session = await AspireTestSession.StartAsync<TAppHost>(args, WithArtifacts(options, identity), cancellationToken, browser.Location).ConfigureAwait(false);
         return await ReadyAsync(new E2EBrain(session, browser), brain => brain.StartBrowserAsync(cancellationToken)).ConfigureAwait(false);
     }
 
@@ -35,7 +35,8 @@ public static class E2ETest
     private static string NewIdentity() => "test-" + Guid.NewGuid().ToString("N");
 
     private static ResolvedBrowserOptions Resolve(BrowserOptions options) => BrowserOptionsResolver.Resolve(options,
-        Environment.GetEnvironmentVariable("DIGITALBRAIN_E2E_HEADED") == "1", Debugger.IsAttached);
+        Environment.GetEnvironmentVariable("DIGITALBRAIN_E2E_HEADED") == "1", Debugger.IsAttached,
+        Environment.GetEnvironmentVariable("DIGITALBRAIN_E2E_BROWSER"));
 
     private static TestExecutionOptions WithArtifacts(TestExecutionOptions options, string identity) => options with
     {

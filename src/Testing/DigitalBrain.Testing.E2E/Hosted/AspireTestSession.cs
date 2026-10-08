@@ -30,6 +30,8 @@ public sealed class AspireTestSession : IAsyncDisposable
     public HttpClient HttpClient { get; private set; } = null!;
     public Uri? BrowserEndpoint { get; private set; }
     public string? BrowserReadySelector { get; private set; }
+    // Set when Chromium runs in the host's browser container rather than on this machine.
+    public Uri? BrowserServer { get; private set; }
     public TestExecutionOptions Options => _options;
     public TestSessionLifetime Lifetime => _lifetime;
 
@@ -37,14 +39,15 @@ public sealed class AspireTestSession : IAsyncDisposable
         => App.GetConnectionStringAsync(_brain.ResourceName(resourceName), cancellationToken);
 
     public static Task<AspireTestSession> StartAsync<TAppHost>(
-        IReadOnlyList<string> args, TestExecutionOptions options, CancellationToken cancellationToken)
+        IReadOnlyList<string> args, TestExecutionOptions options, CancellationToken cancellationToken,
+        BrowserLocation browser = BrowserLocation.Local)
         where TAppHost : class
         => StartCoreAsync(ct => DistributedApplicationTestingBuilder.CreateAsync<TAppHost>([.. args], (_, settings) =>
             {
                 settings.Configuration ??= new ConfigurationManager();
                 settings.Configuration.AddInMemoryCollection(options.PrivateConfiguration);
             }, ct),
-            declareTopology: null, options, cancellationToken);
+            declareTopology: null, options, cancellationToken, browser);
 
     public static Task<AspireTestSession> StartAsync(TestExecutionOptions options,
         Action<IDistributedApplicationTestingBuilder> declareTopology, CancellationToken cancellationToken)
@@ -79,7 +82,7 @@ public sealed class AspireTestSession : IAsyncDisposable
     private static async Task<AspireTestSession> StartCoreAsync(
         Func<CancellationToken, Task<IDistributedApplicationTestingBuilder>> createBuilder,
         Action<IDistributedApplicationTestingBuilder>? declareTopology,
-        TestExecutionOptions options, CancellationToken cancellationToken)
+        TestExecutionOptions options, CancellationToken cancellationToken, BrowserLocation browserLocation = BrowserLocation.Local)
     {
         options.Validate();
         cancellationToken.ThrowIfCancellationRequested();
@@ -160,6 +163,9 @@ public sealed class AspireTestSession : IAsyncDisposable
                     http.TargetHost = "0.0.0.0";
                 }
             }
+            var containerBrowser = browserLocation == BrowserLocation.Container
+                && builder.Resources.Any(r => r.Annotations.OfType<BrainBrowserAnnotation>().Any());
+            if (containerBrowser) { BrowserContainer.AddTo(builder); }
             Advance("build");
             var app = await builder.BuildAsync(ct).ConfigureAwait(false);
             lifetime.Own("application", app);
@@ -182,6 +188,13 @@ public sealed class AspireTestSession : IAsyncDisposable
                 // never share served state and the compiled bundle stays session-agnostic.
                 session.BrowserEndpoint = new Uri(app.GetEndpoint(browser[0].Name, browser[0].Endpoint), browser[0].Path);
                 session.BrowserReadySelector = browser[0].ReadySelector;
+            }
+            if (containerBrowser)
+            {
+                Advance("browser-container");
+                await app.ResourceNotifications.WaitForResourceHealthyAsync(BrowserContainer.ResourceName, ct).ConfigureAwait(false);
+                var server = app.GetEndpoint(BrowserContainer.ResourceName, BrowserContainer.EndpointName);
+                session.BrowserServer = new UriBuilder(server) { Scheme = "ws" }.Uri;
             }
             Advance("client");
             await session.ConnectAsync(ct).ConfigureAwait(false);
