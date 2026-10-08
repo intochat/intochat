@@ -13,6 +13,10 @@ var appKey = brain.Setting("App")!;
 var pointer = brain.Get<IText>(appKey + "/conversation");
 var chat = brain.Get<IChat>(appKey + "/transcript");
 using var writer = new SemaphoreSlim(1, 1);
+// Disposable delivery caches only. Every behavior start rebuilds these from authoritative state.
+(string Source, long Generation, long Version)? projected = null;
+(string Source, long Generation)? configured = null;
+string? stopAction = null;
 
 while (!brain.Stopping.IsCancellationRequested)
 {
@@ -63,28 +67,39 @@ async Task Project(IAgent agent, string source, long generation)
     await writer.WaitAsync(brain.Stopping);
     try
     {
-    var state = await agent.Read();
-    // A callback already in flight when New was clicked cannot repaint the old conversation.
-    if ((await pointer.Read()).Version != generation) { return; }
-    await brain.Get<IComposer>(appKey + "/composer").Configure(source, generation);
-    var runs = state.Runs.ToList();
-    if (state.ActiveRun is { } active)
-    {
-        runs.RemoveAll(run => run.RunId == active.RunId);
-        runs.Add(active);
-    }
-    await chat.Project(new(source, generation, state.Version, [.. runs.SelectMany(run => new[]
-    {
-        new ChatEntry(run.RunId + "/user", ChatRole.User, run.UserText),
-        new ChatEntry(run.RunId + "/assistant", ChatRole.Assistant, run.Reply ?? "")
+        var state = await agent.Read();
+        var identity = (source, generation, state.Version);
+        if (projected == identity) { return; }
+        // A callback already in flight when New was clicked cannot repaint the old conversation.
+        if ((await pointer.Read()).Version != generation) { return; }
+        if (configured != (source, generation))
         {
-            Status = run.Status.ToString().ToLowerInvariant(), Error = run.Error,
-            Activities = [.. run.ToolCalls.Select(call => new ChatActivity(call.CallId, call.Name, call.Arguments, call.Result, call.Error))],
-        },
-    })]));
-    var running = state.ActiveRun;
-    await brain.Get<IButton>(appKey + "/stop").Set("Stop",
-        JsonSerializer.Serialize(new { source, runId = running?.RunId ?? "" }), running is not null);
+            await brain.Get<IComposer>(appKey + "/composer").Configure(source, generation);
+            configured = (source, generation);
+        }
+        var runs = state.Runs.ToList();
+        if (state.ActiveRun is { } active)
+        {
+            runs.RemoveAll(run => run.RunId == active.RunId);
+            runs.Add(active);
+        }
+        await chat.Project(new(source, generation, state.Version, [.. runs.SelectMany(run => new[]
+        {
+            new ChatEntry(run.RunId + "/user", ChatRole.User, run.UserText),
+            new ChatEntry(run.RunId + "/assistant", ChatRole.Assistant, run.Reply ?? "")
+            {
+                Status = run.Status.ToString().ToLowerInvariant(), Error = run.Error,
+                Activities = [.. run.ToolCalls.Select(call => new ChatActivity(call.CallId, call.Name, call.Arguments, call.Result, call.Error))],
+            },
+        })]));
+        var running = state.ActiveRun;
+        var action = JsonSerializer.Serialize(new { source, runId = running?.RunId ?? "" });
+        if (stopAction != action)
+        {
+            await brain.Get<IButton>(appKey + "/stop").Set("Stop", action, running is not null);
+            stopAction = action;
+        }
+        projected = identity;
     }
     finally { writer.Release(); }
 }

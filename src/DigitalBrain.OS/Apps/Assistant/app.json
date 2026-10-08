@@ -2,7 +2,7 @@
   "name": "assistant",
   "title": "Assistant",
   "description": "Talk to your brain: ask questions, find capabilities and open what you need.",
-  "version": "1.2.18",
+  "version": "1.2.19",
   "icon": "icon.svg",
   "operations": [
     {

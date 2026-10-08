@@ -40,3 +40,6 @@ Its typed signal captures the server-current conversation and run identity when 
 replay or delayed signal delivery cancels only that run. A client Click request delayed before
 server execution still uses the then-current button action. Projection updates are serialized and cancellation preserves
 the durable conversation, partial answer and inspectable activity.
+
+Projection may cache successfully delivered source versions during a behavior lifetime to avoid
+repeating identical writes. Restart always reconstructs from neurons; no cache owns conversation state.
