@@ -1,11 +1,53 @@
 import 'dart:async';
 
 import 'package:digitalbrain_ui/src/chat/ui_composer.dart';
+import 'package:digitalbrain_ui/src/voice_input/ui_voice_input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('voice failure remains actionable when its save also fails', (
+    tester,
+  ) async {
+    var offline = true;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 152,
+            child: UiComposer(
+              state: const {'context': 'a', 'draft': 'keep my draft'},
+              dispatch: (_) async {
+                if (offline) throw StateError('connection refused');
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    var voice = tester.widget<UiVoiceInput>(find.byType(UiVoiceInput));
+    await expectLater(voice.onBegin!(), throwsStateError);
+    await expectLater(
+      voice.onCaptureError!('connection refused'),
+      throwsStateError,
+    );
+    await tester.pump();
+    expect(
+      find.textContaining('try again or type your message'),
+      findsOneWidget,
+    );
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      'keep my draft',
+    );
+    offline = false;
+    voice = tester.widget<UiVoiceInput>(find.byType(UiVoiceInput));
+    await voice.onBegin!();
+    await tester.pump();
+    expect(find.textContaining('try again or type your message'), findsNothing);
+  });
+
   Future<void> show(
     WidgetTester tester,
     Map<String, dynamic> state,

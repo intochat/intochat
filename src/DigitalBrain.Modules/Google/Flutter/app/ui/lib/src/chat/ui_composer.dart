@@ -190,6 +190,7 @@ class _UiComposerState extends State<UiComposer> {
                   enabled: widget.enabled,
                   label: 'Record a voice draft',
                   onBegin: () async {
+                    setState(() => _error = null);
                     _captureId = _id();
                     await _event('voice-begin', id: _captureId);
                   },
@@ -199,12 +200,15 @@ class _UiComposerState extends State<UiComposer> {
                     }
                   },
                   onCaptureError: (error) async {
+                    const message =
+                        'Voice input is unavailable. Your draft is unchanged. '
+                        'Check your microphone and connection, then try again or type your message.';
+                    if (mounted) setState(() => _error = message);
                     if (_captureId != null) {
                       await _event(
                         'voice-error',
                         id: _captureId,
-                        value:
-                            'Recording failed: $error. Check the microphone and try again.',
+                        value: message,
                       );
                     }
                   },
