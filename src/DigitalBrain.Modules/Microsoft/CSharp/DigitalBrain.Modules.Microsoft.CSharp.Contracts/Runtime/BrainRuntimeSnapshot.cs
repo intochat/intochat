@@ -17,6 +17,6 @@ public sealed record BrainRuntimeSnapshot(
 public sealed record BehaviorView(
     [property: Id(0)] string Id,
     [property: Id(1)] string Hash,
-    [property: Id(2)] CSharpFileStatus Status,
-    [property: Id(3)] int Failures,
-    [property: Id(4)] IReadOnlyList<CSharpSubscriptionView> Subscriptions);
+    [property: Id(2)] string Status,
+    [property: Id(3)] string? Error,
+    [property: Id(4)] CSharpSubscriptionView[] Subscriptions);

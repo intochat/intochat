@@ -51,7 +51,7 @@ internal sealed class RuntimeEdge(SessionTokens tokens, ScriptContracts contract
                 : cancellationToken;
         }
         var neuron = grains.GetGrain(contract, invocation.Key);
-        Stamp(identity, invocation.Behavior);
+        Stamp(identity);
         object? returned;
         try { returned = method.Invoke(neuron, values); }
         catch (TargetInvocationException error) when (error.InnerException is not null) { throw error.InnerException; }
@@ -135,10 +135,10 @@ internal sealed class RuntimeEdge(SessionTokens tokens, ScriptContracts contract
     }
 
     // A behavior started without a caller (tests, the platform) calls without a stamp, as grain code does.
-    private static void Stamp(BehaviorIdentity identity, string behavior)
+    private static void Stamp(BehaviorIdentity identity)
     {
-        if (identity.Owner is { } owner)
-        { CallerContextStamper.Stamp(owner with { Kind = CallerKind.App, StampedBy = TrustedEdge.AppProxy, AppId = identity.AppId ?? behavior }); }
+        if (identity.Principal is { } principal)
+        { CallerContextStamper.Stamp(principal with { Kind = CallerKind.App, StampedBy = TrustedEdge.AppProxy, AppId = identity.Owner }); }
     }
 
     private static SseItem<string> Item(string kind, object payload) => new(JsonSerializer.Serialize(payload, payload.GetType(), RuntimeProtocol.Json), kind);

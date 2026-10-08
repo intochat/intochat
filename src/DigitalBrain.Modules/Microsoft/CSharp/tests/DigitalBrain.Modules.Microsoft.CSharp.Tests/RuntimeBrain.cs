@@ -13,6 +13,11 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 // an installed module contract.
 internal static class RuntimeBrain
 {
+    // A program that connects and idles: compiling and running, doing nothing.
+    public const string Idle = "await using var brain = await DigitalBrainClient.ConnectAsync(args);\nawait Task.Delay(Timeout.Infinite, brain.Stopping);\n";
+
+    public static Dictionary<string, string> One(string source) => new(StringComparer.Ordinal) { [""] = source };
+
     public static Task<ModuleBrain> StartAsync(FakeSessionHost host, CancellationToken ct, bool http = false, IBehaviorAssemblies? assemblies = null, TimeProvider? time = null, bool traced = false)
     {
         var builder = ModuleTest.Create().WithModule<CSharpModule>().WithReminders()

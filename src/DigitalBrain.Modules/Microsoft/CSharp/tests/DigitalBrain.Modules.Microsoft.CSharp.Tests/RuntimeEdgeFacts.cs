@@ -263,26 +263,6 @@ public sealed class RuntimeEdgeFacts
     }
 
     [Fact]
-    public async Task BehaviorsOfOneAppShareItsVerifiedIdentity()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true);
-        CallerContextStamper.Stamp(Alice);
-        await brain.AuthorizeCallerAsync();
-        var app = brain.Get<IAppBindingTestHost>("stable-app");
-        await app.Bind(Key("behavior-one"));
-        await app.Bind(Key("behavior-two"));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => app.Bind(Key("behavior-three"), "someone-else"));
-        await app.Start(Key("behavior-one"));
-        await app.Start(Key("behavior-two"));
-        Orleans.Runtime.RequestContext.Clear();
-        var session = Session(brain, (await brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(Alice.BrainId)).Inspect(ct)).SessionId!);
-
-        foreach (var behavior in new[] { Key("behavior-one"), Key("behavior-two") })
-        { Assert.Equal("alice App AppProxy stable-app", await Invoke<string>(brain, session, behavior, Call(nameof(IPinger.Caller)), ct)); }
-    }
-
-    [Fact]
     public async Task ARetiredBehaviorCannotInvokeAndForgedCallsAreRefused()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -375,7 +355,7 @@ public sealed class RuntimeEdgeFacts
 
     private static async Task<(string Id, string Token)> Assigned(ModuleBrain brain, CancellationToken ct)
     {
-        await brain.Grains().GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For("acc-brain")).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
+        await brain.Grains().GetGrain<IBrainPrograms>(BrainRuntimeKeys.For("acc-brain")).Assign("acc-brain/csharp/a", RuntimeBrain.One(RuntimeBrain.Idle), []);
         var id = (await brain.Get<IBrainRuntime>(BrainRuntimeKeys.For("acc-brain")).Inspect(ct)).SessionId!;
         return (id, brain.SiloServices.GetRequiredService<SessionTokens>().Issue("acc-brain", id));
     }

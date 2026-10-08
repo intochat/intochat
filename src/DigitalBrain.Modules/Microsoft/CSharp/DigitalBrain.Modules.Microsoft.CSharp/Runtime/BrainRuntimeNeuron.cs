@@ -1,8 +1,11 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using DigitalBrain.Client.Runtime;
 using DigitalBrain.Client.Runtime.V1;
 using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp.Assemblies;
+using DigitalBrain.Microsoft.CSharp.Catalog;
 using DigitalBrain.Microsoft.CSharp.Edge;
 using DigitalBrain.Microsoft.CSharp.Files;
 using DigitalBrain.Microsoft.CSharp.Runtime.Signals;
@@ -16,7 +19,7 @@ using Orleans.Timers;
 
 namespace DigitalBrain.Microsoft.CSharp.Runtime;
 
-// A brain's behaviors, their durable subscriptions and the one sandbox session that runs them. Every
+// A brain's programs, their durable subscriptions and the one sandbox session that runs them. Every
 // change goes through the same rules: a session is wanted while anything is assigned; the host is told
 // the difference over its stream; signals buffer until the host acknowledges them. The reminder is the
 // backstop that relaunches a lost session, not the detector.
@@ -27,21 +30,19 @@ internal sealed class BrainRuntimeNeuron(
     SessionTokens tokens,
     SessionStreams streams,
     IBehaviorAssemblies assemblies,
+    CSharpScriptCheck compiler,
     ScriptContracts contracts,
     IReminderRegistry reminders,
     TimeProvider time,
     IOptions<CSharpOptions> options,
     IOptions<CSharpDeploymentSettings> deployment,
     ILogger<BrainRuntimeNeuron> logger)
-    : Neuron<BrainRuntimeState>(store), IBrainRuntime, IBrainRuntimeEdge, IBrainRuntimeArrivals, IRemindable, INeuronObserver
+    : Neuron<BrainRuntimeState>(store), IBrainRuntime, IBrainRuntimeEdge, IBrainPrograms, IBrainRuntimeArrivals, IRemindable, INeuronObserver
 {
     internal const string ReconcileReminder = "reconcile";
-    internal const int MaximumFailures = 5;
     // Orleans reminders fire at most once a minute.
     private static readonly TimeSpan ReconcilePeriod = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan SilenceLimit = TimeSpan.FromMinutes(2);
-    // Crashes further apart than this are not a streak; the count starts again.
-    private static readonly TimeSpan FailureWindow = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan AssemblyUrlLifetime = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan LogsCap = TimeSpan.FromSeconds(10);
     // Rotated well inside SessionTokens.Lifetime, so a reminder that fires late still beats expiry.
@@ -50,6 +51,8 @@ internal sealed class BrainRuntimeNeuron(
     internal const string DockerHost = "host.docker.internal";
 
     private readonly Dictionary<string, INeuron> _watched = new(StringComparer.Ordinal);
+    // Last status the sandbox reported per behavior id. Memory only: a fresh activation shows Starting until the host speaks.
+    private readonly Dictionary<string, (string Status, string? Error)> _reported = new(StringComparer.Ordinal);
     private IGrainTimer? _watchRenewal;
     // The tail of this activation's sandbox calls; each runs after the one before it, whatever its outcome.
     private Task _sandboxCalls = Task.CompletedTask;
@@ -66,39 +69,77 @@ internal sealed class BrainRuntimeNeuron(
 
     public Task<BrainRuntimeSnapshot> Inspect(CancellationToken cancellationToken = default)
         => Task.FromResult(new BrainRuntimeSnapshot(Snapshot.Session?.Status ?? SessionStatus.None, Snapshot.Session?.Id,
-            Snapshot.Session?.Fingerprint, Snapshot.Session?.LastHeartbeat, [.. Snapshot.Behaviors.Select(View)]));
+            Snapshot.Session?.Fingerprint, Snapshot.Session?.LastHeartbeat,
+            [.. Snapshot.Programs.SelectMany(program => View(program).Behaviors)]));
 
     public async Task Touch(CancellationToken cancellationToken = default)
     {
-        if (Snapshot.Behaviors.Length > 0) { await EnsureSessionAsync(); }
+        if (Snapshot.Programs.Length > 0) { await EnsureSessionAsync(); }
     }
 
-    public async Task Assign(string behavior, string hash, Dictionary<string, string> settings, CallerContext? owner, string? appId)
+    public async Task<ProgramView> Assign(string owner, Dictionary<string, string> sources, Dictionary<string, string> settings)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(behavior);
-        ArgumentException.ThrowIfNullOrWhiteSpace(hash);
+        ArgumentException.ThrowIfNullOrWhiteSpace(owner);
+        ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(settings);
-        var assignment = new BehaviorAssignment(behavior, hash, new(settings, StringComparer.Ordinal), owner, appId, CSharpFileStatus.Starting, null, 0);
-        await Save(Snapshot with { Behaviors = [.. Snapshot.Behaviors.Where(existing => existing.Id != behavior), assignment] }, Changed());
-        if (Snapshot.Session is null) { await EnsureSessionAsync(); }
-        else { streams.TryPush(Snapshot.Session.Id, AssignmentEvent.Kind, await AssignmentFor(assignment)); }
-    }
-
-    public async Task Retire(string behavior)
-    {
-        if (Snapshot.Behaviors.All(existing => existing.Id != behavior)) { return; }
+        var compiled = compiler.Compile(sources);
+        if (!compiled.Success)
+        {
+            throw new InvalidOperationException("The program does not compile: "
+                + string.Join("; ", compiled.Errors.Select(error => $"{error.File} line {error.Line} {error.Id}: {error.Message}")));
+        }
+        foreach (var behavior in compiled.Assemblies.Values) { await assemblies.Put(behavior, CancellationToken.None); }
+        var behaviors = compiled.Assemblies.OrderBy(file => file.Key, StringComparer.Ordinal)
+            .Select(file => new BehaviorAssembly(file.Key, file.Value.Hash)).ToArray();
+        var hash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", behaviors.Select(b => b.Path + ":" + b.Hash)))));
+        var principal = CallerContextStamper.TryGet(out var caller) ? caller
+            : Snapshot.Programs.FirstOrDefault(p => p.Owner == owner)?.Principal;
+        var program = new ProgramAssignment(owner, hash, new(settings, StringComparer.Ordinal), principal, behaviors);
+        var previous = Snapshot.Programs.FirstOrDefault(p => p.Owner == owner);
+        var removed = previous?.Behaviors.Select(b => b.Id(owner)).Except(behaviors.Select(b => b.Id(owner)), StringComparer.Ordinal).ToArray() ?? [];
         await Save(Snapshot with
         {
-            Behaviors = [.. Snapshot.Behaviors.Where(existing => existing.Id != behavior)],
-            Subscriptions = [.. Snapshot.Subscriptions.Where(subscription => subscription.Behavior != behavior)],
+            Programs = [.. Snapshot.Programs.Where(p => p.Owner != owner), program],
+            Subscriptions = [.. Snapshot.Subscriptions.Where(s => !removed.Contains(s.Behavior, StringComparer.Ordinal))],
         }, Changed());
-        await WatchSourcesAsync();
-        if (Snapshot.Session is { } session) { streams.TryPush(session.Id, RetireEvent.Kind, new RetireEvent(behavior)); }
-        if (Snapshot.Behaviors.Length == 0) { await EndSessionAsync(); }
+        foreach (var gone in removed) { _reported.Remove(gone); }
+        if (removed.Length > 0) { await WatchSourcesAsync(); }
+        if (Snapshot.Session is null) { await EnsureSessionAsync(); }
+        else
+        {
+            foreach (var gone in removed) { streams.TryPush(Snapshot.Session.Id, RetireEvent.Kind, new RetireEvent(gone)); }
+            foreach (var behavior in behaviors) { streams.TryPush(Snapshot.Session.Id, AssignmentEvent.Kind, await AssignmentFor(program, behavior)); }
+        }
+        return View(program);
     }
 
+    public async Task Retire(string owner)
+    {
+        if (Snapshot.Programs.FirstOrDefault(p => p.Owner == owner) is not { } program) { return; }
+        var ids = program.Behaviors.Select(b => b.Id(owner)).ToArray();
+        await Save(Snapshot with
+        {
+            Programs = [.. Snapshot.Programs.Where(p => p.Owner != owner)],
+            Subscriptions = [.. Snapshot.Subscriptions.Where(s => !ids.Contains(s.Behavior, StringComparer.Ordinal))],
+        }, Changed());
+        foreach (var id in ids) { _reported.Remove(id); }
+        await WatchSourcesAsync();
+        if (Snapshot.Session is { } session) { foreach (var id in ids) { streams.TryPush(session.Id, RetireEvent.Kind, new RetireEvent(id)); } }
+        if (Snapshot.Programs.Length == 0) { await EndSessionAsync(); }
+    }
+
+    // The behavior id's owner is a prefix; the longest matching owner wins.
+    private ProgramAssignment? Find(string behavior)
+        => Snapshot.Programs.Where(p => p.Behaviors.Any(b => b.Id(p.Owner) == behavior)).OrderByDescending(p => p.Owner.Length).FirstOrDefault();
+
+    Task<ProgramView?> IBrainPrograms.Describe(string owner)
+        => Task.FromResult(Snapshot.Programs.FirstOrDefault(p => p.Owner == owner) is { } program ? View(program) : null);
+
     public Task<BehaviorView?> Describe(string behavior)
-        => Task.FromResult(Snapshot.Behaviors.FirstOrDefault(existing => existing.Id == behavior) is { } found ? View(found) : null);
+    {
+        var program = Find(behavior);
+        return Task.FromResult(program is null ? null : View(program).Behaviors.FirstOrDefault(view => view.Id == behavior));
+    }
 
     public Task<string> Logs(string behavior, int tail)
         => Snapshot.Session is { Status: SessionStatus.Connected } session
@@ -111,9 +152,7 @@ internal sealed class BrainRuntimeNeuron(
     public Task<BehaviorIdentity?> Identity(string session, string behavior)
     {
         RequireSpeaking(session);
-        return Task.FromResult(Snapshot.Behaviors.FirstOrDefault(existing => existing.Id == behavior) is { } found
-            ? new BehaviorIdentity(found.Owner, found.AppId)
-            : null);
+        return Task.FromResult(Find(behavior) is { } program ? new BehaviorIdentity(program.Principal, program.Owner) : null);
     }
 
     // A host built from other contracts must not load behaviors compiled against these: it is refused,
@@ -140,7 +179,7 @@ internal sealed class BrainRuntimeNeuron(
     public async Task<string> Subscribed(string session, string behavior, string neuron, string signal)
     {
         RequireSpeaking(session);
-        if (Snapshot.Behaviors.All(existing => existing.Id != behavior)) { throw new ArgumentException($"{behavior} is not assigned to this brain.", nameof(behavior)); }
+        if (Find(behavior) is null) { throw new ArgumentException($"{behavior} is not assigned to this brain.", nameof(behavior)); }
         if (!GrainId.TryParse(neuron, out _)) { throw new ArgumentException($"'{neuron}' is not a neuron id such as time.timer/tea.", nameof(neuron)); }
         // Watching itself would deadlock this non-reentrant grain and self-feed on every save.
         if (neuron == this.GetGrainId().ToString()) { throw new ArgumentException("A behavior cannot subscribe to its brain runtime.", nameof(neuron)); }
@@ -195,47 +234,15 @@ internal sealed class BrainRuntimeNeuron(
         if (changed) { await Save(Snapshot with { Subscriptions = next }, Changed()); }
     }
 
-    // Failures are per behavior: a crashing one is reloaded after a backoff until it has failed
-    // MaximumFailures times in a row (each within FailureWindow of the last), then disarmed and unloaded
-    // while the rest of the brain keeps running.
-    public async Task Reported(string session, BehaviorStatusReport status)
+    // The status the sandbox last reported for an assigned behavior. An exit is remembered, never disarmed:
+    // the sandbox restarts an exited behavior itself while its assignment stands.
+    public Task Reported(string session, BehaviorStatusReport status)
     {
         RequireSpeaking(session);
         ArgumentNullException.ThrowIfNull(status);
-        var found = Snapshot.Behaviors.FirstOrDefault(existing => existing.Id == status.Behavior && existing.Hash == status.Hash);
-        if (found is null || found.Status == CSharpFileStatus.Disarmed) { return; }
-        var failed = status.Error is not null || status.Status == nameof(CSharpFileStatus.Exited) && status.ExitCode is not 0;
-        var now = time.GetUtcNow();
-        var inARow = found.LastFailure is { } last && now - last < FailureWindow;
-        var failures = failed ? (inARow ? found.Failures : 0) + 1 : found.Failures;
-        var next = found with
-        {
-            Status = failures >= MaximumFailures ? CSharpFileStatus.Disarmed
-                : Enum.TryParse<CSharpFileStatus>(status.Status, out var reported) ? reported : found.Status,
-            ExitCode = status.ExitCode,
-            Failures = failures,
-            LastFailure = failed ? now : found.LastFailure,
-        };
-        await Save(Snapshot with { Behaviors = [.. Snapshot.Behaviors.Select(existing => existing == found ? next : existing)] }, Changed());
-        if (next.Status == CSharpFileStatus.Disarmed)
-        {
-            logger.LogWarning("Behavior {Behavior} of brain {Brain} failed {Failures} times and is disarmed: {Error}", next.Id, Brain, failures, status.Error);
-            streams.TryPush(session, RetireEvent.Kind, new RetireEvent(next.Id));
-        }
-        else if (failed) { ReloadLater(session, next.Id, next.Hash, TimeSpan.FromSeconds(1 << (failures - 1))); }
-    }
-
-    // One-shot: reloads the behavior if, by then, the same session still runs it at the same hash.
-    private void ReloadLater(string session, string behavior, string hash, TimeSpan delay)
-    {
-        IGrainTimer? timer = null;
-        timer = this.RegisterGrainTimer(async _ =>
-        {
-            timer?.Dispose();
-            if (Snapshot.Session?.Id == session
-                && Snapshot.Behaviors.FirstOrDefault(existing => existing.Id == behavior && existing.Hash == hash) is { Status: not CSharpFileStatus.Disarmed } current)
-            { streams.TryPush(session, AssignmentEvent.Kind, await AssignmentFor(current)); }
-        }, new GrainTimerCreationOptions { DueTime = delay, Period = Timeout.InfiniteTimeSpan });
+        if (Find(status.Behavior) is { } program && program.Behaviors.Any(b => b.Id(program.Owner) == status.Behavior && b.Hash == status.Hash))
+        { _reported[status.Behavior] = (status.Status, status.Error); }
+        return Task.CompletedTask;
     }
 
     public Task<IReadOnlyList<SignalBatchEvent>> PendingBatches(string session)
@@ -248,8 +255,8 @@ internal sealed class BrainRuntimeNeuron(
     {
         RequireSpeaking(session);
         var assigned = new List<AssignmentEvent>();
-        foreach (var behavior in Snapshot.Behaviors.Where(existing => existing.Status != CSharpFileStatus.Disarmed))
-        { assigned.Add(await AssignmentFor(behavior)); }
+        foreach (var program in Snapshot.Programs)
+        { foreach (var behavior in program.Behaviors) { assigned.Add(await AssignmentFor(program, behavior)); } }
         return assigned;
     }
 
@@ -284,7 +291,7 @@ internal sealed class BrainRuntimeNeuron(
     public async Task ReceiveReminder(string reminderName, TickStatus status)
     {
         if (reminderName != ReconcileReminder) { return; }
-        if (Snapshot.Behaviors.Length == 0) { await EndSessionAsync(); return; }
+        if (Snapshot.Programs.Length == 0) { await EndSessionAsync(); return; }
         if (_watched.Count == 0 && Snapshot.Subscriptions.Length > 0) { await WatchSourcesAsync(); }
         var before = Snapshot.Session?.Id;
         await EnsureSessionAsync();
@@ -302,7 +309,7 @@ internal sealed class BrainRuntimeNeuron(
         if (Snapshot.Subscriptions.Length > 0) { RenewSourceWatches(dueTime: TimeSpan.Zero); }
         // Signals may have arrived while watches were absent. Relaunch disposable behaviors so
         // their subscribe-then-read recovery runs against durable state, with fresh credentials.
-        return Snapshot.Behaviors.Length > 0 ? EnsureSessionAsync(restart: true) : Task.CompletedTask;
+        return Snapshot.Programs.Length > 0 ? EnsureSessionAsync(restart: true) : Task.CompletedTask;
     }
 
     // A new session id per launch: the previous session's token stops speaking for this brain.
@@ -358,11 +365,11 @@ internal sealed class BrainRuntimeNeuron(
         if (!Speaks(session)) { throw new UnauthorizedAccessException("This session no longer speaks for its brain."); }
     }
 
-    private async Task<AssignmentEvent> AssignmentFor(BehaviorAssignment behavior)
-        => new(behavior.Id, behavior.Hash,
+    private async Task<AssignmentEvent> AssignmentFor(ProgramAssignment program, BehaviorAssembly behavior)
+        => new(behavior.Id(program.Owner), behavior.Hash,
             Reachable(await assemblies.ReadUrl(behavior.Hash, AssemblyUrlLifetime, CancellationToken.None)),
             Reachable(await assemblies.ReadUrl(behavior.Hash + ".pdb", AssemblyUrlLifetime, CancellationToken.None)),
-            behavior.Settings);
+            program.Settings);
 
     // Local blob storage answers on this machine's loopback, which no sandbox can reach; the Docker host
     // can. A SAS signs the path and query, not the host, so the rewritten URL stays valid.
@@ -370,10 +377,14 @@ internal sealed class BrainRuntimeNeuron(
 
     private static SignalBatchEvent Batch(Subscription subscription, string? trace = null) => new(subscription.Id, subscription.Pending, subscription.Watermark, trace);
 
-    private BehaviorView View(BehaviorAssignment behavior)
-        => new(behavior.Id, behavior.Hash, behavior.Status, behavior.Failures,
-            [.. Snapshot.Subscriptions.Where(s => s.Behavior == behavior.Id)
-                .Select(s => new CSharpSubscriptionView(s.Neuron, s.Signal, s.Pending.Length, s.Delivered, s.Dropped))]);
+    private ProgramView View(ProgramAssignment program)
+        => new(program.Owner, program.Hash, [.. program.Behaviors.Select(behavior =>
+        {
+            var id = behavior.Id(program.Owner);
+            (string Status, string? Error) reported = _reported.TryGetValue(id, out var last) ? last : ("Starting", null);
+            return new BehaviorView(id, behavior.Hash, reported.Status, reported.Error,
+                [.. Snapshot.Subscriptions.Where(s => s.Behavior == id).Select(s => new CSharpSubscriptionView(s.Neuron, s.Signal, s.Pending.Length, s.Delivered, s.Dropped))]);
+        })]);
 
     private BrainRuntimeChanged Changed() => new(RuntimeId);
 

@@ -11,18 +11,25 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
 public sealed class BrainRuntimeNeuronFacts
 {
+    private const string Brain = "acc-brain";
+    private const string Owner = "acc-brain/apps/x";
+    private const string Behavior = "acc-brain/apps/x/synapses/a.cs";
+
+    private static Dictionary<string, string> Synapse(string source = RuntimeBrain.Idle)
+        => new(StringComparer.Ordinal) { ["synapses/a.cs"] = source };
+
     [Fact]
     public async Task AcknowledgementBatchesPersistIndependentWatermarksAndRejectInvalidBatches()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         var runtime = Edge(brain);
-        await runtime.Assign("acc-brain/csharp/a", "hash-a", [], null, null);
+        await Programs(brain).Assign(Owner, Synapse(), []);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
         var one = brain.Get<IPinger>("one");
         var two = brain.Get<IPinger>("two");
-        var first = await runtime.Subscribed(session, "acc-brain/csharp/a", one.GetGrainId().ToString(), nameof(Pinged));
-        var second = await runtime.Subscribed(session, "acc-brain/csharp/a", two.GetGrainId().ToString(), nameof(Pinged));
+        var first = await runtime.Subscribed(session, Behavior, one.GetGrainId().ToString(), nameof(Pinged));
+        var second = await runtime.Subscribed(session, Behavior, two.GetGrainId().ToString(), nameof(Pinged));
         await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
         await one.Ping(1); await changes.NextAsync(ct: ct);
         await one.Ping(2); await changes.NextAsync(ct: ct);
@@ -46,8 +53,6 @@ public sealed class BrainRuntimeNeuronFacts
         Assert.Empty(await runtime.PendingBatches(resumed));
     }
 
-    private const string Brain = "acc-brain";
-
     [Fact]
     public async Task AssigningTheFirstBehaviorStartsASessionAndAnEmptySetStopsIt()
     {
@@ -55,12 +60,12 @@ public sealed class BrainRuntimeNeuronFacts
         var host = new FakeSessionHost();
         await using var brain = await RuntimeBrain.StartAsync(host, ct);
 
-        await Edge(brain).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
+        await Programs(brain).Assign(Owner, Synapse(), []);
 
         var started = await host.NextAsync(FakeSessionHost.IsStart, ct);
         Assert.Equal("http://edge.test/brains/acc-brain/", started.Body!["edgeUrl"]!.GetValue<string>());
         Assert.Equal(SessionStatus.Starting, (await Runtime(brain).Inspect(ct)).Session);
-        await Edge(brain).Retire("acc-brain/csharp/a");
+        await Programs(brain).Retire(Owner);
         await host.NextAsync(FakeSessionHost.IsStop, ct);
         Assert.Equal(SessionStatus.None, (await Runtime(brain).Inspect(ct)).Session);
     }
@@ -72,10 +77,10 @@ public sealed class BrainRuntimeNeuronFacts
         var host = new FakeSessionHost { Absent = true };
         await using var brain = await RuntimeBrain.StartAsync(host, ct);
 
-        await Edge(brain).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
+        await Programs(brain).Assign(Owner, Synapse(), []);
 
         Assert.Equal(SessionStatus.Starting, (await Runtime(brain).Inspect(ct)).Session);
-        Assert.Equal(CSharpFileStatus.Starting, (await Edge(brain).Describe("acc-brain/csharp/a"))!.Status);
+        Assert.Equal("Starting", (await Programs(brain).Describe(Owner))!.Behaviors[0].Status);
         host.Absent = false;
         await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default);
         await host.NextAsync(FakeSessionHost.IsStart, ct);
@@ -87,12 +92,12 @@ public sealed class BrainRuntimeNeuronFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, assemblies: new LoopbackAssemblies());
-        await Edge(brain).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
+        await Programs(brain).Assign(Owner, Synapse(), []);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
 
         var assignment = Assert.Single(await Edge(brain).Assignments(session));
 
-        Assert.Equal("http://host.docker.internal:10000/devstoreaccount1/behaviors/hash-a?sig=x", assignment.Assembly.ToString());
+        Assert.Equal("host.docker.internal", assignment.Assembly.Host);
         Assert.Equal("host.docker.internal", assignment.Symbols.Host);
     }
 
@@ -122,7 +127,7 @@ public sealed class BrainRuntimeNeuronFacts
         var ct = TestContext.Current.CancellationToken;
         var host = new FakeSessionHost();
         await using var brain = await RuntimeBrain.StartAsync(host, ct);
-        await Edge(brain).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
+        await Programs(brain).Assign(Owner, Synapse(), []);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
         var fingerprint = brain.SiloServices.GetRequiredService<ScriptContracts>().Fingerprint;
 
@@ -140,18 +145,17 @@ public sealed class BrainRuntimeNeuronFacts
         var ct = TestContext.Current.CancellationToken;
         var time = new MovableTime();
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, time: time);
-        const string behavior = "acc-brain/csharp/a";
-        await Edge(brain).Assign(behavior, "hash-a", [], null, null);
+        await Programs(brain).Assign(Owner, Synapse(), []);
         var stale = (await Runtime(brain).Inspect(ct)).SessionId!;
-        Assert.NotNull(await Edge(brain).Identity(stale, behavior));
+        Assert.NotNull(await Edge(brain).Identity(stale, Behavior));
 
         time.Now += TimeSpan.FromMinutes(3);
         await Runtime(brain).Touch(ct);
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Edge(brain).Identity(stale, behavior));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Edge(brain).Identity(stale, Behavior));
         var current = (await Runtime(brain).Inspect(ct)).SessionId!;
-        Assert.NotNull(await Edge(brain).Identity(current, behavior));
-        Assert.Null(await Edge(brain).Identity(current, "acc-brain/csharp/unassigned"));
+        Assert.NotNull(await Edge(brain).Identity(current, Behavior));
+        Assert.Null(await Edge(brain).Identity(current, "acc-brain/apps/x/synapses/unassigned.cs"));
     }
 
     [Fact]
@@ -160,10 +164,10 @@ public sealed class BrainRuntimeNeuronFacts
         var ct = TestContext.Current.CancellationToken;
         var host = new FakeSessionHost();
         await using var brain = await RuntimeBrain.StartAsync(host, ct);
-        await Edge(brain).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
+        await Programs(brain).Assign(Owner, Synapse(), []);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
         var pinger = brain.Get<IPinger>("pinger");
-        var subscription = await Edge(brain).Subscribed(session, "acc-brain/csharp/a", pinger.GetGrainId().ToString(), nameof(Pinged));
+        var subscription = await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
         await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
 
         await pinger.Ping(1);
@@ -183,11 +187,11 @@ public sealed class BrainRuntimeNeuronFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
-        await Edge(brain).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
+        await Programs(brain).Assign(Owner, Synapse(), []);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
         await Edge(brain).Connected(session, brain.SiloServices.GetRequiredService<ScriptContracts>().Fingerprint);
         var pinger = brain.Get<IPinger>("pinger");
-        var subscription = await Edge(brain).Subscribed(session, "acc-brain/csharp/a", pinger.GetGrainId().ToString(), nameof(Pinged));
+        var subscription = await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
         await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
         await pinger.Ping(1);
         await changes.NextAsync(ct: ct);
@@ -195,68 +199,11 @@ public sealed class BrainRuntimeNeuronFacts
         Assert.Single(await Edge(brain).PendingBatches(session));
         var stream = brain.SiloServices.GetRequiredService<DigitalBrain.Microsoft.CSharp.Sessions.SessionStreams>().Open(session);
 
-        await Edge(brain).Subscribed(session, "acc-brain/csharp/a", pinger.GetGrainId().ToString(), nameof(Pinged));
+        await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
 
         Assert.True(stream.Reader.TryRead(out var pushed));
         Assert.Equal(DigitalBrain.Client.Runtime.V1.SignalBatchEvent.Kind, pushed.Kind);
         Assert.Equal(subscription, ((DigitalBrain.Client.Runtime.V1.SignalBatchEvent)pushed.Payload).Subscription);
-    }
-
-    [Fact]
-    public async Task AFailingBehaviorDisarmsAloneAfterFiveCrashes()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var host = new FakeSessionHost();
-        await using var brain = await RuntimeBrain.StartAsync(host, ct);
-        await Edge(brain).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
-        await Edge(brain).Assign("acc-brain/csharp/b", "hash-b", [], null, null);
-        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
-
-        for (var crash = 0; crash < 5; crash++) { await Edge(brain).Reported(session, new("acc-brain/csharp/a", "hash-a", "Exited", 1, "boom")); }
-
-        Assert.Equal(CSharpFileStatus.Disarmed, (await Edge(brain).Describe("acc-brain/csharp/a"))!.Status);
-        Assert.Equal(CSharpFileStatus.Starting, (await Edge(brain).Describe("acc-brain/csharp/b"))!.Status);
-        Assert.Equal(SessionStatus.Starting, (await Runtime(brain).Inspect(ct)).Session);
-        Assert.DoesNotContain(host.Requests, request => request.Path.EndsWith("/stop", StringComparison.Ordinal));
-        Assert.DoesNotContain(await Edge(brain).Assignments(session), assignment => assignment.Behavior == "acc-brain/csharp/a");
-    }
-
-    // Five crashes in a burst disarm; a long-lived behavior that crashes now and then never adds up to five.
-    [Fact]
-    public async Task AFailureLongAfterTheLastStartsTheCountAgain()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        var time = new MovableTime();
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, time: time);
-        await Edge(brain).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
-        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
-        for (var crash = 0; crash < 4; crash++) { await Edge(brain).Reported(session, new("acc-brain/csharp/a", "hash-a", "Exited", 1, "boom")); }
-
-        time.Now += TimeSpan.FromMinutes(11);
-        await Edge(brain).Heartbeat(session);
-        await Edge(brain).Reported(session, new("acc-brain/csharp/a", "hash-a", "Exited", 1, "boom"));
-
-        var behavior = (await Edge(brain).Describe("acc-brain/csharp/a"))!;
-        Assert.NotEqual(CSharpFileStatus.Disarmed, behavior.Status);
-        Assert.Equal(1, behavior.Failures);
-    }
-
-    // A crash is reloaded after a backoff, so a dependency that is down for a few seconds cannot burn
-    // every attempt in an instant.
-    [Fact(Timeout = 60_000)]
-    public async Task ACrashedBehaviorIsReloadedAfterABackoff()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
-        await Edge(brain).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
-        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
-        var stream = brain.SiloServices.GetRequiredService<DigitalBrain.Microsoft.CSharp.Sessions.SessionStreams>().Open(session);
-
-        await Edge(brain).Reported(session, new("acc-brain/csharp/a", "hash-a", "Exited", 1, "boom"));
-
-        Assert.False(stream.Reader.TryRead(out _));
-        var reloaded = await stream.Reader.ReadAsync(ct);
-        Assert.Equal(DigitalBrain.Client.Runtime.V1.AssignmentEvent.Kind, reloaded.Kind);
     }
 
     // The host forgot the session (its container was replaced): the reminder ensures the same session again.
@@ -266,7 +213,7 @@ public sealed class BrainRuntimeNeuronFacts
         var ct = TestContext.Current.CancellationToken;
         var host = new FakeSessionHost();
         await using var brain = await RuntimeBrain.StartAsync(host, ct);
-        await Edge(brain).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
+        await Programs(brain).Assign(Owner, Synapse(), []);
         var first = await host.NextAsync(FakeSessionHost.IsStart, ct);
         host.Sessions.Clear();
 
@@ -283,7 +230,7 @@ public sealed class BrainRuntimeNeuronFacts
         var host = new FakeSessionHost();
         var time = new MovableTime();
         await using var brain = await RuntimeBrain.StartAsync(host, ct, time: time);
-        await Edge(brain).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
+        await Programs(brain).Assign(Owner, Synapse(), []);
         var first = await host.NextAsync(FakeSessionHost.IsStart, ct);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
         await Edge(brain).Connected(session, brain.SiloServices.GetRequiredService<ScriptContracts>().Fingerprint);
@@ -308,7 +255,7 @@ public sealed class BrainRuntimeNeuronFacts
         var host = new FakeSessionHost();
         var time = new MovableTime();
         await using var brain = await RuntimeBrain.StartAsync(host, ct, time: time);
-        await Edge(brain).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
+        await Programs(brain).Assign(Owner, Synapse(), []);
         await host.NextAsync(FakeSessionHost.IsStart, ct);
         var silent = (await Runtime(brain).Inspect(ct)).SessionId!;
 
@@ -328,13 +275,13 @@ public sealed class BrainRuntimeNeuronFacts
         var ct = TestContext.Current.CancellationToken;
         var host = new FakeSessionHost();
         await using var brain = await RuntimeBrain.StartAsync(host, ct);
-        await Edge(brain).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
+        await Programs(brain).Assign("acc-brain/apps/a", Synapse(), []);
         await host.NextAsync(FakeSessionHost.IsStart, ct);
         host.HoldStops = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        await Edge(brain).Retire("acc-brain/csharp/a");
+        await Programs(brain).Retire("acc-brain/apps/a");
         await host.NextAsync(FakeSessionHost.IsStop, ct);
-        await Edge(brain).Assign("acc-brain/csharp/b", "hash-b", [], null, null);
+        await Programs(brain).Assign("acc-brain/apps/b", Synapse(), []);
         await Task.Delay(TimeSpan.FromMilliseconds(300), ct);
         host.HoldStops.SetResult();
 
@@ -350,7 +297,7 @@ public sealed class BrainRuntimeNeuronFacts
         var host = new FakeSessionHost();
         var time = new MovableTime();
         await using var brain = await RuntimeBrain.StartAsync(host, ct, time: time);
-        await Edge(brain).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
+        await Programs(brain).Assign(Owner, Synapse(), []);
         await host.NextAsync(FakeSessionHost.IsStart, ct);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
         time.Now += TimeSpan.FromMinutes(41);
@@ -372,10 +319,119 @@ public sealed class BrainRuntimeNeuronFacts
         var host = new FakeSessionHost { Hang = true };
         await using var brain = await RuntimeBrain.StartAsync(host, ct);
 
-        await Edge(brain).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
+        await Programs(brain).Assign(Owner, Synapse(), []);
         await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default);
 
         Assert.Equal(SessionStatus.Starting, (await Runtime(brain).Inspect(ct)).Session);
+    }
+
+    [Fact]
+    public async Task AssigningAProgramCompilesEverySynapseAndStartsOneSession()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new FakeSessionHost();
+        await using var brain = await RuntimeBrain.StartAsync(host, ct);
+
+        var view = await Programs(brain).Assign("acc-brain/apps/demo",
+            new() { ["synapses/a.cs"] = RuntimeBrain.Idle, ["synapses/b.cs"] = RuntimeBrain.Idle, ["lib/Shared.cs"] = "public static class Shared {}\n" },
+            new() { ["App"] = "acc-brain/apps/demo" });
+
+        Assert.Equal(["acc-brain/apps/demo/synapses/a.cs", "acc-brain/apps/demo/synapses/b.cs"], view.Behaviors.Select(b => b.Id));
+        Assert.All(view.Behaviors, behavior => Assert.Equal("Starting", behavior.Status));
+        await host.NextAsync(FakeSessionHost.IsStart, ct);
+        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
+        var assignments = await Edge(brain).Assignments(session);
+        Assert.Equal(2, assignments.Count);
+        Assert.All(assignments, assignment => Assert.Equal("acc-brain/apps/demo", assignment.Settings["App"]));
+    }
+
+    [Fact]
+    public async Task AProgramThatDoesNotCompileIsRefusedAndTheRunningOneIsUntouched()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new FakeSessionHost();
+        await using var brain = await RuntimeBrain.StartAsync(host, ct);
+        var before = await Programs(brain).Assign("acc-brain/apps/demo", new() { ["synapses/a.cs"] = RuntimeBrain.Idle }, []);
+        await host.NextAsync(FakeSessionHost.IsStart, ct);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => Programs(brain).Assign("acc-brain/apps/demo",
+            new() { ["synapses/a.cs"] = RuntimeBrain.Idle, ["synapses/b.cs"] = "int x = \"no\";\n" }, []));
+
+        Assert.Contains("synapses/b.cs", error.Message, StringComparison.Ordinal);
+        Assert.Contains("CS0029", error.Message, StringComparison.Ordinal);
+        Assert.Equal(before.Hash, (await Programs(brain).Describe("acc-brain/apps/demo"))!.Hash);
+        Assert.Single((await Programs(brain).Describe("acc-brain/apps/demo"))!.Behaviors);
+    }
+
+    [Fact]
+    public async Task ReassigningWithoutASynapseRetiresOnlyThatBehaviorAndKeepsTheOthersSubscriptions()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new FakeSessionHost();
+        await using var brain = await RuntimeBrain.StartAsync(host, ct);
+        await Programs(brain).Assign("acc-brain/apps/demo", new() { ["synapses/a.cs"] = RuntimeBrain.Idle, ["synapses/b.cs"] = RuntimeBrain.Idle }, []);
+        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
+        var source = brain.Get<IPinger>("one2");
+        var kept = await Edge(brain).Subscribed(session, "acc-brain/apps/demo/synapses/a.cs", source.GetGrainId().ToString(), nameof(Pinged));
+        await Edge(brain).Subscribed(session, "acc-brain/apps/demo/synapses/b.cs", source.GetGrainId().ToString(), nameof(Pinged));
+        await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
+        await source.Ping(1); await changes.NextAsync(ct: ct);
+
+        var view = await Programs(brain).Assign("acc-brain/apps/demo", new() { ["synapses/a.cs"] = RuntimeBrain.Idle + "// v2\n" }, []);
+
+        Assert.Equal(["acc-brain/apps/demo/synapses/a.cs"], view.Behaviors.Select(b => b.Id));
+        var pending = Assert.Single(await Edge(brain).PendingBatches(session));
+        Assert.Equal(kept, pending.Subscription);
+        Assert.Single(pending.Signals);
+    }
+
+    [Fact]
+    public async Task RetiringTheLastProgramStopsTheSession()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new FakeSessionHost();
+        await using var brain = await RuntimeBrain.StartAsync(host, ct);
+        await Programs(brain).Assign("acc-brain/apps/demo", new() { ["synapses/a.cs"] = RuntimeBrain.Idle }, []);
+        await host.NextAsync(FakeSessionHost.IsStart, ct);
+
+        await Programs(brain).Retire("acc-brain/apps/demo");
+
+        await host.NextAsync(FakeSessionHost.IsStop, ct);
+        Assert.Null(await Programs(brain).Describe("acc-brain/apps/demo"));
+        Assert.Equal(SessionStatus.None, (await Runtime(brain).Inspect(ct)).Session);
+    }
+
+    [Fact]
+    public async Task IdentityAnswersThePrincipalAndOwnerOfABehavior()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        await Programs(brain).Assign("acc-brain/apps/demo", new() { ["synapses/a.cs"] = RuntimeBrain.Idle }, []);
+        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
+
+        var identity = await Edge(brain).Identity(session, "acc-brain/apps/demo/synapses/a.cs");
+
+        Assert.NotNull(identity);
+        Assert.Equal("acc-brain/apps/demo", identity!.Owner);
+        Assert.Null(await Edge(brain).Identity(session, "acc-brain/apps/other/synapses/a.cs"));
+    }
+
+    [Fact]
+    public async Task AReportedExitIsRememberedForDescribeAndNeverDisarms()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        var view = await Programs(brain).Assign("acc-brain/apps/demo", new() { ["synapses/a.cs"] = RuntimeBrain.Idle }, []);
+        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
+        var hash = view.Behaviors[0].Hash;
+
+        for (var attempt = 0; attempt < 10; attempt++)
+        { await Edge(brain).Reported(session, new("acc-brain/apps/demo/synapses/a.cs", hash, "Exited", 1, "boom")); }
+
+        var described = Assert.Single((await Programs(brain).Describe("acc-brain/apps/demo"))!.Behaviors);
+        Assert.Equal("Exited", described.Status);
+        Assert.Equal("boom", described.Error);
+        Assert.Single(await Edge(brain).Assignments(session));   // still assigned, never disarmed
     }
 
     [Fact]
@@ -386,6 +442,8 @@ public sealed class BrainRuntimeNeuronFacts
         Assert.False(ContractsFingerprint.Covers(ContractsFingerprint.Of([typeof(ContractsFingerprint).Assembly]), silo));
         await Task.CompletedTask;
     }
+
+    private static IBrainPrograms Programs(ModuleBrain brain) => brain.Grains().GetGrain<IBrainPrograms>(BrainRuntimeKeys.For(Brain));
 
     private static IBrainRuntime Runtime(ModuleBrain brain) => brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(Brain));
 

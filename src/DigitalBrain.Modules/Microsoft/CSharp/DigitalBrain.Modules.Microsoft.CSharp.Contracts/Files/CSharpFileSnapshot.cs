@@ -1,7 +1,7 @@
 namespace DigitalBrain.Microsoft.CSharp.Files;
 
 [GenerateSerializer, Alias("microsoft.csharp.file-status")]
-public enum CSharpFileStatus { Stopped, Starting, Running, Exited, Disarmed }
+public enum CSharpFileStatus { Stopped, Starting, Running, Exited }
 
 // A behavior as its brain sees it: the program, the assembly it compiled to, and the status its brain
 // runtime last heard from the sandbox session.
