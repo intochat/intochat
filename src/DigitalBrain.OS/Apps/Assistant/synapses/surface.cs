@@ -14,7 +14,7 @@ await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 
-await foreach (var invoked in app.Invocations(brain, brain.Stopping))
+await foreach (var invoked in app.Invocations(brain, ["open"], brain.Stopping))
 { if (invoked.Operation == "open") { await app.Respond(await OpenAsync(invoked.InvocationId, invoked.Input == "docked")); } }
 return;
 

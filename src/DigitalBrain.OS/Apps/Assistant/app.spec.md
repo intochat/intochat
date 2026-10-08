@@ -45,3 +45,12 @@ Projection may cache successfully delivered source versions during a behavior li
 repeating identical writes. Versioned lifecycle signals at or below a successfully projected version
 may also skip the source read. Startup, reconnect and unversioned signals still reconcile from neurons.
 Restart always reconstructs from neurons; no cache owns conversation state.
+
+Invocation handlers select their operation names before reading pending work. Surface composition
+handles open; conversation commands handle send, transcript and new. Both recover their own pending
+operations on startup and still check durable state before handling a matching live notification.
+
+An operation failure settles that invocation with an understandable error and does not stop later
+commands. A transcript exceeding the app response limit directs the caller to read the full
+conversation in the assistant; it never truncates or deletes durable history. If a command loop
+cannot settle an error, its failure reaches the runtime supervisor so pending work can recover.

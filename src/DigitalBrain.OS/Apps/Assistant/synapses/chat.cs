@@ -27,7 +27,8 @@ string[] Contracts = [typeof(IConnectionRequests).FullName!, typeof(IPostgresSer
     typeof(IWorkspace).FullName!, typeof(IForm).FullName!, typeof(ICSharpFile).FullName!];
 
 await ConversationId();
-await Task.WhenAll(Operations(), NewClicks());
+// A failed loop must reach the runtime supervisor, rather than leave its sibling waiting forever.
+await (await Task.WhenAny(Operations(), NewClicks()));
 return;
 
 async Task<string> ConversationId()
@@ -54,29 +55,33 @@ async Task<string> Send(string message, string runId)
 
 async Task Operations()
 {
-    await foreach (var invoked in app.Invocations(brain, brain.Stopping))
+    await foreach (var invoked in app.Invocations(brain, ["send", "transcript", "new"], brain.Stopping))
     {
-        switch (invoked.Operation)
+        try
         {
-            case "send" when invoked.Input.Length is >= 1 and <= 32000:
-                // A second message while a turn is running is refused by the conversation.
-                try { await app.Respond(new AppResponse(invoked.InvocationId, await Send(invoked.Input, invoked.InvocationId.ToString("N")), null)); }
-                catch (Exception error) { await app.Respond(new AppResponse(invoked.InvocationId, null, error.Message)); }
-                break;
-            case "send":
-                await app.Respond(new AppResponse(invoked.InvocationId, null, "A message has 1-32000 characters."));
-                break;
-            case "transcript":
-                await app.Respond(new AppResponse(invoked.InvocationId, await TranscriptJson(), null));
-                break;
-            case "new":
-                var id = "c-" + invoked.InvocationId.ToString("N");
-                var current = brain.Get<IText>(Name("conversation"));
-                if ((await current.Read()).Markdown != id) { await current.Set(id); }
-                await brain.Get<IText>(Name("status")).Set("");
-                await app.Respond(new AppResponse(invoked.InvocationId, id, null));
-                break;
+            switch (invoked.Operation)
+            {
+                case "send" when invoked.Input.Length is >= 1 and <= 32000:
+                    // A second message while a turn is running is refused by the conversation.
+                    await app.Respond(new AppResponse(invoked.InvocationId, await Send(invoked.Input, invoked.InvocationId.ToString("N")), null));
+                    break;
+                case "send":
+                    await app.Respond(new AppResponse(invoked.InvocationId, null, "A message has 1-32000 characters."));
+                    break;
+                case "transcript":
+                    await app.Respond(new AppResponse(invoked.InvocationId, await TranscriptJson(), null));
+                    break;
+                case "new":
+                    var id = "c-" + invoked.InvocationId.ToString("N");
+                    var current = brain.Get<IText>(Name("conversation"));
+                    if ((await current.Read()).Markdown != id) { await current.Set(id); }
+                    await brain.Get<IText>(Name("status")).Set("");
+                    await app.Respond(new AppResponse(invoked.InvocationId, id, null));
+                    break;
+            }
         }
+        catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
+        { await app.Respond(new AppResponse(invoked.InvocationId, null, error.Message[..Math.Min(error.Message.Length, 2000)])); }
     }
 }
 
@@ -99,10 +104,13 @@ async Task<string> TranscriptJson()
         runs.RemoveAll(run => run.RunId == active.RunId);
         runs.Add(active);
     }
-    return JsonSerializer.Serialize(runs.Select(run => new
+    var json = JsonSerializer.Serialize(runs.Select(run => new
     {
         runId = run.RunId, user = run.UserText, assistant = run.Reply ?? "", error = run.Error,
         status = run.Status switch { AgentRunStatus.Running => "running", AgentRunStatus.Completed => "done", _ => "failed" },
         steps = run.ToolCalls.Select(call => new { kind = "tool", tool = call.Name, input = call.Arguments, result = call.Result, error = call.Error }),
     }));
+    if (json.Length > 64 * 1024)
+    { throw new InvalidOperationException("This conversation is too large to return in one response. Open the assistant to read the full conversation."); }
+    return json;
 }
