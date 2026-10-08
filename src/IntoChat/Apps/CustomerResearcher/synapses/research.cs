@@ -5,7 +5,6 @@ using System.Text.RegularExpressions;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Inference;
 using DigitalBrain.AI.Models;
-using DigitalBrain.AI.Models.Scripted;
 using DigitalBrain.Apps;
 using DigitalBrain.Apps.Signals;
 using DigitalBrain.Client;
@@ -19,7 +18,6 @@ await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var status = brain.Get<IText>(appKey + "/status");
-var modelSetting = brain.Setting("Model") ?? "";
 var browserSetting = brain.Setting("Browser") ?? "";
 var table = brain.Get<ITable>(appKey + "/table");
 var defined = false;
@@ -153,9 +151,7 @@ IPlaywright Browser() => browserSetting.StartsWith("scripted/", StringComparison
     ? brain.Get<IScriptedBrowser>(browserSetting["scripted/".Length..])
     : brain.Get<IPlaywright>(appKey + "/browser");
 
-ILLM Model() => modelSetting.StartsWith(IScriptedLLM.ModelPrefix, StringComparison.Ordinal)
-    ? brain.Get<IScriptedLLM>(modelSetting[IScriptedLLM.ModelPrefix.Length..])
-    : brain.Get<ILLM>("default");
+ILLM Model() => brain.Get<ILLM>("default");
 
 async Task<string> CompleteAsync(string system, string user, int maxTokens, CancellationToken ct)
 {
