@@ -11,6 +11,7 @@ using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.TextField;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Time.Reminders;
+using DigitalBrain.Postgres;
 
 
 // Every window is derived from the registry, so composing is
@@ -68,17 +69,61 @@ async Task<string> Answer(Guid invocationId, string operation, string input)
             var id = request.GetProperty("view").GetString() ?? "";
             var views = await Views();
             var view = views.FirstOrDefault(v => v.Id == id) ?? throw new InvalidOperationException("No view " + id);
-            if (request.TryGetProperty("filters", out var values))
+            var changed = view;
+            if (request.TryGetProperty("sql", out var sql))
+            {
+                var text = sql.GetString() ?? view.Sql;
+                if (view.Source == "sql" && text.Length is 0 or > 20_000) { throw new ArgumentException("A SQL view needs 1-20000 characters of SQL."); }
+                changed = changed with { Sql = text };
+            }
+            var hasValues = request.TryGetProperty("filters", out var values);
+            if (hasValues)
+            {
+                if (values.ValueKind != JsonValueKind.Object || values.EnumerateObject().Any(property => property.Value.ValueKind is not (JsonValueKind.String or JsonValueKind.Null)))
+                { throw new ArgumentException("Filter values must be strings or null (clear)."); }
+                var columns = view.Filters.Concat(values.EnumerateObject().Select(property => property.Name)).Distinct(StringComparer.Ordinal).ToArray();
+                if (columns.Length > 16 || columns.Any(column => string.IsNullOrWhiteSpace(column) || column.Length > 128))
+                { throw new ArgumentException("Use at most 16 nonempty output-column filters, each at most 128 characters."); }
+                changed = changed with { Filters = columns };
+            }
+            if (request.TryGetProperty("filterColumns", out var filterColumns))
+            {
+                if (filterColumns.ValueKind != JsonValueKind.Array || filterColumns.EnumerateArray().Any(item => item.ValueKind != JsonValueKind.String))
+                { throw new ArgumentException("filterColumns must be an array of output-column names."); }
+                var columns = filterColumns.EnumerateArray().Select(item => item.GetString()!).Distinct(StringComparer.Ordinal).ToArray();
+                if (columns.Length > 16 || columns.Any(column => string.IsNullOrWhiteSpace(column) || column.Length > 128)
+                    || (hasValues && values.EnumerateObject().Any(property => !columns.Contains(property.Name))))
+                { throw new ArgumentException("Use at most 16 valid filter columns and supply values only for those columns."); }
+                changed = changed with { Filters = columns };
+            }
+            if (changed.Source == "sql" && changed.Filters.Length > 0)
+            {
+                var connection = brain.Setting("Account__db") ?? "";
+                if (connection.Length == 0) { throw new InvalidOperationException("Connect a Postgres database to this app."); }
+                var sourceSql = changed.Sql.Trim().TrimEnd(';');
+                var schema = await brain.Get<IPostgresServer>($"connection/{brain.Setting("Brain")}/postgres/{connection}")
+                    .Query(new($"select * from ({sourceSql}) as filter_source limit 0", 1));
+                if (changed.Filters.Any(column => !schema.Columns.Any(output => output.Name == column)))
+                { throw new ArgumentException("Every filter must name an output column of the view query."); }
+            }
+            if (request.TryGetProperty("linkFiltersTo", out var link))
+            {
+                var sourceId = link.GetString();
+                var source = views.FirstOrDefault(item => item.Id == sourceId) ?? throw new ArgumentException("The filter source view does not exist.");
+                if (changed.Filters.Any(column => !source.Filters.Contains(column)))
+                { throw new ArgumentException("Linked filters must name output columns declared by the source view."); }
+                changed = changed with { FilterGroup = source.FilterGroup ?? source.Id };
+            }
+            // Composition only configures fields; it preserves their current values.
+            await Compose(changed);
+            await Save(views.Select(item => item.Id == id ? changed : item).ToArray());
+            if (hasValues)
             {
                 foreach (var property in values.EnumerateObject())
                 {
-                    if (view.Filters.Contains(property.Name)) { await brain.Get<ITextField>($"{appKey}/views/{id}/filter/{property.Name}").SetValue(property.Value.GetString() ?? ""); }
+                    await brain.Get<ITextField>($"{appKey}/views/{changed.FilterGroup ?? changed.Id}/filter/{property.Name}")
+                        .SetValue(property.Value.GetString() ?? "");
                 }
-            }
-            if (request.TryGetProperty("sql", out var sql))
-            {
-                var changed = view with { Sql = sql.GetString() ?? view.Sql };
-                await Save(views.Select(v => v.Id == id ? changed : v).ToArray());
             }
             await Refresh(id);
             return JsonSerializer.Serialize(new { view = id }, json);
@@ -137,8 +182,8 @@ async Task Compose(View view)
     var children = new List<UiChildRef>();
     foreach (var column in view.Filters)
     {
-        await brain.Get<ITextField>($"{root}/filter/{column}").Configure(CultureInfo.InvariantCulture.TextInfo.ToTitleCase(column.Replace('_', ' ')), "text");
-        children.Add(new("textfield", $"{root}/filter/{column}"));
+        await brain.Get<ITextField>($"{appKey}/views/{view.FilterGroup ?? view.Id}/filter/{column}").Configure(CultureInfo.InvariantCulture.TextInfo.ToTitleCase(column.Replace('_', ' ')), "text");
+        children.Add(new("textfield", $"{appKey}/views/{view.FilterGroup ?? view.Id}/filter/{column}"));
     }
     children.Add(new("card", $"{root}/status"));
     children.Add(new(view.Kind, $"{root}/{view.Kind}"));
@@ -166,4 +211,4 @@ async Task ComposeHome(View[] views)
 
 static bool Same(UiChildRef[] left, UiChildRef[] right) => left.Length == right.Length && left.Zip(right).All(pair => pair.First == pair.Second);
 
-sealed record View(string Id, string Title, string Kind, string Source, string Sql, string[] Filters, int RefreshSeconds);
+sealed record View(string Id, string Title, string Kind, string Source, string Sql, string[] Filters, int RefreshSeconds, string? FilterGroup = null);

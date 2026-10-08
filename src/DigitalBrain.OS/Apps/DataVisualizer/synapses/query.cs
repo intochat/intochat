@@ -50,13 +50,13 @@ async Task<bool> Run(View? view)
         if (view.Source == "sql" && connection.Length == 0) { throw new InvalidOperationException("Connect a Postgres database to this app."); }
         await status.Set("Loading", "Reading the current source and filters…");
         var values = new List<string>();
-        foreach (var column in view.Filters) { values.Add((await brain.Get<ITextField>($"{root}/filter/{column}").Read()).Value); }
+        foreach (var column in view.Filters) { values.Add((await brain.Get<ITextField>($"{appKey}/views/{view.FilterGroup ?? view.Id}/filter/{column}").Read()).Value); }
         var (columns, rows) = view.Source == "sql" ? await RunSql(view, values) : await RunAppTable(view, values);
         var latest = await Current(view.Id);
         if (latest is null || JsonSerializer.Serialize(latest, json) != JsonSerializer.Serialize(view, json)) { return false; }
         for (var index = 0; index < view.Filters.Length; index++)
         {
-            if ((await brain.Get<ITextField>($"{root}/filter/{view.Filters[index]}").Read()).Value != values[index]) { return false; }
+            if ((await brain.Get<ITextField>($"{appKey}/views/{view.FilterGroup ?? view.Id}/filter/{view.Filters[index]}").Read()).Value != values[index]) { return false; }
         }
         brain.Stopping.ThrowIfCancellationRequested();
         if (view.Kind == "chart")
@@ -149,4 +149,4 @@ async Task<View[]> Views()
     return text.Length == 0 ? [] : JsonSerializer.Deserialize<View[]>(text, json) ?? [];
 }
 
-sealed record View(string Id, string Title, string Kind, string Source, string Sql, string[] Filters, int RefreshSeconds);
+sealed record View(string Id, string Title, string Kind, string Source, string Sql, string[] Filters, int RefreshSeconds, string? FilterGroup = null);

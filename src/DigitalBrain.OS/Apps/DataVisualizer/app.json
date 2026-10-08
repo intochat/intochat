@@ -2,7 +2,7 @@
   "name": "datavisualizer",
   "title": "Data Visualizer",
   "description": "Live tables and charts over your data: SQL or app tables, filtered from the UI.",
-  "version": "1.1.2",
+  "version": "1.1.4",
   "icon": "icon.svg",
   "operations": [
     {
@@ -15,7 +15,7 @@
     },
     {
       "name": "refine",
-      "description": "Set filter values and optionally replace the SQL of a view: JSON {view, filters: {column: value}, sql}. Re-runs the view."
+      "description": "Set visible equality filters and optionally replace SQL: JSON {view, filters: {outputColumn: value}, sql, linkFiltersTo}. New filter columns become controls. Empty values clear filters. Optional linkFiltersTo is an existing view id whose same-named declared filters should be shared; changing either control refreshes both views. Prefer filters over embedding filter values in SQL. Optional filterColumns replaces the control list (empty removes all); SQL columns and value types are validated before saving."
     },
     {
       "name": "read",

@@ -26,3 +26,14 @@ current chart points or table rows plus status after waiting for refresh.
 Subscriptions reconcile only after registration. Process state contains no authoritative data.
 Refresh delivery can repeat; it reads current source state and cannot create windows. Query
 results cannot overtake one another because only the query behavior publishes them.
+
+Refine adds visible output-column filters when needed rather than silently ignoring them.
+Optional linkFiltersTo shares the existing source view's same-named filter neurons; changes
+in either surface refresh every dependent view. Only columns declared by the source can be
+linked. A chart may use an aggregate output column with the same name as a table filter.
+SQL still defines the source scope: filtering a top-ten subset cannot reveal other groups.
+Shared filter values remain durable through recomposition and behavior restart.
+
+Refine validates string/null filter values and SQL output columns before changing state.
+Optional filterColumns replaces the control list, including removing obsolete filters,
+without deleting shared field neurons used by another view.

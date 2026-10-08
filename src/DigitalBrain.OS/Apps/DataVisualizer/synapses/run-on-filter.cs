@@ -26,15 +26,21 @@ while (!brain.Stopping.IsCancellationRequested)
     }
     try
     {
-        await Task.WhenAll(views.SelectMany(view => view.Filters.Select(column => Pump<TextFieldChanged>(brain.Get<ITextField>($"{appKey}/views/{view.Id}/filter/{column}"), view.Id, scope.Token))).Append(Registry()));
+        var fields = views.SelectMany(view => view.Filters.Select(column => new
+        {
+            Name = $"{appKey}/views/{view.FilterGroup ?? view.Id}/filter/{column}",
+            View = view.Id,
+        })).GroupBy(field => field.Name);
+        await Task.WhenAll(fields.Select(group => Pump<TextFieldChanged>(brain.Get<ITextField>(group.Key),
+            group.Select(field => field.View).Distinct().ToArray(), scope.Token)).Append(Registry()));
     }
     catch (OperationCanceledException) when (!brain.Stopping.IsCancellationRequested) { }
 }
 
-async Task Pump<T>(INeuron source, string view, CancellationToken ct) where T : Signal
+async Task Pump<T>(INeuron source, string[] views, CancellationToken ct) where T : Signal
 {
-    async Task Refresh() { await app.Invoke(new(Guid.NewGuid(), "refresh", view)); }
+    async Task Refresh() { foreach (var view in views) { await app.Invoke(new(Guid.NewGuid(), "refresh", view)); } }
     await foreach (var _ in brain.On<T>(source, Refresh, ct)) { await Refresh(); }
 }
 
-sealed record View(string Id, string Title, string Kind, string Source, string Sql, string[] Filters, int RefreshSeconds);
+sealed record View(string Id, string Title, string Kind, string Source, string Sql, string[] Filters, int RefreshSeconds, string? FilterGroup = null);
