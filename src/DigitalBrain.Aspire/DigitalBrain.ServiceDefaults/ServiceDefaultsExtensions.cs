@@ -121,9 +121,7 @@ public static class ServiceDefaultsExtensions
                 .AddAspNetCoreInstrumentation(options =>
                     options.Filter = context =>
                         !context.Request.Path.StartsWithSegments(HealthPath, StringComparison.OrdinalIgnoreCase)
-                        && !context.Request.Path.StartsWithSegments(AlivePath, StringComparison.OrdinalIgnoreCase)
-                        // RuntimeProtocol.Report: the sandbox session heartbeat POST, every 20 s per brain session.
-                        && !context.Request.Path.Value!.EndsWith("/runtime/v1/report", StringComparison.Ordinal))
+                        && !context.Request.Path.StartsWithSegments(AlivePath, StringComparison.OrdinalIgnoreCase))
                 .AddHttpClientInstrumentation(options =>
                 {
                     options.FilterHttpRequestMessage = static request => !IsAzuriteRequest(request);
@@ -184,6 +182,22 @@ public static class ServiceDefaultsExtensions
             && IsAzureStorageNamespace(azNamespace);
     }
 
+    // RuntimeProtocol.Report: the sandbox session heartbeat POST, every 20 s per brain session. The route also
+    // carries Subscribe, so only a successful call is quiet; a refusal or error keeps its span.
+    private static bool IsSuccessfulKeepaliveReport(Activity activity)
+    {
+        if (activity.Kind is not (ActivityKind.Server or ActivityKind.Client)
+            || activity.Status == ActivityStatusCode.Error
+            || activity.GetTagItem("http.response.status_code") is not int status
+            || status >= 400)
+        {
+            return false;
+        }
+
+        var path = activity.GetTagItem("url.path") as string ?? activity.GetTagItem("url.full") as string;
+        return path is not null && path.EndsWith("/runtime/v1/report", StringComparison.Ordinal);
+    }
+
     private sealed class SuppressNoiseSampler(Sampler inner) : Sampler
     {
         public override SamplingResult ShouldSample(in SamplingParameters samplingParameters)
@@ -201,7 +215,7 @@ public static class ServiceDefaultsExtensions
     {
         public override void OnEnd(Activity activity)
         {
-            if (!IsAzureStorageNoise(activity))
+            if (!IsAzureStorageNoise(activity) && !IsSuccessfulKeepaliveReport(activity))
             {
                 return;
             }
