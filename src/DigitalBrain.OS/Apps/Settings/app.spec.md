@@ -1,20 +1,19 @@
 # Settings
 
-Workspace preferences live in durable fields the person edits in place: a display name and a theme.
-Opening the app composes a settings surface; reading answers the preferences as JSON. A theme other
-than "light" or "dark" answers as "system".
+Settings composes a surface from app-owned preference drafts, explicit Save and Reload controls,
+and credential-free connection cards. Shared brain preference fields remain authoritative.
 
-## Scenario: Opening settings composes the surface and answers the defaults
+Opening reconciles clean drafts with the stored values. Dirty drafts survive reopening. A stale
+draft produces a visible conflict and must be reloaded before saving. Save captures the draft and
+its durable baseline, validates a name up to 120 characters and theme system/light/dark, and writes
+only edited fields with atomic expected-version writes. Concurrent updates preserve the newer value
+and require reload; a partially applied multi-field save is reported explicitly. Saving, validation,
+persistence failures and success appear in the surface.
+Reload explicitly discards drafts. Reading returns authoritative preferences.
 
-Invoking "open" on a fresh install answers a JSON payload naming the settings surface, whose title
-is "Settings", with an empty display name and the "system" theme.
-
-## Scenario: Typed values are the preferences
-
-After setting the display name field to "Ada" and the theme field to "dark", invoking "read"
-answers those preferences.
-
-## Scenario: Preferences survive reopening
-
-Invoking "open" again after values were set answers the same preferences, and the fields still
-hold them.
+Connection refresh reads the brain connection registry and installed app bindings. It distinguishes
+connected accounts, available connector capabilities, deployment integration configuration and
+missing app configuration. Cards show provider, connection identity, status and consuming apps,
+never credentials. Loading, empty and retryable error states replace the projected list. Repeated
+refresh uses stable card keys and does not duplicate connections. A separate behavior owns each
+of surface composition, preference persistence and connection discovery.

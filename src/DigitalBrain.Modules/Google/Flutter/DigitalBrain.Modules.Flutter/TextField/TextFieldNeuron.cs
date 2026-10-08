@@ -40,6 +40,14 @@ internal sealed class TextFieldNeuron([PersistentState("state", DigitalBrainName
         return Save(next, new TextFieldChanged(this.GetPrimaryKeyString(), next.Value));
     }
 
+    public async Task<bool> TrySetValue(string value, int expectedVersion)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        if (Snapshot.Version != expectedVersion) { return false; }
+        await SetValue(value);
+        return true;
+    }
+
     public async Task Input(string value)
     {
         ArgumentNullException.ThrowIfNull(value);

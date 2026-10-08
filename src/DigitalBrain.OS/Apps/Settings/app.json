@@ -1,8 +1,8 @@
 {
   "name": "settings",
   "title": "Settings",
-  "description": "Workspace preferences: your display name and theme, edited on a settings surface.",
-  "version": "1.0.1",
+  "description": "Workspace preferences, available connections and the connections used by your apps.",
+  "version": "1.1.2",
   "operations": [
     {
       "name": "open",
@@ -11,6 +11,22 @@
     {
       "name": "read",
       "description": "Answer the current preferences."
+    },
+    {
+      "name": "refresh-connections",
+      "description": "Refresh and return this brain\u2019s credential-free connection summaries and installed app bindings."
+    },
+    {
+      "name": "save-preferences",
+      "description": "Save DisplayName and Theme with the Baseline snapshot from preferences/baseline. Reject stale drafts and preserve invalid drafts."
+    },
+    {
+      "name": "reload-preferences",
+      "description": "Discard editable drafts and load the stored preferences."
+    },
+    {
+      "name": "reconcile-preferences",
+      "description": "Refresh clean drafts from stored preferences; retain unsaved edits and report conflicts."
     }
   ],
   "settings": []
