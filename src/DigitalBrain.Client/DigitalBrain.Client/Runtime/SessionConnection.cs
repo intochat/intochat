@@ -180,15 +180,17 @@ public sealed class SessionConnection : IAsyncDisposable
 
     private async Task ReportAsync(RuntimeReport report, string operation, CancellationToken cancellationToken)
     {
-        using var response = await SendAsync(HttpMethod.Post, RuntimeProtocol.Report, report, HttpCompletionOption.ResponseContentRead, cancellationToken).ConfigureAwait(false);
+        using var response = await SendAsync(HttpMethod.Post, RuntimeProtocol.Report, report, HttpCompletionOption.ResponseContentRead, cancellationToken,
+            reportKind: report.Heartbeat ? RuntimeProtocol.HeartbeatReport : null).ConfigureAwait(false);
         await EnsureSuccessAsync(response, operation, cancellationToken).ConfigureAwait(false);
     }
 
-    private Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, object? body, HttpCompletionOption completion, CancellationToken cancellationToken, string? traceParent = null)
+    private Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, object? body, HttpCompletionOption completion, CancellationToken cancellationToken, string? traceParent = null, string? reportKind = null)
     {
         var request = new HttpRequestMessage(method, path) { Content = body is null ? null : JsonContent.Create(body, body.GetType(), options: RuntimeProtocol.Json) };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _token);
         if (traceParent is not null) { request.Headers.TryAddWithoutValidation("traceparent", traceParent); }
+        if (reportKind is not null) { request.Options.Set(RuntimeProtocol.ReportKind, reportKind); }
         return _http.SendAsync(request, completion, cancellationToken);
     }
 

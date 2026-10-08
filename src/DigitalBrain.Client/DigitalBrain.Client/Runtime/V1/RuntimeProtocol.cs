@@ -10,6 +10,10 @@ public static class RuntimeProtocol
     public const string Report = "runtime/v1/report";
     public const string Stream = "runtime/v1/stream";
     public const string RefusalHeader = "X-DigitalBrain-Refusal";
+    // Both ends tag a heartbeat report's span with this, so telemetry keeps heartbeats quiet and every other report traced.
+    public const string ReportKindTag = "digitalbrain.runtime.report";
+    public const string HeartbeatReport = "heartbeat";
+    public static readonly HttpRequestOptionsKey<string> ReportKind = new(ReportKindTag);
     public static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
 }
 

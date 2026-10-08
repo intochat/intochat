@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using DigitalBrain.Client.Runtime.V1;
 using DigitalBrain.Framework;
 using Microsoft.AspNetCore.Builder;
@@ -20,6 +21,7 @@ internal static class RuntimeEdgeEndpoints
         });
         edge.MapPost(RuntimeProtocol.Report, async Task<IResult> (HttpContext http, string brainId, RuntimeReport report, RuntimeEdge runtime) =>
         {
+            if (report.Heartbeat) { Activity.Current?.SetTag(RuntimeProtocol.ReportKindTag, RuntimeProtocol.HeartbeatReport); }
             try { return await runtime.ReportAsync(brainId, Bearer(http), report); }
             catch (Exception error) { return Refusal(http, error); }
         });

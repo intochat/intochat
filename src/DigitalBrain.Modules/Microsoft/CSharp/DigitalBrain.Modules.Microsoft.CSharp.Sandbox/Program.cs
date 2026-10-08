@@ -15,7 +15,10 @@ if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOIN
 {
     builder.Logging.AddOpenTelemetry(logging => { logging.IncludeFormattedMessage = true; logging.IncludeScopes = true; });
     builder.Services.AddOpenTelemetry()
-        .WithTracing(tracing => tracing.AddAspNetCoreInstrumentation().AddHttpClientInstrumentation().AddProcessor(new QuietReportProcessor()))
+        .WithTracing(tracing => tracing.AddAspNetCoreInstrumentation().AddHttpClientInstrumentation(http => http.EnrichWithHttpRequestMessage = (activity, request) =>
+        {
+            if (request.Options.TryGetValue(RuntimeProtocol.ReportKind, out var kind)) { activity.SetTag(RuntimeProtocol.ReportKindTag, kind); }
+        }).AddProcessor(new QuietReportProcessor()))
         .UseOtlpExporter();
 }
 
@@ -24,8 +27,8 @@ app.Logger.LogInformation("Sandbox host carries contracts {Fingerprint}", Sessio
 app.MapSandbox();
 await app.RunAsync();
 
-// RuntimeProtocol.Report: the sandbox's own heartbeat POST. The route also carries Subscribe,
-// so only a successful call is quiet; a refusal or error keeps its span.
+// The sandbox's own heartbeat POST, tagged by SessionConnection. Other reports on the route (Subscribe, status, ...)
+// keep their spans, and so does a heartbeat the brain refused or that failed.
 internal sealed class QuietReportProcessor : BaseProcessor<Activity>
 {
     public override void OnEnd(Activity activity)
@@ -33,8 +36,7 @@ internal sealed class QuietReportProcessor : BaseProcessor<Activity>
         if (activity.Kind == ActivityKind.Client
             && activity.Status != ActivityStatusCode.Error
             && activity.GetTagItem("http.response.status_code") is int status and < 400
-            && activity.GetTagItem("url.full") is string url
-            && url.EndsWith("/runtime/v1/report", StringComparison.Ordinal))
+            && activity.GetTagItem(RuntimeProtocol.ReportKindTag) is RuntimeProtocol.HeartbeatReport)
         {
             activity.ActivityTraceFlags &= ~ActivityTraceFlags.Recorded;
             activity.IsAllDataRequested = false;

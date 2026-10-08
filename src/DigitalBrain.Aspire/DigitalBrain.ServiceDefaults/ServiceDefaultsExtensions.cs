@@ -184,21 +184,18 @@ public static class ServiceDefaultsExtensions
             && IsAzureStorageNamespace(azNamespace);
     }
 
-    // RuntimeProtocol.Report: the sandbox session heartbeat POST, every 20 s per brain session. The route also
-    // carries Subscribe, so only a successful call is quiet; a refusal or error keeps its span.
-    private static bool IsSuccessfulKeepaliveReport(Activity activity)
-    {
-        if (activity.Kind is not (ActivityKind.Server or ActivityKind.Client)
-            || activity.Status == ActivityStatusCode.Error
-            || activity.GetTagItem("http.response.status_code") is not int status
-            || status >= 400)
-        {
-            return false;
-        }
+    // RuntimeProtocol.ReportKindTag / HeartbeatReport (DigitalBrain.Client.Runtime.V1), restated: ServiceDefaults
+    // references neither the client nor the module.
+    private const string ReportKindTag = "digitalbrain.runtime.report";
+    private const string HeartbeatReport = "heartbeat";
 
-        var path = activity.GetTagItem("url.path") as string ?? activity.GetTagItem("url.full") as string;
-        return path is not null && path.EndsWith("/runtime/v1/report", StringComparison.Ordinal);
-    }
+    // The sandbox session heartbeat, every 20 s per brain session, tagged by the runtime edge endpoint. Other
+    // reports on the same route (Subscribe, status, ...) keep their spans, and so does a refused or failed heartbeat.
+    private static bool IsSuccessfulKeepaliveReport(Activity activity)
+        => activity.Kind is ActivityKind.Server or ActivityKind.Client
+            && activity.Status != ActivityStatusCode.Error
+            && activity.GetTagItem("http.response.status_code") is int status and < 400
+            && activity.GetTagItem(ReportKindTag) is HeartbeatReport;
 
     private sealed class SuppressNoiseSampler(Sampler inner) : Sampler
     {
