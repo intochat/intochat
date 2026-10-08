@@ -23,7 +23,7 @@ public sealed class OsBootFacts
 
         var scope = await Establish(brain);
 
-        foreach (var name in new[] { "settings", "assistant", "datavisualizer" })
+        foreach (var name in new[] { "settings", "assistant", "router", "calculator", "datavisualizer" })
         {
             var installed = await brain.Get<IApp>(IApp.Key(scope, name)).Read();
             Assert.Equal(AppStatus.Live, installed.Status);

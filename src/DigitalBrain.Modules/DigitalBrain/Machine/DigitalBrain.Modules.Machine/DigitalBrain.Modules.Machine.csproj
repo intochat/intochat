@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>Host machine edge: a shell command surface and a file surface on the person's PC.</Description>
+    <RootNamespace>DigitalBrain.Machine</RootNamespace>
+    <NoWarn>$(NoWarn);ORLEANSEXP005</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="DigitalBrain.Modules.Machine.Tests" />
+    <ProjectReference Include="../DigitalBrain.Modules.Machine.Contracts/DigitalBrain.Modules.Machine.Contracts.csproj" />
+    <ProjectReference Include="../../../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
+  </ItemGroup>
+</Project>

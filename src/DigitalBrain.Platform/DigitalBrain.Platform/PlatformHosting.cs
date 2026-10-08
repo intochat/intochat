@@ -9,6 +9,7 @@ using DigitalBrain.Platform.Identity.Directory;
 using DigitalBrain.Platform.Identity.Grants;
 using DigitalBrain.Platform.Integrations;
 using DigitalBrain.Platform.Secrets;
+using DigitalBrain.Platform.Workshop;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -39,6 +40,8 @@ public static class PlatformHosting
         services.TryAddSingleton<IIdentity, PlatformIdentity>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICallFilterStage, GrantCallFilterStage>());
         services.AddOptions<ConnectionsOptions>().BindConfiguration(ConnectionsOptions.SectionName);
+        // The Workshop edits the OS's own codebase; empty root means it is off until a host opts in.
+        services.AddOptions<WorkshopOptions>().BindConfiguration("DigitalBrain:Workshop");
         // Silo singletons: a restart takes the pending logins with it, so a callback fails closed.
         services.TryAddSingleton<Connections.OAuth.OAuthLoginRequests>();
         services.TryAddSingleton<Connections.OAuth.OAuthTokenExchange>();

@@ -21,7 +21,7 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai")), IHttpMod
 {
     public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.AI.Agents.Context.IAgentContext).Assembly;
 
-    public static IntegrationSchema[] Integrations => AiIntegrations.Definitions;
+    public static IntegrationSchema[] Integrations => AiIntegrations.All;
     public static ConnectorDefinition[] Connectors => ModelConnectors.All;
 
     public override void Configure(ISiloBuilder builder)
@@ -35,6 +35,8 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai")), IHttpMod
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IAiCredentials, RegistrationCredentials>();
         AIClients.Add(services);
+        services.AddHttpClient();
+        services.TryAddSingleton<HttpSystemOne>();
         services.TryAddSingleton<ModelCatalog>();
         services.TryAddSingleton<InferenceService>();
         services.TryAddSingleton<NeuronSurface>();

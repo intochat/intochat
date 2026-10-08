@@ -19,6 +19,12 @@ internal static class AiIntegrations
         IntegrationSchema.For(TavilyId, "Tavily").RequiresSecret(ApiKeyField),
     ];
 
+    // The System One (Jev) integration is not a chat provider and ships no model connectors;
+    // it is exposed alongside the chat integrations but kept out of the connector derivation.
+    internal static IntegrationSchema TypeSafe { get; } = Provider("typesafe", "TypeSafe Jev");
+
+    internal static IntegrationSchema[] All { get; } = [.. Definitions, TypeSafe];
+
     internal static string IdOf(AiProvider provider) => provider switch
     {
         AiProvider.OpenAI => "openai",

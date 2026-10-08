@@ -12,7 +12,7 @@ namespace DigitalBrain.OS.Tests.E2E;
 // Product-only shipped content; all lease, model, browser and telemetry support is shared.
 public sealed class ProductHostFixture : ReferenceBrainFixture
 {
-    public static readonly string[] ShippedPackages = ["os/settings", "os/assistant", "intochat/customer-researcher"];
+    public static readonly string[] ShippedPackages = ["os/settings", "os/assistant", "os/router", "os/calculator", "intochat/customer-researcher"];
 
     protected override Task<E2EBrain> StartBrainAsync(CancellationToken cancellationToken)
         => ProductE2E.Create()

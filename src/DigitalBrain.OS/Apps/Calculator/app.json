@@ -1,0 +1,14 @@
+{
+  "name": "calculator",
+  "title": "Calculator",
+  "description": "A keypad that evaluates arithmetic expressions.",
+  "version": "1.0.0",
+  "icon": "icon.svg",
+  "operations": [
+    {
+      "name": "open",
+      "description": "Open the calculator keypad."
+    }
+  ],
+  "settings": []
+}

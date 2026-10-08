@@ -7,6 +7,7 @@
     <ProjectReference Include="../../../Google/Flutter/DigitalBrain.Modules.Flutter/DigitalBrain.Modules.Flutter.csproj" />
     <ProjectReference Include="../../../Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp/DigitalBrain.Modules.Microsoft.CSharp.csproj" />
     <ProjectReference Include="../../../Postgres/DigitalBrain.Modules.Postgres/DigitalBrain.Modules.Postgres.csproj" />
+    <ProjectReference Include="../../../Time/DigitalBrain.Modules.Time/DigitalBrain.Modules.Time.csproj" />
   </ItemGroup>
   <ItemGroup><Using Include="DigitalBrain.Testing.Module" /></ItemGroup>
 </Project>
