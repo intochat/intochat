@@ -181,7 +181,7 @@ async Task RenderAsync()
     var runs = state.Runs.Select(run => run.RunId).ToList();
     if (state.ActiveRun is { } active && !runs.Contains(active.RunId)) { runs.Add(active.RunId); }
     var transcript = brain.Get<ILayout>(Name("transcript"));
-    await transcript.Set(new LayoutDefinition("column",
+    await transcript.Set(new LayoutDefinition("list",
         [.. runs.SelectMany(run => new[]
         {
             new UiChildRef(UIVocabulary.CardType, Name($"turn-{run}-user")),
