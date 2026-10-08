@@ -33,6 +33,7 @@ public sealed class MarketplaceRouteFacts
         builder.Services.AddSingleton<IDigitalBrain>(brain.SiloServices.GetRequiredService<IDigitalBrain>());
         builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<Creator>());
         builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<AppWorkQueue>());
+        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<MarketplaceView>());
         builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<AppInstaller>());
         builder.Services.AddSingleton<IBrainAccess, OpenBrainAccess>();
         await using var edge = builder.Build();
@@ -103,6 +104,7 @@ public sealed class MarketplaceRouteFacts
                 Kind = CallerKind.User,
                 StampedBy = TrustedEdge.AuthenticatedHttp,
             });
+            await brain.AuthorizeCallerAsync();
             var endpoint = endpoints.Single(item => item.RoutePattern.RawText == pattern
                 && item.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains(method));
             var http = new DefaultHttpContext { RequestServices = edge.Services, RequestAborted = ct };

@@ -58,6 +58,7 @@ public sealed class AppRouteFacts
         builder.Services.AddSingleton<IDigitalBrain>(brain.SiloServices.GetRequiredService<IDigitalBrain>());
         builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<Creator>());
         builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<AppWorkQueue>());
+        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<MarketplaceView>());
         builder.Services.AddSingleton<IBrainAccess, OpenBrainAccess>();
         await using var edge = builder.Build();
         new AppsModule().Configure(edge);
@@ -101,6 +102,7 @@ public sealed class AppRouteFacts
                 Kind = CallerKind.User,
                 StampedBy = TrustedEdge.AuthenticatedHttp,
             });
+            await brain.AuthorizeCallerAsync();
             var endpoint = endpoints.Single(item => item.RoutePattern.RawText == pattern
                 && item.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains(method));
             var http = new DefaultHttpContext { RequestServices = edge.Services, RequestAborted = ct };
@@ -139,6 +141,7 @@ public sealed class AppRouteFacts
         builder.Services.AddSingleton<IDigitalBrain>(brain.SiloServices.GetRequiredService<IDigitalBrain>());
         builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<Creator>());
         builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<AppWorkQueue>());
+        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<MarketplaceView>());
         builder.Services.AddSingleton<IBrainAccess, OpenBrainAccess>();
         await using var edge = builder.Build();
         new AppsModule().Configure(edge);
@@ -159,6 +162,7 @@ public sealed class AppRouteFacts
                 Kind = CallerKind.User,
                 StampedBy = TrustedEdge.AuthenticatedHttp,
             });
+            await brain.AuthorizeCallerAsync();
             var endpoint = endpoints.Single(item => item.RoutePattern.RawText == pattern
                 && item.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains(method));
             var http = new DefaultHttpContext { RequestServices = edge.Services, RequestAborted = ct };
