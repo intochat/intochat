@@ -18,6 +18,9 @@ class UiVoiceInput extends StatefulWidget {
     this.onAudio,
     this.enabled = true,
     this.label,
+    this.onBegin,
+    this.onCancel,
+    this.onCaptureError,
   });
   final Future<String> Function(Uint8List audio, String fileName)? onTranscribe;
   final ValueChanged<String>? onDraft;
@@ -25,6 +28,9 @@ class UiVoiceInput extends StatefulWidget {
   final Future<void> Function(Uint8List audio, String mimeType)? onAudio;
   final bool enabled;
   final String? label;
+  final Future<void> Function()? onBegin;
+  final Future<void> Function()? onCancel;
+  final Future<void> Function(String)? onCaptureError;
   @override
   State<UiVoiceInput> createState() => _UiVoiceInputState();
 }
@@ -64,6 +70,7 @@ class _UiVoiceInputState extends State<UiVoiceInput>
     Object? failure;
     try {
       await _recorder.cancel();
+      await widget.onCancel?.call();
     } catch (error) {
       failure = error;
     } finally {
@@ -111,6 +118,11 @@ class _UiVoiceInputState extends State<UiVoiceInput>
             await voice_file.readVoiceBytes(path),
           );
           if (bytes.isEmpty) throw StateError('The recording was empty.');
+          if (bytes.length > 8 * 1024 * 1024) {
+            throw StateError(
+              'The recording exceeds 8 MiB. Try a shorter recording.',
+            );
+          }
           if (!mounted || generation != _generation) return;
           if (onAudio != null) {
             await onAudio(bytes, 'audio/wav');
@@ -137,6 +149,8 @@ class _UiVoiceInputState extends State<UiVoiceInput>
           throw StateError('WAV recording is unavailable on this device.');
         }
         final directory = kIsWeb ? '' : (await getTemporaryDirectory()).path;
+        if (!mounted || generation != _generation) return;
+        await widget.onBegin?.call();
         if (!mounted || generation != _generation) return;
         _path = voice_file.joinVoicePath(
           directory,
@@ -166,6 +180,10 @@ class _UiVoiceInputState extends State<UiVoiceInput>
       }
     } catch (error) {
       if (mounted && generation == _generation) {
+        try {
+          await widget.onCaptureError?.call('$error');
+        } catch (_) {}
+        if (!mounted) return;
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Voice: $error')));
       }
@@ -205,13 +223,8 @@ class _UiVoiceInputState extends State<UiVoiceInput>
         tooltip: _busy
             ? 'Transcribing…'
             : _recording
-            ? widget.onAudio != null
-                  ? 'Stop recording and send'
-                  : 'Stop recording and edit transcript'
-            : widget.label ??
-                  (widget.onAudio != null
-                      ? 'Record a voice message'
-                      : 'Record a voice draft'),
+            ? 'Stop recording and edit transcript'
+            : widget.label ?? 'Record a voice draft',
         onPressed:
             widget.enabled &&
                 (widget.onTranscribe != null || widget.onAudio != null) &&

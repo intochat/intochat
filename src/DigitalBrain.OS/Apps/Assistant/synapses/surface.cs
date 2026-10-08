@@ -3,9 +3,10 @@ using DigitalBrain.Apps;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Button;
+using DigitalBrain.Flutter.Chat;
+using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Surface;
-using DigitalBrain.Flutter.TextField;
 using DigitalBrain.Flutter.Workspace;
 
 // The assistant's window. The chat transcript is projected independently from IAgent.
@@ -38,19 +39,18 @@ async Task ComposeAsync()
     string Name(string part) => appKey + "/" + part;
     UiChildRef Ref(string kind, string part) => new(kind, Name(part));
 
-    await brain.Get<ITextField>(Name("draft")).Configure("Message", "multiline", Name("send"));
-    await brain.Get<IButton>(Name("send")).Set("Send", "send");
+    var selected = await brain.Get<IText>(Name("conversation")).Read();
+    var context = Name("conversations/" + (selected.Markdown.Length == 0 ? "main" : selected.Markdown));
+    var composer = brain.Get<IComposer>(Name("composer"));
+    await composer.Configure(context, selected.Version);
     await brain.Get<IButton>(Name("new")).Set("New conversation", "new");
-    var input = brain.Get<ILayout>(Name("input"));
-    await input.Set(new LayoutDefinition("row",
-        [Ref(UIVocabulary.TextFieldType, "draft"), Ref(UIVocabulary.ButtonType, "send")], Extents: [0, 90]), (await input.Read()).Revision);
     var header = brain.Get<ILayout>(Name("header"));
     await header.Set(new LayoutDefinition("row",
         [Ref(UIVocabulary.TextType, "status"), Ref(UIVocabulary.ButtonType, "new")], Extents: [0, 160]), (await header.Read()).Revision);
     var main = brain.Get<ILayout>(Name("main"));
     await main.Set(new LayoutDefinition("column",
-        [Ref(UIVocabulary.LayoutType, "header"), Ref(UIVocabulary.ChatType, "transcript"), Ref(UIVocabulary.LayoutType, "input")],
-        Extents: [40, 0, 96]), (await main.Read()).Revision);
+        [Ref(UIVocabulary.LayoutType, "header"), Ref(UIVocabulary.ChatType, "transcript"), Ref(UIVocabulary.ComposerType, "composer")],
+        Extents: [40, 0, 152]), (await main.Read()).Revision);
     var surface = brain.Get<ISurface>(Name("surface"));
     await surface.Set(new SurfaceDefinition("Assistant", [Ref(UIVocabulary.LayoutType, "main")]), (await surface.Read()).Revision);
 }

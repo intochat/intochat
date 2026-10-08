@@ -26,7 +26,7 @@ string[] Contracts = [typeof(IPostgresServer).FullName!, typeof(IApp).FullName!,
     typeof(IWorkspace).FullName!, typeof(IForm).FullName!, typeof(ICSharpFile).FullName!];
 
 await ConversationId();
-await Task.WhenAll(Operations(), SendClicks(), NewClicks());
+await Task.WhenAll(Operations(), NewClicks());
 return;
 
 async Task<string> ConversationId()
@@ -79,31 +79,13 @@ async Task Operations()
     }
 }
 
-async Task SendClicks()
-{
-    await foreach (var _ in brain.On<ButtonClicked>(brain.Get<IButton>(Name("send")), brain.Stopping))
-    {
-        var draft = brain.Get<ITextField>(Name("draft"));
-        var snapshot = await draft.Read();
-        var message = snapshot.Value.Trim();
-        if (message.Length is < 1 or > 32000) { continue; }
-        // A refusal (a turn still running) keeps the message in the draft and says why; the button
-        // keeps working either way.
-        try
-        {
-            var current = await brain.Get<IText>(Name("conversation")).Read();
-            await Send(message, $"draft-{current.Version}-{snapshot.Version}");
-            if ((await draft.Read()).Version == snapshot.Version) { await draft.SetValue(""); }
-            await brain.Get<IText>(Name("status")).Set("");
-        }
-        catch (Exception error) { await brain.Get<IText>(Name("status")).Set(error.Message); }
-    }
-}
-
 async Task NewClicks()
 {
-    await foreach (var _ in brain.On<ButtonClicked>(brain.Get<IButton>(Name("new")), brain.Stopping))
-    { await app.Invoke(new(Guid.NewGuid(), "new", "")); }
+    await foreach (var clicked in brain.On<ButtonClicked>(brain.Get<IButton>(Name("new")), brain.Stopping))
+    {
+        // The persisted click identity survives behavior restart and redelivery.
+        if (clicked.RequestId != Guid.Empty) { await app.Invoke(new(clicked.RequestId, "new", "")); }
+    }
 }
 
 // Responses come directly from the authoritative conversation, including partial text and tools.

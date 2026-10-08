@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../voice_input/ui_voice_input.dart';
 import '../chat/ui_chat_transcript.dart';
+import '../chat/ui_composer.dart';
 import '../components/browser/ui_web_browser.dart';
 import '../components/chart/ui_chart.dart';
 import '../models/ui_part.dart';
@@ -268,6 +269,16 @@ class _NeuronViewState extends State<NeuronView> {
     ];
     final enabled = widget.enabled && definition['enabled'] != false;
     switch (widget.kind) {
+      case 'composer':
+        return UiComposer(
+          key: ValueKey(
+            '${widget.name}:${data['context']}:${data['generation']}',
+          ),
+          state: data,
+          enabled: enabled && widget.onAction != null,
+          dispatch: (event) =>
+              _dispatch({...event, 'kind': 'composer', 'name': widget.name}),
+        );
       case 'chat':
         final projection = data['projection'] as Map? ?? const {};
         return UiChatTranscript(

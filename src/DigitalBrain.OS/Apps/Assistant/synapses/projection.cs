@@ -60,6 +60,7 @@ async Task Project(IAgent agent, string source, long generation)
     var state = await agent.Read();
     // A callback already in flight when New was clicked cannot repaint the old conversation.
     if ((await pointer.Read()).Version != generation) { return; }
+    await brain.Get<IComposer>(appKey + "/composer").Configure(source, generation);
     var runs = state.Runs.ToList();
     if (state.ActiveRun is { } active)
     {
