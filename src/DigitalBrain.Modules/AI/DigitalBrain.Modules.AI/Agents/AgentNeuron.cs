@@ -1,7 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
-using DigitalBrain;
 using DigitalBrain.AI.Agents.Signals;
 using DigitalBrain.AI.Inference;
 using DigitalBrain.AI.Models;
@@ -9,7 +8,6 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Metering;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Orleans.Runtime;
 
 namespace DigitalBrain.AI.Agents;
 
@@ -40,6 +38,11 @@ internal sealed class AgentNeuron(
     private string? _cancelBeforeDrive;
     private bool _mutating;
     private AgentStorage State => store.State;
+    // Commands still see the in-flight reservation (for admission and cancellation), but
+    // interleaving readers must not expose a version before its write has committed.
+    private AgentStorage? _beforeWrite;
+    private TaskCompletionSource? _write;
+    private AgentStorage Committed => _beforeWrite ?? State;
     private string Key => this.GetPrimaryKeyString();
     // The brain the access check sees is the tools' and the meter's.
     private string Scope => NeuronAccess.ForBrainKey(Key).Scope ?? Key;
@@ -90,9 +93,18 @@ internal sealed class AgentNeuron(
         finally { _mutating = false; }
     }
 
-    public Task<AgentState> Read() => Task.FromResult(new AgentState(State.Revision, State.Definition, State.Summary, State.ActiveRun, [.. State.Runs]) { Version = State.Version });
+    public async Task<AgentState> Read()
+    {
+        if (_write is { } pending) { await pending.Task; }
+        var state = Committed;
+        return new AgentState(state.Revision, state.Definition, state.Summary, state.ActiveRun, [.. state.Runs]) { Version = state.Version };
+    }
 
-    public Task<AiMessage[]> Transcript() => Task.FromResult<AiMessage[]>([.. State.Transcript]);
+    public async Task<AiMessage[]> Transcript()
+    {
+        if (_write is { } pending) { await pending.Task; }
+        return [.. Committed.Transcript];
+    }
 
     public Task Cancel()
     {
@@ -230,8 +242,11 @@ internal sealed class AgentNeuron(
                             break;
                         case AgentTurnEvent.ToolCompleted tool:
                             var refusal = ToolRefusal(tool.Result);
-                            run = run with { ToolCalls = Settle(run.ToolCalls, tool.CallId,
-                                call => call with { Result = tool.Result, Code = refusal?.Code, Error = refusal?.Message }) };
+                            run = run with
+                            {
+                                ToolCalls = Settle(run.ToolCalls, tool.CallId,
+                                call => call with { Result = tool.Result, Code = refusal?.Code, Error = refusal?.Message })
+                            };
                             await Persist(State with { ActiveRun = run });
                             await Notify(new TurnProgressed(Key, runId, "tool-result", refusal?.Message, tool.Name, tool.Result, ++sequence));
                             if (Card(tool.Result) is { } card) { await Notify(new TurnProgressed(Key, runId, "card", null, tool.Name, card, ++sequence)); }
@@ -297,13 +312,13 @@ internal sealed class AgentNeuron(
     {
         ArgumentNullException.ThrowIfNull(turn);
         var message = turn.Message ?? throw new ArgumentException("An agent turn needs a message.", nameof(turn));
-        if (message.Role != "user" || message.Content is not { Length: > 0 }) { throw new ArgumentException("An agent accepts a non-empty user message.", nameof(turn)); }
+        if (message.Role != "user" || message.Content is not { Count: > 0 }) { throw new ArgumentException("An agent accepts a non-empty user message.", nameof(turn)); }
         if (message.Content.Any(content => content is not (AiText or AiImage or AiAudio)) || message.Content.OfType<AiText>().Sum(content => (long)content.Text.Length) is 0 or > 32000)
         { throw new ArgumentException("User messages carry 1-32000 characters of text, with images or audio, never tool calls or reasoning.", nameof(turn)); }
         if (turn.RunId is { Length: > 200 }) { throw new ArgumentException("A run id has at most 200 characters.", nameof(turn)); }
         _ = InferenceMapping.ToChatMessage(message);
         var runId = string.IsNullOrWhiteSpace(turn.RunId) ? Guid.NewGuid().ToString("N") : turn.RunId;
-        if (State.Runs.FirstOrDefault(run => run.RunId == runId) is { } retained)
+        if (Committed.Runs.FirstOrDefault(run => run.RunId == runId) is { } retained)
         {
             // A retained run id replays only for the same text; another text must never get an unrelated answer.
             if (retained.UserText != UserText(message)) { throw new InvalidOperationException("Run ID already belongs to another message."); }
@@ -381,16 +396,24 @@ internal sealed class AgentNeuron(
     private async Task Persist(AgentStorage next)
     {
         var previous = store.State;
+        var writing = _write = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _beforeWrite = previous;
         store.State = next with { Version = previous.Version + 1 };
         try { await store.WriteStateAsync(); }
         catch { store.State = previous; throw; }
+        finally
+        {
+            _beforeWrite = null;
+            _write = null;
+            writing.TrySetResult();
+        }
     }
 
     private async Task Notify(Signal signal, bool persisted = true)
     {
         // Failed persistence needs a fresh Read to reactivate/recover the abandoned run,
         // even when a consumer already projected the last committed version.
-        var version = persisted ? State.Version : 0;
+        var version = persisted ? Committed.Version : 0;
         signal = signal switch
         {
             TurnStarted started => started with { Version = version },

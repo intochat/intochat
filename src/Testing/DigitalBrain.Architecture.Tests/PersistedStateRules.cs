@@ -1,6 +1,5 @@
 using System.Reflection;
-using Orleans;
-using Orleans.Runtime;
+using DigitalBrain.AI.Inference;
 
 namespace DigitalBrain.Architecture.Tests;
 
@@ -34,6 +33,13 @@ internal static class PersistedStateRules
         }
         foreach (var member in Members(type).Where(member => ContainsInterfaceCollection(ContractRules.MemberType(member))))
         {
+            // This published positional member must keep its constructor/getter/init/deconstruction
+            // signatures and Id(1) interface codec for existing bundles and stored messages.
+            // Constructor/init snapshot arrays; legacy lists remain JSON-readable. The focused
+            // compatibility facts guard this one exception, not arbitrary interface collections.
+            if (member.DeclaringType == typeof(AiMessage) && member.Name == nameof(AiMessage.Content)
+                && ContractRules.MemberType(member) == typeof(IReadOnlyList<AiContent>)
+                && member.GetCustomAttribute<IdAttribute>()!.Id == 1) { continue; }
             yield return $"{type.FullName}.{member.Name}: persisted collections must use concrete arrays, not collection interfaces";
         }
     }

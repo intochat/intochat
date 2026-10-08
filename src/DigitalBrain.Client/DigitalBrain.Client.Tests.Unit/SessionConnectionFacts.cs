@@ -17,13 +17,16 @@ public sealed class SessionConnectionFacts
         var time = new ReportTimeProvider();
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var count = 0;
-        var brain = new FakeBrain { Acknowledge = async (_, token) =>
+        var brain = new FakeBrain
+        {
+            Acknowledge = async (_, token) =>
         {
             if (Interlocked.Increment(ref count) != 1) { return HttpStatusCode.OK; }
             entered.SetResult();
             await Task.Delay(Timeout.Infinite, token);
             return HttpStatusCode.OK;
-        } };
+        }
+        };
         await using var session = await SessionConnection.OpenAsync(new Uri("https://brain.test/brains/acc-brain/"), "token-1", ContractsFingerprint.Of([typeof(Signal).Assembly]), brain, time, ct);
         var stalled = session.AcknowledgeAsync("stalled", 1, ct);
         await entered.Task.WaitAsync(ct);
@@ -61,13 +64,16 @@ public sealed class SessionConnectionFacts
         var gate = new TaskCompletionSource<HttpStatusCode>(TaskCreationOptions.RunContinuationsAsynchronously);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var batches = new ConcurrentQueue<JsonArray>();
-        var brain = new FakeBrain { Acknowledge = async (items, token) =>
+        var brain = new FakeBrain
+        {
+            Acknowledge = async (items, token) =>
         {
             batches.Enqueue(items);
             if (batches.Count != 1) { return HttpStatusCode.OK; }
             entered.SetResult();
             return await gate.Task.WaitAsync(token);
-        } };
+        }
+        };
         await using var session = await brain.OpenAsync(ct);
         try
         {
@@ -91,13 +97,16 @@ public sealed class SessionConnectionFacts
         var gate = new TaskCompletionSource<HttpStatusCode>(TaskCreationOptions.RunContinuationsAsynchronously);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var parents = new ConcurrentQueue<string?>();
-        var brain = new FakeBrain { Acknowledge = async (_, token) =>
+        var brain = new FakeBrain
+        {
+            Acknowledge = async (_, token) =>
         {
             parents.Enqueue(System.Diagnostics.Activity.Current?.ParentId);
             if (parents.Count != 1) { return HttpStatusCode.ServiceUnavailable; }
             entered.SetResult();
             return await gate.Task.WaitAsync(token);
-        } };
+        }
+        };
         await using var session = await brain.OpenAsync(ct);
         try
         {
@@ -133,12 +142,15 @@ public sealed class SessionConnectionFacts
         var nextGate = new TaskCompletionSource<HttpStatusCode>(TaskCreationOptions.RunContinuationsAsynchronously);
         var received = System.Threading.Channels.Channel.CreateUnbounded<JsonArray>();
         var count = 0;
-        var brain = new FakeBrain { Acknowledge = async (items, token) =>
+        var brain = new FakeBrain
+        {
+            Acknowledge = async (items, token) =>
         {
             var index = Interlocked.Increment(ref count);
             received.Writer.TryWrite(items);
             return await (index == 1 ? firstGate : nextGate).Task.WaitAsync(token);
-        } };
+        }
+        };
         await using var session = await brain.OpenAsync(ct);
         try
         {
@@ -170,12 +182,15 @@ public sealed class SessionConnectionFacts
         var gate = new TaskCompletionSource<HttpStatusCode>(TaskCreationOptions.RunContinuationsAsynchronously);
         var received = System.Threading.Channels.Channel.CreateUnbounded<int>();
         var count = 0;
-        var brain = new FakeBrain { Acknowledge = async (_, token) =>
+        var brain = new FakeBrain
+        {
+            Acknowledge = async (_, token) =>
         {
             var index = Interlocked.Increment(ref count);
             received.Writer.TryWrite(index);
             return index == 1 ? HttpStatusCode.ServiceUnavailable : index == 2 ? HttpStatusCode.OK : await gate.Task.WaitAsync(token);
-        } };
+        }
+        };
         var session = await brain.OpenAsync(ct);
         try
         {
@@ -200,8 +215,11 @@ public sealed class SessionConnectionFacts
         using var stopped = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var gate = new TaskCompletionSource<HttpStatusCode>(TaskCreationOptions.RunContinuationsAsynchronously);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var brain = new FakeBrain { Acknowledge = async (_, token) =>
-        { entered.TrySetResult(); return await gate.Task.WaitAsync(token); } };
+        var brain = new FakeBrain
+        {
+            Acknowledge = async (_, token) =>
+        { entered.TrySetResult(); return await gate.Task.WaitAsync(token); }
+        };
         await using var session = await brain.OpenAsync(ct);
         try
         {

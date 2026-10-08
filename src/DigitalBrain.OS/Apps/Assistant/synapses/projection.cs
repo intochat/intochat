@@ -26,7 +26,7 @@ while (!brain.Stopping.IsCancellationRequested)
     {
         await Task.WhenAll(Selection(selected.Version, scope), Started(agent, source, selected.Version, scope.Token),
             Progress(agent, source, selected.Version, scope.Token), Completed(agent, source, selected.Version, scope.Token),
-            Failed(agent, source, selected.Version, scope.Token));
+            Failed(agent, source, selected.Version, scope.Token), Cleared(agent, source, selected.Version, scope.Token));
     }
     catch (OperationCanceledException) when (!brain.Stopping.IsCancellationRequested) { }
 }
@@ -58,6 +58,11 @@ async Task Completed(IAgent agent, string source, long generation, CancellationT
 async Task Failed(IAgent agent, string source, long generation, CancellationToken ct)
 {
     await foreach (var signal in brain.On<TurnFailed>(agent, () => Project(agent, source, generation, ct), ct)) { await Project(agent, source, generation, ct, signal.Version); }
+}
+
+async Task Cleared(IAgent agent, string source, long generation, CancellationToken ct)
+{
+    await foreach (var _ in brain.On<TranscriptCleared>(agent, () => Project(agent, source, generation, ct), ct)) { await Project(agent, source, generation, ct); }
 }
 
 async Task Project(IAgent agent, string source, long generation, CancellationToken ct, long signalVersion = 0)

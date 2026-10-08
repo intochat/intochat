@@ -40,7 +40,10 @@ public sealed class ScriptAccountFacts
             Assert.Equal("expired", Assert.Single(await accounts.ListConnections()).Status);
             CallerContextStamper.Stamp(new CallerContext
             {
-                PrincipalId = "bob", AccountId = "bob", BrainId = "other", Kind = CallerKind.User,
+                PrincipalId = "bob",
+                AccountId = "bob",
+                BrainId = "other",
+                Kind = CallerKind.User,
                 StampedBy = TrustedEdge.AuthenticatedHttp,
             });
             await brain.AuthorizeCallerAsync();

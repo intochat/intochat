@@ -55,13 +55,17 @@ public sealed class SignalDeliveryContextFacts
 
     private static CallerContext Stamp() => CallerContextStamper.Stamp(new()
     {
-        PrincipalId = "publisher-owner", AccountId = "publisher-account", BrainId = "publisher",
-        Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp,
+        PrincipalId = "publisher-owner",
+        AccountId = "publisher-account",
+        BrainId = "publisher",
+        Kind = CallerKind.User,
+        StampedBy = TrustedEdge.AuthenticatedHttp,
     });
 }
 
 [GenerateSerializer] public sealed record DeliverySignal([property: Id(0)] bool Fail) : Signal;
-[GenerateSerializer] public sealed record DeliverySeen(
+[GenerateSerializer]
+public sealed record DeliverySeen(
     [property: Id(0)] bool CallerPresent, [property: Id(1)] string? Metadata, [property: Id(2)] string Publisher);
 public interface IDeliverySource : INeuron
 {

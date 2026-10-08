@@ -22,8 +22,11 @@ public sealed class FilteredSubscriptionFacts
         await using var changes = await brain.Observe<BrainRuntimeChanged>(runtime, ct);
         var caller = CallerContextStamper.Stamp(new()
         {
-            PrincipalId = "publisher-owner", AccountId = "publisher-account", BrainId = publisherBrain,
-            Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp,
+            PrincipalId = "publisher-owner",
+            AccountId = "publisher-account",
+            BrainId = publisherBrain,
+            Kind = CallerKind.User,
+            StampedBy = TrustedEdge.AuthenticatedHttp,
         });
         try
         {

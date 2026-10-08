@@ -28,7 +28,9 @@ internal sealed class ComposerNeuron(
         var changed = context != State.Context || generation != State.Generation;
         await Save(State with
         {
-            Context = context, Generation = generation, Label = label,
+            Context = context,
+            Generation = generation,
+            Label = label,
             Draft = changed ? "" : State.Draft,
             DraftVersion = changed ? State.DraftVersion + 1 : State.DraftVersion,
             Voice = changed ? null : State.Voice,

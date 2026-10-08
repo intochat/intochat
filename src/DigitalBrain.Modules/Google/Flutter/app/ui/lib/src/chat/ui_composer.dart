@@ -28,6 +28,7 @@ class _UiComposerState extends State<UiComposer> {
   final _focus = FocusNode();
   final _random = Random.secure();
   int _edits = 0;
+  int _editVersion = 0;
   bool _sending = false;
   bool _unsaved = false;
   String? _captureId, _error;
@@ -54,13 +55,31 @@ class _UiComposerState extends State<UiComposer> {
   });
 
   Future<void> _edit(String value) async {
+    await _saveEdit(value);
+  }
+
+  Future<bool> _saveEdit(String value) async {
+    final version = ++_editVersion;
+    final context = widget.state['context'];
+    final generation = widget.state['generation'];
+    bool current() =>
+        mounted &&
+        version == _editVersion &&
+        context == widget.state['context'] &&
+        generation == widget.state['generation'];
     _edits++;
     _unsaved = true;
     try {
       await _event('edit', value: value);
-      if (_text.text == value) _unsaved = false;
+      if (!current()) return false;
+      setState(() {
+        _unsaved = false;
+        _error = null;
+      });
+      return true;
     } catch (error) {
-      if (mounted) setState(() => _error = '$error');
+      if (current()) setState(() => _error = '$error');
+      return false;
     } finally {
       _edits--;
     }
@@ -69,6 +88,8 @@ class _UiComposerState extends State<UiComposer> {
   Future<void> _submit() async {
     if (_sending || !widget.enabled || _text.text.trim().isEmpty) return;
     final value = _text.text;
+    final context = widget.state['context'];
+    final generation = widget.state['generation'];
     setState(() {
       _sending = true;
       _error = null;
@@ -76,8 +97,12 @@ class _UiComposerState extends State<UiComposer> {
     try {
       // Retry an unacknowledged edit before asking the neuron to capture it.
       if (_unsaved) {
-        await _event('edit', value: value);
-        if (_text.text == value) _unsaved = false;
+        if (!await _saveEdit(value)) return;
+      }
+      if (!mounted ||
+          context != widget.state['context'] ||
+          generation != widget.state['generation']) {
+        return;
       }
       await _event('submit', value: value, id: _id());
     } catch (error) {

@@ -1,12 +1,198 @@
 import 'dart:async';
 
 import 'package:digitalbrain_ui/src/chat/ui_composer.dart';
+import 'package:digitalbrain_ui/src/composition/neuron_view.dart';
 import 'package:digitalbrain_ui/src/voice_input/ui_voice_input.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  Future<void> show(
+    WidgetTester tester,
+    Map<String, dynamic> state,
+    Future<void> Function(Map<String, dynamic>) dispatch,
+  ) => tester.pumpWidget(
+    MaterialApp(
+      home: Scaffold(
+        body: SizedBox(
+          height: 152,
+          child: UiComposer(state: state, dispatch: dispatch),
+        ),
+      ),
+    ),
+  );
+
+  testWidgets('ordered queue preserves the latest failed edit after refresh', (
+    tester,
+  ) async {
+    final first = Completer<void>();
+    final second = Completer<void>();
+    final third = Completer<void>();
+    var count = 0;
+    var draft = '';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 152,
+            child: NeuronView(
+              kind: 'composer',
+              name: 'composer',
+              load: (_, _) async => {
+                'context': 'a',
+                'generation': 1,
+                'draft': draft,
+              },
+              onAction: (event) async {
+                final completion = [first, second, third][count++];
+                await completion.future;
+                draft = event['value'] as String;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'A');
+    await tester.enterText(find.byType(TextField), 'AB');
+    await tester.enterText(find.byType(TextField), 'A');
+    first.complete();
+    await tester.pump();
+    second.complete();
+    await tester.pump();
+    third.completeError(StateError('latest edit failed'));
+    await tester.pumpAndSettle();
+    expect(draft, 'AB');
+    final actual = tester
+        .widget<TextField>(find.byType(TextField))
+        .controller!
+        .text;
+    await tester.pumpWidget(const SizedBox());
+    expect(actual, 'A');
+  });
+  testWidgets(
+    'a failed latest edit survives an older equal-value acknowledgement',
+    (tester) async {
+      final first = Completer<void>();
+      final second = Completer<void>();
+      final third = Completer<void>();
+      var count = 0;
+      Future<void> dispatch(Map<String, dynamic> event) {
+        count++;
+        return [first, second, third][count - 1].future;
+      }
+
+      Widget view(String saved) => MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 152,
+            child: UiComposer(
+              state: {'context': 'a', 'draft': saved},
+              dispatch: dispatch,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(view(''));
+      await tester.enterText(find.byType(TextField), 'A');
+      await tester.enterText(find.byType(TextField), 'AB');
+      await tester.enterText(find.byType(TextField), 'A');
+      first.complete();
+      await tester.pump();
+      second.complete();
+      await tester.pump();
+      third.completeError(StateError('latest edit failed'));
+      await tester.pump();
+      await tester.pumpWidget(view('AB'));
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'A',
+      );
+    },
+  );
+
+  testWidgets('Send retry cannot acknowledge a newer equal draft', (
+    tester,
+  ) async {
+    final retry = Completer<void>();
+    var edits = 0;
+    final actions = <String>[];
+    Future<void> dispatch(Map<String, dynamic> event) async {
+      actions.add(event['action'] as String);
+      if (event['action'] != 'edit') return;
+      edits++;
+      if (edits == 2) return retry.future;
+      if (edits != 3) throw StateError('save failed');
+    }
+
+    await show(tester, {'context': 'a', 'draft': ''}, dispatch);
+    await tester.enterText(find.byType(TextField), 'A');
+    await tester.pump();
+    await tester.tap(find.text('Send'));
+    await tester.enterText(find.byType(TextField), 'AB');
+    await tester.enterText(find.byType(TextField), 'A');
+    await tester.pump();
+    retry.complete();
+    await tester.pumpAndSettle();
+    await show(tester, {'context': 'a', 'draft': 'AB'}, dispatch);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      'A',
+    );
+    expect(actions.where((action) => action == 'submit'), isEmpty);
+    expect(find.textContaining('save failed'), findsOneWidget);
+  });
+
+  testWidgets('older edit failure cannot replace the latest successful save', (
+    tester,
+  ) async {
+    final older = Completer<void>();
+    var edits = 0;
+    await show(tester, {'context': 'a', 'draft': ''}, (_) async {
+      if (++edits == 1) await older.future;
+    });
+    await tester.enterText(find.byType(TextField), 'A');
+    await tester.enterText(find.byType(TextField), 'AB');
+    await tester.pump();
+    older.completeError(StateError('obsolete failure'));
+    await tester.pump();
+    expect(find.textContaining('obsolete failure'), findsNothing);
+  });
+
+  for (final dispose in [false, true]) {
+    testWidgets(
+      'Send retry stops after ${dispose ? 'disposal' : 'context change'}',
+      (tester) async {
+        final retry = Completer<void>();
+        var edits = 0;
+        final actions = <String>[];
+        Future<void> dispatch(Map<String, dynamic> event) async {
+          actions.add(event['action'] as String);
+          if (event['action'] == 'edit') {
+            if (++edits == 1) throw StateError('offline');
+            await retry.future;
+          }
+        }
+
+        await show(tester, {'context': 'a', 'draft': ''}, dispatch);
+        await tester.enterText(find.byType(TextField), 'A');
+        await tester.pump();
+        await tester.tap(find.text('Send'));
+        if (dispose) {
+          await tester.pumpWidget(const SizedBox());
+        } else {
+          await show(tester, {'context': 'b', 'draft': 'B'}, dispatch);
+        }
+        retry.complete();
+        await tester.pumpAndSettle();
+        expect(actions.where((action) => action == 'submit'), isEmpty);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets('voice failure remains actionable when its save also fails', (
     tester,
   ) async {
@@ -47,21 +233,6 @@ void main() {
     await tester.pump();
     expect(find.textContaining('try again or type your message'), findsNothing);
   });
-
-  Future<void> show(
-    WidgetTester tester,
-    Map<String, dynamic> state,
-    Future<void> Function(Map<String, dynamic>) dispatch,
-  ) => tester.pumpWidget(
-    MaterialApp(
-      home: Scaffold(
-        body: SizedBox(
-          height: 152,
-          child: UiComposer(state: state, dispatch: dispatch),
-        ),
-      ),
-    ),
-  );
 
   testWidgets('repeat Send before refresh never restores a cleared draft', (
     tester,

@@ -41,7 +41,8 @@ public sealed class ChatMigrationFacts
                 // A field absent from an older Orleans payload has its zero value.
                 state.State = (T)(object)new ChatState
                 {
-                    Name = "legacy", Revision = 1,
+                    Name = "legacy",
+                    Revision = 1,
                     Projection = new("conversation", 1, 1, [new("reply", ChatRole.Assistant, "saved answer")]) { Actions = null! },
                 };
             }

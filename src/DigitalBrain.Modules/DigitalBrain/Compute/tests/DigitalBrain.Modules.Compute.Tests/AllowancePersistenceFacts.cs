@@ -73,9 +73,14 @@ public sealed class AllowancePersistenceFacts
         var ledger = brain.Get<IAllowanceLedger>("account");
         await ledger.GrantAsync(new Allowance
         {
-            AllowanceId = "budget", AccountId = "account", BrainId = "brain", AppId = "app",
-            Level = ApprovalLevel.StandingBudget, Scope = AllowanceScope.Always,
-            LimitCompute = 10m, PriceBookVersion = new PriceBook().Version,
+            AllowanceId = "budget",
+            AccountId = "account",
+            BrainId = "brain",
+            AppId = "app",
+            Level = ApprovalLevel.StandingBudget,
+            Scope = AllowanceScope.Always,
+            LimitCompute = 10m,
+            PriceBookVersion = new PriceBook().Version,
         }, ct);
         await ledger.SetLimitsAsync(new LimitPolicy { AccountLimitCompute = 10m }, ct);
         DateTimeOffset? originalHardStop = null;
@@ -113,9 +118,14 @@ public sealed class AllowancePersistenceFacts
         var ledger = brain.Get<IAllowanceLedger>("account");
         await ledger.GrantAsync(new Allowance
         {
-            AllowanceId = "budget", AccountId = "account", BrainId = "brain", AppId = "app",
-            Level = ApprovalLevel.StandingBudget, Scope = AllowanceScope.Always,
-            LimitCompute = 100m, PriceBookVersion = new PriceBook().Version,
+            AllowanceId = "budget",
+            AccountId = "account",
+            BrainId = "brain",
+            AppId = "app",
+            Level = ApprovalLevel.StandingBudget,
+            Scope = AllowanceScope.Always,
+            LimitCompute = 100m,
+            PriceBookVersion = new PriceBook().Version,
         }, ct);
         await ledger.SetLimitsAsync(new LimitPolicy { AccountLimitCompute = 10m }, ct);
         var authorized = await ledger.AuthorizeAsync(Request(5m), ct);
