@@ -17,6 +17,77 @@ class MemoryPersistence implements WorkspacePersistence {
 }
 
 void main() {
+  test('a reconnect event cannot reuse a pre-outage read success', () async {
+    final changes = StreamController<WorkspaceRevision>.broadcast(sync: true);
+    final reconnected = Completer<void>();
+    final reconnectRead = Completer<WorkspaceSnapshot>();
+    final errors = <Object>[];
+    var reads = 0, watches = 0;
+    final controller = WorkspaceRemoteController(
+      read: (_) async => ++reads == 1
+          ? WorkspaceSnapshot(revision: 1, windows: [])
+          : reconnectRead.future,
+      watch: (_) {
+        if (++watches == 2) reconnected.complete();
+        return changes.stream;
+      },
+      apply: (_) {},
+      onError: errors.add,
+    );
+    addTearDown(controller.dispose);
+    addTearDown(changes.close);
+    controller.start('brain');
+    await Future<void>.delayed(Duration.zero);
+    changes.add(const WorkspaceRevision('brain', 1));
+    changes.addError(StateError('watch offline'));
+    await reconnected.future;
+    changes.add(const WorkspaceRevision('brain', 1));
+    reconnectRead.completeError(StateError('read still offline'));
+    await Future<void>.delayed(Duration.zero);
+    expect(errors, hasLength(1));
+  });
+
+  test('one outage reports once until both reads and watch recover', () async {
+    var offline = true;
+    var watches = 0;
+    final reconnected = Completer<void>();
+    final changes = StreamController<WorkspaceRevision>.broadcast(sync: true);
+    final errors = <Object>[];
+    final controller = WorkspaceRemoteController(
+      read: (_) async {
+        if (offline) throw StateError('offline');
+        return WorkspaceSnapshot(revision: 1, windows: []);
+      },
+      watch: (_) {
+        if (++watches == 2) reconnected.complete();
+        return changes.stream;
+      },
+      apply: (_) {},
+      onError: errors.add,
+    );
+    addTearDown(controller.dispose);
+    addTearDown(changes.close);
+    controller.start('brain');
+    await Future<void>.delayed(Duration.zero);
+    await controller.refresh();
+    await controller.refresh();
+    expect(errors, hasLength(1));
+    offline = false;
+    await controller.refresh();
+    offline = true;
+    await controller.refresh();
+    expect(errors, hasLength(1));
+    offline = false;
+    await controller.refresh();
+    // A valid watch event and an authoritative read prove recovery together.
+    await reconnected.future;
+    await Future<void>.delayed(Duration.zero);
+    changes.add(const WorkspaceRevision('brain', 1));
+    offline = true;
+    await controller.refresh();
+    expect(errors, hasLength(2));
+  });
+
   test(
     'reload keeps device layout while remote membership remains authoritative',
     () async {
