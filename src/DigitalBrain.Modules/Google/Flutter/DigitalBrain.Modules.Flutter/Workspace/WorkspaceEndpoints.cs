@@ -17,13 +17,13 @@ internal static class WorkspaceEndpoints
         brain.MapGet("", (IDigitalBrain digitalBrain, CancellationToken ct)
             => Respond(async () => Results.Ok(await Workspace(digitalBrain).Read().WaitAsync(ct))));
         brain.MapPost("/windows/{windowId}/close", (string windowId, CloseWindow input, IDigitalBrain digitalBrain, CancellationToken ct)
-            => Respond(async () => Results.Ok(await Workspace(digitalBrain).Close(windowId, input.ExpectedRevision).WaitAsync(ct))));
+            => Respond(async () => Results.Ok(await Workspace(digitalBrain).Close(input.WindowId ?? windowId, input.ExpectedRevision).WaitAsync(ct))));
         brain.MapPost("/windows/{windowId}/reopen", (string windowId, ReopenWindow input, IDigitalBrain digitalBrain, CancellationToken ct)
             => Respond(async () =>
             {
                 var workspace = Workspace(digitalBrain);
                 var state = await workspace.Read().WaitAsync(ct);
-                var window = state.Windows.SingleOrDefault(w => w.Id == windowId) ?? throw new KeyNotFoundException("Window not found.");
+                var window = state.Windows.SingleOrDefault(w => w.Id == (input.WindowId ?? windowId)) ?? throw new KeyNotFoundException("Window not found.");
                 return Results.Ok(window.Reference.Kind == WindowReference.TableKind
                     ? (await workspace.Open(new(input.OperationId, window.Id, window.Title, window.Reference, input.ExpectedRevision)).WaitAsync(ct)).State
                     : await workspace.OpenSurface(new(input.OperationId, window.Id, window.Title, window.Reference, input.ExpectedRevision)).WaitAsync(ct));
@@ -65,7 +65,7 @@ internal static class WorkspaceEndpoints
         catch (TimeoutException) { return Results.Problem("The workspace operation timed out. Refresh before retrying.", statusCode: 503); }
     }
 
-    internal sealed record CloseWindow(long ExpectedRevision);
-    internal sealed record ReopenWindow(string OperationId, long ExpectedRevision);
+    internal sealed record CloseWindow(long ExpectedRevision, string? WindowId = null);
+    internal sealed record ReopenWindow(string OperationId, long ExpectedRevision, string? WindowId = null);
     internal sealed record SetConnectedSources(IReadOnlyList<string>? Sources);
 }

@@ -285,7 +285,7 @@ final class DigitalBrainUiClient {
       await _tableRequest(
         'POST',
         '/brains/${Uri.encodeComponent(workspaceId)}/windows/${Uri.encodeComponent(windowId)}/close',
-        body: {'expectedRevision': revision},
+        body: {'windowId': windowId, 'expectedRevision': revision},
       ) as Map,
     ),
   );
@@ -299,7 +299,11 @@ final class DigitalBrainUiClient {
       await _tableRequest(
         'POST',
         '/brains/${Uri.encodeComponent(workspaceId)}/windows/${Uri.encodeComponent(windowId)}/reopen',
-        body: {'operationId': _uuid.v4(), 'expectedRevision': revision},
+        body: {
+          'windowId': windowId,
+          'operationId': _uuid.v4(),
+          'expectedRevision': revision,
+        },
       ) as Map,
     ),
   );
