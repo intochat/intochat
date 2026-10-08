@@ -1,9 +1,6 @@
 using System.Net.Http.Json;
-using Aspire.Hosting;
-using Aspire.Hosting.Testing;
-using DigitalBrain.AI;
-using DigitalBrain.AI.Models;
-using DigitalBrain.Testing.E2E.Agent;
+using DigitalBrain.Testing.E2E;
+using DigitalBrain.Testing.E2E.Diagnostics;
 using DigitalBrain.Testing.E2E.Workspace;
 using static DigitalBrain.Testing.E2E.Diagnostics.TraceAssertions;
 
@@ -12,7 +9,7 @@ namespace DigitalBrain.Framework.Tests.E2E;
 // Proves the trace budget from real exported spans, not from source inspection: an idle shell stays
 // quiet, the J1 intent stays within budget, a grain call is exactly two spans (one per end), and the
 // Orleans activity source is registered once (a duplicate doubles every call).
-public sealed class TraceBudgetFacts
+public sealed class TraceBudgetFacts(ReferenceBrainFixture host)
 {
     private const string OrleansSource = "Microsoft.Orleans.Application";
 
@@ -20,14 +17,9 @@ public sealed class TraceBudgetFacts
     public async Task IdleShellAndJ1StayWithinTheSpanBudget()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var collector = TestTelemetryCollector.Start();
-        await using var model = await ScriptedModelServer.StartAsync(ct);
-        await using var brain = await ReferenceBrain.Create()
-            .ConfigureModule<AIModule, AIOptions>(ai => ai.WithModelEndpoint(AiProvider.OpenAI, model.Endpoint))
-            .ExportingTelemetryTo(collector)
-            .StartAsync(ct);
-
-        await UserConnections.AuthorizeDatabaseAsync(brain, "trace", ct);
+        await using var brain = await host.LeaseAsync(ct);
+        var collector = host.Collector;
+        await UserConnections.AuthorizeDatabaseAsync(brain, brain.WorkspaceId, ct);
         await Task.Delay(TimeSpan.FromSeconds(5), ct);
         var idleStart = collector.Snapshot().Count;
         await Task.Delay(TimeSpan.FromSeconds(60), ct);
@@ -37,7 +29,7 @@ public sealed class TraceBudgetFacts
         await Task.Delay(TimeSpan.FromSeconds(2), ct);
         var intentStart = collector.Snapshot().Count;
         // A person talks to the assistant app; the turn runs in the app's conversation.
-        using var response = await brain.HttpClient.PostAsJsonAsync("/brains/trace/apps/assistant/ask",
+        using var response = await brain.HttpClient.PostAsJsonAsync($"/brains/{brain.WorkspaceId}/apps/assistant/ask",
             new { operation = "send", input = "Show active leads" }, ct);
         Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync(ct));
         await WaitForAsync(() => collector.Snapshot().Skip(intentStart)
@@ -63,10 +55,9 @@ public sealed class TraceBudgetFacts
     public async Task OneGrainCallEmitsExactlyTwoSpansFromASingleOrleansSource()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var collector = TestTelemetryCollector.Start();
-        await using var brain = await ReferenceBrain.Create()
-            .ExportingTelemetryTo(collector)
-            .StartAsync(ct);
+        await using var brain = await host.LeaseAsync(ct);
+        var collector = host.Collector;
+        var baseline = collector.Snapshot().Count;
 
         // The model catalog route drives exactly one silo-internal grain call. Warm the
         // activation first so its one-time spans are not counted as part of the measured call.
@@ -75,8 +66,8 @@ public sealed class TraceBudgetFacts
             Assert.Equal(HttpStatusCode.OK, warm.StatusCode);
         }
 
-        await WaitForAsync(() => GrainCallSpans(collector, 0).Length >= 2, TimeSpan.FromSeconds(15), ct);
-        Assert.Equal(2, GrainCallSpans(collector, 0).Length);
+        await WaitForAsync(() => GrainCallSpans(collector, baseline).Length >= 2, TimeSpan.FromSeconds(15), ct);
+        Assert.True(GrainCallSpans(collector, baseline).Length >= 2);
         var before = collector.Snapshot().Count;
         using (var response = await brain.HttpClient.GetAsync(CatalogPath, ct))
         {

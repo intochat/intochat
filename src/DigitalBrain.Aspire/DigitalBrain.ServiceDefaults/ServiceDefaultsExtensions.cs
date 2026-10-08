@@ -69,7 +69,9 @@ public static class ServiceDefaultsExtensions
         var integration = builder.Configuration.Get<TelemetryIntegrationOptions>() ?? new();
         var configuredSampleRatio = options.SampleRatio;
         var sampleRatio = Math.Clamp(configuredSampleRatio ?? 1d, 0d, 1d);
-        var rootSampler = new SuppressNoiseSampler(new TraceIdRatioBasedSampler(sampleRatio));
+        // Noise is dropped by name before the parent decides: a keepalive grain call runs inside the
+        // sampled report request, so a root-only check would let it through as a child.
+        var sampler = new SuppressNoiseSampler(new ParentBasedSampler(new TraceIdRatioBasedSampler(sampleRatio)));
 
         builder.Logging.AddOpenTelemetry(logging =>
         {
@@ -105,7 +107,7 @@ public static class ServiceDefaultsExtensions
                 .AddMeter("Microsoft.Extensions.AI.*")
                 .AddMeter("Microsoft.Orleans"))
             .WithTracing(tracing => tracing
-                .SetSampler(new ParentBasedSampler(rootSampler))
+                .SetSampler(sampler)
                 .AddProcessor(new SuppressNoiseActivityProcessor())
                 .AddSource(builder.Environment.ApplicationName)
                 .AddSource(TelemetryPrefix)

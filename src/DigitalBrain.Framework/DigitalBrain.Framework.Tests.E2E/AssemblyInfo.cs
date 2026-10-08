@@ -2,3 +2,4 @@
 [assembly: Xunit.v3.Parallelization(Mode = Xunit.Sdk.ParallelMode.None)]
 [assembly: Xunit.AssemblyFixture(typeof(DigitalBrain.Testing.E2E.ReferenceBrainFixture))]
 [assembly: Xunit.AssemblyFixture(typeof(DigitalBrain.Testing.E2E.ProductionBrainFixture))]
+[assembly: Xunit.AssemblyFixture(typeof(DigitalBrain.Testing.E2E.ProductionCaptureOffFixture))]

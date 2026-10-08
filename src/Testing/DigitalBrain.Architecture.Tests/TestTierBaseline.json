@@ -3,8 +3,6 @@
   "LegacyEndToEndReferencers": [],
   "LegacyAspireReferencingModuleTests": [],
   "LegacyFullStackBootFacts": [
-    "DigitalBrain.Framework.Tests.E2E/ContentCaptureFacts.cs",
-    "DigitalBrain.Framework.Tests.E2E/E2EBoundaryFacts.cs",
-    "DigitalBrain.Framework.Tests.E2E/TraceBudgetFacts.cs"
+    "DigitalBrain.Framework.Tests.E2E/E2EBoundaryFacts.cs"
   ]
 }
