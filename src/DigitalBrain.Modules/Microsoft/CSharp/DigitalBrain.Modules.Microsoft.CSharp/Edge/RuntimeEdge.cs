@@ -66,6 +66,10 @@ internal sealed class RuntimeEdge(SessionTokens tokens, ScriptContracts contract
     {
         ArgumentNullException.ThrowIfNull(report);
         var (claims, runtime) = await AuthorizeAsync(brainId, token).ConfigureAwait(false);
+        var members = (report.Fingerprint is null ? 0 : 1) + (report.Subscribe is null ? 0 : 1)
+            + (report.Acknowledge is null ? 0 : 1) + (report.Acknowledgements is null ? 0 : 1)
+            + (report.Status is null ? 0 : 1) + (report.Logs is null ? 0 : 1) + (report.Heartbeat ? 1 : 0);
+        if (members != 1) { return Results.BadRequest("A report carries exactly one member."); }
         if (report.Fingerprint is { } fingerprint)
         {
             await runtime.Connected(claims.Session, fingerprint).ConfigureAwait(false);
@@ -81,6 +85,7 @@ internal sealed class RuntimeEdge(SessionTokens tokens, ScriptContracts contract
             return Results.Ok(new { subscription = id });
         }
         if (report.Acknowledge is { } acknowledge) { await runtime.Acknowledge(claims.Session, acknowledge.Subscription, acknowledge.Watermark).ConfigureAwait(false); return Results.Ok(); }
+        if (report.Acknowledgements is { } acknowledgements) { await runtime.AcknowledgeMany(claims.Session, acknowledgements).ConfigureAwait(false); return Results.Ok(); }
         if (report.Status is { } status) { await runtime.Reported(claims.Session, status).ConfigureAwait(false); return Results.Ok(); }
         if (report.Logs is { } logs) { streams.CompleteLogs(logs.Request, logs.Text); return Results.Ok(); }
         if (report.Heartbeat) { await runtime.Heartbeat(claims.Session).ConfigureAwait(false); return Results.Ok(); }

@@ -14,6 +14,37 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 public sealed class RuntimeEdgeFacts
 {
     [Fact]
+    public async Task AcknowledgementReportsSupportBatchesAndRejectAmbiguousOrStaleRequests()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true);
+        var session = await Assigned(brain, ct);
+        var runtime = brain.Grains().GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For("acc-brain"));
+        var neuron = brain.Get<IBrainRuntime>(BrainRuntimeKeys.For("acc-brain"));
+        var pinger = brain.Get<IPinger>("acknowledged");
+        var subscription = await runtime.Subscribed(session.Id, "acc-brain/csharp/a", pinger.GetGrainId().ToString(), nameof(Pinged));
+        await using var changes = await brain.Observe<DigitalBrain.Microsoft.CSharp.Runtime.Signals.BrainRuntimeChanged>(neuron, ct);
+        await pinger.Ping(1); await changes.NextAsync(ct: ct);
+        using var ambiguous = await Report(brain, session, new RuntimeReport(
+            Acknowledge: new(subscription, 1), Acknowledgements: [new(subscription, 1)]), ct);
+        Assert.Equal(HttpStatusCode.BadRequest, ambiguous.StatusCode);
+        Assert.Single(await runtime.PendingBatches(session.Id));
+        using var batch = await Report(brain, session, new RuntimeReport(Acknowledgements: [new(subscription, 1)]), ct);
+        Assert.Equal(HttpStatusCode.OK, batch.StatusCode);
+        Assert.Empty(await runtime.PendingBatches(session.Id));
+        await changes.NextAsync(ct: ct);
+        await pinger.Ping(2);
+        await changes.NextAsync(ct: ct);
+        using var legacy = await Report(brain, session, new RuntimeReport(Acknowledge: new(subscription, 2)), ct);
+        Assert.Equal(HttpStatusCode.OK, legacy.StatusCode);
+        Assert.Empty(await runtime.PendingBatches(session.Id));
+        await brain.DeactivateAsync(neuron, ct);
+        Assert.NotEqual(session.Id, (await neuron.Inspect(ct)).SessionId);
+        using var stale = await Report(brain, session, new RuntimeReport(Acknowledgements: [new(subscription, 3)]), ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, stale.StatusCode);
+    }
+
+    [Fact]
     public async Task AnInvocationChecksTheSessionAndBehaviorInOneRuntimeRoundTrip()
     {
         var ct = TestContext.Current.CancellationToken;

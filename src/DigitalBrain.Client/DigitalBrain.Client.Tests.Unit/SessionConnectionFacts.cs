@@ -10,6 +10,213 @@ namespace DigitalBrain.Client.Tests.Unit;
 
 public sealed class SessionConnectionFacts
 {
+    [Fact(Timeout = 30_000)]
+    public async Task AStalledAcknowledgementTimesOutAndReleasesTheNextSubscription()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var time = new ReportTimeProvider();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var count = 0;
+        var brain = new FakeBrain { Acknowledge = async (_, token) =>
+        {
+            if (Interlocked.Increment(ref count) != 1) { return HttpStatusCode.OK; }
+            entered.SetResult();
+            await Task.Delay(Timeout.Infinite, token);
+            return HttpStatusCode.OK;
+        } };
+        await using var session = await SessionConnection.OpenAsync(new Uri("https://brain.test/brains/acc-brain/"), "token-1", ContractsFingerprint.Of([typeof(Signal).Assembly]), brain, time, ct);
+        var stalled = session.AcknowledgeAsync("stalled", 1, ct);
+        await entered.Task.WaitAsync(ct);
+        var next = session.AcknowledgeAsync("next", 1, ct);
+        Assert.NotNull(time.Current);
+        time.Current.Fire();
+        await Assert.ThrowsAsync<TimeoutException>(() => stalled);
+        await next.WaitAsync(ct);
+        Assert.Equal(2, count);
+        Assert.Equal("next", (await brain.Acknowledged.Reader.ReadAsync(ct))["subscription"]!.GetValue<string>());
+    }
+
+    private sealed class ReportTimeProvider : TimeProvider
+    {
+        public ReportTimer? Current { get; private set; }
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            Assert.Equal(TimeSpan.FromSeconds(30), dueTime);
+            return Current = new ReportTimer(callback, state);
+        }
+
+        public sealed class ReportTimer(TimerCallback callback, object? state) : ITimer
+        {
+            public void Fire() => callback(state);
+            public bool Change(TimeSpan dueTime, TimeSpan period) => true;
+            public void Dispose() { }
+            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        }
+    }
+
+    [Fact(Timeout = 30_000)]
+    public async Task AcknowledgementReportsRemainBoundedWhenManySubscriptionsComplete()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var gate = new TaskCompletionSource<HttpStatusCode>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var batches = new ConcurrentQueue<JsonArray>();
+        var brain = new FakeBrain { Acknowledge = async (items, token) =>
+        {
+            batches.Enqueue(items);
+            if (batches.Count != 1) { return HttpStatusCode.OK; }
+            entered.SetResult();
+            return await gate.Task.WaitAsync(token);
+        } };
+        await using var session = await brain.OpenAsync(ct);
+        try
+        {
+            var first = session.AcknowledgeAsync("first", 1, ct);
+            await entered.Task.WaitAsync(ct);
+            var queued = Enumerable.Range(0, RuntimeProtocol.MaximumAcknowledgements + 7)
+                .Select(index => session.AcknowledgeAsync("subscription-" + index, 1, ct)).ToArray();
+            gate.SetResult(HttpStatusCode.OK);
+            await Task.WhenAll(queued.Append(first));
+            Assert.Equal(3, batches.Count);
+            Assert.All(batches, batch => Assert.InRange(batch.Count, 1, RuntimeProtocol.MaximumAcknowledgements));
+            Assert.Equal(RuntimeProtocol.MaximumAcknowledgements + 8, batches.Sum(batch => batch.Count));
+        }
+        finally { gate.TrySetResult(HttpStatusCode.OK); }
+    }
+
+    [Fact(Timeout = 30_000)]
+    public async Task FailedBatchesFaultEveryWaiterAndKeepUnrelatedTraceParentsSeparate()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var gate = new TaskCompletionSource<HttpStatusCode>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var parents = new ConcurrentQueue<string?>();
+        var brain = new FakeBrain { Acknowledge = async (_, token) =>
+        {
+            parents.Enqueue(System.Diagnostics.Activity.Current?.ParentId);
+            if (parents.Count != 1) { return HttpStatusCode.ServiceUnavailable; }
+            entered.SetResult();
+            return await gate.Task.WaitAsync(token);
+        } };
+        await using var session = await brain.OpenAsync(ct);
+        try
+        {
+            var first = session.AcknowledgeAsync("first", 1, ct);
+            await entered.Task.WaitAsync(ct);
+            Task second, third, fourth;
+            string? oneId, twoId;
+            using (var one = new System.Diagnostics.Activity("one").Start())
+            {
+                oneId = one.Id;
+                second = session.AcknowledgeAsync("second", 2, ct);
+                third = session.AcknowledgeAsync("third", 3, ct);
+            }
+            using (var two = new System.Diagnostics.Activity("two").Start())
+            {
+                twoId = two.Id;
+                fourth = session.AcknowledgeAsync("fourth", 4, ct);
+            }
+            gate.SetResult(HttpStatusCode.OK);
+            await first;
+            foreach (var failed in new[] { second, third, fourth })
+            { await Assert.ThrowsAsync<InvalidOperationException>(() => failed); }
+            Assert.Equal([oneId, twoId], parents.Skip(1));
+        }
+        finally { gate.TrySetResult(HttpStatusCode.OK); }
+    }
+
+    [Fact(Timeout = 30_000)]
+    public async Task QueuedAcknowledgementsShareAReportAndWaitForItsResponse()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var firstGate = new TaskCompletionSource<HttpStatusCode>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var nextGate = new TaskCompletionSource<HttpStatusCode>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var received = System.Threading.Channels.Channel.CreateUnbounded<JsonArray>();
+        var count = 0;
+        var brain = new FakeBrain { Acknowledge = async (items, token) =>
+        {
+            var index = Interlocked.Increment(ref count);
+            received.Writer.TryWrite(items);
+            return await (index == 1 ? firstGate : nextGate).Task.WaitAsync(token);
+        } };
+        await using var session = await brain.OpenAsync(ct);
+        try
+        {
+            var first = session.AcknowledgeAsync("first", 1, ct);
+            await received.Reader.ReadAsync(ct);
+            var second = session.AcknowledgeAsync("second", 2, ct);
+            var third = session.AcknowledgeAsync("third", 3, ct);
+            var newer = session.AcknowledgeAsync("second", 5, ct);
+            Assert.False(first.IsCompleted);
+            Assert.False(second.IsCompleted);
+            firstGate.SetResult(HttpStatusCode.OK);
+            await first;
+            var batch = await received.Reader.ReadAsync(ct);
+            Assert.Equal(2, batch.Count);
+            Assert.Contains(batch, item => item!["subscription"]!.GetValue<string>() == "second" && item["watermark"]!.GetValue<long>() == 5);
+            Assert.Contains(batch, item => item!["subscription"]!.GetValue<string>() == "third" && item["watermark"]!.GetValue<long>() == 3);
+            Assert.False(newer.IsCompleted);
+            nextGate.SetResult(HttpStatusCode.OK);
+            await Task.WhenAll(second, third, newer);
+            Assert.Equal(2, count);
+        }
+        finally { firstGate.TrySetResult(HttpStatusCode.OK); nextGate.TrySetResult(HttpStatusCode.OK); }
+    }
+
+    [Fact(Timeout = 30_000)]
+    public async Task AFailedAcknowledgementCanBeRetriedAndDisposalSettlesOutstandingWaiters()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var gate = new TaskCompletionSource<HttpStatusCode>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var received = System.Threading.Channels.Channel.CreateUnbounded<int>();
+        var count = 0;
+        var brain = new FakeBrain { Acknowledge = async (_, token) =>
+        {
+            var index = Interlocked.Increment(ref count);
+            received.Writer.TryWrite(index);
+            return index == 1 ? HttpStatusCode.ServiceUnavailable : index == 2 ? HttpStatusCode.OK : await gate.Task.WaitAsync(token);
+        } };
+        var session = await brain.OpenAsync(ct);
+        try
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => session.AcknowledgeAsync("same", 1, ct));
+            await session.AcknowledgeAsync("same", 1, ct);
+            Assert.Equal(2, count);
+            while (received.Reader.TryRead(out _)) { }
+            var inFlight = session.AcknowledgeAsync("first", 1, ct);
+            await received.Reader.ReadAsync(ct);
+            var queued = session.AcknowledgeAsync("second", 2, ct);
+            await session.DisposeAsync();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => inFlight);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => queued);
+        }
+        finally { gate.TrySetResult(HttpStatusCode.OK); await session.DisposeAsync(); }
+    }
+
+    [Fact(Timeout = 30_000)]
+    public async Task CancellingOneAcknowledgementWaitDoesNotCancelAnother()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var stopped = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var gate = new TaskCompletionSource<HttpStatusCode>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var brain = new FakeBrain { Acknowledge = async (_, token) =>
+        { entered.TrySetResult(); return await gate.Task.WaitAsync(token); } };
+        await using var session = await brain.OpenAsync(ct);
+        try
+        {
+            var cancelled = session.AcknowledgeAsync("first", 1, stopped.Token);
+            await entered.Task.WaitAsync(ct);
+            var retained = session.AcknowledgeAsync("second", 2, ct);
+            await stopped.CancelAsync();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cancelled);
+            Assert.False(retained.IsCompleted);
+            gate.SetResult(HttpStatusCode.OK);
+            await retained;
+        }
+        finally { gate.TrySetResult(HttpStatusCode.OK); }
+    }
+
     public sealed record Changed(int Value) : Signal;
     public interface ISource : INeuron { Task<int> Double(int value); Task Refuse(); }
 
@@ -196,6 +403,7 @@ public sealed class SessionConnectionFacts
     {
         public List<string> Streams { get; } = [];
         public bool RefuseFingerprint { get; init; }
+        public Func<JsonArray, CancellationToken, Task<HttpStatusCode>>? Acknowledge { get; init; }
         public ConcurrentQueue<(string Path, string? Authorization, JsonNode? Body, string? TraceParent)> Requests { get; } = new();
         public System.Threading.Channels.Channel<JsonNode> Acknowledged { get; } = System.Threading.Channels.Channel.CreateUnbounded<JsonNode>();
         private int _streams;
@@ -232,7 +440,15 @@ public sealed class SessionConnectionFacts
             }
             if (body?["fingerprint"] is not null) { return new(RefuseFingerprint ? HttpStatusCode.Conflict : HttpStatusCode.OK); }
             if (body?["subscribe"] is not null) { return new(HttpStatusCode.OK) { Content = new StringContent("{\"subscription\":\"s1\"}") }; }
-            if (body?["acknowledge"] is { } acknowledge) { Acknowledged.Writer.TryWrite(acknowledge.DeepClone()); }
+            var acknowledgements = body?["acknowledgements"] as JsonArray
+                ?? (body?["acknowledge"] is { } single ? new JsonArray(single.DeepClone()) : null);
+            if (acknowledgements is not null)
+            {
+                var status = Acknowledge is null ? HttpStatusCode.OK : await Acknowledge(acknowledgements, cancellationToken);
+                if (status == HttpStatusCode.OK)
+                { foreach (var acknowledge in acknowledgements) { Acknowledged.Writer.TryWrite(acknowledge!.DeepClone()); } }
+                return new(status);
+            }
             return new(HttpStatusCode.OK);
         }
 

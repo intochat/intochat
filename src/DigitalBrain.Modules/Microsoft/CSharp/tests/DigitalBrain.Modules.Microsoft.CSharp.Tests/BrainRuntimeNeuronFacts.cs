@@ -1,4 +1,5 @@
 using DigitalBrain.Client.Runtime;
+using DigitalBrain.Client.Runtime.V1;
 using DigitalBrain.Microsoft.CSharp.Edge;
 using DigitalBrain.Microsoft.CSharp.Files;
 using DigitalBrain.Microsoft.CSharp.Runtime;
@@ -10,6 +11,41 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
 public sealed class BrainRuntimeNeuronFacts
 {
+    [Fact]
+    public async Task AcknowledgementBatchesPersistIndependentWatermarksAndRejectInvalidBatches()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        var runtime = Edge(brain);
+        await runtime.Assign("acc-brain/csharp/a", "hash-a", [], null, null);
+        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
+        var one = brain.Get<IPinger>("one");
+        var two = brain.Get<IPinger>("two");
+        var first = await runtime.Subscribed(session, "acc-brain/csharp/a", one.GetGrainId().ToString(), nameof(Pinged));
+        var second = await runtime.Subscribed(session, "acc-brain/csharp/a", two.GetGrainId().ToString(), nameof(Pinged));
+        await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
+        await one.Ping(1); await changes.NextAsync(ct: ct);
+        await one.Ping(2); await changes.NextAsync(ct: ct);
+        await two.Ping(3); await changes.NextAsync(ct: ct);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => runtime.AcknowledgeMany("stale", [new(first, 2)]));
+        foreach (var invalid in new AcknowledgeReport[][] { [], [new(first, 2), null!], [new(first, -1)],
+            [new("", 1)], Enumerable.Repeat(new AcknowledgeReport(first, 1), RuntimeProtocol.MaximumAcknowledgements + 1).ToArray() })
+        { await Assert.ThrowsAnyAsync<ArgumentException>(() => runtime.AcknowledgeMany(session, invalid)); }
+        Assert.Equal(3, (await runtime.PendingBatches(session)).Sum(batch => batch.Signals.Length));
+        await runtime.AcknowledgeMany(session, [new(first, 1), new(second, 0), new("retired", 99), new(first, 1)]);
+        var pending = await runtime.PendingBatches(session);
+        Assert.Equal(2, pending.Count);
+        Assert.Equal(2, SignalJson.Number(Assert.Single(pending.Single(batch => batch.Subscription == first).Signals)));
+        Assert.Equal(3, SignalJson.Number(Assert.Single(pending.Single(batch => batch.Subscription == second).Signals)));
+        await brain.DeactivateAsync(Runtime(brain), ct);
+        var resumed = (await Runtime(brain).Inspect(ct)).SessionId!;
+        Assert.Equal(2, (await runtime.PendingBatches(resumed)).Sum(batch => batch.Signals.Length));
+        await runtime.AcknowledgeMany(resumed, [new(first, 2), new(second, 1)]);
+        await brain.DeactivateAsync(Runtime(brain), ct);
+        resumed = (await Runtime(brain).Inspect(ct)).SessionId!;
+        Assert.Empty(await runtime.PendingBatches(resumed));
+    }
+
     private const string Brain = "acc-brain";
 
     [Fact]

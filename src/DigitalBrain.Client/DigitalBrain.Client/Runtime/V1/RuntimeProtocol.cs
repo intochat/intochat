@@ -13,6 +13,7 @@ public static class RuntimeProtocol
     // Both ends tag a heartbeat report's span with this, so telemetry keeps heartbeats quiet and every other report traced.
     public const string ReportKindTag = "digitalbrain.runtime.report";
     public const string HeartbeatReport = "heartbeat";
+    public const int MaximumAcknowledgements = 256;
     public static readonly HttpRequestOptionsKey<string> ReportKind = new(ReportKindTag);
     public static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
 }
@@ -27,7 +28,8 @@ public sealed record RuntimeReport(
     AcknowledgeReport? Acknowledge = null,
     BehaviorStatusReport? Status = null,
     LogsReport? Logs = null,
-    bool Heartbeat = false);
+    bool Heartbeat = false,
+    AcknowledgeReport[]? Acknowledgements = null);
 [GenerateSerializer, Alias("microsoft.csharp.runtime.subscribe-report")]
 public sealed record SubscribeReport([property: Id(0)] string Behavior, [property: Id(1)] string Contract, [property: Id(2)] string Key, [property: Id(3)] string Signal);
 [GenerateSerializer, Alias("microsoft.csharp.runtime.acknowledge-report")]

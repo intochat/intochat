@@ -60,7 +60,7 @@ internal sealed class BrainRuntimeNeuron(
     // The edge validated the session token before any of these; each re-checks the session id itself.
     public override NeuronAccess Access(string operation) =>
         operation is nameof(Authorize) or nameof(Identity) or nameof(Connected) or nameof(Heartbeat) or nameof(Subscribed)
-            or nameof(Acknowledge) or nameof(Reported) or nameof(PendingBatches) or nameof(Assignments)
+            or nameof(Acknowledge) or nameof(AcknowledgeMany) or nameof(Reported) or nameof(PendingBatches) or nameof(Assignments)
             ? NeuronAccess.PublicOperation
             : base.Access(operation);
 
@@ -173,6 +173,26 @@ internal sealed class BrainRuntimeNeuron(
         var trimmed = found.Acknowledge(watermark);
         if (trimmed.Delivered == found.Delivered) { return; }
         await Save(Snapshot with { Subscriptions = [.. Snapshot.Subscriptions.Select(s => s == found ? trimmed : s)] }, Changed());
+    }
+
+    public async Task AcknowledgeMany(string session, AcknowledgeReport[] acknowledgements)
+    {
+        RequireSpeaking(session);
+        ArgumentNullException.ThrowIfNull(acknowledgements);
+        if (acknowledgements.Length is 0 or > RuntimeProtocol.MaximumAcknowledgements
+            || acknowledgements.Any(ack => ack is null || string.IsNullOrWhiteSpace(ack.Subscription) || ack.Watermark < 0))
+        { throw new ArgumentException("An acknowledgement batch needs 1 to 256 valid subscription watermarks.", nameof(acknowledgements)); }
+        var watermarks = acknowledgements.GroupBy(ack => ack.Subscription, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Max(ack => ack.Watermark), StringComparer.Ordinal);
+        var changed = false;
+        var next = Snapshot.Subscriptions.Select(subscription =>
+        {
+            if (!watermarks.TryGetValue(subscription.Id, out var watermark)) { return subscription; }
+            var trimmed = subscription.Acknowledge(watermark);
+            changed |= trimmed.Delivered != subscription.Delivered;
+            return trimmed;
+        }).ToArray();
+        if (changed) { await Save(Snapshot with { Subscriptions = next }, Changed()); }
     }
 
     // Failures are per behavior: a crashing one is reloaded after a backoff until it has failed
