@@ -4,7 +4,7 @@ using DigitalBrain.AI.Models;
 namespace DigitalBrain.AI.Inference;
 
 [GenerateSerializer, Alias("ai.message")]
-public sealed record AiMessage([property: Id(0)] string Role, [property: Id(1)] IReadOnlyList<AiContent> Content);
+public sealed record AiMessage([property: Id(0)] string Role, [property: Id(1)] AiContent[] Content);
 [GenerateSerializer, Alias("ai.content")]
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$content")]
 [JsonDerivedType(typeof(AiText), "text")]

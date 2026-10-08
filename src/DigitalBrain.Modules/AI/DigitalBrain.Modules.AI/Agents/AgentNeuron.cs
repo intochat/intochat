@@ -288,7 +288,7 @@ internal sealed class AgentNeuron(
     {
         ArgumentNullException.ThrowIfNull(turn);
         var message = turn.Message ?? throw new ArgumentException("An agent turn needs a message.", nameof(turn));
-        if (message.Role != "user" || message.Content is not { Count: > 0 }) { throw new ArgumentException("An agent accepts a non-empty user message.", nameof(turn)); }
+        if (message.Role != "user" || message.Content is not { Length: > 0 }) { throw new ArgumentException("An agent accepts a non-empty user message.", nameof(turn)); }
         if (message.Content.Any(content => content is not (AiText or AiImage or AiAudio)) || message.Content.OfType<AiText>().Sum(content => (long)content.Text.Length) is 0 or > 32000)
         { throw new ArgumentException("User messages carry 1-32000 characters of text, with images or audio, never tool calls or reasoning.", nameof(turn)); }
         if (turn.RunId is { Length: > 200 }) { throw new ArgumentException("A run id has at most 200 characters.", nameof(turn)); }
@@ -312,7 +312,7 @@ internal sealed class AgentNeuron(
 
     private static string UserText(AiMessage message) => string.Concat(message.Content.OfType<AiText>().Select(text => text.Text));
 
-    // ToArray, not a collection expression: targeting IReadOnlyList, [..] builds a wrapper type storage cannot read back.
+    // Snapshot input content before committing it to durable history.
     private static AiMessage Stored(AiMessage message) => new(message.Role, message.Content.ToArray());
 
     // A committed tool result keeps a bounded preview: the turn that called the tool saw all of it,
