@@ -38,7 +38,7 @@ public sealed class DigitalBrainConnection : IDigitalBrain, IAsyncDisposable
         {
             var subscription = await SessionSignalSubscription<T>.OpenAsync(_session, _behavior, neuron, _trace, ct).ConfigureAwait(false);
             return (subscription.ReadAllAsync(ct), subscription);
-        });
+        }, cancellationToken, Stopping);
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;

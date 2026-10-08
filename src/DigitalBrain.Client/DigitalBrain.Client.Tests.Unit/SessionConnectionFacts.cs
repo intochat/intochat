@@ -91,6 +91,25 @@ public sealed class SessionConnectionFacts
         Assert.Equal([1, 2, 3], seen);
     }
 
+    [Theory(Timeout = 30_000)]
+    [InlineData("argument")]
+    [InlineData("enumerator")]
+    [InlineData("behavior")]
+    public async Task CancellingAnySubscriptionLifetimeEndsAnIdleRead(string lifetime)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var stopping = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        await using var session = await new FakeBrain().OpenAsync(ct);
+        await using var connection = await Connect(session, "acc-brain/csharp/a", lifetime == "behavior" ? stopping.Token : ct);
+        await using var reader = connection.On<Changed>(connection.Get<ISource>("source"), lifetime == "argument" ? stopping.Token : ct)
+            .GetAsyncEnumerator(lifetime == "enumerator" ? stopping.Token : ct);
+
+        var pending = reader.MoveNextAsync().AsTask();
+        await stopping.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(TimeSpan.FromSeconds(3), ct));
+    }
+
     [Fact(Timeout = 30_000)]
     public async Task ARefusedFingerprintFailsTheSession()
     {

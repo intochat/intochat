@@ -4,13 +4,16 @@ namespace DigitalBrain.Client;
 // consumer may dispose it while a read is in flight (a primed enumerator, a break, a failing
 // handler). Disposal cancels the pending read, lets it settle, and only then releases the
 // subscription, so an early exit never throws and never leaks the watch.
-internal sealed class WatchStream<T>(Func<CancellationToken, Task<(IAsyncEnumerable<T> Signals, IAsyncDisposable Handle)>> open) : IAsyncEnumerable<T>
+internal sealed class WatchStream<T>(Func<CancellationToken, Task<(IAsyncEnumerable<T> Signals, IAsyncDisposable Handle)>> open,
+    CancellationToken subscriptionCancellation, CancellationToken behaviorCancellation) : IAsyncEnumerable<T>
 {
-    public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default) => new Enumerator(open, cancellationToken);
+    public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
+        => new Enumerator(open, cancellationToken, subscriptionCancellation, behaviorCancellation);
 
-    private sealed class Enumerator(Func<CancellationToken, Task<(IAsyncEnumerable<T> Signals, IAsyncDisposable Handle)>> open, CancellationToken cancellationToken) : IAsyncEnumerator<T>
+    private sealed class Enumerator(Func<CancellationToken, Task<(IAsyncEnumerable<T> Signals, IAsyncDisposable Handle)>> open,
+        CancellationToken cancellationToken, CancellationToken subscriptionCancellation, CancellationToken behaviorCancellation) : IAsyncEnumerator<T>
     {
-        private readonly CancellationTokenSource _lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        private readonly CancellationTokenSource _lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, subscriptionCancellation, behaviorCancellation);
         private IAsyncEnumerator<T>? _signals;
         private IAsyncDisposable? _handle;
         private Task<bool>? _inFlight;
