@@ -59,9 +59,10 @@ New project `src/Testing/DigitalBrain.Testing.Model`, referenced by `DigitalBrai
 
 ## Wiring
 
-- Module tests: `ModuleTest.Create().WithModule<AIModule>().WithFakeModel(out var model)` starts the
-  server, applies `WithModelEndpoint(AiProvider.OpenAI, model.Endpoint)`, and provisions the OpenAI
-  integration with a dummy key (mechanism confirmed with LSP during planning). Tests select real
+- Module tests: `await using var model = await FakeModelServer.StartAsync(ct);` then
+  `ModuleTest.Create().WithModule<AIModule>().WithFakeModel(model)` seeds the OpenAI integration's
+  `ApiKey` (dummy) and `Endpoint` (the fake) — the same private-configuration keys
+  `AiRegistrationSeeds.OpenAI` uses today. Tests select real
   markers, e.g. `IGpt56Luna` and `IGpt56Sol`, and script them by model id.
 - E2E: `ReferenceBrainFixture` (and its subclasses `ProductionBrainFixture`, `ProductHostFixture`)
   start the same server in echo mode only. Facts on the shared host do not script it, so there is no
