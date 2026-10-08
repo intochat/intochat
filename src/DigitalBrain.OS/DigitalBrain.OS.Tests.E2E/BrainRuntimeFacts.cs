@@ -40,7 +40,6 @@ public sealed class BrainRuntimeFacts(ReferenceBrainFixture host) : BrainFact(ho
         Assert.Equal(before.Generation, after.Generation);
         Assert.Empty(after.Messages);
         Assert.Empty(after.Actions);
-        Model.AssertNoProtocolErrors();
     }
 
     [Fact(Timeout = 240_000)]

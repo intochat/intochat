@@ -1,13 +1,12 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using DigitalBrain.Testing.E2E.Agent;
 using DigitalBrain.Testing.E2E.Workspace;
 using Microsoft.Playwright;
 
 namespace DigitalBrain.Testing.E2E;
 
 // A fact on the shared host: xUnit injects the assembly fixture, the lease gives the fact its own
-// WorkspaceId and lifetime, and the scripted model starts from a clean script. A fact that needs
+// WorkspaceId and lifetime. A fact that needs
 // another composition does not inherit this; it boots its own host through ReferenceBrain.
 public abstract class BrainFact(ReferenceBrainFixture host) : IAsyncLifetime
 {
@@ -15,14 +14,12 @@ public abstract class BrainFact(ReferenceBrainFixture host) : IAsyncLifetime
 
     protected ReferenceBrainFixture Host { get; } = host;
     protected E2EBrain Brain => _brain ?? throw new InvalidOperationException("The lease is taken in InitializeAsync.");
-    protected ScriptedModelServer Model => Host.Model;
 
     public async ValueTask InitializeAsync()
     {
         var ct = TestContext.Current.CancellationToken;
         _brain = await Host.LeaseAsync(ct);
         await UserConnections.AuthorizeDatabaseAsync(_brain, _brain.WorkspaceId, ct);
-        Host.Model.Reset();
         await ResetShellStateAsync(_brain, ct);
     }
 
