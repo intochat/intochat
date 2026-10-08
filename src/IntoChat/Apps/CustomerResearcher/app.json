@@ -2,7 +2,7 @@
   "name": "customer-researcher",
   "title": "Customer Researcher",
   "description": "Research companies live in a driven browser and save verified findings to a Postgres table.",
-  "version": "1.1.25",
+  "version": "1.1.26",
   "icon": "icon.svg",
   "operations": [
     {

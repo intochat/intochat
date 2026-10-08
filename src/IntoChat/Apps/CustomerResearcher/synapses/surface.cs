@@ -6,6 +6,7 @@ using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Button;
 using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Surface;
+using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.TextField;
 using DigitalBrain.Flutter.WebBrowser;
 using DigitalBrain.Flutter.Workspace;
@@ -55,10 +56,19 @@ async Task ComposeAsync()
         [Ref(UIVocabulary.ButtonType, "research"), Ref(UIVocabulary.ButtonType, "stop")]), (await toolbar.Read()).Revision);
 
     await brain.Get<IWebBrowser>(Name("browser")).Configure(Name("browser"), Name("status"));
+    var missingStorage = string.IsNullOrWhiteSpace((await app.Read()).Connections.GetValueOrDefault("tables"));
+    await brain.Get<IText>(Name("configuration")).Set(missingStorage
+        ? "Database connection required. Bind a Postgres connection to this app's tables slot in app configuration, then reopen and retry."
+        : "");
+    var children = new List<UiChildRef>();
+    var extents = new List<double>();
+    if (missingStorage) { children.Add(Ref(UIVocabulary.TextType, "configuration")); extents.Add(88); }
+    children.AddRange([Ref(UIVocabulary.TextFieldType, "company"), Ref(UIVocabulary.LayoutType, "toolbar"), Ref(UIVocabulary.TextType, "status"), Ref(UIVocabulary.LayoutType, "research-activity"), Ref(UIVocabulary.WebBrowserType, "browser")]);
+    extents.AddRange([60, 40, 64, 0, 0]);
     var main = brain.Get<ILayout>(Name("main"));
     await main.Set(new LayoutDefinition("column",
-        [Ref(UIVocabulary.TextFieldType, "company"), Ref(UIVocabulary.LayoutType, "toolbar"), Ref(UIVocabulary.TextType, "status"), Ref(UIVocabulary.LayoutType, "research-activity"), Ref(UIVocabulary.WebBrowserType, "browser")],
-        Extents: [60, 40, 64, 0, 0]), (await main.Read()).Revision);
+        children.ToArray(),
+        Extents: extents.ToArray()), (await main.Read()).Revision);
 
     var surface = brain.Get<ISurface>(Name("surface"));
     await surface.Set(new SurfaceDefinition("Customer Researcher", [Ref(UIVocabulary.LayoutType, "main")]), (await surface.Read()).Revision);

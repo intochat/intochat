@@ -78,3 +78,7 @@ The worker writes a durable active-invocation marker; it is a progress hint, nev
 Each subscription reconciles after registration. Stable invocation card keys prevent duplicates,
 and serialized projection rebuilds recover the view without relying on process memory. The browser
 remains mounted below the independently scrolling activity list while research executes.
+
+## Scenario: Missing storage configuration is actionable
+
+Opening an installation with no tables binding shows persistent database connection guidance above the company field. Research fails before browser/model work with the same binding and retry instructions, preserving existing records. Reopening after configuration removes the guidance.

@@ -117,6 +117,8 @@ async Task RunAsync(string query, Guid invocation, CancellationTokenSource run)
     {
         await activeResearch.Set(invocation.ToString());
         await status.Set("Researching " + query + "…");
+        if (string.IsNullOrWhiteSpace((await app.Read()).Connections.GetValueOrDefault("tables")))
+        { throw new ResearchFailure("Database connection required. Bind a Postgres connection to this app's tables slot in app configuration, then reopen and retry."); }
         var (company, verdict) = await ResearchAsync(query, run.Token);
         run.Token.ThrowIfCancellationRequested();
         if (company is null) { outcome = verdict; failed = true; }
