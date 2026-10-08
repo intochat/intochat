@@ -14,6 +14,32 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 public sealed class RuntimeEdgeFacts
 {
     [Fact]
+    public async Task AnInvocationChecksTheSessionAndBehaviorInOneRuntimeRoundTrip()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var calls = new System.Collections.Concurrent.ConcurrentQueue<System.Diagnostics.Activity>();
+        using var listener = new System.Diagnostics.ActivityListener
+        {
+            ShouldListenTo = _ => true,
+            Sample = (ref _) => System.Diagnostics.ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = calls.Enqueue,
+        };
+        System.Diagnostics.ActivitySource.AddActivityListener(listener);
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, traced: true);
+        var session = await Assigned(brain, ct);
+        var edge = brain.SiloServices.GetRequiredService<RuntimeEdge>();
+        using var invocation = new System.Diagnostics.Activity("runtime invocation").Start();
+
+        var result = await edge.InvokeAsync("acc-brain", session.Token,
+            new("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(IPinger.Double), [JsonSerializer.SerializeToElement(21)]), ct);
+
+        Assert.Equal(42, result!.Value.GetInt32());
+        Assert.Single(calls, call => call.TraceId == invocation.TraceId
+            && call.Kind == System.Diagnostics.ActivityKind.Client
+            && call.OperationName is "IBrainRuntimeEdge/Authorize" or "IBrainRuntimeEdge/Identity");
+    }
+
+    [Fact]
     public async Task AnExpiredTokenIsRefusedOnEveryRoute()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -25,6 +51,23 @@ public sealed class RuntimeEdgeFacts
             using var response = await brain.HttpClient.SendAsync(request, ct);
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         }
+    }
+
+    [Fact]
+    public async Task AReplacedSessionCannotInvokeThroughAnUnchangedToken()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var time = new MovableTime();
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true, time: time);
+        var stale = await Assigned(brain, ct);
+        time.Now += TimeSpan.FromMinutes(3);
+        await brain.Get<IBrainRuntime>(BrainRuntimeKeys.For("acc-brain")).Touch(ct);
+        var invoke = new RuntimeInvocation("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(IPinger.Double), [JsonSerializer.SerializeToElement(21)]);
+
+        using var response = await brain.HttpClient.SendAsync(Authorized(HttpMethod.Post,
+            "/brains/acc-brain/" + RuntimeProtocol.Invoke, stale.Token, invoke), ct);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]

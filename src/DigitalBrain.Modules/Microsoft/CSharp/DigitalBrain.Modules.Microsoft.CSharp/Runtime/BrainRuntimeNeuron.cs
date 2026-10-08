@@ -109,9 +109,12 @@ internal sealed class BrainRuntimeNeuron(
         => Task.FromResult(new SessionAuthorization(Speaks(session), Brain));
 
     public Task<BehaviorIdentity?> Identity(string session, string behavior)
-        => Task.FromResult(Speaks(session) && Snapshot.Behaviors.FirstOrDefault(existing => existing.Id == behavior) is { } found
+    {
+        RequireSpeaking(session);
+        return Task.FromResult(Snapshot.Behaviors.FirstOrDefault(existing => existing.Id == behavior) is { } found
             ? new BehaviorIdentity(found.Owner, found.AppId)
             : null);
+    }
 
     // A host built from other contracts must not load behaviors compiled against these: it is refused,
     // stopped, and the reason stays in the session record.

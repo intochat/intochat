@@ -22,8 +22,7 @@ internal sealed class RuntimeEdge(SessionTokens tokens, ScriptContracts contract
 
     public async Task<(SessionClaims Claims, IBrainRuntimeEdge Runtime)> AuthorizeAsync(string brainId, string? token)
     {
-        var claims = tokens.Validate(token) ?? throw new UnauthorizedAccessException("The session token is missing, invalid or expired.");
-        if (claims.Brain != brainId) { throw new UnauthorizedAccessException("The session token speaks for another brain."); }
+        var claims = ValidateToken(brainId, token);
         var runtime = grains.GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For(brainId));
         return (await runtime.Authorize(claims.Session).ConfigureAwait(false)).Active
             ? (claims, runtime)
@@ -33,7 +32,9 @@ internal sealed class RuntimeEdge(SessionTokens tokens, ScriptContracts contract
     public async Task<JsonElement?> InvokeAsync(string brainId, string? token, RuntimeInvocation invocation, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(invocation);
-        var (claims, runtime) = await AuthorizeAsync(brainId, token).ConfigureAwait(false);
+        var claims = ValidateToken(brainId, token);
+        var runtime = grains.GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For(brainId));
+        // Identity checks the current session and assignment together on the runtime's turn.
         var identity = await runtime.Identity(claims.Session, invocation.Behavior).ConfigureAwait(false)
             ?? throw new ArgumentException($"{invocation.Behavior} is not a behavior of this brain.");
         var contract = Callable(invocation.Contract);
@@ -119,6 +120,13 @@ internal sealed class RuntimeEdge(SessionTokens tokens, ScriptContracts contract
         var contract = contracts.Find(name);
         // The catalog already omits platform-only contracts; refuse here too, whatever the catalog holds.
         return PlatformOnlyAttribute.AppliesTo(contract) ? throw new ArgumentException($"{contract.Name} is not a neuron contract scripts may call.") : contract;
+    }
+
+    private SessionClaims ValidateToken(string brainId, string? token)
+    {
+        var claims = tokens.Validate(token) ?? throw new UnauthorizedAccessException("The session token is missing, invalid or expired.");
+        if (claims.Brain != brainId) { throw new UnauthorizedAccessException("The session token speaks for another brain."); }
+        return claims;
     }
 
     // A behavior started without a caller (tests, the platform) calls without a stamp, as grain code does.

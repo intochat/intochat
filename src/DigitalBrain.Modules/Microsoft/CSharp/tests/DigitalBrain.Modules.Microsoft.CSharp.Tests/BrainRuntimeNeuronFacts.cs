@@ -99,6 +99,26 @@ public sealed class BrainRuntimeNeuronFacts
     }
 
     [Fact]
+    public async Task AReplacedSessionCannotResolveAStillAssignedBehavior()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var time = new MovableTime();
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, time: time);
+        const string behavior = "acc-brain/csharp/a";
+        await Edge(brain).Assign(behavior, "hash-a", [], null, null);
+        var stale = (await Runtime(brain).Inspect(ct)).SessionId!;
+        Assert.NotNull(await Edge(brain).Identity(stale, behavior));
+
+        time.Now += TimeSpan.FromMinutes(3);
+        await Runtime(brain).Touch(ct);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Edge(brain).Identity(stale, behavior));
+        var current = (await Runtime(brain).Inspect(ct)).SessionId!;
+        Assert.NotNull(await Edge(brain).Identity(current, behavior));
+        Assert.Null(await Edge(brain).Identity(current, "acc-brain/csharp/unassigned"));
+    }
+
+    [Fact]
     public async Task ASignalIsBufferedUntilAcknowledgedAndResentOnTheNextStream()
     {
         var ct = TestContext.Current.CancellationToken;
