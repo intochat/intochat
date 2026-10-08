@@ -18,7 +18,7 @@ var connections = brain.Get<IConnectionRequests>(scope);
 var layout = brain.Get<ILayout>(appKey + "/connections");
 
 using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(brain.Stopping);
-var loops = new[] { Operations(), RefreshClicks() };
+var loops = new[] { Operations(), RefreshClicks(), ConnectionChanges(), ConnectionRequests() };
 await Task.WhenAny(loops);
 lifetime.Cancel();
 await Task.WhenAll(loops);
@@ -33,6 +33,20 @@ async Task RefreshClicks()
     await foreach (var clicked in brain.On<ButtonClicked>(brain.Get<IButton>(appKey + "/refresh-connections"), lifetime.Token))
     { await app.Invoke(new(clicked.RequestId == Guid.Empty ? Guid.NewGuid() : clicked.RequestId, "refresh-connections", "")); }
 }
+
+async Task ConnectionChanges()
+{
+    await foreach (var _ in brain.On<ConnectionsChanged>(connections, QueueRefresh, lifetime.Token))
+    { await QueueRefresh(); }
+}
+
+async Task ConnectionRequests()
+{
+    await foreach (var _ in brain.On<ConnectionRequested>(connections, QueueRefresh, lifetime.Token))
+    { await QueueRefresh(); }
+}
+
+async Task QueueRefresh() => await app.Invoke(new(Guid.NewGuid(), "refresh-connections", ""));
 
 async Task Reconcile()
 {

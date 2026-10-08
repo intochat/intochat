@@ -16,8 +16,6 @@ var prefsRoot = brain.Setting("Brain") is { Length: > 0 } brainScope ? brainScop
 var displayName = brain.Get<ITextField>(prefsRoot + "/display-name");
 var theme = brain.Get<ITextField>(prefsRoot + "/theme");
 
-var draftName = brain.Get<ITextField>(appKey + "/preferences/display-name");
-var draftTheme = brain.Get<ITextField>(appKey + "/preferences/theme");
 using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(brain.Stopping);
 var loops = new[] { Operations() };
 await Task.WhenAny(loops);
@@ -63,21 +61,10 @@ async Task<AppResponse> Answer(Guid id, string operation, string input)
 // Surface composition is separate from preference persistence and connection discovery.
 async Task Compose()
 {
-    // App-owned edge fields hold editable drafts; shared brain preferences remain authoritative on Save.
-    var reconcile = Guid.NewGuid();
-    await app.Invoke(new(reconcile, "reconcile-preferences", ""));
-    await app.Await(reconcile);
-    await draftName.Configure("Display name", "text");
-    await draftTheme.Configure("Theme (system, light or dark)", "text");
-    await brain.Get<IButton>(appKey + "/save-preferences").Set("Save preferences", "save");
-    await brain.Get<IButton>(appKey + "/reload-preferences").Set("Reload preferences", "refresh");
     await brain.Get<IButton>(appKey + "/refresh-connections").Set("Refresh connections", "refresh");
-    var toolbar = brain.Get<ILayout>(appKey + "/toolbar");
-    await toolbar.Set(new("row", [new("button", appKey + "/save-preferences"), new("button", appKey + "/reload-preferences")]), (await toolbar.Read()).Revision);
     var main = brain.Get<ILayout>(appKey + "/main");
-    await main.Set(new("column", [new("textfield", appKey + "/preferences/display-name"), new("textfield", appKey + "/preferences/theme"),
-        new("layout", appKey + "/toolbar"), new("text", appKey + "/preferences/status"), new("button", appKey + "/refresh-connections"), new("layout", appKey + "/connections")], Extents: [64, 64, 40, 48, 40, 0]),
-        (await main.Read()).Revision);
+    await main.Set(new("column", [new("button", appKey + "/refresh-connections"),
+        new("layout", appKey + "/connections")], Extents: [40, 0]), (await main.Read()).Revision);
     var surface = brain.Get<ISurface>(appKey + "/surface");
     await surface.Set(new("Settings", [new("layout", appKey + "/main")]), (await surface.Read()).Revision);
 }

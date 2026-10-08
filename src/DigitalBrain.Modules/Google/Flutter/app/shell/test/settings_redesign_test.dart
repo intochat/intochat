@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' as http;
 import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:digitalbrain_flutter_shell/workspace/model_settings.dart';
 import 'package:digitalbrain_flutter_shell/workspace/workspace_app.dart';
@@ -23,6 +26,41 @@ const catalog = ChatModelCatalog(
   ],
 );
 
+class SettingsAppClient extends WorkspaceClient {
+  int openedSettings = 0;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    Map<String, dynamic>? response;
+    if (request.url.path.contains('/apps/settings/')) {
+      openedSettings++;
+      response = {
+        'id': 'settings-window',
+        'title': 'Settings',
+        'surface': 'brain/apps/settings/surface',
+      };
+    } else if (request.url.queryParameters['name'] ==
+        'brain/apps/settings/surface') {
+      response = {
+        'definition': {
+          'children': [
+            {'kind': 'text', 'name': 'brain/apps/settings/connections'},
+          ],
+        },
+      };
+    } else if (request.url.queryParameters['name'] ==
+        'brain/apps/settings/connections') {
+      response = {'markdown': 'Connections supplied by the app'};
+    }
+    if (response == null) return super.send(request);
+    return http.StreamedResponse(
+      Stream.value(utf8.encode(jsonEncode(response))),
+      200,
+      headers: {'content-type': 'application/json'},
+    );
+  }
+}
+
 void main() {
   test(
     'model default applies to new conversations and survives reload',
@@ -45,45 +83,52 @@ void main() {
     },
   );
 
-  testWidgets('connected gear opens unified settings and visible UI Kit', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(1440, 900);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final store = WorkspaceStore(persistence: MemoryPersistence());
-    final api = WorkspaceClient();
-    await tester.pumpWidget(
-      WorkspaceApp(
-        store: store,
-        programmingClient: DigitalBrainUiClient(
-          baseUri: Uri.parse('http://test'),
-          httpClient: api,
+  testWidgets(
+    'connected gear opens app surface and configuration stays reachable',
+    (tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final store = WorkspaceStore(persistence: MemoryPersistence());
+      final api = SettingsAppClient();
+      await tester.pumpWidget(
+        WorkspaceApp(
+          store: store,
+          programmingClient: DigitalBrainUiClient(
+            baseUri: Uri.parse('http://test'),
+            httpClient: api,
+          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Settings'));
-    await tester.pumpAndSettle();
-    expect(find.text('General'), findsWidgets);
-    expect(find.text('More settings'), findsNothing);
-    expect(find.text('Role or team'), findsNothing);
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Display name'),
-      'Ada',
-    );
-    await tester.tap(find.text('Save name'));
-    await tester.pumpAndSettle();
-    expect(store.settings.displayName, 'Ada');
-    await tester.tap(find.text('UI Kit'));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('ui_gallery_screen')), findsOneWidget);
-    expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox());
-    await api.events.close();
-    store.dispose();
-  });
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Settings'));
+      await tester.pumpAndSettle();
+      expect(api.openedSettings, 1);
+      expect(find.text('Connections supplied by the app'), findsOneWidget);
+      await tester.tap(find.byTooltip('Profile'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Workspace configuration'));
+      await tester.pumpAndSettle();
+      expect(find.text('General'), findsWidgets);
+      expect(find.text('More settings'), findsNothing);
+      expect(find.text('Role or team'), findsNothing);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Display name'),
+        'Ada',
+      );
+      await tester.tap(find.text('Save name'));
+      await tester.pumpAndSettle();
+      expect(store.settings.displayName, 'Ada');
+      await tester.tap(find.text('UI Kit'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('ui_gallery_screen')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await api.events.close();
+      store.dispose();
+    },
+  );
 
   testWidgets('narrow settings switches Models and UI Kit without overflow', (
     tester,

@@ -13,6 +13,7 @@ class WorkspaceIslands extends StatelessWidget {
     required this.onSavedWork,
     required this.onSearch,
     required this.onSettings,
+    this.onConfiguration,
     this.onCompute,
     this.onSwitchAccount,
     required this.onHome,
@@ -23,6 +24,7 @@ class WorkspaceIslands extends StatelessWidget {
   final ValueChanged<String> onRestore;
   final VoidCallback onNewWorkspace, onSavedWork, onSearch, onSettings;
   final VoidCallback? onCompute;
+  final VoidCallback? onConfiguration;
   final VoidCallback? onSwitchAccount;
   final VoidCallback onHome;
   final bool home;
@@ -263,6 +265,10 @@ class WorkspaceIslands extends StatelessWidget {
                   onSettings();
                   return;
                 }
+                if (value == 'configuration') {
+                  onConfiguration?.call();
+                  return;
+                }
                 if (value == 'dock') {
                   store.settings.dockTop = !store.settings.dockTop;
                 }
@@ -308,6 +314,11 @@ class WorkspaceIslands extends StatelessWidget {
                   ),
                 ),
                 const PopupMenuItem(value: 'settings', child: Text('Settings')),
+                if (onConfiguration != null)
+                  const PopupMenuItem(
+                    value: 'configuration',
+                    child: Text('Workspace configuration'),
+                  ),
               ],
             ),
           ],

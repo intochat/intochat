@@ -64,8 +64,9 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
         Snapshot.Secrets = [Sealer.Seal(ValueSecret, value)];
         Snapshot.ExpiresAt = null;
         Snapshot.Scopes = "";
-        await Transition(ConnectionStatus.Connected, null);
+        await Transition(ConnectionStatus.Connected, null, notifyCatalog: false);
         await Track();
+        await NotifyCatalog();
         await OnConnectedAsync();
         return View();
     }
@@ -79,8 +80,9 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
         var accepted = await AcceptGrantAsync(grant);
         Seal(accepted, keepRefresh: false);
         Snapshot.AuthMethodId = accepted.AuthMethodId;
-        await Transition(ConnectionStatus.Connected, null);
+        await Transition(ConnectionStatus.Connected, null, notifyCatalog: false);
         await Track();
+        await NotifyCatalog();
         await OnConnectedAsync();
         return View();
     }
@@ -112,8 +114,9 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
         Snapshot.Secrets = [];
         Snapshot.ExpiresAt = null;
         Snapshot.Account = null;
-        await Transition(ConnectionStatus.Disconnected, null);
+        await Transition(ConnectionStatus.Disconnected, null, notifyCatalog: false);
         await GrainFactory.GetGrain<IConnectionIndex>(Key.Brain).Untrack(this.GetPrimaryKeyString());
+        await NotifyCatalog();
     }
 
     // Opens the credential for one call; refreshes first when the access token is about to expire.
@@ -163,7 +166,7 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
 
     // One function moves status and publishes, so no module can publish a status it did not persist.
     // Every operation that calls it publishes exactly one signal, even when the status repeats.
-    private Task Transition(ConnectionStatus status, string? detail)
+    private async Task Transition(ConnectionStatus status, string? detail, bool notifyCatalog = true)
     {
         Snapshot.Status = status;
         Snapshot.Detail = detail;
@@ -174,8 +177,11 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
             ConnectionStatus.Failing => new ConnectionFailing(Key.Connector, Key.Connection, detail ?? ""),
             _ => new ConnectionDisconnected(Key.Connector, Key.Connection),
         };
-        return Save(Snapshot, signal);
+        await Save(Snapshot, signal);
+        if (notifyCatalog) { await NotifyCatalog(); }
     }
+
+    private Task NotifyCatalog() => GrainFactory.GetGrain<IConnectionCatalogUpdates>(Key.Brain).Changed(this.GetPrimaryKeyString());
 
     private Task Track() => GrainFactory.GetGrain<IConnectionIndex>(Key.Brain).Track(this.GetPrimaryKeyString());
 

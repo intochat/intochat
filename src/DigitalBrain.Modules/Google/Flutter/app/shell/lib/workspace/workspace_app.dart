@@ -258,6 +258,10 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     final segments = uri.pathSegments;
     _navigator.currentState?.popUntil((route) => route.isFirst);
     if (segments.firstOrNull == 'settings') {
+      if (segments.length == 1 && widget.programmingClient != null) {
+        unawaited(_openApplication('settings'));
+        return;
+      }
       void showSettings() {
         if (!mounted) return;
         final section = segments.length > 2 && segments[2] == 'gallery'
@@ -983,11 +987,18 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     onCompute: widget.programmingClient == null
         ? null
         : () => _openCompute(context),
-    onSettings: () => Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        settings: const RouteSettings(name: '/settings/general'),
-        builder: (_) => _settingsApp(() => Navigator.of(context).pop()),
-      ),
+    onSettings: widget.programmingClient == null
+        ? () => _openConfiguration(context)
+        : () => _openApplication('settings'),
+    onConfiguration: widget.programmingClient == null
+        ? null
+        : () => _openConfiguration(context),
+  );
+
+  void _openConfiguration(BuildContext context) => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      settings: const RouteSettings(name: '/settings/general'),
+      builder: (_) => _settingsApp(() => Navigator.of(context).pop()),
     ),
   );
 

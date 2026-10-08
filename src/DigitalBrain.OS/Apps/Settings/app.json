@@ -1,8 +1,8 @@
 {
   "name": "settings",
   "title": "Settings",
-  "description": "Workspace preferences, available connections and the connections used by your apps.",
-  "version": "1.1.2",
+  "description": "Available connections and the connections used by your apps.",
+  "version": "1.1.4",
   "operations": [
     {
       "name": "open",

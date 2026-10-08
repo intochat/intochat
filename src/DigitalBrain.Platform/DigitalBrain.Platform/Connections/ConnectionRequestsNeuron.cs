@@ -12,6 +12,7 @@ namespace DigitalBrain.Platform.Connections;
 public sealed class ConnectionRequestsState
 {
     [Id(0)] public ConnectionRef[] Pending { get; set; } = [];
+    [Id(1)] public long Revision { get; set; }
 }
 
 // Script-facing connection requests: a script asks for a connector kind; the user connects it.
@@ -20,8 +21,17 @@ internal sealed class ConnectionRequestsNeuron(
     [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ConnectionRequestsState> store,
     ConnectorCatalog catalog,
     IReadOnlyList<ConnectorDefinition> connectors)
-    : Neuron<ConnectionRequestsState>(store), IConnectionRequests
+    : Neuron<ConnectionRequestsState>(store), IConnectionRequests, IConnectionCatalogUpdates
 {
+    public Task Changed(string connectionKey)
+    {
+        if (ConnectionKeys.Parse(connectionKey).BrainId != this.GetPrimaryKeyString())
+        { throw new ArgumentException("The connection belongs to another brain.", nameof(connectionKey)); }
+        var next = Snapshot;
+        next.Revision++;
+        return Save(next, new ConnectionsChanged(next.Revision));
+    }
+
     [ReadOnly]
     public async Task<ConnectorKind[]> ListKinds()
         => (await catalog.ListAsync(CancellationToken.None)).Select(definition => new ConnectorKind(definition.Id, definition.DisplayName)).ToArray();

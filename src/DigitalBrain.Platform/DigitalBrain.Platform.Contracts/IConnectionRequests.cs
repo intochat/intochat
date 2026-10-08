@@ -30,3 +30,7 @@ public sealed record ConnectionSummary(
 
 [GenerateSerializer, Alias("integrations.account-requested")]
 public sealed record ConnectionRequested([property: Id(0)] string Kind, [property: Id(1)] string Id) : Signal;
+
+// Invalidation only: consumers re-read the catalog; no credential or provider detail is carried.
+[GenerateSerializer, Alias("integrations.connections-changed")]
+public sealed record ConnectionsChanged([property: Id(0)] long Revision) : Signal;
