@@ -68,3 +68,13 @@ existing three-minute research deadline. Exhaustion is an explicit failed outcom
 link choice interpreted as success. Runtime diagnostics record finish reason and size, not page or
 model content. Invalid or unverifiable extraction returns an error and saves no record. Unknown
 contact fields remain null; every retained claim includes its observed source URL and verbatim quote.
+
+## Scenario: Activity survives reopening and behavior recovery
+
+A dedicated projection behavior reads the app's retained invocation records. It lists all pending
+companies as Queued or Running and the twenty most recent Completed, Failed or Stopped outcomes,
+including the company and its result/error. Failed and stopped entries explain how to retry.
+The worker writes a durable active-invocation marker; it is a progress hint, never a second queue.
+Each subscription reconciles after registration. Stable invocation card keys prevent duplicates,
+and serialized projection rebuilds recover the view without relying on process memory. The browser
+remains mounted below the independently scrolling activity list while research executes.

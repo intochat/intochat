@@ -28,6 +28,8 @@ Guid? activeId = null;
 using var wake = new SemaphoreSlim(0);
 using var admission = new SemaphoreSlim(1, 1);
 var cancellations = brain.Get<IText>(appKey + "/cancelled-research");
+var activeResearch = brain.Get<IText>(appKey + "/active-research");
+await activeResearch.Set("");
 const string NotConnected = "The browser is not connected. Open or reconnect the browser and retry.";
 
 using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(brain.Stopping);
@@ -113,6 +115,7 @@ async Task RunAsync(string query, Guid invocation, CancellationTokenSource run)
     var failed = false;
     try
     {
+        await activeResearch.Set(invocation.ToString());
         await status.Set("Researching " + query + "…");
         var (company, verdict) = await ResearchAsync(query, run.Token);
         run.Token.ThrowIfCancellationRequested();
@@ -139,6 +142,7 @@ async Task RunAsync(string query, Guid invocation, CancellationTokenSource run)
         activeId = null;
         await status.Set(failed ? outcome : outcome.TrimEnd('.'));
         await app.Respond(new AppResponse(invocation, failed ? null : outcome, failed ? outcome : null));
+        await activeResearch.Set("");
     }
     finally { admission.Release(); }
 }

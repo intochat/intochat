@@ -46,6 +46,8 @@ public interface IApp : INeuron
     // Completes when the app's script answers the invocation; at once if it already has.
     [Orleans.Concurrency.AlwaysInterleave, ResponseTimeout("00:05:00")] Task<AppInvocation> Await(Guid invocationId);
     Task<IReadOnlyList<AppInvocation>> Pending();
+    // Retained invocation records in admission order, including pending work and terminal outcomes.
+    [Orleans.Concurrency.ReadOnly] Task<AppInvocation[]> ReadInvocations();
 
     static string Key(string brainId, string name) => $"{brainId}/apps/{name}";
 }

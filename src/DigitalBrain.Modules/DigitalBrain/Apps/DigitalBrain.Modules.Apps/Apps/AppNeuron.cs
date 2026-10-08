@@ -469,6 +469,8 @@ internal sealed class AppNeuron(
             ? Task.FromResult(invocation)
             : throw new KeyNotFoundException($"No invocation {invocationId}.");
 
+    public Task<AppInvocation[]> ReadInvocations() => Task.FromResult(Snapshot.Invocations.ToArray());
+
     public Task<IReadOnlyList<AppInvocation>> Pending()
         => Task.FromResult<IReadOnlyList<AppInvocation>>(Snapshot.Invocations.Where(item => item.Status == InvocationStatus.Pending).ToArray());
 
