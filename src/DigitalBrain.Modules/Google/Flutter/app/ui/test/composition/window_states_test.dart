@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:digitalbrain_ui/digitalbrain_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,6 +24,65 @@ Future<void> pumpWindow(
 }
 
 void main() {
+  testWidgets('a previous component failure cannot replace current loading', (
+    tester,
+  ) async {
+    final oldRead = Completer<Map<String, dynamic>>();
+    final currentRead = Completer<Map<String, dynamic>>();
+    Widget view(String name) => MaterialApp(
+      home: Scaffold(
+        body: NeuronView(
+          kind: 'card',
+          name: name,
+          load: (_, name) =>
+              name == 'old' ? oldRead.future : currentRead.future,
+        ),
+      ),
+    );
+    await tester.pumpWidget(view('old'));
+    await tester.pumpWidget(view('current'));
+    oldRead.completeError(StateError('Old component unavailable'));
+    await tester.pump();
+    expect(find.text('Could not load'), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    currentRead.complete({'title': 'Current component', 'body': 'Loaded'});
+    await tester.pumpAndSettle();
+    expect(find.text('Current component'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('retry shows loading until the requested component returns', (
+    tester,
+  ) async {
+    final retry = Completer<Map<String, dynamic>>();
+    var reads = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NeuronView(
+            kind: 'card',
+            name: 'retry',
+            load: (_, _) {
+              if (++reads == 1) return Future.error(StateError('Unavailable'));
+              return retry.future;
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Could not load'), findsOneWidget);
+    await tester.tap(find.text('Retry'));
+    await tester.pump();
+    expect(reads, 2);
+    expect(find.text('Could not load'), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    retry.complete({'title': 'Recovered', 'body': 'Available again'});
+    await tester.pumpAndSettle();
+    expect(find.text('Recovered'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('an empty window renders its declared state', (tester) async {
     await pumpWindow(tester, () => {'state': 'empty'});
     await tester.pumpAndSettle();

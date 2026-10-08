@@ -126,6 +126,7 @@ class _NeuronViewState extends State<NeuronView> {
       return;
     }
     _loading = true;
+    if (_error != null) setState(() => _error = null);
     final generation = _generation;
     final version = _events.version;
     try {
@@ -137,7 +138,12 @@ class _NeuronViewState extends State<NeuronView> {
         });
       }
     } catch (error) {
-      if (mounted && _data == null) setState(() => _error = error);
+      if (mounted &&
+          generation == _generation &&
+          version == _events.version &&
+          _data == null) {
+        setState(() => _error = error);
+      }
     } finally {
       _loading = false;
       if (mounted && _reloadAgain) {
