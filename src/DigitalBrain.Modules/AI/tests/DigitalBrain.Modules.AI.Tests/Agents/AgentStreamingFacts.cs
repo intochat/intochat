@@ -1,7 +1,10 @@
 using System.Runtime.CompilerServices;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Agents.Signals;
+using DigitalBrain.Framework;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
+using Orleans.Storage;
 using Xunit;
 
 namespace DigitalBrain.Modules.AI.Tests.Agents;
@@ -29,10 +32,22 @@ public sealed class AgentStreamingFacts
         var agent = brain.Get<IAgent>(AgentFacts.Key("abandoned"));
         await using var failures = await brain.SubscribeAsync<TurnFailed>(agent, ct);
         await using var failed = failures.ReadAllAsync(ct).GetAsyncEnumerator(ct);
+        var before = await agent.Read();
+        long streamingVersion;
         await using (var stream = agent.Run(AgentTurn.Text("hello"), ct).GetAsyncEnumerator(ct))
         {
             while (await stream.MoveNextAsync() && stream.Current is not AgentTurnEvent.Text) { }
             Assert.Equal("partial", Assert.IsType<AgentTurnEvent.Text>(stream.Current).Content);
+            var streaming = await agent.Read();
+            Assert.Equal("partial", streaming.ActiveRun?.Reply);
+            Assert.True(streaming.Version > before.Version);
+            Assert.Equal(before.Revision, streaming.Revision);
+            streamingVersion = streaming.Version;
+            var persisted = new GrainState<AgentStorage>();
+            var storage = brain.SiloServices.GetRequiredKeyedService<IGrainStorage>(DigitalBrainNames.DefaultGrainStorage);
+            await storage.ReadStateAsync("agent", GrainId.Create("agent", AgentFacts.Key("abandoned")), persisted);
+            Assert.Equal("partial", persisted.State?.ActiveRun?.Reply);
+            Assert.Equal(streaming.Version, persisted.State?.Version);
         }
         await provider.Cancelled.Task.WaitAsync(ct);
         Assert.True(await failed.MoveNextAsync());
@@ -40,6 +55,8 @@ public sealed class AgentStreamingFacts
         var state = await agent.Read();
         Assert.Null(state.ActiveRun);
         Assert.Equal(AgentRunStatus.Cancelled, Assert.Single(state.Runs).Status);
+        Assert.Equal("partial", Assert.Single(state.Runs).Reply);
+        Assert.True(state.Version > streamingVersion);
         Assert.Empty(await agent.Transcript());
     }
 

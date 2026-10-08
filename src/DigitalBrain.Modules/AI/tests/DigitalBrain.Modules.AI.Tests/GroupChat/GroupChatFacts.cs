@@ -2,15 +2,19 @@ using DigitalBrain.AI;
 using DigitalBrain.AI.GroupChat;
 using DigitalBrain.AI.GroupChat.Signals;
 using DigitalBrain.AI.Models.Ollama;
-using DigitalBrain.AI.Models.Scripted;
+using DigitalBrain.AI.Models.OpenAI;
+using DigitalBrain.Testing.Model;
 using Xunit;
 
 namespace DigitalBrain.Modules.AI.Tests;
 
 public sealed class GroupChatFacts
 {
+    private const string LunaModel = "gpt-5.6-luna";
+    private const string SolModel = "gpt-5.6-sol";
+
     private static readonly GroupChatSetup LunaAndGemma = new(
-        [new("Luna", IScriptedLLM.ModelPrefix + "luna"), new("Gemma", IScriptedLLM.ModelPrefix + "gemma")],
+        [new("Luna", nameof(IGpt56Luna)), new("Gemma", nameof(IGpt56Sol))],
         Brief: "Brainstorm product ideas.",
         MaxRounds: 3);
 
@@ -18,9 +22,10 @@ public sealed class GroupChatFacts
     public async Task ParticipantsTakeTurnsAndConcludeWhenTheyAgree()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>().StartAsync(ct);
-        await brain.Get<IScriptedLLM>("luna").Script(["Idea: a smart dog bowl.", "AGREE: the smart bowl, with a feeding log.", "Final: a smart dog bowl that logs feeding."]);
-        await brain.Get<IScriptedLLM>("gemma").Script(["Building on the bowl: add a feeding log.", "AGREE: bowl plus log."]);
+        await using var model = await FakeModelServer.StartAsync(ct);
+        model.Script(LunaModel, "Idea: a smart dog bowl.", "AGREE: the smart bowl, with a feeding log.", "Final: a smart dog bowl that logs feeding.");
+        model.Script(SolModel, "Building on the bowl: add a feeding log.", "AGREE: bowl plus log.");
+        await using var brain = await ModuleTest.Create().WithModule<AIModule>().WithFakeModel(model).StartAsync(ct);
 
         var chat = brain.Get<IGroupChat>("chat-1");
         await chat.Configure(LunaAndGemma);
@@ -33,7 +38,7 @@ public sealed class GroupChatFacts
         Assert.Equal(GroupChatStatus.Concluded, state.Status);
         Assert.True(state.Agreed);
         Assert.Equal("Final: a smart dog bowl that logs feeding.", state.Answer);
-        Assert.Contains("Luna: Idea: a smart dog bowl.", (await brain.Get<IScriptedLLM>("gemma").Prompts())[0]);
+        Assert.Contains("Luna: Idea: a smart dog bowl.", model.Requests(SolModel)[0].GetRawText(), StringComparison.Ordinal);
         Assert.Equal("Luna", (await spoke.NextAsync(ct: ct)).Turn.Speaker);
         var conclusion = await concluded.NextAsync(ct: ct);
         Assert.Equal(2, conclusion.Rounds);
@@ -50,9 +55,10 @@ public sealed class GroupChatFacts
     public async Task DiscussionStopsAtMaxRoundsWithoutAgreement()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>().StartAsync(ct);
-        await brain.Get<IScriptedLLM>("luna").Script(["A", "B", "C", "Final: A."]);
-        await brain.Get<IScriptedLLM>("gemma").Script(["not A", "not B", "not C"]);
+        await using var model = await FakeModelServer.StartAsync(ct);
+        model.Script(LunaModel, "A", "B", "C", "Final: A.");
+        model.Script(SolModel, "not A", "not B", "not C");
+        await using var brain = await ModuleTest.Create().WithModule<AIModule>().WithFakeModel(model).StartAsync(ct);
 
         var chat = brain.Get<IGroupChat>("chat-2");
         await chat.Configure(LunaAndGemma);
@@ -67,13 +73,14 @@ public sealed class GroupChatFacts
     public async Task AFailingParticipantLeavesTheChatFailedWithTheTurnsSoFar()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>().StartAsync(ct);
-        await brain.Get<IScriptedLLM>("luna").Script(["A"]);
-        await brain.Get<IScriptedLLM>("gemma").Script([]);
+        await using var model = await FakeModelServer.StartAsync(ct);
+        model.Script(LunaModel, "A");
+        model.Script(SolModel);
+        await using var brain = await ModuleTest.Create().WithModule<AIModule>().WithFakeModel(model).StartAsync(ct);
 
         var chat = brain.Get<IGroupChat>("chat-5");
         await chat.Configure(LunaAndGemma);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => chat.Ask("Pick one"));
+        await Assert.ThrowsAsync<System.ClientModel.ClientResultException>(() => chat.Ask("Pick one"));
 
         var state = await chat.Read();
         Assert.Equal(GroupChatStatus.Failed, state.Status);

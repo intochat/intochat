@@ -59,7 +59,7 @@ internal sealed class ButtonNeuron([PersistentState("state", DigitalBrainNames.D
         next.Name = this.GetPrimaryKeyString();
         next.Version++;
         next.ClickCount++;
-        var clicked = new ButtonClicked(this.GetPrimaryKeyString(), next.Action);
+        var clicked = new ButtonClicked(this.GetPrimaryKeyString(), next.Action, Guid.NewGuid());
         await Save(next, new ButtonChanged(this.GetPrimaryKeyString(), next.Version), clicked);
         await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString()).Dispatch(clicked);
     }

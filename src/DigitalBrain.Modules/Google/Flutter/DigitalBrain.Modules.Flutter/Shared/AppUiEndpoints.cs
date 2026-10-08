@@ -3,6 +3,7 @@ using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Button;
 using DigitalBrain.Flutter.Card;
 using DigitalBrain.Flutter.Chart;
+using DigitalBrain.Flutter.Chat;
 using DigitalBrain.Flutter.Collection;
 using DigitalBrain.Flutter.FileInput;
 using DigitalBrain.Flutter.Form;
@@ -48,6 +49,8 @@ internal static class AppUiEndpoints
                 "form" => Results.Ok(await brain.Get<IForm>(name).Read().WaitAsync(ct)),
                 "table" => Results.Ok(await brain.Get<ITable>(name).Read().WaitAsync(ct)),
                 "chart" => Results.Ok(await brain.Get<IChart>(name).Read().WaitAsync(ct)),
+                UIVocabulary.ChatType => Results.Ok(await brain.Get<IChat>(name).Read().WaitAsync(ct)),
+                UIVocabulary.ComposerType => Results.Ok(await brain.Get<IComposer>(name).Read().WaitAsync(ct)),
                 UIVocabulary.VoiceInputType => Results.Ok(await brain.Get<IVoiceInput>(name).Read().WaitAsync(ct)),
                 UIVocabulary.WebBrowserType => Results.Ok(await brain.Get<IWebBrowser>(name).Read().WaitAsync(ct)),
                 _ => throw new ArgumentException("Unknown app UI kind.")
@@ -59,6 +62,22 @@ internal static class AppUiEndpoints
             if (!OwnsUi(scope, input.Name)) { throw new UnauthorizedAccessException(); }
             switch (input.Kind)
             {
+                case UIVocabulary.ChatType:
+                    await brain.Get<IChat>(input.Name).Activate(input.Context ?? "", input.Revision, input.Action ?? "").WaitAsync(ct);
+                    break;
+                case UIVocabulary.ComposerType:
+                    var composer = brain.Get<IComposer>(input.Name);
+                    switch (input.Action)
+                    {
+                        case "edit": await composer.Edit(input.Context ?? "", input.Value ?? "").WaitAsync(ct); break;
+                        case "submit": await composer.Submit(input.OperationId ?? Guid.Empty, input.Context ?? "", input.Value ?? "").WaitAsync(ct); break;
+                        case "voice-begin": await composer.BeginVoice(input.OperationId ?? Guid.Empty, input.Context ?? "").WaitAsync(ct); break;
+                        case "voice-audio": await composer.CaptureVoice(input.OperationId ?? Guid.Empty, DecodeAudio(input.Value), input.MimeType ?? "").WaitAsync(ct); break;
+                        case "voice-cancel": await composer.CancelVoice(input.OperationId ?? Guid.Empty).WaitAsync(ct); break;
+                        case "voice-error": await composer.CompleteVoice(input.OperationId ?? Guid.Empty, null, input.Value ?? "Recording failed. Try again.").WaitAsync(ct); break;
+                        default: throw new ArgumentException("Unknown composer action.");
+                    }
+                    break;
                 case UIVocabulary.WebBrowserType:
                     BrowserConnection connection;
                     try { connection = JsonSerializer.Deserialize<BrowserConnection>(input.Value ?? "", JsonSerializerOptions.Web) ?? throw new ArgumentException("Browser connection is required."); }
@@ -115,6 +134,7 @@ internal static class AppUiEndpoints
         catch (FormatException) { throw new ArgumentException("Audio must be base64 encoded."); }
     }
 
-    internal sealed record UiEvent(string Kind, string Name, string? Action = null, string? Value = null, long Revision = 0, string? Field = null, string? MimeType = null);
+    internal sealed record UiEvent(string Kind, string Name, string? Action = null, string? Value = null, long Revision = 0, string? Field = null, string? MimeType = null,
+        string? Context = null, Guid? OperationId = null);
     private sealed record BrowserConnection(int Port, string SessionId);
 }

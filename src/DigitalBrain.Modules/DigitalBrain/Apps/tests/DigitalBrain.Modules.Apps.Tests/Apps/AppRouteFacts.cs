@@ -1,10 +1,11 @@
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.AI;
-using DigitalBrain.AI.Models.Scripted;
+using DigitalBrain.AI.Models.OpenAI;
 using DigitalBrain.Apps;
 using DigitalBrain.Framework;
 using DigitalBrain.Modules.Apps.Tests;
+using DigitalBrain.Testing.Model;
 using DigitalBrain.Testing.Module;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -26,31 +27,33 @@ public sealed class AppRouteFacts
     public async Task TheAppsSurfaceCreatesImplementsExportsAndDeletes()
     {
         var ct = TestContext.Current.CancellationToken;
+        await using var model = await FakeModelServer.StartAsync(ct);
         await using var brain = await ModuleTest.Create()
             .WithModule<AIModule>()
             .WithModule<AppsModule>()
+            .WithFakeModel(model)
             .ConfigureModule<AppsModule, AppsOptions>(apps =>
             {
-                apps.AuthorModel = IScriptedLLM.ModelPrefix + "author";
-                apps.BuilderModel = IScriptedLLM.ModelPrefix + "builder";
+                apps.AuthorModel = nameof(IGpt56Luna);
+                apps.BuilderModel = nameof(IGpt56Sol);
             })
             .ConfigureSilo(silo =>
             {
                 silo.Services.AddSingleton<IScriptSandbox>(new RouteSandbox());
             })
             .StartAsync(ct);
-        await brain.Get<IScriptedLLM>("author").Script([JsonSerializer.Serialize(new
+        model.Script("gpt-5.6-luna", JsonSerializer.Serialize(new
         {
             name = "shouter",
             title = "Shouter",
             description = "Shouts back.",
             operations = new[] { new { name = "ask", description = "ask it" } },
             spec = Spec,
-        })]);
-        await brain.Get<IScriptedLLM>("builder").Script([JsonSerializer.Serialize(new
+        }));
+        model.Script("gpt-5.6-sol", JsonSerializer.Serialize(new
         {
             files = new Dictionary<string, string> { ["synapses/shout.cs"] = "// b" },
-        })]);
+        }));
 
         var log = new List<string>();
         var builder = WebApplication.CreateBuilder();
@@ -58,6 +61,7 @@ public sealed class AppRouteFacts
         builder.Services.AddSingleton<IDigitalBrain>(brain.SiloServices.GetRequiredService<IDigitalBrain>());
         builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<Creator>());
         builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<AppWorkQueue>());
+        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<MarketplaceView>());
         builder.Services.AddSingleton<IBrainAccess, OpenBrainAccess>();
         await using var edge = builder.Build();
         new AppsModule().Configure(edge);
@@ -101,6 +105,7 @@ public sealed class AppRouteFacts
                 Kind = CallerKind.User,
                 StampedBy = TrustedEdge.AuthenticatedHttp,
             });
+            await brain.AuthorizeCallerAsync();
             var endpoint = endpoints.Single(item => item.RoutePattern.RawText == pattern
                 && item.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains(method));
             var http = new DefaultHttpContext { RequestServices = edge.Services, RequestAborted = ct };
@@ -139,6 +144,7 @@ public sealed class AppRouteFacts
         builder.Services.AddSingleton<IDigitalBrain>(brain.SiloServices.GetRequiredService<IDigitalBrain>());
         builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<Creator>());
         builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<AppWorkQueue>());
+        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<MarketplaceView>());
         builder.Services.AddSingleton<IBrainAccess, OpenBrainAccess>();
         await using var edge = builder.Build();
         new AppsModule().Configure(edge);
@@ -159,6 +165,7 @@ public sealed class AppRouteFacts
                 Kind = CallerKind.User,
                 StampedBy = TrustedEdge.AuthenticatedHttp,
             });
+            await brain.AuthorizeCallerAsync();
             var endpoint = endpoints.Single(item => item.RoutePattern.RawText == pattern
                 && item.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains(method));
             var http = new DefaultHttpContext { RequestServices = edge.Services, RequestAborted = ct };

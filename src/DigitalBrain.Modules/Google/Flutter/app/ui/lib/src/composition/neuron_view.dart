@@ -8,6 +8,8 @@ import 'package:gpt_markdown/gpt_markdown.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../voice_input/ui_voice_input.dart';
+import '../chat/ui_chat_transcript.dart';
+import '../chat/ui_composer.dart';
 import '../components/browser/ui_web_browser.dart';
 import '../components/chart/ui_chart.dart';
 import '../models/ui_part.dart';
@@ -124,6 +126,7 @@ class _NeuronViewState extends State<NeuronView> {
       return;
     }
     _loading = true;
+    if (_error != null) setState(() => _error = null);
     final generation = _generation;
     final version = _events.version;
     try {
@@ -135,7 +138,12 @@ class _NeuronViewState extends State<NeuronView> {
         });
       }
     } catch (error) {
-      if (mounted && _data == null) setState(() => _error = error);
+      if (mounted &&
+          generation == _generation &&
+          version == _events.version &&
+          _data == null) {
+        setState(() => _error = error);
+      }
     } finally {
       _loading = false;
       if (mounted && _reloadAgain) {
@@ -267,6 +275,67 @@ class _NeuronViewState extends State<NeuronView> {
     ];
     final enabled = widget.enabled && definition['enabled'] != false;
     switch (widget.kind) {
+      case 'composer':
+        return UiComposer(
+          key: ValueKey(
+            '${widget.name}:${data['context']}:${data['generation']}',
+          ),
+          state: data,
+          enabled: enabled && widget.onAction != null,
+          dispatch: (event) =>
+              _dispatch({...event, 'kind': 'composer', 'name': widget.name}),
+        );
+      case 'chat':
+        final projection = data['projection'] as Map? ?? const {};
+        final transcript = UiChatTranscript(
+          key: ValueKey('${projection['source']}:${projection['generation']}'),
+          messages: [
+            for (final message
+                in (projection['messages'] as List? ?? const [])
+                    .whereType<Map>())
+              Map<String, dynamic>.from(message),
+          ],
+          markdown: _markdown,
+        );
+        final actions = (projection['actions'] as List? ?? const [])
+            .whereType<Map>()
+            .toList();
+        return Column(
+          children: [
+            Expanded(child: transcript),
+            if (actions.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    for (final action in actions)
+                      OutlinedButton(
+                        onPressed:
+                            enabled &&
+                                widget.onAction != null &&
+                                action['enabled'] != false
+                            ? () => unawaited(
+                                _dispatch({
+                                  'kind': 'chat',
+                                  'name': widget.name,
+                                  'action': action['id'],
+                                  'context': projection['source'],
+                                  'revision': projection['generation'],
+                                }).catchError((Object _) {}),
+                              )
+                            : null,
+                        child: Text('${action['label'] ?? ''}'),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        );
       case 'surface':
       case 'layout':
         if (children.isEmpty) return const SizedBox.shrink();
@@ -296,7 +365,7 @@ class _NeuronViewState extends State<NeuronView> {
         }
         final horizontal =
             definition['mode'] == 'row' || definition['mode'] == 'split';
-        return Flex(
+        final flex = Flex(
           direction: horizontal ? Axis.horizontal : Axis.vertical,
           spacing: gap,
           children: [
@@ -318,6 +387,33 @@ class _NeuronViewState extends State<NeuronView> {
               else
                 Expanded(child: children[i]),
           ],
+        );
+        if (horizontal) return flex;
+        final extents = definition['extents'] as List? ?? const [];
+        if (!extents.any((extent) => extent is num && extent > 0)) {
+          return flex;
+        }
+        // Keep declared controls reachable when their fixed extents exceed the
+        // viewport. Flexible panes retain room for content and action controls.
+        final minimumHeight =
+            gap * (children.length - 1) +
+            List.generate(children.length, (index) {
+              final extent = extents.elementAtOrNull(index);
+              return extent is num && extent > 0 ? extent.toDouble() : 96.0;
+            }).fold(0.0, (sum, extent) => sum + extent);
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            if (!constraints.hasBoundedHeight) return flex;
+            return SingleChildScrollView(
+              primary: false,
+              child: SizedBox(
+                height: constraints.maxHeight < minimumHeight
+                    ? minimumHeight
+                    : constraints.maxHeight,
+                child: flex,
+              ),
+            );
+          },
         );
       case 'text':
         return _markdown(definition['markdown'] as String? ?? '');

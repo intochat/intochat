@@ -9,6 +9,50 @@ public sealed class SandboxSessionFacts
     private const string Idle = "var brain = await DigitalBrainClient.ConnectAsync(args);\nawait Task.Delay(Timeout.Infinite, brain.Stopping);\n";
 
     [Fact(Timeout = 60_000)]
+    public async Task EnsuringAnExistingSessionRefreshesItsTokenWithoutReconnecting()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var edge = new FakeBrainEdge();
+        var compiled = BehaviorLoaderFacts.Compile(Idle);
+        edge.Serve(compiled);
+        var sessions = new Sessions(BehaviorLoaderFacts.Loader(edge), NullLoggerFactory.Instance, edge);
+        try
+        {
+            await sessions.StartAsync("b-1", new SessionStart("acc-brain", "s1", "old-token", FakeBrainEdge.Edge), ct);
+            edge.Push(AssignmentEvent.Kind, edge.Assignment("acc-brain/csharp/a", compiled));
+            await edge.StatusAsync("acc-brain/csharp/a", ct);
+
+            await sessions.StartAsync("b-1", new SessionStart("acc-brain", "s1", "new-token", FakeBrainEdge.Edge), ct);
+            edge.Push(AssignmentEvent.Kind, edge.Assignment("acc-brain/csharp/b", compiled));
+            await edge.StatusAsync("acc-brain/csharp/b", ct);
+
+            Assert.Equal("new-token", edge.RecordedReports.Last(item => item.Body["status"]?["behavior"]?.GetValue<string>() == "acc-brain/csharp/b").Token);
+            Assert.Single(edge.RecordedReports, item => item.Body["fingerprint"] is not null);
+        }
+        finally { await sessions.StopAsync("b-1"); }
+    }
+
+    [Fact(Timeout = 60_000)]
+    public async Task ANewTokenDuringConnectionIsUsedWhenTheOldTokenIsRefused()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var edge = new FakeBrainEdge { HoldReports = true, RequiredToken = "new-token" };
+        var compiled = BehaviorLoaderFacts.Compile(Idle);
+        edge.Serve(compiled);
+        var sessions = new Sessions(BehaviorLoaderFacts.Loader(edge), NullLoggerFactory.Instance, edge);
+        try
+        {
+            await sessions.StartAsync("b-1", new SessionStart("acc-brain", "s1", "old-token", FakeBrainEdge.Edge), ct);
+            await sessions.StartAsync("b-1", new SessionStart("acc-brain", "s1", "new-token", FakeBrainEdge.Edge), ct);
+            edge.Busy.SetResult();
+            edge.Push(AssignmentEvent.Kind, edge.Assignment("acc-brain/csharp/a", compiled));
+            await edge.StatusAsync("acc-brain/csharp/a", ct);
+            Assert.All(edge.RecordedReports, report => Assert.Equal("new-token", report.Token));
+        }
+        finally { edge.Busy.TrySetResult(); await sessions.StopAsync("b-1"); }
+    }
+
+    [Fact(Timeout = 60_000)]
     public async Task AnAssignEventLoadsAndARetireEventUnloads()
     {
         var ct = TestContext.Current.CancellationToken;

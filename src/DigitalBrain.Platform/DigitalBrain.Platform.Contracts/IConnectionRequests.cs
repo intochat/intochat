@@ -10,11 +10,27 @@ public interface IConnectionRequests : INeuron
 
     [ReadOnly] Task<ConnectionRef[]> ListPending();
 
+    // Keyed by the current brain. Describes existing connections without opening credentials.
+    [ReadOnly] Task<ConnectionSummary[]> ListConnections();
+
     Task<ConnectionRef> Request(string kind);
 }
 
 [GenerateSerializer, Alias("integrations.kind")]
 public sealed record ConnectorKind([property: Id(0)] string Id, [property: Id(1)] string DisplayName);
 
+[GenerateSerializer, Alias("integrations.connection-summary")]
+public sealed record ConnectionSummary(
+    [property: Id(0)] string Kind,
+    [property: Id(1)] string Id,
+    [property: Id(2)] string Neuron,
+    [property: Id(3)] string Status,
+    [property: Id(4)] string? Account,
+    [property: Id(5)] DateTimeOffset? LastProbedAt);
+
 [GenerateSerializer, Alias("integrations.account-requested")]
 public sealed record ConnectionRequested([property: Id(0)] string Kind, [property: Id(1)] string Id) : Signal;
+
+// Invalidation only: consumers re-read the catalog; no credential or provider detail is carried.
+[GenerateSerializer, Alias("integrations.connections-changed")]
+public sealed record ConnectionsChanged([property: Id(0)] long Revision) : Signal;

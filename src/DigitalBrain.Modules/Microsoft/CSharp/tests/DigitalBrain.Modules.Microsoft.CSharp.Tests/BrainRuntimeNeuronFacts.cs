@@ -1,4 +1,5 @@
 using DigitalBrain.Client.Runtime;
+using DigitalBrain.Client.Runtime.V1;
 using DigitalBrain.Microsoft.CSharp.Edge;
 using DigitalBrain.Microsoft.CSharp.Files;
 using DigitalBrain.Microsoft.CSharp.Runtime;
@@ -10,6 +11,41 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
 public sealed class BrainRuntimeNeuronFacts
 {
+    [Fact]
+    public async Task AcknowledgementBatchesPersistIndependentWatermarksAndRejectInvalidBatches()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        var runtime = Edge(brain);
+        await runtime.Assign("acc-brain/csharp/a", "hash-a", [], null, null);
+        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
+        var one = brain.Get<IPinger>("one");
+        var two = brain.Get<IPinger>("two");
+        var first = await runtime.Subscribed(session, "acc-brain/csharp/a", one.GetGrainId().ToString(), nameof(Pinged));
+        var second = await runtime.Subscribed(session, "acc-brain/csharp/a", two.GetGrainId().ToString(), nameof(Pinged));
+        await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
+        await one.Ping(1); await changes.NextAsync(ct: ct);
+        await one.Ping(2); await changes.NextAsync(ct: ct);
+        await two.Ping(3); await changes.NextAsync(ct: ct);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => runtime.AcknowledgeMany("stale", [new(first, 2)]));
+        foreach (var invalid in new AcknowledgeReport[][] { [], [new(first, 2), null!], [new(first, -1)],
+            [new("", 1)], Enumerable.Repeat(new AcknowledgeReport(first, 1), RuntimeProtocol.MaximumAcknowledgements + 1).ToArray() })
+        { await Assert.ThrowsAnyAsync<ArgumentException>(() => runtime.AcknowledgeMany(session, invalid)); }
+        Assert.Equal(3, (await runtime.PendingBatches(session)).Sum(batch => batch.Signals.Length));
+        await runtime.AcknowledgeMany(session, [new(first, 1), new(second, 0), new("retired", 99), new(first, 1)]);
+        var pending = await runtime.PendingBatches(session);
+        Assert.Equal(2, pending.Count);
+        Assert.Equal(2, SignalJson.Number(Assert.Single(pending.Single(batch => batch.Subscription == first).Signals)));
+        Assert.Equal(3, SignalJson.Number(Assert.Single(pending.Single(batch => batch.Subscription == second).Signals)));
+        await brain.DeactivateAsync(Runtime(brain), ct);
+        var resumed = (await Runtime(brain).Inspect(ct)).SessionId!;
+        Assert.Equal(2, (await runtime.PendingBatches(resumed)).Sum(batch => batch.Signals.Length));
+        await runtime.AcknowledgeMany(resumed, [new(first, 2), new(second, 1)]);
+        await brain.DeactivateAsync(Runtime(brain), ct);
+        resumed = (await Runtime(brain).Inspect(ct)).SessionId!;
+        Assert.Empty(await runtime.PendingBatches(resumed));
+    }
+
     private const string Brain = "acc-brain";
 
     [Fact]
@@ -96,6 +132,26 @@ public sealed class BrainRuntimeNeuronFacts
         await Edge(brain).Connected(session, "DigitalBrain=stale");
         Assert.Equal(SessionStatus.Refused, (await Runtime(brain).Inspect(ct)).Session);
         Assert.False((await Edge(brain).Authorize(session)).Active);
+    }
+
+    [Fact]
+    public async Task AReplacedSessionCannotResolveAStillAssignedBehavior()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var time = new MovableTime();
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, time: time);
+        const string behavior = "acc-brain/csharp/a";
+        await Edge(brain).Assign(behavior, "hash-a", [], null, null);
+        var stale = (await Runtime(brain).Inspect(ct)).SessionId!;
+        Assert.NotNull(await Edge(brain).Identity(stale, behavior));
+
+        time.Now += TimeSpan.FromMinutes(3);
+        await Runtime(brain).Touch(ct);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Edge(brain).Identity(stale, behavior));
+        var current = (await Runtime(brain).Inspect(ct)).SessionId!;
+        Assert.NotNull(await Edge(brain).Identity(current, behavior));
+        Assert.Null(await Edge(brain).Identity(current, "acc-brain/csharp/unassigned"));
     }
 
     [Fact]
@@ -218,6 +274,30 @@ public sealed class BrainRuntimeNeuronFacts
 
         var again = await host.NextAsync(FakeSessionHost.IsStart, ct);
         Assert.Equal(first.Body!["session"]!.GetValue<string>(), again.Body!["session"]!.GetValue<string>());
+    }
+
+    [Fact(Timeout = 30_000)]
+    public async Task ReactivationRelaunchesBehaviorsWithoutWaitingForAReminder()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new FakeSessionHost();
+        var time = new MovableTime();
+        await using var brain = await RuntimeBrain.StartAsync(host, ct, time: time);
+        await Edge(brain).Assign("acc-brain/csharp/a", "hash-a", [], null, null);
+        var first = await host.NextAsync(FakeSessionHost.IsStart, ct);
+        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
+        await Edge(brain).Connected(session, brain.SiloServices.GetRequiredService<ScriptContracts>().Fingerprint);
+        await brain.DeactivateAsync(Runtime(brain), ct);
+        time.Now += TimeSpan.FromSeconds(30);
+
+        var resumed = await Runtime(brain).Inspect(ct);
+        var again = await host.NextAsync(FakeSessionHost.IsStart, ct).WaitAsync(TimeSpan.FromSeconds(5), ct);
+
+        Assert.NotEqual(session, resumed.SessionId);
+        Assert.Equal(resumed.SessionId, again.Body!["session"]!.GetValue<string>());
+        Assert.NotEqual(first.Body!["token"]!.GetValue<string>(), again.Body["token"]!.GetValue<string>());
+        Assert.False((await Edge(brain).Authorize(session)).Active);
+        Assert.Single(resumed.Behaviors);
     }
 
     // Heartbeats are the detector: a session silent past the limit is replaced, and its token stops speaking.

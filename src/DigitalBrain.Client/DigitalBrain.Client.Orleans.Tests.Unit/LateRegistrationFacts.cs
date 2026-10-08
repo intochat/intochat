@@ -44,6 +44,7 @@ public sealed class LateSource : Grain, ILateSource
         return _activation;
     }
     public Task Unwatch(INeuronObserver observer) { _members.Remove(observer); return Task.CompletedTask; }
+    public Task<Guid> Watch(INeuronObserver observer, string[] signals) => Watch(observer);
 }
 
 public sealed class LateRegistrationFacts

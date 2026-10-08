@@ -1,6 +1,5 @@
 using DigitalBrain.AI;
 using DigitalBrain.AI.Models;
-using DigitalBrain.AI.Models.Scripted;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -31,19 +30,6 @@ public sealed class ModelCatalogFacts
             .WithRegistrations(AiRegistrationSeeds.OpenAI()).StartAsync(ct);
         var resolved = await Catalog(brain).Resolve(new("work"), requiresTools: true, ct);
         Assert.Equal((AiProvider.OpenAI, "private-chat", "https://private.example/v1", "work"), (resolved.Provider, resolved.Model, resolved.Endpoint, resolved.Profile));
-    }
-
-    [Fact]
-    public async Task AScriptedKeyResolvesWithoutAnyProviderAndCreatesTheScriptedClient()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>().StartAsync(ct);
-        await brain.Get<IScriptedLLM>("turn-model").Script(["ok"]);
-        var resolved = await Catalog(brain).Resolve(new(IScriptedLLM.ModelPrefix + "turn-model"), requiresTools: true, ct);
-        Assert.Equal((AiProvider.Scripted, "turn-model"), (resolved.Provider, resolved.Model));
-        using var client = await Catalog(brain).CreateClient(resolved, ct);
-        var reply = await client.GetResponseAsync([new(global::Microsoft.Extensions.AI.ChatRole.User, "hi")], cancellationToken: ct);
-        Assert.Equal("ok", reply.Text);
     }
 
     [Fact]

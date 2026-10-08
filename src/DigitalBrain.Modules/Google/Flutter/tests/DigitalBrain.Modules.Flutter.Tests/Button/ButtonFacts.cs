@@ -18,7 +18,12 @@ public sealed class ButtonFacts
         await using var clicks = await brain.Observe<ButtonClicked>(button, ct);
         await button.Set("Open", "navigate:docs");
         await button.Click();
-        Assert.Equal("navigate:docs", (await clicks.NextAsync(ct: ct)).Action);
-        Assert.Equal(1, (await button.Read()).ClickCount);
+        var first = await clicks.NextAsync(ct: ct);
+        Assert.Equal("navigate:docs", first.Action);
+        Assert.NotEqual(Guid.Empty, first.RequestId);
+        await button.Click();
+        var second = await clicks.NextAsync(ct: ct);
+        Assert.NotEqual(first.RequestId, second.RequestId);
+        Assert.Equal(2, (await button.Read()).ClickCount);
     }
 }

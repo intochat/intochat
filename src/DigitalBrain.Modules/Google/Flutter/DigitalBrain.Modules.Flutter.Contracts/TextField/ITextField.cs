@@ -8,6 +8,7 @@ public interface ITextField : INeuron
 {
     Task Configure(string label, string kind, string? submitButton = null);
     Task SetValue(string value);
+    Task<bool> TrySetValue(string value, int expectedVersion);
     Task Input(string value);
     [ReadOnly, Alias("read")] Task<TextFieldState> Read();
 }

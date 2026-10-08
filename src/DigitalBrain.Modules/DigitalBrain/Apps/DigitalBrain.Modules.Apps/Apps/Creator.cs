@@ -144,7 +144,7 @@ internal sealed class Creator(
             await app.Progress($"round {round + 1}: {string.Join(", ", calls.Select(call => call.Name))}");
             var results = new List<AiContent>();
             foreach (var call in calls) { results.Add(new AiToolResult(call.CallId, await ExecuteBuilderTool(call, cancellationToken))); }
-            messages.Add(new AiMessage("tool", results));
+            messages.Add(new AiMessage("tool", results.ToArray()));
         }
         throw new InvalidDataException($"The Builder used tools for {MaxBuilderRounds} rounds without producing the implementation.");
     }

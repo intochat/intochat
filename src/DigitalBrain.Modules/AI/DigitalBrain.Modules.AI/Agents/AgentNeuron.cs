@@ -1,7 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
-using DigitalBrain;
 using DigitalBrain.AI.Agents.Signals;
 using DigitalBrain.AI.Inference;
 using DigitalBrain.AI.Models;
@@ -9,7 +8,6 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Metering;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Orleans.Runtime;
 
 namespace DigitalBrain.AI.Agents;
 
@@ -24,6 +22,7 @@ internal sealed record AgentStorage
     [Id(3)] public string? Summary { get; init; }
     [Id(4)] public AgentRun? ActiveRun { get; init; }
     [Id(5)] public AgentRun[] Runs { get; init; } = [];
+    [Id(6)] public long Version { get; init; }
 }
 
 [GrainType("agent")]
@@ -39,6 +38,11 @@ internal sealed class AgentNeuron(
     private string? _cancelBeforeDrive;
     private bool _mutating;
     private AgentStorage State => store.State;
+    // Commands still see the in-flight reservation (for admission and cancellation), but
+    // interleaving readers must not expose a version before its write has committed.
+    private AgentStorage? _beforeWrite;
+    private TaskCompletionSource? _write;
+    private AgentStorage Committed => _beforeWrite ?? State;
     private string Key => this.GetPrimaryKeyString();
     // The brain the access check sees is the tools' and the meter's.
     private string Scope => NeuronAccess.ForBrainKey(Key).Scope ?? Key;
@@ -89,9 +93,18 @@ internal sealed class AgentNeuron(
         finally { _mutating = false; }
     }
 
-    public Task<AgentState> Read() => Task.FromResult(new AgentState(State.Revision, State.Definition, State.Summary, State.ActiveRun, [.. State.Runs]));
+    public async Task<AgentState> Read()
+    {
+        if (_write is { } pending) { await pending.Task; }
+        var state = Committed;
+        return new AgentState(state.Revision, state.Definition, state.Summary, state.ActiveRun, [.. state.Runs]) { Version = state.Version };
+    }
 
-    public Task<AiMessage[]> Transcript() => Task.FromResult<AiMessage[]>([.. State.Transcript]);
+    public async Task<AiMessage[]> Transcript()
+    {
+        if (_write is { } pending) { await pending.Task; }
+        return [.. Committed.Transcript];
+    }
 
     public Task Cancel()
     {
@@ -99,6 +112,12 @@ internal sealed class AgentNeuron(
         // A started run whose driver has not picked it up yet is cancelled when it does.
         else if (State.ActiveRun is { } pending) { _cancelBeforeDrive = pending.RunId; }
         return Task.CompletedTask;
+    }
+
+    public Task CancelRun(string runId)
+    {
+        // A delayed/replayed UI command must never cancel a later turn.
+        return State.ActiveRun?.RunId == runId ? Cancel() : Task.CompletedTask;
     }
 
     public async Task Clear()
@@ -212,6 +231,8 @@ internal sealed class AgentNeuron(
                             break;
                         case AgentTurnEvent.Text delta:
                             text.Append(delta.Content);
+                            run = run with { Reply = text.ToString() };
+                            await Persist(State with { ActiveRun = run });
                             await Notify(new TurnProgressed(Key, runId, "text", delta.Content, null, null, ++sequence));
                             break;
                         case AgentTurnEvent.ToolStarted tool:
@@ -220,9 +241,14 @@ internal sealed class AgentNeuron(
                             await Notify(new TurnProgressed(Key, runId, "tool-call", null, tool.Name, tool.Arguments, ++sequence));
                             break;
                         case AgentTurnEvent.ToolCompleted tool:
-                            run = run with { ToolCalls = Settle(run.ToolCalls, tool.CallId, call => call with { Result = tool.Result }) };
+                            var refusal = ToolRefusal(tool.Result);
+                            run = run with
+                            {
+                                ToolCalls = Settle(run.ToolCalls, tool.CallId,
+                                call => call with { Result = tool.Result, Code = refusal?.Code, Error = refusal?.Message })
+                            };
                             await Persist(State with { ActiveRun = run });
-                            await Notify(new TurnProgressed(Key, runId, "tool-result", null, tool.Name, tool.Result, ++sequence));
+                            await Notify(new TurnProgressed(Key, runId, "tool-result", refusal?.Message, tool.Name, tool.Result, ++sequence));
                             if (Card(tool.Result) is { } card) { await Notify(new TurnProgressed(Key, runId, "card", null, tool.Name, card, ++sequence)); }
                             break;
                         case AgentTurnEvent.ToolFailed tool:
@@ -266,9 +292,10 @@ internal sealed class AgentNeuron(
                         : failure?.Message ?? (yielding ? "The response stream was abandoned." : "Execution failed before committing its result.");
                     run = Close(run, cancelled ? AgentRunStatus.Cancelled : AgentRunStatus.Failed, error, cancelled ? "tool_cancelled" : "tool_interrupted");
                     // The end is announced whether or not it could be stored: a Start caller must never wait forever.
+                    var persisted = true;
                     try { await Persist(State with { ActiveRun = null, Runs = Keep(State.Runs, run) }); }
-                    catch (Exception persist) { Abandon(persist, runId); }
-                    await Notify(new TurnFailed(Key, runId, error, cancelled));
+                    catch (Exception persist) { persisted = false; Abandon(persist, runId); }
+                    await Notify(new TurnFailed(Key, runId, error, cancelled), persisted);
                 }
             }
             finally
@@ -291,7 +318,7 @@ internal sealed class AgentNeuron(
         if (turn.RunId is { Length: > 200 }) { throw new ArgumentException("A run id has at most 200 characters.", nameof(turn)); }
         _ = InferenceMapping.ToChatMessage(message);
         var runId = string.IsNullOrWhiteSpace(turn.RunId) ? Guid.NewGuid().ToString("N") : turn.RunId;
-        if (State.Runs.FirstOrDefault(run => run.RunId == runId) is { } retained)
+        if (Committed.Runs.FirstOrDefault(run => run.RunId == runId) is { } retained)
         {
             // A retained run id replays only for the same text; another text must never get an unrelated answer.
             if (retained.UserText != UserText(message)) { throw new InvalidOperationException("Run ID already belongs to another message."); }
@@ -309,7 +336,7 @@ internal sealed class AgentNeuron(
 
     private static string UserText(AiMessage message) => string.Concat(message.Content.OfType<AiText>().Select(text => text.Text));
 
-    // ToArray, not a collection expression: targeting IReadOnlyList, [..] builds a wrapper type storage cannot read back.
+    // Snapshot input content before committing it to durable history.
     private static AiMessage Stored(AiMessage message) => new(message.Role, message.Content.ToArray());
 
     // A committed tool result keeps a bounded preview: the turn that called the tool saw all of it,
@@ -369,15 +396,52 @@ internal sealed class AgentNeuron(
     private async Task Persist(AgentStorage next)
     {
         var previous = store.State;
-        store.State = next;
+        var writing = _write = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _beforeWrite = previous;
+        store.State = next with { Version = previous.Version + 1 };
         try { await store.WriteStateAsync(); }
         catch { store.State = previous; throw; }
+        finally
+        {
+            _beforeWrite = null;
+            _write = null;
+            writing.TrySetResult();
+        }
     }
 
-    private async Task Notify(Signal signal)
+    private async Task Notify(Signal signal, bool persisted = true)
     {
+        // Failed persistence needs a fresh Read to reactivate/recover the abandoned run,
+        // even when a consumer already projected the last committed version.
+        var version = persisted ? Committed.Version : 0;
+        signal = signal switch
+        {
+            TurnStarted started => started with { Version = version },
+            TurnProgressed progressed => progressed with { Version = version },
+            TurnCompleted completed => completed with { Version = version },
+            TurnFailed failed => failed with { Version = version },
+            _ => signal,
+        };
         try { await PublishAsync(signal); }
         catch (Exception error) { Logger.LogWarning(error, "Agent signal delivery failed; consumers can reconcile through Read and Transcript."); }
+    }
+
+    // Recoverable tool refusals are results so the model can continue, but their activity
+    // still failed. Keep the original result alongside the diagnostic used by projections.
+    private static (string Code, string Message)? ToolRefusal(string result)
+    {
+        try
+        {
+            using var payload = JsonDocument.Parse(result);
+            var root = payload.RootElement;
+            if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("isError", out var error)
+                || error.ValueKind != JsonValueKind.True) { return null; }
+            var code = root.TryGetProperty("code", out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+            var message = root.TryGetProperty("message", out value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+            return (string.IsNullOrWhiteSpace(code) ? "tool_error" : code,
+                string.IsNullOrWhiteSpace(message) ? "The tool reported an error." : message);
+        }
+        catch (JsonException) { return null; }
     }
 
     // A tool result may carry a UI card on its "_ui" channel; the card is its own progress item.

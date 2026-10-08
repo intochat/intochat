@@ -60,7 +60,7 @@ internal sealed class BrainRuntimeNeuron(
     // The edge validated the session token before any of these; each re-checks the session id itself.
     public override NeuronAccess Access(string operation) =>
         operation is nameof(Authorize) or nameof(Identity) or nameof(Connected) or nameof(Heartbeat) or nameof(Subscribed)
-            or nameof(Acknowledge) or nameof(Reported) or nameof(PendingBatches) or nameof(Assignments)
+            or nameof(Acknowledge) or nameof(AcknowledgeMany) or nameof(Reported) or nameof(PendingBatches) or nameof(Assignments)
             ? NeuronAccess.PublicOperation
             : base.Access(operation);
 
@@ -109,9 +109,12 @@ internal sealed class BrainRuntimeNeuron(
         => Task.FromResult(new SessionAuthorization(Speaks(session), Brain));
 
     public Task<BehaviorIdentity?> Identity(string session, string behavior)
-        => Task.FromResult(Speaks(session) && Snapshot.Behaviors.FirstOrDefault(existing => existing.Id == behavior) is { } found
+    {
+        RequireSpeaking(session);
+        return Task.FromResult(Snapshot.Behaviors.FirstOrDefault(existing => existing.Id == behavior) is { } found
             ? new BehaviorIdentity(found.Owner, found.AppId)
             : null);
+    }
 
     // A host built from other contracts must not load behaviors compiled against these: it is refused,
     // stopped, and the reason stays in the session record.
@@ -149,9 +152,16 @@ internal sealed class BrainRuntimeNeuron(
             await Save(Snapshot with { Subscriptions = [.. Snapshot.Subscriptions, existing] }, Changed());
             await WatchSourcesAsync();
         }
-        // A reloaded behavior subscribes again: what waited for it while it was down goes out now.
-        else if (existing.Pending.Length > 0 && Snapshot.Session is { Status: SessionStatus.Connected })
-        { streams.TryPush(session, SignalBatchEvent.Kind, Batch(existing)); }
+        else
+        {
+            // Persistence can succeed before source registration fails. A retry is ready only
+            // after the source has accepted the current selection, including the saved addition.
+            await GrainFactory.GetGrain<INeuron>(GrainId.Parse(neuron)).Watch(this.AsReference<INeuronObserver>(),
+                Snapshot.Subscriptions.Where(s => s.Neuron == neuron).Select(s => s.Signal).Distinct(StringComparer.Ordinal).ToArray());
+            // A reloaded behavior gets what waited while it was down without another arrival.
+            if (existing.Pending.Length > 0 && Snapshot.Session is { Status: SessionStatus.Connected })
+            { streams.TryPush(session, SignalBatchEvent.Kind, Batch(existing)); }
+        }
         return existing.Id;
     }
 
@@ -163,6 +173,26 @@ internal sealed class BrainRuntimeNeuron(
         var trimmed = found.Acknowledge(watermark);
         if (trimmed.Delivered == found.Delivered) { return; }
         await Save(Snapshot with { Subscriptions = [.. Snapshot.Subscriptions.Select(s => s == found ? trimmed : s)] }, Changed());
+    }
+
+    public async Task AcknowledgeMany(string session, AcknowledgeReport[] acknowledgements)
+    {
+        RequireSpeaking(session);
+        ArgumentNullException.ThrowIfNull(acknowledgements);
+        if (acknowledgements.Length is 0 or > RuntimeProtocol.MaximumAcknowledgements
+            || acknowledgements.Any(ack => ack is null || string.IsNullOrWhiteSpace(ack.Subscription) || ack.Watermark < 0))
+        { throw new ArgumentException("An acknowledgement batch needs 1 to 256 valid subscription watermarks.", nameof(acknowledgements)); }
+        var watermarks = acknowledgements.GroupBy(ack => ack.Subscription, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Max(ack => ack.Watermark), StringComparer.Ordinal);
+        var changed = false;
+        var next = Snapshot.Subscriptions.Select(subscription =>
+        {
+            if (!watermarks.TryGetValue(subscription.Id, out var watermark)) { return subscription; }
+            var trimmed = subscription.Acknowledge(watermark);
+            changed |= trimmed.Delivered != subscription.Delivered;
+            return trimmed;
+        }).ToArray();
+        if (changed) { await Save(Snapshot with { Subscriptions = next }, Changed()); }
     }
 
     // Failures are per behavior: a crashing one is reloaded after a backoff until it has failed
@@ -267,19 +297,22 @@ internal sealed class BrainRuntimeNeuron(
 
     // A source's own signal may be what activated this runtime, so watching it now would deadlock;
     // the renewal timer's first tick watches it right after activation instead.
-    internal void ResumeWatches()
+    internal Task ResumeAsync()
     {
         if (Snapshot.Subscriptions.Length > 0) { RenewSourceWatches(dueTime: TimeSpan.Zero); }
+        // Signals may have arrived while watches were absent. Relaunch disposable behaviors so
+        // their subscribe-then-read recovery runs against durable state, with fresh credentials.
+        return Snapshot.Behaviors.Length > 0 ? EnsureSessionAsync(restart: true) : Task.CompletedTask;
     }
 
     // A new session id per launch: the previous session's token stops speaking for this brain.
     // One rule for assignment, sign-in and the reminder. A missing, refused or silent session is replaced by
-    // a new one (the old token stops speaking); a live one is ensured again, which the host treats as a no-op
-    // unless it lost the session. Heartbeats are the detector; nothing here probes the host.
-    private async Task EnsureSessionAsync()
+    // a new one (the old token stops speaking); a live one is ensured again, refreshing its token or
+    // restoring it if the host lost it. Heartbeats are the detector; nothing here probes the host.
+    private async Task EnsureSessionAsync(bool restart = false)
     {
         var session = Snapshot.Session;
-        if (session is null || session.Status == SessionStatus.Refused || Silent(session))
+        if (restart || session is null || session.Status == SessionStatus.Refused || Silent(session))
         {
             session = new(Guid.NewGuid().ToString("N"), SessionStatus.Starting, null, null, time.GetUtcNow(), time.GetUtcNow());
             await Save(Snapshot with { Session = session }, Changed());
@@ -367,7 +400,8 @@ internal sealed class BrainRuntimeNeuron(
         RenewSourceWatches(dueTime: ObserverRenewal);
         var observer = this.AsReference<INeuronObserver>();
         foreach (var source in previous.Where(source => !_watched.ContainsValue(source))) { await source.Unwatch(observer); }
-        foreach (var source in _watched.Values) { await source.Watch(observer); }
+        foreach (var (key, source) in _watched)
+        { await source.Watch(observer, Snapshot.Subscriptions.Where(s => s.Neuron == key).Select(s => s.Signal).Distinct(StringComparer.Ordinal).ToArray()); }
     }
 
     // One watch per distinct source across every behavior. Sources keep observers for a lease; renewing
@@ -379,10 +413,15 @@ internal sealed class BrainRuntimeNeuron(
         foreach (var source in sources.Where(source => !_watched.ContainsKey(source)))
         { _watched[source] = GrainFactory.GetGrain<INeuron>(GrainId.Parse(source)); }
         var observer = this.AsReference<INeuronObserver>();
-        var watched = _watched.Values.ToArray();
+        var watched = _watched.ToArray();
         _watchRenewal?.Dispose();
         _watchRenewal = watched.Length == 0 ? null : this.RegisterGrainTimer(
-            async _ => { foreach (var source in watched) { await source.Watch(observer); } },
-            new GrainTimerCreationOptions { DueTime = dueTime, Period = ObserverRenewal, Interleave = true, KeepAlive = true });
+            async _ =>
+            {
+                foreach (var (key, source) in watched)
+                { await source.Watch(observer, Snapshot.Subscriptions.Where(s => s.Neuron == key).Select(s => s.Signal).Distinct(StringComparer.Ordinal).ToArray()); }
+            },
+            // Serialize renewal with subscription changes so an old selection cannot overwrite a new one.
+            new GrainTimerCreationOptions { DueTime = dueTime, Period = ObserverRenewal, KeepAlive = true });
     }
 }

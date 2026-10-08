@@ -1,12 +1,17 @@
 using System.Text.Json;
+using System.Globalization;
 using DigitalBrain.Apps;
+using DigitalBrain.Apps.Signals;
+using DigitalBrain.Client;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Card;
 using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.TextField;
+using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Time.Reminders;
+using DigitalBrain.Postgres;
 
 
 // Every window is derived from the registry, so composing is
@@ -17,13 +22,18 @@ var app = brain.Get<IApp>(appKey);
 var registry = brain.Get<IText>(appKey + "/views");
 var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 
-await foreach (var invoked in app.Invocations(brain, brain.Stopping))
+await foreach (var _ in brain.On<AppInvoked>(app, Reconcile, brain.Stopping)) { await Reconcile(); }
+
+async Task Reconcile()
 {
-    try { await app.Respond(new AppResponse(invoked.InvocationId, await Answer(invoked.Operation, invoked.Input), null)); }
-    catch (Exception error) { await app.Respond(new AppResponse(invoked.InvocationId, null, error.Message)); }
+    foreach (var request in (await app.Pending()).Where(item => item.Operation != "refresh"))
+    {
+        try { await app.Respond(new(request.Id, await Answer(request.Id, request.Operation, request.Input), null)); }
+        catch (Exception error) when (!brain.Stopping.IsCancellationRequested) { await app.Respond(new(request.Id, null, error.Message)); }
+    }
 }
 
-async Task<string> Answer(string operation, string input)
+async Task<string> Answer(Guid invocationId, string operation, string input)
 {
     switch (operation)
     {
@@ -42,13 +52,15 @@ async Task<string> Answer(string operation, string input)
             if (source != "sql" && !source.StartsWith("apptable:", StringComparison.Ordinal)) { throw new ArgumentException("source is sql or apptable:<tableId>."); }
             var sql = request.TryGetProperty("sql", out var s) ? s.GetString() ?? "" : "";
             if (source == "sql" && sql.Length is 0 or > 20_000) { throw new ArgumentException("A SQL view needs 1-20000 characters of SQL."); }
-            var filters = request.TryGetProperty("filters", out var f) ? f.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => x.Length > 0).Take(16).ToArray() : [];
+            var filters = request.TryGetProperty("filters", out var f) ? f.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => x.Length > 0).Distinct(StringComparer.Ordinal).Take(16).ToArray() : [];
             var refresh = request.TryGetProperty("refreshSeconds", out var r) && r.TryGetInt32(out var seconds) ? Math.Clamp(seconds, 0, 86_400) : 0;
-            var view = new View("v-" + Guid.NewGuid().ToString("N")[..12], request.GetProperty("title").GetString() ?? "View", kind, source, sql, filters, refresh);
-            var views = (await Views()).Append(view).ToArray();
+            var view = new View("v-" + invocationId.ToString("N"), request.GetProperty("title").GetString() ?? "View", kind, source, sql, filters, refresh);
+            var existing = await Views();
+            var views = existing.Any(item => item.Id == view.Id) ? existing : existing.Append(view).ToArray();
             await Compose(view);
             await Save(views);
             await ComposeHome(views);
+            await Refresh(view.Id);
             return JsonSerializer.Serialize(new { view = view.Id, window = new { id = $"{appKey}/views/{view.Id}/window", title = view.Title, surface = $"{appKey}/views/{view.Id}/surface" } }, json);
         }
         case "refine":
@@ -57,45 +69,103 @@ async Task<string> Answer(string operation, string input)
             var id = request.GetProperty("view").GetString() ?? "";
             var views = await Views();
             var view = views.FirstOrDefault(v => v.Id == id) ?? throw new InvalidOperationException("No view " + id);
-            if (request.TryGetProperty("filters", out var values))
+            var changed = view;
+            if (request.TryGetProperty("sql", out var sql))
+            {
+                var text = sql.GetString() ?? view.Sql;
+                if (view.Source == "sql" && text.Length is 0 or > 20_000) { throw new ArgumentException("A SQL view needs 1-20000 characters of SQL."); }
+                changed = changed with { Sql = text };
+            }
+            var hasValues = request.TryGetProperty("filters", out var values);
+            if (hasValues)
+            {
+                if (values.ValueKind != JsonValueKind.Object || values.EnumerateObject().Any(property => property.Value.ValueKind is not (JsonValueKind.String or JsonValueKind.Null)))
+                { throw new ArgumentException("Filter values must be strings or null (clear)."); }
+                var columns = view.Filters.Concat(values.EnumerateObject().Select(property => property.Name)).Distinct(StringComparer.Ordinal).ToArray();
+                if (columns.Length > 16 || columns.Any(column => string.IsNullOrWhiteSpace(column) || column.Length > 128))
+                { throw new ArgumentException("Use at most 16 nonempty output-column filters, each at most 128 characters."); }
+                changed = changed with { Filters = columns };
+            }
+            if (request.TryGetProperty("filterColumns", out var filterColumns))
+            {
+                if (filterColumns.ValueKind != JsonValueKind.Array || filterColumns.EnumerateArray().Any(item => item.ValueKind != JsonValueKind.String))
+                { throw new ArgumentException("filterColumns must be an array of output-column names."); }
+                var columns = filterColumns.EnumerateArray().Select(item => item.GetString()!).Distinct(StringComparer.Ordinal).ToArray();
+                if (columns.Length > 16 || columns.Any(column => string.IsNullOrWhiteSpace(column) || column.Length > 128)
+                    || (hasValues && values.EnumerateObject().Any(property => !columns.Contains(property.Name))))
+                { throw new ArgumentException("Use at most 16 valid filter columns and supply values only for those columns."); }
+                changed = changed with { Filters = columns };
+            }
+            if (changed.Source == "sql" && changed.Filters.Length > 0)
+            {
+                var connection = brain.Setting("Account__db") ?? "";
+                if (connection.Length == 0) { throw new InvalidOperationException("Connect a Postgres database to this app."); }
+                var sourceSql = changed.Sql.Trim().TrimEnd(';');
+                var schema = await brain.Get<IPostgresServer>($"connection/{brain.Setting("Brain")}/postgres/{connection}")
+                    .Query(new($"select * from ({sourceSql}) as filter_source limit 0", 1));
+                if (changed.Filters.Any(column => !schema.Columns.Any(output => output.Name == column)))
+                { throw new ArgumentException("Every filter must name an output column of the view query."); }
+            }
+            if (request.TryGetProperty("linkFiltersTo", out var link))
+            {
+                var sourceId = link.GetString();
+                var source = views.FirstOrDefault(item => item.Id == sourceId) ?? throw new ArgumentException("The filter source view does not exist.");
+                if (changed.Filters.Any(column => !source.Filters.Contains(column)))
+                { throw new ArgumentException("Linked filters must name output columns declared by the source view."); }
+                changed = changed with { FilterGroup = source.FilterGroup ?? source.Id };
+            }
+            // Composition only configures fields; it preserves their current values.
+            await Compose(changed);
+            await Save(views.Select(item => item.Id == id ? changed : item).ToArray());
+            if (hasValues)
             {
                 foreach (var property in values.EnumerateObject())
                 {
-                    if (view.Filters.Contains(property.Name)) { await brain.Get<ITextField>($"{appKey}/views/{id}/filter/{property.Name}").SetValue(property.Value.GetString() ?? ""); }
+                    await brain.Get<ITextField>($"{appKey}/views/{changed.FilterGroup ?? changed.Id}/filter/{property.Name}")
+                        .SetValue(property.Value.GetString() ?? "");
                 }
             }
-            if (request.TryGetProperty("sql", out var sql))
-            {
-                var changed = view with { Sql = sql.GetString() ?? view.Sql };
-                await Save(views.Select(v => v.Id == id ? changed : v).ToArray());
-            }
-            else
-            {
-                // Filter fields changed, nothing in the registry did; a registry write is still the one
-                // signal the runner listens to.
-                await Save(views);
-            }
+            await Refresh(id);
             return JsonSerializer.Serialize(new { view = id }, json);
         }
         case "read":
         {
             var id = input.Trim();
-            _ = (await Views()).FirstOrDefault(v => v.Id == id) ?? throw new InvalidOperationException("No view " + id);
+            var view = (await Views()).FirstOrDefault(v => v.Id == id) ?? throw new InvalidOperationException("No view " + id);
+            await Refresh(id);
+            var status = await brain.Get<ICard>($"{appKey}/views/{id}/status").Read();
+            if (view.Kind == "chart")
+            {
+                var chart = await brain.Get<DigitalBrain.Flutter.Chart.IChart>($"{appKey}/views/{id}/chart").Read();
+                return JsonSerializer.Serialize(new { view = id, kind = "chart", chart.Title, chart.Points, status }, json);
+            }
             var table = await brain.Get<DigitalBrain.Flutter.Table.ITable>($"{appKey}/views/{id}/table").Read();
-            return JsonSerializer.Serialize(new { view = id, columns = table.Columns.Select(c => c.Id), rows = table.Rows }, json);
+            return JsonSerializer.Serialize(new { view = id, columns = table.Columns.Select(c => c.Id), rows = table.Rows, status }, json);
         }
         case "close":
         {
             var id = input.Trim();
             var views = await Views();
-            if (views.All(v => v.Id != id)) { throw new InvalidOperationException("No view " + id); }
+
             await brain.Get<IReminder>($"{appKey}/views/{id}/refresh").Stop();
             await Save(views.Where(v => v.Id != id).ToArray());
             await ComposeHome(views.Where(v => v.Id != id).ToArray());
+            var workspace = brain.Get<IWorkspace>(brain.Setting("Brain")!);
+            var current = await workspace.Read();
+            if (current.Windows.Any(window => window.IsOpen && window.Id == $"{appKey}/views/{id}/window"))
+            { await workspace.Close($"{appKey}/views/{id}/window", current.Revision); }
             return JsonSerializer.Serialize(new { closed = id }, json);
         }
         default: throw new ArgumentException("Unknown operation " + operation);
     }
+}
+
+async Task Refresh(string view)
+{
+    var id = Guid.NewGuid();
+    await app.Invoke(new(id, "refresh", view));
+    var response = await app.Await(id);
+    if (response.Error is not null) { throw new InvalidOperationException(response.Error); }
 }
 
 async Task<View[]> Views()
@@ -112,15 +182,15 @@ async Task Compose(View view)
     var children = new List<UiChildRef>();
     foreach (var column in view.Filters)
     {
-        await brain.Get<ITextField>($"{root}/filter/{column}").Configure(column, "text");
-        children.Add(new("textfield", $"{root}/filter/{column}"));
+        await brain.Get<ITextField>($"{appKey}/views/{view.FilterGroup ?? view.Id}/filter/{column}").Configure(CultureInfo.InvariantCulture.TextInfo.ToTitleCase(column.Replace('_', ' ')), "text");
+        children.Add(new("textfield", $"{appKey}/views/{view.FilterGroup ?? view.Id}/filter/{column}"));
     }
-    children.Add(new(view.Kind, $"{root}/{view.Kind}"));
     children.Add(new("card", $"{root}/status"));
+    children.Add(new(view.Kind, $"{root}/{view.Kind}"));
     var layout = brain.Get<ILayout>($"{root}/layout");
     var current = await layout.Read();
-    var definition = new LayoutDefinition("column", children.ToArray());
-    if (!Same(current.Definition.Children, definition.Children)) { await layout.Set(definition, current.Revision); }
+    var definition = new LayoutDefinition("list", children.ToArray());
+    if (current.Definition.Mode != definition.Mode || !Same(current.Definition.Children, definition.Children)) { await layout.Set(definition, current.Revision); }
     var surface = brain.Get<ISurface>($"{root}/surface");
     var state = await surface.Read();
     if (state.Definition.Title != view.Title || state.Definition.Children.Length != 1) { await surface.Set(new(view.Title, [new("layout", $"{root}/layout")]), state.Revision); }
@@ -141,4 +211,4 @@ async Task ComposeHome(View[] views)
 
 static bool Same(UiChildRef[] left, UiChildRef[] right) => left.Length == right.Length && left.Zip(right).All(pair => pair.First == pair.Second);
 
-sealed record View(string Id, string Title, string Kind, string Source, string Sql, string[] Filters, int RefreshSeconds);
+sealed record View(string Id, string Title, string Kind, string Source, string Sql, string[] Filters, int RefreshSeconds, string? FilterGroup = null);

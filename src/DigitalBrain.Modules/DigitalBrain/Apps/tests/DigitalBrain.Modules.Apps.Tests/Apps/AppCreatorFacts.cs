@@ -1,8 +1,9 @@
 using DigitalBrain.AI;
-using DigitalBrain.AI.Models.Scripted;
+using DigitalBrain.AI.Models.OpenAI;
 using DigitalBrain.Apps;
 using DigitalBrain.Apps.Signals;
 using DigitalBrain.Modules.Apps.Tests;
+using DigitalBrain.Testing.Model;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -13,6 +14,9 @@ namespace DigitalBrain.Apps.Tests.Apps;
 public sealed class AppCreatorFacts
 {
     private const string Brain = "app-creator-facts";
+
+    private const string Author = "gpt-5.6-luna";
+    private const string Builder = "gpt-5.6-sol";
 
     private const string Spec = """
         # Shouter
@@ -28,8 +32,9 @@ public sealed class AppCreatorFacts
     public async Task AuthorCreatesADraftedAppFromARequest()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await StartAsync(ct);
-        await brain.Get<IScriptedLLM>("author").Script([Authored(Spec)]);
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await StartAsync(model, ct);
+        model.Script(Author, Authored(Spec));
         var creator = brain.SiloServices.GetRequiredService<Creator>();
         var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
 
@@ -45,8 +50,9 @@ public sealed class AppCreatorFacts
     public async Task AuthorRevisesAnExistingAppsSpec()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await StartAsync(ct);
-        await brain.Get<IScriptedLLM>("author").Script([Authored(Spec), Authored(Spec + "\n\n## Scenario: It whispers\nQuietly.")]);
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await StartAsync(model, ct);
+        model.Script(Author, Authored(Spec), Authored(Spec + "\n\n## Scenario: It whispers\nQuietly."));
         var creator = brain.SiloServices.GetRequiredService<Creator>();
         var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
         await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
@@ -61,9 +67,10 @@ public sealed class AppCreatorFacts
     public async Task ImplementReturnsBuildingImmediatelyAndGoesLiveWhenTheBuilderFinishes()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await StartAsync(ct);
-        await brain.Get<IScriptedLLM>("author").Script([Authored(Spec)]);
-        await brain.Get<IScriptedLLM>("builder").Script([Built("// proof v1", "Shout in capitals.")]);
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await StartAsync(model, ct);
+        model.Script(Author, Authored(Spec));
+        model.Script(Builder, Built("// proof v1", "Shout in capitals."));
         var creator = brain.SiloServices.GetRequiredService<Creator>();
         var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
         await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
@@ -88,9 +95,11 @@ public sealed class AppCreatorFacts
     public async Task ABuilderCrashLandsAsFailedNotAsAnUnhandledException()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await StartAsync(ct);
-        await brain.Get<IScriptedLLM>("author").Script([Authored(Spec)]);
-        // No builder script at all: the scripted model throws when asked.
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await StartAsync(model, ct);
+        model.Script(Author, Authored(Spec));
+        // An empty builder script: the model answers 500.
+        model.Script(Builder);
         var creator = brain.SiloServices.GetRequiredService<Creator>();
         var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
         await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
@@ -108,14 +117,15 @@ public sealed class AppCreatorFacts
     public async Task ABuilderReplyWithEmptyOperationsKeepsTheAuthoredOnes()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await StartAsync(ct);
-        await brain.Get<IScriptedLLM>("author").Script([Authored(Spec)]);
-        await brain.Get<IScriptedLLM>("builder").Script([System.Text.Json.JsonSerializer.Serialize(new
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await StartAsync(model, ct);
+        model.Script(Author, Authored(Spec));
+        model.Script(Builder, System.Text.Json.JsonSerializer.Serialize(new
         {
             operations = Array.Empty<object>(),
             settings = new[] { new { name = "Model", description = "Who answers.", @default = "IGemma4" } },
             files = new Dictionary<string, string> { ["synapses/shout.cs"] = "// t" },
-        })]);
+        }));
         var creator = brain.SiloServices.GetRequiredService<Creator>();
         var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
         await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
@@ -134,13 +144,14 @@ public sealed class AppCreatorFacts
     public async Task ABuilderReplyWithOperationsButNoSettingsKeepsTheAuthoredSettings()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await StartAsync(ct);
-        await brain.Get<IScriptedLLM>("author").Script([Authored(Spec)]);
-        await brain.Get<IScriptedLLM>("builder").Script([System.Text.Json.JsonSerializer.Serialize(new
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await StartAsync(model, ct);
+        model.Script(Author, Authored(Spec));
+        model.Script(Builder, System.Text.Json.JsonSerializer.Serialize(new
         {
             operations = new[] { new { name = "shout", description = "Shout." } },
             files = new Dictionary<string, string> { ["synapses/shout.cs"] = "// t" },
-        })]);
+        }));
         var creator = brain.SiloServices.GetRequiredService<Creator>();
         var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
         await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
@@ -159,12 +170,12 @@ public sealed class AppCreatorFacts
     public async Task ABuilderThatCallsAToolGetsItsResultAndStillImplements()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await StartAsync(ct);
-        await brain.Get<IScriptedLLM>("author").Script([Authored(Spec)]);
-        await brain.Get<IScriptedLLM>("builder").Script([
-            """{"tool":"check_csharp","arguments":{"files":{"synapses/shout.cs":"var answer = 1;\nConsole.WriteLine(answer);"}}}""",
-            Built("// proof v1", "Shout in capitals."),
-        ]);
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await StartAsync(model, ct);
+        model.Script(Author, Authored(Spec));
+        model.Script(Builder,
+            FakeReply.Tool("check_csharp", """{"files":{"synapses/shout.cs":"var answer = 1;\nConsole.WriteLine(answer);"}}"""),
+            Built("// proof v1", "Shout in capitals."));
         var creator = brain.SiloServices.GetRequiredService<Creator>();
         var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
         await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
@@ -207,13 +218,14 @@ public sealed class AppCreatorFacts
         files = new Dictionary<string, string> { ["synapses/shout.cs"] = behaviorMarker, ["prompts/system.md"] = systemPrompt },
     });
 
-    private static Task<ModuleBrain> StartAsync(CancellationToken ct) => ModuleTest.Create()
+    private static Task<ModuleBrain> StartAsync(FakeModelServer model, CancellationToken ct) => ModuleTest.Create()
         .WithModule<AIModule>()
         .WithModule<AppsModule>()
+        .WithFakeModel(model)
         .ConfigureModule<AppsModule, AppsOptions>(apps =>
         {
-            apps.AuthorModel = IScriptedLLM.ModelPrefix + "author";
-            apps.BuilderModel = IScriptedLLM.ModelPrefix + "builder";
+            apps.AuthorModel = nameof(IGpt56Luna);
+            apps.BuilderModel = nameof(IGpt56Sol);
         })
         .ConfigureSilo(silo =>
         {

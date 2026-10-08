@@ -49,6 +49,7 @@ public sealed class RuntimeSignInFacts
         });
         try
         {
+            await brain.AuthorizeCallerAsync();
             foreach (var handler in brain.SiloServices.GetServices<ISignInHandler>()) { await handler.SignedIn(member, ct); }
         }
         finally { Orleans.Runtime.RequestContext.Clear(); }

@@ -3,6 +3,8 @@ using DigitalBrain.Client;
 using DigitalBrain.Client.Orleans;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Modules;
+using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Testing.Model;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 using Orleans.Hosting;
@@ -14,6 +16,7 @@ public sealed class ModuleTestBuilder
 {
     private readonly BrainCompositionBuilder _composition = new();
     private ModuleOptions _options = new();
+    private FakeModelServer? _model;
     private bool _started;
 
     public ModuleTestBuilder WithModule<TModule>(Action<ModuleConfiguration<TModule>>? configure = null)
@@ -58,6 +61,13 @@ public sealed class ModuleTestBuilder
         _options = _options with { Execution = execution };
         return this;
     }
+    // The OpenAI integration points at the fake: every model call runs the real adapter against it.
+    public ModuleTestBuilder WithFakeModel(FakeModelServer model)
+    {
+        EnsureMutable();
+        _model = model ?? throw new ArgumentNullException(nameof(model));
+        return this;
+    }
     public ModuleTestBuilder ConfigureSilo(Action<ISiloBuilder> configure)
     {
         EnsureMutable();
@@ -100,7 +110,18 @@ public sealed class ModuleTestBuilder
         EnsureMutable();
         var composition = _composition.Build();
         _started = true;
-        return ModuleTest.StartAsync(_options with
+        var options = _model is null ? _options : _options with
+        {
+            Execution = _options.Execution with
+            {
+                PrivateConfiguration = new Dictionary<string, string?>(_options.Execution.PrivateConfiguration)
+                {
+                    [IntegrationSchema.Key("openai", "ApiKey")] = "fake-model-key",
+                    [IntegrationSchema.Key("openai", "Endpoint")] = _model.Endpoint.AbsoluteUri,
+                },
+            },
+        };
+        return ModuleTest.StartAsync(options with
         {
             Modules = composition.Modules,
             ConfigureSilo = silo => { composition.ConfigureLocalServices(silo.Services); _options.ConfigureSilo?.Invoke(silo); },

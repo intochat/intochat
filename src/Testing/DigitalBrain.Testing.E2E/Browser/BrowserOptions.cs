@@ -4,9 +4,14 @@ using System.Runtime.CompilerServices;
 
 namespace DigitalBrain.Testing.E2E;
 
+// Where Chromium runs. A container needs only Docker; a local browser needs `playwright install`
+// and is what a person debugging wants, because only it can show a window.
+public enum BrowserLocation { Container, Local }
+
 public sealed record BrowserOptions
 {
     public bool? Headless { get; init; }
+    public BrowserLocation? Location { get; init; }
     public float? SlowMoMilliseconds { get; init; }
     // A shared host serves many facts, each opening its own context; an idle primary session
     // would keep syncing shell state against theirs. Turn it off to lease browsers per fact.
@@ -16,17 +21,24 @@ public sealed record BrowserOptions
 }
 
 internal sealed record ResolvedBrowserOptions(bool Headless, float SlowMoMilliseconds,
-    TimeSpan StartupTimeout, TimeSpan AssertionTimeout, bool PrimarySession);
+    TimeSpan StartupTimeout, TimeSpan AssertionTimeout, bool PrimarySession, BrowserLocation Location = BrowserLocation.Local);
 
 internal static class BrowserOptionsResolver
 {
-    internal static ResolvedBrowserOptions Resolve(BrowserOptions options, bool headedRequested, bool debuggerAttached)
+    internal static ResolvedBrowserOptions Resolve(BrowserOptions options, bool headedRequested, bool debuggerAttached,
+        string? locationRequested = null)
     {
         TestExecutionOptions.ValidateTimeout(options.StartupTimeout);
         TestExecutionOptions.ValidateTimeout(options.AssertionTimeout);
         var headless = options.Headless ?? !(headedRequested || debuggerAttached);
         var delay = options.SlowMoMilliseconds ?? (headless ? 0 : 250);
         if (!float.IsFinite(delay) || delay < 0) { throw new ArgumentOutOfRangeException(nameof(options)); }
-        return new(headless, delay, options.StartupTimeout, options.AssertionTimeout, options.PrimarySession);
+        var location = options.Location
+            ?? (Enum.TryParse<BrowserLocation>(locationRequested, ignoreCase: true, out var requested) ? requested
+                : !string.IsNullOrEmpty(locationRequested) ? throw new ArgumentException($"Unknown browser location '{locationRequested}'.", nameof(locationRequested))
+                : headless && !debuggerAttached ? BrowserLocation.Container : BrowserLocation.Local);
+        if (!headless && location == BrowserLocation.Container)
+        { throw new InvalidOperationException("A headed browser runs locally: a container browser cannot show a window."); }
+        return new(headless, delay, options.StartupTimeout, options.AssertionTimeout, options.PrimarySession, location);
     }
 }

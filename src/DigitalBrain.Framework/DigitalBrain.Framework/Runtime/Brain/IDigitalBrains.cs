@@ -10,4 +10,5 @@ public interface IDigitalBrains
 
     // Watching needs no brain: the reference already names its grain.
     IAsyncEnumerable<T> On<T>(INeuron neuron, CancellationToken cancellationToken = default) where T : Signal;
+    IAsyncEnumerable<T> On<T>(INeuron neuron, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : Signal;
 }

@@ -28,6 +28,7 @@ internal sealed class AllowanceLedgerNeuron : Neuron<AllowanceLedgerState>, IAll
 
     private readonly IPersistentState<AllowanceLedgerState> store;
     private readonly IPriceBook priceBook;
+    private bool writePending;
 
     public AllowanceLedgerNeuron(
         [PersistentState("allowance-ledger", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<AllowanceLedgerState> store,
@@ -61,6 +62,9 @@ internal sealed class AllowanceLedgerNeuron : Neuron<AllowanceLedgerState>, IAll
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(request);
         RequireAccount(request.AccountId);
+        // A failed write leaves this activation's mutations in memory. Retry persistence
+        // before any cached reservation or unchanged decision can be returned.
+        if (writePending) { await PersistAsync(); }
         var now = DateTimeOffset.UtcNow;
         var next = Snapshot;
 
@@ -74,6 +78,7 @@ internal sealed class AllowanceLedgerNeuron : Neuron<AllowanceLedgerState>, IAll
         var context = new AllowanceSnapshot([.. next.Allowances], [.. next.Reservations], next.Limits, priceBook.Version, next.HighestAlert, next.HardStoppedAt);
         var result = AllowanceRules.Evaluate(request, context, now);
         var decision = result.Decision;
+        var changed = false;
 
         if (decision.Allowed && request.EstimatedCompute > 0)
         {
@@ -88,16 +93,19 @@ internal sealed class AllowanceLedgerNeuron : Neuron<AllowanceLedgerState>, IAll
                 AppId = request.AppId,
                 Operation = request.Operation,
             });
+            changed = true;
         }
 
         if (decision.Denial == AllowanceDenial.MissingAllowance)
         {
-            AddPending(next, request, decision.ApprovalId!, now);
+            changed |= AddPending(next, request, decision.ApprovalId!, now);
         }
 
-        if (result.HardStop) { next.HardStoppedAt ??= now; }
-        if (result.Alert > next.HighestAlert) { next.HighestAlert = result.Alert; }
-        await store.WriteStateAsync().ConfigureAwait(true);
+        if (result.HardStop && next.HardStoppedAt is null) { next.HardStoppedAt = now; changed = true; }
+        if (result.Alert > next.HighestAlert) { next.HighestAlert = result.Alert; changed = true; }
+        // Authorization still evaluates the current ledger on every call. Persist only when
+        // the decision changes durable state; ordinary reads do not need a storage round trip.
+        if (changed) { await PersistAsync(); }
         return decision;
     }
 
@@ -110,7 +118,7 @@ internal sealed class AllowanceLedgerNeuron : Neuron<AllowanceLedgerState>, IAll
         next.Allowances.RemoveAll(existing => string.Equals(existing.AllowanceId, stored.AllowanceId, StringComparison.Ordinal));
         next.Allowances.Add(stored);
         next.Pending.RemoveAll(pending => string.Equals(pending.ApprovalId, stored.AllowanceId, StringComparison.Ordinal));
-        await store.WriteStateAsync().ConfigureAwait(true);
+        await PersistAsync();
         return stored;
     }
 
@@ -144,7 +152,7 @@ internal sealed class AllowanceLedgerNeuron : Neuron<AllowanceLedgerState>, IAll
             GrantedAt = DateTimeOffset.UtcNow,
         };
         next.Allowances.Add(allowance);
-        await store.WriteStateAsync().ConfigureAwait(true);
+        await PersistAsync();
         return allowance;
     }
 
@@ -154,7 +162,7 @@ internal sealed class AllowanceLedgerNeuron : Neuron<AllowanceLedgerState>, IAll
         var next = Snapshot;
         if (next.Pending.RemoveAll(item => string.Equals(item.ApprovalId, approvalId, StringComparison.Ordinal)) > 0)
         {
-            await store.WriteStateAsync().ConfigureAwait(true);
+            await PersistAsync();
         }
     }
 
@@ -176,7 +184,7 @@ internal sealed class AllowanceLedgerNeuron : Neuron<AllowanceLedgerState>, IAll
         var updated = reservation with { Settled = true, SettledCompute = settled, Failure = failure };
         next.Reservations[index] = updated;
         if (cap > 0 && spentElsewhere + settled >= cap) { next.HardStoppedAt ??= DateTimeOffset.UtcNow; }
-        await store.WriteStateAsync().ConfigureAwait(true);
+        await PersistAsync();
         return updated;
     }
 
@@ -186,7 +194,7 @@ internal sealed class AllowanceLedgerNeuron : Neuron<AllowanceLedgerState>, IAll
         ArgumentNullException.ThrowIfNull(policy);
         var next = Snapshot;
         next.Limits = policy;
-        await store.WriteStateAsync().ConfigureAwait(true);
+        await PersistAsync();
         return policy;
     }
 
@@ -219,9 +227,16 @@ internal sealed class AllowanceLedgerNeuron : Neuron<AllowanceLedgerState>, IAll
         return Task.FromResult<AllowanceReservation[]>([.. Snapshot.Reservations]);
     }
 
-    private static void AddPending(AllowanceLedgerState next, AllowanceRequest request, string approvalId, DateTimeOffset now)
+    private async Task PersistAsync()
     {
-        if (next.Pending.Exists(item => string.Equals(item.ApprovalId, approvalId, StringComparison.Ordinal))) { return; }
+        writePending = true;
+        await store.WriteStateAsync().ConfigureAwait(true);
+        writePending = false;
+    }
+
+    private static bool AddPending(AllowanceLedgerState next, AllowanceRequest request, string approvalId, DateTimeOffset now)
+    {
+        if (next.Pending.Exists(item => string.Equals(item.ApprovalId, approvalId, StringComparison.Ordinal))) { return false; }
         next.Pending.Add(new PendingApproval
         {
             ApprovalId = approvalId,
@@ -234,6 +249,7 @@ internal sealed class AllowanceLedgerNeuron : Neuron<AllowanceLedgerState>, IAll
             IntentId = request.IntentId,
             Permissions = request.SemanticTypeIds.ToArray(),
         });
+        return true;
     }
 
     private static decimal EffectiveCap(LimitPolicy policy, AllowanceReservation reservation)

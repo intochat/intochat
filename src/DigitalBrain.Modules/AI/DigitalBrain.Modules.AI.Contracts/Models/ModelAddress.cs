@@ -1,19 +1,16 @@
 using DigitalBrain.AI.Inference;
-using DigitalBrain.AI.Models.Scripted;
 
 namespace DigitalBrain.AI.Models;
 
-// Turns a model name used in configuration into its neuron: an LLM marker name such as "IGpt56Luna",
-// or "scripted/<key>" for a scripted stand-in.
+// Turns an LLM marker name used in configuration, such as "IGpt56Luna", into its neuron.
 public static class ModelAddress
 {
-    public static bool IsKnown(string model) => IsScripted(model) || LLMModel.FindByMarkerName(model) is not null;
+    public static bool IsKnown(string model) => LLMModel.FindByMarkerName(model) is not null;
 
     public static ILLM Resolve(IGrainFactory grains, string model)
     {
         ArgumentNullException.ThrowIfNull(grains);
         ArgumentException.ThrowIfNullOrWhiteSpace(model);
-        if (IsScripted(model)) { return grains.GetGrain<IScriptedLLM>(model[IScriptedLLM.ModelPrefix.Length..]); }
         var marker = LLMModel.FindByMarkerName(model)?.Marker ?? throw new ArgumentException($"Unknown model '{model}'.", nameof(model));
         return (ILLM)grains.GetGrain(marker, "default");
     }
@@ -27,6 +24,4 @@ public static class ModelAddress
         ]), cancellationToken);
         return string.Concat(result.Messages.SelectMany(message => message.Content).OfType<AiText>().Select(content => content.Text)).Trim();
     }
-
-    private static bool IsScripted(string model) => model.StartsWith(IScriptedLLM.ModelPrefix, StringComparison.Ordinal);
 }

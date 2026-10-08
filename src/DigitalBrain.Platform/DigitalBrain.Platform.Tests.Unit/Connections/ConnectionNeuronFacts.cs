@@ -1,6 +1,7 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Connections.Signals;
+using DigitalBrain.Integrations;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
@@ -9,6 +10,35 @@ namespace DigitalBrain.Platform.Tests.Unit.Connections;
 
 public sealed class ConnectionNeuronFacts
 {
+    [Fact]
+    public async Task PublicCatalogSignalsFollowCommittedMembershipAndStatusWithoutCredentials()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Start();
+        Stamp(Alice);
+        await brain.AuthorizeCallerAsync();
+        try
+        {
+            var catalog = brain.Get<IConnectionRequests>(Scope);
+            await using var changes = await brain.Observe<ConnectionsChanged>(catalog, ct);
+            var connection = brain.Get<IConnection>(Key());
+            await connection.Connect("api-key", "expired");
+            var connected = await changes.NextAsync(ct: ct);
+            Assert.Equal("connected", Assert.Single(await catalog.ListConnections()).Status);
+            await connection.Probe();
+            var expired = await changes.NextAsync(ct: ct);
+            Assert.True(expired.Revision > connected.Revision);
+            Assert.Equal("expired", Assert.Single(await catalog.ListConnections()).Status);
+            await connection.Disconnect();
+            var disconnected = await changes.NextAsync(ct: ct);
+            Assert.True(disconnected.Revision > expired.Revision);
+            Assert.Empty(await catalog.ListConnections());
+            Assert.DoesNotContain("expired", System.Text.Json.JsonSerializer.Serialize(connected), StringComparison.Ordinal);
+            Assert.Equal(catalog.GetGrainId().ToString(), connected.Publisher);
+        }
+        finally { Clear(); }
+    }
+
     private static readonly CallerContext Alice = new() { PrincipalId = "alice", AccountId = "alice", BrainId = "home", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp };
     private static string Scope => BrainScope.Create("alice", "home").Id;
     private static string Key(string id = "one") => ConnectionKeys.For(Scope, "example", id);

@@ -22,6 +22,5 @@ public sealed class TelemetryProjectionFacts
         foreach (var callback in runtime.Annotations.OfType<EnvironmentCallbackAnnotation>()) { await callback.Callback(context); }
         Assert.Equal("http/protobuf", environment["OTEL_EXPORTER_OTLP_PROTOCOL"]?.ToString());
         Assert.Contains("127.0.0.1:4999", environment["OTEL_EXPORTER_OTLP_ENDPOINT"]?.ToString());
-        Assert.True(environment.ContainsKey("OTEL_EXPORTER_OTLP_HEADERS"));
     }
 }

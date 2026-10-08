@@ -316,6 +316,7 @@ public sealed class PostgresWriteTableFacts
             await Assert.ThrowsAsync<PostgresQueryException>(() => provider.DefineAsync(TablePlacement.Shared, accepted.Table,
                 new([new("id", "text"), new("value", "number")], ["id"]), ct));
             Stamp("other-brain");
+            await brain.AuthorizeCallerAsync();
             var other = brain.Get<ITable>("other-" + Guid.NewGuid().ToString("N"));
             otherName = (await other.Define(Definition)).Table;
             Assert.Null(await other.Read(Key()));

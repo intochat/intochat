@@ -9,7 +9,7 @@ namespace DigitalBrain.AI.Models;
 public interface IModelCatalog : INeuron
 {
     [ReadOnly, AlwaysInterleave] Task<ModelChoices> List(string? defaultModel = null);
-    // Validates a choice id ("profile:<name>", "preset:<Marker>", "scripted/<key>") for a tool-using turn.
+    // Validates a choice id ("profile:<name>", "preset:<Marker>") for a tool-using turn.
     [ReadOnly, AlwaysInterleave] Task<ModelSelection?> Select(string? id, string? defaultModel = null);
 }
 

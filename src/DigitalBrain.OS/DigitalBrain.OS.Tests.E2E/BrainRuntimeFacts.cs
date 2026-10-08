@@ -1,6 +1,7 @@
-using System.Net.Http.Json;
 using System.Xml.Linq;
+using DigitalBrain.AI.Agents;
 using DigitalBrain.Apps;
+using DigitalBrain.Flutter.Chat;
 using DigitalBrain.Microsoft.CSharp.Runtime;
 
 namespace DigitalBrain.OS.Tests.E2E;
@@ -10,6 +11,37 @@ namespace DigitalBrain.OS.Tests.E2E;
 // through the runtime edge. Needs a Docker daemon with Linux containers.
 public sealed class BrainRuntimeFacts(ReferenceBrainFixture host) : BrainFact(host)
 {
+    [Fact(Timeout = 240_000)]
+    public async Task ClearingAConversationUpdatesItsRunningShippedProjection()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var scope = Brain.WorkspaceId;
+        var appKey = scope + "/apps/assistant";
+        Assert.Equal(AppStatus.Live, (await Brain.Get<IApp>(appKey).Read()).Status);
+        var agent = Brain.Get<IAgent>(appKey + "/conversations/main");
+        var chat = Brain.Get<IChat>(appKey + "/transcript");
+        await using var changes = await Brain.Observe<ChatChanged>(chat, ct);
+        using var sent = await Brain.HttpClient.PostAsJsonAsync($"/brains/{scope}/apps/assistant/ask",
+            new { operation = "send", input = "Remember this conversation" }, ct);
+        sent.EnsureSuccessStatusCode();
+        ChatProjection? before;
+        while ((before = (await chat.Read()).Projection) is null
+            || before.Messages.LastOrDefault()?.Status != "completed")
+        { await changes.NextAsync(ct: ct); }
+        Assert.Equal(2, before.Messages.Length);
+        Assert.Equal("You said: Remember this conversation", before.Messages[1].Text);
+
+        await agent.Clear();
+        var cleared = await agent.Read();
+        ChatProjection? after;
+        while ((after = (await chat.Read()).Projection) is null || after.Version < cleared.Version)
+        { await changes.NextAsync(ct: ct); }
+        Assert.Equal(before.Source, after.Source);
+        Assert.Equal(before.Generation, after.Generation);
+        Assert.Empty(after.Messages);
+        Assert.Empty(after.Actions);
+    }
+
     [Fact(Timeout = 240_000)]
     public async Task AClickReachesABehaviorAndBack()
     {

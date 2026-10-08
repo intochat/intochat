@@ -2,15 +2,14 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.AI.Inference;
-using DigitalBrain.AI.Models.Scripted;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.AI.Models;
 
-// The one resolver from a model key to a client. A key is a marker name, a configured profile
-// name or "scripted/<key>"; null is the deployment default.
+// The one resolver from a model key to a client. A key is a marker name or a configured profile
+// name; null is the deployment default.
 public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOptions> options)
 {
     private IAiCredentials Credentials => services.GetRequiredService<IAiCredentials>();
@@ -25,13 +24,6 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         var key = Clean(selection.Model) ?? Clean(configuration.Default.Model);
         var reasoning = Clean(selection.Reasoning) ?? (useDefault ? Clean(configuration.Default.Reasoning) : null);
         var maxTokens = selection.MaxOutputTokens ?? (useDefault ? configuration.Default.MaxOutputTokens : null);
-
-        if (key is not null && key.StartsWith(IScriptedLLM.ModelPrefix, StringComparison.Ordinal))
-        {
-            var scripted = new ResolvedModel(AiProvider.Scripted, key[IScriptedLLM.ModelPrefix.Length..], null, null, string.Empty, LlmCapabilities.Tools, null, null);
-            if (scripted.Model.Length == 0) { throw new ArgumentException("A scripted model needs a key after the prefix.", nameof(selection)); }
-            return scripted with { Revision = Revision(scripted) };
-        }
 
         AiProvider provider;
         string modelId;
@@ -73,7 +65,7 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         }
         else
         {
-            throw new ArgumentException($"Unknown model '{key}'. Use a model marker name, a configured profile name or scripted/<key>.", nameof(selection));
+            throw new ArgumentException($"Unknown model '{key}'. Use a model marker name or a configured profile name.", nameof(selection));
         }
 
         if (provider == AiProvider.Ollama && preset is not null)
@@ -117,14 +109,7 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
         ArgumentNullException.ThrowIfNull(resolved);
         if (!string.Equals(resolved.Revision, Revision(resolved), StringComparison.Ordinal))
         { throw new ArgumentException("The resolved model configuration does not match its revision.", nameof(resolved)); }
-        switch (resolved.Provider)
-        {
-            case AiProvider.Host: return new NonDisposing(services.GetRequiredService<IChatClient>());
-            // A host may bind a scripted key to its own deterministic client; otherwise the key names an IScriptedLLM.
-            case AiProvider.Scripted:
-                return services.GetKeyedService<IChatClient>(IScriptedLLM.ModelPrefix + resolved.Model) is { } bound
-                    ? new NonDisposing(bound) : new ScriptedChatClient(services.GetRequiredService<IGrainFactory>().GetGrain<IScriptedLLM>(resolved.Model));
-        }
+        if (resolved.Provider == AiProvider.Host) { return new NonDisposing(services.GetRequiredService<IChatClient>()); }
         var configuration = new AIOptions();
         configuration.Provider(resolved.Provider).Endpoint = resolved.Endpoint;
         var inner = new RebuildingChatClient(
@@ -174,7 +159,6 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
     public async Task<ModelSelection?> Select(string? id, string? defaultModel, CancellationToken ct)
     {
         var selection = id is null ? Default(defaultModel)
-            : id.StartsWith(IScriptedLLM.ModelPrefix, StringComparison.Ordinal) ? new ModelSelection(id)
             : Choices().FirstOrDefault(choice => string.Equals(choice.Id, id, StringComparison.Ordinal))?.Selection
                 ?? throw new ArgumentException("The selected model is unavailable. Choose a model from Settings.");
         const string Unavailable = "The selected model is unavailable or does not support assistant tools. Choose a model from Settings.";
@@ -224,7 +208,7 @@ public sealed class ModelCatalog(IServiceProvider services, IOptionsMonitor<AIOp
 
     private static AiProvider ParseProvider(string name)
         => Enum.TryParse<AiProvider>(name, ignoreCase: true, out var provider) && Enum.IsDefined(provider)
-            && provider is not (AiProvider.FoundryLocal or AiProvider.Scripted or AiProvider.Host)
+            && provider is not (AiProvider.FoundryLocal or AiProvider.Host)
             ? provider : throw new ArgumentException($"Unknown chat provider '{name}'. Use OpenAI, Anthropic, Google, XAI, OpenRouter or Ollama.", nameof(name));
 
     private static string? Endpoint(string? endpoint, AiProvider provider)

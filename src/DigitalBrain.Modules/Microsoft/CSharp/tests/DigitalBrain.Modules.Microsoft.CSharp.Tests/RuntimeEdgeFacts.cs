@@ -14,6 +14,63 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 public sealed class RuntimeEdgeFacts
 {
     [Fact]
+    public async Task AcknowledgementReportsSupportBatchesAndRejectAmbiguousOrStaleRequests()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true);
+        var session = await Assigned(brain, ct);
+        var runtime = brain.Grains().GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For("acc-brain"));
+        var neuron = brain.Get<IBrainRuntime>(BrainRuntimeKeys.For("acc-brain"));
+        var pinger = brain.Get<IPinger>("acknowledged");
+        var subscription = await runtime.Subscribed(session.Id, "acc-brain/csharp/a", pinger.GetGrainId().ToString(), nameof(Pinged));
+        await using var changes = await brain.Observe<DigitalBrain.Microsoft.CSharp.Runtime.Signals.BrainRuntimeChanged>(neuron, ct);
+        await pinger.Ping(1); await changes.NextAsync(ct: ct);
+        using var ambiguous = await Report(brain, session, new RuntimeReport(
+            Acknowledge: new(subscription, 1), Acknowledgements: [new(subscription, 1)]), ct);
+        Assert.Equal(HttpStatusCode.BadRequest, ambiguous.StatusCode);
+        Assert.Single(await runtime.PendingBatches(session.Id));
+        using var batch = await Report(brain, session, new RuntimeReport(Acknowledgements: [new(subscription, 1)]), ct);
+        Assert.Equal(HttpStatusCode.OK, batch.StatusCode);
+        Assert.Empty(await runtime.PendingBatches(session.Id));
+        await changes.NextAsync(ct: ct);
+        await pinger.Ping(2);
+        await changes.NextAsync(ct: ct);
+        using var legacy = await Report(brain, session, new RuntimeReport(Acknowledge: new(subscription, 2)), ct);
+        Assert.Equal(HttpStatusCode.OK, legacy.StatusCode);
+        Assert.Empty(await runtime.PendingBatches(session.Id));
+        await brain.DeactivateAsync(neuron, ct);
+        Assert.NotEqual(session.Id, (await neuron.Inspect(ct)).SessionId);
+        using var stale = await Report(brain, session, new RuntimeReport(Acknowledgements: [new(subscription, 3)]), ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, stale.StatusCode);
+    }
+
+    [Fact]
+    public async Task AnInvocationChecksTheSessionAndBehaviorInOneRuntimeRoundTrip()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var calls = new System.Collections.Concurrent.ConcurrentQueue<System.Diagnostics.Activity>();
+        using var listener = new System.Diagnostics.ActivityListener
+        {
+            ShouldListenTo = _ => true,
+            Sample = (ref _) => System.Diagnostics.ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = calls.Enqueue,
+        };
+        System.Diagnostics.ActivitySource.AddActivityListener(listener);
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, traced: true);
+        var session = await Assigned(brain, ct);
+        var edge = brain.SiloServices.GetRequiredService<RuntimeEdge>();
+        using var invocation = new System.Diagnostics.Activity("runtime invocation").Start();
+
+        var result = await edge.InvokeAsync("acc-brain", session.Token,
+            new("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(IPinger.Double), [JsonSerializer.SerializeToElement(21)]), ct);
+
+        Assert.Equal(42, result!.Value.GetInt32());
+        Assert.Single(calls, call => call.TraceId == invocation.TraceId
+            && call.Kind == System.Diagnostics.ActivityKind.Client
+            && call.OperationName is "IBrainRuntimeEdge/Authorize" or "IBrainRuntimeEdge/Identity");
+    }
+
+    [Fact]
     public async Task AnExpiredTokenIsRefusedOnEveryRoute()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -25,6 +82,23 @@ public sealed class RuntimeEdgeFacts
             using var response = await brain.HttpClient.SendAsync(request, ct);
             Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         }
+    }
+
+    [Fact]
+    public async Task AReplacedSessionCannotInvokeThroughAnUnchangedToken()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var time = new MovableTime();
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true, time: time);
+        var stale = await Assigned(brain, ct);
+        time.Now += TimeSpan.FromMinutes(3);
+        await brain.Get<IBrainRuntime>(BrainRuntimeKeys.For("acc-brain")).Touch(ct);
+        var invoke = new RuntimeInvocation("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(IPinger.Double), [JsonSerializer.SerializeToElement(21)]);
+
+        using var response = await brain.HttpClient.SendAsync(Authorized(HttpMethod.Post,
+            "/brains/acc-brain/" + RuntimeProtocol.Invoke, stale.Token, invoke), ct);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]

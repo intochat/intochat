@@ -12,10 +12,9 @@ When Research or Stop is clicked, invoke the corresponding app operation.
 
 ### Research and store evidence
 
-When research is requested, run the bounded browser/model algorithm and save verified evidence. Stop cancels the current run; result reads the stored company.
+When research is requested, run the bounded browser/model algorithm and save verified evidence. Research invocations form a durable sequential queue. Stop cancels active and queued requests; result reads the stored company. The reserved tables slot binds storage through an existing Postgres connection.
 
 Production research uses the host's default LLM. Legacy Model settings do not pin a provider.
-Scratch scenario installs may supply scripted/<key> as Model to run deterministic checks.
 
 ## Scenario: Opening the researcher composes its surface
 
@@ -29,7 +28,7 @@ opens no window in the workspace: the shell shows it in its side panel instead.
 
 ## Scenario: Stopping an idle researcher is safe
 
-Invoking "stop" with nothing running answers "Stopped." and does not fail.
+Invoking "stop" with nothing running answers "Stop requested." and displays "Stopped" without failing.
 
 ## Scenario: Research verifies the company against observed pages and saves it
 
@@ -51,3 +50,34 @@ the race to a completed save; there is no half-written state either way.
 
 With a connected window browser and a real model, "research" drives the visible browser and saves
 findings to Postgres. Live scenarios document the app; they are not part of the deterministic gate.
+
+## Scenario: Queued research and cancellation survive behavior recovery
+
+Pending research invocations are admitted sequentially. UI click request IDs are preserved for replay.
+Stop persists the cancelled invocation IDs before acknowledging the request, cancels the active browser
+operation, and settles queued requests without starting them. Shared admission also orders terminal
+status so a completed stop cannot remain displayed as "Stopping". A failing command or worker loop
+cancels its sibling and exits for runtime recovery; it cannot leave a live behavior without a worker.
+Shutdown leaves unfinished research pending, and deterministic query keys make retry an upsert.
+
+## Scenario: Model output is bounded and honest
+
+Link selection allows 2048 output tokens and extraction 4096, including model reasoning, within the
+existing three-minute research deadline. Exhaustion is an explicit failed outcome, never an empty
+link choice interpreted as success. Runtime diagnostics record finish reason and size, not page or
+model content. Invalid or unverifiable extraction returns an error and saves no record. Unknown
+contact fields remain null; every retained claim includes its observed source URL and verbatim quote.
+
+## Scenario: Activity survives reopening and behavior recovery
+
+A dedicated projection behavior reads the app's retained invocation records. It lists all pending
+companies as Queued or Running and the twenty most recent Completed, Failed or Stopped outcomes,
+including the company and its result/error. Failed and stopped entries explain how to retry.
+The worker writes a durable active-invocation marker; it is a progress hint, never a second queue.
+Each subscription reconciles after registration. Stable invocation card keys prevent duplicates,
+and serialized projection rebuilds recover the view without relying on process memory. The browser
+remains mounted below the independently scrolling activity list while research executes.
+
+## Scenario: Missing storage configuration is actionable
+
+Opening an installation with no tables binding shows persistent database connection guidance above the company field. Research fails before browser/model work with the same binding and retry instructions, preserving existing records. Reopening after configuration removes the guidance.

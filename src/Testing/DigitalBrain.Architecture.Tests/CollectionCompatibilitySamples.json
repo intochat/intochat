@@ -98,34 +98,6 @@
     "Expected": "{\"legacy-value\":\"legacy-value\"}"
   },
   {
-    "Type": "DigitalBrain.AI.Models.Scripted.ScriptedLlmState",
-    "Member": "Replies",
-    "Representation": "array",
-    "Payload": "MAHLHf+NK2FpLmxsbS5zY3JpcHRlZC1zdGF0ZegoNQADQRlsZWdhY3ktdmFsdWXgAQHBAeA=",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.AI.Models.Scripted.ScriptedLlmState",
-    "Member": "Replies",
-    "Representation": "list",
-    "Payload": "MAHLHf+NK2FpLmxsbS5zY3JpcHRlZC1zdGF0ZegwAVnRtylXU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdGAxW1tzdHJpbmddXQADQRlsZWdhY3ktdmFsdWXgAQHBAeA=",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.AI.Models.Scripted.ScriptedLlmState",
-    "Member": "Prompts",
-    "Representation": "array",
-    "Payload": "MAHLHf+NK2FpLmxsbS5zY3JpcHRlZC1zdGF0ZejAAQEBKTUAA0EZbGVnYWN5LXZhbHVl4OA=",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.AI.Models.Scripted.ScriptedLlmState",
-    "Member": "Prompts",
-    "Representation": "list",
-    "Payload": "MAHLHf+NK2FpLmxsbS5zY3JpcHRlZC1zdGF0ZejAAQEBMQFZ0bcpV1N5c3RlbS5Db2xsZWN0aW9ucy5HZW5lcmljLkxpc3RgMVtbc3RyaW5nXV0AA0EZbGVnYWN5LXZhbHVl4OA=",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
     "Type": "DigitalBrain.Compute.Allowance",
     "Member": "Permissions",
     "Representation": "array",

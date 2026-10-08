@@ -2,6 +2,7 @@ using System.Text.Json;
 using DigitalBrain.Apps;
 using DigitalBrain.Apps.Signals;
 using DigitalBrain.Flutter;
+using DigitalBrain.Flutter.Button;
 using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.TextField;
@@ -15,11 +16,37 @@ var prefsRoot = brain.Setting("Brain") is { Length: > 0 } brainScope ? brainScop
 var displayName = brain.Get<ITextField>(prefsRoot + "/display-name");
 var theme = brain.Get<ITextField>(prefsRoot + "/theme");
 
-await foreach (var invoked in app.Invocations(brain, brain.Stopping)) { await app.Respond(await Answer(invoked.InvocationId, invoked.Operation)); }
+using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(brain.Stopping);
+var loops = new[] { Operations() };
+await Task.WhenAny(loops);
+lifetime.Cancel();
+await Task.WhenAll(loops);
 
-async Task<AppResponse> Answer(Guid id, string operation)
+async Task Operations()
 {
-    if (operation == "open") { await Compose(); }
+    await foreach (var _ in brain.On<AppInvoked>(app, Reconcile, lifetime.Token)) { await Reconcile(); }
+}
+
+async Task Reconcile()
+{
+    foreach (var request in (await app.Pending()).Where(item => item.Operation is "open" or "read"))
+    {
+        try { await app.Respond(await Answer(request.Id, request.Operation, request.Input)); }
+        catch (Exception) when (!brain.Stopping.IsCancellationRequested)
+        { await app.Respond(new(request.Id, null, "Settings could not load. Reopen Settings to try again.")); }
+    }
+}
+
+async Task<AppResponse> Answer(Guid id, string operation, string input)
+{
+    if (operation == "open")
+    {
+        await Compose();
+        // Refresh is owned by the connection projection behavior, not this surface composer.
+        var refresh = Guid.NewGuid();
+        await app.Invoke(new(refresh, "refresh-connections", ""));
+        await app.Await(refresh);
+    }
     var name = (await displayName.Read()).Value;
     var chosen = (await theme.Read()).Value;
     // Preferences are bounded the way the shell renders them: a short name, a known theme.
@@ -31,14 +58,13 @@ async Task<AppResponse> Answer(Guid id, string operation)
     return new(id, JsonSerializer.Serialize(new { id = appKey + "/window", title = "Settings", surface = appKey + "/surface", preferences }), null);
 }
 
-// The fields are the preferences: durable neurons the person edits in place.
+// Surface composition is separate from preference persistence and connection discovery.
 async Task Compose()
 {
-    await displayName.Configure("Display name", "text");
-    await theme.Configure("Theme (system, light or dark)", "text");
+    await brain.Get<IButton>(appKey + "/refresh-connections").Set("Refresh connections", "refresh");
     var main = brain.Get<ILayout>(appKey + "/main");
-    await main.Set(new("column", [new("textfield", prefsRoot + "/display-name"), new("textfield", prefsRoot + "/theme")]),
-        (await main.Read()).Revision);
+    await main.Set(new("column", [new("button", appKey + "/refresh-connections"),
+        new("layout", appKey + "/connections")], Extents: [40, 0]), (await main.Read()).Revision);
     var surface = brain.Get<ISurface>(appKey + "/surface");
     await surface.Set(new("Settings", [new("layout", appKey + "/main")]), (await surface.Read()).Revision);
 }

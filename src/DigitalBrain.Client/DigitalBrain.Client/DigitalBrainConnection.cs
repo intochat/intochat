@@ -32,13 +32,18 @@ public sealed class DigitalBrainConnection : IDigitalBrain, IAsyncDisposable
         : throw new InvalidOperationException("This session was not told its brain.");
 
     public IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
+        => On<T>(source, static () => Task.CompletedTask, cancellationToken);
+
+    // Reconcile after registration: a state change either precedes the snapshot or is queued.
+    public IAsyncEnumerable<T> On<T>(INeuron source, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : Signal
     {
+        ArgumentNullException.ThrowIfNull(onSubscribed);
         if (source is not NeuronProxy neuron) { throw new ArgumentException("Watch a neuron obtained from this connection's Get.", nameof(source)); }
         return new WatchStream<T>(async ct =>
         {
             var subscription = await SessionSignalSubscription<T>.OpenAsync(_session, _behavior, neuron, _trace, ct).ConfigureAwait(false);
             return (subscription.ReadAllAsync(ct), subscription);
-        });
+        }, cancellationToken, Stopping, onSubscribed);
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;

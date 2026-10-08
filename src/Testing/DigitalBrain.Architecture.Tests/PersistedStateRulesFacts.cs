@@ -1,10 +1,38 @@
-using Orleans;
-using Orleans.Runtime;
+using DigitalBrain.AI.Inference;
 
 namespace DigitalBrain.Architecture.Tests;
 
 public sealed class PersistedStateRulesFacts
 {
+    [Fact]
+    public void PublishedMessageContentIsTheOnlyCompatibleCollectionException()
+    {
+        Assert.Empty(PersistedStateRules.ShapeViolations(typeof(AiMessage)));
+        Assert.NotEmpty(PersistedStateRules.ShapeViolations(typeof(OtherMessage)));
+        Assert.NotEmpty(PersistedStateRules.ShapeViolations(typeof(InterfaceListState)));
+        Assert.NotEmpty(PersistedStateRules.ShapeViolations(typeof(NestedListState)));
+    }
+
+    [Fact]
+    public void PublishedMessageContentSnapshotsConstructorAndInitCollections()
+    {
+        var source = new List<AiContent> { new AiText("retained") };
+        IReadOnlyList<AiContent> expression = [new AiText("expression")];
+        var constructed = new AiMessage("user", source);
+        var initialized = new AiMessage("user", []) { Content = source };
+        var copied = constructed with { Content = expression };
+        source.Clear();
+
+        Assert.Equal(new AiText("retained"), Assert.Single(Assert.IsType<AiContent[]>(constructed.Content)));
+        Assert.Equal(new AiText("retained"), Assert.Single(Assert.IsType<AiContent[]>(initialized.Content)));
+        Assert.Equal(new AiText("expression"), Assert.Single(Assert.IsType<AiContent[]>(copied.Content)));
+    }
+
+    private sealed class OtherMessage
+    {
+        [Id(1)] public IReadOnlyList<AiContent> Content { get; set; } = [];
+    }
+
     [Theory]
     [InlineData(typeof(DirectStateGrain))]
     [InlineData(typeof(InheritedStateGrain))]

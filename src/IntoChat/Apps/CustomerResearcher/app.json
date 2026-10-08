@@ -2,7 +2,7 @@
   "name": "customer-researcher",
   "title": "Customer Researcher",
   "description": "Research companies live in a driven browser and save verified findings to a Postgres table.",
-  "version": "1.1.4",
+  "version": "1.1.27",
   "icon": "icon.svg",
   "operations": [
     {
@@ -15,7 +15,7 @@
     },
     {
       "name": "stop",
-      "description": "Stop the running research."
+      "description": "Stop active and queued research without removing saved records."
     },
     {
       "name": "result",
@@ -25,13 +25,14 @@
   "settings": [
     {
       "name": "Model",
-      "description": "Uses the host default LLM. Scenario tests may override with scripted/<key>.",
+      "description": "Uses the host default LLM.",
       "default": ""
-    },
+    }
+  ],
+  "slots": [
     {
-      "name": "Browser",
-      "description": "The browser driver: empty for the window's own driven browser, or scripted/<key>.",
-      "default": ""
+      "name": "tables",
+      "connector": "postgres"
     }
   ]
 }

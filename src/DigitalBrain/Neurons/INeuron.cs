@@ -27,6 +27,9 @@ public interface INeuron : IGrainWithStringKey
     /// </remarks>
     [AlwaysInterleave] Task<Guid> Watch(INeuronObserver observer);
 
+    // Replaces this observer's selection with exact signal type names. An empty selection delivers none.
+    [AlwaysInterleave] Task<Guid> Watch(INeuronObserver observer, string[] signals);
+
     /// <summary>
     /// Stops delivering signals to <paramref name="observer"/>. Safe to call while signals are
     /// being delivered; interleaves so a turn that tears down a watcher never deadlocks on it.

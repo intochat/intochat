@@ -10,5 +10,8 @@ internal sealed class CurrentBrain(IDigitalBrains brains) : IDigitalBrain
     public IAsyncEnumerable<T> On<T>(INeuron neuron, CancellationToken cancellationToken = default) where T : Signal
         => brains.On<T>(neuron, cancellationToken);
 
+    public IAsyncEnumerable<T> On<T>(INeuron neuron, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : Signal
+        => brains.On<T>(neuron, onSubscribed, cancellationToken);
+
     public IKernel Self => brains.Open(BrainScope.CurrentId()).Self;
 }

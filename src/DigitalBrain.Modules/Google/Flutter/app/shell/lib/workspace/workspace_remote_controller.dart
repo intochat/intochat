@@ -19,6 +19,7 @@ final class WorkspaceRemoteController {
   String? _workspace;
   int _revision = -1, _requested = -1;
   bool _disposed = false, _reading = false;
+  bool _errorReported = false, _watchHealthy = false, _readHealthy = false;
   void start(String workspace) {
     if (_workspace != null) throw StateError('Controller already started');
     _workspace = workspace;
@@ -27,15 +28,19 @@ final class WorkspaceRemoteController {
 
   void _connect() {
     if (_disposed) return;
+    _watchHealthy = false;
     _subscription = watch(_workspace!).listen(
       (event) {
+        _watchHealthy = true;
+        if (_readHealthy) _errorReported = false;
         if (event.revision > _revision) {
           _requested = event.revision;
           unawaited(refresh());
         }
       },
       onError: (Object error) {
-        onError?.call(error);
+        _watchHealthy = false;
+        _reportError(error);
         _retry();
       },
       onDone: _retry,
@@ -44,12 +49,20 @@ final class WorkspaceRemoteController {
   }
 
   void _retry() {
+    _watchHealthy = false;
+    _readHealthy = false;
     if (_disposed || _reconnect != null) return;
     _subscription?.cancel();
     _reconnect = Timer(const Duration(seconds: 1), () {
       _reconnect = null;
       _connect();
     });
+  }
+
+  void _reportError(Object error) {
+    if (_disposed || _errorReported) return;
+    _errorReported = true;
+    onError?.call(error);
   }
 
   Future<void> refresh() async {
@@ -59,6 +72,8 @@ final class WorkspaceRemoteController {
       do {
         final snapshot = await read(_workspace!);
         if (_disposed) return;
+        _readHealthy = true;
+        if (_watchHealthy) _errorReported = false;
         if (snapshot.revision >= _revision) {
           _revision = snapshot.revision;
           apply(snapshot);
@@ -66,7 +81,8 @@ final class WorkspaceRemoteController {
       } while (!_disposed && _requested > _revision);
     } catch (error) {
       if (!_disposed) {
-        onError?.call(error);
+        _readHealthy = false;
+        _reportError(error);
         _retry();
       }
     } finally {

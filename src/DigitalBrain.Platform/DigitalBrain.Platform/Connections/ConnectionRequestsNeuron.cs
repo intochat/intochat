@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Integrations;
 using DigitalBrain.Platform.Integrations;
@@ -11,21 +12,47 @@ namespace DigitalBrain.Platform.Connections;
 public sealed class ConnectionRequestsState
 {
     [Id(0)] public ConnectionRef[] Pending { get; set; } = [];
+    [Id(1)] public long Revision { get; set; }
 }
 
 // Script-facing connection requests: a script asks for a connector kind; the user connects it.
 [GrainType("integrations.accounts")]
 internal sealed class ConnectionRequestsNeuron(
     [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ConnectionRequestsState> store,
-    ConnectorCatalog catalog)
-    : Neuron<ConnectionRequestsState>(store), IConnectionRequests
+    ConnectorCatalog catalog,
+    IReadOnlyList<ConnectorDefinition> connectors)
+    : Neuron<ConnectionRequestsState>(store), IConnectionRequests, IConnectionCatalogUpdates
 {
+    public Task Changed(string connectionKey)
+    {
+        if (ConnectionKeys.Parse(connectionKey).BrainId != this.GetPrimaryKeyString())
+        { throw new ArgumentException("The connection belongs to another brain.", nameof(connectionKey)); }
+        var next = Snapshot;
+        next.Revision++;
+        return Save(next, new ConnectionsChanged(next.Revision));
+    }
+
     [ReadOnly]
     public async Task<ConnectorKind[]> ListKinds()
         => (await catalog.ListAsync(CancellationToken.None)).Select(definition => new ConnectorKind(definition.Id, definition.DisplayName)).ToArray();
 
     [ReadOnly]
     public Task<ConnectionRef[]> ListPending() => Task.FromResult<ConnectionRef[]>([.. Snapshot.Pending]);
+
+    [ReadOnly]
+    public async Task<ConnectionSummary[]> ListConnections()
+    {
+        var result = new List<ConnectionSummary>();
+        foreach (var key in await GrainFactory.GetGrain<IConnectionIndex>(this.GetPrimaryKeyString()).List())
+        {
+            var identity = ConnectionKeys.Parse(key);
+            if (!connectors.Any(connector => connector.Id == identity.ConnectorId)) { continue; }
+            var connection = await GrainFactory.GetConnection(key).Read();
+            result.Add(new(connection.ConnectorId, connection.ConnectionId, key,
+                connection.Status.ToString().ToLowerInvariant(), connection.Account, connection.LastProbedAt));
+        }
+        return [.. result];
+    }
 
     public async Task<ConnectionRef> Request(string kind)
     {

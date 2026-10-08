@@ -19,6 +19,7 @@ public interface IControlledSource : INeuron
 [global::Orleans.Concurrency.Reentrant]
 public sealed class ControlledSource : Grain, IControlledSource
 {
+    public Task<Guid> Watch(INeuronObserver observer, string[] signals) => Watch(observer);
     private readonly HashSet<INeuronObserver> _members = [];
     private readonly Guid _activation = Guid.NewGuid();
     private string _mode = "";

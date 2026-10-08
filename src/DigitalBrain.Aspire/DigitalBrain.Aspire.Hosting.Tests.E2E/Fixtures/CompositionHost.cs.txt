@@ -2,6 +2,7 @@ using DigitalBrain;
 using DigitalBrain.Aspire.Client;
 using DigitalBrain.Aspire.Server;
 using DigitalBrain.Platform;
+using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Platform.Identity;
 using Microsoft.AspNetCore.Builder;
@@ -22,8 +23,8 @@ internal static class CompositionHost
             builder.AddDigitalBrainClient(useAzureClustering: true);
             await using var client = builder.Build();
             client.MapGet("/health", () => Results.Ok());
-            client.MapGet("/verify", async (IDigitalBrain brain) =>
-                await brain.Get<IIdentityDirectory>(IdentityGrains.Directory).AuthenticateAsync("packed-user", "package-test-password") is not null
+            client.MapGet("/verify", async (IDigitalBrains brains) =>
+                await brains.Grain<IIdentityDirectory>(IdentityGrains.Directory).AuthenticateAsync("packed-user", "package-test-password") is not null
                     ? Results.Ok() : Results.Unauthorized());
             await client.RunAsync();
             return;

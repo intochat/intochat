@@ -9,6 +9,32 @@ public sealed class AppAskFacts
     private const string Brain = "app-ask-facts";
 
     [Fact]
+    public async Task InvocationHistoryRetainsPendingAndTerminalOutcomesAcrossActivation()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        var app = brain.Get<IApp>(IApp.Key(Brain, "history"));
+        await app.Create(new AppManifest("History", "research", [new("research", "research")], [], []), "spec");
+        var first = new InvokeApp(Guid.NewGuid(), "research", "First company");
+        var second = new InvokeApp(Guid.NewGuid(), "research", "Second company");
+        var third = new InvokeApp(Guid.NewGuid(), "research", "Queued company");
+        await app.Invoke(first);
+        await app.Respond(new(first.InvocationId, "Saved: First company", null));
+        await app.Invoke(second);
+        await app.Respond(new(second.InvocationId, null, "Source unavailable"));
+        await app.Invoke(third);
+        await app.Invoke(first);
+        await brain.DeactivateAsync(app, ct);
+        var history = await app.ReadInvocations();
+        Assert.Equal([first.InvocationId, second.InvocationId, third.InvocationId], history.Select(item => item.Id));
+        Assert.Equal([InvocationStatus.Completed, InvocationStatus.Failed, InvocationStatus.Pending], history.Select(item => item.Status));
+        Assert.Equal("Saved: First company", history[0].Output);
+        Assert.Equal("Source unavailable", history[1].Error);
+        Assert.Equal("Queued company", history[2].Input);
+        Assert.Equal(third.InvocationId, Assert.Single(await app.Pending()).Id);
+    }
+
+    [Fact]
     public async Task AskReturnsTheAnswerWhenTheAppResponds()
     {
         var ct = TestContext.Current.CancellationToken;

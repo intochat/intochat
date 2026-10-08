@@ -27,9 +27,13 @@ public sealed class SessionConnection : IAsyncDisposable
     private volatile string _token;
     private Task _pump = Task.CompletedTask;
     private Task _heartbeat = Task.CompletedTask;
+    private readonly Channel<PendingAcknowledgement> _acknowledgements = Channel.CreateUnbounded<PendingAcknowledgement>(new() { SingleReader = true });
+    private Task _acknowledger = Task.CompletedTask;
+    private readonly TimeProvider _timeProvider;
 
-    private SessionConnection(Uri edge, string token, HttpMessageHandler? handler)
+    private SessionConnection(Uri edge, string token, HttpMessageHandler? handler, TimeProvider timeProvider)
     {
+        _timeProvider = timeProvider;
         _http = handler is null ? new HttpClient() : new HttpClient(handler, disposeHandler: false);
         _http.BaseAddress = edge;
         _http.Timeout = Timeout.InfiniteTimeSpan;
@@ -47,16 +51,20 @@ public sealed class SessionConnection : IAsyncDisposable
         => OpenAsync(edge, token, fingerprint, handler: null, cancellationToken);
 
     // The brain refuses a host built from other contracts before anything runs.
-    public static async Task<SessionConnection> OpenAsync(Uri edge, string token, string fingerprint, HttpMessageHandler? handler, CancellationToken cancellationToken)
+    public static Task<SessionConnection> OpenAsync(Uri edge, string token, string fingerprint, HttpMessageHandler? handler, CancellationToken cancellationToken)
+        => OpenAsync(edge, token, fingerprint, handler, TimeProvider.System, cancellationToken);
+
+    internal static async Task<SessionConnection> OpenAsync(Uri edge, string token, string fingerprint, HttpMessageHandler? handler, TimeProvider timeProvider, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(edge);
         ArgumentException.ThrowIfNullOrWhiteSpace(token);
-        var connection = new SessionConnection(new Uri(edge.ToString().TrimEnd('/') + "/"), token, handler);
+        var connection = new SessionConnection(new Uri(edge.ToString().TrimEnd('/') + "/"), token, handler, timeProvider);
         try
         {
             await connection.ReportAsync(new RuntimeReport(Fingerprint: fingerprint), "connect", cancellationToken).ConfigureAwait(false);
             connection._pump = connection.PumpAsync(connection._lifetime.Token);
             connection._heartbeat = connection.HeartbeatAsync(connection._lifetime.Token);
+            connection._acknowledger = connection.AcknowledgePendingAsync(connection._lifetime.Token);
             return connection;
         }
         catch
@@ -91,8 +99,58 @@ public sealed class SessionConnection : IAsyncDisposable
         return body.GetProperty("subscription").GetString() ?? throw new InvalidOperationException("The brain answered a subscribe without a subscription id.");
     }
 
-    public Task AcknowledgeAsync(string subscription, long watermark, CancellationToken cancellationToken)
-        => ReportAsync(new RuntimeReport(Acknowledge: new(subscription, watermark)), "acknowledge", cancellationToken);
+    public async Task AcknowledgeAsync(string subscription, long watermark, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var pending = new PendingAcknowledgement(new(subscription, watermark), System.Diagnostics.Activity.Current?.Id);
+        if (!_acknowledgements.Writer.TryWrite(pending)) { throw new ObjectDisposedException(nameof(SessionConnection)); }
+        // Cancelling a caller's wait must not cancel a report shared with other subscriptions.
+        await pending.Completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task AcknowledgePendingAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (await _acknowledgements.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                var pending = new List<PendingAcknowledgement>();
+                while (pending.Count < RuntimeProtocol.MaximumAcknowledgements && _acknowledgements.Reader.TryRead(out var item))
+                { pending.Add(item); }
+                // Keep unrelated parent contexts separate. Only requests already waiting are grouped;
+                // there is no timer, and the first report is sent as soon as the sender is idle.
+                foreach (var group in pending.GroupBy(item => item.Parent, StringComparer.Ordinal))
+                {
+                    using var activity = group.Key is null ? null : new System.Diagnostics.Activity("DigitalBrain.Behavior.Acknowledge").SetParentId(group.Key).Start();
+                    using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30), _timeProvider);
+                    using var reportLifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadline.Token);
+                    try
+                    {
+                        var reports = group.GroupBy(item => item.Report.Subscription, StringComparer.Ordinal)
+                            .Select(items => new AcknowledgeReport(items.Key, items.Max(item => item.Report.Watermark))).ToArray();
+                        await ReportAsync(new RuntimeReport(Acknowledgements: reports), "acknowledge", reportLifetime.Token).ConfigureAwait(false);
+                        foreach (var item in group) { item.Completion.TrySetResult(); }
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    { foreach (var item in group) { item.Completion.TrySetCanceled(cancellationToken); } }
+                    catch (OperationCanceledException error) when (deadline.IsCancellationRequested)
+                    { foreach (var item in group) { item.Completion.TrySetException(new TimeoutException("The acknowledgement report timed out.", error)); } }
+                    catch (Exception error)
+                    { foreach (var item in group) { item.Completion.TrySetException(error); } }
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        finally
+        {
+            while (_acknowledgements.Reader.TryRead(out var pending)) { pending.Completion.TrySetCanceled(cancellationToken); }
+        }
+    }
+
+    private sealed record PendingAcknowledgement(AcknowledgeReport Report, string? Parent)
+    {
+        public TaskCompletionSource Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
 
     public Task ReportStatusAsync(BehaviorStatusReport status, CancellationToken cancellationToken)
         => ReportAsync(new RuntimeReport(Status: status), "report status", cancellationToken);
@@ -206,8 +264,9 @@ public sealed class SessionConnection : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         if (_lifetime.IsCancellationRequested) { return; }
+        _acknowledgements.Writer.TryComplete();
         await _lifetime.CancelAsync().ConfigureAwait(false);
-        await Task.WhenAll(_pump, _heartbeat).ConfigureAwait(false);
+        await Task.WhenAll(_pump, _heartbeat, _acknowledger).ConfigureAwait(false);
         foreach (var channel in _batches.Values) { channel.Writer.TryComplete(); }
         _control.Writer.TryComplete();
         _http.Dispose();

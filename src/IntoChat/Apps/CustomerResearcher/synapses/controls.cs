@@ -13,11 +13,11 @@ await Task.WhenAll(ResearchClicks(), StopClicks());
 
 async Task ResearchClicks()
 {
-    await foreach (var _ in brain.On<ButtonClicked>(brain.Get<IButton>(key + "/research"), brain.Stopping))
+    await foreach (var clicked in brain.On<ButtonClicked>(brain.Get<IButton>(key + "/research"), brain.Stopping))
     {
         var query = (await brain.Get<ITextField>(key + "/company").Read()).Value.Trim();
         if (query.Length is >= 1 and <= 500)
-        { await app.Invoke(new(Guid.NewGuid(), "research", query)); }
+        { await app.Invoke(new(clicked.RequestId == Guid.Empty ? Guid.NewGuid() : clicked.RequestId, "research", query)); }
         else
         { await brain.Get<IText>(key + "/status").Set("Enter a company name (at most 500 characters)."); }
     }
@@ -25,6 +25,6 @@ async Task ResearchClicks()
 
 async Task StopClicks()
 {
-    await foreach (var _ in brain.On<ButtonClicked>(brain.Get<IButton>(key + "/stop"), brain.Stopping))
-    { await app.Invoke(new(Guid.NewGuid(), "stop", "")); }
+    await foreach (var clicked in brain.On<ButtonClicked>(brain.Get<IButton>(key + "/stop"), brain.Stopping))
+    { await app.Invoke(new(clicked.RequestId == Guid.Empty ? Guid.NewGuid() : clicked.RequestId, "stop", "")); }
 }
