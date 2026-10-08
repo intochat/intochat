@@ -26,7 +26,7 @@ namespace DigitalBrain.Microsoft.CSharp;
 
 public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp")), IHttpModule
 {
-    public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.Microsoft.CSharp.Files.ICSharpAppBinding).Assembly;
+    public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.Microsoft.CSharp.Files.ICSharpFile).Assembly;
 
     public static IntegrationSchema Integration => IntegrationSchema.For("csharp", "CSharp run tokens").RequiresSecret("RunTokenKey");
 
@@ -45,7 +45,6 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
     {
         ArgumentNullException.ThrowIfNull(builder);
         var authoring = builder.Configuration.GetModuleOptions<CSharpOptions>("csharp").Authoring;
-        builder.AddIncomingGrainCallFilter<CSharpAppBindingGuard>();
         builder.Services.AddOptions<CSharpDeploymentSettings>().BindConfiguration(CSharpDeploymentSettings.SectionName);
         builder.Services.TryAddSingleton<CSharpCatalogStore>();
         builder.Services.TryAddSingleton<CSharpToolService>();

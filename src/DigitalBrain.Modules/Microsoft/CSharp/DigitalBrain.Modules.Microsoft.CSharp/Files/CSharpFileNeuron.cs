@@ -7,13 +7,13 @@ using Orleans;
 
 namespace DigitalBrain.Microsoft.CSharp.Files;
 
-// A behavior is a record: its program, settings and the assembly it compiled to. Start and Swap hand it
-// to the brain's runtime as a standalone one-file program; running it, its subscriptions and its
-// failures belong to that runtime and its one sandbox session.
+// A file is one standalone program of its brain's runtime: its source compiles to a single behavior whose
+// id is the file's own key. Running it, its subscriptions and its restarts belong to the runtime's one
+// sandbox session.
 [GrainType("microsoft.csharp.file")]
 internal sealed partial class CSharpFileNeuron(
     [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<CSharpFileState> store)
-    : Neuron<CSharpFileState>(store), ICSharpFile, ICSharpAppBinding
+    : Neuron<CSharpFileState>(store), ICSharpFile
 {
     internal const int MaximumSourceBytes = 128 * 1024;
     private const int MaximumSettings = 64;
@@ -28,27 +28,6 @@ internal sealed partial class CSharpFileNeuron(
             if (separator <= 0) { throw new InvalidOperationException($"'{FileId}' is not a behavior key; use CSharpFileKeys.For(brain, name)."); }
             return GrainFactory.GetGrain<IBrainPrograms>(BrainRuntimeKeys.For(FileId[..separator]));
         }
-    }
-
-    internal void RequireBoundAccess(GrainId? source, string method)
-    {
-        if (Snapshot.AppId is not { } app) { return; }
-        if (Snapshot.AppBrain != BrainScope.CurrentId())
-        { throw new UnauthorizedAccessException("This behavior belongs to another brain."); }
-        if (method is nameof(Write) or nameof(Configure) or nameof(Start) or nameof(Swap) or nameof(Stop) or nameof(Delete)
-            && (source?.Type.ToString() != DigitalBrain.Framework.AppGrainType.Name || source?.Key.ToString() != app))
-        { throw new UnauthorizedAccessException("Only the owning Apps grain may change a bound behavior."); }
-    }
-
-    public async Task BindApp(string appId)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(appId);
-        var brain = BrainScope.CurrentId();
-        if (Snapshot.AppId is not null && (Snapshot.AppId != appId || Snapshot.AppBrain != brain))
-        { throw new UnauthorizedAccessException("The behavior is already bound to another app."); }
-        if (Snapshot.AppId is not null) { return; }
-        if (Snapshot.Wanted) { await Programs.Retire(FileId); }
-        await Save(Snapshot with { AppId = appId, AppBrain = brain, Wanted = false }, new CSharpFileChanged(FileId));
     }
 
     public async Task<CSharpFileSnapshot> Inspect(CancellationToken cancellationToken = default)
@@ -92,16 +71,11 @@ internal sealed partial class CSharpFileNeuron(
     }
 
     public Task<string> ReadLogs(int tail = 200, CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Snapshot.Wanted ? GrainFactory.GetGrain<IBrainRuntimeEdge>(Programs.GetPrimaryKeyString()).Logs(FileId, tail) : Task.FromResult("");
-    }
+        => Snapshot.Wanted ? GrainFactory.GetGrain<IBrainRuntimeEdge>(Programs.GetPrimaryKeyString()).Logs(FileId, tail) : Task.FromResult("");
 
     // The runtime compiles; a source that does not compile throws out of Assign and nothing is recorded.
     private async Task<CSharpFileSnapshot> AssignAsync(string source)
     {
-        if (Snapshot.AppId is not null && Snapshot.AppBrain != BrainScope.CurrentId())
-        { throw new UnauthorizedAccessException("This behavior belongs to another brain."); }
         if (string.IsNullOrWhiteSpace(source)) { throw new InvalidOperationException("Write the C# source before starting it."); }
         var program = await Programs.Assign(FileId, new(StringComparer.Ordinal) { [""] = source }, new(Snapshot.Settings, StringComparer.Ordinal));
         var owner = CallerContextStamper.TryGet(out var caller) ? caller : Snapshot.Owner;
@@ -118,9 +92,7 @@ internal sealed partial class CSharpFileNeuron(
     private CSharpFileSnapshot Describe(ProgramView? program)
     {
         var behavior = program?.Behaviors.FirstOrDefault();
-        return new(FileId, Snapshot.Program, Snapshot.Settings, Snapshot.Hash,
-            behavior is not null && Enum.TryParse<CSharpFileStatus>(behavior.Status, out var status) ? status : CSharpFileStatus.Stopped,
-            null, Snapshot.Wanted, 0);
+        return new(FileId, Snapshot.Program, Snapshot.Settings, Snapshot.Hash, behavior?.Status ?? "Stopped", behavior?.Error, Snapshot.Wanted);
     }
 
     [GeneratedRegex("^[A-Za-z0-9_]{1,128}$")]

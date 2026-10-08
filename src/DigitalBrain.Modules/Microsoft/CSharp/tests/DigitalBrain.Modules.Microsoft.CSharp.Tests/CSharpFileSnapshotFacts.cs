@@ -17,9 +17,9 @@ public sealed class CSharpFileSnapshotFacts
         var session = (await brain.Get<IBrainRuntime>(BrainRuntimeKeys.For("acc-brain")).Inspect(ct)).SessionId!;
 
         await brain.Grains().GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For("acc-brain"))
-            .Reported(session, new("acc-brain/csharp/running", started.Hash!, nameof(CSharpFileStatus.Running), null, null));
+            .Reported(session, new("acc-brain/csharp/running", started.Hash!, "Running", null, null));
 
-        Assert.Equal(CSharpFileStatus.Running, (await file.Inspect(ct)).Status);
+        Assert.Equal("Running", (await file.Inspect(ct)).Status);
     }
 
     [Fact]

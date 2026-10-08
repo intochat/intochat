@@ -18,11 +18,12 @@ public sealed class CSharpFileNeuronFacts
 
         var started = await file.Start(ct);
 
-        Assert.Equal(CSharpFileStatus.Starting, started.Status);
+        Assert.Equal("Starting", started.Status);
         Assert.NotNull(started.Hash);
         Assert.True(started.ShouldRun);
-        var view = await Edge(brain).Describe("acc-brain/csharp/report");
-        Assert.Equal(started.Hash, view!.Hash);
+        var program = await Describe(brain, "acc-brain/csharp/report");
+        Assert.Equal(started.Hash, Assert.Single(program!.Behaviors).Hash);
+        Assert.Equal("acc-brain/csharp/report", program.Behaviors[0].Id);
         await host.NextAsync(FakeSessionHost.IsStart, ct);
         var assignment = Assert.Single(await Edge(brain).Assignments((await brain.Get<IBrainRuntime>(BrainRuntimeKeys.For("acc-brain")).Inspect(ct)).SessionId!));
         Assert.Equal("tea", assignment.Settings["TimerId"]);
@@ -56,9 +57,9 @@ public sealed class CSharpFileNeuronFacts
         var second = await file.Swap("Console.WriteLine(2);", ct);
 
         Assert.NotEqual(first.Hash, second.Hash);
-        Assert.Equal(second.Hash, (await Edge(brain).Describe("acc-brain/csharp/swap"))!.Hash);
+        Assert.Equal(second.Hash, (await Describe(brain, "acc-brain/csharp/swap"))!.Behaviors[0].Hash);
         await file.Delete(ct);
-        Assert.Null(await Edge(brain).Describe("acc-brain/csharp/swap"));
+        Assert.Null(await Describe(brain, "acc-brain/csharp/swap"));
         Assert.Equal("", (await file.Inspect(ct)).Source);
     }
 
@@ -74,17 +75,9 @@ public sealed class CSharpFileNeuronFacts
         var stopped = await file.Stop(ct);
 
         Assert.False(stopped.ShouldRun);
-        Assert.Equal(CSharpFileStatus.Stopped, stopped.Status);
+        Assert.Equal("Stopped", stopped.Status);
         Assert.Equal("Console.WriteLine(2);", stopped.Source);
-        Assert.Null(await Edge(brain).Describe("acc-brain/csharp/stopped"));
-    }
-
-    [Fact]
-    public async Task CallersCannotBindAFileToAnInstalledApp()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Get<ICSharpAppBinding>("acc-brain/csharp/file").BindApp("arbitrary-app"));
+        Assert.Null(await Describe(brain, "acc-brain/csharp/stopped"));
     }
 
     [Fact]
@@ -100,4 +93,7 @@ public sealed class CSharpFileNeuronFacts
     }
 
     private static IBrainRuntimeEdge Edge(ModuleBrain brain) => brain.Grains().GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For("acc-brain"));
+
+    private static Task<ProgramView?> Describe(ModuleBrain brain, string owner)
+        => brain.Grains().GetGrain<IBrainPrograms>(BrainRuntimeKeys.For("acc-brain")).Describe(owner);
 }
