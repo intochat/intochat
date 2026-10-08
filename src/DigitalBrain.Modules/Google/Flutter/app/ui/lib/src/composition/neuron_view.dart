@@ -8,6 +8,7 @@ import 'package:gpt_markdown/gpt_markdown.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../voice_input/ui_voice_input.dart';
+import '../chat/ui_chat_transcript.dart';
 import '../components/browser/ui_web_browser.dart';
 import '../components/chart/ui_chart.dart';
 import '../models/ui_part.dart';
@@ -267,6 +268,18 @@ class _NeuronViewState extends State<NeuronView> {
     ];
     final enabled = widget.enabled && definition['enabled'] != false;
     switch (widget.kind) {
+      case 'chat':
+        final projection = data['projection'] as Map? ?? const {};
+        return UiChatTranscript(
+          key: ValueKey('${projection['source']}:${projection['generation']}'),
+          messages: [
+            for (final message
+                in (projection['messages'] as List? ?? const [])
+                    .whereType<Map>())
+              Map<String, dynamic>.from(message),
+          ],
+          markdown: _markdown,
+        );
       case 'surface':
       case 'layout':
         if (children.isEmpty) return const SizedBox.shrink();

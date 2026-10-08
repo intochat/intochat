@@ -52,6 +52,34 @@ public sealed class SessionConnectionFacts
         Assert.Equal(2, (await brain.Acknowledged.Reader.ReadAsync(ct))["watermark"]!.GetValue<long>());
     }
 
+    [Fact(Timeout = 30_000)]
+    public async Task ReconciliationRunsAfterRegistrationAndBeforeQueuedSignals()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = new FakeBrain { Streams = { Batch("s1", 1, 1) } };
+        await using var session = await brain.OpenAsync(ct);
+        await using var connection = await Connect(session, "acc-brain/csharp/a", ct);
+        var order = new List<string>();
+        var reconciling = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reconciled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stream = connection.On<Changed>(connection.Get<ISource>("source"), async () =>
+        {
+            Assert.Single(brain.Reports("subscribe"));
+            reconciling.SetResult();
+            await reconciled.Task.WaitAsync(ct);
+            order.Add("snapshot");
+        }, ct);
+        Assert.Empty(order);
+        await using var reader = stream.GetAsyncEnumerator(ct);
+        var pending = reader.MoveNextAsync().AsTask();
+        await reconciling.Task.WaitAsync(ct);
+        Assert.False(pending.IsCompleted);
+        reconciled.SetResult();
+        Assert.True(await pending);
+        order.Add("signal");
+        Assert.Equal(["snapshot", "signal"], order);
+    }
+
     // A click's trace continues through the stream into the calls the behavior makes in reaction.
     [Fact(Timeout = 30_000)]
     public async Task ASignalsTraceTravelsWithTheCallsItCauses()

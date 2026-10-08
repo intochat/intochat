@@ -24,6 +24,7 @@ internal sealed record AgentStorage
     [Id(3)] public string? Summary { get; init; }
     [Id(4)] public AgentRun? ActiveRun { get; init; }
     [Id(5)] public AgentRun[] Runs { get; init; } = [];
+    [Id(6)] public long Version { get; init; }
 }
 
 [GrainType("agent")]
@@ -89,7 +90,7 @@ internal sealed class AgentNeuron(
         finally { _mutating = false; }
     }
 
-    public Task<AgentState> Read() => Task.FromResult(new AgentState(State.Revision, State.Definition, State.Summary, State.ActiveRun, [.. State.Runs]));
+    public Task<AgentState> Read() => Task.FromResult(new AgentState(State.Revision, State.Definition, State.Summary, State.ActiveRun, [.. State.Runs]) { Version = State.Version });
 
     public Task<AiMessage[]> Transcript() => Task.FromResult<AiMessage[]>([.. State.Transcript]);
 
@@ -212,6 +213,8 @@ internal sealed class AgentNeuron(
                             break;
                         case AgentTurnEvent.Text delta:
                             text.Append(delta.Content);
+                            run = run with { Reply = text.ToString() };
+                            await Persist(State with { ActiveRun = run });
                             await Notify(new TurnProgressed(Key, runId, "text", delta.Content, null, null, ++sequence));
                             break;
                         case AgentTurnEvent.ToolStarted tool:
@@ -369,7 +372,7 @@ internal sealed class AgentNeuron(
     private async Task Persist(AgentStorage next)
     {
         var previous = store.State;
-        store.State = next;
+        store.State = next with { Version = previous.Version + 1 };
         try { await store.WriteStateAsync(); }
         catch { store.State = previous; throw; }
     }

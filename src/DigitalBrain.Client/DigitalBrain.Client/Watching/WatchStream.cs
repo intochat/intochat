@@ -5,13 +5,13 @@ namespace DigitalBrain.Client;
 // handler). Disposal cancels the pending read, lets it settle, and only then releases the
 // subscription, so an early exit never throws and never leaks the watch.
 internal sealed class WatchStream<T>(Func<CancellationToken, Task<(IAsyncEnumerable<T> Signals, IAsyncDisposable Handle)>> open,
-    CancellationToken subscriptionCancellation, CancellationToken behaviorCancellation) : IAsyncEnumerable<T>
+    CancellationToken subscriptionCancellation, CancellationToken behaviorCancellation, Func<Task> onSubscribed) : IAsyncEnumerable<T>
 {
     public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
-        => new Enumerator(open, cancellationToken, subscriptionCancellation, behaviorCancellation);
+        => new Enumerator(open, cancellationToken, subscriptionCancellation, behaviorCancellation, onSubscribed);
 
     private sealed class Enumerator(Func<CancellationToken, Task<(IAsyncEnumerable<T> Signals, IAsyncDisposable Handle)>> open,
-        CancellationToken cancellationToken, CancellationToken subscriptionCancellation, CancellationToken behaviorCancellation) : IAsyncEnumerator<T>
+        CancellationToken cancellationToken, CancellationToken subscriptionCancellation, CancellationToken behaviorCancellation, Func<Task> onSubscribed) : IAsyncEnumerator<T>
     {
         private readonly CancellationTokenSource _lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, subscriptionCancellation, behaviorCancellation);
         private IAsyncEnumerator<T>? _signals;
@@ -38,6 +38,7 @@ internal sealed class WatchStream<T>(Func<CancellationToken, Task<(IAsyncEnumera
                     var (signals, handle) = await open(_lifetime.Token).ConfigureAwait(false);
                     _handle = handle;
                     _signals = signals.GetAsyncEnumerator(_lifetime.Token);
+                    await onSubscribed().ConfigureAwait(false);
                 }
                 return await _signals.MoveNextAsync().ConfigureAwait(false);
             }

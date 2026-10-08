@@ -43,4 +43,8 @@ public sealed record AgentState(
     [property: Id(1)] AgentDefinition Definition,
     [property: Id(2)] string? Summary,
     [property: Id(3)] AgentRun? ActiveRun,
-    [property: Id(4)] AgentRun[] Runs);
+    [property: Id(4)] AgentRun[] Runs)
+{
+    // Revision guards configuration; Version orders every persisted conversation change.
+    [Id(5)] public long Version { get; init; }
+}

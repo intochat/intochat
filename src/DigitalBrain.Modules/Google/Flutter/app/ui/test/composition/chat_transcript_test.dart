@@ -1,0 +1,113 @@
+import 'package:digitalbrain_ui/digitalbrain_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  testWidgets(
+    'streaming preserves the reading position until latest is requested',
+    (tester) async {
+      var text = 'A paragraph in the response.\n\n' * 60;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: NeuronView(
+              kind: 'chat',
+              name: 'reading',
+              load: (_, _) async => {
+                'projection': {
+                  'source': 'agent',
+                  'generation': 1,
+                  'version': text.length,
+                  'messages': [
+                    {
+                      'id': 'answer',
+                      'role': 1,
+                      'text': text,
+                      'status': 'running',
+                    },
+                  ],
+                },
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final scroll = tester
+          .widget<SingleChildScrollView>(
+            find.byType(SingleChildScrollView).first,
+          )
+          .controller!;
+      expect(scroll.position.extentAfter, 0);
+      await tester.drag(
+        find.byType(SingleChildScrollView).first,
+        const Offset(0, 400),
+      );
+      await tester.pumpAndSettle();
+      final reading = scroll.offset;
+      expect(find.text('Latest message'), findsOneWidget);
+      text += 'More streamed text.\n\n' * 20;
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+      expect(scroll.offset, reading);
+      await tester.tap(find.text('Latest message'));
+      await tester.pumpAndSettle();
+      expect(scroll.position.extentAfter, 0);
+      expect(find.text('Latest message'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  for (final width in [360.0, 768.0, 1280.0]) {
+    testWidgets('chat contains long content at width $width', (tester) async {
+      tester.view.physicalSize = Size(width, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: NeuronView(
+              kind: 'chat',
+              name: 'conversation',
+              load: (_, _) async => {
+                'projection': {
+                  'source': 'agent',
+                  'generation': 1,
+                  'version': 1,
+                  'messages': [
+                    {'id': 'u', 'role': 0, 'text': 'Show the results'},
+                    {
+                      'id': 'a',
+                      'role': 1,
+                      'text':
+                          '# Results\n\n${'A paragraph of readable text.\n\n' * 30}\n```json\n${'x' * 300}\n```\n\n| Company | Detail |\n|---|---|\n| Example | ${'wide' * 80} |',
+                      'status': 'completed',
+                      'activities': [
+                        {
+                          'id': 'call',
+                          'title': 'Query database',
+                          'input': 'select 1',
+                          'result': 'private result details',
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Assistant'), findsOneWidget);
+      expect(find.text('private result details'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.ensureVisible(find.text('Query database'));
+      await tester.tap(find.text('Query database'));
+      await tester.pumpAndSettle();
+      expect(find.text('private result details'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
+}

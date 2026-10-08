@@ -8,8 +8,7 @@ using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.TextField;
 using DigitalBrain.Flutter.Workspace;
 
-// The assistant's window. Composition is plain grain calls, safe to re-run; the transcript's
-// children belong to chat.cs, so composing never touches them.
+// The assistant's window. The chat transcript is projected independently from IAgent.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
@@ -50,7 +49,7 @@ async Task ComposeAsync()
         [Ref(UIVocabulary.TextType, "status"), Ref(UIVocabulary.ButtonType, "new")], Extents: [0, 160]), (await header.Read()).Revision);
     var main = brain.Get<ILayout>(Name("main"));
     await main.Set(new LayoutDefinition("column",
-        [Ref(UIVocabulary.LayoutType, "header"), Ref(UIVocabulary.LayoutType, "transcript"), Ref(UIVocabulary.LayoutType, "input")],
+        [Ref(UIVocabulary.LayoutType, "header"), Ref(UIVocabulary.ChatType, "transcript"), Ref(UIVocabulary.LayoutType, "input")],
         Extents: [40, 0, 96]), (await main.Read()).Revision);
     var surface = brain.Get<ISurface>(Name("surface"));
     await surface.Set(new SurfaceDefinition("Assistant", [Ref(UIVocabulary.LayoutType, "main")]), (await surface.Read()).Revision);
