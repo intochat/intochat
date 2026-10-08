@@ -6,8 +6,8 @@ using Microsoft.Playwright;
 namespace DigitalBrain.Testing.E2E;
 
 // A fact on the shared host: xUnit injects the assembly fixture, the lease gives the fact its own
-// WorkspaceId and lifetime. A fact that needs
-// another composition does not inherit this; it boots its own host through ReferenceBrain.
+// WorkspaceId and lifetime. A fact that needs another composition does not inherit this; it
+// boots its own host through ReferenceBrain.
 public abstract class BrainFact(ReferenceBrainFixture host) : IAsyncLifetime
 {
     private E2EBrain? _brain;

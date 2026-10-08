@@ -8,8 +8,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Modules.AI.Tests.Agents;
 
-// Whole agent turns against a provider model: the tool loop, failures and inference options all
-// travel the real OpenAI adapter to the fake.
+// Whole agent turns against a provider model: the tool loop and failures all travel the real
+// OpenAI adapter to the fake.
 public sealed class AgentModelTurnFacts
 {
     private const string Luna = "gpt-5.6-luna";
