@@ -13,6 +13,15 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 public sealed class ContractCatalogFacts
 {
     [Fact]
+    public void DeployedClientsIncludePublicConnectionDiscoveryButNoCredentialContracts()
+    {
+        var catalog = new ContractCatalog(ContractCatalog.Deployed());
+        Assert.Contains(typeof(DigitalBrain.Integrations.IConnectionRequests).FullName!, catalog.Neurons);
+        Assert.DoesNotContain(typeof(IIntegration).FullName!, catalog.Neurons);
+        Assert.DoesNotContain(typeof(DigitalBrain.Framework.Platform.Connections.IConnectionIndex).FullName!, catalog.Neurons);
+    }
+
+    [Fact]
     public async Task TypesAreDiscoveredAndFoundByWordsWithoutAnEmbeddingModel()
     {
         await using var brain = await ModuleTest.Create().WithModule<TimeModule>().WithReminders()

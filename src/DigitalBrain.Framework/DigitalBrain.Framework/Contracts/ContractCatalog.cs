@@ -31,6 +31,7 @@ public sealed class ContractCatalog
     public static Assembly[] Deployed() =>
     [
         typeof(INeuron).Assembly,
+        typeof(DigitalBrain.Integrations.IConnectionRequests).Assembly,
         .. Directory.GetFiles(AppContext.BaseDirectory, "DigitalBrain.Modules.*.Contracts.dll")
             .Select(path => Assembly.Load(AssemblyName.GetAssemblyName(path))),
     ];

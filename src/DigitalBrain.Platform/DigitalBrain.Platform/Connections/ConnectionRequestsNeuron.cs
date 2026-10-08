@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Integrations;
 using DigitalBrain.Platform.Integrations;
@@ -17,7 +18,8 @@ public sealed class ConnectionRequestsState
 [GrainType("integrations.accounts")]
 internal sealed class ConnectionRequestsNeuron(
     [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ConnectionRequestsState> store,
-    ConnectorCatalog catalog)
+    ConnectorCatalog catalog,
+    IReadOnlyList<ConnectorDefinition> connectors)
     : Neuron<ConnectionRequestsState>(store), IConnectionRequests
 {
     [ReadOnly]
@@ -26,6 +28,21 @@ internal sealed class ConnectionRequestsNeuron(
 
     [ReadOnly]
     public Task<ConnectionRef[]> ListPending() => Task.FromResult<ConnectionRef[]>([.. Snapshot.Pending]);
+
+    [ReadOnly]
+    public async Task<ConnectionSummary[]> ListConnections()
+    {
+        var result = new List<ConnectionSummary>();
+        foreach (var key in await GrainFactory.GetGrain<IConnectionIndex>(this.GetPrimaryKeyString()).List())
+        {
+            var identity = ConnectionKeys.Parse(key);
+            if (!connectors.Any(connector => connector.Id == identity.ConnectorId)) { continue; }
+            var connection = await GrainFactory.GetConnection(key).Read();
+            result.Add(new(connection.ConnectorId, connection.ConnectionId, key,
+                connection.Status.ToString().ToLowerInvariant(), connection.Account, connection.LastProbedAt));
+        }
+        return [.. result];
+    }
 
     public async Task<ConnectionRef> Request(string kind)
     {

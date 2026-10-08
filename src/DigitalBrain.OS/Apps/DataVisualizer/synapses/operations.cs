@@ -115,12 +115,12 @@ async Task Compose(View view)
         await brain.Get<ITextField>($"{root}/filter/{column}").Configure(column, "text");
         children.Add(new("textfield", $"{root}/filter/{column}"));
     }
-    children.Add(new(view.Kind, $"{root}/{view.Kind}"));
     children.Add(new("card", $"{root}/status"));
+    children.Add(new(view.Kind, $"{root}/{view.Kind}"));
     var layout = brain.Get<ILayout>($"{root}/layout");
     var current = await layout.Read();
-    var definition = new LayoutDefinition("column", children.ToArray());
-    if (!Same(current.Definition.Children, definition.Children)) { await layout.Set(definition, current.Revision); }
+    var definition = new LayoutDefinition("list", children.ToArray());
+    if (current.Definition.Mode != definition.Mode || !Same(current.Definition.Children, definition.Children)) { await layout.Set(definition, current.Revision); }
     var surface = brain.Get<ISurface>($"{root}/surface");
     var state = await surface.Read();
     if (state.Definition.Title != view.Title || state.Definition.Children.Length != 1) { await surface.Set(new(view.Title, [new("layout", $"{root}/layout")]), state.Revision); }

@@ -102,7 +102,7 @@ async Task Run(View? view)
         {
             await brain.Get<ViewTable>($"{root}/table").Replace(view.Title, columns.Select(c => new ViewColumn(c, c)).ToArray(), rows);
         }
-        await status.Set("", $"ok · {rows.Length} rows · {DateTimeOffset.UtcNow:HH:mm:ss}");
+        await status.Set("Data loaded", $"{rows.Length} rows shown · {DateTimeOffset.UtcNow:HH:mm:ss} UTC");
     }
     catch (Exception error) when (error is not OperationCanceledException)
     {

@@ -4,6 +4,7 @@ using DigitalBrain.AI.Agents.Signals;
 using DigitalBrain.AI.Models;
 using DigitalBrain.Apps;
 using DigitalBrain.Client;
+using DigitalBrain.Integrations;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Button;
 using DigitalBrain.Flutter.Button.Signals;
@@ -22,7 +23,7 @@ var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 string Name(string part) => appKey + "/" + part;
 // What the model may act on: the contracts this app composes, checked by the compiler.
-string[] Contracts = [typeof(IPostgresServer).FullName!, typeof(IApp).FullName!, typeof(IAppIndex).FullName!,
+string[] Contracts = [typeof(IConnectionRequests).FullName!, typeof(IPostgresServer).FullName!, typeof(IApp).FullName!, typeof(IAppIndex).FullName!,
     typeof(IWorkspace).FullName!, typeof(IForm).FullName!, typeof(ICSharpFile).FullName!];
 
 await ConversationId();
