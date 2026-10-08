@@ -1,5 +1,4 @@
-using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Contracts;
 
 [assembly: PlatformAssembly]

@@ -1,4 +1,5 @@
 using DigitalBrain.Aspire.Hosting;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Salesforce.Aspire.Hosting;
 
@@ -9,7 +10,7 @@ public sealed class SalesforceModuleHosting : ModuleHosting<DigitalBrain.Salesfo
         var options = brain.GetModuleConfiguration("salesforce").GetModuleOptions<SalesforceModuleOptions>("salesforce");
         if (options.HostMcp)
         {
-            new DigitalBrainModuleBuilder<DigitalBrain.Salesforce.Aspire.Hosting.SalesforceModuleHosting>(brain).WithHostedMcp(options.PublicOrigin);
+            new DigitalBrainModuleBuilder<DigitalBrain.Salesforce.Aspire.Hosting.SalesforceModuleHosting>(brain).WithHostedMcp();
         }
     }
 }

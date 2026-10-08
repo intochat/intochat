@@ -1,4 +1,4 @@
-using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework;
 using DigitalBrain.Postgres.Tables;
 
 namespace DigitalBrain.Modules.Postgres.Tests.Tables;
@@ -27,8 +27,12 @@ public sealed class TableOwnerFacts
     {
         var caller = new CallerContext
         {
-            PrincipalId = "alice", AccountId = "alice", BrainId = "brain-1",
-            Kind = CallerKind.App, AppId = "brain-1/apps/notes", StampedBy = TrustedEdge.AppProxy,
+            PrincipalId = "alice",
+            AccountId = "alice",
+            BrainId = "brain-1",
+            Kind = CallerKind.App,
+            AppId = "brain-1/apps/notes",
+            StampedBy = TrustedEdge.AppProxy,
         };
         // Grain keys carry the brain scope id, never the caller's raw brain name.
         Assert.Equal(new TableOwner(BrainScope.Create("alice", "brain-1").Id, "brain-1/apps/notes"), TableOwner.Current(caller));

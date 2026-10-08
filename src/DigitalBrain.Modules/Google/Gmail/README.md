@@ -4,25 +4,25 @@
 
 The module's ConnectorDefinition declares supported authentication methods and Integration
 dependencies. Platform delivers credentials through scoped async Integration handles; credential
-values never belong in module options. User authorizations are per-brain Connections holding
-SecretRefs. The offered connector catalog is `GET /connectors`, and user connections are managed
+values never belong in module options. User authorizations are per-brain connection neurons holding
+sealed credentials. The offered connector catalog is `GET /connectors`, and user connections are managed
 at `/brains/{id}/connections`. Provision deployment credentials with
 `DigitalBrain:Integrations:{id}:{Field}`; ordinary options stay under `DigitalBrain:Modules:{id}:Options`.
 
 Integrations are what the deployment provisions; Connections are what users authorize.
 
-Existing global/email-keyed Gmail connections must reconnect as named Connections. Both OAuth
-and Pub/Sub delivery use the Connection grain key; old Gmail state is not migrated.
+Pub/Sub delivery uses the connection grain key.
 
-Integration `google-oauth` requires `ClientId` and `ClientSecret`, acquired together through
-one atomic release. Configure `DigitalBrain:Modules:gmail:Options:PublicOrigin` as the public
-HTTPS origin (loopback HTTP is allowed for development). TokenEndpoint and ProfileEndpoint
-are ordinary options.
+Integration `google-oauth` requires `ClientId` and `ClientSecret`. The connector declares the
+`google-oauth` OAuth method; the Platform owns the browser login, the callback and the token
+exchange and refresh. Configure `DigitalBrain:Connections:PublicOrigin` as the public HTTPS origin
+(loopback HTTP is allowed for development). ProfileEndpoint is an ordinary option.
 
-Start named authorization with `POST /brains/{brainId}/connections/{connectionId}/gmail/login`.
-The callback URI is `{PublicOrigin}/google/gmail/oauth/callback`. The callback requires an expiring single-use state bound to the authenticated principal, brain
-and connection, and rechecks brain membership. Mailbox identity comes from Google's profile
-response. Access/refresh SecretRefs are stored under connection-specific vault paths.
+Start authorization with `POST /brains/{brainId}/connections/{connectionId}/login` and
+`{"connectorId":"gmail","authMethodId":"google-oauth"}`. The callback URI is
+`{PublicOrigin}/connections/oauth/gmail/callback`. The Gmail connection neuron keeps the tokens as
+sealed state; mailbox identity comes from Google's profile response, and a probe asks the same
+endpoint whether the stored token still works.
 
 Optional Integration `google-pubsub` contains non-secret `Audience` and `ServiceAccountEmail`.
 Without it, OAuth connections remain offered and push authentication refuses delivery.

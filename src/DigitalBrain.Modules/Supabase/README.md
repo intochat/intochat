@@ -1,19 +1,17 @@
 # Supabase
 
-## Connections and deployment credentials
+## A person's Supabase database is a postgres connection
 
-The module's ConnectorDefinition declares supported authentication methods and Integration
-dependencies. Platform delivers credentials through scoped async Integration handles; credential
-values never belong in module options. User authorizations are per-brain Connections holding
-SecretRefs. The offered connector catalog is `GET /connectors`, and user connections are managed
-at `/brains/{id}/connections`. Provision deployment credentials with
-`DigitalBrain:Integrations:{id}:{Field}`; ordinary options stay under `DigitalBrain:Modules:{id}:Options`.
+A Supabase database is a Postgres database. A person adds theirs as a connection of the
+**postgres** connector, named by them (for example `connection/{brain}/postgres/supabase`), holding
+the Supabase connection string. `IPostgresServer.ReadSchema` / `Query` serve it, and the Data
+Visualizer's `db` slot binds to it. This module declares no connector, neurons or endpoints.
 
-Integrations are what the deployment provisions; Connections are what users authorize.
+## Deployment backing store
 
-The Supabase user-project provider resolves the named `supabase` Connection in the caller's
-brain; it does not fall back to a deployment credential. The optional deployment backing tier
-uses Integration `supabase:ConnectionString` and is selected by ordinary option `UseBackingStore`.
-Selecting it requires a valid provisioned credential at startup. Connection-only deployments
-can leave that tier unselected. Hosting helpers that select a managed or external backing store
-also enable that option.
+The module keeps only what is Supabase-specific: the deployment backing tier. It uses Integration
+`supabase:ConnectionString` (provisioned at `DigitalBrain:Integrations:supabase:ConnectionString`) and
+is selected by ordinary option `UseBackingStore` under `DigitalBrain:Modules:supabase:Options`.
+Selecting it requires a valid provisioned credential at startup, and the `supabase` health check pings
+it. Deployments that do not select it leave the tier off. Hosting helpers that select a managed or
+external backing store also enable that option.

@@ -1,7 +1,8 @@
 using System.Text.Json;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
-using DigitalBrain.AI.Scripted;
+using DigitalBrain.AI.Inference;
+using DigitalBrain.AI.Models.Scripted;
 using Xunit;
 
 namespace DigitalBrain.Modules.AI.Tests;
@@ -13,17 +14,17 @@ public sealed class PersistedCollectionFacts
     {
         var definition = new AgentDefinition
         {
-            Tools = ["search", "read"],
+            Contracts = ["DigitalBrain.Apps.IApp", "DigitalBrain.Apps.IAppIndex"],
             Capabilities = ["research"],
             RoutingExamples = ["find evidence"],
-            ContextProviders = ["history"],
+            Contexts = ["research/agents/main/context"],
             Options = new(ProviderOptions: new Dictionary<string, string>() { ["mode"] = "precise" }),
         };
         var restored = JsonSerializer.Deserialize<AgentDefinition>(JsonSerializer.Serialize(definition))!;
-        Assert.Equal(definition.Tools, restored.Tools);
+        Assert.Equal(definition.Contracts, restored.Contracts);
         Assert.Equal(definition.Capabilities, restored.Capabilities);
         Assert.Equal(definition.RoutingExamples, restored.RoutingExamples);
-        Assert.Equal(definition.ContextProviders, restored.ContextProviders);
+        Assert.Equal(definition.Contexts, restored.Contexts);
         Assert.Equal("precise", restored.Options!.ProviderOptions!["mode"]);
         Assert.Null(JsonSerializer.Deserialize<InferenceOptions>("{}")!.ProviderOptions);
         Assert.Null(JsonSerializer.Deserialize<InferenceOptions>("{\"ProviderOptions\":null}")!.ProviderOptions);

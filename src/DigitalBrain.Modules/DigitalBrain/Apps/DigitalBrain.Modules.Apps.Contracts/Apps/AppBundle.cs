@@ -1,6 +1,6 @@
 namespace DigitalBrain.Apps;
 
-// The share format: a verified version's content. No connections, settings as defaults only.
+// The share format: a published version's content. No connections, settings as defaults only.
 [GenerateSerializer, Alias("apps.bundle")]
 public sealed record AppBundle(
     [property: Id(0)] string Name,

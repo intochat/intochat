@@ -1,10 +1,10 @@
-using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Platform.Integrations;
 
@@ -12,8 +12,11 @@ internal static class IntegrationCatalogEndpoints
 {
     internal static void MapIntegrations(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/connectors", async ([FromServices] ConnectorCatalog catalog, CancellationToken cancellationToken) =>
-            CallerContextStamper.TryGet(out _) ? Results.Ok(await catalog.ListAsync(cancellationToken)) : Results.Unauthorized());
+        // The shell picks from this list, so a connector no connection neuron serves is not offered to it.
+        endpoints.MapGet("/connectors", async (HttpContext context, [FromServices] ConnectorCatalog catalog, CancellationToken cancellationToken) =>
+            CallerContextStamper.TryGet(out _)
+                ? Results.Ok((await catalog.ListAsync(cancellationToken)).Where(entry => ConnectionGrains.IsConnectionGrainType(context.RequestServices, entry.Id)).ToArray())
+                : Results.Unauthorized());
         // Deliberately not brain-scoped: registrations are deployment info, not workspace data.
         var group = endpoints.MapGroup("/integrations");
         group.AddEndpointFilter(async (context, next) =>
@@ -32,7 +35,7 @@ internal static class IntegrationCatalogEndpoints
             if (!definitions.Any(definition => definition.Id == id)) { return Results.NotFound(); }
             try
             {
-                var registration = grains.GetGrain<IIntegration>(IntegrationVault.GrainKeyPrefix + id);
+                var registration = grains.GetGrain<IIntegration>(IntegrationNeuron.KeyPrefix + id);
                 return Results.Ok(await registration.Configure(new ConfigureIntegration { Values = body.Values ?? [] }));
             }
             catch (ArgumentException error)
@@ -48,7 +51,7 @@ internal static class IntegrationCatalogEndpoints
             if (!definitions.Any(definition => definition.Id == id)) { return Results.NotFound(); }
             try
             {
-                return Results.Ok(await grains.GetGrain<IIntegration>(IntegrationVault.GrainKeyPrefix + id).Clear(field));
+                return Results.Ok(await grains.GetGrain<IIntegration>(IntegrationNeuron.KeyPrefix + id).Clear(field));
             }
             catch (ArgumentException error)
             {

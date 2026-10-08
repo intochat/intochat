@@ -48,70 +48,25 @@ void main() {
     final entry = MarketplaceEntry.fromJson({
       'listing': {
         'publisher': 'intochat',
-        'publisherAccountId': 'acc-1',
-        'publisherBrainId': 'account-acc-1',
+        'source': {
+          r'$source': 'brain',
+          'accountId': 'acc-1',
+          'brainId': 'account-acc-1',
+        },
         'name': 'customer-researcher',
         'title': 'Customer Researcher',
         'description': 'Research companies',
         'version': '1.3.0',
         'icon': 'icon.svg',
-        'scenarios': ['Opening the researcher composes its surface'],
       },
       'installed': true,
       'updateAvailable': true,
     });
     expect(entry.listing.title, 'Customer Researcher');
-    expect(entry.listing.scenarios, [
-      'Opening the researcher composes its surface',
-    ]);
+    expect(entry.listing.source.brainId, 'account-acc-1');
+    expect(entry.listing.source.isShipped, isFalse);
     expect(entry.installed, isTrue);
     expect(entry.updateAvailable, isTrue);
-    expect(() => entry.listing.scenarios.add('x'), throwsUnsupportedError);
-  });
-
-  test(
-    'seeded accounts are empty when the server is not in open posture',
-    () async {
-      final client = DigitalBrainUiClient(
-        baseUri: Uri.parse('http://test'),
-        httpClient: MockClient((request) async => http.Response('', 404)),
-      );
-      expect(await client.listSeededAccounts(), isEmpty);
-      client.close();
-    },
-  );
-
-  test('continuing as a seeded account adopts its session', () async {
-    final paths = <String>[];
-    final client = DigitalBrainUiClient(
-      baseUri: Uri.parse('http://test'),
-      httpClient: MockClient((request) async {
-        paths.add('${request.method} ${request.url.path}');
-        if (request.url.path == '/identity/seeded-accounts') {
-          return http.Response(
-            jsonEncode([
-              {'username': 'intochat', 'displayName': 'IntoChat'},
-            ]),
-            200,
-          );
-        }
-        return http.Response(
-          jsonEncode({
-            'principalId': 'intochat',
-            'accountId': 'acc-1',
-            'brainId': 'account-acc-1',
-          }),
-          200,
-        );
-      }),
-    );
-    final accounts = await client.listSeededAccounts();
-    expect(accounts.single.displayName, 'IntoChat');
-    await client.signInSeeded('intochat');
-    expect(paths.last, 'POST /identity/seeded-accounts/intochat/login');
-    expect(client.workspaceIdentity, 'intochat|acc-1');
-    expect(client.defaultBrainId, 'account-acc-1');
-    client.close();
   });
 
   test('a docked open asks the app for its surface reference', () async {

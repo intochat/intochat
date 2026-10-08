@@ -5,4 +5,4 @@ namespace DigitalBrain.Postgres;
 public sealed class PostgresQueryException(string message) : InvalidOperationException(message);
 
 [GenerateSerializer, Alias("db.postgres.unavailable")]
-public sealed class PostgresUnavailableException(string message) : InvalidOperationException(message);
+public sealed class PostgresUnavailableException(string message) : ServiceUnavailableException(message);

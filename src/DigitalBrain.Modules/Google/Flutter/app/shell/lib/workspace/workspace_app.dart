@@ -66,7 +66,6 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   final _tables = <String, UiTableController>{};
   final _remote = <String, WorkspaceRemoteController>{};
   final _remoteCancelled = Completer<void>();
-  final _tableCancelled = <String, Completer<void>>{};
   final _apps = <String, List<InstalledAppSummary>>{};
   final _appsLoading = <String>{};
   final _sourcesSynced = <String>{};
@@ -139,14 +138,6 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
         );
       }
     }
-  }
-
-  Future<void> _cancelPreviousTable(String id) {
-    final previous = _tableCancelled[id];
-    if (previous != null && !previous.isCompleted) previous.complete();
-    final next = Completer<void>();
-    _tableCancelled[id] = next;
-    return next.future;
   }
 
   final _hydratingTables = <String>{};
@@ -237,10 +228,6 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     }
     _remote.clear();
     _sourcesSynced.clear();
-    for (final cancellation in _tableCancelled.values) {
-      if (!cancellation.isCompleted) cancellation.complete();
-    }
-    _tableCancelled.clear();
     for (final table in _tables.values) {
       table.dispose();
     }
@@ -351,9 +338,6 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     _remoteCancelled.complete();
     for (final controller in _remote.values) {
       controller.dispose();
-    }
-    for (final cancelled in _tableCancelled.values) {
-      if (!cancelled.isCompleted) cancelled.complete();
     }
     store.onRemoteWindowAction = null;
     _routes.dispose();
@@ -505,34 +489,6 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     WorkspaceProject project,
   ) async {
     try {
-      if (artifact.remoteManaged && widget.programmingClient != null) {
-        final client = widget.programmingClient!;
-        final tableId = artifact.data['tableId'] as String;
-        final snapshot = await client.readWorkspaceTable(
-          project.id,
-          tableId,
-          cancelled: _cancelPreviousTable(tableId),
-        );
-        if (!mounted) return;
-        _tables[artifact.id] = UiTableController(
-          workspace: project.id,
-          snapshot: snapshot,
-          read: (_, id, {offset = 0, limit = 25}) => client.readWorkspaceTable(
-            project.id,
-            id,
-            offset: offset,
-            limit: limit,
-            cancelled: _cancelPreviousTable(id),
-          ),
-          update: (_, id, update) => client.updateWorkspaceTable(
-            project.id,
-            id,
-            update,
-            cancelled: _cancelPreviousTable(id),
-          ),
-        );
-        return;
-      }
       final snapshot = widget.onReadTable == null
           ? TableSnapshot.fromJson(artifact.data)
           : await widget.onReadTable!(project.id, artifact.id);

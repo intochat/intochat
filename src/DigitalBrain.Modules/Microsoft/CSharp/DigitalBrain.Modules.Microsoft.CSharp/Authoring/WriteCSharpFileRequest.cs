@@ -3,6 +3,6 @@ using System.Reflection;
 using DigitalBrain.Microsoft.CSharp;
 using ModelContextProtocol.Server;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Authoring;
 
 public sealed record WriteCSharpFileRequest(string Source, string? Name = null, string? Purpose = null);

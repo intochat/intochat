@@ -21,7 +21,7 @@ public abstract class BrainFact(ReferenceBrainFixture host) : IAsyncLifetime
     {
         var ct = TestContext.Current.CancellationToken;
         _brain = await Host.LeaseAsync(ct);
-        await UserConnections.AuthorizeSupabaseAsync(_brain, _brain.WorkspaceId, ct);
+        await UserConnections.AuthorizeDatabaseAsync(_brain, _brain.WorkspaceId, ct);
         Host.Model.Reset();
         await ResetShellStateAsync(_brain, ct);
     }

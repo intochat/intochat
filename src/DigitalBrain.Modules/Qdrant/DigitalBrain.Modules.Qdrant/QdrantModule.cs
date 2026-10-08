@@ -1,6 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Vectors;
+using DigitalBrain.Framework.Modules;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;

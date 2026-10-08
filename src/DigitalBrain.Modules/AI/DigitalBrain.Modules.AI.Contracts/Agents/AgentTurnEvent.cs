@@ -1,3 +1,6 @@
+using DigitalBrain.AI.Inference;
+using DigitalBrain.AI.Models;
+
 namespace DigitalBrain.AI.Agents;
 
 [GenerateSerializer, Alias("ai.turn-event")]
@@ -6,7 +9,7 @@ public abstract record AgentTurnEvent
     [GenerateSerializer, Alias("ai.turn-event.Started")]
     public sealed record Started([property: Id(0)] string RunId) : AgentTurnEvent;
     [GenerateSerializer, Alias("ai.turn-event.ModelSelected")]
-    public sealed record ModelSelected([property: Id(0)] ResolvedAgentModel Model, [property: Id(1)] ModelDescriptor Descriptor) : AgentTurnEvent;
+    public sealed record ModelSelected([property: Id(0)] ResolvedModel Model, [property: Id(1)] ModelDescriptor Descriptor) : AgentTurnEvent;
     [GenerateSerializer, Alias("ai.turn-event.Text")]
     public sealed record Text([property: Id(0)] string Content) : AgentTurnEvent;
     [GenerateSerializer, Alias("ai.turn-event.ToolStarted")]

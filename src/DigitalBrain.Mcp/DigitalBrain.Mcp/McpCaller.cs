@@ -1,5 +1,6 @@
 using System.ComponentModel;
-using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Surface;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.Extensions.Options;
@@ -10,7 +11,7 @@ namespace DigitalBrain.Mcp;
 [McpServerToolType]
 internal sealed class McpCaller(IHttpContextAccessor http, IOptions<AuthOptions> auth)
 {
-    [McpServerTool(Name = "neurons_context"), Description("Read the authenticated caller and selected brain. Use /brains/{brainId}/mcp to select a brain; /mcp uses the session/default brain.")]
+    [McpServerTool(Name = NeuronSurfaceTools.ContextName), Description(NeuronSurfaceTools.ContextDescription)]
     public CallerContext Context() => Stamp();
 
     // MCP dispatch can run in a separate execution context. Stamp from the current HTTP

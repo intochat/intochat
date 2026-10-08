@@ -1,7 +1,6 @@
-using System.Reflection;
-using DigitalBrain;
 using DigitalBrain.Framework;
-using Xunit;
+using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Framework.Tests.Unit;
 
@@ -18,7 +17,7 @@ public sealed class ExtractionFacts
 
         Assert.Equal("DigitalBrain", typeof(INeuron).Assembly.GetName().Name);
         Assert.Equal(
-            ["Activated", "BrainSnapshot", "EstablishBrain", "IBrain", "IDigitalBrain", "INeuron", "INeuronObserver", "ISynapse", "PlatformAssemblyAttribute", "PlatformOnlyAttribute", "Signal", "SynapseChanged", "SynapseSnapshot", "SynapseWatch"],
+            ["Activated", "Created", "IDigitalBrain", "IKernel", "INeuron", "INeuronObserver", "NeuronId", "Owner", "ServiceUnavailableException", "Signal", "SignalId", "State", "Synapse"],
             exported);
     }
 

@@ -1,59 +1,44 @@
 using System.Text;
-using System.Text.Json;
 using System.Text.RegularExpressions;
-using DigitalBrain;
-using DigitalBrain.Client;
-using DigitalBrain.Client.Edge.V1;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
-using Orleans.Runtime;
-using Orleans.Timers;
+using DigitalBrain.Microsoft.CSharp.Assemblies;
+using DigitalBrain.Microsoft.CSharp.Catalog;
+using DigitalBrain.Microsoft.CSharp.Files.Signals;
+using DigitalBrain.Microsoft.CSharp.Runtime;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Files;
 
-// Start records the intent to keep a run up; Arm records the intent to run once per trigger signal.
-// A reminder reconciles either intent with the sandbox, so a file survives lost runs and silo restarts.
+// A behavior is a record: its program, settings and the assembly it compiled to. Start and Swap
+// compile and store it, then hand it to the brain's runtime; running it, its subscriptions and its
+// failures belong to that runtime and its one sandbox session.
 [GrainType("microsoft.csharp.file")]
 internal sealed partial class CSharpFileNeuron(
     [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<CSharpFileState> store,
-    ICSharpRunner runner,
-    ScriptRunEnvironment environment,
-    IReminderRegistry reminders)
-    : Neuron<CSharpFileState>(store), ICSharpFile, ICSharpAppBinding, ICSharpFileTrigger, ICSharpFileEdge, IRemindable, INeuronObserver
+    CSharpScriptCheck compiler,
+    IBehaviorAssemblies assemblies)
+    : Neuron<CSharpFileState>(store), ICSharpFile, ICSharpAppBinding
 {
-    public override NeuronAccess Access(string operation) =>
-        // The script edge's inbound operations authenticate with the run token the edge has
-        // already verified; the neuron re-checks the run id itself. Same rule as a webhook.
-        operation is nameof(ICSharpFileEdge.Authorize) or nameof(ICSharpFileEdge.Subscribed) or nameof(ICSharpFileEdge.DrainPending)
-            ? NeuronAccess.PublicOperation
-        : Snapshot.AppBrain is { } appScope ? new(appScope)
-        : Snapshot.OwnerContext is { } owner ? new(BrainScope.Create(owner.AccountId, owner.BrainId).Id)
-        : base.Access(operation) is { Scope: not null } scoped ? scoped
-        : operation == nameof(Write) && Snapshot.Source.Length == 0
-            ? new(BrainScope.CurrentId())
-        // A file without source (never written, or deleted) has nothing to protect, and the
-        // uninstall view legitimately reads the emptied files it just deleted.
-        : Snapshot.Source.Length == 0 ? NeuronAccess.PublicOperation
-        : NeuronAccess.Unclassified;
-
     internal const int MaximumSourceBytes = 128 * 1024;
-    internal const int MaximumFailures = 5;
-    internal const int MaximumPending = 64;
-    internal const string ReconcileReminder = "reconcile";
-    // Orleans reminders fire at most once a minute.
-    internal static readonly TimeSpan ReconcilePeriod = TimeSpan.FromMinutes(1);
     private const int MaximumSettings = 64;
-    private readonly Dictionary<string, INeuron> _watched = new(StringComparer.Ordinal);
-    private IGrainTimer? _watchRenewal;
     private string FileId => this.GetPrimaryKeyString();
-    private bool IsArmed => Snapshot is { ShouldRun: true, Trigger: not null };
+
+    // The key leads with its brain (CSharpFileKeys), so the runtime is found without a stamped caller.
+    private IBrainRuntimeEdge Runtime
+    {
+        get
+        {
+            var separator = FileId.IndexOf('/', StringComparison.Ordinal);
+            if (separator <= 0) { throw new InvalidOperationException($"'{FileId}' is not a behavior key; use CSharpFileKeys.For(brain, name)."); }
+            return GrainFactory.GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For(FileId[..separator]));
+        }
+    }
 
     internal void RequireBoundAccess(GrainId? source, string method)
     {
         if (Snapshot.AppId is not { } app) { return; }
         if (Snapshot.AppBrain != BrainScope.CurrentId())
         { throw new UnauthorizedAccessException("This behavior belongs to another brain."); }
-        if (method is nameof(Write) or nameof(Configure) or nameof(Start) or nameof(Arm) or nameof(Stop) or nameof(Delete)
+        if (method is nameof(Write) or nameof(Configure) or nameof(Start) or nameof(Swap) or nameof(Stop) or nameof(Delete)
             && (source?.Type.ToString() != DigitalBrain.Framework.AppGrainType.Name || source?.Key.ToString() != app))
         { throw new UnauthorizedAccessException("Only the owning Apps grain may change a bound behavior."); }
     }
@@ -65,26 +50,17 @@ internal sealed partial class CSharpFileNeuron(
         if (Snapshot.AppId is not null && (Snapshot.AppId != appId || Snapshot.AppBrain != brain))
         { throw new UnauthorizedAccessException("The behavior is already bound to another app."); }
         if (Snapshot.AppId is not null) { return; }
-        await StopCurrentRunAsync(CancellationToken.None);
-        await Save(Snapshot with { AppId = appId, AppBrain = brain, ShouldRun = false, RunId = "", Subscriptions = [] }, new CSharpFileChanged(FileId));
-    }
-
-    // A source's own signal may be what activated this file, so watching it now would deadlock;
-    // the renewal timer's first tick watches it right after activation instead.
-    internal void ResumeWatches()
-    {
-        if (IsArmed || Snapshot.Subscriptions.Length > 0) { RenewSourceWatches(dueTime: TimeSpan.Zero); }
+        if (Snapshot.Wanted) { await Runtime.Retire(FileId); }
+        await Save(Snapshot with { AppId = appId, AppBrain = brain, Wanted = false }, new CSharpFileChanged(FileId));
     }
 
     public async Task<CSharpFileSnapshot> Inspect(CancellationToken cancellationToken = default)
-        => Describe(await runner.InspectAsync(Snapshot.Owner, Snapshot.RunId, cancellationToken));
+        => Describe(Snapshot.Wanted ? await Runtime.Describe(FileId) : null);
 
     public Task Write(string program, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(program);
-        if (Encoding.UTF8.GetByteCount(program) > MaximumSourceBytes) { throw new ArgumentException($"Source exceeds {MaximumSourceBytes} bytes.", nameof(program)); }
-        var owner = CallerContextStamper.TryGet(out var caller) ? caller : Snapshot.OwnerContext;
-        return Save(Snapshot with { Source = program, OwnerContext = Snapshot.OwnerContext ?? owner }, new CSharpFileChanged(FileId));
+        RequireSize(program);
+        return Save(Snapshot with { Program = program }, new CSharpFileChanged(FileId));
     }
 
     public Task Configure(IReadOnlyDictionary<string, string> settings, CancellationToken cancellationToken = default)
@@ -96,307 +72,61 @@ internal sealed partial class CSharpFileNeuron(
         return Save(Snapshot with { Settings = new(settings, StringComparer.Ordinal) }, new CSharpFileChanged(FileId));
     }
 
-    public async Task<CSharpFileSnapshot> Start(CancellationToken cancellationToken = default)
-    {
-        RequireSource();
-        await UnwatchSourcesAsync();
-        await StopCurrentRunAsync(cancellationToken);
-        await reminders.RegisterOrUpdateReminder(this.GetGrainId(), ReconcileReminder, ReconcilePeriod, ReconcilePeriod);
-        var owner = Caller();
-        // A fresh start is a fresh intent: the new script re-registers its subscriptions by running.
-        var runId = await StartRunAsync(Snapshot with { ShouldRun = true, Failures = 0, Owner = owner.Principal, OwnerContext = owner.Context, Trigger = null, Subscriptions = [] }, trigger: null, cancellationToken);
-        return Describe(await runner.InspectAsync(owner.Principal, runId, cancellationToken));
-    }
+    public Task<CSharpFileSnapshot> Start(CancellationToken cancellationToken = default) => AssignAsync(Snapshot.Program, cancellationToken);
 
-    public async Task<CSharpFileSnapshot> Swap(string source, CancellationToken cancellationToken = default)
+    public Task<CSharpFileSnapshot> Swap(string source, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        if (Encoding.UTF8.GetByteCount(source) > MaximumSourceBytes) { throw new ArgumentException($"Source exceeds {MaximumSourceBytes} bytes.", nameof(source)); }
-        // An edit is not a fresh intent: keep the durable subscriptions (and their buffered
-        // signals) and keep watching their sources, so nothing published during the restart
-        // is lost; the new run drains the buffers when it re-subscribes.
-        await StopCurrentRunAsync(cancellationToken);
-        await reminders.RegisterOrUpdateReminder(this.GetGrainId(), ReconcileReminder, ReconcilePeriod, ReconcilePeriod);
-        var owner = Caller();
-        var runId = await StartRunAsync(Snapshot with { Source = source, ShouldRun = true, Failures = 0, Owner = owner.Principal, OwnerContext = owner.Context, Trigger = null }, trigger: null, cancellationToken);
-        await WatchSourcesAsync();
-        return Describe(await runner.InspectAsync(owner.Principal, runId, cancellationToken));
-    }
-
-    public async Task<CSharpFileSnapshot> Arm(CSharpTrigger trigger, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(trigger);
-        RequireSource();
-        if (!GrainId.TryParse(trigger.Neuron, out _)) { throw new ArgumentException($"'{trigger.Neuron}' is not a neuron id such as time.timer/tea.", nameof(trigger)); }
-        ArgumentException.ThrowIfNullOrWhiteSpace(trigger.Signal);
-        await UnwatchSourcesAsync();
-        await StopCurrentRunAsync(cancellationToken);
-        var owner = Caller();
-        await Save(Snapshot with { ShouldRun = true, Failures = 0, Owner = owner.Principal, OwnerContext = owner.Context, Trigger = trigger, Subscriptions = [] }, new CSharpFileChanged(FileId));
-        await WatchSourcesAsync();
-        await reminders.RegisterOrUpdateReminder(this.GetGrainId(), ReconcileReminder, ReconcilePeriod, ReconcilePeriod);
-        return Describe(await runner.InspectAsync(Snapshot.Owner, Snapshot.RunId, cancellationToken));
+        RequireSize(source);
+        return AssignAsync(source, cancellationToken);
     }
 
     public async Task<CSharpFileSnapshot> Stop(CancellationToken cancellationToken = default)
     {
-        await StopReconcilingAsync();
-        await UnwatchSourcesAsync();
-        await StopCurrentRunAsync(cancellationToken);
-        var run = await runner.InspectAsync(Snapshot.Owner, Snapshot.RunId, cancellationToken);
-        await Save(Snapshot with { ShouldRun = false, Subscriptions = [] }, new CSharpFileChanged(FileId));
-        return Describe(run);
+        await Runtime.Retire(FileId);
+        await Save(Snapshot with { Wanted = false }, new CSharpFileChanged(FileId));
+        return Describe(null);
     }
-
-    public Task<string> ReadLogs(int tail = 200, CancellationToken cancellationToken = default)
-        => runner.LogsAsync(Snapshot.Owner, Snapshot.RunId, tail, cancellationToken);
 
     public async Task Delete(CancellationToken cancellationToken = default)
     {
-        await StopReconcilingAsync();
-        await UnwatchSourcesAsync();
-        await StopCurrentRunAsync(cancellationToken);
+        if (FileId.Contains('/', StringComparison.Ordinal)) { await Runtime.Retire(FileId); }
         await Save(new CSharpFileState(), new CSharpFileChanged(FileId));
         DeactivateOnIdle();
     }
 
-    Task INeuronObserver.OnSignalAsync(Signal signal)
-    {
-        if (IsArmed && signal.GetType().Name == Snapshot.Trigger!.Signal && signal.Publisher.Name == Snapshot.Trigger.Neuron)
-        { return this.AsReference<ICSharpFileTrigger>().Fire(signal); }
-        return Snapshot.Subscriptions.Any(s => s.Signal == signal.GetType().Name && s.Neuron == signal.Publisher.Name)
-            ? this.AsReference<ICSharpFileTrigger>().Enqueue(signal)
-            : Task.CompletedTask;
-    }
+    public Task<string> ReadLogs(int tail = 200, CancellationToken cancellationToken = default)
+        => Snapshot.Wanted ? Runtime.Logs(FileId, tail) : Task.FromResult("");
 
-    // Buffers the signal on the subscription it matches, then wakes a run to drain it.
-    public async Task Enqueue(Signal signal)
-    {
-        var json = JsonSerializer.Serialize(signal, signal.GetType(), ScriptEdgeProtocol.Json);
-        var name = signal.GetType().Name;
-        var changed = false;
-        var next = Snapshot.Subscriptions.Select(s =>
-        {
-            if (s.Signal != name || s.Neuron != signal.Publisher.Name) { return s; }
-            changed = true;
-            var pending = s.Pending.Length >= MaximumPending ? s.Pending.Skip(1).Append(json) : s.Pending.Append(json);
-            return s with { Pending = pending.ToArray() };
-        }).ToArray();
-        if (!changed) { return; }
-        await Save(Snapshot with { Subscriptions = next }, new CSharpPendingArrived(FileId));
-        await WakeAsync();
-    }
-
-    // Wake-runs are not retried: the next signal is the next attempt, so a file whose wake-runs
-    // keep failing disarms instead of burning a run on every signal.
-    private async Task WakeAsync()
-    {
-        if (!Snapshot.ShouldRun) { return; }
-        var current = await runner.InspectAsync(Snapshot.Owner, Snapshot.RunId, CancellationToken.None);
-        if (current.Status == CSharpFileStatus.Running) { return; }
-        var failures = current switch
-        {
-            { Status: CSharpFileStatus.Exited, ExitCode: not 0 } => Snapshot.Failures + 1,
-            { Status: CSharpFileStatus.Exited } => 0,
-            _ => Snapshot.Failures,
-        };
-        if (failures >= MaximumFailures)
-        {
-            await StopReconcilingAsync();
-            await UnwatchSourcesAsync();
-            await Save(Snapshot with { ShouldRun = false, Failures = failures, Subscriptions = [] }, new CSharpFileChanged(FileId));
-            return;
-        }
-        await StartRunAsync(Snapshot with { Failures = failures }, trigger: null, CancellationToken.None);
-    }
-
-    public async Task Subscribed(string runId, string neuron, string signal)
-    {
-        await RequireSpeakingRun(runId);
-        if (!GrainId.TryParse(neuron, out _)) { throw new ArgumentException($"'{neuron}' is not a neuron id such as time.timer/tea.", nameof(neuron)); }
-        // Watching itself would deadlock this non-reentrant grain and self-feed on every save.
-        if (neuron == this.GetGrainId().ToString()) { throw new ArgumentException("A script cannot subscribe to its own file.", nameof(neuron)); }
-        ArgumentException.ThrowIfNullOrWhiteSpace(signal);
-        if (!Snapshot.Subscriptions.Any(existing => existing.Neuron == neuron && existing.Signal == signal))
-        {
-            await Save(Snapshot with { Subscriptions = [.. Snapshot.Subscriptions, new(neuron, signal, [])] }, new CSharpFileChanged(FileId));
-        }
-        await WatchSourcesAsync();
-    }
-
-    public async Task<IReadOnlyList<string>> DrainPending(string runId, string neuron, string signal)
-    {
-        await RequireSpeakingRun(runId);
-        var subscription = Snapshot.Subscriptions.FirstOrDefault(s => s.Neuron == neuron && s.Signal == signal);
-        if (subscription is null or { Pending.Length: 0 }) { return []; }
-        var drained = subscription.Pending;
-        await Save(Snapshot with
-        {
-            Subscriptions = Snapshot.Subscriptions.Select(s => s == subscription ? s with { Pending = [] } : s).ToArray(),
-        }, new CSharpFileChanged(FileId));
-        return drained;
-    }
-
-    private async Task RequireSpeakingRun(string runId)
-    {
-        var authorization = await Authorize(runId);
-        if (!authorization.Active) { throw new UnauthorizedAccessException("This run no longer speaks for its file."); }
-    }
-
-    // Triggered runs are not retried: the next signal is the next attempt. A file whose runs keep
-    // failing disarms instead of burning a run on every signal.
-    public async Task Fire(Signal signal)
-    {
-        if (!IsArmed) { return; }
-        var previous = await runner.InspectAsync(Snapshot.Owner, Snapshot.RunId, CancellationToken.None);
-        var failures = previous switch
-        {
-            { Status: CSharpFileStatus.Exited, ExitCode: not 0 } => Snapshot.Failures + 1,
-            { Status: CSharpFileStatus.Exited } => 0,
-            _ => Snapshot.Failures,
-        };
-        if (failures >= MaximumFailures)
-        {
-            await StopReconcilingAsync();
-            await UnwatchSourcesAsync();
-            await Save(Snapshot with { ShouldRun = false, Failures = failures }, new CSharpFileChanged(FileId));
-            return;
-        }
-        await StartRunAsync(Snapshot with { Failures = failures }, signal, CancellationToken.None);
-    }
-
-    public async Task ReceiveReminder(string reminderName, TickStatus status)
-    {
-        if (reminderName != ReconcileReminder) { return; }
-        if (!Snapshot.ShouldRun)
-        {
-            await StopReconcilingAsync();
-            return;
-        }
-        if (Snapshot.Trigger is not null)
-        {
-            if (_watched.Count == 0) { await WatchSourcesAsync(); }
-            return;
-        }
-        if (Snapshot.Subscriptions.Length > 0)
-        {
-            // A subscribed file waits between runs; the reminder keeps the watches alive and
-            // recovers pending signals a lost run never drained.
-            if (_watched.Count == 0) { await WatchSourcesAsync(); }
-            var waiting = await runner.InspectAsync(Snapshot.Owner, Snapshot.RunId, CancellationToken.None);
-            if (waiting.Status != CSharpFileStatus.Running && Snapshot.Subscriptions.Any(s => s.Pending.Length > 0))
-            { await WakeAsync(); }
-            return;
-        }
-        var run = await runner.InspectAsync(Snapshot.Owner, Snapshot.RunId, CancellationToken.None);
-        switch (run.Status)
-        {
-            case CSharpFileStatus.Running:
-                return;
-            case CSharpFileStatus.Exited when run.ExitCode == 0:
-                await StopReconcilingAsync();
-                await Save(Snapshot with { ShouldRun = false }, new CSharpFileChanged(FileId));
-                return;
-            case CSharpFileStatus.Exited when Snapshot.Failures + 1 >= MaximumFailures:
-                await StopReconcilingAsync();
-                await Save(Snapshot with { ShouldRun = false, Failures = Snapshot.Failures + 1 }, new CSharpFileChanged(FileId));
-                return;
-            case CSharpFileStatus.Exited:
-                await StartRunAsync(Snapshot with { Failures = Snapshot.Failures + 1 }, trigger: null, CancellationToken.None);
-                return;
-            default:
-                // The run or its whole sandbox is gone; that is not the script's failure.
-                await StartRunAsync(Snapshot, trigger: null, CancellationToken.None);
-                return;
-        }
-    }
-
-    private async Task<string> StartRunAsync(CSharpFileState next, Signal? trigger, CancellationToken cancellationToken)
-    {
-        var runId = Guid.NewGuid().ToString("N");
-        // Bound behaviors authorize only their current run. Record it before launching because
-        // the sandbox can reach the edge before StartAsync returns.
-        if (next.AppId is not null) { await Save(next with { RunId = runId }, new CSharpFileChanged(FileId)); }
-        await runner.StartAsync(new CSharpRun(next.Owner, runId, next.Source, environment.Create(FileId, runId, next.Settings, trigger)), cancellationToken);
-        await Save(next with { RunId = runId }, new CSharpFileChanged(FileId));
-        return runId;
-    }
-
-    private async Task WatchSourcesAsync()
-    {
-        RenewSourceWatches(dueTime: ObserverRenewal);
-        var observer = this.AsReference<INeuronObserver>();
-        foreach (var source in _watched.Values) { await source.Watch(observer); }
-    }
-
-    // Sources keep observers for a lease; renewing on a timer also keeps this activation alive.
-    private void RenewSourceWatches(TimeSpan dueTime)
-    {
-        _watched.Clear();
-        if (Snapshot.Trigger is { } trigger) { _watched[trigger.Neuron] = GrainFactory.GetGrain<INeuron>(GrainId.Parse(trigger.Neuron)); }
-        foreach (var subscription in Snapshot.Subscriptions)
-        {
-            if (!_watched.ContainsKey(subscription.Neuron))
-            { _watched[subscription.Neuron] = GrainFactory.GetGrain<INeuron>(GrainId.Parse(subscription.Neuron)); }
-        }
-        var observer = this.AsReference<INeuronObserver>();
-        var sources = _watched.Values.ToArray();
-        _watchRenewal?.Dispose();
-        _watchRenewal = sources.Length == 0 ? null : this.RegisterGrainTimer(
-            async _ => { foreach (var source in sources) { await source.Watch(observer); } },
-            new GrainTimerCreationOptions { DueTime = dueTime, Period = ObserverRenewal, Interleave = true, KeepAlive = true });
-    }
-
-    private async Task UnwatchSourcesAsync()
-    {
-        _watchRenewal?.Dispose();
-        _watchRenewal = null;
-        if (_watched.Count == 0) { return; }
-        var observer = this.AsReference<INeuronObserver>();
-        var sources = _watched.Values.ToArray();
-        _watched.Clear();
-        foreach (var source in sources) { await source.Unwatch(observer); }
-    }
-
-    // A token speaks for the current run while the file should run; armed or subscribed, any of the
-    // file's signed tokens keeps speaking (a wake-run must authorize before its RunId is saved), so
-    // for those files only Stop and Delete revoke tokens, not a fresh Start.
-    public Task<RunAuthorization> Authorize(string runId)
-        => Task.FromResult(new RunAuthorization(
-            runId.Length > 0 && Snapshot.ShouldRun
-                && (runId == Snapshot.RunId || (Snapshot.AppId is null && (Snapshot.Trigger is not null || Snapshot.Subscriptions.Length > 0))),
-            Snapshot.OwnerContext is { } owner
-                ? owner with { AppId = Snapshot.AppId is { } app && Snapshot.AppBrain == BrainScope.Create(owner.AccountId, owner.BrainId).Id ? app : FileId }
-                : null));
-
-    private Task StopCurrentRunAsync(CancellationToken cancellationToken)
-        => Snapshot.RunId.Length > 0 ? runner.StopAsync(Snapshot.Owner, Snapshot.RunId, cancellationToken) : Task.CompletedTask;
-
-    private async Task StopReconcilingAsync()
-    {
-        if (await reminders.GetReminder(this.GetGrainId(), ReconcileReminder) is { } reminder)
-        {
-            await reminders.UnregisterReminder(this.GetGrainId(), reminder);
-        }
-    }
-
-    private void RequireSource()
+    // Compiles before anything is recorded: a source that does not compile is refused, never assigned.
+    private async Task<CSharpFileSnapshot> AssignAsync(string source, CancellationToken cancellationToken)
     {
         if (Snapshot.AppId is not null && Snapshot.AppBrain != BrainScope.CurrentId())
         { throw new UnauthorizedAccessException("This behavior belongs to another brain."); }
-        if (string.IsNullOrWhiteSpace(Snapshot.Source)) { throw new InvalidOperationException("Write the C# source before starting it."); }
+        if (string.IsNullOrWhiteSpace(source)) { throw new InvalidOperationException("Write the C# source before starting it."); }
+        var compiled = compiler.Compile(new Dictionary<string, string>(StringComparer.Ordinal) { [FileId] = source });
+        if (!compiled.Success)
+        { throw new InvalidOperationException("The behavior does not compile: " + string.Join("; ", compiled.Errors.Select(error => $"{error.Id} line {error.Line}: {error.Message}"))); }
+        var behavior = compiled.Assemblies[FileId];
+        await assemblies.Put(behavior, cancellationToken);
+        var owner = CallerContextStamper.TryGet(out var caller) ? caller : Snapshot.Owner;
+        await Save(Snapshot with { Program = source, Hash = behavior.Hash, Wanted = true, Owner = owner }, new CSharpFileChanged(FileId));
+        await Runtime.Assign(FileId, behavior.Hash, Snapshot.Settings, Snapshot.Owner, AppIdentity());
+        return Describe(await Runtime.Describe(FileId));
     }
 
-    private static (string Principal, CallerContext? Context) Caller()
-        => CallerContextStamper.TryGet(out var caller) ? (caller.PrincipalId, caller) : ("system", null);
+    // A behavior bound to an app acts as that app; an unbound one acts as itself.
+    private string AppIdentity()
+        => Snapshot.AppId is { } app && Snapshot.Owner is { } owner && Snapshot.AppBrain == BrainScope.Create(owner.AccountId, owner.BrainId).Id ? app : FileId;
 
-    // An always-on file that crashed or lost its run is between runs: the reconcile restarts it.
-    private CSharpFileSnapshot Describe(CSharpRunState run)
-        => new(FileId, Snapshot.Source, Snapshot.Settings,
-            Snapshot is { ShouldRun: true, Trigger: null, Subscriptions.Length: 0 } && run is not { Status: CSharpFileStatus.Running } and not { Status: CSharpFileStatus.Exited, ExitCode: 0 }
-                ? CSharpFileStatus.Restarting : run.Status,
-            run.ExitCode, run.StartedAt, Snapshot.ShouldRun, Snapshot.Failures, Snapshot.Trigger)
-        { Subscriptions = Snapshot.Subscriptions.Select(s => new CSharpSubscriptionView(s.Neuron, s.Signal, s.Pending.Length)).ToArray() };
+    private static void RequireSize(string source)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(source);
+        if (Encoding.UTF8.GetByteCount(source) > MaximumSourceBytes) { throw new ArgumentException($"Source exceeds {MaximumSourceBytes} bytes.", nameof(source)); }
+    }
+
+    private CSharpFileSnapshot Describe(BehaviorView? view)
+        => new(FileId, Snapshot.Program, Snapshot.Settings, Snapshot.Hash, view?.Status ?? CSharpFileStatus.Stopped,
+            null, Snapshot.Wanted, view?.Failures ?? 0);
 
     [GeneratedRegex("^[A-Za-z0-9_]{1,128}$")]
     private static partial Regex SettingName();

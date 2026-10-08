@@ -1,5 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Modules;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 namespace DigitalBrain.Aspire.Server;
@@ -9,6 +11,7 @@ public sealed class DigitalBrainServerBuilder
     private readonly Dictionary<string, Module> _modules = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<Action<IServiceCollection>> _serviceActions = [];
     internal bool AzureStorage { get; private set; }
+    internal bool Dashboard { get; private set; }
     public DigitalBrainServerBuilder AddModule<TModule>() where TModule : Module, new()
         => AddModule(new TModule());
     public DigitalBrainServerBuilder AddModule(Module module)
@@ -33,6 +36,8 @@ public sealed class DigitalBrainServerBuilder
     }
 
     public DigitalBrainServerBuilder UseAzureStorage() { AzureStorage = true; return this; }
+
+    public DigitalBrainServerBuilder UseOrleansDashboard() { Dashboard = true; return this; }
 
     // Registered modules run; configuration can only subtract (Enabled=false) — and a
     // configuration that affirms a module this server never registered is a deployment bug.

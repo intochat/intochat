@@ -19,24 +19,36 @@ void main() {
       );
       await client.connectorRequest('brain', '');
       await client.workspaceConnectionsRequest('brain', '');
-      await client.connectorRequest(
+      await client.workspaceConnectionsRequest(
         'brain',
-        'gmail/start',
-        body: {'connectionId': 'work mail', 'authMethodId': 'google-oauth'},
+        'one/connect',
+        body: {
+          'connectorId': 'gmail',
+          'authMethodId': 'token',
+          'value': 'secret',
+        },
       );
-      await client.connectorRequest(
+      await client.workspaceConnectionsRequest('brain', 'one/probe', body: {});
+      await client.workspaceConnectionsRequest(
         'brain',
-        'salesforce/start',
-        body: {'connectionId': 'crm'},
+        'one/disconnect',
+        body: {},
+      );
+      await client.workspaceConnectionsRequest(
+        'brain',
+        'one/login',
+        body: {'connectorId': 'gmail', 'authMethodId': 'google-oauth'},
       );
       expect(requests.map((r) => r.url.path), [
         '/connectors',
         '/brains/brain/connections',
-        '/brains/brain/connections/work%20mail/gmail/login',
-        '/brains/brain/connections/services/salesforce/start',
+        '/brains/brain/connections/one/connect',
+        '/brains/brain/connections/one/probe',
+        '/brains/brain/connections/one/disconnect',
+        '/brains/brain/connections/one/login',
       ]);
-      expect(requests[2].method, 'POST');
-      expect(jsonDecode(requests[2].body)['connectionId'], 'work mail');
+      expect(requests.skip(2).map((r) => r.method), everyElement('POST'));
+      expect(jsonDecode(requests[5].body)['authMethodId'], 'google-oauth');
     },
   );
 }

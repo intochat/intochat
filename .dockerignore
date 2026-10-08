@@ -38,3 +38,6 @@ obj
 **/*.trx
 **/*.coverage
 **/*.log
+
+# The sandbox image builds from the repository root; the Flutter shell is never part of it.
+src/DigitalBrain.Modules/Google/Flutter/app

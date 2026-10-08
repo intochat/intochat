@@ -1,10 +1,11 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Aspire.Hosting;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.GitHub;
 using static DigitalBrain.Aspire.Testing.AspireCompositionTest;
-using DigitalBrain.Framework;
 
 namespace DigitalBrain.Modules.Microsoft.GitHub.Tests.Hosting;
 
@@ -30,6 +31,8 @@ public sealed class GitHubAppHostingFacts
         var environment = await EnvironmentOf(builder, consumer.Resource, TestContext.Current.CancellationToken);
         Assert.Contains(DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("github", "PrivateKeyPem")), environment.Keys);
         Assert.Equal(oauth, environment.ContainsKey(DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("github", "ClientSecret"))));
+        Assert.Equal(oauth, environment.ContainsKey(DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("github", "ClientId"))));
+        Assert.Equal(oauth, environment.ContainsKey(DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ConnectionsPublicOriginKey)));
         Assert.Equal(webhook, environment.ContainsKey(DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("github", "WebhookSecret"))));
         Assert.Equal(1 + (oauth ? 1 : 0) + (webhook ? 1 : 0), builder.Resources.OfType<ParameterResource>().Count(resource => resource.Name.StartsWith("brain-github-app-", StringComparison.Ordinal)));
     }

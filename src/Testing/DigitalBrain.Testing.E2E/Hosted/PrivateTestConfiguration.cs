@@ -2,6 +2,7 @@ using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text.Json;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Testing.E2E;
 
@@ -19,7 +20,7 @@ internal sealed class PrivateTestConfiguration : IAsyncDisposable
             if (string.IsNullOrWhiteSpace(key) || key.Contains("__", StringComparison.Ordinal)
                 || key.StartsWith("Orleans:", StringComparison.OrdinalIgnoreCase)
                 || key.StartsWith("ConnectionStrings:", StringComparison.OrdinalIgnoreCase)
-                || key.StartsWith(Framework.ModuleSettingsValidation.TestingSectionPrefix, StringComparison.OrdinalIgnoreCase)
+                || key.StartsWith(ModuleSettingsValidation.TestingSectionPrefix, StringComparison.OrdinalIgnoreCase)
                 || key.StartsWith(DigitalBrainConfiguration.ModulesSectionName + ":", StringComparison.OrdinalIgnoreCase))
             { throw new ArgumentException("Private settings cannot override host-owned configuration."); }
         }

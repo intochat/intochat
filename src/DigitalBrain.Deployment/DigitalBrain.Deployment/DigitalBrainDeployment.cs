@@ -1,6 +1,8 @@
 using System.Reflection;
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Modules;
 using Pulumi;
 using Pulumi.AzureNative.App;
 using Pulumi.AzureNative.App.Inputs;

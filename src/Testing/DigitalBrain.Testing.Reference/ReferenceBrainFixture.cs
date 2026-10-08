@@ -1,4 +1,5 @@
 using DigitalBrain.AI;
+using DigitalBrain.AI.Models;
 using DigitalBrain.Flutter;
 using DigitalBrain.Testing.E2E.Agent;
 using DigitalBrain.Testing.E2E.Diagnostics;
@@ -38,11 +39,7 @@ public class ReferenceBrainFixture : SharedBrainFixture, IAsyncLifetime
             // covers a cold runner's one-time in-docker Flutter compile and container pulls.
             // A boot that needs longer is starved or broken - fail it and say so.
             .WithStartupTimeout(TimeSpan.FromMinutes(15))
-            .WithResourceEnvironment(new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["OTEL_EXPORTER_OTLP_ENDPOINT"] = Collector.Endpoint.AbsoluteUri,
-                ["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/protobuf",
-            })
+            .ExportingTelemetryTo(Collector)
             .StartAsync(cancellationToken);
 
     protected override async ValueTask OnDisposedAsync()

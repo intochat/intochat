@@ -1,8 +1,5 @@
 using System.Text.Json;
-using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
-using DigitalBrain.Framework.Http;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -11,7 +8,7 @@ using Microsoft.AspNetCore.Routing;
 namespace DigitalBrain.Apps;
 
 // The whole apps surface, one screenful: create and author are synchronous (one model call);
-// implement and verify answer 202 and finish in the background; sharing is export/import.
+// implement answers 202 and finishes in the background; sharing is export/import.
 internal static class AppsEndpoints
 {
     public sealed record TextRequest(string? Text);
@@ -23,11 +20,11 @@ internal static class AppsEndpoints
     {
         var apps = BrainRoutes.Group(endpoints, "/apps").AddEndpointFilter(ModuleRouteGuard.Guard);
 
-        apps.MapGet("", (IDigitalBrain brain, CancellationToken ct) => Respond(async () =>
+        apps.MapGet("", (IDigitalBrain brain, [FromServices] MarketplaceView marketplace, CancellationToken ct) => Respond(async () =>
         {
             var scope = BrainScope.CurrentId();
             var names = await brain.Get<IAppIndex>(scope).List().WaitAsync(ct);
-            var listings = await brain.Get<IMarketplace>(IMarketplace.Key).List().WaitAsync(ct);
+            var listings = await marketplace.List(ct);
             var items = new List<object>();
             foreach (var name in names)
             {
@@ -76,13 +73,6 @@ internal static class AppsEndpoints
             return Results.Accepted($"/brains/{BrainScope.CurrentId()}/apps/{name}", View(snapshot));
         }));
 
-        apps.MapPost("/{name}/verify", (string name, HttpContext context, IDigitalBrain brain) => Respond(async () =>
-        {
-            var snapshot = await App(brain, name).BeginVerify();
-            AppVerifyJob.Enqueue(context.RequestServices, Key(name));
-            return Results.Accepted($"/brains/{BrainScope.CurrentId()}/apps/{name}", View(snapshot));
-        }));
-
         apps.MapPut("/{name}/settings", (string name, SettingsRequest request, IDigitalBrain brain) => Respond(async ()
             => Results.Ok(View(await App(brain, name).Configure(request?.Settings ?? [], request?.Connections ?? [])))));
 
@@ -94,6 +84,10 @@ internal static class AppsEndpoints
 
         apps.MapPost("/{name}/publish", (string name, IDigitalBrain brain) => Respond(async ()
             => Results.Ok(View(await App(brain, name).Publish()))));
+
+        // Development only: writes an edited copy of a shipped app back into the vendor's folder.
+        apps.MapPost("/{name}/save-to-source", (string name, IDigitalBrain brain) => Respond(async ()
+            => Results.Ok(View(await App(brain, name).SaveToSource()))));
 
         apps.MapPost("/{name}/update", (string name, [FromServices] AppInstaller installer, CancellationToken ct) => Respond(async ()
             => Results.Ok(View(await installer.Update(name, ct)))));
@@ -169,23 +163,16 @@ internal static class AppsEndpoints
         status = snapshot.Status.ToString(),
         activity = snapshot.Activity,
         versions = snapshot.Versions,
-        verdicts = snapshot.Verdicts,
         publishedVersion = snapshot.PublishedVersion,
         origin = snapshot.Origin,
         edited = snapshot.Edited,
     };
 
-    private static async Task<IResult> Ask(IApp app, string operation, string input, CancellationToken ct)
+    internal static async Task<IResult> Ask(IApp app, string operation, string input, CancellationToken ct)
     {
-        var invocation = await app.Invoke(new(Guid.NewGuid(), operation, input.Length == 0 ? "{}" : input)).WaitAsync(ct);
-        var started = TimeProvider.System.GetTimestamp();
-        while (invocation.Status == InvocationStatus.Pending && TimeProvider.System.GetElapsedTime(started) < TimeSpan.FromSeconds(30))
-        {
-            await Task.Delay(100, ct);
-            invocation = await app.ReadInvocation(invocation.Id).WaitAsync(ct);
-        }
-        if (invocation.Status == InvocationStatus.Pending)
-        { return Results.Json(new { error = "The app has not answered yet.", invocationId = invocation.Id }, statusCode: 408); }
+        var started = await app.Invoke(new(Guid.NewGuid(), operation, input.Length == 0 ? "{}" : input)).WaitAsync(ct);
+        // The app's answer is pushed when it responds; the request's own abort is the only limit.
+        var invocation = await app.Await(started.Id).WaitAsync(ct);
         if (invocation.Status != InvocationStatus.Completed || invocation.Output is null)
         { return Results.UnprocessableEntity(new { error = invocation.Error ?? "The app returned no output.", invocationId = invocation.Id }); }
         try

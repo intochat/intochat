@@ -1,23 +1,28 @@
 using System.Collections.Concurrent;
 using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Supabase.Tables;
 using Microsoft.Extensions.Options;
 using Npgsql;
 
 namespace DigitalBrain.Supabase;
 
-// Deployment-owned database access; user neurons and table tools use ConnectionSupabaseProvider.
-internal interface ISupabaseBackingStore : ISupabaseProvider { }
+internal sealed record SupabaseConnection(bool Connected, string Database, string? ServerVersion);
+
+// The deployment's own Supabase database, reached through Integration "supabase". A person's
+// Supabase database is a postgres connection, never this store.
+internal interface ISupabaseBackingStore
+{
+    Task<SupabaseConnection> PingAsync(CancellationToken cancellationToken);
+}
 
 internal sealed class SupabaseBackingStore(IModuleIntegrations<SupabaseModule> integrations, IOptions<SupabaseModuleOptions> options)
     : ISupabaseBackingStore, IIntegrationStartup, IAsyncDisposable
 {
     private readonly ConcurrentDictionary<long, NpgsqlDataSource> _sources = new();
     private readonly SemaphoreSlim _gate = new(1, 1);
-    private SupabaseProvider? _current;
+    private NpgsqlDataSource? _current;
     private long _revision = -1;
 
-    internal async Task<SupabaseProvider> Materialize(CancellationToken ct)
+    internal async Task<NpgsqlDataSource> Materialize(CancellationToken ct)
     {
         await _gate.WaitAsync(ct);
         try
@@ -29,8 +34,7 @@ internal sealed class SupabaseBackingStore(IModuleIntegrations<SupabaseModule> i
             var released = await handle.ReleaseAsync(ct);
             if (released.Snapshot.Status != IntegrationStatus.Ready) { throw new InvalidOperationException("The Supabase backing integration is unavailable."); }
             var settings = SupabaseConnectionSettings.Parse(released.Values["ConnectionString"]);
-            var source = _sources.GetOrAdd(released.Snapshot.Revision, _ => NpgsqlDataSource.Create(settings.ConnectionString));
-            _current = new SupabaseProvider(source);
+            _current = _sources.GetOrAdd(released.Snapshot.Revision, _ => NpgsqlDataSource.Create(settings.ConnectionString));
             _revision = released.Snapshot.Revision;
             return _current;
         }
@@ -41,18 +45,23 @@ internal sealed class SupabaseBackingStore(IModuleIntegrations<SupabaseModule> i
     {
         if (options.Value.UseBackingStore) { _ = await Materialize(cancellationToken); }
     }
-    public async Task<SupabaseQueryResult> QueryAsync(string sql, int maxRows, IReadOnlyList<SupabaseParameter> parameters, CancellationToken cancellationToken)
-        => await (await Materialize(cancellationToken)).QueryAsync(sql, maxRows, parameters, cancellationToken);
-    public async Task<IReadOnlyList<SupabaseColumn>> DescribeAsync(string sql, CancellationToken cancellationToken)
-        => await (await Materialize(cancellationToken)).DescribeAsync(sql, cancellationToken);
-    public async Task<SupabaseSchema> ReadSchemaAsync(string? table, CancellationToken cancellationToken)
-        => await (await Materialize(cancellationToken)).ReadSchemaAsync(table, cancellationToken);
+
     public async Task<SupabaseConnection> PingAsync(CancellationToken cancellationToken)
-        => await (await Materialize(cancellationToken)).PingAsync(cancellationToken);
-    public async Task<QueryPage> ExecutePlanAsync(QueryPlan plan, CancellationToken cancellationToken)
-        => await (await Materialize(cancellationToken)).ExecutePlanAsync(plan, cancellationToken);
-    public async Task<SupabaseTableAggregate> AggregateAsync(QueryPlan plan, string function, string columnId, CancellationToken cancellationToken = default)
-        => await (await Materialize(cancellationToken)).AggregateAsync(plan, function, columnId, cancellationToken);
+    {
+        var source = await Materialize(cancellationToken);
+        var database = new NpgsqlConnectionStringBuilder(source.ConnectionString).Database ?? "postgres";
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(3));
+        try
+        {
+            await using var command = source.CreateCommand("SELECT version()");
+            return new(true, database, (string?)await command.ExecuteScalarAsync(deadline.Token));
+        }
+        catch (Exception error) when (error is NpgsqlException || (error is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            return new(false, database, null);
+        }
+    }
 
     public async ValueTask DisposeAsync()
     {

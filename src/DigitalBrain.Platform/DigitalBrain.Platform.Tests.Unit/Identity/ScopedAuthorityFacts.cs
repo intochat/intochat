@@ -1,12 +1,10 @@
-using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Identity;
+using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Authority;
 using Microsoft.Extensions.DependencyInjection;
-using Orleans;
-using Orleans.Runtime;
 using Orleans.Serialization;
 using Orleans.Storage;
-using DigitalBrain.Framework;
 
 namespace DigitalBrain.Platform.Tests.Unit.Identity;
 
@@ -58,13 +56,13 @@ public sealed class ScopedAuthorityFacts
         await using var brain = await ModuleTest.Create().StartAsync(TestContext.Current.CancellationToken);
         var authority = brain.Get<IBrainAuthority>(BrainScope.Create("account", "brain").Id);
         await authority.EnsureMember(new Member { PrincipalId = "alice", AccountId = "account", BrainId = "brain", DisplayName = "Alice", Role = MemberRole.Owner });
-        var caller = new DigitalBrain.Framework.Enforcement.CallerContext
+        var caller = new DigitalBrain.Framework.CallerContext
         {
             PrincipalId = "alice",
             AccountId = "account",
             BrainId = "brain",
-            Kind = DigitalBrain.Framework.Enforcement.CallerKind.User,
-            StampedBy = DigitalBrain.Framework.Enforcement.TrustedEdge.AuthenticatedHttp
+            Kind = DigitalBrain.Framework.CallerKind.User,
+            StampedBy = DigitalBrain.Framework.TrustedEdge.AuthenticatedHttp
         };
         var grant = new Grant { AppId = "app", WorkspaceId = "brain", SemanticTypeId = "person.email", Mode = GrantMode.Always };
         await authority.GrantAsOwner(caller, grant);
@@ -90,15 +88,17 @@ public sealed class ScopedAuthorityFacts
     }
 
     [Fact]
-    public async Task SameBrainNameInAnotherAccountDoesNotShareMembership()
+    public async Task ABrainIdBelongsToOneAccountAndAnotherCannotClaimOrReachIt()
     {
-        await using var brain = await ModuleTest.Create().StartAsync(TestContext.Current.CancellationToken);
-        var first = brain.Get<IBrainAuthority>(BrainScope.Create("first", "shared-name").Id);
-        var second = brain.Get<IBrainAuthority>(BrainScope.Create("second", "shared-name").Id);
-        await first.EnsureMember(new Member { PrincipalId = "alice", AccountId = "first", BrainId = "shared-name", DisplayName = "Alice", Role = MemberRole.Owner });
-        await second.Initialize("second", "shared-name");
-        Assert.NotNull(await first.Membership("alice"));
-        Assert.Null(await second.Membership("alice"));
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        var authority = brain.Get<IBrainAuthority>(BrainScope.Create("first", "shared-name").Id);
+        await authority.EnsureMember(new Member { PrincipalId = "alice", AccountId = "first", BrainId = "shared-name", DisplayName = "Alice", Role = MemberRole.Owner });
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => brain.Get<IBrainAuthority>(BrainScope.Create("second", "shared-name").Id).Initialize("second", "shared-name"));
+        var access = brain.SiloServices.GetRequiredService<IBrainAccess>();
+        Assert.True(await access.CanAccessAsync("alice", "first", "shared-name", ct));
+        Assert.False(await access.CanAccessAsync("alice", "second", "shared-name", ct));
     }
 
     [Fact]

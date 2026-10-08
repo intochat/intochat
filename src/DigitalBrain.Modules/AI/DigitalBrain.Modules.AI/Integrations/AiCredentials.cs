@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using DigitalBrain;
+using DigitalBrain.AI.Models;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
 

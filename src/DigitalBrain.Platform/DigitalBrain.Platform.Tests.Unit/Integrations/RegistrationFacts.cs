@@ -1,22 +1,15 @@
-using System.Security.Claims;
 using System.Text.Json;
-using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Framework.Modules;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Framework.Platform.Secrets;
-using DigitalBrain.Framework.Types;
 using DigitalBrain.Platform.Integrations;
-using DigitalBrain.Platform.Secrets;
-using DigitalBrain.Testing;
-using DigitalBrain.Testing.Module;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Orleans.Hosting;
-using Xunit;
 
 namespace DigitalBrain.Platform.Tests.Unit.Integrations;
 
@@ -222,22 +215,25 @@ public sealed class RegistrationFacts
     }
 
     [Fact]
-    public async Task ClearingAFieldReturnsToPartialAndRemovesTheVaultEntry()
+    public async Task ClearingAFieldReturnsToPartialAndReleaseNoLongerHasIt()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartAsync(ct);
-        var registration = Registration(brain, "openai");
-        await registration.Configure(Values(("ApiKey", Canary)));
-        var vaultReference = SecretReferences.For(IntegrationVault.Owner, IntegrationVault.SecretName("openai", "ApiKey"), "ApiKey", true);
-        var platform = Caller(CallerKind.Platform, TrustedEdge.Platform) with { AppId = "test" };
-        Assert.Equal(Canary, await brain.Get<ISecrets>(IntegrationVault.Owner).Resolve(platform, vaultReference, ct));
+        var registration = Registration(brain, "google");
+        await registration.Configure(Values(("ClientId", Canary + "-id"), ("ClientSecret", Canary), ("RedirectPath", "/callback")));
+        var platform = Caller(CallerKind.Platform, TrustedEdge.Platform);
+        Assert.Equal(Canary, (await registration.Release(platform)).Values["ClientSecret"]);
 
-        var snapshot = await registration.Clear("ApiKey");
+        var snapshot = await registration.Clear("ClientSecret");
 
-        Assert.Equal(IntegrationStatus.Unconfigured, snapshot.Status);
-        Assert.Equal(["ApiKey"], snapshot.MissingFields);
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => brain.Get<ISecrets>(IntegrationVault.Owner).Resolve(platform, vaultReference, ct));
+        Assert.Equal(IntegrationStatus.Partial, snapshot.Status);
+        Assert.Equal(["ClientSecret"], snapshot.MissingFields);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => registration.Release(platform));
+        await registration.Configure(Values(("ClientSecret", OtherCanary)));
+        var released = await registration.Release(platform);
+        Assert.Equal(OtherCanary, released.Values["ClientSecret"]);
+        Assert.Equal(Canary + "-id", released.Values["ClientId"]);
+        Assert.Equal("/callback", released.Values["RedirectPath"]);
     }
 
     [Fact]
@@ -324,7 +320,7 @@ public sealed class RegistrationFacts
         await registration.Configure(Values(("ApiKey", Canary)));
         var script = Caller(CallerKind.App, TrustedEdge.AppProxy);
 
-        DigitalBrain.Framework.Enforcement.CallerContextStamper.Stamp(script);
+        DigitalBrain.Framework.CallerContextStamper.Stamp(script);
         try
         {
             await Assert.ThrowsAsync<InvalidOperationException>(() => registration.Configure(Values(("ApiKey", OtherCanary))));
@@ -345,7 +341,7 @@ public sealed class RegistrationFacts
         var registration = Registration(brain, "openai");
         await registration.Configure(Values(("ApiKey", Canary)));
 
-        DigitalBrain.Framework.Enforcement.CallerContextStamper.Stamp(Caller(CallerKind.App, TrustedEdge.AppProxy));
+        DigitalBrain.Framework.CallerContextStamper.Stamp(Caller(CallerKind.App, TrustedEdge.AppProxy));
         try
         {
             var released = await registration.Release(Caller(CallerKind.Platform, TrustedEdge.Platform));
@@ -377,16 +373,21 @@ public sealed class RegistrationFacts
         Assert.True(PlatformOnlyAttribute.AppliesTo(typeof(IIntegration)));
     }
 
+    // The one Framework contract a brain member calls directly: NeuronCallFilter enforces brain
+    // membership on it, and its OAuth sibling IConnectionInbound stays platform-only.
+    private static readonly Type UserFaceOfAConnection = typeof(DigitalBrain.Framework.Platform.Connections.IConnection);
+
     [Fact]
     public void EveryPublicNeuronContractInThePlatformAssemblyIsPlatformOnlyByAssemblyIdentity()
     {
         var platform = typeof(IntegrationDiscovery).Assembly;
 
         Assert.True(PlatformAssemblyAttribute.IsPlatform(platform));
-        // IntegrationSchema lives in the Kernel now: never a contracts assembly, so never
+        // IntegrationSchema lives in Framework: never a contracts assembly, so never
         // script-discovered — its neuron contracts still carry [PlatformOnly] type by type.
         Assert.All(typeof(IntegrationSchema).Assembly.GetExportedTypes()
-                .Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type) && type.Namespace!.Contains(".Platform.", StringComparison.Ordinal)),
+                .Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type) && type.Namespace!.Contains(".Platform.", StringComparison.Ordinal))
+                .Where(type => type != UserFaceOfAConnection),
             contract => Assert.True(PlatformOnlyAttribute.AppliesTo(contract)));
         Assert.All(platform.GetExportedTypes().Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type)),
             contract => Assert.True(PlatformOnlyAttribute.AppliesTo(contract)));
@@ -396,19 +397,17 @@ public sealed class RegistrationFacts
     public void EveryExportedPlatformContractRequiresPlatformAuthorization()
     {
         var contracts = typeof(ISecrets).Assembly.GetExportedTypes()
-            .Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type)).ToArray();
+            .Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type) && type != UserFaceOfAConnection).ToArray();
         Assert.NotEmpty(contracts);
         Assert.All(contracts, contract => Assert.True(PlatformOnlyAttribute.AppliesTo(contract)));
     }
 
     [Fact]
-    public void TheVaultOwnerCannotBeAPrincipalId()
+    public void TheRegistrationsPlatformCallerCannotBeAnyAccount()
     {
-        Assert.DoesNotMatch("^[a-z0-9][a-z0-9-]*$", IntegrationVault.Owner);
+        Assert.DoesNotMatch("^[a-z0-9][a-z0-9-]*$", IntegrationNeuron.PlatformCaller.AccountId);
+        Assert.DoesNotMatch("^[a-z0-9][a-z0-9-]*$", IntegrationNeuron.PlatformCaller.BrainId);
     }
-
-    private static IConfiguration Config(params (string Key, string Value)[] values)
-        => new ConfigurationBuilder().AddInMemoryCollection(values.ToDictionary(pair => pair.Key, pair => (string?)pair.Value)).Build();
 
     private static CallerContext Http(string principal) => new()
     {

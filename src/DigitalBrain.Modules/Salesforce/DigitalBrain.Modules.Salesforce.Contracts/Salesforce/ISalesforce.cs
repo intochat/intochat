@@ -1,32 +1,20 @@
 using DigitalBrain;
-using Orleans.Concurrency;
 
 namespace DigitalBrain.Salesforce;
 
+// One Salesforce org connection, keyed connection/{brain}/salesforce/{id}. Connecting, probing and
+// disconnecting it are IConnection's; reads may refresh the token and persist it, so none is read-only.
 [Alias("salesforce")]
+[Orleans.Metadata.DefaultGrainType("salesforce")]
 public interface ISalesforce : INeuron
 {
-    // Redeems a one-use login nonce; the instance URL must be HTTPS.
-    Task<SalesforceConnection> Connect(ConnectSalesforceConnection account);
-
-    // Requires a stored refresh token; a refused grant clears the connection.
-    Task<SalesforceConnection> Refresh(RefreshSalesforceConnection command);
-
-    Task<SalesforceConnection> Disconnect(DisconnectSalesforce command);
-
     Task<SalesforceWritePreview> PrepareWrite(PrepareSalesforceWrite command);
 
     Task<SalesforceWritePreview> ConfirmWrite(ConfirmSalesforceWrite command);
 
-    [ReadOnly]
-    Task<SalesforceConnection> ReadConnection();
-
-    [ReadOnly]
     Task<SalesforceQueryResult> Query(SoqlQuery query, CancellationToken cancellationToken = default);
 
-    [ReadOnly]
     Task<SalesforceSchema> ReadSchema(ReadSalesforceSchema query, CancellationToken cancellationToken = default);
 
-    [ReadOnly]
     Task<SalesforceUserInfo> ReadUserInfo(CancellationToken cancellationToken = default);
 }

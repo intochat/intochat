@@ -1,14 +1,14 @@
 using DigitalBrain.Apps.Signals;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
-using Orleans.Runtime;
 
 namespace DigitalBrain.Apps;
 
 // The app: the only durable thing in the module. Manifest, spec, files, connections,
-// semver history, status and activity all live here; builders and verifiers are caches
-// that write their results back in.
+// semver history, status and activity all live here; the Builder is a cache that writes
+// its results back in.
 [GrainType(DigitalBrain.Framework.AppGrainType.Name)]
 internal sealed class AppNeuron(
     [PersistentState("app2", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<AppState> store,
@@ -41,7 +41,7 @@ internal sealed class AppNeuron(
         next.Version = "0.1.0";
         next.Status = AppStatus.Drafted;
         Record(next);
-        await TrackUnlessScratch();
+        await GrainFactory.GetGrain<IAppIndex>(BrainId()).Track(Name());
         await Persist(next);
         return Describe(Snapshot);
     }
@@ -121,6 +121,13 @@ internal sealed class AppNeuron(
     public async Task<AppSnapshot> Configure(Dictionary<string, string> settings, Dictionary<string, string> connections)
     {
         RequireCreated();
+        // A storage hook vetoes a binding change its data depends on, before anything changes.
+        foreach (var (slot, id) in connections ?? [])
+        {
+            if (Snapshot.Connections.TryGetValue(slot, out var current) && current == id) { continue; }
+            foreach (var hook in storageHooks)
+            { await hook.RequireRebindable(Snapshot.BrainScopeId ?? "", this.GetPrimaryKeyString(), slot, CancellationToken.None); }
+        }
         var next = Snapshot.Clone();
         foreach (var (name, value) in settings ?? []) { next.Settings[name] = value; }
         foreach (var (slot, id) in connections ?? []) { next.Connections[slot] = id; }
@@ -205,7 +212,7 @@ internal sealed class AppNeuron(
             return Describe(Snapshot);
         }
         var existingBehaviors = Snapshot.Files.Keys.Where(AppFiles.IsSynapse).ToHashSet(StringComparer.Ordinal);
-        var firstTests = files.ContainsKey(AppFiles.TestsPath) && !next.Files.ContainsKey(AppFiles.TestsPath);
+        var firstBuild = Snapshot.Files.Count == 0;
         if (manifest is not null)
         {
             next.Manifest = manifest;
@@ -217,7 +224,7 @@ internal sealed class AppNeuron(
         var behaviorPaths = files.Keys.Where(AppFiles.IsSynapse).ToArray();
         var keys = Deployable()?.Keys(this.GetPrimaryKeyString(), next.ProgramGeneration, behaviorPaths) ?? [];
         next.StorageFiles = [.. next.StorageFiles.Concat(keys).Distinct(StringComparer.Ordinal)];
-        next.Version = Bump(next.Version, minor: firstTests);
+        next.Version = Bump(next.Version, minor: firstBuild);
         next.Status = AppStatus.Live;
         next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), "build finished"];
         Record(next);
@@ -226,47 +233,19 @@ internal sealed class AppNeuron(
         return Describe(Snapshot);
     }
 
-    public async Task<AppSnapshot> BeginVerify()
+    public async Task<AppBundle> Export()
     {
         RequireCreated();
-        if (!Snapshot.Files.ContainsKey(AppFiles.TestsPath))
-        { throw new InvalidOperationException($"This app has no {AppFiles.TestsPath} yet; implement it first."); }
-        var next = Snapshot.Clone();
-        next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), "verification started"];
-        await Persist(next);
-        return Describe(Snapshot);
-    }
-
-    public async Task RecordVerdicts(AppScenarioVerdict[] verdicts, bool green, string? version = null)
-    {
-        RequireCreated();
-        ArgumentNullException.ThrowIfNull(verdicts);
-        var tested = version ?? Snapshot.Version;
-        var next = Snapshot.Clone();
-        next.Verified[tested] = green;
-        // Verdicts for a version the app has moved past stay informative, never current facts.
-        if (tested == next.Version) { next.Verdicts = verdicts; }
-        next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1),
-            (green ? "verification green" : "verification red") + (tested == next.Version ? "" : $" (for {tested})")];
-        var name = Name();
-        await Save(next, new AppChanged(name, next.Version, next.Status), new AppVerified(name, tested, green));
-    }
-
-    public Task<AppBundle> Export()
-    {
-        RequireCreated();
-        if (!Snapshot.Verified.TryGetValue(Snapshot.Version, out var green) || !green)
-        { throw new InvalidOperationException($"Version {Snapshot.Version} has not passed its tests; only green versions can be shared."); }
+        await RequireCompiles();
         var manifest = Snapshot.Manifest!;
-        return Task.FromResult(new AppBundle(Name(), Snapshot.Version, manifest, Snapshot.Spec,
-            new(Snapshot.Files, StringComparer.Ordinal)));
+        return new AppBundle(Name(), Snapshot.Version, manifest, Snapshot.Spec,
+            new(Snapshot.Files, StringComparer.Ordinal));
     }
 
     public async Task<AppSnapshot> Publish()
     {
         RequireCreated();
-        if (!Snapshot.Verified.TryGetValue(Snapshot.Version, out var green) || !green)
-        { throw new InvalidOperationException($"Version {Snapshot.Version} has not passed its tests; only green versions can be published."); }
+        await RequireCompiles();
         if (!CallerContextStamper.TryGet(out var caller))
         { throw new InvalidOperationException("Publishing needs a signed-in publisher."); }
         if (BrainScope.Create(caller.AccountId, caller.BrainId).Id != BrainId())
@@ -274,7 +253,7 @@ internal sealed class AppNeuron(
         // A listing is one app: the same name from another of the publisher's brains is refused,
         // never a silent takeover of what installers already trust.
         if (await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).Read(caller.PrincipalId, Name()) is { } listed
-            && BrainScope.Create(listed.PublisherAccountId, listed.PublisherBrainId).Id != BrainId())
+            && listed.Source.Scope() != BrainId())
         { throw new InvalidOperationException($"{caller.PrincipalId}/{Name()} is already published from another brain."); }
         var next = Snapshot.Clone();
         var manifest = next.Manifest!;
@@ -286,8 +265,8 @@ internal sealed class AppNeuron(
         // State first: a failed listing write is repaired by publishing again, never the reverse
         // (a listing whose bundle Install cannot read).
         await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).Upsert(new MarketplaceListing(
-            caller.PrincipalId, caller.AccountId, caller.BrainId, name, manifest.Title, manifest.Description,
-            next.Version, manifest.Icon, AppVerifyJob.ScenarioNames(next.Spec)));
+            caller.PrincipalId, new AppSource.Brain(caller.AccountId, caller.BrainId), name, manifest.Title, manifest.Description,
+            next.Version, manifest.Icon));
         return Describe(Snapshot);
     }
 
@@ -324,7 +303,7 @@ internal sealed class AppNeuron(
         var behaviors = next.Files.Keys.Where(AppFiles.IsSynapse).ToArray();
         next.StorageFiles = Deployable()?.Keys(this.GetPrimaryKeyString(), next.ProgramGeneration, behaviors) ?? [];
         Record(next);
-        await TrackUnlessScratch();
+        await GrainFactory.GetGrain<IAppIndex>(BrainId()).Track(Name());
         await Persist(next);
         foreach (var path in behaviors) { await DeployBehavior(path, next.Files[path], swap: false); }
         return Describe(Snapshot);
@@ -382,13 +361,38 @@ internal sealed class AppNeuron(
     }
 
 
+    public async Task<AppSnapshot> SaveToSource()
+    {
+        RequireCreated();
+        if (ServiceProvider.GetService<IHostEnvironment>() is not { } environment || !environment.IsDevelopment())
+        { throw new InvalidOperationException("Save to source is only available in development."); }
+        if (Snapshot.Origin is not { Source: AppSource.Shipped } origin)
+        { throw new InvalidOperationException($"{Name()} is not a copy of a shipped app, so it has no source to save to."); }
+        var catalog = ServiceProvider.GetService<ShippedCatalog>()
+            ?? throw new InvalidOperationException("This host ships no apps.");
+        var exported = await Export();
+        var shipped = await catalog.Find(origin.Publisher, origin.Name);
+        var version = Bump(Newest(exported.Version, shipped?.Version ?? exported.Version), minor: false);
+        var saved = await catalog.SaveToSource(origin.Publisher, exported with { Name = origin.Name, Version = version });
+        var next = Snapshot.Clone();
+        next.Version = saved.Version;
+        next.Origin = origin with { Version = saved.Version };
+        next.Edited = false;
+        Record(next);
+        await Persist(next);
+        return Describe(Snapshot);
+    }
+
+    private static string Newest(string left, string right)
+        => Version.Parse(left) >= Version.Parse(right) ? left : right;
+
     public async Task Delete()
     {
         if (Snapshot.Manifest is null) { return; }
         // Only this app's own listing comes down with it.
         if (Snapshot.Publisher is { } publisher
             && await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).Read(publisher, Name()) is { } listed
-            && BrainScope.Create(listed.PublisherAccountId, listed.PublisherBrainId).Id == BrainId())
+            && listed.Source.Scope() == BrainId())
         { await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).Remove(publisher, Name()); }
         if (Deployable() is { } deployable && Snapshot.StorageFiles.Length > 0)
         {
@@ -443,7 +447,21 @@ internal sealed class AppNeuron(
         var next = Snapshot.Clone();
         next.Invocations[index] = completed;
         await Save(next, new AppInvocationCompleted(completed));
+        if (waiters.Remove(response.InvocationId, out var waiter)) { waiter.TrySetResult(completed); }
         return completed;
+    }
+
+    // Await only reads, so it interleaves with Respond; waiters are in memory and die with the activation.
+    private readonly Dictionary<Guid, TaskCompletionSource<AppInvocation>> waiters = [];
+
+    public Task<AppInvocation> Await(Guid invocationId)
+    {
+        var invocation = Snapshot.Invocations.Find(item => item.Id == invocationId)
+            ?? throw new KeyNotFoundException($"No invocation {invocationId}.");
+        if (invocation.Status != InvocationStatus.Pending) { return Task.FromResult(invocation); }
+        if (!waiters.TryGetValue(invocationId, out var waiter))
+        { waiters[invocationId] = waiter = new(TaskCreationOptions.RunContinuationsAsynchronously); }
+        return waiter.Task;
     }
 
     public Task<AppInvocation> ReadInvocation(Guid invocationId)
@@ -455,12 +473,6 @@ internal sealed class AppNeuron(
         => Task.FromResult<IReadOnlyList<AppInvocation>>(Snapshot.Invocations.Where(item => item.Status == InvocationStatus.Pending).ToArray());
 
     private IDeployableRuntime? Deployable() => deployables.FirstOrDefault(candidate => candidate.Name == AppFiles.Runtime);
-
-    // A verification scratch copy is working state, not one of the brain's apps.
-    private Task TrackUnlessScratch()
-        => Name().Contains(AppFiles.VerifyMarker, StringComparison.Ordinal)
-            ? Task.CompletedTask
-            : GrainFactory.GetGrain<IAppIndex>(BrainId()).Track(Name());
 
     private async Task DeployBehavior(string path, string source, bool swap)
     {
@@ -530,6 +542,23 @@ internal sealed class AppNeuron(
         { throw new InvalidOperationException($"No app named {Name()} exists in this brain."); }
     }
 
+    // The publish gate: every script in the bundle compiles against the installed contracts. A host
+    // without a script compiler cannot run apps either, so it has nothing to refuse.
+    private async Task RequireCompiles()
+    {
+        var scripts = Snapshot.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal))
+            .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
+        if (scripts.Count == 0) { return; }
+        var sandbox = ServiceProvider.GetService<IScriptSandbox>();
+        if (sandbox is null) { return; }
+        ScriptCompilationCheck check;
+        try { check = await sandbox.Compile(scripts, CancellationToken.None); }
+        catch (InvalidOperationException) { return; }
+        if (check.Success) { return; }
+        throw new InvalidOperationException($"Version {Snapshot.Version} does not compile: "
+            + string.Join("; ", check.Errors.Select(error => $"{error.File}:{error.Line} {error.Message}")));
+    }
+
     private string Name()
     {
         var key = this.GetPrimaryKeyString();
@@ -565,9 +594,7 @@ internal sealed class AppNeuron(
         state.Version,
         state.Status,
         [.. state.Activity],
-        [.. state.History.Select(record => new AppVersionSummary(record.Version, record.SavedAt,
-            state.Verified.TryGetValue(record.Version, out var green) ? green : null))],
-        [.. state.Verdicts],
+        [.. state.History.Select(record => new AppVersionSummary(record.Version, record.SavedAt))],
         state.PublishedVersion,
         state.Origin,
         state.Edited);

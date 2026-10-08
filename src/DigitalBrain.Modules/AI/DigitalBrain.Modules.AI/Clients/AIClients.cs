@@ -1,6 +1,13 @@
 using DigitalBrain;
-using DigitalBrain.AI.Interactions;
+using DigitalBrain.AI.Media;
 using DigitalBrain.AI.Metering;
+using DigitalBrain.AI.Models;
+using DigitalBrain.AI.Models.Anthropic;
+using DigitalBrain.AI.Models.Google;
+using DigitalBrain.AI.Models.Ollama;
+using DigitalBrain.AI.Models.OpenAI;
+using DigitalBrain.AI.Models.OpenRouter;
+using DigitalBrain.AI.Models.XAI;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Metering;
 using DigitalBrain.Framework.Platform.Integrations;
@@ -36,7 +43,6 @@ internal static class AIClients
 
     internal static void Add(IServiceCollection services)
     {
-        services.TryAddSingleton<IUntrustedContentScreen, UntrustedContentScreen>();
         services.TryAddSingleton<IIntentUsageSink>(provider => new GrainIntentUsageSink(
             provider.GetRequiredService<IGrainFactory>(), provider.GetService<IMeterSink>()));
         foreach (var model in LLMModel.All)
@@ -138,12 +144,17 @@ internal static class AIClients
     private static async Task<IChatClient> DefaultChatClientAsync(IServiceProvider provider, CancellationToken cancellationToken)
     {
         var configuration = provider.GetRequiredService<IOptions<AIOptions>>().Value;
-        if (!string.IsNullOrWhiteSpace(configuration.Default.Profile)
-            || !string.IsNullOrWhiteSpace(configuration.Default.Provider)
+        // A default that names a profile, or pins reasoning or output tokens, resolves through the catalog.
+        // This client runs the tools it is offered (PlaywrightWebAgent relies on that), so it keeps
+        // function invocation and rejects tools its model does not declare.
+        var defaultModel = configuration.Default.Model;
+        if ((defaultModel is { Length: > 0 } && configuration.ModelProfiles.ContainsKey(defaultModel))
             || configuration.Default.Reasoning is not null || configuration.Default.MaxOutputTokens is not null)
         {
-            var profiles = provider.GetRequiredService<ModelProfiles>();
-            return await profiles.CreateClient(await profiles.Resolve(null, cancellationToken: cancellationToken), cancellationToken);
+            var catalog = provider.GetRequiredService<ModelCatalog>();
+            var resolved = await catalog.Resolve(null, requiresTools: false, cancellationToken);
+            if (resolved.Provider is AiProvider.Host) { throw new InvalidOperationException("No chat provider is configured. Provision a provider integration or configure an Ollama endpoint."); }
+            return await catalog.CreateClient(resolved, cancellationToken, invokesTools: true);
         }
         var model = configuration.Default.Model is { Length: > 0 } markerName
             ? LLMModel.FindByMarkerName(markerName)
@@ -175,7 +186,7 @@ internal static class AIClients
         // The default embedding stays pinned to the local model unless explicitly
         // configured: silently switching it changes vector dimensions and orphans
         // every existing Qdrant collection.
-        var local = EmbeddingModel.All.Single(static model => model.Marker == typeof(Ollama.IEmbeddingGemma));
+        var local = EmbeddingModel.All.Single(static model => model.Marker == typeof(Models.Ollama.IEmbeddingGemma));
         if (string.IsNullOrEmpty(configuration.Ollama.Endpoint))
         {
             throw new InvalidOperationException(

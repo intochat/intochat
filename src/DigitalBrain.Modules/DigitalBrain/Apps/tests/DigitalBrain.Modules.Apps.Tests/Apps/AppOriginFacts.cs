@@ -5,7 +5,7 @@ namespace DigitalBrain.Apps.Tests.Apps;
 // An installed copy remembers where it came from; the first edit makes it the person's own.
 public sealed class AppOriginFacts
 {
-    private static readonly AppOrigin Origin = new("account-intochat", "intochat", "intochat", "echo", "1.0.0");
+    private static readonly AppOrigin Origin = new("intochat", new AppSource.Brain("account-intochat", "intochat"), "echo", "1.0.0");
 
     private static AppManifest Manifest() =>
         new("Echo", "echoes", [new("ask", "ask it")], [new("Text", "what to say", "hi")], [], Icon: "icon.svg");
@@ -17,7 +17,7 @@ public sealed class AppOriginFacts
     {
         var app = brain.Get<IApp>(key);
         await app.Import(new("echo", "1.0.0", Manifest(), "## Scenario: Echoes\nIt echoes.",
-            new() { ["tests.cs"] = "// t", ["icon.svg"] = "<svg/>" }));
+            new() { ["icon.svg"] = "<svg/>" }));
         await app.RecordOrigin(Origin);
         return app;
     }

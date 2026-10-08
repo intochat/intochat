@@ -20,7 +20,7 @@ Everything is one of these. Anything that looks like a fifth concept is a design
 |------|-----------|---------|
 | **Neuron** | Stateful, addressable grain. State lives here, never in a process. | `INeuron`, `IBrain` |
 | **Signal** | Typed fact. `Signal.Publisher` is kernel-stamped; provenance is inviolable, no publish-as-someone-else. | `Signal` |
-| **Behavior** | C# script (`dotnet run app.cs` in the sandbox) that subscribes and acts through neuron contracts. The unit of user-programmed logic. | `brain.On<T>(source)` |
+| **Behavior** | C# compiled by the brain, loaded into the brain's sandbox session; it subscribes and acts through neuron contracts. The unit of user-programmed logic. | `brain.On<T>(source)` |
 | **Connector** | Bridge from an edge neuron to its external system — Gmail, Twitter, and the Flutter shell (the *human's* connector). | `ConnectorDefinition` |
 
 UI is not a layer: a button is an edge neuron whose external system is a person, so
@@ -63,7 +63,10 @@ Ring boundaries and config-key ownership are enforced by `src/Testing/DigitalBra
 ## Connectors, integrations, configuration
 
 - **Connector** — `ConnectorDefinition` a module ships: auth methods, neurons/signals, required/optional Integrations.
-- **Connection** — what a *user* authorizes, per brain at `/brains/{id}/connections`.
+- **Connection** — what a *user* authorizes, per brain at `/brains/{id}/connections`. A connection is the
+  connector's own neuron at `connection/{brain}/{connector}/{id}` holding sealed credential state; modules
+  receive deployment credentials through `IModuleIntegrations<TModule>`. An app keeps its `ITable`s in a
+  user's database by declaring the reserved slot `{"name": "tables", "connector": "postgres"}` and binding it.
 - **Integration** — what the *deployment* provisions, `DigitalBrain:Integrations:{id}:{Field}`, `[PlatformOnly]`.
   Modules receive credentials only through `IModuleIntegrations<TModule>` — never read credential config.
 - **Configuration** — options are plain config at `DigitalBrain:Modules:{id}:Options:{Property}`, every key
@@ -75,19 +78,17 @@ A user app is an app neuron (`IApp`, keyed `{brainScope}/apps/{name}`) holding t
 
 ```
 app.json         manifest: title, icon, operations, settings, account slots
-app.spec.md      the program in natural language; "## Scenario: <name>" headings
-tests.cs         deterministic checks printing dbtest:pass/fail lines per scenario
-behaviors/*.cs   implementation, one script per concern → one ICSharpFile each
+app.spec.md      the program in natural language
+synapses/*.cs    implementation, one small script per reaction → one ICSharpFile each
 ```
 
 - **Spec is the program, the LLM is a compiler.** The Creator (`Apps/Creator.cs`,
-  `Apps/Authoring/AgentPrompts.cs`) writes the spec, then the tests and behaviors. There is no model at
-  runtime or in the publish gate. **The type system is the grammar:** a scenario is expressible
-  exactly when its test compiles against the installed contracts.
-- **Tests are the publish gate.** `AppVerifyJob` runs `tests.cs` against a scratch copy. Green means
-  exit 0, at least one scenario, and every scenario passed; silence never passes. Tests use scripted
-  models, never live ones. "(live)" scenarios are exempt. `IApp.Publish`/Export refuse anything that
-  isn't green.
+  `Apps/Authoring/AgentPrompts.cs`) writes the spec, then the behaviors. There is no model at
+  runtime. **The type system is the grammar:** a behavior is expressible exactly when it compiles
+  against the installed contracts.
+- **Compilation is the publish gate.** `IApp.Publish`/Export refuse a bundle whose `.cs` files do
+  not compile (`IScriptSandbox.Check`). There are no per-app tests; verification is seeing the app
+  run through `aspire run` and `digitalbrain-mcp`.
 - **Subscriptions are code, durability is the brain's.** `brain.On<T>(source)` is a durable subscription
   inside the grain, with a watermark. Script processes are caches: they get reaped and re-run from the
   top. So setup must be cheap and idempotent, state lives in neurons, delivery is at-least-once (dedup
@@ -96,7 +97,7 @@ behaviors/*.cs   implementation, one script per concern → one ICSharpFile each
   bundle, records `Origin`, and binds settings and slots to the installer's own connections. Updates
   replace the program and keep the data. Editing the program detaches the copy from its origin.
   First-party apps (`os`, `intochat` accounts) ship from `src/DigitalBrain.OS/Apps` and
-  `src/IntoChat/Apps`, and are verified and published at startup.
+  `src/IntoChat/Apps`, and are published at startup.
 
 Open design fronts (don't improvise): cross-app subscription scopes, renderable palette / UiPart,
 run-token tightening.
@@ -177,3 +178,6 @@ make a check pass.
 - **No self-calls on non-reentrant grains**, because they deadlock. For signal-triggered work, use a
   one-way self-reference: `this.AsReference<T>()`.
 - **`ObserverManager` watches need lease renewal.**
+- **A reshaped grain state fails at activation or silo start** as an Orleans `wireType`/deserialisation
+  error (e.g. `integration.registration/integration/clickhouse` read at `IntegrationSeeder`). Wipe the local
+  storage volume (Azurite); no migration shims.

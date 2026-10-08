@@ -2,6 +2,8 @@ using Aspire.Hosting;
 using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Modules;
 using Orleans.Hosting;
 
 namespace DigitalBrain.Aspire.Hosting.Tests.Unit;
@@ -38,7 +40,7 @@ public sealed class ModuleOptionOverlayFacts
                 Delay = 42,
                 Bindings = new() { ["live"] = "service" }
             }, "example"));
-        var options = HostingModuleOptions.GetModuleOptions<OverlaidOptions>(brain.GetModuleConfiguration("example"), "example");
+        var options = brain.GetModuleConfiguration("example").GetModuleOptions<OverlaidOptions>("example");
         Assert.Equal("fixture", options.Endpoint);
         Assert.Equal(7, options.Delay);
         Assert.Empty(options.Bindings);
@@ -61,8 +63,8 @@ public sealed class ModuleOptionOverlayFacts
     public void TwoBrainsScopeInfrastructureAndAllowIndependentConfiguration()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        builder.Configuration[DigitalBrainConfiguration.BrainModuleOptionsSection("first", "scoped") + ":ConnectionName"] = "first-db";
-        builder.Configuration[DigitalBrainConfiguration.BrainModuleOptionsSection("second", "scoped") + ":ConnectionName"] = "second-db";
+        builder.Configuration[DigitalBrainConfiguration.CompositionModuleOptionsSection("first", "scoped") + ":ConnectionName"] = "first-db";
+        builder.Configuration[DigitalBrainConfiguration.CompositionModuleOptionsSection("second", "scoped") + ":ConnectionName"] = "second-db";
         var first = builder.AddDigitalBrain("first", options: new() { UseAzureStorage = true, PersistentStorage = false })
             .WithHosting<ScopedServerHosting>();
         var second = builder.AddDigitalBrain("second", options: new() { UseAzureStorage = true, PersistentStorage = false })
@@ -96,7 +98,7 @@ public sealed class ModuleOptionOverlayFacts
         var brain = builder.AddDigitalBrain("modules", options: new() { UseAzureStorage = true, PersistentStorage = false })
             .WithModule(new OverlaidModule(), settings: HostingModuleOptions.Flatten(new OverlaidOptions { Endpoint = "declared", Delay = 42 }, "OverlaidModule"));
 
-        var options = HostingModuleOptions.GetModuleOptions<OverlaidOptions>(brain.GetModuleConfiguration("OverlaidModule"), "OverlaidModule");
+        var options = brain.GetModuleConfiguration("OverlaidModule").GetModuleOptions<OverlaidOptions>("OverlaidModule");
         Assert.Equal("from-args", options.Endpoint);
         Assert.Equal(42, options.Delay);
         Assert.Equal("added", options.Bindings["extra"]);

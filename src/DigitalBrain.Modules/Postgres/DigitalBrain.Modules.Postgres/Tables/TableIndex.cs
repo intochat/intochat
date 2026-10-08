@@ -1,4 +1,6 @@
-using DigitalBrain.Framework.Enforcement;
+
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Contracts;
 
 namespace DigitalBrain.Postgres.Tables;
 

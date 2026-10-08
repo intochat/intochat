@@ -1,7 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Mcp;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Mcp.Tests.Unit;
@@ -23,10 +23,10 @@ public sealed class NeuronContractFacts
     [Fact]
     public void TheCatalogExposesNeuronContractsAndRefusesCredentialContracts()
     {
-        var catalog = new NeuronContracts([typeof(INeuron).Assembly, typeof(IIntegration).Assembly,
+        var catalog = new ContractCatalog([typeof(INeuron).Assembly, typeof(IIntegration).Assembly,
             typeof(DigitalBrain.Time.Timers.ITimer).Assembly]);
         Assert.Equal(typeof(DigitalBrain.Time.Timers.ITimer), catalog.Find(typeof(DigitalBrain.Time.Timers.ITimer).FullName!));
-        Assert.DoesNotContain(typeof(INeuron).FullName!, catalog.Names);
+        Assert.DoesNotContain(typeof(INeuron).FullName!, catalog.Neurons);
         Assert.Throws<ArgumentException>(() => catalog.Find(typeof(IIntegration).FullName!));
         Assert.Throws<ArgumentException>(() => catalog.Find("Missing.Contract"));
     }
@@ -34,8 +34,8 @@ public sealed class NeuronContractFacts
     [Fact]
     public void DeployedContractsIncludeTheModulesShippedBesideTheMcpServer()
     {
-        var catalog = new NeuronContracts(NeuronContracts.Deployed());
-        Assert.Contains(typeof(DigitalBrain.Time.Timers.ITimer).FullName!, catalog.Names);
-        Assert.DoesNotContain(catalog.Names, name => name.StartsWith("DigitalBrain.Platform.", StringComparison.Ordinal));
+        var catalog = new ContractCatalog(ContractCatalog.Deployed());
+        Assert.Contains(typeof(DigitalBrain.Time.Timers.ITimer).FullName!, catalog.Neurons);
+        Assert.DoesNotContain(catalog.Neurons, name => name.StartsWith("DigitalBrain.Platform.", StringComparison.Ordinal));
     }
 }

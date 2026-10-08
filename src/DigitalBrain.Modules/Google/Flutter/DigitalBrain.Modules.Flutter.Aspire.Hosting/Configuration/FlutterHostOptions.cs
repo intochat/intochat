@@ -3,7 +3,7 @@ namespace DigitalBrain.Flutter.Aspire.Hosting;
 public sealed class FlutterHostOptions
 {
     public static readonly string SectionName =
-        DigitalBrain.Framework.DigitalBrainConfiguration.ModuleSection(new DigitalBrain.Framework.ModuleId("flutter")) + ":Hosting";
+        DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.ModuleSection(new DigitalBrain.Framework.Modules.ModuleId("flutter")) + ":Hosting";
     public static readonly string WebContainerKey = SectionName + ":WebContainer";
 
     public static FlutterHostOptions Bind(FlutterHostOptions options, global::Microsoft.Extensions.Configuration.IConfiguration configuration)

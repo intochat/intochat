@@ -1,11 +1,12 @@
-using DigitalBrain.Framework.Enforcement;
+using System.Net.Http.Json;
+using System.Text.Json;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Framework.Platform.Integrations.Accounts;
 using DigitalBrain.Google.Gmail;
 using DigitalBrain.Testing.Module;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Xunit;
 
 namespace DigitalBrain.Modules.Google.Gmail.Tests;
 
@@ -19,13 +20,21 @@ public sealed class GmailHostFixture : IAsyncLifetime
     private ModuleBrain? _brain;
 
     public ModuleBrain Brain => _brain ?? throw new InvalidOperationException("The Gmail host has not started yet.");
+    internal TokenEndpointStub Stub => _stub ?? throw new InvalidOperationException("The Gmail host has not started yet.");
 
     public async ValueTask InitializeAsync()
     {
         _stub = await TokenEndpointStub.StartAsync(CancellationToken.None);
         _brain = await ModuleTest.Create()
-            .WithModule<GmailModule, GmailModuleOptions>(options => { options.TokenEndpoint = _stub.TokenEndpoint; options.ProfileEndpoint = new(_stub.Origin, "profile"); options.PublicOrigin = _stub.Origin; })
-            .WithExecution(new() { PrivateConfiguration = ConfiguredRegistration() })
+            .WithModule<GmailModule, GmailModuleOptions>(options => options.ProfileEndpoint = new(_stub.Origin, "profile"))
+            .WithExecution(new()
+            {
+                PrivateConfiguration = new Dictionary<string, string?>(ConfiguredRegistration())
+                {
+                    [DigitalBrainConfiguration.ConnectionsPublicOriginKey] = _stub.Origin.AbsoluteUri,
+                    [DigitalBrainConfiguration.ConnectionsTokenEndpointKey("gmail")] = _stub.TokenEndpoint.AbsoluteUri,
+                },
+            })
             .ConfigureSilo(silo => silo.Services.AddSingleton<IGmailPushAuthenticator>(new TestPushAuthenticator()))
             .WithHttpEdge()
             .StartAsync();
@@ -37,11 +46,15 @@ public sealed class GmailHostFixture : IAsyncLifetime
         if (_stub is not null) { await _stub.DisposeAsync(); }
     }
 
+    // The Platform's browser login: start it, then return through its callback with a code.
     internal async Task ConnectForPushAsync(string brainName, string connectionId)
     {
-        var state = Brain.SiloServices.GetRequiredService<GmailCallbackRequests>().Begin("owner", "owner", brainName, connectionId);
-        using var response = await Brain.HttpClient.GetAsync($"google/gmail/oauth/callback?code=fake-code&state={state}");
-        response.EnsureSuccessStatusCode();
+        using var start = await Brain.HttpClient.PostAsJsonAsync($"/brains/{brainName}/connections/{connectionId}/login", new { connectorId = "gmail", authMethodId = "google-oauth" });
+        start.EnsureSuccessStatusCode();
+        var url = new Uri((await start.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("url").GetString()!);
+        var state = System.Web.HttpUtility.ParseQueryString(url.Query)["state"];
+        using var callback = await Brain.HttpClient.GetAsync($"/connections/oauth/gmail/callback?code=fake-code&state={state}");
+        callback.EnsureSuccessStatusCode();
     }
 
     internal static Dictionary<string, string?> ConfiguredRegistration() => new()

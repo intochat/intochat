@@ -1,5 +1,9 @@
 using DigitalBrain;
+using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Modules;
+using DigitalBrain.Testing.E2E.Diagnostics;
 
 namespace DigitalBrain.Testing.E2E;
 
@@ -52,18 +56,16 @@ public sealed class E2ETestBuilder<TAppHost> where TAppHost : class
         return this;
     }
 
-    // Adds environment variables to the primary application resource, for test-only wiring such as
-    // pointing the OTLP exporter at a collector owned by the test process. Later calls merge over
-    // earlier ones, so a composition's defaults survive a fact adding its own variables.
-    public E2ETestBuilder<TAppHost> WithResourceEnvironment(IReadOnlyDictionary<string, string> environment)
+    // The collector plugs into the AppHost's own OTLP setting; Aspire projects it to every resource.
+    public E2ETestBuilder<TAppHost> ExportingTelemetryTo(TestTelemetryCollector collector)
     {
-        EnsureMutable();
-        ArgumentNullException.ThrowIfNull(environment);
-        var merged = new Dictionary<string, string>(_execution.ResourceEnvironment, StringComparer.Ordinal);
-        foreach (var (key, value) in environment) { merged[key] = value; }
-        _execution = _execution with { ResourceEnvironment = merged };
-        return this;
+        ArgumentNullException.ThrowIfNull(collector);
+        return WithHostConfiguration("ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL", collector.Endpoint.AbsoluteUri)
+            .WithHostConfiguration("ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL", "");
     }
+
+    public E2ETestBuilder<TAppHost> InEnvironment(string environmentName)
+        => WithHostConfiguration(DigitalBrainHostingOptions.EnvironmentKey, environmentName);
 
     // Hosting-layer configuration for the AppHost builder itself (not a resource), such as
     // DigitalBrain:Modules:flutter:Hosting:WebContainer.

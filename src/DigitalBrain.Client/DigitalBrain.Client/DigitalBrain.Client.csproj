@@ -10,5 +10,7 @@
 <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" />
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../../DigitalBrain/DigitalBrain.csproj" /></ItemGroup>
+  <!-- The runtime protocol records also cross grain calls inside the silo. -->
+  <ItemGroup><PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" /></ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="DigitalBrain.Client.Tests.Unit" /></ItemGroup>
 </Project>

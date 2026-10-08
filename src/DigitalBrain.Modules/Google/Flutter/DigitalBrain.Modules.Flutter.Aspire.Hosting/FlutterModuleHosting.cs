@@ -1,4 +1,5 @@
 using DigitalBrain.Aspire.Hosting;
+using DigitalBrain.Framework.Configuration;
 using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Flutter.Aspire.Hosting;

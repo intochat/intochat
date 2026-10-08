@@ -1,14 +1,14 @@
 [
   {
     "Type": "DigitalBrain.AI.Agents.AgentDefinition",
-    "Member": "Tools",
+    "Member": "Contracts",
     "Representation": "array",
     "Payload": "MAHbAh1mJ2FpLmFnZW50LWRlZmluaXRpb27owAHBAcEBwQEpNQADQRlsZWdhY3ktdmFsdWXgwQHBAQEBgQAAAAAAAAAAAQHBAcEB4A==",
     "Expected": "[\"legacy-value\"]"
   },
   {
     "Type": "DigitalBrain.AI.Agents.AgentDefinition",
-    "Member": "Tools",
+    "Member": "Contracts",
     "Representation": "list",
     "Payload": "MAHbAh1mJ2FpLmFnZW50LWRlZmluaXRpb27owAHBAcEBwQExAVnRtylXU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdGAxW1tzdHJpbmddXQADQRlsZWdhY3ktdmFsdWXgwQHBAQEBgQAAAAAAAAAAAQHBAcEB4A==",
     "Expected": "[\"legacy-value\"]"
@@ -43,14 +43,14 @@
   },
   {
     "Type": "DigitalBrain.AI.Agents.AgentDefinition",
-    "Member": "ContextProviders",
+    "Member": "Contexts",
     "Representation": "array",
     "Payload": "MAHbAh1mJ2FpLmFnZW50LWRlZmluaXRpb27owAHBAcEBwQHBAcEBwQEBAYEAAAAAAAAAAAEBwQEpNQADQRlsZWdhY3ktdmFsdWXg4A==",
     "Expected": "[\"legacy-value\"]"
   },
   {
     "Type": "DigitalBrain.AI.Agents.AgentDefinition",
-    "Member": "ContextProviders",
+    "Member": "Contexts",
     "Representation": "list",
     "Payload": "MAHbAh1mJ2FpLmFnZW50LWRlZmluaXRpb27owAHBAcEBwQHBAcEBwQEBAYEAAAAAAAAAAAEBwQExAVnRtylXU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdGAxW1tzdHJpbmddXQADQRlsZWdhY3ktdmFsdWXg4A==",
     "Expected": "[\"legacy-value\"]"
@@ -84,101 +84,45 @@
     "Expected": "[{\"Round\":0,\"Speaker\":\"legacy-value\",\"Text\":\"legacy-value\"}]"
   },
   {
-    "Type": "DigitalBrain.AI.InferenceOptions",
+    "Type": "DigitalBrain.AI.Inference.InferenceOptions",
     "Member": "ProviderOptions",
     "Representation": "array",
     "Payload": "MAEYu0qyKWFpLmluZmVyZW5jZS1vcHRpb25z6MABwQHBAcEBMQHbNq1zdVN5c3RlbS5Db2xsZWN0aW9ucy5HZW5lcmljLkRpY3Rpb25hcnlgMltbc3RyaW5nXSxbc3RyaW5nXV0BA0EZbGVnYWN5LXZhbHVlwBHgwQHBAeA=",
     "Expected": "{\"legacy-value\":\"legacy-value\"}"
   },
   {
-    "Type": "DigitalBrain.AI.InferenceOptions",
+    "Type": "DigitalBrain.AI.Inference.InferenceOptions",
     "Member": "ProviderOptions",
     "Representation": "list",
     "Payload": "MAEYu0qyKWFpLmluZmVyZW5jZS1vcHRpb25z6MABwQHBAcEBMQHbNq1zdVN5c3RlbS5Db2xsZWN0aW9ucy5HZW5lcmljLkRpY3Rpb25hcnlgMltbc3RyaW5nXSxbc3RyaW5nXV0BA0EZbGVnYWN5LXZhbHVlwBHgwQHBAeA=",
     "Expected": "{\"legacy-value\":\"legacy-value\"}"
   },
   {
-    "Type": "DigitalBrain.AI.ScriptedLlmState",
+    "Type": "DigitalBrain.AI.Models.Scripted.ScriptedLlmState",
     "Member": "Replies",
     "Representation": "array",
     "Payload": "MAHLHf+NK2FpLmxsbS5zY3JpcHRlZC1zdGF0ZegoNQADQRlsZWdhY3ktdmFsdWXgAQHBAeA=",
     "Expected": "[\"legacy-value\"]"
   },
   {
-    "Type": "DigitalBrain.AI.ScriptedLlmState",
+    "Type": "DigitalBrain.AI.Models.Scripted.ScriptedLlmState",
     "Member": "Replies",
     "Representation": "list",
     "Payload": "MAHLHf+NK2FpLmxsbS5zY3JpcHRlZC1zdGF0ZegwAVnRtylXU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdGAxW1tzdHJpbmddXQADQRlsZWdhY3ktdmFsdWXgAQHBAeA=",
     "Expected": "[\"legacy-value\"]"
   },
   {
-    "Type": "DigitalBrain.AI.ScriptedLlmState",
+    "Type": "DigitalBrain.AI.Models.Scripted.ScriptedLlmState",
     "Member": "Prompts",
     "Representation": "array",
     "Payload": "MAHLHf+NK2FpLmxsbS5zY3JpcHRlZC1zdGF0ZejAAQEBKTUAA0EZbGVnYWN5LXZhbHVl4OA=",
     "Expected": "[\"legacy-value\"]"
   },
   {
-    "Type": "DigitalBrain.AI.ScriptedLlmState",
+    "Type": "DigitalBrain.AI.Models.Scripted.ScriptedLlmState",
     "Member": "Prompts",
     "Representation": "list",
     "Payload": "MAHLHf+NK2FpLmxsbS5zY3JpcHRlZC1zdGF0ZejAAQEBMQFZ0bcpV1N5c3RlbS5Db2xsZWN0aW9ucy5HZW5lcmljLkxpc3RgMVtbc3RyaW5nXV0AA0EZbGVnYWN5LXZhbHVl4OA=",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.Assistant.AssistantState",
-    "Member": "Threads",
-    "Representation": "array",
-    "Payload": "MAFPJwX6KWFwcHMuYXNzaXN0YW50LXN0YXRl6AABwQHBATEBssF/GCVhc3Npc3RhbnQudGhyZWFkW10AAyHoQBlsZWdhY3ktdmFsdWXBEcERwRExAXSvFSwfdWkuY2hhdC1lbnRyeVtdAAMh6MARAQHBEeDgKTUAA8ER4Ck1AAPBEeDBEcERwRHg4MEB4A==",
-    "Expected": "[{\"Id\":\"legacy-value\",\"Title\":\"legacy-value\",\"Draft\":\"legacy-value\",\"ModelProfile\":\"legacy-value\",\"Messages\":[{\"Id\":\"legacy-value\",\"Role\":0,\"Text\":\"legacy-value\"}],\"Receipts\":[\"legacy-value\"],\"Results\":[\"legacy-value\"],\"Error\":\"legacy-value\",\"Status\":\"legacy-value\",\"TurnId\":\"legacy-value\"}]"
-  },
-  {
-    "Type": "DigitalBrain.Assistant.AssistantState",
-    "Member": "Threads",
-    "Representation": "list",
-    "Payload": "MAFPJwX6KWFwcHMuYXNzaXN0YW50LXN0YXRl6AABwQHBATEBaHMCcWtTeXN0ZW0uQ29sbGVjdGlvbnMuR2VuZXJpYy5MaXN0YDFbW2Fzc2lzdGFudC50aHJlYWRdXQADIehAGWxlZ2FjeS12YWx1ZcERwRHBETEBoTlxMmVTeXN0ZW0uQ29sbGVjdGlvbnMuR2VuZXJpYy5MaXN0YDFbW3VpLmNoYXQtZW50cnldXQADIejAEQEBwRHg4DEBWdG3KVdTeXN0ZW0uQ29sbGVjdGlvbnMuR2VuZXJpYy5MaXN0YDFbW3N0cmluZ11dAAPBEeA5CQADwRHgwRHBEcER4ODBAeA=",
-    "Expected": "[{\"Id\":\"legacy-value\",\"Title\":\"legacy-value\",\"Draft\":\"legacy-value\",\"ModelProfile\":\"legacy-value\",\"Messages\":[{\"Id\":\"legacy-value\",\"Role\":0,\"Text\":\"legacy-value\"}],\"Receipts\":[\"legacy-value\"],\"Results\":[\"legacy-value\"],\"Error\":\"legacy-value\",\"Status\":\"legacy-value\",\"TurnId\":\"legacy-value\"}]"
-  },
-  {
-    "Type": "DigitalBrain.Assistant.AssistantThread",
-    "Member": "Messages",
-    "Representation": "array",
-    "Payload": "MAFUNrIoIWFzc2lzdGFudC50aHJlYWTowAHBAcEBwQExAXSvFSwfdWkuY2hhdC1lbnRyeVtdAAMh6EAZbGVnYWN5LXZhbHVlAQHBE+DgwQHBAcEBwQHBAeA=",
-    "Expected": "[{\"Id\":\"legacy-value\",\"Role\":0,\"Text\":\"legacy-value\"}]"
-  },
-  {
-    "Type": "DigitalBrain.Assistant.AssistantThread",
-    "Member": "Messages",
-    "Representation": "list",
-    "Payload": "MAFUNrIoIWFzc2lzdGFudC50aHJlYWTowAHBAcEBwQExAaE5cTJlU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdGAxW1t1aS5jaGF0LWVudHJ5XV0AAyHoQBlsZWdhY3ktdmFsdWUBAcET4ODBAcEBwQHBAcEB4A==",
-    "Expected": "[{\"Id\":\"legacy-value\",\"Role\":0,\"Text\":\"legacy-value\"}]"
-  },
-  {
-    "Type": "DigitalBrain.Assistant.AssistantThread",
-    "Member": "Receipts",
-    "Representation": "array",
-    "Payload": "MAFUNrIoIWFzc2lzdGFudC50aHJlYWTowAHBAcEBwQHBASk1AANBGWxlZ2FjeS12YWx1ZeDBAcEBwQHBAeA=",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.Assistant.AssistantThread",
-    "Member": "Receipts",
-    "Representation": "list",
-    "Payload": "MAFUNrIoIWFzc2lzdGFudC50aHJlYWTowAHBAcEBwQHBATEBWdG3KVdTeXN0ZW0uQ29sbGVjdGlvbnMuR2VuZXJpYy5MaXN0YDFbW3N0cmluZ11dAANBGWxlZ2FjeS12YWx1ZeDBAcEBwQHBAeA=",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.Assistant.AssistantThread",
-    "Member": "Results",
-    "Representation": "array",
-    "Payload": "MAFUNrIoIWFzc2lzdGFudC50aHJlYWTowAHBAcEBwQHBAcEBKTUAA0EZbGVnYWN5LXZhbHVl4MEBwQHBAeA=",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.Assistant.AssistantThread",
-    "Member": "Results",
-    "Representation": "list",
-    "Payload": "MAFUNrIoIWFzc2lzdGFudC50aHJlYWTowAHBAcEBwQHBAcEBMQFZ0bcpV1N5c3RlbS5Db2xsZWN0aW9ucy5HZW5lcmljLkxpc3RgMVtbc3RyaW5nXV0AA0EZbGVnYWN5LXZhbHVl4MEBwQHBAeA=",
     "Expected": "[\"legacy-value\"]"
   },
   {
@@ -364,20 +308,6 @@
     "Expected": "[\"legacy-value\"]"
   },
   {
-    "Type": "DigitalBrain.Microsoft.GitHub.GitHubConnectionsState",
-    "Member": "Connections",
-    "Representation": "array",
-    "Payload": "MAEFIf9dN2RiLmdpdGh1Yi5jb25uZWN0aW9ucy1zdGF0ZegwAUUCnhFLZGIuZ2l0aHViLmdpdC1odWItY29ubmVjdGlvbi1yZWNvcmRbXQADIehAGWxlZ2FjeS12YWx1ZQEBAQEBAcELwQvBC+Dg4A==",
-    "Expected": "[{\"Id\":\"legacy-value\",\"AppId\":0,\"InstallationId\":0,\"RepositoryId\":0,\"RepositoryOwner\":\"legacy-value\",\"RepositoryName\":\"legacy-value\",\"Epoch\":\"legacy-value\"}]"
-  },
-  {
-    "Type": "DigitalBrain.Microsoft.GitHub.GitHubConnectionsState",
-    "Member": "Connections",
-    "Representation": "list",
-    "Payload": "MAEFIf9dN2RiLmdpdGh1Yi5jb25uZWN0aW9ucy1zdGF0ZegwAeT+qj6RU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdGAxW1tkYi5naXRodWIuZ2l0LWh1Yi1jb25uZWN0aW9uLXJlY29yZF1dAAMh6EAZbGVnYWN5LXZhbHVlAQEBAQEBwQvBC8EL4ODg",
-    "Expected": "[{\"Id\":\"legacy-value\",\"AppId\":0,\"InstallationId\":0,\"RepositoryId\":0,\"RepositoryOwner\":\"legacy-value\",\"RepositoryName\":\"legacy-value\",\"Epoch\":\"legacy-value\"}]"
-  },
-  {
     "Type": "DigitalBrain.Microsoft.GitHub.PullRequestSnapshot",
     "Member": "Checks",
     "Representation": "array",
@@ -390,75 +320,5 @@
     "Representation": "list",
     "Payload": "MAE2kXVVP2RiLmdpdGh1Yi5wdWxsLXJlcXVlc3Qtc25hcHNob3ToAAHBAcEBAQEBAcEBwQHBAcEBMQFSdUZraVN5c3RlbS5Db2xsZWN0aW9ucy5HZW5lcmljLkxpc3RgMVtbZGIuZ2l0aHViLmNoZWNrXV0AAyHoQBlsZWdhY3ktdmFsdWUBAcEdwR3BHcEdwR0hgAAAAAAAAAAAgQAAAAAAAAAA4ODgAQEhgAAAAAAAAAAAgQAAAAAAAAAA4CGAAAAAAAAAAACBAAAAAAAAAADgwQHBAQEBwQHg",
     "Expected": "[{\"Name\":\"legacy-value\",\"AppId\":0,\"Kind\":\"legacy-value\",\"State\":\"legacy-value\",\"Conclusion\":\"legacy-value\",\"Sha\":\"legacy-value\",\"AttemptId\":\"legacy-value\",\"UpdatedAt\":\"0001-01-01T00:00:00+00:00\"}]"
-  },
-  {
-    "Type": "DigitalBrain.Supabase.Tables.SupabaseTableRow",
-    "Member": "Cells",
-    "Representation": "array",
-    "Payload": "MAHr/v2QJXN1cGFiYXNlLnRhYmxlLXJvd+jAASk1AANBGWxlZ2FjeS12YWx1ZeDg",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.Supabase.Tables.SupabaseTableRow",
-    "Member": "Cells",
-    "Representation": "list",
-    "Payload": "MAHr/v2QJXN1cGFiYXNlLnRhYmxlLXJvd+jAATEBWdG3KVdTeXN0ZW0uQ29sbGVjdGlvbnMuR2VuZXJpYy5MaXN0YDFbW3N0cmluZ11dAANBGWxlZ2FjeS12YWx1ZeDg",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.Supabase.Tables.SupabaseTableSnapshot",
-    "Member": "Columns",
-    "Representation": "array",
-    "Payload": "MAF4qGcSL3N1cGFiYXNlLnRhYmxlLXNuYXBzaG906MABwQEBATEBSqVFhy9zdXBhYmFzZS50YWJsZS1jb2x1bW5bXQADIehAGWxlZ2FjeS12YWx1ZcERwRHg4MEBwQHBAcEBAQEBAQEBAQHBAeA=",
-    "Expected": "[{\"Id\":\"legacy-value\",\"Label\":\"legacy-value\",\"Type\":\"legacy-value\"}]"
-  },
-  {
-    "Type": "DigitalBrain.Supabase.Tables.SupabaseTableSnapshot",
-    "Member": "Columns",
-    "Representation": "list",
-    "Payload": "MAF4qGcSL3N1cGFiYXNlLnRhYmxlLXNuYXBzaG906MABwQEBATEBd3V0OnVTeXN0ZW0uQ29sbGVjdGlvbnMuR2VuZXJpYy5MaXN0YDFbW3N1cGFiYXNlLnRhYmxlLWNvbHVtbl1dAAMh6EAZbGVnYWN5LXZhbHVlwRHBEeDgwQHBAcEBwQEBAQEBAQEBAcEB4A==",
-    "Expected": "[{\"Id\":\"legacy-value\",\"Label\":\"legacy-value\",\"Type\":\"legacy-value\"}]"
-  },
-  {
-    "Type": "DigitalBrain.Supabase.Tables.SupabaseTableSnapshot",
-    "Member": "Rows",
-    "Representation": "array",
-    "Payload": "MAF4qGcSL3N1cGFiYXNlLnRhYmxlLXNuYXBzaG906MABwQEBAcEBMQHDFmqfKXN1cGFiYXNlLnRhYmxlLXJvd1tdAAMh6EAZbGVnYWN5LXZhbHVlKTUAA8ET4ODgwQHBAcEBAQEBAQEBAQHBAeA=",
-    "Expected": "[{\"Id\":\"legacy-value\",\"Cells\":[\"legacy-value\"]}]"
-  },
-  {
-    "Type": "DigitalBrain.Supabase.Tables.SupabaseTableSnapshot",
-    "Member": "Rows",
-    "Representation": "list",
-    "Payload": "MAF4qGcSL3N1cGFiYXNlLnRhYmxlLXNuYXBzaG906MABwQEBAcEBMQHTjiVcb1N5c3RlbS5Db2xsZWN0aW9ucy5HZW5lcmljLkxpc3RgMVtbc3VwYWJhc2UudGFibGUtcm93XV0AAyHoQBlsZWdhY3ktdmFsdWUxAVnRtylXU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdGAxW1tzdHJpbmddXQADwRPg4ODBAcEBwQEBAQEBAQEBAcEB4A==",
-    "Expected": "[{\"Id\":\"legacy-value\",\"Cells\":[\"legacy-value\"]}]"
-  },
-  {
-    "Type": "DigitalBrain.Supabase.Tables.SupabaseTableSnapshot",
-    "Member": "Filters",
-    "Representation": "array",
-    "Payload": "MAF4qGcSL3N1cGFiYXNlLnRhYmxlLXNuYXBzaG906MABwQEBAcEBwQExAX/+VuUvc3VwYWJhc2UudGFibGUtZmlsdGVyW10AAyHoQBlsZWdhY3ktdmFsdWXBFcEV4ODBAcEBAQEBAQEBAQHBAeA=",
-    "Expected": "[{\"ColumnId\":\"legacy-value\",\"Operator\":\"legacy-value\",\"Value\":\"legacy-value\"}]"
-  },
-  {
-    "Type": "DigitalBrain.Supabase.Tables.SupabaseTableSnapshot",
-    "Member": "Filters",
-    "Representation": "list",
-    "Payload": "MAF4qGcSL3N1cGFiYXNlLnRhYmxlLXNuYXBzaG906MABwQEBAcEBwQExAY2cIwt1U3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdGAxW1tzdXBhYmFzZS50YWJsZS1maWx0ZXJdXQADIehAGWxlZ2FjeS12YWx1ZcEVwRXg4MEBwQEBAQEBAQEBAcEB4A==",
-    "Expected": "[{\"ColumnId\":\"legacy-value\",\"Operator\":\"legacy-value\",\"Value\":\"legacy-value\"}]"
-  },
-  {
-    "Type": "DigitalBrain.Supabase.Tables.SupabaseTableSnapshot",
-    "Member": "VisibleColumns",
-    "Representation": "array",
-    "Payload": "MAF4qGcSL3N1cGFiYXNlLnRhYmxlLXNuYXBzaG906MABwQEBAcEBwQHBAcEBKTUAA0EZbGVnYWN5LXZhbHVl4AEBAQEBAQEBwQHg",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.Supabase.Tables.SupabaseTableSnapshot",
-    "Member": "VisibleColumns",
-    "Representation": "list",
-    "Payload": "MAF4qGcSL3N1cGFiYXNlLnRhYmxlLXNuYXBzaG906MABwQEBAcEBwQHBAcEBMQFZ0bcpV1N5c3RlbS5Db2xsZWN0aW9ucy5HZW5lcmljLkxpc3RgMVtbc3RyaW5nXV0AA0EZbGVnYWN5LXZhbHVl4AEBAQEBAQEBwQHg",
-    "Expected": "[\"legacy-value\"]"
   }
 ]

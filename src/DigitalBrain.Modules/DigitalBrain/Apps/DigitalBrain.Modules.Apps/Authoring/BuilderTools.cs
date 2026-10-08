@@ -1,5 +1,8 @@
 using DigitalBrain.AI;
+using DigitalBrain.AI.Inference;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Apps;
 
@@ -15,9 +18,9 @@ internal static class BuilderTools
     [
         new(SearchContracts, "Search this brain's neuron contracts by what they do (for example \"schedule a timer\" or \"send an email\"). Returns matching contracts with their module id.",
             """{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}"""),
-        new(ReadContracts, "Read the full contracts of the given module ids: every neuron interface with its methods and signals, and the #:project directive a C# file needs to use them. Pass modules=[] to list the installed module ids.",
+        new(ReadContracts, "Read the full contracts of the given module ids: every neuron interface with its methods and signals; a C# file uses them with plain usings. Pass modules=[] to list the installed module ids.",
             """{"type":"object","properties":{"modules":{"type":"array","items":{"type":"string"}}},"required":["modules"]}"""),
-        new(CheckCSharp, "Compile the given C# files (path to full source, for example tests.cs and synapses/notify.cs) without running them. Returns the compile errors; fix them all before answering.",
+        new(CheckCSharp, "Compile and store the given C# files (path to full source, for example synapses/notify.cs) without running them. Returns the compile errors; fix them all before answering.",
             """{"type":"object","properties":{"files":{"type":"object","additionalProperties":{"type":"string"}}},"required":["files"]}"""),
     ];
 
@@ -27,27 +30,7 @@ internal static class BuilderTools
 
     public sealed record ContractHit(string Module, string Contract, string Description);
 
-    public static async Task<IReadOnlyList<ContractHit>> Search(ContractCatalog catalog, NeuronTypeSearch search, string query)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(query);
-        try
-        {
-            return [.. (await search.Search(query)).Select(hit => Hit(hit.Type))];
-        }
-        // Without an embedding model the registry has no vector search; a name and description
-        // match over the full catalog still answers the Builder's question.
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            return [.. catalog.Read()
-                .Where(type => query.Split(' ', StringSplitOptions.RemoveEmptyEntries).Any(word =>
-                    type.Id.Contains(word, StringComparison.OrdinalIgnoreCase)
-                    || type.Name.Contains(word, StringComparison.OrdinalIgnoreCase)
-                    || type.Description.Contains(word, StringComparison.OrdinalIgnoreCase)))
-                .Take(10)
-                .Select(Hit)];
-        }
-    }
-
-    private static ContractHit Hit(NeuronType type) => new(type.ModuleId, type.Contract, type.Description);
+    public static async Task<IReadOnlyList<ContractHit>> Search(NeuronTypeSearch search, string query, CancellationToken ct)
+        => [.. (await search.Search(query, ct: ct).ConfigureAwait(false)).Select(hit => new ContractHit(hit.Type.ModuleId, hit.Type.Contract, hit.Type.Description))];
 }
 

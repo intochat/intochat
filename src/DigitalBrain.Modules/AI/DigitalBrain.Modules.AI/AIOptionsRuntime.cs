@@ -22,7 +22,6 @@ internal static class AIOptionsRuntime
     internal static void Register(IServiceCollection services)
     {
         services.AddOptions<AIOptions>().Configure<IConfiguration>(ReadInto);
-        services.AddOptions<AIWorkspaceOptions>().BindConfiguration(AIKeys.Workspace);
     }
 
     private static void ProjectOllamaModelMarkers(AIOptions options, IConfiguration configuration)

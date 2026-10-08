@@ -1,5 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Modules;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,13 +12,13 @@ namespace DigitalBrain.Microsoft.Aspire;
 
 public sealed class AspireModule() : Module<AspireOptions>(new ModuleId("aspire")), IHttpModule
 {
+    public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.Microsoft.Aspire.IAspire).Assembly;
+
     public static readonly string ConfigurationRoot = AspireOptions.ConfigurationRoot;
 
     public override void Configure(ISiloBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        builder.Services.AddOptions<AspireOptions>()
-            .Configure<IConfiguration>((options, configuration) => configuration.PopulateModuleOptions("aspire", options));
         builder.Services.TryAddSingleton<AspireBridge>();
     }
 

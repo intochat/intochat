@@ -1,6 +1,7 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Aspire.Hosting;
+using DigitalBrain.Framework.Configuration;
 using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Qdrant.Aspire.Hosting;

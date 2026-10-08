@@ -1,8 +1,6 @@
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Platform.Identity.Configuration;
 using DigitalBrain.Platform.Identity.Directory;
-using DigitalBrain.Platform.Secrets;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -22,8 +20,6 @@ public static class IdentityHosting
             .Validate(options => string.IsNullOrEmpty(options.Username) == string.IsNullOrEmpty(options.Password),
                 "A Basic bootstrap credential needs both DigitalBrain:Auth:Username and DigitalBrain:Auth:Password, or neither.")
             .ValidateOnStart();
-        // Both the silo (seeding) and the web edge (seeded-account switching) read the seeds.
-        services.AddOptions<SeededAccountOptions>().BindConfiguration(SeededAccountOptions.SectionName);
         services.AddOptions<IdentityHostOptions>().BindConfiguration(IdentityHostOptions.SectionName)
             .Validate(options => options.Validate(), "Identity host names must not be empty.")
             .ValidateOnStart();

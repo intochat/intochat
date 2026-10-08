@@ -47,15 +47,22 @@ jobs:
         env:
           ContainerImageTags: ${{ github.event.release.tag_name }};latest
         run: |
-          dotnet publish src/DigitalBrain/OS/DigitalBrain.OS/DigitalBrain.OS.csproj \
+          dotnet publish src/DigitalBrain.OS/DigitalBrain.OS/DigitalBrain.OS.csproj \
             -c Release -r linux-x64 /t:PublishContainer \
             -p:PublishProfile=Container \
             -p:EnableSdkContainerSupport=true \
             -p:ContainerRegistry=docker.io \
             -p:ContainerRepository=${{ vars.DOCKERHUB_USERNAME }}/digitalbrain-kernel
 
+      # Built from the same commit as the kernel, so its contracts match the brains that run its sessions.
+      - name: Publish sandbox image
+        run: |
+          docker build -f src/DigitalBrain.Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Sandbox/Dockerfile \
+            -t ${{ vars.DOCKERHUB_USERNAME }}/digitalbrain-csharp-sandbox:${{ github.event.release.tag_name }} \
+            -t ${{ vars.DOCKERHUB_USERNAME }}/digitalbrain-csharp-sandbox:latest .
+          docker push --all-tags ${{ vars.DOCKERHUB_USERNAME }}/digitalbrain-csharp-sandbox
+
       # Northbound MCP image publication was removed with the Kernel MCP host in P0.1.
-      # The kernel image is the only published product image.
 
   update-kernel-container-app:
     name: Roll kernel container app

@@ -1,11 +1,10 @@
 using System.Runtime.CompilerServices;
-using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
-namespace DigitalBrain.Modules.AI.Tests;
+namespace DigitalBrain.Modules.AI.Tests.Agents;
 
 public sealed class AgentCancellationFacts
 {
@@ -13,35 +12,25 @@ public sealed class AgentCancellationFacts
     public async Task CancellationClosesThePersistedToolAttempt()
     {
         var ct = TestContext.Current.CancellationToken;
-        var tool = new WaitingTool();
+        var key = AgentFacts.Scope + "/probes/cancel-tool";
+        var entered = LoopProbe.Entered.GetOrAdd(key, _ => new(TaskCreationOptions.RunContinuationsAsynchronously));
         var client = new StubChatClient((_, _, _) => Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant,
-            [new FunctionCallContent("pending", "wait", new Dictionary<string, object?>())]))));
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>()
-            .ConfigureSilo(s => { s.Services.AddSingleton<IChatClient>(client); s.Services.AddSingleton<IAgentToolFactory>(tool); }).StartAsync(ct);
-        var agent = brain.Get<IAgent>("cancel-tool");
-        await agent.Configure(new() { Tools = ["wait"] }, 0, ct);
+            [Probe.Call("pending", nameof(ILoopProbe.Wait), key: key)]))));
+        await using var brain = await Probe.Brain(client, ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("cancel-tool"));
+        await agent.Configure(new() { Contracts = [Probe.Contract] }, 0);
         var response = agent.GetResponse("wait", ct);
-        await tool.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
-        await agent.Cancel(ct);
+        // A turn that ends before the probe is entered fails the fact instead of waiting forever.
+        Assert.Same(entered.Task, await Task.WhenAny(entered.Task, response));
+        Assert.Equal("pending", Assert.Single((await agent.Read()).ActiveRun!.ToolCalls).CallId);
+        await agent.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => response);
-        var events = await agent.GetEventLog(ct);
-        Assert.Single(events, item => item.Kind == "tool-started");
-        var failed = Assert.Single(events, item => item.Kind == "tool-failed");
-        Assert.Equal("pending", failed.CallId);
-        Assert.Contains("tool_cancelled", failed.Result!);
+        var run = (await agent.Read()).Runs[^1];
+        Assert.Equal(AgentRunStatus.Cancelled, run.Status);
+        var call = Assert.Single(run.ToolCalls);
+        Assert.Equal(("pending", "tool_cancelled", null), (call.CallId, call.Code, call.Result));
         await brain.DeactivateAsync(agent, ct);
-        Assert.Equal(failed, Assert.Single(await agent.GetEventLog(ct), item => item.Kind == "tool-failed"));
-    }
-
-    private sealed class WaitingTool : IAgentToolFactory
-    {
-        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public IReadOnlyList<AIFunction> Create(Func<AgentToolContext> context)
-        {
-            async Task<string> Wait(CancellationToken ct)
-            { Entered.TrySetResult(); await Task.Delay(Timeout.InfiniteTimeSpan, ct); return "done"; }
-            return [AIFunctionFactory.Create(Wait, "wait")];
-        }
+        Assert.Equal(call, Assert.Single((await agent.Read()).Runs[^1].ToolCalls));
     }
 
     [Fact]
@@ -49,51 +38,59 @@ public sealed class AgentCancellationFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var provider = new WaitingProvider();
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>()
-            .ConfigureSilo(s => s.Services.AddSingleton<IChatClient>(provider.Client)).StartAsync(ct);
-        var agent = brain.Get<IAgent>("cancel");
+        await using var brain = await AgentFacts.Brain(provider.Client, ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("cancel"));
         var response = agent.GetResponse("wait", ct);
         await provider.Entered.Task.WaitAsync(ct);
-        Assert.Equal(AgentRunStatus.Running, (await agent.GetState(ct)).LastRun!.Status);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => agent.ClearHistory(ct));
-        await agent.Cancel(ct);
+        Assert.Equal(AgentRunStatus.Running, (await agent.Read()).ActiveRun!.Status);
+        await Assert.ThrowsAsync<InvalidOperationException>(agent.Clear);
+        await agent.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => response);
-        Assert.Empty(await agent.GetHistory(ct));
-        Assert.Equal(AgentRunStatus.Cancelled, (await agent.GetState(ct)).LastRun!.Status);
+        Assert.Empty(await agent.Transcript());
+        var state = await agent.Read();
+        Assert.Null(state.ActiveRun);
+        Assert.Equal(AgentRunStatus.Cancelled, state.Runs[^1].Status);
     }
 
     [Fact]
     public async Task ProviderFailureIsFailedAndNeverCommitsHistory()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>()
-            .ConfigureSilo(s => s.Services.AddSingleton<IChatClient>(new WaitingProvider(fail: true).Client)).StartAsync(ct);
-        var agent = brain.Get<IAgent>("failed");
+        await using var brain = await AgentFacts.Brain(new WaitingProvider(fail: true).Client, ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("failed"));
         await Assert.ThrowsAsync<InvalidOperationException>(() => agent.GetResponse("fail", ct));
-        Assert.Empty(await agent.GetHistory(ct));
-        Assert.Equal(AgentRunStatus.Failed, (await agent.GetState(ct)).LastRun!.Status);
+        Assert.Empty(await agent.Transcript());
+        var run = (await agent.Read()).Runs[^1];
+        Assert.Equal(AgentRunStatus.Failed, run.Status);
+        Assert.Contains("Provider unavailable", run.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ProviderTimeoutWithoutTheRunTokenCancelledFailsTheRunInsteadOfCancellingIt()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = new StubChatClient((_, _, _) => throw new TaskCanceledException("The provider request timed out."));
+        await using var brain = await AgentFacts.Brain(client, ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("provider-timeout"));
+        await Assert.ThrowsAnyAsync<Exception>(() => agent.GetResponse("hello", ct));
+        var run = (await agent.Read()).Runs[^1];
+        Assert.Equal(AgentRunStatus.Failed, run.Status);
+        Assert.Contains("timed out", run.Error, StringComparison.Ordinal);
     }
 
     private sealed class WaitingProvider(bool fail = false)
     {
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public StubChatClient Client => new(Respond, Stream);
-
-        private async Task<ChatResponse> Respond(IReadOnlyList<ChatMessage> messages, ChatOptions? options, CancellationToken cancellationToken)
-        {
-            Entered.TrySetResult();
-            if (fail) { throw new IOException("Provider unavailable"); }
-            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
-            throw new InvalidOperationException("Unreachable");
-        }
+        public StubChatClient Client => StubChatClient.StreamingOnly(Stream);
 
         private async IAsyncEnumerable<ChatResponseUpdate> Stream(IReadOnlyList<ChatMessage> messages, ChatOptions? options,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            await Task.CompletedTask;
             yield return new(ChatRole.Assistant, "partial");
-            await Respond(messages, options, cancellationToken);
+            Entered.TrySetResult();
+            if (fail) { throw new IOException("Provider unavailable"); }
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
         }
     }
 }

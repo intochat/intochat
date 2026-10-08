@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 Map<String, dynamic> fileView({
   String id = 'timer',
   String name = 'Timer status',
-  Object status = 1,
+  Object status = 2,
   String source = 'Console.WriteLine("tick");',
   String? logs,
 }) => {
@@ -24,7 +24,7 @@ Map<String, dynamic> fileView({
     'settings': <String, String>{},
     'status': status,
     'exitCode': null,
-    'startedAt': '2026-09-27T10:01:00Z',
+    'hash': '0123456789abcdef',
   },
   'logs': ?logs,
 };
@@ -53,9 +53,10 @@ CSharpDetailView detailView(
 void main() {
   test('status parses both the numeric and the string enum form', () {
     expect(csharpStatus({'status': 0}), 'Stopped');
-    expect(csharpStatus({'status': 1}), 'Running');
-    expect(csharpStatus({'status': 2}), 'Restarting');
+    expect(csharpStatus({'status': 1}), 'Starting');
+    expect(csharpStatus({'status': 2}), 'Running');
     expect(csharpStatus({'status': 3}), 'Exited');
+    expect(csharpStatus({'status': 4}), 'Disarmed');
     expect(csharpStatus({'status': 'Exited'}), 'Exited');
     expect(csharpStatus({'status': 9}), 'Unknown');
     expect(
@@ -142,7 +143,7 @@ void main() {
   ) async {
     tester.view.physicalSize = const Size(1100, 800);
     tester.view.devicePixelRatio = 1;
-    var status = 1;
+    var status = 2;
     final calls = <String>[];
     await tester.pumpWidget(
       host(
@@ -165,7 +166,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.textContaining('Running · since'), findsOneWidget);
+    expect(find.textContaining('Running · assembly'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'Stop'));
     await tester.pumpAndSettle();
@@ -206,13 +207,13 @@ void main() {
               delay = false;
               return oldPoll.future;
             }
-            return fileView(status: stopped ? 0 : 1);
+            return fileView(status: stopped ? 0 : 2);
           },
         ),
       ),
     );
     await tester.pumpAndSettle();
-    final obsolete = fileView(status: 1);
+    final obsolete = fileView(status: 2);
     delay = true;
     await tester.tap(find.byTooltip('Refresh C# files'));
     await tester.pump();

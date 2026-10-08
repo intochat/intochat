@@ -1,15 +1,14 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Modules;
+using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Framework.Platform.Integrations.Accounts;
 using DigitalBrain.Platform.Integrations;
-using DigitalBrain.Platform.Integrations.Accounts;
-using DigitalBrain.Testing.Module;
-using Microsoft.Extensions.Configuration;
+using DigitalBrain.Platform.Tests.Unit.Connections;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Orleans.Hosting;
-using Xunit;
 
 namespace DigitalBrain.Platform.Tests.Unit.Integrations;
 
@@ -27,63 +26,45 @@ public sealed class ConnectorBindingFacts
     }
 
     [Fact]
-    public async Task ConnectionProbesRequireTheCallersOwnBrainAndMembership()
+    public async Task CatalogAndTheConnectRouteFollowAvailabilityAndWarnOnlyOnTransitions()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<ExampleModule>().StartAsync(ct);
-        var credentials = brain.SiloServices.GetRequiredService<IModuleConnectionCredentials<ExampleModule>>();
-        var caller = new CallerContext { PrincipalId = "owner", AccountId = "owner", BrainId = "a", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp };
-        CallerContextStamper.Stamp(caller);
-        try
-        {
-            var scope = BrainScope.Create("owner", "a").Id;
-            var key = ConnectionKeys.For(scope, "example", "one");
-            await brain.Get<IIntegration>("integration/example").Configure(new() { Values = new() { ["Endpoint"] = "test-endpoint", ["ApiKey"] = "test" } });
-            Assert.False(await credentials.IsConnectedAsync(key, ct));
-            await brain.Get<IConnectionRegistry>(scope).Connect(new() { IntegrationId = "example", ConnectionId = "one", Value = "secret" }, ct);
-            Assert.True(await credentials.IsConnectedAsync(key, ct));
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => credentials.IsConnectedAsync(ConnectionKeys.For(BrainScope.Create("owner", "b").Id, "example", "one"), ct));
-            CallerContextStamper.Stamp(caller with { Kind = CallerKind.App, StampedBy = TrustedEdge.AppProxy });
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => credentials.IsConnectedAsync(key, ct));
-            CallerContextStamper.Stamp(caller with { PrincipalId = "outsider" });
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => credentials.IsConnectedAsync(key, ct));
-            Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
-            await Assert.ThrowsAsync<UntrustedCallerException>(() => credentials.IsConnectedAsync(key, ct));
-        }
-        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
-    }
-
-    [Fact]
-    public async Task CatalogAndConnectFollowAvailabilityAndWarnOnlyOnTransitions()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<ExampleModule>().StartAsync(ct);
+        await using var brain = await ModuleTest.Create().WithModule<ExampleConnectionModule>().WithHttpEdge().StartAsync(ct);
+        Task<HttpResponseMessage> Connect() => brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/one/connect",
+            new { connectorId = "example", authMethodId = "api-key", value = "secret-value-7d1" }, ct);
         var logger = new CatalogLogger();
-        var catalog = new ConnectorCatalog([ExampleModule.Connector], brain.Grains, logger);
-        var grain = brain.Get<IIntegration>("integration/example");
-        await grain.Configure(new() { Values = new() { ["Endpoint"] = "test-endpoint", ["ApiKey"] = "test" } });
+        var catalog = new ConnectorCatalog([ExampleConnectionModule.Connector], brain.Grains, logger);
+        var grain = brain.Get<IIntegration>("integration/example-oauth");
+        await grain.Configure(new() { Values = new() { ["ClientId"] = "test-client", ["ClientSecret"] = "test" } });
         var first = Assert.Single(await catalog.ListAsync(ct));
         Assert.Same(first, Assert.Single(await catalog.ListAsync(ct)));
         Assert.Empty(logger.Warnings);
-        Assert.Equal(IntegrationStatus.Partial, (await grain.Clear("ApiKey")).Status);
+        Assert.Equal(IntegrationStatus.Partial, (await grain.Clear("ClientId")).Status);
         Assert.Empty(await catalog.ListAsync(ct));
         Assert.Empty(await catalog.ListAsync(ct));
         Assert.Single(logger.Warnings);
-        CallerContextStamper.Stamp(new() { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
-        try
+
+        // A connector the catalog hides takes no pasted value; the refusal names it and echoes nothing.
+        using (var refused = await Connect())
         {
-            var registry = brain.Get<IConnectionRegistry>(BrainScope.CurrentId());
-            var request = new ConnectConnection { IntegrationId = "example", ConnectionId = "one", Value = "secret" };
-            await Assert.ThrowsAsync<ArgumentException>(() => registry.Connect(request, ct));
-            await grain.Configure(new() { Values = new() { ["Endpoint"] = "test-endpoint", ["ApiKey"] = "again" } });
-            Assert.Single(await catalog.ListAsync(ct));
-            Assert.Single(logger.Warnings);
-            Assert.Equal(ConnectionStatus.Connected, (await registry.Connect(request, ct)).Status);
-            await grain.Clear("ApiKey");
-            await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => catalog.ListAsync(ct)));
-            Assert.Equal(2, logger.Warnings.Count);
+            Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+            var body = await refused.Content.ReadAsStringAsync(ct);
+            Assert.Contains("Connector 'example' is not offered by this deployment.", body, StringComparison.Ordinal);
+            Assert.DoesNotContain("secret-value-7d1", body, StringComparison.Ordinal);
         }
-        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+        Assert.Empty((await brain.HttpClient.GetFromJsonAsync<JsonElement>("/brains/owner/connections", ct)).EnumerateArray());
+
+        await grain.Configure(new() { Values = new() { ["ClientId"] = "again" } });
+        Assert.Single(await catalog.ListAsync(ct));
+        Assert.Single(logger.Warnings);
+        using (var accepted = await Connect())
+        {
+            Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+            Assert.Equal("Connected", (await accepted.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("status").GetString());
+        }
+        await grain.Clear("ClientId");
+        await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => catalog.ListAsync(ct)));
+        Assert.Equal(2, logger.Warnings.Count);
     }
 
     private sealed class CatalogLogger : ILogger<ConnectorCatalog>
@@ -122,17 +103,6 @@ public sealed class ConnectorBindingFacts
         await Assert.ThrowsAsync<InvalidOperationException>(() => handle.ReadSecretAsync("ApiKey", ct));
     }
 
-    [Fact]
-    public void LegacyConnectionGetsOnlyAnUnambiguousAuthenticationMethod()
-    {
-        var legacy = new Connection { Id = "one", IntegrationId = "example", WorkspaceId = "brain", Credential = new(), Status = ConnectionStatus.Connected };
-        var normalized = ConnectionAuthentication.Normalize(legacy, [ExampleModule.Connector]);
-        Assert.Equal("api-key", normalized.AuthMethodId);
-        Assert.Equal(ConnectionStatus.Connected, normalized.Status);
-        Assert.Equal(ConnectionStatus.Disconnected, ConnectionAuthentication.Normalize(legacy,
-            [ExampleModule.Connector with { AuthMethods = ["api-key", "oauth"] }]).Status);
-    }
-
     public sealed class ExampleModule() : Module(new ModuleId("example"))
     {
         public static IntegrationSchema Integration => IntegrationSchema.For("example", "Example").RequiresSecret("ApiKey").RequiresSetting("Endpoint");
@@ -144,7 +114,7 @@ public sealed class ConnectorBindingFacts
     public void ModuleCannotAcquireAnUndeclaredIntegration()
     {
         var services = new ServiceCollection().BuildServiceProvider();
-        var bindings = new ModuleIntegrations<ExampleModule>(services, new ModuleInventory([typeof(ExampleModule)]));
+        var bindings = new ModuleIntegrations<ExampleModule>(services, new ModuleInventory([new ExampleModule()]));
         Assert.Throws<UnauthorizedAccessException>(() => bindings.Get("other"));
     }
 

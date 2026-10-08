@@ -1,6 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Contracts;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
@@ -12,7 +12,7 @@ public interface IPinger : INeuron
     Task<int> Double(int number, CancellationToken cancellationToken = default);
 
     Task<string> Caller();
-    Task RefuseCapacity();
+    Task RefuseUnavailable();
 }
 
 [PlatformOnly]
@@ -32,7 +32,7 @@ public sealed record Ignored([property: Id(0)] int Number) : Signal;
 public sealed class Pinger : Neuron, IPinger
 {
     public override NeuronAccess Access(string operation) => NeuronAccess.PublicOperation;
-    public Task RefuseCapacity() => throw new DigitalBrain.Framework.Capacity.CapacityUnavailableException();
+    public Task RefuseUnavailable() => throw new ServiceUnavailableException("Sorry, the service is not available at the moment.");
     public async Task Ping(int number)
     {
         await PublishAsync(new Ignored(number));

@@ -4,6 +4,8 @@ using Aspire.Hosting.Azure;
 using Aspire.Hosting.Orleans;
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Modules;
 using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Aspire.Hosting;
@@ -31,7 +33,7 @@ public sealed class DigitalBrainBuilder
         => WithHosting(new THosting());
 
     public DigitalBrainBuilder WithHosting<THosting, TOptions>(Action<TOptions>? configure = null)
-        where THosting : IDigitalBrainModuleHosting, new() where TOptions : class, DigitalBrain.Framework.IModuleOptions, new()
+        where THosting : IDigitalBrainModuleHosting, new() where TOptions : class, DigitalBrain.Framework.Modules.IModuleOptions, new()
     {
         var hosting = new THosting();
         var options = new TOptions();
@@ -49,7 +51,7 @@ public sealed class DigitalBrainBuilder
         var values = new Dictionary<string, string?>(replaceOptions ? [] : settings ?? new Dictionary<string, string?>(), StringComparer.OrdinalIgnoreCase);
         foreach (var pair in ApplicationBuilder.Configuration.GetSection(DigitalBrainConfiguration.ModuleOptionsSection(id)).AsEnumerable())
         { if (pair.Value is not null) { values[pair.Key] = pair.Value; } }
-        var scopedPrefix = DigitalBrainConfiguration.BrainModuleOptionsSection(Name, id);
+        var scopedPrefix = DigitalBrainConfiguration.CompositionModuleOptionsSection(Name, id);
         foreach (var pair in ApplicationBuilder.Configuration.GetSection(scopedPrefix).AsEnumerable())
         {
             if (pair.Value is not null) { values[DigitalBrainConfiguration.ModuleOptionsSection(id) + pair.Key[scopedPrefix.Length..]] = pair.Value; }
@@ -95,6 +97,7 @@ public sealed class DigitalBrainBuilder
     public string Name { get; }
     public string ServiceId { get; internal init; } = null!;
     public string ClusterId { get; internal init; } = null!;
+    public string? Environment { get; internal init; }
     public string? ClusteringResourceName { get; internal init; }
 
     public string ResourceName(string name) => $"{Name}-{name}";

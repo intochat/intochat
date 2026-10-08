@@ -1,5 +1,5 @@
 using DigitalBrain.AI;
-using DigitalBrain.AI.OpenAI;
+using DigitalBrain.AI.Models.OpenAI;
 using DigitalBrain.Apps;
 using DigitalBrain.ClickHouse;
 using DigitalBrain.Flutter;
@@ -27,12 +27,6 @@ internal static class ProductE2E
         {
             var snapshot = await brain.Get<IApp>(appKey).Read();
             if (snapshot.Status == AppStatus.Live) { return; }
-            // A red verification never imports; failing with its verdicts beats a silent timeout.
-            if (snapshot.Verdicts.Any(verdict => !verdict.Passed))
-            {
-                throw new InvalidOperationException($"{appKey} failed verification: "
-                    + string.Join("; ", snapshot.Verdicts.Select(scenario => $"{scenario.Name}={(scenario.Passed ? "pass" : "FAIL " + scenario.Message)}")));
-            }
             await Task.Delay(TimeSpan.FromSeconds(1), timeout.Token);
         }
     }

@@ -41,27 +41,26 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
         => Assert.Throws<DirectoryNotFoundException>(() => new DirectoryShippedAppSource(Path.Combine(_root, "absent"), "vendor").Load());
 
     [Fact]
-    public void ConfigurationNamesTheSourcesAccountsAndPaths()
+    public void ConfigurationNamesEachVendorAndItsPath()
     {
         Write("echo/app.json", Manifest);
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             [ShippedAppsServiceCollectionExtensions.ConfigurationSection + ":vendor:Path"] = _root,
-            [ShippedAppsServiceCollectionExtensions.ConfigurationSection + ":vendor:Account"] = "vendor-account",
         }).Build();
         var services = new ServiceCollection().AddShippedApps(configuration);
         using var provider = services.BuildServiceProvider();
         var source = Assert.Single(provider.GetServices<IShippedAppSource>());
-        Assert.Equal("vendor-account", source.Account);
+        Assert.Equal("vendor", source.Publisher);
         Assert.Equal("echo", Assert.Single(source.Load()).Name);
     }
 
     [Fact]
-    public void ASourceWithoutAnAccountIsAConfigurationError()
+    public void ASourceWithoutAPathIsAConfigurationError()
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            [ShippedAppsServiceCollectionExtensions.ConfigurationSection + ":vendor:Path"] = _root,
+            [ShippedAppsServiceCollectionExtensions.ConfigurationSection + ":vendor:Name"] = "unused",
         }).Build();
         Assert.Throws<InvalidOperationException>(() => new ServiceCollection().AddShippedApps(configuration));
     }
@@ -73,10 +72,9 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
             {"name":"echo","title":"Echo","description":"Echoes.","version":"1.0.0","icon":"icon.svg","operations":[{"name":"ask","description":"Echo"}],"settings":[{"name":"Tone","description":"how","default":"flat"}]}
             """);
         Write("Echo/app.spec.md", "## Scenario: Echo\nEchoes.\n");
-        Write("Echo/tests.cs", "// tests\n");
         Write("Echo/synapses/echo.cs", "// echo\n");
         Write("Echo/icon.svg", "<svg/>");
-        var source = new DirectoryShippedAppSource(_root, "vendor", writable: true);
+        var source = new DirectoryShippedAppSource(_root, "vendor", development: true);
         var loaded = Assert.Single(source.Load());
         Assert.Equal("icon.svg", loaded.Manifest.Icon);
 
@@ -102,9 +100,9 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
     [Fact]
     public void ANewAppGetsAFolderNamedAfterItsTitle()
     {
-        var source = new DirectoryShippedAppSource(_root, "vendor", writable: true);
+        var source = new DirectoryShippedAppSource(_root, "vendor", development: true);
         source.Write(new("lead-finder", "1.0.0", new("Lead finder", "Finds leads.", [], [], []), "## Scenario: Finds\nIt finds.\n",
-            new() { [AppFiles.TestsPath] = "// t\n" }));
+            new() { ["synapses/finds.cs"] = "// t\n" }));
         Assert.True(File.Exists(Path.Combine(_root, "LeadFinder", "app.json")));
         Assert.Equal("lead-finder", Assert.Single(source.Load()).Name);
     }

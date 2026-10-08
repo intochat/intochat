@@ -1,9 +1,9 @@
 using DigitalBrain.Aspire.Client;
 using DigitalBrain.Client.Orleans;
+using DigitalBrain.Framework;
 using DigitalBrain.Mcp;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.ServiceDefaults;
-using DigitalBrain.Framework;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddDigitalBrainClient(useAzureClustering: true);

@@ -1,69 +1,56 @@
 using System.Runtime.CompilerServices;
-using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Agents.Signals;
 using Microsoft.Extensions.AI;
-using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
-namespace DigitalBrain.Modules.AI.Tests;
+namespace DigitalBrain.Modules.AI.Tests.Agents;
 
 public sealed class AgentStreamingFacts
 {
     [Fact]
-    public async Task ProviderFailureIsDeliveredEvenWhenTheOutputBufferIsFull()
+    public async Task ProviderFailureIsDeliveredEvenAfterABurstOfText()
     {
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        deadline.CancelAfter(TimeSpan.FromSeconds(15));
-        var client = new BurstProvider();
-        using var services = new ServiceCollection().AddSingleton<IChatClient>(client.Client).BuildServiceProvider();
-        await using var stream = new AgentTurnRunner(services).RunAsync(new("agent", "run", "scope", [], "hello", null, Streaming: true), deadline.Token).GetAsyncEnumerator(deadline.Token);
-        Assert.True(await stream.MoveNextAsync());
-        Assert.IsType<AgentTurnEvent.Started>(stream.Current);
-        await client.Failing.Task.WaitAsync(deadline.Token);
-        var failures = new List<AgentTurnEvent.Failed>();
-        while (await stream.MoveNextAsync())
-        {
-            if (stream.Current is AgentTurnEvent.Failed failure) { failures.Add(failure); }
-            Assert.IsNotType<AgentTurnEvent.Finished>(stream.Current);
-        }
-        Assert.Contains("Provider stopped", Assert.Single(failures).Message, StringComparison.Ordinal);
+        var ct = TestContext.Current.CancellationToken;
+        var provider = new BurstProvider();
+        await using var brain = await AgentFacts.Brain(provider.Client, ct);
+        var events = await AgentFacts.Collect(brain.Get<IAgent>(AgentFacts.Key("burst")), AgentTurn.Text("hello"), ct);
+        Assert.Equal(64, events.OfType<AgentTurnEvent.Text>().Count());
+        Assert.Contains("Provider stopped", Assert.Single(events.OfType<AgentTurnEvent.Failed>()).Message, StringComparison.Ordinal);
+        Assert.Empty(events.OfType<AgentTurnEvent.Finished>());
     }
 
     [Fact]
-    public async Task AbandonedStreamingCancelsProviderAndLeavesHistoryUnchanged()
+    public async Task AbandonedStreamCancelsTheProviderAndLeavesTheTranscriptUnchanged()
     {
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        deadline.CancelAfter(TimeSpan.FromSeconds(15));
-        var ct = deadline.Token;
+        var ct = TestContext.Current.CancellationToken;
         var provider = new WaitingStreamProvider();
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>()
-            .ConfigureSilo(s => s.Services.AddSingleton<IChatClient>(provider.Client)).StartAsync(ct);
-        var agent = brain.Get<IAgent>("abandoned");
-        await using var changes = await brain.Observe<AgentRunChanged>(agent, ct);
-        await using (var response = agent.GetResponseStream("hello", ct).GetAsyncEnumerator(ct))
+        await using var brain = await AgentFacts.Brain(provider.Client, ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("abandoned"));
+        await using var failures = await brain.SubscribeAsync<TurnFailed>(agent, ct);
+        await using var failed = failures.ReadAllAsync(ct).GetAsyncEnumerator(ct);
+        await using (var stream = agent.Run(AgentTurn.Text("hello"), ct).GetAsyncEnumerator(ct))
         {
-            Assert.True(await response.MoveNextAsync());
-            Assert.Equal("partial", response.Current);
+            while (await stream.MoveNextAsync() && stream.Current is not AgentTurnEvent.Text) { }
+            Assert.Equal("partial", Assert.IsType<AgentTurnEvent.Text>(stream.Current).Content);
         }
         await provider.Cancelled.Task.WaitAsync(ct);
-        AgentRunChanged changed;
-        do { changed = await changes.NextAsync(ct: ct); } while (changed.Run.Status == AgentRunStatus.Running);
-        Assert.Equal(AgentRunStatus.Cancelled, changed.Run.Status);
-        Assert.Empty(await agent.GetHistory(ct));
+        Assert.True(await failed.MoveNextAsync());
+        Assert.True(failed.Current.Cancelled);
+        var state = await agent.Read();
+        Assert.Null(state.ActiveRun);
+        Assert.Equal(AgentRunStatus.Cancelled, Assert.Single(state.Runs).Status);
+        Assert.Empty(await agent.Transcript());
     }
 
     private sealed class BurstProvider
     {
-        public TaskCompletionSource Failing { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
         public StubChatClient Client => StubChatClient.StreamingOnly(Stream);
 
-        private async IAsyncEnumerable<ChatResponseUpdate> Stream(IReadOnlyList<ChatMessage> messages, ChatOptions? options,
+        private static async IAsyncEnumerable<ChatResponseUpdate> Stream(IReadOnlyList<ChatMessage> messages, ChatOptions? options,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             for (var i = 0; i < 64; i++) { yield return new(ChatRole.Assistant, "x"); }
-            Failing.TrySetResult();
             await Task.CompletedTask;
             throw new IOException("Provider stopped");
         }

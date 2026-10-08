@@ -1,6 +1,7 @@
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Capacity;
+using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Postgres.Tables;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -8,7 +9,6 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using Orleans.Hosting;
-using DigitalBrain.Postgres.Tables;
 
 namespace DigitalBrain.Postgres;
 
@@ -23,7 +23,6 @@ public static class PostgresHosting
         if (services.Any(descriptor => descriptor.ServiceType == typeof(PostgresRegistration))) { return silo; }
         services.AddSingleton<PostgresRegistration>();
         services.AddOptions<PostgresModuleOptions>()
-            .Configure<IConfiguration>((options, configuration) => configuration.PopulateModuleOptions("postgres", options))
             .Validate(options => !string.IsNullOrWhiteSpace(options.ConnectionName), "Postgres requires a connection name.")
             .ValidateOnStart();
         // Server
@@ -32,15 +31,13 @@ public static class PostgresHosting
         services.AddSingleton<IIntegrationStartup>(provider => provider.GetRequiredService<PostgresSourceRegistry>());
         services.TryAddSingleton<IPostgresProvider, IntegrationPostgresProvider>();
         services.TryAddSingleton<IConnectionPostgresProviderFactory, ConnectionPostgresProviderFactory>();
-        services.AddSingleton<ICapacityConfiguredSource>(provider =>
-            new PostgresConfiguredSource(active: !provider.GetRequiredService<IOptions<PostgresModuleOptions>>().Value.ProvisionPerBrain));
-        services.AddSingleton<ICapacityProvisioner>(provider =>
-            provider.GetRequiredService<IOptions<PostgresModuleOptions>>().Value.ProvisionPerBrain
-                ? new DockerPostgresProvisioner(provider.GetRequiredService<IModuleIntegrations<PostgresModule>>().Get("postgres"))
-                : new InactivePostgresProvisioner());
         services.AddHealthChecks().AddCheck<PostgresHealthCheck>("postgres", tags: ["ready"]);
         // Tables
         services.TryAddSingleton<ITableStore, TableStore>();
+        services.TryAddSingleton(provider => new BrainDatabases(provider.GetRequiredService<IModuleIntegrations<PostgresModule>>().Get("postgres")));
+        services.TryAddSingleton<ITablesSlot, AppTablesSlot>();
+        services.TryAddSingleton<ITablePlacements, TablePlacements>();
+        services.TryAddSingleton<IConnectionTableStores, ConnectionTableStores>();
         services.AddSingleton<IIncomingGrainCallFilter, TableLifecycleGuard>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<DigitalBrain.Apps.IAppStorageHook, TableStorageHook>());
         return silo;

@@ -20,13 +20,9 @@ public interface IApp : INeuron
     Task<Guid> CurrentBuildAttempt();
     Task Progress(string line);
     [ResponseTimeout("00:10:00")] Task<AppSnapshot> CompleteBuild(Guid attempt, Dictionary<string, string>? files, string? error, AppManifest? manifest = null);
-    Task<AppSnapshot> BeginVerify();
-    // Verdicts bind to the version that was actually tested; a run finishing after an edit
-    // marks that older version, never the current one.
-    Task RecordVerdicts(AppScenarioVerdict[] verdicts, bool green, string? version = null);
     Task<AppBundle> Export();
-    // Publishes the current green version: it becomes the Marketplace listing and the bundle
-    // every Install copies, until the next Publish.
+    // Publishes the current version once its scripts compile: it becomes the Marketplace listing and the
+    // bundle every Install copies, until the next Publish.
     Task<AppSnapshot> Publish();
     // The published version's bundle, readable by anyone: a published app is public by definition.
     Task<AppBundle> ExportPublished();
@@ -40,10 +36,15 @@ public interface IApp : INeuron
     // Install records where the copy came from; recording it again (after an update) also
     // clears Edited, because the program is the publisher's again.
     Task RecordOrigin(AppOrigin origin);
+    // Development only, for a copy of a shipped app: writes this program back into the vendor's
+    // source folder as the next version, then re-attaches the copy to it.
+    [ResponseTimeout("00:10:00")] Task<AppSnapshot> SaveToSource();
     [ResponseTimeout("00:10:00")] Task Delete();
     Task<AppInvocation> Invoke(InvokeApp request);
     Task<AppInvocation> Respond(AppResponse response);
     Task<AppInvocation> ReadInvocation(Guid invocationId);
+    // Completes when the app's script answers the invocation; at once if it already has.
+    [Orleans.Concurrency.AlwaysInterleave, ResponseTimeout("00:05:00")] Task<AppInvocation> Await(Guid invocationId);
     Task<IReadOnlyList<AppInvocation>> Pending();
 
     static string Key(string brainId, string name) => $"{brainId}/apps/{name}";

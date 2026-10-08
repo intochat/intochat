@@ -1,5 +1,5 @@
-using DigitalBrain;
-using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Contracts;
 
 namespace DigitalBrain.Flutter.WebBrowser;
 

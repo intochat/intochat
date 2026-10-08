@@ -1,4 +1,5 @@
 using System.ClientModel;
+using DigitalBrain.AI.Models;
 using global::OpenAI;
 using global::OpenAI.Audio;
 using Microsoft.Extensions.Options;

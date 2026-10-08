@@ -1,3 +1,4 @@
+using DigitalBrain.AI.Models;
 using DigitalBrain.Framework.Platform.Integrations;
 
 namespace DigitalBrain.AI;

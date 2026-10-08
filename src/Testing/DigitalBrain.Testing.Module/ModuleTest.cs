@@ -1,12 +1,8 @@
-using DigitalBrain;
-using DigitalBrain.Client;
 using DigitalBrain.Client.Orleans;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Platform;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Orleans.Hosting;
 using Orleans.TestingHost;
 
 namespace DigitalBrain.Testing.Module;
@@ -16,7 +12,7 @@ public static class ModuleTest
     public static ModuleTestBuilder Create() => new();
     internal static async Task<ModuleBrain> StartAsync(ModuleOptions? options = null, CancellationToken cancellationToken = default)
     {
-        Orleans.Runtime.RequestContext.Remove(DigitalBrain.Framework.Enforcement.CallerContextStamper.RequestContextKey);
+        Orleans.Runtime.RequestContext.Remove(DigitalBrain.Framework.CallerContextStamper.RequestContextKey);
         options ??= new();
         options.Execution.Validate();
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -51,7 +47,7 @@ public static class ModuleTest
         HashSet<Type> siloServiceTypes = [];
         builder.ConfigureSilo((_, silo) =>
         {
-            silo.AddDigitalBrain(modules.Select(module => module.ModuleType));
+            silo.AddDigitalBrain(modules.Select(module => module.Module));
             silo.Services.AddDigitalBrainClient();
             silo.AddDigitalBrainPlatform();
             foreach (var module in modules) { module.Configure(silo); }

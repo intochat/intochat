@@ -1,0 +1,31 @@
+using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Files;
+using DigitalBrain.Microsoft.CSharp.Files.Signals;
+using Xunit;
+
+namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
+
+// The sandbox is declared as a connector so the platform's catalog knows what it is the external system
+// behind. It is not offered to users: no connection neuron serves it (SessionTokensFacts pins that side).
+public sealed class CSharpConnectorFacts
+{
+    [Fact]
+    public void TheConnectorNamesTheFileNeuronAndItsPublicSignal()
+    {
+        var connector = CSharpModule.Connector;
+        Assert.Equal("csharp", connector.Id);
+        Assert.Equal([typeof(ICSharpFile)], connector.Neurons);
+        Assert.Equal([typeof(CSharpFileChanged)], connector.Signals);
+        Assert.Empty(connector.RequiredIntegrations);
+        Assert.Equal(["csharp"], connector.OptionalIntegrations);
+    }
+
+    [Fact]
+    public async Task AHostComposingTheModuleStartsWithTheConnectorValidated()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Platform validates every declared connector at startup; an invalid declaration would fail it.
+        await using var brain = await ModuleTest.Create().WithModule<CSharpModule>().WithHttpEdge().StartAsync(ct);
+        Assert.Equal(System.Net.HttpStatusCode.OK, (await brain.HttpClient.GetAsync("/connectors", ct)).StatusCode);
+    }
+}

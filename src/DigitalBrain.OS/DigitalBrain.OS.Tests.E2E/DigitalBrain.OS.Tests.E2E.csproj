@@ -1,4 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- CI discovers E2E suites by csproj; this flag tells the leg to install the Playwright browser and warm the shell image. -->
+    <E2EBrowser>true</E2EBrowser>
+  </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.Playwright" />

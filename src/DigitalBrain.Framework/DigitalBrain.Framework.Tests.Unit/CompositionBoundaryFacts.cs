@@ -4,15 +4,17 @@ using Aspire.Hosting.Azure;
 using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Aspire.Server;
-using DigitalBrain.Client.Edge.V1;
+using DigitalBrain.Client.Runtime.V1;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Metering;
+using DigitalBrain.Framework.Modules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Orleans.Hosting;
-using DigitalBrain.Framework.Metering;
 
 namespace DigitalBrain.Framework.Tests.Unit;
 
@@ -95,11 +97,12 @@ public sealed class CompositionBoundaryFacts
     [Fact]
     public void V1WirePathsAndJsonRemainStable()
     {
-        Assert.Equal("scripts/v1/invoke", ScriptEdgeProtocol.Invoke);
-        Assert.Equal("scripts/v1/signals", ScriptEdgeProtocol.Signals);
-        Assert.Equal("X-DigitalBrain-Refusal", ScriptEdgeProtocol.RefusalHeader);
-        var invocation = new ScriptInvocation("contract", "key", "method", [JsonSerializer.SerializeToElement(42)]);
-        Assert.Equal("{\"contract\":\"contract\",\"key\":\"key\",\"method\":\"method\",\"arguments\":[42]}", JsonSerializer.Serialize(invocation, ScriptEdgeProtocol.Json));
+        Assert.Equal("runtime/v1/invoke", RuntimeProtocol.Invoke);
+        Assert.Equal("runtime/v1/report", RuntimeProtocol.Report);
+        Assert.Equal("runtime/v1/stream", RuntimeProtocol.Stream);
+        Assert.Equal("X-DigitalBrain-Refusal", RuntimeProtocol.RefusalHeader);
+        var invocation = new RuntimeInvocation("behavior", "contract", "key", "method", [JsonSerializer.SerializeToElement(42)]);
+        Assert.Equal("{\"behavior\":\"behavior\",\"contract\":\"contract\",\"key\":\"key\",\"method\":\"method\",\"arguments\":[42]}", JsonSerializer.Serialize(invocation, RuntimeProtocol.Json));
     }
 
     [Fact]

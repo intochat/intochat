@@ -52,25 +52,23 @@ class WorkspaceClient extends http.BaseClient {
         request.url.queryParameters['kind'] == 'layout' &&
         (request.url.queryParameters['name'] ?? '').endsWith('/messages')) {
       application['children'] = [
-        for (final turn in history) ...[
-          {'kind': 'card', 'name': "${turn['runId']}/user"},
-          {'kind': 'card', 'name': "${turn['runId']}/assistant"},
+        for (final run in history) ...[
+          {'kind': 'card', 'name': "${run['runId']}/user"},
+          {'kind': 'card', 'name': "${run['runId']}/assistant"},
         ],
       ];
     }
     if (request.url.queryParameters['kind'] == 'card') {
       final name = request.url.queryParameters['name']!;
-      final turn = history.firstWhere(
-        (turn) => name.startsWith('${turn['runId']}/'),
+      final run = history.firstWhere(
+        (run) => name.startsWith('${run['runId']}/'),
       );
       return http.StreamedResponse(
         Stream.value(
           utf8.encode(
             jsonEncode({
               'title': '',
-              'body': name.endsWith('/user')
-                  ? turn['userText']
-                  : turn['assistantText'],
+              'body': name.endsWith('/user') ? run['userText'] : run['reply'],
               'children': [],
             }),
           ),
@@ -81,9 +79,7 @@ class WorkspaceClient extends http.BaseClient {
     final value =
         application ??
         (request.url.path.contains('/conversations/')
-            ? {'revision': 4, 'activeRunId': null, 'turns': history}
-            : request.url.path.contains('/tables/')
-            ? tableJson(1, 'From database')
+            ? {'revision': 4, 'activeRun': null, 'runs': history}
             : {
                 'revision': revision,
                 'windows': revision == 0
@@ -165,46 +161,6 @@ void main() {
       store.dispose();
     },
   );
-  testWidgets(
-    'workspace update opens existing table controls without duplicate windows',
-    (tester) async {
-      tester.view.physicalSize = const Size(1600, 1000);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      final store = WorkspaceStore(persistence: MemoryPersistence());
-      final api = WorkspaceClient();
-      final client = DigitalBrainUiClient(
-        baseUri: Uri.parse('http://test'),
-        httpClient: api,
-      );
-      await tester.pumpWidget(
-        WorkspaceApp(store: store, programmingClient: client),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('My project').first);
-      await tester.pumpAndSettle();
-      api.publish(store.currentProject.id, isOpen: true);
-      await tester.pumpAndSettle();
-      expect(find.byType(UiDataTable), findsOneWidget);
-      expect(find.text('From database'), findsOneWidget);
-      expect(find.text('Filter'), findsOneWidget);
-      expect(find.byTooltip('Next page'), findsOneWidget);
-      api.publish(store.currentProject.id, isOpen: true);
-      await tester.pumpAndSettle();
-      expect(find.byType(UiDataTable), findsOneWidget);
-      expect(
-        store.currentProject.artifacts.single.data.containsKey('rows'),
-        isFalse,
-      );
-      api.publish(store.currentProject.id, isOpen: false);
-      await tester.pumpAndSettle();
-      expect(find.byType(UiDataTable), findsNothing);
-      await tester.pumpWidget(const SizedBox());
-      await api.events.close();
-    },
-  );
-
   test('late table read cannot overwrite newer page and conflict reloads authoritative revision', () async {
     final slow = Completer<TableSnapshot>();
     final fast = Completer<TableSnapshot>();

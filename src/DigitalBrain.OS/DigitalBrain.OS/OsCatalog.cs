@@ -1,6 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Aspire.Server;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.OS;
 
@@ -15,17 +16,14 @@ public static class OsCatalog
         new DigitalBrain.AI.AIModule(),
         new DigitalBrain.ClickHouse.ClickHouseModule(),
         new DigitalBrain.Apps.AppsModule(),
-        new DigitalBrain.Assistant.AssistantModule(),
         new DigitalBrain.Compute.ComputeModule(),
         new DigitalBrain.Flutter.FlutterModule(),
         new DigitalBrain.Google.Gmail.GmailModule(),
         new DigitalBrain.Microsoft.Aspire.AspireModule(),
-        new DigitalBrain.Microsoft.CSharp.CSharpAuthoringModule(),
         new DigitalBrain.Microsoft.CSharp.CSharpModule(),
         new DigitalBrain.Microsoft.GitHub.GitHubModule(),
         new DigitalBrain.Microsoft.Playwright.PlaywrightModule(),
         new DigitalBrain.Postgres.PostgresModule(),
-        new DigitalBrain.Postgres.Windows.PostgresWindowsModule(),
         new DigitalBrain.Qdrant.QdrantModule(),
         new DigitalBrain.Salesforce.SalesforceModule(),
         new DigitalBrain.Supabase.SupabaseModule(),

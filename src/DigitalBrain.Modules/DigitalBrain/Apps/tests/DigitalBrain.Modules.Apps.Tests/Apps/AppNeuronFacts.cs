@@ -94,9 +94,9 @@ public sealed class AppNeuronFacts
         var rearmed = await app.BeginBuild(null);
         Assert.Equal(AppStatus.Building, rearmed.Status);
         Assert.NotEqual(oldAttempt, await app.CurrentBuildAttempt());
-        var ignored = await app.CompleteBuild(oldAttempt, new() { ["tests.cs"] = "// stale" }, null);
+        var ignored = await app.CompleteBuild(oldAttempt, new() { ["synapses/echo.cs"] = "// stale" }, null);
         Assert.Equal(AppStatus.Building, ignored.Status);
-        Assert.False(ignored.Files.ContainsKey("tests.cs"));
+        Assert.False(ignored.Files.ContainsKey("synapses/echo.cs"));
     }
 
     [Fact]
@@ -107,9 +107,8 @@ public sealed class AppNeuronFacts
         await app.Create(Manifest(), "spec");
         await app.BeginBuild(null);
         var attempt = await app.CurrentBuildAttempt();
-        var live = await app.CompleteBuild(attempt, new() { ["tests.cs"] = "// t", ["synapses/echo.cs"] = "// b" }, null);
+        var live = await app.CompleteBuild(attempt, new() { ["synapses/echo.cs"] = "// b" }, null);
         Assert.Equal(AppStatus.Live, live.Status);
-        Assert.Equal("// t", live.Files["tests.cs"]);
         Assert.Equal("// b", live.Files["synapses/echo.cs"]);
 
         await app.BeginBuild(null);
@@ -120,46 +119,42 @@ public sealed class AppNeuronFacts
     }
 
     [Fact]
+    public async Task TheFirstBuildBumpsMinorAndLaterBuildsBumpPatch()
+    {
+        await using var brain = await Start();
+        var app = brain.Get<IApp>(IApp.Key(Brain, "bumps"));
+        await app.Create(Manifest(), "spec");
+        await app.BeginBuild(null);
+        var first = await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["synapses/a.cs"] = "// a" }, null);
+        Assert.Equal("0.2.0", first.Version);
+        await app.BeginBuild(null);
+        var second = await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["synapses/b.cs"] = "// b" }, null);
+        Assert.Equal("0.2.1", second.Version);
+    }
+
+    [Fact]
     public async Task ProgressAppendsToActivityWhileBuilding()
     {
         await using var brain = await Start();
         var app = brain.Get<IApp>(IApp.Key(Brain, "progress"));
         await app.Create(Manifest(), "spec");
         await app.BeginBuild(null);
-        await app.Progress("round 1: compile-checking tests.cs");
+        await app.Progress("round 1: compile-checking synapses/echo.cs");
         var snapshot = await app.Read();
-        Assert.Contains("round 1: compile-checking tests.cs", snapshot.Activity);
+        Assert.Contains("round 1: compile-checking synapses/echo.cs", snapshot.Activity);
     }
 
     [Fact]
-    public async Task ExportRefusesUnverifiedVersionsAndStripsConnections()
+    public async Task ExportStripsConnectionsAndPrivateSettings()
     {
         await using var brain = await Start();
         var app = brain.Get<IApp>(IApp.Key(Brain, "export"));
         await app.Create(Manifest(), "spec");
         await app.Configure(new() { ["Text"] = "secret greeting" }, new() { ["gmail"] = "my-connection" });
-        await Assert.ThrowsAsync<InvalidOperationException>(app.Export);
-        var current = await app.Read();
-        await app.RecordVerdicts([new("Echoes", true, "ok")], green: true);
         var bundle = await app.Export();
-        Assert.Equal(current.Version, bundle.Version);
+        Assert.Equal((await app.Read()).Version, bundle.Version);
         Assert.DoesNotContain("my-connection", System.Text.Json.JsonSerializer.Serialize(bundle), StringComparison.Ordinal);
         Assert.DoesNotContain("secret greeting", System.Text.Json.JsonSerializer.Serialize(bundle), StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task RecordingVerdictsPublishesAppVerified()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start();
-        var app = brain.Get<IApp>(IApp.Key(Brain, "verified"));
-        await app.Create(Manifest(), "spec");
-        await using var verdicts = await brain.SubscribeAsync<AppVerified>(app, ct);
-        await app.RecordVerdicts([new("Echoes", true, "ok")], green: true);
-        await using var stream = verdicts.ReadAllAsync(ct).GetAsyncEnumerator(ct);
-        Assert.True(await stream.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct));
-        Assert.True(stream.Current.Green);
-        Assert.Equal("verified", stream.Current.Name);
     }
 
     [Fact]
@@ -167,7 +162,7 @@ public sealed class AppNeuronFacts
     {
         await using var brain = await Start();
         var bundle = new AppBundle("copy", "1.2.0", Manifest("Copied"), "## Scenario: Echoes\nIt echoes.",
-            new() { ["tests.cs"] = "// t", ["synapses/echo.cs"] = "// b" });
+            new() { ["synapses/echo.cs"] = "// b" });
         var app = brain.Get<IApp>(IApp.Key(Brain, "copy"));
         var imported = await app.Import(bundle);
         Assert.Equal(AppStatus.Live, imported.Status);
@@ -175,21 +170,6 @@ public sealed class AppNeuronFacts
         Assert.Empty(imported.Connections);
         Assert.Equal("// b", imported.Files["synapses/echo.cs"]);
         await Assert.ThrowsAsync<InvalidOperationException>(() => app.Import(bundle));
-    }
-
-    [Fact]
-    public async Task VerdictsRecordedForAnOlderVersionDoNotMarkTheCurrentOneGreen()
-    {
-        await using var brain = await Start();
-        var app = brain.Get<IApp>(IApp.Key(Brain, "stale-verdict"));
-        await app.Create(Manifest(), "## Scenario: Echoes\nIt echoes.");
-        var tested = (await app.Read()).Version;
-        await app.SaveSpec("## Scenario: Echoes\nIt echoes twice.", Guid.NewGuid());
-        await app.RecordVerdicts([new("Echoes", true, "ok")], green: true, tested);
-        await Assert.ThrowsAsync<InvalidOperationException>(app.Export);
-        var snapshot = await app.Read();
-        Assert.True(snapshot.Versions.Single(version => version.Version == tested).Green);
-        Assert.Null(snapshot.Versions.Single(version => version.Version == snapshot.Version).Green);
     }
 
     [Fact]
@@ -203,7 +183,7 @@ public sealed class AppNeuronFacts
         await app.BeginBuild(null);
         var oldAttempt = await app.CurrentBuildAttempt();
         await app.BeginBuild(null);
-        var ignored = await app.CompleteBuild(oldAttempt, new() { ["tests.cs"] = "// stale" }, null,
+        var ignored = await app.CompleteBuild(oldAttempt, new() { ["synapses/echo.cs"] = "// stale" }, null,
             new AppManifest("Hijacked", "", [], [], []));
         Assert.Equal("Echo", ignored.Manifest.Title);
     }
@@ -216,7 +196,7 @@ public sealed class AppNeuronFacts
         await app.Create(Manifest(), "the authored spec");
         await app.BeginBuild(null);
         var failed = await app.CompleteBuild(await app.CurrentBuildAttempt(),
-            new() { ["tests.cs"] = "// t", [AppFiles.SpecPath] = "hijacked" }, null);
+            new() { [AppFiles.SpecPath] = "hijacked" }, null);
         Assert.Equal(AppStatus.Failed, failed.Status);
         Assert.Equal("the authored spec", failed.Spec);
         Assert.False(failed.Files.ContainsKey(AppFiles.SpecPath));
@@ -271,6 +251,7 @@ public sealed class AppNeuronFacts
         // Deployed programs are keyed by the app runtime's hashed file key, never by their bundle path.
         var deployed = Assert.Single(RecordingCSharpFile.Files.Values, file => file.Source == "// p");
         Assert.Contains(deployed.Id, Enumerable.Range(0, 3).Select(generation => AppProgramKey.For(IApp.Key(Brain, "keyed"), generation, "synapses/new.cs")));
-        Assert.StartsWith("app-csharp-", deployed.Id, StringComparison.Ordinal);
+        Assert.StartsWith(Brain + "/csharp/app-", deployed.Id, StringComparison.Ordinal);
+        Assert.DoesNotContain("keyed", deployed.Id, StringComparison.Ordinal);   // unguessable from the app's name
     }
 }

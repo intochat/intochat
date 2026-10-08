@@ -38,23 +38,9 @@ ordinary tables in `public`. The existing general SQL read surface retains its
 configured database-role visibility; table-neuron ownership does not change that
 surface's read permissions.
 
-The assistant first calls `discover_capabilities`, backed by Registry's trusted-caller
-discovery and module providers. Postgres contributes explicit tool bindings and app-owned
-resources; a resource enumeration failure reports a partial error without hiding platform
-Postgres tools. Neither installed apps nor exact database-name spelling suppress discovery.
-
-The assistant can then call `postgres_schema(appTables: true)` to discover tables of currently
-installed apps in its brain. It receives a resource handle, installed app identity, declared
-columns, and the pinned capacity origin. `show_postgres_query_table(resource: handle, title: ...)`
-opens that table at its actual origin; use `table_read` and `table_refine` to read, filter,
-sort, and aggregate it. The resource path accepts no caller-selected origin or arbitrary SQL.
-Every read checks the current installation, owner index, table owner, and brain again.
-App callers cannot use this host-only discovery path.
-
-Omitting `appTables` or `resource` retains the existing administrator-configured platform
-SQL connection. Its database role still defines visibility, including platform-origin app
-tables. Resource ownership checks do not replace PostgreSQL role permissions on that legacy
-SQL connection. Provisioned app databases are reached only through validated resources.
+A database a person adds is a `postgres` connection, `connection/{brain}/postgres/{id}`, served by
+`IPostgresServer` (`ReadSchema`, `Query`). The assistant and `digitalbrain-mcp` reach it through
+`neurons_call`; data is shown by the Data Visualizer app, whose `db` slot binds to that connection.
 
 ## Assessment before implementation
 
@@ -99,15 +85,27 @@ and Azure environment remained NotStarted.
 
 The module's ConnectorDefinition declares supported authentication methods and Integration
 dependencies. Platform delivers credentials through scoped async Integration handles; credential
-values never belong in module options. User authorizations are per-brain Connections holding
-SecretRefs. The offered connector catalog is `GET /connectors`, and user connections are managed
+values never belong in module options. User authorizations are per-brain connection neurons holding
+sealed credentials. The offered connector catalog is `GET /connectors`, and user connections are managed
 at `/brains/{id}/connections`. Provision deployment credentials with
 `DigitalBrain:Integrations:{id}:{Field}`; ordinary options stay under `DigitalBrain:Modules:{id}:Options`.
 
 Integrations are what the deployment provisions; Connections are what users authorize.
 
 Postgres requires Integration `postgres:ConnectionString` for its selected platform source.
-Optional secret `AdminConnection` is required and validated when `ProvisionPerBrain` selects
-per-brain database provisioning. Both are released through module-scoped handles after Platform
-seeding; the retired capacity AdminConnection key is rejected. The Postgres owner migration
+Optional secret `AdminConnection` is required, and validated at startup, when option
+`DigitalBrain:Modules:postgres:Options:Isolation` is `DatabasePerBrain` (the code default is `Shared`;
+the AppHost selects `DatabasePerBrain`). Both are released through module-scoped handles after Platform
+seeding.
+
+## Table placement
+
+A table's placement is typed and pinned at its first Define: `Shared` (the platform database, brains
+kept apart by brain-scoped physical names), `BrainDatabase` (`brain_<sha256[..16]>`, created on first
+use over `AdminConnection` under `DatabasePerBrain`), or `Connection` (the user's own database). An app
+redirects its tables by declaring the reserved slot `{"name": "tables", "connector": "postgres"}` and
+binding it to one of the brain's Postgres connections; the isolation policy does not apply there.
+Connection table operations run inside the connection's neuron, so its credential never leaves it.
+A pinned table never moves: rebinding `tables` is refused (409) while the app owns tables, and an
+unavailable placement answers 503 (`ServiceUnavailableException`), never a fallback to Shared. The Postgres owner migration
 is invoked by Platform's narrow startup service after credential initialization.

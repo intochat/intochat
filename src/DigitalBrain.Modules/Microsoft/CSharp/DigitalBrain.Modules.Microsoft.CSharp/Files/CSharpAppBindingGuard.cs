@@ -1,7 +1,6 @@
-using DigitalBrain.Framework.Enforcement;
-using Orleans;
+using DigitalBrain.Framework;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Files;
 
 internal sealed class CSharpAppBindingGuard : IIncomingGrainCallFilter
 {

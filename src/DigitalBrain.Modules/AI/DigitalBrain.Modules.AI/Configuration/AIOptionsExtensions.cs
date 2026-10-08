@@ -1,3 +1,7 @@
+using DigitalBrain.AI.Embeddings;
+using DigitalBrain.AI.Models;
+using DigitalBrain.AI.Voice;
+
 namespace DigitalBrain.AI;
 
 public static class AIOptionsExtensions

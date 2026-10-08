@@ -79,19 +79,19 @@ internal static class PostgresHostingExtensions
             if (_configuration is null) { return; }
             if (_database is not null)
             {
-                builder.WithEnvironment(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString")), _database.Resource.ConnectionStringExpression)
+                builder.WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString")), _database.Resource.ConnectionStringExpression)
                     .WithAnnotation(new WaitAnnotation(_database.Resource, WaitType.WaitUntilHealthy, exitCode: 0));
                 if (_server is not null)
                 {
-                    builder.WithEnvironment(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Framework.DigitalBrainConfiguration.ModuleOptionsSection("postgres"), "ProvisionPerBrain"), "true");
+                    builder.WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.ModuleOptionsSection("postgres"), "Isolation"), "DatabasePerBrain");
                     var server = _server.Resource;
                     builder.WithEnvironment(context =>
-                        context.EnvironmentVariables[DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "AdminConnection"))] = server.ConnectionStringExpression);
+                        context.EnvironmentVariables[DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "AdminConnection"))] = server.ConnectionStringExpression);
                 }
             }
             else if (_connection is not null)
             {
-                builder.WithEnvironment(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString")), _connection);
+                builder.WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("postgres", "ConnectionString")), _connection);
             }
         }
     }

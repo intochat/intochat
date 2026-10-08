@@ -138,7 +138,7 @@ class _CSharpDetailViewState extends State<CSharpDetailView> {
   @override
   Widget build(BuildContext context) {
     final running = csharpIsRunning(file);
-    final startedAt = file['startedAt'];
+    final hash = file['hash'];
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -154,7 +154,8 @@ class _CSharpDetailViewState extends State<CSharpDetailView> {
                 ? 'State unavailable · reconnecting'
                 : [
                     csharpStatusLabel(file),
-                    if (running && startedAt != null) 'since $startedAt',
+                    if (running && hash is String && hash.length >= 12)
+                      'assembly ${hash.substring(0, 12)}',
                   ].join(' · '),
             style: const TextStyle(fontWeight: FontWeight.w600),
           ),

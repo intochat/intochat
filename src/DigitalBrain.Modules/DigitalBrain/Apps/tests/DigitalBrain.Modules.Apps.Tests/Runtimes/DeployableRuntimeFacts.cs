@@ -49,7 +49,7 @@ public sealed class DeployableRuntimeFacts
         await app.BeginBuild(null);
 
         await app.CompleteBuild(await app.CurrentBuildAttempt(),
-            new() { ["tests.cs"] = "// t", ["synapses/track.cs"] = "// b" }, null);
+            new() { ["synapses/track.cs"] = "// b" }, null);
 
         var deployment = Assert.Single(runtime.Deployed);
         Assert.Equal(["synapses/track.cs"], [.. deployment.Programs.Keys]);
@@ -77,7 +77,7 @@ public sealed class DeployableRuntimeFacts
         await app.BeginBuild(null);
 
         await app.CompleteBuild(await app.CurrentBuildAttempt(),
-            new() { ["tests.cs"] = "// t", ["synapses/old.cs"] = "// old v2", ["synapses/new.cs"] = "// new" }, null);
+            new() { ["synapses/old.cs"] = "// old v2", ["synapses/new.cs"] = "// new" }, null);
 
         Assert.Equal(["synapses/new.cs"], runtime.Deployed.SelectMany(deployment => deployment.Programs.Keys).Order());
         Assert.Equal(["synapses/old.cs"], runtime.Swapped.SelectMany(deployment => deployment.Programs.Keys).Order());

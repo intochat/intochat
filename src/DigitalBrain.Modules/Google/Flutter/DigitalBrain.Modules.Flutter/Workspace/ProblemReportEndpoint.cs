@@ -1,6 +1,4 @@
-using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
 using Microsoft.AspNetCore.Http;
 
 namespace DigitalBrain.Flutter.Workspace;
@@ -13,10 +11,9 @@ internal static class ProblemReportEndpoint
         { return Results.BadRequest(new { error = "A report needs the intent id it came from and a message." }); }
         try
         {
-            var caller = CallerContextStamper.Require();
-            var scope = BrainScope.Create(caller.AccountId, caller.BrainId);
-            var report = await brain.Get<IProblemReports>(scope.Id).Add(scope.Name, input.IntentId!, input.Message!.Trim()).WaitAsync(ct);
-            return Results.Created($"/brains/{scope.Name}/reports", report);
+            var scope = BrainScope.CurrentId();
+            var report = await brain.Get<IProblemReports>(scope).Add(scope, input.IntentId!, input.Message!.Trim()).WaitAsync(ct);
+            return Results.Created($"/brains/{scope}/reports", report);
         }
         catch (ArgumentException error) { return Results.BadRequest(new { error = error.Message }); }
     }

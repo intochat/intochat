@@ -1,11 +1,7 @@
-using System.Net.Http.Json;
 using System.Text.Json;
-using DigitalBrain;
+using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Chart;
 using DigitalBrain.Flutter.Table;
-using DigitalBrain.Framework.Enforcement;
-using DigitalBrain.Modules.Flutter.Tests.Composition;
-using DigitalBrain.Flutter;
 using DigitalBrain.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -47,5 +43,22 @@ public sealed class AppUiRouteFacts(FlutterHostFixture host)
 
         Assert.Equal("People", table.GetProperty("title").GetString());
         Assert.Equal("pie", chart.GetProperty("kind").GetString());
+    }
+
+    [Fact]
+    public async Task UiEndpointErrorsKeepTheirStatusAndProblemDetail()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = host.Brain;
+        var ws = host.Workspace();
+        var scope = BrainScope.Create("owner", ws).Id;
+
+        var foreign = await brain.HttpClient.GetAsync($"/brains/{ws}/apps/node?kind=text&name={Uri.EscapeDataString("other-brain/apps/dv/x")}", ct);
+        Assert.Equal(System.Net.HttpStatusCode.Forbidden, foreign.StatusCode);
+        var detail = await foreign.Content.ReadFromJsonAsync<JsonElement>(ct);
+        Assert.True(detail.TryGetProperty("detail", out _));
+
+        var unknown = await brain.HttpClient.GetAsync($"/brains/{ws}/apps/node?kind=nope&name={Uri.EscapeDataString(scope + "/apps/dv/x")}", ct);
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, unknown.StatusCode);
     }
 }

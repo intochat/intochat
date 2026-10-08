@@ -1,10 +1,10 @@
 using Aspire.Hosting;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Aspire.Hosting;
-using DigitalBrain.AI.FoundryLocal;
-using DigitalBrain.AI.Ollama;
-using DigitalBrain.AI.OpenAI;
-using DigitalBrain.AI.OpenRouter;
+using DigitalBrain.AI.Models.FoundryLocal;
+using DigitalBrain.AI.Models.Ollama;
+using DigitalBrain.AI.Models.OpenAI;
+using DigitalBrain.AI.Models.OpenRouter;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.ClickHouse;
 using DigitalBrain.ClickHouse.Aspire.Hosting;
@@ -24,12 +24,10 @@ using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Aspire.Hosting;
 using Microsoft.Extensions.Configuration;
 
-// The AppHost owns its deployment keys: the published ports, the seeded IntoChat publisher
-// account, and the vendor's shipped-apps binding (leaves under
+// The AppHost owns its deployment keys: the published ports and the IntoChat vendor's shipped-apps binding (leaves under
 // ShippedAppsServiceCollectionExtensions.ConfigurationSection).
 const string UiPortKey = "DigitalBrain:Http:UiPort";
 const string McpPortKey = "DigitalBrain:Http:McpPort";
-const string IntoChatAccountKey = "DigitalBrain:Auth:Accounts:0";
 const string IntoChatShippedAppsKey = "DigitalBrain:Modules:apps:Shipped:intochat";
 
 var builder = DistributedApplication.CreateBuilder(args);
@@ -52,35 +50,21 @@ var digitalBrain = builder.AddDigitalBrain("Modules", new DigitalBrainHostingOpt
     .WithHosting<GitHubModuleHosting>()
     .WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp())
     .WithHosting<AspireModuleHosting>()
-    .WithHosting<CSharpModuleHosting>()
-    .WithHosting<CSharpAuthoringModuleHosting>();
+    .WithHosting<CSharpModuleHosting>();
 
 var cookieProtection = digitalBrain.AddBlobContainer(digitalBrain.Identity!.ProtectionContainerName);
 
 var intoChatApps = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "IntoChat", "Apps"));
 
-var runtime = builder.AddProject<Projects.DigitalBrain_OS>("IntoChat")
+var runtime = builder.AddProject<Projects.DigitalBrain_OS>("OperatingSystem")
     .WithReference(digitalBrain)
-    .WithEnvironment(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(IntoChatAccountKey + ":Username"), "intochat")
-    .WithEnvironment(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(IntoChatAccountKey + ":DisplayName"), "IntoChat")
-    .WithEnvironment(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsKey + ":Path"), intoChatApps)
-    .WithEnvironment(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsKey + ":Account"), "intochat")
+    .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsKey + ":Path"), intoChatApps)
     .WaitFor(cookieProtection)
     .WithHttpEndpoint(
         port: builder.Configuration.GetValue(UiPortKey, 5080),
         name: "http",
         isProxied: false)
     .WithHttpHealthCheck("/health", endpointName: "http");
-
-// Development only: a known IntoChat password for one-step switching, and publishing in the shell
-// writes the apps folder back. A published deployment ships neither.
-if (builder.ExecutionContext.IsRunMode)
-{
-    runtime
-        .WithEnvironment(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(IntoChatAccountKey + ":Password"),
-            builder.Configuration[IntoChatAccountKey + ":Password"] ?? "intochat-development")
-        .WithEnvironment(DigitalBrain.Framework.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsKey + ":Writable"), "true");
-}
 
 builder.AddProject<Projects.DigitalBrain_Mcp>("digitalbrain-mcp")
     .WithReference(digitalBrain.AsClient(shareHttpIdentity: true))

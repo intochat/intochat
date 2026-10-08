@@ -30,7 +30,14 @@ internal sealed class StubChatClient(ChatResponder? respond = null, ChatStreamer
         CancellationToken cancellationToken = default)
     {
         var recorded = Record(messages);
-        return stream is null ? NoUpdates() : stream(recorded, options, cancellationToken);
+        if (stream is not null) { return stream(recorded, options, cancellationToken); }
+        return respond is null ? NoUpdates() : Streamed(() => respond(recorded, options, cancellationToken));
+    }
+
+    // The agent always streams; a stub with only a responder streams that response.
+    private static async IAsyncEnumerable<ChatResponseUpdate> Streamed(Func<Task<ChatResponse>> respond)
+    {
+        foreach (var update in (await respond()).ToChatResponseUpdates()) { yield return update; }
     }
 
     public object? GetService(Type serviceType, object? serviceKey = null) => serviceType.IsInstanceOfType(this) ? this : null;

@@ -69,7 +69,9 @@ public static class ServiceDefaultsExtensions
         var integration = builder.Configuration.Get<TelemetryIntegrationOptions>() ?? new();
         var configuredSampleRatio = options.SampleRatio;
         var sampleRatio = Math.Clamp(configuredSampleRatio ?? 1d, 0d, 1d);
-        var rootSampler = new SuppressAzureStorageSampler(new TraceIdRatioBasedSampler(sampleRatio));
+        // Noise is dropped by name before the parent decides: a keepalive grain call runs inside the
+        // sampled report request, so a root-only check would let it through as a child.
+        var sampler = new SuppressNoiseSampler(new ParentBasedSampler(new TraceIdRatioBasedSampler(sampleRatio)));
 
         builder.Logging.AddOpenTelemetry(logging =>
         {
@@ -105,8 +107,8 @@ public static class ServiceDefaultsExtensions
                 .AddMeter("Microsoft.Extensions.AI.*")
                 .AddMeter("Microsoft.Orleans"))
             .WithTracing(tracing => tracing
-                .SetSampler(new ParentBasedSampler(rootSampler))
-                .AddProcessor(new SuppressAzureStorageActivityProcessor())
+                .SetSampler(sampler)
+                .AddProcessor(new SuppressNoiseActivityProcessor())
                 .AddSource(builder.Environment.ApplicationName)
                 .AddSource(TelemetryPrefix)
                 .AddSource($"{TelemetryPrefix}.*")
@@ -147,6 +149,18 @@ public static class ServiceDefaultsExtensions
             || name.StartsWith("QueueClient.", StringComparison.Ordinal)
             || name.StartsWith("QueueServiceClient.", StringComparison.Ordinal);
 
+    // Keepalive traffic is not a trace anyone reads: the sandbox session heartbeat, the authorize
+    // call it rides on, and neuron watch renewals. Dropping them keeps an idle brain quiet.
+    private static readonly HashSet<string> KeepaliveSpanNames = new(StringComparer.Ordinal)
+    {
+        "IBrainRuntimeEdge/Heartbeat",
+        "IBrainRuntimeEdge/Authorize",
+        "INeuron/Watch",
+        "INeuron/Unwatch",
+    };
+
+    private static bool IsKeepaliveName(string name) => KeepaliveSpanNames.Contains(name);
+
     private static bool IsAzureStorageNoiseSource(string sourceName)
         => sourceName.StartsWith("Azure.Data.Tables", StringComparison.Ordinal)
             || sourceName.StartsWith("Azure.Storage", StringComparison.Ordinal)
@@ -170,11 +184,24 @@ public static class ServiceDefaultsExtensions
             && IsAzureStorageNamespace(azNamespace);
     }
 
-    private sealed class SuppressAzureStorageSampler(Sampler inner) : Sampler
+    // RuntimeProtocol.ReportKindTag / HeartbeatReport (DigitalBrain.Client.Runtime.V1), restated: ServiceDefaults
+    // references neither the client nor the module.
+    private const string ReportKindTag = "digitalbrain.runtime.report";
+    private const string HeartbeatReport = "heartbeat";
+
+    // The sandbox session heartbeat, every 20 s per brain session, tagged by the runtime edge endpoint. Other
+    // reports on the same route (Subscribe, status, ...) keep their spans, and so does a refused or failed heartbeat.
+    private static bool IsSuccessfulKeepaliveReport(Activity activity)
+        => activity.Kind is ActivityKind.Server or ActivityKind.Client
+            && activity.Status != ActivityStatusCode.Error
+            && activity.GetTagItem("http.response.status_code") is int status and < 400
+            && activity.GetTagItem(ReportKindTag) is HeartbeatReport;
+
+    private sealed class SuppressNoiseSampler(Sampler inner) : Sampler
     {
         public override SamplingResult ShouldSample(in SamplingParameters samplingParameters)
         {
-            if (IsAzureStorageNoiseName(samplingParameters.Name))
+            if (IsAzureStorageNoiseName(samplingParameters.Name) || IsKeepaliveName(samplingParameters.Name))
             {
                 return new SamplingResult(SamplingDecision.Drop);
             }
@@ -183,11 +210,11 @@ public static class ServiceDefaultsExtensions
         }
     }
 
-    private sealed class SuppressAzureStorageActivityProcessor : BaseProcessor<Activity>
+    private sealed class SuppressNoiseActivityProcessor : BaseProcessor<Activity>
     {
         public override void OnEnd(Activity activity)
         {
-            if (!IsAzureStorageNoise(activity))
+            if (!IsAzureStorageNoise(activity) && !IsSuccessfulKeepaliveReport(activity))
             {
                 return;
             }

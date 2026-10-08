@@ -1,8 +1,8 @@
 using System.Runtime.CompilerServices;
 using DigitalBrain;
 using DigitalBrain.Framework;
-using Microsoft.Extensions.AI;
 using DigitalBrain.Framework.Metering;
+using Microsoft.Extensions.AI;
 
 namespace DigitalBrain.AI.Metering;
 

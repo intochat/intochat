@@ -1,0 +1,60 @@
+using System.Text.Json;
+
+namespace DigitalBrain.Client.Runtime.V1;
+
+// The wire between a brain and its sandbox session, shared by the silo edge, this client and the
+// sandbox host. The host never holds an Orleans connection: three HTTP routes and a session token.
+public static class RuntimeProtocol
+{
+    public const string Invoke = "runtime/v1/invoke";
+    public const string Report = "runtime/v1/report";
+    public const string Stream = "runtime/v1/stream";
+    public const string RefusalHeader = "X-DigitalBrain-Refusal";
+    // Both ends tag a heartbeat report's span with this, so telemetry keeps heartbeats quiet and every other report traced.
+    public const string ReportKindTag = "digitalbrain.runtime.report";
+    public const string HeartbeatReport = "heartbeat";
+    public static readonly HttpRequestOptionsKey<string> ReportKind = new(ReportKindTag);
+    public static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
+}
+
+[GenerateSerializer, Alias("microsoft.csharp.runtime.runtime-invocation")]
+public sealed record RuntimeInvocation([property: Id(0)] string Behavior, [property: Id(1)] string Contract, [property: Id(2)] string Key, [property: Id(3)] string Method, [property: Id(4)] JsonElement[] Arguments);
+
+// Exactly one of the optional members is set per report.
+public sealed record RuntimeReport(
+    string? Fingerprint = null,
+    SubscribeReport? Subscribe = null,
+    AcknowledgeReport? Acknowledge = null,
+    BehaviorStatusReport? Status = null,
+    LogsReport? Logs = null,
+    bool Heartbeat = false);
+[GenerateSerializer, Alias("microsoft.csharp.runtime.subscribe-report")]
+public sealed record SubscribeReport([property: Id(0)] string Behavior, [property: Id(1)] string Contract, [property: Id(2)] string Key, [property: Id(3)] string Signal);
+[GenerateSerializer, Alias("microsoft.csharp.runtime.acknowledge-report")]
+public sealed record AcknowledgeReport([property: Id(0)] string Subscription, [property: Id(1)] long Watermark);
+[GenerateSerializer, Alias("microsoft.csharp.runtime.behavior-status-report")]
+public sealed record BehaviorStatusReport([property: Id(0)] string Behavior, [property: Id(1)] string Hash, [property: Id(2)] string Status, [property: Id(3)] int? ExitCode, [property: Id(4)] string? Error);
+[GenerateSerializer, Alias("microsoft.csharp.runtime.logs-report")]
+public sealed record LogsReport([property: Id(0)] string Request, [property: Id(1)] string Text);
+
+// Stream events: the event name is the record's Kind.
+[GenerateSerializer, Alias("microsoft.csharp.runtime.assignment-event")]
+public sealed record AssignmentEvent([property: Id(0)] string Behavior, [property: Id(1)] string Hash, [property: Id(2)] Uri Assembly, [property: Id(3)] Uri Symbols, [property: Id(4)] Dictionary<string, string> Settings) { public const string Kind = "assign"; }
+[GenerateSerializer, Alias("microsoft.csharp.runtime.retire-event")]
+public sealed record RetireEvent([property: Id(0)] string Behavior) { public const string Kind = "retire"; }
+[GenerateSerializer, Alias("microsoft.csharp.runtime.subscribed-event")]
+public sealed record SubscribedEvent([property: Id(0)] string Behavior, [property: Id(1)] string Contract, [property: Id(2)] string Key, [property: Id(3)] string Signal, [property: Id(4)] string Subscription) { public const string Kind = "subscribed"; }
+[GenerateSerializer, Alias("microsoft.csharp.runtime.signal-batch-event")]
+// TraceParent is the W3C trace of the latest arrival, so the calls a behavior makes in reaction join its trace.
+public sealed record SignalBatchEvent([property: Id(0)] string Subscription, [property: Id(1)] string[] Signals, [property: Id(2)] long Watermark, [property: Id(3)] string? TraceParent = null) { public const string Kind = "signals"; }
+[GenerateSerializer, Alias("microsoft.csharp.runtime.token-event")]
+public sealed record TokenEvent([property: Id(0)] string Token) { public const string Kind = "token"; }
+[GenerateSerializer, Alias("microsoft.csharp.runtime.ready-event")]
+// Behaviors is the brain's whole desired set: a host that reconnects unloads whatever it holds beyond it.
+public sealed record ReadyEvent([property: Id(0)] string Session, [property: Id(1)] string[] Behaviors) { public const string Kind = "ready"; }
+[GenerateSerializer, Alias("microsoft.csharp.runtime.logs-request-event")]
+public sealed record LogsRequestEvent([property: Id(0)] string Behavior, [property: Id(1)] int Tail, [property: Id(2)] string Request) { public const string Kind = "logs"; }
+
+// What the brain posts to the sandbox host to open (or reopen) its session: the host dials EdgeUrl back.
+[GenerateSerializer, Alias("microsoft.csharp.runtime.session-start")]
+public sealed record SessionStart([property: Id(0)] string Brain, [property: Id(1)] string Session, [property: Id(2)] string Token, [property: Id(3)] string EdgeUrl);

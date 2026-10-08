@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Modules;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Integrations;
 using DigitalBrain.Testing.Module;

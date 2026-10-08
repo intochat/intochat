@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
-    <Description>Supabase module: read-only query neuron and live query tables.</Description>
+    <Description>Supabase module: the deployment's Supabase backing store.</Description>
     <RootNamespace>DigitalBrain.Modules.Supabase</RootNamespace>
     <NoWarn>$(NoWarn);ORLEANSEXP005;CA1812</NoWarn>
   </PropertyGroup>
@@ -11,11 +11,6 @@
     <InternalsVisibleTo Include="DigitalBrain.Modules.Supabase.Tests" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../DigitalBrain.Modules.Supabase.Contracts/DigitalBrain.Modules.Supabase.Contracts.csproj" />
-    <ProjectReference Include="../../AI/DigitalBrain.Modules.AI.Contracts/DigitalBrain.Modules.AI.Contracts.csproj" />
-    <ProjectReference Include="../../Google/Flutter/DigitalBrain.Modules.Flutter.Contracts/DigitalBrain.Modules.Flutter.Contracts.csproj" />
     <ProjectReference Include="../../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
-  </ItemGroup>
-  <ItemGroup>
   </ItemGroup>
 </Project>

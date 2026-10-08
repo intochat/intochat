@@ -16,7 +16,60 @@ public sealed class StorageHookFacts
             Retired.Add((brainId, appKey, storageKeys));
             return Task.CompletedTask;
         }
+
+        public List<string> Rebinds { get; } = [];
+        public bool Refuse { get; set; }
+
+        public Task RequireRebindable(string brainId, string appKey, string slot, CancellationToken cancellationToken)
+        {
+            Rebinds.Add(slot);
+            return Refuse ? throw new InvalidOperationException("The data depends on this binding.") : Task.CompletedTask;
+        }
     }
+
+    [Fact]
+    public async Task ConfigureAsksStorageHooksBeforeChangingASlotBinding()
+    {
+        var hook = new RecordingHook();
+        await using var brain = await StartWith(hook);
+        var app = brain.Get<IApp>(IApp.Key("hook-facts", "rebound"));
+        await app.Create(new("Rebound", "rebound", [], [], [new("db", "postgres")]), "## Scenario: Binds\nIt binds.");
+
+        await app.Configure([], new() { ["db"] = "c1" });
+        await app.Configure([], new() { ["db"] = "c1" });
+        await app.Configure(new() { ["Text"] = "settings alone" }, []);
+        Assert.Equal(["db"], hook.Rebinds);
+
+        await app.Configure([], new() { ["db"] = "c2" });
+        Assert.Equal(["db", "db"], hook.Rebinds);
+    }
+
+    [Fact]
+    public async Task ARefusingHookLeavesTheBindingUnchanged()
+    {
+        var hook = new RecordingHook();
+        await using var brain = await StartWith(hook);
+        var app = brain.Get<IApp>(IApp.Key("hook-facts", "refused"));
+        await app.Create(new("Refused", "refused", [], [], [new("db", "postgres")]), "## Scenario: Binds\nIt binds.");
+        await app.Configure([], new() { ["db"] = "c1" });
+
+        hook.Refuse = true;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => app.Configure(new() { ["Text"] = "new" }, new() { ["db"] = "c2" }));
+
+        var snapshot = await app.Read();
+        Assert.Equal("c1", snapshot.Connections["db"]);
+        Assert.False(snapshot.Settings.ContainsKey("Text"));
+    }
+
+    private static Task<ModuleBrain> StartWith(RecordingHook hook)
+        => ModuleTest.Create().WithModule<AppsModule>()
+            .ConfigureSilo(silo =>
+            {
+                silo.Services.RemoveAll<IDeployableRuntime>();
+                silo.Services.AddSingleton<IDeployableRuntime>(new DeployableRuntimeFacts.FakeRuntime());
+                silo.Services.AddSingleton<IAppStorageHook>(hook);
+            })
+            .StartAsync(TestContext.Current.CancellationToken);
 
     [Fact]
     public async Task ADeleteDrivesTheRegisteredStorageHookWithTheAppsKeys()
@@ -37,7 +90,7 @@ public sealed class StorageHookFacts
         await app.Create(new("Hooked", "hooked", [], [], []), "## Scenario: Hooks\nIt hooks.");
         await app.BeginBuild(null);
 
-        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["tests.cs"] = "// t", ["synapses/track.cs"] = "// b" }, null);
+        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["synapses/track.cs"] = "// b" }, null);
         Assert.Empty(hook.Retired);
 
         await app.Delete();
@@ -65,12 +118,12 @@ public sealed class StorageHookFacts
         var app = brain.Get<IApp>(key);
         var manifest = new AppManifest("Replaced", "replaced", [], [new("Text", "what to say", "hi")], []);
         await app.Import(new("replaced", "1.0.0", manifest, "## Scenario: Stores\nIt stores.",
-            new() { ["tests.cs"] = "// t", ["synapses/keep.cs"] = "// v1", ["synapses/drop.cs"] = "// v1" }));
+            new() { ["synapses/keep.cs"] = "// v1", ["synapses/drop.cs"] = "// v1" }));
         await app.Configure(new() { ["Text"] = "mine" }, new() { ["gmail"] = "my-gmail" });
 
         var next = manifest with { Settings = [.. manifest.Settings, new("Mood", "how to say it", "calm")] };
         var replaced = await app.Replace(new("replaced", "1.1.0", next, "## Scenario: Stores\nIt stores more.",
-            new() { ["tests.cs"] = "// t", ["synapses/keep.cs"] = "// v2", ["synapses/new.cs"] = "// v2" }));
+            new() { ["synapses/keep.cs"] = "// v2", ["synapses/new.cs"] = "// v2" }));
 
         // The app's storage is never retired: only the removed behavior's file stops.
         Assert.Empty(hook.Retired);
@@ -99,7 +152,7 @@ public sealed class StorageHookFacts
         await Assert.ThrowsAsync<InvalidOperationException>(() => missing.Replace(new("missing", "1.0.0", manifest, "spec", new())));
 
         var app = brain.Get<IApp>(IApp.Key("hook-facts", "mine"));
-        await app.Import(new("mine", "1.0.0", manifest, "spec", new() { ["tests.cs"] = "// t" }));
+        await app.Import(new("mine", "1.0.0", manifest, "spec", new() { ["notes.md"] = "// t" }));
         await Assert.ThrowsAsync<InvalidDataException>(() => app.Replace(new("other", "1.1.0", manifest, "spec", new())));
         Assert.Equal("1.0.0", (await app.Read()).Version);
     }

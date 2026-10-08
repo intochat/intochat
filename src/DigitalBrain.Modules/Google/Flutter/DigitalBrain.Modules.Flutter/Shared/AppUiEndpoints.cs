@@ -1,6 +1,4 @@
 using System.Text.Json;
-using DigitalBrain;
-using DigitalBrain.Apps;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Button;
 using DigitalBrain.Flutter.Card;
@@ -18,11 +16,7 @@ using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.TextField;
 using DigitalBrain.Flutter.VoiceInput;
 using DigitalBrain.Flutter.WebBrowser;
-using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
-using DigitalBrain.Framework.Http;
-using DigitalBrain.Framework.Types;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -33,8 +27,8 @@ internal static class AppUiEndpoints
 {
     public static void Map(IEndpointRouteBuilder endpoints)
     {
-        var apps = BrainRoutes.Group(endpoints, "/apps");
-        apps.MapGet("/node", (string kind, string name, IDigitalBrain brain, CancellationToken ct) => ModuleHttp.Respond(async () =>
+        var apps = BrainRoutes.Group(endpoints, "/apps").AddEndpointFilter(ModuleRouteGuard.Guard);
+        apps.MapGet("/node", async (string kind, string name, IDigitalBrain brain, CancellationToken ct) =>
         {
             var scope = BrainScope.CurrentId();
             if (!OwnsUi(scope, name)) { throw new UnauthorizedAccessException("The UI belongs to another brain."); }
@@ -58,8 +52,8 @@ internal static class AppUiEndpoints
                 UIVocabulary.WebBrowserType => Results.Ok(await brain.Get<IWebBrowser>(name).Read().WaitAsync(ct)),
                 _ => throw new ArgumentException("Unknown app UI kind.")
             };
-        }));
-        apps.MapPost("/event", (UiEvent input, IDigitalBrain brain, CancellationToken ct) => ModuleHttp.Respond(async () =>
+        });
+        apps.MapPost("/event", async (UiEvent input, IDigitalBrain brain, CancellationToken ct) =>
         {
             var scope = BrainScope.CurrentId();
             if (!OwnsUi(scope, input.Name)) { throw new UnauthorizedAccessException(); }
@@ -109,7 +103,7 @@ internal static class AppUiEndpoints
                 default: throw new ArgumentException("Unknown UI event.");
             }
             return Results.Ok(new { delivered = true });
-        }));
+        });
     }
 
     private static bool OwnsUi(string scope, string name) =>

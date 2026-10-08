@@ -1,4 +1,4 @@
-using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework;
 
 namespace DigitalBrain.Modules.Apps.Tests;
 

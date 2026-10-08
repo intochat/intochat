@@ -1,3 +1,5 @@
+using DigitalBrain.AI.Models;
+
 namespace DigitalBrain.AI.Agents;
 
 public enum AgentRunStatus { Running, Completed, Failed, Cancelled, Interrupted }
@@ -8,39 +10,37 @@ public sealed record AgentUsage(
     [property: Id(1)] long? OutputTokens,
     [property: Id(2)] long? TotalTokens);
 
-[GenerateSerializer, Alias("ai.agent-response")]
-public sealed record AgentResponse(
-    [property: Id(0)] string RunId,
-    [property: Id(1)] string Text,
-    [property: Id(2)] IReadOnlyList<AiMessage> Messages,
-    [property: Id(3)] AgentUsage? Usage);
+// A tool call the run started: Result when it completed, Code and Error when it did not.
+[GenerateSerializer, Alias("ai.agent-tool-call")]
+public sealed record AgentToolCall(
+    [property: Id(0)] string CallId,
+    [property: Id(1)] string Name,
+    [property: Id(2)] string Arguments,
+    [property: Id(3)] string? Result = null,
+    [property: Id(4)] string? Code = null,
+    [property: Id(5)] string? Error = null);
 
-[GenerateSerializer, Alias("ai.agent-run-state")]
-public sealed record AgentRunState(
+// One turn of the agent, from the user's text to the reply or the reason there is none.
+[GenerateSerializer, Alias("ai.agent-run")]
+public sealed record AgentRun(
     [property: Id(0)] string RunId,
     [property: Id(1)] AgentRunStatus Status,
-    [property: Id(2)] long DefinitionRevision,
+    [property: Id(2)] string UserText,
     [property: Id(3)] DateTimeOffset StartedAt,
     [property: Id(4)] DateTimeOffset? EndedAt = null,
-    [property: Id(5)] AgentResponse? Response = null,
-    [property: Id(6)] string? Error = null,
-    [property: Id(7)] ResolvedAgentModel? Model = null,
-    [property: Id(8)] ModelDescriptor? Capabilities = null,
-    [property: Id(9)] AgentDefinition? Definition = null);
+    [property: Id(5)] string? Reply = null,
+    [property: Id(6)] ResolvedModel? Model = null,
+    [property: Id(7)] AgentUsage? Usage = null,
+    [property: Id(8)] string? Error = null)
+{
+    [Id(9)] public AgentToolCall[] ToolCalls { get; init; } = [];
+}
 
+// Transcript is read through IAgent.Transcript; it is too large to ride along on every read.
 [GenerateSerializer, Alias("ai.agent-state")]
 public sealed record AgentState(
     [property: Id(0)] long Revision,
     [property: Id(1)] AgentDefinition Definition,
-    [property: Id(2)] AgentRunState? LastRun,
-    [property: Id(3)] int HistoryMessageCount);
-
-[GenerateSerializer, Alias("ai.agent-event")]
-public sealed record AgentEvent(
-    [property: Id(0)] long Sequence,
-    [property: Id(1)] string RunId,
-    [property: Id(2)] string Kind,
-    [property: Id(3)] DateTimeOffset At,
-    [property: Id(4)] string? CallId = null,
-    [property: Id(5)] string? Tool = null,
-    [property: Id(6)] string? Result = null);
+    [property: Id(2)] string? Summary,
+    [property: Id(3)] AgentRun? ActiveRun,
+    [property: Id(4)] AgentRun[] Runs);

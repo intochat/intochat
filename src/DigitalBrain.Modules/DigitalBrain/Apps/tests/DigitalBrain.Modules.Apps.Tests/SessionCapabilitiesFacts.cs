@@ -41,6 +41,6 @@ public sealed class SessionCapabilitiesFacts
         public string AuthoringDescription => "External script process";
         public Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken)
             => Task.FromResult(new ScriptContractCatalog([], [], ""));
-        public ScriptCompilationCheck Check(IReadOnlyDictionary<string, string> files) => new(true, []);
+        public Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken) => Task.FromResult(new ScriptCompilationCheck(true, []));
     }
 }

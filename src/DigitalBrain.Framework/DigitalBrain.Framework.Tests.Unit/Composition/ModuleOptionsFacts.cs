@@ -1,6 +1,9 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Modules;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Orleans.Hosting;
 using Xunit;
 
@@ -65,21 +68,19 @@ public sealed class ModuleOptionsFacts
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 [DigitalBrainConfiguration.ModulesSectionName + ":0"] = "First.Module, First",
-                [DigitalBrainConfiguration.ModulesSectionName + ":1"] = "Second.Module, Second",
             }).Build();
-        Assert.Equal(["First.Module, First", "Second.Module, Second"], configuration.SelectedModuleNames());
         Assert.True(configuration.GetModuleOptions<FakeOptions>(nameof(FakeModule)).Flag);
     }
 
     [Fact]
-    public void PopulateCopiesBoundOptionsOntoAnExistingInstance()
+    public async Task AComposedModuleHasItsOptionsBoundWithoutAskingForThem()
     {
-        var definition = ModuleOptionsSerialization.Compile<FakeModule, FakeOptions>(new() { Flag = true, Endpoint = new("https://x.example/") });
-        var configuration = new ConfigurationBuilder().AddInMemoryCollection(definition.Settings).Build();
-        var target = new FakeOptions();
-        configuration.PopulateModuleOptions(nameof(FakeModule), target);
-        Assert.True(target.Flag);
-        Assert.Equal(new Uri("https://x.example/"), target.Endpoint);
+        await using var brain = await ModuleTest.Create()
+            .WithModule<FakeModule, FakeOptions>(options => { options.Flag = true; options.Endpoint = new("https://x.example/"); })
+            .StartAsync(TestContext.Current.CancellationToken);
+        var options = brain.SiloServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<FakeOptions>>().Value;
+        Assert.True(options.Flag);
+        Assert.Equal(new Uri("https://x.example/"), options.Endpoint);
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using System.ClientModel;
+using DigitalBrain.AI.Voice;
 using DigitalBrain.Framework.Platform.Integrations;
 using OpenAI;
 using OpenAI.Audio;

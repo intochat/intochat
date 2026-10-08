@@ -1,4 +1,3 @@
-#:project /brain/src/DigitalBrain.Modules/DigitalBrain/Apps/DigitalBrain.Modules.Apps.Contracts/DigitalBrain.Modules.Apps.Contracts.csproj
 using DigitalBrain.Apps;
 using DigitalBrain.Apps.Signals;
 

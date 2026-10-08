@@ -19,4 +19,12 @@ internal sealed class TableStorageHook(IServiceProvider services) : IAppStorageH
             await Grains.GetGrain<ITableIndex>(new TableOwner(brainId, key).Key).Retire();
         }
     }
+
+    // Tables are pinned where they were first defined, so the tables slot cannot move under them.
+    public async Task RequireRebindable(string brainId, string appKey, string slot, CancellationToken cancellationToken)
+    {
+        if (slot != AppTablesSlot.Name) { return; }
+        if ((await Grains.GetGrain<ITableIndex>(new TableOwner(brainId, appKey).Key).ReadTables()).Length > 0)
+        { throw new InvalidOperationException("The tables slot cannot be rebound while this app owns tables."); }
+    }
 }

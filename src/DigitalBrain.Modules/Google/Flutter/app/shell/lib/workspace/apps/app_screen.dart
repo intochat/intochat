@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'apps_request.dart';
 
 // The Creator: describe the app and it exists — Drafted, in this brain — then iterate.
-// Implement and Verify answer immediately and run in the background; the screen follows
-// the app's status and activity feed. A green version can be published to the Marketplace.
+// Implement answers immediately and runs in the background; the screen follows the app's
+// status and activity feed. A live version can be published to the Marketplace.
 class AppScreen extends StatefulWidget {
   const AppScreen({
     super.key,
@@ -118,21 +118,6 @@ class _AppScreenState extends State<AppScreen> {
     _describe.clear();
   });
 
-  Future<void> _verify() => _perform('', () async {
-    await widget.request('POST', '$_appPath/verify', const <String, dynamic>{});
-    _show(await widget.request('GET', _appPath));
-  });
-
-  static bool _green(Map<String, dynamic> app) =>
-      app['versions'] is List &&
-      (app['versions'] as List)
-          .map(_map)
-          .any(
-            (version) =>
-                version['version'] == app['version'] &&
-                version['green'] == true,
-          );
-
   Future<void> _publish() => _perform('', () async {
     await widget.request(
       'POST',
@@ -142,15 +127,29 @@ class _AppScreenState extends State<AppScreen> {
     _show(await widget.request('GET', _appPath));
   });
 
+  // Development only (the server refuses elsewhere): writes an edited copy of a shipped app back
+  // into its vendor's source folder as the next version.
+  Future<void> _saveToSource() => _perform('', () async {
+    _show(
+      await widget.request(
+        'POST',
+        '$_appPath/save-to-source',
+        const <String, dynamic>{},
+      ),
+    );
+  });
+
+  static bool _editedShippedCopy(Map<String, dynamic> app) =>
+      app['edited'] == true &&
+      app['origin'] is Map &&
+      _map(_map(app['origin'])['source'])[r'$source'] == 'shipped';
+
   @override
   Widget build(BuildContext context) {
     final app = _app;
     final activity = app?['activity'] is List
         ? (app!['activity'] as List).map((line) => '$line').toList()
         : const <String>[];
-    final verdicts = app?['verdicts'] is List
-        ? (app!['verdicts'] as List).map(_map).toList()
-        : const <Map<String, dynamic>>[];
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -222,19 +221,18 @@ class _AppScreenState extends State<AppScreen> {
                           : _implement,
                       child: const Text('Implement'),
                     ),
-                    FilledButton.tonal(
-                      key: const ValueKey('run-scenarios'),
-                      onPressed: _busy || app['status'] == 'Building'
-                          ? null
-                          : _verify,
-                      child: const Text('Verify'),
-                    ),
-                    if (_green(app) &&
+                    if (app['status'] == 'Live' &&
                         app['publishedVersion'] != app['version'])
                       FilledButton.tonal(
                         key: const ValueKey('publish-app'),
                         onPressed: _busy ? null : _publish,
                         child: const Text('Publish'),
+                      ),
+                    if (_editedShippedCopy(app))
+                      FilledButton.tonal(
+                        key: const ValueKey('save-to-source'),
+                        onPressed: _busy ? null : _saveToSource,
+                        child: const Text('Save to source'),
                       ),
                   ],
                 ],
@@ -244,30 +242,6 @@ class _AppScreenState extends State<AppScreen> {
                 Text('Activity', style: Theme.of(context).textTheme.titleSmall),
                 for (final line in activity)
                   Text(line, key: ValueKey('activity-$line')),
-              ],
-              if (verdicts.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Text(
-                  'Scenarios',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                for (final verdict in verdicts)
-                  ListTile(
-                    dense: true,
-                    key: ValueKey('verdict-${verdict['name']}'),
-                    leading: Icon(
-                      verdict['passed'] == true
-                          ? Icons.check_circle
-                          : Icons.cancel,
-                      color: verdict['passed'] == true
-                          ? Colors.green
-                          : Colors.red,
-                    ),
-                    title: Text('${verdict['name']}'),
-                    subtitle: '${verdict['message'] ?? ''}'.isEmpty
-                        ? null
-                        : Text('${verdict['message']}'),
-                  ),
               ],
               if (app != null && '${app['spec'] ?? ''}'.isNotEmpty) ...[
                 const SizedBox(height: 16),

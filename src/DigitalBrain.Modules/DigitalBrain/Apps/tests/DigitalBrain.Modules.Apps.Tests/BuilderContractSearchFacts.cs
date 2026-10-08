@@ -1,7 +1,6 @@
 using DigitalBrain.Apps;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Vectors;
-using DigitalBrain.Qdrant;
+using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Time;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,13 +12,11 @@ public sealed class BuilderContractSearchFacts
     [Fact]
     public async Task BuilderSearchPreservesTheTimerQueryResult()
     {
+        var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<TimeModule>().WithReminders()
-            .ConfigureSilo(silo => silo.Services.AddSingleton<IVectorStore>(new InMemoryQdrant())
-                .AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(new TimerEmbeddings()))
-            .StartAsync(TestContext.Current.CancellationToken);
-        var result = await BuilderTools.Search(brain.SiloServices.GetRequiredService<ContractCatalog>(), brain.SiloServices.GetRequiredService<NeuronTypeSearch>(), "schedule a timer");
-        Assert.Equal("time", result[0].Module);
-        Assert.Equal("DigitalBrain.Time.Timers.ITimer", result[0].Contract);
+            .ConfigureSilo(silo => silo.Services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(new TimerEmbeddings()))
+            .StartAsync(ct);
+        var result = await BuilderTools.Search(brain.SiloServices.GetRequiredService<NeuronTypeSearch>(), "schedule a timer", ct);
         Assert.Equal(new BuilderTools.ContractHit("time", "DigitalBrain.Time.Timers.ITimer", "Timer"), result[0]);
     }
 

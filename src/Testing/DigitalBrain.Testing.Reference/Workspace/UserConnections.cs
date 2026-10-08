@@ -1,8 +1,7 @@
 using System.Net;
-using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
-using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework;
 
 namespace DigitalBrain.Testing.E2E.Workspace;
 
@@ -10,7 +9,7 @@ namespace DigitalBrain.Testing.E2E.Workspace;
 public static class UserConnections
 {
     private static readonly ConditionalWeakTable<E2EBrain, FixtureIdentity> Identities = new();
-    public static async Task AuthorizeSupabaseAsync(E2EBrain brain, string brainId, CancellationToken cancellationToken)
+    public static async Task AuthorizeDatabaseAsync(E2EBrain brain, string brainId, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
         using var session = await brain.HttpClient.GetAsync("/identity/session", cancellationToken);
@@ -22,19 +21,19 @@ public static class UserConnections
                 ?? throw new InvalidOperationException("The test fixture session has no identity.");
         Identities.Remove(brain);
         Identities.Add(brain, identity);
+        // The person's database is a postgres connection they name; the fixture names it "supabase".
         var connection = await brain.GetConnectionStringAsync("supabase-database", cancellationToken)
-            ?? throw new InvalidOperationException("The reference fixture has no Supabase test database.");
-        using var response = await brain.HttpClient.PostAsJsonAsync($"/brains/{Uri.EscapeDataString(brainId)}/connections/connect", new
+            ?? throw new InvalidOperationException("The reference fixture has no test database.");
+        using var response = await brain.HttpClient.PostAsJsonAsync($"/brains/{Uri.EscapeDataString(brainId)}/connections/supabase/connect", new
         {
-            connectorId = "supabase",
-            connectionId = "supabase",
+            connectorId = "postgres",
             authMethodId = "connection-string",
             value = connection,
         }, cancellationToken);
         response.EnsureSuccessStatusCode();
         var row = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken);
-        if (row.GetProperty("status").GetString() != "Configured")
-        { throw new InvalidOperationException("The test user's Supabase connection is unavailable."); }
+        if (row.GetProperty("status").GetString() != "Connected")
+        { throw new InvalidOperationException("The test user's database connection is unavailable."); }
     }
 
     // Direct grain assertions have no HTTP middleware; match the reference host's authenticated

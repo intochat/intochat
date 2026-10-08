@@ -1,10 +1,7 @@
 using System.Globalization;
-using DigitalBrain;
 using DigitalBrain.Flutter.Form.Signals;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Types;
 using Orleans.Concurrency;
-using Orleans.Runtime;
 
 namespace DigitalBrain.Flutter.Form;
 
@@ -130,7 +127,30 @@ internal sealed class FormNeuron([PersistentState("state", DigitalBrainNames.Def
     }
 
     [ReadOnly, Alias("read")]
-    public Task<FormState> Read() { Snapshot.FormId = this.GetPrimaryKeyString(); return Task.FromResult(Snapshot); }
+    public Task<FormState> Read()
+    {
+        Snapshot.FormId = this.GetPrimaryKeyString();
+        return Task.FromResult(CallerContextStamper.TryGet(out var caller) && CallerContextStamper.IsModelOriginated(caller) ? Shape(Snapshot) : Snapshot);
+    }
+
+    // What a model may see of a form: its fields, status and revision, never a value or a secret reference.
+    private static FormState Shape(FormState state) => new()
+    {
+        FormId = state.FormId,
+        Title = state.Title,
+        Revision = state.Revision,
+        Submitted = state.Submitted,
+        Fields = [.. state.Fields.Select(field => new FormFieldState
+        {
+            Name = field.Name,
+            Label = field.Label,
+            Kind = field.Kind,
+            Required = field.Required,
+            Choices = [.. field.Choices],
+            SecretSet = field.SecretSet,
+            Supported = field.Supported,
+        })],
+    };
 
     private FormFieldState Field(string name)
     {

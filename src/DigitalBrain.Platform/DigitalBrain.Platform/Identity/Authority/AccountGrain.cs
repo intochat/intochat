@@ -1,9 +1,5 @@
-using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Identity;
-using Orleans;
-using Orleans.Runtime;
 
 namespace DigitalBrain.Platform.Identity.Authority;
 
@@ -55,9 +51,11 @@ internal sealed class AccountGrain(
         if (State.Account is null || owner.AccountId != this.GetPrimaryKeyString() || State.Account.OwnerPrincipalId != owner.PrincipalId)
         { throw new UnauthorizedAccessException("Brain ownership does not match the account."); }
         var scope = BrainScope.Create(owner.AccountId, owner.BrainId);
-        await GrainFactory.GetGrain<IKernel>(scope.Id).Create(new Owner(owner.AccountId));
         var authority = GrainFactory.GetGrain<IBrainAuthority>(scope.Id);
         await authority.Initialize(owner.AccountId, owner.BrainId);
         await authority.ProvisionOwner(owner);
+        // The brain is born only once its owner is on record: creation handlers, and the behaviors
+        // they install, act inside a brain that already knows who it belongs to.
+        await GrainFactory.GetGrain<IKernel>(scope.Id).Create(new Owner(owner.AccountId));
     }
 }

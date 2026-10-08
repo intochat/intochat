@@ -1,4 +1,7 @@
+using DigitalBrain.AI.Models;
+using DigitalBrain.AI.Voice;
 using DigitalBrain.Aspire.Hosting;
+using DigitalBrain.Framework.Configuration;
 using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.AI.Aspire.Hosting;

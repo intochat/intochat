@@ -11,7 +11,7 @@ public static class GitHubConfigurationHostingExtensions
         var options = configuration.GetSection(GitHubModuleOptions.SectionName).Get<GitHubAppHostingOptions>();
         if (options is not null)
         {
-            module.WithGitHubApp(options.AppId, options.Slug, options.ClientId,
+            module.WithGitHubApp(options.AppId, options.ClientId,
                 options.PublicOrigin, options.PublicWebhookUrl);
         }
         return module;

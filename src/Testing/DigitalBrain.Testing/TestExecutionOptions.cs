@@ -1,4 +1,5 @@
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.Testing;
 
@@ -11,7 +12,6 @@ public sealed record TestExecutionOptions
     public Action<TestDiagnostic>? Diagnostics { get; init; }
     public string? ArtifactDirectory { get; init; }
     public IReadOnlyDictionary<string, string?> PrivateConfiguration { get; init; } = new Dictionary<string, string?>();
-    public IReadOnlyDictionary<string, string> ResourceEnvironment { get; init; } = new Dictionary<string, string>();
     // Feeds the AppHost builder's own configuration (not a resource's environment): hosting-layer
     // knobs like DigitalBrain:Modules:flutter:Hosting:WebContainer describe the machine running the AppHost.
     public IReadOnlyDictionary<string, string?> HostConfiguration { get; init; } = new Dictionary<string, string?>();
@@ -23,7 +23,7 @@ public sealed record TestExecutionOptions
             if (string.IsNullOrWhiteSpace(key) || key.Contains("__", StringComparison.Ordinal)
                 || key.StartsWith("Orleans:", StringComparison.OrdinalIgnoreCase)
                 || key.StartsWith("ConnectionStrings:", StringComparison.OrdinalIgnoreCase)
-                || key.StartsWith(Framework.ModuleSettingsValidation.TestingSectionPrefix, StringComparison.OrdinalIgnoreCase)
+                || key.StartsWith(ModuleSettingsValidation.TestingSectionPrefix, StringComparison.OrdinalIgnoreCase)
                 || key.StartsWith(DigitalBrainConfiguration.ModulesSectionName + ":", StringComparison.OrdinalIgnoreCase))
             { throw new ArgumentException("Private settings cannot override host-owned configuration."); }
         }

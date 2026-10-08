@@ -1,6 +1,4 @@
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
-using Orleans.Runtime;
 
 namespace DigitalBrain.Apps;
 
@@ -46,8 +44,8 @@ internal sealed class MarketplaceNeuron(
     internal string? OwnerKey(string publisher, string name)
         => Find(publisher, name) is { } listing ? OwnerKey(listing) : null;
 
-    internal static string OwnerKey(MarketplaceListing listing)
-        => IApp.Key(BrainScope.Create(listing.PublisherAccountId, listing.PublisherBrainId).Id, listing.Name);
+    internal static string? OwnerKey(MarketplaceListing listing)
+        => listing.Source.Scope() is { } scope ? IApp.Key(scope, listing.Name) : null;
 
     private MarketplaceListing? Find(string publisher, string name)
         => State.Listings.FirstOrDefault(item => item.Publisher == publisher && item.Name == name);

@@ -1,53 +1,49 @@
-using DigitalBrain;
-using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
-using DigitalBrain.Testing;
-using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
-using Xunit;
 
 namespace DigitalBrain.Framework.Tests.Unit.Brain;
 
 public sealed class BrainFacts
 {
     [Fact]
-    public async Task EstablishIsIdempotent()
+    public async Task CreateIsIdempotent()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var host = await ModuleTest.Create().StartAsync(ct);
-        var neuron = host.Get<IBrain>(BrainScope.Create("acct", "personal").Id);
-        var first = await neuron.Establish(new("personal", "acct"));
-        var second = await neuron.Establish(new("personal", "acct"));
-        Assert.Equal("personal", first.Name);
-        Assert.Equal("acct", first.OwnerAccountId);
-        Assert.Equal(first.EstablishedAt, second.EstablishedAt);
+        var kernel = host.Get<IKernel>(BrainScope.Create("acct", "personal").Id);
+        await kernel.Create(new Owner("acct"));
+        var first = await kernel.Read();
+        await kernel.Create(new Owner("acct"));
+        var second = await kernel.Read();
+        Assert.Equal("acct", first.Owner.AccountId);
+        Assert.Equal(first.CreatedAt, second.CreatedAt);
     }
 
     // Activated arrives during the grain's own activation, before any per-activation watch can
     // re-attach, so these facts listen where the operating system does: the silo's signal hub.
     [Fact]
-    public async Task AnEstablishedBrainPublishesActivatedOnBirthAndOnEveryLaterWake()
+    public async Task ACreatedBrainPublishesActivatedOnBirthAndOnEveryLaterWake()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var host = await ModuleTest.Create().StartAsync(ct);
         using var activations = host.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<Activated>();
         var scope = BrainScope.Create("acct", "waking").Id;
-        var neuron = host.Get<IBrain>(scope);
-        await neuron.Establish(new("waking", "acct"));
+        var kernel = host.Get<IKernel>(scope);
+        await kernel.Create(new Owner("acct"));
         var born = await activations.Reader.ReadAsync(ct);
-        Assert.Equal((scope, "acct", "waking"), (born.BrainId, born.OwnerAccountId, born.Name));
-        await host.DeactivateAsync(neuron, ct);
-        await neuron.Read();
-        Assert.Equal(scope, (await activations.Reader.ReadAsync(ct)).BrainId);
+        Assert.Equal("acct", born.Owner.AccountId);
+        Assert.EndsWith("/" + scope, born.Publisher.Name, StringComparison.Ordinal);
+        await host.DeactivateAsync(kernel, ct);
+        await kernel.Read();
+        Assert.EndsWith("/" + scope, (await activations.Reader.ReadAsync(ct)).Publisher.Name, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task AnUnestablishedBrainStaysSilentOnActivation()
+    public async Task AnUncreatedBrainStaysSilentOnActivation()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var host = await ModuleTest.Create().StartAsync(ct);
         using var activations = host.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<Activated>();
-        await host.Get<IBrain>(BrainScope.Create("acct", "silent").Id).Read();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => host.Get<IKernel>(BrainScope.Create("acct", "silent").Id).Read());
         using var quiet = CancellationTokenSource.CreateLinkedTokenSource(ct);
         quiet.CancelAfter(TimeSpan.FromSeconds(1));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(

@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using DigitalBrain.Framework.Vectors;
 
 namespace DigitalBrain.Qdrant;
 

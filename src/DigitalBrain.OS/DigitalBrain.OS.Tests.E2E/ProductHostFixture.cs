@@ -1,9 +1,11 @@
 using DigitalBrain;
 using DigitalBrain.AI;
+using DigitalBrain.AI.Models;
 using DigitalBrain.Apps;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Aspire.Hosting;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
 
 namespace DigitalBrain.OS.Tests.E2E;
 
@@ -19,11 +21,6 @@ public sealed class ProductHostFixture : ReferenceBrainFixture
             .WithHostConfiguration(FlutterHostOptions.WebContainerKey, "true")
             .WithBrowser(new() { PrimarySession = false, AssertionTimeout = TimeSpan.FromMinutes(2) })
             .WithStartupTimeout(TimeSpan.FromMinutes(15))
-            .WithResourceEnvironment(new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["OTEL_EXPORTER_OTLP_ENDPOINT"] = Collector.Endpoint.AbsoluteUri,
-                ["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/protobuf",
-                [DigitalBrainConfiguration.EnvironmentName(ShippedAppsServiceCollectionExtensions.ShipOnStartupKey)] = "settings,assistant,customer-researcher",
-            })
+            .ExportingTelemetryTo(Collector)
             .StartAsync(cancellationToken);
 }

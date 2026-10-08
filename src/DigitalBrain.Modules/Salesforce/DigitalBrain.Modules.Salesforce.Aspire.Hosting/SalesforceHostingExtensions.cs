@@ -3,14 +3,15 @@ using Aspire.Hosting.ApplicationModel;
 using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Platform.Integrations;
 
 namespace DigitalBrain.Salesforce.Aspire.Hosting;
 
 public static class SalesforceHostingExtensions
 {
-    // Only the host receives the OAuth parameters. The public origin defaults to the host's own http endpoint;
-    // the MCP endpoint is a module option.
+    // Only the host receives the OAuth parameters. The Platform's public origin defaults to the host's own
+    // http endpoint; pass one explicitly when a reverse proxy fronts the callback. The MCP endpoint is a module option.
     public static DigitalBrainModuleBuilder<DigitalBrain.Salesforce.Aspire.Hosting.SalesforceModuleHosting> WithHostedMcp(
         this DigitalBrainModuleBuilder<DigitalBrain.Salesforce.Aspire.Hosting.SalesforceModuleHosting> module,
         Uri? publicOrigin = null)
@@ -26,8 +27,6 @@ public static class SalesforceHostingExtensions
         DigitalBrainBuilder brain,
         IResourceBuilder<DigitalBrainModuleResource> module) : DigitalBrainModuleProjection
     {
-        private static readonly string OptionsRoot = DigitalBrainConfiguration.ModuleOptionsSection(new ModuleId("salesforce"));
-
         private bool _enabled;
         private Uri? _publicOrigin;
         private IResourceBuilder<ParameterResource>? _consumerKey;
@@ -51,7 +50,7 @@ public static class SalesforceHostingExtensions
                 .WithDescription(
                     "Consumer key (client ID) from your existing Salesforce "
                     + "[External Client App](https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/create-external-client-app.html). "
-                    + "Register <your deployment origin>/integrations/salesforce/callback, enable PKCE and JWT access tokens, and allow mcp_api and refresh_token.",
+                    + "Register <your deployment origin>/connections/oauth/salesforce/callback, enable PKCE and JWT access tokens, and allow mcp_api and refresh_token.",
                     enableMarkdown: true)
                 .WithParentRelationship(module);
             _consumerSecret ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("salesforce-consumer-secret"), secret: true)
@@ -66,11 +65,11 @@ public static class SalesforceHostingExtensions
                 .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.Key("salesforce", "ConsumerSecret")), _consumerSecret);
             if (_publicOrigin is { } origin)
             {
-                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(OptionsRoot, "PublicOrigin"), origin.AbsoluteUri);
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ConnectionsPublicOriginKey), origin.AbsoluteUri);
             }
             else
             {
-                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(OptionsRoot, "PublicOrigin"), builder.GetEndpoint("http"));
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ConnectionsPublicOriginKey), builder.GetEndpoint("http"));
             }
         }
     }

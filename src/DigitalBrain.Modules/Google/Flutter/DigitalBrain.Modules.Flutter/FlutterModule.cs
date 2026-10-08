@@ -1,6 +1,8 @@
 using DigitalBrain;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Modules;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,11 +12,11 @@ namespace DigitalBrain.Flutter;
 
 public sealed class FlutterModule() : Module<FlutterModuleOptions>(new ModuleId("flutter")), IHttpModule
 {
+    public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.Flutter.Button.IButton).Assembly;
+
     public override void Configure(ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
-        silo.Services.AddOptions<FlutterModuleOptions>().Configure<IConfiguration>(
-            static (options, configuration) => configuration.PopulateModuleOptions("flutter", options));
     }
 
     public void Configure(IEndpointRouteBuilder endpoints)

@@ -1,8 +1,9 @@
 using System.ComponentModel;
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Framework.Modules;
 using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Framework.Signals;
 using DigitalBrain.Time;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Hosting;
@@ -12,7 +13,7 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 public sealed class ContractCatalogFacts
 {
     [Fact]
-    public async Task TypesAreDiscoveredFromSelectedModulesWithoutVectorServices()
+    public async Task TypesAreDiscoveredAndFoundByWordsWithoutAnEmbeddingModel()
     {
         await using var brain = await ModuleTest.Create().WithModule<TimeModule>().WithReminders()
             .StartAsync(TestContext.Current.CancellationToken);
@@ -22,10 +23,10 @@ public sealed class ContractCatalogFacts
         var timer = types.Single(type => type.Id == "timer");
         Assert.Equal(typeof(DigitalBrain.Time.Timers.ITimer).FullName, timer.Contract);
         Assert.Equal("time", timer.ModuleId);
-        Assert.Contains(timer.Signals!, signal => signal.Contains("TimerTick", StringComparison.Ordinal) && signal.Contains("TimerId", StringComparison.Ordinal));
+        Assert.Contains(brain.SiloServices.GetRequiredService<ContractCatalog>().Signals, signal => signal.ModuleId == "time" && signal.Shape.Contains("TimerTick", StringComparison.Ordinal) && signal.Shape.Contains("TimerId", StringComparison.Ordinal));
         Assert.Contains(types, type => type.Id == "reminder");
         Assert.DoesNotContain(types, type => type.Id == "test.registry-clock");
-        Assert.Empty(await brain.SiloServices.GetRequiredService<NeuronTypeSearch>().Search("schedule a timer", ct: TestContext.Current.CancellationToken));
+        Assert.Contains(await brain.SiloServices.GetRequiredService<NeuronTypeSearch>().Search("schedule a timer", ct: TestContext.Current.CancellationToken), hit => hit.Type.Id == "timer");
     }
 
     [Fact]
@@ -54,6 +55,7 @@ public sealed class ContractCatalogFacts
 
 public sealed class RegistryFixtureModule() : Module(new ModuleId(nameof(RegistryFixtureModule)))
 {
+    public override System.Reflection.Assembly? Contracts => typeof(RegistryFixtureModule).Assembly;
     public override void Configure(ISiloBuilder silo) { }
 }
 

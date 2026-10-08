@@ -77,9 +77,14 @@ void main() {
     await tester.tap(find.byKey(const Key('connect_submit')));
     await tester.pumpAndSettle();
 
-    expect(harness.calls.any((call) => call.$1 == 'connect'), isTrue);
-    final connect = harness.calls.firstWhere((call) => call.$1 == 'connect');
-    expect(connect.$2!['value'], 'canary-token-9a1f');
+    final connect = harness.calls.firstWhere(
+      (call) => call.$1 == 'mail/connect',
+    );
+    expect(connect.$2, {
+      'connectorId': 'supabase',
+      'authMethodId': 'connection-string',
+      'value': 'canary-token-9a1f',
+    });
     expect(find.textContaining('canary-token-9a1f'), findsNothing);
     expect(
       tester
@@ -88,14 +93,18 @@ void main() {
           .text,
       isEmpty,
     );
-    expect(find.textContaining('Configured'), findsWidgets);
-    expect(find.text('Connected'), findsNothing);
+    expect(find.textContaining('Connected'), findsWidgets);
   });
 
   testWidgets('lists status and probes and disconnects', (tester) async {
     final harness = _Harness()
       ..records = [
-        {'id': 'db', 'connectorId': 'supabase', 'status': 'Expired'},
+        {
+          'connectorId': 'supabase',
+          'connectionId': 'db',
+          'authMethodId': 'connection-string',
+          'status': 'Expired',
+        },
       ];
     await tester.pumpWidget(
       MaterialApp(
@@ -114,12 +123,50 @@ void main() {
 
     await tester.tap(find.byTooltip('Probe connection'));
     await tester.pumpAndSettle();
-    expect(harness.calls.any((call) => call.$1 == 'probe'), isTrue);
+    expect(harness.calls.where((call) => call.$1 == 'db/probe'), [
+      ('db/probe', null),
+    ]);
 
     await tester.tap(find.byTooltip('Disconnect'));
     await tester.pumpAndSettle();
-    expect(harness.calls.any((call) => call.$1 == 'disconnect'), isTrue);
+    expect(harness.calls.where((call) => call.$1 == 'db/disconnect'), [
+      ('db/disconnect', null),
+    ]);
     expect(harness.records, isEmpty);
+  });
+
+  testWidgets('encodes a connection id with a space or slash as one segment', (
+    tester,
+  ) async {
+    final harness = _Harness()
+      ..records = [
+        {
+          'connectorId': 'supabase',
+          'connectionId': 'work db/2',
+          'authMethodId': 'connection-string',
+          'status': 'Connected',
+        },
+      ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ConnectWindow(
+            request: harness.request,
+            connectorRequest: harness.catalog,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Probe connection'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Disconnect'));
+    await tester.pumpAndSettle();
+    expect(
+      harness.calls.map((call) => call.$1).where((path) => path.isNotEmpty),
+      ['work%20db%2F2/probe', 'work%20db%2F2/disconnect'],
+    );
   });
 }
 
@@ -139,16 +186,17 @@ final class _Harness {
     switch (path) {
       case '':
         return records;
-      case 'connect':
+      case 'mail/connect':
         records = [
           {
-            'id': body!['connectionId'],
-            'connectorId': body['connectorId'],
-            'status': 'Configured',
+            'connectorId': body!['connectorId'],
+            'connectionId': 'mail',
+            'authMethodId': body['authMethodId'],
+            'status': 'Connected',
           },
         ];
         return records.single;
-      case 'disconnect':
+      case 'db/disconnect':
         records = [];
         return null;
       default:

@@ -7,7 +7,7 @@ public sealed class ModuleIdFacts
     [InlineData("ai")]
     [InlineData("csharp-authoring")]
     public void A_valid_id_round_trips_as_its_string(string value)
-        => Assert.Equal(value, new DigitalBrain.Framework.ModuleId(value).ToString());
+        => Assert.Equal(value, new DigitalBrain.Framework.Modules.ModuleId(value).ToString());
 
     [Theory]
     [InlineData("")]
@@ -16,14 +16,14 @@ public sealed class ModuleIdFacts
     [InlineData("a_b")]
     [InlineData("a:b")]
     public void An_id_outside_the_grammar_cannot_be_constructed(string value)
-        => Assert.ThrowsAny<ArgumentException>(() => new DigitalBrain.Framework.ModuleId(value));
+        => Assert.ThrowsAny<ArgumentException>(() => new DigitalBrain.Framework.Modules.ModuleId(value));
 
     [Fact]
     public void Ids_differing_only_by_case_are_the_same_id()
-        => Assert.Equal(new DigitalBrain.Framework.ModuleId("AI"), new DigitalBrain.Framework.ModuleId("ai"));
+        => Assert.Equal(new DigitalBrain.Framework.Modules.ModuleId("AI"), new DigitalBrain.Framework.Modules.ModuleId("ai"));
 
     [Fact]
     public void The_configuration_sections_speak_module_id()
         => Assert.Equal("DigitalBrain:Modules:ai:Options",
-            DigitalBrain.Framework.DigitalBrainConfiguration.ModuleOptionsSection(new DigitalBrain.Framework.ModuleId("ai")));
+            DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.ModuleOptionsSection(new DigitalBrain.Framework.Modules.ModuleId("ai")));
 }

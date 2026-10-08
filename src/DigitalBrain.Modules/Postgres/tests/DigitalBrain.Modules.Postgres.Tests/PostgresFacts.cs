@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Postgres;
 using Microsoft.Extensions.Configuration;
@@ -13,6 +14,10 @@ namespace DigitalBrain.Modules.Postgres.Tests;
 
 public sealed class PostgresFacts
 {
+    [Fact]
+    public void APostgresOutageIsAServiceUnavailableRefusal()
+        => Assert.IsAssignableFrom<ServiceUnavailableException>(new PostgresUnavailableException("down"));
+
     [Fact]
     public async Task ParametersAreBoundNotInterpolated()
     {
@@ -82,7 +87,7 @@ public sealed class PostgresFacts
         silo.AddPostgres();
         await using var provider = services.BuildServiceProvider();
         Assert.Null(provider.GetService<NpgsqlDataSource>());
-        var source = await provider.GetRequiredService<IPostgresSourceRegistry>().Get("platform", TestContext.Current.CancellationToken);
+        var source = await provider.GetRequiredService<IPostgresSourceRegistry>().Get(DigitalBrain.Postgres.Tables.TablePlacement.Shared, TestContext.Current.CancellationToken);
         Assert.Equal("analytics", new NpgsqlConnectionStringBuilder(source.ConnectionString).Database);
         Assert.Single(provider.GetServices<IPostgresProvider>());
         Assert.Single(provider.GetRequiredService<IOptions<HealthCheckServiceOptions>>().Value.Registrations, registration => registration.Name == "postgres");
@@ -125,7 +130,7 @@ public sealed class PostgresFacts
         new PostgresTestSiloBuilder(services, configuration).AddPostgres();
         await using var provider = services.BuildServiceProvider();
         var error = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await provider.GetRequiredService<IPostgresSourceRegistry>().Get("platform", TestContext.Current.CancellationToken));
+            await provider.GetRequiredService<IPostgresSourceRegistry>().Get(DigitalBrain.Postgres.Tables.TablePlacement.Shared, TestContext.Current.CancellationToken));
         Assert.DoesNotContain("secret-value", error.ToString(), StringComparison.Ordinal);
     }
 
@@ -161,7 +166,6 @@ public sealed class PostgresFacts
         services.AddSingleton<IPostgresProvider, PostgresTestControls>();
         await using var brain = await StartAsync();
         services.AddSingleton<DigitalBrain.IDigitalBrain>(brain);
-        services.AddSingleton(brain.SiloServices.GetRequiredService<IActivationCensus>());
         new PostgresTestSiloBuilder(services, configuration).AddPostgres();
         await using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
         var report = await provider.GetRequiredService<HealthCheckService>().CheckHealthAsync(TestContext.Current.CancellationToken);

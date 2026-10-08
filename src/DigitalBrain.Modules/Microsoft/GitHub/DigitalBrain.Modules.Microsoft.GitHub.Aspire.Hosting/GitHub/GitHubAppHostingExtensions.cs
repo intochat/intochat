@@ -3,6 +3,7 @@ using Aspire.Hosting.ApplicationModel;
 using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Platform.Integrations;
 
 namespace DigitalBrain.Microsoft.GitHub;
@@ -16,12 +17,12 @@ public static class GitHubAppHostingExtensions
         ArgumentNullException.ThrowIfNull(configure);
         var options = new GitHubAppHostingOptions();
         configure(options);
-        return module.WithGitHubApp(options.AppId, options.Slug, options.ClientId, options.PublicOrigin!, options.PublicWebhookUrl!);
+        return module.WithGitHubApp(options.AppId, options.ClientId, options.PublicOrigin!, options.PublicWebhookUrl!);
     }
 
     public static DigitalBrainModuleBuilder<DigitalBrain.Microsoft.GitHub.GitHubModuleHosting> WithGitHubApp(
         this DigitalBrainModuleBuilder<DigitalBrain.Microsoft.GitHub.GitHubModuleHosting> module,
-        long appId, string slug = "", string clientId = "", Uri? publicOrigin = null, Uri? publicWebhookUrl = null)
+        long appId, string clientId = "", Uri? publicOrigin = null, Uri? publicWebhookUrl = null)
     {
         ArgumentNullException.ThrowIfNull(module);
         ArgumentOutOfRangeException.ThrowIfLessThan(appId, 1);
@@ -41,7 +42,7 @@ public static class GitHubAppHostingExtensions
         {
             throw new ArgumentException("GitHub requires a public HTTPS /integrations/github/webhook endpoint.", nameof(publicWebhookUrl));
         }
-        var projection = module.DigitalBrainBuilder.GetOrAddState(_ => new GitHubAppProjection(module.DigitalBrainBuilder, appId, slug, clientId, publicOrigin, publicWebhookUrl), out var added);
+        var projection = module.DigitalBrainBuilder.GetOrAddState(_ => new GitHubAppProjection(module.DigitalBrainBuilder, appId, clientId, publicOrigin, publicWebhookUrl), out var added);
         if (!added)
         {
             throw new InvalidOperationException("Configure the shared GitHub App once per DigitalBrain.");
@@ -50,7 +51,7 @@ public static class GitHubAppHostingExtensions
         return module;
     }
 
-    private sealed class GitHubAppProjection(DigitalBrainBuilder brain, long appId, string slug = "", string clientId = "", Uri? publicOrigin = null, Uri? publicWebhookUrl = null)
+    private sealed class GitHubAppProjection(DigitalBrainBuilder brain, long appId, string clientId = "", Uri? publicOrigin = null, Uri? publicWebhookUrl = null)
         : DigitalBrainModuleProjection
     {
         private IResourceBuilder<ParameterResource>? _privateKey;
@@ -69,18 +70,18 @@ public static class GitHubAppHostingExtensions
             if (publicOrigin is not null)
             {
                 _clientSecret ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("github-app-client-secret"), secret: true)
-                .WithDescription("GitHub App OAuth client secret; user tokens are only used during authorization.");
+                .WithDescription("GitHub App OAuth client secret. Register <public origin>/connections/oauth/github/callback; user tokens only prove repository access once.");
             }
             var root = GitHubModuleOptions.SectionName;
             const string IntegrationRoot = IntegrationSchema.SectionName + ":github";
-            builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "AppId"), appId.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(IntegrationRoot, "AppId"), appId.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "Slug"), slug)
-                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "ClientId"), clientId)
+            builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(IntegrationRoot, "AppId"), appId.ToString(System.Globalization.CultureInfo.InvariantCulture))
                 .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(IntegrationRoot, "PrivateKeyPem"), _privateKey);
             if (publicOrigin is not null)
             {
-                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(root, "PublicOrigin"), publicOrigin.AbsoluteUri)
+                // The Platform's OAuth login reads the client from the github Integration and calls
+                // back on the shared connections origin.
+                builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ConnectionsPublicOriginKey), publicOrigin.AbsoluteUri)
+                    .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(IntegrationRoot, "ClientId"), clientId)
                     .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(IntegrationRoot, "ClientSecret"), _clientSecret!);
             }
             if (publicWebhookUrl is not null)

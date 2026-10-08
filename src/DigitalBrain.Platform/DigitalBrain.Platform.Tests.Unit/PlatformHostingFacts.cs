@@ -1,9 +1,8 @@
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Capacity;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Framework.Platform.Secrets;
+using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Authority;
 using DigitalBrain.Platform.Secrets;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,7 +15,6 @@ public sealed class PlatformHostingFacts
     public async Task ABrainWithoutModulesHasEveryPlatformFacet()
     {
         await using var brain = await ModuleTest.Create().StartAsync(TestContext.Current.CancellationToken);
-        Assert.NotNull(brain.SiloServices.GetRequiredService<ICapacity>());
         Assert.NotNull(brain.SiloServices.GetRequiredService<ICapabilities>());
         Assert.NotNull(brain.SiloServices.GetRequiredService<IIdentity>());
         Assert.NotNull(brain.SiloServices.GetRequiredService<IBrainAccess>());

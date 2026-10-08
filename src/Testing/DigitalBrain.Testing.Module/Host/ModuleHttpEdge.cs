@@ -1,13 +1,11 @@
-using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Modules;
 using DigitalBrain.Platform;
 using DigitalBrain.Platform.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Orleans;
 
 namespace DigitalBrain.Testing.Module;
 
@@ -33,27 +31,31 @@ internal static class ModuleHttpEdge
 
         // Production co-hosts the web pipeline in the silo's container, so endpoint grain calls
         // carry silo provenance, not an external client's. The edge mirrors that by serving the
-        // silo's own factory and brain client.
+        // silo's own factory and brain client. The factory is the active silo's, so endpoints keep
+        // working after RestartSiloAsync; the brain client is disposable, so it stays the start-time
+        // silo's rather than be tracked and disposed by a request scope.
         var silo = brain.SiloServices;
         builder.Services.AddSingleton(silo.GetRequiredService<IDigitalBrain>());
         builder.Services.AddSingleton(silo.GetRequiredService<IDigitalBrains>());
-        builder.Services.AddSingleton(silo.GetRequiredService<IGrainFactory>());
+        builder.Services.AddTransient(_ => brain.SiloServices.GetRequiredService<IGrainFactory>());
         foreach (var surface in silo.GetServices<IHttpSurface>()) { builder.Services.AddSingleton(surface); }
         builder.Services.AddIdentity();
         // Minimal-API parameter binding decides "service or body?" at map time, and the container
         // special-cases IServiceProviderIsService, so silo services must be real registrations
         // here: every silo service type the web container does not define forwards to the silo.
+        // Forwarding and the per-request scope reach the silo that is active now: RestartSiloAsync
+        // disposes the old silo's container, so its singletons (pending OAuth logins) die with it.
         var webServiceTypes = builder.Services.Select(descriptor => descriptor.ServiceType).ToHashSet();
         foreach (var serviceType in siloServiceTypes)
         {
             if (serviceType.IsGenericTypeDefinition || webServiceTypes.Contains(serviceType)) { continue; }
-            builder.Services.AddTransient(serviceType, _ => silo.GetRequiredService(serviceType));
+            builder.Services.AddTransient(serviceType, _ => brain.SiloServices.GetRequiredService(serviceType));
         }
 
         var app = builder.Build();
         app.Use(async (context, next) =>
         {
-            await using var scope = silo.CreateAsyncScope();
+            await using var scope = brain.SiloServices.CreateAsyncScope();
             context.RequestServices = new FallbackServiceProvider(context.RequestServices, scope.ServiceProvider);
             await next(context);
         });

@@ -4,6 +4,8 @@ using Aspire.Hosting.Testing;
 using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Modules;
 using DigitalBrain.Testing.E2E;
 
 namespace DigitalBrain.OS.Tests.Unit;
@@ -36,6 +38,22 @@ public sealed class ProductCompositionFacts
     }
 
     [Fact]
+    public async Task TheAppHostRunsAnAlwaysOnSandboxAndProjectsItsUrlIntoTheBrain()
+    {
+        await using var appHost = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.DigitalBrain_AppHost>(
+            ["Parameters:Modules-digitalbrain-master-key=synthetic-composition-test-key-32chars"], TestContext.Current.CancellationToken);
+        var runtime = appHost.Resources.Single(resource => resource.Name == "OperatingSystem");
+        var environment = new Dictionary<string, object>();
+        var context = new EnvironmentCallbackContext(appHost.ExecutionContext, runtime, environment, TestContext.Current.CancellationToken);
+        foreach (var callback in runtime.Annotations.OfType<EnvironmentCallbackAnnotation>()) { await callback.Callback(context); }
+        var key = DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Microsoft.CSharp.CSharpDeploymentSettings.SectionName, nameof(DigitalBrain.Microsoft.CSharp.CSharpDeploymentSettings.SandboxUrl));
+        Assert.IsType<EndpointReference>(environment[key]);
+        var sandbox = appHost.Resources.Single(resource => resource.Name == DigitalBrain.Microsoft.CSharp.CSharpModuleHosting.ResourceName);
+        // Always on: the OS never starts it on demand, and readiness never waits for it.
+        Assert.DoesNotContain(sandbox.Annotations, annotation => annotation.GetType().Name == "ExplicitStartupAnnotation");
+    }
+
+    [Fact]
     public async Task ProductMatchesTheReferenceCompositionModuleSet()
     {
         await using var appHost = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.DigitalBrain_AppHost>(
@@ -52,7 +70,7 @@ public sealed class ProductCompositionFacts
         Assert.DoesNotContain("registry", catalogModules);
         Assert.Contains(appHost.Resources, resource => resource.Name == "Modules-openrouter-api-key"
             && resource is ParameterResource { Secret: true });
-        var runtime = appHost.Resources.Single(resource => resource.Name == "IntoChat");
+        var runtime = appHost.Resources.Single(resource => resource.Name == "OperatingSystem");
         var environment = new Dictionary<string, object>();
         var context = new EnvironmentCallbackContext(appHost.ExecutionContext, runtime, environment, TestContext.Current.CancellationToken);
         foreach (var callback in runtime.Annotations.OfType<EnvironmentCallbackAnnotation>())

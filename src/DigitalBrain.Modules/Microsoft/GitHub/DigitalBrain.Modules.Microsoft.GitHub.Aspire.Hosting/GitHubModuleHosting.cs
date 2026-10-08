@@ -1,18 +1,10 @@
 using DigitalBrain.Aspire.Hosting;
-using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Microsoft.GitHub;
 
+// Repository connections are per-brain neurons a user authorizes; the deployment provisions only
+// the shared GitHub App, through WithGitHubApp or WithConfiguredGitHubApp.
 public sealed class GitHubModuleHosting : ModuleHosting<DigitalBrain.Microsoft.GitHub.GitHubModule>
 {
-    public override void Configure(DigitalBrainBuilder brain)
-    {
-        var repositories = brain.GetModuleConfiguration("github").GetModuleOptions<GitHubModuleOptions>("github").Repositories;
-        var module = new DigitalBrainModuleBuilder<DigitalBrain.Microsoft.GitHub.GitHubModuleHosting>(brain);
-        foreach (var (id, repo) in repositories)
-        {
-            module.WithGitHubRepository(id, repo.AppId, repo.InstallationId, repo.RepositoryId,
-                repo.RepoOwner, repo.RepoName, repo.EndpointId, repo.ApiHost, repo.McpEndpoint);
-        }
-    }
+    public override void Configure(DigitalBrainBuilder brain) => ArgumentNullException.ThrowIfNull(brain);
 }

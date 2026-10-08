@@ -1,5 +1,6 @@
 using DigitalBrain.AI;
-using DigitalBrain.AI.OpenRouter;
+using DigitalBrain.AI.Models;
+using DigitalBrain.AI.Models.OpenRouter;
 using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -19,8 +20,8 @@ public sealed class OpenRouterFacts
             .ConfigureSilo(silo => silo.Services.Configure<AIOptions>(options =>
                 options.Default.Model = nameof(IDeepSeekV41Flash))).StartAsync(ct);
 
-        var resolved = await brain.SiloServices.GetRequiredService<ModelProfiles>().Resolve(null, requiresTools: true, cancellationToken: ct);
-        Assert.Equal("OpenRouter", resolved.Provider);
+        var resolved = await brain.SiloServices.GetRequiredService<ModelCatalog>().Resolve(null, requiresTools: true, ct);
+        Assert.Equal(AiProvider.OpenRouter, resolved.Provider);
         Assert.Equal("deepseek/deepseek-v4.1-flash", resolved.Model);
         Assert.Null(resolved.Endpoint);
         Assert.Equal(IntegrationStatus.Ready,

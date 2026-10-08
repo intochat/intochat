@@ -1,77 +1,40 @@
 using System.ComponentModel;
-using System.Reflection;
 using System.Text.Json;
-using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Framework.Surface;
 using ModelContextProtocol.Server;
-using Orleans;
 
 namespace DigitalBrain.Mcp;
 
 [McpServerToolType]
-internal sealed class NeuronTools(IDigitalBrain brain, McpCaller caller, NeuronTypeSearch search)
+internal sealed class NeuronTools(NeuronSurface surface, McpCaller caller)
 {
-    private static readonly NeuronContracts Contracts = new(NeuronContracts.Deployed());
-    private static readonly HashSet<string> ObserverMethods = [nameof(INeuron.Watch), nameof(INeuron.Unwatch)];
-    private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
-    private static readonly MethodInfo GetNeuron = typeof(IDigitalBrain).GetMethod(nameof(IDigitalBrain.Get))!;
-
-    [McpServerTool(Name = "neurons_list"), Description("List neuron contracts this host can address. Pass the full type name to neurons_get and neurons_call.")]
+    [McpServerTool(Name = NeuronSurfaceTools.ListName), Description(NeuronSurfaceTools.ListDescription)]
     public IReadOnlyList<string> List()
     {
         caller.Stamp();
-        return [.. Contracts.Names.Order(StringComparer.Ordinal)];
+        return surface.List();
     }
 
-    [McpServerTool(Name = "neurons_search"), Description("Search this host's neuron contracts by what they do. Uses lexical matching when local vector search is unavailable. Returns each match's contract type name, methods and signals.")]
-    public async Task<IReadOnlyList<NeuronTypeHit>> Search(string query, CancellationToken cancellationToken = default)
+    [McpServerTool(Name = NeuronSurfaceTools.SearchName), Description(NeuronSurfaceTools.SearchDescription)]
+    public Task<IReadOnlyList<NeuronTypeHit>> Search(string query, CancellationToken cancellationToken = default)
     {
         caller.Stamp();
-        return await search.Search(query, ct: cancellationToken);
+        return surface.Search(query, cancellationToken);
     }
 
-    [McpServerTool(Name = "neurons_get"), Description("Resolve a neuron. contract is a full type name from neurons_list, key is the grain key, for example a timer name.")]
+    [McpServerTool(Name = NeuronSurfaceTools.GetName), Description(NeuronSurfaceTools.GetDescription)]
     public string Get(string contract, string key)
     {
         caller.Stamp();
-        ArgumentException.ThrowIfNullOrWhiteSpace(key);
-        return Neuron(contract, key).GetGrainId().ToString();
+        return surface.Get(contract, key);
     }
 
-    [McpServerTool(Name = "neurons_call"), Description("Call a neuron method. arguments is a JSON array, one element per method argument, omitting CancellationToken. Watch and Unwatch are not callable.")]
-    public async Task<JsonElement?> Call(string contract, string key, string method, string arguments = "[]", CancellationToken cancellationToken = default)
+    [McpServerTool(Name = NeuronSurfaceTools.CallName), Description(NeuronSurfaceTools.CallDescription)]
+    public Task<JsonElement?> Call(string contract, string key, string method, string arguments = "[]", CancellationToken cancellationToken = default)
     {
         caller.Stamp();
-        ArgumentException.ThrowIfNullOrWhiteSpace(key);
-        ArgumentException.ThrowIfNullOrWhiteSpace(method);
-        var type = Contracts.Find(contract);
-        var payload = JsonSerializer.Deserialize<JsonElement[]>(arguments, Json) ?? [];
-        var target = type.GetMethods().Concat(type.GetInterfaces().SelectMany(inherited => inherited.GetMethods()))
-            .Where(candidate => candidate.Name == method && !ObserverMethods.Contains(candidate.Name))
-            .SingleOrDefault(candidate => candidate.GetParameters().Count(IsArgument) == payload.Length)
-            ?? throw new ArgumentException($"{type.Name} has no method {method} taking {payload.Length} arguments.");
-        var parameters = target.GetParameters();
-        var values = new object?[parameters.Length];
-        for (int index = 0, argument = 0; index < parameters.Length; index++)
-        {
-            values[index] = IsArgument(parameters[index])
-                ? payload[argument++].Deserialize(parameters[index].ParameterType, Json)
-                : cancellationToken;
-        }
-        object? returned;
-        try { returned = target.Invoke(Neuron(type, key), values); }
-        catch (TargetInvocationException error) when (error.InnerException is not null) { throw error.InnerException; }
-        if (returned is not Task task) { throw new NotSupportedException($"{type.Name}.{target.Name} does not return a Task."); }
-        await task.ConfigureAwait(false);
-        if (!target.ReturnType.IsGenericType) { return null; }
-        var result = target.ReturnType.GetProperty(nameof(Task<object>.Result))!.GetValue(task);
-        return JsonSerializer.SerializeToElement(result, target.ReturnType.GetGenericArguments()[0], Json);
+        return surface.Call(contract, key, method, arguments, cancellationToken);
     }
-
-    private IAddressable Neuron(string contract, string key) => Neuron(Contracts.Find(contract), key);
-
-    private IAddressable Neuron(Type contract, string key)
-        => (IAddressable)GetNeuron.MakeGenericMethod(contract).Invoke(brain, [key])!;
-
-    private static bool IsArgument(ParameterInfo parameter) => parameter.ParameterType != typeof(CancellationToken);
 }

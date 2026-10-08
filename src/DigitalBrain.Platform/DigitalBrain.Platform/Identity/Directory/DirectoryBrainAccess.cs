@@ -1,6 +1,5 @@
-using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework;
 using DigitalBrain.Platform.Identity.Authority;
-using Orleans;
 
 namespace DigitalBrain.Platform.Identity.Directory;
 
@@ -9,8 +8,10 @@ internal sealed class DirectoryBrainAccess(IGrainFactory grains) : IBrainAccess
 {
     public ValueTask<bool> CanAccessAsync(string principalId, string accountId, string brainId, CancellationToken cancellationToken = default)
         => new(HasMembership(principalId, accountId, brainId, cancellationToken));
+    // A brain id is global and belongs to one account; asking under any other account is a miss.
     private async Task<bool> HasMembership(string principalId, string accountId, string brainId, CancellationToken ct)
-        => await grains.GetGrain<IBrainAuthority>(BrainScope.Create(accountId, brainId).Id).Membership(principalId).WaitAsync(ct) is not null;
+        => await grains.GetGrain<IBrainAuthority>(BrainScope.Create(accountId, brainId).Id).Membership(principalId).WaitAsync(ct) is { } member
+            && member.AccountId == accountId;
 
 }
 

@@ -5,7 +5,6 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
-import 'agent_events.dart';
 import 'basic_credentials.dart';
 import 'cookie_http_client.dart';
 import 'session_http_client_io.dart'
@@ -13,7 +12,6 @@ import 'session_http_client_io.dart'
     as transport;
 import 'host_environment.dart';
 import 'models/installed_app.dart';
-import 'models/marketplace.dart';
 import 'models/brain_models.dart';
 import 'models/compute_usage.dart';
 import 'models/model_catalog.dart';
@@ -111,34 +109,6 @@ final class DigitalBrainUiClient {
       'POST',
       register ? '/identity/register' : '/identity/login',
       body: {'principalId': username, 'password': password},
-      timeout: const Duration(seconds: 15),
-    );
-    _useSession(jsonDecode(response.body) as Map<String, dynamic>);
-  }
-
-  /// Accounts the deployment seeded for development; empty unless the server runs in open posture.
-  Future<List<SeededAccount>> listSeededAccounts() async {
-    try {
-      final response = await _request(
-        'GET',
-        '/identity/seeded-accounts',
-        timeout: const Duration(seconds: 10),
-      );
-      return [
-        for (final item in jsonDecode(response.body) as List)
-          SeededAccount.fromJson(Map<String, dynamic>.from(item as Map)),
-      ];
-    } on UiRequestException catch (error) {
-      if (error.statusCode == 404) return const [];
-      rethrow;
-    }
-  }
-
-  Future<void> signInSeeded(String username) async {
-    final response = await _request(
-      'POST',
-      '/identity/seeded-accounts/${Uri.encodeComponent(username)}/login',
-      body: const {},
       timeout: const Duration(seconds: 15),
     );
     _useSession(jsonDecode(response.body) as Map<String, dynamic>);
@@ -345,38 +315,6 @@ final class DigitalBrainUiClient {
     );
   }
 
-  Future<TableSnapshot> readWorkspaceTable(
-    String workspaceId,
-    String tableId, {
-    int offset = 0,
-    int limit = 25,
-    Future<void>? cancelled,
-  }) async => TableSnapshot.fromJson(
-    Map<String, dynamic>.from(
-      await _tableRequest(
-        'GET',
-        '/brains/${Uri.encodeComponent(workspaceId)}/tables/${Uri.encodeComponent(tableId)}?offset=$offset&limit=$limit',
-        cancelled: cancelled,
-      ) as Map,
-    ),
-  );
-
-  Future<TableSnapshot> updateWorkspaceTable(
-    String workspaceId,
-    String tableId,
-    TableViewUpdate update, {
-    Future<void>? cancelled,
-  }) async => TableSnapshot.fromJson(
-    Map<String, dynamic>.from(
-      await _tableRequest(
-        'POST',
-        '/brains/${Uri.encodeComponent(workspaceId)}/tables/${Uri.encodeComponent(tableId)}/view',
-        body: update.toJson(),
-        cancelled: cancelled,
-      ) as Map,
-    ),
-  );
-
   Stream<WorkspaceRevision> watchWorkspace(String workspaceId) {
     final abort = Completer<void>();
     StreamSubscription<String>? incoming;
@@ -482,110 +420,6 @@ final class DigitalBrainUiClient {
       throw TableRequestException(response.statusCode, message);
     }
     return response.body.isEmpty ? null : jsonDecode(response.body);
-  }
-
-  /// Transcribes a recording into editable draft text without sending a chat turn.
-  Future<String> transcribeWorkspaceAudio(
-    String workspaceId,
-    Uint8List audio,
-  ) async {
-    final result = await _tableRequest(
-      'POST',
-      '/brains/${Uri.encodeComponent(workspaceId)}/voice',
-      body: {'audio': base64Encode(audio)},
-      timeout: const Duration(minutes: 3),
-    );
-    return (result as Map)['text'] as String;
-  }
-
-  /// Reads the server-owned conversation history.
-  Future<Map<String, dynamic>> readWorkspaceConversation(
-    String workspaceId,
-    String threadId,
-  ) async => Map<String, dynamic>.from(
-    await _tableRequest(
-      'GET',
-      '/brains/${Uri.encodeComponent(workspaceId)}/conversations/${Uri.encodeComponent(threadId)}',
-    ) as Map,
-  );
-
-  /// Canceling the subscription aborts both pending HTTP and response streaming.
-  Stream<AgentEvent> runAgent({
-    required String workspaceId,
-    required String threadId,
-    required String runId,
-    String? parentRunId,
-    String? modelProfile,
-    required String text,
-  }) {
-    final abort = Completer<void>();
-    StreamSubscription<AgentEvent>? incoming;
-    late StreamController<AgentEvent> controller;
-    controller = StreamController<AgentEvent>(
-      onListen: () async {
-        try {
-          final request =
-              http.AbortableRequest(
-                  'POST',
-                  baseUri.resolve('/agent'),
-                  abortTrigger: abort.future,
-                )
-                ..headers.addAll({
-                  'accept': 'text/event-stream',
-                  'content-type': 'application/json',
-                })
-                ..body = jsonEncode({
-                  'threadId': threadId,
-                  'brainId': workspaceId,
-                  'runId': runId,
-                  'parentRunId': ?parentRunId,
-                  'modelProfile': ?modelProfile,
-                  'messages': [
-                    {'id': _uuid.v4(), 'role': 'user', 'content': text},
-                  ],
-                  'tools': <Object>[],
-                  'context': <Object>[],
-                  'state': <String, Object>{},
-                  'forwardedProps': <String, Object>{},
-                });
-          final response = await _http.send(request);
-          if (abort.isCompleted) {
-            await response.stream.listen(null).cancel();
-            return;
-          }
-          if (response.statusCode != 200) {
-            final failure = await http.Response.fromStream(response);
-            try {
-              final payload = jsonDecode(failure.body);
-              if (payload is Map && payload['code'] == 'MODEL_UNAVAILABLE') {
-                throw const ModelUnavailableException();
-              }
-            } on FormatException {
-              // Non-JSON infrastructure failures retain the status-only message.
-            }
-            throw StateError('Agent request failed (${response.statusCode}).');
-          }
-          incoming = decodeAgentEvents(response.stream).listen(
-            controller.add,
-            onError: (Object error, StackTrace stack) {
-              if (!abort.isCompleted) controller.addError(error, stack);
-            },
-            onDone: controller.close,
-            cancelOnError: false,
-          );
-        } catch (error, stack) {
-          if (!abort.isCompleted) {
-            controller.addError(error, stack);
-            unawaited(controller.close());
-          }
-        }
-      },
-      onCancel: () async {
-        if (!abort.isCompleted) abort.complete();
-        await incoming?.cancel();
-      },
-    );
-    return controller.stream;
   }
 
   Stream<BrainSnapshot> watchBrain({required String chatName}) {
@@ -817,23 +651,14 @@ final class DigitalBrainUiClient {
     String path, {
     Map<String, Object?>? body,
   }) {
-    if (path.isEmpty) return jsonRequest('GET', '/connectors');
-    if (path == 'gmail/start') {
-      final connection = body?['connectionId'];
-      if (connection is! String || connection.isEmpty) {
-        throw ArgumentError('A Gmail connection name is required.');
-      }
-      return jsonRequest(
-        'POST',
-        '/brains/${Uri.encodeComponent(workspaceId)}/connections/${Uri.encodeComponent(connection)}/gmail/login',
-        body,
+    if (path.isNotEmpty) {
+      throw ArgumentError.value(
+        path,
+        'path',
+        'The connector route is the catalog only.',
       );
     }
-    return jsonRequest(
-      body == null ? 'GET' : 'POST',
-      '/brains/${Uri.encodeComponent(workspaceId)}/connections/services/$path',
-      body,
-    );
+    return jsonRequest('GET', '/connectors');
   }
 
   Future<Object?> workspaceConnectionsRequest(
@@ -896,7 +721,7 @@ final class DigitalBrainUiClient {
     Object? body,
   ]) async {
     // Creating or authoring an app is one model inference call; everything else on the
-    // apps surface (implement, verify) answers immediately with 202.
+    // apps surface (implement) answers immediately with 202.
     final authoring =
         method == 'POST' &&
         (path.endsWith('/apps') || path.endsWith('/author'));
@@ -934,13 +759,6 @@ final class UiRequestException extends StateError {
 
   @override
   String toString() => detail ?? super.toString();
-}
-
-final class ModelUnavailableException implements Exception {
-  const ModelUnavailableException();
-  @override
-  String toString() =>
-      'This model is no longer available. Choose another model beside the composer.';
 }
 
 final class CSharpFileRequestException implements Exception {

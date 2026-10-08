@@ -14,7 +14,6 @@ import 'package:digitalbrain_flutter_shell/workspace/home/home_screen.dart';
 import 'package:digitalbrain_flutter_shell/workspace/workspace_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-
 void main() {
   testWidgets('main workspace mounts only the neuron-declared application', (
     tester,

@@ -1,23 +1,23 @@
 using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Framework.Modules;
 
-namespace DigitalBrain.Microsoft.CSharp;
+namespace DigitalBrain.Microsoft.CSharp.Catalog;
 
-public sealed record CSharpContractModule(string Id, string? Directive);
+public sealed record CSharpContractModule(string Id);
 
 public sealed record CSharpContractCatalogSnapshot(IReadOnlyList<CSharpContractModule> Modules, IReadOnlyList<string> Contracts, string Example, bool Truncated = false);
 
-// What a script author (human or agent) sees: the shared neuron catalog, joined with the
-// #:project directive each module's contracts need in a file-based app.
-public sealed class CSharpContractDiscovery(ContractCatalog catalog, ModuleInventory inventory, CSharpDirectives directives)
+// What a script author (human or agent) sees: the shared neuron catalog by module.
+public sealed class CSharpContractDiscovery(ContractCatalog catalog)
 {
     private const int ResponseBudget = 24000;
 
     public const string Example = """
-        #:project /brain/src/DigitalBrain.Modules/Time/DigitalBrain.Modules.Time.Contracts/DigitalBrain.Modules.Time.Contracts.csproj
-        // Add one #:project line per module whose contracts you use (copy them from Directive).
-        // DigitalBrain.Client is referenced for you; DigitalBrain, DigitalBrain.Client, and DigitalBrain are imported.
+        // Plain C#: every installed contract is referenced; name the ones you use with usings.
+        // System, collections, LINQ, tasks, DigitalBrain and DigitalBrain.Client are imported.
         using ITimer = DigitalBrain.Time.Timers.ITimer;
         using DigitalBrain.Time.Timers.Signals;
 
@@ -27,9 +27,8 @@ public sealed class CSharpContractDiscovery(ContractCatalog catalog, ModuleInven
         {
             Console.WriteLine($"TimerTick {tick.TimerId} {tick.ObservedAt:O}");
         }
-        // Top-level statements run once; loop over brain.On<T>() to keep reacting to signals.
-        // Or arm the file on a trigger instead: each signal then starts one run that reads it with
-        // var tick = brain.Trigger<TimerTick>(); and exits, so nothing runs between signals.
+        // Top-level statements run once; loop over brain.On<T>() to keep reacting to signals. A behavior stays
+        // loaded in its brain's session; signals that arrive while it reloads are buffered, not lost.
         // Console output is the log. Settings arrive through brain.Setting(name).
         """;
 
@@ -44,13 +43,12 @@ public sealed class CSharpContractDiscovery(ContractCatalog catalog, ModuleInven
         if (unknown.Length > 0)
         { throw new ArgumentException($"Unknown module IDs: {string.Join(", ", unknown)}. Installed module IDs: {string.Join(", ", installed.Keys.Order(StringComparer.Ordinal))}."); }
         var modules = installed.OrderBy(module => module.Key, StringComparer.Ordinal)
-            .Select(module => new CSharpContractModule(module.Key, Directive(module.Value[0].ModuleId))).ToArray();
+            .Select(module => new CSharpContractModule(module.Key)).ToArray();
         // Discovery with no modules selected lists the module ids only; select ids to read their contracts.
-        var contracts = moduleIds.SelectMany(id => installed[id])
-            .OrderBy(type => type.Contract, StringComparer.Ordinal)
-            .SelectMany(type => (string[])
-                [$"{type.Contract} [neuron id: {type.Id}/<key>] — {type.Description} {{ {string.Join("; ", type.Methods)} }}",
-                 .. type.Signals ?? []])
+        var contracts = moduleIds.SelectMany(id => installed[id]
+                .OrderBy(type => type.Contract, StringComparer.Ordinal)
+                .Select(type => $"{type.Contract} [neuron id: {type.Id}/<key>] — {type.Description} {{ {string.Join("; ", type.Methods)} }}")
+                .Concat(catalog.Signals.Where(signal => string.Equals(signal.ModuleId, id, StringComparison.OrdinalIgnoreCase)).Select(signal => signal.Shape)))
             .Distinct(StringComparer.Ordinal)
             .ToList();
         var snapshot = new CSharpContractCatalogSnapshot(modules, contracts, Example);
@@ -61,11 +59,4 @@ public sealed class CSharpContractDiscovery(ContractCatalog catalog, ModuleInven
         }
         return Task.FromResult(snapshot);
     }
-
-    private string? Directive(string moduleId)
-        => inventory.Types.FirstOrDefault(module => NeuronType.ModuleIdOf(module) == moduleId) is { } module
-            ? ModuleInventory.ContractAssembliesOf(module.Assembly)
-                .Select(contracts => directives.Directive(contracts.GetName().Name!))
-                .FirstOrDefault(directive => directive is not null)
-            : null;
 }

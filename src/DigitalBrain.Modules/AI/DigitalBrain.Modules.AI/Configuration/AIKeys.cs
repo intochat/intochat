@@ -1,5 +1,7 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.AI;
 
@@ -15,6 +17,4 @@ public static class AIKeys
     public static readonly string OllamaEndpoint = Ollama + ":Endpoint";
     public static readonly string TavilyEnabled = Options + ":Tavily:Enabled";
     public static readonly string TelemetryEnableSensitiveData = Options + ":Telemetry:EnableSensitiveData";
-    public static readonly string McpServers = Options + ":McpServers";
-    public static readonly string Workspace = Options + ":Workspace";
 }

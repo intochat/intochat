@@ -1,6 +1,5 @@
-using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework.Contracts;
 
 namespace DigitalBrain.Postgres.Tables;
 
@@ -14,7 +13,7 @@ public interface ITableDescriptor : INeuron
 public sealed record TableDescription(
     [property: Id(0)] string AppId,
     [property: Id(1)] string TableId,
-    [property: Id(2)] string Origin,
+    [property: Id(2)] TablePlacement Placement,
     [property: Id(3)] AcceptedTable Table);
 
 internal sealed partial class TableNeuron : ITableDescriptor
@@ -28,6 +27,6 @@ internal sealed partial class TableNeuron : ITableDescriptor
         { throw new UnauthorizedAccessException("This table belongs to another brain or app."); }
         await Tables(owner).RequireOpen();
         var table = state.State.Accepted ?? throw new PostgresQueryException("This table has not finished being defined.");
-        return new(scope.AppId, this.GetPrimaryKeyString(), PostgresCapacityKind.OriginOrPlatform(state.State.Origin), table);
+        return new(scope.AppId, this.GetPrimaryKeyString(), state.State.Placement ?? TablePlacement.Shared, table);
     }
 }

@@ -18,7 +18,13 @@ List<Map<String, dynamic>> csharpMaps(dynamic value) =>
     value is List ? value.whereType<Map>().map(csharpMap).toList() : [];
 
 // CSharpFileStatus is a C# enum; minimal APIs serialize it as its number.
-const csharpStatusNames = ['Stopped', 'Running', 'Restarting', 'Exited'];
+const csharpStatusNames = [
+  'Stopped',
+  'Starting',
+  'Running',
+  'Exited',
+  'Disarmed',
+];
 
 String csharpStatus(Map<String, dynamic> file) {
   final status = file['status'];
@@ -31,7 +37,7 @@ String csharpStatus(Map<String, dynamic> file) {
 }
 
 bool csharpIsRunning(Map<String, dynamic> file) =>
-    const {'Running', 'Restarting'}.contains(csharpStatus(file));
+    const {'Starting', 'Running'}.contains(csharpStatus(file));
 
 String csharpStatusLabel(Map<String, dynamic> file) {
   final status = csharpStatus(file);

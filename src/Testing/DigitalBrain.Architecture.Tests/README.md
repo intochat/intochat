@@ -3,7 +3,7 @@
 Run from the repository root:
 
 ```powershell
-dotnet test --project src/Testing/tests/DigitalBrain.Architecture.Tests -p:CodeGraphRefresh=false
+dotnet test --project src/Testing/DigitalBrain.Architecture.Tests -p:CodeGraphRefresh=false
 ```
 
 The project references production module and contract projects automatically. Its build writes

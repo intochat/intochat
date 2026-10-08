@@ -1,6 +1,8 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Catalog;
 using Xunit;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;

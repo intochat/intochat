@@ -23,16 +23,16 @@ public sealed class PackedCompositionFacts
         var projects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var roots = new[]
         {
-            "src/Testing/DigitalBrain.Testing.E2E/DigitalBrain.Testing.E2E.csproj",
-            "src/Testing/DigitalBrain.Testing.Module/DigitalBrain.Testing.Module.csproj",
+            "DigitalBrain.Testing.E2E",
+            "DigitalBrain.Testing.Module",
             // The harness no longer drags modules in; one contracts package proves module
             // contracts stay consumable from the feed on their own.
-            "src/DigitalBrain.Modules/AI/DigitalBrain.Modules.AI.Contracts/DigitalBrain.Modules.AI.Contracts.csproj",
-            "src/DigitalBrain.Client/DigitalBrain.Client/DigitalBrain.Client.csproj",
-            "src/Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj",
-            "src/Aspire/DigitalBrain.Aspire.Client/DigitalBrain.Aspire.Client.csproj",
+            "DigitalBrain.Modules.AI.Contracts",
+            "DigitalBrain.Client",
+            "DigitalBrain.Aspire.Server",
+            "DigitalBrain.Aspire.Client",
         };
-        foreach (var project in roots) { Collect(Path.Combine(root, project)); }
+        foreach (var project in roots) { Collect(ProjectPath(root, project)); }
         foreach (var project in projects.Order())
         {
             await Run(root, "pack-" + Path.GetFileNameWithoutExtension(project), "pack", project, "-c", configuration,
@@ -93,7 +93,7 @@ public sealed class PackedCompositionFacts
         File.Copy(Path.Combine(root, "global.json"), Path.Combine(consumer, "global.json"));
         foreach (var (id, source) in new[]
         {
-            ("DigitalBrain.Modules.AI.Contracts", "_ = typeof(DigitalBrain.AI.ILLM);"),
+            ("DigitalBrain.Modules.AI.Contracts", "_ = typeof(DigitalBrain.AI.Models.ILLM);"),
             ("DigitalBrain.Client", "_ = typeof(DigitalBrain.Client.DigitalBrainClient);"),
             ("DigitalBrain.Testing.Module", "await using var brain = await DigitalBrain.Testing.Module.ModuleTest.Create().StartAsync();"),
             ("DigitalBrain.Aspire.Server", "var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder(); DigitalBrain.Aspire.Server.ServerHostingExtensions.AddDigitalBrainServer(builder, _ => { });"),
@@ -138,6 +138,15 @@ public sealed class PackedCompositionFacts
             finally { await File.WriteAllTextAsync(Path.Combine(scratch, stage + ".log"), await output + await error, CancellationToken.None); }
             Assert.True(process.ExitCode == 0, $"{stage} exited {process.ExitCode}. See {Path.Combine(scratch, stage + ".log")}.");
         }
+    }
+
+    // Projects are located through the solution by name, never by a path literal.
+    private static string ProjectPath(string root, string name)
+    {
+        var entry = XDocument.Load(Path.Combine(root, "DigitalBrain.slnx")).Descendants("Project")
+            .Select(element => element.Attribute("Path")!.Value.Replace('\\', '/'))
+            .Single(path => Path.GetFileNameWithoutExtension(path) == name);
+        return Path.GetFullPath(Path.Combine(root, entry));
     }
 
     private static string FindRepository()

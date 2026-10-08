@@ -1,0 +1,20 @@
+using Microsoft.AspNetCore.Http;
+
+namespace DigitalBrain.Framework.Tests.Unit;
+
+public sealed class ModuleRouteGuardFacts
+{
+    [Theory]
+    [InlineData(typeof(FileNotFoundException), StatusCodes.Status404NotFound)]
+    [InlineData(typeof(IOException), StatusCodes.Status503ServiceUnavailable)]
+    [InlineData(typeof(KeyNotFoundException), StatusCodes.Status404NotFound)]
+    [InlineData(typeof(ArgumentException), StatusCodes.Status400BadRequest)]
+    [InlineData(typeof(UnauthorizedAccessException), StatusCodes.Status403Forbidden)]
+    [InlineData(typeof(InvalidOperationException), StatusCodes.Status409Conflict)]
+    public async Task EveryMappedExceptionBecomesItsStatus(Type exception, int status)
+    {
+        var context = new DefaultEndpointFilterInvocationContext(new DefaultHttpContext());
+        var result = await ModuleRouteGuard.Guard(context, _ => throw (Exception)Activator.CreateInstance(exception, "boom")!);
+        Assert.Equal(status, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+    }
+}

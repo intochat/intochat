@@ -1,5 +1,5 @@
 using System.Text.Json;
-using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework;
 
 namespace DigitalBrain.Postgres.Tables;
 

@@ -1,17 +1,15 @@
 using System.Security.Claims;
-using DigitalBrain;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Enforcement;
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Platform.Identity.Authority;
 using DigitalBrain.Platform.Identity.Configuration;
-using DigitalBrain.Platform.Identity.Directory;
-using DigitalBrain.Platform.Identity.Grants;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Platform.Identity;
@@ -34,8 +32,6 @@ internal static class IdentityEndpoints
         routes.MapPost("/identity/session/brain", SelectBrainAsync);
         routes.MapPost("/identity/logout", (Delegate)LogoutAsync);
         routes.MapPost("/identity/brains", CreateBrainAsync);
-        routes.MapGet("/identity/seeded-accounts", SeededAccounts);
-        routes.MapPost("/identity/seeded-accounts/{username}/login", SeededLoginAsync);
         var grants = BrainRoutes.Group(routes, "/grants");
         grants.MapGet("", async (string brainId, IDigitalBrain brain, CancellationToken ct) =>
             Results.Ok(await Grants(brain, brainId).ListGrants().WaitAsync(ct)));
@@ -91,12 +87,11 @@ internal static class IdentityEndpoints
     }
 
     private static async Task<IResult> RegisterAsync(RegisterRequest input, HttpContext http, IDigitalBrain brain,
-        Microsoft.Extensions.Options.IOptions<Configuration.AuthOptions> auth, IOptions<SeededAccountOptions> seeds, CancellationToken ct)
+        IOptions<AuthOptions> auth, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(input.PrincipalId)) { return Results.BadRequest(new { error = "Username is required." }); }
-        // A seeded name belongs to its seed: a first-party publisher must never be a stranger's account.
-        if ((!string.IsNullOrEmpty(auth.Value.Username) && string.Equals(input.PrincipalId, auth.Value.Username, StringComparison.OrdinalIgnoreCase))
-            || seeds.Value.Accounts.Any(seed => string.Equals(seed.Username, input.PrincipalId, StringComparison.OrdinalIgnoreCase)))
+        // The Basic bootstrap credential's name belongs to it.
+        if (!string.IsNullOrEmpty(auth.Value.Username) && string.Equals(input.PrincipalId, auth.Value.Username, StringComparison.OrdinalIgnoreCase))
         { return Results.Conflict(new { error = "This username is reserved." }); }
         try
         {
@@ -117,7 +112,23 @@ internal static class IdentityEndpoints
             new Claim(RoleClaim, member.Role.ToString()),
         ], CookieAuthenticationDefaults.AuthenticationScheme);
         await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
+        await SignedInAsync(member, http);
         return Results.Ok(member);
+    }
+
+    // Modules react to a sign-in as the member who just proved who they are; none of them can fail it.
+    private static async Task SignedInAsync(Member member, HttpContext http)
+    {
+        var handlers = http.RequestServices.GetServices<ISignInHandler>().ToArray();
+        if (handlers.Length == 0) { return; }
+        CallerContextStamper.Stamp(AccountSession.ForMember(member));
+        var logger = http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(ISignInHandler));
+        foreach (var handler in handlers)
+        {
+            try { await handler.SignedIn(member, http.RequestAborted); }
+            catch (Exception error) when (error is not OperationCanceledException)
+            { logger.LogWarning(error, "Sign-in handler {Handler} failed for {Principal}", handler.GetType().Name, member.PrincipalId); }
+        }
     }
 
     private static IResult Session(HttpContext http)
@@ -137,28 +148,6 @@ internal static class IdentityEndpoints
 
     private static IBrainAuthority Grants(IDigitalBrain brain, string brainId)
         => brain.Get<IBrainAuthority>(BrainScope.Create(CallerContextStamper.Require().AccountId, brainId).Id);
-
-    // Development switching: an Open host already acts as its owner without a login, so naming
-    // and entering its seeded accounts adds no reach. Secured hosts answer as if absent.
-    private static IResult SeededAccounts(IOptions<AuthOptions> auth, IOptions<SeededAccountOptions> seeds)
-        => auth.Value.Posture != IdentityPosture.Open
-            ? Results.NotFound()
-            : Results.Ok(seeds.Value.Accounts
-                .Where(seed => !string.IsNullOrEmpty(seed.Password))
-                .Select(seed => new SeededAccountView(seed.Username, seed.DisplayName.Length > 0 ? seed.DisplayName : seed.Username))
-                .ToArray());
-
-    private static async Task<IResult> SeededLoginAsync(string username, HttpContext http, IDigitalBrain brain,
-        IOptions<AuthOptions> auth, IOptions<SeededAccountOptions> seeds, CancellationToken ct)
-    {
-        if (auth.Value.Posture != IdentityPosture.Open) { return Results.NotFound(); }
-        var seed = seeds.Value.Accounts.FirstOrDefault(entry => entry.Username == username && !string.IsNullOrEmpty(entry.Password));
-        if (seed is null) { return Results.NotFound(); }
-        var member = await brain.Get<IPrincipal>(seed.Username).Authenticate(seed.Password!).WaitAsync(ct);
-        return member is null ? Results.Unauthorized() : await SignInAsync(member, http);
-    }
-
-    internal sealed record SeededAccountView(string Username, string DisplayName);
 
     internal sealed record LoginRequest(string PrincipalId, string? Password = null);
     internal sealed record BrainSelection(string AccountId, string BrainId);

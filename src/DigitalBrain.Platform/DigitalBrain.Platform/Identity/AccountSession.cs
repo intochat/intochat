@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
-using DigitalBrain.Framework.Enforcement;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -61,6 +62,20 @@ public static class AccountSession
     // the declared Open posture lets the request act as the synthetic owner — Secured answers 401.
     public static CallerContext? ResolveCaller(HttpContext context, AuthOptions options)
         => ResolvePrincipal(context, options.Posture, BasicCredential.FromOptions(options));
+
+    // The member a sign-in just proved, stamped exactly as their next authenticated request will be.
+    internal static CallerContext ForMember(Member member)
+    {
+        ArgumentNullException.ThrowIfNull(member);
+        return new CallerContext
+        {
+            PrincipalId = member.PrincipalId,
+            AccountId = member.AccountId,
+            BrainId = member.BrainId,
+            Kind = CallerKind.User,
+            StampedBy = TrustedEdge.AuthenticatedHttp,
+        };
+    }
 
     private static CallerContext? ResolvePrincipal(HttpContext context, IdentityPosture? posture, BasicCredential? credential)
     {

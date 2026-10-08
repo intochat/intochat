@@ -4,12 +4,9 @@ using DigitalBrain.Apps;
 namespace DigitalBrain.Apps;
 
 // App folders are embedded by the host under its configured resource prefix.
-public sealed class EmbeddedShippedAppSource(System.Reflection.Assembly assembly, string resourcePrefix, string account) : IShippedAppSource
+public sealed class EmbeddedShippedAppSource(System.Reflection.Assembly assembly, string resourcePrefix, string publisher) : IShippedAppSource
 {
-    public string Account => account;
-    public bool Writable => false;
-    public bool VerifiedByBuild => true;
-    public void Write(AppBundle bundle) => throw new NotSupportedException("Embedded shipped apps are read-only.");
+    public string Publisher => publisher;
 
     public IReadOnlyList<AppBundle> Load()
     {
