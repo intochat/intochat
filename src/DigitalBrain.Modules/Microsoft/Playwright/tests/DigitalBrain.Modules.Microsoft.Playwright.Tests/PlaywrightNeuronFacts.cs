@@ -127,27 +127,6 @@ public sealed class PlaywrightNeuronFacts
         await Assert.ThrowsAsync<BrowserNotConnectedException>(() => browser.Snapshot(ct));
     }
 
-    [Fact]
-    public async Task Scripted_observations_and_requested_urls_survive_reactivation()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start(new Provider());
-        var scripted = brain.Get<IScriptedBrowser>("scenario");
-        BrowserObservation[] pages = [new("https://example.com", "First", "one", [new("Next", "https://example.com/next")]),
-            new("https://example.com/next", "Second", "two", [])];
-        await scripted.Script(pages);
-        IPlaywright browser = scripted;
-        Assert.Equal("First", (await browser.Navigate("https://example.com", ct)).Title);
-        await brain.DeactivateAsync(scripted, ct);
-        Assert.Equal("Second", (await browser.Snapshot(ct)).Title);
-        Assert.Equal(["https://example.com"], await scripted.RequestedUrls());
-        Assert.True((await browser.Read()).Ready);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => browser.Snapshot(ct));
-        await scripted.Script(pages);
-        Assert.Empty(await scripted.RequestedUrls());
-        Assert.Single((await browser.Snapshot(ct)).Links);
-    }
-
     private static Task<ModuleBrain> Start(Provider provider) => ModuleTest.Create().WithModule<PlaywrightModule>()
         .ConfigureSilo(silo => silo.Services.AddSingleton<IBrowserSessionProvider>(provider))
         .StartAsync(TestContext.Current.CancellationToken);

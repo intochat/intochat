@@ -2,7 +2,7 @@
   "name": "customer-researcher",
   "title": "Customer Researcher",
   "description": "Research companies live in a driven browser and save verified findings to a Postgres table.",
-  "version": "1.1.26",
+  "version": "1.1.27",
   "icon": "icon.svg",
   "operations": [
     {
@@ -26,11 +26,6 @@
     {
       "name": "Model",
       "description": "Uses the host default LLM.",
-      "default": ""
-    },
-    {
-      "name": "Browser",
-      "description": "The browser driver: empty for the window's own driven browser, or scripted/<key>.",
       "default": ""
     }
   ],

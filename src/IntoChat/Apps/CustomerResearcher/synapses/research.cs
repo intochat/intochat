@@ -18,7 +18,6 @@ await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var status = brain.Get<IText>(appKey + "/status");
-var browserSetting = brain.Setting("Browser") ?? "";
 var table = brain.Get<ITable>(appKey + "/table");
 var defined = false;
 CancellationTokenSource? running = null;
@@ -147,9 +146,7 @@ async Task RunAsync(string query, Guid invocation, CancellationTokenSource run)
     finally { admission.Release(); }
 }
 
-IPlaywright Browser() => browserSetting.StartsWith("scripted/", StringComparison.Ordinal)
-    ? brain.Get<IScriptedBrowser>(browserSetting["scripted/".Length..])
-    : brain.Get<IPlaywright>(appKey + "/browser");
+IPlaywright Browser() => brain.Get<IPlaywright>(appKey + "/browser");
 
 ILLM Model() => brain.Get<ILLM>("default");
 
