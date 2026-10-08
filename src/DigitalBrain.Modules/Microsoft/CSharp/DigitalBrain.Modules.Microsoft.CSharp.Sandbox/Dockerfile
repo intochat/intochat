@@ -9,7 +9,7 @@ ENV DOTNET_CLI_TELEMETRY_OPTOUT=1 \
 WORKDIR /src
 COPY . .
 RUN dotnet publish src/DigitalBrain.Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Sandbox/DigitalBrain.Modules.Microsoft.CSharp.Sandbox.csproj -c Release -o /app \
-    && for contracts in $(find src -name '*.Contracts.csproj' -not -path '*/tests/*'); do dotnet build "$contracts" -c Release -o /app/contracts || exit 1; done \
+    && for contracts in $(find src -name '*.Contracts.csproj' -not -path '*/tests/*' -not -path 'src/Modules/*'); do dotnet build "$contracts" -c Release -o /app/contracts || exit 1; done \
     && cp -n /app/contracts/*.dll /app/ && rm -rf /app/contracts
 
 FROM mcr.microsoft.com/dotnet/aspnet:11.0.0-rc.1
