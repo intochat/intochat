@@ -365,7 +365,7 @@ class _NeuronViewState extends State<NeuronView> {
         }
         final horizontal =
             definition['mode'] == 'row' || definition['mode'] == 'split';
-        return Flex(
+        final flex = Flex(
           direction: horizontal ? Axis.horizontal : Axis.vertical,
           spacing: gap,
           children: [
@@ -387,6 +387,33 @@ class _NeuronViewState extends State<NeuronView> {
               else
                 Expanded(child: children[i]),
           ],
+        );
+        if (horizontal) return flex;
+        final extents = definition['extents'] as List? ?? const [];
+        if (!extents.any((extent) => extent is num && extent > 0)) {
+          return flex;
+        }
+        // Keep declared controls reachable when their fixed extents exceed the
+        // viewport. Flexible panes retain room for content and action controls.
+        final minimumHeight =
+            gap * (children.length - 1) +
+            List.generate(children.length, (index) {
+              final extent = extents.elementAtOrNull(index);
+              return extent is num && extent > 0 ? extent.toDouble() : 96.0;
+            }).fold(0.0, (sum, extent) => sum + extent);
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            if (!constraints.hasBoundedHeight) return flex;
+            return SingleChildScrollView(
+              primary: false,
+              child: SizedBox(
+                height: constraints.maxHeight < minimumHeight
+                    ? minimumHeight
+                    : constraints.maxHeight,
+                child: flex,
+              ),
+            );
+          },
         );
       case 'text':
         return _markdown(definition['markdown'] as String? ?? '');

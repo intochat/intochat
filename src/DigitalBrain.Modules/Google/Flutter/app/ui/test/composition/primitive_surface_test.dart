@@ -141,7 +141,12 @@ void main() {
       expect(find.byType(TextField), findsOneWidget);
       expect(find.text('Send'), findsOneWidget);
       final list = tester.widget<SingleChildScrollView>(
-        find.byType(SingleChildScrollView).first,
+        find.descendant(
+          of: find.byWidgetPredicate(
+            (widget) => widget is NeuronView && widget.name == 'content',
+          ),
+          matching: find.byType(SingleChildScrollView),
+        ).first,
       );
       expect(
         list.controller!.offset,
