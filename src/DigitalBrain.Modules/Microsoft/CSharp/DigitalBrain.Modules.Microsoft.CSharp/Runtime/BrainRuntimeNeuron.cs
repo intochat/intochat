@@ -149,9 +149,16 @@ internal sealed class BrainRuntimeNeuron(
             await Save(Snapshot with { Subscriptions = [.. Snapshot.Subscriptions, existing] }, Changed());
             await WatchSourcesAsync();
         }
-        // A reloaded behavior subscribes again: what waited for it while it was down goes out now.
-        else if (existing.Pending.Length > 0 && Snapshot.Session is { Status: SessionStatus.Connected })
-        { streams.TryPush(session, SignalBatchEvent.Kind, Batch(existing)); }
+        else
+        {
+            // Persistence can succeed before source registration fails. A retry is ready only
+            // after the source has accepted the current selection, including the saved addition.
+            await GrainFactory.GetGrain<INeuron>(GrainId.Parse(neuron)).Watch(this.AsReference<INeuronObserver>(),
+                Snapshot.Subscriptions.Where(s => s.Neuron == neuron).Select(s => s.Signal).Distinct(StringComparer.Ordinal).ToArray());
+            // A reloaded behavior gets what waited while it was down without another arrival.
+            if (existing.Pending.Length > 0 && Snapshot.Session is { Status: SessionStatus.Connected })
+            { streams.TryPush(session, SignalBatchEvent.Kind, Batch(existing)); }
+        }
         return existing.Id;
     }
 
@@ -367,7 +374,8 @@ internal sealed class BrainRuntimeNeuron(
         RenewSourceWatches(dueTime: ObserverRenewal);
         var observer = this.AsReference<INeuronObserver>();
         foreach (var source in previous.Where(source => !_watched.ContainsValue(source))) { await source.Unwatch(observer); }
-        foreach (var source in _watched.Values) { await source.Watch(observer); }
+        foreach (var (key, source) in _watched)
+        { await source.Watch(observer, Snapshot.Subscriptions.Where(s => s.Neuron == key).Select(s => s.Signal).Distinct(StringComparer.Ordinal).ToArray()); }
     }
 
     // One watch per distinct source across every behavior. Sources keep observers for a lease; renewing
@@ -379,10 +387,15 @@ internal sealed class BrainRuntimeNeuron(
         foreach (var source in sources.Where(source => !_watched.ContainsKey(source)))
         { _watched[source] = GrainFactory.GetGrain<INeuron>(GrainId.Parse(source)); }
         var observer = this.AsReference<INeuronObserver>();
-        var watched = _watched.Values.ToArray();
+        var watched = _watched.ToArray();
         _watchRenewal?.Dispose();
         _watchRenewal = watched.Length == 0 ? null : this.RegisterGrainTimer(
-            async _ => { foreach (var source in watched) { await source.Watch(observer); } },
-            new GrainTimerCreationOptions { DueTime = dueTime, Period = ObserverRenewal, Interleave = true, KeepAlive = true });
+            async _ =>
+            {
+                foreach (var (key, source) in watched)
+                { await source.Watch(observer, Snapshot.Subscriptions.Where(s => s.Neuron == key).Select(s => s.Signal).Distinct(StringComparer.Ordinal).ToArray()); }
+            },
+            // Serialize renewal with subscription changes so an old selection cannot overwrite a new one.
+            new GrainTimerCreationOptions { DueTime = dueTime, Period = ObserverRenewal, KeepAlive = true });
     }
 }

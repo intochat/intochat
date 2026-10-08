@@ -12,8 +12,9 @@ public abstract class Neuron : Grain, INeuron
     public virtual NeuronAccess Access(string operation) => NeuronAccess.ForBrainKey(this.GetPrimaryKeyString());
 
     private readonly Guid _activation = Guid.NewGuid();
-    private ObserverManager<INeuronObserver>? _observers;
-    private ObserverManager<INeuronObserver> Observers => _observers ??= new(
+    private sealed record WatchRegistration(INeuronObserver Observer, HashSet<string>? Signals);
+    private ObserverManager<INeuronObserver, WatchRegistration>? _observers;
+    private ObserverManager<INeuronObserver, WatchRegistration> Observers => _observers ??= new(
         ServiceProvider.GetRequiredService<IOptions<ObserverOptions>>().Value.Lease,
         ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Neuron.Observers"));
 
@@ -35,7 +36,15 @@ public abstract class Neuron : Grain, INeuron
 
     public virtual Task<Guid> Watch(INeuronObserver observer)
     {
-        Observers.Subscribe(observer, observer);
+        Observers.Subscribe(observer, new(observer, null));
+        return Task.FromResult(_activation);
+    }
+
+    public virtual Task<Guid> Watch(INeuronObserver observer, string[] signals)
+    {
+        ArgumentNullException.ThrowIfNull(signals);
+        foreach (var signal in signals) { ArgumentException.ThrowIfNullOrWhiteSpace(signal); }
+        Observers.Subscribe(observer, new(observer, signals.ToHashSet(StringComparer.Ordinal)));
         return Task.FromResult(_activation);
     }
 
@@ -49,7 +58,8 @@ public abstract class Neuron : Grain, INeuron
     {
         var stamped = signal with { Publisher = Id };
         ServiceProvider.GetRequiredService<LocalSignalHub>().Publish(this.GetGrainId(), stamped);
-        return Observers.Notify(observer => observer.OnSignalAsync(stamped));
+        return Observers.Notify(watch => watch.Observer.OnSignalAsync(stamped),
+            watch => watch.Signals is null || watch.Signals.Contains(stamped.GetType().Name));
     }
 }
 
