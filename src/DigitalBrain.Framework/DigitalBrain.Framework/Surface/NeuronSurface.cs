@@ -41,8 +41,9 @@ public sealed class NeuronSurface(IDigitalBrain brain, CapabilityCatalog capabil
         // A stamped caller searches their own brain's runtime tools too; un-stamped means contracts only.
         var brainId = CallerContextStamper.TryGet(out var caller) ? caller.BrainId : null;
         var entries = await capabilities.Read(brainId, ct).ConfigureAwait(false);
-        return allowed is null ? await search.Search(query, entries, ct: ct).ConfigureAwait(false)
-            : [.. (await search.Search(query, entries, take: 50, ct: ct).ConfigureAwait(false)).Where(hit => Allowed(hit.Type.Contract)).Take(10)];
+        // Rank only what this app composes: ranking everything and filtering afterwards lets unrelated
+        // contracts crowd the allowed ones out of the window.
+        return await search.Search(query, allowed is null ? entries : [.. entries.Where(entry => Allowed(entry.Contract))], ct: ct).ConfigureAwait(false);
     }
 
     public string Get(string contract, string key)
@@ -85,8 +86,14 @@ public sealed class NeuronSurface(IDigitalBrain brain, CapabilityCatalog capabil
     private Type Contract(string name) => Allowed(name) ? capabilities.Contracts.Find(name)
         : throw new ArgumentException($"{name} is not a contract this app composes. Pass a full type name from neurons_list.");
 
+    // A contract several neurons implement (IToolSource) has no grain type of its own; the model gets
+    // the brain's reason, not a reflection wrapper, so it can switch to the hit's own contract.
     private IAddressable Neuron(Type contract, string key)
-        => (IAddressable)GetNeuron.MakeGenericMethod(contract).Invoke(brain, [new NeuronId(key)])!;
+    {
+        try { return (IAddressable)GetNeuron.MakeGenericMethod(contract).Invoke(brain, [new NeuronId(key)])!; }
+        catch (TargetInvocationException error) when (error.InnerException is not null)
+        { throw new ArgumentException($"{contract.Name} cannot address '{key}': {error.InnerException.Message}", error.InnerException); }
+    }
 
     private static bool IsArgument(ParameterInfo parameter) => parameter.ParameterType != typeof(CancellationToken);
 }

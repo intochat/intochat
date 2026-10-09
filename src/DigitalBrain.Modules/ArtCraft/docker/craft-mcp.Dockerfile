@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 RUN git clone https://github.com/storytold/${APP}.git . && git checkout ${REF}
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/src/target,id=${APP}-target \
     cargo build --release --locked -p ${APP}-cli && cp target/release/${APP}-cli /usr/local/bin/craft-cli
 

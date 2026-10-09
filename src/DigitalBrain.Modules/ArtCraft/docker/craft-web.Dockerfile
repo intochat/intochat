@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     && rm -rf /var/lib/apt/lists/* && rustup target add wasm32-unknown-unknown
 WORKDIR /src
 RUN git clone https://github.com/storytold/${APP}.git . && git checkout ${REF}
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/src/target,id=${APP}-web-target \
     set -eu; mkdir -p /site; \
     if [ "${APP}" = photocraft ]; then \

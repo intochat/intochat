@@ -57,6 +57,31 @@ public void RestrictingToAnUnknownContractIsRefused()
         Assert.Throws<ArgumentException>(() => surface.Restrict([typeof(IConnectionIndex).FullName!]));
     }
 
+    [Fact]
+    public async Task ARestrictedSearchRanksOnlyWhatTheAppComposes()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var contracts = new ContractCatalog(ContractCatalog.Deployed());
+        var surface = new NeuronSurface(new UnreachableBrain(), new CapabilityCatalog(contracts, [new CrowdedSource()]),
+            new NeuronTypeSearch(contracts, null)).Restrict([typeof(IMcpServer).FullName!]);
+        CallerContextStamper.Stamp(new()
+        { PrincipalId = "owner", AccountId = "owner", BrainId = "crowded", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
+
+        var hits = await surface.Search("render image preview", ct);
+
+        Assert.Equal("tool:crowded/mcp/photocraft/render_preview", Assert.Single(hits).Type.Id);
+    }
+
+    // Sixty entries the app does not compose match the query better than its one tool.
+    private sealed class CrowdedSource : IRuntimeCapabilitySource
+    {
+        public Task<IReadOnlyList<NeuronType>> Read(string brainId, CancellationToken ct)
+            => Task.FromResult<IReadOnlyList<NeuronType>>([
+                .. Enumerable.Range(0, 60).Select(index => new NeuronType($"other:{index}", "other", "Render image preview " + index, "render image preview", [], "Other.IUnrelated")),
+                new NeuronType($"tool:{brainId}/mcp/photocraft/render_preview", "tools", "PhotoCraft: Render", "A flattened PNG of the document image.",
+                    [], typeof(IMcpServer).FullName!, brainId + "/mcp/photocraft", "render_preview")]);
+    }
+
     private static NeuronSurface Surface()
         => new(new UnreachableBrain(), new CapabilityCatalog(new ContractCatalog(ContractCatalog.Deployed()), []), null!);
 
