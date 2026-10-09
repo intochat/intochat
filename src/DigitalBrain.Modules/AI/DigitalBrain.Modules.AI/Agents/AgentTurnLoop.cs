@@ -50,7 +50,7 @@ internal sealed class AgentTurnLoop(IServiceProvider services)
         var surface = services.GetRequiredService<NeuronSurface>();
         // Context may name contracts this host does not deploy; only deployed ones join the turn.
         string[] composed = [.. plan.Contracts, .. contexts.SelectMany(entry => entry.Contracts)
-            .Where(name => !plan.Contracts.Contains(name) && surface.List().Contains(name)).Distinct(StringComparer.Ordinal)];
+            .Where(name => !plan.Contracts.Contains(name) && surface.Contracts().Contains(name)).Distinct(StringComparer.Ordinal)];
         // The model's actions are fixed here, once: the neuron surface over the contracts the app composed.
         var tools = composed.Length == 0 ? new List<AIFunction>() : [.. ContractActions.Create(surface.Restrict(composed), plan.Conversation)];
 

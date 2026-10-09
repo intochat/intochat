@@ -56,6 +56,6 @@ internal sealed class AccountGrain(
         await authority.ProvisionOwner(owner);
         // The brain is born only once its owner is on record: creation handlers, and the behaviors
         // they install, act inside a brain that already knows who it belongs to.
-        await GrainFactory.GetGrain<IKernel>(scope.Id).Create(new Owner(owner.AccountId));
+        await GrainFactory.GetGrain<IBrain>(scope.Id).Create(new Owner(owner.AccountId));
     }
 }

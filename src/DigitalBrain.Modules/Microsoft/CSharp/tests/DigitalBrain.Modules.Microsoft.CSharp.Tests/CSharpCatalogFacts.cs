@@ -109,7 +109,7 @@ public sealed class CSharpCatalogFacts
     {
         public List<string> Calls { get; } = [];
 
-        public IKernel Self => throw new NotSupportedException();
+        public IBrain Self => throw new NotSupportedException();
 
         public T Get<T>(NeuronId id) where T : INeuron
         {

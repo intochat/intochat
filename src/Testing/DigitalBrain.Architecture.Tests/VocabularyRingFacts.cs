@@ -9,7 +9,8 @@ public sealed class VocabularyRingFacts
 {
     private static readonly Assembly Vocabulary = typeof(Signal).Assembly;
 
-    private static readonly Type[] Roots = [typeof(INeuron), typeof(IKernel), typeof(Synapse), typeof(IDigitalBrain), typeof(INeuronObserver)];
+    // IKernelView is the ratified script-visible kernel slice (kernel design Q8).
+    private static readonly Type[] Roots = [typeof(INeuron), typeof(IBrain), typeof(Synapse), typeof(IDigitalBrain), typeof(INeuronObserver), typeof(IKernelView)];
 
     // The Contracts ring: DigitalBrain plus every production assembly whose DigitalBrain references stay
     // inside the ring (module *.Contracts projects). Their neuron contracts, signals and wire exceptions
@@ -72,7 +73,7 @@ public sealed class VocabularyRingFacts
         Assert.Equal([typeof(INeuron), typeof(Func<Task>), typeof(CancellationToken)], watches[1].GetParameters().Select(p => p.ParameterType));
         var self = Assert.Single(typeof(IDigitalBrain).GetProperties());
         Assert.Equal("Self", self.Name);
-        Assert.Equal(typeof(IKernel), self.PropertyType);
+        Assert.Equal(typeof(IBrain), self.PropertyType);
         Assert.False(typeof(IAsyncDisposable).IsAssignableFrom(typeof(IDigitalBrain)));
         var get = typeof(IDigitalBrain).GetMethod("Get")!;
         Assert.Contains(typeof(INeuron), get.GetGenericArguments()[0].GetGenericParameterConstraints());

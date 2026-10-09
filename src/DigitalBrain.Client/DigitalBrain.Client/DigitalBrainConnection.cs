@@ -27,8 +27,8 @@ public sealed class DigitalBrainConnection : IDigitalBrain, IAsyncDisposable
 
     public T Get<T>(NeuronId id) where T : INeuron => NeuronProxy.Create<T>(_session, _behavior, id.Name, _trace);
 
-    public IKernel Self => _session.Brain is { Length: > 0 } brain
-        ? NeuronProxy.Create<IKernel>(_session, _behavior, brain, _trace)
+    public IBrain Self => _session.Brain is { Length: > 0 } brain
+        ? NeuronProxy.Create<IBrain>(_session, _behavior, brain, _trace)
         : throw new InvalidOperationException("This session was not told its brain.");
 
     public IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal

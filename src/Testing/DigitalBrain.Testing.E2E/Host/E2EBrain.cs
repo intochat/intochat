@@ -56,7 +56,7 @@ public sealed class E2EBrain : IDigitalBrain, IBrainSubscriptions, IAsyncDisposa
 
     T IDigitalBrain.Get<T>(NeuronId id) => _session.Brains.Grain<T>(id.Name);
 
-    public IKernel Self => _session.Brains.Open(WorkspaceId).Self;
+    public IBrain Self => _session.Brains.Open(WorkspaceId).Self;
 
     public IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
         => _session.Brains.On<T>(source, cancellationToken);

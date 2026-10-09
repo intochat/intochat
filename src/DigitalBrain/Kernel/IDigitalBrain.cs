@@ -33,5 +33,5 @@ public interface IDigitalBrain
     /// The brain's own neuron: the first one, which publishes <see cref="Created"/> and
     /// <see cref="Activated"/>, so a program can watch its brain like any other neuron.
     /// </summary>
-    IKernel Self { get; }
+    IBrain Self { get; }
 }

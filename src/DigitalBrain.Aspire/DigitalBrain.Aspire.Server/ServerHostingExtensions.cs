@@ -66,6 +66,7 @@ public static class ServerHostingExtensions
                 module.Configure(silo);
                 silo.Services.AddSingleton(module);
             }
+            silo.TryAddKernelRegistration();
         });
         return builder;
     }

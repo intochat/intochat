@@ -9,7 +9,7 @@ public sealed class BrainFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var host = await ModuleTest.Create().StartAsync(ct);
-        var kernel = host.Get<IKernel>(BrainScope.Create("acct", "personal").Id);
+        var kernel = host.Get<IBrain>(BrainScope.Create("acct", "personal").Id);
         await kernel.Create(new Owner("acct"));
         var first = await kernel.Read();
         await kernel.Create(new Owner("acct"));
@@ -27,7 +27,7 @@ public sealed class BrainFacts
         await using var host = await ModuleTest.Create().StartAsync(ct);
         using var activations = host.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<Activated>();
         var scope = BrainScope.Create("acct", "waking").Id;
-        var kernel = host.Get<IKernel>(scope);
+        var kernel = host.Get<IBrain>(scope);
         await kernel.Create(new Owner("acct"));
         var born = await activations.Reader.ReadAsync(ct);
         Assert.Equal("acct", born.Owner.AccountId);
@@ -43,7 +43,7 @@ public sealed class BrainFacts
         var ct = TestContext.Current.CancellationToken;
         await using var host = await ModuleTest.Create().StartAsync(ct);
         using var activations = host.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<Activated>();
-        await Assert.ThrowsAsync<InvalidOperationException>(() => host.Get<IKernel>(BrainScope.Create("acct", "silent").Id).Read());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => host.Get<IBrain>(BrainScope.Create("acct", "silent").Id).Read());
         using var quiet = CancellationTokenSource.CreateLinkedTokenSource(ct);
         quiet.CancelAfter(TimeSpan.FromSeconds(1));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(

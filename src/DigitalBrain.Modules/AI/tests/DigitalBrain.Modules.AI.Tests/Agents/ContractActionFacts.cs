@@ -27,7 +27,8 @@ public sealed class ContractActionFacts
         var events = await AgentFacts.Collect(agent, AgentTurn.Text("what can you reach?", contracts: [typeof(IApp).FullName!]), ct);
         Assert.Equal([NeuronSurfaceTools.ListName, NeuronSurfaceTools.SearchName, NeuronSurfaceTools.GetName,
             NeuronSurfaceTools.CallName, NeuronSurfaceTools.ContextName], client.OfferedTools);
-        Assert.Equal($"[\"{typeof(IApp).FullName}\"]", Assert.Single(events.OfType<AgentTurnEvent.ToolCompleted>()).Result);
+        // The agent itself now exists in the brain, but the turn composes only IApp and no app exists.
+        Assert.Equal("[]", Assert.Single(events.OfType<AgentTurnEvent.ToolCompleted>()).Result);
     }
 
     [Fact]

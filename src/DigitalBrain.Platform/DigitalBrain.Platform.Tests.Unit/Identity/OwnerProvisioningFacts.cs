@@ -82,7 +82,7 @@ public sealed class OwnerProvisioningFacts
 
         public AppCallerAtBirth Using(IGrainFactory grains) { _grains = grains; return this; }
 
-        public async Task Created(IKernel kernel, Created created, CancellationToken cancellationToken)
+        public async Task Created(IBrain kernel, Created created, CancellationToken cancellationToken)
         {
             var scope = kernel.GetPrimaryKeyString();
             var authority = _grains!.GetGrain<IBrainAuthority>(scope);

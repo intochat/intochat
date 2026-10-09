@@ -21,7 +21,7 @@ public sealed class InferenceTransportFacts
     [InlineData("OpenAI")]
     [InlineData("OpenRouter")]
     [InlineData("Ollama")]
-    public async Task OfferedContractListsReachTheRealModelAdapterAsJson(string provider)
+    public async Task ToolResultsReachTheRealModelAdapterAsJson(string provider)
     {
         var ct = TestContext.Current.CancellationToken;
         using var endpoint = new LoopbackServer();
@@ -29,13 +29,13 @@ public sealed class InferenceTransportFacts
             { Configure(options, provider); options.Ollama.Endpoint = endpoint.Url; })
             .AddSingleton<IAiCredentials>(new FixedAiCredentials().Ready(provider.ToLowerInvariant(), "test-only", endpoint.Url))
             .AddSingleton<ModelCatalog>().AddSingleton<InferenceService>()
-            .AddSingleton(new NeuronSurface(null!, new CapabilityCatalog(new ContractCatalog(ContractCatalog.Deployed()), []), null!)).BuildServiceProvider();
+            .AddSingleton(new NeuronSurface(null!, null!, new CapabilityCatalog(new ContractCatalog(ContractCatalog.Deployed()), []), null!)).BuildServiceProvider();
         async Task<CapturedRequest> Serve()
         {
             await endpoint.ReplyOnce("application/json", provider == "Ollama" ? """
-                {"model":"test-model","created_at":"2026-10-03T00:00:00Z","message":{"role":"assistant","content":"","tool_calls":[{"function":{"name":"neurons_list","arguments":{}}}]},"done":true,"done_reason":"stop"}
+                {"model":"test-model","created_at":"2026-10-03T00:00:00Z","message":{"role":"assistant","content":"","tool_calls":[{"function":{"name":"neurons_context","arguments":{}}}]},"done":true,"done_reason":"stop"}
                 """ : """
-                {"id":"one","object":"chat.completion","created":1,"model":"test-model","choices":[{"index":0,"message":{"role":"assistant","tool_calls":[{"id":"find-1","type":"function","function":{"name":"neurons_list","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}
+                {"id":"one","object":"chat.completion","created":1,"model":"test-model","choices":[{"index":0,"message":{"role":"assistant","tool_calls":[{"id":"find-1","type":"function","function":{"name":"neurons_context","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}
                 """, ct);
             return await endpoint.ReplyOnce("application/json", provider == "Ollama" ? """
                 {"model":"test-model","created_at":"2026-10-03T00:00:00Z","message":{"role":"assistant","content":"done"},"done":true,"done_reason":"stop"}
@@ -53,7 +53,8 @@ public sealed class InferenceTransportFacts
         { Assert.False(request.RootElement.GetProperty("options").TryGetProperty("num_ctx", out _)); }
         using var payload = JsonDocument.Parse(result.GetProperty("content").GetString()!);
         var root = provider == "Ollama" ? payload.RootElement.GetProperty("Result") : payload.RootElement;
-        Assert.Equal(typeof(DigitalBrain.Apps.IApp).FullName, root[0].GetString());
+        Assert.Equal(JsonValueKind.Object, root.ValueKind);
+        Assert.Contains(root.EnumerateObject(), property => property.Name.Equals("BrainId", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

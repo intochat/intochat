@@ -8,8 +8,8 @@ namespace DigitalBrain;
 /// Its grain key is the brain's identity; it carries no name. Creating a brain is the platform's
 /// act: <see cref="Create"/> is refused for any other caller, and is idempotent for the platform.
 /// </remarks>
-[Alias("kernel"), Orleans.Metadata.DefaultGrainType("kernel")]
-public interface IKernel : INeuron
+[Alias("brain"), Orleans.Metadata.DefaultGrainType("brain")]
+public interface IBrain : INeuron
 {
     /// <summary>
     /// Brings the brain into existence for <paramref name="owner"/>. Publishes <see cref="Created"/>

@@ -24,7 +24,7 @@ internal sealed class ShippedAppReconcileHost(
         {
             await foreach (var activated in activations.Reader.ReadAllAsync(cancellationToken))
             {
-                // The kernel publishes Activated; its publisher name is "kernel/{brainId}".
+                // The brain neuron publishes Activated; its publisher name is "brain/{brainId}".
                 var name = activated.Publisher.Name;
                 var brainId = name[(name.IndexOf('/') + 1)..];
                 try { await grains.GetGrain<IShippedAppReconciler>(IShippedAppReconciler.Key(brainId)).Reconcile(cancellationToken); }

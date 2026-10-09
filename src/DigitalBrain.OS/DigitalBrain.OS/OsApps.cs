@@ -57,7 +57,7 @@ public static class OsAppsHosting
 internal sealed class OsDefaults(
     IGrainFactory grains, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger) : ICreationHandler
 {
-    public async Task Created(IKernel kernel, Created created, CancellationToken cancellationToken)
+    public async Task Created(IBrain kernel, Created created, CancellationToken cancellationToken)
     {
         var brainId = kernel.GetPrimaryKeyString();
         foreach (var app in options.Value.Apps)

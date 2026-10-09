@@ -13,10 +13,10 @@ internal sealed class NeuronTools(NeuronSurface surface, McpCaller caller)
 {
     private const int MaxMappedErrorLength = 500;
     [McpServerTool(Name = NeuronSurfaceTools.ListName), Description(NeuronSurfaceTools.ListDescription)]
-    public IReadOnlyList<string> List()
+    public Task<IReadOnlyList<NeuronInstance>> List([Description("Optional full contract type name to list one type only.")] string? contract = null, CancellationToken cancellationToken = default)
     {
         caller.Stamp();
-        return surface.List();
+        return surface.List(contract, cancellationToken);
     }
 
     [McpServerTool(Name = NeuronSurfaceTools.SearchName), Description(NeuronSurfaceTools.SearchDescription)]

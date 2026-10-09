@@ -3,12 +3,14 @@ using Microsoft.Extensions.Logging;
 namespace DigitalBrain.Framework;
 
 // The brain's first neuron: its state, its creation, its lifecycle signals.
-[GrainType("kernel")]
-internal sealed class KernelNeuron(
-    [PersistentState("kernel", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<State> store,
+[GrainType("brain")]
+internal sealed class BrainNeuron(
+    [PersistentState("brain", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<State> store,
     IEnumerable<ICreationHandler> creation,
-    ILogger<KernelNeuron> logger) : Neuron<State>(store), IKernel
+    ILogger<BrainNeuron> logger) : Neuron<State>(store), IBrain, IKernelAnnouncer
 {
+    public Task Announce(Signal signal) => PublishAsync(signal);
+
     public Task<State> Read()
         => Task.FromResult(Exists ? Snapshot : throw new InvalidOperationException("This brain has not been created."));
 
@@ -41,7 +43,7 @@ internal sealed class KernelNeuron(
 }
 
 // Publishes Activated on every wake of a created brain.
-internal sealed class KernelActivation : IActivationHandler<KernelNeuron>
+internal sealed class BrainActivation : IActivationHandler<BrainNeuron>
 {
-    public Task Activated(KernelNeuron neuron, CancellationToken cancellationToken) => neuron.Woke();
+    public Task Activated(BrainNeuron neuron, CancellationToken cancellationToken) => neuron.Woke();
 }

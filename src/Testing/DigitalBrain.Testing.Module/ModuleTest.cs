@@ -54,6 +54,7 @@ public static class ModuleTest
             silo.AddMemoryGrainStorage("Default");
             if (options.UseReminders) { silo.UseInMemoryReminderService(); }
             options.ConfigureSilo?.Invoke(silo);
+            silo.AddKernelRegistration();
             foreach (var descriptor in silo.Services) { siloServiceTypes.Add(descriptor.ServiceType); }
         });
         builder.ConfigureClient(client => { client.AddDigitalBrain(); options.ConfigureClient?.Invoke(client); });

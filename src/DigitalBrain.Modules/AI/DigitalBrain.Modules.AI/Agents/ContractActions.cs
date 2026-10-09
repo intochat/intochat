@@ -11,7 +11,8 @@ internal static class ContractActions
 {
     public static IReadOnlyList<AIFunction> Create(NeuronSurface surface, string conversation) =>
     [
-        AIFunctionFactory.Create(() => Marked(conversation, () => Task.FromResult<object>(surface.List())), NeuronSurfaceTools.ListName, NeuronSurfaceTools.ListDescription),
+        AIFunctionFactory.Create(([Description("Optional full contract type name to list one type only.")] string? contract = null, CancellationToken ct = default) =>
+            Marked(conversation, async () => await surface.List(contract, ct)), NeuronSurfaceTools.ListName, NeuronSurfaceTools.ListDescription),
         AIFunctionFactory.Create(([Description("What you want to do.")] string query, CancellationToken ct) =>
             Marked(conversation, async () => await surface.Search(query, ct)), NeuronSurfaceTools.SearchName, NeuronSurfaceTools.SearchDescription),
         AIFunctionFactory.Create((string contract, string key) =>

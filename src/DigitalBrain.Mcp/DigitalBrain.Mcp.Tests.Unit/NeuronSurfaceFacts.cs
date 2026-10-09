@@ -54,6 +54,28 @@ public sealed class NeuronSurfaceFacts
     }
 
     [Fact]
+    public async Task AnAppCreatedThroughMcpIsListedAsAnInstanceOfTheCallersBrain()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var app = await Host(brain);
+        using var client = Client(app);
+        var (context, _) = await Tool(client, "neurons_context", new { }, ct);
+        var scope = JsonDocument.Parse(context).RootElement.GetProperty("brainId").GetString()!;
+        var manifest = JsonSerializer.Serialize(new object[] { new AppManifest("Echo", "echoes", [], [], []), "Echoes." }, JsonSerializerOptions.Web);
+        var (created, failed) = await Tool(client, "neurons_call", new { contract = typeof(IApp).FullName!, key = scope + "/apps/echo", method = "Create", arguments = manifest }, ct);
+        Assert.False(failed, created);
+
+        var (all, _) = await Tool(client, "neurons_list", new { }, ct);
+        var (apps, _) = await Tool(client, "neurons_list", new { contract = typeof(IApp).FullName! }, ct);
+
+        Assert.Contains(scope + "/apps/echo", all);
+        var listed = JsonDocument.Parse(apps).RootElement;
+        var entry = Assert.Single(listed.EnumerateArray());
+        Assert.Equal((typeof(IApp).FullName, scope + "/apps/echo"), (entry.GetProperty("contract").GetString(), entry.GetProperty("key").GetString()));
+    }
+
+    [Fact]
     public void APlatformOnlyContractIsNotAddressable()
     {
         var contracts = new ContractCatalog(ContractCatalog.Deployed());
@@ -89,7 +111,7 @@ public sealed class NeuronSurfaceFacts
     {
         var surface = Surface()
             .Restrict([typeof(DigitalBrain.Apps.IApp).FullName!]);
-        Assert.Equal([typeof(DigitalBrain.Apps.IApp).FullName!], surface.List());
+        Assert.Equal([typeof(DigitalBrain.Apps.IApp).FullName!], surface.Contracts());
         await Assert.ThrowsAsync<ArgumentException>(() => surface.Call(typeof(DigitalBrain.Postgres.IPostgresServer).FullName!,
             "b/connection/postgres/x", "ReadConnection", "[]", TestContext.Current.CancellationToken));
         Assert.Throws<ArgumentException>(() => surface.Get(typeof(DigitalBrain.Postgres.IPostgresServer).FullName!, "b/connection/postgres/x"));
@@ -108,7 +130,7 @@ public void RestrictingToAnUnknownContractIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
         var contracts = new ContractCatalog(ContractCatalog.Deployed());
-        var surface = new NeuronSurface(new UnreachableBrain(), new CapabilityCatalog(contracts, [new CrowdedSource()]),
+        var surface = new NeuronSurface(new UnreachableBrain(), null!, new CapabilityCatalog(contracts, [new CrowdedSource()]),
             new NeuronTypeSearch(contracts, null)).Restrict([typeof(IMcpServer).FullName!]);
         CallerContextStamper.Stamp(new()
         { PrincipalId = "owner", AccountId = "owner", BrainId = "crowded", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
@@ -129,7 +151,7 @@ public void RestrictingToAnUnknownContractIsRefused()
     }
 
     private static NeuronSurface Surface()
-        => new(new UnreachableBrain(), new CapabilityCatalog(new ContractCatalog(ContractCatalog.Deployed()), []), null!);
+        => new(new UnreachableBrain(), null!, new CapabilityCatalog(new ContractCatalog(ContractCatalog.Deployed()), []), null!);
 
     // A real MCP edge over a real brain, open posture so every request acts as the owner.
     private static async Task<WebApplication> Host(ModuleBrain brain)
@@ -156,14 +178,17 @@ public void RestrictingToAnUnknownContractIsRefused()
         return client;
     }
 
-    private static async Task<(string Text, bool IsError)> NeuronsCall(HttpClient client, object arguments, CancellationToken ct)
+    private static Task<(string Text, bool IsError)> NeuronsCall(HttpClient client, object arguments, CancellationToken ct)
+        => Tool(client, "neurons_call", arguments, ct);
+
+    private static async Task<(string Text, bool IsError)> Tool(HttpClient client, string name, object arguments, CancellationToken ct)
     {
         using var response = await client.PostAsJsonAsync("/mcp", new
         {
             jsonrpc = "2.0",
             id = 1,
             method = "tools/call",
-            @params = new { name = "neurons_call", arguments }
+            @params = new { name, arguments }
         }, ct);
         response.EnsureSuccessStatusCode();
         var body = await response.Content.ReadAsStringAsync(ct);
@@ -179,7 +204,7 @@ public void RestrictingToAnUnknownContractIsRefused()
     // Both refusals happen before a neuron is resolved, so reaching the brain is a failure.
     private sealed class UnreachableBrain : IDigitalBrain
     {
-        public IKernel Self => throw new NotSupportedException();
+        public IBrain Self => throw new NotSupportedException();
 
         public T Get<T>(NeuronId id) where T : INeuron => throw new NotSupportedException();
 

@@ -133,7 +133,7 @@ public sealed class ShippedAppReconcilerFacts : IDisposable
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start();
-        var kernel = brain.Get<IKernel>(AppOwner.Scope("alice"));
+        var kernel = brain.Get<IBrain>(AppOwner.Scope("alice"));
         await kernel.Create(new Owner("account-alice"));
         var copy = await Installed(brain);
         await ShipNewerVersion(brain);

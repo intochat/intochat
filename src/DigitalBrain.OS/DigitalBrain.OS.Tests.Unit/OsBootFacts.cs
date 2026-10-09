@@ -84,7 +84,7 @@ public sealed class OsBootFacts
             StampedBy = TrustedEdge.AuthenticatedHttp,
         });
         await brain.AuthorizeCallerAsync();
-        await brain.Get<IKernel>(scope).Create(new Owner("acct"));
+        await brain.Get<IBrain>(scope).Create(new Owner("acct"));
         return scope;
     }
 

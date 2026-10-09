@@ -12,7 +12,7 @@ public sealed class BrainEstablishmentFacts
         await using var brain = await ModuleTest.Create().StartAsync(ct);
         var directory = brain.Get<IIdentityDirectory>(IdentityGrains.Directory);
         var member = await directory.RegisterAsync("alice", "correct-password", "Alice", ct);
-        var state = await brain.Get<IKernel>(BrainScope.Create(member.AccountId, member.BrainId).Id).Read();
+        var state = await brain.Get<IBrain>(BrainScope.Create(member.AccountId, member.BrainId).Id).Read();
         Assert.Equal(member.AccountId, state.Owner.AccountId);
     }
 
