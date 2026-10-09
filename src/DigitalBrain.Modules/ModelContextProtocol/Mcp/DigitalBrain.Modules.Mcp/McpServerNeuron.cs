@@ -29,7 +29,6 @@ internal sealed class McpServerNeuron(
     private Uri? _endpoint;
 
     private string Key => this.GetPrimaryKeyString();
-    private string Brain => BrainKey.BrainOf(Key);
 
     public async Task<McpServerState> Connect(McpServerSpec spec, CancellationToken ct = default)
     {
@@ -46,7 +45,6 @@ internal sealed class McpServerNeuron(
         }
         var state = new McpServerState(spec.Title, spec.Url, true, tools, null, DateTimeOffset.UtcNow);
         await Save(state);
-        await Sources().Register(new ToolSourceEntry(Key, typeof(IMcpServer).FullName!, spec.Title, tools));
         return state;
     }
 
@@ -54,14 +52,14 @@ internal sealed class McpServerNeuron(
     {
         await Drop();
         if (store.State?.State is { } state) { await Save(state with { Connected = false }); }
-        await Sources().Unregister(Key);
     }
 
     public Task<McpServerState> Read()
         => Task.FromResult(store.State?.State ?? new McpServerState("", "", false, [], null, null));
 
-    public Task<ToolDescriptor[]> Tools(CancellationToken ct = default)
-        => Task.FromResult<ToolDescriptor[]>([.. store.State?.State?.Tools ?? []]);
+    // A disconnected server offers no tools.
+    public Task<ToolSet> Tools(CancellationToken ct = default)
+        => Task.FromResult(store.State?.State is { Connected: true } state ? new ToolSet(state.Title, [.. state.Tools]) : new ToolSet("", []));
 
     public async Task<ToolResult> Run(string tool, string arguments, CancellationToken ct = default)
     {
@@ -81,8 +79,6 @@ internal sealed class McpServerNeuron(
         await Drop();
         await base.OnDeactivateAsync(reason, cancellationToken);
     }
-
-    private IToolSources Sources() => GrainFactory.GetGrain<IToolSources>(Brain + "/tools");
 
     private async Task Save(McpServerState state)
     {

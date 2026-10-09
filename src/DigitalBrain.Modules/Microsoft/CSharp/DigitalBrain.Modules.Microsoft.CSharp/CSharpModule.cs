@@ -46,7 +46,6 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         ArgumentNullException.ThrowIfNull(builder);
         var authoring = builder.Configuration.GetModuleOptions<CSharpOptions>("csharp").Authoring;
         builder.Services.AddOptions<CSharpDeploymentSettings>().BindConfiguration(CSharpDeploymentSettings.SectionName);
-        builder.Services.TryAddSingleton<CSharpCatalogStore>();
         builder.Services.TryAddSingleton<CSharpToolService>();
         builder.Services.TryAddSingleton<DigitalBrain.Apps.IScriptSandbox, CSharpScriptSandbox>();
         builder.Services.TryAddSingleton(TimeProvider.System);

@@ -9,6 +9,8 @@ namespace DigitalBrain.Microsoft.CSharp.Files;
 public interface ICSharpFile : INeuron
 {
     Task<CSharpFileSnapshot> Inspect(CancellationToken cancellationToken = default);
+    // The readable name and purpose; a null name or purpose keeps the current one.
+    Task<CSharpFileSnapshot> Describe(string? name, string? purpose, CancellationToken cancellationToken = default);
     Task Write(string source, CancellationToken cancellationToken = default);
     Task Configure(IReadOnlyDictionary<string, string> settings, CancellationToken cancellationToken = default);
     Task<CSharpFileSnapshot> Start(CancellationToken cancellationToken = default);

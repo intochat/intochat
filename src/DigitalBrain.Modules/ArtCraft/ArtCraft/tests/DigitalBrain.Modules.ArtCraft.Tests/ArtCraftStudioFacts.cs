@@ -27,8 +27,7 @@ public sealed class ArtCraftStudioFacts
 
         Assert.Equal((Brain + "/mcp/photocraft", "http://localhost:18110/"), (session.McpKey, session.WebUrl));
         Assert.True((await brain.Get<IMcpServer>(session.McpKey).Read()).Connected);
-        var entry = Assert.Single(await brain.Get<IToolSources>(Brain + "/tools").Read());
-        Assert.Equal("command_list", Assert.Single(entry.Tools).Name);
+        Assert.Equal("command_list", Assert.Single((await brain.Get<IMcpServer>(session.McpKey).Tools(ct)).Tools).Name);
     }
 
     [Fact]

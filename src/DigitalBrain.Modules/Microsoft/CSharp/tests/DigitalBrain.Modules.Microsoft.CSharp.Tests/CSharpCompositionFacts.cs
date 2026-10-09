@@ -17,6 +17,5 @@ public sealed class CSharpCompositionFacts
         var builder = ModuleTest.Create().WithModule<CSharpModule, CSharpOptions>(options => options.Authoring = authoring).WithReminders();
         await using var brain = await builder.StartAsync(TestContext.Current.CancellationToken);
         Assert.True(brain.SiloServices.GetRequiredService<CSharpToolService>().CanRun);
-        Assert.NotNull(brain.SiloServices.GetRequiredService<CSharpCatalogStore>());
     }
 }

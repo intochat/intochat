@@ -91,4 +91,11 @@ public abstract class Neuron<TState>(IPersistentState<TState> store) : Neuron wh
             await PublishAsync(acted);
         }
     }
+
+    // Clearing the record is what ends the neuron's existence: the kernel retires the instance.
+    protected async Task Clear(Signal changed)
+    {
+        await store.ClearStateAsync();
+        await PublishAsync(changed);
+    }
 }

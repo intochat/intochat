@@ -41,14 +41,14 @@ internal sealed partial class PageToolsNeuron(
         var state = new PageToolsState(spec.Title, spec.Driver, spec.Api, true);
         store.State = new() { State = state };
         await store.WriteStateAsync(ct);
-        await GrainFactory.GetGrain<IToolSources>(Brain + "/tools")
-            .Register(new ToolSourceEntry(Key, typeof(IPageTools).FullName!, spec.Title, Descriptors));
         return state;
     }
 
     public Task<PageToolsState> Read() => Task.FromResult(store.State?.State ?? new PageToolsState("", "", "", false));
 
-    public Task<ToolDescriptor[]> Tools(CancellationToken ct = default) => Task.FromResult<ToolDescriptor[]>([.. Descriptors]);
+    // Unconfigured page tools offer none.
+    public Task<ToolSet> Tools(CancellationToken ct = default)
+        => Task.FromResult(store.State?.State is { Configured: true } state ? new ToolSet(state.Title, [.. Descriptors]) : new ToolSet("", []));
 
     public async Task<ToolResult> Run(string tool, string arguments, CancellationToken ct = default)
     {

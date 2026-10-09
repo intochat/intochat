@@ -10,18 +10,20 @@ public sealed class PageToolsFacts
     private const string Brain = "page-tools-facts";
 
     [Fact]
-    public async Task ConfiguringRegistersTheThreePageTools()
+    public async Task ConfiguringOffersTheThreePageTools()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start(new Provider());
         Stamp();
 
-        await brain.Get<IPageTools>(Brain + "/pages/filmcraft").Configure(new("FilmCraft", Brain + "/driver", "filmcraft"), ct);
+        var pages = brain.Get<IPageTools>(Brain + "/pages/filmcraft");
+        Assert.Empty((await pages.Tools(ct)).Tools);
 
-        var entry = Assert.Single(await brain.Get<IToolSources>(Brain + "/tools").Read());
-        Assert.Equal(Brain + "/pages/filmcraft", entry.Key);
-        Assert.Equal(typeof(IPageTools).FullName, entry.Contract);
-        Assert.Equal(["commands", "execute", "request"], entry.Tools.Select(tool => tool.Name));
+        await pages.Configure(new("FilmCraft", Brain + "/driver", "filmcraft"), ct);
+
+        var offered = await pages.Tools(ct);
+        Assert.Equal("FilmCraft", offered.Title);
+        Assert.Equal(["commands", "execute", "request"], offered.Tools.Select(tool => tool.Name));
     }
 
     [Fact]

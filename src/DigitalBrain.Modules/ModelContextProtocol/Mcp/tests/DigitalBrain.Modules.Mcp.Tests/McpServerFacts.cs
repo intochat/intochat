@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Tools;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -17,7 +18,7 @@ public sealed class McpServerFacts
     private const string Key = Brain + "/mcp/fake";
 
     [Fact]
-    public async Task ConnectingListsTheServersToolsAndRegistersThem()
+    public async Task ConnectingListsTheServersToolsAndSearchFindsThemLive()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var server = await FakeServer.StartAsync(ct);
@@ -29,8 +30,10 @@ public sealed class McpServerFacts
         Assert.True(state.Connected);
         Assert.Equal(["echo", "next", "pixel"], state.Tools.Select(tool => tool.Name).Order());
         Assert.Contains("\"text\"", state.Tools.Single(tool => tool.Name == "echo").InputSchema, StringComparison.Ordinal);
-        var entry = Assert.Single(await brain.Get<IToolSources>(Brain + "/tools").Read());
-        Assert.Equal((Key, typeof(IMcpServer).FullName), (entry.Key, entry.Contract));
+        var capabilities = await Capabilities(brain).Read(Brain, ct);
+        Assert.Equal(["echo", "next", "pixel"], capabilities.Select(entry => entry.Tool).Order());
+        Assert.All(capabilities, entry => Assert.Equal((Key, typeof(IMcpServer).FullName), (entry.Key, entry.Contract)));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Capabilities(brain).Read("another-brain", ct));
     }
 
     [Fact]
@@ -93,7 +96,7 @@ public sealed class McpServerFacts
     }
 
     [Fact]
-    public async Task AnUnreachableServerIsAStateErrorNotARegistration()
+    public async Task AnUnreachableServerIsAStateErrorAndOffersNoTools()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start(ct);
@@ -105,11 +108,11 @@ public sealed class McpServerFacts
         var state = await mcp.Read();
         Assert.False(state.Connected);
         Assert.NotNull(state.Error);
-        Assert.Empty(await brain.Get<IToolSources>(Brain + "/tools").Read());
+        Assert.Empty(await Capabilities(brain).Read(Brain, ct));
     }
 
     [Fact]
-    public async Task DisconnectingUnregistersTheSource()
+    public async Task ADisconnectedServerOffersNoTools()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var server = await FakeServer.StartAsync(ct);
@@ -121,8 +124,11 @@ public sealed class McpServerFacts
         await mcp.Disconnect(ct);
 
         Assert.False((await mcp.Read()).Connected);
-        Assert.Empty(await brain.Get<IToolSources>(Brain + "/tools").Read());
+        Assert.Empty(await Capabilities(brain).Read(Brain, ct));
     }
+
+    private static IRuntimeCapabilitySource Capabilities(ModuleBrain brain)
+        => brain.SiloServices.GetServices<IRuntimeCapabilitySource>().OfType<ToolCapabilitySource>().Single();
 
     private static Task<ModuleBrain> Start(CancellationToken ct)
         => ModuleTest.Create().WithModule<McpModule>().WithModule<ToolsModule>().StartAsync(ct);

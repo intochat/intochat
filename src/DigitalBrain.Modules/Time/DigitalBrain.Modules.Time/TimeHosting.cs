@@ -7,7 +7,6 @@ public static class TimeHosting
     public static ISiloBuilder AddTime(this ISiloBuilder silo)
     {
         silo.Services.TryAddSingleton(TimeProvider.System);
-        silo.Services.TryAddSingleton<TimeInventoryWriter>();
         silo.Services.AddSingleton<IConfigurationValidator, ReminderConfiguration>();
         return silo;
     }
