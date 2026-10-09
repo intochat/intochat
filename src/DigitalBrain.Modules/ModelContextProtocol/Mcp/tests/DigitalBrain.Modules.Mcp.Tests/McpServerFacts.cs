@@ -27,7 +27,7 @@ public sealed class McpServerFacts
         var state = await brain.Get<IMcpServer>(Key).Connect(new("Fake", server.Url), ct);
 
         Assert.True(state.Connected);
-        Assert.Equal(["echo", "pixel"], state.Tools.Select(tool => tool.Name).Order());
+        Assert.Equal(["echo", "next", "pixel"], state.Tools.Select(tool => tool.Name).Order());
         Assert.Contains("\"text\"", state.Tools.Single(tool => tool.Name == "echo").InputSchema, StringComparison.Ordinal);
         var entry = Assert.Single(await brain.Get<IToolSources>(Brain + "/tools").Read());
         Assert.Equal((Key, typeof(IMcpServer).FullName), (entry.Key, entry.Contract));
@@ -47,6 +47,22 @@ public sealed class McpServerFacts
 
         Assert.False(result.IsError);
         Assert.Equal("echo: hello", result.Text);
+    }
+
+    [Fact]
+    public async Task CallsShareOneServerSessionSoItsStateCarriesOver()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var server = await FakeServer.StartAsync(ct);
+        await using var brain = await Start(ct);
+        Stamp();
+        var mcp = brain.Get<IMcpServer>(Key);
+        await mcp.Connect(new("Fake", server.Url), ct);
+
+        await mcp.Run("next", "{}", ct);
+        var second = await mcp.Run("next", "{}", ct);
+
+        Assert.Equal("2", second.Text);
     }
 
     [Fact]
@@ -121,6 +137,11 @@ public sealed class McpServerFacts
 
         [McpServerTool(Name = "echo", ReadOnly = true), Description("Echo the text back.")]
         public static string Echo(string text) => "echo: " + text;
+
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> Counters = new();
+
+        [McpServerTool(Name = "next"), Description("Count calls within this MCP session.")]
+        public static string Next(McpServer server) => Counters.AddOrUpdate(server.SessionId ?? "", 1, (_, count) => count + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
 
         [McpServerTool(Name = "pixel"), Description("Return a tiny PNG.")]
         public static ImageContentBlock Pixel() => ImageContentBlock.FromBytes(Png, "image/png");

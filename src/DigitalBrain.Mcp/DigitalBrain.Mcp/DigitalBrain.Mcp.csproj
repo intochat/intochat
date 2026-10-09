@@ -16,6 +16,7 @@
     <!-- Tool sources are searched from here too: the registry is read through the cluster client. -->
     <ProjectReference Include="../../DigitalBrain.Modules/DigitalBrain/Tools/DigitalBrain.Modules.Tools/DigitalBrain.Modules.Tools.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules/ModelContextProtocol/Mcp/DigitalBrain.Modules.Mcp.Contracts/DigitalBrain.Modules.Mcp.Contracts.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Modules/ArtCraft/ArtCraft/DigitalBrain.Modules.ArtCraft.Contracts/DigitalBrain.Modules.ArtCraft.Contracts.csproj" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
     <PackageReference Include="Aspire.Azure.Storage.Blobs" />
   </ItemGroup>

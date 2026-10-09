@@ -86,7 +86,7 @@ through `NeuronSurface.Call`). Both switch to **`CapabilityCatalog.Read(brainId)
 
 Containers (`src/DigitalBrain.Modules/ArtCraft/docker`):
 - `craft-mcp.Dockerfile` (APP=photocraft|filmcraft): `<app>-cli mcp` (stdio) bridged by
-  `supergateway` to Streamable HTTP `:8000/mcp`, `/work` volume shared as the workspace.
+  `mcp-proxy` (one SDK client session to the CLI; supergateway mixed sessions' JSON-RPC ids) to Streamable HTTP `:8000/mcp`, health `/status`, `/work` volume shared as the workspace.
 - `craft-web.Dockerfile`: the wasm build on nginx `:80`.
 
 Live view: the OS app's `open` synapse opens a window holding the shell's `UiWebBrowser` part

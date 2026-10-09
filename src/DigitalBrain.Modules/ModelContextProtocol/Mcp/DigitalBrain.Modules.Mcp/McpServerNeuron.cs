@@ -14,8 +14,9 @@ public sealed class McpServerStore
     [Id(0)] public McpServerState? State { get; set; }
 }
 
-// Opens one client per operation: servers are local containers or remote services, and the neuron,
-// not a process, holds what is known about them.
+// MCP servers keep per-session state (PhotoCraft's open documents live in the session's process), so an
+// activation holds one client and reuses it. The client is a cache: a broken session is dropped and the
+// call retried once on a fresh one; what the brain knows about the server lives in the persisted state.
 [GrainType("mcp.server")]
 internal sealed class McpServerNeuron(
     [PersistentState("mcp.server", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<McpServerStore> store)
@@ -23,6 +24,9 @@ internal sealed class McpServerNeuron(
 {
     private const int MaxText = 128 * 1024;
     private static readonly TimeSpan CallBudget = TimeSpan.FromMinutes(5);
+
+    private McpClient? _client;
+    private Uri? _endpoint;
 
     private string Key => this.GetPrimaryKeyString();
     private string Brain => Key[..Key.IndexOf('/', StringComparison.Ordinal)];
@@ -48,6 +52,7 @@ internal sealed class McpServerNeuron(
 
     public async Task Disconnect(CancellationToken ct = default)
     {
+        await Drop();
         if (store.State?.State is { } state) { await Save(state with { Connected = false }); }
         await Sources().Unregister(Key);
     }
@@ -71,6 +76,12 @@ internal sealed class McpServerNeuron(
         return result;
     }
 
+    public override async Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+    {
+        await Drop();
+        await base.OnDeactivateAsync(reason, cancellationToken);
+    }
+
     private IToolSources Sources() => GrainFactory.GetGrain<IToolSources>(Brain + "/tools");
 
     private async Task Save(McpServerState state)
@@ -79,13 +90,34 @@ internal sealed class McpServerNeuron(
         await store.WriteStateAsync();
     }
 
-    private static async Task<T> Session<T>(Uri endpoint, Func<McpClient, CancellationToken, Task<T>> operation, CancellationToken ct)
+    private async Task<T> Session<T>(Uri endpoint, Func<McpClient, CancellationToken, Task<T>> operation, CancellationToken ct)
     {
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(ct);
         budget.CancelAfter(CallBudget);
-        await using var transport = new HttpClientTransport(new HttpClientTransportOptions { Endpoint = endpoint });
-        await using var client = await McpClient.CreateAsync(transport, cancellationToken: budget.Token);
-        return await operation(client, budget.Token);
+        var reused = _client is not null && _endpoint == endpoint;
+        try { return await operation(await Client(endpoint, budget.Token), budget.Token); }
+        catch (Exception error) when (reused && error is not OperationCanceledException && error is not McpException)
+        {
+            await Drop();
+            return await operation(await Client(endpoint, budget.Token), budget.Token);
+        }
+    }
+
+    private async Task<McpClient> Client(Uri endpoint, CancellationToken ct)
+    {
+        if (_client is not null && _endpoint == endpoint) { return _client; }
+        await Drop();
+        var transport = new HttpClientTransport(new HttpClientTransportOptions { Endpoint = endpoint });
+        _client = await McpClient.CreateAsync(transport, cancellationToken: ct);
+        _endpoint = endpoint;
+        return _client;
+    }
+
+    private async Task Drop()
+    {
+        var client = _client;
+        (_client, _endpoint) = (null, null);
+        if (client is not null) { await client.DisposeAsync(); }
     }
 
     private static Dictionary<string, object?> Arguments(string arguments)

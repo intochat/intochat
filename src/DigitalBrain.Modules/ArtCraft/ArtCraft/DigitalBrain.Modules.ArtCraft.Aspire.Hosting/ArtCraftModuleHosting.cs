@@ -29,7 +29,7 @@ public sealed class ArtCraftModuleHosting : ModuleHosting<ArtCraftModule>
             brain.ApplicationBuilder.AddDockerfile(brain.ResourceName(app + "-mcp"), docker, "craft-mcp.Dockerfile")
                 .WithBuildArg("APP", app).WithBuildArg("REF", reference)
                 .WithHttpEndpoint(port: mcpPort, targetPort: 8000, name: "mcp", isProxied: false)
-                .WithHttpHealthCheck("/healthz", endpointName: "mcp")
+                .WithHttpHealthCheck("/status", endpointName: "mcp")
                 .WithLifetime(ContainerLifetime.Persistent)
                 .WithParentRelationship(module.Resource);
             brain.ApplicationBuilder.AddDockerfile(brain.ResourceName(app + "-web"), docker, "craft-web.Dockerfile")
