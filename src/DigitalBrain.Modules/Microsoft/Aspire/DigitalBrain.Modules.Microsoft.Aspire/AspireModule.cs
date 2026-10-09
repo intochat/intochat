@@ -26,5 +26,6 @@ public sealed class AspireModule() : Module<AspireOptions>(new ModuleId("aspire"
     {
         ArgumentNullException.ThrowIfNull(endpoints);
         endpoints.MapAspireBridge();
+        InfrastructureEndpoints.Map(endpoints);
     }
 }
