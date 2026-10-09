@@ -188,8 +188,19 @@ internal sealed class BrainRuntimeNeuron(
         if (existing is null)
         {
             existing = new(Guid.NewGuid().ToString("N"), behavior, neuron, signal, [], 0, 0);
+            // A source that retains the signal seeds the new subscription with the backlog the synapse
+            // missed. Watch before seeding: anything published between the seed and the watch arrives
+            // through the watch itself, and a duplicate is at-least-once's to bear; nothing is lost.
             await Save(Snapshot with { Subscriptions = [.. Snapshot.Subscriptions, existing] }, Changed());
             await WatchSourcesAsync();
+            var seeded = await SeedRetainedAsync(neuron, signal, existing.Watermark);
+            if (seeded.Length > 0)
+            {
+                var current = Snapshot.Subscriptions.First(s => s.Id == existing.Id);
+                var known = seeded.ToHashSet(StringComparer.Ordinal);
+                existing = current with { Pending = [.. seeded, .. current.Pending.Where(json => !known.Contains(json))] };
+                await Save(Snapshot with { Subscriptions = [.. Snapshot.Subscriptions.Where(s => s.Id != existing.Id), existing] }, Changed());
+            }
         }
         else
         {
@@ -376,6 +387,21 @@ internal sealed class BrainRuntimeNeuron(
     private static Uri Reachable(Uri url) => url.IsLoopback ? new UriBuilder(url) { Host = DockerHost }.Uri : url;
 
     private static SignalBatchEvent Batch(Subscription subscription, string? trace = null) => new(subscription.Id, subscription.Pending, subscription.Watermark, trace);
+
+    // A source that retains the signal seeds a new subscription with the backlog the synapse missed.
+    // A source without retention contributes nothing: the cast fails and there is nothing to seed.
+    private async Task<string[]> SeedRetainedAsync(string neuron, string signal, long since)
+    {
+        try
+        {
+            var retained = await GrainFactory.GetGrain<IRetainsSignals>(GrainId.Parse(neuron)).Retained(signal, since);
+            return [.. retained.Select(item => JsonSerializer.Serialize(item.Signal, item.Signal.GetType(), RuntimeProtocol.Json))];
+        }
+        catch (InvalidCastException)
+        {
+            return [];
+        }
+    }
 
     private ProgramView View(ProgramAssignment program)
         => new(program.Owner, program.Hash, [.. program.Behaviors.Select(behavior =>

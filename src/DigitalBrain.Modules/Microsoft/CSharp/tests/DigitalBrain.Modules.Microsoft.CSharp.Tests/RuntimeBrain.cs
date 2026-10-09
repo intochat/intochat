@@ -1,3 +1,4 @@
+using DigitalBrain.Apps;
 using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Microsoft.CSharp.Assemblies;
 using DigitalBrain.Microsoft.CSharp.Edge;
@@ -36,5 +37,23 @@ internal static class RuntimeBrain
         // The product's server hosting propagates traces across grain calls; a fact about traces opts in.
         if (traced) { builder = builder.ConfigureSilo(silo => silo.AddActivityPropagation()).ConfigureClient(client => client.AddActivityPropagation()); }
         return (http ? builder.WithHttpEdge() : builder).StartAsync(ct);
+    }
+
+    // The Apps module composes with CSharp, so a fact can drive a real app and read the runtime it owns.
+    public static Task<ModuleBrain> StartWithAppsAsync(FakeSessionHost host, CancellationToken ct)
+    {
+        var builder = ModuleTest.Create().WithModule<AppsModule>().WithModule<CSharpModule>().WithReminders()
+            .ConfigureSilo(silo =>
+            {
+                silo.Services.AddHttpClient<SessionRunner>().ConfigurePrimaryHttpMessageHandler(() => host);
+                silo.Services.AddSingleton(new MemoryBehaviorAssemblies());
+                silo.Services.AddSingleton(new ScriptContracts([typeof(IPinger).Assembly, typeof(ICSharpFile).Assembly]));
+                silo.Services.PostConfigure<CSharpDeploymentSettings>(options =>
+                {
+                    options.EdgeUrl = "http://edge.test/";
+                    options.SandboxUrl = FakeSessionHost.Url;
+                });
+            });
+        return builder.StartAsync(ct);
     }
 }
