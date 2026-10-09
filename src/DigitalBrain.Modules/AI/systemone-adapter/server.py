@@ -8,8 +8,9 @@ development and demos. The real Jev is a hosted model; this is the documented ad
 
 import json
 import os
+import threading
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from openai import OpenAI
 
 app = FastAPI(title="System One Adapter")
@@ -50,9 +51,31 @@ def _normalize(answer: dict, question: dict) -> dict:
     return {"type": "noul", "noul": answer.get("noul", 0.0)}
 
 
+_warm = threading.Event()
+_warming = threading.Lock()
+
+
+def _warm_up() -> None:
+    # One minimal inference loads the model; until it succeeds the resource is not healthy.
+    try:
+        _client.chat.completions.create(
+            model=_MODEL,
+            messages=[{"role": "user", "content": 'Reply with JSON {"answers": {"probe": "ok"}}'}],
+            response_format={"type": "json_object"},
+            temperature=0.0,
+        )
+        _warm.set()
+    finally:
+        _warming.release()
+
+
 @app.get("/health")
-def health() -> dict:
-    return {"status": "ok"}
+def health() -> Response:
+    if _warm.is_set():
+        return Response(content='{"status": "ok"}', media_type="application/json")
+    if _warming.acquire(blocking=False):
+        threading.Thread(target=_warm_up, daemon=True).start()
+    return Response(status_code=503, content='{"status": "warming"}', media_type="application/json")
 
 
 @app.post("/v1/systemone")

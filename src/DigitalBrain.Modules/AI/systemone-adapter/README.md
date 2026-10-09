@@ -16,7 +16,8 @@ docker compose up -d
 docker compose exec ollama ollama pull llama3.1
 ```
 
-The adapter is now at `http://localhost:8080`; `GET /health` answers `{"status":"ok"}`.
+The adapter is now at `http://localhost:8080`; `GET /health` answers 503 `{"status":"warming"}` while one warm-up
+inference loads the model, then `{"status":"ok"}`, so Aspire marks it healthy only once the model is warm.
 
 ## Point the brain at it
 
