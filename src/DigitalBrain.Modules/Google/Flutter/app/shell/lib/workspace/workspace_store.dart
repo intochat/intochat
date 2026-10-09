@@ -64,6 +64,10 @@ List<String> _strings(dynamic value) =>
 String _text(dynamic value, String fallback) =>
     value is String ? value : fallback;
 
+/// The app that owns a window keyed {brain}/apps/{name}/window; null for any other window.
+String? appOfWindow(String windowId) =>
+    RegExp(r'^.+/apps/([^/]+)/window$').firstMatch(windowId)?.group(1);
+
 class WorkspaceArtifact {
   WorkspaceArtifact({
     required this.id,
@@ -460,6 +464,18 @@ class WorkspaceStore extends ChangeNotifier {
         (c) => c.id == currentProject.selectedConversationId,
         orElse: () => currentProject.conversations.first,
       );
+
+  /// The one window the desktop shows: the active window when it is open and not minimized,
+  /// otherwise the most recently opened one that is. Null means the assistant is the focused app.
+  String? get focusedWindow {
+    final p = currentProject.presentation;
+    final visible = p.openArtifactIds
+        .where((id) => !p.minimizedArtifactIds.contains(id))
+        .toList();
+    if (visible.isEmpty) return null;
+    final active = p.activeArtifactId;
+    return active != null && visible.contains(active) ? active : visible.last;
+  }
   String _id() => const Uuid().v4();
   void _seed() {
     final conversation = WorkspaceConversation(
