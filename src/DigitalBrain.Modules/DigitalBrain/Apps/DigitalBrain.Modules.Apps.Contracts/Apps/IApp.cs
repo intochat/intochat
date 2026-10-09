@@ -11,7 +11,7 @@ public interface IApp : INeuron
     Task<AppSnapshot> Create(AppManifest manifest, string spec);
     Task<AppSnapshot> SaveSpec(string spec, Guid operationId);                 // minor bump
     Task<AppSnapshot> SaveManifest(AppManifest manifest, Guid operationId);    // patch bump
-    // Operations that deploy behaviors hot-swap ICSharpFiles, which can outlast the default call timeout.
+    // Operations that deploy behaviors hand a whole program to the runtime, which can outlast the default call timeout.
     [ResponseTimeout("00:10:00")] Task<AppSnapshot> WriteBehavior(string path, string source, Guid operationId);
     Task<AppSnapshot> WriteFile(string path, string source, Guid operationId); // patch bump
     [ResponseTimeout("00:10:00")] Task<AppSnapshot> Configure(Dictionary<string, string> settings, Dictionary<string, string> connections);
@@ -40,14 +40,8 @@ public interface IApp : INeuron
     // source folder as the next version, then re-attaches the copy to it.
     [ResponseTimeout("00:10:00")] Task<AppSnapshot> SaveToSource();
     [ResponseTimeout("00:10:00")] Task Delete();
-    Task<AppInvocation> Invoke(InvokeApp request);
-    Task<AppInvocation> Respond(AppResponse response);
-    Task<AppInvocation> ReadInvocation(Guid invocationId);
-    // Completes when the app's script answers the invocation; at once if it already has.
-    [Orleans.Concurrency.AlwaysInterleave, ResponseTimeout("00:05:00")] Task<AppInvocation> Await(Guid invocationId);
-    Task<IReadOnlyList<AppInvocation>> Pending();
-    // Retained invocation records in admission order, including pending work and terminal outcomes.
-    [Orleans.Concurrency.ReadOnly] Task<AppInvocation[]> ReadInvocations();
+    // Publishes AppRequested for a synapse to react to. Nothing waits for it: the answer is neuron state.
+    Task<Guid> Request(string operation, string input);
 
     static string Key(string brainId, string name) => $"{brainId}/apps/{name}";
 }

@@ -19,7 +19,6 @@ public sealed class AppState
     [Id(13)] public string[] StorageFiles { get; set; } = [];
     [Id(14)] public string[] DeployedFiles { get; set; } = [];
     [Id(15)] public Dictionary<string, string> BehaviorErrors { get; set; } = [];
-    [Id(16)] public List<AppInvocation> Invocations { get; set; } = [];
     [Id(17)] public List<OperationReceipt> Receipts { get; set; } = [];
     [Id(18)] public string? PublishedVersion { get; set; }
     [Id(19)] public AppOrigin? Origin { get; set; }
@@ -45,7 +44,6 @@ public sealed class AppState
         StorageFiles = [.. StorageFiles],
         DeployedFiles = [.. DeployedFiles],
         BehaviorErrors = new(BehaviorErrors, StringComparer.Ordinal),
-        Invocations = [.. Invocations],
         Receipts = [.. Receipts],
         PublishedVersion = PublishedVersion,
         Origin = Origin,

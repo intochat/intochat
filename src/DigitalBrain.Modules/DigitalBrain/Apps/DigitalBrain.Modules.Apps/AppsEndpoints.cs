@@ -1,4 +1,3 @@
-using System.Text.Json;
 using DigitalBrain.Framework;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -12,7 +11,6 @@ namespace DigitalBrain.Apps;
 internal static class AppsEndpoints
 {
     public sealed record TextRequest(string? Text);
-    public sealed record AskRequest(string? Operation, string? Input);
     public sealed record SettingsRequest(Dictionary<string, string>? Settings, Dictionary<string, string>? Connections);
     public sealed record RollbackRequest(string Version);
 
@@ -98,9 +96,6 @@ internal static class AppsEndpoints
             return Icon(snapshot.Manifest.Icon, snapshot.Files, name);
         }));
 
-        apps.MapPost("/{name}/ask", (string name, AskRequest? request, IDigitalBrain brain, CancellationToken ct)
-            => Respond(() => Ask(App(brain, name), request?.Operation ?? "ask", request?.Input ?? "{}", ct)));
-
         apps.MapGet("/{name}/export", (string name, IDigitalBrain brain, CancellationToken ct)
             => Respond(async () => Results.Ok(await App(brain, name).Export().WaitAsync(ct))));
 
@@ -167,24 +162,6 @@ internal static class AppsEndpoints
         origin = snapshot.Origin,
         edited = snapshot.Edited,
     };
-
-    internal static async Task<IResult> Ask(IApp app, string operation, string input, CancellationToken ct)
-    {
-        var started = await app.Invoke(new(Guid.NewGuid(), operation, input.Length == 0 ? "{}" : input)).WaitAsync(ct);
-        // The app's answer is pushed when it responds; the request's own abort is the only limit.
-        var invocation = await app.Await(started.Id).WaitAsync(ct);
-        if (invocation.Status != InvocationStatus.Completed || invocation.Output is null)
-        { return Results.UnprocessableEntity(new { error = invocation.Error ?? "The app returned no output.", invocationId = invocation.Id }); }
-        try
-        {
-            using var output = JsonDocument.Parse(invocation.Output);
-            return Results.Ok(output.RootElement.Clone());
-        }
-        catch (JsonException)
-        {
-            return Results.Text(invocation.Output);
-        }
-    }
 
     internal static async Task<IResult> Respond(Func<Task<IResult>> handler)
     {

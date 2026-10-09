@@ -18,7 +18,6 @@ internal sealed class AppNeuron(
 {
     private const int MaxHistory = 20;
     private const int MaxActivity = 50;
-    private const int MaxInvocations = 256;
     private const int MaxPayloadLength = 64 * 1024;
     private const int MaxReceipts = 64;
 
@@ -404,75 +403,22 @@ internal sealed class AppNeuron(
         await Persist(new AppState { BrainScopeId = Snapshot.BrainScopeId });
     }
 
-    public async Task<AppInvocation> Invoke(InvokeApp request)
+    public async Task<Guid> Request(string operation, string input)
     {
-        ArgumentNullException.ThrowIfNull(request);
         RequireCreated();
-        if (Snapshot.Invocations.Find(item => item.Id == request.InvocationId) is { } existing) { return existing; }
-        if (!Snapshot.Manifest!.Operations.Any(operation => operation.Name == request.Operation))
+        ArgumentException.ThrowIfNullOrWhiteSpace(operation);
+        ArgumentNullException.ThrowIfNull(input);
+        if (!Snapshot.Manifest!.Operations.Any(candidate => candidate.Name == operation))
         {
             throw new ArgumentException(
-                $"{request.Operation} is not an operation of {Name()}. It offers: {string.Join(", ", Snapshot.Manifest.Operations.Select(operation => operation.Name))}.");
+                $"{operation} is not an operation of {Name()}. It offers: {string.Join(", ", Snapshot.Manifest.Operations.Select(candidate => candidate.Name))}.");
         }
-        if (request.Input is not { Length: <= MaxPayloadLength }) { throw new ArgumentException("An invocation input is at most 64 KiB."); }
-        var invocation = new AppInvocation(request.InvocationId, request.Operation, request.Input, InvocationStatus.Pending, null, null, clock.GetUtcNow(), null);
-        var next = Snapshot.Clone();
-        next.Invocations.Add(invocation);
-        while (next.Invocations.Count > MaxInvocations)
-        {
-            var oldest = next.Invocations.FindIndex(item => item.Status != InvocationStatus.Pending);
-            if (oldest < 0) { throw new InvalidOperationException($"{MaxInvocations} invocations are still waiting for the app's script."); }
-            next.Invocations.RemoveAt(oldest);
-        }
-        await Save(next, new AppInvoked(invocation.Id, invocation.Operation, invocation.Input));
-        return invocation;
+        if (input.Length > MaxPayloadLength) { throw new ArgumentException("A request input is at most 64 KiB."); }
+        var id = Guid.NewGuid();
+        // Published, never stored: a request is a fact for the app's synapses, and the brain runtime buffers it for them.
+        await Save(Snapshot, new AppRequested(operation, input, id));
+        return id;
     }
-
-    public async Task<AppInvocation> Respond(AppResponse response)
-    {
-        ArgumentNullException.ThrowIfNull(response);
-        var index = Snapshot.Invocations.FindIndex(item => item.Id == response.InvocationId);
-        if (index < 0) { throw new KeyNotFoundException($"No invocation {response.InvocationId}."); }
-        var invocation = Snapshot.Invocations[index];
-        if (invocation.Status != InvocationStatus.Pending) { return invocation; }
-        if (response.Output is { Length: > MaxPayloadLength } || response.Error is { Length: > MaxPayloadLength })
-        { throw new ArgumentException("An invocation output is at most 64 KiB."); }
-        var completed = invocation with
-        {
-            Status = response.Error is null ? InvocationStatus.Completed : InvocationStatus.Failed,
-            Output = response.Output,
-            Error = response.Error,
-            CompletedAt = clock.GetUtcNow(),
-        };
-        var next = Snapshot.Clone();
-        next.Invocations[index] = completed;
-        await Save(next, new AppInvocationCompleted(completed));
-        if (waiters.Remove(response.InvocationId, out var waiter)) { waiter.TrySetResult(completed); }
-        return completed;
-    }
-
-    // Await only reads, so it interleaves with Respond; waiters are in memory and die with the activation.
-    private readonly Dictionary<Guid, TaskCompletionSource<AppInvocation>> waiters = [];
-
-    public Task<AppInvocation> Await(Guid invocationId)
-    {
-        var invocation = Snapshot.Invocations.Find(item => item.Id == invocationId)
-            ?? throw new KeyNotFoundException($"No invocation {invocationId}.");
-        if (invocation.Status != InvocationStatus.Pending) { return Task.FromResult(invocation); }
-        if (!waiters.TryGetValue(invocationId, out var waiter))
-        { waiters[invocationId] = waiter = new(TaskCreationOptions.RunContinuationsAsynchronously); }
-        return waiter.Task;
-    }
-
-    public Task<AppInvocation> ReadInvocation(Guid invocationId)
-        => Snapshot.Invocations.Find(item => item.Id == invocationId) is { } invocation
-            ? Task.FromResult(invocation)
-            : throw new KeyNotFoundException($"No invocation {invocationId}.");
-
-    public Task<AppInvocation[]> ReadInvocations() => Task.FromResult(Snapshot.Invocations.ToArray());
-
-    public Task<IReadOnlyList<AppInvocation>> Pending()
-        => Task.FromResult<IReadOnlyList<AppInvocation>>(Snapshot.Invocations.Where(item => item.Status == InvocationStatus.Pending).ToArray());
 
     private IDeployableRuntime? Deployable() => deployables.FirstOrDefault(candidate => candidate.Name == AppFiles.Runtime);
 
