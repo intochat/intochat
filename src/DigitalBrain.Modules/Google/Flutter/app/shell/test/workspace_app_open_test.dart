@@ -14,6 +14,13 @@ class OpeningClient extends SettingsAppClient {
   int reopens = 0;
   int currentRevision = 10;
   bool windowOpen = false;
+
+  /// The window the app commits for itself; the shell reveals the same id.
+  String windowId = '';
+
+  /// The surface neuron the app's window renders.
+  String surfaceId = '';
+
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     if (request.url.path.contains('/apps/settings/')) {
@@ -38,12 +45,9 @@ class OpeningClient extends SettingsAppClient {
               'revision': currentRevision,
               'windows': [
                 {
-                  'id': 'settings-window',
+                  'id': windowId,
                   'title': 'Settings',
-                  'reference': {
-                    'kind': 'surface',
-                    'neuronId': 'brain/apps/settings/surface',
-                  },
+                  'reference': {'kind': 'surface', 'neuronId': surfaceId},
                   'isOpen': windowOpen,
                 },
               ],
@@ -67,7 +71,10 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       final store = WorkspaceStore(persistence: MemoryPersistence());
-      final api = OpeningClient();
+      final appKey = '${store.currentProject.id}/apps/settings';
+      final api = OpeningClient()
+        ..windowId = '$appKey/window'
+        ..surfaceId = '$appKey/surface';
       await tester.pumpWidget(
         WorkspaceApp(
           store: store,
@@ -86,7 +93,7 @@ void main() {
       expect(store.remoteRevisions[store.currentProject.id], 11);
       expect(
         store.currentProject.presentation.openArtifactIds,
-        contains('settings-window'),
+        contains(api.windowId),
       );
       expect(find.text('Connections supplied by the app'), findsOneWidget);
       expect(find.textContaining('Window changed.'), findsNothing);

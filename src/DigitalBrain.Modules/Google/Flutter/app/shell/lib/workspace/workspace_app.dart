@@ -1100,12 +1100,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
         workspace,
         openedWindowId: result['id'] as String?,
       );
-      final opened = Map<String, dynamic>.from(result as Map);
-      if (opened['surface'] is String) {
-        opened['surface'] = {'kind': 'surface', 'name': opened['surface']};
-      }
-      if (opened['surface'] is Map) opened['kind'] = 'surface';
-      _accept(opened, project: project);
+      _accept(Map<String, dynamic>.from(result as Map), project: project);
       setState(() => _homeChoice = false);
       if (store.currentProject.id == project.id) {
         store.openArtifact(result['id'] as String, placement: 'floating');

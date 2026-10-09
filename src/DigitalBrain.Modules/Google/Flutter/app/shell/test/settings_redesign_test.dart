@@ -34,13 +34,11 @@ class SettingsAppClient extends WorkspaceClient {
     Map<String, dynamic>? response;
     if (request.url.path.contains('/apps/settings/')) {
       openedSettings++;
-      response = {
-        'id': 'settings-window',
-        'title': 'Settings',
-        'surface': 'brain/apps/settings/surface',
-      };
-    } else if (request.url.queryParameters['name'] ==
-        'brain/apps/settings/surface') {
+      // The kernel accepts the request and the app answers through its neurons.
+      response = {'requestId': 'settings-request'};
+    } else if ((request.url.queryParameters['name'] ?? '').endsWith(
+      'apps/settings/surface',
+    )) {
       response = {
         'definition': {
           'children': [

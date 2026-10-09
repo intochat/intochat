@@ -177,33 +177,52 @@ final class DigitalBrainUiClient {
         .toList();
   }
 
-  static String appOpenPath(String brainId, String appId) =>
-      '/brains/${Uri.encodeComponent(brainId)}/apps/${Uri.encodeComponent(appId)}/ask';
+  static String appRequestPath(String brainId, String appId) =>
+      '/brains/${Uri.encodeComponent(brainId)}/apps/${Uri.encodeComponent(appId)}/request';
 
-  Future<dynamic> openApp(
+  /// The route that publishes an open request; the app answers through neurons, never here.
+  static String appOpenPath(String brainId, String appId) =>
+      appRequestPath(brainId, appId);
+
+  /// The brain-scoped key of one installed app; its neurons live under it.
+  static String appKey(String brainId, String appId) => '$brainId/apps/$appId';
+
+  /// Publishes a request to an app; the app answers through neurons, never through this call.
+  Future<String> requestApp(
+    String brainId,
+    String appId,
+    String operation,
+    String input,
+  ) async {
+    final body = await jsonRequest('POST', appRequestPath(brainId, appId), {
+      'operation': operation,
+      'input': input,
+    });
+    return (body as Map)['requestId'] as String;
+  }
+
+  Future<Map<String, dynamic>> openApp(
     String brainId,
     String appId, [
     Map<String, dynamic> arguments = const {},
-  ]) => jsonRequest('POST', appOpenPath(brainId, appId), {
-    'operation': 'open',
-    'input': jsonEncode(arguments),
-  });
+  ]) async {
+    await requestApp(brainId, appId, 'open', jsonEncode(arguments));
+    final key = appKey(brainId, appId);
+    return {
+      'id': '$key/window',
+      'title': appId,
+      'surface': {'kind': 'surface', 'name': '$key/surface'},
+      'kind': 'surface',
+    };
+  }
 
   /// Asks an app to open in the side panel; answers the surface it declared.
   Future<Map<String, dynamic>> openDockedApp(
     String brainId,
     String appId,
   ) async {
-    final result = Map<String, dynamic>.from(
-      await jsonRequest('POST', appOpenPath(brainId, appId), {
-        'operation': 'open',
-        'input': 'docked',
-      }) as Map,
-    );
-    final surface = result['surface'];
-    return surface is String
-        ? {'kind': 'surface', 'name': surface}
-        : Map<String, dynamic>.from(surface as Map);
+    await requestApp(brainId, appId, 'open', 'docked');
+    return {'kind': 'surface', 'name': '${appKey(brainId, appId)}/surface'};
   }
 
   /// Raw bytes of a served file such as an app icon; null when the server has none.

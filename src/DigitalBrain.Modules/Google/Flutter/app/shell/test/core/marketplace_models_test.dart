@@ -69,21 +69,14 @@ void main() {
     expect(entry.updateAvailable, isTrue);
   });
 
-  test('a docked open asks the app for its surface reference', () async {
+  test('a docked open posts a request and reads the app surface neuron', () async {
     Object? sent;
     final client = DigitalBrainUiClient(
       baseUri: Uri.parse('http://test'),
       httpClient: MockClient((request) async {
         sent = jsonDecode(request.body);
-        expect(request.url.path, '/brains/b1/apps/assistant/ask');
-        return http.Response(
-          jsonEncode({
-            'id': 'b1/apps/assistant/window',
-            'title': 'Assistant',
-            'surface': 'b1/apps/assistant/surface',
-          }),
-          200,
-        );
+        expect(request.url.path, '/brains/b1/apps/assistant/request');
+        return http.Response(jsonEncode({'requestId': 'request-1'}), 200);
       }),
     );
     final surface = await client.openDockedApp('b1', 'assistant');
