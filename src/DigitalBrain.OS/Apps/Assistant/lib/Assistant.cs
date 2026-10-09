@@ -1,4 +1,6 @@
 using System.Globalization;
+using DigitalBrain.AI.Agents;
+using DigitalBrain.AI.Models;
 using DigitalBrain.AI.Routing;
 using DigitalBrain.Apps;
 using DigitalBrain.Client;
@@ -9,6 +11,13 @@ using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.Workspace;
+using DigitalBrain.Flutter.Form;
+using DigitalBrain.Integrations;
+using DigitalBrain.Machine;
+using DigitalBrain.Microsoft.CSharp.Files;
+using DigitalBrain.Postgres;
+using DigitalBrain.Mcp;
+using DigitalBrain.Microsoft.Playwright;
 
 // Shared by every synapse of the assistant: the app's key, its brain scope, the selected
 // conversation and the composed surface. A synapse is one reaction; this is the vocabulary
@@ -16,6 +25,15 @@ using DigitalBrain.Flutter.Workspace;
 public static class Assistant
 {
     public const double DefaultRouteGate = 0.8;
+
+    // Jev routes short commands; a longer message goes straight to the model.
+    public const int MaxRoutedChars = 2000;
+
+    // What the model may act on: the contracts this app composes, checked by the compiler.
+    public static readonly string[] Contracts = [typeof(IConnectionRequests).FullName!, typeof(IPostgresServer).FullName!, typeof(IApp).FullName!, typeof(IAppIndex).FullName!,
+        typeof(IWorkspace).FullName!, typeof(IForm).FullName!, typeof(ICSharpFile).FullName!,
+        typeof(IConsole).FullName!, typeof(IFileSystem).FullName!,
+        typeof(IMcpServer).FullName!, typeof(IPageTools).FullName!];
 
     public static string Key(DigitalBrainConnection brain) => brain.Setting("App")!;
     public static string Scope(DigitalBrainConnection brain) => brain.Setting("Brain")!;
@@ -28,6 +46,15 @@ public static class Assistant
     public static bool IsDirect(RouteResult route)
         => (route.Contract == typeof(IApp).FullName && route.Method == nameof(IApp.Request))
             || route.Method is "Read" or "List";
+
+    public static async Task AskModel(DigitalBrainConnection brain, AppSnapshot snapshot, string input, string hint, Guid requestId)
+    {
+        var choice = snapshot.Settings.GetValueOrDefault("Model", "");
+        var model = choice.Length > 0 ? await brain.Get<IModelCatalog>("default").Select(choice) : null;
+        var conversation = brain.Get<IAgent>(Key(brain) + "/conversations/" + await ConversationId(brain));
+        await conversation.Start(AgentTurn.Text(input, instructions: snapshot.Files.GetValueOrDefault("prompts/system.md", "") + hint, contracts: Contracts)
+            with { Model = model, RunId = requestId.ToString("N") });
+    }
 
     public static Task Status(DigitalBrainConnection brain, string text)
         => brain.Get<IText>(Key(brain) + "/status").Set(text);

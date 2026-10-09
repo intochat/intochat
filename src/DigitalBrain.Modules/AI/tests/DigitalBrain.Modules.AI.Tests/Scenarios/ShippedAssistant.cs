@@ -16,8 +16,8 @@ internal static class ShippedAssistant
         var os = XDocument.Load(Path.Combine(directory.FullName, "DigitalBrain.slnx")).Descendants("Project")
             .Select(element => element.Attribute("Path")!.Value.Replace('\\', '/'))
             .Single(path => Path.GetFileNameWithoutExtension(path) == "DigitalBrain.OS");
-        var send = File.ReadAllText(Path.Combine(directory.FullName, Path.GetDirectoryName(os)!, "..", "Apps", "Assistant", "synapses", "send.cs"));
-        var list = Regex.Match(send, @"string\[\] contracts = \[(?<types>[^\]]*)\];").Groups["types"].Value;
+        var lib = File.ReadAllText(Path.Combine(directory.FullName, Path.GetDirectoryName(os)!, "..", "Apps", "Assistant", "lib", "Assistant.cs"));
+        var list = Regex.Match(lib, @"string\[\] Contracts = \[(?<types>[^\]]*)\];").Groups["types"].Value;
         var deployed = new ContractCatalog(ContractCatalog.Deployed()).Neurons;
         return [.. Regex.Matches(list, @"typeof\((?<name>\w+)\)").Select(match =>
             deployed.Single(name => name.EndsWith("." + match.Groups["name"].Value, StringComparison.Ordinal)))];

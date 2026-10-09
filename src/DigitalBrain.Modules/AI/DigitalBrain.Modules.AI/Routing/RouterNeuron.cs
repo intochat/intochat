@@ -18,10 +18,11 @@ namespace DigitalBrain.AI.Routing;
 [GrainType("ai.router")]
 internal sealed class RouterNeuron(
     [PersistentState("router", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<RouterStorage> store)
-    : Neuron<RouterStorage>(store), IRouter
+    : Neuron<RouterStorage>(store), IRouter, IRouterWork
 {
     private const int MaxOptions = 255;
     private const int MaxRecent = 16;
+    private const int MaxAsked = 64;
     private const int MaxSteps = 8;
     private const int MaxRequestChars = 2000;
     private const double Gate = 0.5;
@@ -30,41 +31,80 @@ internal sealed class RouterNeuron(
     private string Scope => NeuronAccess.ForBrainKey(Key).Scope ?? Key;
     private CapabilityCatalog Capabilities() => ServiceProvider.GetRequiredService<CapabilityCatalog>();
 
+    public async Task Ask(RouteRequest request, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.State);
+        var asked = Snapshot.Asked.Where(item => item.Id != request.Id).TakeLast(MaxAsked - 1);
+        await Save(Snapshot with { Asked = [.. asked, new PendingRoute(request.Id, Clip(request.State), "Routing", request.Allowed)] }, new RouterDecided(Key, Snapshot.Recent.Length));
+        await this.AsReference<IRouterWork>().Decide(request.Id);
+    }
+
+    public Task<PendingRoute?> Pending(Guid id, CancellationToken ct) => Task.FromResult(Snapshot.Asked.FirstOrDefault(item => item.Id == id));
+
+    // A one-way turn: the model takes as long as it takes and no caller waits on it, so the System One
+    // HTTP call is made here directly rather than through a grain call bounded by the response timeout.
+    public async Task Decide(Guid id)
+    {
+        if (Snapshot.Asked.FirstOrDefault(item => item.Id == id) is not { Status: "Routing" } asked) { return; }
+        var http = ServiceProvider.GetRequiredService<HttpSystemOne>();
+        PendingRoute settled;
+        Routed routed;
+        try
+        {
+            var result = await Decide(asked.State, asked.Allowed, request => http.Ask(request, CancellationToken.None), CancellationToken.None);
+            settled = asked with { Status = "Routed", Result = result };
+            routed = new Routed(id, result.Contract, result.Method, result.Confidence);
+        }
+        catch (Exception error)
+        {
+            settled = asked with { Status = "Failed", Error = error.Message };
+            routed = new Routed(id, "", "", 0, error.Message);
+        }
+        var recent = settled.Result is { } route ? Recorded(asked.State, route.Contract, route.Method) : Snapshot.Recent;
+        await Save(Snapshot with { Recent = recent, Asked = [.. Snapshot.Asked.Select(item => item.Id == id ? settled : item)] },
+            new RouterDecided(Key, recent.Length), routed);
+    }
+
     public async Task<RouteResult> Route(string state, string[]? allowed, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(state);
+        var systemone = ServiceProvider.GetRequiredService<IGrainFactory>().GetGrain<ISystemOne>(Scope);
+        var result = await Decide(state, allowed, request => systemone.Ask(request, ct), ct);
+        await Remember(state, result.Contract, result.Method);
+        return result;
+    }
+
+    private async Task<RouteResult> Decide(string state, string[]? allowed, Func<SystemOneRequest, Task<SystemOneResult>> ask, CancellationToken ct)
+    {
         var types = (await Capabilities().Read(Scope, ct))
             .Where(type => allowed is null || allowed.Contains(type.Contract, StringComparer.Ordinal))
             .ToArray();
         if (types.Length == 0) { throw new InvalidOperationException("No contracts are available to route over."); }
 
-        var systemone = ServiceProvider.GetRequiredService<IGrainFactory>().GetGrain<ISystemOne>(Scope);
         var moment = AwareOfState(state);
         var criteria = types.ToDictionary(type => type.Id, type => (string?)Trim(type.Description), StringComparer.Ordinal);
         var contractQuestions = new Dictionary<string, SystemOneQuestion>(StringComparer.Ordinal);
         var chunks = Chunk(criteria).ToArray();
         for (var index = 0; index < chunks.Length; index++)
         { contractQuestions["capability_" + index] = new SystemOneQuestion.Choice("Which capability can carry out this request?", chunks[index]); }
-        var contractAnswer = await systemone.Ask(new SystemOneRequest(moment, contractQuestions), ct);
+        var contractAnswer = await ask(new SystemOneRequest(moment, contractQuestions));
 
         var (chosenId, confidence, probabilities) = Best(contractAnswer);
         var chosen = types.Single(type => type.Id == chosenId);
         if (chosen.Key is not null)
         {
-            await Remember(state, chosen.Contract, "Run", confidence);
             return new RouteResult(chosen.Contract, "Run", confidence, probabilities, chosen.Key, chosen.Tool);
         }
         var methods = chosen.Methods.Select(MethodName).Where(name => !NotCallable.Contains(name)).Distinct(StringComparer.Ordinal).ToArray();
         if (methods.Length == 0)
         {
-            await Remember(state, chosen.Contract, "", confidence);
             return new RouteResult(chosen.Contract, "", confidence, probabilities);
         }
 
-        var methodAnswer = await systemone.Ask(new SystemOneRequest(moment,
-            new() { ["method"] = new SystemOneQuestion.Choice("Which method carries out this request?", methods.ToDictionary(name => name, _ => (string?)null, StringComparer.Ordinal)) }), ct);
+        var methodAnswer = await ask(new SystemOneRequest(moment,
+            new() { ["method"] = new SystemOneQuestion.Choice("Which method carries out this request?", methods.ToDictionary(name => name, _ => (string?)null, StringComparer.Ordinal)) }));
         var method = methodAnswer.Answers["method"] is SystemOneAnswer.Choice { Value.Length: > 0 } picked ? picked.Value : methods[0];
-        await Remember(state, chosen.Contract, method, confidence);
         return new RouteResult(chosen.Contract, method, confidence, probabilities);
     }
 
@@ -130,7 +170,7 @@ internal sealed class RouterNeuron(
             catch (Exception error) when (error is not OperationCanceledException)
             { steps.Add(new GoalStep(chosen.Contract, method, null, null, null, error.Message, confidence)); }
         }
-        if (steps.Count > 0) { await Remember(goal, steps[^1].Contract, steps[^1].Method, steps[^1].Confidence); }
+        if (steps.Count > 0) { await Remember(goal, steps[^1].Contract, steps[^1].Method); }
         var last = steps.LastOrDefault();
         return new GoalRun(goal, [.. steps], last?.Error ?? last?.Result);
     }
@@ -170,11 +210,16 @@ internal sealed class RouterNeuron(
         return builder.ToString();
     }
 
-    private async Task Remember(string request, string contract, string method, double confidence)
+    private async Task Remember(string request, string contract, string method)
+    {
+        var recent = Recorded(request, contract, method);
+        await Save(Snapshot with { Recent = recent }, new RouterDecided(Key, recent.Length));
+    }
+
+    private RouteRecord[] Recorded(string request, string contract, string method)
     {
         var record = new RouteRecord(Clip(request), contract, method);
-        var recent = Snapshot.Recent.Where(item => item.Request != record.Request || item.Contract != record.Contract).TakeLast(MaxRecent - 1).ToArray();
-        await Save(Snapshot with { Recent = [.. recent, record] }, new RouterDecided(Key, recent.Length + 1), new Routed(Clip(request), contract, method, confidence));
+        return [.. Snapshot.Recent.Where(item => item.Request != record.Request || item.Contract != record.Contract).TakeLast(MaxRecent - 1), record];
     }
 
     // A language model fills the two things a System One model cannot produce: the grain key and the

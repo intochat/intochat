@@ -125,7 +125,7 @@ public sealed class SystemOneRouterFacts
     }
 
     [Fact]
-    public async Task RouteIsPublishedAsARoutedSignal()
+    public async Task AnAskedRouteIsAnsweredAsStateAndARoutedSignal()
     {
         var ct = TestContext.Current.CancellationToken;
         using var server = new LoopbackServer();
@@ -138,13 +138,18 @@ public sealed class SystemOneRouterFacts
         var router = host.Get<IRouter>(Scope);
         await using var routed = await host.Observe<Routed>(router, ct);
 
-        await router.Route("start a countdown please", null, ct);
+        var id = Guid.NewGuid();
+
+        await router.Ask(new RouteRequest(id, "start a countdown please"), ct);
 
         var signal = await routed.NextAsync(ct: ct);
+        Assert.Equal(id, signal.Id);
         Assert.Equal(typeof(ITimer).FullName, signal.Contract);
         Assert.Equal("Start", signal.Method);
         Assert.Equal(0.91, signal.Confidence);
-        Assert.Equal("start a countdown please", signal.State);
+        var pending = await router.Pending(id, ct);
+        Assert.Equal("Routed", pending?.Status);
+        Assert.Equal("Start", pending?.Result?.Method);
         await Task.WhenAll(replies);
     }
 

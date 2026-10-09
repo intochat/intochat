@@ -7,11 +7,14 @@ Conversations are durable; "new" starts another one. Opening docked answers the 
 the shell's side panel without opening a window.
 
 Before a message reaches the language model, Jev (the router) reads it against the contract catalog.
+Sending asks the router and ends; the router answers with a `Routed` signal carrying the request id,
+and a second reaction carries the answer out, so a slow model never holds a message. A message
+longer than 2000 characters skips Jev and goes straight to the model.
 A route the router is at least `RouteGate` (default 0.8) sure of, and that is an app operation
 (`IApp.Request`) or a pure read, is carried out directly through the router; the status line shows
 the route and its outcome, and no language model turn runs. Any other route runs the agent turn as
-usual, with the likely capabilities appended to the system prompt. Either way the router leaves a
-`Routed` signal, so the shell can show which path answered.
+usual, with the likely capabilities appended to the system prompt. Either way the `Routed` signal
+shows which path answered.
 
 ## Scenario: Opening the assistant composes its surface
 

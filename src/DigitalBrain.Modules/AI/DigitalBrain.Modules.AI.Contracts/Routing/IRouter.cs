@@ -7,7 +7,13 @@ namespace DigitalBrain.AI.Routing;
 [Alias("ai.router"), Orleans.Metadata.DefaultGrainType("ai.router")]
 public interface IRouter : INeuron
 {
-    // Decide only: the catalog contract, method and confidence. No call is made.
+    // Record the request and return; the router answers by writing the result into its state and
+    // publishing Routed, so a slow model holds no caller.
+    Task Ask(RouteRequest request, CancellationToken ct = default);
+
+    [ReadOnly, AlwaysInterleave] Task<PendingRoute?> Pending(Guid id, CancellationToken ct = default);
+
+    // Decide only, for callers that can wait: the catalog contract, method and confidence. No call is made.
     [AlwaysInterleave] Task<RouteResult> Route(string state, string[]? allowed = null, CancellationToken ct = default);
 
     // Decide, fill the call's key and arguments with a language model, and invoke the chosen neuron.
