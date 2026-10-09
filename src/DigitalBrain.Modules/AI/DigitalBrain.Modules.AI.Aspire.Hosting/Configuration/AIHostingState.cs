@@ -120,6 +120,11 @@ public static partial class AIHostingExtensions
             }
         }
 
+        // An Ollama model that backs something other than an LLM/embedding neuron (the System One
+        // adapter). Not a marker: nothing is keyed by it, so it is not added to _markers.
+        internal IResourceBuilder<OllamaModelResource> AddOllamaBackingModel(string id)
+            => EnsureOllama().AddModel(brain.ResourceName(OllamaResourceName(id)), id);
+
         private void RequireAdded(Type marker)
         {
             if (!_markers.Contains(marker))
@@ -168,7 +173,7 @@ public static partial class AIHostingExtensions
         private static string OllamaResourceName(string id)
             => id.ToLowerInvariant().Replace(':', '-').Replace('.', '-').Replace('/', '-');
 
-        private IResourceBuilder<OllamaResource> EnsureOllama()
+        internal IResourceBuilder<OllamaResource> EnsureOllama()
             => _ollama ??= brain.ApplicationBuilder
                 .AddOllama(brain.ResourceName("ollama"))
                 .WithImageTag(OllamaImageTag)

@@ -33,6 +33,7 @@
     <Project Path="src/DigitalBrain.Modules/AI/DigitalBrain.Modules.AI.Deployment/DigitalBrain.Modules.AI.Deployment.csproj" />
     <Project Path="src/DigitalBrain.Modules/AI/DigitalBrain.Modules.AI/DigitalBrain.Modules.AI.csproj" />
     <Project Path="src/DigitalBrain.Modules/AI/tests/DigitalBrain.Modules.AI.Tests/DigitalBrain.Modules.AI.Tests.csproj" />
+    <Project Path="src/DigitalBrain.Modules/AI/tests/DigitalBrain.Modules.AI.Tests.Hosting/DigitalBrain.Modules.AI.Tests.Hosting.csproj" />
   </Folder>
   <Folder Name="/Modules/ClickHouse/">
     <Project Path="src/DigitalBrain.Modules/ClickHouse/DigitalBrain.Modules.ClickHouse.Aspire.Hosting/DigitalBrain.Modules.ClickHouse.Aspire.Hosting.csproj" />
