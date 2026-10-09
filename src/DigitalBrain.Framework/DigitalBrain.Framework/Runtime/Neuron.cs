@@ -9,8 +9,6 @@ namespace DigitalBrain.Framework;
 // sealed so the runtime owns the order and the failure handling.
 public abstract class Neuron : Grain, INeuron
 {
-    public virtual NeuronAccess Access(string operation) => NeuronAccess.ForBrainKey(this.GetPrimaryKeyString());
-
     private readonly Guid _activation = Guid.NewGuid();
     private sealed record WatchRegistration(INeuronObserver Observer, HashSet<string>? Signals);
     private ObserverManager<INeuronObserver, WatchRegistration>? _observers;

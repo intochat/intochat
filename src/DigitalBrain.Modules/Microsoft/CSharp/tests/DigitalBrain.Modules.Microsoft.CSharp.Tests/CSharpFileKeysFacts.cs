@@ -29,7 +29,7 @@ public sealed class CSharpFileKeysFacts
 
     [Fact]
     public void EveryKeyBelongsToItsBrainForAccessChecks()
-        => Assert.Equal("alpha", NeuronAccess.ForBrainKey(CSharpFileKeys.For("alpha", "report")).Scope);
+        => Assert.Equal("alpha", BrainKey.ScopeOf(CSharpFileKeys.For("alpha", "report")));
 
     // ForBrainKey splits a key at '/' or ':', so Contracts refuses ':' in a scope even though a brain id may
     // contain it; what Contracts accepts must always be a valid brain id.

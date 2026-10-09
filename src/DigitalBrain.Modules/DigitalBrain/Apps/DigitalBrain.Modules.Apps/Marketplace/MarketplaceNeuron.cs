@@ -17,9 +17,6 @@ internal sealed class MarketplaceNeuron(
 {
     private MarketplaceState State => store.State ??= new();
 
-    public override NeuronAccess Access(string operation)
-        => operation is nameof(List) or nameof(Read) ? NeuronAccess.PublicOperation : NeuronAccess.Unclassified;
-
     public Task<MarketplaceListing[]> List() => Task.FromResult<MarketplaceListing[]>([.. State.Listings]);
 
     public Task<MarketplaceListing?> Read(string publisher, string name) => Task.FromResult(Find(publisher, name));

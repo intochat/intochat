@@ -11,7 +11,7 @@ internal sealed class AppStudioNeuron(Creator creator) : Neuron, IAppStudio
 {
     private static readonly TimeSpan BuildTimeout = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan Poll = TimeSpan.FromMilliseconds(500);
-    private string Scope => NeuronAccess.ForBrainKey(this.GetPrimaryKeyString()).Scope ?? this.GetPrimaryKeyString();
+    private string Scope => BrainKey.ScopeOf(this.GetPrimaryKeyString()) ?? this.GetPrimaryKeyString();
 
     public Task<AppSnapshot> Author(string request, CancellationToken ct)
         => creator.Author(ServiceProvider.GetRequiredService<IDigitalBrain>(), Scope, null, request, ct);

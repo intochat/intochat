@@ -68,6 +68,7 @@ public sealed class SignalDeliveryContextFacts
 public sealed record DeliverySeen(
     [property: Id(0)] bool CallerPresent, [property: Id(1)] string? Metadata, [property: Id(2)] string Publisher);
 [Alias("test.delivery-source")]
+[Public]
 public interface IDeliverySource : INeuron
 {
     Task<bool> Emit(bool fail);
@@ -79,7 +80,6 @@ public interface IDeliveryObserver : INeuron, INeuronObserver { Task<DeliverySee
 [GrainType("test-delivery-source")]
 public sealed class DeliverySource : Neuron, IDeliverySource
 {
-    public override NeuronAccess Access(string operation) => NeuronAccess.PublicOperation;
     public async Task<bool> Emit(bool fail)
     {
         var caller = CallerContextStamper.Require();

@@ -5,6 +5,7 @@ using DigitalBrain.Framework.Contracts;
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
 [Alias("tests.csharp.pinger")]
+[Public]
 public interface IPinger : INeuron
 {
     Task Ping(int number);
@@ -31,7 +32,6 @@ public sealed record Ignored([property: Id(0)] int Number) : Signal;
 // callable contract that reports the caller context the script edge stamped.
 public sealed class Pinger : Neuron, IPinger
 {
-    public override NeuronAccess Access(string operation) => NeuronAccess.PublicOperation;
     public Task RefuseUnavailable() => throw new ServiceUnavailableException("Sorry, the service is not available at the moment.");
     public async Task Ping(int number)
     {

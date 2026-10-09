@@ -19,13 +19,6 @@ internal sealed record AllowanceLedgerState
 [GrainType("compute-allowance-ledger")]
 internal sealed class AllowanceLedgerNeuron : Neuron<AllowanceLedgerState>, IAllowanceLedger
 {
-    // AuthorizeAsync is the enforcement pipeline's own consultation: it arrives from inside
-    // other grains' filters and stays on the internal path, never re-entering authorization.
-    public override DigitalBrain.Framework.NeuronAccess Access(string operation)
-        => operation == nameof(AuthorizeAsync)
-            ? DigitalBrain.Framework.NeuronAccess.Unclassified
-            : AccountAccess.For(this.GetPrimaryKeyString());
-
     private readonly IPersistentState<AllowanceLedgerState> store;
     private readonly IPriceBook priceBook;
     private bool writePending;

@@ -8,6 +8,7 @@ public sealed record UsageRow([property: Id(0)] string Id, [property: Id(1)] str
 [GenerateSerializer, Alias("compute.usage-page")]
 public sealed record UsagePage([property: Id(0)] IReadOnlyList<UsageRow> Items, [property: Id(1)] string? NextCursor);
 
+[PerAccount]
 [Alias("compute.usage"), Orleans.Metadata.DefaultGrainType("compute.usage")]
 public interface IComputeUsage : INeuron
 {

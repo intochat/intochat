@@ -60,13 +60,6 @@ internal sealed class BrainRuntimeNeuron(
     private string RuntimeId => this.GetPrimaryKeyString();
     private string Brain => RuntimeId[..RuntimeId.LastIndexOf('/')];
 
-    // The edge validated the session token before any of these; each re-checks the session id itself.
-    public override NeuronAccess Access(string operation) =>
-        operation is nameof(Authorize) or nameof(Identity) or nameof(Connected) or nameof(Heartbeat) or nameof(Subscribed)
-            or nameof(Acknowledge) or nameof(AcknowledgeMany) or nameof(Reported) or nameof(PendingBatches) or nameof(Assignments)
-            ? NeuronAccess.PublicOperation
-            : base.Access(operation);
-
     public Task<BrainRuntimeSnapshot> Inspect(CancellationToken cancellationToken = default)
         => Task.FromResult(new BrainRuntimeSnapshot(Snapshot.Session?.Status ?? SessionStatus.None, Snapshot.Session?.Id,
             Snapshot.Session?.Fingerprint, Snapshot.Session?.LastHeartbeat,

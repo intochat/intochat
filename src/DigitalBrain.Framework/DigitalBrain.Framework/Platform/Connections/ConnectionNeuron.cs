@@ -27,9 +27,6 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
         return key;
     }
 
-    // The brain in the key decides who may call; a connector cannot widen it.
-    public sealed override NeuronAccess Access(string operation) => base.Access(operation);
-
     private ISecretSealer Sealer => ServiceProvider.GetRequiredService<ISecretSealer>();
     private TimeProvider Clock => ServiceProvider.GetRequiredService<TimeProvider>();
     private ConnectorDefinition Connector => ServiceProvider.GetRequiredService<IReadOnlyList<ConnectorDefinition>>()

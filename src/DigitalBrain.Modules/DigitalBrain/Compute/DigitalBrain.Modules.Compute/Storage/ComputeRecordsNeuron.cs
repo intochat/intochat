@@ -20,11 +20,6 @@ internal sealed class ComputeRecordsNeuron(
 
     private static bool IsUsageKey(string key) => key.Split('/') is [_, UsageSegment, _];
 
-    // Storage behind the account-scoped usage and ledger neurons, keyed "meters/{period}" (platform-wide)
-    // and "{brain}/usage/{hash(account, brain)}": those neurons answer the scope question, this one is
-    // reached only from inside the cluster. The default brain-key rule would read "meters" as a brain id.
-    public override NeuronAccess Access(string operation) => NeuronAccess.Unclassified;
-
     public async Task<int> Put(ComputeStoredRecord[] records, bool overwrite)
     {
         if (records.Length > 1000) { throw new ArgumentException("At most 1000 records per batch."); }

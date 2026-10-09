@@ -50,14 +50,15 @@ internal sealed class NeuronTools(NeuronSurface surface, McpCaller caller)
 
     private static CallToolResult Text(string text) => new() { Content = [new TextContentBlock { Text = text }] };
 
-    // A surfaced exception is one a caller can act on: an invalid argument, a missing key, or an
+    // A surfaced exception is one a caller can act on: an invalid argument, a missing key, a refused
+    // access check, or an
     // Orleans call failure (whose inner exception is the reason the grain gives). A grain exception
     // whose type this host cannot load arrives as a TypeLoadException naming that type.
     private static bool Mapped(Exception error)
     {
         for (var cause = error; cause is not null; cause = cause.InnerException)
         {
-            if (cause is ArgumentException or InvalidOperationException or KeyNotFoundException or JsonException or TypeLoadException) { return true; }
+            if (cause is ArgumentException or InvalidOperationException or KeyNotFoundException or JsonException or TypeLoadException or UnauthorizedAccessException) { return true; }
             if (cause.GetType().FullName?.StartsWith("Orleans.", StringComparison.Ordinal) == true) { return true; }
         }
         return false;
@@ -68,7 +69,7 @@ internal sealed class NeuronTools(NeuronSurface surface, McpCaller caller)
         var cause = error;
         for (var candidate = error; candidate is not null; candidate = candidate.InnerException)
         {
-            if (candidate is ArgumentException or InvalidOperationException or KeyNotFoundException or JsonException) { cause = candidate; break; }
+            if (candidate is ArgumentException or InvalidOperationException or KeyNotFoundException or JsonException or UnauthorizedAccessException) { cause = candidate; break; }
             cause = candidate;
         }
         var text = $"{cause.GetType().Name}: {cause.Message}";

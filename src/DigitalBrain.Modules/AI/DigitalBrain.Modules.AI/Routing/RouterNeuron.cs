@@ -29,7 +29,7 @@ internal sealed class RouterNeuron(
     private const double Gate = 0.5;
     private static readonly HashSet<string> NotCallable = ["Watch", "Unwatch"];
     private string Key => this.GetPrimaryKeyString();
-    private string Scope => NeuronAccess.ForBrainKey(Key).Scope ?? Key;
+    private string Scope => BrainKey.ScopeOf(Key) ?? Key;
     private NeuronTypeSearch Capabilities() => ServiceProvider.GetRequiredService<NeuronTypeSearch>();
 
     public async Task Ask(RouteRequest request, CancellationToken ct)

@@ -145,12 +145,16 @@ public static class AllowanceReservations
 // Per account. The one durable writer of allowances, reservations, pending approvals and limits.
 [Alias("compute-allowance-ledger")]
 [Orleans.Metadata.DefaultGrainType("compute-allowance-ledger")]
+// Keyed by account id: only that account's callers reach it from an edge.
+[PerAccount]
 public interface IAllowanceLedger : INeuron
 {
     Task<decimal> ReadReservedAsync(string? brainId = null, string? intentId = null, CancellationToken cancellationToken = default);
     Task<decimal> ReadSettledAsync(string? brainId = null, string? intentId = null, CancellationToken cancellationToken = default);
 
-    Task<AllowanceDecision> AuthorizeAsync(AllowanceRequest request, CancellationToken cancellationToken = default);
+    // The enforcement pipeline's own consultation: it arrives from inside other grains' filters
+    // and stays on the internal path, never re-entering authorization.
+    [Internal] Task<AllowanceDecision> AuthorizeAsync(AllowanceRequest request, CancellationToken cancellationToken = default);
 
     Task<Allowance> GrantAsync(Allowance allowance, CancellationToken cancellationToken = default);
 

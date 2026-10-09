@@ -22,10 +22,6 @@ internal sealed class AppNeuron(
     private const int MaxReceipts = 64;
     private const int RetainedCapacity = 64;
 
-    // A published version is public by definition: anyone may copy it, nothing more.
-    public override NeuronAccess Access(string operation)
-        => operation == nameof(IApp.ExportPublished) ? NeuronAccess.PublicOperation : base.Access(operation);
-
     public Task<AppSnapshot> Read() => Task.FromResult(Describe(Snapshot));
 
     public async Task<AppSnapshot> Create(AppManifest manifest, string spec)

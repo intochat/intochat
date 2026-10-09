@@ -3,6 +3,8 @@ using DigitalBrain.AI.Inference;
 namespace DigitalBrain.AI.Models;
 
 [Alias("ai.llm"), Orleans.Metadata.DefaultGrainType("ai.llm")]
+// One model serves every brain; each caller is metered and granted as its own brain.
+[DigitalBrain.Shared]
 public interface ILLM : IAiMarker, DigitalBrain.INeuron
 {
     Task<ModelDescriptor> Describe(ModelSelection? selection = null);

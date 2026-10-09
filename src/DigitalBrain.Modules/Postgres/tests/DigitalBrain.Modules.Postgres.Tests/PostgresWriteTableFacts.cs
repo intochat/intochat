@@ -474,6 +474,7 @@ public sealed class PostgresWriteTableFacts
     }
 }
 
+[DigitalBrain.Public]
 public interface IPostgresLifecycleTestApp : DigitalBrain.INeuron
 {
     Task Uninstall(string brain, string file);
@@ -482,7 +483,6 @@ public interface IPostgresLifecycleTestApp : DigitalBrain.INeuron
 [GrainType(DigitalBrain.Framework.AppGrainType.Name)]
 public sealed class PostgresLifecycleTestApp : DigitalBrain.Framework.Neuron, IPostgresLifecycleTestApp
 {
-    public override NeuronAccess Access(string operation) => NeuronAccess.PublicOperation;
     public Task Uninstall(string brain, string file)
         => GrainFactory.GetGrain<ITableIndex>(new TableOwner(BrainScope.Create("alice", brain).Id, file).Key).Retire();
 }

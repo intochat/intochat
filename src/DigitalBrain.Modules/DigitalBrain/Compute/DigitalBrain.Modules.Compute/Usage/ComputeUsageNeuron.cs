@@ -5,11 +5,6 @@ namespace DigitalBrain.Compute.Usage;
 [GrainType("compute.usage")]
 internal sealed class ComputeUsageNeuron(IUsageStore store) : Neuron, IComputeUsage
 {
-    public override NeuronAccess Access(string operation)
-    {
-        RequireScope(BrainScope.CurrentId());
-        return new(BrainScope.CurrentId());
-    }
     public async Task Append(string brainId, string id, string payload, DateTimeOffset revision, CancellationToken ct = default)
     {
         RequireScope(brainId);

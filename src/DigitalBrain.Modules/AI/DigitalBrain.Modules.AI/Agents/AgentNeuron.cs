@@ -45,7 +45,7 @@ internal sealed class AgentNeuron(
     private AgentStorage Committed => _beforeWrite ?? State;
     private string Key => this.GetPrimaryKeyString();
     // The brain the access check sees is the tools' and the meter's.
-    private string Scope => NeuronAccess.ForBrainKey(Key).Scope ?? Key;
+    private string Scope => BrainKey.ScopeOf(Key) ?? Key;
     private ILogger Logger => ServiceProvider.GetRequiredService<ILogger<AgentNeuron>>();
 
     // A run the previous activation left open is interrupted: external tool outcomes may be unknown.

@@ -10,11 +10,6 @@ internal sealed class AspireNeuron(
     AspireBridge bridge)
     : Neuron<AspireState>(store), IAspire, IAspireResourceReporter
 {
-    // The AppHost is deployment-global, not brain-scoped: any brain's shell reads the resource
-    // inventory through this grain. Commands and the report stay classified (bridge key / platform).
-    public override NeuronAccess Access(string operation)
-        => operation == nameof(IAspire.ListResources) ? NeuronAccess.PublicOperation : base.Access(operation);
-
     public Task<IReadOnlyList<AspireResource>> ListResources(CancellationToken cancellationToken = default)
         => Task.FromResult<IReadOnlyList<AspireResource>>([.. Snapshot.Resources.Values.OrderBy(resource => resource.Name, StringComparer.Ordinal)]);
 

@@ -7,24 +7,29 @@ namespace DigitalBrain.Flutter.Workspace;
 internal sealed class ShellStateNeuron([PersistentState("head", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ShellHeadState> state) : Neuron, IShellState
 {
     // The shell is the person's, not a brain's: its key is the digest of account and principal,
-    // so the only caller allowed through an edge is the one whose digest this is.
-    public override NeuronAccess Access(string operation)
-        => operation is nameof(IShellState.Read) or nameof(IShellState.Save)
-            && CallerContextStamper.TryGet(out var caller) && ShellPersistenceEndpoints.Scope(caller.AccountId, caller.PrincipalId) == this.GetPrimaryKeyString()
-            ? NeuronAccess.PublicOperation : NeuronAccess.Unclassified;
+    // so the only stamped caller admitted is the one whose digest this is.
+    private void RequireOwner()
+    {
+        if (CallerContextStamper.TryGet(out var caller) && caller.Kind != CallerKind.Platform
+            && ShellPersistenceEndpoints.Scope(caller.AccountId, caller.PrincipalId) != this.GetPrimaryKeyString())
+        { throw new UnauthorizedAccessException("This workspace belongs to another person."); }
+    }
 
     private IShellPart Part(string hash) => GrainFactory.GetGrain<IShellPart>(this.GetPrimaryKeyString() + "/" + hash);
-    public async Task<ShellRead> Read() => new(state.State.Revision, state.State.Root is { } root
+    public Task<ShellRead> Read() { RequireOwner(); return Load(); }
+
+    private async Task<ShellRead> Load() => new(state.State.Revision, state.State.Root is { } root
         ? (await ShellSnapshotParts.Read(root, hash => Part(hash).Read())).ToJsonString() : null);
 
     public async Task<ShellRead> Save(long expectedRevision, string operationId, string json)
     {
+        RequireOwner();
         if (!Guid.TryParse(operationId, out _)) { throw new ArgumentException("Use a unique operation ID."); }
         var digest = ShellSnapshotParts.Digest(json);
         if (state.State.LastOperation == operationId)
         {
             if (state.State.LastDigest != digest) { throw new InvalidOperationException("Operation ID was reused with different data."); }
-            return await Read();
+            return await Load();
         }
         if (state.State.Revision != expectedRevision) { throw new InvalidOperationException("Workspace changed on another client. Reload before saving."); }
         var snapshot = JsonNode.Parse(json) ?? throw new ArgumentException("Missing snapshot.");
@@ -39,6 +44,6 @@ internal sealed class ShellStateNeuron([PersistentState("head", DigitalBrainName
             LastDigest = digest
         };
         try { await state.WriteStateAsync(); } catch { state.State = old; throw; }
-        return await Read();
+        return await Load();
     }
 }
