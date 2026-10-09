@@ -49,7 +49,10 @@ internal static class ShippedAppFolder
                 [.. manifest.Operations.Select(operation => new AppOperation(operation.Name, operation.Description))],
                 [.. manifest.Settings.Select(setting => new AppSetting(setting.Name, setting.Description, setting.Default))],
                 [.. (manifest.Slots ?? []).Select(slot => new AppSlot(slot.Name, slot.Connector))],
-                manifest.Icon),
+                manifest.Icon,
+                manifest.Toolbar is null ? null
+                    : [.. manifest.Toolbar.Select(entry => new AppToolbarEntry(entry.Operation, entry.Kind ?? AppToolbarKinds.Button, entry.Icon, entry.Label, entry.Min, entry.Max))])
+                .Validated(),
             files.GetValueOrDefault(AppFiles.SpecPath, ""),
             bundleFiles);
     }
@@ -61,7 +64,10 @@ internal static class ShippedAppFolder
             [.. bundle.Manifest.Settings.Select(setting => new SettingJson(setting.Name, setting.Description, setting.Default))],
             bundle.Version,
             bundle.Manifest.Slots.Length == 0 ? null : [.. bundle.Manifest.Slots.Select(slot => new SlotJson(slot.Name, slot.Connector))],
-            bundle.Manifest.Icon);
+            bundle.Manifest.Icon,
+            bundle.Manifest.Toolbar is { Length: > 0 } toolbar
+                ? [.. toolbar.Select(entry => new ToolbarJson(entry.Operation, entry.Kind, entry.Icon, entry.Label, entry.Min, entry.Max))]
+                : null);
         var files = new Dictionary<string, string>(bundle.Files, StringComparer.Ordinal)
         {
             [ManifestFile] = JsonSerializer.Serialize(manifest, Pretty) + "\n",
@@ -87,8 +93,9 @@ internal static class ShippedAppFolder
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
     };
 
-    private sealed record AppJson(string Name, string Title, string Description, IReadOnlyList<OperationJson> Operations, IReadOnlyList<SettingJson> Settings, string? Version = null, IReadOnlyList<SlotJson>? Slots = null, string? Icon = null);
+    private sealed record AppJson(string Name, string Title, string Description, IReadOnlyList<OperationJson> Operations, IReadOnlyList<SettingJson> Settings, string? Version = null, IReadOnlyList<SlotJson>? Slots = null, string? Icon = null, IReadOnlyList<ToolbarJson>? Toolbar = null);
     private sealed record OperationJson(string Name, string Description);
     private sealed record SettingJson(string Name, string Description, string Default);
     private sealed record SlotJson(string Name, string Connector);
+    private sealed record ToolbarJson(string Operation, string? Kind, string? Icon, string? Label, double? Min, double? Max);
 }

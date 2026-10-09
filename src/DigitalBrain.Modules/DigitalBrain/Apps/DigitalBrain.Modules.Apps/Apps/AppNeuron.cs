@@ -33,9 +33,9 @@ internal sealed class AppNeuron(
         if (Snapshot.Manifest is not null)
         { throw new InvalidOperationException($"You already have an app named {Name()}. Open it in the Creator, or describe this one differently."); }
         var next = Snapshot.Clone();
+        next.Manifest = manifest.Validated();
         next.BrainScopeId = BrainId();
         next.Principal = CallerContextStamper.TryGet(out var caller) ? caller : null;
-        next.Manifest = manifest;
         next.Spec = spec ?? "";
         next.Settings = manifest.Settings.ToDictionary(setting => setting.Name, setting => setting.Default, StringComparer.Ordinal);
         next.Version = "0.1.0";
@@ -68,7 +68,7 @@ internal sealed class AppNeuron(
         if (Replayed(operationId)) { return Describe(Snapshot); }
         var next = Snapshot.Clone();
         next.Edited = true;
-        next.Manifest = manifest;
+        next.Manifest = manifest.Validated();
         // Newly declared settings get their defaults; chosen values survive.
         foreach (var setting in manifest.Settings)
         { if (!next.Settings.ContainsKey(setting.Name)) { next.Settings[setting.Name] = setting.Default; } }
@@ -200,7 +200,7 @@ internal sealed class AppNeuron(
         var firstBuild = Snapshot.Files.Count == 0;
         if (manifest is not null)
         {
-            next.Manifest = manifest;
+            next.Manifest = manifest.Validated();
             foreach (var setting in manifest.Settings)
             { if (!next.Settings.ContainsKey(setting.Name)) { next.Settings[setting.Name] = setting.Default; } }
         }
@@ -284,7 +284,7 @@ internal sealed class AppNeuron(
         var next = Snapshot.Clone();
         next.BrainScopeId = BrainId();
         next.Principal = CallerContextStamper.TryGet(out var caller) ? caller : null;
-        next.Manifest = bundle.Manifest;
+        next.Manifest = bundle.Manifest.Validated();
         next.Spec = bundle.Spec;
         next.Files = new(bundle.Files, StringComparer.Ordinal);
         next.Settings = bundle.Manifest.Settings.ToDictionary(setting => setting.Name, setting => setting.Default, StringComparer.Ordinal);
@@ -304,7 +304,7 @@ internal sealed class AppNeuron(
         RequireCreated();
         RequireBundleFor(bundle);
         var next = Snapshot.Clone();
-        next.Manifest = bundle.Manifest;
+        next.Manifest = bundle.Manifest.Validated();
         next.Spec = bundle.Spec;
         next.Files = new(bundle.Files, StringComparer.Ordinal);
         foreach (var setting in bundle.Manifest.Settings)
