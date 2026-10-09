@@ -25,8 +25,10 @@ public interface IIntegration : INeuron
 
     Task<IntegrationSnapshot> Clear(string field);
 
-    // Checks and writes atomically inside the grain: applies only while the registration is Unconfigured.
-    Task<IntegrationSnapshot> SeedIfUnconfigured(ConfigureIntegration request);
+    // Reconciles deployment-provided values: applies a field when it is absent from state, or when the
+    // stored value also came from the deployment and now differs. A value a person set or cleared is
+    // never touched.
+    Task<IntegrationSnapshot> Seed(ConfigureIntegration request);
 
     Task<ReleasedIntegration> Release(CallerContext caller);
 }

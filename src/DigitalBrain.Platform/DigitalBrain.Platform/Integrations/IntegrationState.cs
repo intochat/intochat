@@ -13,4 +13,11 @@ internal sealed class IntegrationState
 
     // Bumped by every write, so holders of a released secret can tell a rotation from no change.
     [Id(2)] public long Revision { get; set; }
+
+    // Fields a person set through the API; a seed never overwrites them. Every other stored value is
+    // the deployment's and is reconciled when the deployment's value moves.
+    [Id(3)] public string[] PersonFields { get; set; } = [];
+
+    // Fields a person cleared; a seed never restores them. Setting the field again removes it.
+    [Id(4)] public string[] ClearedFields { get; set; } = [];
 }

@@ -98,7 +98,7 @@ public sealed class RegistrationFacts
         await google.Configure(Values(("ClientId", Canary)));
         var cleared = await google.Clear("ClientId");
 
-        var seeded = await google.SeedIfUnconfigured(Values(("ClientId", OtherCanary)));
+        var seeded = await google.Seed(Values(("ClientId", OtherCanary)));
 
         Assert.Equal(IntegrationStatus.Unconfigured, seeded.Status);
         Assert.Equal(cleared.Revision, seeded.Revision);
@@ -183,7 +183,7 @@ public sealed class RegistrationFacts
     }
 
     [Fact]
-    public async Task SeedingAppliesOnlyToAnUnconfiguredRegistration()
+    public async Task ReseedingKeepsAPersonValueAndDoesNotRestoreAClearedField()
     {
         var ct = TestContext.Current.CancellationToken;
         var seeded = new Dictionary<string, string?>
@@ -212,6 +212,63 @@ public sealed class RegistrationFacts
         await google.Configure(Values(("ClientId", "restored")));
         var released = await google.Release(Caller(CallerKind.Platform, TrustedEdge.Platform));
         Assert.Equal(OtherCanary, released.Values["ClientSecret"]);
+    }
+
+    [Fact]
+    public async Task ADeploymentEndpointThatMovedIsReconciledOnBoot()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await StartAsync(ct, new Dictionary<string, string?>
+        {
+            [IntegrationSchema.Key("google", "RedirectPath")] = "/callback",
+        });
+        var google = Registration(brain, "google");
+        Assert.Equal("/callback", (await google.Read()).Settings["RedirectPath"]);
+
+        await SeedAsync(brain, new Dictionary<string, string?>
+        {
+            [IntegrationSchema.Key("google", "RedirectPath")] = "/moved",
+        }, ct);
+
+        Assert.Equal("/moved", (await google.Read()).Settings["RedirectPath"]);
+    }
+
+    [Fact]
+    public async Task APersonSetValueIsNotOverwrittenBySeeding()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await StartAsync(ct, new Dictionary<string, string?>
+        {
+            [IntegrationSchema.Key("google", "RedirectPath")] = "/callback",
+        });
+        var google = Registration(brain, "google");
+        await google.Configure(Values(("RedirectPath", "/person")));
+
+        await SeedAsync(brain, new Dictionary<string, string?>
+        {
+            [IntegrationSchema.Key("google", "RedirectPath")] = "/deployment",
+        }, ct);
+
+        Assert.Equal("/person", (await google.Read()).Settings["RedirectPath"]);
+    }
+
+    [Fact]
+    public async Task AClearedFieldIsNotReseeded()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var seeded = new Dictionary<string, string?>
+        {
+            [IntegrationSchema.Key("google", "RedirectPath")] = "/callback",
+        };
+        await using var brain = await StartAsync(ct, seeded);
+        var google = Registration(brain, "google");
+        await google.Clear("RedirectPath");
+
+        await SeedAsync(brain, seeded, ct);
+
+        var after = await google.Read();
+        Assert.Empty(after.Settings);
+        Assert.Equal(IntegrationStatus.Unconfigured, after.Status);
     }
 
     [Fact]
@@ -325,7 +382,7 @@ public sealed class RegistrationFacts
         {
             await Assert.ThrowsAsync<InvalidOperationException>(() => registration.Configure(Values(("ApiKey", OtherCanary))));
             await Assert.ThrowsAsync<InvalidOperationException>(() => registration.Clear("ApiKey"));
-            await Assert.ThrowsAsync<InvalidOperationException>(() => registration.SeedIfUnconfigured(Values(("ApiKey", OtherCanary))));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => registration.Seed(Values(("ApiKey", OtherCanary))));
         }
         finally { Orleans.Runtime.RequestContext.Clear(); }
 
@@ -448,6 +505,13 @@ public sealed class RegistrationFacts
             .StartAsync(cancellationToken);
 
     private static IIntegration Registration(ModuleBrain brain, string id) => brain.Get<IIntegration>($"integration/{id}");
+
+    private static Task SeedAsync(ModuleBrain brain, IReadOnlyDictionary<string, string?> configuration, CancellationToken cancellationToken)
+        => new IntegrationSeeder(
+            new ConfigurationBuilder().AddInMemoryCollection(configuration).Build(),
+            brain.SiloServices.GetRequiredService<IReadOnlyList<IntegrationSchema>>(),
+            brain.Grains(),
+            NullLogger<IntegrationSeeder>.Instance).SeedAsync(cancellationToken);
 
     private static ConfigureIntegration Values(params (string Field, string Value)[] values)
         => new() { Values = values.ToDictionary(pair => pair.Field, pair => pair.Value) };
