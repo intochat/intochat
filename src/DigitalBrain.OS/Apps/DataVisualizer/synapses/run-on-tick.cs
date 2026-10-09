@@ -5,16 +5,17 @@ using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.Text.Signals;
 using DigitalBrain.Time.Reminders;
 using DigitalBrain.Time.Reminders.Signals;
+
+// Every view with a refresh interval owns a reminder; its tick refreshes that view.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var registry = brain.Get<IText>(appKey + "/views");
-var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 
 while (!brain.Stopping.IsCancellationRequested)
 {
     var snapshot = await registry.Read();
-    var views = snapshot.Markdown.Length == 0 ? [] : JsonSerializer.Deserialize<View[]>(snapshot.Markdown, json) ?? [];
+    var views = snapshot.Markdown.Length == 0 ? [] : JsonSerializer.Deserialize<View[]>(snapshot.Markdown, Views.Json) ?? [];
     using var scope = CancellationTokenSource.CreateLinkedTokenSource(brain.Stopping);
     async Task Changed()
     {
@@ -33,8 +34,6 @@ while (!brain.Stopping.IsCancellationRequested)
 
 async Task Pump<T>(INeuron source, string view, CancellationToken ct) where T : Signal
 {
-    async Task Refresh() { await app.Invoke(new(Guid.NewGuid(), "refresh", view)); }
+    async Task Refresh() { await app.Request("refresh", view); }
     await foreach (var _ in brain.On<T>(source, Refresh, ct)) { await Refresh(); }
 }
-
-sealed record View(string Id, string Title, string Kind, string Source, string Sql, string[] Filters, int RefreshSeconds);

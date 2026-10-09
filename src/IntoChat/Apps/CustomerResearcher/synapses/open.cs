@@ -1,4 +1,3 @@
-using System.Text.Json;
 using DigitalBrain.Apps;
 using DigitalBrain.Apps.Signals;
 using DigitalBrain.Client;
@@ -17,30 +16,22 @@ await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 
-await foreach (var _ in brain.On<AppInvoked>(app, Reconcile, brain.Stopping)) { await Reconcile(); }
-
-async Task Reconcile()
+await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
 {
-    foreach (var request in (await app.Pending()).Where(item => item.Operation == "open"))
+    if (request.Operation != "open") { continue; }
+    try
     {
-        try { await app.Respond(await OpenAsync(request.Id, request.Input == "docked")); }
-        catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-        { await app.Respond(new(request.Id, null, error.Message)); }
+        await ComposeAsync();
+        // Docked: the shell renders the surface in its side panel, so no workspace window opens.
+        if (request.Input != "docked")
+        {
+            await brain.Get<IWorkspace>(brain.Setting("Brain")!)
+                .EnsureOpenAsync(appKey + "/window", "Customer Researcher",
+                    WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, appKey + "/surface")), brain.Stopping);
+        }
     }
-}
-
-// Docked: the shell renders the surface in its side panel, so no workspace window opens.
-async Task<AppResponse> OpenAsync(Guid id, bool docked)
-{
-    await ComposeAsync();
-    var surface = new UiChildRef(UIVocabulary.SurfaceType, appKey + "/surface");
-    if (!docked)
-    {
-        var workspace = appKey[..appKey.IndexOf("/apps/", StringComparison.Ordinal)];
-        await brain.Get<IWorkspace>(workspace)
-            .EnsureOpenAsync("customer-researcher", "Customer Researcher", WindowReference.For(surface), CancellationToken.None);
-    }
-    return new AppResponse(id, JsonSerializer.Serialize(new { id = "customer-researcher", title = "Customer Researcher", surface = surface.Name }), null);
+    catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
+    { await brain.Get<IText>(appKey + "/status").Set(error.Message); }
 }
 
 async Task ComposeAsync()

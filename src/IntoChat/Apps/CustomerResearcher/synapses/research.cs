@@ -12,16 +12,17 @@ using DigitalBrain.Flutter.Text;
 using DigitalBrain.Microsoft.Playwright;
 using DigitalBrain.Postgres.Tables;
 
-// One invocation stream orders research and cancellation. UI controls submit the same operations
-// as assistant tools. Storage belongs to the installation, independent of this file's name.
+// One request stream orders research and cancellation, and the queue neuron is the durable record
+// of what was asked and what came of it. UI controls submit the same requests as assistant tools.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var status = brain.Get<IText>(appKey + "/status");
 var table = brain.Get<ITable>(appKey + "/table");
+var queue = brain.Get<IText>(appKey + "/queue");
+var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 var defined = false;
 CancellationTokenSource? running = null;
-Guid? activeId = null;
 using var wake = new SemaphoreSlim(0);
 using var admission = new SemaphoreSlim(1, 1);
 var cancellations = brain.Get<IText>(appKey + "/cancelled-research");
@@ -37,29 +38,64 @@ await Task.WhenAll(loops);
 
 async Task Commands()
 {
-    await foreach (var _ in brain.On<AppInvoked>(app, Reconcile, lifetime.Token)) { await Reconcile(); }
-}
-
-async Task Reconcile()
-{
-    var pending = await app.Pending();
-    foreach (var request in pending.Where(item => item.Operation is "stop" or "result"))
+    await foreach (var request in brain.On<AppRequested>(app, lifetime.Token))
     {
-        if (request.Operation == "result") { await app.Respond(await ResultAsync(request.Id, request.Input)); continue; }
-        await admission.WaitAsync(lifetime.Token);
         try
         {
-            var research = (await app.Pending()).Where(item => item.Operation == "research").ToArray();
-            // Persist the disposition before acknowledging Stop, so restart cannot resume cancelled work.
-            await cancellations.Set(JsonSerializer.Serialize(research.Select(item => item.Id).ToArray()));
-            running?.Cancel();
-            foreach (var queued in research.Where(item => item.Id != activeId))
-            { await app.Respond(new(queued.Id, "Stopped before research started.", null)); }
-            await status.Set(running is null ? "Stopped" : "Stopping…");
-            await app.Respond(new(request.Id, "Stop requested.", null));
+            switch (request.Operation)
+            {
+                case "research" when request.Input.Trim().Length is >= 1 and <= 500:
+                    await Enqueue(request.RequestId, request.Input.Trim());
+                    break;
+                case "research":
+                    await status.Set("Name a company, location or website to research.");
+                    break;
+                case "stop":
+                    await Stop();
+                    break;
+                case "result":
+                    await Result(request.RequestId, request.Input);
+                    break;
+            }
         }
-        finally { admission.Release(); }
+        catch (Exception error) when (!lifetime.IsCancellationRequested)
+        { await status.Set(error.Message[..Math.Min(error.Message.Length, 500)]); }
     }
+}
+
+async Task<QueuedResearch[]> Queued()
+{
+    var text = (await queue.Read()).Markdown;
+    return text.Length == 0 ? [] : JsonSerializer.Deserialize<QueuedResearch[]>(text, json) ?? [];
+}
+
+async Task Enqueue(Guid id, string query)
+{
+    await admission.WaitAsync(lifetime.Token);
+    try
+    {
+        var entries = await Queued();
+        await Settle([.. entries, new QueuedResearch(id.ToString("N"), query, "pending", null)]);
+    }
+    finally { admission.Release(); }
+    wake.Release();
+}
+
+// Stop persists the disposition of every waiting request before it answers, so a restart cannot
+// resume cancelled work; the active run is cancelled and reports itself stopped.
+async Task Stop()
+{
+    await admission.WaitAsync(lifetime.Token);
+    try
+    {
+        var entries = await Queued();
+        await cancellations.Set(JsonSerializer.Serialize(entries.Where(item => item.Status == "pending").Select(item => item.Id).ToArray(), json));
+        running?.Cancel();
+        await Settle([.. entries.Select(item => item.Status == "pending"
+            ? item with { Status = "stopped", Outcome = "Stopped before research started." } : item)]);
+        await status.Set(running is null ? "Stopped" : "Stopping…");
+    }
+    finally { admission.Release(); }
     wake.Release();
 }
 
@@ -75,29 +111,29 @@ async Task Worker()
             var held = true;
             try
             {
-                var pending = await app.Pending();
-                // Commands must durably process an outstanding Stop before another admission.
-                if (pending.Any(item => item.Operation == "stop")) { break; }
-                var request = pending.Where(item => item.Operation == "research").OrderBy(item => item.RequestedAt).FirstOrDefault();
-                if (request is null) { break; }
                 var cancelled = (await cancellations.Read()).Markdown;
-                if (!string.IsNullOrWhiteSpace(cancelled) &&
-                    (JsonSerializer.Deserialize<Guid[]>(cancelled) ?? []).Contains(request.Id))
-                { await app.Respond(new(request.Id, "Stopped before research started.", null)); continue; }
-                if (string.IsNullOrWhiteSpace(request.Input) || request.Input.Trim().Length > 500)
-                { await app.Respond(new(request.Id, null, "Name a company, location or website to research.")); continue; }
+                var ids = string.IsNullOrWhiteSpace(cancelled) ? [] : JsonSerializer.Deserialize<string[]>(cancelled, json) ?? [];
+                var entries = await Queued();
+                var waiting = entries.FirstOrDefault(item => item.Status == "pending" && ids.Contains(item.Id));
+                if (waiting is not null)
+                {
+                    await Settle([.. entries.Select(item => item == waiting
+                        ? item with { Status = "stopped", Outcome = "Stopped before research started." } : item)]);
+                    continue;
+                }
+                var entry = entries.FirstOrDefault(item => item.Status == "pending");
+                if (entry is null) { break; }
                 using var run = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
                 running = run;
-                activeId = request.Id;
+                await Settle([.. entries.Select(item => item == entry ? item with { Status = "running" } : item)]);
                 admission.Release();
                 held = false;
-                try { await RunAsync(request.Input.Trim(), request.Id, run); }
+                try { await RunAsync(entry, run); }
                 finally
                 {
                     await admission.WaitAsync();
                     held = true;
                     running = null;
-                    activeId = null;
                 }
                 lifetime.Token.ThrowIfCancellationRequested();
             }
@@ -106,45 +142,74 @@ async Task Worker()
     }
 }
 
-async Task RunAsync(string query, Guid invocation, CancellationTokenSource run)
+async Task RunAsync(QueuedResearch entry, CancellationTokenSource run)
 {
     string outcome;
-    var failed = false;
+    var state = "completed";
     try
     {
-        await activeResearch.Set(invocation.ToString());
-        await status.Set("Researching " + query + "…");
+        await activeResearch.Set(entry.Id);
+        await status.Set("Researching " + entry.Query + "…");
         if (string.IsNullOrWhiteSpace((await app.Read()).Connections.GetValueOrDefault("tables")))
         { throw new ResearchFailure("Database connection required. Bind a Postgres connection to this app's tables slot in app configuration, then reopen and retry."); }
-        var (company, verdict) = await ResearchAsync(query, run.Token);
+        var (company, verdict) = await ResearchAsync(entry.Query, run.Token);
         run.Token.ThrowIfCancellationRequested();
-        if (company is null) { outcome = verdict; failed = true; }
+        if (company is null) { outcome = verdict; state = "failed"; }
         else
         {
             await status.Set("Saving…");
             run.Token.ThrowIfCancellationRequested();
-            await SaveAsync(query, company);
+            await SaveAsync(entry.Query, company);
             outcome = "Saved: " + company.CompanyName;
+            await brain.Get<IText>(appKey + "/result/" + entry.Id).Set(await RowAsync(entry.Query));
         }
     }
-    catch (OperationCanceledException) when (run.IsCancellationRequested) { outcome = "Stopped."; }
-    catch (OperationCanceledException) { outcome = "Research timed out. Retry to safely update the same record."; failed = true; }
-    catch (ScriptRefusalException error) { outcome = error.Message; failed = true; }
-    catch (ResearchFailure error) { outcome = error.Message; failed = true; }
-    catch (Exception) { outcome = "Research or save failed. Retry to safely update the same record."; failed = true; }
-    // Leave unfinished invocations pending for recovery; the worker exits before another admission.
+    catch (OperationCanceledException) when (run.IsCancellationRequested) { outcome = "Stopped."; state = "stopped"; }
+    catch (OperationCanceledException) { outcome = "Research timed out. Retry to safely update the same record."; state = "failed"; }
+    catch (ScriptRefusalException error) { outcome = error.Message; state = "failed"; }
+    catch (ResearchFailure error) { outcome = error.Message; state = "failed"; }
+    catch (Exception) { outcome = "Research or save failed. Retry to safely update the same record."; state = "failed"; }
+    // Leave unfinished work pending for recovery; the worker exits before another admission.
     if (lifetime.Token.IsCancellationRequested) { return; }
     await admission.WaitAsync(lifetime.Token);
     try
     {
         running = null;
-        activeId = null;
-        await status.Set(failed ? outcome : outcome.TrimEnd('.'));
-        await app.Respond(new AppResponse(invocation, failed ? null : outcome, failed ? outcome : null));
+        await status.Set(state == "failed" ? outcome : outcome.TrimEnd('.'));
+        var entries = await Queued();
+        await Settle([.. entries.Select(item => item.Id == entry.Id ? item with { Status = state, Outcome = outcome } : item)]);
         await activeResearch.Set("");
     }
     finally { admission.Release(); }
 }
+
+// The result of a request is a neuron: {app}/result/{requestId} holds the stored row, or null.
+async Task Result(Guid requestId, string input)
+{
+    var target = brain.Get<IText>(appKey + "/result/" + requestId.ToString("N"));
+    if (string.IsNullOrWhiteSpace(input))
+    {
+        await target.Set("null");
+        await status.Set("Name the company whose result to read.");
+        return;
+    }
+    try { await target.Set(await RowAsync(input.Trim())); }
+    catch (ScriptRefusalException error) { await target.Set("null"); await status.Set(error.Message); }
+    catch (Exception)
+    {
+        await target.Set("null");
+        await status.Set("Could not read stored research. Check the database connection and retry.");
+    }
+}
+
+async Task<string> RowAsync(string query)
+{
+    await EnsureTableAsync();
+    var row = await table.Read(KeyOf(query));
+    return row is null ? "null" : "{" + string.Join(",", row.Select(value => JsonSerializer.Serialize(value.Column) + ":" + value.Json)) + "}";
+}
+
+Task Settle(QueuedResearch[] entries) => queue.Set(JsonSerializer.Serialize(entries, json));
 
 IPlaywright Browser() => brain.Get<IPlaywright>(appKey + "/browser");
 
@@ -344,20 +409,6 @@ async Task SaveAsync(string query, Company company)
     ]);
 }
 
-async Task<AppResponse> ResultAsync(Guid id, string input)
-{
-    if (string.IsNullOrWhiteSpace(input)) { return new AppResponse(id, null, "Name the company whose result to read."); }
-    try
-    {
-        await EnsureTableAsync();
-        var row = await table.Read(KeyOf(input.Trim()));
-        return new AppResponse(id, row is null ? "null"
-            : "{" + string.Join(",", row.Select(value => JsonSerializer.Serialize(value.Column) + ":" + value.Json)) + "}", null);
-    }
-    catch (ScriptRefusalException error) { return new AppResponse(id, null, error.Message); }
-    catch (Exception) { return new AppResponse(id, null, "Could not read stored research. Check the database connection and retry."); }
-}
-
 static string Short(string value, int limit) => value[..Math.Min(value.Length, limit)];
 static string Compact(BrowserObservation page, int textLimit) =>
     "URL: " + Short(page.Url, 300) + "\nTitle: " + Short(page.Title, 150) + "\nText: " + Excerpt(page.Text, textLimit);
@@ -391,7 +442,6 @@ static string StripFences(string text)
     var end = trimmed.LastIndexOf("```", StringComparison.Ordinal);
     return start >= 0 && end > start ? trimmed[(start + 1)..end].Trim() : trimmed;
 }
-
 sealed record Evidence(string Field, string Value, string Url, string Quote);
 sealed record Company(string CompanyName, string? Website, string? Location, string? Email,
     string? Phone, string? Industry, string? Summary, IReadOnlyList<Evidence> Evidence);

@@ -17,7 +17,7 @@ public sealed class VendorAppFacts
     {
         foreach (var app in Source.Load())
         {
-            var sources = new Dictionary<string, string>(app.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal)));
+            var sources = new Dictionary<string, string>(app.Files.Where(file => AppFiles.IsProgram(file.Key)));
             var result = new CSharpScriptCheck().Compile(sources);
             Assert.True(result.Success, $"{app.Name}: {string.Join("; ", result.Errors.Select(error => $"{error.File}:{error.Line} {error.Message}"))}");
         }
@@ -30,9 +30,9 @@ public sealed class VendorAppFacts
     public void TheResearcherPackageUsesOnlyPlatformContracts()
     {
         var researcher = Source.Load().Single(app => app.Name == "customer-researcher");
-        Assert.Equal(["synapses/activity.cs", "synapses/controls.cs", "synapses/research.cs", "synapses/surface.cs"],
+        Assert.Equal(["synapses/activity.cs", "synapses/controls.cs", "synapses/open.cs", "synapses/research.cs"],
             researcher.Files.Keys.Where(AppFiles.IsSynapse).Order(StringComparer.Ordinal));
-        var sources = researcher.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal)).Select(file => file.Value);
+        var sources = researcher.Files.Where(file => AppFiles.IsProgram(file.Key)).Select(file => file.Value);
         Assert.All(sources, source =>
         {
             Assert.DoesNotContain("CustomerResearcher.Contracts", source, StringComparison.Ordinal);

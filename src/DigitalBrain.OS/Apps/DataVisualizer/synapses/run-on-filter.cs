@@ -5,16 +5,17 @@ using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.Text.Signals;
 using DigitalBrain.Flutter.TextField;
 using DigitalBrain.Flutter.TextField.Signals;
+
+// Every filter field of every view is watched; changing one refreshes that view (and its group).
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var registry = brain.Get<IText>(appKey + "/views");
-var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 
 while (!brain.Stopping.IsCancellationRequested)
 {
     var snapshot = await registry.Read();
-    var views = snapshot.Markdown.Length == 0 ? [] : JsonSerializer.Deserialize<View[]>(snapshot.Markdown, json) ?? [];
+    var views = snapshot.Markdown.Length == 0 ? [] : JsonSerializer.Deserialize<View[]>(snapshot.Markdown, Views.Json) ?? [];
     using var scope = CancellationTokenSource.CreateLinkedTokenSource(brain.Stopping);
     async Task Changed()
     {
@@ -39,8 +40,6 @@ while (!brain.Stopping.IsCancellationRequested)
 
 async Task Pump<T>(INeuron source, string[] views, CancellationToken ct) where T : Signal
 {
-    async Task Refresh() { foreach (var view in views) { await app.Invoke(new(Guid.NewGuid(), "refresh", view)); } }
+    async Task Refresh() { foreach (var view in views) { await app.Request("refresh", view); } }
     await foreach (var _ in brain.On<T>(source, Refresh, ct)) { await Refresh(); }
 }
-
-sealed record View(string Id, string Title, string Kind, string Source, string Sql, string[] Filters, int RefreshSeconds, string? FilterGroup = null);

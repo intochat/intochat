@@ -5,39 +5,24 @@ using DigitalBrain.Apps.Signals;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter.Card;
 using DigitalBrain.Flutter.Chart;
-using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.TextField;
 using DigitalBrain.Postgres;
 using AppTable = DigitalBrain.Postgres.Tables.ITable;
 using ViewTable = DigitalBrain.Flutter.Table.ITable;
 using ViewColumn = DigitalBrain.Flutter.Table.TableColumn;
 
-// One writer serializes query results. Durable app invocations survive process restarts.
+// The sole writer of query results: a refresh request names a view (or all views) and this behavior
+// reads the current source and filters, retries when it was superseded, and writes the table/chart.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var connection = brain.Setting("Account__db") ?? "";
-var registry = brain.Get<IText>(appKey + "/views");
-var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
-await foreach (var _ in brain.On<AppInvoked>(app, Reconcile, brain.Stopping)) { await Reconcile(); }
-
-async Task Reconcile()
+var json = Views.Json;
+await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
 {
-    var pending = (await app.Pending()).Where(item => item.Operation == "refresh").ToArray();
-    if (pending.Length == 0) { return; }
-    try
-    {
-        var views = await Views();
-        foreach (var view in views.Where(view => pending.Any(request => request.Input.Length == 0 || view.Id == request.Input)))
-        {
-            while (!await Run(await Current(view.Id))) { brain.Stopping.ThrowIfCancellationRequested(); }
-        }
-        foreach (var request in pending) { await app.Respond(new(request.Id, "refreshed", null)); }
-    }
-    catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-    {
-        foreach (var request in pending) { await app.Respond(new(request.Id, null, error.Message)); }
-    }
+    if (request.Operation != "refresh") { continue; }
+    foreach (var view in (await Views.All(brain, appKey)).Where(view => request.Input.Length == 0 || view.Id == request.Input))
+    { while (!await Run(await Views.Current(brain, appKey, view.Id))) { brain.Stopping.ThrowIfCancellationRequested(); } }
 }
 
 async Task<bool> Run(View? view)
@@ -52,7 +37,7 @@ async Task<bool> Run(View? view)
         var values = new List<string>();
         foreach (var column in view.Filters) { values.Add((await brain.Get<ITextField>($"{appKey}/views/{view.FilterGroup ?? view.Id}/filter/{column}").Read()).Value); }
         var (columns, rows) = view.Source == "sql" ? await RunSql(view, values) : await RunAppTable(view, values);
-        var latest = await Current(view.Id);
+        var latest = await Views.Current(brain, appKey, view.Id);
         if (latest is null || JsonSerializer.Serialize(latest, json) != JsonSerializer.Serialize(view, json)) { return false; }
         for (var index = 0; index < view.Filters.Length; index++)
         {
@@ -140,13 +125,3 @@ static string Cell(string jsonLiteral)
     }
     catch (JsonException) { return jsonLiteral; }
 }
-
-async Task<View?> Current(string id) => (await Views()).FirstOrDefault(v => v.Id == id);
-
-async Task<View[]> Views()
-{
-    var text = (await registry.Read()).Markdown;
-    return text.Length == 0 ? [] : JsonSerializer.Deserialize<View[]>(text, json) ?? [];
-}
-
-sealed record View(string Id, string Title, string Kind, string Source, string Sql, string[] Filters, int RefreshSeconds, string? FilterGroup = null);

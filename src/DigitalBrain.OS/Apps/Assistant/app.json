@@ -2,24 +2,20 @@
   "name": "assistant",
   "title": "Assistant",
   "description": "Talk to your brain: ask questions, find capabilities and open what you need.",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "icon": "icon.svg",
   "operations": [
     {
       "name": "open",
-      "description": "Compose the assistant surface; input \"docked\" answers it for the side panel without opening a window."
+      "description": "Compose the assistant surface; input \"docked\" composes it for the side panel without opening a window."
     },
     {
       "name": "send",
-      "description": "Send a message in the current conversation and answer the run id."
-    },
-    {
-      "name": "transcript",
-      "description": "Answer the current conversation as JSON."
+      "description": "Start a turn in the current conversation with this message; the transcript neuron shows the answer."
     },
     {
       "name": "new",
-      "description": "Start a new conversation and answer its id."
+      "description": "Start a new conversation; the conversation neuron holds its id."
     }
   ],
   "settings": [

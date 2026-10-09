@@ -1,31 +1,37 @@
+using System.Text.Json;
 using DigitalBrain.Apps;
 using DigitalBrain.Apps.Signals;
+using DigitalBrain.Client;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Card;
 using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.Tabs;
+using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.Text.Signals;
 
+// The activity projection reads the durable queue neuron: every pending company as Queued or
+// Running, and the most recent outcomes. Its own request stream keeps it current.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var key = brain.Setting("App")!;
 var app = brain.Get<IApp>(key);
 var active = brain.Get<IText>(key + "/active-research");
+var queue = brain.Get<IText>(key + "/queue");
+var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
 var layout = brain.Get<ILayout>(key + "/research-activity");
 using var writer = new SemaphoreSlim(1, 1);
 using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(brain.Stopping);
-var loops = new[] { Invoked(), Completed(), ActiveChanged() };
+var loops = new[] { Requested(), QueueChanged(), ActiveChanged() };
 await Task.WhenAny(loops);
 lifetime.Cancel();
 await Task.WhenAll(loops);
 
-async Task Invoked()
+async Task Requested()
 {
-    await foreach (var _ in brain.On<AppInvoked>(app, Project, lifetime.Token)) { await Project(); }
+    await foreach (var _ in brain.On<AppRequested>(app, Project, lifetime.Token)) { await Project(); }
 }
-async Task Completed()
+async Task QueueChanged()
 {
-    await foreach (var _ in brain.On<AppInvocationCompleted>(app, Project, lifetime.Token)) { await Project(); }
+    await foreach (var _ in brain.On<TextChanged>(queue, Project, lifetime.Token)) { await Project(); }
 }
 async Task ActiveChanged()
 {
@@ -36,28 +42,29 @@ async Task Project()
     await writer.WaitAsync(lifetime.Token);
     try
     {
-        var records = (await app.ReadInvocations()).Where(item => item.Operation == "research").ToArray();
+        var text = (await queue.Read()).Markdown;
+        var records = text.Length == 0 ? [] : JsonSerializer.Deserialize<QueuedResearch[]>(text, json) ?? [];
         var activeId = (await active.Read()).Markdown;
-        var pending = records.Where(item => item.Status == InvocationStatus.Pending).ToArray();
-        var recent = records.Where(item => item.Status != InvocationStatus.Pending)
-            .OrderByDescending(item => item.CompletedAt).Take(20).ToArray();
+        var pending = records.Where(item => item.Status is "pending" or "running").ToArray();
+        var recent = records.Where(item => item.Status is not ("pending" or "running")).Reverse().Take(20).ToArray();
         var children = new List<UiChildRef>();
         await Add("summary", "Research activity", records.Length == 0
             ? "No research yet. Enter a company above and choose Research."
             : $"{pending.Length} pending · {recent.Length} recent outcomes. Saved company records remain available.");
         foreach (var item in pending.Concat(recent))
         {
-            var state = item.Status == InvocationStatus.Pending
-                ? (item.Id.ToString() == activeId ? "Running" : "Queued")
-                : item.Status == InvocationStatus.Failed ? "Failed"
-                : item.Output?.StartsWith("Stopped", StringComparison.Ordinal) == true ? "Stopped" : "Completed";
-            var detail = item.Status == InvocationStatus.Pending
+            var state = item.Status == "running" ? "Running"
+                : item.Status == "pending" ? (item.Id == activeId ? "Running" : "Queued")
+                : item.Status == "failed" ? "Failed"
+                : item.Status == "stopped" || item.Outcome?.StartsWith("Stopped", StringComparison.Ordinal) == true ? "Stopped"
+                : "Completed";
+            var detail = item.Status is "pending" or "running"
                 ? (state == "Running" ? "Research is in progress in the browser below." : "Waiting for earlier research.")
-                : item.Error ?? item.Output ?? "Finished.";
-            if (item.Status == InvocationStatus.Failed || state == "Stopped")
+                : item.Outcome ?? "Finished.";
+            if (item.Status == "failed" || state == "Stopped")
             { detail += "\nEnter this company above and choose Research to retry."; }
-            var title = string.IsNullOrWhiteSpace(item.Input) ? "Missing company name" : item.Input.Trim();
-            await Add(item.Id.ToString("N"), title, state + "\n" + detail);
+            var title = string.IsNullOrWhiteSpace(item.Query) ? "Missing company name" : item.Query.Trim();
+            await Add(item.Id, title, state + "\n" + detail);
         }
         if (children.Count <= 128)
         {

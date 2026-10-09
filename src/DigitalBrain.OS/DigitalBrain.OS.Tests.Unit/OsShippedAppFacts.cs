@@ -30,7 +30,7 @@ public sealed class OsShippedAppFacts
     {
         foreach (var app in Source.Load())
         {
-            var sources = new Dictionary<string, string>(app.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal)));
+            var sources = new Dictionary<string, string>(app.Files.Where(file => AppFiles.IsProgram(file.Key)));
             var result = new CSharpScriptCheck().Compile(sources);
             Assert.True(result.Success, $"{app.Name}: {string.Join("; ", result.Errors.Select(error => $"{error.File}:{error.Line} {error.Message}"))}");
         }

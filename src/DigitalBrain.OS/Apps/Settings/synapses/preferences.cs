@@ -6,6 +6,8 @@ using DigitalBrain.Flutter.Button.Signals;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.TextField;
 
+// Preference persistence: the requested operations and the preference buttons both arrive as
+// requests, and the outcome (saved, reloaded or conflicted) is the status neuron.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var root = brain.Setting("Brain") is { Length: > 0 } scope ? scope + "/settings" : appKey;
@@ -24,36 +26,29 @@ await Task.WhenAll(loops);
 
 async Task Operations()
 {
-    await foreach (var _ in brain.On<AppInvoked>(app, Reconcile, lifetime.Token)) { await Reconcile(); }
-}
-
-async Task Clicks(string operation)
-{
-    await foreach (var clicked in brain.On<ButtonClicked>(brain.Get<IButton>(appKey + "/" + operation), lifetime.Token))
-    {
-        var input = operation == "save-preferences"
-            ? JsonSerializer.Serialize(new Submission((await draftName.Read()).Value, (await draftTheme.Read()).Value, await ReadBaseline())) : "";
-        await app.Invoke(new(clicked.RequestId == Guid.Empty ? Guid.NewGuid() : clicked.RequestId, operation, input));
-    }
-}
-
-async Task Reconcile()
-{
-    foreach (var request in (await app.Pending()).Where(r => r.Operation is "save-preferences" or "reload-preferences" or "reconcile-preferences"))
+    await foreach (var request in brain.On<AppRequested>(app, lifetime.Token))
     {
         try
         {
             if (request.Operation == "save-preferences") { await Save(request.Input); }
-            else { await Reload(request.Operation == "reload-preferences"); }
-            await app.Respond(new(request.Id, "{}", null));
+            else if (request.Operation is "reload-preferences" or "reconcile-preferences") { await Reload(request.Operation == "reload-preferences"); }
         }
         catch (Exception error) when (!lifetime.IsCancellationRequested)
         {
             var message = error is PreferenceConflictException ? error.Message
                 : "Preferences could not be saved or loaded. Your draft is preserved. Reload preferences to inspect the stored values before retrying.";
             await status.Set(message);
-            await app.Respond(new(request.Id, null, message));
         }
+    }
+}
+
+async Task Clicks(string operation)
+{
+    await foreach (var _ in brain.On<ButtonClicked>(brain.Get<IButton>(appKey + "/" + operation), lifetime.Token))
+    {
+        var input = operation == "save-preferences"
+            ? JsonSerializer.Serialize(new Submission((await draftName.Read()).Value, (await draftTheme.Read()).Value, await ReadBaseline())) : "";
+        await app.Request(operation, input);
     }
 }
 

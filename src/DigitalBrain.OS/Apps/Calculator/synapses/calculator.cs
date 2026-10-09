@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using DigitalBrain.Apps;
+using DigitalBrain.Apps.Signals;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Button;
@@ -15,8 +16,8 @@ using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.Workspace;
 
 // The calculator: a display and a keypad of edge neurons. Opening it composes the surface and shows
-// the window; each button click reaches this behavior and grows or evaluates the expression. State
-// is the display neuron, so a restarted behavior resumes from what the person sees.
+// the window; each button click grows or evaluates the expression. State is the display neuron, so
+// a restarted behavior resumes from what the person sees.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
@@ -32,23 +33,16 @@ string Name(string part) => appKey + "/" + part;
 
 async Task Open()
 {
-    await foreach (var invoked in app.Invocations(brain, ["open"], brain.Stopping))
+    await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
     {
-        if (invoked.Operation != "open") { continue; }
-        try
+        if (request.Operation != "open") { continue; }
+        await Compose();
+        if (request.Input != "docked")
         {
-            await Compose();
-            var surface = new UiChildRef(UIVocabulary.SurfaceType, Name("surface"));
-            if (invoked.Input != "docked")
-            {
-                var scope = appKey[..appKey.LastIndexOf("/apps/", StringComparison.Ordinal)];
-                await brain.Get<IWorkspace>(scope)
-                    .EnsureOpenAsync("calculator", "Calculator", WindowReference.For(surface), CancellationToken.None);
-            }
-            await app.Respond(new AppResponse(invoked.InvocationId, "opened", null));
+            var scope = brain.Setting("Brain")!;
+            await brain.Get<IWorkspace>(scope).EnsureOpenAsync(appKey + "/window", "Calculator",
+                WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, Name("surface"))), brain.Stopping);
         }
-        catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-        { await app.Respond(new AppResponse(invoked.InvocationId, null, error.Message)); }
     }
 }
 

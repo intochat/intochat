@@ -16,7 +16,7 @@ public sealed class OsBootFacts
             .WithModule<AppsModule>()
             .ConfigureSilo(silo =>
             {
-                silo.Services.RemoveAll<IDeployableRuntime>();
+                silo.Services.RemoveAll<IAppRuntime>();
                 silo.Services.AddOperatingSystemApps();
             })
             .StartAsync(ct);
@@ -65,7 +65,7 @@ public sealed class OsBootFacts
         .WithModule<AppsModule>()
         .ConfigureSilo(silo =>
         {
-            silo.Services.RemoveAll<IDeployableRuntime>();
+            silo.Services.RemoveAll<IAppRuntime>();
             silo.Services.AddSingleton<IShippedAppSource>(new HelloSource());
             silo.Services.AddSingleton<ShippedCatalog>();
             silo.Services.AddOperatingSystemBoot(os => { foreach (var app in defaults) { os.Apps.Add(app); } });

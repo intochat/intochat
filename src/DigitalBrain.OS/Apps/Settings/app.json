@@ -2,19 +2,19 @@
   "name": "settings",
   "title": "Settings",
   "description": "Available connections and the connections used by your apps.",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "operations": [
     {
       "name": "open",
-      "description": "Compose the settings surface and answer the preferences."
+      "description": "Compose the settings surface and publish the current preferences to {app}/preferences; input \"docked\" skips the window."
     },
     {
       "name": "read",
-      "description": "Answer the current preferences."
+      "description": "Publish the current preferences to {app}/preferences."
     },
     {
       "name": "refresh-connections",
-      "description": "Refresh and return this brain\u2019s credential-free connection summaries and installed app bindings."
+      "description": "Rebuild this brain's credential-free connection summaries and installed app bindings as cards."
     },
     {
       "name": "save-preferences",
