@@ -80,6 +80,7 @@ A user app is an app neuron (`IApp`, keyed `{brainScope}/apps/{name}`) holding t
 app.json         manifest: title, icon, operations, settings, account slots
 app.spec.md      the program in natural language
 synapses/*.cs    implementation, one small script per reaction → one ICSharpFile each
+lib/*.cs      shared classes every synapse compiles with
 ```
 
 - **Spec is the program, the LLM is a compiler.** The Creator (`Apps/Creator.cs`,
@@ -89,7 +90,7 @@ synapses/*.cs    implementation, one small script per reaction → one ICSharpFi
 - **Compilation is the publish gate.** `IApp.Publish`/Export refuse a bundle whose `.cs` files do
   not compile (`IScriptSandbox.Check`). There are no per-app tests; verification is seeing the app
   run through `aspire run` and `digitalbrain-mcp`.
-- **Subscriptions are code, durability is the brain's.** `brain.On<T>(source)` is a durable subscription
+- **A synapse is one reaction: one `await foreach` over one `brain.On<T>(source)`. An app's own operations arrive as `AppRequested`; nothing waits for a script, a result is neuron state.** `brain.On<T>(source)` is a durable subscription
   inside the grain, with a watermark. Script processes are caches: they get reaped and re-run from the
   top. So setup must be cheap and idempotent, state lives in neurons, delivery is at-least-once (dedup
   through neuron state), and derived state is rebuilt from scratch rather than patched.
@@ -181,3 +182,4 @@ make a check pass.
 - **A reshaped grain state fails at activation or silo start** as an Orleans `wireType`/deserialisation
   error (e.g. `integration.registration/integration/clickhouse` read at `IntegrationSeeder`). Wipe the local
   storage volume (Azurite); no migration shims.
+- **An app's program is compiled and assigned whole by `IBrainPrograms.Assign`; a write that does not compile fails the write.**
