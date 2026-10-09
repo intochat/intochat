@@ -31,7 +31,7 @@ const string McpPortKey = "DigitalBrain:Http:McpPort";
 const string IntoChatShippedAppsKey = "DigitalBrain:Modules:apps:Shipped:intochat";
 
 var builder = DistributedApplication.CreateBuilder(args);
-var digitalBrain = builder.AddDigitalBrain("Modules", new DigitalBrainHostingOptions { ServiceId = "intochat", UseAzureStorage = true })
+var digitalBrain = builder.AddDigitalBrain("Modules", DigitalBrainHostingOptions.Named(builder.Configuration, "intochat", useAzureStorage: true))
     .WithHttpIdentity()
     .WithHosting<AIModuleHosting, AIOptions>(ai =>
     {
@@ -39,6 +39,7 @@ var digitalBrain = builder.AddDigitalBrain("Modules", new DigitalBrainHostingOpt
         ai.WithDefaultLlm<IDeepSeekV41Flash>();
         ai.WithDefaultEmbedding<ITextEmbedding3Small>();
         ai.WithVoiceToText<IWhisperLargeV3Turbo>();
+        ai.WithDefaultSystemOne<ILocalJev>();
         ai.WithTavilySearch();
     })
     .WithHosting<QdrantModuleHosting, QdrantModuleOptions>(qdrant => qdrant.WithHostedQdrant())

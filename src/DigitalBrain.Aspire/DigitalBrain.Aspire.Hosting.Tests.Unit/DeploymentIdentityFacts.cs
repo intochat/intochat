@@ -5,8 +5,10 @@ using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Platform.Identity.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Aspire.Hosting.Tests.Unit;
 
@@ -119,6 +121,47 @@ public sealed class DeploymentIdentityFacts
         Assert.Equal("existing-data", brain.ServiceId);
         Assert.Equal("new-run", brain.ClusterId);
         Assert.Equal("default-service", builder.AddDigitalBrain("default-service").ServiceId);
+    }
+
+    [Fact]
+    public void ServiceIdAndClusterIdComeFromConfigurationWithTheIntoChatDefault()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        var defaults = builder.AddDigitalBrain("Modules", DigitalBrainHostingOptions.Named(builder.Configuration, "intochat", useAzureStorage: false));
+        Assert.Equal("intochat", defaults.ServiceId);
+        Assert.Equal("intochat", defaults.ClusterId);
+        Assert.Equal(DigitalBrainNames.GrainStateContainer, defaults.GrainStateContainer);
+
+        builder.Configuration[DigitalBrainHostingOptions.ServiceIdKey] = "intochat-rabc1234";
+        builder.Configuration[DigitalBrainHostingOptions.ClusterIdKey] = "intochat-rabc1234";
+        builder.Configuration[DigitalBrainHostingOptions.GrainStateContainerKey] = "brain-rabc1234";
+        var revision = builder.AddDigitalBrain("Revision", DigitalBrainHostingOptions.Named(builder.Configuration, "intochat", useAzureStorage: false));
+        Assert.Equal("intochat-rabc1234", revision.ServiceId);
+        Assert.Equal("intochat-rabc1234", revision.ClusterId);
+        Assert.Equal("brain-rabc1234", revision.GrainStateContainer);
+    }
+
+    [Fact]
+    public async Task TheSiloReceivesTheGrainStateContainerItMustOpen()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        builder.Configuration[DigitalBrainHostingOptions.GrainStateContainerKey] = "brain-rabc1234";
+        var brain = builder.AddDigitalBrain("Modules", DigitalBrainHostingOptions.Named(builder.Configuration, "intochat", useAzureStorage: true)with { PersistentStorage = false });
+        var silo = builder.AddExecutable("silo", "unused", ".").WithReference(brain);
+        var environment = await DigitalBrain.Aspire.Testing.AspireCompositionTest.EnvironmentOf(builder, silo.Resource, TestContext.Current.CancellationToken);
+        Assert.Equal("brain-rabc1234", environment[DigitalBrainConfiguration.EnvironmentName(DigitalBrainNames.GrainStateContainerKey)]);
+    }
+
+    [Fact]
+    public void TheGrainStateContainerComesFromConfigurationWithTheV2Default()
+    {
+        var host = global::Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
+        host.Configuration[DigitalBrainNames.GrainStateContainerKey] = "brain-rabc1234";
+        host.Configuration[AuthOptions.PostureKey] = "Open";
+        DigitalBrain.Aspire.Server.ServerHostingExtensions.AddDigitalBrainServer(host, server => server.UseAzureStorage());
+        using var provider = host.Services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptionsMonitor<Orleans.Configuration.AzureBlobStorageOptions>>().Get(DigitalBrainNames.DefaultGrainStorage);
+        Assert.Equal("brain-rabc1234", options.ContainerName);
     }
 
     [Fact]

@@ -1,20 +1,36 @@
+using Microsoft.Extensions.Configuration;
+
 namespace DigitalBrain.Aspire.Hosting;
 
-public sealed class DigitalBrainHostingOptions
+public sealed record DigitalBrainHostingOptions
 {
-    // External override channels: a test or deployment may force these on a composed AppHost
-    // through its configuration without touching code.
     public const string ServiceIdKey = "Orleans:ServiceId";
     public const string ClusterIdKey = "Orleans:ClusterId";
-    // Azurite lifetime. Product runs persist; a test host passes false so deployments do not share a volume.
+    public const string GrainStateContainerKey = DigitalBrain.Framework.DigitalBrainNames.GrainStateContainerKey;
     public const string PersistentStorageKey = "DigitalBrain:Hosting:PersistentStorage";
     public const string EnvironmentKey = "DigitalBrain:Hosting:Environment";
 
     public string? ServiceId { get; init; }
     public string? ClusterId { get; init; }
+    // The blob container the default grain storage opens; a revision runs in its own copy.
+    public string? GrainStateContainer { get; init; }
     public bool UseAzureStorage { get; init; }
     public bool PersistentStorage { get; init; } = true;
     public string? DataVolume { get; init; }
     // Development or Production for every silo host; null leaves each resource's own default.
     public string? Environment { get; init; }
+
+    // A deployment's identity: configuration first, then the name the product calls itself.
+    public static DigitalBrainHostingOptions Named(IConfiguration configuration, string defaultIdentity, bool useAzureStorage)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentException.ThrowIfNullOrWhiteSpace(defaultIdentity);
+        return new()
+        {
+            ServiceId = configuration[ServiceIdKey] ?? defaultIdentity,
+            ClusterId = configuration[ClusterIdKey] ?? defaultIdentity,
+            GrainStateContainer = configuration[DigitalBrain.Framework.DigitalBrainNames.GrainStateContainerKey] ?? DigitalBrain.Framework.DigitalBrainNames.GrainStateContainer,
+            UseAzureStorage = useAzureStorage,
+        };
+    }
 }

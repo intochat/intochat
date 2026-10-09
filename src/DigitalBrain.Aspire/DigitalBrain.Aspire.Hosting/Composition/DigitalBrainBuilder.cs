@@ -97,6 +97,7 @@ public sealed class DigitalBrainBuilder
     public string Name { get; }
     public string ServiceId { get; internal init; } = null!;
     public string ClusterId { get; internal init; } = null!;
+    public string GrainStateContainer { get; internal init; } = null!;
     public string? Environment { get; internal init; }
     public string? ClusteringResourceName { get; internal init; }
 

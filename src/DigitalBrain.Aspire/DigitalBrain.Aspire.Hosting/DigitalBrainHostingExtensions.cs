@@ -46,6 +46,7 @@ public static class DigitalBrainHostingExtensions
         var clusterId = options.ClusterId ?? builder.Configuration[DigitalBrainHostingOptions.ClusterIdKey]
             ?? (builder.Environment.IsDevelopment() ? $"digitalbrain-{Guid.NewGuid():N}" : resolvedServiceId);
         ArgumentException.ThrowIfNullOrWhiteSpace(clusterId);
+        var grainStateContainer = options.GrainStateContainer ?? builder.Configuration[DigitalBrainHostingOptions.GrainStateContainerKey] ?? DigitalBrainNames.GrainStateContainer;
         var orleans = builder
             .AddOrleans($"{name}-{OrleansResourceSuffix}")
             .WithClusterId(clusterId)
@@ -53,7 +54,7 @@ public static class DigitalBrainHostingExtensions
         if (!options.UseAzureStorage)
         {
             orleans.WithDevelopmentClustering().WithMemoryGrainStorage(DigitalBrainNames.DefaultGrainStorage).WithMemoryReminders();
-            var memory = new DigitalBrainBuilder(builder, name, resource, orleans, null, null) { ServiceId = resolvedServiceId, ClusterId = clusterId, Environment = environment };
+            var memory = new DigitalBrainBuilder(builder, name, resource, orleans, null, null) { ServiceId = resolvedServiceId, ClusterId = clusterId, GrainStateContainer = grainStateContainer, Environment = environment };
             memory.AddProjection(MasterKey.Provision(builder, name));
             if (AuthPosture.Provision(builder) is { } memoryPosture) { memory.AddProjection(memoryPosture); }
             return memory;
@@ -73,7 +74,7 @@ public static class DigitalBrainHostingExtensions
         var grainState = storage.AddBlobs($"{name}-{DigitalBrainNames.GrainState}");
         orleans.WithClustering(clustering).WithReminders(reminders)
             .WithGrainStorage(DigitalBrainNames.DefaultGrainStorage, grainState);
-        var brain = new DigitalBrainBuilder(builder, name, resource, orleans, storage, grainState) { ServiceId = resolvedServiceId, ClusterId = clusterId, Environment = environment, ClusteringResourceName = clustering.Resource.Name, Clustering = clustering, Reminders = reminders };
+        var brain = new DigitalBrainBuilder(builder, name, resource, orleans, storage, grainState) { ServiceId = resolvedServiceId, ClusterId = clusterId, GrainStateContainer = grainStateContainer, Environment = environment, ClusteringResourceName = clustering.Resource.Name, Clustering = clustering, Reminders = reminders };
         brain.AddProjection(MasterKey.Provision(builder, name));
         if (AuthPosture.Provision(builder) is { } posture) { brain.AddProjection(posture); }
         storage.WithParentRelationship(brain.GetOrAddModuleNode(KernelModuleNode));
@@ -117,6 +118,7 @@ public static class DigitalBrainHostingExtensions
             builder.WithReference(grainState, DigitalBrainNames.GrainState);
             builder.WithEnvironment($"Orleans__GrainStorage__{DigitalBrainNames.DefaultGrainStorage}__ServiceKey", DigitalBrainNames.GrainState);
         }
+        builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(DigitalBrainNames.GrainStateContainerKey), brain.GrainStateContainer);
         brain.Identity?.Apply(builder);
         if (brain.Environment is { Length: > 0 } environment)
         {

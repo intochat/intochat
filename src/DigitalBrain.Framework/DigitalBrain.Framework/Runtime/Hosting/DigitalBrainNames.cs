@@ -3,6 +3,7 @@ namespace DigitalBrain.Framework;
 public static class DigitalBrainNames
 {
     public const string GrainStateContainer = "digitalbrain-v2-state";
+    public const string GrainStateContainerKey = "DigitalBrain:Orleans:GrainStateContainer";
 
     public const string Storage = "storage";
     public const string Clustering = "clustering";
