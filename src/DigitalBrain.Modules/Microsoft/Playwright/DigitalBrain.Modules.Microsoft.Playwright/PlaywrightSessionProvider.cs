@@ -251,8 +251,18 @@ public sealed class PlaywrightSessionProvider(global::Microsoft.Extensions.Optio
         {
             if (apps.IsAppPage(route.Request.Url) && (route.Request.IsNavigationRequest || apps.IsAppPage(page.Url)))
             {
-                // The deployment's own app talking to its own origin: no public proxy, no budget.
-                await route.ContinueAsync().ConfigureAwait(false);
+                // The deployment's own app talking to its own origin: no public proxy, no budget. The shell's
+                // WebView sends loopback to a dead proxy, so the driver fetches the request and fulfils it.
+                try
+                {
+                    var response = await route.FetchAsync(new() { MaxRedirects = 0 }).ConfigureAwait(false);
+                    await route.FulfillAsync(new() { Response = response }).ConfigureAwait(false);
+                }
+                catch (Sdk.PlaywrightException)
+                {
+                    try { await route.AbortAsync("connectionfailed").ConfigureAwait(false); }
+                    catch (Sdk.PlaywrightException) { }
+                }
                 return;
             }
             var budget = _budget;

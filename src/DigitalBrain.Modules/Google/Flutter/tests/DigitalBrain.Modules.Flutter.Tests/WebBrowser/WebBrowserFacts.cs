@@ -292,6 +292,22 @@ public sealed class WebBrowserFacts
         Assert.Equal("WinUI", (await browser.Read()).Title);
     }
 
+    [Fact]
+    public async Task An_attached_page_shows_the_browser_uri_before_and_after_connecting()
+    {
+        var provider = new Provider();
+        await using var brain = await Start(provider);
+        var browser = brain.Get<IWebBrowser>("film/browser");
+        await browser.Configure("film/browser", "film/status");
+        await browser.Navigate("http://localhost:18111/", "FilmCraft");
+        await brain.Get<IWebBrowserConnector>("film/browser").Connect(12345, Session);
+        var page = Assert.Single(provider.Pages);
+        Assert.Equal(["http://localhost:18111/"], page.Navigations);
+        Assert.Equal("Ready", (await brain.Get<IText>("film/status").Read()).Markdown);
+        await browser.Navigate("http://localhost:18110/", "PhotoCraft");
+        Assert.Equal(["http://localhost:18111/", "http://localhost:18110/"], page.Navigations);
+    }
+
     private sealed class Provider : IBrowserSessionProvider
     {
         public bool Fail { get; set; }
@@ -299,6 +315,7 @@ public sealed class WebBrowserFacts
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public List<BrowserAttachment> Attachments { get; } = [];
         public List<Page> Pages { get; } = [];
+        public bool IsAppPage(string url) => url.StartsWith("http://localhost:181", StringComparison.Ordinal);
         public Task<IBrowserPageSession> AttachAsync(BrowserAttachment attachment, CancellationToken ct)
         {
             Attachments.Add(attachment);
@@ -320,7 +337,8 @@ public sealed class WebBrowserFacts
         public string? Url => "https://example.com";
         public string? Title => "Example";
         public Task<BrowserObservation> SnapshotAsync(CancellationToken ct) => Task.FromResult(new BrowserObservation(Url!, Title!, "", []));
-        public Task<BrowserObservation> NavigateAsync(string url, CancellationToken ct) => SnapshotAsync(ct);
+        public List<string> Navigations { get; } = [];
+        public Task<BrowserObservation> NavigateAsync(string url, CancellationToken ct) { Navigations.Add(url); return SnapshotAsync(ct); }
         public Task<BrowserObservation> ClickAsync(string selector, CancellationToken ct) => SnapshotAsync(ct);
         public Task<BrowserObservation> FillAsync(string selector, string value, CancellationToken ct) => SnapshotAsync(ct);
         public Task<string> EvaluateAsync(string expression, CancellationToken ct) => Task.FromResult("null");

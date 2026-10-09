@@ -85,9 +85,22 @@ internal sealed class WebBrowserNeuron(
         finally { if (generation == _generation) { _connecting = null; } }
         if (generation != _generation) { return; }
         _ready = true;
-        await Status("Ready");
+        await Show(Snapshot.Uri);
         if (generation == _generation)
         { await Announce(new BrowserConnected(this.GetPrimaryKeyString(), sessionId)); }
+    }
+
+    // The neuron's Uri is what the attached page shows; an empty Uri leaves the page to its driver.
+    private async Task Show(string uri)
+    {
+        if (uri.Length == 0) { await Status("Ready"); return; }
+        try
+        {
+            await Driver.Navigate(uri);
+            await Status("Ready");
+        }
+        catch (Exception error)
+        { await Status($"Browser could not load {uri}: {error.Message}"); }
     }
 
     public async Task Disconnect(string sessionId)
@@ -142,7 +155,7 @@ internal sealed class WebBrowserNeuron(
         { throw new ArgumentException("A browser session must be 32 lowercase hexadecimal characters.", nameof(sessionId)); }
     }
 
-    public Task Navigate(string uri, string? title = null)
+    public async Task Navigate(string uri, string? title = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(uri);
         if (!Uri.TryCreate(uri, UriKind.Absolute, out var parsed) ||
@@ -156,7 +169,8 @@ internal sealed class WebBrowserNeuron(
         next.Version++;
         next.Uri = parsed.AbsoluteUri;
         next.Title = string.IsNullOrWhiteSpace(title) ? parsed.Host : title.Trim();
-        return Save(next, new BrowserNavigated(this.GetPrimaryKeyString(), next.Uri));
+        await Save(next, new BrowserNavigated(this.GetPrimaryKeyString(), next.Uri));
+        if (_ready) { await Show(next.Uri); }
     }
 
     [ReadOnly] public Task<WebBrowserState> Read() { Snapshot.Name = this.GetPrimaryKeyString(); return Task.FromResult(Snapshot); }
