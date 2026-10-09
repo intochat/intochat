@@ -7,7 +7,7 @@
   "operations": [
     {
       "name": "open",
-      "description": "Compose the assistant surface; input \"docked\" composes it for the side panel without opening a window."
+      "description": "Compose the assistant surface; input \"docked\" composes it for the working area without opening a window."
     },
     {
       "name": "send",
@@ -16,6 +16,10 @@
     {
       "name": "new",
       "description": "Start a new conversation; the conversation neuron holds its id."
+    },
+    {
+      "name": "voice",
+      "description": "Begin a voice message from the dock; the composer neuron captures and transcribes it."
     }
   ],
   "settings": [
@@ -29,5 +33,9 @@
       "description": "Confidence (0-1) above which Jev answers a request directly, without the language model.",
       "default": "0.8"
     }
+  ],
+  "toolbar": [
+    { "operation": "send", "kind": "text", "label": "Message your brain" },
+    { "operation": "voice", "icon": "mic", "label": "Voice" }
   ]
 }

@@ -22,6 +22,12 @@ field and the send and new-conversation buttons.
 
 Invoking "open" with "docked" answers id "assistant-docked", the same surface and docked true.
 
+## Scenario: The dock is the assistant's toolbar
+
+The manifest's toolbar is a text field for "send" and a mic button for "voice". Submitting the
+field posts "send" with the text; the transcript shows the answer. The shell renders this toolbar
+as its assistant island; nothing in the shell is assistant-specific beyond the cat it draws beside it.
+
 ## Scenario: A message is answered in the transcript
 
 After sending "hello", the transcript's only turn shows "hello" and the model's answer, and its

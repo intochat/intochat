@@ -19,3 +19,7 @@ Clicking 2, +, 3, * then 4 and then "=" shows "14".
 ## Scenario: Clear resets it
 
 Clicking "C" shows an empty display.
+
+## Scenario: Clear from the dock empties the display
+
+The toolbar's Clear button posts "clear"; the display neuron becomes empty whatever it held.

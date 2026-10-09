@@ -10,13 +10,23 @@ public sealed class OsAssistantAppFacts
         var bundle = new EmbeddedShippedAppSource(typeof(OsCatalog).Assembly, "DigitalBrain.OS.Apps/", "os").Load()
             .Single(app => app.Name == "assistant");
 
-        Assert.Equal(["open", "send", "new"], bundle.Manifest.Operations.Select(operation => operation.Name));
+        Assert.Equal(["open", "send", "new", "voice"], bundle.Manifest.Operations.Select(operation => operation.Name));
         Assert.Equal("icon.svg", bundle.Manifest.Icon);
         Assert.Contains("icon.svg", bundle.Files.Keys);
         Assert.Contains("lib/Assistant.cs", bundle.Files.Keys);
         Assert.Contains("synapses/open.cs", bundle.Files.Keys);
         Assert.Contains("synapses/send.cs", bundle.Files.Keys);
         Assert.Contains("synapses/new.cs", bundle.Files.Keys);
+    }
+
+    [Fact]
+    public void TheAssistantToolbarIsATextFieldAndAVoiceButton()
+    {
+        var bundle = new EmbeddedShippedAppSource(typeof(OsCatalog).Assembly, "DigitalBrain.OS.Apps/", "os").Load()
+            .Single(app => app.Name == "assistant");
+
+        Assert.Equal([("send", "text", null), ("voice", "button", "mic")],
+            bundle.Manifest.Toolbar!.Select(entry => (entry.Operation, entry.Kind, entry.Icon)));
     }
 
     [Fact]
