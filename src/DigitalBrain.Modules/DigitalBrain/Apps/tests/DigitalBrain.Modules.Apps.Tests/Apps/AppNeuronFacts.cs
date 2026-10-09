@@ -1,6 +1,5 @@
 using DigitalBrain.Apps.Signals;
-using DigitalBrain.Microsoft.CSharp;
-using DigitalBrain.Modules.Apps.Tests;
+using DigitalBrain.Modules.Apps.Tests.Runtimes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -13,8 +12,13 @@ public sealed class AppNeuronFacts
     private static AppManifest Manifest(string title = "Echo") =>
         new(title, "echoes", [new("ask", "ask it")], [new("Text", "what to say", "hi")], []);
 
-    private static Task<ModuleBrain> Start() =>
-        ModuleTest.Create().WithModule<AppsModule>().StartAsync(TestContext.Current.CancellationToken);
+    private static Task<ModuleBrain> Start()
+        => Start(new FakeAppRuntime());
+
+    private static Task<ModuleBrain> Start(FakeAppRuntime runtime)
+        => ModuleTest.Create().WithModule<AppsModule>()
+            .ConfigureSilo(silo => { silo.Services.RemoveAll<IAppRuntime>(); silo.Services.AddSingleton<IAppRuntime>(runtime); })
+            .StartAsync(TestContext.Current.CancellationToken);
 
     [Fact]
     public async Task CreatingAnAppMintsVersionZeroOneZeroAndPublishesAppChanged()
@@ -116,6 +120,23 @@ public sealed class AppNeuronFacts
         var failed = await app.CompleteBuild(second, null, "the model never answered");
         Assert.Equal(AppStatus.Failed, failed.Status);
         Assert.Contains(failed.Activity, line => line.Contains("the model never answered", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ABuildWhoseProgramDoesNotCompileGoesFailedAndKeepsItsFiles()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runtime = new FakeAppRuntime { Refuse = sources => sources.ContainsKey("synapses/bad.cs") ? new InvalidOperationException("The program does not compile: synapses/bad.cs line 1 CS0029") : null };
+        await using var brain = await Start(runtime);
+        var app = brain.Get<IApp>(IApp.Key(Brain, "uncompilable"));
+        await app.Create(Manifest(), "spec");
+        await app.BeginBuild(null);
+
+        var failed = await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["synapses/bad.cs"] = "int x = \"no\";" }, null);
+
+        Assert.Equal(AppStatus.Failed, failed.Status);
+        Assert.Contains(failed.Activity, line => line.Contains("CS0029", StringComparison.Ordinal));
+        Assert.Equal("int x = \"no\";", failed.Files["synapses/bad.cs"]);
     }
 
     [Fact]
@@ -241,17 +262,16 @@ public sealed class AppNeuronFacts
     public async Task ASynapseIsKeyedUnderTheAppsSynapsesFolderAndTheOldFolderIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Start();
+        var runtime = new FakeAppRuntime();
+        await using var brain = await Start(runtime);
         var app = brain.Get<IApp>(IApp.Key(Brain, "keyed"));
         await app.Create(Manifest(), "## Scenario: Keys\nIt keys.");
         var refused = await Assert.ThrowsAsync<ArgumentException>(() => app.WriteBehavior("behaviors/old.cs", "// p", Guid.NewGuid()));
         Assert.Contains("synapses/", refused.Message, StringComparison.Ordinal);
         var snapshot = await app.WriteBehavior("synapses/new.cs", "// p", Guid.NewGuid());
         Assert.Contains("synapses/new.cs", snapshot.Files.Keys);
-        // Deployed programs are keyed by the app runtime's hashed file key, never by their bundle path.
-        var deployed = Assert.Single(RecordingCSharpFile.Files.Values, file => file.Source == "// p");
-        Assert.Contains(deployed.Id, Enumerable.Range(0, 3).Select(generation => AppProgramKey.For(IApp.Key(Brain, "keyed"), generation, "synapses/new.cs")));
-        Assert.StartsWith(Brain + "/csharp/app-", deployed.Id, StringComparison.Ordinal);
-        Assert.DoesNotContain("keyed", deployed.Id, StringComparison.Ordinal);   // unguessable from the app's name
+        var deployment = Assert.Single(runtime.Deployed);
+        Assert.Equal(["synapses/new.cs"], deployment.Sources.Keys);
+        Assert.Equal("// p", deployment.Sources["synapses/new.cs"]);
     }
 }

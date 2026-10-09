@@ -1,4 +1,5 @@
 using DigitalBrain.Modules.Apps.Tests;
+using DigitalBrain.Modules.Apps.Tests.Runtimes;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
@@ -24,6 +25,7 @@ public sealed class SaveToSourceFacts : IDisposable
     public void Dispose() => Directory.Delete(_root, recursive: true);
 
     private Task<ModuleBrain> Start(string environment) => ModuleTest.Create().WithModule<AppsModule>()
+        .WithFakeAppRuntime(new())
         .ConfigureSilo(silo =>
         {
             silo.Services.AddSingleton<IShippedAppSource>(new DirectoryShippedAppSource(_root, "intochat", development: true));

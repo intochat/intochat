@@ -1,4 +1,5 @@
 using DigitalBrain.Modules.Apps.Tests;
+using DigitalBrain.Modules.Apps.Tests.Runtimes;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,7 +15,7 @@ public sealed class AppPublishFacts
         new("Echo", "echoes", [new("ask", "ask it")], [new("Text", "what to say", "hi")], [], Icon: "icon.svg");
 
     private static Task<ModuleBrain> Start() =>
-        ModuleTest.Create().WithModule<AppsModule>().StartAsync(TestContext.Current.CancellationToken);
+        ModuleTest.Create().WithModule<AppsModule>().WithFakeAppRuntime(new()).StartAsync(TestContext.Current.CancellationToken);
 
     private static async Task<IApp> LiveApp(ModuleBrain brain, string publisher, string name = "echo")
     {
@@ -185,6 +186,7 @@ public sealed class AppPublishFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
+            .WithFakeAppRuntime(new())
             .ConfigureSilo(silo => silo.Services.AddSingleton<IScriptSandbox>(new RefusingSandbox(("synapses/echo.cs", 2, "Cannot implicitly convert type 'string' to 'int'"))))
             .StartAsync(ct);
         var app = await LiveApp(brain, "intochat");
@@ -213,6 +215,7 @@ public sealed class AppPublishFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
+            .WithFakeAppRuntime(new())
             .ConfigureSilo(silo => silo.Services.AddSingleton<IScriptSandbox>(new RefusingSandbox(("any.cs", 1, "would refuse"))))
             .StartAsync(ct);
         Caller.Clear();

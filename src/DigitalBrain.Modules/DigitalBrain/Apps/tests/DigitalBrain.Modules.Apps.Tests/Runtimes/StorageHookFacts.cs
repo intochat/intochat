@@ -9,11 +9,11 @@ public sealed class StorageHookFacts
 {
     private sealed class RecordingHook : IAppStorageHook
     {
-        public List<(string Brain, string AppKey, string[] Keys)> Retired { get; } = [];
+        public List<(string Brain, string AppKey)> Retired { get; } = [];
 
-        public Task OnRetired(string brainId, string appKey, string[] storageKeys, CancellationToken cancellationToken)
+        public Task OnRetired(string brainId, string appKey, CancellationToken cancellationToken)
         {
-            Retired.Add((brainId, appKey, storageKeys));
+            Retired.Add((brainId, appKey));
             return Task.CompletedTask;
         }
 
@@ -62,29 +62,25 @@ public sealed class StorageHookFacts
     }
 
     private static Task<ModuleBrain> StartWith(RecordingHook hook)
+        => Start(hook, new FakeAppRuntime());
+
+    private static Task<ModuleBrain> Start(RecordingHook hook, FakeAppRuntime runtime)
         => ModuleTest.Create().WithModule<AppsModule>()
             .ConfigureSilo(silo =>
             {
-                silo.Services.RemoveAll<IDeployableRuntime>();
-                silo.Services.AddSingleton<IDeployableRuntime>(new DeployableRuntimeFacts.FakeRuntime());
+                silo.Services.RemoveAll<IAppRuntime>();
+                silo.Services.AddSingleton<IAppRuntime>(runtime);
                 silo.Services.AddSingleton<IAppStorageHook>(hook);
             })
             .StartAsync(TestContext.Current.CancellationToken);
 
     [Fact]
-    public async Task ADeleteDrivesTheRegisteredStorageHookWithTheAppsKeys()
+    public async Task ADeleteRetiresTheAppFromEveryStorageHook()
     {
         var ct = TestContext.Current.CancellationToken;
         var hook = new RecordingHook();
-        var runtime = new DeployableRuntimeFacts.FakeRuntime();
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
-            .ConfigureSilo(silo =>
-            {
-                silo.Services.RemoveAll<IDeployableRuntime>();
-                silo.Services.AddSingleton<IDeployableRuntime>(runtime);
-                silo.Services.AddSingleton<IAppStorageHook>(hook);
-            })
-            .StartAsync(ct);
+        var runtime = new FakeAppRuntime();
+        await using var brain = await Start(hook, runtime);
         var key = IApp.Key("hook-facts", "hooked");
         var app = brain.Get<IApp>(key);
         await app.Create(new("Hooked", "hooked", [], [], []), "## Scenario: Hooks\nIt hooks.");
@@ -97,23 +93,15 @@ public sealed class StorageHookFacts
 
         var retired = Assert.Single(hook.Retired);
         Assert.Equal(key, retired.AppKey);
-        Assert.Contains("fake-synapses/track.cs", retired.Keys);
     }
 
     [Fact]
-    public async Task ReplacingTheProgramKeepsStorageSettingsAndConnectionsAndStopsOnlyRemovedBehaviors()
+    public async Task ReplacingTheProgramKeepsStorageSettingsAndConnectionsAndDeploysOnlyTheNewOne()
     {
         var ct = TestContext.Current.CancellationToken;
         var hook = new RecordingHook();
-        var runtime = new DeployableRuntimeFacts.FakeRuntime();
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
-            .ConfigureSilo(silo =>
-            {
-                silo.Services.RemoveAll<IDeployableRuntime>();
-                silo.Services.AddSingleton<IDeployableRuntime>(runtime);
-                silo.Services.AddSingleton<IAppStorageHook>(hook);
-            })
-            .StartAsync(ct);
+        var runtime = new FakeAppRuntime();
+        await using var brain = await Start(hook, runtime);
         var key = IApp.Key("hook-facts", "replaced");
         var app = brain.Get<IApp>(key);
         var manifest = new AppManifest("Replaced", "replaced", [], [new("Text", "what to say", "hi")], []);
@@ -125,12 +113,10 @@ public sealed class StorageHookFacts
         var replaced = await app.Replace(new("replaced", "1.1.0", next, "## Scenario: Stores\nIt stores more.",
             new() { ["synapses/keep.cs"] = "// v2", ["synapses/new.cs"] = "// v2" }));
 
-        // The app's storage is never retired: only the removed behavior's file stops.
+        // The app's storage is never retired by an update; the whole program is redeployed.
         Assert.Empty(hook.Retired);
-        Assert.Equal(["fake-synapses/drop.cs"], Assert.Single(runtime.Retired).Keys);
-        // Kept behaviors hot-swap, new ones deploy.
-        Assert.Equal("// v2", runtime.Swapped.Last(item => item.Programs.ContainsKey("synapses/keep.cs")).Programs["synapses/keep.cs"]);
-        Assert.Contains(runtime.Deployed, item => item.Programs.ContainsKey("synapses/new.cs"));
+        Assert.Equal(["synapses/keep.cs", "synapses/new.cs"], runtime.Deployed.Last().Sources.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal("// v2", runtime.Deployed.Last().Sources["synapses/keep.cs"]);
         // What the person chose survives; a newly declared setting gets its default.
         Assert.Equal("1.1.0", replaced.Version);
         Assert.Equal(AppStatus.Live, replaced.Status);
@@ -144,9 +130,7 @@ public sealed class StorageHookFacts
     public async Task ReplacingAnAppThatDoesNotExistOrWithAnotherAppsBundleIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
-            .ConfigureSilo(silo => { silo.Services.RemoveAll<IDeployableRuntime>(); silo.Services.AddSingleton<IDeployableRuntime>(new DeployableRuntimeFacts.FakeRuntime()); })
-            .StartAsync(ct);
+        await using var brain = await Start(new RecordingHook(), new FakeAppRuntime());
         var manifest = new AppManifest("Replaced", "replaced", [], [], []);
         var missing = brain.Get<IApp>(IApp.Key("hook-facts", "missing"));
         await Assert.ThrowsAsync<InvalidOperationException>(() => missing.Replace(new("missing", "1.0.0", manifest, "spec", new())));

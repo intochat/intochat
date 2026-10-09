@@ -5,6 +5,7 @@ using DigitalBrain.AI.Models.OpenAI;
 using DigitalBrain.Apps;
 using DigitalBrain.Framework;
 using DigitalBrain.Modules.Apps.Tests;
+using DigitalBrain.Modules.Apps.Tests.Runtimes;
 using DigitalBrain.Testing.Model;
 using DigitalBrain.Testing.Module;
 using Microsoft.AspNetCore.Builder;
@@ -32,6 +33,7 @@ public sealed class AppRouteFacts
             .WithModule<AIModule>()
             .WithModule<AppsModule>()
             .WithFakeModel(model)
+            .WithFakeAppRuntime(new())
             .ConfigureModule<AppsModule, AppsOptions>(apps =>
             {
                 apps.AuthorModel = nameof(IGpt56Luna);
@@ -135,7 +137,7 @@ public sealed class AppRouteFacts
     public async Task ImportOverAnExistingAppAnswers409()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().WithFakeAppRuntime(new()).StartAsync(ct);
         var scope = BrainScope.Create("account-alice", "alice").Id;
         var app = brain.Get<IApp>(scope + "/apps/red");
         await app.Create(new("Red", "red", [], [], []), "## Scenario: Red\nRed.");

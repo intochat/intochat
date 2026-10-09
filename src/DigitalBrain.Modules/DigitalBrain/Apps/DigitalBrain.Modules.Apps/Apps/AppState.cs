@@ -1,3 +1,5 @@
+using DigitalBrain.Framework;
+
 namespace DigitalBrain.Apps;
 
 [GenerateSerializer, Alias("apps.state2")]
@@ -15,10 +17,8 @@ public sealed class AppState
     [Id(9)] public Guid BuildAttempt { get; set; }
     [Id(10)] public DateTimeOffset BuildStartedAt { get; set; }
     [Id(11)] public string? BrainScopeId { get; set; }
-    [Id(12)] public int ProgramGeneration { get; set; }
-    [Id(13)] public string[] StorageFiles { get; set; } = [];
-    [Id(14)] public string[] DeployedFiles { get; set; } = [];
-    [Id(15)] public Dictionary<string, string> BehaviorErrors { get; set; } = [];
+    // The caller that created the app: what its running program acts as, so a restart keeps its identity.
+    [Id(12)] public CallerContext? Principal { get; set; }
     [Id(17)] public List<OperationReceipt> Receipts { get; set; } = [];
     [Id(18)] public string? PublishedVersion { get; set; }
     [Id(19)] public AppOrigin? Origin { get; set; }
@@ -40,10 +40,7 @@ public sealed class AppState
         BuildAttempt = BuildAttempt,
         BuildStartedAt = BuildStartedAt,
         BrainScopeId = BrainScopeId,
-        ProgramGeneration = ProgramGeneration,
-        StorageFiles = [.. StorageFiles],
-        DeployedFiles = [.. DeployedFiles],
-        BehaviorErrors = new(BehaviorErrors, StringComparer.Ordinal),
+        Principal = Principal,
         Receipts = [.. Receipts],
         PublishedVersion = PublishedVersion,
         Origin = Origin,

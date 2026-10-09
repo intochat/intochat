@@ -1,4 +1,5 @@
 using DigitalBrain.Modules.Apps.Tests;
+using DigitalBrain.Modules.Apps.Tests.Runtimes;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -14,10 +15,11 @@ public sealed class AppInstallerFacts
     private static AppManifest Manifest() =>
         new("Echo", "echoes", [new("ask", "ask it")], [new("Text", "what to say", "hi")], [new("gmail", "gmail")]);
 
-    private static Task<ModuleBrain> Start() => ModuleTest.Create().WithModule<AppsModule>().StartAsync(Ct);
+    private static Task<ModuleBrain> Start() => ModuleTest.Create().WithModule<AppsModule>().WithFakeAppRuntime(new()).StartAsync(Ct);
 
     // A host that ships os/greeter 1.2.0 from the image.
     private static Task<ModuleBrain> StartShipping() => ModuleTest.Create().WithModule<AppsModule>()
+        .WithFakeAppRuntime(new())
         .ConfigureSilo(silo => silo.Services.AddShippedApps(typeof(AppInstallerFacts).Assembly, "ShippedFixture/", "os"))
         .StartAsync(Ct);
 

@@ -1,3 +1,4 @@
+using DigitalBrain.Modules.Apps.Tests.Runtimes;
 using DigitalBrain.Testing.Module;
 
 namespace DigitalBrain.Apps.Tests.Apps;
@@ -11,7 +12,7 @@ public sealed class AppOriginFacts
         new("Echo", "echoes", [new("ask", "ask it")], [new("Text", "what to say", "hi")], [], Icon: "icon.svg");
 
     private static Task<ModuleBrain> Start() =>
-        ModuleTest.Create().WithModule<AppsModule>().StartAsync(TestContext.Current.CancellationToken);
+        ModuleTest.Create().WithModule<AppsModule>().WithFakeAppRuntime(new()).StartAsync(TestContext.Current.CancellationToken);
 
     private static async Task<IApp> Installed(ModuleBrain brain, string key)
     {

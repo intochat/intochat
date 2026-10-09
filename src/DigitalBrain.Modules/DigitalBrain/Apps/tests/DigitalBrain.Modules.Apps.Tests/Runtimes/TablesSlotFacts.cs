@@ -59,8 +59,8 @@ public sealed class TablesSlotFacts
         => ModuleTest.Create().WithModule<AppsModule>()
             .ConfigureSilo(silo =>
             {
-                silo.Services.RemoveAll<IDeployableRuntime>();
-                silo.Services.AddSingleton<IDeployableRuntime>(new DeployableRuntimeFacts.FakeRuntime());
+                silo.Services.RemoveAll<IAppRuntime>();
+                silo.Services.AddSingleton<IAppRuntime>(new FakeAppRuntime());
             })
             .StartAsync(TestContext.Current.CancellationToken);
 }

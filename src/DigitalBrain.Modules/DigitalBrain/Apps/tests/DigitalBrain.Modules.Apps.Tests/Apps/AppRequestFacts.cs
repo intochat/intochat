@@ -2,8 +2,8 @@ using DigitalBrain.Apps.Signals;
 
 namespace DigitalBrain.Apps.Tests.Apps;
 
-// A request is a published signal, nothing waits for it: the app's synapses react and the answer is
-// neuron state. An operation the manifest does not declare is refused before anything is published.
+// A request is a published signal and nothing waits for it: the app's synapses react and the answer
+// is neuron state. An operation the manifest does not declare is refused before anything is published.
 public sealed class AppRequestFacts
 {
     private const string Brain = "app-request-facts";
@@ -34,14 +34,14 @@ public sealed class AppRequestFacts
         var app = brain.Get<IApp>(IApp.Key(Brain, "strict"));
         await app.Create(new AppManifest("Strict", "", [new("open", "")], [], []), "spec");
         await using var requested = await brain.SubscribeAsync<AppRequested>(app, ct);
-        await using var signals = requested.ReadAllAsync(ct).GetAsyncEnumerator(ct);
+        using var silence = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        silence.CancelAfter(TimeSpan.FromMilliseconds(200));
+        await using var signals = requested.ReadAllAsync(silence.Token).GetAsyncEnumerator(silence.Token);
 
         var error = await Assert.ThrowsAsync<ArgumentException>(() => app.Request("missing", ""));
 
         Assert.Contains("open", error.Message, StringComparison.Ordinal);
-        using var silence = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        silence.CancelAfter(TimeSpan.FromMilliseconds(200));
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => signals.MoveNextAsync().AsTask().WaitAsync(silence.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => signals.MoveNextAsync().AsTask());
     }
 
     [Fact]

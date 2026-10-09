@@ -11,14 +11,8 @@ internal sealed class TableStorageHook(IServiceProvider services) : IAppStorageH
     // before the Orleans runtime exists.
     private IGrainFactory Grains => services.GetRequiredService<IGrainFactory>();
 
-    public async Task OnRetired(string brainId, string appKey, string[] storageKeys, CancellationToken cancellationToken)
-    {
-        await Grains.GetGrain<ITableIndex>(new TableOwner(brainId, appKey).Key).Retire();
-        foreach (var key in storageKeys)
-        {
-            await Grains.GetGrain<ITableIndex>(new TableOwner(brainId, key).Key).Retire();
-        }
-    }
+    public async Task OnRetired(string brainId, string appKey, CancellationToken cancellationToken)
+        => await Grains.GetGrain<ITableIndex>(new TableOwner(brainId, appKey).Key).Retire();
 
     // Tables are pinned where they were first defined, so the tables slot cannot move under them.
     public async Task RequireRebindable(string brainId, string appKey, string slot, CancellationToken cancellationToken)

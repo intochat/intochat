@@ -13,7 +13,7 @@ namespace DigitalBrain.Apps;
 internal sealed class AppNeuron(
     [PersistentState("app2", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<AppState> store,
     TimeProvider clock, IOptions<AppsOptions> options,
-    IEnumerable<IDeployableRuntime> deployables, IEnumerable<IAppStorageHook> storageHooks)
+    IEnumerable<IAppRuntime> runtimes, IEnumerable<IAppStorageHook> storageHooks)
     : Neuron<AppState>(store), IApp
 {
     private const int MaxHistory = 20;
@@ -34,6 +34,7 @@ internal sealed class AppNeuron(
         { throw new InvalidOperationException($"You already have an app named {Name()}. Open it in the Creator, or describe this one differently."); }
         var next = Snapshot.Clone();
         next.BrainScopeId = BrainId();
+        next.Principal = CallerContextStamper.TryGet(out var caller) ? caller : null;
         next.Manifest = manifest;
         next.Spec = spec ?? "";
         next.Settings = manifest.Settings.ToDictionary(setting => setting.Name, setting => setting.Default, StringComparer.Ordinal);
@@ -82,21 +83,19 @@ internal sealed class AppNeuron(
     {
         RequireCreated();
         ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        if (!AppFiles.IsSynapse(path)) { throw new ArgumentException("A synapse is a synapses/*.cs file."); }
+        if (!AppFiles.IsProgram(path)) { throw new ArgumentException("A program file is synapses/*.cs or lib/*.cs."); }
         if (Replayed(operationId)) { return Describe(Snapshot); }
         var next = Snapshot.Clone();
         next.Edited = true;
-        var swap = next.Files.ContainsKey(path);
         next.Files[path] = source;
         next.Version = Bump(next.Version, minor: false);
         Record(next);
         Receipt(next, operationId);
-        // Keys are tracked before anything deploys: a failure part-way can never leave a
-        // running file that delete and the storage hooks cannot see.
-        var keys = Deployable()?.Keys(this.GetPrimaryKeyString(), next.ProgramGeneration, [path]) ?? [];
-        next.StorageFiles = [.. next.StorageFiles.Concat(keys).Distinct(StringComparer.Ordinal)];
+        // The whole program goes to the runtime before anything is persisted: a write the
+        // compiler refuses leaves the app's files exactly as they were.
+        if (Runtime is { } runtime)
+        { await runtime.Deploy(this.GetPrimaryKeyString(), Sources(next), Configuration(next), CancellationToken.None); }
         await Persist(next);
-        await DeployBehavior(path, source, swap);
         return Describe(Snapshot);
     }
 
@@ -105,7 +104,7 @@ internal sealed class AppNeuron(
         RequireCreated();
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        if (AppFiles.IsSynapse(path)) { throw new ArgumentException("Programs are written through WriteBehavior, which deploys them under synapses/."); }
+        if (AppFiles.IsProgram(path)) { throw new ArgumentException("Programs are written through WriteBehavior"); }
         if (Replayed(operationId)) { return Describe(Snapshot); }
         var next = Snapshot.Clone();
         next.Edited = true;
@@ -131,9 +130,9 @@ internal sealed class AppNeuron(
         foreach (var (name, value) in settings ?? []) { next.Settings[name] = value; }
         foreach (var (slot, id) in connections ?? []) { next.Connections[slot] = id; }
         await Persist(next);
-        // Behaviors read their settings from the deployment configuration; a configure
-        // re-swaps them so the running scripts see the new values.
-        await RedeployBehaviors();
+        // The running program reads its settings from the deployment configuration, so a
+        // configure hands it the whole thing again.
+        await Deploy();
         return Describe(Snapshot);
     }
 
@@ -142,28 +141,16 @@ internal sealed class AppNeuron(
         RequireCreated();
         var record = Snapshot.History.FirstOrDefault(item => item.Version == version)
             ?? throw new ArgumentException($"No version {version}. This app has: {string.Join(", ", Snapshot.History.Select(item => item.Version))}.");
-        // Behaviors the target version lacks stop running: they are retired before the
-        // surviving ones redeploy, and their tracked keys leave with them.
-        var removed = Snapshot.Files.Keys.Where(AppFiles.IsSynapse)
-            .Where(path => !record.Files.ContainsKey(path)).ToArray();
-        var removedKeys = Deployable()?.Keys(this.GetPrimaryKeyString(), Snapshot.ProgramGeneration, removed) ?? [];
-        if (Deployable() is { } runtime && removedKeys.Length > 0)
-        {
-            await runtime.Retire(this.GetPrimaryKeyString(), removedKeys, CancellationToken.None);
-            foreach (var hook in storageHooks)
-            { await hook.OnRetired(Snapshot.BrainScopeId ?? "", this.GetPrimaryKeyString(), removedKeys, CancellationToken.None); }
-        }
         var next = Snapshot.Clone();
         next.Edited = true;
         next.Manifest = record.Manifest;
         next.Spec = record.Spec;
         next.Files = new(record.Files, StringComparer.Ordinal);
-        next.StorageFiles = [.. next.StorageFiles.Except(removedKeys, StringComparer.Ordinal)];
-        next.DeployedFiles = [.. next.DeployedFiles.Except(removedKeys, StringComparer.Ordinal)];
         next.Version = Bump(next.Version, minor: false);
         Record(next);
         await Persist(next);
-        await RedeployBehaviors();
+        // Programs the target version lacks stop with the rest: one program, assigned whole.
+        await Deploy();
         return Describe(Snapshot);
     }
 
@@ -210,7 +197,6 @@ internal sealed class AppNeuron(
             await Persist(next);
             return Describe(Snapshot);
         }
-        var existingBehaviors = Snapshot.Files.Keys.Where(AppFiles.IsSynapse).ToHashSet(StringComparer.Ordinal);
         var firstBuild = Snapshot.Files.Count == 0;
         if (manifest is not null)
         {
@@ -220,15 +206,20 @@ internal sealed class AppNeuron(
         }
         foreach (var (path, source) in files) { next.Files[path] = source; }
         next.Edited = true;
-        var behaviorPaths = files.Keys.Where(AppFiles.IsSynapse).ToArray();
-        var keys = Deployable()?.Keys(this.GetPrimaryKeyString(), next.ProgramGeneration, behaviorPaths) ?? [];
-        next.StorageFiles = [.. next.StorageFiles.Concat(keys).Distinct(StringComparer.Ordinal)];
         next.Version = Bump(next.Version, minor: firstBuild);
         next.Status = AppStatus.Live;
         next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), "build finished"];
         Record(next);
         await Persist(next);
-        foreach (var path in behaviorPaths) { await DeployBehavior(path, files[path], swap: existingBehaviors.Contains(path)); }
+        // The Builder's program lands whole; one that does not compile is a failed build.
+        try { await Deploy(); }
+        catch (InvalidOperationException failure)
+        {
+            var failed = Snapshot.Clone();
+            failed.Status = AppStatus.Failed;
+            failed.Activity = [.. failed.Activity.TakeLast(MaxActivity - 1), "build failed: " + failure.Message];
+            await Persist(failed);
+        }
         return Describe(Snapshot);
     }
 
@@ -292,6 +283,7 @@ internal sealed class AppNeuron(
         { throw new InvalidOperationException($"You already have an app named {Name()}."); }
         var next = Snapshot.Clone();
         next.BrainScopeId = BrainId();
+        next.Principal = CallerContextStamper.TryGet(out var caller) ? caller : null;
         next.Manifest = bundle.Manifest;
         next.Spec = bundle.Spec;
         next.Files = new(bundle.Files, StringComparer.Ordinal);
@@ -299,12 +291,10 @@ internal sealed class AppNeuron(
         next.Connections = [];
         next.Version = bundle.Version;
         next.Status = AppStatus.Live;
-        var behaviors = next.Files.Keys.Where(AppFiles.IsSynapse).ToArray();
-        next.StorageFiles = Deployable()?.Keys(this.GetPrimaryKeyString(), next.ProgramGeneration, behaviors) ?? [];
         Record(next);
         await GrainFactory.GetGrain<IAppIndex>(BrainId()).Track(Name());
         await Persist(next);
-        foreach (var path in behaviors) { await DeployBehavior(path, next.Files[path], swap: false); }
+        await Deploy();
         return Describe(Snapshot);
     }
 
@@ -313,30 +303,18 @@ internal sealed class AppNeuron(
         ArgumentNullException.ThrowIfNull(bundle);
         RequireCreated();
         RequireBundleFor(bundle);
-        var appKey = this.GetPrimaryKeyString();
-        var existing = Snapshot.Files.Keys.Where(AppFiles.IsSynapse).ToHashSet(StringComparer.Ordinal);
-        var removed = existing.Where(path => !bundle.Files.ContainsKey(path)).ToArray();
-        var removedKeys = Deployable()?.Keys(appKey, Snapshot.ProgramGeneration, removed) ?? [];
-        // Only the removed behaviors' files stop. The storage hooks are not told: their OnRetired
-        // retires everything the app owns, and an update keeps the app's data.
-        if (Deployable() is { } runtime && removedKeys.Length > 0)
-        { await runtime.Retire(appKey, removedKeys, CancellationToken.None); }
         var next = Snapshot.Clone();
         next.Manifest = bundle.Manifest;
         next.Spec = bundle.Spec;
         next.Files = new(bundle.Files, StringComparer.Ordinal);
         foreach (var setting in bundle.Manifest.Settings)
         { if (!next.Settings.ContainsKey(setting.Name)) { next.Settings[setting.Name] = setting.Default; } }
-        var behaviors = next.Files.Keys.Where(AppFiles.IsSynapse).ToArray();
-        var keys = Deployable()?.Keys(appKey, next.ProgramGeneration, behaviors) ?? [];
-        next.StorageFiles = [.. next.StorageFiles.Except(removedKeys, StringComparer.Ordinal).Concat(keys).Distinct(StringComparer.Ordinal)];
-        next.DeployedFiles = [.. next.DeployedFiles.Except(removedKeys, StringComparer.Ordinal)];
-        foreach (var path in removed) { next.BehaviorErrors.Remove(path); }
         next.Version = bundle.Version;
         next.Status = AppStatus.Live;
         Record(next);
         await Persist(next);
-        foreach (var path in behaviors) { await DeployBehavior(path, next.Files[path], swap: existing.Contains(path)); }
+        // Settings, connections and the app's stored data stay; only the program is the bundle's.
+        await Deploy();
         return Describe(Snapshot);
     }
 
@@ -388,17 +366,15 @@ internal sealed class AppNeuron(
     public async Task Delete()
     {
         if (Snapshot.Manifest is null) { return; }
+        var key = this.GetPrimaryKeyString();
         // Only this app's own listing comes down with it.
         if (Snapshot.Publisher is { } publisher
             && await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).Read(publisher, Name()) is { } listed
             && listed.Source.Scope() == BrainId())
         { await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).Remove(publisher, Name()); }
-        if (Deployable() is { } deployable && Snapshot.StorageFiles.Length > 0)
-        {
-            await deployable.Retire(this.GetPrimaryKeyString(), Snapshot.StorageFiles, CancellationToken.None);
-            foreach (var hook in storageHooks)
-            { await hook.OnRetired(Snapshot.BrainScopeId ?? "", this.GetPrimaryKeyString(), Snapshot.StorageFiles, CancellationToken.None); }
-        }
+        // Everything the app owns goes with it: its program, then its storage.
+        if (Runtime is { } runtime) { await runtime.Retire(key, CancellationToken.None); }
+        foreach (var hook in storageHooks) { await hook.OnRetired(Snapshot.BrainScopeId ?? "", key, CancellationToken.None); }
         await GrainFactory.GetGrain<IAppIndex>(BrainId()).Untrack(Name());
         await Persist(new AppState { BrainScopeId = Snapshot.BrainScopeId });
     }
@@ -420,52 +396,31 @@ internal sealed class AppNeuron(
         return id;
     }
 
-    private IDeployableRuntime? Deployable() => deployables.FirstOrDefault(candidate => candidate.Name == AppFiles.Runtime);
+    private IAppRuntime? Runtime => runtimes.FirstOrDefault();
 
-    private async Task DeployBehavior(string path, string source, bool swap)
+    private static Dictionary<string, string> Sources(AppState state)
+        => state.Files.Where(file => AppFiles.IsProgram(file.Key)).ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
+
+    // The whole program, every time: the runtime decides what changed. No program means nothing runs.
+    private async Task Deploy()
     {
-        if (Deployable() is not { } deployable) { return; }
-        var deployment = new RuntimeDeployment(this.GetPrimaryKeyString(), Snapshot.BrainScopeId ?? "",
-            Snapshot.ProgramGeneration, new(StringComparer.Ordinal) { [path] = source }, Configuration());
-        var errors = new Dictionary<string, string>(Snapshot.BehaviorErrors, StringComparer.Ordinal);
-        try
-        {
-            var deployed = swap
-                ? await deployable.Swap(deployment, CancellationToken.None)
-                : await deployable.Deploy(deployment, CancellationToken.None);
-            errors.Remove(path);
-            var next = Snapshot.Clone();
-            next.DeployedFiles = [.. next.DeployedFiles.Concat(deployed).Distinct(StringComparer.Ordinal)];
-            next.BehaviorErrors = errors;
-            await Persist(next);
-        }
-        // Red is a state to revisit, not an error to unwind: the app keeps serving.
-        catch (Exception failure) when (failure is not OperationCanceledException)
-        {
-            errors[path] = failure.Message;
-            var next = Snapshot.Clone();
-            next.BehaviorErrors = errors;
-            await Persist(next);
-        }
+        if (Runtime is not { } runtime) { return; }
+        var sources = Sources(Snapshot);
+        if (sources.Count == 0) { await runtime.Retire(this.GetPrimaryKeyString(), CancellationToken.None); return; }
+        await runtime.Deploy(this.GetPrimaryKeyString(), sources, Configuration(Snapshot), CancellationToken.None);
     }
 
-    private async Task RedeployBehaviors()
-    {
-        foreach (var path in Snapshot.Files.Keys.Where(AppFiles.IsSynapse).ToArray())
-        { await DeployBehavior(path, Snapshot.Files[path], swap: true); }
-    }
-
-    // The script reads brain.Setting("App") to find this neuron, brain.Setting(name) for each
+    // The program reads brain.Setting("App") to find this neuron, brain.Setting(name) for each
     // setting and brain.Setting("Account__" + slot) for each connected account.
-    private Dictionary<string, string> Configuration()
+    private Dictionary<string, string> Configuration(AppState state)
     {
         var values = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["App"] = this.GetPrimaryKeyString(),
-            ["Brain"] = Snapshot.BrainScopeId ?? "",
+            ["Brain"] = state.BrainScopeId ?? "",
         };
-        foreach (var (name, value) in Snapshot.Settings) { values[name] = value; }
-        foreach (var (slot, id) in Snapshot.Connections) { values["Account__" + slot] = id; }
+        foreach (var (name, value) in state.Settings) { values[name] = value; }
+        foreach (var (slot, id) in state.Connections) { values["Account__" + slot] = id; }
         return values;
     }
 

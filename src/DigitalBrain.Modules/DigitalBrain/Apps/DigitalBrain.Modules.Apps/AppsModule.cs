@@ -27,7 +27,7 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
         silo.Services.TryAddSingleton<AppWorkQueue>();
         silo.Services.TryAddSingleton<AppAuthoringPolicy>();
         silo.Services.TryAddSingleton<Creator>();
-        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IDeployableRuntime, CSharpAppRuntime>());
+        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppRuntime, CSharpAppRuntime>());
     }
 
     public void Configure(IEndpointRouteBuilder endpoints)

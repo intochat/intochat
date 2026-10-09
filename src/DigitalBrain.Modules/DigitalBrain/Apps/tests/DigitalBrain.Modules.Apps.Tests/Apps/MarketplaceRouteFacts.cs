@@ -2,6 +2,7 @@ using System.Text.Json;
 using DigitalBrain.Apps;
 using DigitalBrain.Framework;
 using DigitalBrain.Modules.Apps.Tests;
+using DigitalBrain.Modules.Apps.Tests.Runtimes;
 using DigitalBrain.Testing.Module;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -20,7 +21,7 @@ public sealed class MarketplaceRouteFacts
     public async Task PublishBrowseInstallAndUpdateAcrossTwoBrains()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().WithFakeAppRuntime(new()).StartAsync(ct);
         var publisherScope = BrainScope.Create("account-intochat", "intochat").Id;
         var source = brain.Get<IApp>(IApp.Key(publisherScope, "echo"));
         Caller.Clear();

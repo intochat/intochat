@@ -5,7 +5,7 @@ namespace DigitalBrain.Apps;
 // systems exist — a hook that has nothing for this app no-ops cheaply.
 public interface IAppStorageHook
 {
-    Task OnRetired(string brainId, string appKey, string[] storageKeys, CancellationToken cancellationToken);
+    Task OnRetired(string brainId, string appKey, CancellationToken cancellationToken);
 
     // Throws when the app's stored data depends on the slot's current binding.
     Task RequireRebindable(string brainId, string appKey, string slot, CancellationToken cancellationToken) => Task.CompletedTask;
