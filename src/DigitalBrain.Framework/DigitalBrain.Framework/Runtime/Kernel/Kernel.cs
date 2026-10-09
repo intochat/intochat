@@ -8,9 +8,12 @@ public sealed class Kernel(IGrainFactory grains) : IKernel
     public IAsyncEnumerable<Instance> Instances<T>(CancellationToken cancellationToken = default) where T : INeuron
         => Instances(TypeOf(typeof(T)), cancellationToken);
 
-    public async IAsyncEnumerable<Instance> Instances(string? type, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public IAsyncEnumerable<Instance> Instances(string? type, CancellationToken cancellationToken = default)
+        => InstancesIn(BrainScope.CurrentId(), type, cancellationToken);
+
+    public async IAsyncEnumerable<Instance> InstancesIn(string brain, string? type, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var brain = BrainScope.CurrentId();
+        ArgumentException.ThrowIfNullOrWhiteSpace(brain);
         string[] types = type is null ? await grains.GetGrain<IInstanceTypes>(brain).List().WaitAsync(cancellationToken) : [type];
         foreach (var each in types)
         {

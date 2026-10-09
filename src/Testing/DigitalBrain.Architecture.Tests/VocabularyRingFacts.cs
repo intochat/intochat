@@ -64,16 +64,16 @@ public sealed class VocabularyRingFacts
     }
 
     [Fact]
-    public void TheBrainSeenByAProgramHasExactlyGetOnAndSelf()
+    public void TheBrainSeenByAProgramHasExactlyGetOnSelfAndKernel()
     {
         var methods = typeof(IDigitalBrain).GetMethods().Where(m => !m.IsSpecialName).Select(m => m.Name).Order().ToArray();
         Assert.Equal(["Get", "On", "On"], methods);
         var watches = typeof(IDigitalBrain).GetMethods().Where(m => m.Name == "On").OrderBy(m => m.GetParameters().Length).ToArray();
         Assert.Equal([typeof(INeuron), typeof(CancellationToken)], watches[0].GetParameters().Select(p => p.ParameterType));
         Assert.Equal([typeof(INeuron), typeof(Func<Task>), typeof(CancellationToken)], watches[1].GetParameters().Select(p => p.ParameterType));
-        var self = Assert.Single(typeof(IDigitalBrain).GetProperties());
-        Assert.Equal("Self", self.Name);
-        Assert.Equal(typeof(IBrain), self.PropertyType);
+        Assert.Equal(["Kernel", "Self"], typeof(IDigitalBrain).GetProperties().Select(p => p.Name).Order());
+        Assert.Equal(typeof(IKernelView), typeof(IDigitalBrain).GetProperty("Kernel")!.PropertyType);
+        Assert.Equal(typeof(IBrain), typeof(IDigitalBrain).GetProperty("Self")!.PropertyType);
         Assert.False(typeof(IAsyncDisposable).IsAssignableFrom(typeof(IDigitalBrain)));
         var get = typeof(IDigitalBrain).GetMethod("Get")!;
         Assert.Contains(typeof(INeuron), get.GetGenericArguments()[0].GetGenericParameterConstraints());

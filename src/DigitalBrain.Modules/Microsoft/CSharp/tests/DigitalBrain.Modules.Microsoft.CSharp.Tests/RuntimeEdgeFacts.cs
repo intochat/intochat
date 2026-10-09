@@ -306,6 +306,25 @@ public sealed class RuntimeEdgeFacts
         Assert.True(inspected.TryGetProperty("status", out _));
     }
 
+    [Fact]
+    public async Task ABehaviorAsksTheKernelForItsOwnBrainsInstancesOnly()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true);
+        var session = await StartAsAlice(brain, Key("kernel"), ct);
+        static Instance[] Listed(JsonElement json) => json.Deserialize<Instance[]>(RuntimeProtocol.Json)!;
+
+        var files = Listed(await Invoke<JsonElement>(brain, session, Key("kernel"),
+            new("", RuntimeProtocol.KernelContract, Alice.BrainId, RuntimeProtocol.KernelInstances, [Json(typeof(ICSharpFile).FullName), Json(null)]), ct));
+
+        Assert.Contains(files, instance => instance.Key == Key("kernel"));
+        Assert.All(files, instance => Assert.StartsWith(Alice.BrainId + "/", instance.Key, StringComparison.Ordinal));
+        Assert.Equal(HttpStatusCode.BadRequest, (await Send(brain, session, Key("kernel"),
+            new("", RuntimeProtocol.KernelContract, Alice.BrainId, "Retire", [Json("t"), Json("k")]), ct)).StatusCode);
+    }
+
+    private static JsonElement Json(string? value) => JsonSerializer.SerializeToElement(value, RuntimeProtocol.Json);
+
     private static readonly CallerContext Alice = new()
     {
         PrincipalId = "alice",

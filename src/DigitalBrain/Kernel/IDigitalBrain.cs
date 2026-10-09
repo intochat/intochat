@@ -34,4 +34,7 @@ public interface IDigitalBrain
     /// <see cref="Activated"/>, so a program can watch its brain like any other neuron.
     /// </summary>
     IBrain Self { get; }
+
+    /// <summary>The kernel's read-only facts about this brain: which neurons exist and which are awake.</summary>
+    IKernelView Kernel { get; }
 }

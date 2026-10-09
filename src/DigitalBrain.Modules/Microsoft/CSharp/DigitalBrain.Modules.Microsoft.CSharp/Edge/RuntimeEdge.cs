@@ -16,7 +16,7 @@ namespace DigitalBrain.Microsoft.CSharp.Edge;
 // for the session its runtime currently records, only neuron contracts from installed contract
 // assemblies are callable, and each call carries the behavior owner's caller context re-stamped as an
 // app behind the app proxy.
-internal sealed class RuntimeEdge(SessionTokens tokens, ScriptContracts contracts, IGrainFactory grains, SessionStreams streams)
+internal sealed class RuntimeEdge(SessionTokens tokens, ScriptContracts contracts, IGrainFactory grains, SessionStreams streams, Kernel kernel)
 {
     private static readonly HashSet<string> ObserverMethods = [nameof(INeuron.Watch), nameof(INeuron.Unwatch)];
 
@@ -37,6 +37,7 @@ internal sealed class RuntimeEdge(SessionTokens tokens, ScriptContracts contract
         // Identity checks the current session and assignment together on the runtime's turn.
         var identity = await runtime.Identity(claims.Session, invocation.Behavior).ConfigureAwait(false)
             ?? throw new ArgumentException($"{invocation.Behavior} is not a behavior of this brain.");
+        if (invocation.Contract == RuntimeProtocol.KernelContract) { return await AskKernelAsync(brainId, identity, invocation, cancellationToken).ConfigureAwait(false); }
         var contract = Callable(invocation.Contract);
         var method = contract.GetMethods().Concat(contract.GetInterfaces().SelectMany(inherited => inherited.GetMethods()))
             .Where(candidate => candidate.Name == invocation.Method && !ObserverMethods.Contains(candidate.Name))
@@ -60,6 +61,31 @@ internal sealed class RuntimeEdge(SessionTokens tokens, ScriptContracts contract
         if (!method.ReturnType.IsGenericType) { return null; }
         var result = method.ReturnType.GetProperty(nameof(Task<object>.Result))!.GetValue(task);
         return JsonSerializer.SerializeToElement(result, method.ReturnType.GetGenericArguments()[0], RuntimeProtocol.Json);
+    }
+
+    // The kernel answers as the behavior's owner, and only about the brain the session speaks for.
+    private async Task<JsonElement?> AskKernelAsync(string brainId, BehaviorIdentity identity, RuntimeInvocation invocation, CancellationToken cancellationToken)
+    {
+        if (identity.Principal is null) { throw new UnauthorizedAccessException("A behavior without an owner cannot ask the kernel."); }
+        Stamp(identity);
+        if (BrainScope.CurrentId() != brainId) { throw new UnauthorizedAccessException("The kernel answers only about the session's own brain."); }
+        string? Argument(int index) => invocation.Arguments.Length > index ? invocation.Arguments[index].Deserialize<string?>(RuntimeProtocol.Json) : null;
+        Instance[] answer;
+        switch (invocation.Method)
+        {
+            case RuntimeProtocol.KernelInstances when invocation.Arguments.Length == 2:
+                var type = Argument(0) is { } contract ? kernel.TypeOf(contracts.Find(contract)) : Argument(1);
+                List<Instance> listed = [];
+                await foreach (var instance in kernel.Instances(type, cancellationToken).ConfigureAwait(false)) { listed.Add(instance); }
+                answer = [.. listed];
+                break;
+            case RuntimeProtocol.KernelRunning when invocation.Arguments.Length == 0:
+                answer = await kernel.Running(cancellationToken).ConfigureAwait(false);
+                break;
+            default:
+                throw new ArgumentException($"The kernel has no method {invocation.Method} taking {invocation.Arguments.Length} arguments.");
+        }
+        return JsonSerializer.SerializeToElement(answer, RuntimeProtocol.Json);
     }
 
     public async Task<IResult> ReportAsync(string brainId, string? token, RuntimeReport report)

@@ -31,6 +31,8 @@ public sealed class DigitalBrainConnection : IDigitalBrain, IAsyncDisposable
         ? NeuronProxy.Create<IBrain>(_session, _behavior, brain, _trace)
         : throw new InvalidOperationException("This session was not told its brain.");
 
+    public IKernelView Kernel => new SessionKernel(_session, _behavior, _trace);
+
     public IAsyncEnumerable<T> On<T>(INeuron source, CancellationToken cancellationToken = default) where T : Signal
         => On<T>(source, static () => Task.CompletedTask, cancellationToken);
 

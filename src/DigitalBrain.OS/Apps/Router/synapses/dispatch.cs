@@ -22,7 +22,7 @@ await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 // What Jev may act on here: building apps, writing C#, the PC's console and files, timers and notes.
-string[] Capabilities = [typeof(IAppStudio).FullName!, typeof(IApp).FullName!, typeof(IAppIndex).FullName!, typeof(ICSharpFile).FullName!,
+string[] Capabilities = [typeof(IAppStudio).FullName!, typeof(IApp).FullName!, typeof(ICSharpFile).FullName!,
     typeof(IConsole).FullName!, typeof(IFileSystem).FullName!, typeof(ITimer).FullName!, typeof(IText).FullName!];
 var scope = brain.Setting("Brain")!;
 

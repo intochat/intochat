@@ -115,9 +115,14 @@ internal sealed class RouterNeuron(
     {
         var factory = ServiceProvider.GetRequiredService<IGrainFactory>();
         var criteria = new Dictionary<string, string?>(StringComparer.Ordinal);
-        string[] names;
+        List<string> names = [];
         // A host without the Apps module has no app tier.
-        try { names = [.. await factory.GetGrain<IAppIndex>(Scope).List()]; }
+        try
+        {
+            var kernel = ServiceProvider.GetRequiredService<IKernel>();
+            await foreach (var instance in kernel.InstancesIn(Scope, kernel.TypeOf(typeof(IApp))))
+            { if (IApp.NameOf(Scope, instance.Key) is { } app) { names.Add(app); } }
+        }
         catch (Exception error) when (error is not OperationCanceledException) { return null; }
         foreach (var name in names)
         {

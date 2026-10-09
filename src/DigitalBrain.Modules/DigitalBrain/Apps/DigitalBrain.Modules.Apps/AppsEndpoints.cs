@@ -22,7 +22,9 @@ internal static class AppsEndpoints
         apps.MapGet("", (IDigitalBrain brain, [FromServices] MarketplaceView marketplace, CancellationToken ct) => Respond(async () =>
         {
             var scope = BrainScope.CurrentId();
-            var names = await brain.Get<IAppIndex>(scope).List().WaitAsync(ct);
+            List<string> names = [];
+            await foreach (var instance in brain.Kernel.Instances<IApp>(ct)) { if (IApp.NameOf(scope, instance.Key) is { } app) { names.Add(app); } }
+            names.Sort(StringComparer.Ordinal);
             var listings = await marketplace.List(ct);
             var items = new List<object>();
             foreach (var name in names)

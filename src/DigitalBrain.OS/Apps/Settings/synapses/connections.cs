@@ -72,8 +72,8 @@ async Task Project()
     var current = await connections.ListConnections();
     var pending = await connections.ListPending();
     var apps = new List<(string Name, AppSnapshot State)>();
-    foreach (var name in await brain.Get<IAppIndex>(scope).List())
-    { apps.Add((name, await brain.Get<IApp>(IApp.Key(scope, name)).Read())); }
+    await foreach (var instance in brain.Kernel.Instances<IApp>(lifetime.Token))
+    { if (IApp.NameOf(scope, instance.Key) is { } name) { apps.Add((name, await brain.Get<IApp>(instance.Key).Read())); } }
     string Provider(string id) => kinds.FirstOrDefault(kind => kind.Id == id)?.DisplayName ?? id;
     var cards = new List<UiChildRef>
     {

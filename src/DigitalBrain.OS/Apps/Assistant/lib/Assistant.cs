@@ -29,7 +29,7 @@ public static class Assistant
     public const int MaxRoutedChars = 2000;
 
     // What the model may act on: the contracts this app composes, checked by the compiler.
-    public static readonly string[] Contracts = [typeof(IConnectionRequests).FullName!, typeof(IPostgresServer).FullName!, typeof(IApp).FullName!, typeof(IAppIndex).FullName!,
+    public static readonly string[] Contracts = [typeof(IConnectionRequests).FullName!, typeof(IPostgresServer).FullName!, typeof(IApp).FullName!,
         typeof(IWorkspace).FullName!, typeof(IForm).FullName!, typeof(ICSharpFile).FullName!,
         typeof(IConsole).FullName!, typeof(IFileSystem).FullName!,
         typeof(IMcpServer).FullName!, typeof(IPageTools).FullName!];

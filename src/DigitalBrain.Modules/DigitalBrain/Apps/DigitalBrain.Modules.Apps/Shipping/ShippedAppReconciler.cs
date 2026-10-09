@@ -9,14 +9,17 @@ namespace DigitalBrain.Apps;
 // brain, is untouched. One app failing must not keep the others from catching up.
 [GrainType("apps.reconciler")]
 internal sealed class ShippedAppReconciler(
-    IGrainFactory grains, ILogger<ShippedAppReconciler> logger, ShippedCatalog? catalog = null)
+    IGrainFactory grains, IKernel kernel, ILogger<ShippedAppReconciler> logger, ShippedCatalog? catalog = null)
     : Neuron, IShippedAppReconciler
 {
     public async Task Reconcile(CancellationToken ct = default)
     {
         var key = this.GetPrimaryKeyString();
         var brainId = key[..key.LastIndexOf('/')];
-        foreach (var name in await grains.GetGrain<IAppIndex>(brainId).List().WaitAsync(ct))
+        // Reconciling runs on the brain's activation, with no caller: it names its own brain.
+        List<string> names = [];
+        await foreach (var instance in kernel.InstancesIn(brainId, kernel.TypeOf(typeof(IApp)), ct)) { if (IApp.NameOf(brainId, instance.Key) is { } app) { names.Add(app); } }
+        foreach (var name in names)
         {
             var app = grains.GetGrain<IApp>(IApp.Key(brainId, name));
             AppSnapshot snapshot;

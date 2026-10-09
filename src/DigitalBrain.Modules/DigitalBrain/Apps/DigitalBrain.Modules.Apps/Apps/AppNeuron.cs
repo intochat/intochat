@@ -42,7 +42,6 @@ internal sealed class AppNeuron(
         next.Version = "0.1.0";
         next.Status = AppStatus.Drafted;
         Record(next);
-        await GrainFactory.GetGrain<IAppIndex>(BrainId()).Track(Name());
         await Persist(next);
         return Describe(Snapshot);
     }
@@ -293,7 +292,6 @@ internal sealed class AppNeuron(
         next.Version = bundle.Version;
         next.Status = AppStatus.Live;
         Record(next);
-        await GrainFactory.GetGrain<IAppIndex>(BrainId()).Track(Name());
         await Persist(next);
         await Deploy();
         return Describe(Snapshot);
@@ -376,8 +374,9 @@ internal sealed class AppNeuron(
         // Everything the app owns goes with it: its program, then its storage.
         if (Runtime is { } runtime) { await runtime.Retire(key, CancellationToken.None); }
         foreach (var hook in storageHooks) { await hook.OnRetired(Snapshot.BrainScopeId ?? "", key, CancellationToken.None); }
-        await GrainFactory.GetGrain<IAppIndex>(BrainId()).Untrack(Name());
-        await Persist(new AppState { BrainScopeId = Snapshot.BrainScopeId });
+        // Clearing the record ends the app's existence: the kernel retires the instance.
+        var gone = new AppState();
+        await Clear(new AppChanged(Name(), gone.Version, gone.Status));
     }
 
     public async Task<Guid> Request(string operation, string input)

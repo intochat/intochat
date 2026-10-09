@@ -205,6 +205,7 @@ public void RestrictingToAnUnknownContractIsRefused()
     private sealed class UnreachableBrain : IDigitalBrain
     {
         public IBrain Self => throw new NotSupportedException();
+        public IKernelView Kernel => throw new NotSupportedException();
 
         public T Get<T>(NeuronId id) where T : INeuron => throw new NotSupportedException();
 

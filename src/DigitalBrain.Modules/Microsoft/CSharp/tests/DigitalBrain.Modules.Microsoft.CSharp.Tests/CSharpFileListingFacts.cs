@@ -114,6 +114,7 @@ public sealed class CSharpFileListingFacts
         public List<string> Calls { get; } = [];
 
         public IBrain Self => throw new NotSupportedException();
+        public IKernelView Kernel => throw new NotSupportedException();
 
         public T Get<T>(NeuronId id) where T : INeuron
         {

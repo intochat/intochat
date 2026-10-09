@@ -15,4 +15,6 @@ internal sealed class OrleansBrain(BrainClient client, string brainId) : IDigita
         => client.On<T>(neuron, onSubscribed, cancellationToken);
 
     public IBrain Self => client.Grain<IBrain>(brainId);
+
+    public IKernelView Kernel => new DigitalBrain.Framework.Kernel(client.Grains);
 }

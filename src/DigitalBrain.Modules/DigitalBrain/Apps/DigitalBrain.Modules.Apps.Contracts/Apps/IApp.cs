@@ -44,4 +44,11 @@ public interface IApp : INeuron
     Task<Guid> Request(string operation, string input);
 
     static string Key(string brainId, string name) => $"{brainId}/apps/{name}";
+
+    // The app's name when an instance key is one of this brain's apps; brain.Kernel.Instances<IApp>() lists them.
+    static string? NameOf(string brainId, string key)
+    {
+        var prefix = brainId + "/apps/";
+        return key.StartsWith(prefix, StringComparison.Ordinal) && key.Length > prefix.Length && key.IndexOf('/', prefix.Length) < 0 ? key[prefix.Length..] : null;
+    }
 }
