@@ -18,23 +18,19 @@ await foreach (var routed in brain.On<Routed>(router, brain.Stopping))
         {
             await Assistant.Status(brain, "Jev unavailable; asking the model. " + (routed.Error ?? "")[..Math.Min((routed.Error ?? "").Length, 200)]);
         }
-        else if (route.Confidence >= Assistant.RouteGate(snapshot) && Assistant.IsDirect(route))
+        else if (route.Confidence >= Assistant.RouteGate(snapshot) && route.IsDirect)
         {
             var outcome = await router.Dispatch(asked.State, [route.Contract], brain.Stopping);
             await Assistant.Status(brain, outcome.Dispatched
                 ? $"Jev: {route.Contract}.{route.Method} ({route.Confidence:0.00}) -> {outcome.Result ?? "done"}"
                 : $"Jev chose {route.Contract}.{route.Method} but could not carry it out: {outcome.Error}");
             if (outcome.Dispatched) { continue; }
-            hint = "
-
-" + route.Hint();
+            hint = "\n\n" + route.Hint();
         }
         else
         {
             await Assistant.Status(brain, $"Jev unsure ({route.Confidence:0.00}); asking the model");
-            hint = "
-
-" + route.Hint();
+            hint = "\n\n" + route.Hint();
         }
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)

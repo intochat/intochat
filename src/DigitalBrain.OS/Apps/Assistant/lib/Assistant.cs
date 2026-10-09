@@ -1,7 +1,6 @@
 using System.Globalization;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Models;
-using DigitalBrain.AI.Routing;
 using DigitalBrain.Apps;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter;
@@ -41,11 +40,6 @@ public static class Assistant
     public static double RouteGate(AppSnapshot snapshot)
         => double.TryParse(snapshot.Settings.GetValueOrDefault("RouteGate", ""), NumberStyles.Float, CultureInfo.InvariantCulture, out var gate)
             && gate is >= 0 and <= 1 ? gate : DefaultRouteGate;
-
-    // What Jev may carry out without the language model: an app operation, or a read that changes nothing.
-    public static bool IsDirect(RouteResult route)
-        => (route.Contract == typeof(IApp).FullName && route.Method == nameof(IApp.Request))
-            || route.Method is "Read" or "List";
 
     public static async Task AskModel(DigitalBrainConnection brain, AppSnapshot snapshot, string input, string hint, Guid requestId)
     {
