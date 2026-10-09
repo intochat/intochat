@@ -16,6 +16,7 @@ public static partial class OsCatalog
     private static Module[] BuiltIn() =>
     [
         new DigitalBrain.AI.AIModule(),
+        new DigitalBrain.ArtCraft.ArtCraftModule(),
         new DigitalBrain.ClickHouse.ClickHouseModule(),
         new DigitalBrain.Apps.AppsModule(),
         new DigitalBrain.Compute.ComputeModule(),

@@ -42,6 +42,18 @@ public sealed class DigitalBrainBuilder
         return WithHosting(hosting, HostingModuleOptions.Flatten(options, hosting.Module.ToString()));
     }
 
+    // A module the deployment configures but does not host (no containers): its typed options only.
+    public DigitalBrainBuilder WithModule<TModule, TOptions>(Action<TOptions> configure)
+        where TModule : Module, new() where TOptions : class, IModuleOptions, new()
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        var module = new TModule();
+        var options = new TOptions();
+        configure(options);
+        options.Validate();
+        return WithModule(module, null, HostingModuleOptions.Flatten(options, module.Id.ToString()));
+    }
+
     private DigitalBrainBuilder Register(ModuleId id, IDigitalBrainModuleHosting? hosting,
         IReadOnlyDictionary<string, string?>? settings)
     {

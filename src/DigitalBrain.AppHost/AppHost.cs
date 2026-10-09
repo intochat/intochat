@@ -5,6 +5,8 @@ using DigitalBrain.AI.Models.FoundryLocal;
 using DigitalBrain.AI.Models.Ollama;
 using DigitalBrain.AI.Models.OpenAI;
 using DigitalBrain.AI.Models.OpenRouter;
+using DigitalBrain.ArtCraft;
+using DigitalBrain.ArtCraft.Aspire.Hosting;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.ClickHouse;
 using DigitalBrain.ClickHouse.Aspire.Hosting;
@@ -14,6 +16,7 @@ using DigitalBrain.Google.Gmail;
 using DigitalBrain.Microsoft.Aspire;
 using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Microsoft.GitHub;
+using DigitalBrain.Microsoft.Playwright;
 using DigitalBrain.Postgres;
 using DigitalBrain.Postgres.Aspire.Hosting;
 using DigitalBrain.Qdrant;
@@ -51,7 +54,10 @@ var digitalBrain = builder.AddDigitalBrain("Modules", DigitalBrainHostingOptions
     .WithHosting<GitHubModuleHosting>()
     .WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp())
     .WithHosting<AspireModuleHosting>()
-    .WithHosting<CSharpModuleHosting>();
+    .WithHosting<CSharpModuleHosting>()
+    // PhotoCraft and FilmCraft: headless MCP servers plus their web builds, which the shell's browser may drive.
+    .WithHosting<ArtCraftModuleHosting, ArtCraftModuleOptions>(artcraft => artcraft.WithHostedApps())
+    .WithModule<PlaywrightModule, PlaywrightModuleOptions>(playwright => playwright.AppOrigins = ArtCraftModuleOptions.HostedOrigins);
 
 var cookieProtection = digitalBrain.AddBlobContainer(digitalBrain.Identity!.ProtectionContainerName);
 
