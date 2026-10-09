@@ -64,6 +64,18 @@ public sealed class KernelFacts
     }
 
     [Fact]
+    public async Task ABareBrainKeyIsTheBrainItselfAndNeverRegisters()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var host = await ModuleTest.Create().StartAsync(ct);
+        await As(host, "alice", "a");
+
+        await host.Get<ILedger>("a").Set(1);
+
+        Assert.Empty(await Instances(host, "test-ledger", ct));
+    }
+
+    [Fact]
     public async Task ClearingStateRetiresTheInstanceAndAnnouncesIt()
     {
         var ct = TestContext.Current.CancellationToken;

@@ -73,6 +73,23 @@ Related, earlier in the same conversation:
 - **Access today:** `NeuronCallFilter` (`Framework/Callers/NeuronCallFilter.cs`) + 12 `Access` overrides +
   `NeuronAccess.ForBrainKey`; caller stamped in `RequestContext["digitalbrain.caller-context"]`.
 
+### 2.2 Implemented status (2026-10-10)
+
+Phases 1–5 are done on `os-runtime`; Phase 6 (features load through the kernel) is pending design.
+Where the code deviates from this spec:
+
+- **Key grammar:** only `/` separates a brain from the rest of a key. UI parts are `{brain}/ui/{name}`
+  (were `{brain}:{name}`); `BrainScope.IsValidId` refuses `:` and a leading `@`.
+- **Registration:** only `{brain}/...` keys register, registered before the first write lands (retired
+  again if the write fails). Bare keys (the brain itself, account-keyed neurons, `marketplace`) and
+  `@platform/...` keys (e.g. `@platform/meters/{period}`) never register. A neuron keeps one persisted
+  record (multi-state grains folded into the primary state). `TryAddKernelRegistration` false fails startup.
+- **Kernel surface:** `IKernel.InstancesIn(brain, …)` for platform code with no caller; `IAppIndex` is
+  gone, scripts read apps through `brain.Kernel`.
+- **Access:** declared on contracts as `[Public]`, `[Shared]`, `[Internal]`, `[PerAccount]` (else the
+  owner rule), enforced once by `NeuronCallFilter`, on `INeuron` contracts only.
+- **MCP** still loads contract DLLs to make calls; it reads types from the kernel.
+
 ## 3. Target model
 
 ### 3.1 Kernel surface

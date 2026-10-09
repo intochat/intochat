@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
 // What a behavior may call: neuron contracts of the composed modules, never a kernel grain.
-public sealed class ScriptContractsFacts
+public sealed class CompiledTypesFacts
 {
     [Fact]
     public async Task TheModuleAllowsTheComposedModulesContractAssembliesOnly()

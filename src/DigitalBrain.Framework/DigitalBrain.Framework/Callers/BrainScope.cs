@@ -15,13 +15,14 @@ public sealed record BrainScope(string Id, string Owner)
     public static BrainScope Create(string owner, string name)
     {
         if (!IsValidId(name))
-        { throw new ArgumentException("A brain ID must contain 1–200 characters without path separators.", nameof(name)); }
+        { throw new ArgumentException("A brain ID must contain 1–200 characters without path separators or ':'.", nameof(name)); }
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
         return new(name, owner);
     }
 
     // Brain, thread and run ids travel in routes and grain keys: 1-200 characters, no control
-    // characters and no path separators.
+    // characters, no path separators and no ':'. A leading '@' is reserved for keys outside every
+    // brain ("@platform/...").
     public static bool IsValidId([NotNullWhen(true)] string? value)
-        => !string.IsNullOrWhiteSpace(value) && value.Length <= 200 && !value.Any(c => char.IsControl(c) || c is '/' or '\\');
+        => !string.IsNullOrWhiteSpace(value) && value.Length <= 200 && value[0] != '@' && !value.Any(c => char.IsControl(c) || c is '/' or '\\' or ':');
 }

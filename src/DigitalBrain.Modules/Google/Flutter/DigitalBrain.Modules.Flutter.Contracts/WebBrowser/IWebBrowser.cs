@@ -24,6 +24,7 @@ public sealed class WebBrowserState
     [Id(1)] public int Version { get; set; }
     [Id(2)] public string Uri { get; set; } = "";
     [Id(3)] public string Title { get; set; } = "";
+    [Id(4)] public string? PlaywrightKey { get; set; }
 }
 
 [GenerateSerializer, Alias("ui.webbrowser-view")]

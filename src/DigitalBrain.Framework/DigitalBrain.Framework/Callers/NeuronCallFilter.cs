@@ -10,11 +10,11 @@ internal sealed class NeuronCallFilter(ICallFilter filter, ILogger<NeuronCallFil
     private const string ModuleCall = "digitalbrain.trusted-module-call";
     public async Task Invoke(IIncomingGrainCallContext context)
     {
-        // Unstamped calls originate inside the trusted cluster (startup, reminders).
-        // Public edges must stamp a caller; they cannot request this internal path.
+        // Policy covers INeuron contracts only, and is skipped for: non-neuron grains, unstamped calls
+        // (startup, reminders: public edges must stamp a caller), and a neuron's own non-INeuron grain
+        // interfaces. Every contract an edge resolves derives INeuron (CompiledTypesFacts), so those
+        // interfaces are cluster plumbing no edge can address.
         if (context.Grain is not Neuron neuron || !CallerContextStamper.TryGet(out var caller)
-            // A neuron's own non-neuron grain interfaces (inbound plumbing) are not in the kernel's
-            // types, so no edge can address them; only cluster code reaches them.
             || IsInbound(neuron, context.InterfaceMethod.DeclaringType!))
         { await context.Invoke(); return; }
 

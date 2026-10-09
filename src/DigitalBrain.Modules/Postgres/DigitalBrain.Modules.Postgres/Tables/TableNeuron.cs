@@ -22,6 +22,7 @@ internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements
     // Only the owning brain and app may watch its rows.
     public override Task<Guid> Watch(INeuronObserver observer) { _ = Scope(); return base.Watch(observer); }
     public override Task<Guid> Watch(INeuronObserver observer, string[] signals) { _ = Scope(); return base.Watch(observer, signals); }
+    public override Task Unwatch(INeuronObserver observer) { _ = Scope(); return base.Unwatch(observer); }
 
     private string Scope()
     {

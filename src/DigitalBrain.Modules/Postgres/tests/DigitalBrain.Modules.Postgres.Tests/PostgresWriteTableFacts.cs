@@ -213,6 +213,21 @@ public sealed class PostgresWriteTableFacts
     }
 
     [Fact]
+    public async Task AnotherAppCannotUnwatchAnOwnedTable()
+    {
+        await using var brain = await Start(new MemoryTables());
+        Stamp();
+        await brain.AuthorizeCallerAsync();
+        var table = brain.Get<ITable>("watched");
+        await table.Define(Definition);
+
+        Stamp("brain", "other-app");
+        await brain.AuthorizeCallerAsync();
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => table.Unwatch(null!));
+    }
+
+    [Fact]
     public async Task OtherBrainsAndAppsCannotReadOrClobberAnOwnedTable()
     {
         await using var brain = await Start(new MemoryTables());

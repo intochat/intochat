@@ -24,8 +24,7 @@ public interface IApp : INeuron
     // Publishes the current version once its scripts compile: it becomes the Marketplace listing and the
     // bundle every Install copies, until the next Publish.
     Task<AppSnapshot> Publish();
-    // The published version's bundle, readable by anyone: a published app is public by definition.
-    // A published version is public by definition: anyone may copy it, nothing more.
+    // The published version's bundle: a published app is public by definition, anyone may copy it.
     [Public] Task<AppBundle> ExportPublished();
     // A version this app still holds in its history, for development sync to prove a folder is
     // unchanged since that version; null once the version has aged out.

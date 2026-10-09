@@ -16,7 +16,7 @@ public sealed class OrleansDashboardFacts
         var builder = WebApplication.CreateBuilder();
         builder.Configuration["urls"] = "http://127.0.0.1:0";
         builder.AddDigitalBrainServer(server => server.UseOrleansDashboard());
-        builder.UseOrleans(silo => silo.UseLocalhostClustering().AddMemoryGrainStorageAsDefault().UseInMemoryReminderService());
+        builder.UseOrleans(silo => silo.UseLocalhostClustering().AddMemoryGrainStorageAsDefault().AddKernelRegistration().UseInMemoryReminderService());
         builder.Services.AddSingleton<IBrainAccess, AllowEveryone>();
         builder.Services.AddSingleton<ICallFilterStage, AllowEverything>();
         builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie();
@@ -32,6 +32,23 @@ public sealed class OrleansDashboardFacts
             Assert.Equal(HttpStatusCode.NotFound, (await http.GetAsync("/", ct)).StatusCode);
         }
         finally { await app.StopAsync(ct); }
+    }
+
+    [Fact]
+    public async Task AServerWhoseDefaultStorageIsNeverWrappedRefusesToStart()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var builder = WebApplication.CreateBuilder();
+        builder.Configuration["urls"] = "http://127.0.0.1:0";
+        builder.AddDigitalBrainServer(_ => { });
+        builder.UseOrleans(silo => silo.UseLocalhostClustering().AddMemoryGrainStorageAsDefault().UseInMemoryReminderService());
+        builder.Services.AddSingleton<IBrainAccess, AllowEveryone>();
+        builder.Services.AddSingleton<ICallFilterStage, AllowEverything>();
+        await using var app = builder.Build();
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => app.StartAsync(ct));
+
+        Assert.Contains("kernel registration", error.Message, StringComparison.Ordinal);
     }
 
     private sealed class AllowEveryone : IBrainAccess

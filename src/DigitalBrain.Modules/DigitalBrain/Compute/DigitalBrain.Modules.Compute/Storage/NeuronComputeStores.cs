@@ -8,7 +8,7 @@ namespace DigitalBrain.Compute.Storage;
 
 internal sealed class NeuronMeterStore(IGrainFactory grains) : IMeterStore
 {
-    private IComputeRecords Records(string period) => grains.GetGrain<IComputeRecords>("meters/" + period);
+    private IComputeRecords Records(string period) => grains.GetGrain<IComputeRecords>("@platform/meters/" + period);
     private static string Period(MeterEvent value) => value.OccurredAt.UtcDateTime.ToString("yyyy-MM", CultureInfo.InvariantCulture);
     private static ComputeStoredRecord Record(MeterEvent value)
     {

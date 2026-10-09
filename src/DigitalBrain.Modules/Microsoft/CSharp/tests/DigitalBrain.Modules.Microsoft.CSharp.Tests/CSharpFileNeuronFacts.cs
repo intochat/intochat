@@ -30,6 +30,31 @@ public sealed class CSharpFileNeuronFacts
     }
 
     [Fact]
+    public async Task DescribingANeverWrittenFileIsRefusedAndCreatesNothing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        var file = brain.Get<ICSharpFile>("acc-brain/csharp/ghost");
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => file.Describe("Ghost", "haunts", ct));
+
+        Assert.Null((await file.Inspect(ct)).Created);
+    }
+
+    [Fact]
+    public async Task ANullPurposeKeepsTheCurrentOneAndABlankOneClearsIt()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        var file = brain.Get<ICSharpFile>("acc-brain/csharp/described");
+        await file.Write("Console.WriteLine(1);", ct);
+        await file.Describe("Report", "Sends the report", ct);
+
+        Assert.Equal("Sends the report", (await file.Describe(null, null, ct)).Purpose);
+        Assert.Equal("", (await file.Describe(null, "  ", ct)).Purpose);
+    }
+
+    [Fact]
     public async Task ASourceThatDoesNotCompileIsRefusedBeforeAnythingIsAssigned()
     {
         var ct = TestContext.Current.CancellationToken;

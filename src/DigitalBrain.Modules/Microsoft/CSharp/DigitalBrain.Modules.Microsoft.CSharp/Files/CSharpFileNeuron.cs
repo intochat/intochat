@@ -37,6 +37,8 @@ internal sealed partial class CSharpFileNeuron(
     {
         if (name is { Length: > 120 } || purpose is { Length: > 4000 })
         { throw new ArgumentException("A name is at most 120 characters and a purpose at most 4000."); }
+        // Describing names a file that exists; it never creates one.
+        if (!Exists) { throw new KeyNotFoundException($"No C# file '{FileId}' exists; write it first."); }
         await Keep(Snapshot with
         {
             Name = string.IsNullOrWhiteSpace(name) ? Snapshot.Name is { Length: > 0 } current ? current : FileId[(FileId.LastIndexOf('/') + 1)..] : name.Trim(),

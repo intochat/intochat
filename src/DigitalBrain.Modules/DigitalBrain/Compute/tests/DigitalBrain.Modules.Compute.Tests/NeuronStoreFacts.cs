@@ -75,7 +75,7 @@ public sealed class NeuronStoreFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<ComputeModule>().StartAsync(ct);
-        var grain = brain.Get<IComputeRecords>("meters/2026-09");
+        var grain = brain.Get<IComputeRecords>("@platform/meters/2026-09");
         for (var start = 0; start < ComputeRecordsNeuron.Cap + 10; start += 1000)
         {
             await grain.Put([.. Enumerable.Range(start, Math.Min(1000, ComputeRecordsNeuron.Cap + 10 - start)).Select(UsageRecord)], false);

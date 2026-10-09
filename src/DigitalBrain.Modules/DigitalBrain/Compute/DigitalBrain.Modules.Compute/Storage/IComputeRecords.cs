@@ -3,9 +3,9 @@ using DigitalBrain.Framework;
 
 namespace DigitalBrain.Compute.Storage;
 
-// Storage behind the account-scoped usage and ledger neurons, keyed "meters/{period}" (platform-wide)
+// Storage behind the account-scoped usage and ledger neurons, keyed "@platform/meters/{period}" (platform-wide)
 // and "{brain}/usage/{hash(account, brain)}": those neurons answer the scope question, this one is
-// reached only from inside the cluster. The owner rule would read "meters" as a brain id.
+// reached only from inside the cluster.
 [Internal]
 internal interface IComputeRecords : INeuron
 {

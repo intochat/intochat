@@ -26,8 +26,8 @@ public sealed class ScopedCSharpTools(IDigitalBrain brain, IKernelView kernel, C
         if (name is { Length: > 120 } || purpose is { Length: > 4000 })
         { throw new ArgumentException("A name is at most 120 characters and a purpose at most 4000."); }
         var file = File(id);
-        await file.Describe(name, purpose, ct);
         await file.Write(source, ct);
+        await file.Describe(name, purpose, ct);
         return CSharpFileView.Of(id, await file.Inspect(ct));
     }
 

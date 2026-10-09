@@ -1,5 +1,7 @@
 # Framework Structure PR 1: Routine Batch Implementation Plan
 
+> **Superseded by `docs/superpowers/specs/2026-10-09-kernel-design.md`.**
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Apply the routine moves and deletions of the Framework structure cleanup (§5a and D5–D6 of the spec) so that `src/DigitalBrain.Framework/DigitalBrain.Framework` has no dead code, no test-harness code, no Platform-internal records, and one namespace.

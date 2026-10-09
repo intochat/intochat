@@ -49,4 +49,12 @@ public static class BrainHosting
         ArgumentNullException.ThrowIfNull(silo);
         return InstanceRegistration.TryDecorate(silo.Services);
     }
+
+    // Whether the resolved Default storage is the kernel's registration wrapper: what a host checks
+    // at startup after TryAddKernelRegistration.
+    public static bool HasKernelRegistration(IServiceProvider services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        return services.GetKeyedService<Orleans.Storage.IGrainStorage>(DigitalBrainNames.DefaultGrainStorage) is InstanceRegistration;
+    }
 }

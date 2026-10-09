@@ -12,13 +12,18 @@ internal sealed class InstanceRegistration(IGrainStorage inner, IGrainFactory gr
 
     public async Task WriteStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
     {
-        var first = !grainState.RecordExists;
-        await inner.WriteStateAsync(stateName, grainId, grainState);
-        // Awaited, not fire-and-forget: the directory is another grain that never calls back into
-        // this one synchronously, and a lost registration could not be retried once the record exists.
-        if (first && Directory(grainId) is { } directory)
+        // Registered before the first write lands: once the record exists nothing would retry a lost
+        // registration, while a registration whose write fails is retired again. Register is
+        // idempotent and the directory is another grain that never calls back into this one.
+        var directory = grainState.RecordExists ? null : Directory(grainId);
+        if (directory is null) { await inner.WriteStateAsync(stateName, grainId, grainState); return; }
+        var key = grainId.Key.ToString()!;
+        await directory.Register(key, CallerContextStamper.TryGet(out var caller) ? caller.PrincipalId : null);
+        try { await inner.WriteStateAsync(stateName, grainId, grainState); }
+        catch
         {
-            await directory.Register(grainId.Key.ToString()!, CallerContextStamper.TryGet(out var caller) ? caller.PrincipalId : null);
+            await directory.Retire(key);
+            throw;
         }
     }
 
@@ -33,13 +38,14 @@ internal sealed class InstanceRegistration(IGrainStorage inner, IGrainFactory gr
         if (inner is ILifecycleParticipant<ISiloLifecycle> participant) { participant.Participate(lifecycle); }
     }
 
-    // Only neurons are instances: kernel grains, workers and other grains never register.
+    // Only neurons inside a brain are instances: "{brain}/..." where the first segment is a brain id.
+    // Kernel grains, workers and other grains never register, nor do keys outside every brain: a
+    // bare key (the brain itself, account-keyed neurons, "marketplace") or a "@platform/..." key.
     private IInstanceDirectory? Directory(GrainId grainId)
     {
         if (context.GrainContext?.GrainInstance is not Neuron) { return null; }
-        var key = grainId.Key.ToString();
-        if (string.IsNullOrEmpty(key)) { return null; }
-        return grains.GetGrain<IInstanceDirectory>(InstanceDirectoryKey.Of(BrainKey.BrainOf(key), grainId.Type.ToString()!));
+        if (BrainKey.ScopeOf(grainId.Key.ToString()!) is not { } brain) { return null; }
+        return grains.GetGrain<IInstanceDirectory>(InstanceDirectoryKey.Of(brain, grainId.Type.ToString()!));
     }
 
     // Replaces the keyed Default storage registration with this decorator around it. False when no

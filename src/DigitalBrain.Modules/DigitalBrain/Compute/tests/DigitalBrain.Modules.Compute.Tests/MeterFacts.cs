@@ -112,7 +112,7 @@ public sealed class MeterFacts
         var store = brain.SiloServices.GetRequiredService<IMeterStore>();
         var meter = Meter("intent-1", new DateTimeOffset(2026, 9, 10, 0, 0, 0, TimeSpan.Zero));
         Assert.True(await store.AppendAsync(meter, ct));
-        await brain.DeactivateAsync(brain.Get<IComputeRecords>("meters/2026-09"), ct);
+        await brain.DeactivateAsync(brain.Get<IComputeRecords>("@platform/meters/2026-09"), ct);
         Assert.False(await store.AppendAsync(meter, ct));
         Assert.Single(await store.ReadAsync("2026-09", ct));
     }

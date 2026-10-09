@@ -66,6 +66,8 @@ public static class ServerHostingExtensions
                 module.Configure(silo);
                 silo.Services.AddSingleton(module);
             }
+            // The Default storage may be composed after this delegate; startup validation refuses a
+            // server whose storage was never wrapped, so no instance registration is silently lost.
             silo.TryAddKernelRegistration();
         });
         return builder;
@@ -78,6 +80,8 @@ public static class ServerHostingExtensions
             _ = services.GetRequiredService<DigitalBrain.Framework.IBrainAccess>();
             if (!services.GetServices<DigitalBrain.Framework.ICallFilterStage>().Any())
             { throw new InvalidOperationException("Register an authorization policy or AddDigitalBrainPlatform before starting the server."); }
+            if (!DigitalBrain.Framework.BrainHosting.HasKernelRegistration(services))
+            { throw new InvalidOperationException("The Default grain storage is not wrapped by the kernel registration: register it before the silo delegate runs."); }
             return Task.CompletedTask;
         }
         public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

@@ -34,4 +34,28 @@ public sealed class KernelBoundaryFacts
             .Order().ToArray();
         Assert.True(offenders.Length == 0, "Methods with more than one access policy:\n" + string.Join("\n", offenders));
     }
+
+    [Fact]
+    public void EveryContractTheKernelCompilesForEdgesDerivesINeuron()
+    {
+        var types = new DigitalBrain.Framework.CompiledTypes(ProductionArchitecture.Assemblies);
+
+        Assert.All(types.Entries.Where(entry => entry.Kind == TypeKind.Neuron),
+            entry => Assert.True(typeof(INeuron).IsAssignableFrom(types.Contract(entry.Name)), entry.Name));
+    }
+
+    // The call filter applies access policy to INeuron contracts only, so an access attribute
+    // anywhere else is dead and reads as a guarantee it is not.
+    [Fact]
+    public void AccessAttributesAppearOnlyOnNeuronContracts()
+    {
+        var offenders = ProductionArchitecture.Types
+            .Where(type => type.IsInterface && !typeof(INeuron).IsAssignableFrom(type))
+            .SelectMany(contract => contract.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                .Where(method => method.GetCustomAttributes<AccessAttribute>().Any())
+                .Select(method => contract.FullName + "." + method.Name)
+                .Concat(contract.GetCustomAttributes<AccessAttribute>().Any() ? [contract.FullName!] : []))
+            .Order().ToArray();
+        Assert.True(offenders.Length == 0, "Access attributes off neuron contracts:\n" + string.Join("\n", offenders));
+    }
 }

@@ -17,4 +17,20 @@ public sealed class BrainKeyFacts
     [InlineData("bra", false)]
     public void AKeyBelongsToABrainOnlyAtASegmentBoundary(string key, bool belongs)
         => Assert.Equal(belongs, BrainKey.BelongsTo(key, "brain"));
+
+    [Theory]
+    [InlineData("brain/ui/volume", "brain")]
+    [InlineData("brain/apps/notes", "brain")]
+    [InlineData("brain:volume", null)]
+    [InlineData("brain", null)]
+    [InlineData("@platform/marketplace", null)]
+    public void OnlyASlashSeparatesABrainFromTheRestOfAKey(string key, string? scope)
+        => Assert.Equal(scope, BrainKey.ScopeOf(key));
+
+    [Theory]
+    [InlineData("a:b")]
+    [InlineData("a/b")]
+    [InlineData("@platform")]
+    public void ABrainIdHasNoSeparatorAndNoReservedPrefix(string id)
+        => Assert.False(BrainScope.IsValidId(id));
 }

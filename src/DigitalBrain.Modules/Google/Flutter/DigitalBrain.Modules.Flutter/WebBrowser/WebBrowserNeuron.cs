@@ -8,16 +8,9 @@ using Orleans.Runtime;
 
 namespace DigitalBrain.Flutter.WebBrowser;
 
-[GenerateSerializer]
-internal sealed class BrowserBindingState
-{
-    [Id(0)] public string? PlaywrightKey { get; set; }
-}
-
 [GrainType(UIVocabulary.WebBrowserType), Reentrant]
 internal sealed class WebBrowserNeuron(
-    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<WebBrowserState> store,
-    [PersistentState("binding", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<BrowserBindingState> binding)
+    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<WebBrowserState> store)
     : Neuron<WebBrowserState>(store), IWebBrowser, IWebBrowserConnector
 {
     private const int ReasonClip = 200;
@@ -29,19 +22,17 @@ internal sealed class WebBrowserNeuron(
     private long _generation;
     private Task? _connecting;
     private Task? _disconnecting;
-    private string DriverKey => binding.State.PlaywrightKey ?? this.GetPrimaryKeyString();
+    private string DriverKey => Snapshot.PlaywrightKey ?? this.GetPrimaryKeyString();
     private IPlaywright Driver => GrainFactory.GetGrain<IPlaywright>(DriverKey);
 
     public async Task Configure(string playwrightKey)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(playwrightKey);
-        if (binding.State.PlaywrightKey == playwrightKey) { return; }
+        if (Snapshot.PlaywrightKey == playwrightKey) { return; }
         if (_session is not null && DriverKey != playwrightKey)
         { throw new InvalidOperationException("Disconnect the browser before changing its driver."); }
-        var previous = binding.State;
-        binding.State = new() { PlaywrightKey = playwrightKey };
-        try { await binding.WriteStateAsync(); }
-        catch { binding.State = previous; throw; }
+        var current = Snapshot;
+        await SaveQuietly(new() { Name = current.Name, Version = current.Version, Uri = current.Uri, Title = current.Title, PlaywrightKey = playwrightKey });
     }
 
     public Task Connect(int port, string sessionId)

@@ -46,7 +46,7 @@ public abstract class Neuron : Grain, INeuron
         return Task.FromResult(_activation);
     }
 
-    public Task Unwatch(INeuronObserver observer)
+    public virtual Task Unwatch(INeuronObserver observer)
     {
         Observers.Unsubscribe(observer);
         return Task.CompletedTask;
@@ -72,22 +72,22 @@ public abstract class Neuron<TState>(IPersistentState<TState> store) : Neuron wh
 
     protected async Task Save(TState next, Signal changed, Signal? acted = null)
     {
-        var previous = store.State;
-        store.State = next;
-        try
-        {
-            await store.WriteStateAsync();
-        }
-        catch
-        {
-            store.State = previous;
-            throw;
-        }
+        await SaveQuietly(next);
         await PublishAsync(changed);
         if (acted is not null)
         {
             await PublishAsync(acted);
         }
+    }
+
+    // Writes without announcing: for plumbing that no watcher observes. A neuron keeps all of its
+    // persisted state in this one record, so its first write is the one that registers it.
+    protected async Task SaveQuietly(TState next)
+    {
+        var previous = store.State;
+        store.State = next;
+        try { await store.WriteStateAsync(); }
+        catch { store.State = previous; throw; }
     }
 
     // Clearing the record is what ends the neuron's existence: the kernel retires the instance.
