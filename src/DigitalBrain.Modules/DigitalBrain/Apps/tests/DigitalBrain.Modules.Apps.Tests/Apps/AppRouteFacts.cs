@@ -133,6 +133,92 @@ public sealed class AppRouteFacts
             => JsonDocument.Parse(result.Body).RootElement.Clone();
     }
 
+    [Fact(Timeout = 120_000)]
+    public async Task ARequestIsAcceptedAtOnceAndAnUnknownOperationIs422()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await ModuleTest.Create()
+            .WithModule<AIModule>()
+            .WithModule<AppsModule>()
+            .WithFakeModel(model)
+            .WithFakeAppRuntime(new())
+            .ConfigureModule<AppsModule, AppsOptions>(apps =>
+            {
+                apps.AuthorModel = nameof(IGpt56Luna);
+                apps.BuilderModel = nameof(IGpt56Sol);
+            })
+            .ConfigureSilo(silo =>
+            {
+                silo.Services.AddSingleton<IScriptSandbox>(new RouteSandbox());
+            })
+            .StartAsync(ct);
+        model.Script("gpt-5.6-luna", JsonSerializer.Serialize(new
+        {
+            name = "shouter",
+            title = "Shouter",
+            description = "Shouts back.",
+            operations = new[] { new { name = "ask", description = "ask it" } },
+            spec = Spec,
+        }));
+        model.Script("gpt-5.6-sol", JsonSerializer.Serialize(new
+        {
+            files = new Dictionary<string, string> { ["synapses/shout.cs"] = "// b" },
+        }));
+
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddSingleton<IDigitalBrain>(brain.SiloServices.GetRequiredService<IDigitalBrain>());
+        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<Creator>());
+        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<AppWorkQueue>());
+        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<MarketplaceView>());
+        builder.Services.AddSingleton<IBrainAccess, OpenBrainAccess>();
+        await using var edge = builder.Build();
+        new AppsModule().Configure(edge);
+        var endpoints = ((IEndpointRouteBuilder)edge).DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>().ToArray();
+
+        var created = await Invoke("POST", "/brains/{brainId}/apps/", new { text = "Shout back." }, ("brainId", "alice"));
+        Assert.Equal(200, created.Response.StatusCode);
+
+        var accepted = await Invoke("POST", "/brains/{brainId}/apps/{name}/request", new { operation = "ask", input = "hi" }, ("brainId", "alice"), ("name", "shouter"));
+        Assert.Equal(StatusCodes.Status202Accepted, accepted.Response.StatusCode);
+        Assert.True(Guid.TryParse(JsonDocument.Parse(accepted.Body).RootElement.GetProperty("requestId").GetString(), out _));
+
+        var unknown = await Invoke("POST", "/brains/{brainId}/apps/{name}/request", new { operation = "nope", input = "" }, ("brainId", "alice"), ("name", "shouter"));
+        Assert.Equal(StatusCodes.Status422UnprocessableEntity, unknown.Response.StatusCode);
+
+        async Task<(HttpResponse Response, string Body)> Invoke(string method, string pattern, object? body, params (string Key, string Value)[] values)
+        {
+            CallerContextStamper.Stamp(new CallerContext
+            {
+                PrincipalId = "alice",
+                AccountId = "account-alice",
+                BrainId = "alice",
+                Kind = CallerKind.User,
+                StampedBy = TrustedEdge.AuthenticatedHttp,
+            });
+            await brain.AuthorizeCallerAsync();
+            var endpoint = endpoints.Single(item => item.RoutePattern.RawText == pattern
+                && item.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains(method));
+            var http = new DefaultHttpContext { RequestServices = edge.Services, RequestAborted = ct };
+            http.Request.Method = method;
+            http.Request.Headers.Authorization = "Basic test";
+            foreach (var (key, value) in values) { http.Request.RouteValues[key] = value; }
+            if (body is not null)
+            {
+                var payload = JsonSerializer.SerializeToUtf8Bytes(body, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                http.Request.ContentType = "application/json";
+                http.Request.Body = new MemoryStream(payload);
+                http.Request.ContentLength = payload.Length;
+                http.Features.Set<global::Microsoft.AspNetCore.Http.Features.IHttpRequestBodyDetectionFeature>(new HasBody());
+            }
+            http.Response.Body = new MemoryStream();
+            http.SetEndpoint(endpoint);
+            await endpoint.RequestDelegate!(http);
+            http.Response.Body.Position = 0;
+            return (http.Response, await new StreamReader(http.Response.Body).ReadToEndAsync(ct));
+        }
+    }
+
     [Fact]
     public async Task ImportOverAnExistingAppAnswers409()
     {

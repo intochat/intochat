@@ -13,6 +13,7 @@ internal static class AppsEndpoints
     public sealed record TextRequest(string? Text);
     public sealed record SettingsRequest(Dictionary<string, string>? Settings, Dictionary<string, string>? Connections);
     public sealed record RollbackRequest(string Version);
+    public sealed record RequestBody(string? Operation, string? Input);
 
     public static void Map(IEndpointRouteBuilder endpoints)
     {
@@ -69,6 +70,13 @@ internal static class AppsEndpoints
         {
             var snapshot = await creator.Implement(brain, Key(name), request?.Text);
             return Results.Accepted($"/brains/{BrainScope.CurrentId()}/apps/{name}", View(snapshot));
+        }));
+
+        // A request is published for a synapse to react to; nothing waits for the app to answer.
+        apps.MapPost("/{name}/request", (string name, RequestBody? request, IDigitalBrain brain, CancellationToken ct) => Respond(async () =>
+        {
+            var id = await App(brain, name).Request(request?.Operation ?? "ask", request?.Input ?? "{}").WaitAsync(ct);
+            return Results.Accepted($"/brains/{BrainScope.CurrentId()}/apps/{name}", new { requestId = id });
         }));
 
         apps.MapPut("/{name}/settings", (string name, SettingsRequest request, IDigitalBrain brain) => Respond(async ()
