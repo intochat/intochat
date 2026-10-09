@@ -15,7 +15,7 @@ Integration `github` requires `PrivateKeyPem` and non-secret `AppId`; `ClientId`
 setting and `ClientSecret` and `WebhookSecret` are optional secrets. AppId and signing key are
 materialized together. `PublicWebhookUrl` is the only GitHub module option.
 
-A repository connection is the neuron `connection/{brain}/github/{id}`. The Platform's OAuth login
+A repository connection is the neuron `{brain}/connection/github/{id}`. The Platform's OAuth login
 (`POST /brains/{id}/connections/{connectionId}/login` with connector `github` and the repository URL
 as `target`; callback `/connections/oauth/github/callback`) hands the user token to the neuron once: it proves that the user
 and the App installation both reach the repository, and is then replaced by installation tokens minted

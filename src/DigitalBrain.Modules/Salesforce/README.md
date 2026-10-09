@@ -4,7 +4,7 @@
 
 The module's ConnectorDefinition declares supported authentication methods and Integration
 dependencies. An org connection is the Salesforce neuron itself, keyed
-`connection/{brain}/salesforce/{id}`: it holds the access and refresh tokens as sealed state and
+`{brain}/connection/salesforce/{id}`: it holds the access and refresh tokens as sealed state and
 records the org's instance URL as its account. The offered connector catalog is `GET /connectors`,
 and user connections are managed at `/brains/{id}/connections`. Provision deployment credentials with
 `DigitalBrain:Integrations:{id}:{Field}`; ordinary options stay under `DigitalBrain:Modules:{id}:Options`.

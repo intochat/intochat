@@ -38,7 +38,7 @@ ordinary tables in `public`. The existing general SQL read surface retains its
 configured database-role visibility; table-neuron ownership does not change that
 surface's read permissions.
 
-A database a person adds is a `postgres` connection, `connection/{brain}/postgres/{id}`, served by
+A database a person adds is a `postgres` connection, `{brain}/connection/postgres/{id}`, served by
 `IPostgresServer` (`ReadSchema`, `Query`). The assistant and `digitalbrain-mcp` reach it through
 `neurons_call`; data is shown by the Data Visualizer app, whose `db` slot binds to that connection.
 

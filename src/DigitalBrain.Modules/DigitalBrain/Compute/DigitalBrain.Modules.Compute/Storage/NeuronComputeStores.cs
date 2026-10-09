@@ -47,7 +47,7 @@ internal sealed class NeuronMeterStore(IGrainFactory grains) : IMeterStore
 
 internal sealed class NeuronUsageStore(IGrainFactory grains) : IUsageStore
 {
-    private IComputeRecords Records(string account, string brainId) => grains.GetGrain<IComputeRecords>(ComputeRecordsNeuron.UsageKeyPrefix + UsagePaging.Scope(account, brainId));
+    private IComputeRecords Records(string account, string brainId) => grains.GetGrain<IComputeRecords>(ComputeRecordsNeuron.UsageKey(account, brainId));
 
     private IComputeRecords Ready(string account, string brainId, CancellationToken ct)
     {

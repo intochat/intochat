@@ -35,7 +35,7 @@ public sealed class NeuronStoreFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<ComputeModule>().StartAsync(ct);
         var store = brain.SiloServices.GetRequiredService<IUsageStore>();
-        var grain = brain.Get<IComputeRecords>(ComputeRecordsNeuron.UsageKeyPrefix + UsagePaging.Scope("account", "brain-1"));
+        var grain = brain.Get<IComputeRecords>(ComputeRecordsNeuron.UsageKey("account", "brain-1"));
         var total = ComputeRecordsNeuron.Cap + 10;
         for (var start = 0; start < total; start += 1000)
         {
@@ -61,7 +61,7 @@ public sealed class NeuronStoreFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<ComputeModule>().StartAsync(ct);
-        var grain = brain.Get<IComputeRecords>(ComputeRecordsNeuron.UsageKeyPrefix + "full");
+        var grain = brain.Get<IComputeRecords>(ComputeRecordsNeuron.UsageKey("account", "full"));
         for (var start = 0; start < ComputeRecordsNeuron.Cap; start += 1000)
         {
             await grain.Put([.. Enumerable.Range(start + 1, 1000).Select(UsageRecord)], true);

@@ -96,7 +96,7 @@ async Task Answer(Guid requestId, string operation, string input)
                 var connection = brain.Setting("Account__db") ?? "";
                 if (connection.Length == 0) { throw new InvalidOperationException("Connect a Postgres database to this app."); }
                 var sourceSql = changed.Sql.Trim().TrimEnd(';');
-                var schema = await brain.Get<IPostgresServer>($"connection/{brain.Setting("Brain")}/postgres/{connection}")
+                var schema = await brain.Get<IPostgresServer>($"{brain.Setting("Brain")}/connection/postgres/{connection}")
                     .Query(new($"select * from ({sourceSql}) as filter_source limit 0", 1));
                 if (changed.Filters.Any(column => !schema.Columns.Any(output => output.Name == column)))
                 { throw new ArgumentException("Every filter must name an output column of the view query."); }

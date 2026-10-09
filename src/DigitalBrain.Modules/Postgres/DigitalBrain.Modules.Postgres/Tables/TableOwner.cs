@@ -1,22 +1,24 @@
-using System.Text.Json;
 using DigitalBrain.Framework;
 
 namespace DigitalBrain.Postgres.Tables;
 
 // The identity every app table and table index is keyed by: one brain, one installed app.
-// The key is the grain key; it is parsed back wherever a guard needs to know whose grain it is.
+// The key is the grain key, {brain}/tables/{escaped app key}; it is parsed back wherever a guard
+// needs to know whose grain it is.
 public readonly record struct TableOwner(string BrainId, string AppId)
 {
-    public string Key => JsonSerializer.Serialize(new[] { BrainId, AppId });
+    private const string Segment = "tables";
+
+    public string Key => $"{BrainId}/{Segment}/{Uri.EscapeDataString(AppId)}";
 
     public static TableOwner Parse(string key)
     {
-        string?[]? parts;
-        try { parts = JsonSerializer.Deserialize<string?[]>(key); }
-        catch (JsonException) { parts = null; }
-        if (parts is not [{ } brain, { } app] || string.IsNullOrWhiteSpace(brain) || string.IsNullOrWhiteSpace(app))
+        if (key.Split('/') is not [var brain, Segment, var app] || !BrainScope.IsValidId(brain))
         { throw new UnauthorizedAccessException("This storage key does not name a brain and an app."); }
-        return new(brain, app);
+        var owner = new TableOwner(brain, Uri.UnescapeDataString(app));
+        if (string.IsNullOrWhiteSpace(owner.AppId) || owner.Key != key)
+        { throw new UnauthorizedAccessException("This storage key does not name a brain and an app."); }
+        return owner;
     }
 
     // The owner a stamped caller may act as. Only trusted callers reach table neurons, and a

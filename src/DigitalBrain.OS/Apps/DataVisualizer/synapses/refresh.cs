@@ -73,7 +73,7 @@ async Task<(string[] Columns, string[][] Rows)> RunSql(View view, List<string> v
         var predicates = view.Filters.Select((column, index) => $"(${index + 1}::text = '' or data.\"{column.Replace("\"", "\"\"")}\"::text = ${index + 1}::text)");
         sql = $"select * from ({sql}) as data where {string.Join(" and ", predicates)}";
     }
-    var postgres = brain.Get<IPostgresServer>($"connection/{brain.Setting("Brain")}/postgres/{connection}");
+    var postgres = brain.Get<IPostgresServer>($"{brain.Setting("Brain")}/connection/postgres/{connection}");
     var result = await postgres.Query(new(sql, PostgresQuery.DefaultMaxRows, parameters));
     return (result.Columns.Select(c => c.Name).ToArray(), result.Rows.Select(row => row.Select(Cell).ToArray()).ToArray());
 }

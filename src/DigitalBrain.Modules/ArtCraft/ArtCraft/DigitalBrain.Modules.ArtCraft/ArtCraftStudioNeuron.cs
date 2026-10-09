@@ -7,7 +7,7 @@ namespace DigitalBrain.ArtCraft;
 [GrainType("artcraft.studio")]
 internal sealed class ArtCraftStudioNeuron(IOptions<ArtCraftModuleOptions> options) : Neuron, IArtCraftStudio
 {
-    private string Brain => this.GetPrimaryKeyString().Split('/')[0];
+    private string Brain => BrainKey.BrainOf(this.GetPrimaryKeyString());
 
     public async Task<ArtCraftSession> Open(string app, CancellationToken ct = default)
     {

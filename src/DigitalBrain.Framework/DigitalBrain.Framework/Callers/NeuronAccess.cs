@@ -1,5 +1,3 @@
-using DigitalBrain.Framework.Platform.Connections;
-
 namespace DigitalBrain.Framework;
 
 // Supplied by the receiving module, never by a caller or a discovery result.
@@ -14,11 +12,6 @@ public sealed record NeuronAccess(string? Scope = null, bool Public = false)
     // operations override it.
     public static NeuronAccess ForBrainKey(string key)
     {
-        if (key.StartsWith("connection/", StringComparison.Ordinal))
-        {
-            try { return new(ConnectionKeys.Parse(key).BrainId); }
-            catch (ArgumentException) { return Unclassified; }
-        }
         var separator = key.AsSpan().IndexOfAny('/', ':');
         if (separator <= 0) { return Unclassified; }
         var scope = key[..separator];

@@ -285,7 +285,7 @@ internal sealed class RouterNeuron(
         var instructions = entry is null
             ? "Fill one neuron call from the user's request. Reply with JSON only: {\"key\": \"<grain key>\", \"arguments\": [ ... ]}.\n"
                 + $"Contract: {route.Contract}\nMethod: {signature}\n"
-                + $"The brain scope is {Scope}. An app is {Scope}/apps/{{name}}; a connection is connection/{Scope}/{{connector}}/{{id}}.\n"
+                + $"The brain scope is {Scope}. An app is {Scope}/apps/{{name}}; a connection is {Scope}/connection/{{connector}}/{{id}}.\n"
                 + "arguments is a JSON array, one element per method parameter, omitting CancellationToken. Use null for an omitted optional parameter."
             : "Fill the arguments for the chosen tool from the user's request. Reply with JSON only: {\"arguments\": {...}}.\n"
                 + $"Contract: {route.Contract}\nTool: {route.Tool}\n{signature}\n"

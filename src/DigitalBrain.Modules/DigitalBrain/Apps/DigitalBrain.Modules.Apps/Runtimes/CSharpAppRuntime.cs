@@ -1,3 +1,4 @@
+using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp.Runtime;
 
 namespace DigitalBrain.Apps;
@@ -13,8 +14,9 @@ internal sealed class CSharpAppRuntime(IGrainFactory grains) : IAppRuntime
 
     private IBrainPrograms Programs(string appKey)
     {
-        var marker = appKey.IndexOf("/apps/", StringComparison.Ordinal);
-        if (marker <= 0) { throw new ArgumentException("An app key is {brain}/apps/{name}.", nameof(appKey)); }
-        return grains.GetGrain<IBrainPrograms>(BrainRuntimeKeys.For(appKey[..marker]));
+        var brain = BrainKey.BrainOf(appKey);
+        if (brain.Length == 0 || !appKey.StartsWith(brain + "/apps/", StringComparison.Ordinal))
+        { throw new ArgumentException("An app key is {brain}/apps/{name}.", nameof(appKey)); }
+        return grains.GetGrain<IBrainPrograms>(BrainRuntimeKeys.For(brain));
     }
 }

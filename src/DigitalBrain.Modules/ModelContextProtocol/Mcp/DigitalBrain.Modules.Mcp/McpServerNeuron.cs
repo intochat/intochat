@@ -29,7 +29,7 @@ internal sealed class McpServerNeuron(
     private Uri? _endpoint;
 
     private string Key => this.GetPrimaryKeyString();
-    private string Brain => Key[..Key.IndexOf('/', StringComparison.Ordinal)];
+    private string Brain => BrainKey.BrainOf(Key);
 
     public async Task<McpServerState> Connect(McpServerSpec spec, CancellationToken ct = default)
     {

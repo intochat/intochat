@@ -22,7 +22,7 @@ public static class ConnectionGrains
 
     // Addressing by a caller-supplied key: a canonical connection key resolves by its connector, but
     // only when the cluster's manifest says that grain type is a connection neuron, so a crafted key
-    // can never activate an arbitrary grain type. Any other key, or a malformed connection/ key,
+    // can never activate an arbitrary grain type. Any other key, or a malformed connection key,
     // resolves by the contract's default grain type and the neuron's own Key refuses it.
     public static T GetNeuronGrain<T>(this IGrainFactory grains, IServiceProvider services, string key) where T : IGrainWithStringKey
     {

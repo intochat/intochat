@@ -29,7 +29,7 @@ internal sealed partial class PageToolsNeuron(
     ];
 
     private string Key => this.GetPrimaryKeyString();
-    private string Brain => Key[..Key.IndexOf('/', StringComparison.Ordinal)];
+    private string Brain => BrainKey.BrainOf(Key);
 
     public async Task<PageToolsState> Configure(PageToolsSpec spec, CancellationToken ct = default)
     {

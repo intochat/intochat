@@ -128,9 +128,9 @@ public sealed class ConnectorBindingFacts
     [Fact]
     public void ConnectionKeysSeparateBrainsConnectorsAndEscapedSegments()
     {
-        Assert.NotEqual(ConnectionKeys.For("a", "gmail", "b/c"), ConnectionKeys.For("a/b", "gmail", "c"));
+        Assert.Throws<ArgumentException>(() => ConnectionKeys.For("a/b", "gmail", "c"));
         Assert.NotEqual(ConnectionKeys.For("a", "gmail", "c"), ConnectionKeys.For("b", "gmail", "c"));
-        Assert.Equal("connection/a/gmail/b%2Fc", ConnectionKeys.For("a", "gmail", "b/c"));
+        Assert.Equal("a/connection/gmail/b%2Fc", ConnectionKeys.For("a", "gmail", "b/c"));
     }
 
     [Fact]

@@ -37,7 +37,7 @@ public sealed class ContractActionFacts
         var client = Scripted(NeuronSurfaceTools.CallName, new()
         {
             ["contract"] = "DigitalBrain.Postgres.IPostgresServer",
-            ["key"] = "connection/b/postgres/x",
+            ["key"] = "b/connection/postgres/x",
             ["method"] = "ReadConnection",
             ["arguments"] = "[]"
         });

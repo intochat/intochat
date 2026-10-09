@@ -50,7 +50,7 @@ public sealed class ComputeUsageRouteFacts
     }
 
     // The usage route reaches the records store on the person's behalf; the store is keyed
-    // "usage/{account}/{brain}" and must not be read as if "usage" were a brain id.
+    // "{brain}/usage/{hash(account, brain)}" and answers only callers inside the cluster.
     [Fact]
     public async Task AMemberReadsTheirOwnUsageThroughTheRoute()
     {

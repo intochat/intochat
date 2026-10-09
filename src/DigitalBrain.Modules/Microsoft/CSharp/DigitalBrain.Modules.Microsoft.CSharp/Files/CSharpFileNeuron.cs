@@ -24,9 +24,9 @@ internal sealed partial class CSharpFileNeuron(
     {
         get
         {
-            var separator = FileId.IndexOf('/', StringComparison.Ordinal);
-            if (separator <= 0) { throw new InvalidOperationException($"'{FileId}' is not a behavior key; use CSharpFileKeys.For(brain, name)."); }
-            return GrainFactory.GetGrain<IBrainPrograms>(BrainRuntimeKeys.For(FileId[..separator]));
+            var brain = BrainKey.BrainOf(FileId);
+            if (brain.Length == 0 || brain.Length == FileId.Length) { throw new InvalidOperationException($"'{FileId}' is not a behavior key; use CSharpFileKeys.For(brain, name)."); }
+            return GrainFactory.GetGrain<IBrainPrograms>(BrainRuntimeKeys.For(brain));
         }
     }
 

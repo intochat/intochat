@@ -91,8 +91,8 @@ public sealed class NeuronSurfaceFacts
             .Restrict([typeof(DigitalBrain.Apps.IApp).FullName!]);
         Assert.Equal([typeof(DigitalBrain.Apps.IApp).FullName!], surface.List());
         await Assert.ThrowsAsync<ArgumentException>(() => surface.Call(typeof(DigitalBrain.Postgres.IPostgresServer).FullName!,
-            "connection/b/postgres/x", "ReadConnection", "[]", TestContext.Current.CancellationToken));
-        Assert.Throws<ArgumentException>(() => surface.Get(typeof(DigitalBrain.Postgres.IPostgresServer).FullName!, "connection/b/postgres/x"));
+            "b/connection/postgres/x", "ReadConnection", "[]", TestContext.Current.CancellationToken));
+        Assert.Throws<ArgumentException>(() => surface.Get(typeof(DigitalBrain.Postgres.IPostgresServer).FullName!, "b/connection/postgres/x"));
     }
 
     [Fact]

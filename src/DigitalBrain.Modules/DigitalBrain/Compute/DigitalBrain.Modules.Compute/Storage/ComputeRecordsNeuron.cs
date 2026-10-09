@@ -1,4 +1,5 @@
 using DigitalBrain;
+using DigitalBrain.Compute.Usage;
 using DigitalBrain.Framework;
 using Orleans.Runtime;
 
@@ -13,11 +14,15 @@ internal sealed class ComputeRecordsNeuron(
     : Neuron, IComputeRecords
 {
     internal const int Cap = 10_000;
-    internal const string UsageKeyPrefix = "usage/";
+    private const string UsageSegment = "usage";
 
-    // Storage behind the account-scoped usage and ledger neurons, keyed "meters/{period}" and
-    // "usage/{account}/{brain}": those neurons answer the scope question, this one is reached only
-    // from inside the cluster. The default brain-key rule would read "usage" as a brain id.
+    internal static string UsageKey(string account, string brainId) => $"{brainId}/{UsageSegment}/{UsagePaging.Scope(account, brainId)}";
+
+    private static bool IsUsageKey(string key) => key.Split('/') is [_, UsageSegment, _];
+
+    // Storage behind the account-scoped usage and ledger neurons, keyed "meters/{period}" (platform-wide)
+    // and "{brain}/usage/{hash(account, brain)}": those neurons answer the scope question, this one is
+    // reached only from inside the cluster. The default brain-key rule would read "meters" as a brain id.
     public override NeuronAccess Access(string operation) => NeuronAccess.Unclassified;
 
     public async Task<int> Put(ComputeStoredRecord[] records, bool overwrite)
@@ -38,7 +43,7 @@ internal sealed class ComputeRecordsNeuron(
             changedIds.Add(record.Id);
         }
         var kept = byId.Values.OrderBy(record => record.SortKey, StringComparer.Ordinal).ToArray();
-        if (kept.Length > Cap && this.GetPrimaryKeyString().StartsWith(UsageKeyPrefix, StringComparison.Ordinal)) { kept = kept[^Cap..]; }
+        if (kept.Length > Cap && IsUsageKey(this.GetPrimaryKeyString())) { kept = kept[^Cap..]; }
         // A record evicted in the same call was never recorded, so it is not counted.
         var changed = kept.Count(record => changedIds.Contains(record.Id));
         if (changed == 0) { return 0; }

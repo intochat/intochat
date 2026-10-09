@@ -14,7 +14,7 @@ public enum ConnectionStatus
     Disconnected = 3,
 }
 
-// The connector's edge neuron is the connection: keyed connection/{brain}/{connector}/{id}, it owns
+// The connector's edge neuron is the connection: keyed {brain}/connection/{connector}/{id}, it owns
 // its credential as sealed state. The shell, the assistant and module tools talk to this face.
 [Alias("connection")]
 public interface IConnection : INeuron

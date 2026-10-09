@@ -15,7 +15,7 @@ internal sealed class RevisionNeuron(
 {
     private string Key => this.GetPrimaryKeyString();
     private string Sha => Key[(Key.LastIndexOf('/') + 1)..];
-    private string BrainId => Key[..Key.IndexOf('/', StringComparison.Ordinal)];
+    private string BrainId => BrainKey.BrainOf(Key);
     private IRevisions Index => GrainFactory.GetGrain<IRevisions>(BrainId);
 
     public Task<RevisionSnapshot> Read() => Task.FromResult(Describe());

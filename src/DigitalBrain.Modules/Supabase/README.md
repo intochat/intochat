@@ -3,7 +3,7 @@
 ## A person's Supabase database is a postgres connection
 
 A Supabase database is a Postgres database. A person adds theirs as a connection of the
-**postgres** connector, named by them (for example `connection/{brain}/postgres/supabase`), holding
+**postgres** connector, named by them (for example `{brain}/connection/postgres/supabase`), holding
 the Supabase connection string. `IPostgresServer.ReadSchema` / `Query` serve it, and the Data
 Visualizer's `db` slot binds to it. This module declares no connector, neurons or endpoints.
 

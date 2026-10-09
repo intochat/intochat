@@ -25,8 +25,9 @@ internal sealed class ToolSourcesNeuron(
         get
         {
             var key = this.GetPrimaryKeyString();
-            return key.EndsWith("/tools", StringComparison.Ordinal) && key.IndexOf('/') == key.Length - "/tools".Length
-                ? key[..^"/tools".Length]
+            var brain = BrainKey.BrainOf(key);
+            return brain.Length > 0 && key == KeyFor(brain)
+                ? brain
                 : throw new ArgumentException($"A tool source registry is keyed {{brainId}}/tools, not '{key}'.");
         }
     }
