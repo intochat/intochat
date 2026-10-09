@@ -31,7 +31,7 @@ public sealed class CapabilityFacts
         Assert.All(first, capability => Assert.Equal("openai", capability.IntegrationId));
         Assert.All(first, capability => Assert.Equal("llm", capability.Kind));
 
-        await brain.Get<IIntegration>("integration/anthropic")
+        await brain.Grains.GetGrain<IIntegration>("integration/anthropic")
             .Configure(new() { Values = { ["ApiKey"] = "test-only", ["Endpoint"] = "https://api.anthropic.com" } });
         var second = await capabilities.List(Caller, "llm", ct);
 

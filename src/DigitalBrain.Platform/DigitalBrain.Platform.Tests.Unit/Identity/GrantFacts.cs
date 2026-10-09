@@ -113,7 +113,7 @@ public sealed class GrantFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var authority = brain.Get<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
         await authority.Initialize("account-1", "ws-1");
         await authority.Grant(Grant(GrantMode.Once, "person.birthDate", "app-1", "ws-1"));
         Assert.Single(await authority.ListGrants());
@@ -132,7 +132,7 @@ public sealed class GrantFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var authority = brain.Get<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
         await authority.Initialize("account-1", "ws-1");
         await authority.Grant(Grant(GrantMode.Once, "person.birthDate", "app-1", "ws-1"));
         var request = Request(CallerKind.App, "app-1", "ws-1", "person.birthDate");
@@ -146,7 +146,7 @@ public sealed class GrantFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var authority = brain.Get<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
         await authority.Initialize("account-1", "ws-1");
         await authority.Grant(Grant(GrantMode.Always, "person.birthDate", "app-1", "ws-1"));
         Assert.Single(await authority.ListGrants());
@@ -159,7 +159,7 @@ public sealed class GrantFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var authority = brain.Get<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
         await authority.Initialize("account-1", "ws-1");
         await authority.Grant(Grant(GrantMode.Always, "person.birthDate", "app-1", "ws-1"));
         await authority.Grant(Grant(GrantMode.ThisChat, "person.birthDate", "app-1", "ws-1") with { ConversationId = "chat-1" });

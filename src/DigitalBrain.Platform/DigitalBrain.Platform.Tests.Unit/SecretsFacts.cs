@@ -59,7 +59,7 @@ public sealed class SecretsFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var secrets = brain.Get<ISecrets>(Owner);
+        var secrets = brain.Grains.GetGrain<ISecrets>(Owner);
         var reference = await secrets.Set(UserCaller(), "api.key", "API key", Canary, ct);
 
         await Assert.ThrowsAsync<UntrustedCallerException>(() => secrets.Resolve(UserCaller(), reference, ct));

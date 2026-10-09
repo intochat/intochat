@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
-// What a behavior may call: neuron contracts of the composed modules, never a platform-only one.
+// What a behavior may call: neuron contracts of the composed modules, never a kernel grain.
 public sealed class ScriptContractsFacts
 {
     [Fact]
@@ -23,28 +23,14 @@ public sealed class ScriptContractsFacts
     }
 
     [Fact]
-    public void PlatformOnlyContractsAreNotInTheScriptCatalog()
+    public void KernelGrainsAreNotInTheScriptCatalog()
     {
-        var contracts = new CompiledTypes([typeof(IPinger).Assembly, typeof(DigitalBrain.Framework.Platform.Secrets.ISecrets).Assembly]);
+        var contracts = new CompiledTypes([typeof(IPinger).Assembly, typeof(DigitalBrain.Framework.Platform.Secrets.ISecrets).Assembly, typeof(DigitalBrain.Platform.PlatformHosting).Assembly]);
 
         Assert.Equal(typeof(IPinger), contracts.Contract(typeof(IPinger).FullName!));
         Assert.Throws<ArgumentException>(() => contracts.Contract(typeof(DigitalBrain.Framework.Platform.Secrets.ISecrets).FullName!));
         Assert.Throws<ArgumentException>(() => contracts.Contract(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration).FullName!));
-        Assert.Throws<ArgumentException>(() => contracts.Contract(typeof(IPlatformOnlyPinger).FullName!));
-    }
-
-    [Fact]
-    public void TheWholePlatformAssemblyContributesNoScriptContractsEvenWithoutAttributesOnTheTypes()
-    {
-        var platform = typeof(DigitalBrain.Platform.PlatformHosting).Assembly;
-        Assert.True(PlatformAssemblyAttribute.IsPlatform(platform));
-        var contracts = new CompiledTypes([platform]);
-
-        foreach (var neuronContract in platform.GetExportedTypes().Where(type => type.IsInterface && typeof(DigitalBrain.INeuron).IsAssignableFrom(type)))
-        {
-            Assert.Throws<ArgumentException>(() => contracts.Contract(neuronContract.FullName!));
-            Assert.True(PlatformOnlyAttribute.AppliesTo(neuronContract));
-        }
+        Assert.Throws<ArgumentException>(() => contracts.Contract(typeof(DigitalBrain.Platform.Workshop.IWorkshop).FullName!));
     }
 
     [Fact]
@@ -62,11 +48,11 @@ public sealed class ScriptContractsFacts
     }
 
     [Fact]
-    public void TheIntegrationRegistrationContractIsAbsentFromTheScriptCatalogBecauseReleaseReliesOnThat()
+    public void TheIntegrationRegistrationIsNotANeuronSoItIsAbsentFromTheScriptCatalog()
     {
         var contracts = new CompiledTypes([typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration).Assembly]);
 
-        Assert.True(PlatformOnlyAttribute.AppliesTo(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration)));
+        Assert.False(typeof(DigitalBrain.INeuron).IsAssignableFrom(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration)));
         Assert.Throws<ArgumentException>(() => contracts.Contract(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration).FullName!));
     }
 

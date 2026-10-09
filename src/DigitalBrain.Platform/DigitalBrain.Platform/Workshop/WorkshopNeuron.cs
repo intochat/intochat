@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 namespace DigitalBrain.Platform.Workshop;
 
 [GrainType("platform.workshop")]
-internal sealed class WorkshopNeuron(IOptions<WorkshopOptions> options) : Neuron, IWorkshop
+internal sealed class WorkshopNeuron(IOptions<WorkshopOptions> options) : Grain, IWorkshop
 {
     public async Task<WorkshopResult> Write(string path, string content, CancellationToken cancellationToken = default)
     {

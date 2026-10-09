@@ -7,8 +7,7 @@ using DigitalBrain.Framework.Platform.Integrations;
 namespace DigitalBrain.Framework;
 
 // The kernel's compiled type layer: every neuron contract, signal and connector the composed modules
-// bring, built once per host. Platform-only contracts never enter it (until access policies replace
-// that filter). A brain client has no layer of its own: it asks the kernel over the wire.
+// bring, built once per host. Kernel grains are not neurons, so they never enter it. A brain client has no layer of its own: it asks the kernel over the wire.
 public sealed class CompiledTypes
 {
     private readonly Dictionary<string, Type> _neurons;
@@ -22,8 +21,7 @@ public sealed class CompiledTypes
 
     private CompiledTypes(IEnumerable<Assembly> assemblies, Func<Assembly, string> provider, IReadOnlyList<DigitalBrain.Framework.Modules.Module> modules)
     {
-        var visible = assemblies.Distinct().SelectMany(assembly => assembly.GetExportedTypes())
-            .Where(type => !PlatformOnlyAttribute.AppliesTo(type)).ToArray();
+        var visible = assemblies.Distinct().SelectMany(assembly => assembly.GetExportedTypes()).ToArray();
         _neurons = visible.Where(IsNeuron).ToDictionary(type => type.FullName!, StringComparer.Ordinal);
         var aliases = new Dictionary<string, Type>(StringComparer.Ordinal);
         foreach (var contract in _neurons.Values)

@@ -75,6 +75,7 @@ public sealed class AuthPostureFacts
         builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Username))] = "ops";
         builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Password))] = "a-long-operator-password";
         builder.Services.AddSingleton<IDigitalBrain>(brain);
+        builder.Services.AddSingleton<Orleans.IGrainFactory>(brain.Grains);
         builder.Services.AddIdentity();
         await using var app = builder.Build();
         app.Urls.Add("http://127.0.0.1:0");

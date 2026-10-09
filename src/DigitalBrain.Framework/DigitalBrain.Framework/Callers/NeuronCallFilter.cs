@@ -13,9 +13,9 @@ internal sealed class NeuronCallFilter(ICallFilter filter, ILogger<NeuronCallFil
         // Unstamped calls originate inside the trusted cluster (startup, reminders).
         // Public edges must stamp a caller; they cannot request this internal path.
         if (context.Grain is not Neuron neuron || !CallerContextStamper.TryGet(out var caller)
-            // Credential contracts have their own parameter/ambient authority checks and
-            // are excluded from every untrusted edge's contract catalog.
-            || IsPlatformOnly(neuron, context.InterfaceMethod.DeclaringType!))
+            // A neuron's own non-neuron grain interfaces (inbound plumbing) are not in the kernel's
+            // types, so no edge can address them; only cluster code reaches them.
+            || IsInbound(neuron, context.InterfaceMethod.DeclaringType!))
         { await context.Invoke(); return; }
 
         // A kernel-stamped fact is delivered by its publishing grain, not by the user
@@ -92,14 +92,7 @@ internal sealed class NeuronCallFilter(ICallFilter filter, ILogger<NeuronCallFil
             return policies.Length == 1 ? policies[0] : null;
         });
 
-    private static bool IsPlatformOnly(Neuron neuron, Type contract)
-    {
-        if (PlatformOnlyAttribute.AppliesTo(contract)) { return true; }
-        if (contract != typeof(INeuron)) { return false; }
-        // Watch/Unwatch are declared on the shared base interface. Their target is
-        // privileged only when every exposed neuron contract is privileged too.
-        var contracts = neuron.GetType().GetInterfaces()
-            .Where(type => type != typeof(INeuron) && typeof(INeuron).IsAssignableFrom(type)).ToArray();
-        return contracts.Length > 0 && contracts.All(PlatformOnlyAttribute.AppliesTo);
-    }
+    // Signal delivery and Orleans extensions (streamed results) stay neuron surface.
+    private static bool IsInbound(Neuron neuron, Type contract)
+        => !typeof(INeuron).IsAssignableFrom(contract) && contract != typeof(INeuronObserver) && contract.IsInstanceOfType(neuron);
 }

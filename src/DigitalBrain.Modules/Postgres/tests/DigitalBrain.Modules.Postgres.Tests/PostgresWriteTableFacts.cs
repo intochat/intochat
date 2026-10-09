@@ -119,7 +119,7 @@ public sealed class PostgresWriteTableFacts
         await owner.Uninstall("brain", "app");
         await owner.Uninstall("brain", "app");
         await brain.DeactivateAsync(table, TestContext.Current.CancellationToken);
-        await brain.DeactivateAsync(brain.Get<ITableIndex>(new TableOwner(BrainScope.CurrentId(), "app").Key), TestContext.Current.CancellationToken);
+        await brain.DeactivateAsync(brain.Grains.GetGrain<ITableIndex>(new TableOwner(BrainScope.CurrentId(), "app").Key), TestContext.Current.CancellationToken);
         await owner.Uninstall("brain", "app");
         Stamp("brain", "new-file");
         await brain.AuthorizeCallerAsync();
@@ -151,7 +151,7 @@ public sealed class PostgresWriteTableFacts
         await using var brain = await Start(new MemoryTables());
         Stamp();
         await brain.AuthorizeCallerAsync();
-        var tables = brain.Get<ITableIndex>(new TableOwner(BrainScope.CurrentId(), "app").Key);
+        var tables = brain.Grains.GetGrain<ITableIndex>(new TableOwner(BrainScope.CurrentId(), "app").Key);
         await Assert.ThrowsAsync<UnauthorizedAccessException>(tables.Retire);
     }
 

@@ -4,10 +4,10 @@ using Orleans.Concurrency;
 namespace DigitalBrain.Platform.Workshop;
 
 // The Workshop edits the OS's own codebase: it writes files inside the configured root and builds
-// a project there. Platform-only (this assembly is [PlatformAssembly]), so no script, app or router
-// can reach it -- the host gates who may. The caller sequences Write -> Build -> IAspire.RestartResource.
+// a project there. Not a neuron, so no script, app or router can reach it -- the host gates who
+// may. The caller sequences Write -> Build -> IAspire.RestartResource.
 [Alias("platform.workshop"), Orleans.Metadata.DefaultGrainType("platform.workshop")]
-public interface IWorkshop : INeuron
+public interface IWorkshop : IGrainWithStringKey
 {
     [AlwaysInterleave] Task<WorkshopResult> Write(string path, string content, CancellationToken cancellationToken = default);
 

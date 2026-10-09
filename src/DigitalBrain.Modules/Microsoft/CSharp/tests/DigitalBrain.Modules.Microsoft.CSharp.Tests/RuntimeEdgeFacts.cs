@@ -173,12 +173,12 @@ public sealed class RuntimeEdgeFacts
     }
 
     [Fact]
-    public async Task APlatformOnlyContractIsRefused()
+    public async Task AKernelGrainIsNotACallableContract()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true);
         var session = await Assigned(brain, ct);
-        var invoke = new RuntimeInvocation("acc-brain/csharp/a", typeof(IPlatformOnlyPinger).FullName!, "pinger", nameof(IPlatformOnlyPinger.Ping), [JsonSerializer.SerializeToElement(1)]);
+        var invoke = new RuntimeInvocation("acc-brain/csharp/a", typeof(DigitalBrain.Framework.Platform.Connections.IConnectionIndex).FullName!, "acc-brain", "List", []);
 
         using var invoked = await brain.HttpClient.SendAsync(Authorized(HttpMethod.Post, "/brains/acc-brain/" + RuntimeProtocol.Invoke, session.Token, invoke), ct);
 
@@ -278,7 +278,7 @@ public sealed class RuntimeEdgeFacts
     }
 
     [Fact]
-    public async Task APlatformOnlyContractIsRefusedEvenWithAForgedPlatformCaller()
+    public async Task AKernelGrainIsRefusedEvenWithAForgedPlatformCaller()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true);
@@ -290,7 +290,7 @@ public sealed class RuntimeEdgeFacts
         Assert.Equal(HttpStatusCode.BadRequest, (await Send(brain, session, Key("attacker"),
             new("", typeof(DigitalBrain.Framework.Platform.Secrets.ISecrets).FullName!, "owner", "Resolve", [forged, forged]), ct)).StatusCode);
         using var subscribe = await brain.HttpClient.SendAsync(Authorized(HttpMethod.Post, "/brains/" + Alice.BrainId + "/" + RuntimeProtocol.Report, session.Token,
-            new RuntimeReport(Subscribe: new(Key("attacker"), typeof(IPlatformOnlyPinger).FullName!, "x", "Pinged"))), ct);
+            new RuntimeReport(Subscribe: new(Key("attacker"), typeof(DigitalBrain.Framework.Platform.Connections.IConnectionIndex).FullName!, "x", "Pinged"))), ct);
         Assert.Equal(HttpStatusCode.BadRequest, subscribe.StatusCode);
     }
 

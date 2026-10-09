@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 namespace DigitalBrain.Platform.Integrations;
 
 [GrainType("integration.registration")]
-internal sealed class IntegrationNeuron : Neuron<IntegrationState>, IIntegration
+internal sealed class IntegrationNeuron : Grain, IIntegration
 {
     internal const string KeyPrefix = "integration/";
 
@@ -24,6 +24,7 @@ internal sealed class IntegrationNeuron : Neuron<IntegrationState>, IIntegration
 
     private const int MaxValueLength = 16 * 1024;
 
+    private readonly IPersistentState<IntegrationState> _store;
     private readonly IReadOnlyList<IntegrationSchema> _definitions;
     private readonly ISecretSealer _sealer;
     private readonly ILogger<IntegrationNeuron> _logger;
@@ -32,8 +33,9 @@ internal sealed class IntegrationNeuron : Neuron<IntegrationState>, IIntegration
     public IntegrationNeuron(
         [PersistentState("registration", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<IntegrationState> store,
         IReadOnlyList<IntegrationSchema> definitions,
-        ISecretSealer sealer, ILogger<IntegrationNeuron> logger) : base(store)
+        ISecretSealer sealer, ILogger<IntegrationNeuron> logger)
     {
+        _store = store;
         _definitions = definitions;
         _sealer = sealer;
         _logger = logger;
@@ -41,13 +43,13 @@ internal sealed class IntegrationNeuron : Neuron<IntegrationState>, IIntegration
 
     private IntegrationSchema Definition => _definition ??= Resolve();
 
-    public Task<IntegrationSnapshot> Read() => Task.FromResult(SnapshotOf(Snapshot));
+    public Task<IntegrationSnapshot> Read() => Task.FromResult(SnapshotOf(_store.State));
 
     public async Task<IntegrationSnapshot> Configure(ConfigureIntegration request)
     {
         RefuseAppCalls();
         var values = Validate(request);
-        var next = CopyOf(Snapshot);
+        var next = CopyOf(_store.State);
         foreach (var (field, value) in values)
         {
             Audit("store", field);
@@ -64,7 +66,7 @@ internal sealed class IntegrationNeuron : Neuron<IntegrationState>, IIntegration
     {
         RefuseAppCalls();
         var values = Validate(request);
-        var next = CopyOf(Snapshot);
+        var next = CopyOf(_store.State);
         var changed = false;
         foreach (var (field, value) in values)
         {
@@ -150,7 +152,10 @@ internal sealed class IntegrationNeuron : Neuron<IntegrationState>, IIntegration
     {
         next.Revision++;
         var snapshot = SnapshotOf(next);
-        await Save(next, new IntegrationChanged(Definition.Id, snapshot.Status));
+        var previous = _store.State;
+        _store.State = next;
+        try { await _store.WriteStateAsync(); }
+        catch { _store.State = previous; throw; }
         return snapshot;
     }
 
@@ -162,13 +167,13 @@ internal sealed class IntegrationNeuron : Neuron<IntegrationState>, IIntegration
             throw new ArgumentException($"The field is not part of this integration; it accepts: {string.Join(", ", Definition.AllFields)}.");
         }
 
-        if (!Has(Snapshot, field))
+        if (!Has(_store.State, field))
         {
-            return SnapshotOf(Snapshot);
+            return SnapshotOf(_store.State);
         }
 
         Audit("remove", field);
-        var next = CopyOf(Snapshot);
+        var next = CopyOf(_store.State);
         next.Secrets = [.. next.Secrets.Where(secret => secret.Name != field)];
         next.Settings.Remove(field);
         // A person cleared this field: a later seed must not restore it.
@@ -179,7 +184,7 @@ internal sealed class IntegrationNeuron : Neuron<IntegrationState>, IIntegration
 
     public Task<ReleasedIntegration> Release(CallerContext caller)
     {
-        // Release is unreachable from scripts ([PlatformOnly]); an app-stamped ambient context is a platform call chain, not an app caller.
+        // Release is unreachable from scripts (IIntegration is not a neuron); an app-stamped ambient context is a platform call chain, not an app caller.
         // Values leave only to trusted platform code: a module's own grain call stamped by the Platform
         // edge. Users and assistants (authenticated HTTP), installed apps (app proxy) and the scheduler
         // never qualify, so no HTTP route or script can obtain a provider credential.
@@ -189,18 +194,18 @@ internal sealed class IntegrationNeuron : Neuron<IntegrationState>, IIntegration
             throw new InvalidOperationException("Only trusted platform code can release a registration.");
         }
 
-        if (SnapshotOf(Snapshot).Status != IntegrationStatus.Ready)
+        if (SnapshotOf(_store.State).Status != IntegrationStatus.Ready)
         {
             throw new InvalidOperationException("The registration is not fully configured.");
         }
 
-        var values = new Dictionary<string, string>(Snapshot.Settings, StringComparer.Ordinal);
-        foreach (var secret in Snapshot.Secrets)
+        var values = new Dictionary<string, string>(_store.State.Settings, StringComparer.Ordinal);
+        foreach (var secret in _store.State.Secrets)
         {
             values[secret.Name] = _sealer.Open(secret);
         }
 
-        return Task.FromResult(new ReleasedIntegration { Values = values, Snapshot = SnapshotOf(Snapshot) });
+        return Task.FromResult(new ReleasedIntegration { Values = values, Snapshot = SnapshotOf(_store.State) });
     }
 
     // Scripts run under an App stamp; nothing an installed app does may touch a provider registration,

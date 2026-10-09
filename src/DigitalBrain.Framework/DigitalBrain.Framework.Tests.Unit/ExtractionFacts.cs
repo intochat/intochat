@@ -27,6 +27,5 @@ public sealed class ExtractionFacts
         var assemblies = new ModuleInventory([]).ContractAssemblies().Select(assembly => assembly.GetName().Name).Order(StringComparer.Ordinal).ToArray();
 
         Assert.Equal(["DigitalBrain", "DigitalBrain.Platform.Contracts"], assemblies);
-        Assert.DoesNotContain(new ModuleInventory([]).ContractAssemblies(), PlatformAssemblyAttribute.IsPlatform);
     }
 }

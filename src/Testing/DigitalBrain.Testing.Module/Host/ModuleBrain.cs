@@ -75,7 +75,7 @@ public sealed class ModuleBrain : IDigitalBrain, IBrainSubscriptions, IAsyncDisp
     public IAsyncEnumerable<T> On<T>(INeuron source, Func<Task> onSubscribed, CancellationToken cancellationToken = default) where T : Signal
         => _brains.On<T>(source, onSubscribed, cancellationToken);
 
-    public Task DeactivateAsync(INeuron neuron, CancellationToken cancellationToken = default)
+    public Task DeactivateAsync(IAddressable neuron, CancellationToken cancellationToken = default)
         => cluster.DeactivateAsync(neuron.GetGrainId()).WaitAsync(cancellationToken);
 
     public async Task RestartSiloAsync(CancellationToken cancellationToken = default)

@@ -150,11 +150,8 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
     }
 
     private Type Callable(string name)
-    {
-        var contract = types.Contract(name);
-        // The kernel's compiled layer already omits platform-only contracts; refuse here too, whatever it holds.
-        return PlatformOnlyAttribute.AppliesTo(contract) ? throw new ArgumentException($"{contract.Name} is not a neuron contract scripts may call.") : contract;
-    }
+        // Only neuron contracts are kernel types; kernel grains and inbound plumbing are not neurons.
+        => types.Contract(name);
 
     private SessionClaims ValidateToken(string brainId, string? token)
     {

@@ -6,7 +6,7 @@ namespace DigitalBrain.Platform.Identity.Directory;
 
 // The identity front door: every operation goes to the directly keyed actor that owns it.
 [GrainType("identity-directory")]
-internal sealed class IdentityDirectoryNeuron : Neuron, IIdentityDirectory
+internal sealed class IdentityDirectoryNeuron : Grain, IIdentityDirectory
 {
     public async Task<Member> RegisterAsync(string principalId, string password, string displayName, CancellationToken cancellationToken = default)
     {

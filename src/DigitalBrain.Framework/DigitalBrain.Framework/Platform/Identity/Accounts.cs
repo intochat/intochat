@@ -24,8 +24,7 @@ public sealed record Member
 
 // The identity front door. Identity and authorization state are held by principal, account,
 // and account/brain-scoped actors.
-[PlatformOnly]
-public interface IIdentityDirectory : INeuron
+public interface IIdentityDirectory : IGrainWithStringKey
 {
     Task<Member> RegisterAsync(string principalId, string password, string displayName, CancellationToken cancellationToken = default);
     Task<Member?> AuthenticateAsync(string principalId, string password, CancellationToken cancellationToken = default);

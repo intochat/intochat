@@ -12,7 +12,7 @@ internal sealed record TableIndexState
 [GrainType(GrainType)]
 internal sealed class TableIndexNeuron(
     [PersistentState("tables", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<TableIndexState> state)
-    : Neuron, ITableIndex
+    : Grain, ITableIndex
 {
     public const string GrainType = "postgres.tables";
 

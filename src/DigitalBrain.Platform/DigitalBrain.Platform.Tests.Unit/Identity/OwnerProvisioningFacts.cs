@@ -20,11 +20,11 @@ public sealed class OwnerProvisioningFacts
         await using var brain = await ModuleTest.Create()
             .ConfigureSilo(silo => silo.Services.AddSingleton<ICreationHandler>(services => handler.Using(services.GetRequiredService<IGrainFactory>())))
             .StartAsync(ct);
-        var directory = brain.Get<IIdentityDirectory>(IdentityGrains.Directory);
+        var directory = brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory);
         foreach (var person in new[] { "alice", "bob", "carol" })
         {
             var member = await directory.RegisterAsync(person, "correct-password-123", person, ct);
-            var authority = brain.Get<IBrainAuthority>(BrainScope.Create(member.AccountId, member.BrainId).Id);
+            var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(member.AccountId, member.BrainId).Id);
             var owner = await authority.Membership(person);
             Assert.NotNull(owner);
             Assert.Equal(MemberRole.Owner, owner.Role);
@@ -39,7 +39,7 @@ public sealed class OwnerProvisioningFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var authority = brain.Get<IBrainAuthority>(BrainScope.Create("account", "brain").Id);
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account", "brain").Id);
         var decision = await authority.Authorize(AppCallerAtBirth.Request("account", "brain"));
         Assert.NotNull(decision);
         Assert.False(decision.Allowed);
@@ -55,7 +55,7 @@ public sealed class OwnerProvisioningFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var authority = brain.Get<IBrainAuthority>(BrainScope.Create(AccountSession.DefaultLogin, "dev").Id);
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(AccountSession.DefaultLogin, "dev").Id);
         var decision = await authority.Authorize(AppCallerAtBirth.Request(AccountSession.DefaultLogin, "dev"));
         Assert.True(decision is null || decision.Allowed);
         Assert.Null(await authority.Membership("os"));
@@ -67,7 +67,7 @@ public sealed class OwnerProvisioningFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var authority = brain.Get<IBrainAuthority>(BrainScope.Create("account", "brain").Id);
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account", "brain").Id);
         var alice = new Member { PrincipalId = "alice", AccountId = "account", BrainId = "brain", DisplayName = "Alice", Role = MemberRole.Owner };
         await authority.ProvisionOwner(alice);
         await authority.ProvisionOwner(alice);

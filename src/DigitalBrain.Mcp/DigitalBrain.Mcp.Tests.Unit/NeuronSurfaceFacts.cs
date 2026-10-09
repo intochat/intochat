@@ -76,7 +76,7 @@ public sealed class NeuronSurfaceFacts
     }
 
     [Fact]
-    public async Task APlatformOnlyContractIsNotAddressable()
+    public async Task AKernelGrainIsNotAddressable()
     {
         Assert.DoesNotContain(Deployed.Kernel().Entries, entry => entry.Name == typeof(IConnectionIndex).FullName);
         await Assert.ThrowsAsync<ArgumentException>(() => Surface().Get(typeof(IConnectionIndex).FullName!, "b/x", TestContext.Current.CancellationToken));

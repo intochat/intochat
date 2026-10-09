@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Button;
@@ -56,7 +57,7 @@ internal static class AppUiEndpoints
                 _ => throw new ArgumentException("Unknown app UI kind.")
             };
         });
-        apps.MapPost("/event", async (UiEvent input, IDigitalBrain brain, CancellationToken ct) =>
+        apps.MapPost("/event", async (UiEvent input, IDigitalBrain brain, [FromServices] IGrainFactory grains, CancellationToken ct) =>
         {
             var scope = BrainScope.CurrentId();
             if (!OwnsUi(scope, input.Name)) { throw new UnauthorizedAccessException(); }
@@ -79,7 +80,7 @@ internal static class AppUiEndpoints
                     }
                     break;
                 case UIVocabulary.WebBrowserType:
-                    var browser = brain.Get<IWebBrowserConnector>(input.Name);
+                    var browser = grains.GetGrain<IWebBrowserConnector>(input.Name);
                     if (input.Action == "unavailable")
                     {
                         await browser.Unavailable(input.Value ?? "The browser is unavailable.").WaitAsync(ct);

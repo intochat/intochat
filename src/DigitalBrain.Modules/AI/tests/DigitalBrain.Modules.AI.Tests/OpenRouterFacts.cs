@@ -25,7 +25,7 @@ public sealed class OpenRouterFacts
         Assert.Equal("deepseek/deepseek-v4.1-flash", resolved.Model);
         Assert.Null(resolved.Endpoint);
         Assert.Equal(IntegrationStatus.Ready,
-            (await brain.Get<IIntegration>("integration/openrouter").Read()).Status);
+            (await brain.Grains.GetGrain<IIntegration>("integration/openrouter").Read()).Status);
         await brain.Get<IDeepSeekV41Flash>("preset").Describe();
         var defaultModel = await brain.Get<ILLM>("default").Describe();
         Assert.Equal("deepseek/deepseek-v4.1-flash", defaultModel.Model);

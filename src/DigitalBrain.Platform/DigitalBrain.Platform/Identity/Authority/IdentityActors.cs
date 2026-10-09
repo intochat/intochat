@@ -3,14 +3,14 @@ using DigitalBrain.Framework.Platform.Identity;
 
 namespace DigitalBrain.Platform.Identity.Authority;
 
-internal interface IPrincipal : INeuron
+internal interface IPrincipal : IGrainWithStringKey
 {
     Task<Member> Register(string password, string displayName);
     Task<Member?> Authenticate(string password);
     Task<Member?> DefaultMembership();
 }
 
-internal interface IAccount : INeuron
+internal interface IAccount : IGrainWithStringKey
 {
     Task EnsureCreated(Account account);
     Task<Account?> Read();
@@ -18,7 +18,7 @@ internal interface IAccount : INeuron
     Task EnsureBrain(Member owner);
 }
 
-internal interface IBrainAuthority : INeuron
+internal interface IBrainAuthority : IGrainWithStringKey
 {
     Task Initialize(string accountId, string brainId);
     Task<Member?> Membership(string principalId);

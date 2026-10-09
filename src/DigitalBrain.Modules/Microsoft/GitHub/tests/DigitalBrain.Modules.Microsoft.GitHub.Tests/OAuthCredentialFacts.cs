@@ -38,7 +38,7 @@ public sealed class OAuthCredentialFacts
         var ingress = brain.SiloServices.GetRequiredService<GitHubWebhookIngress>();
         var body = Encoding.UTF8.GetBytes("{\"hook\":{\"app_id\":7}}");
         Assert.Equal(GitHubWebhookAcceptance.Accepted, await ingress.HandleAsync(body, Headers(body, original), ct));
-        await brain.Get<IIntegration>("integration/github").Configure(new() { Values = { ["WebhookSecret"] = rotated } });
+        await brain.Grains.GetGrain<IIntegration>("integration/github").Configure(new() { Values = { ["WebhookSecret"] = rotated } });
         Assert.Equal(GitHubWebhookAcceptance.Unauthorized, await ingress.HandleAsync(body, Headers(body, original), ct));
         Assert.Equal(GitHubWebhookAcceptance.Accepted, await ingress.HandleAsync(body, Headers(body, rotated), ct));
     }

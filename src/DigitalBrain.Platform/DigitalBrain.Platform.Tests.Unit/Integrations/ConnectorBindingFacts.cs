@@ -34,7 +34,7 @@ public sealed class ConnectorBindingFacts
             new { connectorId = "example", authMethodId = "api-key", value = "secret-value-7d1" }, ct);
         var logger = new CatalogLogger();
         var catalog = new ConnectorCatalog([ExampleConnectionModule.Connector], brain.Grains, logger);
-        var grain = brain.Get<IIntegration>("integration/example-oauth");
+        var grain = brain.Grains.GetGrain<IIntegration>("integration/example-oauth");
         await grain.Configure(new() { Values = new() { ["ClientId"] = "test-client", ["ClientSecret"] = "test" } });
         var first = Assert.Single(await catalog.ListAsync(ct));
         Assert.Same(first, Assert.Single(await catalog.ListAsync(ct)));
@@ -90,7 +90,7 @@ public sealed class ConnectorBindingFacts
         await using var brain = await ModuleTest.Create().WithModule<ExampleModule>().StartAsync(ct);
         var catalog = brain.SiloServices.GetRequiredService<ConnectorCatalog>();
         Assert.Empty(await catalog.ListAsync(ct));
-        var grain = brain.Get<IIntegration>("integration/example");
+        var grain = brain.Grains.GetGrain<IIntegration>("integration/example");
         await grain.Configure(new ConfigureIntegration { Values = new() { ["Endpoint"] = "test-endpoint", ["ApiKey"] = "test-secret" } });
         Assert.Equal("example", Assert.Single(await catalog.ListAsync(ct)).Id);
         var handle = brain.SiloServices.GetRequiredService<IModuleIntegrations<ExampleModule>>().Get("example");

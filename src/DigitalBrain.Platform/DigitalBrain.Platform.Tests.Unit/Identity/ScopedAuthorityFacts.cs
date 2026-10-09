@@ -17,7 +17,7 @@ public sealed class ScopedAuthorityFacts
             silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.DefaultGrainStorage,
                 (services, _) => new FailOnceStorage(new OrleansGrainStorageSerializer(services.GetRequiredService<Serializer>()))))
             .StartAsync(TestContext.Current.CancellationToken);
-        var principal = brain.Get<IPrincipal>("recoverable");
+        var principal = brain.Grains.GetGrain<IPrincipal>("recoverable");
         var failure = await Assert.ThrowsAsync<OrleansException>(() => principal.Register("long-test-password", "Recoverable"));
         Assert.IsType<IOException>(failure.InnerException);
         var allocated = await principal.DefaultMembership();
@@ -26,7 +26,7 @@ public sealed class ScopedAuthorityFacts
         var resumed = await principal.Register("long-test-password", "Recoverable");
         Assert.Equal(allocated, resumed);
         Assert.Equal(resumed, await principal.Authenticate("long-test-password"));
-        Assert.NotNull(await brain.Get<IBrainAuthority>(BrainScope.Create(resumed.AccountId, resumed.BrainId).Id).Membership("recoverable"));
+        Assert.NotNull(await brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(resumed.AccountId, resumed.BrainId).Id).Membership("recoverable"));
     }
 
     private sealed class FailOnceStorage(IGrainStorageSerializer serializer) : IGrainStorage
@@ -54,7 +54,7 @@ public sealed class ScopedAuthorityFacts
     public async Task RevokedOwnerCannotMutateGrantsWithAnOldSession()
     {
         await using var brain = await ModuleTest.Create().StartAsync(TestContext.Current.CancellationToken);
-        var authority = brain.Get<IBrainAuthority>(BrainScope.Create("account", "brain").Id);
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account", "brain").Id);
         await authority.EnsureMember(new Member { PrincipalId = "alice", AccountId = "account", BrainId = "brain", DisplayName = "Alice", Role = MemberRole.Owner });
         var caller = new DigitalBrain.Framework.CallerContext
         {
@@ -92,10 +92,10 @@ public sealed class ScopedAuthorityFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var authority = brain.Get<IBrainAuthority>(BrainScope.Create("first", "shared-name").Id);
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("first", "shared-name").Id);
         await authority.EnsureMember(new Member { PrincipalId = "alice", AccountId = "first", BrainId = "shared-name", DisplayName = "Alice", Role = MemberRole.Owner });
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => brain.Get<IBrainAuthority>(BrainScope.Create("second", "shared-name").Id).Initialize("second", "shared-name"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("second", "shared-name").Id).Initialize("second", "shared-name"));
         var access = brain.SiloServices.GetRequiredService<IBrainAccess>();
         Assert.True(await access.CanAccessAsync("alice", "first", "shared-name", ct));
         Assert.False(await access.CanAccessAsync("alice", "second", "shared-name", ct));
@@ -105,10 +105,10 @@ public sealed class ScopedAuthorityFacts
     public async Task RetryingBrainCreationKeepsItsIdAndDoesNotRestoreRevokedMembership()
     {
         await using var brain = await ModuleTest.Create().StartAsync(TestContext.Current.CancellationToken);
-        var member = await brain.Get<IPrincipal>("alice").Register("long-test-password", "Alice");
-        var account = brain.Get<IAccount>(member.AccountId);
+        var member = await brain.Grains.GetGrain<IPrincipal>("alice").Register("long-test-password", "Alice");
+        var account = brain.Grains.GetGrain<IAccount>(member.AccountId);
         var first = await account.CreateBrain("alice", "operation-1", "First");
-        var authority = brain.Get<IBrainAuthority>(BrainScope.Create(first.AccountId, first.BrainId).Id);
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(first.AccountId, first.BrainId).Id);
         await authority.RemoveMember("alice");
         Assert.Equal(first, await account.CreateBrain("alice", "operation-1", "First"));
         Assert.Null(await authority.Membership("alice"));

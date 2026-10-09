@@ -25,9 +25,9 @@ public interface IConnection : INeuron
     Task Disconnect();
 }
 
-// Reached only by the Platform OAuth callback, which stamps the owner recorded at login start.
-[PlatformOnly, Alias("connection.inbound")]
-public interface IConnectionInbound : INeuron
+// Not a neuron: reached only by the Platform OAuth callback, which stamps the owner recorded at login start.
+[Alias("connection.inbound")]
+public interface IConnectionInbound : IGrainWithStringKey
 {
     Task<ConnectionView> AcceptGrant(OAuthGrant grant);
 }

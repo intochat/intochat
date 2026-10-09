@@ -26,9 +26,9 @@ public sealed class TableLifecycleGuardFacts
             StampedBy = TrustedEdge.Platform,
         });
         await brain.AuthorizeCallerAsync();
-        var foreign = brain.Get<ITableIndex>(new TableOwner("other-brain", "install").Key);
+        var foreign = brain.Grains.GetGrain<ITableIndex>(new TableOwner("other-brain", "install").Key);
         await Assert.ThrowsAsync<UnauthorizedAccessException>(foreign.ReadTables);
-        var malformed = brain.Get<ITableIndex>("not a key");
+        var malformed = brain.Grains.GetGrain<ITableIndex>("not a key");
         await Assert.ThrowsAsync<UnauthorizedAccessException>(malformed.ReadTables);
 
         CallerContextStamper.Stamp(new()
@@ -41,7 +41,7 @@ public sealed class TableLifecycleGuardFacts
             StampedBy = TrustedEdge.AppProxy,
         });
         await brain.AuthorizeCallerAsync();
-        var own = brain.Get<ITableIndex>(new TableOwner(BrainScope.CurrentId(), "install").Key);
+        var own = brain.Grains.GetGrain<ITableIndex>(new TableOwner(BrainScope.CurrentId(), "install").Key);
         await Assert.ThrowsAsync<UnauthorizedAccessException>(own.ReadTables);
     }
 }

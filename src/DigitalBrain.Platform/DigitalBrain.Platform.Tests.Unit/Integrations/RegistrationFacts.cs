@@ -64,26 +64,21 @@ public sealed class RegistrationFacts
     }
 
     [Fact]
-    public async Task ConfiguringAllFieldsMakesTheRegistrationReadyAndSignals()
+    public async Task ConfiguringAllFieldsMakesTheRegistrationReady()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartAsync(ct);
         var registration = Registration(brain, "google");
-        await using var changes = await brain.Observe<IntegrationChanged>(registration, ct);
-
         var snapshot = await registration.Configure(Values(("ClientId", Canary + "-id"), ("ClientSecret", Canary), ("RedirectPath", "/callback")));
 
         Assert.Equal(IntegrationStatus.Ready, snapshot.Status);
         Assert.Empty(snapshot.MissingFields);
-        var signal = await changes.NextAsync(ct: ct);
-        Assert.Equal("google", signal.IntegrationId);
-        Assert.Equal(IntegrationStatus.Ready, signal.Status);
+        Assert.Equal("google", snapshot.IntegrationId);
 
         Assert.Equal(
             ["IntegrationId", "MissingFields", "Revision", "Settings", "Status"],
             typeof(IntegrationSnapshot).GetProperties().Select(property => property.Name).Order().ToArray());
         Assert.DoesNotContain(Canary, JsonSerializer.Serialize(snapshot), StringComparison.Ordinal);
-        Assert.DoesNotContain(Canary, JsonSerializer.Serialize(signal), StringComparison.Ordinal);
         Assert.DoesNotContain(Canary, JsonSerializer.Serialize(await registration.Read()), StringComparison.Ordinal);
         Assert.Equal(new Dictionary<string, string> { ["RedirectPath"] = "/callback" }, snapshot.Settings);
         Assert.Equal(snapshot.Settings, (await registration.Read()).Settings);
@@ -423,40 +418,18 @@ public sealed class RegistrationFacts
         Assert.Empty((await registration.Clear("RedirectPath")).Settings);
     }
 
-    [Fact]
-    public void TheVaultAndRegistrationContractsAreMarkedPlatformOnly()
-    {
-        Assert.True(PlatformOnlyAttribute.AppliesTo(typeof(ISecrets)));
-        Assert.True(PlatformOnlyAttribute.AppliesTo(typeof(IIntegration)));
-    }
-
-    // The one Framework contract a brain member calls directly: NeuronCallFilter enforces brain
-    // membership on it, and its OAuth sibling IConnectionInbound stays platform-only.
+    // The one Framework platform contract a brain member calls directly is the connection's user face;
+    // the vault, registrations, indexes and the OAuth inbound are kernel grains, not neurons.
     private static readonly Type UserFaceOfAConnection = typeof(DigitalBrain.Framework.Platform.Connections.IConnection);
 
     [Fact]
-    public void EveryPublicNeuronContractInThePlatformAssemblyIsPlatformOnlyByAssemblyIdentity()
+    public void NoPlatformContractIsANeuronButTheConnectionsUserFace()
     {
-        var platform = typeof(IntegrationDiscovery).Assembly;
-
-        Assert.True(PlatformAssemblyAttribute.IsPlatform(platform));
-        // IntegrationSchema lives in Framework: never a contracts assembly, so never
-        // script-discovered — its neuron contracts still carry [PlatformOnly] type by type.
-        Assert.All(typeof(IntegrationSchema).Assembly.GetExportedTypes()
-                .Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type) && type.Namespace!.Contains(".Platform.", StringComparison.Ordinal))
-                .Where(type => type != UserFaceOfAConnection),
-            contract => Assert.True(PlatformOnlyAttribute.AppliesTo(contract)));
-        Assert.All(platform.GetExportedTypes().Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type)),
-            contract => Assert.True(PlatformOnlyAttribute.AppliesTo(contract)));
-    }
-
-    [Fact]
-    public void EveryExportedPlatformContractRequiresPlatformAuthorization()
-    {
-        var contracts = typeof(ISecrets).Assembly.GetExportedTypes()
-            .Where(type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type) && type != UserFaceOfAConnection).ToArray();
-        Assert.NotEmpty(contracts);
-        Assert.All(contracts, contract => Assert.True(PlatformOnlyAttribute.AppliesTo(contract)));
+        Assert.False(typeof(INeuron).IsAssignableFrom(typeof(ISecrets)));
+        Assert.False(typeof(INeuron).IsAssignableFrom(typeof(IIntegration)));
+        Assert.DoesNotContain(typeof(IntegrationSchema).Assembly.GetExportedTypes(),
+            type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type) && type.Namespace!.Contains(".Platform.", StringComparison.Ordinal) && type != UserFaceOfAConnection);
+        Assert.DoesNotContain(typeof(IntegrationDiscovery).Assembly.GetTypes(), type => type.IsInterface && typeof(INeuron).IsAssignableFrom(type));
     }
 
     [Fact]
@@ -504,7 +477,7 @@ public sealed class RegistrationFacts
             .WithModule<FakeAiModule>()
             .StartAsync(cancellationToken);
 
-    private static IIntegration Registration(ModuleBrain brain, string id) => brain.Get<IIntegration>($"integration/{id}");
+    private static IIntegration Registration(ModuleBrain brain, string id) => brain.Grains.GetGrain<IIntegration>($"integration/{id}");
 
     private static Task SeedAsync(ModuleBrain brain, IReadOnlyDictionary<string, string?> configuration, CancellationToken cancellationToken)
         => new IntegrationSeeder(

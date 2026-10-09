@@ -35,7 +35,7 @@ public sealed class ConnectionPostgresFacts
     }
 
     [Fact]
-    public async Task TheDefaultKeyStaysPlatformOnly()
+    public async Task TheDefaultKeyRefusesABrainMember()
     {
         await using var brain = await StartAsync();
         Stamp();

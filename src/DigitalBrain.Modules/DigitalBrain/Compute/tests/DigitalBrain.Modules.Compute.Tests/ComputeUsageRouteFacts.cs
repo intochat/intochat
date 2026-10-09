@@ -15,7 +15,7 @@ public sealed class ComputeUsageRouteFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<ComputeModule>().StartAsync(ct);
-        await brain.Get<DigitalBrain.Framework.Platform.Identity.IIdentityDirectory>(DigitalBrain.Framework.Platform.Identity.IdentityGrains.Directory)
+        await brain.Grains.GetGrain<DigitalBrain.Framework.Platform.Identity.IIdentityDirectory>(DigitalBrain.Framework.Platform.Identity.IdentityGrains.Directory)
             .ShareBrainAsync("account", "own", "owner", "Owner", DigitalBrain.Framework.Platform.Identity.MemberRole.Owner, ct);
         var store = brain.SiloServices.GetRequiredService<IUsageStore>();
         await store.AppendAsync("account", "foreign", "first", "{}", ct);
@@ -56,7 +56,7 @@ public sealed class ComputeUsageRouteFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<ComputeModule>().StartAsync(ct);
-        await brain.Get<DigitalBrain.Framework.Platform.Identity.IIdentityDirectory>(DigitalBrain.Framework.Platform.Identity.IdentityGrains.Directory)
+        await brain.Grains.GetGrain<DigitalBrain.Framework.Platform.Identity.IIdentityDirectory>(DigitalBrain.Framework.Platform.Identity.IdentityGrains.Directory)
             .ShareBrainAsync("account", "own", "owner", "Owner", DigitalBrain.Framework.Platform.Identity.MemberRole.Owner, ct);
         var store = brain.SiloServices.GetRequiredService<IUsageStore>();
         await store.AppendAsync("account", "own", "first", "{}", ct);

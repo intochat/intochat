@@ -37,9 +37,9 @@ Three framework rings, one per consumer — the project graph mirrors script vis
 
 | Ring | Consumer | Holds |
 |------|----------|-------|
-| `src/DigitalBrain` | scripts, `*.Contracts`, clients | The vocabulary: the four words + every script/client-facing contract (what `ScriptContracts` ships into the sandbox). Never Orleans hosting. |
+| `src/DigitalBrain` | scripts, `*.Contracts`, clients | The vocabulary: the four words + every script/client-facing contract (what the kernel's compiled types ship into the sandbox). Never Orleans hosting. |
 | `src/DigitalBrain.Framework` | module authors | Neuron runtime, module declaration, HTTP surface, SDK helpers, platform-facing interfaces. |
-| `src/DigitalBrain.Platform` | host composers only | Credential ring (`[PlatformAssembly]`) — scripts can never see it. |
+| `src/DigitalBrain.Platform` | host composers only | Kernel/credential implementation: plain grains, not neurons, so no edge can address them. |
 
 The OS host is `src/DigitalBrain.OS` (`OsCatalog` composes the modules); `src/DigitalBrain.AppHost` runs it
 under Aspire with the `digitalbrain-mcp` server.
@@ -67,7 +67,7 @@ Ring boundaries and config-key ownership are enforced by `src/Testing/DigitalBra
   connector's own neuron at `connection/{brain}/{connector}/{id}` holding sealed credential state; modules
   receive deployment credentials through `IModuleIntegrations<TModule>`. An app keeps its `ITable`s in a
   user's database by declaring the reserved slot `{"name": "tables", "connector": "postgres"}` and binding it.
-- **Integration** — what the *deployment* provisions, `DigitalBrain:Integrations:{id}:{Field}`, `[PlatformOnly]`.
+- **Integration** — what the *deployment* provisions, `DigitalBrain:Integrations:{id}:{Field}`, held by a kernel grain (not a neuron).
   Modules receive credentials only through `IModuleIntegrations<TModule>` — never read credential config.
 - **Configuration** — options are plain config at `DigitalBrain:Modules:{id}:Options:{Property}`, every key
   derived from `DigitalBrainConfiguration.ModuleSection`/`ModuleOptionsSection`. No secrets in options.

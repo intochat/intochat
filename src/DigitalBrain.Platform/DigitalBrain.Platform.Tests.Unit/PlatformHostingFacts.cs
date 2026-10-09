@@ -19,7 +19,7 @@ public sealed class PlatformHostingFacts
         Assert.NotNull(brain.SiloServices.GetRequiredService<IIdentity>());
         Assert.NotNull(brain.SiloServices.GetRequiredService<IBrainAccess>());
         Assert.NotNull(brain.SiloServices.GetRequiredService<IKeyWrapper>());
-        Assert.NotNull(brain.Get<ISecrets>("owner"));
+        Assert.NotNull(brain.Grains.GetGrain<ISecrets>("owner"));
         Assert.Single(brain.SiloServices.GetServices<ICallFilterStage>(), stage => stage.GetType().Name == "GrantCallFilterStage");
     }
 
@@ -40,7 +40,7 @@ public sealed class PlatformHostingFacts
         var identity = brain.SiloServices.GetRequiredService<IIdentity>();
         Assert.Null(identity.CurrentPrincipal);
         Assert.Throws<UntrustedCallerException>(identity.RequirePrincipal);
-        var member = await brain.Get<IIdentityDirectory>(IdentityGrains.Directory)
+        var member = await brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory)
             .RegisterAsync("reader", "a-long-test-password", "Reader", ct);
         Assert.True(await identity.CanAccessAsync(member.PrincipalId, member.AccountId, member.BrainId, ct));
         Assert.False(await identity.CanAccessAsync(member.PrincipalId, member.AccountId, "another-brain", ct));
@@ -60,7 +60,7 @@ public sealed class PlatformHostingFacts
             Assert.Equal(caller, identity.CurrentPrincipal);
             Assert.Equal(member.PrincipalId, identity.RequirePrincipal());
             Assert.False(await identity.HasGrantAsync(caller, "person.email", ct));
-            var store = brain.Get<IBrainAuthority>(BrainScope.Create(member.AccountId, member.BrainId).Id);
+            var store = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(member.AccountId, member.BrainId).Id);
             await store.Grant(new Grant
             {
                 AppId = caller.AppId,
@@ -90,7 +90,7 @@ public sealed class PlatformHostingFacts
             Kind = CallerKind.App,
             StampedBy = TrustedEdge.AppProxy,
         };
-        var authority = brain.Get<IBrainAuthority>(BrainScope.Create("owner", "owner").Id);
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("owner", "owner").Id);
         await authority.Initialize("owner", "owner");
         var request = new CallRequest { Caller = caller, TargetNeuron = "person", Operation = "Read", SemanticTypeIds = ["person.email"] };
         var filter = brain.SiloServices.GetRequiredService<ICallFilter>();
