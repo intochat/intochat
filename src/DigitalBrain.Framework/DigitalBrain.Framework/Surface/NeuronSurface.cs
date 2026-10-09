@@ -21,7 +21,7 @@ public static class NeuronSurfaceTools
 }
 
 // The caller is stamped by the host before any of these run; each neuron's own access decides.
-public sealed class NeuronSurface(IDigitalBrain brain, ContractCatalog contracts, NeuronTypeSearch search, IReadOnlySet<string>? allowed = null)
+public sealed class NeuronSurface(IDigitalBrain brain, CapabilityCatalog capabilities, NeuronTypeSearch search, IReadOnlySet<string>? allowed = null)
 {
     private static readonly HashSet<string> ObserverMethods = [nameof(INeuron.Watch), nameof(INeuron.Unwatch)];
     private static readonly JsonSerializerOptions Json = JsonSerializerOptions.Web;
@@ -30,15 +30,20 @@ public sealed class NeuronSurface(IDigitalBrain brain, ContractCatalog contracts
     // The contracts one app composes: nothing outside them is listed, found or callable.
     public NeuronSurface Restrict(IReadOnlyCollection<string> names)
     {
-        foreach (var name in names) { _ = contracts.Find(name); }
-        return new(brain, contracts, search, names.ToHashSet(StringComparer.Ordinal));
+        foreach (var name in names) { _ = capabilities.Contracts.Find(name); }
+        return new(brain, capabilities, search, names.ToHashSet(StringComparer.Ordinal));
     }
 
-    public IReadOnlyList<string> List() => [.. contracts.Neurons.Where(Allowed).Order(StringComparer.Ordinal)];
+    public IReadOnlyList<string> List() => [.. capabilities.Contracts.Neurons.Where(Allowed).Order(StringComparer.Ordinal)];
 
     public async Task<IReadOnlyList<NeuronTypeHit>> Search(string query, CancellationToken ct)
-        => allowed is null ? await search.Search(query, ct: ct).ConfigureAwait(false)
-            : [.. (await search.Search(query, take: 50, ct: ct).ConfigureAwait(false)).Where(hit => Allowed(hit.Type.Contract)).Take(10)];
+    {
+        // A stamped caller searches their own brain's runtime tools too; un-stamped means contracts only.
+        var brainId = CallerContextStamper.TryGet(out var caller) ? caller.BrainId : null;
+        var entries = await capabilities.Read(brainId, ct).ConfigureAwait(false);
+        return allowed is null ? await search.Search(query, entries, ct: ct).ConfigureAwait(false)
+            : [.. (await search.Search(query, entries, take: 50, ct: ct).ConfigureAwait(false)).Where(hit => Allowed(hit.Type.Contract)).Take(10)];
+    }
 
     public string Get(string contract, string key)
     {
@@ -77,7 +82,7 @@ public sealed class NeuronSurface(IDigitalBrain brain, ContractCatalog contracts
 
     private bool Allowed(string name) => allowed is null || allowed.Contains(name);
 
-    private Type Contract(string name) => Allowed(name) ? contracts.Find(name)
+    private Type Contract(string name) => Allowed(name) ? capabilities.Contracts.Find(name)
         : throw new ArgumentException($"{name} is not a contract this app composes. Pass a full type name from neurons_list.");
 
     private IAddressable Neuron(Type contract, string key)
