@@ -1,6 +1,7 @@
 using DigitalBrain;
 namespace DigitalBrain.Time.Timers;
 
+[Routable]
 [Alias("timer")]
 [Orleans.Metadata.DefaultGrainType("timer")]
 public interface ITimer : INeuron

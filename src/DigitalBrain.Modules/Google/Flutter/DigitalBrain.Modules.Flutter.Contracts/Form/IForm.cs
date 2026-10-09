@@ -6,6 +6,7 @@ namespace DigitalBrain.Flutter.Form;
 
 // One declarative form per window: a typed field list from the P1.1 catalog, draft values, and a
 // single atomic submit. There is no per-field neuron; the whole form is one grain and one blob.
+[Routable]
 [Alias("form"), Orleans.Metadata.DefaultGrainType(UIVocabulary.FormType)]
 public interface IForm : INeuron
 {

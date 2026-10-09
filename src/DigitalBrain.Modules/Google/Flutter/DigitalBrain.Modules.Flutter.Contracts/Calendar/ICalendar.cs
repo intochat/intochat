@@ -3,6 +3,7 @@ using Orleans.Concurrency;
 
 namespace DigitalBrain.Flutter.Calendar;
 
+[Routable]
 [Alias("calendar"), Orleans.Metadata.DefaultGrainType(UIVocabulary.CalendarType)]
 public interface ICalendar : INeuron
 {

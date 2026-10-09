@@ -5,6 +5,7 @@ namespace DigitalBrain.Microsoft.CSharp.Files;
 
 // A C# behavior as a neuron: its source and settings. Start and Swap compile it and hand it to the
 // brain's runtime, which runs it in the brain's sandbox session; they return once that is recorded.
+[Routable]
 [Alias("microsoft.csharp.file"), DefaultGrainType("microsoft.csharp.file")]
 public interface ICSharpFile : INeuron
 {

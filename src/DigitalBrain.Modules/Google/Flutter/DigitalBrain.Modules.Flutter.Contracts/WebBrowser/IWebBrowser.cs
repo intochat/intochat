@@ -3,6 +3,7 @@ using Orleans.Concurrency;
 
 namespace DigitalBrain.Flutter.WebBrowser;
 
+[Routable]
 [Alias("webbrowser"), Orleans.Metadata.DefaultGrainType(UIVocabulary.WebBrowserType)]
 public interface IWebBrowser : INeuron
 {

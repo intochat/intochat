@@ -1,6 +1,7 @@
 using DigitalBrain;
 namespace DigitalBrain.Time.Reminders;
 
+[Routable]
 [Alias("reminder")]
 [Orleans.Metadata.DefaultGrainType("reminder")]
 public interface IReminder : INeuron

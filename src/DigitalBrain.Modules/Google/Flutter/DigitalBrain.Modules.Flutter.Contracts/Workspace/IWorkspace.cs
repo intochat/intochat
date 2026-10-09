@@ -4,6 +4,7 @@ using Orleans.Concurrency;
 
 namespace DigitalBrain.Flutter.Workspace;
 
+[Routable]
 [Alias("ui.workspace"), Orleans.Metadata.DefaultGrainType("ui.workspace")]
 public interface IWorkspace : INeuron
 {
