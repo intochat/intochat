@@ -11,13 +11,19 @@ using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.TextField;
 using DigitalBrain.Flutter.Workspace;
+using DigitalBrain.Machine;
+using DigitalBrain.Microsoft.CSharp.Files;
+using ITimer = DigitalBrain.Time.Timers.ITimer;
 
-// The Jev console: type a request, Jev routes it over the contract catalog and carries it out. When
+// The Jev console: type a request, Jev routes it over the capabilities below and carries it out. When
 // the route builds an app, this opens the built app. The prompt, the answer and the buttons are edge
 // neurons; the router's decision and memory live in its own neuron.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
+// What Jev may act on here: building apps, writing C#, the PC's console and files, timers and notes.
+string[] Capabilities = [typeof(IAppStudio).FullName!, typeof(IApp).FullName!, typeof(IAppIndex).FullName!, typeof(ICSharpFile).FullName!,
+    typeof(IConsole).FullName!, typeof(IFileSystem).FullName!, typeof(ITimer).FullName!, typeof(IText).FullName!];
 var scope = brain.Setting("Brain")!;
 
 await Task.WhenAll(Operations(), SendClicks());
@@ -58,7 +64,7 @@ async Task<string> Ask(string request)
 {
     var result = brain.Get<IText>(Name("result"));
     await result.Set("Working\u2026");
-    var run = await brain.Get<IRouter>(scope).Achieve(request, null, brain.Stopping);
+    var run = await brain.Get<IRouter>(scope).Achieve(request, Capabilities, brain.Stopping);
     var summary = run.Steps.Length == 0
         ? "I could not find a way to do that."
         : string.Join("\n", run.Steps.Select(step => "\u2022 " + step.Method + (step.Error is null ? "" : " (failed: " + step.Error + ")")));

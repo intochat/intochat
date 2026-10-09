@@ -4,7 +4,6 @@ namespace DigitalBrain.Apps;
 
 // The app: manifest, spec, files, connections,
 // semver history, status and activity — the only durable thing in the Apps module.
-[Routable]
 [Alias("apps.app2"), DefaultGrainType("apps.app2")]
 public interface IApp : INeuron
 {

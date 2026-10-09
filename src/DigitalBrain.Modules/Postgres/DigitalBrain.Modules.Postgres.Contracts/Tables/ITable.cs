@@ -2,7 +2,6 @@ namespace DigitalBrain.Postgres.Tables;
 
 // Use a unique grain key per installed table. First Define binds it permanently to the
 // stamped brain and app; every subsequent operation requires that same caller scope.
-[Routable]
 [Alias("postgres.table"), Orleans.Metadata.DefaultGrainType("postgres.table")]
 public interface ITable : INeuron
 {

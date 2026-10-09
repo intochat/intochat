@@ -30,7 +30,7 @@ public sealed class RouteResultFacts
     }
 
     [Fact]
-    public void ARoutableReadOrListIsDirectAndARoutineCallIsNot()
+    public void AReadOrListIsDirectAndARoutineCallIsNot()
     {
         Assert.True(new RouteResult("X", "Read", 0.9, new()).IsDirect);
         Assert.True(new RouteResult("X", "List", 0.9, new()).IsDirect);

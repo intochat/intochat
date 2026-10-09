@@ -62,6 +62,7 @@ public sealed class AssistantGateFacts
         await using var host = await Start(model, ct);
         Stamp();
         await host.AuthorizeCallerAsync();
+        await host.Get<IApp>(Calculator).Create(new AppManifest("Calculator", "keypad", [new("open", "open the keypad")], [], []), "spec");
         var router = host.Get<IRouter>(Scope);
 
         var route = await router.Route("what can you do?", null, ct);
@@ -96,6 +97,7 @@ public sealed class AssistantGateFacts
         Stamp();
         await host.AuthorizeCallerAsync();
 
+        await host.Get<IApp>(Calculator).Create(new AppManifest("Calculator", "keypad", [new("open", "open the keypad")], [], []), "spec");
         await Assert.ThrowsAsync<ProviderUnavailableException>(() => host.Get<IRouter>(Scope).Route("open calculator", null, ct));
         var events = new List<AgentTurnEvent>();
         await foreach (var item in host.Get<IAgent>(Conversation).Run(AgentTurn.Text("open calculator", instructions: SystemPrompt), ct)) { events.Add(item); }

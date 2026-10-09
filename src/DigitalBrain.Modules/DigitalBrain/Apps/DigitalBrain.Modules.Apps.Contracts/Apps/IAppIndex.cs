@@ -4,7 +4,6 @@ namespace DigitalBrain.Apps;
 
 // The brain's app names, keyed by the brain id. An index, never domain state: every fact
 // about an app lives on the app neuron itself.
-[Routable]
 [Alias("apps.index"), DefaultGrainType("apps.index")]
 public interface IAppIndex : INeuron
 {

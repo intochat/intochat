@@ -45,7 +45,7 @@ public sealed class SystemOneRouterFacts
         Stamp();
         await host.AuthorizeCallerAsync();
 
-        var outcome = await host.Get<IRouter>(Scope).Dispatch("set a timer for 5 minutes", null, ct);
+        var outcome = await host.Get<IRouter>(Scope).Dispatch("set a timer for 5 minutes", [typeof(ITimer).FullName!], ct);
 
         Assert.True(outcome.Dispatched, outcome.Error);
         Assert.Equal(typeof(ITimer).FullName, outcome.Route.Contract);
@@ -66,7 +66,7 @@ public sealed class SystemOneRouterFacts
         Stamp();
         await host.AuthorizeCallerAsync();
 
-        var route = await host.Get<IRouter>(Scope).Route("start a countdown please", null, ct);
+        var route = await host.Get<IRouter>(Scope).Route("start a countdown please", [typeof(ITimer).FullName!], ct);
 
         Assert.Equal(typeof(ITimer).FullName, route.Contract);
         Assert.Equal("Start", route.Method);
@@ -130,7 +130,7 @@ public sealed class SystemOneRouterFacts
     }
 
     [Fact]
-    public async Task SomethingElseFallsThroughToTheRoutableContracts()
+    public async Task SomethingElseFallsThroughToTheContractsTheCallerNamed()
     {
         var ct = TestContext.Current.CancellationToken;
         using var server = new LoopbackServer();
@@ -148,7 +148,7 @@ public sealed class SystemOneRouterFacts
         await host.AuthorizeCallerAsync();
         await host.Get<IApp>(IApp.Key(Scope, "calculator")).Create(new AppManifest("Calculator", "keypad", [new("open", "open the keypad")], [], []), "spec");
 
-        var route = await host.Get<IRouter>(Scope).Route("open calculator", null, ct);
+        var route = await host.Get<IRouter>(Scope).Route("open calculator", [typeof(ITimer).FullName!], ct);
 
         Assert.Null(route.App);
         Assert.Equal(typeof(DigitalBrain.Time.Timers.ITimer).FullName, route.Contract);
@@ -157,16 +157,19 @@ public sealed class SystemOneRouterFacts
     }
 
     [Fact]
-    public async Task ANonRoutableContractIsNotRoutedEvenWhenAllowedByName()
+    public async Task ARequestNoAppTakesIsNotRoutedOverTheDeployedCatalog()
     {
         var ct = TestContext.Current.CancellationToken;
         using var server = new LoopbackServer();
+        const string AppElse = """{"model":"jev","answers":{"app_0":{"type":"choice","choice":"something else","confidence":0.9,"probabilities":{"something else":0.9,"calculator.open":0.1}}}}""";
+        var reply = server.ReplyOnce("application/json", AppElse, ct);
         await using var host = await Start(server.Url, StubChatClient.Replying("{}"), ct);
         Stamp();
         await host.AuthorizeCallerAsync();
+        await host.Get<IApp>(IApp.Key(Scope, "calculator")).Create(new AppManifest("Calculator", "keypad", [new("open", "open the keypad")], [], []), "spec");
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            host.Get<IRouter>(Scope).Route("answer with a model", [typeof(DigitalBrain.AI.Models.IModelCatalog).FullName!], ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => host.Get<IRouter>(Scope).Route("start a countdown please", null, ct));
+        await reply;
     }
 
     [Fact]
@@ -188,7 +191,7 @@ public sealed class SystemOneRouterFacts
         Stamp();
         await host.AuthorizeCallerAsync();
 
-        var run = await host.Get<IRouter>(Scope).Achieve("write a note for me", null, ct);
+        var run = await host.Get<IRouter>(Scope).Achieve("write a note for me", [typeof(IText).FullName!], ct);
 
         Assert.Single(run.Steps);
         Assert.Equal("Set", run.Steps[0].Method);
@@ -212,7 +215,7 @@ public sealed class SystemOneRouterFacts
 
         var id = Guid.NewGuid();
 
-        await router.Ask(new RouteRequest(id, "start a countdown please"), ct);
+        await router.Ask(new RouteRequest(id, "start a countdown please", [typeof(ITimer).FullName!]), ct);
 
         var signal = await routed.NextAsync(ct: ct);
         Assert.Equal(id, signal.Id);

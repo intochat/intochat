@@ -5,7 +5,6 @@ namespace DigitalBrain.Machine;
 
 // Runs a shell command on the host machine (the person's PC). The command is one shell line; on
 // Windows it runs through cmd.exe, elsewhere through /bin/sh. This is the edge to the machine.
-[Routable]
 [Alias("machine.console"), Orleans.Metadata.DefaultGrainType("machine.console")]
 public interface IConsole : INeuron
 {

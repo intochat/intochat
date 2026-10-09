@@ -3,7 +3,6 @@ using Orleans.Concurrency;
 
 namespace DigitalBrain.Flutter.Text;
 
-[Routable]
 [Alias("text"), Orleans.Metadata.DefaultGrainType(UIVocabulary.TextType)]
 public interface IText : INeuron
 {

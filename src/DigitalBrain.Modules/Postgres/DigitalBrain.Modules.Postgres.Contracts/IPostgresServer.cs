@@ -2,7 +2,6 @@ using Orleans.Concurrency;
 
 namespace DigitalBrain.Postgres;
 
-[Routable]
 [Alias("postgres"), Orleans.Metadata.DefaultGrainType("postgres")]
 public interface IPostgresServer : INeuron
 {

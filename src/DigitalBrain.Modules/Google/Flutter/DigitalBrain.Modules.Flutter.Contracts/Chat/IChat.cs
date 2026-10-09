@@ -3,7 +3,6 @@ using Orleans.Concurrency;
 namespace DigitalBrain.Flutter.Chat;
 
 // A recoverable UI projection. The source neuron owns the conversation and runs its turns.
-[Routable]
 [Alias("chat"), Orleans.Metadata.DefaultGrainType(UIVocabulary.ChatType)]
 public interface IChat : INeuron
 {

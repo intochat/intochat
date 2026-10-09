@@ -19,8 +19,7 @@ public sealed record RouteResult(
 {
     private const int MaxAlternatives = 3;
 
-    // Directly executable without the language model: an app route, or a routable pure read.
-    // Only the router produces routes, and it routes over routable contracts only.
+    // Directly executable without the language model: an app route, or a pure read.
     public bool IsDirect => App is not null || Method is "Read" or "List";
 
     // The chosen route, then the next most likely catalog ids. Ids are Orleans aliases (what the

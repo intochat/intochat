@@ -1,7 +1,7 @@
 # Router
 
 Route a request to the right capability and carry it out, without a chat model deciding. The
-router reads the deployed contract catalog, asks a System One model (TypeSafe Jev) which contract
+router reads the capabilities this app names (apps, C#, the console and files, timers, notes), asks a System One model (TypeSafe Jev) which contract
 and method fit the request, gates on the model's confidence, then a language model fills only the
 grain key and arguments the call needs. A request nothing fits is refused, not guessed.
 
