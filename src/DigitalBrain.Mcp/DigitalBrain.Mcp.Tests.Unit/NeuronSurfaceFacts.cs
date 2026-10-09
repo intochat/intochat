@@ -1,12 +1,58 @@
+using System.Text.Json;
+using DigitalBrain.Apps;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Surface;
+using DigitalBrain.Platform.Identity;
+using DigitalBrain.Platform.Identity.Configuration;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Mcp.Tests.Unit;
 
 public sealed class NeuronSurfaceFacts
 {
+    [Fact]
+    public async Task ABadArgumentCountSaysSo()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var app = await Host(brain);
+        using var client = Client(app);
+
+        var (text, isError) = await NeuronsCall(client, new
+        {
+            contract = typeof(IApp).FullName!,
+            key = "b/apps/example",
+            method = "Read",
+            arguments = "[1, 2, 3]"
+        }, ct);
+
+        Assert.True(isError);
+        Assert.StartsWith("ArgumentException: IApp has no method Read taking 3 arguments.", text);
+    }
+
+    [Fact]
+    public async Task AGrainExceptionMessageReachesTheCaller()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var app = await Host(brain);
+        using var client = Client(app);
+
+        var (text, isError) = await NeuronsCall(client, new
+        {
+            contract = typeof(IApp).FullName!,
+            key = "b/apps/absent",
+            method = "ExportPublished",
+            arguments = "[]"
+        }, ct);
+
+        Assert.True(isError);
+        Assert.StartsWith("InvalidOperationException: absent has no published version.", text);
+    }
+
     [Fact]
     public void APlatformOnlyContractIsNotAddressable()
     {
@@ -84,6 +130,51 @@ public void RestrictingToAnUnknownContractIsRefused()
 
     private static NeuronSurface Surface()
         => new(new UnreachableBrain(), new CapabilityCatalog(new ContractCatalog(ContractCatalog.Deployed()), []), null!);
+
+    // A real MCP edge over a real brain, open posture so every request acts as the owner.
+    private static async Task<WebApplication> Host(ModuleBrain brain)
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Configuration[AuthOptions.PostureKey] = "Open";
+        builder.Services.AddSingleton<IDigitalBrain>(brain);
+        builder.Services.AddSingleton(brain.Grains);
+        builder.Services.AddDigitalBrainMcp();
+        var app = builder.Build();
+        app.Urls.Add("http://127.0.0.1:0");
+        app.UseRouting();
+        app.UseAuthentication();
+        app.UseAccountSession();
+        app.MapDigitalBrainMcp();
+        await app.StartAsync(TestContext.Current.CancellationToken);
+        return app;
+    }
+
+    private static HttpClient Client(WebApplication app)
+    {
+        var client = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
+        client.DefaultRequestHeaders.Accept.ParseAdd("application/json, text/event-stream");
+        return client;
+    }
+
+    private static async Task<(string Text, bool IsError)> NeuronsCall(HttpClient client, object arguments, CancellationToken ct)
+    {
+        using var response = await client.PostAsJsonAsync("/mcp", new
+        {
+            jsonrpc = "2.0",
+            id = 1,
+            method = "tools/call",
+            @params = new { name = "neurons_call", arguments }
+        }, ct);
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadAsStringAsync(ct);
+        using var document = JsonDocument.Parse(body.Split('\n').Single(line => line.StartsWith("data: ", StringComparison.Ordinal))[6..]);
+        var result = document.RootElement.GetProperty("result");
+        var content = result.GetProperty("content");
+        var text = content.ValueKind == JsonValueKind.Array && content.GetArrayLength() > 0
+            ? content[0].GetProperty("text").GetString() ?? ""
+            : "";
+        return (text, result.TryGetProperty("isError", out var error) && error.GetBoolean());
+    }
 
     // Both refusals happen before a neuron is resolved, so reaching the brain is a failure.
     private sealed class UnreachableBrain : IDigitalBrain
