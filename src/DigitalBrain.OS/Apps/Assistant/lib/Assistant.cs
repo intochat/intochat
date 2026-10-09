@@ -1,3 +1,5 @@
+using System.Globalization;
+using DigitalBrain.AI.Routing;
 using DigitalBrain.Apps;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter;
@@ -13,8 +15,22 @@ using DigitalBrain.Flutter.Workspace;
 // they all speak.
 public static class Assistant
 {
+    public const double DefaultRouteGate = 0.8;
+
     public static string Key(DigitalBrainConnection brain) => brain.Setting("App")!;
     public static string Scope(DigitalBrainConnection brain) => brain.Setting("Brain")!;
+
+    public static double RouteGate(AppSnapshot snapshot)
+        => double.TryParse(snapshot.Settings.GetValueOrDefault("RouteGate", ""), NumberStyles.Float, CultureInfo.InvariantCulture, out var gate)
+            && gate is >= 0 and <= 1 ? gate : DefaultRouteGate;
+
+    // What Jev may carry out without the language model: an app operation, or a read that changes nothing.
+    public static bool IsDirect(RouteResult route)
+        => (route.Contract == typeof(IApp).FullName && route.Method == nameof(IApp.Request))
+            || route.Method is "Read" or "List";
+
+    public static Task Status(DigitalBrainConnection brain, string text)
+        => brain.Get<IText>(Key(brain) + "/status").Set(text);
 
     public static async Task<string> ConversationId(DigitalBrainConnection brain)
     {

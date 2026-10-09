@@ -18,4 +18,15 @@ public sealed class OsAssistantAppFacts
         Assert.Contains("synapses/send.cs", bundle.Files.Keys);
         Assert.Contains("synapses/new.cs", bundle.Files.Keys);
     }
+
+    [Fact]
+    public void TheShippedAssistantDeclaresTheRouteGateSetting()
+    {
+        var bundle = new EmbeddedShippedAppSource(typeof(OsCatalog).Assembly, "DigitalBrain.OS.Apps/", "os").Load()
+            .Single(app => app.Name == "assistant");
+
+        var gate = Assert.Single(bundle.Manifest.Settings, setting => setting.Name == "RouteGate");
+        Assert.Equal("0.8", gate.Default);
+        Assert.Contains("## Scenario: A confident route answers without the language model", bundle.Spec, StringComparison.Ordinal);
+    }
 }

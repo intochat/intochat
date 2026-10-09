@@ -6,6 +6,13 @@ forms and views). The transcript shows each message, the tools the turn used and
 Conversations are durable; "new" starts another one. Opening docked answers the same surface for
 the shell's side panel without opening a window.
 
+Before a message reaches the language model, Jev (the router) reads it against the contract catalog.
+A route the router is at least `RouteGate` (default 0.8) sure of, and that is an app operation
+(`IApp.Request`) or a pure read, is carried out directly through the router; the status line shows
+the route and its outcome, and no language model turn runs. Any other route runs the agent turn as
+usual, with the likely capabilities appended to the system prompt. Either way the router leaves a
+`Routed` signal, so the shell can show which path answered.
+
 ## Scenario: Opening the assistant composes its surface
 
 Invoking "open" answers a window titled "Assistant" whose surface holds the transcript, the draft
@@ -34,6 +41,22 @@ before the answer.
 
 When the model fails, the turn's status is failed with the failure as its answer; a following
 message is answered normally in the same conversation.
+
+## Scenario: A confident route answers without the language model
+
+Sending "open calculator" while Jev routes it to `IApp.Request` with confidence above `RouteGate`
+dispatches the request through the router: the calculator window opens, the status line names the
+route and its confidence, and no turn is added to the transcript.
+
+## Scenario: An unsure route runs the agent turn with Jev's hints
+
+Sending a message Jev routes with confidence below `RouteGate` runs the agent turn; the turn's
+system prompt ends with the likely capabilities Jev named, and the status line says Jev was unsure.
+
+## Scenario: Jev being unavailable never blocks a message
+
+When the System One integration is not ready, the message runs the agent turn as before and the
+status line says Jev was unavailable.
 
 Stop is a behavior-defined chat action, present while the selected conversation is running.
 Messages and actions share one versioned projection. Its ID includes the immutable run ID; clicks
