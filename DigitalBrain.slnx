@@ -131,6 +131,10 @@
     <Project Path="src/DigitalBrain.Modules/Supabase/tests/DigitalBrain.Modules.Supabase.Tests.Hosting/DigitalBrain.Modules.Supabase.Tests.Hosting.csproj" />
     <Project Path="src/DigitalBrain.Modules/Supabase/tests/DigitalBrain.Modules.Supabase.Tests/DigitalBrain.Modules.Supabase.Tests.csproj" />
   </Folder>
+  <Folder Name="/Launcher/">
+    <Project Path="src/DigitalBrain.Launcher/DigitalBrain.Launcher/DigitalBrain.Launcher.csproj" />
+    <Project Path="src/DigitalBrain.Launcher/DigitalBrain.Launcher.Tests.Unit/DigitalBrain.Launcher.Tests.Unit.csproj" />
+  </Folder>
   <Folder Name="/Modules/Time/">
     <Project Path="src/DigitalBrain.Modules/Time/DigitalBrain.Modules.Time.Contracts/DigitalBrain.Modules.Time.Contracts.csproj" />
     <Project Path="src/DigitalBrain.Modules/Time/DigitalBrain.Modules.Time/DigitalBrain.Modules.Time.csproj" />

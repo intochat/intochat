@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <RootNamespace>DigitalBrain.Launcher</RootNamespace>
+    <Description>Owns ports 5080/5081, proxies them to the current revision and starts revisions on demand. Never runs brain code.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Yarp.ReverseProxy" />
+    <PackageReference Include="Azure.Storage.Blobs" />
+    <InternalsVisibleTo Include="DigitalBrain.Launcher.Tests.Unit" />
+  </ItemGroup>
+</Project>
