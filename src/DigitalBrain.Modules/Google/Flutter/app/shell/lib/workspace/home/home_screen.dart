@@ -15,6 +15,16 @@ class LocalApp {
   final IconData icon;
 }
 
+// A window of an app neuron, open in this brain: what Home shows as running.
+class RunningApp {
+  const RunningApp({
+    required this.windowId,
+    required this.app,
+    required this.title,
+  });
+  final String windowId, app, title;
+}
+
 // The start view: this brain's apps, then everything published to the Marketplace.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -28,6 +38,11 @@ class HomeScreen extends StatefulWidget {
     this.dock = '',
     this.onDock,
     this.onAppsChanged,
+    this.running = const [],
+    this.onFocus,
+    this.onStop,
+    this.surfaceBuilder,
+    this.infrastructure,
   });
 
   final String workspaceId;
@@ -39,6 +54,11 @@ class HomeScreen extends StatefulWidget {
   final String dock;
   final ValueChanged<String>? onDock;
   final VoidCallback? onAppsChanged;
+  final List<RunningApp> running;
+  final ValueChanged<String>? onFocus, onStop;
+  // A small, non-interactive render of the app's surface for its tile.
+  final Widget Function(RunningApp app)? surfaceBuilder;
+  final Widget? infrastructure;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -149,6 +169,46 @@ class _HomeScreenState extends State<HomeScreen> {
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ),
+        if (widget.running.isNotEmpty) ...[
+          Text(
+            'Running',
+            key: const ValueKey('home-running'),
+            style: textTheme.titleLarge,
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            children: [
+              for (final app in widget.running)
+                _RunningTile(
+                  key: ValueKey('running-${app.app}'),
+                  app: app,
+                  icon: AppIcon(
+                    title: app.title,
+                    path:
+                        '/brains/$_brain/apps/${Uri.encodeComponent(app.app)}/icon',
+                    load: widget.loadIcon,
+                    size: 28,
+                  ),
+                  preview: widget.surfaceBuilder?.call(app),
+                  onTap: () => widget.onFocus?.call(app.windowId),
+                  onStop: () => widget.onStop?.call(app.windowId),
+                ),
+            ],
+          ),
+          const SizedBox(height: 32),
+        ],
+        if (widget.infrastructure != null) ...[
+          Text(
+            'Infrastructure',
+            key: const ValueKey('home-infrastructure'),
+            style: textTheme.titleLarge,
+          ),
+          const SizedBox(height: 12),
+          widget.infrastructure!,
+          const SizedBox(height: 32),
+        ],
         Text(
           'My apps',
           key: const ValueKey('home-my-apps'),
@@ -304,6 +364,77 @@ class _Tile extends StatelessWidget {
                   onPressed: onDetails,
                 ),
               ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _RunningTile extends StatelessWidget {
+  const _RunningTile({
+    super.key,
+    required this.app,
+    required this.icon,
+    required this.onTap,
+    required this.onStop,
+    this.preview,
+  });
+
+  final RunningApp app;
+  final Widget icon;
+  final Widget? preview;
+  final VoidCallback onTap, onStop;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 260,
+    height: 200,
+    child: Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              height: 44,
+              child: Row(
+                children: [
+                  const SizedBox(width: 10),
+                  icon,
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      app.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                  ),
+                  IconButton(
+                    key: ValueKey('stop-${app.app}'),
+                    tooltip: 'Stop',
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: onStop,
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: IgnorePointer(
+                child: ExcludeSemantics(
+                  child: preview == null
+                      ? const SizedBox.shrink()
+                      : FittedBox(
+                          fit: BoxFit.cover,
+                          alignment: Alignment.topLeft,
+                          clipBehavior: Clip.hardEdge,
+                          child: SizedBox(width: 720, height: 480, child: preview),
+                        ),
+                ),
+              ),
+            ),
           ],
         ),
       ),

@@ -189,4 +189,51 @@ void main() {
     expect(find.byKey(const ValueKey('home-error')), findsOneWidget);
     expect(find.byKey(const ValueKey('local-csharp')), findsOneWidget);
   });
+
+  testWidgets('running apps come first with a live preview; tap focuses, close stops', (
+    tester,
+  ) async {
+    final server = _FakeHome();
+    final focused = <String>[], stopped = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: HomeScreen(
+            workspaceId: 'b1',
+            request: server.request,
+            onOpen: (_) async {},
+            running: const [
+              RunningApp(
+                windowId: 'b1/apps/calculator/window',
+                app: 'calculator',
+                title: 'Calculator',
+              ),
+            ],
+            surfaceBuilder: (app) =>
+                Text('surface of ${app.app}', key: ValueKey('preview-${app.app}')),
+            onFocus: focused.add,
+            onStop: stopped.add,
+            infrastructure: const Text(
+              'strip',
+              key: ValueKey('fake-strip'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final running = tester.getTopLeft(find.byKey(const ValueKey('home-running')));
+    final strip = tester.getTopLeft(find.byKey(const ValueKey('home-infrastructure')));
+    final myApps = tester.getTopLeft(find.byKey(const ValueKey('home-my-apps')));
+    expect(running.dy, lessThan(strip.dy));
+    expect(strip.dy, lessThan(myApps.dy));
+    expect(find.byKey(const ValueKey('preview-calculator')), findsOneWidget);
+    expect(find.byKey(const ValueKey('fake-strip')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('stop-calculator')));
+    expect(stopped, ['b1/apps/calculator/window']);
+    await tester.tap(find.text('Calculator'));
+    expect(focused, ['b1/apps/calculator/window']);
+  });
 }
