@@ -38,4 +38,12 @@ public sealed class NeuronContractFacts
         Assert.Contains(typeof(DigitalBrain.Time.Timers.ITimer).FullName!, catalog.Neurons);
         Assert.DoesNotContain(catalog.Neurons, name => name.StartsWith("DigitalBrain.Platform.", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void TheMcpServerKnowsTheRevisionContracts()
+    {
+        var catalog = new ContractCatalog(ContractCatalog.Deployed());
+        Assert.Contains("DigitalBrain.Revisions.IRevision", catalog.Neurons);
+        Assert.Contains("DigitalBrain.Revisions.IRevisions", catalog.Neurons);
+    }
 }

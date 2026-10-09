@@ -21,6 +21,7 @@ using DigitalBrain.Postgres;
 using DigitalBrain.Postgres.Aspire.Hosting;
 using DigitalBrain.Qdrant;
 using DigitalBrain.Qdrant.Aspire.Hosting;
+using DigitalBrain.Revisions.Aspire.Hosting;
 using DigitalBrain.Salesforce;
 using DigitalBrain.Salesforce.Aspire.Hosting;
 using DigitalBrain.Supabase;
@@ -55,6 +56,7 @@ var digitalBrain = builder.AddDigitalBrain("Modules", DigitalBrainHostingOptions
     .WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp())
     .WithHosting<AspireModuleHosting>()
     .WithHosting<CSharpModuleHosting>()
+    .WithHosting<RevisionsModuleHosting>()
     // PhotoCraft and FilmCraft: headless MCP servers plus their web builds, which the shell's browser may drive.
     .WithHosting<ArtCraftModuleHosting, ArtCraftModuleOptions>(artcraft => artcraft.WithHostedApps())
     .WithModule<PlaywrightModule, PlaywrightModuleOptions>(playwright => playwright.AppOrigins = ArtCraftModuleOptions.HostedOrigins);

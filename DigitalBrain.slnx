@@ -63,6 +63,7 @@
   <Folder Name="/Modules/DigitalBrain/Revisions/">
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Revisions/DigitalBrain.Modules.Revisions.Contracts/DigitalBrain.Modules.Revisions.Contracts.csproj" />
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Revisions/DigitalBrain.Modules.Revisions/DigitalBrain.Modules.Revisions.csproj" />
+    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Revisions/DigitalBrain.Modules.Revisions.Aspire.Hosting/DigitalBrain.Modules.Revisions.Aspire.Hosting.csproj" />
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Revisions/tests/DigitalBrain.Modules.Revisions.Tests/DigitalBrain.Modules.Revisions.Tests.csproj" />
   </Folder>
   <Folder Name="/Modules/DigitalBrain/Compute/">
