@@ -79,14 +79,15 @@ public sealed class BrowserSessionOwner(IBrowserSessionProvider provider) : IAsy
 
     public Task<BrowserObservation> Navigate(string url, CancellationToken ct = default)
     {
-        PublicBrowserNetwork.PublicUri(url);
+        if (!provider.IsAppPage(url)) { PublicBrowserNetwork.PublicUri(url); }
         return Run((page, token) => page.NavigateAsync(url, token), ct);
     }
     public Task<BrowserObservation> Snapshot(CancellationToken ct = default) => Run((page, token) => page.SnapshotAsync(token), ct);
     public Task<BrowserObservation> Click(string selector, CancellationToken ct = default) => Run((page, token) => page.ClickAsync(selector, token), ct);
     public Task<BrowserObservation> Fill(string selector, string value, CancellationToken ct = default) => Run((page, token) => page.FillAsync(selector, value, token), ct);
+    public Task<string> Evaluate(string expression, CancellationToken ct = default) => Run((page, token) => page.EvaluateAsync(expression, token), ct);
 
-    private async Task<BrowserObservation> Run(Func<IBrowserPageSession, CancellationToken, Task<BrowserObservation>> action, CancellationToken ct)
+    private async Task<T> Run<T>(Func<IBrowserPageSession, CancellationToken, Task<T>> action, CancellationToken ct)
     {
         Lease lease;
         lock (_sync) { lease = _lease is { Page.Connected: true } current ? current : throw new BrowserNotConnectedException(); }

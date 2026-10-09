@@ -6,8 +6,12 @@ using Sdk = global::Microsoft.Playwright;
 namespace DigitalBrain.Microsoft.Playwright;
 
 // Connects to a page owned by the desktop. It never creates or closes native pages.
-public sealed class PlaywrightSessionProvider : IBrowserSessionProvider
+public sealed class PlaywrightSessionProvider(global::Microsoft.Extensions.Options.IOptions<PlaywrightModuleOptions> options) : IBrowserSessionProvider
 {
+    public bool IsAppPage(string url) => options.Value.IsAppPage(url);
+
+    public PlaywrightSessionProvider() : this(global::Microsoft.Extensions.Options.Options.Create(new PlaywrightModuleOptions())) { }
+
     private readonly ConcurrentDictionary<(int Port, string SessionId), string> _targets = new();
 
     internal static T SelectTarget<T>(IEnumerable<T> pages, Func<T, string> url, string sessionId)
@@ -83,7 +87,7 @@ public sealed class PlaywrightSessionProvider : IBrowserSessionProvider
                 $"http://127.0.0.1:{attachment.Port}", new() { Timeout = 15_000 }).WaitAsync(ct).ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();
             var page = await SelectPageAsync(browser, attachment).WaitAsync(ct).ConfigureAwait(false);
-            var session = new PageSession(playwright, browser, page);
+            var session = new PageSession(playwright, browser, page, options.Value);
             try
             {
                 await session.InitializeAsync().WaitAsync(ct).ConfigureAwait(false);
@@ -107,7 +111,7 @@ public sealed class PlaywrightSessionProvider : IBrowserSessionProvider
         catch (Exception) { /* The caller already received cancellation; cleanup consumes late startup errors. */ }
     }
 
-    private sealed class PageSession(Sdk.IPlaywright driver, Sdk.IBrowser browser, Sdk.IPage page) : IBrowserPageSession
+    private sealed class PageSession(Sdk.IPlaywright driver, Sdk.IBrowser browser, Sdk.IPage page, PlaywrightModuleOptions apps) : IBrowserPageSession
     {
         private readonly CancellationTokenSource _lifetime = new();
         private readonly HttpClient _http = new(new SocketsHttpHandler
@@ -138,6 +142,11 @@ public sealed class PlaywrightSessionProvider : IBrowserSessionProvider
         public Task<BrowserObservation> NavigateAsync(string url, CancellationToken ct) => ExecuteAsync(async () =>
         {
             _budget = new BrowserActivityBudget();
+            if (apps.IsAppPage(url))
+            {
+                await page.GotoAsync(url, new() { WaitUntil = Sdk.WaitUntilState.DOMContentLoaded }).ConfigureAwait(false);
+                return;
+            }
             var uri = PublicBrowserNetwork.PublicUri(url);
             await PublicBrowserNetwork.ResolvePublicAsync(uri.IdnHost, ct).ConfigureAwait(false);
             // Resolve HTTP redirects before navigation, so the actual visible page URL remains truthful.
@@ -158,6 +167,20 @@ public sealed class PlaywrightSessionProvider : IBrowserSessionProvider
             if (value.Length > 16_000) { throw new ArgumentException("Input is too long.", nameof(value)); }
             return ExecuteAsync(() => { _budget = new BrowserActivityBudget(); return page.Locator(selector).FillAsync(value); }, ct);
         }
+        public async Task<string> EvaluateAsync(string expression, CancellationToken ct)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(expression);
+            if (expression.Length > 64_000) { throw new ArgumentException("Expression is too long.", nameof(expression)); }
+            if (!Connected) { throw new InvalidOperationException("The visible browser is disconnected."); }
+            if (!apps.IsAppPage(page.Url)) { throw new InvalidOperationException("Evaluate runs only on the deployment's app pages."); }
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _lifetime.Token);
+            // The page serializes its own awaited value: the text is exactly what the app's API returned.
+            var json = await page.EvaluateAsync<string>(
+                "async () => { const value = await (" + expression + "\n); return value === undefined ? 'null' : JSON.stringify(value); }")
+                .WaitAsync(linked.Token).ConfigureAwait(false);
+            return json.Length <= 256 * 1024 ? json : throw new InvalidOperationException("The evaluated result exceeds 256 KB.");
+        }
+
         private static void ValidateSelector(string selector)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(selector);
@@ -175,7 +198,7 @@ public sealed class PlaywrightSessionProvider : IBrowserSessionProvider
                 await action().WaitAsync(linked.Token).ConfigureAwait(false);
                 linked.Token.ThrowIfCancellationRequested();
                 // about:blank is allowed only before the first public navigation.
-                if (!page.Url.StartsWith("about:blank#digitalbrain-", StringComparison.Ordinal))
+                if (!page.Url.StartsWith("about:blank#digitalbrain-", StringComparison.Ordinal) && !apps.IsAppPage(page.Url))
                 { PublicBrowserNetwork.PublicUri(page.Url); }
                 var snapshot = await page.EvaluateAsync<JsonElement>("""
                     () => {
@@ -226,6 +249,12 @@ public sealed class PlaywrightSessionProvider : IBrowserSessionProvider
 
         private async Task RouteAsync(Sdk.IRoute route)
         {
+            if (apps.IsAppPage(route.Request.Url) && (route.Request.IsNavigationRequest || apps.IsAppPage(page.Url)))
+            {
+                // The deployment's own app talking to its own origin: no public proxy, no budget.
+                await route.ContinueAsync().ConfigureAwait(false);
+                return;
+            }
             var budget = _budget;
             try
             {

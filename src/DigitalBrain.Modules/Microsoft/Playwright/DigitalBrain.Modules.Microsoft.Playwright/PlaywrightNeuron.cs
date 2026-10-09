@@ -47,9 +47,10 @@ internal sealed class PlaywrightNeuron(IBrowserSessionProvider provider) : Neuro
     public Task<BrowserObservation> Snapshot(CancellationToken ct = default) => Run(() => _owner.Snapshot(ct));
     public Task<BrowserObservation> Click(string selector, CancellationToken ct = default) => Run(() => _owner.Click(selector, ct));
     public Task<BrowserObservation> Fill(string selector, string value, CancellationToken ct = default) => Run(() => _owner.Fill(selector, value, ct));
+    public Task<string> Evaluate(string expression, CancellationToken ct = default) => Run(() => _owner.Evaluate(expression, ct));
     public Task<BrowserSession> Read() => Task.FromResult(_owner.Read());
 
-    private async Task<BrowserObservation> Run(Func<Task<BrowserObservation>> action)
+    private async Task<T> Run<T>(Func<Task<T>> action)
     {
         var generation = _generation;
         var before = _owner.Read();

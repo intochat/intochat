@@ -323,6 +323,7 @@ public sealed class WebBrowserFacts
         public Task<BrowserObservation> NavigateAsync(string url, CancellationToken ct) => SnapshotAsync(ct);
         public Task<BrowserObservation> ClickAsync(string selector, CancellationToken ct) => SnapshotAsync(ct);
         public Task<BrowserObservation> FillAsync(string selector, string value, CancellationToken ct) => SnapshotAsync(ct);
+        public Task<string> EvaluateAsync(string expression, CancellationToken ct) => Task.FromResult("null");
         public async ValueTask DisposeAsync()
         {
             DisposeStarted.TrySetResult();

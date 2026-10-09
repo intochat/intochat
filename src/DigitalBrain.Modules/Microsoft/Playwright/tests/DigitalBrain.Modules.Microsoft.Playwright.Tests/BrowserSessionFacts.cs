@@ -149,6 +149,7 @@ public sealed class BrowserSessionFacts
         public Task<BrowserObservation> SnapshotAsync(CancellationToken ct) => Task.FromResult(new BrowserObservation(Url!, Title!, "", []));
         public Task<BrowserObservation> ClickAsync(string selector, CancellationToken ct) => SnapshotAsync(ct);
         public Task<BrowserObservation> FillAsync(string selector, string value, CancellationToken ct) => SnapshotAsync(ct);
+        public Task<string> EvaluateAsync(string expression, CancellationToken ct) => Task.FromResult(System.Text.Json.JsonSerializer.Serialize(new { expression }));
         public ValueTask DisposeAsync() { Disposed = true; return ValueTask.CompletedTask; }
     }
 }
