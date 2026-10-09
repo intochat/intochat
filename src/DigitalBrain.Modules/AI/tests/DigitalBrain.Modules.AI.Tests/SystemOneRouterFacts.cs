@@ -1,5 +1,8 @@
 using DigitalBrain.AI;
 using DigitalBrain.AI.Routing;
+using DigitalBrain.AI.Routing.Signals;
+using DigitalBrain.AI.SystemOne;
+using DigitalBrain.AI.SystemOne.Signals;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Connections;
@@ -92,6 +95,53 @@ public sealed class SystemOneRouterFacts
         Assert.Equal("Set", run.Steps[0].Method);
         Assert.Equal("hello from Jev", (await host.Get<IText>(Scope + "/notepad").Read()).Markdown);
         await Task.WhenAll(replies);
+    }
+
+    [Fact]
+    public async Task RouteIsPublishedAsARoutedSignal()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var server = new LoopbackServer();
+        const string Contract = """{"model":"jev","answers":{"capability_0":{"type":"choice","choice":"timer","confidence":0.91,"probabilities":{"timer":0.91}}}}""";
+        const string Method = """{"model":"jev","answers":{"method":{"type":"choice","choice":"Start","confidence":0.88,"probabilities":{"Start":0.88}}}}""";
+        var replies = new[] { server.ReplyOnce("application/json", Contract, ct), server.ReplyOnce("application/json", Method, ct) };
+        await using var host = await Start(server.Url, StubChatClient.Replying("{}"), ct);
+        Stamp();
+        await host.AuthorizeCallerAsync();
+        var router = host.Get<IRouter>(Scope);
+        await using var routed = await host.Observe<Routed>(router, ct);
+
+        await router.Route("start a countdown please", null, ct);
+
+        var signal = await routed.NextAsync(ct: ct);
+        Assert.Equal(typeof(ITimer).FullName, signal.Contract);
+        Assert.Equal("Start", signal.Method);
+        Assert.Equal(0.91, signal.Confidence);
+        Assert.Equal("start a countdown please", signal.State);
+        await Task.WhenAll(replies);
+    }
+
+    [Fact]
+    public async Task ASystemOneAnswerIsPublishedAsADecision()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var server = new LoopbackServer();
+        var reply = server.ReplyOnce("application/json",
+            """{"model":"jev","answers":{"department":{"type":"choice","choice":"technical","confidence":0.78,"probabilities":{"technical":0.85,"billing":0.15}}}}""", ct);
+        await using var host = await Start(server.Url, StubChatClient.Replying("{}"), ct);
+        Stamp();
+        await host.AuthorizeCallerAsync();
+        var systemOne = host.Get<ISystemOne>(Scope);
+        await using var decided = await host.Observe<SystemOneDecided>(systemOne, ct);
+
+        await systemOne.Ask(new SystemOneRequest("the integration keeps failing",
+            new() { ["department"] = new SystemOneQuestion.Choice("Which team?", new() { ["technical"] = null, ["billing"] = null }) }), ct);
+
+        var signal = await decided.NextAsync(ct: ct);
+        Assert.Equal("the integration keeps failing", signal.RequestSummary);
+        Assert.Equal(0.78, signal.Confidence);
+        Assert.Equal("technical", Assert.IsType<SystemOneAnswer.Choice>(signal.Answers["department"]).Value);
+        await reply;
     }
 
     private static Task<ModuleBrain> Start(string endpoint, IChatClient model, CancellationToken ct) =>

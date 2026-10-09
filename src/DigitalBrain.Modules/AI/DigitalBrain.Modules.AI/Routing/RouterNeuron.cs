@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.AI.Models;
+using DigitalBrain.AI.Routing.Signals;
 using DigitalBrain.AI.SystemOne;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Contracts;
@@ -50,14 +51,14 @@ internal sealed class RouterNeuron(
         var methods = chosen.Methods.Select(MethodName).Where(name => !NotCallable.Contains(name)).Distinct(StringComparer.Ordinal).ToArray();
         if (methods.Length == 0)
         {
-            await Remember(state, chosen.Contract, "");
+            await Remember(state, chosen.Contract, "", confidence);
             return new RouteResult(chosen.Contract, "", confidence, probabilities);
         }
 
         var methodAnswer = await systemone.Ask(new SystemOneRequest(moment,
             new() { ["method"] = new SystemOneQuestion.Choice("Which method carries out this request?", methods.ToDictionary(name => name, _ => (string?)null, StringComparer.Ordinal)) }), ct);
         var method = methodAnswer.Answers["method"] is SystemOneAnswer.Choice { Value.Length: > 0 } picked ? picked.Value : methods[0];
-        await Remember(state, chosen.Contract, method);
+        await Remember(state, chosen.Contract, method, confidence);
         return new RouteResult(chosen.Contract, method, confidence, probabilities);
     }
 
@@ -114,7 +115,7 @@ internal sealed class RouterNeuron(
             catch (Exception error) when (error is not OperationCanceledException)
             { steps.Add(new GoalStep(chosen.Contract, method, null, null, null, error.Message, confidence)); }
         }
-        if (steps.Count > 0) { await Remember(goal, steps[^1].Contract, steps[^1].Method); }
+        if (steps.Count > 0) { await Remember(goal, steps[^1].Contract, steps[^1].Method, steps[^1].Confidence); }
         var last = steps.LastOrDefault();
         return new GoalRun(goal, [.. steps], last?.Error ?? last?.Result);
     }
@@ -154,11 +155,11 @@ internal sealed class RouterNeuron(
         return builder.ToString();
     }
 
-    private async Task Remember(string request, string contract, string method)
+    private async Task Remember(string request, string contract, string method, double confidence)
     {
         var record = new RouteRecord(Clip(request), contract, method);
         var recent = Snapshot.Recent.Where(item => item.Request != record.Request || item.Contract != record.Contract).TakeLast(MaxRecent - 1).ToArray();
-        await Save(Snapshot with { Recent = [.. recent, record] }, new RouterDecided(Key, recent.Length + 1));
+        await Save(Snapshot with { Recent = [.. recent, record] }, new RouterDecided(Key, recent.Length + 1), new Routed(Clip(request), contract, method, confidence));
     }
 
     // A language model fills the two things a System One model cannot produce: the grain key and the
