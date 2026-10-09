@@ -28,10 +28,9 @@ public sealed class TraceBudgetFacts(ReferenceBrainFixture host)
 
         await Task.Delay(TimeSpan.FromSeconds(2), ct);
         var intentStart = collector.Snapshot().Count;
-        // A person talks to the assistant app; the turn runs in the app's conversation.
-        using var response = await brain.HttpClient.PostAsJsonAsync($"/brains/{brain.WorkspaceId}/apps/assistant/ask",
-            new { operation = "send", input = "Show active leads" }, ct);
-        Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync(ct));
+        // A person talks to the assistant app; the request reaches a synapse and the turn's answer is
+        // the transcript neuron, which the wait below reads.
+        await ContentCaptureOnFacts.SendAsync(brain, ct);
         await WaitForAsync(() => collector.Snapshot().Skip(intentStart)
             .Any(span => string.Equals(span.Name, "IIntentUsage/RecordBatchAsync", StringComparison.Ordinal)), ct);
         var intentSpans = collector.Snapshot().Skip(intentStart).ToArray();

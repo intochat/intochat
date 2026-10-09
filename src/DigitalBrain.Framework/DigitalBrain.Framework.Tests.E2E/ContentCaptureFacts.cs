@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using DigitalBrain.Flutter.Chat;
 using DigitalBrain.Testing.E2E;
 using DigitalBrain.Testing.E2E.Workspace;
 using static DigitalBrain.Testing.E2E.Diagnostics.TraceAssertions;
@@ -17,12 +18,25 @@ public sealed class ContentCaptureOnFacts(ProductionBrainFixture host)
         var before = host.Collector.Snapshot().Count;
         await UserConnections.AuthorizeDatabaseAsync(brain, brain.WorkspaceId, ct);
         await LeadData.SeedAsync(brain, "Capture", ct);
-        using var response = await brain.HttpClient.PostAsJsonAsync($"/brains/{brain.WorkspaceId}/apps/assistant/ask",
-            new { operation = "send", input = "Show active leads" }, ct);
-        Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync(ct));
+        await SendAsync(brain, ct);
         await WaitForAsync(() => host.Collector.Snapshot().Skip(before).Any(span => TextOf(span).Contains("Show active leads", StringComparison.Ordinal)), TimeSpan.FromSeconds(60), ct);
         Assert.Contains(host.Collector.Snapshot().Skip(before), span => span.Attributes.Keys.Any(key => key.StartsWith("gen_ai.usage", StringComparison.Ordinal)));
         Assert.Empty(host.Collector.Errors());
+    }
+
+    // A request reaches the app's synapse; the answer is the transcript neuron, so the wait is on the
+    // neuron, never on an HTTP body.
+    internal static async Task SendAsync(E2EBrain brain, CancellationToken ct)
+    {
+        var chat = brain.Get<IChat>(brain.WorkspaceId + "/apps/assistant/transcript");
+        await using var changes = await brain.Observe<ChatChanged>(chat, ct);
+        using var response = await brain.HttpClient.PostAsJsonAsync($"/brains/{brain.WorkspaceId}/apps/assistant/request",
+            new { operation = "send", input = "Show active leads" }, ct);
+        Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync(ct));
+        ChatProjection? projected;
+        while ((projected = (await chat.Read()).Projection) is null
+            || projected.Messages.LastOrDefault()?.Status != "completed")
+        { await changes.NextAsync(ct: ct); }
     }
 }
 
@@ -36,9 +50,7 @@ public sealed class ContentCaptureOffFacts(ProductionCaptureOffFixture host)
         var before = host.Collector.Snapshot().Count;
         await UserConnections.AuthorizeDatabaseAsync(brain, brain.WorkspaceId, ct);
         await LeadData.SeedAsync(brain, "Capture", ct);
-        using var response = await brain.HttpClient.PostAsJsonAsync($"/brains/{brain.WorkspaceId}/apps/assistant/ask",
-            new { operation = "send", input = "Show active leads" }, ct);
-        Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync(ct));
+        await ContentCaptureOnFacts.SendAsync(brain, ct);
         await WaitForAsync(() => host.Collector.Snapshot().Skip(before).Any(IsGenAiSpan), TimeSpan.FromSeconds(60), ct);
         await Task.Delay(TimeSpan.FromSeconds(3), ct);
         Assert.DoesNotContain(host.Collector.Snapshot().Skip(before), span => TextOf(span).Contains("Show active leads", StringComparison.Ordinal));

@@ -1,14 +1,17 @@
+using System.Net.Http.Json;
 using System.Xml.Linq;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.Apps;
 using DigitalBrain.Flutter.Chat;
+using DigitalBrain.Flutter.Text;
+using DigitalBrain.Flutter.Text.Signals;
 using DigitalBrain.Microsoft.CSharp.Runtime;
 
 namespace DigitalBrain.OS.Tests.E2E;
 
-// The real path a click takes, as the signed-in user: the brain compiles the app's behavior, the brain
-// runtime loads it into the brain's session in the csharp-sandbox container, and the behavior answers
-// through the runtime edge. Needs a Docker daemon with Linux containers.
+// The real path a request takes, as the signed-in user: the shell posts a request to the app, the brain
+// publishes it, the app's synapse reacts in the brain's session in the csharp-sandbox container, and the
+// answer is a neuron the caller reads. Needs a Docker daemon with Linux containers.
 public sealed class BrainRuntimeFacts(ReferenceBrainFixture host) : BrainFact(host)
 {
     [Fact(Timeout = 240_000)]
@@ -21,7 +24,7 @@ public sealed class BrainRuntimeFacts(ReferenceBrainFixture host) : BrainFact(ho
         var agent = Brain.Get<IAgent>(appKey + "/conversations/main");
         var chat = Brain.Get<IChat>(appKey + "/transcript");
         await using var changes = await Brain.Observe<ChatChanged>(chat, ct);
-        using var sent = await Brain.HttpClient.PostAsJsonAsync($"/brains/{scope}/apps/assistant/ask",
+        using var sent = await Brain.HttpClient.PostAsJsonAsync($"/brains/{scope}/apps/assistant/request",
             new { operation = "send", input = "Remember this conversation" }, ct);
         sent.EnsureSuccessStatusCode();
         ChatProjection? before;
@@ -43,7 +46,7 @@ public sealed class BrainRuntimeFacts(ReferenceBrainFixture host) : BrainFact(ho
     }
 
     [Fact(Timeout = 240_000)]
-    public async Task AClickReachesABehaviorAndBack()
+    public async Task ARequestReachesASynapseAndItsAnswerIsANeuron()
     {
         var ct = TestContext.Current.CancellationToken;
         var scope = Brain.WorkspaceId;
@@ -51,15 +54,23 @@ public sealed class BrainRuntimeFacts(ReferenceBrainFixture host) : BrainFact(ho
             .Load().Single(candidate => candidate.Name == "word-count");
         (await Brain.HttpClient.PostAsJsonAsync($"/brains/{scope}/apps/import", bundle, ct)).EnsureSuccessStatusCode();
 
-        // A connected session answers in milliseconds; two minutes covers the brain's first session.
-        using var answer = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        answer.CancelAfter(TimeSpan.FromMinutes(2));
-        using var asked = await Brain.HttpClient.PostAsJsonAsync($"/brains/{scope}/apps/{bundle.Name}/ask",
-            new { operation = "ask", input = "a click reaches a behavior" }, answer.Token);
+        // A request is a signal, so it is delivered only to a synapse that is already subscribed. Wait
+        // until the imported program's synapse has subscribed, then ask: the request cannot be lost between.
+        var runtime = Brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(scope));
+        var behavior = $"{scope}/apps/{bundle.Name}/synapses/app.cs";
+        await TestWait.UntilAsync(async token => (await runtime.Inspect(token)).Behaviors,
+            behaviors => behaviors.Any(candidate => candidate.Id == behavior && candidate.Subscriptions.Length > 0),
+            TimeSpan.FromMinutes(2), ct);
 
-        Assert.Equal(HttpStatusCode.OK, asked.StatusCode);
-        Assert.Equal("5 words", await asked.Content.ReadAsStringAsync(ct));
-        Assert.Equal(SessionStatus.Connected, (await Brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(scope)).Inspect(ct)).Session);
+        var answer = Brain.Get<IText>($"{scope}/apps/{bundle.Name}/answer");
+        await using var changes = await Brain.Observe<TextChanged>(answer, ct);
+
+        using var requested = await Brain.HttpClient.PostAsJsonAsync($"/brains/{scope}/apps/{bundle.Name}/request",
+            new { operation = "ask", input = "a click reaches a behavior" }, ct);
+
+        Assert.Equal(HttpStatusCode.Accepted, requested.StatusCode);
+        while ((await answer.Read()).Markdown != "5 words") { await changes.NextAsync(ct: ct); }
+        Assert.Equal(SessionStatus.Connected, (await runtime.Inspect(ct)).Session);
     }
 
     // The AppHost hands the OS IntoChat's bundles from the directory beside its own (AppHost.cs);
