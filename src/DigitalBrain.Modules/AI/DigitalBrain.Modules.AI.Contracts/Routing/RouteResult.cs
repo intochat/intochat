@@ -4,6 +4,8 @@ using System.Text;
 namespace DigitalBrain.AI.Routing;
 
 // The chosen contract (full type name) and method, with the router's confidence in that choice.
+// An app route names the app and operation instead of a contract fill path; Dispatch then posts
+// IApp.Request with the state as input and no language model runs.
 [GenerateSerializer, Alias("ai.route-result")]
 public sealed record RouteResult(
     [property: Id(0)] string Contract,
@@ -11,9 +13,15 @@ public sealed record RouteResult(
     [property: Id(2)] double Confidence,
     [property: Id(3)] Dictionary<string, double> Probabilities,
     [property: Id(4)] string? Key = null,
-    [property: Id(5)] string? Tool = null)
+    [property: Id(5)] string? Tool = null,
+    [property: Id(6)] string? App = null,
+    [property: Id(7)] string? Operation = null)
 {
     private const int MaxAlternatives = 3;
+
+    // Directly executable without the language model: an app route, or a routable pure read.
+    // Only the router produces routes, and it routes over routable contracts only.
+    public bool IsDirect => App is not null || Method is "Read" or "List";
 
     // The chosen route, then the next most likely catalog ids. Ids are Orleans aliases (what the
     // catalog asked Jev over), so a reader maps them back through the catalog, not by name.

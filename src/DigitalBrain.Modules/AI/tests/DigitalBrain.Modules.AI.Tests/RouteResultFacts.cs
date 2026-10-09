@@ -20,4 +20,20 @@ public sealed class RouteResultFacts
         Assert.DoesNotContain("machine.console", hint, StringComparison.Ordinal);
         Assert.DoesNotContain("- timer (", hint, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void AnAppRouteIsDirectWithNoContractToFill()
+    {
+        var route = new RouteResult(typeof(DigitalBrain.Apps.IApp).FullName!, nameof(DigitalBrain.Apps.IApp.Request), 0.95, new(), App: "calculator", Operation: "open");
+
+        Assert.True(route.IsDirect);
+    }
+
+    [Fact]
+    public void ARoutableReadOrListIsDirectAndARoutineCallIsNot()
+    {
+        Assert.True(new RouteResult("X", "Read", 0.9, new()).IsDirect);
+        Assert.True(new RouteResult("X", "List", 0.9, new()).IsDirect);
+        Assert.False(new RouteResult("X", "Start", 0.9, new()).IsDirect);
+    }
 }

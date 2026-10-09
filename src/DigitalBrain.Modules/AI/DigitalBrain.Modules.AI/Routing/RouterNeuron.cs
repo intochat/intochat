@@ -3,6 +3,7 @@ using System.Text.Json;
 using DigitalBrain.AI.Models;
 using DigitalBrain.AI.Routing.Signals;
 using DigitalBrain.AI.SystemOne;
+using DigitalBrain.Apps;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Framework.Surface;
@@ -77,9 +78,8 @@ internal sealed class RouterNeuron(
 
     private async Task<RouteResult> Decide(string state, string[]? allowed, Func<SystemOneRequest, Task<SystemOneResult>> ask, CancellationToken ct)
     {
-        var types = (await Capabilities().Read(Scope, ct))
-            .Where(type => allowed is null || allowed.Contains(type.Contract, StringComparer.Ordinal))
-            .ToArray();
+        if (await AppTier(state, ask) is { } app) { return app; }
+        var types = await RoutableTypes(allowed, ct);
         if (types.Length == 0) { throw new InvalidOperationException("No contracts are available to route over."); }
 
         var moment = AwareOfState(state);
@@ -108,11 +108,70 @@ internal sealed class RouterNeuron(
         return new RouteResult(chosen.Contract, method, confidence, probabilities);
     }
 
+    // The first of two tiers: the brain's installed apps' operations. A "something else" answer falls
+    // through to the routable contracts. An app route carries the app and operation, so Dispatch has
+    // no contract to fill: it posts IApp.Request with the state as input, no language model runs.
+    private async Task<RouteResult?> AppTier(string state, Func<SystemOneRequest, Task<SystemOneResult>> ask)
+    {
+        var factory = ServiceProvider.GetRequiredService<IGrainFactory>();
+        var criteria = new Dictionary<string, string?>(StringComparer.Ordinal);
+        string[] names;
+        // A host without the Apps module has no app tier.
+        try { names = [.. await factory.GetGrain<IAppIndex>(Scope).List()]; }
+        catch (Exception error) when (error is not OperationCanceledException) { return null; }
+        foreach (var name in names)
+        {
+            AppSnapshot snapshot;
+            try { snapshot = await factory.GetGrain<IApp>(IApp.Key(Scope, name)).Read(); }
+            catch (Exception error) when (error is not OperationCanceledException) { continue; }
+            foreach (var operation in snapshot.Manifest.Operations)
+            { criteria[name + "." + operation.Name] = string.IsNullOrWhiteSpace(operation.Description) ? null : Trim(operation.Description); }
+        }
+        if (criteria.Count == 0) { return null; }
+        criteria["something else"] = "The request is not about an installed app. Choose this to route over the brain's contracts.";
+        var moment = AwareOfState(state);
+        var questions = new Dictionary<string, SystemOneQuestion>(StringComparer.Ordinal);
+        var chunks = Chunk(criteria).ToArray();
+        for (var index = 0; index < chunks.Length; index++)
+        { questions["app_" + index] = new SystemOneQuestion.Choice("Which installed app operation can carry out this request?", chunks[index]); }
+        var answer = await ask(new SystemOneRequest(moment, questions));
+        var (chosen, confidence, probabilities) = Best(answer);
+        if (chosen == "something else") { return null; }
+        var split = chosen.IndexOf('.');
+        if (split <= 0 || split >= chosen.Length - 1) { return null; }
+        return new RouteResult(typeof(IApp).FullName!, nameof(IApp.Request), confidence, probabilities,
+            App: chosen[..split], Operation: chosen[(split + 1)..]);
+    }
+
+    // The second tier's menu: contracts marked [Routable] plus the concrete runtime tool entries the
+    // brain's capability sources report (a tool carries its Key and needs no contract question).
+    // Model markers, the AI runtime and integration contracts are never routable.
+    private async Task<NeuronType[]> RoutableTypes(string[]? allowed, CancellationToken ct)
+    {
+        var catalog = ServiceProvider.GetRequiredService<ContractCatalog>();
+        var capabilities = await Capabilities().Read(Scope, ct);
+        return capabilities
+            .Where(type => type.Key is not null || catalog.IsRoutable(type.Contract))
+            .Where(type => allowed is null || allowed.Contains(type.Contract, StringComparer.Ordinal))
+            .ToArray();
+    }
+
     public async Task<RouteOutcome> Dispatch(string state, string[]? allowed, CancellationToken ct)
     {
         var route = await Route(state, allowed, ct);
         if (route.Confidence < Gate || route.Method.Length == 0)
         { return new RouteOutcome(route, false, Error: "The request was not clear enough to route."); }
+        if (route.App is not null)
+        {
+            var appKey = IApp.Key(Scope, route.App);
+            try
+            {
+                var requestId = await ServiceProvider.GetRequiredService<IGrainFactory>().GetGrain<IApp>(appKey).Request(route.Operation!, state);
+                return new RouteOutcome(route, true, appKey, null, requestId.ToString());
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            { return new RouteOutcome(route, false, appKey, null, Error: error.Message); }
+        }
         var (key, arguments) = await Fill(state, route, ct);
         try
         {
@@ -130,9 +189,7 @@ internal sealed class RouterNeuron(
     public async Task<GoalRun> Achieve(string goal, string[]? allowed, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(goal);
-        var types = (await Capabilities().Read(Scope, ct))
-            .Where(type => allowed is null || allowed.Contains(type.Contract, StringComparer.Ordinal))
-            .ToArray();
+        var types = (await RoutableTypes(allowed, ct)).ToArray();
         if (types.Length == 0) { throw new InvalidOperationException("No contracts are available to route over."); }
         var byId = types.ToDictionary(type => type.Id, type => type, StringComparer.Ordinal);
         var systemone = ServiceProvider.GetRequiredService<IGrainFactory>().GetGrain<ISystemOne>(Scope);

@@ -32,6 +32,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../DigitalBrain.Modules.AI.Contracts/DigitalBrain.Modules.AI.Contracts.csproj" />
+    <ProjectReference Include="../../DigitalBrain/Apps/DigitalBrain.Modules.Apps.Contracts/DigitalBrain.Modules.Apps.Contracts.csproj" />
     <ProjectReference Include="../../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
   </ItemGroup>
 

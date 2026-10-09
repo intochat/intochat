@@ -44,12 +44,13 @@ public sealed class AssistantGateFacts
 
         var route = await router.Route("open calculator", null, ct);
         Assert.True(route.Confidence >= 0.8 && route.Contract == typeof(IApp).FullName && route.Method == nameof(IApp.Request));
+        Assert.Equal(("calculator", "open"), (route.App, route.Operation));
         var outcome = await router.Dispatch("open calculator", [route.Contract], ct);
 
         Assert.True(outcome.Dispatched, outcome.Error);
+        Assert.Empty(AllChatRequests(model));
         Assert.True(await signals.MoveNextAsync());
         Assert.Equal("open", signals.Current.Operation);
-        Assert.DoesNotContain(AllChatRequests(model), request => Text(request).Contains(SystemPrompt, StringComparison.Ordinal));
     }
 
     [Fact]
@@ -121,14 +122,17 @@ public sealed class AssistantGateFacts
             .StartAsync(ct);
     }
 
-    // Scripted Jev: the capability question picks `contractId`, the method question picks `method`.
+    // Scripted Jev: the app tier picks the calculator's operation, the capability question picks
+    // `contractId`, the method question picks `method`.
     private static string Choose(JsonElement request, string contractId, string method, double confidence)
     {
         var answers = new Dictionary<string, object>(StringComparer.Ordinal);
         foreach (var question in request.GetProperty("questions").EnumerateObject())
         {
             var options = question.Value.GetProperty("criteria").EnumerateObject().Select(option => option.Name).ToArray();
-            var pick = options.Contains(contractId) ? contractId : options.Contains(method) ? method : options[0];
+            var pick = question.Name.StartsWith("app_", StringComparison.Ordinal)
+                ? (options.Contains("calculator.open", StringComparer.Ordinal) ? "calculator.open" : options[0])
+                : options.Contains(contractId) ? contractId : options.Contains(method) ? method : options[0];
             var probabilities = options.ToDictionary(option => option, option => option == pick ? confidence : (options.Length > 1 ? (1 - confidence) / (options.Length - 1) : 0.0));
             answers[question.Name] = new { type = "choice", choice = pick, probabilities, confidence };
         }
