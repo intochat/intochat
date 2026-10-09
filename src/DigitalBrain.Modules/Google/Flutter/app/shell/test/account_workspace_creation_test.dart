@@ -40,7 +40,7 @@ void main() {
         WorkspaceApp(store: store, programmingClient: client),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Workspaces'));
+      await tester.tap(find.byTooltip('Profile'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('New workspace'));
       await tester.pumpAndSettle();

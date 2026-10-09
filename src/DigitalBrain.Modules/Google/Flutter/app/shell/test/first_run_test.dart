@@ -81,6 +81,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // The assistant is the default focused app: the Home island shows its docked
+    // surface, where the starter prompts wait for the first turn.
+    await tester.tap(find.byTooltip('Home'));
+    await tester.pumpAndSettle();
+
     expect(find.byType(TextField), findsOneWidget);
     expect(find.text('Work with Salesforce'), findsOneWidget);
     expect(find.text('Ask the assistant'), findsOneWidget);
