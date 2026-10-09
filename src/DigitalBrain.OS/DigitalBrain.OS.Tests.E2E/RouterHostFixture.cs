@@ -5,15 +5,28 @@ using DigitalBrain.AI.Models;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Aspire.Hosting;
 using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Microsoft.CSharp.Runtime;
 using DigitalBrain.Testing.E2E;
 using DigitalBrain.Testing.Model;
 
 namespace DigitalBrain.OS.Tests.E2E;
 
-// The product boot with a local System One endpoint: the fake model answers /v1/systemone for
+// The product boots with a local System One endpoint: the fake model answers /v1/systemone for
 // routing and the arg-fill chat, so a request routes through Jev and carries itself out offline.
 public sealed class RouterHostFixture : ReferenceBrainFixture
 {
+    // A request is a signal, delivered only to a synapse that is already subscribed; a fact waits for
+    // the app's synapse before it posts, so the request cannot be lost between.
+    internal static Task UntilSynapseSubscribedAsync(E2EBrain brain, string app, string synapse, CancellationToken ct)
+    {
+        var scope = brain.WorkspaceId;
+        var runtime = brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(scope));
+        var behavior = $"{scope}/apps/{app}/synapses/{synapse}";
+        return TestWait.UntilAsync(async token => (await runtime.Inspect(token)).Behaviors,
+            behaviors => behaviors.Any(candidate => candidate.Id == behavior && candidate.Subscriptions.Length > 0),
+            TimeSpan.FromMinutes(2), ct);
+    }
+
     protected override Task<E2EBrain> StartBrainAsync(CancellationToken cancellationToken)
     {
         var root = new Uri(Model.Endpoint, "/").AbsoluteUri.TrimEnd('/');
@@ -33,17 +46,35 @@ public sealed class RouterHostFixture : ReferenceBrainFixture
     }
 
     // The fill prompt carries the brain scope; answer with a valid timer call so the demo is
-    // deterministic. A request that is not the fill prompt keeps the echo default.
+    // deterministic. A request that is not the fill prompt keeps the echo default; an IApp.Request
+    // fill (what the assistant's gate dispatches) opens the calculator instead.
     private static FakeReply? Fill(JsonElement request)
     {
-        var text = string.Concat(request.GetProperty("messages").EnumerateArray().SelectMany(message =>
-            message.GetProperty("content").ValueKind == JsonValueKind.String
-                ? [message.GetProperty("content").GetString() ?? ""]
-                : message.GetProperty("content").EnumerateArray()
-                    .Where(part => part.TryGetProperty("text", out _))
-                    .Select(part => part.GetProperty("text").GetString() ?? "")));
+        var text = Text(request);
         if (!text.Contains("Fill one neuron call", StringComparison.Ordinal)) { return null; }
         var scope = Regex.Match(text, @"brain scope is (\S+)\.") is { Success: true } match ? match.Groups[1].Value : "scope";
-        return FakeReply.Text("{\"key\":\"" + scope + "/timer\",\"arguments\":[\"00:05:00\",null]}");
+        return text.Contains("Method: " + nameof(DigitalBrain.Apps.IApp.Request), StringComparison.Ordinal) || text.Contains("Request(", StringComparison.Ordinal)
+            ? FakeReply.Text("{\"key\":\"" + scope + "/apps/calculator\",\"arguments\":[\"open\",\"\"]}")
+            : FakeReply.Text("{\"key\":\"" + scope + "/timer\",\"arguments\":[\"00:05:00\",null]}");
+    }
+
+    internal static string Text(JsonElement request)
+        => string.Concat(request.GetProperty("messages").EnumerateArray().SelectMany(message =>
+            message.GetProperty("content").ValueKind == JsonValueKind.String
+                ? [message.GetProperty("content").GetString() ?? ""]
+                : message.GetProperty("content").EnumerateArray().Where(part => part.TryGetProperty("text", out _)).Select(part => part.GetProperty("text").GetString() ?? "")));
+
+    // Scripted Jev for a fact: the capability question picks contractId, the method question picks method.
+    internal static string Choose(JsonElement request, string contractId, string method, double confidence)
+    {
+        var answers = new Dictionary<string, object>(StringComparer.Ordinal);
+        foreach (var question in request.GetProperty("questions").EnumerateObject())
+        {
+            var options = question.Value.GetProperty("criteria").EnumerateObject().Select(option => option.Name).ToArray();
+            var pick = options.Contains(contractId) ? contractId : options.Contains(method) ? method : options[0];
+            var probabilities = options.ToDictionary(option => option, option => option == pick ? confidence : (options.Length > 1 ? (1 - confidence) / (options.Length - 1) : 0.0));
+            answers[question.Name] = new { type = "choice", choice = pick, probabilities, confidence };
+        }
+        return JsonSerializer.Serialize(new { model = "fake-jev", answers });
     }
 }
