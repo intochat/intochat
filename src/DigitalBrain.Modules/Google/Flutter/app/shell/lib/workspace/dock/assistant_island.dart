@@ -14,7 +14,11 @@ class AssistantCat extends StatelessWidget {
         key: const ValueKey('assistant-cat'),
         radius: 16,
         backgroundColor: scheme.primaryContainer,
-        child: Icon(Icons.pets_rounded, size: 18, color: scheme.onPrimaryContainer),
+        child: Icon(
+          Icons.pets_rounded,
+          size: 18,
+          color: scheme.onPrimaryContainer,
+        ),
       ),
     );
   }

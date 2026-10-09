@@ -7,7 +7,9 @@ enum InfrastructureHealth { green, amber, red }
 
 // Aspire health decides first, then state. A connection row carries its status as the state.
 InfrastructureHealth infrastructureHealth(String state, String? health) {
-  if (health == 'Healthy' || state == 'Connected') return InfrastructureHealth.green;
+  if (health == 'Healthy' || state == 'Connected') {
+    return InfrastructureHealth.green;
+  }
   if (health == 'Unhealthy' ||
       state == 'Exited' ||
       state == 'FailedToStart' ||
@@ -110,7 +112,9 @@ class _InfrastructureStripState extends State<InfrastructureStrip> {
           label: Text(row.module),
           tooltip:
               '${row.resource}: ${row.state}${row.health == null ? '' : ' (${row.health})'}',
-          onPressed: widget.onTap == null ? null : () => widget.onTap!(row.module),
+          onPressed: widget.onTap == null
+              ? null
+              : () => widget.onTap!(row.module),
         ),
     ],
   );

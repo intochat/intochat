@@ -71,13 +71,16 @@ class _DockEntryState extends State<_DockEntry> {
   AppToolbarEntry get entry => widget.entry;
   String get label => entry.label ?? entry.operation;
 
-  void _post(String input) => unawaited(widget.onRequest(entry.operation, input));
+  void _post(String input) =>
+      unawaited(widget.onRequest(entry.operation, input));
 
   Widget _icon() {
     final name = entry.icon;
     final data = name == null ? null : shellIcon(name);
     if (data != null) return Icon(data, size: 22);
-    if (name != null && name == widget.manifestIcon && widget.iconRoute != null) {
+    if (name != null &&
+        name == widget.manifestIcon &&
+        widget.iconRoute != null) {
       return AppIcon(
         title: label,
         path: widget.iconRoute,
@@ -88,8 +91,9 @@ class _DockEntryState extends State<_DockEntry> {
     return Text(label);
   }
 
-  static String _text(double value) =>
-      value == value.roundToDouble() ? value.toInt().toString() : value.toString();
+  static String _text(double value) => value == value.roundToDouble()
+      ? value.toInt().toString()
+      : value.toString();
 
   @override
   Widget build(BuildContext context) {

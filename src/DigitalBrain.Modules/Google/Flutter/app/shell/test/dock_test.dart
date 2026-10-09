@@ -10,8 +10,17 @@ const player = AppManifest(
   operations: ['play', 'mute', 'volume', 'say'],
   toolbar: [
     AppToolbarEntry(operation: 'play', icon: 'play', label: 'Play'),
-    AppToolbarEntry(operation: 'mute', kind: AppToolbarKind.toggle, label: 'Mute'),
-    AppToolbarEntry(operation: 'volume', kind: AppToolbarKind.slider, min: 0, max: 100),
+    AppToolbarEntry(
+      operation: 'mute',
+      kind: AppToolbarKind.toggle,
+      label: 'Mute',
+    ),
+    AppToolbarEntry(
+      operation: 'volume',
+      kind: AppToolbarKind.slider,
+      min: 0,
+      max: 100,
+    ),
     AppToolbarEntry(operation: 'say', kind: AppToolbarKind.text, label: 'Say'),
   ],
 );
@@ -21,7 +30,11 @@ const assistant = AppManifest(
   description: '',
   operations: ['open', 'send', 'new', 'voice'],
   toolbar: [
-    AppToolbarEntry(operation: 'send', kind: AppToolbarKind.text, label: 'Message your brain'),
+    AppToolbarEntry(
+      operation: 'send',
+      kind: AppToolbarKind.text,
+      label: 'Message your brain',
+    ),
     AppToolbarEntry(operation: 'voice', icon: 'mic', label: 'Voice'),
   ],
 );
@@ -34,7 +47,8 @@ Widget host(String app, AppManifest manifest, List<(String, String)> posted) =>
           child: Dock(
             app: app,
             manifest: manifest,
-            onRequest: (operation, input) async => posted.add((operation, input)),
+            onRequest: (operation, input) async =>
+                posted.add((operation, input)),
           ),
         ),
       ),
@@ -52,7 +66,10 @@ void main() {
     await tester.pump();
     expect(posted, [('play', ''), ('mute', 'on')]);
 
-    await tester.drag(find.byKey(const ValueKey('dock-volume')), const Offset(60, 0));
+    await tester.drag(
+      find.byKey(const ValueKey('dock-volume')),
+      const Offset(60, 0),
+    );
     await tester.pumpAndSettle();
     expect(posted, hasLength(3));
     expect(posted[2].$1, 'volume');
@@ -62,7 +79,10 @@ void main() {
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pump();
     expect(posted.last, ('say', 'hello'));
-    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, '');
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      '',
+    );
     expect(find.byKey(const ValueKey('assistant-cat')), findsNothing);
   });
 
@@ -75,22 +95,25 @@ void main() {
     expect(posted, isEmpty);
   });
 
-  testWidgets('the assistant toolbar is the assistant island: the cat, then its entries', (
-    tester,
-  ) async {
-    final posted = <(String, String)>[];
-    await tester.pumpWidget(host('assistant', assistant, posted));
+  testWidgets(
+    'the assistant toolbar is the assistant island: the cat, then its entries',
+    (tester) async {
+      final posted = <(String, String)>[];
+      await tester.pumpWidget(host('assistant', assistant, posted));
 
-    expect(find.byKey(const ValueKey('assistant-cat')), findsOneWidget);
-    expect(find.byType(DockTextField), findsOneWidget);
-    expect(find.byIcon(Icons.mic_rounded), findsOneWidget);
-    final cat = tester.getTopLeft(find.byKey(const ValueKey('assistant-cat')));
-    final field = tester.getTopLeft(find.byType(DockTextField));
-    final mic = tester.getTopLeft(find.byKey(const ValueKey('dock-voice')));
-    expect(cat.dx, lessThan(field.dx));
-    expect(field.dx, lessThan(mic.dx));
+      expect(find.byKey(const ValueKey('assistant-cat')), findsOneWidget);
+      expect(find.byType(DockTextField), findsOneWidget);
+      expect(find.byIcon(Icons.mic_rounded), findsOneWidget);
+      final cat = tester.getTopLeft(
+        find.byKey(const ValueKey('assistant-cat')),
+      );
+      final field = tester.getTopLeft(find.byType(DockTextField));
+      final mic = tester.getTopLeft(find.byKey(const ValueKey('dock-voice')));
+      expect(cat.dx, lessThan(field.dx));
+      expect(field.dx, lessThan(mic.dx));
 
-    await tester.tap(find.byKey(const ValueKey('dock-voice')));
-    expect(posted, [('voice', '')]);
-  });
+      await tester.tap(find.byKey(const ValueKey('dock-voice')));
+      expect(posted, [('voice', '')]);
+    },
+  );
 }

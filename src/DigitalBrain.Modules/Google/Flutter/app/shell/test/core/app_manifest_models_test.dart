@@ -17,7 +17,13 @@ void main() {
       ],
       'toolbar': [
         {'operation': 'play', 'icon': 'play', 'label': 'Play'},
-        {'operation': 'volume', 'kind': 'slider', 'icon': 'volume', 'min': 0, 'max': 100},
+        {
+          'operation': 'volume',
+          'kind': 'slider',
+          'icon': 'volume',
+          'min': 0,
+          'max': 100,
+        },
       ],
     });
     expect(manifest.operations, ['play', 'volume']);
@@ -31,7 +37,8 @@ void main() {
 
   test('a manifest without a toolbar has none', () {
     expect(
-      AppManifest.fromJson({'title': 'Echo', 'operations': [], 'toolbar': null}).toolbar,
+      AppManifest.fromJson({'title': 'Echo', 'operations': [], 'toolbar': null})
+          .toolbar,
       isEmpty,
     );
     expect(AppToolbarKind.parse('knob'), AppToolbarKind.button);
@@ -72,8 +79,18 @@ void main() {
         expect(request.url.path, '/brains/b1/infrastructure');
         return http.Response(
           jsonEncode([
-            {'module': 'postgres', 'resource': 'Modules-postgres-server', 'state': 'Running', 'health': 'Healthy'},
-            {'module': 'aspire', 'resource': 'apphost', 'state': 'Unknown', 'health': null},
+            {
+              'module': 'postgres',
+              'resource': 'Modules-postgres-server',
+              'state': 'Running',
+              'health': 'Healthy',
+            },
+            {
+              'module': 'aspire',
+              'resource': 'apphost',
+              'state': 'Unknown',
+              'health': null,
+            },
           ]),
           200,
         );

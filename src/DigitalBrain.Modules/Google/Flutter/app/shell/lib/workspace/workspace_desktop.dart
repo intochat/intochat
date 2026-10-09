@@ -89,7 +89,10 @@ class _WorkspaceDesktopState extends State<WorkspaceDesktop> {
               ],
             ),
           ),
-          Divider(height: 1, color: colors.outlineVariant.withValues(alpha: .6)),
+          Divider(
+            height: 1,
+            color: colors.outlineVariant.withValues(alpha: .6),
+          ),
           Expanded(
             child: RepaintBoundary(
               child: _PinnedEditor(
