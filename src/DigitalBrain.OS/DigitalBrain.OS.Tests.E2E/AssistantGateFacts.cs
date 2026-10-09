@@ -16,8 +16,7 @@ public sealed class AssistantGateFacts(RouterHostFixture host) : BrainFact(host)
     {
         var ct = TestContext.Current.CancellationToken;
         var scope = Brain.WorkspaceId;
-        await RouterHostFixture.UntilSynapseSubscribedAsync(Brain, "assistant", "send.cs", ct);
-        await RouterHostFixture.UntilSynapseSubscribedAsync(Brain, "calculator", "calculator.cs", ct);
+
         var status = Brain.Get<IText>(scope + "/apps/assistant/status");
         var workspace = Brain.Get<IWorkspace>(scope);
         await using var changes = await Brain.Observe<TextChanged>(status, ct);

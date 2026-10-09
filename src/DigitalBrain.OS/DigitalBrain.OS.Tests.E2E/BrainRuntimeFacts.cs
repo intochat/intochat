@@ -54,13 +54,7 @@ public sealed class BrainRuntimeFacts(ReferenceBrainFixture host) : BrainFact(ho
             .Load().Single(candidate => candidate.Name == "word-count");
         (await Brain.HttpClient.PostAsJsonAsync($"/brains/{scope}/apps/import", bundle, ct)).EnsureSuccessStatusCode();
 
-        // A request is a signal, so it is delivered only to a synapse that is already subscribed. Wait
-        // until the imported program's synapse has subscribed, then ask: the request cannot be lost between.
         var runtime = Brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(scope));
-        var behavior = $"{scope}/apps/{bundle.Name}/synapses/app.cs";
-        await TestWait.UntilAsync(async token => (await runtime.Inspect(token)).Behaviors,
-            behaviors => behaviors.Any(candidate => candidate.Id == behavior && candidate.Subscriptions.Length > 0),
-            TimeSpan.FromMinutes(2), ct);
 
         var answer = Brain.Get<IText>($"{scope}/apps/{bundle.Name}/answer");
         await using var changes = await Brain.Observe<TextChanged>(answer, ct);

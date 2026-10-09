@@ -14,7 +14,7 @@ public sealed class RouterHostFacts(RouterHostFixture host) : BrainFact(host)
         var ct = TestContext.Current.CancellationToken;
         var scope = Brain.WorkspaceId;
         _ = await OpenPageAsync(ct);
-        await RouterHostFixture.UntilSynapseSubscribedAsync(Brain, "router", "dispatch.cs", ct);
+
         var result = Brain.Get<IText>(scope + "/apps/router/result");
         await using var changes = await Brain.Observe<TextChanged>(result, ct);
 

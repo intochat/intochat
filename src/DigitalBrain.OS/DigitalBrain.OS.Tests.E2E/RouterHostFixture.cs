@@ -5,7 +5,6 @@ using DigitalBrain.AI.Models;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Aspire.Hosting;
 using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Microsoft.CSharp.Runtime;
 using DigitalBrain.Testing.E2E;
 using DigitalBrain.Testing.Model;
 
@@ -15,18 +14,6 @@ namespace DigitalBrain.OS.Tests.E2E;
 // routing and the arg-fill chat, so a request routes through Jev and carries itself out offline.
 public sealed class RouterHostFixture : ReferenceBrainFixture
 {
-    // A request is a signal, delivered only to a synapse that is already subscribed; a fact waits for
-    // the app's synapse before it posts, so the request cannot be lost between.
-    internal static Task UntilSynapseSubscribedAsync(E2EBrain brain, string app, string synapse, CancellationToken ct)
-    {
-        var scope = brain.WorkspaceId;
-        var runtime = brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(scope));
-        var behavior = $"{scope}/apps/{app}/synapses/{synapse}";
-        return TestWait.UntilAsync(async token => (await runtime.Inspect(token)).Behaviors,
-            behaviors => behaviors.Any(candidate => candidate.Id == behavior && candidate.Subscriptions.Length > 0),
-            TimeSpan.FromMinutes(2), ct);
-    }
-
     protected override Task<E2EBrain> StartBrainAsync(CancellationToken cancellationToken)
     {
         var root = new Uri(Model.Endpoint, "/").AbsoluteUri.TrimEnd('/');
