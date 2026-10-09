@@ -174,26 +174,27 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       setState(() {});
       return;
     }
-    if (store.projects.isEmpty) {
-      final owned = widget.programmingClient?.defaultBrainId;
-      if (owned == null) {
-        store.createProject('Personal');
-      } else {
-        final conversation = WorkspaceConversation(
-          id: 'initial',
-          title: 'New conversation',
-        );
-        store.projects.add(
-          WorkspaceProject(
-            id: owned,
-            title: 'Personal',
-            conversations: [conversation],
-            selectedConversationId: conversation.id,
-          ),
-        );
-        store.selectedProjectId = owned;
-        store.save();
-      }
+    // The server owns the brain: the session's default brain is always a project, and a
+    // project id is never invented here while a server is connected.
+    final owned = widget.programmingClient?.defaultBrainId;
+    if (owned == null) {
+      if (store.projects.isEmpty) store.createProject('Personal');
+    } else if (!store.projects.any((project) => project.id == owned)) {
+      final conversation = WorkspaceConversation(
+        id: 'initial',
+        title: 'New conversation',
+      );
+      store.projects.insert(
+        0,
+        WorkspaceProject(
+          id: owned,
+          title: 'Personal',
+          conversations: [conversation],
+          selectedConversationId: conversation.id,
+        ),
+      );
+      store.selectedProjectId = owned;
+      store.save();
     }
     if (!mounted) return;
     setState(() => _ready = true);
@@ -981,9 +982,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       if (name != null && mounted) {
         try {
           final client = widget.programmingClient;
-          final id = client?.accountId != null
-              ? await client!.createWorkspace()
-              : null;
+          final id = client == null ? null : await client.createWorkspace();
           if (!mounted) return;
           store.createProject(
             name.trim().isEmpty ? 'Untitled workspace' : name,

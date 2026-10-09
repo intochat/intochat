@@ -63,6 +63,15 @@ public static class AccountSession
     public static CallerContext? ResolveCaller(HttpContext context, AuthOptions options)
         => ResolvePrincipal(context, options.Posture, BasicCredential.FromOptions(options));
 
+    // The one seam for "which brain is this caller using": the session may declare a brain, else
+    // the owner brain that both the synthetic Open owner and the configured Basic operator are
+    // members of. Registered users always carry an "intochat.brain" claim, so they never fall back.
+    internal static string DefaultBrain(string accountId, string? claimBrain)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(accountId);
+        return claimBrain is { Length: > 0 } ? claimBrain : DefaultLogin;
+    }
+
     // The member a sign-in just proved, stamped exactly as their next authenticated request will be.
     internal static CallerContext ForMember(Member member)
     {
@@ -104,7 +113,7 @@ public static class AccountSession
         var brainId = context.Request.RouteValues.TryGetValue("brainId", out var routeBrain)
             && routeBrain is string { Length: > 0 } brainValue
                 ? brainValue
-                : claimBrain is { Length: > 0 } ? claimBrain : DefaultLogin;
+                : DefaultBrain(accountId, claimBrain);
         return new CallerContext
         {
             PrincipalId = principalId,

@@ -131,14 +131,19 @@ internal static class IdentityEndpoints
         }
     }
 
-    private static IResult Session(HttpContext http)
-        => http.User.Identity?.IsAuthenticated == true
-            ? Results.Ok(new SessionView(
-                http.User.FindFirstValue(PrincipalClaim) ?? "",
-                http.User.FindFirstValue(AccountClaim) ?? "",
-                http.User.FindFirstValue(BrainClaim) ?? "",
-                http.User.FindFirstValue(RoleClaim) ?? ""))
-            : Results.NoContent();
+    // Every resolved caller learns its brain, whichever posture resolved it: the shell's
+    // defaultBrainId must match what /mcp stamps. Only a caller nothing resolved answers 204.
+    private static IResult Session(HttpContext http, IOptions<AuthOptions> auth)
+    {
+        var caller = AccountSession.ResolveCaller(http, auth.Value);
+        return caller is null
+            ? Results.NoContent()
+            : Results.Ok(new SessionView(
+                caller.PrincipalId,
+                caller.AccountId,
+                caller.BrainId,
+                http.User.Identity?.IsAuthenticated == true ? http.User.FindFirstValue(RoleClaim) ?? "" : ""));
+    }
 
     private static async Task<IResult> LogoutAsync(HttpContext http)
     {
