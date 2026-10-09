@@ -14,12 +14,13 @@ internal sealed class AppNeuron(
     [PersistentState("app2", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<AppState> store,
     TimeProvider clock, IOptions<AppsOptions> options,
     IEnumerable<IAppRuntime> runtimes, IEnumerable<IAppStorageHook> storageHooks)
-    : Neuron<AppState>(store), IApp
+    : Neuron<AppState>(store), IApp, IRetainsSignals
 {
     private const int MaxHistory = 20;
     private const int MaxActivity = 50;
     private const int MaxPayloadLength = 64 * 1024;
     private const int MaxReceipts = 64;
+    private const int RetainedCapacity = 64;
 
     // A published version is public by definition: anyone may copy it, nothing more.
     public override NeuronAccess Access(string operation)
@@ -391,10 +392,20 @@ internal sealed class AppNeuron(
         }
         if (input.Length > MaxPayloadLength) { throw new ArgumentException("A request input is at most 64 KiB."); }
         var id = Guid.NewGuid();
-        // Published, never stored: a request is a fact for the app's synapses, and the brain runtime buffers it for them.
-        await Save(Snapshot, new AppRequested(operation, input, id));
+        // A request is a fact for the app's synapses; it is published for whoever is watching and kept
+        // for whoever subscribes later, so a synapse that starts after the request still gets it.
+        var next = Snapshot.Clone();
+        var retained = new RetainedSignal(next.RequestSequence + 1, new AppRequested(operation, input, id) with { Publisher = Id });
+        next.RequestSequence = retained.Sequence;
+        next.RequestRetention = [.. next.RequestRetention.TakeLast(RetainedCapacity - 1), retained];
+        await Save(next, new AppRequested(operation, input, id));
         return id;
     }
+
+    public Task<RetainedSignal[]> Retained(string signal, long since)
+        => Task.FromResult<RetainedSignal[]>(signal == nameof(AppRequested)
+            ? [.. Snapshot.RequestRetention.Where(candidate => candidate.Sequence > since)]
+            : []);
 
     private IAppRuntime? Runtime => runtimes.FirstOrDefault();
 

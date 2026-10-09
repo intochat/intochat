@@ -25,6 +25,8 @@ public sealed class AppState
     [Id(20)] public bool Edited { get; set; }
     [Id(21)] public AppVersionRecord? Published { get; set; }
     [Id(22)] public string? Publisher { get; set; }
+    [Id(23)] public RetainedSignal[] RequestRetention { get; set; } = [];
+    [Id(24)] public long RequestSequence { get; set; }
 
     public AppState Clone() => new()
     {
@@ -47,6 +49,8 @@ public sealed class AppState
         Edited = Edited,
         Published = Published,
         Publisher = Publisher,
+        RequestRetention = [.. RequestRetention],
+        RequestSequence = RequestSequence,
     };
 }
 

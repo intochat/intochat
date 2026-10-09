@@ -4,6 +4,7 @@ namespace DigitalBrain;
 // were published still receives them. The brain runtime seeds a new subscription's backlog from here;
 // a neuron that does not retain contributes nothing. Delivery stays at-least-once: deduplicating
 // against its own acknowledged facts stays the synapse's job.
+[Alias("brain.retained-signals")]
 public interface IRetainsSignals : INeuron
 {
     // The retained signals of kind `signal` (the signal's type name, as a subscription stores it)
