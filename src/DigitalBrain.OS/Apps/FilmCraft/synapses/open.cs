@@ -27,7 +27,7 @@ await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
         var session = await brain.Get<IArtCraftStudio>(brain.Setting("Brain")! + "/artcraft").Open("filmcraft", brain.Stopping);
         await status.Set(session.WebUrl is null ? "FilmCraft tools connected; no page is served in this deployment." : "FilmCraft tools connected.");
         var browser = brain.Get<IWebBrowser>(Name("browser"));
-        await browser.Configure(Name("browser"), Name("status"));
+        await browser.Configure(Name("browser"));
         if (session.WebUrl is { } url) { await browser.Navigate(url, "FilmCraft"); }
         // The page is the engine: its window.filmcraft API becomes tools on the same timeline the person sees.
         await brain.Get<IPageTools>(brain.Setting("Brain")! + "/pages/filmcraft").Configure(new PageToolsSpec("FilmCraft page", Name("browser"), "filmcraft"), brain.Stopping);

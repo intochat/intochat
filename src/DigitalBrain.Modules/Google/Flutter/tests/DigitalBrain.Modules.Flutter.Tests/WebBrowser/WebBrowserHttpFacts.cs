@@ -22,8 +22,11 @@ public sealed class WebBrowserHttpFacts(FlutterHostFixture host)
         using var navigate = await brain.HttpClient.PostAsJsonAsync($"/brains/{ws}/ui/browsers/docs/navigate",
             new { uri = "https://learn.microsoft.com/", title = "Docs" }, ct);
         Assert.Equal(HttpStatusCode.Accepted, navigate.StatusCode);
-        var state = await brain.HttpClient.GetFromJsonAsync<WebBrowserState>($"/brains/{ws}/ui/browsers/docs", Json, ct);
+        var state = await brain.HttpClient.GetFromJsonAsync<WebBrowserView>($"/brains/{ws}/ui/browsers/docs", Json, ct);
         Assert.Equal("https://learn.microsoft.com/", state!.Uri);
         Assert.Equal("Docs", state.Title);
+        Assert.Equal(BrowserConnection.Waiting, state.Connection);
+        Assert.Empty(state.Error);
+        Assert.Empty(state.ActualUrl);
     }
 }

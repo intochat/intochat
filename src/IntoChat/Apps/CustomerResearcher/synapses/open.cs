@@ -11,7 +11,7 @@ using DigitalBrain.Flutter.WebBrowser;
 using DigitalBrain.Flutter.Workspace;
 
 // The researcher's window: edge neurons composed by plain grain calls, safe to re-run. The browser
-// part declares its own driver and status text, so no behavior manages the browser session.
+// part declares its own driver, so no behavior manages the browser session.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
@@ -46,7 +46,7 @@ async Task ComposeAsync()
     await toolbar.Set(new LayoutDefinition("row",
         [Ref(UIVocabulary.ButtonType, "research"), Ref(UIVocabulary.ButtonType, "stop")]), (await toolbar.Read()).Revision);
 
-    await brain.Get<IWebBrowser>(Name("browser")).Configure(Name("browser"), Name("status"));
+    await brain.Get<IWebBrowser>(Name("browser")).Configure(Name("browser"));
     var missingStorage = string.IsNullOrWhiteSpace((await app.Read()).Connections.GetValueOrDefault("tables"));
     await brain.Get<IText>(Name("configuration")).Set(missingStorage
         ? "Database connection required. Bind a Postgres connection to this app's tables slot in app configuration, then reopen and retry."

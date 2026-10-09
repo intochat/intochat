@@ -1,4 +1,5 @@
 import 'package:digitalbrain_ui/digitalbrain_ui.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:digitalbrain_ui/src/components/browser/embedded_browser_windows.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,7 +24,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(UiWebBrowser), findsOneWidget);
     expect(
-      find.text('Live research requires the Windows desktop app.'),
+      find.text('Browsing requires the Windows desktop app.'),
       findsOneWidget,
     );
     expect(tester.takeException(), isNull);
@@ -63,4 +64,103 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('aPreviewNeuronViewDoesNotMountTheEmbeddedBrowser', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NeuronView(
+            kind: 'webbrowser',
+            name: 'workspace/app/browser',
+            load: (_, _) async => {'title': 'Preview', 'uri': 'http://intent/'},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(UiWebBrowser), findsNothing);
+    expect(find.byType(EmbeddedBrowser), findsNothing);
+    expect(find.text('Preview'), findsOneWidget);
+  });
+
+  testWidgets('aFailedEnvironmentIsReportedAsUnavailable', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+
+    environmentFactory = () async => throw StateError('WebView2 missing');
+    final events = <Map<String, dynamic>>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NeuronView(
+            kind: 'webbrowser',
+            name: 'workspace/app/browser',
+            load: (_, _) async => {'title': 'Browser', 'uri': 'http://intent/'},
+            onAction: (event) async => events.add(event),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final unavailable = events
+        .where((event) => event['action'] == 'unavailable')
+        .toList();
+    expect(unavailable, isNotEmpty);
+    expect(unavailable.last['value'] as String, contains('WebView2 missing'));
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('aFailedEnvironmentIsRetriedByTheNextBrowser', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+
+    var calls = 0;
+    environmentFactory = () async {
+      calls++;
+      throw StateError('boom');
+    };
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NeuronView(
+            kind: 'webbrowser',
+            name: 'workspace/app/browser',
+            load: (_, _) async => {'title': 'Browser', 'uri': 'http://intent/'},
+            onAction: (_) async {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(calls, 1);
+    await tester.tap(find.byTooltip('Reconnect browser'));
+    await tester.pumpAndSettle();
+    expect(calls, 2);
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('theBrowserShowsTheNeuronsUrlNotItsOwn', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NeuronView(
+            kind: 'webbrowser',
+            name: 'workspace/app/browser',
+            load: (_, _) async => {
+              'title': 'Browser',
+              'uri': 'http://intended.example/',
+              'actualUrl': 'http://observed.example/page',
+              'connection': 'attached',
+              'error': '',
+            },
+            onAction: (_) async {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('http://observed.example/page'), findsOneWidget);
+    expect(find.text('http://intended.example/'), findsNothing);
+  });
 }

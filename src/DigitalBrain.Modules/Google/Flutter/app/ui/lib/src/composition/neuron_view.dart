@@ -481,28 +481,45 @@ class _NeuronViewState extends State<NeuronView> {
         );
       case 'webbrowser':
         final send = widget.onAction;
+        if (send == null) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                definition['title'] as String? ?? '',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          );
+        }
         return UiWebBrowser(
           part: UiWebBrowserPart.fromMetadata({
             ...definition,
             'name': widget.name,
           }),
           height: null,
-          onConnect: send == null
-              ? null
-              : (port, sessionId) => send({
-                  'kind': 'webbrowser',
-                  'name': widget.name,
-                  'action': 'connect',
-                  'value': jsonEncode({'port': port, 'sessionId': sessionId}),
-                }),
-          onDisconnect: send == null
-              ? null
-              : (sessionId) => send({
-                  'kind': 'webbrowser',
-                  'name': widget.name,
-                  'action': 'disconnect',
-                  'value': jsonEncode({'sessionId': sessionId}),
-                }),
+          connection: '${data['connection'] ?? ''}',
+          error: '${data['error'] ?? ''}',
+          actualUrl: '${data['actualUrl'] ?? ''}',
+          onConnect: (port, sessionId) => send({
+            'kind': 'webbrowser',
+            'name': widget.name,
+            'action': 'connect',
+            'value': jsonEncode({'port': port, 'sessionId': sessionId}),
+          }),
+          onDisconnect: (sessionId) => send({
+            'kind': 'webbrowser',
+            'name': widget.name,
+            'action': 'disconnect',
+            'value': jsonEncode({'sessionId': sessionId}),
+          }),
+          onUnavailable: (reason) => send({
+            'kind': 'webbrowser',
+            'name': widget.name,
+            'action': 'unavailable',
+            'value': reason,
+          }),
         );
       case 'voiceinput':
         return widget.voiceBuilder?.call(widget.name, definition) ??

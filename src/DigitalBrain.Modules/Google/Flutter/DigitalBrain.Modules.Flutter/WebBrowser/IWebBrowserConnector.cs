@@ -8,4 +8,5 @@ public interface IWebBrowserConnector : INeuron
 {
     Task Connect(int port, string sessionId);
     Task Disconnect(string sessionId);
+    Task Unavailable(string reason);
 }

@@ -26,7 +26,7 @@ await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
         var session = await brain.Get<IArtCraftStudio>(brain.Setting("Brain")! + "/artcraft").Open("photocraft", brain.Stopping);
         await status.Set(session.WebUrl is null ? "PhotoCraft tools connected; no page is served in this deployment." : "PhotoCraft tools connected.");
         var browser = brain.Get<IWebBrowser>(Name("browser"));
-        await browser.Configure(Name("browser"), Name("status"));
+        await browser.Configure(Name("browser"));
         if (session.WebUrl is { } url) { await browser.Navigate(url, "PhotoCraft"); }
         var main = brain.Get<ILayout>(Name("main"));
         await main.Set(new LayoutDefinition("column", [Ref(UIVocabulary.TextType, "status"), Ref(UIVocabulary.WebBrowserType, "browser")],

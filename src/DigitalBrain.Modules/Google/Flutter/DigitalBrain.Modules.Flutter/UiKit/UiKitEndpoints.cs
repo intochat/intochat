@@ -150,7 +150,7 @@ internal static class UiKitEndpoints
             return Results.Accepted();
         });
 
-        UiHttp.MapGet<IWebBrowser, WebBrowserState>(endpoints, "browsers", neuron => neuron.Read());
+        UiHttp.MapGet<IWebBrowser, WebBrowserView>(endpoints, "browsers", neuron => neuron.Read());
         UiHttp.MapPost(endpoints, "browsers/{name}/navigate", async (string name, BrowserNavigate body, IGrainFactory grains, CancellationToken ct) =>
         {
             await grains.GetGrain<IWebBrowser>(name).Navigate(body.Uri, body.Title).WaitAsync(ct);

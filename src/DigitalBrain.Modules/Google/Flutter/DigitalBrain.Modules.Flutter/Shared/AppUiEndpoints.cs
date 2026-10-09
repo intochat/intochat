@@ -79,10 +79,15 @@ internal static class AppUiEndpoints
                     }
                     break;
                 case UIVocabulary.WebBrowserType:
-                    BrowserConnection connection;
-                    try { connection = JsonSerializer.Deserialize<BrowserConnection>(input.Value ?? "", JsonSerializerOptions.Web) ?? throw new ArgumentException("Browser connection is required."); }
-                    catch (JsonException) { throw new ArgumentException("Invalid browser connection."); }
                     var browser = brain.Get<IWebBrowserConnector>(input.Name);
+                    if (input.Action == "unavailable")
+                    {
+                        await browser.Unavailable(input.Value ?? "The browser is unavailable.").WaitAsync(ct);
+                        break;
+                    }
+                    BrowserConnect connection;
+                    try { connection = JsonSerializer.Deserialize<BrowserConnect>(input.Value ?? "", JsonSerializerOptions.Web) ?? throw new ArgumentException("Browser connection is required."); }
+                    catch (JsonException) { throw new ArgumentException("Invalid browser connection."); }
                     if (input.Action == "connect") { await browser.Connect(connection.Port, connection.SessionId).WaitAsync(ct); }
                     else if (input.Action == "disconnect") { await browser.Disconnect(connection.SessionId).WaitAsync(ct); }
                     else { throw new ArgumentException("Unknown browser action."); }
@@ -136,5 +141,5 @@ internal static class AppUiEndpoints
 
     internal sealed record UiEvent(string Kind, string Name, string? Action = null, string? Value = null, long Revision = 0, string? Field = null, string? MimeType = null,
         string? Context = null, Guid? OperationId = null);
-    private sealed record BrowserConnection(int Port, string SessionId);
+    private sealed record BrowserConnect(int Port, string SessionId);
 }

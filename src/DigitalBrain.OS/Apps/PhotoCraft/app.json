@@ -2,7 +2,7 @@
   "name": "photocraft",
   "title": "PhotoCraft",
   "description": "Photoshop-style image editing: the assistant edits through PhotoCraft's tools while the app runs in a window.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "icon": "icon.svg",
   "settings": [],
   "operations": [

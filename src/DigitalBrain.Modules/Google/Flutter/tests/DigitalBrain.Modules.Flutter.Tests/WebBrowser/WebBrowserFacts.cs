@@ -24,7 +24,7 @@ public sealed class WebBrowserFacts
         var provider = new Provider();
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
-        await browser.Configure("research/driver", "research/status");
+        await browser.Configure("research/driver");
         var connector = brain.Get<IWebBrowserConnector>("research/browser");
         var handler = brain.Get<IPrimitiveTestHandler>("browser-handler");
         await brain.Get<IUiBinding>("research/browser").Bind(handler);
@@ -35,12 +35,13 @@ public sealed class WebBrowserFacts
         Assert.Equal(new BrowserAttachment(12345, Session), Assert.Single(provider.Attachments));
         Assert.True((await brain.Get<IPlaywright>("research/driver").Read()).Connected);
         Assert.False((await brain.Get<IPlaywright>("research/browser").Read()).Connected);
-        Assert.Equal("Ready", (await brain.Get<IText>("research/status").Read()).Markdown);
+        Assert.Equal(BrowserConnection.Attached, (await browser.Read()).Connection);
+        Assert.Empty((await browser.Read()).Error);
         var signal = await connected.NextAsync(ct: ct);
         Assert.Equal("research/browser", signal.Name);
         Assert.Equal(Session, signal.SessionId);
         Assert.False(string.IsNullOrEmpty(signal.Publisher.Name));
-        Assert.Equal(new BrowserConnected("research/browser", Session), Assert.Single(await handler.Events()));
+        Assert.Equal(new BrowserConnected("research/browser", Session), Assert.Single(await Lifecycle(handler)));
     }
 
     [Fact]
@@ -66,7 +67,7 @@ public sealed class WebBrowserFacts
         var provider = new Provider();
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
-        await browser.Configure("research/driver", "research/status");
+        await browser.Configure("research/driver");
         var connector = brain.Get<IWebBrowserConnector>("research/browser");
         var handler = brain.Get<IPrimitiveTestHandler>("handler");
         await brain.Get<IUiBinding>("research/browser").Bind(handler);
@@ -76,12 +77,12 @@ public sealed class WebBrowserFacts
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => connector.Disconnect(Session));
 
-        Assert.Equal("Ready", (await brain.Get<IText>("research/status").Read()).Markdown);
-        Assert.IsType<BrowserConnected>(Assert.Single(await handler.Events()));
+        Assert.Equal(BrowserConnection.Attached, (await browser.Read()).Connection);
+        Assert.IsType<BrowserConnected>(Assert.Single(await Lifecycle(handler)));
         page.FailDispose = false;
         await connector.Disconnect(Session);
-        Assert.Equal("Browser disconnected", (await brain.Get<IText>("research/status").Read()).Markdown);
-        Assert.Single((await handler.Events()).OfType<BrowserDisconnected>());
+        Assert.Equal(BrowserConnection.Waiting, (await browser.Read()).Connection);
+        Assert.Single((await Lifecycle(handler)).OfType<BrowserDisconnected>());
     }
 
     [Fact]
@@ -91,7 +92,7 @@ public sealed class WebBrowserFacts
         var provider = new Provider();
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
-        await browser.Configure("research/driver", "research/status");
+        await browser.Configure("research/driver");
         var connector = brain.Get<IWebBrowserConnector>("research/browser");
         var handler = brain.Get<IPrimitiveTestHandler>("handler");
         await brain.Get<IUiBinding>("research/browser").Bind(handler);
@@ -102,8 +103,8 @@ public sealed class WebBrowserFacts
         await page.DisposeStarted.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
         try
         {
-            Assert.Equal("Ready", (await brain.Get<IText>("research/status").Read()).Markdown);
-            Assert.IsType<BrowserConnected>(Assert.Single(await handler.Events()));
+            Assert.Equal(BrowserConnection.Attached, (await browser.Read()).Connection);
+            Assert.IsType<BrowserConnected>(Assert.Single(await Lifecycle(handler)));
             var repeatedDisconnect = connector.Disconnect(Session);
             await browser.Read();
             Assert.False(repeatedDisconnect.IsCompleted);
@@ -112,8 +113,8 @@ public sealed class WebBrowserFacts
             await browser.Read();
             page.PendingDispose.SetResult();
             await Task.WhenAll(disconnect, repeatedDisconnect, replacement).WaitAsync(TimeSpan.FromSeconds(10), ct);
-            Assert.Equal("Ready", (await brain.Get<IText>("research/status").Read()).Markdown);
-            Assert.DoesNotContain(await handler.Events(), signal => signal is BrowserDisconnected);
+            Assert.Equal(BrowserConnection.Attached, (await browser.Read()).Connection);
+            Assert.DoesNotContain(await Lifecycle(handler), signal => signal is BrowserDisconnected);
             Assert.True((await brain.Get<IPlaywright>("research/driver").Read()).Ready);
         }
         finally { page.PendingDispose.TrySetResult(); }
@@ -126,17 +127,17 @@ public sealed class WebBrowserFacts
         var provider = new Provider();
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
-        await browser.Configure("research/driver", "research/status");
+        await browser.Configure("research/driver");
         var handler = brain.Get<IPrimitiveTestHandler>("handler");
         await brain.Get<IUiBinding>("research/browser").Bind(handler);
         await brain.Get<IWebBrowserConnector>("research/browser").Connect(12345, Session);
-        await brain.Get<IText>("research/status").Set("Researching…");
+        await brain.Get<IText>("research/status").Set("Researching...");
 
         await brain.DeactivateAsync(browser, ct);
 
         Assert.True(Assert.Single(provider.Pages).Disposed);
-        Assert.Equal("Researching…", (await brain.Get<IText>("research/status").Read()).Markdown);
-        Assert.IsType<BrowserConnected>(Assert.Single(await handler.Events()));
+        Assert.Equal("Researching...", (await brain.Get<IText>("research/status").Read()).Markdown);
+        Assert.IsType<BrowserConnected>(Assert.Single(await Lifecycle(handler)));
     }
 
     [Fact]
@@ -146,7 +147,7 @@ public sealed class WebBrowserFacts
         var provider = new Provider();
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
-        await browser.Configure("research/driver", "research/status");
+        await browser.Configure("research/driver");
         var handler = brain.Get<IPrimitiveTestHandler>("handler");
         await brain.Get<IUiBinding>("research/browser").Bind(handler);
         await brain.Get<IWebBrowserConnector>("research/browser").Connect(12345, Session);
@@ -154,29 +155,28 @@ public sealed class WebBrowserFacts
 
         await brain.DeactivateAsync(browser, ct);
 
-        Assert.Equal("Ready", (await brain.Get<IText>("research/status").Read()).Markdown);
-        Assert.IsType<BrowserConnected>(Assert.Single(await handler.Events()));
+        Assert.Equal(BrowserConnection.Waiting, (await browser.Read()).Connection);
+        Assert.IsType<BrowserConnected>(Assert.Single(await Lifecycle(handler)));
         await browser.Read();
     }
 
     [Fact]
-    public async Task Recomposition_and_rebinding_do_not_replace_a_live_session_or_reset_status()
+    public async Task Recomposition_and_rebinding_do_not_replace_a_live_session_or_reset_observation()
     {
         var provider = new Provider();
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
         var connector = brain.Get<IWebBrowserConnector>("research/browser");
         var handler = brain.Get<IPrimitiveTestHandler>("handler");
-        await browser.Configure("research/driver", "research/status");
+        await browser.Configure("research/driver");
         await brain.Get<IUiBinding>("research/browser").Bind(handler);
         await connector.Connect(12345, Session);
-        await brain.Get<IText>("research/status").Set("Researching…");
-        await browser.Configure("research/driver", "research/status");
+        await browser.Configure("research/driver");
         await brain.Get<IUiBinding>("research/browser").Bind(handler);
         await connector.Connect(12345, Session);
         Assert.Single(provider.Attachments);
-        Assert.Single(await handler.Events());
-        Assert.Equal("Researching…", (await brain.Get<IText>("research/status").Read()).Markdown);
+        Assert.Single(await Lifecycle(handler));
+        Assert.Equal(BrowserConnection.Attached, (await browser.Read()).Connection);
         await Assert.ThrowsAsync<InvalidOperationException>(() => browser.Configure("other/driver"));
     }
 
@@ -214,7 +214,7 @@ public sealed class WebBrowserFacts
     }
 
     [Fact]
-    public async Task The_declared_driver_survives_reactivation_but_the_local_attachment_does_not()
+    public async Task ARestartedBrowserIsWaitingNotReady()
     {
         var ct = TestContext.Current.CancellationToken;
         var provider = new Provider();
@@ -225,6 +225,10 @@ public sealed class WebBrowserFacts
         await connector.Connect(12345, Session);
         await brain.DeactivateAsync(browser, ct);
         Assert.False((await brain.Get<IPlaywright>("research/driver").Read()).Connected);
+        var restarted = await browser.Read();
+        Assert.Equal(BrowserConnection.Waiting, restarted.Connection);
+        Assert.Empty(restarted.Error);
+        Assert.Empty(restarted.ActualUrl);
         await connector.Connect(12345, new string('b', 32));
         Assert.True((await brain.Get<IPlaywright>("research/driver").Read()).Connected);
         Assert.Equal(0, (await browser.Read()).Version);
@@ -237,7 +241,7 @@ public sealed class WebBrowserFacts
         var ct = TestContext.Current.CancellationToken;
         var provider = new Provider { Pending = new(TaskCreationOptions.RunContinuationsAsynchronously) };
         await using var brain = await Start(provider);
-        await brain.Get<IWebBrowser>("research/browser").Configure("research/driver", "research/status");
+        await brain.Get<IWebBrowser>("research/browser").Configure("research/driver");
         var connector = brain.Get<IWebBrowserConnector>("research/browser");
         var connect = connector.Connect(12345, Session);
         await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
@@ -252,7 +256,7 @@ public sealed class WebBrowserFacts
         await disconnect.WaitAsync(timeout.Token);
         Assert.True(page.Disposed);
         Assert.False((await brain.Get<IPlaywright>("research/driver").Read()).Connected);
-        Assert.Equal("Browser disconnected", (await brain.Get<IText>("research/status").Read()).Markdown);
+        Assert.Equal(BrowserConnection.Waiting, (await brain.Get<IWebBrowser>("research/browser").Read()).Connection);
     }
 
     [Fact]
@@ -260,14 +264,17 @@ public sealed class WebBrowserFacts
     {
         var provider = new Provider { Fail = true };
         await using var brain = await Start(provider);
-        await brain.Get<IWebBrowser>("research/browser").Configure("research/driver", "research/status");
+        var browser = brain.Get<IWebBrowser>("research/browser");
+        await browser.Configure("research/driver");
         var connector = brain.Get<IWebBrowserConnector>("research/browser");
         await Assert.ThrowsAsync<InvalidOperationException>(() => connector.Connect(12345, Session));
-        Assert.Equal("Browser unavailable", (await brain.Get<IText>("research/status").Read()).Markdown);
+        var failed = await browser.Read();
+        Assert.Equal(BrowserConnection.Unavailable, failed.Connection);
+        Assert.Equal("Browser unavailable", failed.Error);
         Assert.False((await brain.Get<IPlaywright>("research/driver").Read()).Ready);
         provider.Fail = false;
         await connector.Connect(12345, Session);
-        Assert.Equal("Ready", (await brain.Get<IText>("research/status").Read()).Markdown);
+        Assert.Equal(BrowserConnection.Attached, (await browser.Read()).Connection);
     }
 
     [Fact]
@@ -275,9 +282,10 @@ public sealed class WebBrowserFacts
     {
         Assert.True(PlatformOnlyAttribute.AppliesTo(typeof(IWebBrowserConnector)));
         Assert.False(PlatformOnlyAttribute.AppliesTo(typeof(IWebBrowser)));
-        Assert.DoesNotContain(typeof(IWebBrowser).GetMethods(), method => method.Name is "Connect" or "Disconnect");
+        Assert.DoesNotContain(typeof(IWebBrowser).GetMethods(), method => method.Name is "Connect" or "Disconnect" or "Unavailable");
         Assert.DoesNotContain(typeof(BrowserConnected).GetProperties(), property => property.Name == "Port");
         Assert.DoesNotContain(typeof(WebBrowserState).GetProperties(), property => property.Name == "Port");
+        Assert.DoesNotContain(typeof(WebBrowserView).GetProperties(), property => property.Name == "Port");
     }
 
     [Fact]
@@ -293,19 +301,64 @@ public sealed class WebBrowserFacts
     }
 
     [Fact]
-    public async Task An_attached_page_shows_the_browser_uri_before_and_after_connecting()
+    public async Task AnAttachedPageShowsTheBrowserUri()
     {
         var provider = new Provider();
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("film/browser");
-        await browser.Configure("film/browser", "film/status");
+        await browser.Configure("film/browser");
         await browser.Navigate("http://localhost:18111/", "FilmCraft");
         await brain.Get<IWebBrowserConnector>("film/browser").Connect(12345, Session);
         var page = Assert.Single(provider.Pages);
         Assert.Equal(["http://localhost:18111/"], page.Navigations);
-        Assert.Equal("Ready", (await brain.Get<IText>("film/status").Read()).Markdown);
+        var attached = await browser.Read();
+        Assert.Equal(BrowserConnection.Attached, attached.Connection);
+        Assert.Equal("http://localhost:18111/", attached.ActualUrl);
         await browser.Navigate("http://localhost:18110/", "PhotoCraft");
         Assert.Equal(["http://localhost:18111/", "http://localhost:18110/"], page.Navigations);
+        Assert.Equal("http://localhost:18110/", (await browser.Read()).ActualUrl);
+    }
+
+    [Fact]
+    public async Task AnUnavailableShellBrowserReportsItsReason()
+    {
+        var provider = new Provider();
+        await using var brain = await Start(provider);
+        var browser = brain.Get<IWebBrowser>("research/browser");
+        var connector = brain.Get<IWebBrowserConnector>("research/browser");
+        var handler = brain.Get<IPrimitiveTestHandler>("unavailable-handler");
+        await brain.Get<IUiBinding>("research/browser").Bind(handler);
+        const string reason = "The WebView2 environment could not be started.";
+        await connector.Unavailable(reason);
+        var view = await browser.Read();
+        Assert.Equal(BrowserConnection.Unavailable, view.Connection);
+        Assert.Equal(reason, view.Error);
+        Assert.Empty(view.ActualUrl);
+        Assert.Contains(await handler.Events(), signal => signal is BrowserObservationChanged);
+        await connector.Unavailable(new string('x', 300));
+        Assert.Equal(200, (await browser.Read()).Error.Length);
+    }
+
+    [Fact]
+    public async Task ANavigationFailureIsTheBrowsersError()
+    {
+        var provider = new Provider();
+        await using var brain = await Start(provider);
+        var browser = brain.Get<IWebBrowser>("film/browser");
+        await browser.Configure("film/browser");
+        await brain.Get<IWebBrowserConnector>("film/browser").Connect(12345, Session);
+        var page = Assert.Single(provider.Pages);
+        page.FailNavigate = true;
+        await browser.Navigate("http://localhost:18110/");
+        var failed = await browser.Read();
+        Assert.Equal(BrowserConnection.Failed, failed.Connection);
+        Assert.Equal("Browser could not load http://localhost:18110/: Load rejected", failed.Error);
+        page.FailNavigate = false;
+        await browser.Navigate("http://localhost:18110/");
+        var recovered = await browser.Read();
+        Assert.Equal(BrowserConnection.Attached, recovered.Connection);
+        Assert.Empty(recovered.Error);
+        Assert.Equal("http://localhost:18110/", recovered.ActualUrl);
     }
 
     private sealed class Provider : IBrowserSessionProvider
@@ -330,15 +383,22 @@ public sealed class WebBrowserFacts
     private sealed class Page : IBrowserPageSession
     {
         public bool FailDispose { get; set; }
+        public bool FailNavigate { get; set; }
         public TaskCompletionSource? PendingDispose { get; set; }
         public TaskCompletionSource DisposeStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public bool Disposed { get; private set; }
         public bool Connected => !Disposed;
-        public string? Url => "https://example.com";
-        public string? Title => "Example";
+        public string? Url { get; private set; } = "https://example.com";
+        public string? Title { get; private set; } = "Example";
         public Task<BrowserObservation> SnapshotAsync(CancellationToken ct) => Task.FromResult(new BrowserObservation(Url!, Title!, "", []));
         public List<string> Navigations { get; } = [];
-        public Task<BrowserObservation> NavigateAsync(string url, CancellationToken ct) { Navigations.Add(url); return SnapshotAsync(ct); }
+        public Task<BrowserObservation> NavigateAsync(string url, CancellationToken ct)
+        {
+            Navigations.Add(url);
+            if (FailNavigate) { throw new InvalidOperationException("Load rejected"); }
+            Url = url;
+            return SnapshotAsync(ct);
+        }
         public Task<BrowserObservation> ClickAsync(string selector, CancellationToken ct) => SnapshotAsync(ct);
         public Task<BrowserObservation> FillAsync(string selector, string value, CancellationToken ct) => SnapshotAsync(ct);
         public Task<string> EvaluateAsync(string expression, CancellationToken ct) => Task.FromResult("null");
@@ -350,4 +410,8 @@ public sealed class WebBrowserFacts
             Disposed = true;
         }
     }
+
+    // Observation changes re-render the shell; these facts are about the session lifecycle.
+    private static async Task<Signal[]> Lifecycle(IPrimitiveTestHandler handler)
+        => [.. (await handler.Events()).Where(signal => signal is not BrowserObservationChanged)];
 }
