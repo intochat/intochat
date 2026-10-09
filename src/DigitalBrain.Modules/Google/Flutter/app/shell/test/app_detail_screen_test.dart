@@ -163,31 +163,6 @@ void main() {
     expect(find.byKey(const ValueKey('edited-note')), findsOneWidget);
   });
 
-  testWidgets('an installed openable app can be docked and undocked', (
-    tester,
-  ) async {
-    final server = _FakeMarket(installed: true);
-    final docks = <String>[];
-    await tester.pumpWidget(
-      _host(
-        AppDetailScreen(
-          workspaceId: 'b1',
-          request: server.request,
-          installedName: 'customer-researcher',
-          onOpen: (_) async {},
-          onDock: docks.add,
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('dock-app')));
-    await tester.pumpAndSettle();
-    expect(find.text('Undock'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('dock-app')));
-    await tester.pumpAndSettle();
-    expect(docks, ['customer-researcher', '']);
-  });
-
   testWidgets('a failed install shows the server reason and keeps Install', (
     tester,
   ) async {

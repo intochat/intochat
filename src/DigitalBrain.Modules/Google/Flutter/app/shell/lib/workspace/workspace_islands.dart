@@ -4,32 +4,30 @@ import 'package:flutter/material.dart';
 
 import 'workspace_store.dart';
 
+// The bottom bar: Home | the dock | user and compute. The dock is the focused app's toolbar,
+// handed in by the workspace; nothing here knows what it holds.
 class WorkspaceIslands extends StatelessWidget {
   const WorkspaceIslands({
     super.key,
     required this.store,
-    required this.onRestore,
+    required this.dock,
     required this.onNewWorkspace,
     required this.onSavedWork,
     required this.onSearch,
     required this.onSettings,
+    required this.onHome,
     this.onConfiguration,
     this.onCompute,
     this.onSwitchAccount,
-    required this.onHome,
     this.home = false,
-    this.sidePanel = true,
   });
   final WorkspaceStore store;
-  final ValueChanged<String> onRestore;
-  final VoidCallback onNewWorkspace, onSavedWork, onSearch, onSettings;
-  final VoidCallback? onCompute;
-  final VoidCallback? onConfiguration;
-  final VoidCallback? onSwitchAccount;
-  final VoidCallback onHome;
+  final Widget dock;
+  final VoidCallback onNewWorkspace, onSavedWork, onSearch, onSettings, onHome;
+  final VoidCallback? onCompute, onConfiguration;
+  final Future<void> Function()? onSwitchAccount;
   final bool home;
-  // The side-panel toggle shows only when an app is docked.
-  final bool sidePanel;
+
   Widget island(BuildContext context, Widget child) => ClipRRect(
     borderRadius: BorderRadius.circular(19),
     child: BackdropFilter(
@@ -57,173 +55,23 @@ class WorkspaceIslands extends StatelessWidget {
       ),
     ),
   );
-  IconData appIcon(String kind) => switch (kind) {
-    'csharp' => Icons.code,
-    'table' => Icons.table_chart_outlined,
-    _ => Icons.web_asset_outlined,
-  };
+
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, c) {
       final narrow = c.maxWidth < 900;
       final project = store.currentProject;
-      final workspace = island(
+      final homeIsland = island(
         context,
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            PopupMenuButton<String>(
-              tooltip: 'Workspaces',
-              position: PopupMenuPosition.over,
-              onSelected: (id) {
-                if (id == 'new') {
-                  onNewWorkspace();
-                } else if (id == 'saved') {
-                  onSavedWork();
-                } else {
-                  store.selectProject(id);
-                }
-              },
-              itemBuilder: (_) => [
-                for (final p in store.projects)
-                  CheckedPopupMenuItem(
-                    value: p.id,
-                    checked: p.id == project.id,
-                    child: Text(p.title),
-                  ),
-                const PopupMenuDivider(),
-                const PopupMenuItem(value: 'new', child: Text('New workspace')),
-                const PopupMenuItem(value: 'saved', child: Text('Saved work')),
-              ],
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 10,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.blur_on,
-                      size: 23,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    if (!narrow) ...[
-                      const SizedBox(width: 9),
-                      const Text(
-                        'IntoChat',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -.5,
-                        ),
-                      ),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 10),
-                        child: Text('/', style: TextStyle(color: Colors.grey)),
-                      ),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 140),
-                        child: Text(
-                          project.title,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelMedium,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(width: 6),
-                    const Icon(Icons.unfold_more, size: 16),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-      final assistantIsland = island(
-        context,
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (sidePanel)
-              IconButton(
-                tooltip: 'Side panel',
-                onPressed: store.toggleChat,
-                icon: Icon(
-                  Icons.chat_bubble_outline,
-                  size: 21,
-                  color: project.presentation.chatCollapsed
-                      ? null
-                      : Theme.of(context).colorScheme.primary,
-                ),
-              ),
-            if (project.presentation.openArtifactIds.isNotEmpty)
-              Container(
-                height: 24,
-                width: 1,
-                margin: const EdgeInsets.symmetric(horizontal: 5),
-                color: Theme.of(context).dividerColor,
-              ),
-            for (final id in project.presentation.openArtifactIds.take(
-              narrow ? 3 : 7,
-            ))
-              Builder(
-                builder: (context) {
-                  final a = project.artifacts
-                      .where((a) => a.id == id)
-                      .firstOrNull;
-                  if (a == null) return const SizedBox.shrink();
-                  final active =
-                      project.presentation.activeArtifactId == id &&
-                      !project.presentation.minimizedArtifactIds.contains(id);
-                  return Tooltip(
-                    message: a.title,
-                    child: Stack(
-                      alignment: Alignment.bottomCenter,
-                      children: [
-                        IconButton(
-                          tooltip: a.title,
-                          onPressed: () => onRestore(id),
-                          icon: Icon(
-                            appIcon(a.data['app'] as String? ?? a.kind),
-                            size: 22,
-                            color: active
-                                ? Theme.of(context).colorScheme.primary
-                                : null,
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 1,
-                          child: Container(
-                            width: active ? 12 : 4,
-                            height: 3,
-                            decoration: BoxDecoration(
-                              color: active
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Colors.grey,
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            IconButton(
-              tooltip: 'Home',
-              onPressed: onHome,
-              icon: Icon(
-                Icons.apps_rounded,
-                size: 23,
-                color: home ? Theme.of(context).colorScheme.primary : null,
-              ),
-            ),
-            IconButton(
-              tooltip: 'Search',
-              onPressed: onSearch,
-              icon: const Icon(Icons.search, size: 21),
-            ),
-          ],
+        IconButton(
+          key: const Key('home-island'),
+          tooltip: 'Home',
+          onPressed: onHome,
+          icon: Icon(
+            Icons.apps_rounded,
+            size: 23,
+            color: home ? Theme.of(context).colorScheme.primary : null,
+          ),
         ),
       );
       final account = island(
@@ -236,6 +84,11 @@ class WorkspaceIslands extends StatelessWidget {
               tooltip: 'Compute',
               onPressed: onCompute,
               icon: const Icon(Icons.speed_outlined, size: 18),
+            ),
+            IconButton(
+              tooltip: 'Search',
+              onPressed: onSearch,
+              icon: const Icon(Icons.search, size: 21),
             ),
             if (!narrow)
               IconButton(
@@ -257,26 +110,20 @@ class WorkspaceIslands extends StatelessWidget {
                 ),
               ),
               onSelected: (value) {
-                if (value == 'switch-account') {
-                  onSwitchAccount?.call();
-                  return;
+                switch (value) {
+                  case 'switch-account':
+                    onSwitchAccount?.call();
+                  case 'settings':
+                    onSettings();
+                  case 'configuration':
+                    onConfiguration?.call();
+                  case 'new':
+                    onNewWorkspace();
+                  case 'saved':
+                    onSavedWork();
+                  default:
+                    store.selectProject(value);
                 }
-                if (value == 'settings') {
-                  onSettings();
-                  return;
-                }
-                if (value == 'configuration') {
-                  onConfiguration?.call();
-                  return;
-                }
-                if (value == 'dock') {
-                  store.settings.dockTop = !store.settings.dockTop;
-                }
-                if (value == 'assistant') {
-                  store.settings.assistantRight =
-                      !store.settings.assistantRight;
-                }
-                store.save();
               },
               itemBuilder: (_) => [
                 PopupMenuItem(
@@ -297,22 +144,15 @@ class WorkspaceIslands extends StatelessWidget {
                       contentPadding: EdgeInsets.zero,
                     ),
                   ),
-                PopupMenuItem(
-                  value: 'dock',
-                  child: Text(
-                    store.settings.dockTop
-                        ? 'Move controls to bottom'
-                        : 'Move controls to top',
+                for (final p in store.projects)
+                  CheckedPopupMenuItem(
+                    value: p.id,
+                    checked: p.id == project.id,
+                    child: Text(p.title),
                   ),
-                ),
-                PopupMenuItem(
-                  value: 'assistant',
-                  child: Text(
-                    store.settings.assistantRight
-                        ? 'Side panel on left'
-                        : 'Side panel on right',
-                  ),
-                ),
+                const PopupMenuItem(value: 'new', child: Text('New workspace')),
+                const PopupMenuItem(value: 'saved', child: Text('Saved work')),
+                const PopupMenuDivider(),
                 const PopupMenuItem(value: 'settings', child: Text('Settings')),
                 if (onConfiguration != null)
                   const PopupMenuItem(
@@ -329,13 +169,13 @@ class WorkspaceIslands extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            workspace,
+            homeIsland,
             Flexible(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
-                  child: assistantIsland,
+                  child: island(context, dock),
                 ),
               ),
             ),

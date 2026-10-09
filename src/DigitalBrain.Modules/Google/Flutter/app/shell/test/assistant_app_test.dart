@@ -1,53 +1,40 @@
-import 'dart:convert';
-
-import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
-import 'package:digitalbrain_ui/digitalbrain_ui.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
-
-import 'application_fixture.dart';
-
-import 'package:digitalbrain_flutter_shell/workspace/workspace_app.dart';
+import 'package:digitalbrain_flutter_shell/workspace/dock/assistant_island.dart';
+import 'package:digitalbrain_flutter_shell/workspace/home/home_screen.dart';
 import 'package:digitalbrain_flutter_shell/workspace/workspace_store.dart';
+import 'package:digitalbrain_ui/digitalbrain_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'application_fixture.dart';
+
 void main() {
-  testWidgets('main workspace mounts only the neuron-declared application', (
-    tester,
-  ) async {
-    final store = WorkspaceStore(persistence: MemoryWorkspacePersistence());
-    final requests = <String>[];
-    final client = DigitalBrainUiClient(
-      baseUri: Uri.parse('http://test'),
-      httpClient: MockClient((request) async {
-        requests.add(request.url.path);
-        if (request.url.path.endsWith('/apps')) {
-          return http.Response(jsonEncode([assistantSummary]), 200);
-        }
-        return http.Response(
-          jsonEncode(
-            applicationResponse(request) ??
-                {'revision': 0, 'windows': [], 'apps': []},
-          ),
-          200,
-        );
-      }),
-    );
-    await tester.pumpWidget(
-      WorkspaceApp(store: store, programmingClient: client),
-    );
-    await tester.pumpAndSettle();
-    expect(find.byType(ApplicationSurface), findsOneWidget);
-    expect(find.byType(TextField), findsOneWidget);
-    expect(
-      requests.any((path) => path.endsWith('/apps/assistant/request')),
-      isTrue,
-    );
-    expect(requests.any((path) => path.contains('/agent')), isFalse);
-    await tester.pumpWidget(const SizedBox());
-    store.dispose();
-  });
+  testWidgets(
+    'with nothing open, Home is in front and the dock is the assistant island',
+    (tester) async {
+      final fixture = await ApplicationFixture.start(tester);
+
+      expect(find.byType(HomeScreen), findsOneWidget);
+      expect(find.byKey(const ValueKey('assistant-cat')), findsOneWidget);
+      expect(find.byType(DockTextField), findsOneWidget);
+      expect(find.byType(ApplicationSurface), findsNothing);
+      expect(
+        fixture.server.requestsTo(
+          '/brains/${fixture.brainId}/apps/assistant/request',
+        ),
+        isEmpty,
+      );
+
+      // Submitting the island's field posts "send" to the assistant; nothing waits for an answer.
+      await tester.enterText(find.byType(DockTextField), 'hello');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      final sent = fixture.server
+          .requestsTo('/brains/${fixture.brainId}/apps/assistant/request')
+          .single;
+      expect((sent.body['operation'], sent.body['input']), ('send', 'hello'));
+      await fixture.dispose();
+    },
+  );
 
   testWidgets('opening an app posts a request and renders its surface neuron', (
     tester,
@@ -60,9 +47,12 @@ void main() {
       (request) => request.path.endsWith('/apps/assistant/request'),
     );
     expect(request.body['operation'], 'open');
-    expect(fixture.renderedSurface, '${fixture.brainId}/apps/assistant/surface');
+    expect(
+      fixture.renderedSurface,
+      '${fixture.brainId}/apps/assistant/surface',
+    );
     expect(find.byType(NeuronView), findsWidgets);
-    expect(find.byType(TextField), findsOneWidget);
+    expect(find.byType(DockTextField), findsOneWidget);
     await fixture.dispose();
   });
 
@@ -88,45 +78,46 @@ void main() {
     expect(fixture.store.currentProject.presentation.windowModes, {
       '${fixture.brainId}/apps/assistant/window': 'floating',
     });
-    expect(find.byType(TextField), findsOneWidget);
-    expect(fixture.renderedSurface, '${fixture.brainId}/apps/assistant/surface');
+    expect(find.byType(DockTextField), findsOneWidget);
+    expect(
+      fixture.renderedSurface,
+      '${fixture.brainId}/apps/assistant/surface',
+    );
     await fixture.dispose();
   });
 
-  testWidgets('nothing docked means no side panel', (tester) async {
-    final store = WorkspaceStore(persistence: MemoryWorkspacePersistence())
-      ..settings.dock = '';
-    final requests = <String>[];
-    final client = DigitalBrainUiClient(
-      baseUri: Uri.parse('http://test'),
-      httpClient: MockClient((request) async {
-        requests.add(request.url.path);
-        if (request.url.path.endsWith('/apps')) {
-          return http.Response(jsonEncode([assistantSummary]), 200);
-        }
-        return http.Response(
-          jsonEncode({'revision': 0, 'windows': [], 'apps': []}),
-          200,
-        );
-      }),
-    );
-    await tester.pumpWidget(
-      WorkspaceApp(store: store, programmingClient: client),
-    );
-    await tester.pumpAndSettle();
-    expect(find.byType(ApplicationSurface), findsNothing);
-    expect(find.byTooltip('Side panel'), findsNothing);
-    expect(requests.any((path) => path.endsWith('/request')), isFalse);
-    await tester.pumpWidget(const SizedBox());
-    store.dispose();
-  });
+  testWidgets(
+    'pressing Home with nothing open shows the assistant, the default focused app',
+    (tester) async {
+      final fixture = await ApplicationFixture.start(tester);
+      await tester.tap(find.byTooltip('Home'));
+      await tester.pumpAndSettle();
 
-  test('the docked app survives a reload', () {
-    final prefs = WorkspacePreferences()..dock = 'customer-researcher';
-    expect(
-      WorkspacePreferences.fromJson(prefs.toJson()).dock,
-      'customer-researcher',
-    );
-    expect(WorkspacePreferences.fromJson(const {}).dock, 'assistant');
-  });
+      expect(find.byType(HomeScreen), findsNothing);
+      expect(find.byType(ApplicationSurface), findsOneWidget);
+      final opened = fixture.server
+          .requestsTo('/brains/${fixture.brainId}/apps/assistant/request')
+          .single;
+      expect(
+        (opened.body['operation'], opened.body['input']),
+        ('open', 'docked'),
+      );
+      expect(
+        fixture.renderedSurface,
+        '${fixture.brainId}/apps/assistant/surface',
+      );
+      expect(find.byTooltip('Side panel'), findsNothing);
+      await fixture.dispose();
+    },
+  );
+
+  test(
+    'preferences no longer carry a dock, controls position or side panel side',
+    () {
+      final json = WorkspacePreferences().toJson();
+      expect(json.containsKey('dock'), isFalse);
+      expect(json.containsKey('dockTop'), isFalse);
+      expect(json.containsKey('assistantRight'), isFalse);
+    },
+  );
 }

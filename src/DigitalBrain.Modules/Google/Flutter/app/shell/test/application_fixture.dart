@@ -18,6 +18,26 @@ const assistantSummary = {
   'operations': ['open'],
 };
 
+/// GET /brains/{b}/apps/assistant: the view the dock reads its toolbar from.
+const assistantView = {
+  'name': 'assistant',
+  'manifest': {
+    'title': 'Assistant',
+    'description': 'Chat with your brain',
+    'icon': null,
+    'operations': [
+      {'name': 'open', 'description': ''},
+      {'name': 'send', 'description': ''},
+      {'name': 'new', 'description': ''},
+      {'name': 'voice', 'description': ''},
+    ],
+    'toolbar': [
+      {'operation': 'send', 'kind': 'text', 'label': 'Message your brain'},
+      {'operation': 'voice', 'icon': 'mic', 'label': 'Voice'},
+    ],
+  },
+};
+
 /// A surface composed entirely from generic declared primitives.
 ///
 /// Also answers an app request the way the kernel does: the request is accepted
@@ -96,6 +116,10 @@ class ApplicationServer extends http.BaseClient {
   final List<RecordedAppRequest> requests = [];
   final events = StreamController<List<int>>.broadcast();
 
+  /// The assistant committed its window: an "open" request was posted, so the kernel's
+  /// workspace view reports it open, exactly as the real app answers through its neurons.
+  bool assistantOpened = false;
+
   /// The surface neuron the shell last rendered.
   String? renderedSurface;
 
@@ -110,17 +134,54 @@ class ApplicationServer extends http.BaseClient {
       return http.StreamedResponse(events.stream, 200);
     }
     requests.add(RecordedAppRequest(request.url.path, _body(request)));
+    if (request.url.path.endsWith('/apps/assistant/request') &&
+        requests.last.body['operation'] == 'open') {
+      assistantOpened = true;
+    }
     if (request.url.queryParameters['kind'] == 'surface') {
       renderedSurface = request.url.queryParameters['name'];
+    }
+    if (request.url.path.endsWith('/apps/assistant')) {
+      return _json(assistantView);
+    }
+    if (request.url.path.endsWith('/infrastructure')) {
+      return _json(const [
+        {
+          'module': 'aspire',
+          'resource': 'apphost',
+          'state': 'Running',
+          'health': 'Healthy',
+        },
+      ]);
+    }
+    if (request.url.path.endsWith('/connections')) {
+      return _json(const <Object>[]);
     }
     if (request.url.path.endsWith('/apps')) {
       return _json(const [assistantSummary]);
     }
     final application = applicationResponse(request);
-    return _json(
-      application ??
-          {'revision': 0, 'windows': <Object>[], 'apps': <Object>[]},
-    );
+    if (application != null) return _json(application);
+    final brain = request.url.pathSegments.length > 1
+        ? request.url.pathSegments[1]
+        : brainId;
+    return _json({
+      'revision': assistantOpened ? 1 : 0,
+      'windows': assistantOpened
+          ? [
+              {
+                'id': '$brain/apps/assistant/window',
+                'title': 'Assistant',
+                'reference': {
+                  'kind': 'surface',
+                  'neuronId': '$brain/apps/assistant/surface',
+                },
+                'isOpen': true,
+              },
+            ]
+          : <Object>[],
+      'apps': <Object>[],
+    });
   }
 
   Map<String, dynamic> _body(http.BaseRequest request) {
@@ -137,8 +198,8 @@ class ApplicationServer extends http.BaseClient {
   );
 }
 
-/// The shell started against the fake kernel, with one workspace and no docked
-/// app so a test drives opening an app explicitly.
+/// The shell started against the fake kernel, with one workspace; Home is the start view,
+/// the dock is the assistant island.
 class ApplicationFixture {
   ApplicationFixture._(this.tester, this.server, this.store, this.client);
 
@@ -153,13 +214,9 @@ class ApplicationFixture {
   /// The surface neuron the shell last rendered.
   String? get renderedSurface => server.renderedSurface;
 
-  static Future<ApplicationFixture> start(
-    WidgetTester tester, {
-    String dock = '',
-  }) async {
+  static Future<ApplicationFixture> start(WidgetTester tester) async {
     final server = ApplicationServer();
-    final store = WorkspaceStore(persistence: MemoryWorkspacePersistence())
-      ..settings.dock = dock;
+    final store = WorkspaceStore(persistence: MemoryWorkspacePersistence());
     final client = DigitalBrainUiClient(
       baseUri: Uri.parse('http://test'),
       httpClient: server,

@@ -19,8 +19,6 @@ class AppDetailScreen extends StatefulWidget {
     this.installedName,
     required this.onOpen,
     this.loadIcon,
-    this.dock = '',
-    this.onDock,
   }) : assert(listing != null || installedName != null);
 
   final String workspaceId;
@@ -29,8 +27,6 @@ class AppDetailScreen extends StatefulWidget {
   final String? installedName;
   final Future<void> Function(String name) onOpen;
   final IconLoader? loadIcon;
-  final String dock;
-  final ValueChanged<String>? onDock;
 
   @override
   State<AppDetailScreen> createState() => _AppDetailScreenState();
@@ -41,7 +37,6 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   Map<String, dynamic>? _app;
   bool _busy = false;
   String? _error, _notice;
-  late String _dock = widget.dock;
 
   String get _brain => Uri.encodeComponent(widget.workspaceId);
   String _appPath(String name) =>
@@ -166,13 +161,6 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
     if (mounted) await _perform(_load);
   }
 
-  void _toggleDock() {
-    final name = _installedName!;
-    final next = _dock == name ? '' : name;
-    widget.onDock!(next);
-    setState(() => _dock = next);
-  }
-
   @override
   Widget build(BuildContext context) {
     final listing = _listing;
@@ -265,16 +253,6 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
                       key: const ValueKey('edit-app'),
                       onPressed: _busy ? null : _edit,
                       child: const Text('Edit'),
-                    ),
-                  if (installed && _openable && widget.onDock != null)
-                    OutlinedButton(
-                      key: const ValueKey('dock-app'),
-                      onPressed: _busy ? null : _toggleDock,
-                      child: Text(
-                        _dock == _installedName
-                            ? 'Undock'
-                            : 'Dock beside the desktop',
-                      ),
                     ),
                   if (installed)
                     TextButton(

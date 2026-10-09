@@ -180,7 +180,6 @@ class WorkspacePresentation {
   String layout = 'quiet';
   Map<String, String> windowModes = {};
   Map<String, String> restoreModes = {};
-  bool chatCollapsed = false;
   String modeOf(String id) =>
       windowModes[id] ??
       (layout == 'windows'
@@ -197,7 +196,6 @@ class WorkspacePresentation {
   }
 
   Map<String, List<double>> windowBounds = {};
-  double chatWidth = 420;
   Map<String, dynamic> toJson() => {
     'openArtifactIds': openArtifactIds,
     'minimizedArtifactIds': minimizedArtifactIds.toList(),
@@ -206,8 +204,6 @@ class WorkspacePresentation {
     'windowBounds': windowBounds,
     'windowModes': windowModes,
     'restoreModes': restoreModes,
-    'chatCollapsed': chatCollapsed,
-    'chatWidth': chatWidth,
   };
   WorkspacePresentation();
   factory WorkspacePresentation.fromJson(Map<String, dynamic> json) {
@@ -216,7 +212,6 @@ class WorkspacePresentation {
     value.minimizedArtifactIds = _strings(json['minimizedArtifactIds']).toSet();
     value.activeArtifactId = json['activeArtifactId'] as String?;
     value.layout = _text(json['layout'], 'quiet');
-    value.chatCollapsed = json['chatCollapsed'] == true;
     for (final entry in _map(json['windowModes']).entries) {
       if (['floating', 'maximized', 'left', 'right'].contains(entry.value)) {
         value.windowModes[entry.key] = entry.value as String;
@@ -227,10 +222,6 @@ class WorkspacePresentation {
         value.restoreModes[entry.key] = entry.value as String;
       }
     }
-    value.chatWidth = (json['chatWidth'] as num? ?? 420).toDouble().clamp(
-      280,
-      700,
-    );
     for (final entry in _map(json['windowBounds']).entries) {
       if (entry.value is List &&
           (entry.value as List).length == 4 &&
@@ -292,22 +283,15 @@ class WorkspacePreferences {
   String displayName = '';
   String role = '';
   String theme = 'dark';
-  bool dockTop = false;
-  bool assistantRight = false;
   bool reducedMotion = false;
   bool compactDensity = false;
-  // The installed app shown in the side panel.
-  String dock = 'assistant';
   Map<String, dynamic> toJson() => {
     'defaultModelProfile': defaultModelProfile,
     'displayName': displayName,
     'role': role,
     'theme': theme,
-    'dockTop': dockTop,
-    'assistantRight': assistantRight,
     'reducedMotion': reducedMotion,
     'compactDensity': compactDensity,
-    'dock': dock,
   };
   WorkspacePreferences();
   factory WorkspacePreferences.fromJson(Map<String, dynamic> json) =>
@@ -316,11 +300,8 @@ class WorkspacePreferences {
         ..displayName = _text(json['displayName'], '')
         ..role = _text(json['role'], '')
         ..theme = _text(json['theme'], 'dark')
-        ..dockTop = json['dockTop'] == true
-        ..assistantRight = json['assistantRight'] == true
         ..reducedMotion = json['reducedMotion'] == true
-        ..compactDensity = json['compactDensity'] == true
-        ..dock = _text(json['dock'], 'assistant');
+        ..compactDensity = json['compactDensity'] == true;
 }
 
 /// In-memory project projection. Call save after changing a mutable record.
@@ -476,6 +457,7 @@ class WorkspaceStore extends ChangeNotifier {
     final active = p.activeArtifactId;
     return active != null && visible.contains(active) ? active : visible.last;
   }
+
   String _id() => const Uuid().v4();
   void _seed() {
     final conversation = WorkspaceConversation(
@@ -530,7 +512,6 @@ class WorkspaceStore extends ChangeNotifier {
           project.presentation.openArtifactIds.clear();
           project.presentation.minimizedArtifactIds.clear();
           project.presentation.activeArtifactId = null;
-          project.presentation.chatCollapsed = false;
         }
         projects
           ..clear()
@@ -830,12 +811,6 @@ class WorkspaceStore extends ChangeNotifier {
     openArtifact(id, placement: 'right');
   }
 
-  void toggleChat() {
-    currentProject.presentation.chatCollapsed =
-        !currentProject.presentation.chatCollapsed;
-    save();
-  }
-
   void closeArtifact(String id) {
     if (currentProject.artifacts.any((a) => a.id == id && a.remoteManaged)) {
       onRemoteWindowAction?.call(currentProject.id, id, false);
@@ -884,11 +859,6 @@ class WorkspaceStore extends ChangeNotifier {
       currentProject.presentation.windowBounds[id] = List.of(bounds);
       if (persist) save();
     }
-  }
-
-  void setChatWidth(double value) {
-    currentProject.presentation.chatWidth = value.clamp(280, 700);
-    save();
   }
 
   void setMessages(String conversationId, List<Map<String, dynamic>> messages) {

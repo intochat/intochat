@@ -35,8 +35,6 @@ class HomeScreen extends StatefulWidget {
     this.onLaunchLocal,
     this.localApps = const [],
     this.loadIcon,
-    this.dock = '',
-    this.onDock,
     this.onAppsChanged,
     this.running = const [],
     this.onFocus,
@@ -51,8 +49,6 @@ class HomeScreen extends StatefulWidget {
   final ValueChanged<String>? onLaunchLocal;
   final List<LocalApp> localApps;
   final IconLoader? loadIcon;
-  final String dock;
-  final ValueChanged<String>? onDock;
   final VoidCallback? onAppsChanged;
   final List<RunningApp> running;
   final ValueChanged<String>? onFocus, onStop;
@@ -124,8 +120,6 @@ class _HomeScreenState extends State<HomeScreen> {
           installedName: installed,
           onOpen: widget.onOpen,
           loadIcon: widget.loadIcon,
-          dock: widget.dock,
-          onDock: widget.onDock,
         ),
       ),
     );
@@ -430,7 +424,11 @@ class _RunningTile extends StatelessWidget {
                           fit: BoxFit.cover,
                           alignment: Alignment.topLeft,
                           clipBehavior: Clip.hardEdge,
-                          child: SizedBox(width: 720, height: 480, child: preview),
+                          child: SizedBox(
+                            width: 720,
+                            height: 480,
+                            child: preview,
+                          ),
                         ),
                 ),
               ),

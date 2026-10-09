@@ -340,24 +340,6 @@ class _WorkspaceSettingsState extends State<WorkspaceSettings> {
                 widget.store.save();
               },
             ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Dock at top'),
-              value: prefs.dockTop,
-              onChanged: (v) {
-                prefs.dockTop = v;
-                widget.store.save();
-              },
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Side panel on the right'),
-              value: prefs.assistantRight,
-              onChanged: (v) {
-                prefs.assistantRight = v;
-                widget.store.save();
-              },
-            ),
             if (widget.store.persistenceError != null)
               Text(widget.store.persistenceError!),
           ],

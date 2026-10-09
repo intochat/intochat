@@ -36,7 +36,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Switch account'), findsNothing);
       expect(find.byTooltip('Apps'), findsNothing);
-      expect(find.text('Send'), findsOneWidget);
+      expect(find.byKey(const Key('home-island')), findsOneWidget);
 
       await tester.tap(find.byTooltip('Profile'));
       await tester.pumpAndSettle();
@@ -46,12 +46,7 @@ void main() {
       expect(switches, 1);
       expect(find.text('Switch account'), findsNothing);
 
-      // Home is the start view and the Home island toggles it. On a phone the side panel
-      // segment is selected first, so switch to the workspace segment to see Home.
-      if (width < 760) {
-        await tester.tap(find.text('Workspace'));
-        await tester.pumpAndSettle();
-      }
+      // Home is the start view and the Home island toggles it.
       expect(find.byType(HomeScreen), findsOneWidget);
       expect(
         tester.widget<HomeScreen>(find.byType(HomeScreen)).workspaceId,
