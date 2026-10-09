@@ -203,6 +203,14 @@ public sealed class AppCreatorFacts
         Assert.DoesNotContain("behaviors/", AgentPrompts.Builder, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void TheBuilderPromptTeachesOneReactionPerSynapseAndNeverTheInvocationPipeline()
+    {
+        Assert.Contains("brain.On<AppRequested>(app", AgentPrompts.Builder, StringComparison.Ordinal);
+        Assert.DoesNotContain("Invocations(", AgentPrompts.Builder, StringComparison.Ordinal);
+        Assert.DoesNotContain("Respond(", AgentPrompts.Builder, StringComparison.Ordinal);
+    }
+
     private static string Authored(string spec) => System.Text.Json.JsonSerializer.Serialize(new
     {
         name = "shouter",

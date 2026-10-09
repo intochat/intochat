@@ -8,16 +8,21 @@ public sealed class CSharpScriptSandbox(CSharpToolService tools, IBehaviorAssemb
     public bool CanRun => tools.CanRun;
     public string AuthoringDescription => """
         - "csharp": one C# file-based app per concern under "files" as "synapses/<name>.cs" (a single
-                  synapse is fine). Each synapse answers invocations or reacts to signals through the brain
-                  client. Each is plain C#: usings name the contracts. The invocation-answering shape (change only the Answer function):
+                  synapse is fine). Each synapse is one reaction: one `await foreach` over one
+                  `brain.On<T>(source, brain.Stopping)`, acting through neurons. Shared code goes in
+                  "lib/*.cs".
+                  The app's own operations arrive as `AppRequested` signals (change only the reaction):
                     using DigitalBrain.Apps;
                     using DigitalBrain.Apps.Signals;
+                    using DigitalBrain.Flutter.Text;
 
                     await using var brain = await DigitalBrainClient.ConnectAsync(args);
                     var app = brain.Get<IApp>(brain.Setting("App")!);
-                    await foreach (var invoked in app.Invocations(brain, brain.Stopping)) { await app.Respond(Answer(invoked.InvocationId, invoked.Input)); }
+                    await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
+                    { await brain.Get<IText>(app.GetPrimaryKeyString() + "/answer").Set(Answer(request.Input)); }
 
-                    static AppResponse Answer(Guid invocationId, string input) => new(invocationId, /* the answer */ input, null);
+                    static string Answer(string input) => /* the answer */ input;
+                  Never answer a request: a result is neuron state the caller reads.
                   Settings are read with brain.Setting("Name").
         """;
 

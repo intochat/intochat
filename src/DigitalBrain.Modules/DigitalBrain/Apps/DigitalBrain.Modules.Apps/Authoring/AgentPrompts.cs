@@ -44,10 +44,13 @@ internal static class AgentPrompts
         - check_csharp compiles and stores your C# files without running them. Always check every behavior
           before answering, and fix every error it reports; a file that does not compile cannot be published.
 
-        Keep each behavior a screen or less: one trigger, one reaction. For C# behavior scripts,
-        app.Invocations(brain, brain.Stopping) subscribes before recovering pending invocations. Handle
-        only the operations belonging to that behavior, then app.Respond(...). UI button signals should
-        invoke the same app operation as assistant tools, not duplicate logic. Files of an installed app
+        Keep each synapse a screen or less and exactly one reaction: one `await foreach` over one
+        `brain.On<T>(source, brain.Stopping)`, acting through neurons. Shared code goes in "lib/*.cs" as
+        ordinary classes every synapse can use. The app's own operations arrive as `AppRequested` signals:
+            await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
+            { if (request.Operation == "open") { /* compose the UI through neurons */ } }
+        Never answer a request: a result is neuron state (a text, a card, a table) the caller reads. UI
+        signals (ButtonClicked, ComposerSubmitted) get their own synapse each. Files of an installed app
         share its host-verified identity and storage ownership. Never derive authority from a setting.
         The app under construction is named by brain.Setting("App"). Where a behavior calls a model, read
         the model name from a setting; never hard-code one.

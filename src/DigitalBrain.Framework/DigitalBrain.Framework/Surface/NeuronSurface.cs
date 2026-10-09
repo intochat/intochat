@@ -16,7 +16,7 @@ public static class NeuronSurfaceTools
     public const string ListDescription = "List neuron contracts you can address. Pass the full type name to neurons_get and neurons_call.";
     public const string SearchDescription = "Search neuron contracts by what they do. Returns each match's contract type name, and methods.";
     public const string GetDescription = "Resolve a neuron. contract is a full type name from neurons_list; key is the grain key: an app is {brainScope}/apps/{name}, a connection is connection/{brain}/{connector}/{id}.";
-    public const string CallDescription = "Call a neuron method. arguments is a JSON array, one element per method argument, omitting CancellationToken. Watch and Unwatch are not callable. To use an app: IApp.Invoke with {invocationId, operation, input}, then IApp.Await with that invocationId.";
+    public const string CallDescription = "Call a neuron method. arguments is a JSON array, one element per method argument, omitting CancellationToken. Watch and Unwatch are not callable. To use an app: IApp.Request with [operation, input]; then read the neuron the app's spec names for the result.";
     public const string ContextDescription = "Read who you are acting as and the current brain id and scope, for forming neuron keys.";
 }
 
