@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>Revision stage machine and single-live queue: propose, start, verify, promote, discard against the launcher.</Description>
+    <RootNamespace>DigitalBrain.Modules.Revisions</RootNamespace>
+    <NoWarn>$(NoWarn);ORLEANSEXP005</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <InternalsVisibleTo Include="DigitalBrain.Modules.Revisions.Tests" />
+    <ProjectReference Include="../DigitalBrain.Modules.Revisions.Contracts/DigitalBrain.Modules.Revisions.Contracts.csproj" />
+    <ProjectReference Include="../../../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" />
+  </ItemGroup>
+</Project>
