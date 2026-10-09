@@ -67,11 +67,13 @@ public sealed class SignalDeliveryContextFacts
 [GenerateSerializer]
 public sealed record DeliverySeen(
     [property: Id(0)] bool CallerPresent, [property: Id(1)] string? Metadata, [property: Id(2)] string Publisher);
+[Alias("test.delivery-source")]
 public interface IDeliverySource : INeuron
 {
     Task<bool> Emit(bool fail);
     Task Forward(INeuronObserver observer, Signal signal);
 }
+[Alias("test.delivery-observer")]
 public interface IDeliveryObserver : INeuron, INeuronObserver { Task<DeliverySeen?> Read(); }
 
 [GrainType("test-delivery-source")]

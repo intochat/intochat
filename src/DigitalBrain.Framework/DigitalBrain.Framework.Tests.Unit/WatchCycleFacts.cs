@@ -19,6 +19,7 @@ public sealed class WatchCycleFacts
     }
 }
 
+[Alias("test.cycle-source")]
 public interface ICycleSource : INeuron
 {
     Task Deploy(string subscriber);
@@ -64,6 +65,7 @@ public sealed class WatchDuringNotifyFacts
     }
 }
 
+[Alias("test.chatty-source")]
 public interface IChattySource : INeuron
 {
     Task Say();

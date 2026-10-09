@@ -33,6 +33,7 @@ public sealed class FilteredWatchFacts
 
 [GenerateSerializer] public sealed record SelectedSignal : Signal;
 [GenerateSerializer] public sealed record OtherSignal : Signal;
+[Alias("test.filtered-source")]
 public interface IFilteredSource : INeuron { Task Emit(); }
 public interface IFilteredObserver : INeuronObserver, IGrainWithStringKey { Task<string[]> Heard(); }
 

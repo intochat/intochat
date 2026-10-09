@@ -31,6 +31,7 @@ public sealed class OtherEmitter : Neuron, IOtherEmitter
     public Task Emit(int value) => PublishAsync(new Number(value));
 }
 
+[Alias("test.silo-brain-listener")]
 public interface ISiloBrainListener : INeuron
 {
     Task<bool> HubIsPresent();

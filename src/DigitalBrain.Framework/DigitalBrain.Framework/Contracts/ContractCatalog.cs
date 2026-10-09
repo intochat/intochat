@@ -82,6 +82,19 @@ public sealed class ContractCatalog
         }
     }
 
+    // The router's menu, contract half: contracts marked [Routable] and nothing else. Keyed runtime
+    // tool entries are concrete instances the router adds on their own; this is the types-only set.
+    public IReadOnlyList<NeuronType> Routable()
+    {
+        lock (_gate)
+        {
+            return Array.AsReadOnly(Read().Where(type => IsRoutable(type.Contract)).ToArray());
+        }
+    }
+
+    public bool IsRoutable(string contractFullName)
+        => _neurons.TryGetValue(contractFullName, out var contract) && RoutableAttribute.AppliesTo(contract);
+
     private static string Describe(Type signal)
         => signal.FullName + " { " + string.Join("; ", signal
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)
