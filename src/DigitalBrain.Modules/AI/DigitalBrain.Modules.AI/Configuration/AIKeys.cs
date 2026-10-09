@@ -13,6 +13,7 @@ public static class AIKeys
     public static readonly string DefaultEmbedding = Options + ":Default:Embedding";
     public static readonly string DefaultTranscription = Options + ":Default:Transcription";
     public static readonly string DefaultImage = Options + ":Default:Image";
+    public static readonly string DefaultSystemOne = Options + ":Default:SystemOne";
     public static readonly string Ollama = Options + ":Ollama";
     public static readonly string OllamaEndpoint = Ollama + ":Endpoint";
     public static readonly string TavilyEnabled = Options + ":Tavily:Enabled";

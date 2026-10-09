@@ -30,7 +30,9 @@ internal sealed class HttpSystemOne(
         var endpoint = snapshot.Settings.TryGetValue(AiIntegrations.EndpointField, out var configured) && configured.Length > 0
             ? configured
             : options.Value.SystemOne.Endpoint;
-        var model = request.Model is { Length: > 0 } ? request.Model : options.Value.SystemOne.Model;
+        var model = request.Model is { Length: > 0 } ? request.Model
+            : options.Value.Default.SystemOne is { Length: > 0 } marker && SystemOneModel.FindByMarkerName(marker) is { } catalogued ? catalogued.Id
+            : options.Value.SystemOne.Model;
 
         var questions = new Dictionary<string, object?>(StringComparer.Ordinal);
         foreach (var (key, question) in request.Questions) { questions[key] = Body(question); }

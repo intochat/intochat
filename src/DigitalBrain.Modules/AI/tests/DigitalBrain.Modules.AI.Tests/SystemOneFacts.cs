@@ -55,12 +55,28 @@ public sealed class SystemOneFacts
         Assert.Contains("\"type\":\"noul\"", (await captured).Body, StringComparison.Ordinal);
     }
 
-    private static HttpSystemOne Client(string endpoint)
+    [Fact]
+    public async Task TheDefaultSystemOneMarkerNamesItsCatalogIdOnTheWire()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var server = new LoopbackServer();
+        var client = Client(server.Url, options => options.Default.SystemOne = "ILocalJev");
+        var captured = server.ReplyOnce("application/json",
+            """{"model":"llama3.1","answers":{"urgent":{"type":"noul","noul":0.5}}}""", ct);
+
+        await client.Ask(new SystemOneRequest("help", new() { ["urgent"] = new SystemOneQuestion.Noul("Urgent?") }), ct);
+
+        Assert.Contains("\"model\":\"llama3.1\"", (await captured).Body, StringComparison.Ordinal);
+    }
+
+    private static HttpSystemOne Client(string endpoint, Action<AIOptions>? configure = null)
     {
         var services = new ServiceCollection();
         services.AddHttpClient();
         services.AddSingleton<IModuleIntegrations<AIModule>>(new Bindings(new Handle(endpoint)));
-        services.AddSingleton(Options.Create(new AIOptions { SystemOne = new() { Endpoint = endpoint } }));
+        var options = new AIOptions { SystemOne = new() { Endpoint = endpoint } };
+        configure?.Invoke(options);
+        services.AddSingleton(Options.Create(options));
         services.AddSingleton<HttpSystemOne>();
         return services.BuildServiceProvider().GetRequiredService<HttpSystemOne>();
     }
