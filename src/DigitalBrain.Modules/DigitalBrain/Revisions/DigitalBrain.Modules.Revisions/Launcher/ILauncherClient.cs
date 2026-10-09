@@ -10,4 +10,5 @@ public interface ILauncherClient
     Task<LauncherRevision> WaitHealthy(string sha, TimeSpan budget, CancellationToken ct);
     Task<LauncherRevision> Promote(string sha, CancellationToken ct);
     Task Discard(string sha, CancellationToken ct);
+    Task<int> Spans(string mcpEndpoint, string name, CancellationToken ct);
 }

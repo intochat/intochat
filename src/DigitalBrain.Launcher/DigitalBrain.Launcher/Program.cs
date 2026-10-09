@@ -3,6 +3,7 @@ using DigitalBrain.Launcher.Processes;
 using DigitalBrain.Launcher.Proxy;
 using DigitalBrain.Launcher.Revisions;
 using DigitalBrain.Launcher.Storage;
+using DigitalBrain.Launcher.Telemetry;
 
 var builder = WebApplication.CreateBuilder(args);
 var repository = builder.Configuration[$"{LauncherOptions.Section}:Repository"];
@@ -15,6 +16,7 @@ builder.Services.AddSingleton<IStorageCopier>(AzuriteStorageCopier.At(options.Az
 builder.Services.AddSingleton(HealthProbe.Http(new HttpClient { Timeout = TimeSpan.FromSeconds(5) }));
 builder.Services.AddRevisionProxy(options.UiPort, options.McpPort);
 builder.Services.AddSingleton<Revisions>();
+builder.Services.AddSingleton<IAspireTelemetry, AspireCliTelemetry>();
 builder.WebHost.ConfigureKestrel(kestrel =>
 {
     kestrel.ListenLocalhost(options.ApiPort);

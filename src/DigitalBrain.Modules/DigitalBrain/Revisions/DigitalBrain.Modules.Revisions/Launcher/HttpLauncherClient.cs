@@ -34,6 +34,9 @@ internal sealed class HttpLauncherClient(IHttpClientFactory http, IOptions<Revis
 
     public async Task Discard(string sha, CancellationToken ct) => (await Client().DeleteAsync($"/revisions/{sha}", ct)).EnsureSuccessStatusCode();
 
+    public async Task<int> Spans(string mcpEndpoint, string name, CancellationToken ct)
+        => await Client().GetFromJsonAsync<int>($"/revisions/spans?endpoint={Uri.EscapeDataString(mcpEndpoint)}&name={Uri.EscapeDataString(name)}", ct);
+
     private static async Task<LauncherRevision> Read(Task<HttpResponseMessage> pending, CancellationToken ct)
     {
         using var response = await pending;

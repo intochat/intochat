@@ -6,6 +6,7 @@
   <ItemGroup>
     <PackageReference Include="Yarp.ReverseProxy" />
     <PackageReference Include="Azure.Storage.Blobs" />
+    <PackageReference Include="ModelContextProtocol.Core" />
     <InternalsVisibleTo Include="DigitalBrain.Launcher.Tests.Unit" />
   </ItemGroup>
 </Project>

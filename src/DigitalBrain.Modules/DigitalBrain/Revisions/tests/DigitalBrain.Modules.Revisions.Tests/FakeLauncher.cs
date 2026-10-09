@@ -6,6 +6,7 @@ internal sealed class FakeLauncher : ILauncherClient
 {
     public List<string> Calls { get; } = [];
     public bool Healthy { get; set; } = true;
+    public Dictionary<string, int> SpanCounts { get; } = new(StringComparer.Ordinal);
     private int _shas;
 
     private static LauncherRevision At(string sha, string state) => new(sha, @"E:\wt\" + sha, "http://localhost:5091", "http://localhost:5090", state);
@@ -27,4 +28,5 @@ internal sealed class FakeLauncher : ILauncherClient
 
     public Task<LauncherRevision> Promote(string sha, CancellationToken ct) { Calls.Add("promote " + sha); return Task.FromResult(At(sha, "current")); }
     public Task Discard(string sha, CancellationToken ct) { Calls.Add("discard " + sha); return Task.CompletedTask; }
+    public Task<int> Spans(string mcpEndpoint, string name, CancellationToken ct) => Task.FromResult(SpanCounts.GetValueOrDefault(name));
 }

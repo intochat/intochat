@@ -1,3 +1,4 @@
+using DigitalBrain.Launcher.Telemetry;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -30,6 +31,12 @@ public static class LauncherEndpoints
         {
             try { await revisions.DiscardAsync(sha, ct); return Results.NoContent(); }
             catch (KeyNotFoundException) { return Results.NotFound(); }
+        });
+        app.MapGet("/revisions/spans", async (string endpoint, string name, Revisions revisions, LauncherOptions options, Telemetry.IAspireTelemetry telemetry, CancellationToken ct) =>
+        {
+            var revision = revisions.List().Revisions.SingleOrDefault(known => known.McpEndpoint == endpoint);
+            if (revision is null) { return Results.NotFound(); }
+            return Results.Ok(await telemetry.CountSpans(Path.Combine(revision.Worktree, options.AppHostProject), name, ct));
         });
         return app;
     }
