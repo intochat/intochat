@@ -129,7 +129,7 @@ public sealed class BrainRuntimeNeuronFacts
         await using var brain = await RuntimeBrain.StartAsync(host, ct);
         await Programs(brain).Assign(Owner, Synapse(), []);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
-        var fingerprint = brain.SiloServices.GetRequiredService<ScriptContracts>().Fingerprint;
+        var fingerprint = ContractsFingerprint.Of(brain.SiloServices.GetRequiredService<DigitalBrain.Framework.CompiledTypes>().Assemblies);
 
         await Edge(brain).Connected(session, fingerprint + "\nExtra.Contracts=00");
         Assert.Equal(SessionStatus.Connected, (await Runtime(brain).Inspect(ct)).Session);
@@ -189,7 +189,7 @@ public sealed class BrainRuntimeNeuronFacts
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         await Programs(brain).Assign(Owner, Synapse(), []);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
-        await Edge(brain).Connected(session, brain.SiloServices.GetRequiredService<ScriptContracts>().Fingerprint);
+        await Edge(brain).Connected(session, ContractsFingerprint.Of(brain.SiloServices.GetRequiredService<DigitalBrain.Framework.CompiledTypes>().Assemblies));
         var pinger = brain.Get<IPinger>("pinger");
         var subscription = await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
         await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
@@ -233,7 +233,7 @@ public sealed class BrainRuntimeNeuronFacts
         await Programs(brain).Assign(Owner, Synapse(), []);
         var first = await host.NextAsync(FakeSessionHost.IsStart, ct);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
-        await Edge(brain).Connected(session, brain.SiloServices.GetRequiredService<ScriptContracts>().Fingerprint);
+        await Edge(brain).Connected(session, ContractsFingerprint.Of(brain.SiloServices.GetRequiredService<DigitalBrain.Framework.CompiledTypes>().Assemblies));
         await brain.DeactivateAsync(Runtime(brain), ct);
         time.Now += TimeSpan.FromSeconds(30);
 

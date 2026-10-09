@@ -29,10 +29,10 @@ internal sealed class NeuronTools(NeuronSurface surface, McpCaller caller)
     // A failure the caller can act on returns as an isError result: "{Type}: {Message}"
     // (clipped, never a stack trace). Anything else stays the generic MCP error.
     [McpServerTool(Name = NeuronSurfaceTools.GetName), Description(NeuronSurfaceTools.GetDescription)]
-    public CallToolResult Get(string contract, string key)
+    public async Task<CallToolResult> Get(string contract, string key, CancellationToken cancellationToken = default)
     {
         caller.Stamp();
-        try { return Text(surface.Get(contract, key)); }
+        try { return Text(await surface.Get(contract, key, cancellationToken)); }
         catch (Exception error) when (Mapped(error)) { return Failure(error); }
     }
 

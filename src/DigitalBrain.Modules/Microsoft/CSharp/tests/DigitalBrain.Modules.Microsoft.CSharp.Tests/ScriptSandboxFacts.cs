@@ -16,7 +16,7 @@ public sealed class ScriptSandboxFacts
             .WithReminders().StartAsync(ct);
         var sandbox = brain.SiloServices.GetRequiredService<IScriptSandbox>();
         Assert.True(sandbox.CanRun);
-        var contracts = await sandbox.ReadContracts(["csharp"], ct);
+        var contracts = await KernelTypeFacts.Stamped(brain, () => sandbox.ReadContracts(["csharp"], ct));
         Assert.Contains(contracts.Contracts, line => line.Contains(typeof(ICSharpFile).FullName!, StringComparison.Ordinal));
         var invalid = await sandbox.Compile(new Dictionary<string, string> { ["app.cs"] = "Console.WriteLine(doesNotExist);" }, ct);
         Assert.False(invalid.Success);

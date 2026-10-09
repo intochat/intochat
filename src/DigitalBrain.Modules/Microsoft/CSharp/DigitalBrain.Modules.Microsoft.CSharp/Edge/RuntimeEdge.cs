@@ -16,7 +16,7 @@ namespace DigitalBrain.Microsoft.CSharp.Edge;
 // for the session its runtime currently records, only neuron contracts from installed contract
 // assemblies are callable, and each call carries the behavior owner's caller context re-stamped as an
 // app behind the app proxy.
-internal sealed class RuntimeEdge(SessionTokens tokens, ScriptContracts contracts, IGrainFactory grains, SessionStreams streams, Kernel kernel)
+internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGrainFactory grains, SessionStreams streams, Kernel kernel)
 {
     private static readonly HashSet<string> ObserverMethods = [nameof(INeuron.Watch), nameof(INeuron.Unwatch)];
 
@@ -70,14 +70,17 @@ internal sealed class RuntimeEdge(SessionTokens tokens, ScriptContracts contract
         Stamp(identity);
         if (BrainScope.CurrentId() != brainId) { throw new UnauthorizedAccessException("The kernel answers only about the session's own brain."); }
         string? Argument(int index) => invocation.Arguments.Length > index ? invocation.Arguments[index].Deserialize<string?>(RuntimeProtocol.Json) : null;
-        Instance[] answer;
+        object answer;
         switch (invocation.Method)
         {
+            case RuntimeProtocol.KernelTypes when invocation.Arguments.Length == 0:
+                answer = await kernel.Types(cancellationToken).ConfigureAwait(false);
+                break;
             case RuntimeProtocol.KernelInstances when invocation.Arguments.Length == 2:
-                var type = Argument(0) is { } contract ? kernel.TypeOf(contracts.Find(contract)) : Argument(1);
+                var type = Argument(0) is { } contract ? kernel.TypeOf(Callable(contract)) : Argument(1);
                 List<Instance> listed = [];
                 await foreach (var instance in kernel.Instances(type, cancellationToken).ConfigureAwait(false)) { listed.Add(instance); }
-                answer = [.. listed];
+                answer = listed.ToArray();
                 break;
             case RuntimeProtocol.KernelRunning when invocation.Arguments.Length == 0:
                 answer = await kernel.Running(cancellationToken).ConfigureAwait(false);
@@ -99,7 +102,7 @@ internal sealed class RuntimeEdge(SessionTokens tokens, ScriptContracts contract
         if (report.Fingerprint is { } fingerprint)
         {
             await runtime.Connected(claims.Session, fingerprint).ConfigureAwait(false);
-            return ContractsFingerprint.Covers(fingerprint, contracts.Fingerprint)
+            return ContractsFingerprint.Covers(fingerprint, ContractsFingerprint.Of(types.Assemblies))
                 ? Results.Ok()
                 : Results.Conflict("The sandbox image carries other contracts than this brain; rebuild it from the same build.");
         }
@@ -148,8 +151,8 @@ internal sealed class RuntimeEdge(SessionTokens tokens, ScriptContracts contract
 
     private Type Callable(string name)
     {
-        var contract = contracts.Find(name);
-        // The catalog already omits platform-only contracts; refuse here too, whatever the catalog holds.
+        var contract = types.Contract(name);
+        // The kernel's compiled layer already omits platform-only contracts; refuse here too, whatever it holds.
         return PlatformOnlyAttribute.AppliesTo(contract) ? throw new ArgumentException($"{contract.Name} is not a neuron contract scripts may call.") : contract;
     }
 

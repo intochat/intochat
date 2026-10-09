@@ -76,11 +76,24 @@ public sealed class NeuronSurfaceFacts
     }
 
     [Fact]
-    public void APlatformOnlyContractIsNotAddressable()
+    public async Task APlatformOnlyContractIsNotAddressable()
     {
-        var contracts = new ContractCatalog(ContractCatalog.Deployed());
-        Assert.DoesNotContain(typeof(IConnectionIndex).FullName!, contracts.Neurons);
-        Assert.Throws<ArgumentException>(() => contracts.Find(typeof(IConnectionIndex).FullName!));
+        Assert.DoesNotContain(Deployed.Kernel().Entries, entry => entry.Name == typeof(IConnectionIndex).FullName);
+        await Assert.ThrowsAsync<ArgumentException>(() => Surface().Get(typeof(IConnectionIndex).FullName!, "b/x", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task SearchThroughMcpAsksTheSilosKernel()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var app = await Host(brain);
+        using var client = Client(app);
+
+        var (text, isError) = await Tool(client, "neurons_search", new { query = "app" }, ct);
+
+        Assert.False(isError, text);
+        Assert.Contains(typeof(IApp).FullName!, text);
     }
 
     [Fact]
@@ -109,29 +122,30 @@ public sealed class NeuronSurfaceFacts
     [Fact]
     public async Task ARestrictedSurfaceRefusesAContractTheAppDidNotName()
     {
-        var surface = Surface()
-            .Restrict([typeof(DigitalBrain.Apps.IApp).FullName!]);
-        Assert.Equal([typeof(DigitalBrain.Apps.IApp).FullName!], surface.Contracts());
+        var ct = TestContext.Current.CancellationToken;
+        var surface = await Surface().Restrict([typeof(DigitalBrain.Apps.IApp).FullName!], ct);
+        Assert.Equal([typeof(DigitalBrain.Apps.IApp).FullName!], await surface.Contracts(ct));
         await Assert.ThrowsAsync<ArgumentException>(() => surface.Call(typeof(DigitalBrain.Postgres.IPostgresServer).FullName!,
             "b/connection/postgres/x", "ReadConnection", "[]", TestContext.Current.CancellationToken));
-        Assert.Throws<ArgumentException>(() => surface.Get(typeof(DigitalBrain.Postgres.IPostgresServer).FullName!, "b/connection/postgres/x"));
+        await Assert.ThrowsAsync<ArgumentException>(() => surface.Get(typeof(DigitalBrain.Postgres.IPostgresServer).FullName!, "b/connection/postgres/x", ct));
     }
 
     [Fact]
-public void RestrictingToAnUnknownContractIsRefused()
+    public async Task RestrictingToAnUnknownContractIsRefused()
     {
+        var ct = TestContext.Current.CancellationToken;
         var surface = Surface();
-        Assert.Throws<ArgumentException>(() => surface.Restrict(["DigitalBrain.Nope.INope"]));
-        Assert.Throws<ArgumentException>(() => surface.Restrict([typeof(IConnectionIndex).FullName!]));
+        await Assert.ThrowsAsync<ArgumentException>(() => surface.Restrict(["DigitalBrain.Nope.INope"], ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => surface.Restrict([typeof(IConnectionIndex).FullName!], ct));
     }
 
     [Fact]
     public async Task ARestrictedSearchRanksOnlyWhatTheAppComposes()
     {
         var ct = TestContext.Current.CancellationToken;
-        var contracts = new ContractCatalog(ContractCatalog.Deployed());
-        var surface = new NeuronSurface(new UnreachableBrain(), null!, new CapabilityCatalog(contracts, [new CrowdedSource()]),
-            new NeuronTypeSearch(contracts, null)).Restrict([typeof(IMcpServer).FullName!]);
+        var kernel = Deployed.Kernel();
+        var surface = await new NeuronSurface(new UnreachableBrain(), kernel, new NeuronTypeSearch(kernel, [new CrowdedSource()], null))
+            .Restrict([typeof(IMcpServer).FullName!], ct);
         CallerContextStamper.Stamp(new()
         { PrincipalId = "owner", AccountId = "owner", BrainId = "crowded", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
 
@@ -151,7 +165,7 @@ public void RestrictingToAnUnknownContractIsRefused()
     }
 
     private static NeuronSurface Surface()
-        => new(new UnreachableBrain(), null!, new CapabilityCatalog(new ContractCatalog(ContractCatalog.Deployed()), []), null!);
+        => new(new UnreachableBrain(), Deployed.Kernel(), null!);
 
     // A real MCP edge over a real brain, open posture so every request acts as the owner.
     private static async Task<WebApplication> Host(ModuleBrain brain)

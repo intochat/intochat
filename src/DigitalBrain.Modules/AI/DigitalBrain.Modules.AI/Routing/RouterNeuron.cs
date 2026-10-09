@@ -30,7 +30,7 @@ internal sealed class RouterNeuron(
     private static readonly HashSet<string> NotCallable = ["Watch", "Unwatch"];
     private string Key => this.GetPrimaryKeyString();
     private string Scope => NeuronAccess.ForBrainKey(Key).Scope ?? Key;
-    private CapabilityCatalog Capabilities() => ServiceProvider.GetRequiredService<CapabilityCatalog>();
+    private NeuronTypeSearch Capabilities() => ServiceProvider.GetRequiredService<NeuronTypeSearch>();
 
     public async Task Ask(RouteRequest request, CancellationToken ct)
     {
@@ -151,7 +151,7 @@ internal sealed class RouterNeuron(
     // The second tier's menu: the runtime tools this brain's sources registered (each a concrete instance
     // with its Key) and the contracts the caller named. The deployed catalog as a whole is never the menu.
     private async Task<NeuronType[]> Menu(string[]? allowed, CancellationToken ct)
-        => [.. (await Capabilities().Read(Scope, ct))
+        => [.. (await Capabilities().Capabilities(ct))
             .Where(type => type.Key is not null || (allowed?.Contains(type.Contract, StringComparer.Ordinal) ?? false))
             .Where(type => allowed is null || allowed.Contains(type.Contract, StringComparer.Ordinal))];
 
@@ -286,7 +286,7 @@ internal sealed class RouterNeuron(
         var resolved = await catalog.Resolve(null, false, ct);
         using var client = await catalog.CreateClient(resolved, ct);
         var entry = route.Key is null ? null : await FindEntry(route, ct);
-        var signature = entry?.Methods.FirstOrDefault() ?? Signature(route);
+        var signature = entry?.Methods.FirstOrDefault() ?? await Signature(route, ct);
         var instructions = entry is null
             ? "Fill one neuron call from the user's request. Reply with JSON only: {\"key\": \"<grain key>\", \"arguments\": [ ... ]}.\n"
                 + $"Contract: {route.Contract}\nMethod: {signature}\n"
@@ -312,14 +312,14 @@ internal sealed class RouterNeuron(
     private async Task<NeuronType?> FindEntry(RouteResult route, CancellationToken ct)
     {
         if (route.Key is null) { return null; }
-        var entries = await Capabilities().Read(Scope, ct);
+        var entries = await Capabilities().Capabilities(ct);
         return entries.FirstOrDefault(type => type.Contract == route.Contract && type.Key == route.Key && type.Tool == route.Tool);
     }
 
-    private string Signature(RouteResult route)
+    private async Task<string> Signature(RouteResult route, CancellationToken ct)
     {
-        var type = ServiceProvider.GetRequiredService<ContractCatalog>().Read().SingleOrDefault(item => item.Contract == route.Contract);
-        return type?.Methods.FirstOrDefault(method => MethodName(method) == route.Method) ?? route.Method;
+        var type = (await ServiceProvider.GetRequiredService<IKernel>().Types(ct)).SingleOrDefault(item => item.Kind == TypeKind.Neuron && item.Name == route.Contract);
+        return type?.Shape.FirstOrDefault(method => MethodName(method) == route.Method) ?? route.Method;
     }
 
     private static (string Id, double Confidence, Dictionary<string, double> Probabilities) Best(SystemOneResult result)

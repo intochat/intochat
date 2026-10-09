@@ -10,6 +10,20 @@ public sealed record ConnectorDefinition(string Id, string DisplayName, string[]
     public Type[] Neurons { get; init; } = [];
     public Type[] Signals { get; init; } = [];
     public OAuthMethod[] OAuthMethods { get; init; } = [];
+
+    // A module declares its connectors as a static Connector or Connectors member.
+    public static ConnectorDefinition[] DeclaredBy(Type module)
+    {
+        ArgumentNullException.ThrowIfNull(module);
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.DeclaredOnly;
+        return new[] { "Connector", "Connectors" }.SelectMany(name =>
+            (module.GetProperty(name, flags)?.GetValue(null) ?? module.GetField(name, flags)?.GetValue(null)) switch
+            {
+                ConnectorDefinition one => [one],
+                IEnumerable<ConnectorDefinition> many => many,
+                _ => [],
+            }).ToArray();
+    }
 }
 
 public interface IIntegrationHandle

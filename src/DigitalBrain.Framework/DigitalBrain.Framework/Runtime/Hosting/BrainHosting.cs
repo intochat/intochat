@@ -16,7 +16,8 @@ public static class BrainHosting
         var inventory = new ModuleInventory(modules);
         silo.Services.AddSingleton(inventory);
         foreach (var module in inventory.Modules) { module.AddOptions(silo.Services); }
-        silo.Services.AddContractCatalog();
+        silo.Services.TryAddSingleton(provider => new CompiledTypes(provider.GetRequiredService<ModuleInventory>()));
+        silo.Services.TryAddSingleton(NeuronTypeSearch.Create);
         silo.Services.TryAddSingleton(TimeProvider.System);
         silo.Services.TryAddSingleton<ICallFilter, CallFilter>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, NeuronCallFilter>());

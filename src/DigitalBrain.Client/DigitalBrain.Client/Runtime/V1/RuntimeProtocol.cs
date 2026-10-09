@@ -9,10 +9,11 @@ public static class RuntimeProtocol
     public const string Invoke = "runtime/v1/invoke";
     public const string Report = "runtime/v1/report";
     public const string Stream = "runtime/v1/stream";
-    // brain.Kernel travels as invocations of this reserved contract: Instances(contract, type) and Running().
+    // brain.Kernel travels as invocations of this reserved contract: Instances(contract, type), Types() and Running().
     public const string KernelContract = "DigitalBrain.IKernelView";
     public const string KernelInstances = "Instances";
     public const string KernelRunning = "Running";
+    public const string KernelTypes = "Types";
     public const string RefusalHeader = "X-DigitalBrain-Refusal";
     // Both ends tag a heartbeat report's span with this, so telemetry keeps heartbeats quiet and every other report traced.
     public const string ReportKindTag = "digitalbrain.runtime.report";

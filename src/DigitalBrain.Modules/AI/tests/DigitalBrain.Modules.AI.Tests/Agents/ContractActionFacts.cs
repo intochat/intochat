@@ -14,7 +14,7 @@ public sealed class ContractActionFacts
 {
     // The brain composes no Apps module, so the turn's contract is put on its surface directly.
     private static Task<ModuleBrain> AppBrain(IChatClient client, CancellationToken ct)
-        => AgentFacts.Brain(client, ct, services => services.AddSingleton(new ContractCatalog([typeof(INeuron).Assembly, typeof(IApp).Assembly])));
+        => AgentFacts.Brain(client, ct, services => services.AddSingleton(new DigitalBrain.Framework.CompiledTypes([typeof(INeuron).Assembly, typeof(IApp).Assembly])));
 
     [Fact]
     public async Task ATurnOffersTheNeuronActionsOverOnlyItsContracts()

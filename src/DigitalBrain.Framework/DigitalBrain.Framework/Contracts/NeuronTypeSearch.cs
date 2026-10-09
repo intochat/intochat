@@ -1,17 +1,44 @@
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Framework.Contracts;
 
-// By meaning when an embedding model is composed, by words otherwise. Vectors are cached per entry
-// (keyed by id + embedded text), so a catalog rebuild embeds only the entries that are new.
-public sealed class NeuronTypeSearch(ContractCatalog types, IEmbeddingGenerator<string, Embedding<float>>? embeddings) : IDisposable
+// What the caller's brain can search and call: the kernel's neuron types plus the live capabilities
+// each source reports, ranked by meaning when an embedding model is composed, by words otherwise.
+// Vectors are cached per entry (keyed by id + embedded text), so only new entries are embedded.
+public sealed class NeuronTypeSearch(
+    IKernelView kernel,
+    IEnumerable<IRuntimeCapabilitySource> live,
+    IEmbeddingGenerator<string, Embedding<float>>? embeddings,
+    ILogger<NeuronTypeSearch>? logger = null) : IDisposable
 {
     private const int MaxTake = 100;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<string, float[]> _vectors = new(StringComparer.Ordinal);
 
-    public Task<IReadOnlyList<NeuronTypeHit>> Search(string query, int take = 10, CancellationToken ct = default)
-        => Search(query, types.Read(), take, ct);
+    public static NeuronTypeSearch Create(IServiceProvider services) => new(
+        services.GetRequiredService<IKernelView>(), services.GetServices<IRuntimeCapabilitySource>(), Embeddings(services),
+        services.GetService<ILogger<NeuronTypeSearch>>());
+
+    // Live capabilities belong to a brain, so an un-stamped call reads the kernel types alone. A source
+    // that throws is logged and skipped so the kernel types stay searchable.
+    public async Task<IReadOnlyList<NeuronType>> Capabilities(CancellationToken ct)
+    {
+        List<NeuronType> entries = [.. (await kernel.Types(ct).ConfigureAwait(false)).Where(type => type.Kind == TypeKind.Neuron).Select(NeuronType.From)];
+        if (!CallerContextStamper.TryGet(out _)) { return entries; }
+        var brain = BrainScope.CurrentId();
+        foreach (var source in live)
+        {
+            try { entries.AddRange(await source.Read(brain, ct).ConfigureAwait(false)); }
+            catch (Exception error) when (error is not OperationCanceledException)
+            { logger?.LogWarning(error, "Capability source {Source} failed for brain {Brain}", source.GetType().Name, brain); }
+        }
+        return entries;
+    }
+
+    public async Task<IReadOnlyList<NeuronTypeHit>> Search(string query, int take = 10, CancellationToken ct = default)
+        => await Search(query, await Capabilities(ct).ConfigureAwait(false), take, ct).ConfigureAwait(false);
 
     public async Task<IReadOnlyList<NeuronTypeHit>> Search(string query, IReadOnlyList<NeuronType> entries, int take = 10, CancellationToken ct = default)
     {
@@ -30,6 +57,12 @@ public sealed class NeuronTypeSearch(ContractCatalog types, IEmbeddingGenerator<
     }
 
     public void Dispose() => _gate.Dispose();
+
+    private static IEmbeddingGenerator<string, Embedding<float>>? Embeddings(IServiceProvider services)
+    {
+        try { return services.GetService<IEmbeddingGenerator<string, Embedding<float>>>(); }
+        catch (InvalidOperationException) { return null; }
+    }
 
     private async Task<float[][]> Vectors(IReadOnlyList<NeuronType> entries, CancellationToken ct)
     {

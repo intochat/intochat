@@ -370,7 +370,7 @@ public sealed class RuntimeEdgeFacts
         return [.. kinds];
     }
 
-    private static string Fingerprint(ModuleBrain brain) => brain.SiloServices.GetRequiredService<ScriptContracts>().Fingerprint;
+    private static string Fingerprint(ModuleBrain brain) => DigitalBrain.Client.Runtime.ContractsFingerprint.Of(brain.SiloServices.GetRequiredService<DigitalBrain.Framework.CompiledTypes>().Assemblies);
 
     private static async Task<(string Id, string Token)> Assigned(ModuleBrain brain, CancellationToken ct)
     {

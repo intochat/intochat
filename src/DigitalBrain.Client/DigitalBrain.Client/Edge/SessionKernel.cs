@@ -15,19 +15,22 @@ internal sealed class SessionKernel(SessionConnection session, string behavior, 
     public IAsyncEnumerable<Instance> Instances(string? type, CancellationToken cancellationToken = default)
         => Listed(RuntimeProtocol.KernelInstances, [null, type], cancellationToken);
 
-    public async Task<Instance[]> Running(CancellationToken cancellationToken = default)
-        => await Ask(RuntimeProtocol.KernelRunning, [], cancellationToken).ConfigureAwait(false);
+    public Task<Instance[]> Running(CancellationToken cancellationToken = default)
+        => Ask<Instance>(RuntimeProtocol.KernelRunning, [], cancellationToken);
+
+    public Task<TypeEntry[]> Types(CancellationToken cancellationToken = default)
+        => Ask<TypeEntry>(RuntimeProtocol.KernelTypes, [], cancellationToken);
 
     private async IAsyncEnumerable<Instance> Listed(string method, string?[] arguments, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        foreach (var instance in await Ask(method, arguments, cancellationToken).ConfigureAwait(false)) { yield return instance; }
+        foreach (var instance in await Ask<Instance>(method, arguments, cancellationToken).ConfigureAwait(false)) { yield return instance; }
     }
 
-    private async Task<Instance[]> Ask(string method, string?[] arguments, CancellationToken cancellationToken)
+    private async Task<T[]> Ask<T>(string method, string?[] arguments, CancellationToken cancellationToken)
     {
         var invocation = new RuntimeInvocation(behavior, RuntimeProtocol.KernelContract, session.Brain, method,
             [.. arguments.Select(argument => JsonSerializer.SerializeToElement(argument, RuntimeProtocol.Json))]);
         var value = await session.InvokeAsync(invocation, trace.TraceParent, cancellationToken).ConfigureAwait(false);
-        return value is { } json ? json.Deserialize<Instance[]>(RuntimeProtocol.Json) ?? [] : [];
+        return value is { } json ? json.Deserialize<T[]>(RuntimeProtocol.Json) ?? [] : [];
     }
 }

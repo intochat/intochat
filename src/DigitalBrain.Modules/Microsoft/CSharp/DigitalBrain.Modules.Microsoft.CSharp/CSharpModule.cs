@@ -51,9 +51,6 @@ public sealed class CSharpModule() : Module<CSharpOptions>(new ModuleId("csharp"
         builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.TryAddSingleton<SessionTokens>();
         builder.Services.AddSingleton<IIntegrationStartup>(services => services.GetRequiredService<SessionTokens>());
-        // Explicit: DI would resolve the assemblies parameter as an empty IEnumerable<Assembly>.
-        builder.Services.TryAddSingleton(provider => new ScriptContracts(provider.GetRequiredService<ContractCatalog>()));
-        builder.Services.TryAddSingleton<IContractVocabulary>(provider => new ContractVocabulary(provider.GetRequiredService<ContractCatalog>()));
         builder.Services.TryAddSingleton<CSharpContractDiscovery>();
         builder.Services.TryAddSingleton<CSharpScriptCheck>();
         builder.Services.TryAddSingleton<IBehaviorAssemblies>(provider =>

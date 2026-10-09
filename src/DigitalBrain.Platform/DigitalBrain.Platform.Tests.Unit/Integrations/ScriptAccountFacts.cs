@@ -47,8 +47,7 @@ public sealed class ScriptAccountFacts
                 StampedBy = TrustedEdge.AuthenticatedHttp,
             });
             await brain.AuthorizeCallerAsync();
-            var surface = new NeuronSurface(brain, new Kernel(brain.Grains), brain.SiloServices.GetRequiredService<CapabilityCatalog>(),
-                brain.SiloServices.GetRequiredService<NeuronTypeSearch>());
+            var surface = new NeuronSurface(brain, new Kernel(brain.Grains), brain.SiloServices.GetRequiredService<NeuronTypeSearch>());
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => surface.Call(
                 typeof(IConnectionRequests).FullName!, scope, nameof(IConnectionRequests.ListConnections), "[]", ct));
         }

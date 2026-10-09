@@ -1,4 +1,3 @@
-using System.Reflection;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Modules;
 using DigitalBrain.Framework.Platform.Integrations;
@@ -7,21 +6,9 @@ namespace DigitalBrain.Platform.Integrations;
 
 internal static class ConnectorDiscovery
 {
-    internal static ConnectorDefinition[] Declared(Type module)
-    {
-        const BindingFlags flags = BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly;
-        return new[] { "Connector", "Connectors" }.SelectMany(name =>
-            (module.GetProperty(name, flags)?.GetValue(null) ?? module.GetField(name, flags)?.GetValue(null)) switch
-            {
-                ConnectorDefinition one => [one],
-                IEnumerable<ConnectorDefinition> many => many,
-                _ => [],
-            }).ToArray();
-    }
-
     internal static ConnectorDefinition[] Collect(ModuleInventory inventory, IReadOnlyList<IntegrationSchema> schemas)
     {
-        var connectors = inventory.Types.SelectMany(Declared).ToArray();
+        var connectors = inventory.Types.SelectMany(ConnectorDefinition.DeclaredBy).ToArray();
         Validate(connectors, schemas);
         return connectors;
     }

@@ -1,6 +1,6 @@
 using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Framework.Modules;
-using DigitalBrain.Microsoft.CSharp.Edge;
+using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp.Files;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -15,22 +15,22 @@ public sealed class ScriptContractsFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<DigitalBrain.Microsoft.CSharp.CSharpModule>().StartAsync(ct);
 
-        var contracts = brain.SiloServices.GetRequiredService<ScriptContracts>();
+        var contracts = brain.SiloServices.GetRequiredService<CompiledTypes>();
 
-        Assert.Equal(typeof(ICSharpFile), contracts.Find(typeof(ICSharpFile).FullName!));
+        Assert.Equal(typeof(ICSharpFile), contracts.Contract(typeof(ICSharpFile).FullName!));
         // Time's contracts are deployed beside this host, but its module is not composed here.
-        Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Time.Timers.ITimer).FullName!));
+        Assert.Throws<ArgumentException>(() => contracts.Contract(typeof(DigitalBrain.Time.Timers.ITimer).FullName!));
     }
 
     [Fact]
     public void PlatformOnlyContractsAreNotInTheScriptCatalog()
     {
-        var contracts = new ScriptContracts([typeof(IPinger).Assembly, typeof(DigitalBrain.Framework.Platform.Secrets.ISecrets).Assembly]);
+        var contracts = new CompiledTypes([typeof(IPinger).Assembly, typeof(DigitalBrain.Framework.Platform.Secrets.ISecrets).Assembly]);
 
-        Assert.Equal(typeof(IPinger), contracts.Find(typeof(IPinger).FullName!));
-        Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Framework.Platform.Secrets.ISecrets).FullName!));
-        Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration).FullName!));
-        Assert.Throws<ArgumentException>(() => contracts.Find(typeof(IPlatformOnlyPinger).FullName!));
+        Assert.Equal(typeof(IPinger), contracts.Contract(typeof(IPinger).FullName!));
+        Assert.Throws<ArgumentException>(() => contracts.Contract(typeof(DigitalBrain.Framework.Platform.Secrets.ISecrets).FullName!));
+        Assert.Throws<ArgumentException>(() => contracts.Contract(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration).FullName!));
+        Assert.Throws<ArgumentException>(() => contracts.Contract(typeof(IPlatformOnlyPinger).FullName!));
     }
 
     [Fact]
@@ -38,11 +38,11 @@ public sealed class ScriptContractsFacts
     {
         var platform = typeof(DigitalBrain.Platform.PlatformHosting).Assembly;
         Assert.True(PlatformAssemblyAttribute.IsPlatform(platform));
-        var contracts = new ScriptContracts([platform]);
+        var contracts = new CompiledTypes([platform]);
 
         foreach (var neuronContract in platform.GetExportedTypes().Where(type => type.IsInterface && typeof(DigitalBrain.INeuron).IsAssignableFrom(type)))
         {
-            Assert.Throws<ArgumentException>(() => contracts.Find(neuronContract.FullName!));
+            Assert.Throws<ArgumentException>(() => contracts.Contract(neuronContract.FullName!));
             Assert.True(PlatformOnlyAttribute.AppliesTo(neuronContract));
         }
     }
@@ -50,24 +50,24 @@ public sealed class ScriptContractsFacts
     [Fact]
     public void ScriptAccountsAreVisibleAndTheCredentialRegistryIsNot()
     {
-        var contracts = new ScriptContracts([
+        var contracts = new CompiledTypes([
             typeof(DigitalBrain.Integrations.IConnectionRequests).Assembly,
             typeof(DigitalBrain.Framework.Platform.Connections.IConnectionIndex).Assembly,
         ]);
 
         Assert.Equal(
             typeof(DigitalBrain.Integrations.IConnectionRequests),
-            contracts.Find(typeof(DigitalBrain.Integrations.IConnectionRequests).FullName!));
-        Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Framework.Platform.Connections.IConnectionIndex).FullName!));
+            contracts.Contract(typeof(DigitalBrain.Integrations.IConnectionRequests).FullName!));
+        Assert.Throws<ArgumentException>(() => contracts.Contract(typeof(DigitalBrain.Framework.Platform.Connections.IConnectionIndex).FullName!));
     }
 
     [Fact]
     public void TheIntegrationRegistrationContractIsAbsentFromTheScriptCatalogBecauseReleaseReliesOnThat()
     {
-        var contracts = new ScriptContracts([typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration).Assembly]);
+        var contracts = new CompiledTypes([typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration).Assembly]);
 
         Assert.True(PlatformOnlyAttribute.AppliesTo(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration)));
-        Assert.Throws<ArgumentException>(() => contracts.Find(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration).FullName!));
+        Assert.Throws<ArgumentException>(() => contracts.Contract(typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration).FullName!));
     }
 
     [Fact]

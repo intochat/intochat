@@ -31,7 +31,7 @@ internal sealed class BrainRuntimeNeuron(
     SessionStreams streams,
     IBehaviorAssemblies assemblies,
     CSharpScriptCheck compiler,
-    ScriptContracts contracts,
+    CompiledTypes types,
     IReminderRegistry reminders,
     TimeProvider time,
     IOptions<CSharpOptions> options,
@@ -160,7 +160,7 @@ internal sealed class BrainRuntimeNeuron(
     public async Task Connected(string session, string fingerprint)
     {
         RequireSpeaking(session);
-        if (!ContractsFingerprint.Covers(fingerprint, contracts.Fingerprint))
+        if (!ContractsFingerprint.Covers(fingerprint, ContractsFingerprint.Of(types.Assemblies)))
         {
             logger.LogError("Sandbox session {Session} of brain {Brain} carries other contracts than this silo; refused. Rebuild the sandbox image from this build.", session, Brain);
             await Save(Snapshot with { Session = Snapshot.Session! with { Status = SessionStatus.Refused, Fingerprint = fingerprint } }, Changed());

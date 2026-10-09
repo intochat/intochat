@@ -1,48 +1,49 @@
+using DigitalBrain.Framework;
 using DigitalBrain.Framework.Contracts;
 using Microsoft.Extensions.AI;
 
 namespace DigitalBrain.Mcp.Tests.Unit;
 
-public sealed class CapabilityCatalogFacts
+public sealed class NeuronTypeSearchFacts
 {
     [Fact]
-    public async Task WithoutSourcesTheCatalogIsTheContracts()
+    public async Task WithoutSourcesTheCapabilitiesAreTheKernelNeuronTypes()
     {
-        var ct = TestContext.Current.CancellationToken;
-        var contracts = new ContractCatalog(ContractCatalog.Deployed());
-        var catalog = new CapabilityCatalog(contracts, []);
-        var read = await catalog.Read("any-brain", ct);
-        Assert.Equal(contracts.Read().Select(type => type.Id).ToArray(), read.Select(type => type.Id).ToArray());
+        var kernel = Deployed.Kernel();
+        Stamp("any-brain");
+        var read = await new NeuronTypeSearch(kernel, [], null).Capabilities(TestContext.Current.CancellationToken);
+        Assert.Equal(Neurons(kernel), read.Select(type => type.Id).ToArray());
+        Assert.Contains(read, type => type.Contract == "DigitalBrain.Time.Timers.ITimer" && type.Id == "timer");
     }
 
     [Fact]
-    public async Task ASourcesEntriesFollowTheContractsForItsBrain()
+    public async Task ASourcesEntriesFollowTheKernelTypesForItsBrain()
     {
         var ct = TestContext.Current.CancellationToken;
-        var contracts = new ContractCatalog(ContractCatalog.Deployed());
-        var catalog = new CapabilityCatalog(contracts, [new OneBrainSource()]);
-        var one = await catalog.Read("one", ct);
+        var kernel = Deployed.Kernel();
+        var search = new NeuronTypeSearch(kernel, [new OneBrainSource()], null);
+        Stamp("one");
+        var one = await search.Capabilities(ct);
         Assert.Contains(one, type => type.Id == "tool:one/mcp/x/list" && type.Key == "one/mcp/x" && type.Tool == "command_list");
-        Assert.Equal([.. contracts.Read().Select(type => type.Id), "tool:one/mcp/x/list"], [.. one.Select(type => type.Id)]);
-        var two = await catalog.Read("two", ct);
-        Assert.Equal(contracts.Read().Select(type => type.Id).ToArray(), two.Select(type => type.Id).ToArray());
+        Assert.Equal([.. Neurons(kernel), "tool:one/mcp/x/list"], [.. one.Select(type => type.Id)]);
+        Stamp("two");
+        Assert.Equal(Neurons(kernel), (await search.Capabilities(ct)).Select(type => type.Id).ToArray());
     }
 
     [Fact]
-    public async Task AFailingSourceLeavesTheContractsSearchable()
+    public async Task AFailingSourceLeavesTheKernelTypesSearchable()
     {
-        var ct = TestContext.Current.CancellationToken;
-        var contracts = new ContractCatalog(ContractCatalog.Deployed());
-        var catalog = new CapabilityCatalog(contracts, [new FailingSource()]);
-        var read = await catalog.Read("one", ct);
-        Assert.Equal(contracts.Read().Select(type => type.Id).ToArray(), read.Select(type => type.Id).ToArray());
+        var kernel = Deployed.Kernel();
+        Stamp("one");
+        var read = await new NeuronTypeSearch(kernel, [new FailingSource()], null).Capabilities(TestContext.Current.CancellationToken);
+        Assert.Equal(Neurons(kernel), read.Select(type => type.Id).ToArray());
     }
 
     [Fact]
     public async Task WordSearchFindsARuntimeToolByItsDescription()
     {
         var ct = TestContext.Current.CancellationToken;
-        var search = new NeuronTypeSearch(new ContractCatalog(ContractCatalog.Deployed()), null);
+        var search = new NeuronTypeSearch(Deployed.Kernel(), [], null);
         var tool = new NeuronType("tool:one/mcp/x/sharpen", "tools", "Sharpen", "sharpen the image",
             ["Task<ToolResult> Run(\"sharpen\", arguments)"], "DigitalBrain.Tools.IToolSource", "one/mcp/x", "sharpen");
         var hit = Assert.Single(await search.Search("sharpen the image", [tool], ct: ct));
@@ -55,7 +56,7 @@ public sealed class CapabilityCatalogFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var embedder = new CountingEmbeddings();
-        var search = new NeuronTypeSearch(new ContractCatalog(ContractCatalog.Deployed()), embedder);
+        var search = new NeuronTypeSearch(Deployed.Kernel(), [], embedder);
         IReadOnlyList<NeuronType> first = [Tool("a"), Tool("b")];
         await search.Search("paint", first, ct: ct);
         IReadOnlyList<NeuronType> second = [Tool("a"), Tool("b"), Tool("c")];
@@ -63,6 +64,11 @@ public sealed class CapabilityCatalogFacts
         // The second search embeds only the new entry and the query; a and b come from the cache.
         Assert.Equal(new[] { 2, 1, 1, 1 }, embedder.Batches.Select(batch => batch.Count).ToArray());
     }
+
+    private static string[] Neurons(FixedKernel kernel) => [.. kernel.Entries.Where(type => type.Kind == TypeKind.Neuron).Select(type => type.Alias)];
+
+    private static void Stamp(string brain) => CallerContextStamper.Stamp(new()
+    { PrincipalId = "owner", AccountId = "owner", BrainId = brain, Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
 
     private static NeuronType Tool(string name)
         => new($"tool:k/{name}", "tools", $"Tool {name}", $"does {name}", [$"run {name}"], "DigitalBrain.Tools.IToolSource", "k", name);

@@ -27,7 +27,7 @@ internal static class RuntimeBrain
                 silo.Services.AddHttpClient<SessionRunner>().ConfigurePrimaryHttpMessageHandler(() => host);
                 silo.Services.AddSingleton(assemblies ?? new MemoryBehaviorAssemblies());
                 if (time is not null) { silo.Services.AddSingleton(time); }
-                silo.Services.AddSingleton(new ScriptContracts([typeof(IPinger).Assembly, typeof(ICSharpFile).Assembly]));
+                silo.Services.AddSingleton(new DigitalBrain.Framework.CompiledTypes([typeof(IPinger).Assembly, typeof(ICSharpFile).Assembly]));
                 silo.Services.PostConfigure<CSharpDeploymentSettings>(options =>
                 {
                     options.EdgeUrl = "http://edge.test/";
@@ -47,7 +47,7 @@ internal static class RuntimeBrain
             {
                 silo.Services.AddHttpClient<SessionRunner>().ConfigurePrimaryHttpMessageHandler(() => host);
                 silo.Services.AddSingleton(new MemoryBehaviorAssemblies());
-                silo.Services.AddSingleton(new ScriptContracts([typeof(IPinger).Assembly, typeof(ICSharpFile).Assembly]));
+                silo.Services.AddSingleton(new DigitalBrain.Framework.CompiledTypes([typeof(IPinger).Assembly, typeof(ICSharpFile).Assembly]));
                 silo.Services.PostConfigure<CSharpDeploymentSettings>(options =>
                 {
                     options.EdgeUrl = "http://edge.test/";

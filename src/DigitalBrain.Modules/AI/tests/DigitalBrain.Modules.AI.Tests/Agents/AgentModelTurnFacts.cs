@@ -18,7 +18,7 @@ public sealed class AgentModelTurnFacts
     {
         AgentFacts.StampUser();
         return ModuleTest.Create().WithModule<AIModule>().WithFakeModel(model)
-            .ConfigureSilo(silo => silo.Services.AddSingleton(new ContractCatalog([typeof(INeuron).Assembly, typeof(ILoopProbe).Assembly])))
+            .ConfigureSilo(silo => silo.Services.AddSingleton(new DigitalBrain.Framework.CompiledTypes([typeof(INeuron).Assembly, typeof(ILoopProbe).Assembly])))
             .StartAsync(ct);
     }
 

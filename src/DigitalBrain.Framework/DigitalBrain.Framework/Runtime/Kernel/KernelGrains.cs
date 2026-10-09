@@ -90,3 +90,30 @@ internal sealed class InstanceTypesGrain(
 
     public Task<string[]> List() => Task.FromResult(store.State.Types);
 }
+
+internal static class TypeTableKey
+{
+    // A slash is never a brain id, so no brain's features can land under it.
+    public const string NoBrain = "/";
+}
+
+// The types a brain knows, keyed "{brain}": the host's compiled layer, then the brain's own features.
+internal interface ITypeTable : IGrainWithStringKey
+{
+    Task<TypeEntry[]> List();
+}
+
+[GrainType("kernel.typetable")]
+internal sealed class TypeTableGrain(
+    CompiledTypes compiled,
+    [PersistentState("features", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<TypeTableGrain.State> store) : Grain, ITypeTable
+{
+    // Feature types are loaded into this slot by the feature loader; until it lands it stays empty.
+    [GenerateSerializer, Alias("kernel.typetable.state")]
+    public sealed class State
+    {
+        [Id(0)] public TypeEntry[] Features { get; set; } = [];
+    }
+
+    public Task<TypeEntry[]> List() => Task.FromResult<TypeEntry[]>([.. compiled.Addressed(GrainFactory), .. store.State.Features]);
+}

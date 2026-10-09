@@ -102,7 +102,7 @@ public sealed class CSharpFileListingFacts
         var ct = TestContext.Current.CancellationToken;
         var brain = new RecordingBrain();
         var service = new CSharpToolService(brain, null!,
-            new CSharpContractDiscovery(new ContractCatalog(new ModuleInventory([]))));
+            new CSharpContractDiscovery(null!));
 
         await Assert.ThrowsAsync<ArgumentException>(() => service.ForScope("scope").Write("timer", "Console.WriteLine(1);", new string('n', 121), null, ct));
 

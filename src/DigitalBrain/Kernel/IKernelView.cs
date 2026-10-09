@@ -15,6 +15,9 @@ public interface IKernelView
     /// <summary>The instances of one grain type in the caller's brain, or of every type when <paramref name="type"/> is null.</summary>
     IAsyncEnumerable<Instance> Instances(string? type, CancellationToken cancellationToken = default);
 
+    /// <summary>Every type the caller's brain knows: the compiled modules' neurons, signals and connectors, then the brain's own features.</summary>
+    Task<TypeEntry[]> Types(CancellationToken cancellationToken = default);
+
     /// <summary>The caller's instances that are active somewhere in the cluster right now. Asked on demand; costly.</summary>
     Task<Instance[]> Running(CancellationToken cancellationToken = default);
 }

@@ -10,9 +10,9 @@ public static class McpHosting
 {
     public static void AddDigitalBrainMcp(this IServiceCollection services)
     {
-        services.AddSingleton(new ContractCatalog(ContractCatalog.Deployed()));
+        // Types come from the silo's kernel; this client carries contracts only to call neurons.
         services.AddSingleton<IRuntimeCapabilitySource, DigitalBrain.Tools.ToolCapabilitySource>();
-        services.AddContractCatalog();
+        services.TryAddSingleton(NeuronTypeSearch.Create);
         services.AddIdentity();
         // Each request is a tool call in the caller's brain; a harness may hand in its own brain instead.
         services.TryAddScoped<IDigitalBrain>(provider => provider.GetRequiredService<IDigitalBrains>().Open(
