@@ -35,6 +35,8 @@ const string McpPortKey = "DigitalBrain:Http:McpPort";
 const string IntoChatShippedAppsKey = "DigitalBrain:Modules:apps:Shipped:intochat";
 
 var builder = DistributedApplication.CreateBuilder(args);
+// `aspire run -- --DigitalBrain:Profile local` composes profiles/*.json; dev is today's composition.
+builder.Configuration.AddDigitalBrainProfiles(builder.AppHostDirectory);
 var digitalBrain = builder.AddDigitalBrain("Modules", DigitalBrainHostingOptions.Named(builder.Configuration, "intochat", useAzureStorage: true))
     .WithHttpIdentity()
     .WithHosting<AIModuleHosting, AIOptions>(ai =>
