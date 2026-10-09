@@ -89,7 +89,8 @@ public sealed class AssistantGateFacts
             },
         })
             .WithModule<AIModule>().RequireModules([new AppsModule(), new DigitalBrain.Compute.ComputeModule(), new DigitalBrain.Flutter.FlutterModule()])
-            .WithModule<CSharpModule>().WithModule<PostgresModule>().WithModule<DigitalBrain.Machine.MachineModule>().WithReminders()
+            .WithModule<CSharpModule>().WithModule<PostgresModule>().WithModule<DigitalBrain.Machine.MachineModule>()
+            .WithModule<DigitalBrain.Tools.ToolsModule>().WithModule<DigitalBrain.Mcp.McpModule>().WithModule<DigitalBrain.Microsoft.Playwright.PlaywrightModule>().WithReminders()
             .StartAsync(ct);
         Stamp();
         await host.AuthorizeCallerAsync();
@@ -115,7 +116,8 @@ public sealed class AssistantGateFacts
             },
         })
             .WithModule<AIModule>().RequireModules([new AppsModule(), new DigitalBrain.Compute.ComputeModule(), new DigitalBrain.Flutter.FlutterModule()])
-            .WithModule<CSharpModule>().WithModule<PostgresModule>().WithModule<DigitalBrain.Machine.MachineModule>().WithReminders()
+            .WithModule<CSharpModule>().WithModule<PostgresModule>().WithModule<DigitalBrain.Machine.MachineModule>()
+            .WithModule<DigitalBrain.Tools.ToolsModule>().WithModule<DigitalBrain.Mcp.McpModule>().WithModule<DigitalBrain.Microsoft.Playwright.PlaywrightModule>().WithReminders()
             .StartAsync(ct);
     }
 

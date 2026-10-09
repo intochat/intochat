@@ -9,6 +9,8 @@ using DigitalBrain.Integrations;
 using DigitalBrain.Machine;
 using DigitalBrain.Microsoft.CSharp.Files;
 using DigitalBrain.Postgres;
+using DigitalBrain.Mcp;
+using DigitalBrain.Microsoft.Playwright;
 
 // The assistant tool path: "send" by request. The composer path lives in submissions.cs.
 // Jev first: a confident, direct route is carried out by the router; anything else anchors the model.
@@ -17,7 +19,8 @@ await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var app = brain.Get<IApp>(Assistant.Key(brain));
 string[] contracts = [typeof(IConnectionRequests).FullName!, typeof(IPostgresServer).FullName!, typeof(IApp).FullName!, typeof(IAppIndex).FullName!,
     typeof(IWorkspace).FullName!, typeof(IForm).FullName!, typeof(ICSharpFile).FullName!,
-    typeof(IConsole).FullName!, typeof(IFileSystem).FullName!];
+    typeof(IConsole).FullName!, typeof(IFileSystem).FullName!,
+    typeof(IMcpServer).FullName!, typeof(IPageTools).FullName!];
 await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
 {
     if (request.Operation != "send" || request.Input.Length is < 1 or > 32000) { continue; }

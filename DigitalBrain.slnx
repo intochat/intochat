@@ -115,6 +115,12 @@
     <Project Path="src/DigitalBrain.Modules/Microsoft/Playwright/DigitalBrain.Modules.Microsoft.Playwright/DigitalBrain.Modules.Microsoft.Playwright.csproj" />
     <Project Path="src/DigitalBrain.Modules/Microsoft/Playwright/tests/DigitalBrain.Modules.Microsoft.Playwright.Tests/DigitalBrain.Modules.Microsoft.Playwright.Tests.csproj" />
   </Folder>
+  <Folder Name="/Modules/ModelContextProtocol/" />
+  <Folder Name="/Modules/ModelContextProtocol/Mcp/">
+    <Project Path="src/DigitalBrain.Modules/ModelContextProtocol/Mcp/DigitalBrain.Modules.Mcp.Contracts/DigitalBrain.Modules.Mcp.Contracts.csproj" />
+    <Project Path="src/DigitalBrain.Modules/ModelContextProtocol/Mcp/DigitalBrain.Modules.Mcp/DigitalBrain.Modules.Mcp.csproj" />
+    <Project Path="src/DigitalBrain.Modules/ModelContextProtocol/Mcp/tests/DigitalBrain.Modules.Mcp.Tests/DigitalBrain.Modules.Mcp.Tests.csproj" />
+  </Folder>
   <Folder Name="/Modules/Postgres/">
     <Project Path="src/DigitalBrain.Modules/Postgres/DigitalBrain.Modules.Postgres.Aspire.Hosting/DigitalBrain.Modules.Postgres.Aspire.Hosting.csproj" />
     <Project Path="src/DigitalBrain.Modules/Postgres/DigitalBrain.Modules.Postgres.Contracts/DigitalBrain.Modules.Postgres.Contracts.csproj" />

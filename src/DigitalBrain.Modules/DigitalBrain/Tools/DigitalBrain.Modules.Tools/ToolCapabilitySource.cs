@@ -3,7 +3,7 @@ using DigitalBrain.Framework.Contracts;
 namespace DigitalBrain.Tools;
 
 // A brain's registered tools as capabilities: each one bound to its source's key, called as Run(tool, arguments).
-internal sealed class ToolCapabilitySource(IGrainFactory grains) : IRuntimeCapabilitySource
+public sealed class ToolCapabilitySource(IGrainFactory grains) : IRuntimeCapabilitySource
 {
     private const int MaxSchema = 600;
 

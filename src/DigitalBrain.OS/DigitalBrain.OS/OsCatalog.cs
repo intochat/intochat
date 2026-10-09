@@ -31,6 +31,8 @@ public static partial class OsCatalog
         new DigitalBrain.Salesforce.SalesforceModule(),
         new DigitalBrain.Supabase.SupabaseModule(),
         new DigitalBrain.Time.TimeModule(),
+        new DigitalBrain.Tools.ToolsModule(),
+        new DigitalBrain.Mcp.McpModule(),
     ];
 
     // Modules the Workshop has added to this OS. Declared here, implemented in

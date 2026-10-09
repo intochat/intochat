@@ -11,6 +11,7 @@ public static class McpHosting
     public static void AddDigitalBrainMcp(this IServiceCollection services)
     {
         services.AddSingleton(new ContractCatalog(ContractCatalog.Deployed()));
+        services.AddSingleton<IRuntimeCapabilitySource, DigitalBrain.Tools.ToolCapabilitySource>();
         services.AddContractCatalog();
         services.AddIdentity();
         // Each request is a tool call in the caller's brain; a harness may hand in its own brain instead.

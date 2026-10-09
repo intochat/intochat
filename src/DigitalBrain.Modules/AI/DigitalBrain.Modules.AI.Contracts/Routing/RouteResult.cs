@@ -9,7 +9,9 @@ public sealed record RouteResult(
     [property: Id(0)] string Contract,
     [property: Id(1)] string Method,
     [property: Id(2)] double Confidence,
-    [property: Id(3)] Dictionary<string, double> Probabilities)
+    [property: Id(3)] Dictionary<string, double> Probabilities,
+    [property: Id(4)] string? Key = null,
+    [property: Id(5)] string? Tool = null)
 {
     private const int MaxAlternatives = 3;
 

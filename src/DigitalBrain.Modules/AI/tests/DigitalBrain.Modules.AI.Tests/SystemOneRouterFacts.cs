@@ -5,6 +5,7 @@ using DigitalBrain.AI.SystemOne;
 using DigitalBrain.AI.SystemOne.Signals;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Time.Timers;
@@ -68,6 +69,32 @@ public sealed class SystemOneRouterFacts
         Assert.Equal("Start", route.Method);
         Assert.Equal(0.91, route.Confidence);
         await Task.WhenAll(replies);
+    }
+
+    [Fact]
+    public async Task RouteChoosesARuntimeToolOnItsKeyWithoutAMethodQuestion()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var server = new LoopbackServer();
+        const string Contract = """{"model":"jev","answers":{"capability_0":{"type":"choice","choice":"tool:brain/mcp/photocraft/render_preview","confidence":0.93,"probabilities":{"tool:brain/mcp/photocraft/render_preview":0.93}}}}""";
+        var reply = server.ReplyOnce("application/json", Contract, ct);
+        await using var host = await Start(server.Url, StubChatClient.Replying("{}"), ct,
+            silo => silo.Services.AddSingleton<IRuntimeCapabilitySource>(new OneTool(Scope)));
+        Stamp();
+        await host.AuthorizeCallerAsync();
+
+        var route = await host.Get<IRouter>(Scope).Route("show me the image", null, ct);
+
+        Assert.Equal(("DigitalBrain.Mcp.IMcpServer", "Run", Scope + "/mcp/photocraft", "render_preview"), (route.Contract, route.Method, route.Key, route.Tool));
+        Assert.Contains("Render the document", (await reply).Body, StringComparison.Ordinal);
+    }
+
+    private sealed class OneTool(string scope) : IRuntimeCapabilitySource
+    {
+        public Task<IReadOnlyList<NeuronType>> Read(string brainId, CancellationToken ct)
+            => Task.FromResult<IReadOnlyList<NeuronType>>(brainId != scope ? [] :
+                [new($"tool:{scope}/mcp/photocraft/render_preview", "tools", "PhotoCraft: Render preview", "Render the document as a PNG.",
+                    ["Task<ToolResult> Run(\"render_preview\", arguments)"], "DigitalBrain.Mcp.IMcpServer", scope + "/mcp/photocraft", "render_preview")]);
     }
 
     [Fact]
@@ -144,7 +171,7 @@ public sealed class SystemOneRouterFacts
         await reply;
     }
 
-    private static Task<ModuleBrain> Start(string endpoint, IChatClient model, CancellationToken ct) =>
+    private static Task<ModuleBrain> Start(string endpoint, IChatClient model, CancellationToken ct, Action<Orleans.Hosting.ISiloBuilder>? silo = null) =>
         ModuleTest.Create().WithExecution(new TestExecutionOptions
         {
             PrivateConfiguration = new Dictionary<string, string?>
@@ -158,7 +185,7 @@ public sealed class SystemOneRouterFacts
             .WithModule<DigitalBrain.Flutter.FlutterModule>()
             .WithModule<DigitalBrain.Time.TimeModule>()
             .WithReminders()
-            .ConfigureSilo(silo => silo.Services.AddSingleton(model))
+            .ConfigureSilo(builder => { builder.Services.AddSingleton(model); silo?.Invoke(builder); })
             .StartAsync(ct);
 
     private static void Stamp() => CallerContextStamper.Stamp(new()
