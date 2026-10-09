@@ -11,7 +11,9 @@ import 'session_http_client_io.dart'
     if (dart.library.html) 'session_http_client_web.dart'
     as transport;
 import 'host_environment.dart';
+import 'models/app_manifest.dart';
 import 'models/installed_app.dart';
+import 'models/infrastructure.dart';
 import 'models/brain_models.dart';
 import 'models/compute_usage.dart';
 import 'models/model_catalog.dart';
@@ -179,6 +181,29 @@ final class DigitalBrainUiClient {
 
   static String appRequestPath(String brainId, String appId) =>
       '/brains/${Uri.encodeComponent(brainId)}/apps/${Uri.encodeComponent(appId)}/request';
+
+  /// The manifest an app declares, read from the same view its detail page uses.
+  Future<AppManifest> readAppManifest(String brainId, String appId) async {
+    final body = await jsonRequest(
+      'GET',
+      '/brains/${Uri.encodeComponent(brainId)}/apps/${Uri.encodeComponent(appId)}',
+    );
+    return AppManifest.fromJson(
+      Map<String, dynamic>.from((body as Map)['manifest'] as Map),
+    );
+  }
+
+  /// What the brain stands on: each composed module with its Aspire resource state.
+  Future<List<InfrastructureRow>> readInfrastructure(String brainId) async {
+    final body = await jsonRequest(
+      'GET',
+      '/brains/${Uri.encodeComponent(brainId)}/infrastructure',
+    );
+    return [
+      for (final row in body as List)
+        InfrastructureRow.fromJson(Map<String, dynamic>.from(row as Map)),
+    ];
+  }
 
   /// The route that publishes an open request; the app answers through neurons, never here.
   static String appOpenPath(String brainId, String appId) =>
