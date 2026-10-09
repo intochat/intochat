@@ -17,7 +17,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace DigitalBrain.Modules.AI.Tests.Scenarios;
 
 // The shipped assistant's composed contracts over real grains: a person's database is a postgres
-// connection read through neurons_call, and data is shown by invoking an app, awaiting it and
+// connection read through neurons_call, and data is shown by requesting the Data Visualizer and
 // opening the window it names in the person's workspace.
 public sealed class AssistantScenarioFacts
 {
@@ -50,15 +50,13 @@ public sealed class AssistantScenarioFacts
     }
 
     [Fact]
-    public async Task ShowDataFromDemoInvokesTheDataVisualizerAndOpensItsWindow()
+    public async Task ShowDataFromDemoRequestsTheDataVisualizerAndOpensItsWindow()
     {
         var ct = TestContext.Current.CancellationToken;
-        var invocation = Guid.NewGuid();
-        var show = JsonSerializer.Serialize(new[] { new InvokeApp(invocation, "show", """{"title":"Demo","kind":"table","source":"sql","sql":"select * from demo"}""") }, JsonSerializerOptions.Web);
+        var show = JsonSerializer.Serialize(new object[] { "show", """{"title":"Demo","kind":"table","source":"sql","sql":"select * from demo"}""" }, JsonSerializerOptions.Web);
         var open = JsonSerializer.Serialize(new[] { new OpenSurfaceWindow("open-demo", "demo", "Demo", new WindowReference("surface", Surface), 0) }, JsonSerializerOptions.Web);
         var model = new ScriptedModel(
-            Call(NeuronSurfaceTools.CallName, new() { ["contract"] = typeof(IApp).FullName, ["key"] = Visualizer, ["method"] = "Invoke", ["arguments"] = show }),
-            Call(NeuronSurfaceTools.CallName, new() { ["contract"] = typeof(IApp).FullName, ["key"] = Visualizer, ["method"] = "Await", ["arguments"] = $"[\"{invocation}\"]" }),
+            Call(NeuronSurfaceTools.CallName, new() { ["contract"] = typeof(IApp).FullName, ["key"] = Visualizer, ["method"] = "Request", ["arguments"] = show }),
             Call(NeuronSurfaceTools.CallName, new() { ["contract"] = typeof(IWorkspace).FullName, ["key"] = Scope, ["method"] = "OpenSurface", ["arguments"] = open }));
         await using var host = await Start(model);
         await Connect(host);
@@ -66,28 +64,18 @@ public sealed class AssistantScenarioFacts
         await host.AuthorizeCallerAsync();
         var app = host.Get<IApp>(Visualizer);
         await app.Create(new AppManifest("Data Visualizer", "shows data", [new("show", "show a table or chart")], [], []), "spec");
-        // The app's script stands in here for as long as the turn runs.
-        using var turn = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        await using var invoked = await host.SubscribeAsync<AppInvoked>(app, ct);
-        var answering = Task.Run(async () =>
-        {
-            await foreach (var signal in invoked.ReadAllAsync(turn.Token))
-            {
-                StampUser();
-                await app.Respond(new AppResponse(signal.InvocationId, $$$"""{"window":{"id":"demo","title":"Demo","surface":"{{{Surface}}}"}}""", null));
-            }
-        }, ct);
+        // The app's script stands in here as long as the turn runs: the request is a signal, never an answer.
+        await using var requested = await host.SubscribeAsync<AppRequested>(app, ct);
+        await using var signals = requested.ReadAllAsync(ct).GetAsyncEnumerator(ct);
         StampAssistant();
 
         var events = await Turn(host, "show data from Demo", ct);
-        await turn.CancelAsync();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => answering);
 
         Assert.Empty(events.OfType<AgentTurnEvent.Failed>());
-        var results = events.OfType<AgentTurnEvent.ToolCompleted>().ToArray();
-        Assert.All(results, result => Assert.DoesNotContain("isError", result.Result, StringComparison.Ordinal));
-        var awaited = JsonDocument.Parse(results[1].Result).RootElement;
-        Assert.Equal((int)InvocationStatus.Completed, awaited.GetProperty("status").GetInt32());
+        Assert.All(events.OfType<AgentTurnEvent.ToolCompleted>(), result => Assert.DoesNotContain("isError", result.Result, StringComparison.Ordinal));
+        Assert.True(await signals.MoveNextAsync());
+        Assert.Equal("show", signals.Current.Operation);
+        Assert.Equal("""{"title":"Demo","kind":"table","source":"sql","sql":"select * from demo"}""", signals.Current.Input);
         StampUser();
         var window = Assert.Single((await host.Get<IWorkspace>(Scope).Read()).Windows);
         Assert.Equal(Surface, window.Reference.NeuronId);
@@ -167,3 +155,5 @@ public sealed class AssistantScenarioFacts
         public void Dispose() { }
     }
 }
+
+
