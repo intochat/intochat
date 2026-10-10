@@ -103,6 +103,13 @@ public sealed class NeuronSurface(IDigitalBrain brain, IKernelView kernel, Neuro
         return JsonSerializer.SerializeToElement(result, target.ReturnType.GetGenericArguments()[0], Json);
     }
 
+    // The neuron a contract and key name, as a reference: what a watch subscribes to.
+    public async Task<INeuron> Reference(string contract, string key, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        return (INeuron)Neuron(await Contract(contract, ct).ConfigureAwait(false), key);
+    }
+
     private bool Allowed(string name) => allowed is null || allowed.Contains(name);
 
     private async Task<Dictionary<string, TypeEntry>> Neurons(CancellationToken ct)
