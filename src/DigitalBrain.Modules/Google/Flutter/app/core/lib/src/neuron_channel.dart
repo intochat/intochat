@@ -42,8 +42,22 @@ final class WatchSourceSpec {
   final List<String> types;
 }
 
-/// The two operations the OS has, over one gRPC(-Web) connection: call a contract, watch a source.
-final class NeuronChannel {
+/// The two operations the OS has: call a contract, watch a source. [NeuronChannel] carries them
+/// over gRPC(-Web); a test supplies its own link.
+abstract interface class NeuronLink {
+  Future<Map<String, dynamic>?> call(
+    String brainId,
+    String contract,
+    String key,
+    String method,
+    List<Object?> arguments,
+  );
+  Stream<NeuronSignal> watch(String brainId, List<WatchSourceSpec> sources);
+  Future<void> shutdown();
+}
+
+/// The two operations over one gRPC(-Web) connection.
+final class NeuronChannel implements NeuronLink {
   NeuronChannel(Uri baseUri, {String? authorization})
     : _channel = transport.createNeuronChannel(baseUri),
       _options = CallOptions(
@@ -72,6 +86,7 @@ final class NeuronChannel {
   );
 
   /// Runs a contract method; null when the method answers nothing.
+  @override
   Future<Map<String, dynamic>?> call(
     String brainId,
     String contract,
@@ -88,14 +103,20 @@ final class NeuronChannel {
   }
 
   /// The sources' signals: each one's retained last signal first, then live ones.
+  @override
   Stream<NeuronSignal> watch(String brainId, List<WatchSourceSpec> sources) {
     final request = pb.WatchRequest(brainId: brainId)
       ..sources.addAll([
         for (final s in sources)
-          pb.WatchSource(contract: s.contract, key: s.key, signalTypes: s.types),
+          pb.WatchSource(
+            contract: s.contract,
+            key: s.key,
+            signalTypes: s.types,
+          ),
       ]);
     return _client.watch(request).map(NeuronSignal.fromEnvelope);
   }
 
+  @override
   Future<void> shutdown() => _channel.shutdown();
 }

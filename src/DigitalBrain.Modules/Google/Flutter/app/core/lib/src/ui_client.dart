@@ -143,17 +143,21 @@ final class DigitalBrainUiClient {
   final bool _ownsClient;
   final BasicCredentials? _credentials;
 
-  /// Live updates ride the neuron channel unless the build is told to keep HTTP polling
-  /// (`--dart-define=DIGITALBRAIN_UI_TRANSPORT=http`): the comparison runs both.
+  /// Live updates ride the neuron channel when the client owns its transport (a real kernel),
+  /// unless the build is told to keep HTTP polling (`--dart-define=DIGITALBRAIN_UI_TRANSPORT=http`)
+  /// so the comparison can run both. A test that injects its HTTP client keeps the HTTP path,
+  /// or supplies a [link] of its own.
   static const liveTransportEnv = 'DIGITALBRAIN_UI_TRANSPORT';
   static const _liveTransport = String.fromEnvironment(
     liveTransportEnv,
     defaultValue: 'grpc',
   );
-  bool get grpcLive => _liveTransport != 'http';
+  bool get grpcLive =>
+      _link != null || (_ownsClient && _liveTransport != 'http');
 
-  NeuronChannel? _channel;
-  NeuronChannel get channel => _channel ??= NeuronChannel(
+  NeuronLink? _link;
+  set link(NeuronLink value) => _link = value;
+  NeuronLink get channel => _link ??= NeuronChannel(
     baseUri,
     authorization: _credentials?.authorizationHeader,
   );
@@ -828,8 +832,8 @@ final class DigitalBrainUiClient {
     if (_ownsClient) {
       _http.close();
     }
-    unawaited(_channel?.shutdown() ?? Future.value());
-    _channel = null;
+    unawaited(_link?.shutdown() ?? Future.value());
+    _link = null;
   }
 
   Future<dynamic> jsonRequest(

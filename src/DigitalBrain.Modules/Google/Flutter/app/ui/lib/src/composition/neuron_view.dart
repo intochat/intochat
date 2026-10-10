@@ -67,6 +67,7 @@ class NeuronView extends StatefulWidget {
     this.enabled = true,
     this.events,
     this.refreshEvery = const Duration(seconds: 2),
+    this.watch,
   });
   final String kind, name;
   final NeuronLoader load;
@@ -80,6 +81,10 @@ class NeuronView extends StatefulWidget {
   final bool enabled;
   final NeuronEventQueue? events;
   final Duration refreshEvery;
+
+  /// The node's change events. With a watch the view never polls: it reads once on mount and
+  /// once per event. Without one it falls back to [refreshEvery].
+  final Stream<void> Function(String kind, String name)? watch;
   @override
   State<NeuronView> createState() => _NeuronViewState();
 }
@@ -89,6 +94,7 @@ class _NeuronViewState extends State<NeuronView> {
   Object? _error;
   String? selection;
   Timer? _timer;
+  StreamSubscription<void>? _watch;
   bool _loading = false, _reloadAgain = false;
   int _generation = 0;
   late final NeuronEventQueue _events = widget.events ?? NeuronEventQueue();
@@ -97,7 +103,22 @@ class _NeuronViewState extends State<NeuronView> {
     super.initState();
     _events.addListener(_changed);
     _reload();
-    _timer = Timer.periodic(widget.refreshEvery, (_) => _reload());
+    final watch = widget.watch;
+    if (watch == null) {
+      _timer = Timer.periodic(widget.refreshEvery, (_) => _reload());
+    } else {
+      _subscribe(watch);
+    }
+  }
+
+  void _subscribe(Stream<void> Function(String, String) watch) {
+    _watch?.cancel();
+    _watch = watch(widget.kind, widget.name).listen(
+      (_) => _reload(),
+      // A broken stream falls back to the timer until a rebuild resubscribes.
+      onError: (Object _) =>
+          _timer ??= Timer.periodic(widget.refreshEvery, (_) => _reload()),
+    );
   }
 
   void _changed() {
@@ -116,6 +137,10 @@ class _NeuronViewState extends State<NeuronView> {
         old.kind != widget.kind ||
         old.revision != widget.revision) {
       _reload();
+    }
+    if ((old.name != widget.name || old.kind != widget.kind) &&
+        widget.watch != null) {
+      _subscribe(widget.watch!);
     }
   }
 
@@ -226,6 +251,7 @@ class _NeuronViewState extends State<NeuronView> {
     secretSaver: widget.secretSaver,
     events: _events,
     refreshEvery: widget.refreshEvery,
+    watch: widget.watch,
     ancestors: {...widget.ancestors, '${widget.kind}:${widget.name}'},
     revision: widget.revision,
     enabled: widget.enabled,
@@ -673,6 +699,7 @@ class _NeuronViewState extends State<NeuronView> {
   @override
   void dispose() {
     _timer?.cancel();
+    _watch?.cancel();
     _events.removeListener(_changed);
     if (widget.events == null) _events.dispose();
     super.dispose();
