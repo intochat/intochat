@@ -10,7 +10,7 @@ internal sealed class SecretsNeuron : Grain, ISecrets
     private readonly SecretsStore _secrets;
 
     public SecretsNeuron(
-        [PersistentState("vault", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<SecretsState> state,
+        [PersistentState("vault", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<SecretsState> state,
         IKeyWrapper keys)
     {
         _state = state;

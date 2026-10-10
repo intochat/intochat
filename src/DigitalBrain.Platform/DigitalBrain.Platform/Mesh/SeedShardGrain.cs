@@ -27,7 +27,7 @@ internal static class StorageShards
 
 [GrainType("platform.mesh.seed-shard")]
 internal sealed class SeedShardGrain(
-    [PersistentState("mesh-shard", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<SeedShardState> store)
+    [PersistentState("mesh-shard", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<SeedShardState> store)
     : Grain, IStorageShard
 {
     private string Cid => this.GetPrimaryKeyString()[(this.GetPrimaryKeyString().IndexOf('/', StringComparison.Ordinal) + 1)..];

@@ -291,6 +291,8 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
             [$"Orleans__Reminders__ServiceKey"] = DigitalBrainNames.Reminders,
             [$"Orleans__GrainStorage__{DigitalBrainNames.ClusterGrainStorage}__ProviderType"] = "AzureBlobStorage",
             [$"Orleans__GrainStorage__{DigitalBrainNames.ClusterGrainStorage}__ServiceKey"] = DigitalBrainNames.GrainState,
+            [$"Orleans__GrainStorage__{DigitalBrainNames.PlatformGrainStorage}__ProviderType"] = "AzureBlobStorage",
+            [$"Orleans__GrainStorage__{DigitalBrainNames.PlatformGrainStorage}__ServiceKey"] = DigitalBrainNames.GrainState,
             [ConnectionVariable(DigitalBrainNames.Reminders)] = CandidateConnectionString(sha),
             [DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ModuleOptionsSection("apps") + ":Features")] = "/app/features",
             ["OTEL_SERVICE_NAME"] = $"candidate-{sha}",

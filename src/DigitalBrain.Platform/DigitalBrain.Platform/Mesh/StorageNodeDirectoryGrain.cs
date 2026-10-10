@@ -37,7 +37,7 @@ internal sealed record StorageNodeView(
 
 [GrainType("platform.mesh.directory")]
 internal sealed class StorageNodeDirectoryGrain(
-    [PersistentState("mesh-directory", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<StorageNodeDirectoryState> store)
+    [PersistentState("mesh-directory", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<StorageNodeDirectoryState> store)
     : Grain, IStorageNodeDirectory
 {
     public async Task Register(string nodeId, string ownerAccount)

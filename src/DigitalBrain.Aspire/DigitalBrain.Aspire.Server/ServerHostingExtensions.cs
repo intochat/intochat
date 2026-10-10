@@ -70,6 +70,13 @@ public static class ServerHostingExtensions
                 silo.Services.AddOptions<AzureBlobStorageOptions>(DigitalBrainNames.ClusterGrainStorage)
                     .Configure<IConfiguration>(static (options, configuration) =>
                         options.ContainerName = configuration[DigitalBrainNames.GrainStateContainerKey] is { Length: > 0 } container ? container : DigitalBrainNames.GrainStateContainer);
+                silo.Services.AddKeyedSingleton<IGrainStorageSerializer>(
+                    DigitalBrainNames.PlatformGrainStorage,
+                    static (services, _) => new OrleansGrainStorageSerializer(
+                        services.GetRequiredService<Orleans.Serialization.Serializer>()));
+                silo.Services.AddOptions<AzureBlobStorageOptions>(DigitalBrainNames.PlatformGrainStorage)
+                    .Configure<IConfiguration>(static (options, configuration) =>
+                        options.ContainerName = configuration[DigitalBrainNames.GrainStateContainerKey] is { Length: > 0 } container ? container : DigitalBrainNames.GrainStateContainer);
             }
             // Orleans hosting already registers one activity-propagation filter pair. An explicit
             // `silo.AddActivityPropagation()` here registered a second pair and doubled every grain

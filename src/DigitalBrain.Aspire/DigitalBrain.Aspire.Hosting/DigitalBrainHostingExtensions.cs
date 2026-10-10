@@ -53,7 +53,7 @@ public static class DigitalBrainHostingExtensions
             .WithServiceId(resolvedServiceId);
         if (!options.UseAzureStorage)
         {
-            orleans.WithDevelopmentClustering().WithMemoryGrainStorage(DigitalBrainNames.ClusterGrainStorage).WithMemoryReminders();
+            orleans.WithDevelopmentClustering().WithMemoryGrainStorage(DigitalBrainNames.ClusterGrainStorage).WithMemoryGrainStorage(DigitalBrainNames.PlatformGrainStorage).WithMemoryReminders();
             var memory = new DigitalBrainBuilder(builder, name, resource, orleans, null, null) { ServiceId = resolvedServiceId, ClusterId = clusterId, GrainStateContainer = grainStateContainer, Environment = environment };
             memory.AddProjection(MasterKey.Provision(builder, name));
             if (AuthPosture.Provision(builder) is { } memoryPosture) { memory.AddProjection(memoryPosture); }
@@ -73,7 +73,8 @@ public static class DigitalBrainHostingExtensions
         var reminders = storage.AddTables($"{name}-{DigitalBrainNames.Reminders}");
         var grainState = storage.AddBlobs($"{name}-{DigitalBrainNames.GrainState}");
         orleans.WithClustering(clustering).WithReminders(reminders)
-            .WithGrainStorage(DigitalBrainNames.ClusterGrainStorage, grainState);
+            .WithGrainStorage(DigitalBrainNames.ClusterGrainStorage, grainState)
+            .WithGrainStorage(DigitalBrainNames.PlatformGrainStorage, grainState);
         var brain = new DigitalBrainBuilder(builder, name, resource, orleans, storage, grainState) { ServiceId = resolvedServiceId, ClusterId = clusterId, GrainStateContainer = grainStateContainer, Environment = environment, ClusteringResourceName = clustering.Resource.Name, Clustering = clustering, Reminders = reminders };
         brain.AddProjection(MasterKey.Provision(builder, name));
         if (AuthPosture.Provision(builder) is { } posture) { brain.AddProjection(posture); }
@@ -117,6 +118,7 @@ public static class DigitalBrainHostingExtensions
         {
             builder.WithReference(grainState, DigitalBrainNames.GrainState);
             builder.WithEnvironment($"Orleans__GrainStorage__{DigitalBrainNames.ClusterGrainStorage}__ServiceKey", DigitalBrainNames.GrainState);
+            builder.WithEnvironment($"Orleans__GrainStorage__{DigitalBrainNames.PlatformGrainStorage}__ServiceKey", DigitalBrainNames.GrainState);
         }
         builder.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(DigitalBrainNames.GrainStateContainerKey), brain.GrainStateContainer);
         brain.Identity?.Apply(builder);

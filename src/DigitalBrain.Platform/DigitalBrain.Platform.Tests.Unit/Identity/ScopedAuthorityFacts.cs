@@ -14,7 +14,7 @@ public sealed class ScopedAuthorityFacts
     public async Task RegistrationResumesAfterProvisioningFailsWithoutAllocatingAnotherAccount()
     {
         await using var brain = await ModuleTest.Create().ConfigureSilo(silo =>
-            silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage,
+            silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.PlatformGrainStorage,
                 (services, _) => new FailOnceStorage(new OrleansGrainStorageSerializer(services.GetRequiredService<Serializer>()))))
             .StartAsync(TestContext.Current.CancellationToken);
         var principal = brain.Grains.GetGrain<IPrincipal>("recoverable");

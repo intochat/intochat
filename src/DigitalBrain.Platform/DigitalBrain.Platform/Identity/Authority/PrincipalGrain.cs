@@ -19,7 +19,7 @@ internal sealed record PrincipalState
 
 [GrainType("identity.principal.v2")]
 internal sealed class PrincipalGrain(
-    [PersistentState("principal", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<PrincipalState> storage,
+    [PersistentState("principal", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<PrincipalState> storage,
     TimeProvider clock) : IdentityStateGrain<PrincipalState>(storage), IPrincipal
 {
     private static readonly PasswordHasher<string> Passwords = new();
