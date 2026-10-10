@@ -32,6 +32,7 @@ public sealed class DockerCandidateHostFacts : IDisposable
             ["DigitalBrain:Auth:Posture"] = "Owner",
             ["ConnectionStrings:grainstate"] = "live-grainstate",
             ["ConnectionStrings:clustering"] = "live-clustering",
+            ["OTEL_BSP_SCHEDULE_DELAY"] = "1000",
         };
         var host = Host(live);
 
@@ -55,6 +56,7 @@ public sealed class DockerCandidateHostFacts : IDisposable
         Assert.DoesNotContain("DigitalBrain__Modules__ai__Options__Default__Transcription", host.LastRunEnvironment.Keys);
         Assert.Contains("candidate-abc1234-clickhouse", host.LastRunEnvironment["DigitalBrain__Integrations__clickhouse__ConnectionString"], StringComparison.Ordinal);
         Assert.Equal("Open", host.LastRunEnvironment["DigitalBrain__Auth__Posture"]);
+        Assert.Equal("1000", host.LastRunEnvironment["OTEL_BSP_SCHEDULE_DELAY"]);
         Assert.Equal(host.LastRunEnvironment["ConnectionStrings__clustering"], host.LastMcpEnvironment["ConnectionStrings__clustering"]);
         Assert.DoesNotContain(processes.Commands, command => command.Contains("model-key", StringComparison.Ordinal));
     }

@@ -314,6 +314,7 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
     }
 
     internal const string OtlpHttpEndpoint = "ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL";
+    private static readonly string[] ExportCadence = ["OTEL_BSP_SCHEDULE_DELAY", "OTEL_BLRP_SCHEDULE_DELAY", "OTEL_METRIC_EXPORT_INTERVAL"];
 
     private static string FromContainer(string url)
         => url.Replace("localhost", "host.docker.internal", StringComparison.OrdinalIgnoreCase).Replace("127.0.0.1", "host.docker.internal", StringComparison.Ordinal);
@@ -339,6 +340,10 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
             if (live["OTEL_EXPORTER_OTLP_PROTOCOL"] is { Length: > 0 } protocol) { environment["OTEL_EXPORTER_OTLP_PROTOCOL"] = protocol; }
         }
         if (live["OTEL_EXPORTER_OTLP_HEADERS"] is { Length: > 0 } headers) { environment["OTEL_EXPORTER_OTLP_HEADERS"] = headers; }
+        // The export cadence travels too: a candidate verified seconds after boot must have exported its boot
+        // spans by then, and the SDK's default 5s batch delay outlived the whole verification (seen live).
+        foreach (var cadence in ExportCadence)
+        { if (live[cadence] is { Length: > 0 } value) { environment[cadence] = value; } }
         return environment;
     }
 
