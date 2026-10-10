@@ -58,6 +58,46 @@ public sealed class SecondMachineFacts
         Assert.DoesNotContain(core, b.SiloServices.GetRequiredService<PartLogs>().Opened);
     }
 
+    // R77: the holder's boot birth and every later read of its core go through one PartLogs under one identity.
+    [Fact(Timeout = 180_000)]
+    public async Task TheCoreHolderReopensItsOwnCoreAfterBirth()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var errors = new ErrorLog();
+        await using var trust = await TrustHost.StartAsync(ct);
+        await using var a = await ModuleTest.Create().WithTrust(trust).WithPartLog().WithConfiguration(CoreHolder, "true")
+            .ConfigureSilo(silo => silo.Services.AddSingleton<ILoggerProvider>(errors))
+            .StartAsync(ct);
+        await a.SiloServices.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
+        var scope = BrainScope.Create(ModuleTest.DefaultAccount, ModuleTest.DefaultAccount).Id;
+
+        await a.Grains.GetGrain<IBrain>(scope).Read();
+        var core = await a.SiloServices.GetRequiredService<PartLogs>().For(PartId.Core(scope));
+
+        Assert.False(core.Closed);
+        Assert.DoesNotContain(errors.Lines, line => line.Contains("held by machine", StringComparison.Ordinal));
+    }
+
+    [Fact(Timeout = 180_000)]
+    public async Task AMachineHasOneIdentityAcrossItsDeploymentFolders()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var trust = await TrustHost.StartAsync(ct);
+        await using var a = await ModuleTest.Create().WithTrust(trust).WithPartLog().WithConfiguration(CoreHolder, "true").StartAsync(ct);
+        await a.SiloServices.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
+        var core = PartId.Core(BrainScope.Create(ModuleTest.DefaultAccount, ModuleTest.DefaultAccount).Id);
+        var machine = a.SiloServices.GetRequiredService<DigitalBrain.Platform.Sequencer.MachineIdentity>();
+        var directory = a.SiloServices.GetRequiredService<global::Microsoft.Extensions.Options.IOptions<PartsOptions>>().Value.MachineDirectory;
+        var deployment = await a.SiloServices.GetRequiredService<TrustDeployment>().Resolve();
+
+        using var root = DigitalBrain.Platform.Sequencer.MachineIdentity.LoadOrCreate(Path.Combine(directory, "identity.key"));
+        var head = await a.SiloServices.GetRequiredService<ISequencerClient>().Get(DigitalBrain.Platform.Sequencer.HeadRecord.HashOf(core.Value));
+
+        Assert.Equal(root.MachineId, machine.MachineId);
+        Assert.Equal(machine.MachineId, head!.Holder);
+        Assert.False(File.Exists(Path.Combine(deployment, "identity.key")));
+    }
+
     [Fact(Timeout = 180_000)]
     public async Task TwoMachinesRacingForAPartKeyEndWithOneKey()
     {

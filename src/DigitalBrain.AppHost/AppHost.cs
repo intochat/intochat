@@ -103,9 +103,10 @@ var osFront = AspireModuleHosting.AddFront(builder, "OperatingSystem", uiPort, s
 // gateway ports allocated per run (R71), and its own allocated HTTP port serving its own /mcp. It is not behind
 // the front: it is another machine of the same owner, reached directly.
 var machineB = AspireModuleHosting.OnDynamicPorts(builder.AddProject<Projects.DigitalBrain_OS>("OperatingSystem-b"))
-    .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features)
-    .AsSeparateCluster();
+    .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features);
 Silo(machineB);
+// R77: after the brain reference, whose cluster id and ports would otherwise join B to A's cluster.
+machineB.AsSeparateCluster();
 // The shell reaches the kernel through the front, so a roll restarting one silo never drops it.
 digitalBrain.WithShellFront(builder.CreateResourceBuilder<IResourceWithEndpoints>(osFront.Resource));
 

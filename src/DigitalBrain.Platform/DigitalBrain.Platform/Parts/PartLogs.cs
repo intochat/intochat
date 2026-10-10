@@ -79,10 +79,11 @@ internal sealed class PartLogs(TrustDeployment deployment, ISequencerClient sequ
 
     private async Task<PartLog> Open(PartId part)
     {
+        // The deployment folder first: the lease reads and writes SeenVersions inside it.
+        var directory = await deployment.Resolve();
         var key = await keys.Key(part, await Owner(part.BrainId));
         var lease = await PartLease.Acquire(part, key, sequencer, machine, seen, options.Value, time, serializer);
-        return await PartLog.Open(part, key, lease, mesh, serializer, options.Value, time, logging.CreateLogger<PartLog>(), CancellationToken.None,
-            await deployment.Resolve());
+        return await PartLog.Open(part, key, lease, mesh, serializer, options.Value, time, logging.CreateLogger<PartLog>(), CancellationToken.None, directory);
     }
 
     private async Task<string> Owner(string brainId)

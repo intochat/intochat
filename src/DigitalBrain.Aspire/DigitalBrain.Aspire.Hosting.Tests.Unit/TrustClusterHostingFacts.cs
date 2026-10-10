@@ -75,6 +75,26 @@ public sealed class TrustClusterHostingFacts
             Assert.Contains(machine.Annotations.OfType<ResourceCommandAnnotation>(), command => command.Name == TrustClusterHosting.ReleasePartCommand));
     }
 
+    // R77: the second machine keeps its own Orleans cluster over the brain reference's, so the cluster comes last; joined to
+    // A's cluster it would activate A's grains and open A's parts under its own identity.
+    [Fact]
+    public async Task TheSecondMachineKeepsItsOwnClusterAfterTheBrainReference()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        var brain = builder.AddDigitalBrain("memory", options: new()).WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite());
+        var trust = builder.AddExecutable("trust", "unused", ".").AsTrustCluster(brain, builder.Configuration);
+        var pairing = builder.AddParameter("machine-pairing-secret", "s3cret", secret: true);
+        var a = builder.AddExecutable("os-a", "unused", ".").WithHttpEndpoint(name: "http").WithReference(brain)
+            .AsTrustMachine(trust, pairing, "/machines/os-a", builder.Configuration);
+        var b = builder.AddExecutable("os-b", "unused", ".").WithHttpEndpoint(name: "http").WithReference(brain)
+            .AsTrustMachine(trust, pairing, "/machines/os-b", builder.Configuration).AsSeparateCluster();
+
+        var (onA, onB) = (await Environment(builder, a.Resource), await Environment(builder, b.Resource));
+
+        Assert.Equal("digitalbrain-os-b", onB["Orleans__ClusterId"]);
+        Assert.NotEqual(onA["Orleans__ClusterId"], onB["Orleans__ClusterId"]);
+    }
+
     // R76: only the primary machine holds the owner's core; the second machine carries no core-holder key.
     [Fact]
     public async Task OnlyMachineAIsTheCoreHolder()

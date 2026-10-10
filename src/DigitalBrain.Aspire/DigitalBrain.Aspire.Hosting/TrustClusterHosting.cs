@@ -90,7 +90,8 @@ public static class TrustClusterHosting
     public const string OrleansGatewayEndpoint = "orleans-gateway";
 
     // A further machine on one PC: its own Orleans cluster, with silo and gateway ports allocated per run like the
-    // trust's (R71), so two AppHosts run side by side.
+    // trust's (R71), so two AppHosts run side by side. Call it after the brain reference: the reference sets the
+    // deployment's cluster id and ports too, and the later environment callback wins (R77).
     public static IResourceBuilder<T> AsSeparateCluster<T>(this IResourceBuilder<T> machine)
         where T : IResourceWithEnvironment, IResourceWithEndpoints
     {

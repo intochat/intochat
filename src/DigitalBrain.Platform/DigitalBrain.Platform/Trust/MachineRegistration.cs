@@ -49,7 +49,10 @@ internal sealed class MachineRegistration(TrustDeployment deployment, MachineReg
 // R73/R76: with the part log on, the brain is born only on the machine that acquires its core. A machine refused the
 // core (another own machine holds it, or its custody cannot open the core's key) has registered itself and stops
 // here; whichever machine holds the core gives the birth, so the trust side's NewBrain winner need not be it.
-internal sealed class OwnerBirth(BrainBirths births, IServiceProvider services, Microsoft.Extensions.Logging.ILogger<OwnerBirth> logger) : IStartupTask
+// R77: the core is opened through the silo's one PartLogs, the same the grain storage reads through; it is
+// registered only on a part-log machine, hence optional.
+internal sealed class OwnerBirth(BrainBirths births, Microsoft.Extensions.Options.IOptions<Parts.PartsOptions> options,
+    Microsoft.Extensions.Logging.ILogger<OwnerBirth> logger, Parts.PartLogs? logs = null) : IStartupTask
 {
     public const int Stage = ServiceLifecycleStage.Active + 1;
 
@@ -62,7 +65,6 @@ internal sealed class OwnerBirth(BrainBirths births, IServiceProvider services, 
     public Task Execute(CancellationToken cancellationToken)
     {
         if (_provision is not { } provision) { return Task.CompletedTask; }
-        var logs = services.GetService(typeof(Parts.PartLogs)) as Parts.PartLogs;
         if (logs is null && !provision.NewBrain) { return Task.CompletedTask; }
         Born = Task.Run(async () =>
         {
@@ -70,7 +72,7 @@ internal sealed class OwnerBirth(BrainBirths births, IServiceProvider services, 
             {
                 if (logs is not null)
                 {
-                    if (!services.GetRequiredService<Microsoft.Extensions.Options.IOptions<Parts.PartsOptions>>().Value.CoreHolder)
+                    if (!options.Value.CoreHolder)
                     {
                         Microsoft.Extensions.Logging.LoggerExtensions.LogInformation(logger,
                             "This machine is not the core holder; brain {Brain}'s core and birth stay with the machine that is.", provision.Member.BrainId);
