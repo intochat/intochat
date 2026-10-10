@@ -857,7 +857,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
           ? VisualDensity.compact
           : VisualDensity.standard,
     ),
-    darkTheme: UiTheme.workspace(Brightness.dark).copyWith(
+    darkTheme: UiTheme.workspaceDark(store.settings.theme).copyWith(
       visualDensity: store.settings.compactDensity
           ? VisualDensity.compact
           : VisualDensity.standard,
@@ -885,11 +885,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
         ),
       );
     },
-    themeMode: switch (store.settings.theme) {
-      'dark' => ThemeMode.dark,
-      'light' => ThemeMode.light,
-      _ => ThemeMode.system,
-    },
+    themeMode: UiTheme.modeFor(store.settings.theme),
     home: Builder(
       builder: (context) => Scaffold(
         body: !_ready

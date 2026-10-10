@@ -5,7 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import 'package:digitalbrain_flutter/digitalbrain_flutter.dart'
     show WorkspaceSnapshot;
-import 'package:digitalbrain_ui/digitalbrain_ui.dart' show FirstRunState;
+import 'package:digitalbrain_ui/digitalbrain_ui.dart'
+    show FirstRunState, UiTheme;
 
 abstract interface class WorkspacePersistence {
   Future<String?> read();
@@ -282,7 +283,7 @@ class WorkspacePreferences {
   String? defaultModelProfile;
   String displayName = '';
   String role = '';
-  String theme = 'dark';
+  String theme = 'midnight';
   bool reducedMotion = false;
   bool compactDensity = false;
   Map<String, dynamic> toJson() => {
@@ -299,7 +300,7 @@ class WorkspacePreferences {
         ..defaultModelProfile = json['defaultModelProfile'] as String?
         ..displayName = _text(json['displayName'], '')
         ..role = _text(json['role'], '')
-        ..theme = _text(json['theme'], 'dark')
+        ..theme = UiTheme.paletteName(_text(json['theme'], 'midnight'))
         ..reducedMotion = json['reducedMotion'] == true
         ..compactDensity = json['compactDensity'] == true;
 }

@@ -296,17 +296,16 @@ class _WorkspaceSettingsState extends State<WorkspaceSettings> {
             Text('Appearance', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 20),
             DropdownButtonFormField<String>(
-              initialValue: ['system', 'light', 'dark'].contains(prefs.theme)
-                  ? prefs.theme
-                  : 'system',
+              key: const Key('theme_picker'),
+              initialValue: UiTheme.paletteName(prefs.theme),
               decoration: const InputDecoration(
                 labelText: 'Theme',
                 border: OutlineInputBorder(),
               ),
               items: const [
-                DropdownMenuItem(value: 'system', child: Text('Follow system')),
-                DropdownMenuItem(value: 'light', child: Text('Light')),
-                DropdownMenuItem(value: 'dark', child: Text('Dark')),
+                DropdownMenuItem(value: 'midnight', child: Text('Midnight')),
+                DropdownMenuItem(value: 'paper', child: Text('Paper')),
+                DropdownMenuItem(value: 'lumen', child: Text('Lumen')),
               ],
               onChanged: (v) {
                 if (v != null) {

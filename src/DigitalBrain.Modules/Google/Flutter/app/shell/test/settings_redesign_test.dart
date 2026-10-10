@@ -60,6 +60,7 @@ class SettingsAppClient extends WorkspaceClient {
 }
 
 void main() {
+  paletteTests();
   test(
     'model default applies to new conversations and survives reload',
     () async {
@@ -227,4 +228,42 @@ void main() {
     });
     await tester.pumpWidget(const SizedBox());
   });
+}
+
+void paletteTests() {
+  test('old theme values load as palette names and palettes round-trip', () {
+    expect(WorkspacePreferences.fromJson({'theme': 'dark'}).theme, 'midnight');
+    expect(WorkspacePreferences.fromJson({'theme': 'light'}).theme, 'paper');
+    expect(WorkspacePreferences.fromJson({}).theme, 'midnight');
+    expect(WorkspacePreferences.fromJson({'theme': 'lumen'}).theme, 'lumen');
+    expect(WorkspacePreferences().toJson()['theme'], 'midnight');
+  });
+
+  testWidgets(
+    'settings picker offers the three palettes and saves the choice',
+    (tester) async {
+      final store = WorkspaceStore(persistence: MemoryPersistence());
+      await tester.pumpWidget(
+        MaterialApp(
+          home: WorkspaceSettings(
+            store: store,
+            onClose: () {},
+            loadModels: () async => catalog,
+          ),
+        ),
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('theme_picker')),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.tap(find.byKey(const Key('theme_picker')));
+      await tester.pumpAndSettle();
+      expect(find.text('Midnight').hitTestable(), findsWidgets);
+      expect(find.text('Paper').hitTestable(), findsWidgets);
+      await tester.tap(find.text('Lumen').last);
+      await tester.pumpAndSettle();
+      expect(store.settings.theme, 'lumen');
+    },
+  );
 }

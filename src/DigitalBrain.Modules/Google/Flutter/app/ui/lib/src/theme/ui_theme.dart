@@ -110,6 +110,58 @@ abstract final class UiType {
 }
 
 abstract final class UiTheme {
+  static const palettes = ['midnight', 'paper', 'lumen'];
+
+  static String paletteName(String? stored) => switch (stored) {
+    'light' || 'paper' => 'paper',
+    'lumen' => 'lumen',
+    _ => 'midnight',
+  };
+
+  static ThemeMode modeFor(String? stored) =>
+      paletteName(stored) == 'paper' ? ThemeMode.light : ThemeMode.dark;
+
+  static ThemeData workspaceDark(String? stored) {
+    final base = workspace(Brightness.dark);
+    if (paletteName(stored) != 'lumen') return base;
+    const background = Color(0xFF060A08);
+    const surface = Color(0xFF0B120F);
+    final scheme = base.colorScheme.copyWith(
+      primary: const Color(0xFF7CE0A8),
+      onPrimary: const Color(0xFF04170D),
+      primaryContainer: const Color(0xFF12301F),
+      onPrimaryContainer: const Color(0xFFA5F0C4),
+      surface: surface,
+      surfaceContainerLow: const Color(0xFF0F1813),
+      surfaceContainer: const Color(0xFF131E18),
+      surfaceContainerHigh: const Color(0xFF18261E),
+      onSurface: const Color(0xFFE3EFE8),
+      onSurfaceVariant: const Color(0xFF8CA397),
+      outline: const Color(0xFF3F5A4A),
+      outlineVariant: const Color(0xFF1D2D24),
+    );
+    return base.copyWith(
+      colorScheme: scheme,
+      scaffoldBackgroundColor: background,
+      dividerColor: scheme.outlineVariant,
+      textTheme: base.textTheme.apply(
+        bodyColor: scheme.onSurface,
+        displayColor: scheme.onSurface,
+      ),
+      appBarTheme: base.appBarTheme.copyWith(
+        backgroundColor: background,
+        foregroundColor: scheme.onSurface,
+        shape: Border(bottom: BorderSide(color: scheme.outlineVariant)),
+      ),
+      inputDecorationTheme: base.inputDecorationTheme.copyWith(
+        fillColor: scheme.surfaceContainerLow,
+      ),
+      dialogTheme: base.dialogTheme.copyWith(
+        backgroundColor: scheme.surfaceContainerLow,
+      ),
+    );
+  }
+
   /// Neutral workspace surfaces with the shared Lumen accent. Legacy graph and
   /// chat tokens remain independent while workspace pages migrate.
   static ThemeData workspace(Brightness brightness) {
