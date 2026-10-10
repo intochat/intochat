@@ -71,6 +71,24 @@ public sealed class IdentityHostingFacts
             .Get(CookieAuthenticationDefaults.AuthenticationScheme).Cookie.Name);
     }
 
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public void CookieKeysPersistInTheGrainStateStoreWheneverTheBuiltHostHasOne(bool hasStore, bool storeRegisteredAfter)
+    {
+        var services = new ServiceCollection();
+        void AddStore() => services.AddKeyedSingleton(DigitalBrain.Framework.DigitalBrainNames.GrainState, (_, _) =>
+            new Azure.Storage.Blobs.BlobServiceClient("UseDevelopmentStorage=true"));
+        if (hasStore && !storeRegisteredAfter) { AddStore(); }
+        services.AddCookieProtection();
+        if (hasStore && storeRegisteredAfter) { AddStore(); }
+        using var provider = services.BuildServiceProvider();
+        var repository = provider.GetRequiredService<IOptions<Microsoft.AspNetCore.DataProtection.KeyManagement.KeyManagementOptions>>().Value.XmlRepository;
+        if (hasStore) { Assert.IsType<CookieProtectionStorage.BlobKeyRepository>(repository); }
+        else { Assert.Null(repository); }
+    }
+
     [Fact]
     public void TheHostProtectionIdentityOverridesTheWebApplicationsDefault()
     {

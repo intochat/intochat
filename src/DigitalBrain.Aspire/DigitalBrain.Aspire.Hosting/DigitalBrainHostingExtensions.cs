@@ -82,11 +82,8 @@ public static class DigitalBrainHostingExtensions
             builder.WithEndpoint("orleans-silo", endpoint => endpoint.IsProxied = false);
             builder.WithEndpoint("orleans-gateway", endpoint => endpoint.IsProxied = false);
         }
-        // The connection strings stay for the keyed clients the host resolves (cookie protection, deployment
-        // identity); Orleans storage itself comes from the orleans integration, not Orleans__* keys.
-        if (brain.Clustering is { } clustering) { builder.WithReference(clustering, DigitalBrainNames.Clustering); }
-        if (brain.Reminders is { } reminders) { builder.WithReference(reminders, DigitalBrainNames.Reminders); }
-        if (brain.GrainState is { } grainState) { builder.WithReference(grainState, DigitalBrainNames.GrainState); }
+        // Storage, clustering and reminders reach the silo only through the orleans integration; the platform's
+        // keyed blob client comes from it too, so the silo takes no storage connection strings.
         brain.Identity?.Apply(builder);
         if (brain.Environment is { Length: > 0 } environment)
         {

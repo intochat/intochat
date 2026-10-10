@@ -43,7 +43,6 @@ COPY features /app/features
 ENV ASPNETCORE_ENVIRONMENT=Production \
     ASPNETCORE_URLS=http://0.0.0.0:8080 \
     DOTNET_EnableDiagnostics=0 \
-    DigitalBrain__Standalone=true \
     DigitalBrain__Modules__apps__Options__Features=/app/features
 
 EXPOSE 8080

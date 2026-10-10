@@ -36,7 +36,10 @@ public sealed class DeploymentIdentityFacts
             Assert.Equal("custom.session", values[DigitalBrainConfiguration.EnvironmentName(IdentityHostOptions.Key(nameof(IdentityHostOptions.CookieName)))]);
             Assert.Equal("IntoChat.v1", values[DigitalBrainConfiguration.EnvironmentName(IdentityHostOptions.Key(nameof(IdentityHostOptions.ProtectionApplicationName)))]);
             Assert.Equal("intochat-protection-v1", values[DigitalBrainConfiguration.EnvironmentName(IdentityHostOptions.Key(nameof(IdentityHostOptions.ProtectionContainerName)))]);
-            Assert.Contains("ConnectionStrings__" + DigitalBrainNames.GrainState, values.Keys);
+            // The silo shares the client's cookie key store through the orleans integration; the client by reference.
+            Assert.Contains(resource == server.Resource
+                ? DigitalBrainConfiguration.IntegrationEnvironmentName("orleans", OrleansStorageHosting.GrainStateField)
+                : "ConnectionStrings__" + DigitalBrainNames.GrainState, values.Keys);
         }
     }
 
