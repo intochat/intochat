@@ -7,6 +7,8 @@ namespace DigitalBrain.Framework;
 // instance directory, clearing its state retires it. There is no other registration path.
 internal sealed class InstanceRegistration(IGrainStorage inner, IGrainFactory grains, IGrainContextAccessor context) : IGrainStorage, ILifecycleParticipant<ISiloLifecycle>
 {
+    internal IGrainStorage Inner => inner;
+
     public Task ReadStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
         => inner.ReadStateAsync(stateName, grainId, grainState);
 
@@ -49,16 +51,23 @@ internal sealed class InstanceRegistration(IGrainStorage inner, IGrainFactory gr
     }
 
     // Replaces the keyed cluster storage registration with this decorator around it. False when no
-    // cluster storage is registered yet: MS DI cannot decorate a registration that comes later.
+    // cluster storage is registered yet: MS DI cannot decorate a registration that comes later. A
+    // registration that is already the decorator stays as it is, so decorating twice wraps once.
     public static bool TryDecorate(IServiceCollection services)
     {
         var original = services.LastOrDefault(descriptor => descriptor.ServiceType == typeof(IGrainStorage)
             && Equals(descriptor.ServiceKey, DigitalBrainNames.ClusterGrainStorage));
         if (original is null) { return false; }
+        if (original.KeyedImplementationFactory?.Target is Decorated) { return true; }
         services.Remove(original);
-        services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (provider, key) =>
-            new InstanceRegistration(Create(original, provider, key), provider.GetRequiredService<IGrainFactory>(), provider.GetRequiredService<IGrainContextAccessor>()));
+        services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, new Decorated(original).Create);
         return true;
+    }
+
+    private sealed class Decorated(ServiceDescriptor original)
+    {
+        public IGrainStorage Create(IServiceProvider provider, object? key) =>
+            new InstanceRegistration(InstanceRegistration.Create(original, provider, key), provider.GetRequiredService<IGrainFactory>(), provider.GetRequiredService<IGrainContextAccessor>());
     }
 
     private static IGrainStorage Create(ServiceDescriptor original, IServiceProvider provider, object? key) =>

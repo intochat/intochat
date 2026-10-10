@@ -89,4 +89,36 @@ public sealed class PartGrainStorageFacts
 
         Assert.IsType<ArgumentException>(error as ArgumentException ?? error.InnerException);
     }
+
+    [Fact(Timeout = 60_000)]
+    public async Task TheKernelRegistersANeuronWrittenToItsPartLog()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithPartLog().StartAsync(ct);
+
+        await brain.Get<IPartCounter>(Counter).Increment();
+
+        Assert.Contains(await Listed(brain, ct), instance => instance.Key == Counter);
+    }
+
+    [Fact(Timeout = 60_000)]
+    public async Task ThePartLogAddedAfterTheKernelRegistrationIsStillRegistered()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithPartLog()
+            .ConfigureSilo(silo => { silo.AddKernelRegistration(); silo.AddMachinePartLog(); })
+            .StartAsync(ct);
+
+        await brain.Get<IPartCounter>(Counter).Increment();
+
+        Assert.True(BrainHosting.HasKernelRegistration(brain.SiloServices));
+        Assert.Contains(await Listed(brain, ct), instance => instance.Key == Counter);
+    }
+
+    private static async Task<List<Instance>> Listed(ModuleBrain brain, CancellationToken ct)
+    {
+        List<Instance> listed = [];
+        await foreach (var instance in new Framework.Kernel(brain.Grains).InstancesIn(Scope, null, ct)) { listed.Add(instance); }
+        return listed;
+    }
 }

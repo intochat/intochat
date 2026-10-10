@@ -12,7 +12,7 @@ public sealed class MarketplaceState
 // fact. Reads are public; writes are checked by MarketplaceWriteGuard against the calling app.
 [GrainType("apps.marketplace")]
 internal sealed class MarketplaceNeuron(
-    [PersistentState("apps.marketplace", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<MarketplaceState> store)
+    [PersistentState("apps.marketplace", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<MarketplaceState> store)
     : Neuron, IMarketplace
 {
     private MarketplaceState State => store.State ??= new();

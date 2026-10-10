@@ -24,24 +24,19 @@ internal sealed class PartGrainStorage(PartLogs logs, Serializer serializer) : I
 
     public async Task WriteStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
     {
-        var log = await Checked(stateName, grainId, grainState);
+        var log = await logs.For(PartId.Of(grainId.Key.ToString()!));
         // Task 14 replaces [] with the signals pending for this write, so they commit in the same entry.
-        var seq = await log.Append(grainId.ToString(), stateName, RecordChange.Write, serializer.SerializeToArray(grainState.State), []);
+        var seq = await log.AppendIfCurrent(grainId.ToString(), stateName, Expected(grainState), RecordChange.Write, serializer.SerializeToArray(grainState.State), []);
         (grainState.ETag, grainState.RecordExists) = (seq.ToString(CultureInfo.InvariantCulture), true);
     }
 
     public async Task ClearStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
     {
-        var log = await Checked(stateName, grainId, grainState);
-        await log.Append(grainId.ToString(), stateName, RecordChange.Clear, [], []);
+        var log = await logs.For(PartId.Of(grainId.Key.ToString()!));
+        await log.AppendIfCurrent(grainId.ToString(), stateName, Expected(grainState), RecordChange.Clear, [], []);
         (grainState.ETag, grainState.RecordExists) = (null, false);
     }
 
-    private async Task<PartLog> Checked<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
-    {
-        var log = await logs.For(PartId.Of(grainId.Key.ToString()!));
-        var stored = log.Read(grainId.ToString(), stateName)?.ETagSeq.ToString(CultureInfo.InvariantCulture);
-        if (grainState.ETag != stored) { throw new InconsistentStateException($"ETag {grainState.ETag} of {grainId}/{stateName} is stale.", stored, grainState.ETag); }
-        return log;
-    }
+    private static long? Expected<T>(IGrainState<T> grainState) =>
+        grainState.ETag is null ? null : long.TryParse(grainState.ETag, CultureInfo.InvariantCulture, out var seq) ? seq : -1;
 }

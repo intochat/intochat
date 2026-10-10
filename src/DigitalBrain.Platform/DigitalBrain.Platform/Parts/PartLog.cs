@@ -88,7 +88,15 @@ internal sealed class PartLog : IAsyncDisposable
         lock (_records) { return [.. _since.Where(e => e.Seq > seq && e.Signals.Length > 0)]; }
     }
 
-    public Task<long> Append(string grainId, string stateName, RecordChange change, byte[] record, Signal[] signals)
+    public Task<long> Append(string grainId, string stateName, RecordChange change, byte[] record, Signal[] signals) =>
+        Append(grainId, stateName, change, record, signals, check: false, expected: null);
+
+    // The storage ETag check, in the log's own order: a change applies only if the record is still at the
+    // expected seq (null: no record), counting changes queued but not yet committed.
+    public Task<long> AppendIfCurrent(string grainId, string stateName, long? expected, RecordChange change, byte[] record, Signal[] signals) =>
+        Append(grainId, stateName, change, record, signals, check: true, expected);
+
+    private Task<long> Append(string grainId, string stateName, RecordChange change, byte[] record, Signal[] signals, bool check, long? expected)
     {
         Pending pending;
         bool first, full;
@@ -96,6 +104,12 @@ internal sealed class PartLog : IAsyncDisposable
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             if (_closed is not null) { return Task.FromException<long>(_closed); }
+            if (check && Current(grainId, stateName) is var current && current != expected)
+            {
+                return Task.FromException<long>(new Orleans.Storage.InconsistentStateException(
+                    $"{grainId}/{stateName} is at {current?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "no record"}, not {expected?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "no record"}.",
+                    current?.ToString(System.Globalization.CultureInfo.InvariantCulture), expected?.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            }
             var entry = new LogEntry { Seq = _nextSeq, GrainId = grainId, StateName = stateName, Change = change, Record = record, Signals = signals };
             if (_journal is not null)
             {
@@ -116,6 +130,17 @@ internal sealed class PartLog : IAsyncDisposable
         if (full) { ScheduleFlush(TimeSpan.Zero); }
         else if (first) { ScheduleFlush(_options.BatchDelay); }
         return _options.AcknowledgeOnJournal && _journal is not null ? Task.FromResult(pending.Entry.Seq) : pending.Committed.Task;
+    }
+
+    // Caller holds the queue lock. The last queued change wins over the committed record.
+    private long? Current(string grainId, string stateName)
+    {
+        for (var i = _queue.Count - 1; i >= 0; i--)
+        {
+            var entry = _queue[i].Entry;
+            if (entry.GrainId == grainId && entry.StateName == stateName) { return entry.Change == RecordChange.Write ? entry.Seq : null; }
+        }
+        return Read(grainId, stateName)?.ETagSeq;
     }
 
     // Completes once every queued change is committed (or failed); asks for a flush now rather than at the next timer.

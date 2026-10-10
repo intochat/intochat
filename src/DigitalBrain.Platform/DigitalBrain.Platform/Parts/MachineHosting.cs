@@ -7,8 +7,8 @@ namespace DigitalBrain.Platform.Parts;
 
 public static class MachineHosting
 {
-    // On a machine the cluster grain storage every neuron names is its part's log. Call before the kernel
-    // registration (BrainHosting.AddKernelRegistration), which then wraps this storage like any other.
+    // On a machine the cluster grain storage every neuron names is its part's log, wrapped by the kernel
+    // registration whether that was added before or after this call (decorating is idempotent).
     public static ISiloBuilder AddMachinePartLog(this ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
@@ -19,6 +19,7 @@ public static class MachineHosting
         { services.Remove(existing); }
         services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (provider, _) =>
             ActivatorUtilities.CreateInstance<PartGrainStorage>(provider));
+        silo.TryAddKernelRegistration();
         return silo;
     }
 }

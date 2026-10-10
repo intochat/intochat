@@ -73,6 +73,23 @@ public sealed class PartLogFacts
     }
 
     [Fact(Timeout = 60_000)]
+    public async Task TwoWritersExpectingTheSameVersionCannotBothAppend()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await StartAsync(ct);
+        var part = PartId.ForApp("home", "notes");
+        using var machine = SequencerFacts.Machine();
+        await using var log = await OpenAsync(brain, part, RandomNumberGenerator.GetBytes(32), machine, Cloud(TimeSpan.FromMilliseconds(200)), TimeProvider.System, ct);
+
+        var first = log.AppendIfCurrent("g1", "s", null, RecordChange.Write, [1], []);
+        var second = log.AppendIfCurrent("g1", "s", null, RecordChange.Write, [2], []);
+
+        Assert.Equal(1, await first);
+        await Assert.ThrowsAsync<Orleans.Storage.InconsistentStateException>(() => second);
+        Assert.Equal(2, await log.AppendIfCurrent("g1", "s", 1, RecordChange.Write, [3], []));
+    }
+
+    [Fact(Timeout = 60_000)]
     public async Task ConcurrentAppendsShareOneSegment()
     {
         var ct = TestContext.Current.CancellationToken;

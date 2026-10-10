@@ -6,22 +6,38 @@ namespace DigitalBrain.Architecture.Tests;
 
 public sealed class StorageRingFacts
 {
+    private static readonly Assembly Apps = Assembly.Load("DigitalBrain.Modules.Apps");
+
+    // Neurons keyed outside every brain that hold no brain's data: trust-cluster services (ruling R1), which a
+    // machine cannot host because it holds only brain parts (Q27).
+    private static readonly HashSet<string> TrustClusterNeurons =
+    [
+        // The cross-brain app catalog at @platform/marketplace (Q24, R14).
+        "DigitalBrain.Apps.MarketplaceNeuron",
+    ];
+
     [Fact]
     public void NeuronsPersistInClusterStorageAndPlatformGrainsInPlatformStorage()
     {
         var platform = typeof(DigitalBrain.Platform.PlatformHosting).Assembly;
-        var offenders = new[] { typeof(Neuron).Assembly, platform }
+        var sites = new[] { typeof(Neuron).Assembly, platform, Apps }
             .SelectMany(assembly => assembly.GetTypes())
             .Where(type => type is { IsClass: true, IsAbstract: false })
             .SelectMany(type => type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                 .SelectMany(constructor => constructor.GetParameters())
                 .Select(parameter => (type, storage: parameter.GetCustomAttribute<PersistentStateAttribute>()?.StorageName)))
             .Where(site => site.storage is not null)
-            .Where(site => typeof(Neuron).IsAssignableFrom(site.type) || site.type.Assembly != platform
-                ? site.storage != DigitalBrainNames.ClusterGrainStorage
-                : site.storage != DigitalBrainNames.PlatformGrainStorage)
+            .ToArray();
+        var offenders = sites
+            .Where(site => TrustClusterNeurons.Contains(site.type.FullName!)
+                ? site.storage != DigitalBrainNames.PlatformGrainStorage
+                : typeof(Neuron).IsAssignableFrom(site.type) || site.type.Assembly != platform
+                    ? site.storage != DigitalBrainNames.ClusterGrainStorage
+                    : site.storage != DigitalBrainNames.PlatformGrainStorage)
             .Select(site => $"{site.type.FullName} -> {site.storage}")
             .ToArray();
+
         Assert.True(offenders.Length == 0, string.Join(Environment.NewLine, offenders));
+        Assert.All(TrustClusterNeurons, name => Assert.Contains(sites, site => site.type.FullName == name));
     }
 }
