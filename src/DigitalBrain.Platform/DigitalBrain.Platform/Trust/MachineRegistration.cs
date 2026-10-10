@@ -9,7 +9,7 @@ namespace DigitalBrain.Platform.Trust;
 // record at the trust side and registers itself for it: the Open posture's default owner (the same provisioning
 // an authorized call would do lazily) or the Secured bootstrap user with its account and default brain. It never
 // waits for anyone to sign in, so a fresh store boots.
-internal sealed class MachineRegistration(MachineRegistrar registrar, IIdentityClient identity, OwnerBirth birth,
+internal sealed class MachineRegistration(TrustDeployment deployment, MachineRegistrar registrar, IIdentityClient identity, OwnerBirth birth,
     IOptions<AuthOptions> auth, TimeProvider clock) : IStartupTask
 {
     // Ahead of the Active-stage startup tasks (feature boot, seeders) that may read a brain's kernel.
@@ -17,6 +17,8 @@ internal sealed class MachineRegistration(MachineRegistrar registrar, IIdentityC
 
     public async Task Execute(CancellationToken cancellationToken)
     {
+        // R75: before any signed call or part open, the machine learns which trust deployment it remembers things of.
+        await deployment.Resolve();
         var options = auth.Value;
         if (options.Posture == IdentityPosture.Open)
         {

@@ -151,7 +151,7 @@ public sealed class PartSignalFacts
         await using var brain = await ModuleTest.Create().WithPartLog()
             .ConfigureSilo(silo =>
             {
-                silo.Services.AddSingleton(provider => new CloudPart(new PartLogs(provider.GetRequiredService<DigitalBrain.Platform.Trust.ISequencerClient>(), provider.GetRequiredService<DigitalBrain.Platform.Trust.IKeyringClient>(),
+                silo.Services.AddSingleton(provider => new CloudPart(new PartLogs(new DigitalBrain.Platform.Trust.TrustDeployment(provider.GetRequiredService<DigitalBrain.Platform.Trust.INodeDirectoryClient>(), Options.Create(cloud)), provider.GetRequiredService<DigitalBrain.Platform.Trust.ISequencerClient>(), provider.GetRequiredService<DigitalBrain.Platform.Trust.IKeyringClient>(),
                     provider.GetRequiredService<IMeshStore>(), provider.GetRequiredService<IPartKeys>(), SequencerFacts.Machine(), PartLeaseFacts.Seen(),
                     provider.GetRequiredService<Serializer>(), Options.Create(cloud), time, provider.GetRequiredService<ILoggerFactory>()), part));
                 silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (provider, _) =>

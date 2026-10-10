@@ -4,6 +4,10 @@ namespace DigitalBrain.Platform.Trust;
 
 internal interface INodeDirectoryClient
 {
+    // R75: the trust deployment's identity, minted once by the trust side; a machine keeps its memory of the
+    // deployment (seen versions, journals, the signed-call counter) under it.
+    Task<string> DeploymentId();
+
     // R41/R52/R55: binds this machine's key, and through it the machine, to one account it serves.
     Task RegisterMachine(string machineId, byte[] publicKey, string account, byte[] pairingSecretHash, byte[] selfSignature);
 

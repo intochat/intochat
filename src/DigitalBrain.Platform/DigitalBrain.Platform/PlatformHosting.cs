@@ -42,15 +42,17 @@ public static class PlatformHosting
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton(provider => Sequencer.MachineIdentity.LoadOrCreate(Path.Combine(
             provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<Parts.PartsOptions>>().Value.MachineDirectory, "identity.key")));
-        services.TryAddSingleton(provider => new Sequencer.SeenVersions(Path.Combine(
-            provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<Parts.PartsOptions>>().Value.MachineDirectory, "seen.json")));
+        // R75: the identity key is the machine's; what it remembers of a trust deployment lives in that deployment's folder.
+        services.TryAddSingleton<Trust.TrustDeployment>();
+        services.TryAddSingleton(provider => new Sequencer.SeenVersions(() => Path.Combine(
+            provider.GetRequiredService<Trust.TrustDeployment>().Directory, "seen.json")));
         // The custody root is the same configured master key the owner-key wrapper derives from.
         services.TryAddSingleton<Keys.IMasterKeyCustody>(provider => new Keys.ConfiguredMasterKeyCustody(
             System.Text.Encoding.UTF8.GetBytes(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MasterKeyOptions>>().Value.MasterKey)));
         services.TryAddSingleton<DigitalBrain.Framework.Parts.IPartKeys, Keys.PartKeys>();
         // The machine reaches the trust grains only through these clients; Stage A hosts them in this silo.
-        services.TryAddSingleton(provider => new Trust.MachineCounter(Path.Combine(
-            provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<Parts.PartsOptions>>().Value.MachineDirectory, "counter")));
+        services.TryAddSingleton(provider => new Trust.MachineCounter(() => Path.Combine(
+            provider.GetRequiredService<Trust.TrustDeployment>().Directory, "counter")));
         // With a gateway the trust grains live in a separate cluster reached through a private client (R34);
         // without one (Stage A, tests) they share this silo. A client host composes the same clients (R70).
         services.AddTrustClients(signs: true);

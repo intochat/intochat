@@ -3,9 +3,16 @@ using System.Text.Json;
 namespace DigitalBrain.Platform.Sequencer;
 
 // The highest head version this machine has seen per part, kept on the machine (Q10): the sequencer can
-// withhold new heads but cannot serve an old one unnoticed.
-internal sealed class SeenVersions(string path)
+// withhold new heads but cannot serve an old one unnoticed. R75: the memory is of one trust deployment, so its file
+// lives in that deployment's folder of the machine directory, resolved on first use.
+internal sealed class SeenVersions(Func<string> file)
 {
+    public SeenVersions(string path) : this(() => path) { }
+
+    private string? _path;
+
+    private string FilePath => _path ??= file();
+
     private readonly Lock _gate = new();
     private Dictionary<string, long>? _seen;
 
@@ -25,13 +32,13 @@ internal sealed class SeenVersions(string path)
             var seen = Seen();
             if (seen.GetValueOrDefault(partHash) >= version) { return; }
             seen[partHash] = version;
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            var temp = path + ".tmp";
+            Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
+            var temp = FilePath + ".tmp";
             File.WriteAllText(temp, JsonSerializer.Serialize(seen));
-            File.Move(temp, path, overwrite: true);
+            File.Move(temp, FilePath, overwrite: true);
         }
     }
 
     private Dictionary<string, long> Seen() =>
-        _seen ??= File.Exists(path) ? JsonSerializer.Deserialize<Dictionary<string, long>>(File.ReadAllText(path)) ?? [] : [];
+        _seen ??= File.Exists(FilePath) ? JsonSerializer.Deserialize<Dictionary<string, long>>(File.ReadAllText(FilePath)) ?? [] : [];
 }

@@ -9,6 +9,9 @@ internal interface IStorageNodeDirectory : IGrainWithStringKey
 {
     const string Key = "mesh";
 
+    // R75: minted on first ask and kept in platform storage: one per trust deployment.
+    Task<string> DeploymentId();
+
     Task Register(string nodeId, string ownerAccount);
 
     Task SetOnline(string nodeId, bool online);
@@ -40,6 +43,14 @@ internal sealed class StorageNodeDirectoryGrain(
     [PersistentState("mesh-directory", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<StorageNodeDirectoryState> store)
     : Grain, IStorageNodeDirectory
 {
+    public async Task<string> DeploymentId()
+    {
+        if (store.State.DeploymentId is { Length: > 0 } id) { return id; }
+        store.State.DeploymentId = Guid.NewGuid().ToString("N");
+        await store.WriteStateAsync();
+        return store.State.DeploymentId;
+    }
+
     public async Task Register(string nodeId, string ownerAccount)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(nodeId);
@@ -87,4 +98,6 @@ internal sealed class StorageNodeDirectoryGrain(
 internal sealed class StorageNodeDirectoryState
 {
     [Id(0)] public Dictionary<string, StorageNodeView> Nodes { get; set; } = new(StringComparer.Ordinal);
+
+    [Id(1)] public string DeploymentId { get; set; } = "";
 }

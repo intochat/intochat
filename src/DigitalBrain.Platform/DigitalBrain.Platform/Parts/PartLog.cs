@@ -63,10 +63,10 @@ internal sealed class PartLog : IAsyncDisposable
     }
 
     public static async Task<PartLog> Open(PartId part, byte[] key, PartLease lease, IMeshStore mesh, Serializer serializer, PartsOptions options,
-        TimeProvider time, ILogger<PartLog> logger, CancellationToken ct)
+        TimeProvider time, ILogger<PartLog> logger, CancellationToken ct, string? deploymentDirectory = null)
     {
         var journal = options.Role == MachineRole.Own
-            ? new PartJournal(Path.Combine(options.MachineDirectory, "journal", $"{HeadRecord.HashOf(part.Value)}.log"), key, serializer)
+            ? new PartJournal(Path.Combine(deploymentDirectory ?? options.MachineDirectory, "journal", $"{HeadRecord.HashOf(part.Value)}.log"), key, serializer)
             : null;
         var log = new PartLog(part, key, lease, mesh, serializer, options, time, logger, journal);
         try

@@ -47,6 +47,8 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
     public Task RegisterMachine(string machineId, byte[] publicKey, string account, byte[] pairingSecretHash, byte[] selfSignature)
         => Grains.GetGrain<IMachineRegistry>(machineId).Register(publicKey, account, pairingSecretHash, selfSignature);
 
+    public Task<string> DeploymentId() => Directory.DeploymentId();
+
     public Task Register(string nodeId, string ownerAccount) => Directory.Register(nodeId, ownerAccount);
 
     public Task SetOnline(string nodeId, bool online) => Directory.SetOnline(nodeId, online);
