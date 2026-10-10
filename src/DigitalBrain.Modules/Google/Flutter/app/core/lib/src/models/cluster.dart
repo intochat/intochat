@@ -57,14 +57,22 @@ final class LiveEnvelope {
     required this.type,
     required this.publisher,
     required this.payload,
+    this.sequence,
+    this.replay = false,
   });
   final String type, publisher;
   final Map<String, dynamic> payload;
+  // The retention sequence of the signal when its source retains one; replay marks a retained signal
+  // sent on connect rather than a live publish.
+  final int? sequence;
+  final bool replay;
 
   factory LiveEnvelope.fromJson(Map<String, dynamic> json) => LiveEnvelope(
     type: json['type'] as String,
     publisher: json['publisher'] as String? ?? '',
     payload: Map<String, dynamic>.from(json['payload'] as Map? ?? const {}),
+    sequence: (json['sequence'] as num?)?.toInt(),
+    replay: json['replay'] == true,
   );
 }
 
@@ -91,12 +99,22 @@ final class CircleTouched {
     required this.name,
     required this.owner,
     required this.kind,
+    this.sequence,
+    this.replay = false,
   });
   final String name, owner, kind;
+  final int? sequence;
+  final bool replay;
 
-  factory CircleTouched.fromJson(Map<String, dynamic> json) => CircleTouched(
+  factory CircleTouched.fromJson(
+    Map<String, dynamic> json, {
+    int? sequence,
+    bool replay = false,
+  }) => CircleTouched(
     name: json['name'] as String? ?? '',
     owner: json['owner'] as String? ?? '',
     kind: json['kind'] as String? ?? 'changed',
+    sequence: sequence,
+    replay: replay,
   );
 }

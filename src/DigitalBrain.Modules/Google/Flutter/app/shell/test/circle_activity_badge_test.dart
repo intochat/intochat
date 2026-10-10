@@ -24,8 +24,18 @@ Widget host(
   ),
 );
 
-CircleTouched touch(String kind, [String name = 'club']) =>
-    CircleTouched(name: name, owner: 'ann', kind: kind);
+CircleTouched touch(
+  String kind, [
+  String name = 'club',
+  int? sequence,
+  bool replay = false,
+]) => CircleTouched(
+  name: name,
+  owner: 'ann',
+  kind: kind,
+  sequence: sequence,
+  replay: replay,
+);
 
 String? shown(WidgetTester tester) {
   final badge = find.byKey(const ValueKey('circle-badge'));
@@ -106,32 +116,104 @@ void main() {
     expect(shown(tester), isNull);
   });
 
+  testWidgets('a cold-start replay seeds the mark and is not counted', (
+    tester,
+  ) async {
+    final f = feed();
+    addTearDown(f.dispose);
+    live.add(touch('spoke', 'club', 5, true));
+    await tester.pump();
+    expect(f.count, 0);
+    live.add(touch('spoke', 'club', 6));
+    await tester.pump();
+    expect(f.count, 1);
+  });
+
+  testWidgets('a first live touch with nothing retained is counted', (
+    tester,
+  ) async {
+    final f = feed();
+    addTearDown(f.dispose);
+    live.add(touch('invited', 'club', 1));
+    await tester.pump();
+    expect(f.count, 1);
+  });
+
   testWidgets(
-    'a dropped stream reconnects after a pause and a replay is not news',
+    'after a reconnect the replay is not counted but a new touch is, once',
     (tester) async {
       final f = feed();
       addTearDown(f.dispose);
-      live.add(touch('spoke'));
+      live.add(touch('spoke', 'club', 5, true));
+      live.add(touch('spoke', 'club', 6));
       await tester.pump();
       expect(f.count, 1);
       await live.close();
       await tester.pump();
       expect(pauses, hasLength(1));
-      expect(connections, hasLength(1));
       pauses.single.complete();
       await tester.pump();
       expect(connections, hasLength(2));
-      live.add(touch('spoke'));
+      live.add(touch('spoke', 'club', 6, true));
       await tester.pump();
       expect(f.count, 1);
-      live.add(touch('spoke'));
+      live.add(touch('spoke', 'club', 7));
       await tester.pump();
       expect(f.count, 2);
-      live.add(touch('invited', 'new'));
-      await tester.pump();
-      expect(f.count, 3);
     },
   );
+
+  testWidgets(
+    'a touch missed during the outage is counted once from the replay',
+    (tester) async {
+      final f = feed();
+      addTearDown(f.dispose);
+      live.add(touch('spoke', 'club', 5, true));
+      await tester.pump();
+      await live.close();
+      await tester.pump();
+      pauses.single.complete();
+      await tester.pump();
+      live.add(touch('spoke', 'club', 8, true));
+      await tester.pump();
+      expect(f.count, 1);
+    },
+  );
+
+  testWidgets('a source with no sequence counts every touch', (tester) async {
+    final f = feed();
+    addTearDown(f.dispose);
+    live
+      ..add(touch('spoke'))
+      ..add(touch('spoke'));
+    await tester.pump();
+    expect(f.count, 2);
+  });
+
+  testWidgets('a watch that throws is retried with growing pauses', (
+    tester,
+  ) async {
+    var calls = 0;
+    final lengths = <Duration>[];
+    final f = CircleActivityFeed(
+      () {
+        calls++;
+        if (calls < 3) throw StateError('no client');
+        return StreamController<CircleTouched>().stream;
+      },
+      pause: (d) {
+        lengths.add(d);
+        return Future.value();
+      },
+    );
+    addTearDown(f.dispose);
+    await tester.pump();
+    expect(calls, greaterThanOrEqualTo(3));
+    expect(lengths.take(2), [
+      const Duration(seconds: 1),
+      const Duration(seconds: 2),
+    ]);
+  });
 
   testWidgets('a stream error also reconnects', (tester) async {
     final f = feed();

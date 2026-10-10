@@ -7,8 +7,8 @@ typedef Pause = Future<void> Function(Duration delay);
 
 // Counts the circle touches that need a look (someone spoke, someone invited you). It owns the live
 // subscription, so it lives above Home: it keeps counting while Home is hidden. It reconnects only when the
-// stream fails or closes, with growing pauses; the first touch of a new connection that equals the last one
-// counted is the feed's retained replay, not news.
+// stream fails or closes, with growing pauses. Touches are told apart by retention sequence: the first
+// replay of a cold start only seeds the high-water mark; afterwards only a sequence above it is news.
 class CircleActivityFeed extends ChangeNotifier {
   CircleActivityFeed(
     this._watch, {
@@ -25,19 +25,22 @@ class CircleActivityFeed extends ChangeNotifier {
   int _count = 0;
   int get count => _count;
   StreamSubscription<CircleTouched>? _subscription;
-  CircleTouched? _last;
-  bool _fresh = true, _disposed = false;
+  int? _highest;
+  bool _disposed = false;
   Duration _next = Duration.zero;
 
   void _connect() {
     if (_disposed) return;
-    _fresh = true;
-    _subscription = _watch().listen(
-      _touched,
-      onError: (Object _) => _reconnect(),
-      onDone: _reconnect,
-      cancelOnError: true,
-    );
+    try {
+      _subscription = _watch().listen(
+        _touched,
+        onError: (Object _) => _reconnect(),
+        onDone: _reconnect,
+        cancelOnError: true,
+      );
+    } catch (_) {
+      _reconnect();
+    }
   }
 
   void _reconnect() {
@@ -56,16 +59,14 @@ class CircleActivityFeed extends ChangeNotifier {
 
   void _touched(CircleTouched touch) {
     _next = Duration.zero;
-    final replay =
-        _fresh &&
-        _last != null &&
-        _last!.name == touch.name &&
-        _last!.owner == touch.owner &&
-        _last!.kind == touch.kind;
-    _fresh = false;
-    if (touch.kind != 'spoke' && touch.kind != 'invited') return;
-    _last = touch;
-    if (replay) return;
+    final sequence = touch.sequence;
+    var news = true;
+    if (sequence != null) {
+      final seen = _highest;
+      news = seen == null ? !touch.replay : sequence > seen;
+      if (seen == null || sequence > seen) _highest = sequence;
+    }
+    if (!news || (touch.kind != 'spoke' && touch.kind != 'invited')) return;
     _count++;
     notifyListeners();
   }

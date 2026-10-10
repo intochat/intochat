@@ -80,6 +80,8 @@ public sealed class LiveSignalFacts
         Assert.Equal("CircleTouched", envelope.RootElement.GetProperty("type").GetString());
         Assert.Equal("circles.index/bob/circles", envelope.RootElement.GetProperty("publisher").GetString());
         Assert.Equal("invited", envelope.RootElement.GetProperty("payload").GetProperty("kind").GetString());
+        Assert.Equal(1, envelope.RootElement.GetProperty("sequence").GetInt64());
+        Assert.False(envelope.RootElement.TryGetProperty("replay", out var replay) && replay.ValueKind == JsonValueKind.True);
     }
 
     [Fact]
@@ -93,6 +95,22 @@ public sealed class LiveSignalFacts
         using var envelope = await Next(stream, ct);
         Assert.Equal("team", envelope.RootElement.GetProperty("payload").GetProperty("name").GetString());
         Assert.Equal("invited", envelope.RootElement.GetProperty("payload").GetProperty("kind").GetString());
+        Assert.Equal(1, envelope.RootElement.GetProperty("sequence").GetInt64());
+        Assert.True(envelope.RootElement.GetProperty("replay").GetBoolean());
+    }
+
+    [Fact]
+    public async Task ASourceWithoutRetentionSendsNoSequence()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        var beater = brain.Get<IBeater>("beater-plain");
+        await using var stream = Open(brain, [Feed("beater-plain")], ct);
+        var next = stream.MoveNextAsync().AsTask();
+        await beater.BeatUnretained(1);
+        Assert.True(await next.WaitAsync(TimeSpan.FromSeconds(10), ct));
+        using var envelope = JsonDocument.Parse(stream.Current);
+        Assert.Equal(JsonValueKind.Null, envelope.RootElement.GetProperty("sequence").ValueKind);
     }
 
     [Fact]
@@ -169,13 +187,14 @@ public sealed class LiveSignalFacts
 [GenerateSerializer, Alias("test.beat")] public sealed record Beat([property: Id(0)] int Pulse) : Signal;
 
 [Alias("test.beater"), Orleans.Metadata.DefaultGrainType("test.beater")]
-public interface IBeater : INeuron { Task Beat(int pulse); }
+public interface IBeater : INeuron { Task Beat(int pulse); Task BeatUnretained(int pulse); }
 
 [GrainType("test.beater")]
 public sealed class Beater : Neuron, IBeater, IRetainsSignals
 {
     private Beat? last;
     public async Task Beat(int pulse) { last = new Beat(pulse) { Publisher = this.GetPrimaryKeyString() }; await PublishAsync(new Beat(pulse)); }
+    public Task BeatUnretained(int pulse) => PublishAsync(new Beat(pulse));
     public Task<RetainedSignal[]> Retained(string signal, long since)
         => Task.FromResult<RetainedSignal[]>(signal == nameof(Beat) && last is not null ? [new RetainedSignal(1, last)] : []);
 }

@@ -417,9 +417,14 @@ final class DigitalBrainUiClient {
     'AppActivity',
   ]).map((envelope) => AppActivity.fromJson(envelope.payload));
 
-  Stream<CircleTouched> watchCircles(String brainId) => watchLive(brainId, [
-    'CircleTouched',
-  ]).map((envelope) => CircleTouched.fromJson(envelope.payload));
+  Stream<CircleTouched> watchCircles(String brainId) =>
+      watchLive(brainId, ['CircleTouched']).map(
+        (envelope) => CircleTouched.fromJson(
+          envelope.payload,
+          sequence: envelope.sequence,
+          replay: envelope.replay,
+        ),
+      );
 
   Stream<Map<String, dynamic>> _serverEvents(String path, String unavailable) {
     final abort = Completer<void>();
@@ -521,7 +526,15 @@ final class DigitalBrainUiClient {
     return response.body.isEmpty ? null : jsonDecode(response.body);
   }
 
-  Stream<BrainSnapshot> watchBrain({required String chatName}) {
+  /// The brain's neurons as snapshots: the whole brain with [brainId], or one chat's view with [chatName].
+  Stream<BrainSnapshot> watchBrain({String? chatName, String? brainId}) {
+    assert(
+      (chatName == null) != (brainId == null),
+      'Name a chat or a brain, not both.',
+    );
+    final path = brainId != null
+        ? '/brains/${Uri.encodeComponent(brainId)}/brain/events'
+        : '/chats/${Uri.encodeComponent(chatName!)}/brain/events';
     final abort = Completer<void>();
     late StreamController<BrainSnapshot> controller;
     controller = StreamController<BrainSnapshot>(
@@ -529,9 +542,7 @@ final class DigitalBrainUiClient {
         try {
           final request = http.AbortableRequest(
             'GET',
-            baseUri.replace(
-              path: '/chats/${Uri.encodeComponent(chatName)}/brain/events',
-            ),
+            baseUri.replace(path: path),
             abortTrigger: abort.future,
           )..headers['accept'] = 'text/event-stream';
           final response = await _http.send(request);
@@ -813,6 +824,8 @@ final class DigitalBrainUiClient {
     if (_ownsClient) {
       _http.close();
     }
+    unawaited(_channel?.shutdown() ?? Future.value());
+    _channel = null;
   }
 
   Future<dynamic> jsonRequest(

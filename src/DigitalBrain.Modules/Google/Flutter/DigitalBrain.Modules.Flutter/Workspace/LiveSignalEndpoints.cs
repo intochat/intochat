@@ -127,7 +127,7 @@ internal static class LiveSignalEndpoints
         {
             // Retention is read once the watch is registered, so nothing published in between is missed.
             await foreach (var signal in feed.Watch(brain, source, () => Replay(feed, source, writer, log, ct), ct))
-            { await writer.WriteAsync(Envelope(signal), ct); }
+            { await writer.WriteAsync(Envelope(signal, await SequenceOf(source, feed.Type, signal, ct)), ct); }
         }
         catch (OperationCanceledException) { }
         catch (Exception error) { log.LogWarning(error, "Live {Type} source {Source} dropped.", feed.Type, source.GetPrimaryKeyString()); }
@@ -142,9 +142,29 @@ internal static class LiveSignalEndpoints
             log.LogDebug(error, "Live {Type} source {Source} has no retained value.", feed.Type, source.GetPrimaryKeyString());
             return;
         }
-        if (retained.LastOrDefault() is { } last) { await writer.WriteAsync(Envelope(last.Signal), ct); }
+        if (retained.LastOrDefault() is { } last) { await writer.WriteAsync(Envelope(last.Signal, last.Sequence, replay: true), ct); }
     }
 
-    private static string Envelope(Signal signal) => JsonSerializer.Serialize(
-        new { type = signal.GetType().Name, publisher = signal.Publisher.ToString(), payload = JsonSerializer.SerializeToElement(signal, signal.GetType(), Json) }, Json);
+    // A live signal carries the sequence it was retained under, so a client can tell it from a replayed one.
+    // A source that retains nothing, or has not retained this signal, sends none.
+    private static async Task<long?> SequenceOf(INeuron source, string type, Signal signal, CancellationToken ct)
+    {
+        try
+        {
+            var retained = await source.AsReference<IRetainsSignals>().Retained(type, 0).WaitAsync(ct);
+            var same = retained.LastOrDefault(entry => entry.Signal with { Trace = null } == signal with { Trace = null });
+            return same?.Sequence;
+        }
+        catch (Exception error) when (error is not OperationCanceledException) { return null; }
+    }
+
+    private static string Envelope(Signal signal, long? sequence = null, bool replay = false) => JsonSerializer.Serialize(
+        new
+        {
+            type = signal.GetType().Name,
+            publisher = signal.Publisher.ToString(),
+            sequence,
+            replay = replay ? true : (bool?)null,
+            payload = JsonSerializer.SerializeToElement(signal, signal.GetType(), Json),
+        }, Json);
 }
