@@ -28,6 +28,8 @@ public static class PlatformHosting
         services.TryAddSingleton<DeploymentStorageIdentity>();
         silo.AddStartupTask<IdentityStartup>();
         services.AddMasterKeyWrapper();
+        services.TryAddSingleton<DigitalBrain.Framework.Compute.ICostMeter, Compute.CostMeter>();
+        services.AddOptions<Compute.FeeOptions>().BindConfiguration("DigitalBrain:Platform:Fees");
         services.TryAddSingleton<IReadOnlyList<IntegrationSchema>>(provider =>
             IntegrationDiscovery.Collect(provider.GetRequiredService<ModuleInventory>().Types));
         services.TryAddSingleton<IReadOnlyList<ConnectorDefinition>>(provider =>
