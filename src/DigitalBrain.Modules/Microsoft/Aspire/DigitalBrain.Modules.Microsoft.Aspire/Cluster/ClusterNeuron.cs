@@ -125,10 +125,24 @@ internal sealed class ClusterNeuron(
             await host.RestartInstance(self!, CancellationToken.None);
             return;
         }
-        await host.RestartInstance(next, CancellationToken.None);
-        if (!await Ready(next)) { return; }
+        if (!await Moved(next)) { return; }
         await SaveQuietly(Snapshot with { Remaining = [.. Snapshot.Remaining.Where(name => name != next)], Rolled = [.. Snapshot.Rolled, next] });
         Drive();
+    }
+
+    // The restart itself is bounded too: an instance whose start waits on something that never comes (a failed
+    // dependency) holds `aspire resource restart` open.
+    private async Task<bool> Moved(string name)
+    {
+        var budget = options.Value.SiloStepBudget;
+        using var bounded = new CancellationTokenSource(budget);
+        try { await host.RestartInstance(name, bounded.Token); }
+        catch (OperationCanceledException error) when (bounded.IsCancellationRequested)
+        {
+            await NeverReady(name, new InstanceNeverReadyException($"instance {name} did not restart within {budget}", error));
+            return false;
+        }
+        return await Ready(name);
     }
 
     private async Task<bool> Ready(string name)
@@ -157,7 +171,9 @@ internal sealed class ClusterNeuron(
             return;
         }
         log.LogWarning(error, "Cluster {Cluster}: {Reason}; rolling back to {Previous}.", this.GetPrimaryKeyString(), reason, Snapshot.PreviousSha);
-        string[] back = Snapshot.Rolled.Contains(name) ? Snapshot.Rolled : [.. Snapshot.Rolled, name];
+        // The failed instance first, then the moved ones newest first: silos come back before the MCP servers that
+        // wait for them to start.
+        string[] back = [name, .. Snapshot.Rolled.Reverse().Where(rolled => rolled != name)];
         await Save(Snapshot with { Stage = ClusterStage.RollingBack, TargetSha = Snapshot.PreviousSha, PreviousSha = Snapshot.TargetSha, Remaining = back, Rolled = [], Handover = null, Failure = reason },
             new ClusterChanged(Snapshot.CurrentSha, ClusterStage.RollingBack, Snapshot.PreviousSha, reason));
         Drive();

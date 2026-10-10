@@ -81,7 +81,7 @@ public sealed class ClusterRollFacts
         Assert.Equal("base000", steady.CurrentSha);
         Assert.Contains("silo-1", steady.Failure, StringComparison.Ordinal);
         Assert.Equal("base000", cluster.Current);
-        Assert.Equal(["mcp-a@sha0001", "mcp-b@sha0001", "silo-1@sha0001", "mcp-a@base000", "mcp-b@base000", "silo-1@base000"], cluster.RestartedSilos);
+        Assert.Equal(["mcp-a@sha0001", "mcp-b@sha0001", "silo-1@sha0001", "silo-1@base000", "mcp-b@base000", "mcp-a@base000"], cluster.RestartedSilos);
         var read = await grain.Read();
         Assert.Equal((ClusterStage.Steady, "base000"), (read.Stage, read.CurrentSha));
         Assert.NotNull(read.Failure);
