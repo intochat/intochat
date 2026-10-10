@@ -243,7 +243,14 @@ internal sealed class PartLog : IAsyncDisposable
         _replayed.Clear();
         if (_journal is null) { return; }
         var lastSeq = _lease.Payload.LastSeq;
-        var journaled = _journal.Read();
+        LogEntry[] journaled;
+        try { journaled = _journal.Read(); }
+        // Sealed under another key (a store reset under a kept machine directory): it continues no head of this part.
+        catch (System.Security.Cryptography.CryptographicException)
+        {
+            _journal.SetAside();
+            throw new JournalConflictException($"The journal of part {_part} was sealed under another key; it is set aside.");
+        }
         // A covered entry the replay cannot see (inside a snapshot) is this machine's own commit only if the head
         // durably records this machine as the writer of that seq (rulings R11, R27); who acquired last says nothing.
         var payload = _lease.Payload;
