@@ -57,6 +57,8 @@ public static class OrleansStorageHosting
     {
         silo.UseAzureStorageClustering(options => options.TableServiceClient = new TableServiceClient(clustering));
         silo.UseAzureTableReminderService(options => options.TableServiceClient = new TableServiceClient(reminders));
+        // The platform's deployment identity and cookie keys live beside the grain state.
+        silo.Services.AddKeyedSingleton(DigitalBrainNames.GrainState, (_, _) => new BlobServiceClient(grainState));
         foreach (var name in GrainStores)
         {
             silo.AddAzureBlobGrainStorage(name, options => options.BlobServiceClient = new BlobServiceClient(grainState));

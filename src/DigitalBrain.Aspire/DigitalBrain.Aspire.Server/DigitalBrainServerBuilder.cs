@@ -10,7 +10,6 @@ public sealed class DigitalBrainServerBuilder
 {
     private readonly Dictionary<string, Module> _modules = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<Action<IServiceCollection>> _serviceActions = [];
-    internal bool AzureStorage { get; private set; }
     internal bool Dashboard { get; private set; }
     public DigitalBrainServerBuilder AddModule<TModule>() where TModule : Module, new()
         => AddModule(new TModule());
@@ -34,8 +33,6 @@ public sealed class DigitalBrainServerBuilder
     {
         foreach (var action in _serviceActions) { action(services); }
     }
-
-    public DigitalBrainServerBuilder UseAzureStorage() { AzureStorage = true; return this; }
 
     public DigitalBrainServerBuilder UseOrleansDashboard() { Dashboard = true; return this; }
 

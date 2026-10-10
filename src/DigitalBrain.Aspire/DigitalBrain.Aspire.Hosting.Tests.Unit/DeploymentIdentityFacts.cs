@@ -113,7 +113,7 @@ public sealed class DeploymentIdentityFacts
     {
         var host = global::Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
         host.Configuration[AuthOptions.PostureKey] = "Open";
-        DigitalBrain.Aspire.Server.ServerHostingExtensions.AddDigitalBrainServer(host, server => server.UseAzureStorage());
+        DigitalBrain.Aspire.Server.ServerHostingExtensions.AddDigitalBrainServer(host, _ => { });
         using var provider = host.Services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptionsMonitor<HostOptions>>().Get(null);
         Assert.Equal(TimeSpan.FromSeconds(40), options.ShutdownTimeout);
@@ -171,18 +171,6 @@ public sealed class DeploymentIdentityFacts
 
         Assert.Equal(("intochat", "intochat"), (one.ServiceId, two.ServiceId));
         Assert.NotEqual(one.ClusterId, two.ClusterId);
-    }
-
-    [Fact]
-    public void TheGrainStateContainerComesFromConfigurationWithTheV2Default()
-    {
-        var host = global::Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
-        host.Configuration[DigitalBrainNames.GrainStateContainerKey] = "brain-rabc1234";
-        host.Configuration[AuthOptions.PostureKey] = "Open";
-        DigitalBrain.Aspire.Server.ServerHostingExtensions.AddDigitalBrainServer(host, server => server.UseAzureStorage());
-        using var provider = host.Services.BuildServiceProvider();
-        var options = provider.GetRequiredService<IOptionsMonitor<Orleans.Configuration.AzureBlobStorageOptions>>().Get(DigitalBrainNames.ClusterGrainStorage);
-        Assert.Equal("brain-rabc1234", options.ContainerName);
     }
 
     [Fact]
