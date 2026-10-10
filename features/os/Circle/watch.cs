@@ -6,8 +6,8 @@ using DigitalBrain.Client;
 // The index publishes CircleTouched for every copy, so the surface is simply rebuilt from the neurons.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var circles = brain.Get<ICircles>(ICircles.Key(CircleView.Scope(brain)));
-await foreach (var _ in brain.On<CircleTouched>(circles, brain.Stopping))
+await brain.React<CircleTouched>(circles, async _ =>
 {
     try { await CircleView.Project(brain); }
     catch (Exception) when (!brain.Stopping.IsCancellationRequested) { }
-}
+}, brain.Stopping);

@@ -18,7 +18,7 @@ string[] contracts = [typeof(IConnectionRequests).FullName!, typeof(IPostgresSer
     typeof(IWorkspace).FullName!, typeof(IForm).FullName!, typeof(ICSharpFile).FullName!,
     typeof(IWindows).FullName!, typeof(IConsole).FullName!, typeof(IFileSystem).FullName!];
 
-await foreach (var _ in brain.On<ComposerSubmitted>(composer, Reconcile, brain.Stopping)) { await Reconcile(); }
+await brain.React<ComposerSubmitted>(composer, _ => Reconcile(), brain.Stopping);
 
 async Task Reconcile()
 {
