@@ -500,7 +500,7 @@ Behavior:
 - `OnActivateAsync`: `var current = await host.CurrentSha(ct)`; if `Stage == Restarting && current == TargetSha` → save `Steady, CurrentSha = current, TargetSha = null` with `ClusterChanged`; also call `host.Orphans`-equivalent through `ICandidateHost.Orphans(known)` where `known` = `Live` and `Queue` of the brain's `ICandidates` (Review Focus #4).
 - `Silos()` returns `host.Silos(ct)`.
 
-- [ ] **Step 1: Failing facts:**
+- [x] **Step 1: Failing facts:**
 
 ```csharp
 [Fact]
@@ -524,7 +524,7 @@ public async Task OrphanCandidateContainersAreRemovedOnActivation()
 
 Fill the bodies in the style of Task 3.
 
-- [ ] Steps 2–5: fail, implement, pass, commit `"Aspire: cluster restarts onto a build and completes on reactivation"`.
+- [x] Steps 2–5: fail, implement, pass, commit `"Aspire: cluster restarts onto a build and completes on reactivation"`.
 
 ---
 
