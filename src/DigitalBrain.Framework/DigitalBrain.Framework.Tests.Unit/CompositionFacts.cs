@@ -2,6 +2,10 @@ using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Modules;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Orleans.Configuration;
+using Orleans.Versions.Compatibility;
+using Orleans.Versions.Selector;
 
 namespace DigitalBrain.Framework.Tests.Unit;
 
@@ -15,6 +19,17 @@ public sealed class CompositionFacts
 
         Assert.Equal([typeof(Dependency), typeof(Dependent)],
             brain.SiloServices.GetRequiredService<ModuleInventory>().Types);
+    }
+
+    [Fact]
+    public async Task EverySiloPrefersTheLatestCompatibleVersion()
+    {
+        await using var brain = await ModuleTest.Create().StartAsync(TestContext.Current.CancellationToken);
+
+        var versioning = brain.SiloServices.GetRequiredService<IOptions<GrainVersioningOptions>>().Value;
+
+        Assert.Equal(nameof(BackwardCompatible), versioning.DefaultCompatibilityStrategy);
+        Assert.Equal(nameof(LatestVersion), versioning.DefaultVersionSelectorStrategy);
     }
 
     [Fact]

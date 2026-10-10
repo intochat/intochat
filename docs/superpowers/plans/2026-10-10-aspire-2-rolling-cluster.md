@@ -41,17 +41,17 @@ silo.Configure<GrainVersioningOptions>(options =>
 });
 ```
 
-- [ ] **Step 1:** Verify type names/namespaces with context7 (`Orleans.Configuration.GrainVersioningOptions`, `Orleans.Versions.Compatibility.BackwardCompatible`, `Orleans.Versions.Selector.LatestVersion`).
-- [ ] **Step 2:** Failing fact `EverySiloPrefersTheLatestCompatibleVersion`: build a silo via `ModuleTest.Create()` and resolve `IOptions<GrainVersioningOptions>`; assert both strategy names.
-- [ ] **Step 3:** Implement; **Step 4:** pass; **Step 5:** commit `"Orleans: backward-compatible versioning, latest version preferred"`.
+- [x] **Step 1:** Verify type names/namespaces with context7 (`Orleans.Configuration.GrainVersioningOptions`, `Orleans.Versions.Compatibility.BackwardCompatible`, `Orleans.Versions.Selector.LatestVersion`).
+- [x] **Step 2:** Failing fact `EverySiloPrefersTheLatestCompatibleVersion`: build a silo via `ModuleTest.Create()` and resolve `IOptions<GrainVersioningOptions>`; assert both strategy names.
+- [x] **Step 3:** Implement; **Step 4:** pass; **Step 5:** commit `"Orleans: backward-compatible versioning, latest version preferred"`.
 
 ### Task 2: JSON storage tolerates additive state
 
 **Files:**
 - Test: `src/Testing/DigitalBrain.Architecture.Tests/AdditiveStateFacts.cs` (or the storage serializer's own test project — find the JSON grain storage serializer via LSP on `DigitalBrainNames.DefaultGrainStorage` registration).
 
-- [ ] **Step 1:** Fact `StateWrittenWithANewFieldIsReadByTheOldShape`: two records `V1(string A)` and `V2(string A, string B)` with matching `[Id]`s; serialize `V2` with the configured storage serializer, deserialize as `V1` → `A` intact; and `V1` → `V2` gives `B` default.
-- [ ] **Step 2:** Run. If it passes, commit the fact (`"Storage: additive state round-trips across versions"`). If it fails, fix the serializer options (e.g. unknown-member handling) — the fix is part of this task.
+- [x] **Step 1:** Fact `StateWrittenWithANewFieldIsReadByTheOldShape`: two records `V1(string A)` and `V2(string A, string B)` with matching `[Id]`s; serialize `V2` with the configured storage serializer, deserialize as `V1` → `A` intact; and `V1` → `V2` gives `B` default.
+- [x] **Step 2:** Run. If it passes, commit the fact (`"Storage: additive state round-trips across versions"`). If it fails, fix the serializer options (e.g. unknown-member handling) — the fix is part of this task.
 
 ### Task 3: Two silo replicas behind the fixed ports
 

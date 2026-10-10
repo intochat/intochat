@@ -3,6 +3,9 @@ using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Orleans.Configuration;
+using Orleans.Versions.Compatibility;
+using Orleans.Versions.Selector;
 
 namespace DigitalBrain.Framework;
 
@@ -31,6 +34,11 @@ public static class BrainHosting
         silo.Services.TryAddSingleton<IKernelView>(sp => sp.GetRequiredService<Kernel>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<BrainNeuron>, BrainActivation>());
         silo.Services.AddOptions<ObserverOptions>().Validate(options => options.Lease > TimeSpan.Zero, "Observer lease must be positive.").ValidateOnStart();
+        silo.Configure<GrainVersioningOptions>(options =>
+        {
+            options.DefaultCompatibilityStrategy = nameof(BackwardCompatible);
+            options.DefaultVersionSelectorStrategy = nameof(LatestVersion);
+        });
         return silo;
     }
 
