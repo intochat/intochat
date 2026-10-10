@@ -82,14 +82,7 @@ var mcpPort = builder.Configuration.GetValue(McpPortKey, 5081);
 // client (H2, R34). The trust host gets no other credential (R30) and no features copy (R56).
 const int TrustGatewayPort = 30100;
 Func<string, string> env = DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName;
-var trust = builder.AddProject<Projects.DigitalBrain_Trust>("trust")
-    .WithEnvironment(env("DigitalBrain:Platform:Trust:GatewayPort"), TrustGatewayPort.ToString(System.Globalization.CultureInfo.InvariantCulture));
-if (digitalBrain.Clustering is { } trustTables && digitalBrain.GrainState is { } trustBlobs)
-{
-    trust.WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.IntegrationEnvironmentName("orleans", "Clustering"), trustTables.Resource.ConnectionStringExpression)
-        .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.IntegrationEnvironmentName("orleans", "GrainState"), trustBlobs.Resource.ConnectionStringExpression)
-        .WaitFor(trustTables).WaitFor(trustBlobs);
-}
+var trust = builder.AddProject<Projects.DigitalBrain_Trust>("trust").AsTrustCluster(digitalBrain, TrustGatewayPort);
 // One pairing secret for every OS machine of this deployment (R52): the second machine joins the owner's account.
 var pairingSecret = builder.AddParameter("machine-pairing-secret", new GenerateParameterDefault { MinLength = 32, Special = false }, secret: true, persist: true);
 
@@ -133,7 +126,7 @@ IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where
     // Stage A: the OS silo is an own machine running the part log in its own directory, over a mesh of
     // platform seed nodes (Q25).
     silo.WithReference(digitalBrain)
-        .WithEnvironment(env("DigitalBrain:Platform:Trust:Gateway"), "localhost:" + TrustGatewayPort.ToString(System.Globalization.CultureInfo.InvariantCulture))
+        .WithEnvironment(env(TrustClusterHosting.GatewayKey), TrustClusterHosting.GatewayOf(TrustGatewayPort))
         .WithEnvironment(env("DigitalBrain:Platform:Parts:PairingSecret"), pairingSecret)
         .WaitFor(trust)
         .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName("DigitalBrain:Platform:Mesh:SeedNodes"), "24")

@@ -19,6 +19,7 @@ public sealed class TrustHostFacts
         {
             [$"{Platform.Trust.TrustOptions.Key}:{nameof(Platform.Trust.TrustOptions.SiloPort)}"] = Free().ToString(System.Globalization.CultureInfo.InvariantCulture),
             [$"{Platform.Trust.TrustOptions.Key}:{nameof(Platform.Trust.TrustOptions.GatewayPort)}"] = Free().ToString(System.Globalization.CultureInfo.InvariantCulture),
+            [$"{Platform.Trust.TrustOptions.Key}:{nameof(Platform.Trust.TrustOptions.AdvertisedAddress)}"] = "127.0.0.1",
         });
         builder.UseOrleans(silo => Program.Configure(silo, builder.Configuration));
         using var host = builder.Build();
@@ -29,6 +30,8 @@ public sealed class TrustHostFacts
         Assert.Null(host.Services.GetService<DigitalBrain.Framework.Modules.ModuleInventory>());
         Assert.Null(host.Services.GetService<IDigitalBrain>());
         Assert.DoesNotContain(host.Services.GetServices<IStartupTask>(), task => task.GetType().Assembly != typeof(Platform.TrustHosting).Assembly);
+        // R66: it advertises and listens on loopback.
+        Assert.Equal(System.Net.IPAddress.Loopback, host.Services.GetRequiredService<global::Microsoft.Extensions.Options.IOptions<Orleans.Configuration.EndpointOptions>>().Value.AdvertisedIPAddress);
         await host.StopAsync(ct);
     }
 

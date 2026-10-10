@@ -2,6 +2,7 @@
   "DigitalBrain.AppHost/AppHost.cs",
   "DigitalBrain.Aspire.Hosting.Tests.Unit/ConfigurationFileFacts.cs",
   "DigitalBrain.Aspire.Hosting/DigitalBrainHostingOptions.cs",
+  "DigitalBrain.Aspire.Hosting/TrustClusterHosting.cs",
   "DigitalBrain.Aspire.Server/ServerHostingExtensions.cs",
   "DigitalBrain.Deployment/DigitalBrainDeployment.cs",
   "DigitalBrain.Framework.Tests.Unit/ModuleIdFacts.cs",

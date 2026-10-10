@@ -17,12 +17,17 @@ public sealed class TrustOptions
 
     public int GatewayPort { get; set; } = 30100;
 
+    // The address the trust silo advertises and listens on (R66); unset, Orleans picks the first adapter.
+    public string? AdvertisedAddress { get; set; }
+
     public void Validate()
     {
         if (string.IsNullOrWhiteSpace(ClusterId) || string.IsNullOrWhiteSpace(ServiceId))
         { throw new InvalidOperationException("Trust needs a ClusterId and a ServiceId."); }
         if (SiloPort is < 1 or > 65535 || GatewayPort is < 1 or > 65535)
         { throw new InvalidOperationException("Trust needs SiloPort and GatewayPort between 1 and 65535."); }
+        if (AdvertisedAddress is { } address && !System.Net.IPAddress.TryParse(address, out _))
+        { throw new InvalidOperationException($"Trust AdvertisedAddress '{address}' is not an IP address."); }
         if (Gateway is { } gateway && !TryParse(gateway, out _, out _))
         { throw new InvalidOperationException($"Trust Gateway '{gateway}' is not host:port."); }
     }

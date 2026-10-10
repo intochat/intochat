@@ -52,6 +52,17 @@ public static class Program
             silo.Services.AddKeyedSingleton<IGrainStorageSerializer>(DigitalBrainNames.PlatformGrainStorage, static (services, _) =>
                 new OrleansGrainStorageSerializer(services.GetRequiredService<Orleans.Serialization.Serializer>()));
         }
+        // A dev trust host on one PC advertises loopback so machines reach its gateway at localhost (R66).
+        if (trust.AdvertisedAddress is { } advertised)
+        {
+            var address = System.Net.IPAddress.Parse(advertised);
+            silo.Configure<EndpointOptions>(options =>
+            {
+                options.AdvertisedIPAddress = address;
+                options.SiloListeningEndpoint = new System.Net.IPEndPoint(address, trust.SiloPort);
+                options.GatewayListeningEndpoint = new System.Net.IPEndPoint(address, trust.GatewayPort);
+            });
+        }
         return silo.AddTrustCluster();
     }
 }
