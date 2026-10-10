@@ -98,34 +98,6 @@
     "Expected": "{\"legacy-value\":\"legacy-value\"}"
   },
   {
-    "Type": "DigitalBrain.Compute.Allowance",
-    "Member": "Permissions",
-    "Representation": "array",
-    "Payload": "MAFG7vWRI2NvbXB1dGUuYWxsb3dhbmNl6MABwQHBAcEBwQEJAwEJAwFBIQAAAAAAAAAAAAAAAAAAAABBIQAAAAAAAAAAAAAAAAAAAAApNQADQRlsZWdhY3ktdmFsdWXgwQEhgAAAAAAAAAAAgQAAAAAAAAAA4MEBAQHg",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.Compute.Allowance",
-    "Member": "Permissions",
-    "Representation": "list",
-    "Payload": "MAFG7vWRI2NvbXB1dGUuYWxsb3dhbmNl6MABwQHBAcEBwQEJAwEJAwFBIQAAAAAAAAAAAAAAAAAAAABBIQAAAAAAAAAAAAAAAAAAAAAxAVnRtylXU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdGAxW1tzdHJpbmddXQADQRlsZWdhY3ktdmFsdWXgwQEhgAAAAAAAAAAAgQAAAAAAAAAA4MEBAQHg",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.Compute.PendingApproval",
-    "Member": "Permissions",
-    "Representation": "array",
-    "Payload": "MAEdc+mEMWNvbXB1dGUucGVuZGluZy1hcHByb3ZhbOjAAcEBwQHBAUEhAAAAAAAAAAAAAAAAAAAAAMEBIYAAAAAAAAAAAIEAAAAAAAAAAODBASk1AANBGWxlZ2FjeS12YWx1ZeDg",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.Compute.PendingApproval",
-    "Member": "Permissions",
-    "Representation": "list",
-    "Payload": "MAEdc+mEMWNvbXB1dGUucGVuZGluZy1hcHByb3ZhbOjAAcEBwQHBAUEhAAAAAAAAAAAAAAAAAAAAAMEBIYAAAAAAAAAAAIEAAAAAAAAAAODBATEBWdG3KVdTeXN0ZW0uQ29sbGVjdGlvbnMuR2VuZXJpYy5MaXN0YDFbW3N0cmluZ11dAANBGWxlZ2FjeS12YWx1ZeDg",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
     "Type": "DigitalBrain.Flutter.Collection.CollectionDefinition",
     "Member": "Items",
     "Representation": "array",

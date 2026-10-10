@@ -262,7 +262,6 @@ public sealed class SystemOneRouterFacts
         })
             .WithModule<AIModule>()
             .WithModule<DigitalBrain.Apps.AppsModule>()
-            .WithModule<DigitalBrain.Compute.ComputeModule>()
             .WithModule<DigitalBrain.Flutter.FlutterModule>()
             .WithModule<DigitalBrain.Time.TimeModule>()
             .WithReminders()

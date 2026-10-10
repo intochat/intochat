@@ -13,16 +13,10 @@ import 'workspace_remote_controller_test.dart' show MemoryPersistence;
 class ComputeClient extends WorkspaceClient {
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    if (request.url.path.contains('/compute/')) {
-      final body = request.url.path.endsWith('/summary')
-          ? {
-              'chargedCompute': 0,
-              'reservedCompute': 0,
-              'settledCompute': 2,
-              'limitCompute': 100,
-              'spentCompute': 2,
-            }
-          : {'items': [], 'nextCursor': null};
+    if (request.url.path.contains('/compute')) {
+      final body = request.url.path.endsWith('/recent')
+          ? <Object>[]
+          : {'balanceMicros': 0, 'spentMicros': 0, 'rows': <Object>[]};
       return http.StreamedResponse(
         Stream.value(utf8.encode(jsonEncode(body))),
         200,
@@ -42,7 +36,7 @@ Widget buildWorkspace({DigitalBrainUiClient? programmingClient}) {
 void main() {
   for (final width in [1440.0, 390.0]) {
     testWidgets(
-      'Compute icon opens history without adding a workspace window at $width',
+      'Compute icon opens usage without adding a workspace window at $width',
       (tester) async {
         tester.view.physicalSize = Size(width, 850);
         tester.view.devicePixelRatio = 1;
@@ -63,7 +57,7 @@ void main() {
         await tester.tap(find.byKey(const Key('compute-usage-button')));
         await tester.pumpAndSettle();
         expect(find.text('No usage recorded yet.'), findsOneWidget);
-        expect(find.text('Charged'), findsOneWidget);
+        expect(find.text('Balance'), findsOneWidget);
         expect(find.text('App settlements'), findsNothing);
         expect(find.byType(width < 600 ? BottomSheet : Dialog), findsOneWidget);
         expect(store.currentProject.presentation.openArtifactIds, isEmpty);

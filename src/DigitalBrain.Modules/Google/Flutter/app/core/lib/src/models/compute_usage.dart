@@ -1,86 +1,63 @@
-/// Financial amounts are nullable: missing usage is never silently priced at zero.
-class ComputeUsageItem {
-  const ComputeUsageItem({
-    required this.id,
-    required this.title,
-    this.occurredAt,
-    this.outcome = '',
-    this.previewCompute,
-    this.chargedCompute,
-    this.settledCompute,
-    this.reservedCompute,
-    this.priceBookVersion,
-    this.modelUsage = const [],
-    this.calls = const [],
-    this.touched = const [],
-    this.localHistory = false,
+/// Money is micro-credits: 1 credit = 1 USD / 1_000_000. Display as dollars.
+class ComputeSummary {
+  const ComputeSummary({
+    required this.balanceMicros,
+    required this.spentMicros,
+    this.rows = const [],
   });
-  final String id, title, outcome;
-  final DateTime? occurredAt;
-  final double? previewCompute, chargedCompute, settledCompute, reservedCompute;
-  final String? priceBookVersion;
-  final List<Map<String, dynamic>> modelUsage, calls, touched;
-  final bool localHistory;
-
-  factory ComputeUsageItem.fromJson(Map<String, dynamic> json) =>
-      ComputeUsageItem(
-        id: json['id'] as String,
-        title: json['title'] as String? ?? 'Activity',
-        occurredAt: DateTime.tryParse(json['occurredAt'] as String? ?? ''),
-        outcome: json['outcome'] as String? ?? '',
-        previewCompute: (json['previewCompute'] as num?)?.toDouble(),
-        chargedCompute: (json['chargedCompute'] as num?)?.toDouble(),
-        settledCompute: (json['settledCompute'] as num?)?.toDouble(),
-        reservedCompute: (json['reservedCompute'] as num?)?.toDouble(),
-        priceBookVersion: json['priceBookVersion'] as String?,
-        modelUsage: _maps(json['modelUsage']),
-        calls: _maps(json['calls']),
-        touched: _maps(json['touched']),
-      );
-  static List<Map<String, dynamic>> _maps(Object? value) => value is List
-      ? value.whereType<Map>().map((v) => Map<String, dynamic>.from(v)).toList()
-      : const [];
+  final int balanceMicros, spentMicros;
+  final List<ComputeRow> rows;
+  factory ComputeSummary.fromJson(Map<String, dynamic> json) => ComputeSummary(
+    balanceMicros: (json['balanceMicros'] as num?)?.toInt() ?? 0,
+    spentMicros: (json['spentMicros'] as num?)?.toInt() ?? 0,
+    rows: [
+      for (final row in json['rows'] as List? ?? const [])
+        ComputeRow.fromJson(Map<String, dynamic>.from(row as Map)),
+    ],
+  );
 }
 
-class ComputeUsagePage {
-  const ComputeUsagePage(this.items, this.nextCursor);
-  final List<ComputeUsageItem> items;
-  final String? nextCursor;
-  factory ComputeUsagePage.fromJson(Map<String, dynamic> json) =>
-      ComputeUsagePage(
-        (json['items'] as List)
-            .map(
-              (item) => ComputeUsageItem.fromJson(
-                Map<String, dynamic>.from(item as Map),
-              ),
-            )
-            .toList(),
-        json['nextCursor'] as String?,
-      );
+class ComputeRow {
+  const ComputeRow({required this.key, required this.micros, this.count = 0});
+  final String key;
+  final int micros, count;
+  factory ComputeRow.fromJson(Map<String, dynamic> json) => ComputeRow(
+    key: json['key'] as String,
+    micros: (json['micros'] as num?)?.toInt() ?? 0,
+    count: (json['count'] as num?)?.toInt() ?? 0,
+  );
 }
 
-class ComputeAccountSummary {
-  const ComputeAccountSummary({
-    this.chargedCompute,
-    this.settledCompute,
-    this.reservedCompute,
-    this.spentCompute,
-    this.limitCompute,
-    this.hardStopped = false,
+class ComputeCost {
+  const ComputeCost({
+    required this.traceId,
+    required this.costId,
+    required this.kind,
+    required this.item,
+    this.quantity = 0,
+    required this.unit,
+    required this.micros,
+    this.synapse,
+    this.app,
+    this.neuron,
+    this.at,
   });
-  final double? chargedCompute,
-      settledCompute,
-      reservedCompute,
-      spentCompute,
-      limitCompute;
-  final bool hardStopped;
-  factory ComputeAccountSummary.fromJson(Map<String, dynamic> json) =>
-      ComputeAccountSummary(
-        chargedCompute: (json['chargedCompute'] as num?)?.toDouble(),
-        settledCompute: (json['settledCompute'] as num?)?.toDouble(),
-        reservedCompute: (json['reservedCompute'] as num?)?.toDouble(),
-        spentCompute: (json['spentCompute'] as num?)?.toDouble(),
-        limitCompute: (json['limitCompute'] as num?)?.toDouble(),
-        hardStopped: json['hardStopped'] == true,
-      );
+  final String traceId, costId, kind, item, unit;
+  final double quantity;
+  final int micros;
+  final String? synapse, app, neuron;
+  final DateTime? at;
+  factory ComputeCost.fromJson(Map<String, dynamic> json) => ComputeCost(
+    traceId: json['traceId'] as String,
+    costId: json['costId'] as String,
+    kind: json['kind'] as String,
+    item: json['item'] as String,
+    quantity: (json['quantity'] as num?)?.toDouble() ?? 0,
+    unit: json['unit'] as String,
+    micros: (json['micros'] as num?)?.toInt() ?? 0,
+    synapse: json['synapse'] as String?,
+    app: json['app'] as String?,
+    neuron: json['neuron'] as String?,
+    at: DateTime.tryParse(json['at'] as String? ?? ''),
+  );
 }

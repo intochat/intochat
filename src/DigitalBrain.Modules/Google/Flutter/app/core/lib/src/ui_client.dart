@@ -525,37 +525,38 @@ final class DigitalBrainUiClient {
     return controller.stream;
   }
 
-  Future<ComputeUsagePage> readComputeUsage(
-    String workspaceId, {
-    String? cursor,
-    int limit = 20,
+  /// Spend and balance for one brain, grouped by [by]; rows are most expensive first.
+  Future<ComputeSummary> readCompute(
+    String brainId, {
+    String by = 'app',
+    DateTime? since,
   }) async {
-    final query = Uri(queryParameters: {'limit': '$limit', 'cursor': ?cursor})
-        .query;
-    return ComputeUsagePage.fromJson(
+    final query = Uri(
+      queryParameters: {'by': by, 'since': ?since?.toUtc().toIso8601String()},
+    ).query;
+    return ComputeSummary.fromJson(
       Map<String, dynamic>.from(
         await _tableRequest(
           'GET',
-          '/brains/${Uri.encodeComponent(workspaceId)}/compute/usage?$query',
+          '/brains/${Uri.encodeComponent(brainId)}/compute?$query',
         ) as Map,
       ),
     );
   }
 
-  Future<ComputeAccountSummary> readComputeSummary() async =>
-      ComputeAccountSummary.fromJson(
-        Map<String, dynamic>.from(
-          await _tableRequest('GET', '/compute/summary') as Map,
-        ),
-      );
-
-  Future<Map<String, dynamic>> readComputeLimits() async {
-    final response = await _request(
+  /// The most recent individual costs for one brain, newest [take] first.
+  Future<List<ComputeCost>> readComputeRecent(
+    String brainId, {
+    int take = 50,
+  }) async {
+    final body = await _tableRequest(
       'GET',
-      '/compute/limits',
-      timeout: const Duration(seconds: 10),
+      '/brains/${Uri.encodeComponent(brainId)}/compute/recent?take=$take',
     );
-    return jsonDecode(response.body) as Map<String, dynamic>;
+    return [
+      for (final item in body as List)
+        ComputeCost.fromJson(Map<String, dynamic>.from(item as Map)),
+    ];
   }
 
   Future<Map<String, dynamic>> readUi(

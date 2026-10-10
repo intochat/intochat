@@ -122,25 +122,6 @@ public sealed class MeteringFacts
         Assert.Equal(15, entry.TotalTokens);
     }
 
-    [Fact]
-    public void EveryReportedTokenClassBecomesItsOwnIdempotentMeterEvent()
-    {
-        var entry = new TokenUsageEntry(MeterKind.Chat, "OpenAI", "gpt-5.6-luna", 10, 3, 2, 5, 15, true, DateTimeOffset.UnixEpoch);
-
-        var events = IntentMeterEvents.FromUsage("intent-1", "scope", entry).ToArray();
-
-        Assert.Equal(
-            ["input_tokens", "cached_input_tokens", "reasoning_tokens", "output_tokens", "total_tokens"],
-            events.Select(meterEvent => meterEvent.Step));
-        Assert.All(events, meterEvent => Assert.Equal($"llm.gpt-5.6-luna.{meterEvent.Step}", meterEvent.MeterId));
-        Assert.All(events, meterEvent =>
-        {
-            Assert.Equal("intent-1", meterEvent.IntentId);
-            Assert.Equal("scope", meterEvent.BrainId);
-            Assert.Equal(MeterSource.ChatClient, meterEvent.Source);
-        });
-    }
-
     private static ChatResponse Response(UsageDetails? usage, string modelId)
         => new(new ChatMessage(ChatRole.Assistant, "ok")) { Usage = usage, ModelId = modelId, ResponseId = "response-1" };
 

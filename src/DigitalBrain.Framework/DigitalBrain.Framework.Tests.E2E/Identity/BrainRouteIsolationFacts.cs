@@ -38,31 +38,11 @@ public sealed class BrainRouteIsolationFacts(ReferenceBrainFixture host)
         using var foreignNode = await bob.GetAsync($"/brains/{aliceBrain}/apps/node?kind=text&name={aliceBrain}/apps/forms/intake", ct);
         Assert.Equal(HttpStatusCode.Forbidden, foreignNode.StatusCode);
 
-        using var foreignCompute = await bob.GetAsync($"/brains/{aliceBrain}/compute/usage", ct);
+        using var foreignCompute = await bob.GetAsync($"/brains/{aliceBrain}/compute", ct);
         Assert.Equal(HttpStatusCode.Forbidden, foreignCompute.StatusCode);
-        using var ownCompute = await bob.GetAsync($"/brains/{bobBrain}/compute/usage", ct);
+        using var ownCompute = await bob.GetAsync($"/brains/{bobBrain}/compute", ct);
         Assert.Equal(HttpStatusCode.OK, ownCompute.StatusCode);
 
-        var aliceLedger = brain.Get<DigitalBrain.Compute.IAllowanceLedger>(alicePerson.Account);
-        await aliceLedger.GrantAsync(new DigitalBrain.Compute.Allowance
-        {
-            AllowanceId = "budget",
-            AccountId = alicePerson.Account,
-            BrainId = aliceBrain,
-            Level = DigitalBrain.Compute.ApprovalLevel.StandingBudget,
-            Scope = DigitalBrain.Compute.AllowanceScope.Always,
-            LimitCompute = 100m,
-            PriceBookVersion = new DigitalBrain.Compute.PriceBook().Version,
-            GrantedAt = DateTimeOffset.UtcNow,
-        }, ct);
-        var reserved = await aliceLedger.AuthorizeAsync(new DigitalBrain.Compute.AllowanceRequest(alicePerson.Account, aliceBrain, null, "private-charge", DigitalBrain.Compute.AllowanceCallerKind.Assistant,
-            "neuron", "chat", [], 7m, true), ct);
-        Assert.True(reserved.Allowed, reserved.Explanation);
-        await aliceLedger.SettleAsync(reserved.ReservationId!, 7m, DigitalBrain.Compute.FailureClass.None, ct);
-        using var aliceSummary = JsonDocument.Parse(await alice.GetStringAsync("/compute/summary", ct));
-        using var bobSummary = JsonDocument.Parse(await bob.GetStringAsync("/compute/summary", ct));
-        Assert.Equal(7m, aliceSummary.RootElement.GetProperty("chargedCompute").GetDecimal());
-        Assert.Equal(0m, bobSummary.RootElement.GetProperty("chargedCompute").GetDecimal());
     }
 
 }

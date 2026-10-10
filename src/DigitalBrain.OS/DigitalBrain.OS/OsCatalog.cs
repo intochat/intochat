@@ -19,7 +19,6 @@ public static partial class OsCatalog
         new DigitalBrain.ArtCraft.ArtCraftModule(),
         new DigitalBrain.ClickHouse.ClickHouseModule(),
         new DigitalBrain.Apps.AppsModule(),
-        new DigitalBrain.Compute.ComputeModule(),
         new DigitalBrain.Flutter.FlutterModule(),
         new DigitalBrain.Google.Gmail.GmailModule(),
         new DigitalBrain.Machine.MachineModule(),

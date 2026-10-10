@@ -30,7 +30,7 @@ public static class PlatformHosting
         services.AddMasterKeyWrapper();
         services.TryAddSingleton<DigitalBrain.Framework.Compute.ICostMeter, Compute.CostMeter>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Http.IHttpMessageHandlerBuilderFilter, DigitalBrain.Framework.Compute.MeteredHttpHandlerFilter>());
-        services.AddOptions<Compute.FeeOptions>().BindConfiguration("DigitalBrain:Platform:Fees");
+        services.AddOptions<Compute.FeeOptions>().BindConfiguration(Compute.FeeOptions.Key);
         services.TryAddSingleton<IReadOnlyList<IntegrationSchema>>(provider =>
             IntegrationDiscovery.Collect(provider.GetRequiredService<ModuleInventory>().Types));
         services.TryAddSingleton<IReadOnlyList<ConnectorDefinition>>(provider =>
@@ -63,6 +63,7 @@ public static class PlatformHosting
         endpoints.MapSecrets();
         endpoints.MapIntegrations();
         endpoints.MapConnectionNeurons();
+        Compute.ComputeEndpoints.MapCompute(endpoints);
         endpoints.MapCapabilities();
         IdentityEndpoints.Map(endpoints);
         return endpoints;

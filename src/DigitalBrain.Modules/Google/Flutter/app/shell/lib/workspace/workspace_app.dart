@@ -15,7 +15,6 @@ import 'workspace_settings.dart';
 import 'workspace_routes.dart';
 
 import 'compute_usage_panel.dart';
-import 'compute_usage_history.dart';
 import 'workspace_islands.dart';
 import 'csharp/csharp_manager.dart';
 import 'home/home_screen.dart';
@@ -1047,7 +1046,6 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       workspaceId: project.id,
       workspaceName: project.title,
       refreshSignal: _computeRefresh,
-      savedHistory: () => savedComputeHistory(project),
       onClose: () => Navigator.of(dialogContext).pop(),
     );
     final size = MediaQuery.sizeOf(context);
