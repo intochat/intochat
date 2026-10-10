@@ -43,14 +43,15 @@ public static class MachineHosting
         return silo;
     }
 
-    // R35: a production machine holds its custody root in hardware; Tpm custody needs a module that provides it.
+    // R35/R78: a production own machine holds its custody root in hardware; a Cloud machine holds only non-private
+    // parts (Q24) and may keep Configured custody. Tpm custody needs a module that provides it.
     private static void ValidateCustody(PartsOptions parts, IHostEnvironment environment, IServiceProvider provider)
     {
         const string key = DigitalBrainNames.CustodyConfigurationKey;
         if (parts.Custody == MasterKeyCustodyKind.Configured)
         {
-            if (environment.IsProduction())
-            { throw new InvalidOperationException($"{key} = Configured is refused in Production; a production machine holds its master keys in the TPM ({key} = Tpm)."); }
+            if (parts.Role == MachineRole.Own && environment.IsProduction())
+            { throw new InvalidOperationException($"{key} = Configured is refused for an own machine in Production; a production own machine holds its master keys in the TPM ({key} = Tpm)."); }
             return;
         }
         IMasterKeyCustody custody;

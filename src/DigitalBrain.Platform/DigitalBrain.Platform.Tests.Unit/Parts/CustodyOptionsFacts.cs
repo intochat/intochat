@@ -11,6 +11,9 @@ public sealed class CustodyOptionsFacts
 {
     private static readonly string CustodyKey = $"{PartsOptions.Key}:{nameof(PartsOptions.Custody)}";
 
+    // R78: Tpm is the production default for a single-machine owner, so a production own machine refuses Configured.
+    // The dev AppHost keeps Configured (one shared custody root, R74) because multi-machine owners under Tpm need part
+    // keys wrapped to each machine's TPM key (key sharing, later); a Cloud machine may run Configured.
     [Fact(Timeout = 120_000)]
     public async Task ProductionRefusesConfiguredCustody()
     {
@@ -24,6 +27,20 @@ public sealed class CustodyOptionsFacts
         });
         Assert.Contains(CustodyKey, Describe(refused), StringComparison.Ordinal);
         Assert.Contains(nameof(InvalidOperationException), Describe(refused), StringComparison.Ordinal);
+    }
+
+    // R78: a Cloud machine holds only non-private parts (Q24), so it may run Configured custody in Production.
+    [Fact(Timeout = 120_000)]
+    public async Task AProductionCloudMachineStartsWithConfiguredCustody()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithPartLog()
+            .WithConfiguration($"{PartsOptions.Key}:{nameof(PartsOptions.Role)}", nameof(MachineRole.Cloud))
+            .WithConfiguration(CustodyKey, nameof(MasterKeyCustodyKind.Configured))
+            .ConfigureServices(services => services.Replace(ServiceDescriptor.Singleton<IHostEnvironment>(new ProductionEnvironment())))
+            .StartAsync(ct);
+        Assert.True(brain.SiloServices.GetRequiredService<IHostEnvironment>().IsProduction());
+        Assert.Equal(MachineRole.Cloud, brain.SiloServices.GetRequiredService<global::Microsoft.Extensions.Options.IOptions<PartsOptions>>().Value.Role);
     }
 
     [Fact(Timeout = 120_000)]

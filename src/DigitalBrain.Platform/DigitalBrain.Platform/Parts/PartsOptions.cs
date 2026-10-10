@@ -38,7 +38,11 @@ public sealed class PartsOptions
     // Another own machine never races for it; the core moves only by an explicit release on its holder.
     public bool CoreHolder { get; set; }
 
-    // R35: Tpm needs a hardware custody module (Windows); Configured is refused when the host runs in Production.
+    // R35/R78: Tpm (the Windows module) is the production default for a single-machine owner, and an own machine in
+    // Production refuses Configured. The dev AppHost keeps Configured (one shared custody root, R74): multi-machine
+    // owners under Tpm need part keys wrapped to each machine's TPM key (key sharing, later). Cloud may run Configured.
+    // R79: switching custody replaces the signing key, so the machine id changes: the machine is a new machine that
+    // re-registers (R52), and part keys wrapped under the previous custody stop unwrapping with the R74 error.
     public DigitalBrain.Framework.Parts.MasterKeyCustodyKind Custody { get; set; } = DigitalBrain.Framework.Parts.MasterKeyCustodyKind.Configured;
 
     public TimeSpan Lease => Role == MachineRole.Own ? OwnLease : ShortLease;
