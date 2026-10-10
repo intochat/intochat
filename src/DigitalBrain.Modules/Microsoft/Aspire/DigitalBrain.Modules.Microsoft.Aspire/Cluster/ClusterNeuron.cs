@@ -103,7 +103,7 @@ internal sealed class ClusterNeuron(
         driving = false;
         if (handedOver || !Moving(Snapshot.Stage)) { return; }
         var target = Snapshot.TargetSha!;
-        // Intent is persisted before live.json moves: a step cut off between the two points live.json here.
+        var self = host.Self;
         try
         {
             if (await host.CurrentSha(CancellationToken.None) != target) { await host.SetLive(target, CancellationToken.None); }
@@ -111,11 +111,10 @@ internal sealed class ClusterNeuron(
         catch (Exception error) when (error is not OperationCanceledException)
         {
             log.LogWarning(error, "Cluster {Cluster} could not set live to {Target} at step.", this.GetPrimaryKeyString(), target);
-            await Save(Snapshot with { Stage = ClusterStage.Steady, Failure = error.Message }, new ClusterChanged(Snapshot.CurrentSha ?? Snapshot.PreviousSha ?? string.Empty, ClusterStage.Steady, null, error.Message));
-            await StopReminder();
+            var name = Snapshot.Remaining.FirstOrDefault(n => n != self) ?? self!;
+            await NeverReady(name, new InstanceNeverReadyException($"live.json could not be written: {error.Message}", error));
             return;
         }
-        var self = host.Self;
         if (Snapshot.Handover is { } handover)
         {
             // On the handed-over silo this activation is its readiness; elsewhere that silo is waited for.

@@ -96,7 +96,7 @@ public sealed class DeploymentIdentityFacts
             if (resource == server.Resource)
             {
                 Assert.Equal(DigitalBrainNames.Reminders, configuration.EnvironmentVariables.ToDictionary()["Orleans__Reminders__ServiceKey"]);
-Assert.Equal(DigitalBrainNames.GrainState, configuration.EnvironmentVariables.ToDictionary()["Orleans__GrainStorage__Default__ServiceKey"]);
+                Assert.Equal(DigitalBrainNames.GrainState, configuration.EnvironmentVariables.ToDictionary()["Orleans__GrainStorage__Default__ServiceKey"]);
             }
         }
     }
@@ -109,7 +109,7 @@ Assert.Equal(DigitalBrainNames.GrainState, configuration.EnvironmentVariables.To
         DigitalBrain.Aspire.Server.ServerHostingExtensions.AddDigitalBrainServer(host, server => server.UseAzureStorage());
         using var provider = host.Services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptionsMonitor<HostOptions>>().Get(null);
-        Assert.Equal(TimeSpan.FromSeconds(10), options.ShutdownTimeout);
+        Assert.Equal(TimeSpan.FromSeconds(40), options.ShutdownTimeout);
     }
 
     private sealed class ServiceKeys : IExecutionConfigurationGatherer

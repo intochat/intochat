@@ -15,8 +15,15 @@ internal sealed class FakeClusterHost : IClusterHost
 
     public Task<string> CurrentSha(CancellationToken ct) => Task.FromResult(Current);
 
+    // SetLive throws on each sha in this set.
+    public HashSet<string> DieOnSetLiveSha { get; } = [];
+
     public Task SetLive(string sha, CancellationToken ct)
     {
+        if (DieOnSetLiveSha.Contains(sha))
+        {
+            return Task.FromException(new IOException("live.json could not be written: disk full"));
+        }
         Current = sha;
         return Task.CompletedTask;
     }
@@ -30,6 +37,8 @@ internal sealed class FakeClusterHost : IClusterHost
     public string? InterruptAt { get; set; }
     // An instance whose restart always fails, like a CLI non-zero exit.
     public HashSet<string> NeverRestart { get; } = [];
+    // An instance whose restart holds at its gate until the fact opens it.
+    public Dictionary<string, RestartGate> RestartGates { get; } = [];
     public TaskCompletionSource<string> SelfRestarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public List<string> Waited { get; } = [];
     public TaskCompletionSource<string> Interrupted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -39,21 +48,25 @@ internal sealed class FakeClusterHost : IClusterHost
 
     public Task<string[]> Instances(CancellationToken ct) => Task.FromResult(InstanceNames);
 
-    public Task RestartInstance(string name, CancellationToken ct)
+    public async Task RestartInstance(string name, CancellationToken ct)
     {
         if (NeverRestart.Contains(name))
         {
-            return Task.FromException(new InvalidOperationException($"aspire resource {name} restart exited 1: ..."));
+            throw new InvalidOperationException($"aspire resource {name} restart exited 1: ...");
         }
         if (name == InterruptAt)
         {
             InterruptAt = null;
             Interrupted.TrySetResult(name);
-            return Task.FromException(new InvalidOperationException($"cut off before restarting {name}"));
+            throw new InvalidOperationException($"cut off before restarting {name}");
         }
         RestartedSilos.Add($"{name}@{Current}");
+        if (RestartGates.TryGetValue(name, out var gate))
+        {
+            gate.Reached.TrySetResult();
+            await gate.Open.Task.WaitAsync(ct);
+        }
         if (name == Self) { SelfRestarted.TrySetResult(name); }
-        return Task.CompletedTask;
     }
 
     public Task<SiloView> WaitInstance(string name, TimeSpan budget, CancellationToken ct)
@@ -73,4 +86,10 @@ internal sealed class FakeClusterHost : IClusterHost
         Restarts++;
         return DieOnRestart ? Task.FromException(new InvalidOperationException("silo died")) : Task.CompletedTask;
     }
+}
+
+internal sealed class RestartGate
+{
+    public TaskCompletionSource Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource Open { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 }

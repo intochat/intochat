@@ -25,10 +25,8 @@ public static class ServerHostingExtensions
         ArgumentNullException.ThrowIfNull(builder);
         // Every DigitalBrain server carries the process defaults; hosts cannot forget them.
         builder.AddServiceDefaults();
-        // A silo must have time to announce ShuttingDown in the cluster membership table before
-        // the hosting framework force-kills it. 10 seconds covers the Orleans probe interval and
-        // the near-instantaneous membership write.
-        builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(10));
+        // Orleans stop deactivates every grain (GrainCollectionOptions.DeactivationTimeout, 30 s) before it writes Dead: 30 s + 10 s margin; Aspire may still force-kill the process on Windows.
+        builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(40));
 
         if (builder.Configuration[ConfigurationFileKey] is { Length: > 0 } configurationFile)
         { builder.Configuration.AddJsonFile(configurationFile, optional: false, reloadOnChange: false); }

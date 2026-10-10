@@ -105,14 +105,76 @@ public sealed class ClusterRollFacts
     }
 
     [Fact]
+    public async Task ALiveSwitchThatFailsRollsTheClusterBack()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var cluster = new FakeClusterHost { Self = "silo-0" };
+        var gate = cluster.RestartGates["mcp-b"] = new RestartGate();
+        await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
+        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
+        await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
+
+        await grain.Roll("sha0001");
+        await gate.Reached.Task.WaitAsync(ct);
+        // live.json lost the switch and cannot be written again: the next step has to move it.
+        cluster.Current = "base000";
+        cluster.DieOnSetLiveSha.Add("sha0001");
+        gate.Open.SetResult();
+        var back = await changes.NextAsync(change => change.Stage == ClusterStage.RollingBack, ct);
+        var steady = await changes.NextAsync(change => change.Stage == ClusterStage.Steady, ct);
+
+        Assert.Equal("base000", back.TargetSha);
+        Assert.Equal("base000", steady.CurrentSha);
+        Assert.Contains("live.json could not be written", steady.Failure, StringComparison.Ordinal);
+        Assert.Equal("base000", cluster.Current);
+        Assert.Equal(["mcp-a@sha0001", "mcp-b@sha0001", "silo-1@base000", "mcp-b@base000", "mcp-a@base000"], cluster.RestartedSilos);
+        var read = await grain.Read();
+        Assert.Equal((ClusterStage.Steady, "base000"), (read.Stage, read.CurrentSha));
+    }
+
+    [Fact]
+    public async Task RollingResumesOnTheNextActivationWithoutAnotherRoll()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var cluster = new FakeClusterHost { Self = "silo-0" };
+        var gate = cluster.RestartGates["mcp-b"] = new RestartGate();
+        await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
+        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
+
+        await grain.Roll("sha0001");
+        await gate.Reached.Task.WaitAsync(ct);
+        // The activation is lost mid-step; the step it was running drains before the deactivation completes.
+        var deactivated = brain.DeactivateAsync(grain, ct);
+        gate.Open.SetResult();
+        await deactivated;
+        await cluster.SelfRestarted.Task.WaitAsync(ct);
+        await brain.DeactivateAsync(grain, ct);
+        await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
+        var steady = await changes.NextAsync(change => change.Stage == ClusterStage.Steady, ct);
+
+        Assert.Equal(("sha0001", null), (steady.CurrentSha, steady.Failure));
+        Assert.Equal(["mcp-a@sha0001", "mcp-b@sha0001", "silo-1@sha0001", "silo-0@sha0001"], cluster.RestartedSilos);
+        var read = await grain.Read();
+        Assert.Equal((ClusterStage.Steady, "sha0001"), (read.Stage, read.CurrentSha));
+        Assert.Empty(read.Remaining);
+    }
+
+    [Fact]
     public async Task RollIsRefusedWhileRollingOntoAnotherSha()
     {
         var ct = TestContext.Current.CancellationToken;
         var cluster = new FakeClusterHost { Self = "silo-0" };
+        var gate = cluster.RestartGates["mcp-b"] = new RestartGate();
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
         var grain = brain.Get<ICluster>(ICluster.Key("owner"));
         await grain.Roll("sha0001");
+        await gate.Reached.Task.WaitAsync(ct);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => grain.Roll("sha0002"));
+        // Roll queues behind the held step, which then hands on to the next one: the cluster is still Rolling.
+        var second = grain.Roll("sha0002");
+        gate.Open.SetResult();
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => second);
+
+        Assert.Contains("rolling onto sha0001", refused.Message, StringComparison.Ordinal);
     }
 }
