@@ -455,7 +455,7 @@ Before relying on `Save(next, params Signal?[])` and `Exists`, LSP `goToDefiniti
 
 Port of `RevisionIndexNeuron.cs` (`src/DigitalBrain.Modules/DigitalBrain/Revisions/DigitalBrain.Modules.Revisions/Revisions/RevisionIndexNeuron.cs`, read it fully first). Differences: `Propose` calls `host.Prepare(baseSha: await Cluster.Read() → CurrentSha, proposal.Summary, proposal.Files, ct)`, then `ICandidate.Propose(branch, summary, plan)`; starts via a one-way self reference (`this.AsReference<ICandidateQueueWork>()` with `[OneWay] Task StartLive(string sha)`), queues otherwise. State: `string? Live`, `string[] Queue` (concrete array).
 
-- [ ] **Step 1: Failing facts:**
+- [x] **Step 1: Failing facts:**
 
 ```csharp
 [Fact]
@@ -485,7 +485,7 @@ public async Task TheCandidateIsPreparedFromTheLiveClustersSha()
 
 (Make `CandidateFacts.StartAsync` and `Plan` `internal static` so both fact classes share them. Add `PreparedFrom` to `FakeCandidateHost`.)
 
-- [ ] **Step 2:** Run → FAIL. **Step 3:** Implement. **Step 4:** Run → PASS. **Step 5:** Commit `"Aspire: candidates queue one at a time per brain"`.
+- [x] **Step 2:** Run → FAIL. **Step 3:** Implement. **Step 4:** Run → PASS. **Step 5:** Commit `"Aspire: candidates queue one at a time per brain"`.
 
 ---
 
