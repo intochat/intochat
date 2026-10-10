@@ -34,6 +34,10 @@ public static class PlatformHosting
         services.AddOptions<Mesh.MeshOptions>().BindConfiguration(Mesh.MeshOptions.Key)
             .Validate(mesh => { mesh.Validate(); return true; }).ValidateOnStart();
         services.TryAddSingleton<DigitalBrain.Framework.Mesh.IMeshStore, Mesh.MeshStore>();
+        // The custody root is the same configured master key the owner-key wrapper derives from.
+        services.TryAddSingleton<Keys.IMasterKeyCustody>(provider => new Keys.ConfiguredMasterKeyCustody(
+            System.Text.Encoding.UTF8.GetBytes(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MasterKeyOptions>>().Value.MasterKey)));
+        services.TryAddSingleton<DigitalBrain.Framework.Parts.IPartKeys, Keys.PartKeys>();
         services.TryAddSingleton<IReadOnlyList<IntegrationSchema>>(provider =>
             IntegrationDiscovery.Collect(provider.GetRequiredService<ModuleInventory>().Types));
         services.TryAddSingleton<IReadOnlyList<ConnectorDefinition>>(provider =>
