@@ -35,27 +35,41 @@ internal sealed class Creator(
         ArgumentNullException.ThrowIfNull(brain);
         ArgumentException.ThrowIfNullOrWhiteSpace(request);
         if (request.Length > MaxRequestLength) { throw new ArgumentException($"Describe the app in at most {MaxRequestLength} characters."); }
-        var existing = name is null ? null : await brain.Get<IApp>(IApp.Key(brainId, name)).Read();
-        if (name is not null) { await brain.Get<IApp>(IApp.Key(brainId, name)).Progress("working", "Revising the specification"); }
-        var prompt = existing is not null && existing.Status != AppStatus.Drafted || existing?.Spec is { Length: > 0 }
-            ? $"Revise this app.\n\nCurrent specification:\n{existing!.Spec}\n\nTheir change request:\n{request.Trim()}"
-            : $"Write the specification for this app.\n\nWhat the person wants:\n{request.Trim()}";
-        var authored = await Authored(prompt, cancellationToken);
-        var manifest = new AppManifest(authored.Title, authored.Description,
-            authored.Operations ?? [], authored.Settings ?? [], authored.Slots ?? []);
-        var app = brain.Get<IApp>(IApp.Key(brainId, name ?? authored.Name));
-        if (name is null)
+        var target = name is null ? null : brain.Get<IApp>(IApp.Key(brainId, name));
+        var existing = target is null ? null : await target.Read();
+        var exists = existing is { Manifest.Title.Length: > 0 };
+        IApp? reporting = null;
+        try
         {
-            ValidateName(authored.Name);
-            await app.Create(manifest, authored.Spec);
+            if (exists) { reporting = target; await target!.Progress("working", "Revising the specification"); }
+            var prompt = existing is not null && existing.Status != AppStatus.Drafted || existing?.Spec is { Length: > 0 }
+                ? $"Revise this app.\n\nCurrent specification:\n{existing!.Spec}\n\nTheir change request:\n{request.Trim()}"
+                : $"Write the specification for this app.\n\nWhat the person wants:\n{request.Trim()}";
+            var authored = await Authored(prompt, cancellationToken);
+            var manifest = new AppManifest(authored.Title, authored.Description,
+                authored.Operations ?? [], authored.Settings ?? [], authored.Slots ?? []);
+            var app = brain.Get<IApp>(IApp.Key(brainId, name ?? authored.Name));
+            if (name is null)
+            {
+                ValidateName(authored.Name);
+                await app.Create(manifest, authored.Spec);
+                reporting = app;
+                await app.Progress("accepted", $"Drafting {authored.Title}");
+            }
+            else
+            {
+                await app.SaveManifest(manifest, Guid.NewGuid());
+                await app.SaveSpec(authored.Spec, Guid.NewGuid());
+            }
+            await app.Progress("completed", $"Specified {authored.Title}");
+            return await app.Read();
         }
-        else
+        catch (Exception error) when (reporting is not null && error is not OperationCanceledException)
         {
-            await app.SaveManifest(manifest, Guid.NewGuid());
-            await app.SaveSpec(authored.Spec, Guid.NewGuid());
+            // Reporting must not mask the Author's own error.
+            try { await reporting.Progress("attention", error.Message); } catch (Exception) { }
+            throw;
         }
-        await app.Progress("completed", $"Specified {authored.Title}");
-        return await app.Read();
     }
 
     // Flips the app to Building and returns; the Builder loop lands the files in the background.
@@ -92,7 +106,7 @@ internal sealed class Creator(
             if (files.Count == 0)
             {
                 await app.CompleteBuild(attempt, null, "the Builder produced no files");
-                await app.Progress("attention", "The Builder produced no files");
+                await ReportIfCurrent(app, attempt, "attention", "The Builder produced no files");
                 return;
             }
             // Manifest changes land with the files, inside the attempt check: a stale
@@ -106,16 +120,21 @@ internal sealed class Creator(
                     snapshot.Manifest.Slots)
                 : null;
             var completed = await app.CompleteBuild(attempt, files, null, manifest);
-            await (completed.Status == AppStatus.Live
-                ? app.Progress("completed", $"Built {snapshot.Manifest.Title}")
-                : app.Progress("attention", completed.Activity.LastOrDefault() ?? "The build did not complete"));
+            if (completed.Status == AppStatus.Live) { await ReportIfCurrent(app, attempt, "completed", $"Built {snapshot.Manifest.Title}"); }
+            else { await ReportIfCurrent(app, attempt, "attention", completed.Activity.LastOrDefault() ?? "The build did not complete"); }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             await app.CompleteBuild(attempt, null, error.Message);
             // Reporting must not mask the build's own error.
-            try { await app.Progress("attention", error.Message); } catch (Exception) { }
+            try { await ReportIfCurrent(app, attempt, "attention", error.Message); } catch (Exception) { }
         }
+    }
+
+    // A stale worker's outcome was discarded by the neuron; it must not show as the app's activity either.
+    private static async Task ReportIfCurrent(IApp app, Guid attempt, string state, string detail)
+    {
+        if (await app.CurrentBuildAttempt() == attempt) { await app.Progress(state, detail); }
     }
 
     private async Task<AuthoredApp> Authored(string prompt, CancellationToken cancellationToken)

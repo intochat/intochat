@@ -218,6 +218,47 @@ public sealed class AppCreatorFacts
     }
 
     [Fact]
+    public async Task AStaleWorkersOutcomePublishesNoActivity()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new GatedSandbox();
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await ModuleTest.Create()
+            .WithModule<AIModule>()
+            .WithModule<AppsModule>()
+            .WithFakeModel(model)
+            .ConfigureModule<AppsModule, AppsOptions>(apps => { apps.AuthorModel = nameof(IGpt56Luna); apps.BuilderModel = nameof(IGpt56Sol); })
+            .ConfigureSilo(silo =>
+            {
+                silo.Services.AddSingleton<IScriptSandbox>(sandbox);
+                silo.Services.PostConfigure<AppsOptions>(options => options.BuildFreshForSeconds = 0);
+            })
+            .StartAsync(ct);
+        model.Script(Author, Authored(Spec));
+        model.Script(Builder,
+            FakeReply.Tool("check_csharp", """{"files":{"synapses/shout.cs":"var answer = 1;"}}"""),
+            Built("// stale", "Shout."));
+        var creator = brain.SiloServices.GetRequiredService<Creator>();
+        var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
+        await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
+        var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
+        await using var activity = await brain.SubscribeAsync<AppActivity>(app, ct);
+        await creator.Implement(digitalBrain, IApp.Key(Brain, "shouter"), null);
+        await sandbox.Entered.Task.WaitAsync(ct);
+
+        await app.BeginBuild(null);
+        sandbox.Release.SetResult();
+
+        var states = new List<string>();
+        using var window = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        window.CancelAfter(TimeSpan.FromSeconds(3));
+        try { await foreach (var signal in activity.ReadAllAsync(window.Token)) { states.Add(signal.State); } }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { }
+        Assert.DoesNotContain("completed", states);
+        Assert.DoesNotContain("attention", states);
+    }
+
+    [Fact]
     public void TheBuilderIsNotAskedForTests()
     {
         Assert.DoesNotContain("tests.cs", AgentPrompts.Builder, StringComparison.Ordinal);
@@ -271,6 +312,22 @@ public sealed class AppCreatorFacts
             silo.Services.AddSingleton<IScriptSandbox>(new CreatorSandbox());
         })
         .StartAsync(ct);
+
+    private sealed class GatedSandbox : IScriptSandbox
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool CanRun => true;
+        public string AuthoringDescription => "csharp uses sandbox contracts.";
+        public Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken)
+            => Task.FromResult(new ScriptContractCatalog([], [], ""));
+        public async Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
+        {
+            Entered.TrySetResult();
+            await Release.Task.WaitAsync(cancellationToken);
+            return new ScriptCompilationCheck(true, []);
+        }
+    }
 
     private sealed class CreatorSandbox : IScriptSandbox
     {
