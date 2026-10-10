@@ -94,12 +94,26 @@ public sealed class InProcessTarget : ITestTarget
         {
             app.MapDigitalBrainServer();
             await app.StartAsync(cancellationToken).ConfigureAwait(false);
+            await LocalSiloInManifestAsync(app.Services, cancellationToken).ConfigureAwait(false);
             return app;
         }
         catch
         {
             await app.DisposeAsync().ConfigureAwait(false);
             throw;
+        }
+    }
+
+    // The host is ready once the cluster manifest lists this silo's grains. Before that, placement finds no
+    // compatible silo and retries after a delay on the host's TimeProvider, which never elapses under a fake one.
+    private static async Task LocalSiloInManifestAsync(IServiceProvider services, CancellationToken cancellationToken)
+    {
+        var local = services.GetRequiredService<ILocalSiloDetails>().SiloAddress;
+        var manifests = services.GetRequiredService<IClusterManifestProvider>();
+        if (manifests.Current.Silos.ContainsKey(local)) { return; }
+        await foreach (var manifest in manifests.Updates.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            if (manifest.Silos.ContainsKey(local)) { return; }
         }
     }
 
