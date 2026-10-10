@@ -25,7 +25,7 @@ public sealed class RevisionsFacts : IDisposable
     {
         var ct = TestContext.Current.CancellationToken;
         _processes.Answer = (_, args) => args[0] == "rev-parse" ? new(0, "abc1234\n", "") : new(0, "", "");
-        var revision = await Subject().ProposeAsync("os-runtime", "Calculator: add percent", new Dictionary<string, string> { ["src/DigitalBrain.OS/Apps/Calculator/app.json"] = "{}" }, ct);
+        var revision = await Subject().ProposeAsync("os-runtime", "Calculator: add percent", new Dictionary<string, string> { ["features/os/Calculator/app.cs"] = "// app" }, ct);
         Assert.Equal("abc1234", revision.Sha);
         Assert.Equal((5090, 5091), (revision.UiPort, revision.McpPort));
         Assert.Equal("created", revision.State);

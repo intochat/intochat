@@ -26,6 +26,9 @@ public sealed class FeatureDirectory(string path, bool writable = false)
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
         ArgumentNullException.ThrowIfNull(bundle);
         if (!writable) { throw new InvalidOperationException($"Features folder '{path}' is read-only."); }
+        // The owner and every file path come from a brain's state: neither may leave the features folder.
+        if (owner is "." or ".." || owner.IndexOfAny(['/', '\\', ':']) >= 0 || owner.IndexOfAny(System.IO.Path.GetInvalidFileNameChars()) >= 0)
+        { throw new ArgumentException($"'{owner}' is not a features owner folder.", nameof(owner)); }
         var root = new DirectoryInfo(System.IO.Path.Combine(path, owner));
         root.Create();
         var folder = root.EnumerateDirectories().FirstOrDefault(candidate =>
@@ -33,6 +36,13 @@ public sealed class FeatureDirectory(string path, bool writable = false)
             && FeatureFolder.ToBundle(candidate.Name, ReadFolder(candidate)).Name == bundle.Name)
             ?? root.CreateSubdirectory(FeatureFolder.FolderName(bundle));
         var files = FeatureFolder.ToFiles(bundle);
+        var inside = System.IO.Path.TrimEndingDirectorySeparator(folder.FullName) + System.IO.Path.DirectorySeparatorChar;
+        foreach (var relative in files.Keys)
+        {
+            var target = System.IO.Path.GetFullPath(System.IO.Path.Combine(folder.FullName, relative.Replace('/', System.IO.Path.DirectorySeparatorChar)));
+            if (System.IO.Path.IsPathRooted(relative) || !target.StartsWith(inside, StringComparison.OrdinalIgnoreCase))
+            { throw new ArgumentException($"{bundle.Name} file '{relative}' is outside its feature folder.", nameof(bundle)); }
+        }
         foreach (var stale in folder.EnumerateFiles("*", SearchOption.AllDirectories)
             .Where(file => !IsBuildOutput(folder, file) && !files.ContainsKey(Relative(folder, file))))
         { stale.Delete(); }

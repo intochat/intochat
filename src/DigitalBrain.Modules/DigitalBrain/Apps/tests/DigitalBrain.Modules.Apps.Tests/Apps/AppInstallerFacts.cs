@@ -320,4 +320,33 @@ public sealed class AppInstallerFacts
         Assert.Equal((TypeKind.Signal, $"feature:{AppOwner.Scope("alice")}/echo"), (echoed.Kind, echoed.Provider));
         Assert.Equal(["string Text"], echoed.Shape);
     }
+
+    [Fact]
+    public async Task ATypeTwoFeaturesDeclareStaysListedOnceUntilBothAreGone()
+    {
+        await using var brain = await Start();
+        const string Shared = "namespace Echo;\npublic sealed record Echoed(string Text) : DigitalBrain.Signal;\n";
+        var first = Mine(brain, "alice", "echo");
+        var second = Mine(brain, "alice", "echo-two");
+        foreach (var app in new[] { first, second })
+        {
+            await app.Create(Manifest(), Spec);
+            await app.BeginBuild(null);
+            await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["echo.cs"] = "// v1", ["echoed.cs"] = Shared }, null);
+        }
+        var kernel = brain.SiloServices.GetRequiredService<DigitalBrain.Framework.IKernel>();
+        async Task<int> Echoed()
+        {
+            AppOwner.Stamp("alice");
+            var count = (await kernel.Types(Ct)).Count(type => type.Name == "Echo.Echoed");
+            Caller.Clear();
+            return count;
+        }
+
+        Assert.Equal(1, await Echoed());
+        await second.Delete();
+        Assert.Equal(1, await Echoed());
+        await first.Delete();
+        Assert.Equal(0, await Echoed());
+    }
 }

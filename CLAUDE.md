@@ -103,9 +103,9 @@ Inside the neuron the manifest and spec are state; `app.cs` is how a bundle/fold
   inside the grain, with a watermark. Script processes are caches: they get reaped and re-run from the
   top. So setup must be cheap and idempotent, state lives in neurons, delivery is at-least-once (dedup
   through neuron state), and derived state is rebuilt from scratch rather than patched.
-- **Publish → Marketplace → Install.** Install is the only way an app crosses brains. Every bundle
-  (features folder, Marketplace, Creator publish) loads through one path, `FeatureLoader`: it copies the
-  bundle, records `Origin`, and binds settings and slots to the installer's own connections. Updates
+- **Publish → Marketplace → Install.** Install is the only way an app crosses brains. Every bundle that
+  crosses (Install, Update, the features reconcile) loads through one path, `FeatureLoader`: it imports or
+  replaces the program and records `Origin`; settings and slots bind to the installer's own connections. Updates
   replace the program and keep the data. Editing the program detaches the copy from its origin.
   First-party apps are the `./features` folder: loaded and compile-checked at boot (`FeatureCatalog`),
   listed in the Marketplace under their owner, installed as OS defaults, and brought to the folder's

@@ -119,7 +119,8 @@ internal sealed class TypeTableGrain(
         [Id(1)] public Feature[] Loaded { get; set; } = [];
     }
 
-    public Task<TypeEntry[]> List() => Task.FromResult<TypeEntry[]>([.. compiled.Addressed(GrainFactory), .. store.State.Features]);
+    // Two features may bring the same type; it is listed once, and stays while any of them is loaded.
+    public Task<TypeEntry[]> List() => Task.FromResult<TypeEntry[]>([.. compiled.Addressed(GrainFactory), .. store.State.Features.DistinctBy(entry => entry.Name)]);
 
     public Task<Feature[]> Features() => Task.FromResult(store.State.Loaded);
 
@@ -135,7 +136,7 @@ internal sealed class TypeTableGrain(
                 .SequenceEqual(stamped.Select(entry => entry.Name), StringComparer.Ordinal);
         if (same) { return; }
         store.State.Loaded = [.. store.State.Loaded.Where(each => each.Name != feature.Name), feature];
-        store.State.Features = [.. store.State.Features.Where(entry => entry.Provider != provider && !stamped.Any(type => type.Name == entry.Name)), .. stamped];
+        store.State.Features = [.. store.State.Features.Where(entry => entry.Provider != provider), .. stamped];
         await store.WriteStateAsync();
         if (this.GetPrimaryKeyString() is var brain && brain != TypeTableKey.NoBrain)
         {

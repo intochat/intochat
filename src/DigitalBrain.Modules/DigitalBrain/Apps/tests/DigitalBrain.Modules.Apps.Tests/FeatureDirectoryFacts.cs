@@ -81,9 +81,22 @@ public sealed class FeatureDirectoryFacts : IDisposable
             new("echo", "1.0.0", new("Echo", "Echoes.", [], [], []), "", [])));
 
     [Fact]
+    public void AnOwnerOrFileOutsideTheFeaturesFolderIsRefused()
+    {
+        var source = new FeatureDirectory(_root, writable: true);
+        var manifest = new AppManifest("Echo", "Echoes.", [], [], []);
+        Assert.Throws<ArgumentException>(() => source.Write("..", new("echo", "1.0.0", manifest, "", [])));
+        Assert.Throws<ArgumentException>(() => source.Write("vendor", new("echo", "1.0.0", manifest, "",
+            new() { ["../../escaped.cs"] = "// out" })));
+        Assert.False(File.Exists(Path.Combine(_root, "escaped.cs")));
+    }
+
+    [Fact]
     public void TheRepositoryFeaturesShipTheirIcons()
     {
-        var features = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "..", "..", "..", "..", "features"));
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (!File.Exists(Path.Combine(root!.FullName, "DigitalBrain.slnx"))) { root = root.Parent; }
+        var features = Path.Combine(root.FullName, "features");
         var loaded = new FeatureDirectory(features).Load();
         Assert.Contains(loaded, feature => feature.Owner == "intochat");
         foreach (var app in loaded.Where(feature => feature.Owner == "intochat").Select(feature => feature.Bundle))

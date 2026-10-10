@@ -54,6 +54,8 @@ public sealed class FeatureCatalog
         ArgumentNullException.ThrowIfNull(bundle);
         if (_directory is not { Writable: true } directory)
         { throw new InvalidOperationException($"{owner} has no writable features folder to save {bundle.Name} into."); }
+        // Only an owner the folder already holds: an origin is brain state, not proof of a features owner.
+        if (!await IsOwner(owner)) { throw new InvalidOperationException($"{owner} is not an owner in the features folder."); }
         directory.Write(owner, bundle);
         var reloaded = Load(directory, _sandbox);
         var bundles = await reloaded;
