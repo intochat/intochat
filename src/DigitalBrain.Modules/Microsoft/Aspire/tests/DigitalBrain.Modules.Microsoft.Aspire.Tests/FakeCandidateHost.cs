@@ -10,6 +10,7 @@ internal sealed class FakeCandidateHost : ICandidateHost
     public string? FailAt { get; set; }
     public bool Healthy { get; set; } = true;
     public string[] Orphaned { get; set; } = [];
+    public Exception? RunError { get; set; }
     public string[] OrphansKnown { get; private set; } = [];
     public string? PreparedFrom { get; private set; }
     public Dictionary<string, string> RunEnvironment { get; } = [];
@@ -41,6 +42,11 @@ internal sealed class FakeCandidateHost : ICandidateHost
     {
         Calls.Add($"run {sha}");
         Fail("run");
+        if (RunError is { } error)
+        {
+            RunError = null;
+            throw error;
+        }
         return Task.FromResult(new RunningCandidate(sha, new CandidateEndpoints("http://localhost:5191", "http://localhost:5190"), $"candidate-{sha}"));
     }
 

@@ -53,6 +53,7 @@ public interface ICandidates : INeuron
     [ResponseTimeout("00:05:00")] Task<string> Propose(CandidateProposal proposal);
     [ReadOnly, AlwaysInterleave] Task<string?> Live();
     [ReadOnly, AlwaysInterleave] Task<string[]> Known();
-    Task Ended(string sha);
+    // One-way: a candidate ends from inside calls the index may itself be awaiting (cluster reactivation inside Propose).
+    [OneWay] Task Ended(string sha);
     static string Key(string brainId) => $"{brainId}/aspire/candidates";
 }

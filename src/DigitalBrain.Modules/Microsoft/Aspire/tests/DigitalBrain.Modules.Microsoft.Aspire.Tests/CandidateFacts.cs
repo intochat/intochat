@@ -139,6 +139,7 @@ public sealed class CandidateFacts
         var index = brain.Get<ICandidates>(ICandidates.Key("owner"));
         var candidate = brain.Get<ICandidate>(ICandidate.Key("owner", "sha0001"));
         await using var promoted = await brain.Observe<CandidatePromoted>(candidate, ct);
+        await using var ended = await brain.Observe<CandidateChanged>(index, ct);
         await using var healthy = await brain.Observe<CandidateHealthy>(candidate, ct);
         var sha = await index.Propose(new("os-runtime", "change", [], Plan));
         await healthy.NextAsync(ct: ct);
@@ -152,7 +153,7 @@ public sealed class CandidateFacts
 
         Assert.Equal(sha, (await promoted.NextAsync(ct: ct)).Sha);
         Assert.Equal(CandidateStage.Promoted, (await candidate.Read()).Stage);
-        Assert.Null(await index.Live());
+        while (await index.Live() is not null) { await ended.NextAsync(ct: ct); }
         Assert.Equal($"remove {sha}", host.Calls.Last(call => call.StartsWith("remove", StringComparison.Ordinal)));
     }
 
@@ -171,5 +172,50 @@ public sealed class CandidateFacts
 
         Assert.Equal(CandidateStage.Promoting, again.Stage);
         Assert.Equal(1, cluster.Restarts);
+    }
+
+    [Fact]
+    public async Task AProposalArrivingDuringACutOffPromotionCompletesAndTheQueueMovesOn()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new FakeCandidateHost();
+        var cluster = new FakeClusterHost { DieOnRestart = true };
+        await using var brain = await StartAsync(host, cluster, new FakeVerifier(), ct);
+        var index = brain.Get<ICandidates>(ICandidates.Key("owner"));
+        var first = brain.Get<ICandidate>(ICandidate.Key("owner", "sha0001"));
+        var second = brain.Get<ICandidate>(ICandidate.Key("owner", "sha0002"));
+        await using var healthy = await brain.Observe<CandidateHealthy>(first, ct);
+        await using var secondStarted = await brain.Observe<CandidateStarted>(second, ct);
+        await index.Propose(new("os-runtime", "one", [], Plan));
+        await healthy.NextAsync(ct: ct);
+        await first.Verify();
+        await Assert.ThrowsAsync<InvalidOperationException>(first.Promote);
+        await brain.DeactivateAsync(brain.Get<ICluster>(ICluster.Key("owner")), ct);
+
+        var queued = await index.Propose(new("os-runtime", "two", [], Plan));
+
+        Assert.Equal("sha0002", queued);
+        Assert.Equal("sha0002", (await secondStarted.NextAsync(ct: ct)).Sha);
+        Assert.Equal(CandidateStage.Promoted, (await first.Read()).Stage);
+    }
+
+    [Fact]
+    public async Task AnUnexpectedStartFailureFailsTheCandidateAndTheNextOneStarts()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new FakeCandidateHost { RunError = new IOException("disk gone") };
+        await using var brain = await StartAsync(host, new FakeClusterHost(), new FakeVerifier(), ct);
+        var index = brain.Get<ICandidates>(ICandidates.Key("owner"));
+        var first = brain.Get<ICandidate>(ICandidate.Key("owner", "sha0001"));
+        var second = brain.Get<ICandidate>(ICandidate.Key("owner", "sha0002"));
+        await using var failed = await brain.Observe<CandidateFailed>(first, ct);
+        await using var secondStarted = await brain.Observe<CandidateStarted>(second, ct);
+
+        await index.Propose(new("os-runtime", "one", [], Plan));
+        await index.Propose(new("os-runtime", "two", [], Plan));
+
+        Assert.Equal(CandidateStage.Starting, (await failed.NextAsync(ct: ct)).Stage);
+        Assert.Equal("disk gone", (await first.Read()).Failure);
+        Assert.Equal("sha0002", (await secondStarted.NextAsync(ct: ct)).Sha);
     }
 }

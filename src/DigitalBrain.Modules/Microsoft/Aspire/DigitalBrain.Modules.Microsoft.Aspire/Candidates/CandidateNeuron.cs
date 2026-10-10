@@ -1,5 +1,6 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.Aspire.Verification;
+using Microsoft.Extensions.Logging;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Microsoft.Aspire.Candidates;
@@ -8,7 +9,8 @@ namespace DigitalBrain.Microsoft.Aspire.Candidates;
 internal sealed class CandidateNeuron(
     [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<CandidateState> store,
     ICandidateHost host,
-    ICandidateVerifier verifier)
+    ICandidateVerifier verifier,
+    ILogger<CandidateNeuron> log)
     : Neuron<CandidateState>(store), ICandidate
 {
     private string Key => this.GetPrimaryKeyString();
@@ -50,7 +52,7 @@ internal sealed class CandidateNeuron(
             await host.WaitHealthy(Sha, plan.Budget, CancellationToken.None);
             await Move(CandidateStage.Healthy, Snapshot, new CandidateHealthy(Sha));
         }
-        catch (Exception error) when (error is CandidateHostException or TimeoutException or InvalidOperationException)
+        catch (Exception error)
         {
             await Fail(error.Message, removeContainer: Snapshot.Stage == CandidateStage.Starting);
         }
@@ -84,7 +86,12 @@ internal sealed class CandidateNeuron(
         return Describe();
     }
 
-    public Task Begin() => Start();
+    // One-way, so nobody observes a throw: anything Start could not turn into Failed is logged here.
+    public async Task Begin()
+    {
+        try { await Start(); }
+        catch (Exception error) { log.LogError(error, "Candidate {Candidate} could not start.", Key); }
+    }
 
     public async Task<CandidateSnapshot> Promote()
     {
@@ -124,9 +131,12 @@ internal sealed class CandidateNeuron(
     private async Task Fail(string reason, bool removeContainer, CandidateState? from = null)
     {
         var failedAt = Snapshot.Stage;
-        if (removeContainer) { await host.Remove(Sha, CancellationToken.None); }
-        await Move(CandidateStage.Failed, (from ?? Snapshot) with { Failure = reason }, new CandidateFailed(Sha, failedAt, reason));
-        await Index.Ended(Sha);
+        try
+        {
+            if (removeContainer) { await host.Remove(Sha, CancellationToken.None); }
+            await Move(CandidateStage.Failed, (from ?? Snapshot) with { Failure = reason }, new CandidateFailed(Sha, failedAt, reason));
+        }
+        finally { await Index.Ended(Sha); }
     }
 
     private Task Move(CandidateStage stage, CandidateState next, Signal? acted)
