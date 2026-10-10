@@ -16,7 +16,8 @@ internal sealed class AspireCliClusterHost : IClusterHost
     private const string AppHostProject = "src/DigitalBrain.AppHost/DigitalBrain.AppHost.csproj";
 
     private readonly IProcessRunner processes;
-    private readonly Func<CancellationToken, Task<string>> workdir;
+    private readonly Func<CancellationToken, Task<string>> resolveWorkdir;
+    private Task<string>? workdirRead;
     private readonly string? self;
 
     // Aspire names each instance's telemetry after its resource: OTEL_SERVICE_NAME is this silo's instance name.
@@ -28,16 +29,25 @@ internal sealed class AspireCliClusterHost : IClusterHost
     internal AspireCliClusterHost(IProcessRunner processes, Func<CancellationToken, Task<string>> workdir, string? self = null)
     {
         this.processes = processes;
-        this.workdir = workdir;
+        resolveWorkdir = workdir;
         this.self = self;
     }
 
-    public async Task<string> CurrentSha(CancellationToken ct) => LiveBuildFile.Read(await workdir(ct))?.Sha ?? string.Empty;
+    // The deployment's Workdir is read from its Integration once: a roll must not call a grain while a silo leaves
+    // the cluster (seen live: the Integration's directory lookup hit the stopping silo and failed the step).
+    private async Task<string> DeploymentWorkdir(CancellationToken ct)
+    {
+        var read = workdirRead ??= resolveWorkdir(CancellationToken.None);
+        try { return await read.WaitAsync(ct); }
+        catch when (read.IsFaulted || read.IsCanceled) { workdirRead = null; throw; }
+    }
+
+    public async Task<string> CurrentSha(CancellationToken ct) => LiveBuildFile.Read(await DeploymentWorkdir(ct))?.Sha ?? string.Empty;
 
     public async Task SetLive(string sha, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sha);
-        LiveBuildFile.Write(await workdir(ct), sha);
+        LiveBuildFile.Write(await DeploymentWorkdir(ct), sha);
     }
 
     public async Task<SiloView[]> Silos(CancellationToken ct)
@@ -207,7 +217,7 @@ internal sealed class AspireCliClusterHost : IClusterHost
             : throw new InvalidOperationException($"aspire {string.Join(' ', command)} exited {result.ExitCode}: {result.Error}{result.Output}");
     }
 
-    private async Task<string> Repository(CancellationToken ct) => Path.GetDirectoryName(Path.GetFullPath(await workdir(ct)))!;
+    private async Task<string> Repository(CancellationToken ct) => Path.GetDirectoryName(Path.GetFullPath(await DeploymentWorkdir(ct)))!;
 
     private static string[] Arguments(string repository, string[] command)
         => [.. command, "--apphost", Path.Combine(repository, AppHostProject), "--non-interactive", "--nologo"];
