@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Channels;
-using DigitalBrain.Circles.Signals;
+using DigitalBrain.Circles;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Framework;
 using DigitalBrain.Testing.Module;
@@ -48,22 +48,51 @@ public sealed class LiveSignalFacts
         Assert.Equal(7, envelope.RootElement.GetProperty("payload").GetProperty("pulse").GetInt32());
     }
 
+    private static void Act(string brain) => CallerContextStamper.Stamp(new CallerContext
+    {
+        PrincipalId = brain,
+        AccountId = "acct-" + brain,
+        BrainId = brain,
+        Kind = CallerKind.Platform,
+        StampedBy = TrustedEdge.Platform,
+    });
+
+    private static async Task<ModuleBrain> CirclesBrain(CancellationToken ct)
+    {
+        var brain = await ModuleTest.Create().WithModule<CirclesModule>().StartAsync(ct);
+        foreach (var name in new[] { "alice", "bob" }) { await brain.Get<IBrain>(name).Create(new Owner("acct-" + name)); }
+        return brain;
+    }
+
+    private static LiveSignalEndpoints.LiveFeed CircleFeed => LiveSignalEndpoints.Feeds.Single(feed => feed.Type == "CircleTouched");
+
     [Fact]
-    public async Task ACircleTouchedSignalArrivesAsAnEnvelope()
+    public async Task ACircleTouchedOnTheBrainsIndexArrivesAsAnEnvelope()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var feed = LiveSignalEndpoints.Feed<CircleTouched>((b, _, c) => Keys(b, ["toucher-live"], null, c));
-        Assert.Equal("CircleTouched", feed.Type);
-        await using var stream = Open(brain, [feed], ct);
+        await using var brain = await CirclesBrain(ct);
+        await using var stream = LiveSignalEndpoints.Stream(brain, "bob", [CircleFeed], NullLogger.Instance, ct).GetAsyncEnumerator(ct);
         var next = stream.MoveNextAsync().AsTask();
-        await Task.Delay(300, ct);
-        await brain.Get<IBeater>("toucher-live").Touch("club", "ann", "spoke");
+        Act("alice");
+        await brain.Get<ICircle>(ICircle.Key("alice", "team")).Invite("bob");
         Assert.True(await next.WaitAsync(TimeSpan.FromSeconds(10), ct));
         using var envelope = JsonDocument.Parse(stream.Current);
         Assert.Equal("CircleTouched", envelope.RootElement.GetProperty("type").GetString());
-        Assert.Equal("spoke", envelope.RootElement.GetProperty("payload").GetProperty("kind").GetString());
-        Assert.Equal("club", envelope.RootElement.GetProperty("payload").GetProperty("name").GetString());
+        Assert.Equal("circles.index/bob/circles", envelope.RootElement.GetProperty("publisher").GetString());
+        Assert.Equal("invited", envelope.RootElement.GetProperty("payload").GetProperty("kind").GetString());
+    }
+
+    [Fact]
+    public async Task ALateCircleSubscriberIsSeededFromTheIndexRetention()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await CirclesBrain(ct);
+        Act("alice");
+        await brain.Get<ICircle>(ICircle.Key("alice", "team")).Invite("bob");
+        await using var stream = LiveSignalEndpoints.Stream(brain, "bob", [CircleFeed], NullLogger.Instance, ct).GetAsyncEnumerator(ct);
+        using var envelope = await Next(stream, ct);
+        Assert.Equal("team", envelope.RootElement.GetProperty("payload").GetProperty("name").GetString());
+        Assert.Equal("invited", envelope.RootElement.GetProperty("payload").GetProperty("kind").GetString());
     }
 
     [Fact]
@@ -140,14 +169,13 @@ public sealed class LiveSignalFacts
 [GenerateSerializer, Alias("test.beat")] public sealed record Beat([property: Id(0)] int Pulse) : Signal;
 
 [Alias("test.beater"), Orleans.Metadata.DefaultGrainType("test.beater")]
-public interface IBeater : INeuron { Task Beat(int pulse); Task Touch(string name, string owner, string kind); }
+public interface IBeater : INeuron { Task Beat(int pulse); }
 
 [GrainType("test.beater")]
 public sealed class Beater : Neuron, IBeater, IRetainsSignals
 {
     private Beat? last;
     public async Task Beat(int pulse) { last = new Beat(pulse) { Publisher = this.GetPrimaryKeyString() }; await PublishAsync(new Beat(pulse)); }
-    public Task Touch(string name, string owner, string kind) => PublishAsync(new CircleTouched(name, owner, kind));
     public Task<RetainedSignal[]> Retained(string signal, long since)
         => Task.FromResult<RetainedSignal[]>(signal == nameof(Beat) && last is not null ? [new RetainedSignal(1, last)] : []);
 }

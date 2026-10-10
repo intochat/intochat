@@ -123,6 +123,33 @@ void main() {
     expect(find.byType(AppDetailScreen), findsOneWidget);
   });
 
+  testWidgets('decorateIcon dresses an installed app icon', (tester) async {
+    final server = _FakeHome();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: HomeScreen(
+            workspaceId: 'b1',
+            request: server.request,
+            onOpen: (_) async {},
+            decorateIcon: (app, icon) => app.id == 'sketch'
+                ? Stack(children: [icon, const Text('dressed')])
+                : icon,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('dressed'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('app-sketch')),
+        matching: find.text('dressed'),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('a marketplace tile opens its detail page', (tester) async {
     final server = _FakeHome();
     await tester.pumpWidget(

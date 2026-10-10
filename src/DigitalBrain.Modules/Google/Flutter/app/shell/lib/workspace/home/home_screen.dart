@@ -44,6 +44,7 @@ class HomeScreen extends StatefulWidget {
     this.infrastructure,
     this.watchBrain,
     this.loadSignals,
+    this.decorateIcon,
   });
 
   final String workspaceId;
@@ -61,6 +62,8 @@ class HomeScreen extends StatefulWidget {
   // The brain snapshot feed and its signal journal; Home draws the graph when the feed is given.
   final Stream<BrainSnapshot> Function()? watchBrain;
   final SignalsLoader? loadSignals;
+  // Lets the shell dress an installed app's icon, e.g. with a badge.
+  final Widget Function(InstalledAppSummary app, Widget icon)? decorateIcon;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -143,6 +146,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (mounted) await _afterChange();
   }
+
+  Widget _dressed(InstalledAppSummary app, Widget icon) =>
+      widget.decorateIcon?.call(app, icon) ?? icon;
 
   void _tapInstalled(InstalledAppSummary app) {
     if (app.status == 'Live' && app.operations.contains('open')) {
@@ -245,12 +251,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 title: app.title,
                 subtitle: app.status == 'Live' ? null : app.status,
                 badge: app.updateAvailable ? 'Update' : null,
-                icon: AppIcon(
-                  title: app.title,
-                  path: app.icon == null
-                      ? null
-                      : '/brains/$_brain/apps/${Uri.encodeComponent(app.id)}/icon',
-                  load: widget.loadIcon,
+                icon: _dressed(
+                  app,
+                  AppIcon(
+                    title: app.title,
+                    path: app.icon == null
+                        ? null
+                        : '/brains/$_brain/apps/${Uri.encodeComponent(app.id)}/icon',
+                    load: widget.loadIcon,
+                  ),
                 ),
                 onTap: () => _tapInstalled(app),
                 onDetails: () => _details(installed: app.id),

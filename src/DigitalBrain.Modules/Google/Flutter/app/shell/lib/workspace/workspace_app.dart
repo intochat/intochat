@@ -18,6 +18,7 @@ import 'compute_usage_panel.dart';
 import 'workspace_islands.dart';
 import 'csharp/csharp_manager.dart';
 import 'home/home_screen.dart';
+import 'home/circle_activity_badge.dart';
 import 'dock/dock.dart';
 import 'home/infrastructure_strip.dart';
 
@@ -70,6 +71,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   final _apps = <String, List<InstalledAppSummary>>{};
   final _appsLoading = <String>{};
   final _sourcesSynced = <String>{};
+  final _circleFeeds = <String, CircleActivityFeed>{};
   final _computeRefresh = ValueNotifier<int>(0);
 
   void _connectWorkspaces() {
@@ -341,6 +343,9 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   @override
   void dispose() {
     _computeRefresh.dispose();
+    for (final feed in _circleFeeds.values) {
+      feed.dispose();
+    }
     _remoteCancelled.complete();
     for (final controller in _remote.values) {
       controller.dispose();
@@ -754,6 +759,20 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
               watch: () => client.watchCluster(project.id),
               onTap: (silo) => _openConnections(context, silo),
             ),
+      decorateIcon: client == null
+          ? null
+          : (app, icon) => app.id == 'circle'
+                ? CircleActivityBadge(
+                    feed: _circleFeeds.putIfAbsent(
+                      project.id,
+                      () => CircleActivityFeed(
+                        () => client.watchCircles(project.id),
+                      ),
+                    ),
+                    homeShown: _home,
+                    child: icon,
+                  )
+                : icon,
       onAppsChanged: () {
         _manifests.clear();
         _apps.remove(project.id);

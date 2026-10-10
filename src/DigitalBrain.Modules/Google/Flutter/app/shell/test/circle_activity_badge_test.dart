@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Widget host(
-  StreamController<CircleTouched> feed, {
+  CircleActivityFeed feed, {
   bool homeShown = true,
   bool reduced = false,
 }) => MaterialApp(
@@ -15,7 +15,7 @@ Widget host(
     child: Scaffold(
       body: Center(
         child: CircleActivityBadge(
-          watch: () => feed.stream,
+          feed: feed,
           homeShown: homeShown,
           child: const Icon(Icons.group, size: 48),
         ),
@@ -24,12 +24,11 @@ Widget host(
   ),
 );
 
-CircleTouched touch(String kind) =>
-    CircleTouched(name: 'club', owner: 'ann', kind: kind);
+CircleTouched touch(String kind, [String name = 'club']) =>
+    CircleTouched(name: name, owner: 'ann', kind: kind);
 
-String? count(WidgetTester tester) {
+String? shown(WidgetTester tester) {
   final badge = find.byKey(const ValueKey('circle-badge'));
-  if (badge.evaluate().isEmpty) return null;
   final scale = tester.widget<AnimatedScale>(
     find.ancestor(of: badge, matching: find.byType(AnimatedScale)),
   );
@@ -40,51 +39,121 @@ String? count(WidgetTester tester) {
 }
 
 void main() {
+  late StreamController<CircleTouched> live;
+  late List<StreamController<CircleTouched>> connections;
+  late List<Completer<void>> pauses;
+
+  CircleActivityFeed feed() {
+    connections = [];
+    pauses = [];
+    return CircleActivityFeed(
+      () {
+        live = StreamController<CircleTouched>();
+        connections.add(live);
+        return live.stream;
+      },
+      pause: (_) {
+        final pause = Completer<void>();
+        pauses.add(pause);
+        return pause.future;
+      },
+    );
+  }
+
   testWidgets('spoke and invited touches are counted, others are not', (
     tester,
   ) async {
-    final feed = StreamController<CircleTouched>();
-    addTearDown(feed.close);
-    await tester.pumpWidget(host(feed));
-    expect(count(tester), isNull);
-    feed
+    final f = feed();
+    addTearDown(f.dispose);
+    await tester.pumpWidget(host(f));
+    expect(shown(tester), isNull);
+    live
       ..add(touch('spoke'))
-      ..add(touch('invited'))
+      ..add(touch('invited', 'other'))
       ..add(touch('changed'))
       ..add(touch('left'));
     await tester.pumpAndSettle();
-    expect(count(tester), '2');
+    expect(shown(tester), '2');
   });
 
-  testWidgets('the count is cleared once Home is hidden and keeps counting', (
+  testWidgets('the count survives the badge unmounting, then Home clears it', (
     tester,
   ) async {
-    final feed = StreamController<CircleTouched>();
-    addTearDown(feed.close);
-    await tester.pumpWidget(host(feed, homeShown: false));
-    feed.add(touch('spoke'));
+    final f = feed();
+    addTearDown(f.dispose);
+    live.add(touch('spoke'));
+    await tester.pump();
+    expect(f.count, 1);
+    await tester.pumpWidget(host(f));
+    expect(shown(tester), '1');
+    await tester.pumpWidget(const SizedBox());
+    expect(f.count, 0);
+    live.add(touch('spoke', 'b'));
+    await tester.pump();
+    expect(f.count, 1);
+    await tester.pumpWidget(host(f));
+    expect(shown(tester), '1');
+  });
+
+  testWidgets('hiding Home while mounted clears the count', (tester) async {
+    final f = feed();
+    addTearDown(f.dispose);
+    await tester.pumpWidget(host(f));
+    live.add(touch('spoke'));
+    await tester.pump();
+    await tester.pumpWidget(host(f, homeShown: false));
     await tester.pumpAndSettle();
-    expect(count(tester), '1');
-    await tester.pumpWidget(host(feed, homeShown: true));
-    expect(count(tester), '1');
-    await tester.pumpWidget(host(feed, homeShown: false));
-    await tester.pumpAndSettle();
-    expect(count(tester), isNull);
-    feed.add(touch('spoke'));
-    await tester.pumpAndSettle();
-    expect(count(tester), '1');
+    expect(shown(tester), isNull);
+  });
+
+  testWidgets(
+    'a dropped stream reconnects after a pause and a replay is not news',
+    (tester) async {
+      final f = feed();
+      addTearDown(f.dispose);
+      live.add(touch('spoke'));
+      await tester.pump();
+      expect(f.count, 1);
+      await live.close();
+      await tester.pump();
+      expect(pauses, hasLength(1));
+      expect(connections, hasLength(1));
+      pauses.single.complete();
+      await tester.pump();
+      expect(connections, hasLength(2));
+      live.add(touch('spoke'));
+      await tester.pump();
+      expect(f.count, 1);
+      live.add(touch('spoke'));
+      await tester.pump();
+      expect(f.count, 2);
+      live.add(touch('invited', 'new'));
+      await tester.pump();
+      expect(f.count, 3);
+    },
+  );
+
+  testWidgets('a stream error also reconnects', (tester) async {
+    final f = feed();
+    addTearDown(f.dispose);
+    live.addError('boom');
+    await tester.pump();
+    expect(pauses, hasLength(1));
+    pauses.single.complete();
+    await tester.pump();
+    expect(connections, hasLength(2));
   });
 
   testWidgets('reduced motion shows the count without animating', (
     tester,
   ) async {
-    final feed = StreamController<CircleTouched>();
-    addTearDown(feed.close);
-    await tester.pumpWidget(host(feed, reduced: true));
-    feed.add(touch('invited'));
+    final f = feed();
+    addTearDown(f.dispose);
+    await tester.pumpWidget(host(f, reduced: true));
+    live.add(touch('invited'));
     await tester.pump();
     await tester.pump();
-    expect(count(tester), '1');
+    expect(shown(tester), '1');
   });
 
   test('CircleTouched reads the live payload', () {
