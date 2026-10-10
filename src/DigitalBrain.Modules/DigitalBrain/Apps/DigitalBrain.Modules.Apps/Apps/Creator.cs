@@ -36,6 +36,7 @@ internal sealed class Creator(
         ArgumentException.ThrowIfNullOrWhiteSpace(request);
         if (request.Length > MaxRequestLength) { throw new ArgumentException($"Describe the app in at most {MaxRequestLength} characters."); }
         var existing = name is null ? null : await brain.Get<IApp>(IApp.Key(brainId, name)).Read();
+        if (name is not null) { await brain.Get<IApp>(IApp.Key(brainId, name)).Progress("working", "Revising the specification"); }
         var prompt = existing is not null && existing.Status != AppStatus.Drafted || existing?.Spec is { Length: > 0 }
             ? $"Revise this app.\n\nCurrent specification:\n{existing!.Spec}\n\nTheir change request:\n{request.Trim()}"
             : $"Write the specification for this app.\n\nWhat the person wants:\n{request.Trim()}";
@@ -53,6 +54,7 @@ internal sealed class Creator(
             await app.SaveManifest(manifest, Guid.NewGuid());
             await app.SaveSpec(authored.Spec, Guid.NewGuid());
         }
+        await app.Progress("completed", $"Specified {authored.Title}");
         return await app.Read();
     }
 
@@ -103,13 +105,16 @@ internal sealed class Creator(
                         : snapshot.Manifest.Settings,
                     snapshot.Manifest.Slots)
                 : null;
-            await app.CompleteBuild(attempt, files, null, manifest);
-            await app.Progress("completed", $"Built {snapshot.Manifest.Title}");
+            var completed = await app.CompleteBuild(attempt, files, null, manifest);
+            await (completed.Status == AppStatus.Live
+                ? app.Progress("completed", $"Built {snapshot.Manifest.Title}")
+                : app.Progress("attention", completed.Activity.LastOrDefault() ?? "The build did not complete"));
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             await app.CompleteBuild(attempt, null, error.Message);
-            await app.Progress("attention", error.Message);
+            // Reporting must not mask the build's own error.
+            try { await app.Progress("attention", error.Message); } catch (Exception) { }
         }
     }
 

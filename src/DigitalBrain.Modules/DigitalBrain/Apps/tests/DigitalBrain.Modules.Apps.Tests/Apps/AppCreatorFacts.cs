@@ -114,6 +114,35 @@ public sealed class AppCreatorFacts
     }
 
     [Fact]
+    public async Task ABuildTheAppRefusesReportsAttentionNotCompleted()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await StartAsync(model, ct);
+        model.Script(Author, Authored(Spec));
+        model.Script(Builder, System.Text.Json.JsonSerializer.Serialize(new
+        {
+            files = new Dictionary<string, string> { ["synapses/shout.cs"] = "// t", [AppFiles.DeclarationPath] = "// not yours" },
+        }));
+        var creator = brain.SiloServices.GetRequiredService<Creator>();
+        var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
+        await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
+        var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
+        await using var activity = await brain.SubscribeAsync<AppActivity>(app, ct);
+
+        await creator.Implement(digitalBrain, IApp.Key(Brain, "shouter"), null);
+
+        var states = new List<string>();
+        await foreach (var signal in activity.ReadAllAsync(ct))
+        {
+            states.Add(signal.State);
+            if (signal.State is "completed" or "attention") { Assert.Contains(AppFiles.DeclarationPath, signal.Detail, StringComparison.Ordinal); break; }
+        }
+        Assert.Equal("attention", states[^1]);
+        Assert.DoesNotContain("completed", states);
+    }
+
+    [Fact]
     public async Task ABuilderReplyWithEmptyOperationsKeepsTheAuthoredOnes()
     {
         var ct = TestContext.Current.CancellationToken;
