@@ -166,6 +166,30 @@ public sealed class AppNeuronFacts
     }
 
     [Fact]
+    public async Task ProgressAnnouncesAChangeOnlyWhenTheActivityLineChanges()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Start();
+        var app = brain.Get<IApp>(IApp.Key(Brain, "quiet"));
+        await app.Create(Manifest(), "spec");
+        await app.BeginBuild(null);
+        await using var changes = await brain.SubscribeAsync<AppChanged>(app, ct);
+        await using var activity = await brain.SubscribeAsync<AppActivity>(app, ct);
+        await app.Progress("working", "round 1");
+        await app.Progress("working", "round 1");
+        await app.Progress("reading", "round 2");
+
+        await using var seen = activity.ReadAllAsync(ct).GetAsyncEnumerator(ct);
+        for (var i = 0; i < 3; i++) { Assert.True(await seen.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct)); }
+        var count = 0;
+        using var window = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        window.CancelAfter(TimeSpan.FromSeconds(1));
+        try { await foreach (var _ in changes.ReadAllAsync(window.Token)) { count++; } }
+        catch (OperationCanceledException) when (window.IsCancellationRequested && !ct.IsCancellationRequested) { }
+        Assert.Equal(2, count);
+    }
+
+    [Fact]
     public async Task ProgressPublishesAppActivityEvenWhenTheAppIsNotBuilding()
     {
         var ct = TestContext.Current.CancellationToken;

@@ -26,6 +26,7 @@ public sealed class FlutterModule() : Module<FlutterModuleOptions>(new ModuleId(
         endpoints.MapShellPersistence();
         WorkspaceEndpoints.Map(endpoints);
         LiveSignalEndpoints.Map(endpoints);
+        BrainEventsEndpoints.Map(endpoints);
         AppUiEndpoints.Map(endpoints);
     }
 }

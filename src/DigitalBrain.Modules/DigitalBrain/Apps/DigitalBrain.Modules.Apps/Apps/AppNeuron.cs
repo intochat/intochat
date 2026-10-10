@@ -174,7 +174,8 @@ internal sealed class AppNeuron(
         { throw new ArgumentException($"'{state}' is not an activity state: {string.Join(", ", AppActivity.States)}.", nameof(state)); }
         detail = (detail ?? "").Trim();
         var next = Snapshot.Clone();
-        var building = Snapshot.Status == AppStatus.Building && detail.Length > 0;
+        var building = Snapshot.Status == AppStatus.Building && detail.Length > 0
+            && Snapshot.Activity.LastOrDefault() != detail;
         if (building) { next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), detail]; }
         var activity = new AppActivity(Name(), state, detail);
         next.ActivitySequence++;
