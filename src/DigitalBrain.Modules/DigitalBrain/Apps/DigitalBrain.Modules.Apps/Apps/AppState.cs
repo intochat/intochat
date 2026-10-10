@@ -27,6 +27,8 @@ public sealed class AppState
     [Id(22)] public string? Publisher { get; set; }
     [Id(23)] public RetainedSignal[] RequestRetention { get; set; } = [];
     [Id(24)] public long RequestSequence { get; set; }
+    [Id(25)] public RetainedSignal[] ActivityRetention { get; set; } = [];
+    [Id(26)] public long ActivitySequence { get; set; }
 
     public AppState Clone() => new()
     {
@@ -51,6 +53,8 @@ public sealed class AppState
         Publisher = Publisher,
         RequestRetention = [.. RequestRetention],
         RequestSequence = RequestSequence,
+        ActivityRetention = [.. ActivityRetention],
+        ActivitySequence = ActivitySequence,
     };
 }
 

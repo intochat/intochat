@@ -74,4 +74,21 @@ public sealed class AppRetentionFacts
         Assert.Equal(65, retained[^1].Sequence);
         Assert.DoesNotContain(first, retained.Select(item => Assert.IsType<AppRequested>(item.Signal).RequestId).ToArray());
     }
+
+    [Fact]
+    public async Task OnlyTheLastActivityIsRetainedSoALateListenerStartsCurrent()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        var (app, retains) = await CreatedAppAsync(brain, "lively");
+        await app.Progress("working", "Reading your mail");
+        await app.Progress("completed", "Done");
+
+        var retained = await retains.Retained(nameof(AppActivity), 0);
+
+        var item = Assert.Single(retained);
+        var activity = Assert.IsType<AppActivity>(item.Signal);
+        Assert.Equal(("lively", "completed", "Done"), (activity.App, activity.State, activity.Detail));
+        Assert.Empty(await retains.Retained(nameof(AppActivity), item.Sequence));
+    }
 }

@@ -173,13 +173,14 @@ internal sealed class AppNeuron(
         if (!AppActivity.States.Contains(state, StringComparer.Ordinal))
         { throw new ArgumentException($"'{state}' is not an activity state: {string.Join(", ", AppActivity.States)}.", nameof(state)); }
         detail = (detail ?? "").Trim();
-        if (Snapshot.Status == AppStatus.Building && detail.Length > 0)
-        {
-            var next = Snapshot.Clone();
-            next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), detail];
-            await Persist(next);
-        }
-        await PublishAsync(new AppActivity(Name(), state, detail));
+        var next = Snapshot.Clone();
+        var building = Snapshot.Status == AppStatus.Building && detail.Length > 0;
+        if (building) { next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), detail]; }
+        var activity = new AppActivity(Name(), state, detail);
+        next.ActivitySequence++;
+        next.ActivityRetention = [new RetainedSignal(next.ActivitySequence, activity with { Publisher = Id })];
+        if (building) { await Save(next, new AppChanged(Name(), next.Version, next.Status), activity); }
+        else { await Save(next, activity); }
     }
 
     public async Task<AppSnapshot> CompleteBuild(Guid attempt, Dictionary<string, string>? files, string? error, AppManifest? manifest = null)
@@ -426,9 +427,12 @@ internal sealed class AppNeuron(
     }
 
     public Task<RetainedSignal[]> Retained(string signal, long since)
-        => Task.FromResult<RetainedSignal[]>(signal == nameof(AppRequested)
-            ? [.. Snapshot.RequestRetention.Where(candidate => candidate.Sequence > since)]
-            : []);
+        => Task.FromResult<RetainedSignal[]>(signal switch
+        {
+            nameof(AppRequested) => [.. Snapshot.RequestRetention.Where(candidate => candidate.Sequence > since)],
+            nameof(AppActivity) => [.. Snapshot.ActivityRetention.Where(candidate => candidate.Sequence > since)],
+            _ => [],
+        });
 
     private IAppRuntime? Runtime => runtimes.FirstOrDefault();
 
