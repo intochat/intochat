@@ -1,4 +1,5 @@
 using System.Net.NetworkInformation;
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Azure.Storage.Blobs;
 using DigitalBrain.Framework;
@@ -8,29 +9,34 @@ using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Microsoft.Aspire.Candidates;
 
-// Candidates are git worktrees under {Workdir}/worktrees, published to {Workdir}/builds and run as
-// a container beside their own Azurite on a private network. The repository is Workdir's parent.
+// Candidates are git worktrees under {Workdir}/worktrees, published to {Workdir}/builds/{sha}/{os,mcp}
+// and run on a private network beside their own Azurite, Postgres and ClickHouse and their own
+// digitalbrain-mcp. The repository is Workdir's parent.
 internal sealed partial class DockerCandidateHost : ICandidateHost
 {
     public const int FirstPort = 5190;
     public const string Image = "mcr.microsoft.com/dotnet/aspnet:11.0.0-rc.1";
-    private const string AzuriteImage = "mcr.microsoft.com/azure-storage/azurite";
+    private const string AzuriteImage = "mcr.microsoft.com/azure-storage/azurite:3.35.0";
+    private const string PostgresImage = "postgres:18.3";
+    private const string ClickHouseImage = "clickhouse/clickhouse-server:latest";
     private const string OsProject = "src/DigitalBrain.OS/DigitalBrain.OS/DigitalBrain.OS.csproj";
+    private const string McpProject = "src/DigitalBrain.Mcp/DigitalBrain.Mcp/DigitalBrain.Mcp.csproj";
     private const string Integrations = IntegrationSchema.SectionName + ":";
+    private const string PostgresDatabase = "digitalbrain";
+    private static readonly TimeSpan DependencyBudget = TimeSpan.FromSeconds(90);
 
-    // The model is the one deployment Integration a candidate keeps: the AI module's provider ids.
+    // The model is the one live Integration a candidate keeps: the AI module's provider ids.
     internal static readonly string[] ModelIntegrations = ["openai", "anthropic", "google", "xai", "openrouter", "typesafe"];
 
-    // Deployment shape the OS reads besides its Integrations: module options, identity, posture, master key.
-    private static readonly string[] CopiedSections = ["DigitalBrain:Modules:", "DigitalBrain:Identity:", "DigitalBrain:Auth:"];
+    // Deployment shape the OS reads besides its Integrations: module options and identity.
+    private static readonly string[] CopiedSections = ["DigitalBrain:Modules:", "DigitalBrain:Identity:"];
 
     private readonly IProcessRunner processes;
     private readonly IConfiguration live;
     private readonly Func<CancellationToken, Task<string>> workdir;
     private readonly Func<string, CancellationToken, Task> copyState;
     private readonly Func<int, bool> listening;
-    private readonly Func<string, int, CancellationToken, Task> azuriteReady;
-    private static readonly TimeSpan AzuriteBudget = TimeSpan.FromSeconds(30);
+    private readonly Func<string, int, CancellationToken, Task> dependenciesReady;
     private readonly HttpClient http;
     private readonly Dictionary<string, int> ports = [];
     private readonly Lock gate = new();
@@ -47,18 +53,19 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         Func<string, CancellationToken, Task>? copyState,
         Func<int, bool>? listening,
         HttpClient http,
-        Func<string, int, CancellationToken, Task>? azuriteReady = null)
+        Func<string, int, CancellationToken, Task>? dependenciesReady = null)
     {
         this.processes = processes;
         live = configuration;
         this.workdir = workdir;
         this.copyState = copyState ?? CopyLiveState;
         this.listening = listening ?? Listening;
-        this.azuriteReady = azuriteReady ?? AzuriteReady;
+        this.dependenciesReady = dependenciesReady ?? DependenciesReady;
         this.http = http;
     }
 
     public IReadOnlyDictionary<string, string> LastRunEnvironment { get; private set; } = new Dictionary<string, string>();
+    public IReadOnlyDictionary<string, string> LastMcpEnvironment { get; private set; } = new Dictionary<string, string>();
 
     public async Task<PreparedCandidate> Prepare(string baseSha, string summary, IReadOnlyDictionary<string, string> files, CancellationToken ct)
     {
@@ -86,10 +93,11 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
             await git.MoveWorktree(staging, worktree, ct);
             return new(sha, worktree);
         }
-        catch (Exception error) when (error is InvalidOperationException or IOException or CandidateHostException)
+        catch (Exception error)
         {
             if (added) { await git.RemoveWorktree(staging, CancellationToken.None); }
-            throw error as CandidateHostException ?? new CandidateHostException("prepare", error.Message);
+            if (error is CandidateHostException or OperationCanceledException) { throw; }
+            throw new CandidateHostException("prepare", error.Message);
         }
     }
 
@@ -116,14 +124,25 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         { await Dotnet("gate", worktree, ct, "test", "--project", test); }
     }
 
+    // The silo and its MCP front door are two images, each published into its own folder.
     public async Task<string> Publish(string sha, CancellationToken ct)
     {
+        Checked(sha);
         var root = await workdir(ct);
+        var worktree = WorktreeOf(root, sha);
         var build = Path.Combine(root, "builds", sha);
-        var dockerfile = Path.Combine(root, "Candidate.Dockerfile");
-        await File.WriteAllTextAsync(dockerfile, $"FROM {Image}\nWORKDIR /app\nCOPY . .\nENTRYPOINT [\"dotnet\", \"DigitalBrain.OS.dll\"]\n", ct);
-        await Dotnet("publish", WorktreeOf(root, sha), ct, "publish", OsProject, "-c", "Release", "-o", build);
-        await Docker("publish", ct, "build", "-t", ImageOf(sha), "-f", dockerfile, build);
+        foreach (var (folder, project, dll, image) in new[]
+        {
+            ("os", OsProject, "DigitalBrain.OS.dll", ImageOf(sha)),
+            ("mcp", McpProject, "DigitalBrain.Mcp.dll", McpImageOf(sha)),
+        })
+        {
+            var output = Path.Combine(build, folder);
+            var dockerfile = Path.Combine(root, $"Candidate.{folder}.Dockerfile");
+            await File.WriteAllTextAsync(dockerfile, $"FROM {Image}\nWORKDIR /app\nCOPY . .\nENTRYPOINT [\"dotnet\", \"{dll}\"]\n", ct);
+            await Dotnet("publish", worktree, ct, "publish", project, "-c", "Release", "-o", output);
+            await Docker("publish", ct, "build", "-t", image, "-f", dockerfile, output);
+        }
         return build;
     }
 
@@ -132,28 +151,46 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         Checked(sha);
         var port = await AllocatePort(sha, ct);
         var network = NetworkOf(sha);
-        var azurite = AzuriteOf(sha);
-        await Docker("run", ct, "network", "create", network);
-        await Docker("run", ct, "run", "-d", "--name", azurite, "--network", network, "-p", $"{port + 5}:10000", AzuriteImage,
-            "azurite", "--blobHost", "0.0.0.0", "--tableHost", "0.0.0.0", "--skipApiVersionCheck", "--loose");
-        await azuriteReady(sha, port + 5, ct);
-        try { await copyState($"http://127.0.0.1:{port + 5}/{AzuriteCopy.AccountName}", ct); }
-        catch (Exception error) when (error is not OperationCanceledException) { throw new CandidateHostException("run", $"copying live storage failed: {error.Message}"); }
+        try
+        {
+            await Docker("run", ct, "network", "create", network);
+            await Docker("run", ct, "run", "-d", "--name", AzuriteOf(sha), "--network", network, "-p", $"{port + 5}:10000", AzuriteImage,
+                "azurite", "--blobHost", "0.0.0.0", "--tableHost", "0.0.0.0", "--skipApiVersionCheck", "--loose");
+            var postgresPassword = Secret();
+            await Container("run", ct, new Dictionary<string, string> { ["POSTGRES_PASSWORD"] = postgresPassword, ["POSTGRES_DB"] = PostgresDatabase },
+                "run", "-d", "--name", PostgresOf(sha), "--network", network,
+                "--health-cmd", "pg_isready -U postgres", "--health-interval", "1s", "-e", "POSTGRES_PASSWORD", "-e", "POSTGRES_DB", PostgresImage);
+            var clickHousePassword = Secret();
+            await Container("run", ct, new Dictionary<string, string> { ["CLICKHOUSE_USER"] = "default", ["CLICKHOUSE_PASSWORD"] = clickHousePassword },
+                "run", "-d", "--name", ClickHouseOf(sha), "--network", network,
+                "--health-cmd", "clickhouse-client --query 'SELECT 1'", "--health-interval", "1s", "-e", "CLICKHOUSE_USER", "-e", "CLICKHOUSE_PASSWORD", ClickHouseImage);
+            await dependenciesReady(sha, port + 5, ct);
+            try { await copyState($"http://127.0.0.1:{port + 5}/{AzuriteCopy.AccountName}", ct); }
+            catch (Exception error) when (error is not OperationCanceledException) { throw new CandidateHostException("run", $"copying live storage failed: {error.Message}"); }
 
-        var environment = Environment(sha);
-        LastRunEnvironment = environment;
-        // Values travel through the docker CLI's own environment; `-e NAME` keeps secrets off the command line.
-        string[] args = ["run", "-d", "--name", ContainerOf(sha), "--network", network, "-p", $"{port}:5080", "-p", $"{port + 1}:5081",
-            "--add-host", "host.docker.internal:host-gateway",
-            .. environment.Keys.SelectMany(key => new[] { "-e", key }), ImageOf(sha)];
-        var result = await processes.RunAsync("docker", args, ".", environment, ct);
-        if (result.ExitCode != 0) { throw new CandidateHostException("run", Tail(result)); }
-        return new(sha, new CandidateEndpoints($"http://localhost:{port + 1}", $"http://localhost:{port}"), ContainerOf(sha));
+            var environment = Environment(sha, postgresPassword, clickHousePassword);
+            LastRunEnvironment = environment;
+            await Container("run", ct, environment, ["run", "-d", "--name", ContainerOf(sha), "--hostname", ContainerOf(sha), "--network", network,
+                "-p", $"{port}:5080", "--add-host", "host.docker.internal:host-gateway",
+                .. environment.Keys.SelectMany(key => new[] { "-e", key }), ImageOf(sha)]);
+            var mcp = McpEnvironment(sha);
+            LastMcpEnvironment = mcp;
+            await Container("run", ct, mcp, ["run", "-d", "--name", McpOf(sha), "--network", network,
+                "-p", $"{port + 1}:5081", "--add-host", "host.docker.internal:host-gateway",
+                .. mcp.Keys.SelectMany(key => new[] { "-e", key }), McpImageOf(sha)]);
+            return new(sha, new CandidateEndpoints($"http://localhost:{port + 1}", $"http://localhost:{port}"), ContainerOf(sha));
+        }
+        catch
+        {
+            await Remove(sha, CancellationToken.None);
+            throw;
+        }
     }
 
-    // A readiness wait on a fresh process, bounded by the plan's budget; a stopped container fails at once.
+    // A readiness wait on fresh processes, bounded by the plan's budget; a stopped container fails at once.
     public async Task WaitHealthy(string sha, TimeSpan budget, CancellationToken ct)
     {
+        Checked(sha);
         int port;
         lock (gate)
         {
@@ -163,21 +200,19 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         limit.CancelAfter(budget);
         try
         {
-            while (true)
+            foreach (var (container, health) in new[] { (ContainerOf(sha), port), (McpOf(sha), port + 1) })
             {
-                var state = await processes.RunAsync("docker", ["inspect", "-f", "{{.State.Running}}", ContainerOf(sha)], ".", null, limit.Token);
-                if (state.ExitCode != 0 || !state.Output.Trim().Equals("true", StringComparison.OrdinalIgnoreCase))
+                while (true)
                 {
-                    var logs = await processes.RunAsync("docker", ["logs", "--tail", "40", ContainerOf(sha)], ".", null, ct);
-                    throw new CandidateHostException("healthy", $"{ContainerOf(sha)} stopped: {Tail(logs)}");
+                    await Running("healthy", container, limit.Token);
+                    try
+                    {
+                        using var response = await http.GetAsync(new Uri($"http://localhost:{health}/health"), limit.Token);
+                        if (response.IsSuccessStatusCode) { break; }
+                    }
+                    catch (HttpRequestException) { }
+                    await Task.Delay(TimeSpan.FromSeconds(1), limit.Token);
                 }
-                try
-                {
-                    using var response = await http.GetAsync(new Uri($"http://localhost:{port + 1}/health"), limit.Token);
-                    if (response.IsSuccessStatusCode) { return; }
-                }
-                catch (HttpRequestException) { }
-                await Task.Delay(TimeSpan.FromSeconds(1), limit.Token);
             }
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
@@ -196,7 +231,7 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
     public async Task Remove(string sha, CancellationToken ct)
     {
         Checked(sha);
-        await Ignoring("No such", ct, "rm", "-f", ContainerOf(sha), AzuriteOf(sha));
+        await Ignoring("No such", ct, "rm", "-f", ContainerOf(sha), McpOf(sha), AzuriteOf(sha), PostgresOf(sha), ClickHouseOf(sha));
         await Ignoring("not found", ct, "network", "rm", NetworkOf(sha));
         lock (gate) { ports.Remove(sha); }
     }
@@ -227,41 +262,56 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
     }
 
     // The environment the AppHost projects into the OS resource, re-pointed at the candidate's own
-    // storage and ports. Of the deployment Integrations only the model's keys travel.
-    internal Dictionary<string, string> Environment(string sha)
+    // storage, databases and keys. Of the live Integrations only the model's values travel; every
+    // other Integration the silo needs to boot is the candidate's own.
+    internal Dictionary<string, string> Environment(string sha, string postgresPassword, string clickHousePassword)
     {
-        var copied = live.AsEnumerable()
-            .Where(pair => pair.Value is not null && Travels(pair.Key))
-            .ToDictionary(pair => DigitalBrainConfiguration.EnvironmentName(pair.Key), pair => pair.Value!, StringComparer.Ordinal);
-        var storage = CandidateConnectionString(sha);
-        var container = live[DigitalBrainNames.GrainStateContainerKey] is { Length: > 0 } named ? named : DigitalBrainNames.GrainStateContainer;
-        var environment = new Dictionary<string, string>(copied, StringComparer.Ordinal)
+        var environment = Copied();
+        foreach (var (key, value) in Orleans(sha)) { environment[key] = value; }
+        foreach (var (key, value) in new Dictionary<string, string>
         {
-            ["ASPNETCORE_URLS"] = "http://+:5080;http://+:5081",
-            ["ASPNETCORE_ENVIRONMENT"] = live["ASPNETCORE_ENVIRONMENT"] ?? "Development",
-            ["DOTNET_ENVIRONMENT"] = live["DOTNET_ENVIRONMENT"] ?? live["ASPNETCORE_ENVIRONMENT"] ?? "Development",
-            ["Orleans__ServiceId"] = $"intochat-c{sha}",
-            ["Orleans__ClusterId"] = $"intochat-c{sha}",
-            ["Orleans__Clustering__ProviderType"] = "Development",
-            ["Orleans__Endpoints__AdvertisedIPAddress"] = "127.0.0.1",
-            ["Orleans__Endpoints__SiloPort"] = "11111",
-            ["Orleans__Endpoints__GatewayPort"] = "30000",
-            ["Orleans__EnableDistributedTracing"] = "true",
-            ["Orleans__Reminders__ProviderType"] = "AzureTableStorage",
-            ["Orleans__Reminders__ServiceKey"] = DigitalBrainNames.Reminders,
+            ["ASPNETCORE_URLS"] = "http://+:5080",
+            [$"Orleans__Reminders__ProviderType"] = "AzureTableStorage",
+            [$"Orleans__Reminders__ServiceKey"] = DigitalBrainNames.Reminders,
             [$"Orleans__GrainStorage__{DigitalBrainNames.DefaultGrainStorage}__ProviderType"] = "AzureBlobStorage",
             [$"Orleans__GrainStorage__{DigitalBrainNames.DefaultGrainStorage}__ServiceKey"] = DigitalBrainNames.GrainState,
-            [$"ConnectionStrings__{DigitalBrainNames.Clustering}"] = storage,
-            [$"ConnectionStrings__{DigitalBrainNames.Reminders}"] = storage,
-            [$"ConnectionStrings__{DigitalBrainNames.GrainState}"] = storage,
-            [DigitalBrainConfiguration.EnvironmentName(DigitalBrainNames.GrainStateContainerKey)] = container,
+            [$"ConnectionStrings__{DigitalBrainNames.Reminders}"] = CandidateConnectionString(sha),
             ["DigitalBrain__Http__UiPort"] = "5080",
             ["DigitalBrain__Http__McpPort"] = "5081",
             [DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ModuleOptionsSection("apps") + ":Features")] = "/app/features",
             ["OTEL_SERVICE_NAME"] = $"candidate-{sha}",
             // Never the live key: copied user Connections stay sealed and unreadable in the candidate.
-            [DigitalBrainNames.MasterKeyEnvironmentVariable] = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)),
-        };
+            [DigitalBrainNames.MasterKeyEnvironmentVariable] = Secret(),
+            [Env(IntegrationSchema.Key("csharp", "RunTokenKey"))] = Secret(),
+            [Env(IntegrationSchema.Key("postgres", "ConnectionString"))] =
+                $"Host={PostgresOf(sha)};Port=5432;Username=postgres;Password={postgresPassword};Database={PostgresDatabase}",
+            [Env(IntegrationSchema.Key("clickhouse", "ConnectionString"))] =
+                $"Host={ClickHouseOf(sha)};Port=8123;Protocol=http;Username=default;Password={clickHousePassword};Database=default",
+        })
+        { environment[key] = value; }
+        return environment;
+    }
+
+    // digitalbrain-mcp is an Orleans client of the candidate silo: clustering and identity only.
+    internal Dictionary<string, string> McpEnvironment(string sha)
+    {
+        var environment = Copied();
+        foreach (var key in environment.Keys.Where(key => key.StartsWith("DigitalBrain__Integrations__", StringComparison.Ordinal) || key.StartsWith("DigitalBrain__Modules__", StringComparison.Ordinal)).ToArray())
+        { environment.Remove(key); }
+        foreach (var (key, value) in Orleans(sha)) { environment[key] = value; }
+        environment["ASPNETCORE_URLS"] = "http://+:5081";
+        environment["OTEL_SERVICE_NAME"] = $"candidate-{sha}-mcp";
+        return environment;
+    }
+
+    private Dictionary<string, string> Copied()
+    {
+        var environment = live.AsEnumerable()
+            .Where(pair => pair.Value is not null && Travels(pair.Key))
+            .ToDictionary(pair => DigitalBrainConfiguration.EnvironmentName(pair.Key), pair => pair.Value!, StringComparer.Ordinal);
+        environment["ASPNETCORE_ENVIRONMENT"] = live["ASPNETCORE_ENVIRONMENT"] ?? "Development";
+        environment["DOTNET_ENVIRONMENT"] = live["DOTNET_ENVIRONMENT"] ?? live["ASPNETCORE_ENVIRONMENT"] ?? "Development";
+        environment[Env("DigitalBrain:Auth:Posture")] = "Open";
         if (live["OTEL_EXPORTER_OTLP_ENDPOINT"] is { Length: > 0 } otlp)
         { environment["OTEL_EXPORTER_OTLP_ENDPOINT"] = otlp.Replace("localhost", "host.docker.internal", StringComparison.OrdinalIgnoreCase).Replace("127.0.0.1", "host.docker.internal", StringComparison.Ordinal); }
         foreach (var key in new[] { "OTEL_EXPORTER_OTLP_PROTOCOL", "OTEL_EXPORTER_OTLP_HEADERS" })
@@ -270,6 +320,26 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         }
         return environment;
     }
+
+    // Azure table clustering in the candidate's Azurite: the silo advertises its network address and
+    // its MCP client finds the gateway there.
+    private Dictionary<string, string> Orleans(string sha)
+    {
+        var storage = CandidateConnectionString(sha);
+        return new(StringComparer.Ordinal)
+        {
+            ["Orleans__ServiceId"] = $"intochat-c{sha}",
+            ["Orleans__ClusterId"] = $"intochat-c{sha}",
+            ["Orleans__Clustering__ProviderType"] = "AzureTableStorage",
+            ["Orleans__Clustering__ServiceKey"] = DigitalBrainNames.Clustering,
+            ["Orleans__EnableDistributedTracing"] = "true",
+            [$"ConnectionStrings__{DigitalBrainNames.Clustering}"] = storage,
+            [$"ConnectionStrings__{DigitalBrainNames.GrainState}"] = storage,
+            [Env(DigitalBrainNames.GrainStateContainerKey)] = GrainStateContainer,
+        };
+    }
+
+    private string GrainStateContainer => live[DigitalBrainNames.GrainStateContainerKey] is { Length: > 0 } named ? named : DigitalBrainNames.GrainStateContainer;
 
     private static bool Travels(string key)
     {
@@ -282,15 +352,17 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
     }
 
     // Integration registrations live in grain state, sealed with the live master key; none is copied.
-    // The candidate's IntegrationSeeder re-seeds the model's from the env keys it receives.
-    internal static bool CarriesIntegration(string blobName) => IntegrationBlob().IsMatch(blobName);
+    // The candidate's IntegrationSeeder seeds the model's and its own from the env keys it receives.
+    // The deployment marker binds storage to the live service id and master key; the candidate binds its own.
+    internal static bool LeftBehind(string blobName) => IntegrationBlob().IsMatch(blobName) || blobName == DeploymentMarker;
+
+    private const string DeploymentMarker = ".digitalbrain-deployment.json";
 
     private async Task CopyLiveState(string candidateBlobEndpoint, CancellationToken ct)
     {
         var source = live.GetConnectionString(DigitalBrainNames.GrainState)
             ?? throw new InvalidOperationException($"The live process has no ConnectionStrings:{DigitalBrainNames.GrainState}.");
-        var container = live[DigitalBrainNames.GrainStateContainerKey] is { Length: > 0 } named ? named : DigitalBrainNames.GrainStateContainer;
-        await AzuriteCopy.CopyAsync(new BlobServiceClient(source, AzuriteCopy.NoRetries), container, AzuriteCopy.At(candidateBlobEndpoint), container, CarriesIntegration, ct);
+        await AzuriteCopy.CopyAsync(new BlobServiceClient(source, AzuriteCopy.NoRetries), GrainStateContainer, AzuriteCopy.At(candidateBlobEndpoint), GrainStateContainer, LeftBehind, ct);
     }
 
     private async Task<int> AllocatePort(string sha, CancellationToken ct)
@@ -310,31 +382,48 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         throw new CandidateHostException("run", "no free candidate port block");
     }
 
-    // Azurite was just started: wait (bounded) until it answers HTTP, failing at once if its container stops.
-    private async Task AzuriteReady(string sha, int port, CancellationToken ct)
+    // Azurite, Postgres and ClickHouse were just started: wait (bounded) until each answers, failing at
+    // once if one stops. The silo hard-fails at boot without them.
+    private async Task DependenciesReady(string sha, int azuritePort, CancellationToken ct)
     {
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        limit.CancelAfter(AzuriteBudget);
+        limit.CancelAfter(DependencyBudget);
         try
         {
             while (true)
             {
-                var state = await processes.RunAsync("docker", ["inspect", "-f", "{{.State.Running}}", AzuriteOf(sha)], ".", null, limit.Token);
-                if (state.ExitCode != 0 || !state.Output.Trim().Equals("true", StringComparison.OrdinalIgnoreCase))
-                { throw new CandidateHostException("run", $"{AzuriteOf(sha)} stopped: {Tail(state)}"); }
+                await Running("run", AzuriteOf(sha), limit.Token);
                 try
                 {
-                    using var response = await http.GetAsync(new Uri($"http://127.0.0.1:{port}/{AzuriteCopy.AccountName}?comp=properties&restype=service"), limit.Token);
-                    return;
+                    using var response = await http.GetAsync(new Uri($"http://127.0.0.1:{azuritePort}/{AzuriteCopy.AccountName}?comp=properties&restype=service"), limit.Token);
+                    break;
                 }
                 catch (HttpRequestException) { }
                 await Task.Delay(TimeSpan.FromMilliseconds(250), limit.Token);
             }
+            foreach (var container in new[] { PostgresOf(sha), ClickHouseOf(sha) })
+            {
+                while (true)
+                {
+                    await Running("run", container, limit.Token);
+                    var health = await processes.RunAsync("docker", ["inspect", "-f", "{{.State.Health.Status}}", container], ".", null, limit.Token);
+                    if (health.Output.Trim() == "healthy") { break; }
+                    await Task.Delay(TimeSpan.FromMilliseconds(500), limit.Token);
+                }
+            }
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            throw new CandidateHostException("run", $"{AzuriteOf(sha)} did not answer within {AzuriteBudget}.");
+            throw new CandidateHostException("run", $"candidate {sha} storage and databases were not ready within {DependencyBudget}.");
         }
+    }
+
+    private async Task Running(string stage, string container, CancellationToken ct)
+    {
+        var state = await processes.RunAsync("docker", ["inspect", "-f", "{{.State.Running}}", container], ".", null, ct);
+        if (state.ExitCode == 0 && state.Output.Trim().Equals("true", StringComparison.OrdinalIgnoreCase)) { return; }
+        var logs = await processes.RunAsync("docker", ["logs", "--tail", "40", container], ".", null, CancellationToken.None);
+        throw new CandidateHostException(stage, $"{container} stopped: {Tail(logs)}");
     }
 
     private static bool Listening(int port)
@@ -356,9 +445,12 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         if (result.ExitCode != 0) { throw new CandidateHostException(stage, $"dotnet {string.Join(' ', args)}:\n{Tail(result)}"); }
     }
 
-    private async Task Docker(string stage, CancellationToken ct, params string[] args)
+    private Task Docker(string stage, CancellationToken ct, params string[] args) => Container(stage, ct, null, args);
+
+    // Values travel through the docker CLI's own environment; `-e NAME` keeps secrets off the command line.
+    private async Task Container(string stage, CancellationToken ct, IReadOnlyDictionary<string, string>? environment, params string[] args)
     {
-        var result = await processes.RunAsync("docker", args, ".", null, ct);
+        var result = await processes.RunAsync("docker", args, ".", environment, ct);
         if (result.ExitCode != 0) { throw new CandidateHostException(stage, $"docker {string.Join(' ', args)}:\n{Tail(result)}"); }
     }
 
@@ -386,17 +478,24 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
 
     private Git Git(string root) => new(processes, Path.GetDirectoryName(Path.GetFullPath(root))!);
 
+    private static string Secret() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+    private static string Env(string key) => DigitalBrainConfiguration.EnvironmentName(key);
+
     private static string CandidateConnectionString(string sha)
         => $"DefaultEndpointsProtocol=http;AccountName={AzuriteCopy.AccountName};AccountKey={AzuriteCopy.AccountKey};"
             + $"BlobEndpoint=http://{AzuriteOf(sha)}:10000/{AzuriteCopy.AccountName};TableEndpoint=http://{AzuriteOf(sha)}:10002/{AzuriteCopy.AccountName};";
 
     private static string WorktreeOf(string root, string sha) => Path.Combine(root, "worktrees", sha);
     private static string ImageOf(string sha) => $"digitalbrain-candidate:{sha}";
+    private static string McpImageOf(string sha) => $"digitalbrain-candidate-mcp:{sha}";
     private static string ContainerOf(string sha) => $"candidate-{sha}";
+    private static string McpOf(string sha) => $"candidate-{sha}-mcp";
     private static string AzuriteOf(string sha) => $"candidate-{sha}-azurite";
+    private static string PostgresOf(string sha) => $"candidate-{sha}-postgres";
+    private static string ClickHouseOf(string sha) => $"candidate-{sha}-clickhouse";
     private static string NetworkOf(string sha) => $"candidate-{sha}";
 
-    [GeneratedRegex("^candidate-(?<sha>[0-9a-f]{7,40})(-azurite)?$", RegexOptions.CultureInvariant)]
+    [GeneratedRegex("^candidate-(?<sha>[0-9a-f]{7,40})(-azurite|-mcp|-postgres|-clickhouse)?$", RegexOptions.CultureInvariant)]
     private static partial Regex CandidateName();
 
     [GeneratedRegex("^candidate-(?<sha>[0-9a-f]{7,40})$", RegexOptions.CultureInvariant)]

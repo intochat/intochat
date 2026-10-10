@@ -4,7 +4,8 @@ internal sealed class Git(IProcessRunner processes, string repository)
 {
     public async Task<string> Run(string workingDirectory, CancellationToken ct, params string[] args)
     {
-        var result = await processes.RunAsync("git", args, workingDirectory, null, ct);
+        // Worktrees nest the repository under .digitalbrain; Windows paths overflow without long-path support.
+        var result = await processes.RunAsync("git", ["-c", "core.longpaths=true", .. args], workingDirectory, null, ct);
         if (result.ExitCode != 0) { throw new InvalidOperationException($"git {string.Join(' ', args)} failed: {result.Error}"); }
         return result.Output.Trim();
     }
