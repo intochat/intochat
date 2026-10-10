@@ -10,6 +10,7 @@
     <ProjectReference Include="../../../DigitalBrain/Circles/DigitalBrain.Modules.Circles.Contracts/DigitalBrain.Modules.Circles.Contracts.csproj" />
     <ProjectReference Include="../../../Microsoft/Playwright/DigitalBrain.Modules.Microsoft.Playwright.Contracts/DigitalBrain.Modules.Microsoft.Playwright.Contracts.csproj" />
     <ProjectReference Include="../../../Microsoft/Aspire/DigitalBrain.Modules.Microsoft.Aspire.Contracts/DigitalBrain.Modules.Microsoft.Aspire.Contracts.csproj" />
+    <ProjectReference Include="../../../Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Contracts/DigitalBrain.Modules.Microsoft.CSharp.Contracts.csproj" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.Orleans.Serialization.SystemTextJson" />
     <InternalsVisibleTo Include="DigitalBrain.Modules.Flutter.Tests" />
