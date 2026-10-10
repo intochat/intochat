@@ -14,10 +14,11 @@ public sealed class ClusterRollFacts
         await cluster.SelfRestarted.Task.WaitAsync(ct);
         await brain.DeactivateAsync(grain, ct);
         await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
-        var steady = await changes.NextAsync(change => change.Stage == ClusterStage.Steady, ct);
+        var steady = await changes.NextAsync(change => change.Stage == nameof(ClusterStage.Steady), ct);
 
         Assert.Equal(ClusterStage.Rolling, rolling.Stage);
-        Assert.Equal(("sha0001", null), (steady.CurrentSha, steady.Failure));
+        Assert.Equal("sha0001", steady.Sha);
+        Assert.Null((await grain.Read()).Failure);
         Assert.Equal(["mcp-a@sha0001", "mcp-b@sha0001", "silo-1@sha0001", "silo-0@sha0001"], cluster.RestartedSilos);
         var read = await grain.Read();
         Assert.Equal((ClusterStage.Steady, "sha0001"), (read.Stage, read.CurrentSha));
@@ -37,7 +38,7 @@ public sealed class ClusterRollFacts
         cluster.Self = "silo-1";
         await brain.DeactivateAsync(grain, ct);
         await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
-        await changes.NextAsync(change => change.Stage == ClusterStage.Steady, ct);
+        await changes.NextAsync(change => change.Stage == nameof(ClusterStage.Steady), ct);
 
         Assert.Equal("silo-0@sha0001", cluster.Waited[^1]);
     }
@@ -52,12 +53,11 @@ public sealed class ClusterRollFacts
         await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
 
         await grain.Roll("sha0001");
-        var back = await changes.NextAsync(change => change.Stage == ClusterStage.RollingBack, ct);
-        var steady = await changes.NextAsync(change => change.Stage == ClusterStage.Steady, ct);
+        var back = await changes.NextAsync(change => change.Stage == nameof(ClusterStage.RollingBack), ct);
+        var steady = await changes.NextAsync(change => change.Stage == nameof(ClusterStage.Steady), ct);
 
-        Assert.Equal("base000", back.TargetSha);
-        Assert.Equal("base000", steady.CurrentSha);
-        Assert.Contains("silo-1", steady.Failure, StringComparison.Ordinal);
+        Assert.Equal("base000", steady.Sha);
+        Assert.Contains("silo-1", (await grain.Read()).Failure, StringComparison.Ordinal);
         Assert.Equal("base000", cluster.Current);
         Assert.Equal(["mcp-a@sha0001", "mcp-b@sha0001", "silo-1@base000", "mcp-b@base000", "mcp-a@base000"], cluster.RestartedSilos);
         var read = await grain.Read();
@@ -78,12 +78,11 @@ public sealed class ClusterRollFacts
         await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
 
         await grain.Roll("sha0001");
-        var back = await changes.NextAsync(change => change.Stage == ClusterStage.RollingBack, ct);
-        var steady = await changes.NextAsync(change => change.Stage == ClusterStage.Steady, ct);
+        var back = await changes.NextAsync(change => change.Stage == nameof(ClusterStage.RollingBack), ct);
+        var steady = await changes.NextAsync(change => change.Stage == nameof(ClusterStage.Steady), ct);
 
-        Assert.Equal("base000", back.TargetSha);
-        Assert.Equal("base000", steady.CurrentSha);
-        Assert.Contains("silo-1", steady.Failure, StringComparison.Ordinal);
+        Assert.Equal("base000", steady.Sha);
+        Assert.Contains("silo-1", (await grain.Read()).Failure, StringComparison.Ordinal);
         Assert.Equal("base000", cluster.Current);
         Assert.Equal(["mcp-a@sha0001", "mcp-b@sha0001", "silo-1@sha0001", "silo-1@base000", "mcp-b@base000", "mcp-a@base000"], cluster.RestartedSilos);
         var read = await grain.Read();
@@ -120,12 +119,11 @@ public sealed class ClusterRollFacts
         cluster.Current = "base000";
         cluster.DieOnSetLiveSha.Add("sha0001");
         gate.Open.SetResult();
-        var back = await changes.NextAsync(change => change.Stage == ClusterStage.RollingBack, ct);
-        var steady = await changes.NextAsync(change => change.Stage == ClusterStage.Steady, ct);
+        var back = await changes.NextAsync(change => change.Stage == nameof(ClusterStage.RollingBack), ct);
+        var steady = await changes.NextAsync(change => change.Stage == nameof(ClusterStage.Steady), ct);
 
-        Assert.Equal("base000", back.TargetSha);
-        Assert.Equal("base000", steady.CurrentSha);
-        Assert.Contains("live.json could not be written", steady.Failure, StringComparison.Ordinal);
+        Assert.Equal("base000", steady.Sha);
+        Assert.Contains("live.json could not be written", (await grain.Read()).Failure, StringComparison.Ordinal);
         Assert.Equal("base000", cluster.Current);
         Assert.Equal(["mcp-a@sha0001", "mcp-b@sha0001", "silo-1@base000", "mcp-b@base000", "mcp-a@base000"], cluster.RestartedSilos);
         var read = await grain.Read();
@@ -150,9 +148,10 @@ public sealed class ClusterRollFacts
         await cluster.SelfRestarted.Task.WaitAsync(ct);
         await brain.DeactivateAsync(grain, ct);
         await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
-        var steady = await changes.NextAsync(change => change.Stage == ClusterStage.Steady, ct);
+        var steady = await changes.NextAsync(change => change.Stage == nameof(ClusterStage.Steady), ct);
 
-        Assert.Equal(("sha0001", null), (steady.CurrentSha, steady.Failure));
+        Assert.Equal("sha0001", steady.Sha);
+        Assert.Null((await grain.Read()).Failure);
         Assert.Equal(["mcp-a@sha0001", "mcp-b@sha0001", "silo-1@sha0001", "silo-0@sha0001"], cluster.RestartedSilos);
         var read = await grain.Read();
         Assert.Equal((ClusterStage.Steady, "sha0001"), (read.Stage, read.CurrentSha));
@@ -204,10 +203,10 @@ public sealed class ClusterRollFacts
         await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
 
         await grain.Roll("sha0001");
-        var steady = await changes.NextAsync(change => change.Stage == ClusterStage.Steady, ct);
+        var steady = await changes.NextAsync(change => change.Stage == nameof(ClusterStage.Steady), ct);
 
-        Assert.Equal("base000", steady.CurrentSha);
-        Assert.Contains("no other instance is routable", steady.Failure, StringComparison.Ordinal);
+        Assert.Equal("base000", steady.Sha);
+        Assert.Contains("no other instance is routable", (await grain.Read()).Failure, StringComparison.Ordinal);
         // silo-1 never restarted onto the new build; going back it restarts regardless, then the moved MCP servers.
         Assert.Equal(["mcp-a@sha0001", "mcp-b@sha0001", "silo-1@base000", "mcp-b@base000", "mcp-a@base000"], cluster.RestartedSilos);
     }
@@ -241,9 +240,9 @@ public sealed class ClusterRollFacts
         await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
 
         await grain.Roll("sha0001");
-        var steady = await changes.NextAsync(change => change.Stage == ClusterStage.Steady, ct);
+        var steady = await changes.NextAsync(change => change.Stage == nameof(ClusterStage.Steady), ct);
 
-        Assert.Contains("rolling back", steady.Failure, StringComparison.Ordinal);
+        Assert.Contains("rolling back", (await grain.Read()).Failure, StringComparison.Ordinal);
         Assert.DoesNotContain("mcp-b@base000", cluster.RestartedSilos);
     }
 }

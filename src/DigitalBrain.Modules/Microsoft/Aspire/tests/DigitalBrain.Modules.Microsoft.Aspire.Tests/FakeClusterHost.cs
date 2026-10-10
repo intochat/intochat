@@ -43,8 +43,20 @@ internal sealed class FakeClusterHost : IClusterHost
     public List<string> Waited { get; } = [];
     public TaskCompletionSource<string> Interrupted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    public Task<SiloView[]> Silos(CancellationToken ct) =>
-        Task.FromResult<SiloView[]>([.. InstanceNames.Where(name => name.StartsWith("silo-", StringComparison.Ordinal)).Select(name => new SiloView(name, Current, "Running", "Healthy"))]);
+    // What `aspire describe` reports; when null, the silo-* instances running the current build.
+    public SiloView[]? Reported { get; set; }
+
+    // Released on each read of the silos.
+    public SemaphoreSlim SiloRead { get; } = new(0);
+
+    public Task<SiloView[]> Silos(CancellationToken ct)
+    {
+        SiloRead.Release();
+        return SilosNow();
+    }
+
+    private Task<SiloView[]> SilosNow() =>
+        Reported is { } reported ? Task.FromResult(reported) : Task.FromResult<SiloView[]>([.. InstanceNames.Where(name => name.StartsWith("silo-", StringComparison.Ordinal)).Select(name => new SiloView(name, Current, "Running", "Healthy"))]);
 
     public Task<string[]> Instances(CancellationToken ct) => Task.FromResult(InstanceNames);
 

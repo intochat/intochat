@@ -13,7 +13,7 @@ internal sealed class ClusterNeuron(
     ICandidateHost candidates,
     IOptions<AspireOptions> options,
     ILogger<ClusterNeuron> log)
-    : Neuron<ClusterState>(store), ICluster, IClusterDriver, IRemindable
+    : Neuron<ClusterState>(store), ICluster, IClusterDriver, IRemindable, IRetainsSignals
 {
     private string BrainId => BrainKey.BrainOf(this.GetPrimaryKeyString());
 
@@ -28,7 +28,7 @@ internal sealed class ClusterNeuron(
         if (Snapshot.Stage == ClusterStage.Steady && Snapshot.CurrentSha == sha) { return Describe(); }
         // Persisted before acting: the silo running this grain may die in RestartSilos.
         var previous = Snapshot.CurrentSha;
-        await Save(Snapshot with { Stage = ClusterStage.Restarting, TargetSha = sha }, new ClusterChanged(previous, ClusterStage.Restarting, sha));
+        await Save(Snapshot with { Stage = ClusterStage.Restarting, TargetSha = sha }, Changed(previous, ClusterStage.Restarting));
         try
         {
             await host.SetLive(sha, CancellationToken.None);
@@ -39,7 +39,7 @@ internal sealed class ClusterNeuron(
             // The silos did not start moving: the live build stays what runs, and the caller learns the restart failed.
             log.LogWarning(error, "Cluster {Cluster} could not restart onto {Target}.", this.GetPrimaryKeyString(), sha);
             if (previous.Length > 0) { await host.SetLive(previous, CancellationToken.None); }
-            await Save(new ClusterState { CurrentSha = previous }, new ClusterChanged(previous, ClusterStage.Steady, null));
+            await Save(new ClusterState { CurrentSha = previous }, Changed(previous, ClusterStage.Steady));
             throw;
         }
         return Describe();
@@ -74,12 +74,12 @@ internal sealed class ClusterNeuron(
         // mid-roll. Registered before the roll is recorded, so no recorded roll is ever without it.
         await this.RegisterOrUpdateReminder(RollReminder, ReminderPeriod, ReminderPeriod);
         await Save(new ClusterState { CurrentSha = previous, Stage = ClusterStage.Rolling, TargetSha = sha, PreviousSha = previous, Remaining = instances },
-            new ClusterChanged(previous, ClusterStage.Rolling, sha));
+            Changed(previous, ClusterStage.Rolling));
         try { await host.SetLive(sha, CancellationToken.None); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             log.LogWarning(error, "Cluster {Cluster} could not point the live build at {Target}.", this.GetPrimaryKeyString(), sha);
-            await Save(new ClusterState { CurrentSha = previous, Failure = error.Message }, new ClusterChanged(previous, ClusterStage.Steady, null, error.Message));
+            await Save(new ClusterState { CurrentSha = previous, Failure = error.Message }, Changed(previous, ClusterStage.Steady));
             await StopReminder();
             throw;
         }
@@ -228,7 +228,7 @@ internal sealed class ClusterNeuron(
         // wait for them to start.
         string[] back = [name, .. Snapshot.Rolled.Reverse().Where(rolled => rolled != name)];
         await Save(Snapshot with { Stage = ClusterStage.RollingBack, TargetSha = Snapshot.PreviousSha, PreviousSha = Snapshot.TargetSha, Remaining = back, Rolled = [], Handover = null, HandoverAt = null, Draining = null, Failure = reason },
-            new ClusterChanged(Snapshot.CurrentSha, ClusterStage.RollingBack, Snapshot.PreviousSha, reason));
+            Changed(Snapshot.CurrentSha, ClusterStage.RollingBack));
         Drive();
     }
 
@@ -238,7 +238,7 @@ internal sealed class ClusterNeuron(
     {
         var current = Snapshot.TargetSha!;
         var rolledForward = Snapshot.Stage == ClusterStage.Rolling;
-        await Save(new ClusterState { CurrentSha = current, Failure = failure }, new ClusterChanged(current, ClusterStage.Steady, null, failure));
+        await Save(new ClusterState { CurrentSha = current, Failure = failure }, Changed(current, ClusterStage.Steady));
         await StopReminder();
         if (rolledForward) { await Guarded(() => GrainFactory.GetGrain<ICandidate>(ICandidate.Key(BrainId, current)).Finish(), "finish the promoted candidate"); }
     }
@@ -251,6 +251,13 @@ internal sealed class ClusterNeuron(
     // Runs on every activation: completes a restart the previous build began, and sweeps container orphans.
     internal async Task Reconcile(CancellationToken ct)
     {
+        this.RegisterGrainTimer(Sample, new GrainTimerCreationOptions
+        {
+            DueTime = options.Value.ClusterSampling,
+            Period = options.Value.ClusterSampling,
+            Interleave = false,
+            KeepAlive = true,
+        });
         var current = await host.CurrentSha(ct);
         string? finished = null;
         string? abandoned = null;
@@ -262,14 +269,14 @@ internal sealed class ClusterNeuron(
         else if (Snapshot.Stage == ClusterStage.Restarting && current == Snapshot.TargetSha)
         {
             finished = Snapshot.TargetSha;
-            await Save(new ClusterState { CurrentSha = current }, new ClusterChanged(current, ClusterStage.Steady, null));
+            await Save(new ClusterState { CurrentSha = current }, Changed(current, ClusterStage.Steady));
         }
         else if (Snapshot.Stage == ClusterStage.Restarting)
         {
             // live.json is written before the silos restart, so a different build means that restart never took.
             log.LogWarning("Cluster {Cluster} restarted towards {Target} but runs {Current}.", this.GetPrimaryKeyString(), Snapshot.TargetSha, current);
             abandoned = Snapshot.TargetSha;
-            await Save(new ClusterState { CurrentSha = current }, new ClusterChanged(current, ClusterStage.Steady, null));
+            await Save(new ClusterState { CurrentSha = current }, Changed(current, ClusterStage.Steady));
         }
         else if (Snapshot.CurrentSha != current)
         {
@@ -292,6 +299,46 @@ internal sealed class ClusterNeuron(
         {
             log.LogWarning(error, "Cluster {Cluster} could not {Work}.", this.GetPrimaryKeyString(), what);
         }
+    }
+
+    // The last silos this activation read and the last ClusterChanged it published; both are rebuilt by the first
+    // sample after an activation, which publishes once.
+    private SiloState[] silos = [];
+    private ClusterChanged? last;
+    private long sequence = DateTimeOffset.UtcNow.Ticks;
+    private long lastSequence;
+
+    private ClusterChanged Changed(string sha, ClusterStage stage)
+    {
+        last = new ClusterChanged(stage.ToString(), sha, silos);
+        lastSequence = ++sequence;
+        return last;
+    }
+
+    public Task<RetainedSignal[]> Retained(string signal, long since)
+        => Task.FromResult<RetainedSignal[]>(signal == nameof(ClusterChanged) && last is { } current && lastSequence > since
+            ? [new RetainedSignal(lastSequence, current with { Publisher = Id })]
+            : []);
+
+    // The CLI is read here, once per cluster, and the strip hears about it only when it moved.
+    internal async Task Sample(CancellationToken ct)
+    {
+        SiloState[] read;
+        try
+        {
+            read = [.. (await host.Silos(ct)).OrderBy(silo => silo.Name, StringComparer.Ordinal).Select(silo => new SiloState(silo.Name, silo.Sha, silo.State, silo.Health ?? ""))];
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            log.LogWarning(error, "Cluster {Cluster} could not read its silos.", this.GetPrimaryKeyString());
+            return;
+        }
+        var next = new ClusterChanged(Snapshot.Stage.ToString(), Snapshot.CurrentSha, read);
+        if (last is { } previous && previous.Stage == next.Stage && previous.Sha == next.Sha && previous.Silos.SequenceEqual(next.Silos)) { return; }
+        silos = read;
+        last = next;
+        lastSequence = ++sequence;
+        await PublishAsync(next);
     }
 
     private ClusterSnapshot Describe() => new(Snapshot.CurrentSha, Snapshot.Stage, Snapshot.TargetSha, Snapshot.Remaining, Snapshot.Failure);
