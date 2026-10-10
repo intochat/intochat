@@ -29,9 +29,6 @@ internal sealed class PartLease
 
     public long Version { get; private set; }
 
-    // The head's holder before this acquire; null when the part had no head.
-    public string? PreviousHolder { get; private set; }
-
     public string MachineId => _machine.MachineId;
 
     public bool NeedsRenewal => _expiry - _time.GetUtcNow() < (_options.Role == MachineRole.Own ? _options.OwnLease / 2 : _options.RenewBefore);
@@ -54,7 +51,6 @@ internal sealed class PartLease
             if (current.Holder != machine.MachineId && current.LeaseExpiry > time.GetUtcNow())
             { throw new ServiceUnavailableException($"Part {part} is held by machine {current.Holder} until {current.LeaseExpiry:O}."); }
             lease.Version = current.Version;
-            lease.PreviousHolder = current.Holder;
             lease.Payload = serializer.Deserialize<HeadPayload>(SegmentSeal.Open(key, lease.Context, current.Payload))!;
         }
         await lease.Commit(lease.Payload);

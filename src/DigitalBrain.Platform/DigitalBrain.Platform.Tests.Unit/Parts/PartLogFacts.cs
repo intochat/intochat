@@ -257,6 +257,68 @@ public sealed class PartLogFacts
     }
 
     [Fact(Timeout = 60_000)]
+    public async Task AnOwnMachineThatReacquiresAfterATakeoverAndFailsToOpenStillSeesTheConflict()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        await using var brain = await StartAsync(ct, time);
+        var part = PartId.ForApp("home", "notes");
+        var key = RandomNumberGenerator.GetBytes(32);
+        using var alice = SequencerFacts.Machine();
+        using var bob = SequencerFacts.Machine();
+        var aliceOptions = Own();
+        var serializer = brain.SiloServices.GetRequiredService<Serializer>();
+        var mesh = new UnreachableMesh(brain.SiloServices.GetRequiredService<IMeshStore>());
+        await using (var a = await OpenAsync(brain, part, key, alice, aliceOptions, time, ct, mesh))
+        {
+            mesh.Offline = true;
+            await a.Append("g1", "s", RecordChange.Write, [1], []);
+        }
+
+        time.Advance(aliceOptions.OwnLease + TimeSpan.FromMinutes(1));
+        var bobOptions = Own();
+        bobOptions.SnapshotEvery = 1;
+        await using (var b = await OpenAsync(brain, part, key, bob, bobOptions, time, ct))
+        {
+            await b.Append("g1", "s", RecordChange.Write, [9], []);
+            await b.Flushed();
+        }
+        // Alice takes the part back, then her open fails before it recovers the journal: she stays the holder.
+        await PartLease.Acquire(part, key, brain.Grains, alice, PartLeaseFacts.Seen(), aliceOptions, time, serializer);
+
+        await Assert.ThrowsAsync<JournalConflictException>(() => OpenAsync(brain, part, key, alice, aliceOptions, time, ct));
+        var aside = Assert.Single(Directory.GetFiles(Path.GetDirectoryName(JournalPath(aliceOptions, part))!, "*.conflict-*"));
+        // The journal is sealed to its own path, so it is read back where it was written.
+        File.Move(aside, JournalPath(aliceOptions, part));
+        Assert.Equal([1], Assert.Single(new PartJournal(JournalPath(aliceOptions, part), key, serializer).Read()).Record);
+    }
+
+    [Fact(Timeout = 60_000)]
+    public async Task AJournalEntryThisMachineCommittedButNeverTrimmedIsDroppedOnReopening()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await StartAsync(ct);
+        var part = PartId.ForApp("home", "notes");
+        var key = RandomNumberGenerator.GetBytes(32);
+        using var alice = SequencerFacts.Machine();
+        var options = Own();
+        options.SnapshotEvery = 1;
+        var serializer = brain.SiloServices.GetRequiredService<Serializer>();
+        await using (var a = await OpenAsync(brain, part, key, alice, options, TimeProvider.System, ct))
+        {
+            await a.Append("g1", "s", RecordChange.Write, [1], []);
+            await a.Flushed();
+        }
+        // The silo died between the commit and the trim: the snapshot covers the entry, the journal still holds it.
+        new PartJournal(JournalPath(options, part), key, serializer).Append(new LogEntry { Seq = 1, GrainId = "g1", StateName = "s", Change = RecordChange.Write, Record = [1] });
+
+        await using var reopened = await OpenAsync(brain, part, key, alice, options, TimeProvider.System, ct);
+
+        Assert.Equal([1], reopened.Read("g1", "s")!.Record);
+        Assert.Empty(new PartJournal(JournalPath(options, part), key, serializer).Read());
+    }
+
+    [Fact(Timeout = 60_000)]
     public async Task AnAmbiguousCommitFailureClosesANonOwnLog()
     {
         var ct = TestContext.Current.CancellationToken;

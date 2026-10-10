@@ -77,6 +77,37 @@ public sealed class HeadPayload
     [Id(3)] public long LastSeq { get; set; }
 
     [Id(4)] public int SegmentsSinceSnapshot { get; set; }
+
+    // Which machine committed which seqs, kept across snapshots: an own machine's covered journal entry is its own
+    // history only if a range of its own covers that seq (ruling R27). A range is added only when the holder changes.
+    [Id(5)] public SeqWriter[] Writers { get; set; } = [];
+
+    public HeadPayload CommittedBy(string machineId, long firstSeq, long lastSeq)
+    {
+        var writers = Writers;
+        if (lastSeq >= firstSeq)
+        {
+            writers = writers is [.., var last] && last.MachineId == machineId && last.ThroughSeq + 1 == firstSeq
+                ? [.. writers[..^1], new SeqWriter { MachineId = machineId, FromSeq = last.FromSeq, ThroughSeq = lastSeq }]
+                : [.. writers, new SeqWriter { MachineId = machineId, FromSeq = firstSeq, ThroughSeq = lastSeq }];
+        }
+        return new HeadPayload
+        {
+            Head = Head, Snapshot = Snapshot, SnapshotSeq = SnapshotSeq, LastSeq = LastSeq, SegmentsSinceSnapshot = SegmentsSinceSnapshot, Writers = writers,
+        };
+    }
+
+    public bool WrittenBy(string machineId, long seq) => Writers.Any(w => w.MachineId == machineId && w.FromSeq <= seq && seq <= w.ThroughSeq);
+}
+
+[GenerateSerializer, Alias("platform.parts.seq-writer")]
+public sealed class SeqWriter
+{
+    [Id(0)] public string MachineId { get; set; } = "";
+
+    [Id(1)] public long FromSeq { get; set; }
+
+    [Id(2)] public long ThroughSeq { get; set; }
 }
 
 public static class PartSegments

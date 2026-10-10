@@ -228,11 +228,11 @@ internal sealed class PartLog : IAsyncDisposable
         if (_journal is null) { return; }
         var lastSeq = _lease.Payload.LastSeq;
         var journaled = _journal.Read();
-        // A covered entry the replay cannot see (inside a snapshot) is this machine's own commit only if no other
-        // machine held the part since (ruling R11).
-        var ownHistory = _lease.PreviousHolder == _lease.MachineId;
+        // A covered entry the replay cannot see (inside a snapshot) is this machine's own commit only if the head
+        // durably records this machine as the writer of that seq (rulings R11, R27); who acquired last says nothing.
+        var payload = _lease.Payload;
         var conflict = journaled.Where(e => e.Seq <= lastSeq)
-            .Any(e => replayed.TryGetValue(e.Seq, out var accepted) ? !Same(accepted, e) : !ownHistory);
+            .Any(e => replayed.TryGetValue(e.Seq, out var accepted) ? !Same(accepted, e) : !payload.WrittenBy(_lease.MachineId, e.Seq));
         var rest = journaled.Where(e => e.Seq > lastSeq).ToArray();
         conflict |= rest.Select((e, i) => e.Seq != lastSeq + 1 + i).Any(gap => gap);
         if (conflict)
@@ -311,8 +311,8 @@ internal sealed class PartLog : IAsyncDisposable
                 await _lease.Commit(new HeadPayload
                 {
                     Head = reference, Snapshot = payload.Snapshot, SnapshotSeq = payload.SnapshotSeq,
-                    LastSeq = batch[^1].Entry.Seq, SegmentsSinceSnapshot = payload.SegmentsSinceSnapshot + 1,
-                });
+                    LastSeq = batch[^1].Entry.Seq, SegmentsSinceSnapshot = payload.SegmentsSinceSnapshot + 1, Writers = payload.Writers,
+                }.CommittedBy(_lease.MachineId, batch[0].Entry.Seq, batch[^1].Entry.Seq));
                 _chain.Add(reference);
                 if (_journal is null) { foreach (var pending in batch) { Apply(pending.Entry); } }
                 TaskCompletionSource? drained;
@@ -382,7 +382,7 @@ internal sealed class PartLog : IAsyncDisposable
         }
         var snapshot = new PartSnapshot { Seq = payload.LastSeq, Records = records, RecentSignals = recent, SignalsFrom = payload.SnapshotSeq };
         var reference = await _mesh.Write(_key, PartSegments.SnapshotId(_part, payload.LastSeq), _serializer.SerializeToArray(snapshot));
-        await _lease.Commit(new HeadPayload { Head = null, Snapshot = reference, SnapshotSeq = payload.LastSeq, LastSeq = payload.LastSeq, SegmentsSinceSnapshot = 0 });
+        await _lease.Commit(new HeadPayload { Head = null, Snapshot = reference, SnapshotSeq = payload.LastSeq, LastSeq = payload.LastSeq, SegmentsSinceSnapshot = 0, Writers = payload.Writers });
         // Only refs of this log's own replaced chain are discarded, never one a read repaired (ruling R7): MeshStore
         // shares shards between a repaired ref and its original. Open has no repair path today.
         MeshRef[] replaced = [.. payload.Snapshot is { } previous ? [previous] : Array.Empty<MeshRef>(), .. _chain];
