@@ -1,0 +1,42 @@
+syntax = "proto3";
+package digitalbrain;
+option csharp_namespace = "DigitalBrain.Platform.Neurons.Proto";
+
+// The two operations the OS has: call a neuron contract, watch a source's signals.
+// Payloads are JSON with the HTTP surface's web defaults; the C# contracts are the schema.
+service Neurons {
+  rpc Call (CallRequest) returns (CallReply);
+  rpc Watch (WatchRequest) returns (stream SignalEnvelope);
+}
+
+message CallRequest {
+  string brain_id = 1;
+  string contract = 2;   // full contract type name, as neurons_list prints it
+  string key = 3;        // grain key
+  string method = 4;
+  bytes arguments = 5;   // JSON array, one element per argument, CancellationToken omitted
+}
+
+message CallReply {
+  bytes result = 1;      // JSON; empty when the method returns Task
+}
+
+message WatchSource {
+  string contract = 1;
+  string key = 2;
+  repeated string types = 3;   // signal type names: short ("ButtonChanged") or full
+}
+
+message WatchRequest {
+  string brain_id = 1;
+  repeated WatchSource sources = 2;
+}
+
+message SignalEnvelope {
+  string source = 1;        // the WatchSource key this came from
+  string type = 2;          // short signal type name
+  string publisher = 3;
+  int64 sequence = 4;       // retained sequence, 0 for a live signal
+  bytes payload = 5;        // JSON of the signal
+  int64 server_time_ms = 6; // unix ms when the envelope was written; the client measures delivery with it
+}

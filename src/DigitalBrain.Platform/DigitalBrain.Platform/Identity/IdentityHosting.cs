@@ -61,5 +61,7 @@ public static class IdentityHosting
         app.UseModuleHttpSurfaces();
         app.UseAuthentication();
         app.UseAccountSession();
+        // The shell targets web and the front proxies HTTP/1.1: every gRPC route also answers gRPC-Web.
+        app.UseGrpcWeb(new GrpcWebOptions { DefaultEnabled = true });
     }
 }

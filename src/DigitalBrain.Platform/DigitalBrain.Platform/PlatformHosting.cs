@@ -10,6 +10,7 @@ using DigitalBrain.Platform.Identity.Grants;
 using DigitalBrain.Platform.Integrations;
 using DigitalBrain.Platform.Secrets;
 using DigitalBrain.Platform.Workshop;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -53,6 +54,7 @@ public static class PlatformHosting
         services.TryAddSingleton(typeof(IModuleIntegrations<>), typeof(ModuleIntegrations<>));
         services.TryAddSingleton<ConnectorCatalog>();
         services.TryAddSingleton<ICapabilities, Capabilities>();
+        services.AddGrpc();
         silo.AddStartupTask<IntegrationSeeder>();
         services.TryAddSingleton<IGrantPolicySource, GrainGrantPolicySource>();
         services.TryAddSingleton<IIdentity, PlatformIdentity>();
@@ -82,6 +84,7 @@ public static class PlatformHosting
         Signals.SignalsEndpoints.MapSignals(endpoints);
         endpoints.MapCapabilities();
         IdentityEndpoints.Map(endpoints);
+        endpoints.MapGrpcService<Neurons.NeuronsService>();
         return endpoints;
     }
 

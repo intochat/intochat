@@ -40,6 +40,7 @@ internal static class ModuleHttpEdge
         builder.Services.AddTransient(_ => brain.SiloServices.GetRequiredService<IGrainFactory>());
         foreach (var surface in silo.GetServices<IHttpSurface>()) { builder.Services.AddSingleton(surface); }
         builder.Services.AddIdentity();
+        builder.Services.AddGrpc();
         // Minimal-API parameter binding decides "service or body?" at map time, and the container
         // special-cases IServiceProviderIsService, so silo services must be real registrations
         // here: every silo service type the web container does not define forwards to the silo.
