@@ -27,95 +27,98 @@ Color infrastructureColor(InfrastructureHealth health) => switch (health) {
   InfrastructureHealth.red => Colors.red,
 };
 
-// One chip per module resource and per user connection, colored by health, re-read on an
-// interval: the registry's state changes under us (ResourceStateChanged) and the shell has no
-// signal stream for it, so the strip reads like ComputeUsagePanel does.
+// One chip per silo, colored by health. The strip listens to the cluster's own signal: a silo changing
+// state animates its chip, a silo that leaves the cluster loses it, nothing is polled.
 class InfrastructureStrip extends StatefulWidget {
   const InfrastructureStrip({
     super.key,
-    required this.load,
-    this.loadConnections,
+    this.watch,
     this.onTap,
-    this.refreshEvery = const Duration(seconds: 5),
+    @Deprecated('The strip no longer reads infrastructure rows; pass watch.')
+    this.load,
+    @Deprecated('The strip no longer lists connections.') this.loadConnections,
   });
 
-  final Future<List<InfrastructureRow>> Function() load;
-  final Future<Object?> Function()? loadConnections;
+  final Stream<ClusterChanged> Function()? watch;
   final ValueChanged<String>? onTap;
-  final Duration refreshEvery;
+  final Object? Function()? load;
+  final Object? Function()? loadConnections;
 
   @override
   State<InfrastructureStrip> createState() => _InfrastructureStripState();
 }
 
 class _InfrastructureStripState extends State<InfrastructureStrip> {
-  List<InfrastructureRow> _rows = const [];
+  ClusterChanged? _cluster;
   String? _error;
-  Timer? _refresh;
+  StreamSubscription<ClusterChanged>? _subscription;
 
   @override
   void initState() {
     super.initState();
-    unawaited(_load());
-    _refresh = Timer.periodic(widget.refreshEvery, (_) => unawaited(_load()));
+    _subscription = widget.watch?.call().listen(
+      (cluster) => setState(() {
+        _cluster = cluster;
+        _error = null;
+      }),
+      onError: (Object error) => setState(() => _error = error.toString()),
+    );
   }
 
   @override
   void dispose() {
-    _refresh?.cancel();
+    unawaited(_subscription?.cancel());
     super.dispose();
   }
 
-  Future<void> _load() async {
-    try {
-      final rows = await widget.load();
-      final connections = await widget.loadConnections?.call();
-      if (!mounted) return;
-      setState(() {
-        _rows = [
-          ...rows,
-          for (final item in connections as List? ?? const [])
-            InfrastructureRow(
-              module: '${(item as Map)['connectorId']}',
-              resource: 'connection ${item['connectionId']}',
-              state: '${item['status']}',
+  @override
+  Widget build(BuildContext context) {
+    final motion = MediaQuery.of(context).disableAnimations
+        ? Duration.zero
+        : const Duration(milliseconds: 300);
+    final cluster = _cluster;
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: [
+        if (_error != null)
+          Text(
+            _error!,
+            key: const ValueKey('infrastructure-error'),
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        if (cluster != null && cluster.stage != 'steady')
+          Chip(
+            key: const ValueKey('cluster-stage'),
+            label: Text('${cluster.stage} ${_short(cluster.sha)}'.trim()),
+          ),
+        for (final silo in cluster?.silos ?? const <SiloState>[])
+          ActionChip(
+            key: ValueKey('silo-${silo.id}'),
+            avatar: AnimatedSwitcher(
+              duration: motion,
+              child: CircleAvatar(
+                key: ValueKey(
+                  'silo-dot-${silo.id}-${silo.state}-${silo.health}',
+                ),
+                radius: 5,
+                backgroundColor: infrastructureColor(
+                  infrastructureHealth(silo.state, silo.health),
+                ),
+              ),
             ),
-        ];
-        _error = null;
-      });
-    } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
-    }
+            label: Text(silo.id),
+            tooltip:
+                '${silo.state}${silo.health == null ? '' : ' (${silo.health})'} ${_short(silo.sha)}'
+                    .trim(),
+            onPressed: widget.onTap == null
+                ? null
+                : () => widget.onTap!(silo.id),
+          ),
+      ],
+    );
   }
 
-  @override
-  Widget build(BuildContext context) => Wrap(
-    spacing: 12,
-    runSpacing: 12,
-    children: [
-      if (_error != null)
-        Text(
-          _error!,
-          key: const ValueKey('infrastructure-error'),
-          style: TextStyle(color: Theme.of(context).colorScheme.error),
-        ),
-      for (final row in _rows)
-        ActionChip(
-          key: ValueKey('infra-${row.module}-${row.resource}'),
-          avatar: CircleAvatar(
-            key: ValueKey('infra-dot-${row.module}-${row.resource}'),
-            radius: 5,
-            backgroundColor: infrastructureColor(
-              infrastructureHealth(row.state, row.health),
-            ),
-          ),
-          label: Text(row.module),
-          tooltip:
-              '${row.resource}: ${row.state}${row.health == null ? '' : ' (${row.health})'}',
-          onPressed: widget.onTap == null
-              ? null
-              : () => widget.onTap!(row.module),
-        ),
-    ],
-  );
+  static String _short(String sha) =>
+      sha.length > 7 ? sha.substring(0, 7) : sha;
 }

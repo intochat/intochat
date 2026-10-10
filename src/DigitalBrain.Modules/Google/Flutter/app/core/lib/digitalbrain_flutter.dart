@@ -2,7 +2,7 @@ export 'src/basic_credentials.dart';
 export 'src/host_environment.dart';
 export 'src/models/app_manifest.dart';
 export 'src/models/installed_app.dart';
-export 'src/models/infrastructure.dart';
+export 'src/models/cluster.dart';
 export 'src/models/marketplace.dart';
 export 'src/models/brain_models.dart';
 export 'src/models/compute_usage.dart';

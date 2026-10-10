@@ -72,33 +72,44 @@ void main() {
     client.close();
   });
 
-  test('the client reads infrastructure rows', () async {
+  test('the client streams live envelopes and decodes the cluster', () async {
     final client = DigitalBrainUiClient(
       baseUri: Uri.parse('http://test'),
-      httpClient: MockClient((request) async {
-        expect(request.url.path, '/brains/b1/infrastructure');
-        return http.Response(
-          jsonEncode([
-            {
-              'module': 'postgres',
-              'resource': 'Modules-postgres-server',
-              'state': 'Running',
-              'health': 'Healthy',
-            },
-            {
-              'module': 'aspire',
-              'resource': 'apphost',
-              'state': 'Unknown',
-              'health': null,
-            },
-          ]),
+      httpClient: MockClient.streaming((request, _) async {
+        expect(request.url.path, '/brains/b1/live');
+        expect(request.url.queryParametersAll['type'], ['ClusterChanged']);
+        final event = jsonEncode({
+          'type': 'ClusterChanged',
+          'publisher': 'b1/aspire/cluster',
+          'payload': {
+            'stage': 'rolling',
+            'sha': 'abc1234567',
+            'silos': [
+              {
+                'id': 'silo-1',
+                'sha': 'abc1234567',
+                'state': 'Running',
+                'health': 'Healthy',
+              },
+              {
+                'id': 'silo-2',
+                'sha': 'old',
+                'state': 'Starting',
+                'health': null,
+              },
+            ],
+          },
+        });
+        return http.StreamedResponse(
+          Stream.value(utf8.encode('data: $event\n\n')),
           200,
         );
       }),
     );
-    final rows = await client.readInfrastructure('b1');
-    expect(rows.map((row) => row.module), ['postgres', 'aspire']);
-    expect(rows.last.health, isNull);
+    final cluster = await client.watchCluster('b1').first;
+    expect(cluster.stage, 'rolling');
+    expect(cluster.silos.map((silo) => silo.id), ['silo-1', 'silo-2']);
+    expect(cluster.silos.last.health, isNull);
     client.close();
   });
 }

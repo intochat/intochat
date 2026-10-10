@@ -144,16 +144,6 @@ class ApplicationServer extends http.BaseClient {
     if (request.url.path.endsWith('/apps/assistant')) {
       return _json(assistantView);
     }
-    if (request.url.path.endsWith('/infrastructure')) {
-      return _json(const [
-        {
-          'module': 'aspire',
-          'resource': 'apphost',
-          'state': 'Running',
-          'health': 'Healthy',
-        },
-      ]);
-    }
     if (request.url.path.endsWith('/connections')) {
       return _json(const <Object>[]);
     }

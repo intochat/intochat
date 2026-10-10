@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:digitalbrain_flutter_shell/workspace/home/infrastructure_strip.dart';
 import 'package:flutter/material.dart';
@@ -29,78 +31,117 @@ void main() {
     expect(infrastructureHealth('Failing', null), InfrastructureHealth.red);
   });
 
+  ClusterChanged cluster(List<SiloState> silos, {String stage = 'steady'}) =>
+      ClusterChanged(stage: stage, sha: 'abc1234567', silos: silos);
+
   testWidgets(
-    'the strip shows a chip per resource and connection, refreshes, and a tap names the module',
+    'the strip shows a chip per silo, follows the signal without polling, and a tap names the silo',
     (tester) async {
-      var state = 'Running';
+      final signals = StreamController<ClusterChanged>();
       final tapped = <String>[];
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
             body: InfrastructureStrip(
-              refreshEvery: const Duration(milliseconds: 100),
-              load: () async => [
-                InfrastructureRow(
-                  module: 'postgres',
-                  resource: 'Modules-postgres-server',
-                  state: state,
-                  health: state == 'Running' ? 'Healthy' : null,
-                ),
-              ],
-              loadConnections: () async => [
-                {
-                  'connectorId': 'gmail',
-                  'connectionId': 'me',
-                  'status': 'Connected',
-                },
-              ],
+              watch: () => signals.stream,
               onTap: tapped.add,
             ),
           ),
         ),
       );
-      await tester.pump();
+      expect(find.byType(ActionChip), findsNothing);
 
-      expect(
-        find.byKey(const ValueKey('infra-postgres-Modules-postgres-server')),
-        findsOneWidget,
+      signals.add(
+        cluster([
+          const SiloState(
+            id: 'silo-1',
+            sha: 'a',
+            state: 'Running',
+            health: 'Healthy',
+          ),
+          const SiloState(id: 'silo-2', sha: 'a', state: 'Starting'),
+        ]),
       );
-      expect(
-        find.byKey(const ValueKey('infra-gmail-connection me')),
-        findsOneWidget,
-      );
-      CircleAvatar dot() => tester.widget(
-        find.byKey(
-          const ValueKey('infra-dot-postgres-Modules-postgres-server'),
+      await tester.pump();
+      CircleAvatar dot(String id) => tester.widget(
+        find.descendant(
+          of: find.byKey(ValueKey('silo-$id')),
+          matching: find.byType(CircleAvatar),
         ),
       );
-      expect(dot().backgroundColor, Colors.green);
+      expect(dot('silo-1').backgroundColor, Colors.green);
+      expect(dot('silo-2').backgroundColor, Colors.amber);
 
-      state = 'Exited';
-      await tester.pump(const Duration(milliseconds: 150));
-      await tester.pump();
-      expect(dot().backgroundColor, Colors.red);
-
-      await tester.tap(
-        find.byKey(const ValueKey('infra-postgres-Modules-postgres-server')),
+      signals.add(
+        cluster([
+          const SiloState(id: 'silo-1', sha: 'a', state: 'Exited'),
+        ], stage: 'rolling'),
       );
-      expect(tapped, ['postgres']);
+      await tester.pump();
+      await tester.pumpAndSettle();
+      expect(dot('silo-1').backgroundColor, Colors.red);
+      expect(find.byKey(const ValueKey('silo-silo-2')), findsNothing);
+      expect(find.byKey(const ValueKey('cluster-stage')), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('silo-silo-1')));
+      expect(tapped, ['silo-1']);
       await tester.pumpWidget(const SizedBox());
+      expect(signals.hasListener, isFalse);
+      unawaited(signals.close());
     },
   );
 
-  testWidgets('a failed load says so', (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: InfrastructureStrip(
-            load: () async => throw StateError('kernel unreachable'),
+  testWidgets('a state change animates unless motion is reduced', (
+    tester,
+  ) async {
+    Future<int> avatarsDuringSwitch({required bool reduced}) async {
+      final signals = StreamController<ClusterChanged>();
+      await tester.pumpWidget(
+        MediaQuery(
+          data: MediaQueryData(disableAnimations: reduced),
+          child: MaterialApp(
+            home: Scaffold(
+              body: InfrastructureStrip(watch: () => signals.stream),
+            ),
           ),
         ),
+      );
+      signals.add(
+        cluster([const SiloState(id: 's', sha: 'a', state: 'Starting')]),
+      );
+      await tester.pump();
+      signals.add(
+        cluster([
+          const SiloState(
+            id: 's',
+            sha: 'a',
+            state: 'Running',
+            health: 'Healthy',
+          ),
+        ]),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      final count = find.byType(CircleAvatar).evaluate().length;
+      await tester.pumpWidget(const SizedBox());
+      unawaited(signals.close());
+      return count;
+    }
+
+    expect(await avatarsDuringSwitch(reduced: false), 2);
+    expect(await avatarsDuringSwitch(reduced: true), 1);
+  });
+
+  testWidgets('a failing feed says so', (tester) async {
+    final signals = StreamController<ClusterChanged>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: InfrastructureStrip(watch: () => signals.stream)),
       ),
     );
+    signals.addError(StateError('kernel unreachable'));
     await tester.pump();
     expect(find.byKey(const ValueKey('infrastructure-error')), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
+    unawaited(signals.close());
   });
 }

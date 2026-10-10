@@ -13,7 +13,7 @@ import 'session_http_client_io.dart'
 import 'host_environment.dart';
 import 'models/app_manifest.dart';
 import 'models/installed_app.dart';
-import 'models/infrastructure.dart';
+import 'models/cluster.dart';
 import 'models/brain_models.dart';
 import 'models/compute_usage.dart';
 import 'models/model_catalog.dart';
@@ -193,17 +193,8 @@ final class DigitalBrainUiClient {
     );
   }
 
-  /// What the brain stands on: each composed module with its Aspire resource state.
-  Future<List<InfrastructureRow>> readInfrastructure(String brainId) async {
-    final body = await jsonRequest(
-      'GET',
-      '/brains/${Uri.encodeComponent(brainId)}/infrastructure',
-    );
-    return [
-      for (final row in body as List)
-        InfrastructureRow.fromJson(Map<String, dynamic>.from(row as Map)),
-    ];
-  }
+  @Deprecated('The infrastructure endpoint is gone; use watchCluster.')
+  Future<List<Object>> readInfrastructure(String brainId) async => const [];
 
   /// The route that publishes an open request; the app answers through neurons, never here.
   static String appOpenPath(String brainId, String appId) =>
@@ -363,28 +354,42 @@ final class DigitalBrainUiClient {
     );
   }
 
-  Stream<WorkspaceRevision> watchWorkspace(String workspaceId) {
+  Stream<WorkspaceRevision> watchWorkspace(String workspaceId) => _serverEvents(
+    '/brains/${Uri.encodeComponent(workspaceId)}/events',
+    'Workspace events are unavailable.',
+  ).map(WorkspaceRevision.fromJson);
+
+  /// The live signals of `types` (simple type names, e.g. ClusterChanged) on the brain's
+  /// `/live` feed. Each source's retained value arrives first, so a late listener starts current.
+  Stream<LiveEnvelope> watchLive(
+    String brainId,
+    List<String> types,
+  ) => _serverEvents(
+    '/brains/${Uri.encodeComponent(brainId)}/live?${types.map((type) => 'type=${Uri.encodeQueryComponent(type)}').join('&')}',
+    'Live signals are unavailable.',
+  ).map(LiveEnvelope.fromJson);
+
+  Stream<ClusterChanged> watchCluster(String brainId) => watchLive(brainId, [
+    'ClusterChanged',
+  ]).map((envelope) => ClusterChanged.fromJson(envelope.payload));
+
+  Stream<Map<String, dynamic>> _serverEvents(String path, String unavailable) {
     final abort = Completer<void>();
     StreamSubscription<String>? incoming;
-    late StreamController<WorkspaceRevision> controller;
-    controller = StreamController<WorkspaceRevision>(
+    late StreamController<Map<String, dynamic>> controller;
+    controller = StreamController<Map<String, dynamic>>(
       onListen: () async {
         try {
           final request = http.AbortableRequest(
             'GET',
-            baseUri.resolve(
-              '/brains/${Uri.encodeComponent(workspaceId)}/events',
-            ),
+            baseUri.resolve(path),
             abortTrigger: abort.future,
           )..headers['accept'] = 'text/event-stream';
           final response = await _http.send(request);
           if (abort.isCompleted || response.statusCode != 200) {
             await response.stream.listen(null).cancel();
             if (!abort.isCompleted) {
-              throw TableRequestException(
-                response.statusCode,
-                'Workspace events are unavailable.',
-              );
+              throw TableRequestException(response.statusCode, unavailable);
             }
             return;
           }
@@ -396,10 +401,8 @@ final class DigitalBrainUiClient {
                   if (!line.startsWith('data:')) return;
                   try {
                     controller.add(
-                      WorkspaceRevision.fromJson(
-                        jsonDecode(line.substring(5).trimLeft())
-                            as Map<String, dynamic>,
-                      ),
+                      jsonDecode(line.substring(5).trimLeft())
+                          as Map<String, dynamic>,
                     );
                   } catch (error, stack) {
                     controller.addError(error, stack);
