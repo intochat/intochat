@@ -14,7 +14,7 @@ void main() {
       final fixture = await ApplicationFixture.start(tester);
 
       expect(find.byType(HomeScreen), findsOneWidget);
-      expect(find.byKey(const ValueKey('assistant-cat')), findsOneWidget);
+      expect(find.byKey(const ValueKey('assistant-ino')), findsOneWidget);
       expect(find.byType(DockTextField), findsOneWidget);
       expect(find.byType(ApplicationSurface), findsNothing);
       expect(

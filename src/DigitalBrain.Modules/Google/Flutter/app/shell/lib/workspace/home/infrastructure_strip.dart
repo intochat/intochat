@@ -30,19 +30,10 @@ Color infrastructureColor(InfrastructureHealth health) => switch (health) {
 // One chip per silo, colored by health. The strip listens to the cluster's own signal: a silo changing
 // state animates its chip, a silo that leaves the cluster loses it, nothing is polled.
 class InfrastructureStrip extends StatefulWidget {
-  const InfrastructureStrip({
-    super.key,
-    this.watch,
-    this.onTap,
-    @Deprecated('The strip no longer reads infrastructure rows; pass watch.')
-    this.load,
-    @Deprecated('The strip no longer lists connections.') this.loadConnections,
-  });
+  const InfrastructureStrip({super.key, this.watch, this.onTap});
 
   final Stream<ClusterChanged> Function()? watch;
   final ValueChanged<String>? onTap;
-  final Object? Function()? load;
-  final Object? Function()? loadConnections;
 
   @override
   State<InfrastructureStrip> createState() => _InfrastructureStripState();

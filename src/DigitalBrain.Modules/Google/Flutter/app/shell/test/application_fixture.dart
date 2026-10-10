@@ -206,7 +206,9 @@ class ApplicationFixture {
 
   static Future<ApplicationFixture> start(WidgetTester tester) async {
     final server = ApplicationServer();
-    final store = WorkspaceStore(persistence: MemoryWorkspacePersistence());
+    // Ino floats forever while nothing is focused; reduced motion lets pumpAndSettle settle.
+    final store = WorkspaceStore(persistence: MemoryWorkspacePersistence())
+      ..settings.reducedMotion = true;
     final client = DigitalBrainUiClient(
       baseUri: Uri.parse('http://test'),
       httpClient: server,

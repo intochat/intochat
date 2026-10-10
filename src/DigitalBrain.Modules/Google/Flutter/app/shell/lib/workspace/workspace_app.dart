@@ -751,10 +751,8 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       infrastructure: client == null
           ? null
           : InfrastructureStrip(
-              load: () => client.readInfrastructure(project.id),
-              loadConnections: () =>
-                  client.workspaceConnectionsRequest(project.id, ''),
-              onTap: (module) => _openConnections(context, module),
+              watch: () => client.watchCluster(project.id),
+              onTap: (silo) => _openConnections(context, silo),
             ),
       onAppsChanged: () {
         _manifests.clear();
@@ -836,6 +834,8 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
           loadIcon: client.readBytes,
           iconRoute:
               '/brains/${Uri.encodeComponent(project.id)}/apps/${Uri.encodeComponent(app)}/icon',
+          watchActivity: () => client.watchActivity(project.id),
+          floating: focused == null,
           onRequest: (operation, input) =>
               client.requestApp(project.id, app, operation, input),
         );

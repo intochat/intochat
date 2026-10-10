@@ -83,7 +83,7 @@ void main() {
       tester.widget<TextField>(find.byType(TextField)).controller!.text,
       '',
     );
-    expect(find.byKey(const ValueKey('assistant-cat')), findsNothing);
+    expect(find.byKey(const ValueKey('assistant-ino')), findsNothing);
   });
 
   testWidgets('an empty submit posts nothing', (tester) async {
@@ -96,20 +96,20 @@ void main() {
   });
 
   testWidgets(
-    'the assistant toolbar is the assistant island: the cat, then its entries',
+    'the assistant toolbar is the assistant island: Ino, then its entries',
     (tester) async {
       final posted = <(String, String)>[];
       await tester.pumpWidget(host('assistant', assistant, posted));
 
-      expect(find.byKey(const ValueKey('assistant-cat')), findsOneWidget);
+      expect(find.byKey(const ValueKey('assistant-ino')), findsOneWidget);
       expect(find.byType(DockTextField), findsOneWidget);
       expect(find.byIcon(Icons.mic_rounded), findsOneWidget);
-      final cat = tester.getTopLeft(
-        find.byKey(const ValueKey('assistant-cat')),
+      final ino = tester.getTopLeft(
+        find.byKey(const ValueKey('assistant-ino')),
       );
       final field = tester.getTopLeft(find.byType(DockTextField));
       final mic = tester.getTopLeft(find.byKey(const ValueKey('dock-voice')));
-      expect(cat.dx, lessThan(field.dx));
+      expect(ino.dx, lessThan(field.dx));
       expect(field.dx, lessThan(mic.dx));
 
       await tester.tap(find.byKey(const ValueKey('dock-voice')));

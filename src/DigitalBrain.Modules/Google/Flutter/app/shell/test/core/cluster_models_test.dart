@@ -34,4 +34,16 @@ void main() {
     expect(envelope.type, 'AppActivity');
     expect(envelope.payload['state'], 'working');
   });
+
+  test('an AppActivity payload decodes the app, its state and detail', () {
+    final activity = AppActivity.fromJson({
+      'app': 'assistant',
+      'state': 'working',
+      'detail': 'Reading your mail',
+    });
+    expect(activity.app, 'assistant');
+    expect(activity.state, 'working');
+    expect(activity.detail, 'Reading your mail');
+    expect(AppActivity.fromJson({}).state, 'idle');
+  });
 }

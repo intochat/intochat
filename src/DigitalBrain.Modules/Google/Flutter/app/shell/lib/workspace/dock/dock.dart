@@ -18,6 +18,8 @@ class Dock extends StatelessWidget {
     required this.onRequest,
     this.loadIcon,
     this.iconRoute,
+    this.watchActivity,
+    this.floating = false,
   });
 
   final String app;
@@ -26,12 +28,16 @@ class Dock extends StatelessWidget {
   final IconLoader? loadIcon;
   // The route serving the app's own icon file; an entry naming that file renders it.
   final String? iconRoute;
+  // The brain's AppActivity feed Ino follows; floating is true while no app is focused.
+  final Stream<AppActivity> Function()? watchActivity;
+  final bool floating;
 
   @override
   Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      if (app == 'assistant') const AssistantCat(),
+      if (app == 'assistant')
+        AssistantIsland(watch: watchActivity, floating: floating),
       for (final entry in manifest.toolbar)
         _DockEntry(
           key: ValueKey('dock-entry-${entry.operation}'),

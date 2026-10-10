@@ -19,7 +19,7 @@ void main() {
         fixture.store.focusedWindow,
         '${fixture.brainId}/apps/assistant/window',
       );
-      expect(find.byKey(const ValueKey('assistant-cat')), findsOneWidget);
+      expect(find.byKey(const ValueKey('assistant-ino')), findsOneWidget);
       expect(find.byType(DockTextField), findsOneWidget);
 
       await tester.tap(find.byTooltip('Home'));
