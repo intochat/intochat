@@ -12,6 +12,7 @@ namespace DigitalBrain.OS.Tests.Unit;
 
 // Builds the real AppHost model without starting any resource. The CSharp module owns
 // compilation and authoring; the product uses the same connector set as the reference composition.
+[Collection(AppHostComposition.Collection)]
 public sealed class ProductCompositionFacts
 {
     [Fact]

@@ -6,6 +6,7 @@ namespace DigitalBrain.OS.Tests.Unit;
 
 // Telemetry is Aspire's: the AppHost's dashboard OTLP setting is what every project resource
 // exports to. A test collector plugs in there, never by writing OTEL_* onto a resource.
+[Collection(AppHostComposition.Collection)]
 public sealed class TelemetryProjectionFacts
 {
     [Fact]
