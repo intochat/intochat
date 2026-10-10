@@ -18,6 +18,8 @@ import 'models/brain_models.dart';
 import 'models/compute_usage.dart';
 import 'models/model_catalog.dart';
 import 'models/grant_summary.dart';
+import 'neuron_channel.dart';
+import 'node_contracts.dart';
 import 'models/session_capabilities.dart';
 import 'models/table_models.dart';
 import 'models/workspace_models.dart';
@@ -39,7 +41,8 @@ final class DigitalBrainUiClient {
                httpClient ?? transport.createSessionHttpClient(),
                credentials: credentials,
              ),
-       _ownsClient = httpClient == null;
+       _ownsClient = httpClient == null,
+       _credentials = credentials;
 
   factory DigitalBrainUiClient.fromEnvironment({
     http.Client? httpClient,
@@ -138,6 +141,46 @@ final class DigitalBrainUiClient {
 
   final CookieHttpClient _http;
   final bool _ownsClient;
+  final BasicCredentials? _credentials;
+
+  /// Live updates ride the neuron channel unless the build is told to keep HTTP polling
+  /// (`--dart-define=DIGITALBRAIN_UI_TRANSPORT=http`): the comparison runs both.
+  static const liveTransportEnv = 'DIGITALBRAIN_UI_TRANSPORT';
+  static const _liveTransport = String.fromEnvironment(
+    liveTransportEnv,
+    defaultValue: 'grpc',
+  );
+  bool get grpcLive => _liveTransport != 'http';
+
+  NeuronChannel? _channel;
+  NeuronChannel get channel => _channel ??= NeuronChannel(
+    baseUri,
+    authorization: _credentials?.authorizationHeader,
+  );
+
+  /// The node's own change signal; the view reads the node once per event.
+  Stream<NeuronSignal> watchNode(String brainId, String kind, String name) {
+    final contract = NodeContracts.of(kind);
+    return channel.watch(brainId, [
+      WatchSourceSpec(contract.contract, name, [contract.changed]),
+    ]);
+  }
+
+  /// WorkspaceChanged over the channel: the same revision ping the SSE route sends.
+  Stream<WorkspaceRevision> watchWorkspaceChannel(String workspaceId) => channel
+      .watch(workspaceId, [
+        WatchSourceSpec(
+          'DigitalBrain.Flutter.Workspace.IWorkspace',
+          workspaceId,
+          ['WorkspaceChanged'],
+        ),
+      ])
+      .map(
+        (s) => WorkspaceRevision(
+          workspaceId,
+          (s.payload['revision'] as num).toInt(),
+        ),
+      );
 
   /// Server-owned capabilities; the shell hides developer-only surfaces when this is off.
   Future<SessionCapabilities> readCapabilities() async {
