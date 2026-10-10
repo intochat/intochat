@@ -10,6 +10,12 @@ internal sealed class PartJournal(string path, byte[] key, Serializer serializer
 {
     private readonly Lock _gate = new();
 
+    // Test seam: runs between a record's length and its body, so a failure leaves a half-written record.
+    internal Action? Interrupt { get; set; }
+
+    // A failed append could not be cut back off the file: nothing appended after it would read back.
+    public bool Broken { get; private set; }
+
     private string Context => $"part-journal|{path}";
 
     public void Append(LogEntry entry)
@@ -18,8 +24,23 @@ internal sealed class PartJournal(string path, byte[] key, Serializer serializer
         {
             EnsureDirectory();
             using var file = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read);
-            WriteRecord(file, entry);
-            file.Flush(flushToDisk: true);
+            var start = file.Length;
+            try
+            {
+                WriteRecord(file, entry);
+                file.Flush(flushToDisk: true);
+            }
+            catch
+            {
+                // A half-written record would hide every later one from Read; cut it off or refuse further appends.
+                try
+                {
+                    file.SetLength(start);
+                    file.Flush(flushToDisk: true);
+                }
+                catch { Broken = true; }
+                throw;
+            }
         }
     }
 
@@ -60,6 +81,7 @@ internal sealed class PartJournal(string path, byte[] key, Serializer serializer
         Span<byte> length = stackalloc byte[4];
         BinaryPrimitives.WriteInt32LittleEndian(length, sealedBytes.Length);
         file.Write(length);
+        Interrupt?.Invoke();
         file.Write(sealedBytes);
     }
 

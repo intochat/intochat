@@ -38,4 +38,21 @@ public sealed class PartJournalFacts
 
         Assert.Equal([3L], journal.Read().Select(e => e.Seq));
     }
+
+    [Fact(Timeout = 60_000)]
+    public async Task AnAppendThatFailsMidwayLeavesNoBytesBehindTheNextOne()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        var serializer = brain.SiloServices.GetRequiredService<Serializer>();
+        var key = RandomNumberGenerator.GetBytes(32);
+        var path = Path.Combine(Path.GetTempPath(), $"journal-{Guid.NewGuid():N}.log");
+        var journal = new PartJournal(path, key, serializer) { Interrupt = () => throw new IOException("The disk went away mid-record.") };
+        Assert.Throws<IOException>(() => journal.Append(new LogEntry { Seq = 1, GrainId = "g", StateName = "s", Record = [1] }));
+        journal.Interrupt = null;
+
+        journal.Append(new LogEntry { Seq = 1, GrainId = "g", StateName = "s", Record = [2] });
+
+        Assert.Equal([2], Assert.Single(new PartJournal(path, key, serializer).Read()).Record);
+    }
 }

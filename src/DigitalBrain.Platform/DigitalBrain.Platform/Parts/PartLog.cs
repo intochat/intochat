@@ -62,7 +62,8 @@ internal sealed class PartLog : IAsyncDisposable
             await log.Replay(ct);
             log.Recover();
         }
-        catch
+        // An own machine keeps its lease through a transient failure: its journal may hold changes no head covers.
+        catch (Exception error) when (options.Role != MachineRole.Own || error is JournalConflictException)
         {
             await log.ReleaseQuietly();
             throw;
@@ -92,7 +93,13 @@ internal sealed class PartLog : IAsyncDisposable
             var entry = new LogEntry { Seq = _nextSeq, GrainId = grainId, StateName = stateName, Change = change, Record = record, Signals = signals };
             if (_journal is not null)
             {
-                _journal.Append(entry);
+                try { _journal.Append(entry); }
+                catch (Exception error) when (_journal.Broken)
+                {
+                    _logger.LogError(error, "Part {Part} could not repair its journal after a failed append; the log is closed.", _part);
+                    _closed = error;
+                    throw;
+                }
                 Apply(entry);
             }
             _nextSeq++;
@@ -174,7 +181,11 @@ internal sealed class PartLog : IAsyncDisposable
         if (_journal is null) { return; }
         var lastSeq = _lease.Payload.LastSeq;
         var journaled = _journal.Read();
-        var conflict = journaled.Where(e => e.Seq <= lastSeq).Any(e => replayed.TryGetValue(e.Seq, out var accepted) && !Same(accepted, e));
+        // A covered entry the replay cannot see (inside a snapshot) is this machine's own commit only if no other
+        // machine held the part since (ruling R11).
+        var ownHistory = _lease.PreviousHolder == _lease.MachineId;
+        var conflict = journaled.Where(e => e.Seq <= lastSeq)
+            .Any(e => replayed.TryGetValue(e.Seq, out var accepted) ? !Same(accepted, e) : !ownHistory);
         var rest = journaled.Where(e => e.Seq > lastSeq).ToArray();
         conflict |= rest.Select((e, i) => e.Seq != lastSeq + 1 + i).Any(gap => gap);
         if (conflict)
@@ -195,8 +206,9 @@ internal sealed class PartLog : IAsyncDisposable
         if (rest.Length > 0) { ScheduleFlush(TimeSpan.Zero); }
     }
 
-    private static bool Same(LogEntry a, LogEntry b) =>
-        a.GrainId == b.GrainId && a.StateName == b.StateName && a.Change == b.Change && a.Record.AsSpan().SequenceEqual(b.Record) && a.Signals.Length == b.Signals.Length;
+    private bool Same(LogEntry a, LogEntry b) =>
+        a.GrainId == b.GrainId && a.StateName == b.StateName && a.Change == b.Change && a.Record.AsSpan().SequenceEqual(b.Record)
+        && _serializer.SerializeToArray(a.Signals).AsSpan().SequenceEqual(_serializer.SerializeToArray(b.Signals));
 
     private void Apply(LogEntry entry)
     {
@@ -262,9 +274,11 @@ internal sealed class PartLog : IAsyncDisposable
                     _queuedBytes = _queue.Sum(p => p.Entry.Record.Length + 64L * (1 + p.Entry.Signals.Length));
                     if (_queue.Count == 0) { _drained.TrySetResult(); }
                 }
-                _journal?.TrimThrough(batch[^1].Entry.Seq);
                 foreach (var pending in batch) { pending.Committed.TrySetResult(pending.Entry.Seq); }
                 _backoff = TimeSpan.FromSeconds(1);
+                // The batch is durable once the head accepted it; a stale journal is trimmed by the next flush or open.
+                try { _journal?.TrimThrough(batch[^1].Entry.Seq); }
+                catch (Exception error) { _logger.LogWarning(error, "Part {Part} could not trim its journal through seq {Seq}.", _part, batch[^1].Entry.Seq); }
             }
             catch (LeaseLostException lost)
             {
@@ -278,9 +292,12 @@ internal sealed class PartLog : IAsyncDisposable
                 ScheduleFlush(_backoff);
                 _backoff = TimeSpan.FromTicks(Math.Min(_backoff.Ticks * 2, TimeSpan.FromSeconds(60).Ticks));
             }
+            // Ruling R12: an ambiguous failure closes the log like a lease loss. A write reported failed here may in
+            // fact be durable (the head may have moved); reopening replays it from the head, which is the only truth.
             catch (Exception error)
             {
-                _logger.LogWarning(error, "Part {Part} could not commit; {Count} changes fail.", _part, batch.Length);
+                _logger.LogWarning(error, "Part {Part} could not commit; {Count} changes fail and the log is closed.", _part, batch.Length);
+                lock (_queue) { _closed = error; }
                 FailAll(error);
             }
         }
