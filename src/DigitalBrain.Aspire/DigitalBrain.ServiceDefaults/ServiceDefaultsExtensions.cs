@@ -97,9 +97,11 @@ public static class ServiceDefaultsExtensions
             // overwrite both with the assembly name and a fresh instance id.
             .ConfigureResource(resource =>
             {
-                if (string.IsNullOrWhiteSpace(builder.Configuration["OTEL_SERVICE_NAME"]))
-                { resource.AddService(serviceName: builder.Environment.ApplicationName, serviceNamespace: TelemetryPrefix); }
-                else { resource.AddAttributes([new("service.namespace", TelemetryPrefix)]); }
+                // The configured name is used as is: the SDK's detector reads only the process environment, so a
+                // name from another configuration source (appsettings, a command line) would otherwise be lost.
+                if (builder.Configuration["OTEL_SERVICE_NAME"] is { Length: > 0 } configured && !string.IsNullOrWhiteSpace(configured))
+                { resource.AddService(serviceName: configured, serviceNamespace: TelemetryPrefix, autoGenerateServiceInstanceId: false); }
+                else { resource.AddService(serviceName: builder.Environment.ApplicationName, serviceNamespace: TelemetryPrefix); }
             })
             .WithMetrics(metrics => metrics
                 .AddAspNetCoreInstrumentation()
