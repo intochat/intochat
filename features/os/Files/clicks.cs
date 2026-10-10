@@ -1,18 +1,14 @@
 using DigitalBrain.Apps;
 using DigitalBrain.Client;
-using DigitalBrain.Flutter.Button;
-using DigitalBrain.Flutter.Button.Signals;
+using DigitalBrain.Flutter.Collection;
 
-// An entry button holds its path: a name with an extension is a file to read, anything else a folder to browse.
+// One subscription: an activated entry is the parent (up:), a folder (it lists) or a file (it does not).
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 
-await Task.WhenAll(Enumerable.Range(0, Machine.MaxEntries).Select(Entry));
-return;
-
-async Task Entry(int index)
+await foreach (var activated in brain.On<CollectionActivated>(brain.Get<ICollectionView>(appKey + "/listing"), brain.Stopping))
 {
-    await foreach (var clicked in brain.On<ButtonClicked>(brain.Get<IButton>(appKey + "/entry-" + index), brain.Stopping))
-    { await app.Request(Path.HasExtension(clicked.Action) ? "read" : "browse", clicked.Action); }
+    if (activated.ItemId.StartsWith("up:", StringComparison.Ordinal)) { await app.Request("browse", activated.ItemId[3..]); }
+    else { await app.Request(await Machine.IsFolder(brain, activated.ItemId) ? "browse" : "read", activated.ItemId); }
 }

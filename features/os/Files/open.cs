@@ -2,7 +2,6 @@ using DigitalBrain.Apps;
 using DigitalBrain.Apps.Signals;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Button;
 using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Text;
@@ -18,7 +17,7 @@ await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
     if (request.Operation != "open") { continue; }
     var main = brain.Get<ILayout>(appKey + "/main");
     await main.Set(new("column", [new(UIVocabulary.TextType, appKey + "/location"),
-        new(UIVocabulary.LayoutType, appKey + "/entries"), new(UIVocabulary.TextType, appKey + "/content")],
+        new(UIVocabulary.CollectionType, appKey + "/listing"), new(UIVocabulary.TextType, appKey + "/content")],
         Extents: [32, 0, 0]), (await main.Read()).Revision);
     var surface = brain.Get<ISurface>(appKey + "/surface");
     await surface.Set(new("Files", [new(UIVocabulary.LayoutType, appKey + "/main")]), (await surface.Read()).Revision);
