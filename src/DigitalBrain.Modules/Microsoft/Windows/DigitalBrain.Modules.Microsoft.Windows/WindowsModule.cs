@@ -9,7 +9,7 @@ namespace DigitalBrain.Microsoft.Windows;
 // A Windows PC as an edge: the machine, its files and its console, served only by a silo on that PC.
 public sealed class WindowsModule() : Module<WindowsOptions>(new ModuleId("windows"))
 {
-    public override Assembly? Contracts => typeof(WindowsOptions).Assembly;
+    public override Assembly? Contracts => typeof(IWindows).Assembly;
 
     public override void Configure(ISiloBuilder silo)
     {
