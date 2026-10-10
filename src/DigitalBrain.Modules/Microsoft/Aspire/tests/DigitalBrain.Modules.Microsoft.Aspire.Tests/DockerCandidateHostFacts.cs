@@ -22,6 +22,7 @@ public sealed class DockerCandidateHostFacts : IDisposable
             ["DigitalBrain:Integrations:github:PrivateKeyPem"] = "pem",
             ["DigitalBrain:Integrations:postgres:ConnectionString"] = "Host=live-postgres",
             ["DigitalBrain:Integrations:postgres:AdminConnection"] = "Host=live-postgres-admin",
+            ["DigitalBrain:Integrations:supabase:ConnectionString"] = "Host=live-supabase",
             ["DigitalBrain:Integrations:clickhouse:ConnectionString"] = "Host=live-clickhouse",
             ["DigitalBrain:Integrations:aspire:Workdir"] = "E:/repo/.digitalbrain",
             ["DigitalBrain:Integrations:csharp:RunTokenKey"] = "live-run-token",
@@ -49,6 +50,7 @@ public sealed class DockerCandidateHostFacts : IDisposable
         Assert.Equal(32, Convert.FromBase64String(host.LastRunEnvironment["DigitalBrain__Integrations__csharp__RunTokenKey"]).Length);
         Assert.Contains("candidate-abc1234-postgres", host.LastRunEnvironment["DigitalBrain__Integrations__postgres__ConnectionString"], StringComparison.Ordinal);
         Assert.Contains("candidate-abc1234-postgres", host.LastRunEnvironment["DigitalBrain__Integrations__postgres__AdminConnection"], StringComparison.Ordinal);
+        Assert.Contains("candidate-abc1234-postgres", host.LastRunEnvironment["DigitalBrain__Integrations__supabase__ConnectionString"], StringComparison.Ordinal);
         Assert.Contains("candidate-abc1234-clickhouse", host.LastRunEnvironment["DigitalBrain__Integrations__clickhouse__ConnectionString"], StringComparison.Ordinal);
         Assert.Equal("Open", host.LastRunEnvironment["DigitalBrain__Auth__Posture"]);
         Assert.Equal(host.LastRunEnvironment["ConnectionStrings__clustering"], host.LastMcpEnvironment["ConnectionStrings__clustering"]);

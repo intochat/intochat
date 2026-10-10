@@ -288,6 +288,9 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
             // The copied postgres options may place a database per brain, which needs the server's admin connection.
             [Env(IntegrationSchema.Key("postgres", "AdminConnection"))] =
                 $"Host={PostgresOf(sha)};Port=5432;Username=postgres;Password={postgresPassword}",
+            // Supabase is postgres: a copied UseBackingStore option boots against the candidate's own server.
+            [Env(IntegrationSchema.Key("supabase", "ConnectionString"))] =
+                $"Host={PostgresOf(sha)};Port=5432;Username=postgres;Password={postgresPassword};Database={PostgresDatabase}",
             [Env(IntegrationSchema.Key("clickhouse", "ConnectionString"))] =
                 $"Host={ClickHouseOf(sha)};Port=8123;Protocol=http;Username=default;Password={clickHousePassword};Database=default",
         })
