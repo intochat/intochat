@@ -6,6 +6,7 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -95,9 +96,20 @@ public sealed class DeploymentIdentityFacts
             if (resource == server.Resource)
             {
                 Assert.Equal(DigitalBrainNames.Reminders, configuration.EnvironmentVariables.ToDictionary()["Orleans__Reminders__ServiceKey"]);
-                Assert.Equal(DigitalBrainNames.GrainState, configuration.EnvironmentVariables.ToDictionary()["Orleans__GrainStorage__Default__ServiceKey"]);
+Assert.Equal(DigitalBrainNames.GrainState, configuration.EnvironmentVariables.ToDictionary()["Orleans__GrainStorage__Default__ServiceKey"]);
             }
         }
+    }
+
+    [Fact]
+    public void ASiloHostWaitsForAGracefulLeaveOnStop()
+    {
+        var host = global::Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
+        host.Configuration[AuthOptions.PostureKey] = "Open";
+        DigitalBrain.Aspire.Server.ServerHostingExtensions.AddDigitalBrainServer(host, server => server.UseAzureStorage());
+        using var provider = host.Services.BuildServiceProvider();
+        var options = provider.GetRequiredService<IOptionsMonitor<HostOptions>>().Get(null);
+        Assert.Equal(TimeSpan.FromSeconds(10), options.ShutdownTimeout);
     }
 
     private sealed class ServiceKeys : IExecutionConfigurationGatherer

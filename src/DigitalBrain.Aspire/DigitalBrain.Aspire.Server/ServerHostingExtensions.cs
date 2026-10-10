@@ -25,6 +25,10 @@ public static class ServerHostingExtensions
         ArgumentNullException.ThrowIfNull(builder);
         // Every DigitalBrain server carries the process defaults; hosts cannot forget them.
         builder.AddServiceDefaults();
+        // A silo must have time to announce ShuttingDown in the cluster membership table before
+        // the hosting framework force-kills it. 10 seconds covers the Orleans probe interval and
+        // the near-instantaneous membership write.
+        builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(10));
 
         if (builder.Configuration[ConfigurationFileKey] is { Length: > 0 } configurationFile)
         { builder.Configuration.AddJsonFile(configurationFile, optional: false, reloadOnChange: false); }

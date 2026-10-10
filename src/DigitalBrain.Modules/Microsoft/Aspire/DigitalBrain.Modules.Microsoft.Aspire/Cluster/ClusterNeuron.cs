@@ -104,7 +104,17 @@ internal sealed class ClusterNeuron(
         if (handedOver || !Moving(Snapshot.Stage)) { return; }
         var target = Snapshot.TargetSha!;
         // Intent is persisted before live.json moves: a step cut off between the two points live.json here.
-        if (await host.CurrentSha(CancellationToken.None) != target) { await host.SetLive(target, CancellationToken.None); }
+        try
+        {
+            if (await host.CurrentSha(CancellationToken.None) != target) { await host.SetLive(target, CancellationToken.None); }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            log.LogWarning(error, "Cluster {Cluster} could not set live to {Target} at step.", this.GetPrimaryKeyString(), target);
+            await Save(Snapshot with { Stage = ClusterStage.Steady, Failure = error.Message }, new ClusterChanged(Snapshot.CurrentSha ?? Snapshot.PreviousSha ?? string.Empty, ClusterStage.Steady, null, error.Message));
+            await StopReminder();
+            return;
+        }
         var self = host.Self;
         if (Snapshot.Handover is { } handover)
         {
@@ -142,6 +152,11 @@ internal sealed class ClusterNeuron(
             await NeverReady(name, new InstanceNeverReadyException($"instance {name} did not restart within {budget}", error));
             return false;
         }
+        catch (Exception error)
+        {
+            await NeverReady(name, new InstanceNeverReadyException($"instance {name} failed to restart: {error.Message}", error));
+            return false;
+        }
         return await Ready(name);
     }
 
@@ -155,6 +170,11 @@ internal sealed class ClusterNeuron(
         catch (InstanceNeverReadyException error)
         {
             await NeverReady(name, error);
+            return false;
+        }
+        catch (Exception error)
+        {
+            await NeverReady(name, new InstanceNeverReadyException($"instance {name} readiness check failed: {error.Message}", error));
             return false;
         }
     }

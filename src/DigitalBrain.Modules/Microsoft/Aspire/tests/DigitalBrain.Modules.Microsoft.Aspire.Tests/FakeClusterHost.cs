@@ -28,6 +28,8 @@ internal sealed class FakeClusterHost : IClusterHost
     public HashSet<string> NeverHealthy { get; } = [];
     // An instance whose restart fails once, as if the activation driving the roll were cut off there.
     public string? InterruptAt { get; set; }
+    // An instance whose restart always fails, like a CLI non-zero exit.
+    public HashSet<string> NeverRestart { get; } = [];
     public TaskCompletionSource<string> SelfRestarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     public List<string> Waited { get; } = [];
     public TaskCompletionSource<string> Interrupted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -39,6 +41,10 @@ internal sealed class FakeClusterHost : IClusterHost
 
     public Task RestartInstance(string name, CancellationToken ct)
     {
+        if (NeverRestart.Contains(name))
+        {
+            return Task.FromException(new InvalidOperationException($"aspire resource {name} restart exited 1: ..."));
+        }
         if (name == InterruptAt)
         {
             InterruptAt = null;
