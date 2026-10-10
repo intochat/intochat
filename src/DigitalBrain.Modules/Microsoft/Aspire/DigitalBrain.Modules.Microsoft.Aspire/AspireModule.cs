@@ -29,6 +29,7 @@ public sealed class AspireModule() : Module(new ModuleId("aspire")), IHttpModule
         ArgumentNullException.ThrowIfNull(builder);
         builder.Services.TryAddSingleton<Candidates.IProcessRunner, Candidates.SystemProcessRunner>();
         builder.Services.TryAddSingleton<Candidates.ICandidateHost, Candidates.DockerCandidateHost>();
+        builder.Services.TryAddSingleton<Cluster.IClusterHost, Cluster.AspireCliClusterHost>();
         builder.Services.TryAddSingleton<Verification.ICandidateVerifier, Verification.CandidateVerifier>();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<Cluster.ClusterNeuron>, Cluster.ClusterReconcile>());
     }

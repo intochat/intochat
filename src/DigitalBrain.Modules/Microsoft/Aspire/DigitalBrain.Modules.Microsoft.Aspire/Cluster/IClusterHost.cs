@@ -1,6 +1,6 @@
 namespace DigitalBrain.Microsoft.Aspire.Cluster;
 
-// The live AppHost, reached through `aspire mcp start` over stdio.
+// The live AppHost, reached through the `aspire` CLI.
 internal interface IClusterHost
 {
     Task<string> CurrentSha(CancellationToken ct);                        // from {Workdir}/live.json

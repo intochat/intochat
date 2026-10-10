@@ -645,9 +645,9 @@ AppHost: when `{Workdir}/live.json` exists, the OS silo resource is `AddExecutab
 - `Spans(service, span)`: `list_traces` filtered by resource/service name, count the span name (port of `AspireCliTelemetry`).
 - `CurrentSha` / `SetLive`: `LiveBuild`.
 
-- [ ] **Step 1:** Hosting fact: `TheSiloRunsTheLiveBuildWhenOneIsSet` — write a temp `live.json`, build the AppHost model via `DigitalBrain.Aspire.Testing`, assert the `os` resource is an `ExecutableResource` whose args contain the build path.
-- [ ] Steps 2–4: fail, implement, pass. Register `AspireCliClusterHost`.
-- [ ] **Step 5:** Commit `"Aspire: live silos run a published build; cluster host over aspire mcp"`.
+- [x] **Step 1:** Hosting fact: `TheSiloRunsTheLiveBuildWhenOneIsSet` — write a temp `live.json`, build the AppHost model via `DigitalBrain.Aspire.Testing`, assert the `os` resource is an `ExecutableResource` whose args contain the build path.
+- [x] Steps 2–4: fail, implement, pass. Register `AspireCliClusterHost`.
+- [x] **Step 5:** Commit `"Aspire: live silos run a published build; cluster host over aspire mcp"`.
 
 ---
 

@@ -1,4 +1,5 @@
 using Aspire.Hosting;
+using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Aspire.Hosting;
 using DigitalBrain.AI.Models.FoundryLocal;
@@ -66,20 +67,38 @@ var cookieProtection = digitalBrain.AddBlobContainer(digitalBrain.Identity!.Prot
 // The repository's ./features: os and intochat apps, loaded by the OS at boot.
 var features = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "features"));
 
-var runtime = builder.AddProject<Projects.DigitalBrain_OS>("OperatingSystem")
-    .WithReference(digitalBrain)
-    .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features)
-    .WaitFor(cookieProtection)
-    .WithHttpEndpoint(
-        port: builder.Configuration.GetValue(UiPortKey, 5080),
-        name: "http",
-        isProxied: false)
-    .WithHttpHealthCheck("/health", endpointName: "http");
+var uiPort = builder.Configuration.GetValue(UiPortKey, 5080);
+var mcpPort = builder.Configuration.GetValue(McpPortKey, 5081);
 
-builder.AddProject<Projects.DigitalBrain_Mcp>("digitalbrain-mcp")
-    .WithReference(digitalBrain.AsClient(shareHttpIdentity: true))
-    .WithHttpEndpoint(port: builder.Configuration.GetValue(McpPortKey, 5081), name: "http", isProxied: false)
-    .WithHttpHealthCheck("/health", endpointName: "http")
-    .WaitFor(runtime);
+// First boot runs from source; once a candidate is promoted, {repo}/.digitalbrain/live.json names the
+// published build both resources run, and a restart moves them onto the next one.
+var liveOs = AspireModuleHosting.AddLiveBuild(builder, AspireModuleHosting.WorkdirOf(builder), "OperatingSystem", "os", "DigitalBrain.OS.dll");
+var runtime = liveOs is null
+    ? Silo(builder.AddProject<Projects.DigitalBrain_OS>("OperatingSystem").WithHttpEndpoint(port: uiPort, name: "http", isProxied: false))
+    : Silo(liveOs.WithHttpEndpoint(port: uiPort, name: "http", env: "ASPNETCORE_HTTP_PORTS", isProxied: false));
+
+var liveMcp = AspireModuleHosting.AddLiveBuild(builder, AspireModuleHosting.WorkdirOf(builder), "digitalbrain-mcp", "mcp", "DigitalBrain.Mcp.dll");
+if (liveMcp is null)
+{
+    Mcp(builder.AddProject<Projects.DigitalBrain_Mcp>("digitalbrain-mcp").WithHttpEndpoint(port: mcpPort, name: "http", isProxied: false));
+}
+else
+{
+    Mcp(liveMcp.WithHttpEndpoint(port: mcpPort, name: "http", env: "ASPNETCORE_HTTP_PORTS", isProxied: false));
+}
 
 builder.Build().Run();
+
+IResourceBuilder<IResource> Silo<T>(IResourceBuilder<T> silo) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
+{
+    silo.WithReference(digitalBrain)
+        .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features)
+        .WaitFor(cookieProtection)
+        .WithHttpHealthCheck("/health", endpointName: "http");
+    return builder.CreateResourceBuilder<IResource>(silo.Resource);
+}
+
+void Mcp<T>(IResourceBuilder<T> mcp) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
+    => mcp.WithReference(digitalBrain.AsClient(shareHttpIdentity: true))
+        .WithHttpHealthCheck("/health", endpointName: "http")
+        .WaitFor(runtime);
