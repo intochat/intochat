@@ -17,15 +17,14 @@ await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
     {
         var all = await Machine.Entries(brain, request.Input);
         var shown = all.Take(Machine.MaxEntries).ToArray();
-        var kinds = await Task.WhenAll(shown.Select(async path => await Machine.IsFolder(brain, path) ? "folder" : "file"));
-        var items = shown.Select((path, index) => new CollectionItem(path, path[(path.LastIndexOfAny(['\\', '/']) + 1)..] is { Length: > 0 } name ? name : path, kinds[index])).ToList();
-        if (request.Input.Length > 0) { items.Insert(0, new("up:" + Machine.Parent(request.Input), "..", "folder")); }
+        var items = shown.Select(path => new CollectionItem(path, path[(path.LastIndexOfAny(['\\', '/']) + 1)..] is { Length: > 0 } name ? name : path, request.Input.Length == 0 ? "folder" : "entry")).ToList();
+        if (request.Input.Length > 0) { items.Insert(0, new("up:" + await Machine.Up(brain, request.Input), "..", "folder")); }
         var connected = await Machine.Connection(brain) is not null;
         await brain.Get<IText>(appKey + "/location").Set(request.Input.Length == 0 ? "Allowed folders" : request.Input);
         await brain.Get<IText>(appKey + "/content").Set(all.Length > shown.Length
             ? "Showing " + shown.Length + " of " + all.Length
             : !connected ? "No Windows PC is connected. Connect one and allow a folder." : all.Length == 0 ? "This folder is empty." : "");
-        await listing.Set(new CollectionDefinition([.. items], FileMode: false, SelectionEnabled: false), (await listing.Read()).Revision);
+        await listing.Set(new CollectionDefinition([.. items], FileMode: true, SelectionEnabled: false), (await listing.Read()).Revision);
     }
     catch (Exception) when (!brain.Stopping.IsCancellationRequested)
     { await brain.Get<IText>(appKey + "/content").Set("This folder could not be listed."); }

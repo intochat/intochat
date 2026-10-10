@@ -35,7 +35,15 @@ static class Machine
         catch (Exception) when (!brain.Stopping.IsCancellationRequested) { return false; }
     }
 
-    public static string Parent(string path)
+    // The folder above a path; from an allowed root it is the roots list (empty), since the parent is outside them.
+    public static async Task<string> Up(DigitalBrainConnection brain, string path)
+    {
+        var roots = await Entries(brain, "");
+        var here = path.TrimEnd('\\', '/');
+        return roots.Any(root => string.Equals(root.TrimEnd('\\', '/'), here, StringComparison.OrdinalIgnoreCase)) ? "" : Parent(path);
+    }
+
+    static string Parent(string path)
     {
         var trimmed = path.TrimEnd('\\', '/');
         var cut = trimmed.LastIndexOfAny(['\\', '/']);
