@@ -19,7 +19,7 @@ public sealed class RuntimeEdgeFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true);
         var session = await Assigned(brain, ct);
-        var runtime = brain.Grains().GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For("acc-brain"));
+        var runtime = brain.Grains.GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For("acc-brain"));
         var neuron = brain.Get<IBrainRuntime>(BrainRuntimeKeys.For("acc-brain"));
         var pinger = brain.Get<IPinger>("acknowledged");
         var subscription = await runtime.Subscribed(session.Id, "acc-brain/csharp/a", pinger.GetGrainId().ToString(), nameof(Pinged));
@@ -374,7 +374,7 @@ public sealed class RuntimeEdgeFacts
 
     private static async Task<(string Id, string Token)> Assigned(ModuleBrain brain, CancellationToken ct)
     {
-        await brain.Grains().GetGrain<IBrainPrograms>(BrainRuntimeKeys.For("acc-brain")).Assign("acc-brain/csharp/a", RuntimeBrain.One(RuntimeBrain.Idle), []);
+        await brain.Grains.GetGrain<IBrainPrograms>(BrainRuntimeKeys.For("acc-brain")).Assign("acc-brain/csharp/a", RuntimeBrain.One(RuntimeBrain.Idle), []);
         var id = (await brain.Get<IBrainRuntime>(BrainRuntimeKeys.For("acc-brain")).Inspect(ct)).SessionId!;
         return (id, brain.SiloServices.GetRequiredService<SessionTokens>().Issue("acc-brain", id));
     }

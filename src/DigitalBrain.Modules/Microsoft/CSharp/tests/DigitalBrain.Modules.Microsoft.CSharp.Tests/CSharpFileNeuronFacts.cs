@@ -117,8 +117,8 @@ public sealed class CSharpFileNeuronFacts
         await Assert.ThrowsAsync<ArgumentException>(() => file.Write(new string('x', CSharpFileNeuron.MaximumSourceBytes + 1), ct));
     }
 
-    private static IBrainRuntimeEdge Edge(ModuleBrain brain) => brain.Grains().GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For("acc-brain"));
+    private static IBrainRuntimeEdge Edge(ModuleBrain brain) => brain.Grains.GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For("acc-brain"));
 
     private static Task<ProgramView?> Describe(ModuleBrain brain, string owner)
-        => brain.Grains().GetGrain<IBrainPrograms>(BrainRuntimeKeys.For("acc-brain")).Describe(owner);
+        => brain.Grains.GetGrain<IBrainPrograms>(BrainRuntimeKeys.For("acc-brain")).Describe(owner);
 }

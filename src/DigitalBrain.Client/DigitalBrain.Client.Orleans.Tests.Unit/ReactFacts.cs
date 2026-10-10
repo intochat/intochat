@@ -35,7 +35,7 @@ public sealed class ReactFacts
         var source = brain.Get<ITestEmitter>("react-1");
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var rebuilds = new Rebuilds();
-        var react = ((IDigitalBrain)brain).React<Number>(source, rebuilds.Rebuild, stop.Token);
+        var react = brain.React<Number>(source, rebuilds.Rebuild, stop.Token);
         await rebuilds.Run(1);
         Assert.Equal(1, rebuilds.Count);
         await source.Emit(1);
@@ -54,7 +54,7 @@ public sealed class ReactFacts
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var rebuilds = new Rebuilds(n => n == 2 ? release.Task : Task.CompletedTask);
-        var react = ((IDigitalBrain)brain).React<Number>(source, rebuilds.Rebuild, stop.Token);
+        var react = brain.React<Number>(source, rebuilds.Rebuild, stop.Token);
         await rebuilds.Run(1);
         await source.Emit(1);
         await rebuilds.Run(2); // the second rebuild is held
@@ -76,7 +76,7 @@ public sealed class ReactFacts
         await using var brain = await ModuleTest.Create().StartAsync(ct);
         var source = brain.Get<ITestEmitter>("react-3");
         var rebuilds = new Rebuilds(n => n == 2 ? throw new InvalidOperationException("boom") : Task.CompletedTask);
-        var react = ((IDigitalBrain)brain).React<Number>(source, rebuilds.Rebuild, ct);
+        var react = brain.React<Number>(source, rebuilds.Rebuild, ct);
         await rebuilds.Run(1);
         await source.Emit(1);
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => react.WaitAsync(Wait, ct));

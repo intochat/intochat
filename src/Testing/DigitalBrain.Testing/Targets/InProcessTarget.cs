@@ -9,11 +9,14 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.Orleans;
 using DigitalBrain.Platform.Identity.Configuration;
+using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Parts;
+using DigitalBrain.Platform.Trust;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Orleans.Runtime;
 
@@ -38,8 +41,32 @@ public sealed class InProcessTarget : ITestTarget
             // restart rebinds the same pair.
             siloPort, gatewayPort);
         var app = await BuildAsync(plan, session, httpPort: 0, cancellationToken).ConfigureAwait(false);
-        return new InProcessBrain(plan, session, app, new TestSessionLifetime(plan.Execution));
+        var brain = new InProcessBrain(plan, session, app, new TestSessionLifetime(plan.Execution));
+        try
+        {
+            await ProvisionMachineAsync(plan, app.Services).WaitAsync(cancellationToken).ConfigureAwait(false);
+            return brain;
+        }
+        catch
+        {
+            await brain.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
     }
+
+    // A machine host (a part log role) owns the default brain, so neurons inside it have an owning account. A
+    // machine of a separate trust cluster leaves the brain to the fact: the core part goes to whichever machine
+    // creates it, and a second machine must not contend for it. Deleted with WithPartLog in Task 20.
+    private static Task ProvisionMachineAsync(TestBrainPlan plan, IServiceProvider services)
+    {
+        if (string.IsNullOrWhiteSpace(Setting(plan, $"{PartsOptions.Key}:{nameof(PartsOptions.Role)}"))
+            || !string.IsNullOrWhiteSpace(Setting(plan, $"{TrustOptions.Key}:{nameof(TrustOptions.Gateway)}")))
+        { return Task.CompletedTask; }
+        var owner = AccountSession.DefaultLogin;
+        return services.GetRequiredService<IGrainFactory>().GetGrain<IBrain>(BrainScope.Create(owner, owner).Id).Create(new Owner(owner));
+    }
+
+    private static string? Setting(TestBrainPlan plan, string key) => plan.Configuration.TryGetValue(key, out var value) ? value : null;
 
     internal static async Task<WebApplication> BuildAsync(TestBrainPlan plan, InProcessSession session, int httpPort, CancellationToken cancellationToken)
     {
@@ -67,6 +94,16 @@ public sealed class InProcessTarget : ITestTarget
             foreach (var module in plan.Modules.Where(module => module.Module is not OrleansModule)) { server.AddModule(module.Module); }
             if (plan.Services is { } services) { server.ConfigureServices(services); }
         });
+        if (plan.Silo is { } configureSilo)
+        {
+            builder.UseOrleans(silo =>
+            {
+                // The shimmed actions see the cluster storage as the old module tier did, before the kernel wraps it.
+                UnwrapClusterStorage(silo.Services);
+                configureSilo(silo);
+                silo.TryAddKernelRegistration();
+            });
+        }
         var app = builder.Build();
         try
         {
@@ -79,6 +116,18 @@ public sealed class InProcessTarget : ITestTarget
             await app.DisposeAsync().ConfigureAwait(false);
             throw;
         }
+    }
+
+    // Deleted with ConfigureSilo in Task 20: puts back the descriptor the kernel registration wrapped.
+    private static void UnwrapClusterStorage(IServiceCollection services)
+    {
+        var wrapped = services.LastOrDefault(descriptor => descriptor.ServiceType == typeof(Orleans.Storage.IGrainStorage)
+            && Equals(descriptor.ServiceKey, DigitalBrainNames.ClusterGrainStorage));
+        if (wrapped?.KeyedImplementationFactory?.Target is not { } decorated
+            || decorated.GetType().DeclaringType?.FullName != "DigitalBrain.Framework.InstanceRegistration") { return; }
+        var original = decorated.GetType().GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+            .Single(field => field.FieldType == typeof(ServiceDescriptor)).GetValue(decorated);
+        services[services.IndexOf(wrapped)] = (ServiceDescriptor)original!;
     }
 
     // Both listeners stay open while the ports are read, so the pair is distinct.
@@ -135,6 +184,7 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain
     private HttpClient _http;
     // Observations hold subscriptions on the current host; a restart ends them with it.
     private TestSessionLifetime _observations;
+    private bool _disposed;
 
     public InProcessBrain(TestBrainPlan plan, InProcessSession session, WebApplication app, TestSessionLifetime lifetime)
     {
@@ -156,7 +206,14 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain
     }
 
     public HttpClient HttpClient => _http;
-    public IServiceProvider Services => (_app ?? throw new InvalidOperationException("The brain's host failed to restart.")).Services;
+    public IServiceProvider Services
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return (_app ?? throw new InvalidOperationException("The brain's host failed to restart.")).Services;
+        }
+    }
     public TestExecutionOptions Execution => _plan.Execution;
     int ITrackedBrain.BufferCapacity => Services.GetRequiredService<IOptions<SubscriptionOptions>>().Value.BufferCapacity;
     void ITrackedBrain.Track(IAsyncDisposable resource) => _observations.Own("observation", resource);
@@ -201,7 +258,11 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain
     public Task<Person> PersonAsync(string name, CancellationToken cancellationToken = default)
         => throw new NotSupportedException("People arrive with the identity helpers (one-host testing, Task 8).");
 
-    public ValueTask DisposeAsync() => _lifetime.DisposeAsync();
+    public ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        return _lifetime.DisposeAsync();
+    }
 
     private async ValueTask StopHostAsync()
     {

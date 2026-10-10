@@ -197,7 +197,7 @@ public sealed class RegistrationFacts
         var seeder = new IntegrationSeeder(
             new ConfigurationBuilder().AddInMemoryCollection(seeded).Build(),
             brain.SiloServices.GetRequiredService<IReadOnlyList<IntegrationSchema>>(),
-            brain.Grains(),
+            brain.Grains,
             NullLogger<IntegrationSeeder>.Instance);
         await seeder.SeedAsync(ct);
 
@@ -311,7 +311,7 @@ public sealed class RegistrationFacts
         await Registration(brain, "openai").Configure(Values(("ApiKey", Canary)));
 
         var entries = await IntegrationCatalog.ListAsync(
-            brain.SiloServices.GetRequiredService<IReadOnlyList<IntegrationSchema>>(), brain.Grains(), ct);
+            brain.SiloServices.GetRequiredService<IReadOnlyList<IntegrationSchema>>(), brain.Grains, ct);
 
         Assert.Equal(["anthropic", "google", "openai"], entries.Select(entry => entry.Id).Order().ToArray());
         Assert.Equal("Partial", entries.Single(entry => entry.Id == "google").Status);
@@ -483,7 +483,7 @@ public sealed class RegistrationFacts
         => new IntegrationSeeder(
             new ConfigurationBuilder().AddInMemoryCollection(configuration).Build(),
             brain.SiloServices.GetRequiredService<IReadOnlyList<IntegrationSchema>>(),
-            brain.Grains(),
+            brain.Grains,
             NullLogger<IntegrationSeeder>.Instance).SeedAsync(cancellationToken);
 
     private static ConfigureIntegration Values(params (string Field, string Value)[] values)

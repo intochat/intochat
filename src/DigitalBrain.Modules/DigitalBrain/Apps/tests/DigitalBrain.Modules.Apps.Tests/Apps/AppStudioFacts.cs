@@ -55,7 +55,7 @@ public sealed class AppStudioFacts
         .WithModule<AIModule>()
         .WithModule<AppsModule>()
         .WithFakeModel(model)
-        .ConfigureModule<AppsModule, AppsOptions>(apps =>
+        .WithOptions<AppsModule, AppsOptions>(apps =>
         {
             apps.AuthorModel = nameof(IGpt56Luna);
             apps.BuilderModel = nameof(IGpt56Sol);

@@ -1,15 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
-    <Description>Neuron tests with the brain in the test process: in-memory storage, controlled providers, silo restart.</Description>
-    <NoWarn>$(NoWarn);ORLEANSEXP005</NoWarn>
+    <Description>The module tier's names over DigitalBrain.Testing during the sweep: ModuleTest, the trust host and the identity helpers.</Description>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../DigitalBrain.Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
     <ProjectReference Include="../DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
-    <PackageReference Include="Microsoft.Orleans.TestingHost" />
-    <PackageReference Include="Microsoft.Orleans.Reminders" />
     <PackageReference Include="Microsoft.Orleans.Sdk" />
   </ItemGroup>
-  <ItemGroup><ProjectReference Include="../../DigitalBrain.Client/DigitalBrain.Client.Orleans/DigitalBrain.Client.Orleans.csproj" /></ItemGroup>
 </Project>

@@ -90,7 +90,7 @@ public sealed class AssistantGateFacts
                 [IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=platform;Username=reader",
             },
         })
-            .WithModule<AIModule>().RequireModules([new AppsModule(), new DigitalBrain.Flutter.FlutterModule()])
+            .WithModule<AIModule>().WithModule<AppsModule>().WithModule<DigitalBrain.Flutter.FlutterModule>()
             .WithModule<CSharpModule>().WithModule<PostgresModule>().WithModule<DigitalBrain.Microsoft.Windows.WindowsModule>()
             .WithModule<DigitalBrain.Tools.ToolsModule>().WithModule<DigitalBrain.Mcp.McpModule>().WithModule<DigitalBrain.Microsoft.Playwright.PlaywrightModule>().WithReminders()
             .StartAsync(ct);
@@ -118,7 +118,7 @@ public sealed class AssistantGateFacts
                 [IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=platform;Username=reader",
             },
         })
-            .WithModule<AIModule>().RequireModules([new AppsModule(), new DigitalBrain.Flutter.FlutterModule()])
+            .WithModule<AIModule>().WithModule<AppsModule>().WithModule<DigitalBrain.Flutter.FlutterModule>()
             .WithModule<CSharpModule>().WithModule<PostgresModule>().WithModule<DigitalBrain.Microsoft.Windows.WindowsModule>()
             .WithModule<DigitalBrain.Tools.ToolsModule>().WithModule<DigitalBrain.Mcp.McpModule>().WithModule<DigitalBrain.Microsoft.Playwright.PlaywrightModule>().WithReminders()
             .StartAsync(ct);

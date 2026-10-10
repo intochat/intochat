@@ -227,7 +227,7 @@ public sealed class AppCreatorFacts
             .WithModule<AIModule>()
             .WithModule<AppsModule>()
             .WithFakeModel(model)
-            .ConfigureModule<AppsModule, AppsOptions>(apps => { apps.AuthorModel = nameof(IGpt56Luna); apps.BuilderModel = nameof(IGpt56Sol); })
+            .WithOptions<AppsModule, AppsOptions>(apps => { apps.AuthorModel = nameof(IGpt56Luna); apps.BuilderModel = nameof(IGpt56Sol); })
             .ConfigureSilo(silo =>
             {
                 silo.Services.AddSingleton<IScriptSandbox>(sandbox);
@@ -302,7 +302,7 @@ public sealed class AppCreatorFacts
         .WithModule<AIModule>()
         .WithModule<AppsModule>()
         .WithFakeModel(model)
-        .ConfigureModule<AppsModule, AppsOptions>(apps =>
+        .WithOptions<AppsModule, AppsOptions>(apps =>
         {
             apps.AuthorModel = nameof(IGpt56Luna);
             apps.BuilderModel = nameof(IGpt56Sol);

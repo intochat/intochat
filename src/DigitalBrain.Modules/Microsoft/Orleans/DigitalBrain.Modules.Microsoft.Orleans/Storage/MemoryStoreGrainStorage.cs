@@ -41,6 +41,8 @@ public sealed class MemoryStoreGrainStorage(ConcurrentDictionary<string, (byte[]
     {
         ArgumentNullException.ThrowIfNull(grainState);
         records.TryRemove(Key(stateName, grainId), out _);
+        // A cleared activation reads as a fresh one, as Orleans' memory storage leaves it.
+        grainState.State = Activator.CreateInstance<T>();
         (grainState.ETag, grainState.RecordExists) = (null, false);
         return Task.CompletedTask;
     }

@@ -13,7 +13,7 @@ public sealed class RuntimeSignInFacts
         var ct = TestContext.Current.CancellationToken;
         var host = new FakeSessionHost();
         await using var brain = await RuntimeBrain.StartAsync(host, ct);
-        await brain.Grains().GetGrain<IBrainPrograms>(BrainRuntimeKeys.For("brain")).Assign("brain/csharp/a", RuntimeBrain.One(RuntimeBrain.Idle), []);
+        await brain.Grains.GetGrain<IBrainPrograms>(BrainRuntimeKeys.For("brain")).Assign("brain/csharp/a", RuntimeBrain.One(RuntimeBrain.Idle), []);
         await host.NextAsync(FakeSessionHost.IsStart, ct);
         host.Sessions.Clear();
 

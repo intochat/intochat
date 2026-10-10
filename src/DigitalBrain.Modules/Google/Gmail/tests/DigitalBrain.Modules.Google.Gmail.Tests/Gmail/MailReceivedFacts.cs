@@ -1,3 +1,4 @@
+using DigitalBrain.Testing.Module;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Integrations;

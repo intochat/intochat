@@ -30,7 +30,7 @@ internal static class WindowsHost
 
         var host = await ModuleTest.Create()
             .WithModule<WindowsModule>()
-            .ConfigureModule<WindowsModule, WindowsOptions>(options => options.MachineIdFile = idFile)
+            .WithOptions<WindowsModule, WindowsOptions>(options => options.MachineIdFile = idFile)
             .StartAsync(ct);
         await host.AuthorizeCallerAsync();
         return (host, machineId, root);

@@ -19,6 +19,9 @@ public interface ITestBrain : IDigitalBrain, IBrainSubscriptions, IAsyncDisposab
     // In-process: the host is rebuilt over the same memory stores, on the same HTTP address.
     Task RestartAsync(CancellationToken cancellationToken = default);
 
+    // Deleted in Task 20: the module tier's name for Services during the sweep.
+    IServiceProvider SiloServices => Services;
+
     Task<Person> PersonAsync(string name, CancellationToken cancellationToken = default);
 }
 

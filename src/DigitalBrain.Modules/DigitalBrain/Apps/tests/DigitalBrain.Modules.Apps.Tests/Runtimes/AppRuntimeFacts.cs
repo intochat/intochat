@@ -30,7 +30,7 @@ internal static class AppRuntimeHosting
 {
     // A host that composes the Apps without a csharp module has no brain runtime to deploy into, so a
     // recording runtime stands in for the real one; the app's deploy path is exercised either way.
-    public static ModuleTestBuilder WithFakeAppRuntime(this ModuleTestBuilder builder, FakeAppRuntime runtime)
+    public static TestBrain WithFakeAppRuntime(this TestBrain builder, FakeAppRuntime runtime)
         => builder.ConfigureSilo(silo =>
         {
             silo.Services.RemoveAll<IAppRuntime>();

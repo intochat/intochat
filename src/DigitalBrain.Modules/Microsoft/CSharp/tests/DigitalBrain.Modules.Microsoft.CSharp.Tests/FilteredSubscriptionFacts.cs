@@ -15,7 +15,7 @@ public sealed class FilteredSubscriptionFacts
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         var edge = brain.Grains.GetGrain<IBrainRuntimeEdge>("subscriber-brain/runtime");
         var runtime = brain.Get<IBrainRuntime>("subscriber-brain/runtime");
-        await brain.Grains().GetGrain<IBrainPrograms>("subscriber-brain/runtime").Assign("subscriber-brain/csharp/a", RuntimeBrain.One(RuntimeBrain.Idle), []);
+        await brain.Grains.GetGrain<IBrainPrograms>("subscriber-brain/runtime").Assign("subscriber-brain/csharp/a", RuntimeBrain.One(RuntimeBrain.Idle), []);
         var session = (await runtime.Inspect(ct)).SessionId!;
         var source = brain.Get<IPinger>("public-pinger");
         await edge.Subscribed(session, "subscriber-brain/csharp/a", source.GetGrainId().ToString(), nameof(Pinged));
@@ -49,7 +49,7 @@ public sealed class FilteredSubscriptionFacts
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         var edge = brain.Grains.GetGrain<IBrainRuntimeEdge>("acc-brain/runtime");
         var runtime = brain.Get<IBrainRuntime>("acc-brain/runtime");
-        await brain.Grains().GetGrain<IBrainPrograms>("acc-brain/runtime").Assign("acc-brain/csharp/a", RuntimeBrain.One(RuntimeBrain.Idle), []);
+        await brain.Grains.GetGrain<IBrainPrograms>("acc-brain/runtime").Assign("acc-brain/csharp/a", RuntimeBrain.One(RuntimeBrain.Idle), []);
         var session = (await runtime.Inspect(ct)).SessionId!;
         var source = brain.Get<IExpansionSource>("expansion");
         var key = source.GetGrainId().ToString();

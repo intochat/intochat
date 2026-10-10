@@ -3,7 +3,12 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Modules;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Testing.Model;
+using DigitalBrain.Platform.Mesh;
+using DigitalBrain.Platform.Parts;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Orleans;
+using Orleans.Hosting;
 using ModuleContract = DigitalBrain.Framework.Modules.Module;
 
 namespace DigitalBrain.Testing;
@@ -13,6 +18,7 @@ public sealed class TestBrain
     private readonly BrainCompositionBuilder _composition = new();
     private readonly Dictionary<string, string?> _configuration = new(StringComparer.OrdinalIgnoreCase);
     private Action<IServiceCollection>? _services;
+    private Action<ISiloBuilder>? _silo;
     private TestExecutionOptions _execution = new();
     private ITestTarget _target = new InProcessTarget();
     private bool _started;
@@ -112,6 +118,44 @@ public sealed class TestBrain
             });
         });
 
+    // Sweep-period shims over the one host (deleted in Task 20).
+    // HTTP is always on: every in-process brain serves its edge.
+    public TestBrain WithHttpEdge()
+    {
+        EnsureMutable();
+        return this;
+    }
+
+    // The brain runs as the owner's machine: cluster storage on the part log over an in-process mesh of 8
+    // platform-owned nodes (4+2, 2 manifest replicas), the default brain provisioned at start.
+    public TestBrain WithPartLog()
+        => WithConfiguration($"{PartsOptions.Key}:{nameof(PartsOptions.Role)}", nameof(MachineRole.Own))
+            .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.SeedNodes)}", "8")
+            .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.DataShards)}", "4")
+            .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.ParityShards)}", "2")
+            .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.ManifestReplicas)}", "2");
+
+    // The silo and the client share the host's composed silo, configured after the server's own registrations.
+    public TestBrain ConfigureSilo(Action<ISiloBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        EnsureMutable();
+        _silo += configure;
+        return this;
+    }
+
+    public TestBrain ConfigureClient(Action<IClientBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        return ConfigureSilo(silo => configure(new ClientOverSilo(silo)));
+    }
+
+    private sealed class ClientOverSilo(ISiloBuilder silo) : IClientBuilder
+    {
+        public IServiceCollection Services => silo.Services;
+        public IConfiguration Configuration => silo.Configuration;
+    }
+
     public TestBrain On(ITestTarget target)
     {
         ArgumentNullException.ThrowIfNull(target);
@@ -130,7 +174,7 @@ public sealed class TestBrain
         Dictionary<string, string?> configuration = new(_execution.PrivateConfiguration, StringComparer.OrdinalIgnoreCase);
         foreach (var (key, value) in _configuration) { configuration[key] = value; }
         var services = composition.RequiresLocalServices ? composition.ConfigureLocalServices + _services : _services;
-        var plan = new TestBrainPlan(composition.Modules, configuration, services, _execution, Client: null);
+        var plan = new TestBrainPlan(composition.Modules, configuration, services, _execution, Client: null, Silo: _silo);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(_execution.StartupTimeout);
         return await _target.StartAsync(plan, deadline.Token).ConfigureAwait(false);

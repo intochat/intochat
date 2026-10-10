@@ -34,7 +34,7 @@ public sealed class AppRouteFacts
             .WithModule<AppsModule>()
             .WithFakeModel(model)
             .WithFakeAppRuntime(new())
-            .ConfigureModule<AppsModule, AppsOptions>(apps =>
+            .WithOptions<AppsModule, AppsOptions>(apps =>
             {
                 apps.AuthorModel = nameof(IGpt56Luna);
                 apps.BuilderModel = nameof(IGpt56Sol);
@@ -143,7 +143,7 @@ public sealed class AppRouteFacts
             .WithModule<AppsModule>()
             .WithFakeModel(model)
             .WithFakeAppRuntime(new())
-            .ConfigureModule<AppsModule, AppsOptions>(apps =>
+            .WithOptions<AppsModule, AppsOptions>(apps =>
             {
                 apps.AuthorModel = nameof(IGpt56Luna);
                 apps.BuilderModel = nameof(IGpt56Sol);

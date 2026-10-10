@@ -132,9 +132,9 @@ public sealed class PartLogReplayFacts
             => throw new ServiceUnavailableException($"The part of {publisher} is leased by another machine.");
     }
 
-    private static IBrainPrograms Programs(ModuleBrain brain) => brain.Grains().GetGrain<IBrainPrograms>(BrainRuntimeKeys.For(Brain));
+    private static IBrainPrograms Programs(ModuleBrain brain) => brain.Grains.GetGrain<IBrainPrograms>(BrainRuntimeKeys.For(Brain));
 
     private static IBrainRuntime Runtime(ModuleBrain brain) => brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(Brain));
 
-    private static IBrainRuntimeEdge Edge(ModuleBrain brain) => brain.Grains().GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For(Brain));
+    private static IBrainRuntimeEdge Edge(ModuleBrain brain) => brain.Grains.GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For(Brain));
 }

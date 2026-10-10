@@ -8,10 +8,10 @@ namespace DigitalBrain.Testing.Module;
 
 public static class BrainIdentityExtensions
 {
-    public static Task AuthorizeCallerAsync(this ModuleBrain brain)
+    public static Task AuthorizeCallerAsync(this ITestBrain brain)
     {
         var caller = CallerContextStamper.Require();
-        return brain.Grains.GetGrain<IBrainAuthority>(BrainScope.CurrentId()).ProvisionOwner(new Member
+        return brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IBrainAuthority>(BrainScope.CurrentId()).ProvisionOwner(new Member
         {
             PrincipalId = caller.PrincipalId,
             AccountId = caller.AccountId,
@@ -23,11 +23,11 @@ public static class BrainIdentityExtensions
 
     // A brain born on this machine for an account other than the default owner: its owner on record at the
     // trust side and the machine bound to the account (R55), as a brain birth leaves them, without the neuron.
-    public static async Task OwnBrainAsync(this ModuleBrain brain, string accountId, string brainId, string? principalId = null)
+    public static async Task OwnBrainAsync(this ITestBrain brain, string accountId, string brainId, string? principalId = null)
     {
         ArgumentNullException.ThrowIfNull(brain);
         var principal = principalId ?? accountId;
-        await brain.SiloServices.GetRequiredService<IIdentityClient>().ProvisionOwner(new Member
+        await brain.Services.GetRequiredService<IIdentityClient>().ProvisionOwner(new Member
         {
             PrincipalId = principal,
             AccountId = accountId,
@@ -35,6 +35,6 @@ public static class BrainIdentityExtensions
             Role = MemberRole.Owner,
             DisplayName = principal,
         });
-        await brain.SiloServices.GetRequiredService<MachineRegistrar>().Bind(accountId);
+        await brain.Services.GetRequiredService<MachineRegistrar>().Bind(accountId);
     }
 }

@@ -79,7 +79,7 @@ public sealed class CpuMeteringFacts
         return builder.StartAsync(ct);
     }
 
-    private static IGrainFactory Grains(ModuleBrain brain) => brain.Grains();
+    private static IGrainFactory Grains(ModuleBrain brain) => brain.Grains;
 
     private static IBrainRuntime Runtime(ModuleBrain brain) => brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(Acc));
 

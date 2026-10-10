@@ -10,7 +10,7 @@ namespace DigitalBrain.Testing.Module;
 
 // A trust cluster of its own (H2) for facts that run machines against it: one silo with only the trust grains,
 // memory platform storage and 8 seed nodes; each machine provisions its own default owner at boot (R59). Machines join it through
-// ModuleTestBuilder.WithTrust, each with its own private gateway client. It is a real silo on TCP ports, not an
+// TestBrain.WithTrust, each with its own private gateway client. It is a real silo on TCP ports, not an
 // InProcessTestCluster: those connect over an in-memory transport no outside client can reach.
 public sealed class TrustHost : IAsyncDisposable
 {
@@ -75,5 +75,23 @@ public sealed class TrustHost : IAsyncDisposable
     {
         try { await _host.StopAsync().ConfigureAwait(false); }
         finally { _host.Dispose(); }
+    }
+}
+
+public static class TrustHostExtensions
+{
+    // This host is a machine of a separate trust cluster (H2, R34): it reaches the trust grains only through its
+    // private gateway client and pairs with the trust host's other machines through its pairing secret (R52).
+    public static TestBrain WithTrust(this TestBrain brain, TrustHost trust)
+    {
+        ArgumentNullException.ThrowIfNull(brain);
+        ArgumentNullException.ThrowIfNull(trust);
+        var key = DigitalBrain.Platform.Trust.TrustOptions.Key;
+        return brain
+            .WithConfiguration($"{key}:{nameof(DigitalBrain.Platform.Trust.TrustOptions.Gateway)}", $"127.0.0.1:{trust.GatewayPort}")
+            .WithConfiguration($"{key}:{nameof(DigitalBrain.Platform.Trust.TrustOptions.ClusterId)}", trust.ClusterId)
+            .WithConfiguration($"{key}:{nameof(DigitalBrain.Platform.Trust.TrustOptions.ServiceId)}", trust.ServiceId)
+            .WithConfiguration($"{DigitalBrain.Platform.Parts.PartsOptions.Key}:{nameof(DigitalBrain.Platform.Parts.PartsOptions.PairingSecret)}", trust.PairingSecret)
+            .WithConfiguration(DigitalBrainNames.MasterKeyConfigurationKey, trust.MasterKey);
     }
 }

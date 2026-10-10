@@ -51,6 +51,8 @@
     <PackageReference Include="xunit.v3.mtp-v2" />
     <Using Include="Xunit" />
     <Using Include="DigitalBrain.Testing" />
+    <!-- The module tier's name for the one harness brain; deleted in Task 20 after the sweep. -->
+    <Using Include="DigitalBrain.Testing.ITestBrain" Alias="ModuleBrain" />
   </ItemGroup>
   <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Tests.Unit'))">
     <Using Include="DigitalBrain.Testing.Module" />

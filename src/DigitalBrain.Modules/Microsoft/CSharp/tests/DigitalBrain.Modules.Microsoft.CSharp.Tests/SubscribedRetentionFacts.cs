@@ -114,11 +114,11 @@ public sealed class SubscribedRetentionFacts
         await turn;
     }
 
-    private static IBrainPrograms Programs(ModuleBrain brain) => brain.Grains().GetGrain<IBrainPrograms>(BrainRuntimeKeys.For(Brain));
+    private static IBrainPrograms Programs(ModuleBrain brain) => brain.Grains.GetGrain<IBrainPrograms>(BrainRuntimeKeys.For(Brain));
 
     private static IBrainRuntime Runtime(ModuleBrain brain) => brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(Brain));
 
-    private static IBrainRuntimeEdge Edge(ModuleBrain brain) => brain.Grains().GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For(Brain));
+    private static IBrainRuntimeEdge Edge(ModuleBrain brain) => brain.Grains.GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For(Brain));
 }
 // A source that retains and is busy: its turn holds until released, the way a neuron mid-publish waits
 // on the runtime.

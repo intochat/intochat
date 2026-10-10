@@ -97,7 +97,7 @@ public sealed class AssistantScenarioFacts
                 [IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=platform;Username=reader",
             },
         })
-            .WithModule<AIModule>().RequireModules([new AppsModule(), new DigitalBrain.Flutter.FlutterModule()])
+            .WithModule<AIModule>().WithModule<AppsModule>().WithModule<DigitalBrain.Flutter.FlutterModule>()
             .WithModule<CSharpModule>().WithModule<PostgresModule>().WithModule<DigitalBrain.Microsoft.Windows.WindowsModule>().WithReminders()
             // No provider is provisioned, so the turn runs on the host's own chat client: the script.
             .ConfigureSilo(silo => silo.Services

@@ -7,7 +7,7 @@ namespace DigitalBrain.Client.Orleans.Tests.Unit;
 
 public sealed class SubscriptionLifetimeFacts
 {
-    internal static ModuleTestBuilder Options(int capacity = 256) => ModuleTest.Create().WithFastSubscriptions(capacity);
+    internal static TestBrain Options(int capacity = 256) => ModuleTest.Create().WithFastSubscriptions(capacity);
 
     [Fact]
     public async Task OverflowIsVisibleEvenWithoutDrainingTheBuffer()

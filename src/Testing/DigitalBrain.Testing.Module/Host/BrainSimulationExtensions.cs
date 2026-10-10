@@ -1,23 +1,24 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
+using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 
 namespace DigitalBrain.Testing.Module;
 
+// The module tier's grain access over the one host; deleted in Task 20 after the sweep.
 public static class BrainSimulationExtensions
 {
-    public static IGrainFactory Grains(this ModuleBrain brain) => Requires(brain).Grains;
+    extension(ITestBrain brain)
+    {
+        public IGrainFactory Grains => brain.Services.GetRequiredService<IGrainFactory>();
+    }
 
-    public static IClusterClient Cluster(this ModuleBrain brain) => (IClusterClient)Requires(brain).Grains;
+    public static IClusterClient Cluster(this ITestBrain brain) => Requires(brain).Services.GetRequiredService<IClusterClient>();
 
-    public static IDigitalBrains Client(this ModuleBrain brain) => Requires(brain).Brains;
+    public static IDigitalBrains Client(this ITestBrain brain) => Requires(brain).Services.GetRequiredService<IDigitalBrains>();
 
-    public static Task DeactivateAsync(this ModuleBrain brain, INeuron neuron, CancellationToken cancellationToken = default)
-        => Requires(brain).DeactivateAsync(neuron, cancellationToken);
+    public static Task RestartSiloAsync(this ITestBrain brain, CancellationToken cancellationToken = default)
+        => Requires(brain).RestartAsync(cancellationToken);
 
-    public static Task RestartSiloAsync(this ModuleBrain brain, CancellationToken cancellationToken = default)
-        => Requires(brain).RestartSiloAsync(cancellationToken);
-
-    private static ModuleBrain Requires(IDigitalBrain brain)
-        => brain as ModuleBrain ?? throw new InvalidOperationException("This operation requires a brain started by ModuleTest.");
+    private static ITestBrain Requires(ITestBrain brain) => brain ?? throw new ArgumentNullException(nameof(brain));
 }

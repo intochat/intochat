@@ -20,6 +20,6 @@ internal static class AiRegistrationSeeds
             },
         };
 
-    internal static ModuleTestBuilder WithRegistrations(this ModuleTestBuilder builder, TestExecutionOptions? seeds = null)
+    internal static TestBrain WithRegistrations(this TestBrain builder, TestExecutionOptions? seeds = null)
         => builder.WithExecution(seeds ?? new TestExecutionOptions());
 }
