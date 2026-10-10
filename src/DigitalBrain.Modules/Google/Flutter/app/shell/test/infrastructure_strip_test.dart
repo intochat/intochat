@@ -60,9 +60,10 @@ void main() {
             health: 'Healthy',
           ),
           const SiloState(id: 'silo-2', sha: 'a', state: 'Starting'),
-        ]),
+        ], stage: 'Steady'),
       );
       await tester.pump();
+      expect(find.byKey(const ValueKey('cluster-stage')), findsNothing);
       CircleAvatar dot(String id) => tester.widget(
         find.descendant(
           of: find.byKey(ValueKey('silo-$id')),

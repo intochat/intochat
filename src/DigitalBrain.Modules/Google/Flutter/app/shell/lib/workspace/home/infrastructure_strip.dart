@@ -78,7 +78,7 @@ class _InfrastructureStripState extends State<InfrastructureStrip> {
             key: const ValueKey('infrastructure-error'),
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
-        if (cluster != null && cluster.stage != 'steady')
+        if (cluster != null && cluster.stage.toLowerCase() != 'steady')
           Chip(
             key: const ValueKey('cluster-stage'),
             label: Text('${cluster.stage} ${_short(cluster.sha)}'.trim()),

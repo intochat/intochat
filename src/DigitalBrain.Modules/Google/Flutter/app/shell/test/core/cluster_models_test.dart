@@ -2,6 +2,10 @@ import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('the stage keeps working in the casing the C# enum is written in', () {
+    expect(ClusterChanged.fromJson({'stage': 'Steady'}).stage, 'steady');
+  });
+
   test('a ClusterChanged payload decodes its stage, build and silos', () {
     final cluster = ClusterChanged.fromJson({
       'stage': 'rolling',

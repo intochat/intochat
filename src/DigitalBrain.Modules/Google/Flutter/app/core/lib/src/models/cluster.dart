@@ -41,7 +41,7 @@ final class ClusterChanged {
   final List<SiloState> silos;
 
   factory ClusterChanged.fromJson(Map<String, dynamic> json) => ClusterChanged(
-    stage: json['stage'] as String? ?? 'steady',
+    stage: (json['stage'] as String? ?? 'steady').toLowerCase(),
     sha: json['sha'] as String? ?? '',
     silos: [
       for (final silo in json['silos'] as List? ?? const [])
