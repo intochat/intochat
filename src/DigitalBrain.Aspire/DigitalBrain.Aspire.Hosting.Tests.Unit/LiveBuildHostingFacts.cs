@@ -87,6 +87,8 @@ public sealed class LiveBuildHostingFacts : IDisposable
         var front = AspireModuleHosting.AddFront(builder, role, port, instances.Select(instance => instance.GetEndpoint("http")));
 
         Assert.Equal([role + "-a", role + "-b"], instances.Select(instance => instance.Resource.Name));
+        // AspireCliClusterHost recognises an instance as {role}-{one lowercase letter}.
+        Assert.All(AspireModuleHosting.Instances, instance => Assert.True(instance is [var letter] && char.IsAsciiLetterLower(letter)));
         Assert.All(instances, instance => Assert.Null(Assert.Single(instance.Resource.Annotations.OfType<EndpointAnnotation>()).Port));
         Assert.Equal(role + "-front", front.Resource.Name);
         Assert.Equal(port, Assert.Single(front.Resource.Annotations.OfType<EndpointAnnotation>(), endpoint => endpoint.Name == "http").Port);
@@ -104,7 +106,7 @@ public sealed class LiveBuildHostingFacts : IDisposable
         foreach (var instance in instances)
         {
             var drain = await AspireCompositionTest.EnvironmentOf(builder, instance.Resource, TestContext.Current.CancellationToken);
-            Assert.Equal("00:00:05", drain[AspireModuleHosting.DrainDelayVariable]);
+            Assert.Equal(AspireModuleHosting.DrainDelay.ToString("c"), drain[AspireModuleHosting.DrainDelayVariable]);
         }
     }
 

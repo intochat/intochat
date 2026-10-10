@@ -10,9 +10,6 @@ namespace DigitalBrain.ServiceDefaults;
 // synchronously, so blocking there holds the whole shutdown. Without the setting the host stops at once.
 internal sealed class Drain(IConfiguration configuration, IHostApplicationLifetime lifetime) : IHostedService, IHealthCheck
 {
-    public const string DrainDelayKey = "DigitalBrain:Http:DrainDelay";
-    public const string Tag = "drain";
-
     private volatile bool draining;
 
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
@@ -20,7 +17,7 @@ internal sealed class Drain(IConfiguration configuration, IHostApplicationLifeti
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        if (configuration.GetValue<TimeSpan?>(DrainDelayKey) is { } delay && delay > TimeSpan.Zero)
+        if (configuration.GetValue<TimeSpan?>(HealthProbes.DrainDelayKey) is { } delay && delay > TimeSpan.Zero)
         {
             lifetime.ApplicationStopping.Register(() =>
             {

@@ -4,6 +4,7 @@ using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.Aspire.Cluster;
+using DigitalBrain.ServiceDefaults;
 using global::Aspire.Hosting;
 using global::Aspire.Hosting.ApplicationModel;
 using global::Aspire.Hosting.Yarp;
@@ -68,8 +69,7 @@ public sealed class AspireModuleHosting : ModuleHosting<DigitalBrain.Microsoft.A
     // role's fixed host port and balances across them; its active health check takes an instance out while
     // it restarts, so the port stays served during a roll.
     public static readonly string[] Instances = ["a", "b"];
-    // ServiceDefaults' readiness: /health plus the drain of a stopping instance.
-    public const string HealthPath = "/ready";
+    public const string HealthPath = HealthProbes.ReadyPath;
 
     public static string[] InstanceNames(string role) => [.. Instances.Select(instance => $"{role}-{instance}")];
 
@@ -131,9 +131,11 @@ public sealed class AspireModuleHosting : ModuleHosting<DigitalBrain.Microsoft.A
     // A busy silo answers its probe in more than a second; a timed-out probe counts as a failure.
     public static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(3);
     public static readonly TimeSpan Reactivation = TimeSpan.FromSeconds(5);
-    // YARP marks a destination unhealthy after two failed probes (ConsecutiveFailures), so draining covers five.
-    public static readonly TimeSpan DrainDelay = ProbeInterval * 5;
-    public static string DrainDelayVariable => DigitalBrainConfiguration.EnvironmentName(DigitalBrainHostingOptions.DrainDelayKey);
+    // YARP's ConsecutiveFailures policy takes a destination out after this many failed probes (its default).
+    public const int ConsecutiveFailures = 2;
+    // The drain outlasts the probes that take the instance out: each comes an interval apart and may run its timeout.
+    public static readonly TimeSpan DrainDelay = (ProbeInterval + ProbeTimeout) * ConsecutiveFailures;
+    public static string DrainDelayVariable => DigitalBrainConfiguration.EnvironmentName(HealthProbes.DrainDelayKey);
 
     public const string OtlpHttpEndpoint = Candidates.DockerCandidateHost.OtlpHttpEndpoint;
     public const string AspNetCoreContentRoot = "ASPNETCORE_CONTENTROOT";

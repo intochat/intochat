@@ -16,11 +16,6 @@ namespace DigitalBrain.ServiceDefaults;
 
 public static class ServiceDefaultsExtensions
 {
-    private const string AlivePath = "/alive";
-    private const string HealthPath = "/health";
-    // What a load balancer probes: /health plus the drain (Drain), so a stopping instance leaves the balancer
-    // while its /health still answers for the orchestrator.
-    private const string ReadyPath = "/ready";
     private const string TelemetryPrefix = "DigitalBrain";
     private const string AzuriteAccountPathSegment = "/devstoreaccount1/";
 
@@ -40,17 +35,7 @@ public static class ServiceDefaultsExtensions
     public static WebApplication MapDefaultEndpoints(this WebApplication app)
     {
         ArgumentNullException.ThrowIfNull(app);
-
-        app.MapHealthChecks(HealthPath, new HealthCheckOptions
-        {
-            Predicate = static registration => !registration.Tags.Contains(Drain.Tag),
-        }).AllowAnonymous();
-        app.MapHealthChecks(ReadyPath).AllowAnonymous();
-        app.MapHealthChecks(AlivePath, new HealthCheckOptions
-        {
-            Predicate = static registration => registration.Tags.Contains("live"),
-        }).AllowAnonymous();
-
+        app.MapHealthProbes();
         return app;
     }
 
@@ -61,8 +46,8 @@ public static class ServiceDefaultsExtensions
         builder.Services.AddHostedService(static services => services.GetRequiredService<Drain>());
         builder.Services
             .AddHealthChecks()
-            .AddCheck("self", static () => HealthCheckResult.Healthy(), ["live"])
-            .AddCheck<Drain>("drain", tags: [Drain.Tag]);
+            .AddCheck("self", static () => HealthCheckResult.Healthy(), [HealthProbes.LiveTag])
+            .AddCheck<Drain>(HealthProbes.DrainTag, tags: [HealthProbes.DrainTag]);
     }
 
     private static void AddOpenTelemetryExporters<TBuilder>(TBuilder builder, TelemetryIntegrationOptions integration)
@@ -142,8 +127,8 @@ public static class ServiceDefaultsExtensions
                 .AddSource("Experimental.ModelContextProtocol")
                 .AddAspNetCoreInstrumentation(options =>
                     options.Filter = context =>
-                        !context.Request.Path.StartsWithSegments(HealthPath, StringComparison.OrdinalIgnoreCase)
-                        && !context.Request.Path.StartsWithSegments(AlivePath, StringComparison.OrdinalIgnoreCase))
+                        !context.Request.Path.StartsWithSegments(HealthProbes.HealthPath, StringComparison.OrdinalIgnoreCase)
+                        && !context.Request.Path.StartsWithSegments(HealthProbes.AlivePath, StringComparison.OrdinalIgnoreCase))
                 .AddHttpClientInstrumentation(options =>
                 {
                     options.FilterHttpRequestMessage = static request => !IsAzuriteRequest(request);

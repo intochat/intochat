@@ -6,6 +6,7 @@ using DigitalBrain.Framework;
 using DigitalBrain.OS;
 using DigitalBrain.Platform;
 using DigitalBrain.Platform.Identity;
+using DigitalBrain.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,6 +21,8 @@ var app = builder.Build();
 
 app.UsePlatformHttp();
 app.MapOrleansDashboard();
+// /health, /ready and /alive (ServiceDefaults.HealthProbes): deployments and the YARP front probe them.
+app.MapDefaultEndpoints();
 app.MapDigitalBrainModules();
 app.MapDigitalBrainPlatform();
 
