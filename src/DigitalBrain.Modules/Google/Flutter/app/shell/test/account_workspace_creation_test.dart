@@ -29,6 +29,10 @@ void main() {
           if (request.url.path.endsWith('/apps')) {
             return http.Response('[]', 200);
           }
+          // The Home graph's brain feed is not served here: it shows its error instead of spinning forever.
+          if (request.url.path.endsWith('/brain/events')) {
+            return http.Response('', 404);
+          }
           if (request.url.path.endsWith('/events')) {
             return http.Response('', 200);
           }

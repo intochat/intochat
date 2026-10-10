@@ -19,6 +19,7 @@ class Dock extends StatelessWidget {
     this.loadIcon,
     this.iconRoute,
     this.watchActivity,
+    this.brainId,
     this.floating = false,
   });
 
@@ -30,14 +31,20 @@ class Dock extends StatelessWidget {
   final String? iconRoute;
   // The brain's AppActivity feed Ino follows; floating is true while no app is focused.
   final Stream<AppActivity> Function()? watchActivity;
+  final String? brainId;
   final bool floating;
 
   @override
   Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      if (app == 'assistant')
-        AssistantIsland(watch: watchActivity, floating: floating),
+      // Ino is always in the dock: small beside a focused app's toolbar, large when nothing is focused.
+      AssistantIsland(
+        key: const ValueKey('assistant-island'),
+        watch: watchActivity,
+        brainId: brainId,
+        floating: floating,
+      ),
       for (final entry in manifest.toolbar)
         _DockEntry(
           key: ValueKey('dock-entry-${entry.operation}'),

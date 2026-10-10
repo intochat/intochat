@@ -130,6 +130,10 @@ class ApplicationServer extends http.BaseClient {
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    // The Home graph's brain feed is not served here: it shows its error instead of spinning forever.
+    if (request.url.path.endsWith('/brain/events')) {
+      return http.StreamedResponse(const Stream.empty(), 404);
+    }
     if (request.url.path.endsWith('/events')) {
       return http.StreamedResponse(events.stream, 200);
     }
@@ -206,9 +210,7 @@ class ApplicationFixture {
 
   static Future<ApplicationFixture> start(WidgetTester tester) async {
     final server = ApplicationServer();
-    // Ino floats forever while nothing is focused; reduced motion lets pumpAndSettle settle.
-    final store = WorkspaceStore(persistence: MemoryWorkspacePersistence())
-      ..settings.reducedMotion = true;
+    final store = WorkspaceStore(persistence: MemoryWorkspacePersistence());
     final client = DigitalBrainUiClient(
       baseUri: Uri.parse('http://test'),
       httpClient: server,

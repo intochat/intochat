@@ -83,7 +83,12 @@ void main() {
       tester.widget<TextField>(find.byType(TextField)).controller!.text,
       '',
     );
-    expect(find.byKey(const ValueKey('assistant-ino')), findsNothing);
+    // Ino is docked small beside a focused app's toolbar.
+    expect(find.byKey(const ValueKey('assistant-ino')), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('assistant-ino'))).width,
+      36,
+    );
   });
 
   testWidgets('an empty submit posts nothing', (tester) async {
@@ -116,4 +121,43 @@ void main() {
       expect(posted, [('voice', '')]);
     },
   );
+
+  testWidgets('with no app focused Ino is large and centered in the dock', (
+    tester,
+  ) async {
+    const bare = AppManifest(
+      title: 'Assistant',
+      description: '',
+      operations: ['open'],
+      toolbar: [],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(disableAnimations: true),
+          child: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 400,
+                child: Center(
+                  child: Dock(
+                    app: 'assistant',
+                    manifest: bare,
+                    floating: true,
+                    onRequest: (_, _) async {},
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    final ino = find.byKey(const ValueKey('assistant-ino'));
+    expect(tester.getSize(ino).width, 64);
+    expect(
+      tester.getCenter(ino).dx,
+      tester.getCenter(find.byType(SizedBox).first).dx,
+    );
+  });
 }

@@ -11,7 +11,6 @@ void main() {
   testWidgets('aShellWithoutAServerBrainDoesNotInventOne', (tester) async {
     final server = ApplicationServer();
     final store = WorkspaceStore(persistence: MemoryPersistence());
-    store.settings.reducedMotion = true;
     store.createProject('Stale local project');
     final client = DigitalBrainUiClient(
       baseUri: Uri.parse('http://test'),

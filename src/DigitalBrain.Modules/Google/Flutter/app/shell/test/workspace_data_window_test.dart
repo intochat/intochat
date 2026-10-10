@@ -44,6 +44,10 @@ class WorkspaceClient extends http.BaseClient {
   bool open = false;
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    // The Home graph's brain feed is not served here: it shows its error instead of spinning forever.
+    if (request.url.path.endsWith('/brain/events')) {
+      return http.StreamedResponse(const Stream.empty(), 404);
+    }
     if (request.url.path.endsWith('/events')) {
       return http.StreamedResponse(events.stream, 200);
     }

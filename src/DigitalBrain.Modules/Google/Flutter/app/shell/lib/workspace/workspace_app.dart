@@ -748,6 +748,13 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
               ),
               enabled: false,
             ),
+      watchBrain: client == null
+          ? null
+          : () => client.watchBrain(brainId: project.id),
+      loadSignals: client == null
+          ? null
+          : (since, limit) =>
+                client.signals(project.id, since: since, limit: limit),
       onFocus: (id) {
         store.focusWindow(id);
         setState(() => _homeChoice = false);
@@ -854,6 +861,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
           iconRoute:
               '/brains/${Uri.encodeComponent(project.id)}/apps/${Uri.encodeComponent(app)}/icon',
           watchActivity: () => client.watchActivity(project.id),
+          brainId: project.id,
           floating: focused == null,
           onRequest: (operation, input) =>
               client.requestApp(project.id, app, operation, input),
