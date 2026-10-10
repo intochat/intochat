@@ -295,6 +295,9 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
                 $"Host={ClickHouseOf(sha)};Port=8123;Protocol=http;Username=default;Password={clickHousePassword};Database=default",
         })
         { environment[key] = value; }
+        // Transcription may name a Foundry Local model, which runs on the developer's machine only: its native
+        // library crashes the Linux container (seen live). Without it, transcription reports itself unavailable.
+        environment.Remove(DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ModuleOptionsSection("ai") + ":Default:Transcription"));
         return environment;
     }
 

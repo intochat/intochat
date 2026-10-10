@@ -27,6 +27,7 @@ public sealed class DockerCandidateHostFacts : IDisposable
             ["DigitalBrain:Integrations:aspire:Workdir"] = "E:/repo/.digitalbrain",
             ["DigitalBrain:Integrations:csharp:RunTokenKey"] = "live-run-token",
             ["DigitalBrain:Modules:ai:Options:DefaultModel"] = "deepseek",
+            ["DigitalBrain:Modules:ai:Options:Default:Transcription"] = "IWhisperLargeV3Turbo",
             ["DigitalBrain:MasterKey"] = "live-master",
             ["DigitalBrain:Auth:Posture"] = "Owner",
             ["ConnectionStrings:grainstate"] = "live-grainstate",
@@ -51,6 +52,7 @@ public sealed class DockerCandidateHostFacts : IDisposable
         Assert.Contains("candidate-abc1234-postgres", host.LastRunEnvironment["DigitalBrain__Integrations__postgres__ConnectionString"], StringComparison.Ordinal);
         Assert.Contains("candidate-abc1234-postgres", host.LastRunEnvironment["DigitalBrain__Integrations__postgres__AdminConnection"], StringComparison.Ordinal);
         Assert.Contains("candidate-abc1234-postgres", host.LastRunEnvironment["DigitalBrain__Integrations__supabase__ConnectionString"], StringComparison.Ordinal);
+        Assert.DoesNotContain("DigitalBrain__Modules__ai__Options__Default__Transcription", host.LastRunEnvironment.Keys);
         Assert.Contains("candidate-abc1234-clickhouse", host.LastRunEnvironment["DigitalBrain__Integrations__clickhouse__ConnectionString"], StringComparison.Ordinal);
         Assert.Equal("Open", host.LastRunEnvironment["DigitalBrain__Auth__Posture"]);
         Assert.Equal(host.LastRunEnvironment["ConnectionStrings__clustering"], host.LastMcpEnvironment["ConnectionStrings__clustering"]);
