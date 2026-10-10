@@ -14,7 +14,10 @@ internal sealed class BrainBirths(IGrainFactory grains, MachineRegistrar registr
         var owner = provision.Member;
         if (!provision.NewBrain) { return owner; }
         await registrar.Bind(owner.AccountId);
-        await grains.GetGrain<IBrain>(BrainScope.Create(owner.AccountId, owner.BrainId).Id).Create(new Owner(owner.AccountId));
+        // As its owner: the creation handlers (the OS defaults' installs) act in the owner's brain, also at boot,
+        // where no call stamped a caller.
+        using (Enforcement.CallerContextScope.Scoped(AccountSession.ForMember(owner)))
+        { await grains.GetGrain<IBrain>(BrainScope.Create(owner.AccountId, owner.BrainId).Id).Create(new Owner(owner.AccountId)); }
         return owner;
     }
 }

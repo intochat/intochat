@@ -39,6 +39,21 @@ public sealed class FreshBootFacts
         await machine.SiloServices.GetRequiredService<DigitalBrain.Platform.Trust.OwnerBirth>().Born.WaitAsync(ct);
     }
 
+    // Round 4: the boot-time birth stamps no caller of its own, so the creation handlers (the OS defaults' installs,
+    // which read the caller's brain) would run callerless; it is born as its owner.
+    [Fact(Timeout = 120_000)]
+    public async Task TheOwnerBrainIsBornAsItsOwner()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var handler = new Recording();
+        await using var machine = await ModuleTest.Create()
+            .ConfigureSilo(silo => silo.Services.AddSingleton<ICreationHandler>(handler))
+            .StartAsync(ct);
+
+        await machine.SiloServices.GetRequiredService<DigitalBrain.Platform.Trust.OwnerBirth>().Born.WaitAsync(ct);
+        Assert.Equal([ModuleTest.DefaultAccount], handler.Callers);
+    }
+
     private sealed class Gate : ICreationHandler
     {
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -55,9 +70,15 @@ public sealed class FreshBootFacts
     {
         public List<string> Brains { get; } = [];
 
+        public List<string?> Callers { get; } = [];
+
         public Task Created(IBrain kernel, Created created, CancellationToken cancellationToken)
         {
-            lock (Brains) { Brains.Add(kernel.GetPrimaryKeyString()); }
+            lock (Brains)
+            {
+                Brains.Add(kernel.GetPrimaryKeyString());
+                Callers.Add(CallerContextStamper.TryGet(out var caller) ? caller.AccountId : null);
+            }
             return Task.CompletedTask;
         }
     }
