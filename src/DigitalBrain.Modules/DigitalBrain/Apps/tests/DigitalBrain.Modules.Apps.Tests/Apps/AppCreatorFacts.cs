@@ -278,7 +278,7 @@ public sealed class AppCreatorFacts
     [Fact]
     public void TheBuilderPromptTeachesOneReactionPerSynapseAndNeverTheInvocationPipeline()
     {
-        Assert.Contains("brain.On<AppRequested>(app", AgentPrompts.Builder, StringComparison.Ordinal);
+        Assert.Contains("brain.On(app, \"open\"", AgentPrompts.Builder, StringComparison.Ordinal);
         Assert.DoesNotContain("Invocations(", AgentPrompts.Builder, StringComparison.Ordinal);
         Assert.DoesNotContain("Respond(", AgentPrompts.Builder, StringComparison.Ordinal);
     }
