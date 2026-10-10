@@ -12,16 +12,16 @@ namespace DigitalBrain.Platform.Trust;
 
 // The machine's only way to the trust grains (Stage A: direct grain calls on the given factory; with a gateway, the
 // private trust client's). Calls that act for an account are signed by this machine (R37).
-internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIdentity machine, TimeProvider time)
+internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIdentity machine, TimeProvider time, MachineCounter counter)
     : ISequencerClient, INodeDirectoryClient, IKeyringClient, IMarketplaceClient, IIdentityClient
 {
-    public GrainTrustClients(IGrainFactory grains, MachineIdentity machine, TimeProvider time) : this(() => grains, machine, time) { }
+    public GrainTrustClients(IGrainFactory grains, MachineIdentity machine, TimeProvider time, MachineCounter? counter = null)
+        : this(() => grains, machine, time, counter ?? new MachineCounter(Path.Combine(Path.GetTempPath(), $"counter-{Guid.NewGuid():N}"))) { }
 
     // Resolved per call: a gateway's client exists only once the silo has initialized it.
     private IGrainFactory Grains => factory();
 
     private readonly SemaphoreSlim _signing = new(1, 1);
-    private long _counter;
 
     // Sequencer
     public Task<HeadRecord?> Get(string partHash) => Grains.GetGrain<ISequencerGrain>(partHash).Get();
@@ -86,10 +86,9 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
         try
         {
             var now = time.GetUtcNow();
-            // Seeded from the clock, so a restarted machine keeps counting upwards without storing the counter.
-            _counter = Math.Max(_counter + 1, now.ToUnixTimeMilliseconds() * 1000);
-            var signature = machine.Sign(MachineSigned<T>.SignedBytes(payload, account, machine.MachineId, now, _counter));
-            await send(new MachineSigned<T>(payload, account, machine.MachineId, now, _counter, signature));
+            var sequence = counter.Next();
+            var signature = machine.Sign(MachineSigned<T>.SignedBytes(payload, account, machine.MachineId, now, sequence));
+            await send(new MachineSigned<T>(payload, account, machine.MachineId, now, sequence, signature));
         }
         finally { _signing.Release(); }
     }

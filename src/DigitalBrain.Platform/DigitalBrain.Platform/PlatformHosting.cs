@@ -48,6 +48,8 @@ public static class PlatformHosting
             System.Text.Encoding.UTF8.GetBytes(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MasterKeyOptions>>().Value.MasterKey)));
         services.TryAddSingleton<DigitalBrain.Framework.Parts.IPartKeys, Keys.PartKeys>();
         // The machine reaches the trust grains only through these clients; Stage A hosts them in this silo.
+        services.TryAddSingleton(provider => new Trust.MachineCounter(Path.Combine(
+            provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<Parts.PartsOptions>>().Value.MachineDirectory, "counter")));
         // With a gateway the trust grains live in a separate cluster reached through a private client (R34);
         // without one (Stage A, tests) they share this silo.
         var gateway = silo.Configuration[$"{Trust.TrustOptions.Key}:{nameof(Trust.TrustOptions.Gateway)}"];
@@ -57,7 +59,7 @@ public static class PlatformHosting
         {
             silo.AddTrustCluster();
             services.TryAddSingleton(provider => new Trust.GrainTrustClients(provider.GetRequiredService<IGrainFactory>(),
-                provider.GetRequiredService<Sequencer.MachineIdentity>(), provider.GetRequiredService<TimeProvider>()));
+                provider.GetRequiredService<Sequencer.MachineIdentity>(), provider.GetRequiredService<TimeProvider>(), provider.GetRequiredService<Trust.MachineCounter>()));
         }
         else
         {
@@ -66,7 +68,8 @@ public static class PlatformHosting
             services.TryAddSingleton(provider =>
             {
                 var client = provider.GetRequiredService<Trust.TrustGatewayClient>();
-                return new Trust.GrainTrustClients(() => client.Grains, provider.GetRequiredService<Sequencer.MachineIdentity>(), provider.GetRequiredService<TimeProvider>());
+                return new Trust.GrainTrustClients(() => client.Grains, provider.GetRequiredService<Sequencer.MachineIdentity>(), provider.GetRequiredService<TimeProvider>(),
+                    provider.GetRequiredService<Trust.MachineCounter>());
             });
             // The trust grain classes ride in this process's assemblies; this silo never hosts them.
             silo.Configure<Orleans.Configuration.GrainTypeOptions>(options =>
