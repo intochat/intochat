@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Compute;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -54,7 +55,7 @@ public abstract class Neuron : Grain, INeuron
 
     protected Task PublishAsync(Signal signal)
     {
-        var stamped = signal with { Publisher = Id };
+        var stamped = signal with { Publisher = Id, Trace = TraceContext.Current };
         ServiceProvider.GetRequiredService<LocalSignalHub>().Publish(this.GetGrainId(), stamped);
         return Observers.Notify(watch => watch.Observer.OnSignalAsync(stamped),
             watch => watch.Signals is null || watch.Signals.Contains(stamped.GetType().Name));

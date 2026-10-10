@@ -17,7 +17,7 @@ public sealed class ExtractionFacts
 
         Assert.Equal("DigitalBrain", typeof(INeuron).Assembly.GetName().Name);
         Assert.Equal(
-            ["AccessAttribute", "Activated", "Created", "IBrain", "IDigitalBrain", "IKernelView", "INeuron", "INeuronObserver", "IRetainsSignals", "Instance", "InstanceCreated", "InstanceRetired", "InternalAttribute", "NeuronId", "Owner", "PerAccountAttribute", "PublicAttribute", "RetainedSignal", "ServiceUnavailableException", "SharedAttribute", "Signal", "SignalId", "State", "Synapse", "TypeAdded", "TypeEntry", "TypeKind"],
+            ["AccessAttribute", "Activated", "Created", "IBrain", "IDigitalBrain", "IKernelView", "INeuron", "INeuronObserver", "IRetainsSignals", "Instance", "InstanceCreated", "InstanceRetired", "InternalAttribute", "NeuronId", "Owner", "PerAccountAttribute", "PublicAttribute", "RetainedSignal", "ServiceUnavailableException", "SharedAttribute", "Signal", "SignalId", "State", "Synapse", "Trace", "TypeAdded", "TypeEntry", "TypeKind"],
             exported);
     }
 

@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using DigitalBrain.Framework.Compute;
 
 namespace DigitalBrain.Framework;
 
@@ -20,6 +21,11 @@ public static class CallerContextStamper
         }
 
         RequestContext.Set(RequestContextKey, context);
+        if (TraceContext.Current is null)
+        {
+            var origin = new NeuronId($"{context.BrainId}/edge");
+            TraceContext.Enter(TraceContext.Begin(context.AccountId, context.BrainId, origin));
+        }
         return context;
     }
 

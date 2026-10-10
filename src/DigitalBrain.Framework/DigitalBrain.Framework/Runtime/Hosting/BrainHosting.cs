@@ -1,3 +1,4 @@
+using DigitalBrain.Framework.Compute;
 using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,6 +22,7 @@ public static class BrainHosting
         silo.Services.TryAddSingleton(TimeProvider.System);
         silo.Services.TryAddSingleton<ICallFilter, CallFilter>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, NeuronCallFilter>());
+        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IOutgoingGrainCallFilter, TraceOutgoingFilter>());
         silo.Services.TryAddSingleton<LocalSignalHub>();
         silo.Services.TryAddSingleton<ILocalSignalHub>(sp => sp.GetRequiredService<LocalSignalHub>());
         silo.Services.TryAddSingleton<IDigitalBrain, CurrentBrain>();

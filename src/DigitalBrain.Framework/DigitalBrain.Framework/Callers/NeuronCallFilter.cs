@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Reflection;
+using DigitalBrain.Framework.Compute;
 using DigitalBrain.Framework.Contracts;
 using Microsoft.Extensions.Logging;
 
@@ -28,8 +29,13 @@ internal sealed class NeuronCallFilter(ICallFilter filter, ILogger<NeuronCallFil
             && context.Request.GetArgument(0) is Signal signal && signal.Publisher.Name == publisher.ToString())
         {
             Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
+            using var traceScope = signal.Trace is { } delivered ? TraceContext.Enter(delivered) : null;
             try { await context.Invoke(); }
-            finally { Orleans.Runtime.RequestContext.Set(CallerContextStamper.RequestContextKey, caller); }
+            finally
+            {
+                traceScope?.Dispose();
+                Orleans.Runtime.RequestContext.Set(CallerContextStamper.RequestContextKey, caller);
+            }
             return;
         }
 
