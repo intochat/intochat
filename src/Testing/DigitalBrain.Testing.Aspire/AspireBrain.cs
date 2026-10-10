@@ -7,8 +7,25 @@ namespace DigitalBrain.Testing.Aspire;
 internal sealed class AspireBrain : ITestBrain, ITrackedBrain
 {
     private readonly AspireTestSession _session;
+    private readonly TestSessionLifetime _lifetime;
+    private readonly bool _ownsSession;
 
-    public AspireBrain(AspireTestSession session) => _session = session;
+    public AspireBrain(AspireTestSession session) : this(session, session.Lifetime, ownsSession: true) { }
+
+    private AspireBrain(AspireTestSession session, TestSessionLifetime lifetime, bool ownsSession)
+    {
+        _session = session;
+        _lifetime = lifetime;
+        _ownsSession = ownsSession;
+    }
+
+    internal AspireTestSession Session => _session;
+
+    // What this brain owns: the session for the booting brain, only its own observations for a lease.
+    internal TestSessionLifetime Lifetime => _lifetime;
+
+    // A fact's view of a host it does not own: disposing it releases only what the fact observed.
+    internal AspireBrain Lease() => new(_session, new TestSessionLifetime(_session.Options), ownsSession: false);
 
     public HttpClient HttpClient => _session.HttpClient;
     public TestExecutionOptions Execution => _session.Options;
@@ -17,7 +34,7 @@ internal sealed class AspireBrain : ITestBrain, ITrackedBrain
         => throw new NotSupportedException("An Aspire brain's services live in the AppHost's processes; reach them through HTTP or neurons.");
 
     int ITrackedBrain.BufferCapacity => new SubscriptionOptions().BufferCapacity;
-    void ITrackedBrain.Track(IAsyncDisposable resource) => _session.Lifetime.Own("observation", resource);
+    void ITrackedBrain.Track(IAsyncDisposable resource) => _lifetime.Own("observation", resource);
 
     public T Get<T>(string id) where T : class, INeuron => _session.Brains.Grain<T>(id);
     T IDigitalBrain.Get<T>(NeuronId id) => _session.Brains.Grain<T>(id.Name);
@@ -43,14 +60,14 @@ internal sealed class AspireBrain : ITestBrain, ITrackedBrain
     public async Task<Person> PersonAsync(string name, CancellationToken cancellationToken = default)
     {
         var person = await Person.RegisterAsync(HttpClient, name, cancellationToken).ConfigureAwait(false);
-        _session.Lifetime.Own("person", new Release(person.Dispose));
+        _lifetime.Own("person", new Release(person.Dispose));
         return person;
     }
 
     // The AppHost's posture is its own; a Secured AppHost answers this owner's calls with 401.
     public Person Owner => Person.OpenOwner(HttpClient);
 
-    public ValueTask DisposeAsync() => _session.DisposeAsync();
+    public ValueTask DisposeAsync() => _ownsSession ? _session.DisposeAsync() : _lifetime.DisposeAsync();
 
     private sealed class Release(Action release) : IAsyncDisposable
     {

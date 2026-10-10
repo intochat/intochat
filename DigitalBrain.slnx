@@ -161,13 +161,13 @@
     <Project Path="src/Testing/DigitalBrain.Architecture.Tests/DigitalBrain.Architecture.Tests.csproj" />
     <Project Path="src/Testing/DigitalBrain.Aspire.Testing/DigitalBrain.Aspire.Testing.csproj" />
     <Project Path="src/Testing/DigitalBrain.Testing.Aspire/DigitalBrain.Testing.Aspire.csproj" />
-    <Project Path="src/Testing/DigitalBrain.Testing.E2E/DigitalBrain.Testing.E2E.csproj" />
+    <Project Path="src/Testing/DigitalBrain.Testing.Playwright/DigitalBrain.Testing.Playwright.csproj" />
     <Project Path="src/Testing/DigitalBrain.Testing.Tests/DigitalBrain.Testing.Tests.csproj" />
     <Project Path="src/Testing/DigitalBrain.Testing.Module/DigitalBrain.Testing.Module.csproj" />
-    <Project Path="src/Testing/DigitalBrain.Testing.Reference/DigitalBrain.Testing.Reference.csproj" />
     <Project Path="src/Testing/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
   </Folder>
   <Folder Name="/OS/">
+    <Project Path="src/DigitalBrain.OS/DigitalBrain.OS.Testing/DigitalBrain.OS.Testing.csproj" />
     <Project Path="src/DigitalBrain.OS/DigitalBrain.OS.Tests.E2E/DigitalBrain.OS.Tests.E2E.csproj" />
     <Project Path="src/DigitalBrain.OS/DigitalBrain.OS.Tests.Unit/DigitalBrain.OS.Tests.Unit.csproj" />
     <Project Path="src/DigitalBrain.OS/DigitalBrain.OS/DigitalBrain.OS.csproj" />

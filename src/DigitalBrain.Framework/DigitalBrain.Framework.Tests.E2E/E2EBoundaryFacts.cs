@@ -1,41 +1,7 @@
-using DigitalBrain;
-using DigitalBrain.Framework;
-using DigitalBrain.Framework.Configuration;
-using DigitalBrain.Framework.Modules;
-using Microsoft.Extensions.Configuration;
-using Orleans.Hosting;
-
 namespace DigitalBrain.Framework.Tests.E2E;
 
 public sealed class E2EBoundaryFacts
 {
-    [Fact]
-    public void ApplicationModuleEditsComposeUsingTheStableModuleId()
-    {
-        var configured = E2ETest.For<E2EBoundaryFacts>()
-            .ConfigureModule<DigitalBrain.AI.AIModule, DigitalBrain.AI.AIOptions>(options => options.Telemetry.EnableSensitiveData = true)
-            .ConfigureModule<DigitalBrain.AI.AIModule, DigitalBrain.AI.AIOptions>(options => options.OpenAI.Endpoint = "http://localhost:12345/v1/");
-        var options = new ConfigurationBuilder()
-            .AddInMemoryCollection(configured.OptionOverrides).Build()
-            .GetModuleOptions<DigitalBrain.AI.AIOptions>("ai");
-        Assert.True(options.Telemetry.EnableSensitiveData);
-        Assert.Equal("http://localhost:12345/v1/", options.OpenAI.Endpoint);
-        Assert.Empty(options.Hosting.Llms);
-        Assert.Equal("true", configured.OptionOverrides[DigitalBrainConfiguration.ModuleSection("ai") + ":ReplaceOptions"]);
-    }
-
-    [Fact]
-    public void BrowserOptionsStayOnTheBuilderAndOutsideTheOverrideEnvelope()
-    {
-        var headed = E2ETest.For<E2EBoundaryFacts>().ConfigureModule<BoundaryModule, BoundaryOptions>(_ =>
-            BrowserConfiguration.Configure(browser => browser.Headed().SlowMo(75)));
-        Assert.False(headed.BrowserOptions.Headless);
-        Assert.Equal(75, headed.BrowserOptions.SlowMoMilliseconds);
-        Assert.DoesNotContain(headed.OptionOverrides.Keys, key => key.Contains("Headless", StringComparison.Ordinal));
-        Assert.DoesNotContain(headed.OptionOverrides.Keys, key => key.Contains("SlowMo", StringComparison.Ordinal));
-        Assert.Throws<InvalidOperationException>(() => BrowserConfiguration.Configure(_ => { }));
-    }
-
     [Fact]
     public void BrowserDefaultsResolveFromExplicitChoiceThenEnvironment()
     {
@@ -59,34 +25,4 @@ public sealed class E2EBoundaryFacts
         Assert.Throws<ArgumentException>(() => BrowserOptionsResolver.Resolve(new() { Headless = true }, false, false, "cloud"));
         Assert.Throws<InvalidOperationException>(() => BrowserOptionsResolver.Resolve(new() { Headless = false, Location = BrowserLocation.Container }, false, false));
     }
-
-    [Fact]
-    public async Task InvalidBrowserOptionsFailBeforeAcquiringResources()
-        => await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => E2ETest.For<E2EBoundaryFacts>()
-            .WithBrowser(new() { SlowMoMilliseconds = -1 }).StartAsync(TestContext.Current.CancellationToken));
-
-    [Fact]
-    public async Task FailedStartupReleasesTheHost()
-    {
-        foreach (var error in new Exception[] { new InvalidOperationException("launch failed"), new OperationCanceledException() })
-        {
-            var host = new OwnedHost();
-            Assert.Same(error, await Record.ExceptionAsync(() => E2ETest.ReadyAsync(host, _ => Task.FromException(error))));
-            Assert.Equal(1, host.DisposeCount);
-        }
-    }
-
-
-    private sealed class OwnedHost : IAsyncDisposable
-    {
-        public int DisposeCount { get; private set; }
-        public ValueTask DisposeAsync() { DisposeCount++; return ValueTask.CompletedTask; }
-    }
 }
-
-public sealed class BoundaryModule() : Module<BoundaryOptions>(new ModuleId(nameof(BoundaryModule)))
-{
-    public override void Configure(ISiloBuilder silo) { }
-}
-
-public sealed class BoundaryOptions : IModuleOptions { public string? Label { get; set; } public void Validate() { } }

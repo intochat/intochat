@@ -15,7 +15,7 @@ public sealed class AssistantGateFacts(RouterHostFixture host) : BrainFact(host)
     public async Task OpenCalculatorIsDispatchedByJevWithoutAnAgentTurn()
     {
         var ct = TestContext.Current.CancellationToken;
-        var scope = Brain.WorkspaceId;
+        var scope = WorkspaceId;
 
         var status = Brain.Get<IText>(scope + "/apps/assistant/status");
         var workspace = Brain.Get<IWorkspace>(scope);

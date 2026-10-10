@@ -14,12 +14,11 @@ public sealed class ProductHostFixture : ReferenceBrainFixture
 {
     public static readonly string[] ShippedPackages = ["os/settings", "os/assistant", "os/router", "os/calculator", "intochat/customer-researcher"];
 
-    protected override Task<E2EBrain> StartBrainAsync(CancellationToken cancellationToken)
+    protected override Task<ITestBrain> StartBrainAsync(CancellationToken cancellationToken)
         => ProductE2E.Create()
-            .ConfigureModule<AIModule, AIOptions>(ai => ai.WithModelEndpoint(AiProvider.OpenAI, Model.Endpoint))
-            .ConfigureModule<FlutterModule, FlutterModuleOptions>(flutter => flutter.RunWebApp())
+            .WithOptions<AIModule, AIOptions>(ai => ai.WithModelEndpoint(AiProvider.OpenAI, Model.Endpoint))
+            .WithOptions<FlutterModule, FlutterModuleOptions>(flutter => flutter.RunWebApp())
             .WithHostConfiguration(FlutterHostOptions.WebContainerKey, "true")
-            .WithBrowser(new() { PrimarySession = false, AssertionTimeout = TimeSpan.FromMinutes(2) })
             .WithStartupTimeout(TimeSpan.FromMinutes(15))
             .ExportingTelemetryTo(Collector)
             .StartAsync(cancellationToken);

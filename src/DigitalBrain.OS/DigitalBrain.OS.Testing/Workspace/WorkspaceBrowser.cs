@@ -1,6 +1,6 @@
 using Microsoft.Playwright;
 
-namespace DigitalBrain.Testing.E2E.Workspace;
+namespace DigitalBrain.OS.Testing.Workspace;
 
 public static class WorkspaceBrowser
 {

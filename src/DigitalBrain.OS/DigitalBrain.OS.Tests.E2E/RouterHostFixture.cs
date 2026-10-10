@@ -5,7 +5,6 @@ using DigitalBrain.AI.Models;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Aspire.Hosting;
 using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Testing.E2E;
 using DigitalBrain.Testing.Model;
 
 namespace DigitalBrain.OS.Tests.E2E;
@@ -14,7 +13,7 @@ namespace DigitalBrain.OS.Tests.E2E;
 // routing and the arg-fill chat, so a request routes through Jev and carries itself out offline.
 public sealed class RouterHostFixture : ReferenceBrainFixture
 {
-    protected override Task<E2EBrain> StartBrainAsync(CancellationToken cancellationToken)
+    protected override Task<ITestBrain> StartBrainAsync(CancellationToken cancellationToken)
     {
         var root = new Uri(Model.Endpoint, "/").AbsoluteUri.TrimEnd('/');
         Model.ChatFallback = Fill;
@@ -23,10 +22,9 @@ public sealed class RouterHostFixture : ReferenceBrainFixture
             [IntegrationSchema.Key("typesafe", "ApiKey")] = "fixture-key",
             [IntegrationSchema.Key("typesafe", "Endpoint")] = root,
         })
-            .ConfigureModule<AIModule, AIOptions>(ai => ai.WithModelEndpoint(AiProvider.OpenAI, Model.Endpoint))
-            .ConfigureModule<FlutterModule, FlutterModuleOptions>(flutter => flutter.RunWebApp())
+            .WithOptions<AIModule, AIOptions>(ai => ai.WithModelEndpoint(AiProvider.OpenAI, Model.Endpoint))
+            .WithOptions<FlutterModule, FlutterModuleOptions>(flutter => flutter.RunWebApp())
             .WithHostConfiguration(FlutterHostOptions.WebContainerKey, "true")
-            .WithBrowser(new() { PrimarySession = false, AssertionTimeout = TimeSpan.FromMinutes(2) })
             .WithStartupTimeout(TimeSpan.FromMinutes(15))
             .ExportingTelemetryTo(Collector)
             .StartAsync(cancellationToken);

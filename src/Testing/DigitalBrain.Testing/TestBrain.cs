@@ -100,6 +100,26 @@ public sealed class TestBrain
         return this;
     }
 
+    // The AppHost builder's own configuration on an Aspire target (hosting-layer knobs, never integration values).
+    public TestBrain WithHostConfiguration(string key, string? value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        EnsureMutable();
+        _execution = _execution with
+        {
+            HostConfiguration = new Dictionary<string, string?>(_execution.HostConfiguration, StringComparer.OrdinalIgnoreCase) { [key] = value },
+        };
+        return this;
+    }
+
+    public TestBrain WithStartupTimeout(TimeSpan timeout)
+    {
+        TestExecutionOptions.ValidateTimeout(timeout);
+        EnsureMutable();
+        _execution = _execution with { StartupTimeout = timeout };
+        return this;
+    }
+
     // In-process brains always run memory reminders; deleted once callers stop asking (Task 20).
     public TestBrain WithReminders()
     {

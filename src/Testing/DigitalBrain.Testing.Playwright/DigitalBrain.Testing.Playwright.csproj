@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>A browser against a brain on the Aspire target: Playwright sessions on the AppHost's web endpoint, locally or in a browser container.</Description>
+  </PropertyGroup>
+  <ItemGroup><InternalsVisibleTo Include="DigitalBrain.Framework.Tests.E2E" /></ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Playwright" />
+    <ProjectReference Include="../DigitalBrain.Testing.Aspire/DigitalBrain.Testing.Aspire.csproj" />
+  </ItemGroup>
+</Project>

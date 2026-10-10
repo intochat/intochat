@@ -37,7 +37,7 @@
 
   <!-- Every test project in the repo, replacing the boilerplate that used to be copied into each
        .csproj. This is repository convention only: package consumers choose their own test runner
-       and project shape, and get just the Aspire paths from DigitalBrain.Testing.E2E. -->
+       and project shape, and get just the Aspire target from DigitalBrain.Testing.Aspire. -->
   <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests')) Or $(MSBuildProjectName.Contains('.Tests.'))">
     <OutputType>Exe</OutputType>
     <IsTestProject>true</IsTestProject>
@@ -58,7 +58,8 @@
     <Using Include="DigitalBrain.Testing.Module" />
   </ItemGroup>
   <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Tests.E2E'))">
-    <Using Include="DigitalBrain.Testing.E2E" />
+    <Using Include="DigitalBrain.Testing.Aspire" />
+    <Using Include="DigitalBrain.OS.Testing" />
   </ItemGroup>
 
   <PropertyGroup>

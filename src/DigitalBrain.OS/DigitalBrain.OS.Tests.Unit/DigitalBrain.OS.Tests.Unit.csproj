@@ -2,7 +2,8 @@
   <ItemGroup>
     <ProjectReference Include="../../Testing/DigitalBrain.Testing.Module/DigitalBrain.Testing.Module.csproj" />
     <ProjectReference Include="../DigitalBrain.OS/DigitalBrain.OS.csproj" />
-    <ProjectReference Include="../../Testing/DigitalBrain.Testing.E2E/DigitalBrain.Testing.E2E.csproj" />
+    <ProjectReference Include="../DigitalBrain.OS.Testing/DigitalBrain.OS.Testing.csproj" />
+    <Using Include="DigitalBrain.OS.Testing" />
     <ProjectReference Include="../../DigitalBrain.AppHost/DigitalBrain.AppHost.csproj" IsAspireProjectResource="false" Aliases="AppHost" />
   </ItemGroup>
 </Project>

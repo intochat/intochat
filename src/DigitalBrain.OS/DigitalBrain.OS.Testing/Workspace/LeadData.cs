@@ -1,11 +1,10 @@
-using Aspire.Hosting.Testing;
 using Npgsql;
 
-namespace DigitalBrain.Testing.E2E.Workspace;
+namespace DigitalBrain.OS.Testing.Workspace;
 
 public static class LeadData
 {
-    public static async Task CreateWideCustomersAsync(E2EBrain brain, CancellationToken ct)
+    public static async Task CreateWideCustomersAsync(ITestBrain brain, CancellationToken ct)
     {
         await using var connection = new NpgsqlConnection(await brain.GetConnectionStringAsync("supabase-database", ct));
         await connection.OpenAsync(ct);
@@ -16,7 +15,7 @@ public static class LeadData
     }
 
     // Facts share one database; resetting the fixture tables keeps each fact's data its own.
-    public static async Task CreateCustomersAsync(E2EBrain brain, CancellationToken ct)
+    public static async Task CreateCustomersAsync(ITestBrain brain, CancellationToken ct)
     {
         await using var connection = new NpgsqlConnection(await brain.GetConnectionStringAsync("supabase-database", ct));
         await connection.OpenAsync(ct);
@@ -28,7 +27,7 @@ public static class LeadData
         await seed.ExecuteNonQueryAsync(ct);
     }
 
-    public static async Task SeedAsync(E2EBrain brain, string marker, CancellationToken ct)
+    public static async Task SeedAsync(ITestBrain brain, string marker, CancellationToken ct)
     {
         await using var connection = new NpgsqlConnection(await brain.GetConnectionStringAsync("supabase-database", ct));
         await connection.OpenAsync(ct);
@@ -42,7 +41,7 @@ public static class LeadData
         await seed.ExecuteNonQueryAsync(ct);
     }
 
-    public static async Task DropAsync(E2EBrain brain, CancellationToken ct)
+    public static async Task DropAsync(ITestBrain brain, CancellationToken ct)
     {
         await using var connection = new NpgsqlConnection(await brain.GetConnectionStringAsync("supabase-database", ct));
         await connection.OpenAsync(ct);

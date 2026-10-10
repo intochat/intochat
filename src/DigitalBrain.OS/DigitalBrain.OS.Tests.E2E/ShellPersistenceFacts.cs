@@ -25,7 +25,7 @@ public sealed class ShellPersistenceFacts(ReferenceBrainFixture host) : BrainFac
             await Task.Delay(100, ct);
         }
         Assert.True(durable, "Workspace was not durably acknowledged.");
-        await using var fresh = await brain.OpenBrowserAsync(ct);
+        await using var fresh = await brain.OpenBrowserAsync(ReferenceBrainFixture.Browser, ct);
         await fresh.Page.GetByRole(AriaRole.Button, new() { NameRegex = new System.Text.RegularExpressions.Regex("^Workspaces") }).ClickAsync();
         await Assertions.Expect(fresh.Page.GetByRole(AriaRole.Menuitemcheckbox, new() { Name = "Cloud-only workspace", Exact = true })).ToBeVisibleAsync();
         Assert.Equal(0, await fresh.Page.EvaluateAsync<int>("() => Object.keys(localStorage).filter(k => k.includes('workspace')).length"));

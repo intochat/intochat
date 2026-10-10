@@ -1,7 +1,5 @@
 using System.Net.Http.Json;
-using DigitalBrain.Testing.E2E;
 using DigitalBrain.Testing.Aspire.Diagnostics;
-using DigitalBrain.Testing.E2E.Workspace;
 using static DigitalBrain.Testing.Aspire.Diagnostics.TraceAssertions;
 
 namespace DigitalBrain.Framework.Tests.E2E;
@@ -19,7 +17,8 @@ public sealed class TraceBudgetFacts(ReferenceBrainFixture host)
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await host.LeaseAsync(ct);
         var collector = host.Collector;
-        await UserConnections.AuthorizeDatabaseAsync(brain, brain.WorkspaceId, ct);
+        var workspace = "workspace-" + Guid.NewGuid().ToString("N");
+        await UserConnections.AuthorizeDatabaseAsync(brain, workspace, ct);
         await Task.Delay(TimeSpan.FromSeconds(5), ct);
         var idleStart = collector.Snapshot().Count;
         await Task.Delay(TimeSpan.FromSeconds(60), ct);
@@ -30,7 +29,7 @@ public sealed class TraceBudgetFacts(ReferenceBrainFixture host)
         var intentStart = collector.Snapshot().Count;
         // A person talks to the assistant app; the request reaches a synapse and the turn's answer is
         // the transcript neuron, which the wait below reads.
-        await ContentCaptureOnFacts.SendAsync(brain, ct);
+        await ContentCaptureOnFacts.SendAsync(brain, workspace, ct);
         await WaitForAsync(() => collector.Snapshot().Skip(intentStart)
             .Any(span => string.Equals(span.Name, "IIntentUsage/RecordBatchAsync", StringComparison.Ordinal)), ct);
         var intentSpans = collector.Snapshot().Skip(intentStart).ToArray();

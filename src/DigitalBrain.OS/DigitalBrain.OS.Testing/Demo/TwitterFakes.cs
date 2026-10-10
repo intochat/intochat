@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Orleans;
 
-namespace DigitalBrain.Testing.E2E.Demo;
+namespace DigitalBrain.OS.Testing.Demo;
 
 [Alias("twitter")]
 [Orleans.Metadata.DefaultGrainType("twitter")]

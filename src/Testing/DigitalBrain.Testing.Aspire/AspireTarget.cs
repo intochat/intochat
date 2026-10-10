@@ -5,7 +5,8 @@ using DigitalBrain.Framework.Platform.Integrations;
 namespace DigitalBrain.Testing.Aspire;
 
 // The consumer's AppHost behind ITestBrain: a fresh cluster on non-persistent storage per brain.
-public sealed class AspireTarget<TAppHost> : ITestTarget where TAppHost : class
+// The browser location is fixed at boot: a container browser is a resource of the AppHost.
+public sealed class AspireTarget<TAppHost>(BrowserLocation? browser = null) : ITestTarget where TAppHost : class
 {
     public async Task<ITestBrain> StartAsync(TestBrainPlan plan, CancellationToken cancellationToken)
     {
@@ -33,7 +34,7 @@ public sealed class AspireTarget<TAppHost> : ITestTarget where TAppHost : class
             PrivateConfiguration = secrets,
             ArtifactDirectory = plan.Execution.ArtifactDirectory ?? Path.Combine(AppContext.BaseDirectory, "e2e-artifacts", identity),
         };
-        var session = await AspireTestSession.StartAsync<TAppHost>(args, execution, cancellationToken).ConfigureAwait(false);
+        var session = await AspireTestSession.StartAsync<TAppHost>(args, execution, cancellationToken, browser ?? BrowserEnvironment.Location).ConfigureAwait(false);
         return new AspireBrain(session);
     }
 

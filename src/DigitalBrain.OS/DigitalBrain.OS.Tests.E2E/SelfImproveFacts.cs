@@ -21,7 +21,7 @@ public sealed class SelfImproveFacts
         var ct = TestContext.Current.CancellationToken;
         await using var fixture = new SelfImproveHostFixture();
         var brain = await fixture.LeaseAsync(ct);
-        var scope = brain.WorkspaceId;
+        var scope = "workspace-" + Guid.NewGuid().ToString("N");
         var appKey = scope + "/apps/selfimprove";
         Assert.Equal(AppStatus.Live, (await brain.Get<IApp>(appKey).Read()).Status);
         var list = brain.Get<IText>(appKey + "/revisions");

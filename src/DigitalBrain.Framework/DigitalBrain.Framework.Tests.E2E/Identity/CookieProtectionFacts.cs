@@ -24,7 +24,7 @@ public sealed class CookieProtectionFacts(ReferenceBrainFixture host)
         Assert.True((await container.ExistsAsync(ct)).Value);
 
         var principal = "protected-" + Guid.NewGuid().ToString("N");
-        await using var browser = await brain.OpenBrowserAsync(ct);
+        await using var browser = await brain.OpenBrowserAsync(ReferenceBrainFixture.Browser, ct);
         // Match the shell's browserKernelUri normalization so loopback aliases stay same-site.
         var runtime = new UriBuilder(brain.HttpClient.BaseAddress!) { Host = new Uri(browser.Page.Url).Host }.Uri.AbsoluteUri;
         var statuses = await browser.Page.EvaluateAsync<int[]>("""

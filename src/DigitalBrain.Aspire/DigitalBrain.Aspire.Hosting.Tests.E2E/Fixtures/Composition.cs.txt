@@ -10,7 +10,7 @@ using Azure.Storage.Blobs;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Testing;
-using DigitalBrain.Testing.E2E;
+using DigitalBrain.Testing.Aspire;
 
 if (args.Length > 0) { await CompositionHost.Run(args[0]); return; }
 using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(6));

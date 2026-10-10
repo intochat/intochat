@@ -1,6 +1,6 @@
 using Microsoft.Playwright;
 
-namespace DigitalBrain.Testing.E2E;
+namespace DigitalBrain.Testing.Playwright;
 
 public sealed class BrowserSession : IAsyncDisposable
 {

@@ -1,15 +1,15 @@
 using System.Xml.Linq;
 
-namespace DigitalBrain.OS.Tests.Unit;
+namespace DigitalBrain.OS.Testing;
 
 // Repository files are found through the solution, by project name, never by a path literal.
-internal static class SolutionProjects
+public static class SolutionProjects
 {
     private const string SolutionFile = "DigitalBrain.slnx";
 
-    internal static readonly string Root = FindRoot();
+    public static readonly string Root = FindRoot();
 
-    internal static string DirectoryOf(string project)
+    public static string DirectoryOf(string project)
     {
         var entry = XDocument.Load(Path.Combine(Root, SolutionFile)).Descendants("Project")
             .Select(element => element.Attribute("Path")!.Value.Replace('\\', '/'))
@@ -18,9 +18,9 @@ internal static class SolutionProjects
     }
 
     // The AppHost hands the OS the repository's features folder (AppHost.cs): {owner}/{App}/app.cs.
-    internal static string Features => Path.Combine(Root, "features");
+    public static string Features => Path.Combine(Root, "features");
 
-    internal static IReadOnlyList<DigitalBrain.Apps.AppBundle> FeaturesOf(string owner)
+    public static IReadOnlyList<DigitalBrain.Apps.AppBundle> FeaturesOf(string owner)
         => [.. new DigitalBrain.Apps.FeatureDirectory(Features).Load().Where(feature => feature.Owner == owner).Select(feature => feature.Bundle)];
 
     private static string FindRoot()

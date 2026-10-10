@@ -12,7 +12,7 @@ public sealed class RouterHostFacts(RouterHostFixture host) : BrainFact(host)
     public async Task ARequestRoutesThroughJevAndStartsTheTimer()
     {
         var ct = TestContext.Current.CancellationToken;
-        var scope = Brain.WorkspaceId;
+        var scope = WorkspaceId;
         _ = await OpenPageAsync(ct);
 
         var result = Brain.Get<IText>(scope + "/apps/router/result");

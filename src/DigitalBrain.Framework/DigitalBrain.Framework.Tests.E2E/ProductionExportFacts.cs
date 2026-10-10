@@ -1,4 +1,3 @@
-using DigitalBrain.Testing.E2E;
 using DigitalBrain.Testing.Aspire.Diagnostics;
 using static DigitalBrain.Testing.Aspire.Diagnostics.TraceAssertions;
 

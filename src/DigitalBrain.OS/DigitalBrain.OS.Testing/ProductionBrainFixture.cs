@@ -2,21 +2,21 @@ using DigitalBrain.AI;
 using DigitalBrain.AI.Models;
 using DigitalBrain.Flutter;
 
-namespace DigitalBrain.Testing.E2E;
+namespace DigitalBrain.OS.Testing;
 
 // The reference brain flagged Production. Environment gates hide here, not in Development.
 public class ProductionBrainFixture : ReferenceBrainFixture
 {
     protected virtual bool SensitiveCapture => true;
 
-    protected override Task<E2EBrain> StartBrainAsync(CancellationToken cancellationToken)
+    protected override Task<ITestBrain> StartBrainAsync(CancellationToken cancellationToken)
         => ReferenceBrain.Create()
-            .ConfigureModule<AIModule, AIOptions>(ai =>
+            .WithOptions<AIModule, AIOptions>(ai =>
             {
                 ai.WithModelEndpoint(AiProvider.OpenAI, Model.Endpoint);
                 ai.Telemetry.EnableSensitiveData = SensitiveCapture;
             })
-            .ConfigureModule<FlutterModule, FlutterModuleOptions>(flutter => flutter.BackendOnly())
+            .WithOptions<FlutterModule, FlutterModuleOptions>(flutter => flutter.BackendOnly())
             .InEnvironment("Production")
             .ExportingTelemetryTo(Collector)
             .StartAsync(cancellationToken);

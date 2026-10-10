@@ -14,11 +14,11 @@ namespace DigitalBrain.OS.Tests.E2E;
 
 internal static class ProductE2E
 {
-    public static Task<E2EBrain> StartAsync(CancellationToken ct) => Create().StartAsync(ct);
+    public static Task<ITestBrain> StartAsync(CancellationToken ct) => Create().StartAsync(ct);
 
     // The host ships its first-party apps in the background after it is healthy; a fact that opens
     // one has to wait until that app's bundle imported into the publisher's brain.
-    public static async Task WaitUntilShippedAsync(E2EBrain brain, string appKey, CancellationToken ct, TimeSpan? budget = null)
+    public static async Task WaitUntilShippedAsync(ITestBrain brain, string appKey, CancellationToken ct, TimeSpan? budget = null)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(budget ?? TimeSpan.FromMinutes(4));
@@ -32,7 +32,7 @@ internal static class ProductE2E
 
     // The product host IS the reference boot; what is the product's own is its cookie and the
     // shipped content a product fixture turns back on.
-    public static E2ETestBuilder<Projects.DigitalBrain_AppHost> Create(string modelApiKey = "fixture-key", Dictionary<string, string?>? privateConfiguration = null)
+    public static TestBrain Create(string modelApiKey = "fixture-key", Dictionary<string, string?>? privateConfiguration = null)
         => ReferenceBrain.Create(modelApiKey, privateConfiguration)
             .WithHostConfiguration(Platform.Identity.Configuration.IdentityHostOptions.Key(nameof(Platform.Identity.Configuration.IdentityHostOptions.CookieName)), "intochat.session")
             .WithHostConfiguration(Platform.Identity.Configuration.IdentityHostOptions.Key(nameof(Platform.Identity.Configuration.IdentityHostOptions.ProtectionApplicationName)), "IntoChat.v1")

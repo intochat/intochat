@@ -18,7 +18,7 @@ public sealed class BrainRuntimeFacts(ReferenceBrainFixture host) : BrainFact(ho
     public async Task ClearingAConversationUpdatesItsRunningShippedProjection()
     {
         var ct = TestContext.Current.CancellationToken;
-        var scope = Brain.WorkspaceId;
+        var scope = WorkspaceId;
         var appKey = scope + "/apps/assistant";
         Assert.Equal(AppStatus.Live, (await Brain.Get<IApp>(appKey).Read()).Status);
         var agent = Brain.Get<IAgent>(appKey + "/conversations/main");
@@ -49,7 +49,7 @@ public sealed class BrainRuntimeFacts(ReferenceBrainFixture host) : BrainFact(ho
     public async Task ARequestReachesASynapseAndItsAnswerIsANeuron()
     {
         var ct = TestContext.Current.CancellationToken;
-        var scope = Brain.WorkspaceId;
+        var scope = WorkspaceId;
         var bundle = new FeatureDirectory(Features()).Load().Single(candidate => candidate.Owner == "intochat" && candidate.Bundle.Name == "word-count").Bundle;
         (await Brain.HttpClient.PostAsJsonAsync($"/brains/{scope}/apps/import", bundle, ct)).EnsureSuccessStatusCode();
 

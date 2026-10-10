@@ -6,7 +6,6 @@ using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Modules;
-using DigitalBrain.Testing.E2E;
 
 namespace DigitalBrain.OS.Tests.Unit;
 

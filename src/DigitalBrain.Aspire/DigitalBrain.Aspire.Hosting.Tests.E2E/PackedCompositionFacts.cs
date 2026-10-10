@@ -23,8 +23,9 @@ public sealed class PackedCompositionFacts
         var projects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var roots = new[]
         {
+            "DigitalBrain.Testing",
             "DigitalBrain.Testing.Aspire",
-            "DigitalBrain.Testing.E2E",
+            "DigitalBrain.Testing.Playwright",
             "DigitalBrain.Testing.Module",
             // The harness no longer drags modules in; one contracts package proves module
             // contracts stay consumable from the feed on their own.
@@ -82,7 +83,7 @@ public sealed class PackedCompositionFacts
                 <RestorePackagesPath>{{Path.Combine(scratch, "packages")}}</RestorePackagesPath>
               </PropertyGroup>
               <ItemGroup>
-                <PackageReference Include="DigitalBrain.Testing.E2E" Version="{{version}}" />
+                <PackageReference Include="DigitalBrain.Testing.Playwright" Version="{{version}}" />
                 <PackageReference Include="DigitalBrain.Aspire.Server" Version="{{version}}" />
                 <PackageReference Include="DigitalBrain.Aspire.Client" Version="{{version}}" />
                 <PackageReference Include="Aspire.Hosting.Orchestration.$(NETCoreSdkRuntimeIdentifier)" Version="{{aspireVersion}}" ExcludeAssets="all" PrivateAssets="all" />
