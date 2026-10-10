@@ -7,6 +7,8 @@ public sealed record CallDecision
     [Id(0)] public bool Allowed { get; init; }
     [Id(1)] public CallDenial? Denial { get; init; }
     [Id(2)] public string? Explanation { get; init; }
+    // An allowed decision that rests on a Once grant: the machine spends it through a signed consume (R68).
+    [Id(3)] public bool ConsumesOnce { get; init; }
 
     public static CallDecision Allow() => new() { Allowed = true };
 

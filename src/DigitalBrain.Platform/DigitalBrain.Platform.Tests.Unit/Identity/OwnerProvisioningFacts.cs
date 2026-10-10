@@ -56,7 +56,9 @@ public sealed class OwnerProvisioningFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().StartAsync(ct);
         var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(AccountSession.DefaultLogin, "dev").Id);
-        var decision = await authority.Authorize(AppCallerAtBirth.Request(AccountSession.DefaultLogin, "dev"));
+        // R68: the machine's grant policy provisions the synthetic owner through the signed path; Authorize never does.
+        var decision = await brain.SiloServices.GetRequiredService<DigitalBrain.Platform.Identity.Grants.IGrantPolicySource>()
+            .AuthorizeAsync(AppCallerAtBirth.Request(AccountSession.DefaultLogin, "dev"), ct);
         Assert.True(decision is null || decision.Allowed);
         Assert.Null(await authority.Membership("os"));
         Assert.Equal(MemberRole.Owner, (await authority.Membership(AccountSession.DefaultLogin))!.Role);

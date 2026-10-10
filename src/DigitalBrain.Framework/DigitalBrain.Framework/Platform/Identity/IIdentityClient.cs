@@ -20,6 +20,9 @@ public interface IIdentityClient
 
     Task<bool> IsRegistered(string principalId);
 
+    // The machine that registered a principal (R67); only it holds the principal's credential.
+    Task<string?> RegisteredBy(string principalId);
+
     Task<BrainProvision> RegisterPrincipal(string principalId, string displayName);
 
     Task<BrainProvision?> CompleteRegistration(string principalId);

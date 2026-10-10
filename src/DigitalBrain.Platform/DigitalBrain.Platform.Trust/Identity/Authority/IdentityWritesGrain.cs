@@ -22,6 +22,7 @@ internal interface IIdentityWrites : IGrainWithStringKey
     Task RevokeAsOwner(MachineSigned<OwnerRevoke> revoke);
     Task<BrainProvision> RegisterPrincipal(MachineSigned<PrincipalRegistration> registration);
     Task<BrainProvision?> CompleteRegistration(MachineSigned<PrincipalRegistration> registration);
+    Task<CallDecision?> Consume(MachineSigned<CallRequest> request);
 }
 
 [GenerateSerializer, Alias("identity.brain-request")]
@@ -88,14 +89,21 @@ internal sealed class IdentityWritesGrain : Grain, IIdentityWrites
 
     public async Task<BrainProvision> RegisterPrincipal(MachineSigned<PrincipalRegistration> registration)
     {
-        await Machine(registration);
-        return await GrainFactory.GetGrain<IPrincipal>(registration.Payload.PrincipalId).Register(registration.Payload.DisplayName);
+        await Paired(registration);
+        return await GrainFactory.GetGrain<IPrincipal>(registration.Payload.PrincipalId).Register(registration.Payload.DisplayName, registration.MachineId);
     }
 
     public async Task<BrainProvision?> CompleteRegistration(MachineSigned<PrincipalRegistration> registration)
     {
-        await Machine(registration);
-        return await GrainFactory.GetGrain<IPrincipal>(registration.Payload.PrincipalId).CompleteRegistration();
+        await Paired(registration);
+        return await GrainFactory.GetGrain<IPrincipal>(registration.Payload.PrincipalId).CompleteRegistration(registration.MachineId);
+    }
+
+    public async Task<CallDecision?> Consume(MachineSigned<CallRequest> request)
+    {
+        var caller = request.Payload.Caller;
+        await For(request, caller.AccountId);
+        return await GrainFactory.GetGrain<IBrainAuthority>(BrainScope.Create(caller.AccountId, caller.BrainId).Id).Consume(request.Payload);
     }
 
     private IBrainAuthority Authority(Member member) => GrainFactory.GetGrain<IBrainAuthority>(BrainScope.Create(member.AccountId, member.BrainId).Id);
@@ -107,6 +115,11 @@ internal sealed class IdentityWritesGrain : Grain, IIdentityWrites
         await GrainFactory.GetGrain<IMachineRegistry>(signed.MachineId).Accept(signed.Call());
     }
 
-    // A registration creates its account, so only the machine's signature and replay window are checked.
-    private Task Machine<T>(MachineSigned<T> signed) => GrainFactory.GetGrain<IMachineRegistry>(signed.MachineId).AcceptMachine(signed.Call());
+    // A registration creates its account, so the machine's signature, replay window and pairing are checked (R67).
+    private async Task Paired<T>(MachineSigned<T> signed)
+    {
+        var machine = GrainFactory.GetGrain<IMachineRegistry>(signed.MachineId);
+        await machine.AcceptMachine(signed.Call());
+        await machine.RequirePaired();
+    }
 }

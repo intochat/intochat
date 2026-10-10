@@ -136,9 +136,24 @@ public sealed class GrantFacts
         await authority.Initialize("account-1", "ws-1");
         await authority.Grant(Grant(GrantMode.Once, "person.birthDate", "app-1", "ws-1"));
         var request = Request(CallerKind.App, "app-1", "ws-1", "person.birthDate");
-        var results = await Task.WhenAll(Enumerable.Range(0, 16).Select(_ => authority.Authorize(request)));
+        var results = await Task.WhenAll(Enumerable.Range(0, 16).Select(_ => authority.Consume(request)));
         Assert.Single(results, result => result is { Allowed: true });
         Assert.Empty(await authority.ListGrants());
+    }
+
+    // R68: the decision is a read; only a consume spends a Once grant.
+    [Fact]
+    public async Task AnAuthorizeReadNeverConsumesAGrant()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
+        await authority.Initialize("account-1", "ws-1");
+        await authority.Grant(Grant(GrantMode.Once, "person.birthDate", "app-1", "ws-1"));
+        var request = Request(CallerKind.App, "app-1", "ws-1", "person.birthDate");
+
+        foreach (var _ in Enumerable.Range(0, 3)) { Assert.True((await authority.Authorize(request)) is { Allowed: true, ConsumesOnce: true }); }
+        Assert.Single(await authority.ListGrants());
     }
 
     [Fact]

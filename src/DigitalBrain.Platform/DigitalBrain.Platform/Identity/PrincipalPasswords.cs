@@ -6,7 +6,7 @@ namespace DigitalBrain.Platform.Identity;
 
 // Passwords stay on the machine (R30, R62): it hashes, stores and verifies them in its own credential grain, so
 // neither a password nor its hash crosses the identity client.
-internal sealed partial class PrincipalPasswords(IIdentityClient identity, BrainBirths births, IGrainFactory grains)
+internal sealed partial class PrincipalPasswords(IIdentityClient identity, BrainBirths births, IGrainFactory grains, Sequencer.MachineIdentity machine)
 {
     private static readonly PasswordHasher<string> Passwords = new();
 
@@ -23,13 +23,23 @@ internal sealed partial class PrincipalPasswords(IIdentityClient identity, Brain
         if (await credential.Hash() is { } existing)
         {
             // A registration interrupted before its brain was provisioned resumes with the same password.
-            if (Passwords.VerifyHashedPassword(principalId, existing, password) == PasswordVerificationResult.Failed || await identity.IsRegistered(principalId))
+            if (Passwords.VerifyHashedPassword(principalId, existing, password) == PasswordVerificationResult.Failed || await identity.IsRegistered(principalId)
+                || await identity.RegisteredBy(principalId) is { } by && by != machine.MachineId)
             { throw new InvalidOperationException("That username is unavailable."); }
             return await births.Born((await identity.CompleteRegistration(principalId))
                 ?? await identity.RegisterPrincipal(principalId, displayName));
         }
-        if (!await credential.TryCreate(Passwords.HashPassword(principalId, password))) { throw new InvalidOperationException("That username is unavailable."); }
-        return await births.Born(await identity.RegisterPrincipal(principalId, displayName));
+        var hash = Passwords.HashPassword(principalId, password);
+        if (!await credential.TryCreate(hash)) { throw new InvalidOperationException("That username is unavailable."); }
+        BrainProvision registered;
+        try { registered = await identity.RegisterPrincipal(principalId, displayName); }
+        catch (Exception refused) when (refused is InvalidOperationException or UnauthorizedAccessException or ArgumentException)
+        {
+            // The trust side refused the username: the credential this attempt stored must not outlive it (R67).
+            await credential.Remove(hash);
+            throw;
+        }
+        return await births.Born(registered);
     }
 
     public async Task<Member?> Authenticate(string principalId, string password)
@@ -39,6 +49,8 @@ internal sealed partial class PrincipalPasswords(IIdentityClient identity, Brain
         if (await credential.Hash() is not { } hash) { return null; }
         var result = Passwords.VerifyHashedPassword(principalId, hash, password);
         if (result == PasswordVerificationResult.Failed) { return null; }
+        // A local hash for a principal another machine registered is never a sign-in (R67).
+        if (await identity.RegisteredBy(principalId) is not { } by || by != machine.MachineId) { return null; }
         if (result == PasswordVerificationResult.SuccessRehashNeeded) { await credential.Rehash(Passwords.HashPassword(principalId, password)); }
         return await identity.CompleteRegistration(principalId) is { } provision ? await births.Born(provision) : null;
     }

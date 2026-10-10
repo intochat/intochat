@@ -126,7 +126,7 @@ public sealed class TrustClientFacts
         await Register(directory, second, "alice", pairing);
 
         await Owned(brain, "alice", "home");
-        var clients = new GrainTrustClients(brain.Grains, second, TimeProvider.System);
+        var clients = GrainTrustClients.WithScratchCounter(brain.Grains, second);
         await clients.Upsert("alice", new MarketplaceRecord("alice", "alice", "home", "echo", "Echo", "", "1.0.0", null));
         Assert.NotNull(await clients.Read("alice", "echo"));
     }
@@ -154,7 +154,7 @@ public sealed class TrustClientFacts
         using var machine = SequencerFacts.Machine();
         await Register(brain.SiloServices.GetRequiredService<INodeDirectoryClient>(), machine, "mallory", []);
         await Owned(brain, "alice", "home");
-        var clients = new GrainTrustClients(brain.Grains, machine, TimeProvider.System);
+        var clients = GrainTrustClients.WithScratchCounter(brain.Grains, machine);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             clients.Upsert("alice", new MarketplaceRecord("alice", "alice", "home", "echo", "Echo", "", "1.0.0", null)));

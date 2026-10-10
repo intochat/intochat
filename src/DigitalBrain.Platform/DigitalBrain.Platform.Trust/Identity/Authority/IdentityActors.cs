@@ -6,9 +6,10 @@ namespace DigitalBrain.Platform.Identity.Authority;
 
 internal interface IPrincipal : IGrainWithStringKey
 {
-    [TrustInternal] Task<BrainProvision> Register(string displayName);
-    [TrustInternal] Task<BrainProvision?> CompleteRegistration();
+    [TrustInternal] Task<BrainProvision> Register(string displayName, string machineId);
+    [TrustInternal] Task<BrainProvision?> CompleteRegistration(string machineId);
     Task<bool> IsRegistered();
+    Task<string?> RegisteredBy();
     Task<Member?> DefaultMembership();
     Task<string[]> Brains();
     // One-way: a brain authority announces membership while the principal may be mid-registration.
@@ -34,7 +35,10 @@ internal interface IBrainAuthority : IGrainWithStringKey
     [TrustInternal] Task EnsureMember(Member member);
     [TrustInternal] Task<bool> ProvisionOwner(Member owner);
     [TrustInternal] Task RemoveMember(string principalId);
+    // A pure decision (R68): it never provisions and never spends a grant.
     Task<CallDecision?> Authorize(CallRequest request);
+    // Spends the Once grants an allowed request rests on, deciding again in the same turn.
+    [TrustInternal] Task<CallDecision?> Consume(CallRequest request);
     [TrustInternal] Task<Grant> Grant(Grant grant);
     [TrustInternal] Task<Grant> GrantAsOwner(CallerContext caller, Grant grant);
     [TrustInternal] Task RevokeAsOwner(CallerContext caller, string appId, string semanticTypeId, GrantMode mode);

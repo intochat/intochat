@@ -29,6 +29,22 @@ public sealed class IdentitySigningFacts
         Assert.Null(await authority.Account());
     }
 
+    // R68: spending a Once grant is a write; unsigned, it is refused at the trust boundary.
+    [Fact(Timeout = 60_000)]
+    public async Task AnUnsignedConsumeIsRefused()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var trust = await TrustHost.StartAsync(ct);
+        var authority = trust.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("alice", "home").Id);
+        var request = new CallRequest
+        {
+            Caller = new CallerContext { PrincipalId = "app", AccountId = "alice", BrainId = "home", Kind = CallerKind.App, StampedBy = TrustedEdge.AppProxy, AppId = "app" },
+            TargetNeuron = "alice/home/x", Operation = "read", SemanticTypeIds = ["person.birthDate"],
+        };
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => authority.Consume(request));
+    }
+
     [Fact(Timeout = 60_000)]
     public async Task AnIdentityWriteFromAMachineNotBoundToTheAccountIsRefused()
     {
@@ -37,7 +53,7 @@ public sealed class IdentitySigningFacts
         await brain.OwnBrainAsync("alice", "alice-home");
         using var machine = SequencerFacts.Machine();
         await TrustClientFacts.Register(brain.SiloServices.GetRequiredService<INodeDirectoryClient>(), machine, "mallory", []);
-        var mallory = new GrainTrustClients(brain.Grains, machine, TimeProvider.System);
+        var mallory = GrainTrustClients.WithScratchCounter(brain.Grains, machine);
         var intruder = Owner("alice", "alice-home") with { PrincipalId = "mallory", Role = MemberRole.Member };
         var caller = new CallerContext
         {

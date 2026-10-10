@@ -66,35 +66,33 @@ internal sealed class BrainAuthorityGrain(
         await Persist(State with { Members = members });
         if (State.BrainId is { } brain) { await GrainFactory.GetGrain<IPrincipal>(principalId).Left(brain); }
     }
-    public async Task<CallDecision?> Authorize(CallRequest request)
+    // R68: the decision is a read. The Open posture's synthetic owner is provisioned at boot or by the machine's
+    // signed ProvisionOwner, never here; a Once grant is spent only by Consume.
+    public Task<CallDecision?> Authorize(CallRequest request)
     {
-        var caller = request.Caller;
-        // The grain-side mirror of OpenOwnerBrainAccess at the HTTP edge: with the declared Open
-        // posture, an untouched brain under the synthetic owner's account belongs to the synthetic
-        // owner, whoever reaches it first. A caller is never crowned: a registered account's brain
-        // is provisioned by its account before it is born, so it never arrives here untouched.
-        if (State.AccountId is null && auth.Value.Posture == IdentityPosture.Open
-            && caller.AccountId == DefaultOwner.Login
-            && BrainScope.Create(caller.AccountId, caller.BrainId).Id == this.GetPrimaryKeyString())
-        {
-            await ProvisionOwner(new Member
-            {
-                PrincipalId = DefaultOwner.Login,
-                AccountId = DefaultOwner.Login,
-                BrainId = caller.BrainId,
-                Role = MemberRole.Owner,
-                DisplayName = DefaultOwner.Login,
-            });
-        }
-        if (State.AccountId != caller.AccountId || State.BrainId != caller.BrainId)
-        { return CallDecision.Deny(CallDenial.OutsideWorkspace, "The target scope does not match this brain."); }
-        var decision = GrantRules.Evaluate(request, State.Members.GetValueOrDefault(caller.PrincipalId), State.Grants);
+        var decision = Decide(request);
+        return Task.FromResult(decision is { Allowed: true } && GrantRules.OnceToConsume(request, State.Grants).Count > 0
+            ? decision with { ConsumesOnce = true }
+            : decision);
+    }
+
+    public async Task<CallDecision?> Consume(CallRequest request)
+    {
+        var decision = Decide(request);
         if (decision is { Allowed: true })
         {
             var consumed = GrantRules.OnceToConsume(request, State.Grants);
             if (consumed.Count > 0) { await Persist(State with { Grants = [.. State.Grants.Except(consumed)] }); }
         }
         return decision;
+    }
+
+    private CallDecision? Decide(CallRequest request)
+    {
+        var caller = request.Caller;
+        if (State.AccountId != caller.AccountId || State.BrainId != caller.BrainId)
+        { return CallDecision.Deny(CallDenial.OutsideWorkspace, "The target scope does not match this brain."); }
+        return GrantRules.Evaluate(request, State.Members.GetValueOrDefault(caller.PrincipalId), State.Grants);
     }
     public async Task<Grant> GrantAsOwner(CallerContext caller, Grant grant)
     {

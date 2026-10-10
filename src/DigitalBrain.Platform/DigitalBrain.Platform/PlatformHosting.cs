@@ -60,7 +60,7 @@ public static class PlatformHosting
             silo.AddTrustCluster();
             services.TryAddSingleton(provider => new Trust.GrainTrustClients(provider.GetRequiredService<IGrainFactory>(),
                 provider.GetRequiredService<Sequencer.MachineIdentity>(), provider.GetRequiredService<TimeProvider>(), provider.GetRequiredService<Trust.MachineCounter>())
-            { PairingSecretHash = Trust.MachineRegistrar.HashOf(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<Parts.PartsOptions>>().Value.PairingSecret) });
+            { PairingSecretHash = Trust.MachinePairing.HashOf(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<Parts.PartsOptions>>().Value) });
         }
         else
         {
@@ -71,7 +71,7 @@ public static class PlatformHosting
                 var client = provider.GetRequiredService<Trust.TrustGatewayClient>();
                 return new Trust.GrainTrustClients(() => client.Grains, provider.GetRequiredService<Sequencer.MachineIdentity>(), provider.GetRequiredService<TimeProvider>(),
                     provider.GetRequiredService<Trust.MachineCounter>())
-                { PairingSecretHash = Trust.MachineRegistrar.HashOf(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<Parts.PartsOptions>>().Value.PairingSecret) };
+                { PairingSecretHash = Trust.MachinePairing.HashOf(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<Parts.PartsOptions>>().Value) };
             });
             // The trust grain classes ride in this process's assemblies; this silo never hosts them.
             silo.Configure<Orleans.Configuration.GrainTypeOptions>(options =>

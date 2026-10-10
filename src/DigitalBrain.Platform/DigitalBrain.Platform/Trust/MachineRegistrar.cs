@@ -31,7 +31,7 @@ internal sealed class MachineRegistrar(INodeDirectoryClient directory, MachineId
 
     private Task Register(string account)
     {
-        var pairing = HashOf(options.Value.PairingSecret);
+        var pairing = MachinePairing.HashOf(options.Value);
         var signature = machine.Sign(Signing.Registration(machine.MachineId, machine.PublicKey, account, pairing));
         return directory.RegisterMachine(machine.MachineId, machine.PublicKey, account, pairing, signature);
     }

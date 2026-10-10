@@ -15,8 +15,12 @@ namespace DigitalBrain.Platform.Trust;
 internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIdentity machine, TimeProvider time, MachineCounter counter)
     : ISequencerClient, INodeDirectoryClient, IKeyringClient, IMarketplaceClient, IIdentityClient
 {
-    public GrainTrustClients(IGrainFactory grains, MachineIdentity machine, TimeProvider time, MachineCounter? counter = null)
-        : this(() => grains, machine, time, counter ?? new MachineCounter(Path.Combine(Path.GetTempPath(), $"counter-{Guid.NewGuid():N}"))) { }
+    public GrainTrustClients(IGrainFactory grains, MachineIdentity machine, TimeProvider time, MachineCounter counter)
+        : this(() => grains, machine, time, counter) { }
+
+    // Facts only: a throwaway counter file per instance, which a production machine must never have (R65).
+    internal static GrainTrustClients WithScratchCounter(IGrainFactory grains, MachineIdentity machine) =>
+        new(grains, machine, TimeProvider.System, new MachineCounter(Path.Combine(Path.GetTempPath(), $"counter-{Guid.NewGuid():N}")));
 
     // Resolved per call: a gateway's client exists only once the silo has initialized it.
     private IGrainFactory Grains => factory();
@@ -129,6 +133,8 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
 
     public Task<bool> IsRegistered(string principalId) => Principal(principalId).IsRegistered();
 
+    public Task<string?> RegisteredBy(string principalId) => Principal(principalId).RegisteredBy();
+
     public Task<BrainProvision> RegisterPrincipal(string principalId, string displayName)
         => Signed(new PrincipalRegistration(principalId, displayName), principalId, Writes.RegisterPrincipal);
 
@@ -141,8 +147,15 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
 
     public Task<Member?> EnsureMember(Member member) => Signed(member, member.AccountId, Writes.EnsureMember);
 
-    public Task<CallDecision?> Authorize(CallRequest request)
-        => Authority(BrainScope.Create(request.Caller.AccountId, request.Caller.BrainId).Id).Authorize(request);
+    // R68: the decision is an unsigned read; only an allowed decision resting on a Once grant spends it, signed.
+    public async Task<CallDecision?> Authorize(CallRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var decision = await Authority(BrainScope.Create(request.Caller.AccountId, request.Caller.BrainId).Id).Authorize(request);
+        return decision is { Allowed: true, ConsumesOnce: true }
+            ? await Signed(request, request.Caller.AccountId, Writes.Consume)
+            : decision;
+    }
 
     public Task<Grant[]> ListGrants(string brainScopeId) => Authority(brainScopeId).ListGrants();
 

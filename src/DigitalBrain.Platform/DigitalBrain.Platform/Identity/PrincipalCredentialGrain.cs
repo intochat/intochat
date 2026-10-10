@@ -11,6 +11,9 @@ internal interface IPrincipalCredential : IGrainWithStringKey
     Task<bool> TryCreate(string hash);
 
     Task Rehash(string hash);
+
+    // A registration the trust side refused leaves no credential behind (R67).
+    Task Remove(string hash);
 }
 
 [GrainType("identity.principal-credential")]
@@ -27,6 +30,12 @@ internal sealed class PrincipalCredentialGrain(
         store.State.Hash = hash;
         await store.WriteStateAsync();
         return true;
+    }
+
+    public async Task Remove(string hash)
+    {
+        if (store.State.Hash != hash) { return; }
+        await store.ClearStateAsync();
     }
 
     public async Task Rehash(string hash)

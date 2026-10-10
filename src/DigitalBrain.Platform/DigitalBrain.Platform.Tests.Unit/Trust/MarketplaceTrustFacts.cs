@@ -15,7 +15,7 @@ public sealed class MarketplaceTrustFacts
         using var machine = SequencerFacts.Machine();
         await TrustClientFacts.Register(brain.SiloServices.GetRequiredService<INodeDirectoryClient>(), machine, "mallory", []);
         await TrustClientFacts.Owned(brain, "alice", "home");
-        var clients = new GrainTrustClients(brain.Grains, machine, TimeProvider.System);
+        var clients = GrainTrustClients.WithScratchCounter(brain.Grains, machine);
 
         // A brain under Mallory's account that nobody provisioned, Alice's brain named as Mallory's source, and no
         // source brain at all: none of them is a brain Mallory owns.
