@@ -5,6 +5,7 @@ using DigitalBrain.ServiceDefaults;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Orleans.Configuration;
 using Orleans.Storage;
 
@@ -25,8 +26,10 @@ public static class ServerHostingExtensions
         ArgumentNullException.ThrowIfNull(builder);
         // Every DigitalBrain server carries the process defaults; hosts cannot forget them.
         builder.AddServiceDefaults();
-        // Orleans stop deactivates every grain (GrainCollectionOptions.DeactivationTimeout, 30 s) before it writes Dead: 30 s + 10 s margin; Aspire may still force-kill the process on Windows.
-        builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(40));
+        // The stop holds the drain (DrainDelay, then the web server's bounded stop), then Orleans deactivates every
+        // grain (GrainCollectionOptions.DeactivationTimeout) before it writes Dead: the host waits for all of it.
+        builder.Services.AddOptions<HostOptions>().Configure<IOptions<GrainCollectionOptions>, IConfiguration>(
+            static (options, grains, configuration) => options.ShutdownTimeout = ShutdownTimeout(configuration.GetValue<TimeSpan?>(HealthProbes.DrainDelayKey), grains.Value.DeactivationTimeout));
 
         if (builder.Configuration[ConfigurationFileKey] is { Length: > 0 } configurationFile)
         { builder.Configuration.AddJsonFile(configurationFile, optional: false, reloadOnChange: false); }
@@ -84,6 +87,11 @@ public static class ServerHostingExtensions
         });
         return builder;
     }
+
+    public static readonly TimeSpan ShutdownMargin = TimeSpan.FromSeconds(10);
+
+    public static TimeSpan ShutdownTimeout(TimeSpan? drainDelay, TimeSpan deactivationTimeout)
+        => (drainDelay is { } delay && delay > TimeSpan.Zero ? delay + HealthProbes.ServerStop : TimeSpan.Zero) + deactivationTimeout + ShutdownMargin;
 
     private sealed class AccessPolicyValidation(IServiceProvider services) : IHostedService
     {

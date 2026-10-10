@@ -27,6 +27,30 @@ public sealed class HealthProbeFacts
         Assert.False(HealthProbes.Health(Drain));
     }
 
+    // A roll drains an instance through its own port; the same POST through the front carries X-Forwarded-For.
+    [Fact]
+    public void OnlyADirectLocalCallerMayDrain()
+    {
+        Assert.True(HealthProbes.MayDrain(System.Net.IPAddress.Loopback, forwarded: false));
+        Assert.True(HealthProbes.MayDrain(System.Net.IPAddress.IPv6Loopback, forwarded: false));
+        Assert.False(HealthProbes.MayDrain(System.Net.IPAddress.Loopback, forwarded: true));
+        Assert.False(HealthProbes.MayDrain(System.Net.IPAddress.Parse("10.0.0.7"), forwarded: false));
+        Assert.False(HealthProbes.MayDrain(null, forwarded: false));
+    }
+
+    // The host waits for the whole stop: the drain, the web server's bounded stop, then every grain's deactivation.
+    [Fact]
+    public void TheShutdownTimeoutCoversTheDrainTheServerStopAndTheDeactivation()
+    {
+        var drain = TimeSpan.FromSeconds(8);
+        var deactivation = TimeSpan.FromSeconds(30);
+
+        Assert.Equal(drain + HealthProbes.ServerStop + deactivation + DigitalBrain.Aspire.Server.ServerHostingExtensions.ShutdownMargin,
+            DigitalBrain.Aspire.Server.ServerHostingExtensions.ShutdownTimeout(drain, deactivation));
+        Assert.Equal(deactivation + DigitalBrain.Aspire.Server.ServerHostingExtensions.ShutdownMargin,
+            DigitalBrain.Aspire.Server.ServerHostingExtensions.ShutdownTimeout(null, deactivation));
+    }
+
     private static HealthCheckRegistration Registration(string name, params string[] tags)
         => new(name, _ => new Healthy(), HealthStatus.Unhealthy, tags);
 
