@@ -19,4 +19,10 @@ public record Signal
     /// the caller context, never against this value.
     /// </remarks>
     [Id(0)] public NeuronId Publisher { get; init; }
+
+    /// <summary>
+    /// The trace this signal belongs to: why it was published and who pays for what it causes.
+    /// </summary>
+    /// <remarks>Stamped by the runtime at publish exactly like <see cref="Publisher"/>.</remarks>
+    [Id(1)] public Trace? Trace { get; init; }
 }
