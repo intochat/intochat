@@ -11,7 +11,7 @@ public sealed class OsShippedAppFacts
     [Fact]
     public void TheOperatingSystemShipsSettings()
     {
-        Assert.Equal(["assistant", "calculator", "datavisualizer", "files", "filmcraft", "photocraft", "router", "selfimprove", "settings"], SolutionProjects.FeaturesOf("os").Select(app => app.Name).Order());
+        Assert.Equal(["assistant", "calculator", "circle", "datavisualizer", "files", "filmcraft", "photocraft", "router", "selfimprove", "settings"], SolutionProjects.FeaturesOf("os").Select(app => app.Name).Order());
     }
 
     [Fact]
