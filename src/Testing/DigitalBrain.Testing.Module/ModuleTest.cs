@@ -3,6 +3,7 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Platform;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Orleans.TestingHost;
 
 namespace DigitalBrain.Testing.Module;
@@ -90,12 +91,13 @@ public static class ModuleTest
     // The default brain is the Open posture's: account and brain "owner", as an HTTP caller reaches it.
     public const string DefaultAccount = Platform.Identity.AccountSession.DefaultLogin;
 
+    // Through the trust clients, so a machine of a separate trust cluster provisions the same way.
     private static async Task ProvisionMachineAsync(ModuleBrain brain)
     {
-        var nodes = brain.Grains.GetGrain<Platform.Mesh.IStorageNodeDirectory>(Platform.Mesh.IStorageNodeDirectory.Key);
+        var nodes = brain.SiloServices.GetRequiredService<Platform.Trust.INodeDirectoryClient>();
         for (var i = 0; i < 8; i++) { await nodes.Register($"node-{i}", "platform").ConfigureAwait(false); }
         var scope = BrainScope.Create(DefaultAccount, DefaultAccount).Id;
-        await brain.Grains.GetGrain<Platform.Identity.Authority.IBrainAuthority>(scope).ProvisionOwner(new DigitalBrain.Framework.Platform.Identity.Member
+        await brain.SiloServices.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>().ProvisionOwner(new DigitalBrain.Framework.Platform.Identity.Member
         {
             PrincipalId = DefaultAccount, AccountId = DefaultAccount, BrainId = DefaultAccount,
             Role = DigitalBrain.Framework.Platform.Identity.MemberRole.Owner, DisplayName = DefaultAccount,

@@ -12,23 +12,28 @@ namespace DigitalBrain.Platform.Trust;
 
 // The machine's only way to the trust grains (Stage A: direct grain calls on the given factory; with a gateway, the
 // private trust client's). Calls that act for an account are signed by this machine (R37).
-internal sealed class GrainTrustClients(IGrainFactory grains, MachineIdentity machine, TimeProvider time)
+internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIdentity machine, TimeProvider time)
     : ISequencerClient, INodeDirectoryClient, IKeyringClient, IMarketplaceClient, IIdentityClient
 {
+    public GrainTrustClients(IGrainFactory grains, MachineIdentity machine, TimeProvider time) : this(() => grains, machine, time) { }
+
+    // Resolved per call: a gateway's client exists only once the silo has initialized it.
+    private IGrainFactory Grains => factory();
+
     private readonly SemaphoreSlim _signing = new(1, 1);
     private long _counter;
 
     // Sequencer
-    public Task<HeadRecord?> Get(string partHash) => grains.GetGrain<ISequencerGrain>(partHash).Get();
+    public Task<HeadRecord?> Get(string partHash) => Grains.GetGrain<ISequencerGrain>(partHash).Get();
 
     public Task<bool> CompareAndSet(string partHash, long expectedVersion, HeadRecord next)
-        => grains.GetGrain<ISequencerGrain>(partHash).CompareAndSet(expectedVersion, next);
+        => Grains.GetGrain<ISequencerGrain>(partHash).CompareAndSet(expectedVersion, next);
 
     // Node directory
-    private IStorageNodeDirectory Directory => grains.GetGrain<IStorageNodeDirectory>(IStorageNodeDirectory.Key);
+    private IStorageNodeDirectory Directory => Grains.GetGrain<IStorageNodeDirectory>(IStorageNodeDirectory.Key);
 
     public Task RegisterMachine(string machineId, byte[] publicKey, string account, byte[] pairingSecretHash, byte[] selfSignature)
-        => grains.GetGrain<IMachineRegistry>(machineId).Register(publicKey, account, pairingSecretHash, selfSignature);
+        => Grains.GetGrain<IMachineRegistry>(machineId).Register(publicKey, account, pairingSecretHash, selfSignature);
 
     public Task Register(string nodeId, string ownerAccount) => Directory.Register(nodeId, ownerAccount);
 
@@ -48,17 +53,17 @@ internal sealed class GrainTrustClients(IGrainFactory grains, MachineIdentity ma
 
     public Task Discard(string nodeId, string cid) => Shard(nodeId, cid).Drop();
 
-    private IStorageShard Shard(string nodeId, string cid) => grains.GetGrain<IStorageShard>(StorageShards.Key(nodeId, cid));
+    private IStorageShard Shard(string nodeId, string cid) => Grains.GetGrain<IStorageShard>(StorageShards.Key(nodeId, cid));
 
     // Keyring
-    Task<byte[]?> IKeyringClient.Get(string brainId, string partId) => grains.GetGrain<IKeyringGrain>(brainId).Get(partId);
+    Task<byte[]?> IKeyringClient.Get(string brainId, string partId) => Grains.GetGrain<IKeyringGrain>(brainId).Get(partId);
 
-    public Task<bool> TryAdd(string brainId, string partId, byte[] wrapped) => grains.GetGrain<IKeyringGrain>(brainId).TryAdd(partId, wrapped);
+    public Task<bool> TryAdd(string brainId, string partId, byte[] wrapped) => Grains.GetGrain<IKeyringGrain>(brainId).TryAdd(partId, wrapped);
 
-    public Task<string?> OwnerOf(string brainId) => grains.GetGrain<IBrainAuthority>(brainId).Account();
+    public Task<string?> OwnerOf(string brainId) => Grains.GetGrain<IBrainAuthority>(brainId).Account();
 
     // Marketplace
-    private IMarketplaceCatalog Catalog => grains.GetGrain<IMarketplaceCatalog>(IMarketplaceCatalog.Key);
+    private IMarketplaceCatalog Catalog => Grains.GetGrain<IMarketplaceCatalog>(IMarketplaceCatalog.Key);
 
     Task<MarketplaceRecord[]> IMarketplaceClient.List() => Catalog.List();
 
@@ -90,11 +95,11 @@ internal sealed class GrainTrustClients(IGrainFactory grains, MachineIdentity ma
     }
 
     // Identity
-    private IAccount Account(string accountId) => grains.GetGrain<IAccount>(accountId);
+    private IAccount Account(string accountId) => Grains.GetGrain<IAccount>(accountId);
 
-    private IPrincipal Principal(string principalId) => grains.GetGrain<IPrincipal>(principalId);
+    private IPrincipal Principal(string principalId) => Grains.GetGrain<IPrincipal>(principalId);
 
-    private IBrainAuthority Authority(string brainScopeId) => grains.GetGrain<IBrainAuthority>(brainScopeId);
+    private IBrainAuthority Authority(string brainScopeId) => Grains.GetGrain<IBrainAuthority>(brainScopeId);
 
     public Task<Account?> ReadAccount(string accountId) => Account(accountId).Read();
 

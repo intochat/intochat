@@ -116,6 +116,28 @@ public sealed class ModuleTestBuilder
             DigitalBrain.Platform.Parts.MachineHosting.AddMachinePartLog(silo);
         });
     }
+    // This host is a machine of a separate trust cluster (H2, R34): it reaches the trust grains only through its
+    // private gateway client and pairs with the trust host's other machines through its pairing secret (R52).
+    public ModuleTestBuilder WithTrust(TrustHost trust)
+    {
+        ArgumentNullException.ThrowIfNull(trust);
+        EnsureMutable();
+        var key = DigitalBrain.Platform.Trust.TrustOptions.Key;
+        _options = _options with
+        {
+            Execution = _options.Execution with
+            {
+                PrivateConfiguration = new Dictionary<string, string?>(_options.Execution.PrivateConfiguration)
+                {
+                    [$"{key}:{nameof(DigitalBrain.Platform.Trust.TrustOptions.Gateway)}"] = $"127.0.0.1:{trust.GatewayPort}",
+                    [$"{key}:{nameof(DigitalBrain.Platform.Trust.TrustOptions.ClusterId)}"] = trust.ClusterId,
+                    [$"{key}:{nameof(DigitalBrain.Platform.Trust.TrustOptions.ServiceId)}"] = trust.ServiceId,
+                    [$"{DigitalBrain.Platform.Parts.PartsOptions.Key}:{nameof(DigitalBrain.Platform.Parts.PartsOptions.PairingSecret)}"] = trust.PairingSecret,
+                },
+            },
+        };
+        return this;
+    }
     public ModuleTestBuilder WithReminders()
     {
         EnsureMutable();

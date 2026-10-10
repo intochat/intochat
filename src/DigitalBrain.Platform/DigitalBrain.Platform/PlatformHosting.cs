@@ -48,7 +48,30 @@ public static class PlatformHosting
             System.Text.Encoding.UTF8.GetBytes(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MasterKeyOptions>>().Value.MasterKey)));
         services.TryAddSingleton<DigitalBrain.Framework.Parts.IPartKeys, Keys.PartKeys>();
         // The machine reaches the trust grains only through these clients; Stage A hosts them in this silo.
-        services.TryAddSingleton(provider => ActivatorUtilities.CreateInstance<Trust.GrainTrustClients>(provider));
+        // With a gateway the trust grains live in a separate cluster reached through a private client (R34);
+        // without one (Stage A, tests) they share this silo.
+        var gateway = silo.Configuration[$"{Trust.TrustOptions.Key}:{nameof(Trust.TrustOptions.Gateway)}"];
+        services.AddOptions<Trust.TrustOptions>().BindConfiguration(Trust.TrustOptions.Key)
+            .Validate(trust => { trust.Validate(); return true; }).ValidateOnStart();
+        if (string.IsNullOrWhiteSpace(gateway))
+        {
+            silo.AddTrustCluster();
+            services.TryAddSingleton(provider => new Trust.GrainTrustClients(provider.GetRequiredService<IGrainFactory>(),
+                provider.GetRequiredService<Sequencer.MachineIdentity>(), provider.GetRequiredService<TimeProvider>()));
+        }
+        else
+        {
+            services.TryAddSingleton<Trust.TrustGatewayClient>();
+            services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>>(provider => provider.GetRequiredService<Trust.TrustGatewayClient>());
+            services.TryAddSingleton(provider =>
+            {
+                var client = provider.GetRequiredService<Trust.TrustGatewayClient>();
+                return new Trust.GrainTrustClients(() => client.Grains, provider.GetRequiredService<Sequencer.MachineIdentity>(), provider.GetRequiredService<TimeProvider>());
+            });
+            // The trust grain classes ride in this process's assemblies; this silo never hosts them.
+            silo.Configure<Orleans.Configuration.GrainTypeOptions>(options =>
+                options.Classes.RemoveWhere(type => type.Assembly == typeof(TrustHosting).Assembly));
+        }
         services.TryAddSingleton<Trust.ISequencerClient>(provider => provider.GetRequiredService<Trust.GrainTrustClients>());
         services.TryAddSingleton<Trust.INodeDirectoryClient>(provider => provider.GetRequiredService<Trust.GrainTrustClients>());
         services.TryAddSingleton<Trust.IKeyringClient>(provider => provider.GetRequiredService<Trust.GrainTrustClients>());
@@ -68,8 +91,6 @@ public static class PlatformHosting
         services.AddGrpc();
         services.TryAddSingleton<DigitalBrain.Framework.Surface.NeuronSurface>();
         silo.AddStartupTask<IntegrationSeeder>();
-        // Stage A: the trust grains share this silo.
-        silo.AddTrustCluster();
         services.TryAddSingleton<IGrantPolicySource, GrainGrantPolicySource>();
         services.TryAddSingleton<IIdentity, PlatformIdentity>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICallFilterStage, GrantCallFilterStage>());
