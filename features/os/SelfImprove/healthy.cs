@@ -1,18 +1,27 @@
 using DigitalBrain.Microsoft.Aspire;
 
-// A healthy child is verified with the plan it was proposed with. Verify is idempotent on stage:
-// a replayed signal after a reap finds the candidate past Healthy and is refused harmlessly.
+// A healthy child is verified with the plan it was proposed with. Each candidate is followed only until it
+// is past Healthy, so one that never gets healthy cannot hold up the next. Verify is idempotent on stage:
+// a replay after a reap finds the candidate past Healthy and moves on.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var index = brain.Get<ICandidates>(ICandidates.Key(SelfImprove.Scope(brain)));
 await foreach (var changed in brain.On<CandidateChanged>(index, brain.Stopping))
 {
     var candidate = brain.Get<ICandidate>(ICandidate.Key(SelfImprove.Scope(brain), changed.Sha));
-    await foreach (var healthy in brain.On<CandidateHealthy>(candidate, brain.Stopping))
+    if (await Step(candidate)) { continue; }
+    await foreach (var stage in brain.On<CandidateChanged>(candidate, brain.Stopping))
     {
-        var snapshot = await candidate.Read();
-        if (snapshot.Stage != CandidateStage.Healthy || snapshot.Plan is null) { break; }
-        await candidate.Verify();
-        await SelfImprove.RenderListAsync(brain);
-        break;
+        if (await Step(candidate)) { break; }
     }
+}
+
+async Task<bool> Step(ICandidate candidate)
+{
+    var snapshot = await candidate.Read();
+    if (snapshot.Stage == CandidateStage.Healthy && snapshot.Plan is not null)
+    {
+        snapshot = await candidate.Verify();
+        await SelfImprove.RenderListAsync(brain);
+    }
+    return snapshot.Stage > CandidateStage.Healthy;
 }

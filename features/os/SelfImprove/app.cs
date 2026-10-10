@@ -23,6 +23,11 @@ When a candidate publishes CandidateVerified, the app asks it to Promote; the li
 When a candidate publishes CandidateFailed, the report neuron names the stage, the reason and the
 worktree path; nothing is retried.
 
+## Scenario: A candidate that ends early does not hold up the next
+
+A candidate that fails before it is healthy (or is discarded) ends every reaction's wait on it: the next
+proposed candidate is verified and promoted as usual.
+
 ## Scenario: Opening shows the list
 
 Invoking "open" composes a surface with the candidates list and the report, and opens a "Self-improve" window.
@@ -33,7 +38,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "selfimprove";
-    public const string Version = "2.0.0";
+    public const string Version = "2.0.1";
 
     public static readonly AppManifest Manifest = new(
         Title: "Self-improve",

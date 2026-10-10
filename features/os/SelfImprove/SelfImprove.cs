@@ -13,6 +13,8 @@ public static class SelfImprove
     public static string Key(DigitalBrainConnection brain) => brain.Setting("App")!;
     public static string Scope(DigitalBrainConnection brain) => brain.Setting("Brain")!;
 
+    public static bool Ended(CandidateStage stage) => stage is CandidateStage.Promoted or CandidateStage.Discarded or CandidateStage.Failed;
+
     public sealed record ChangeSet(string Branch, string Summary, Dictionary<string, string> Files, PlanJson Plan);
     public sealed record PlanJson(CallJson[] Calls, string[] Spans, string Budget);
     public sealed record CallJson(string Contract, string Key, string Method, string Arguments, string Expected);
