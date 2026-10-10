@@ -45,6 +45,9 @@ public sealed class PartSnapshot
     [Id(0)] public long Seq { get; set; }
 
     [Id(1)] public SnapshotRecord[] Records { get; set; } = [];
+
+    // The signal entries of the segments this snapshot replaced, so a reopened log still serves them.
+    [Id(2)] public LogEntry[] RecentSignals { get; set; } = [];
 }
 
 [GenerateSerializer, Alias("platform.parts.snapshot-record")]

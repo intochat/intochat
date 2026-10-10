@@ -25,6 +25,7 @@ internal sealed class PartLog : IAsyncDisposable
     private readonly PartJournal? _journal;
     private readonly Dictionary<(string GrainId, string StateName), StoredRecord> _records = [];
     private readonly List<LogEntry> _since = [];
+    // The segments this log wrote or replayed since the snapshot: what the next snapshot replaces and discards.
     private readonly List<MeshRef> _chain = [];
     // Only while opening: the accepted entries a journal is checked against.
     private readonly Dictionary<long, LogEntry> _replayed = [];
@@ -181,6 +182,7 @@ internal sealed class PartLog : IAsyncDisposable
         {
             var snapshot = _serializer.Deserialize<PartSnapshot>(await _mesh.Read(_key, snapshotRef, ct))!;
             foreach (var record in snapshot.Records) { _records[(record.GrainId, record.StateName)] = new StoredRecord(record.Record, record.ETagSeq); }
+            _since.AddRange(snapshot.RecentSignals);
         }
         var segments = new List<(MeshRef Ref, LogSegment Segment)>();
         for (var reference = payload.Head; reference is not null;)
@@ -300,17 +302,28 @@ internal sealed class PartLog : IAsyncDisposable
                 });
                 _chain.Add(reference);
                 if (_journal is null) { foreach (var pending in batch) { Apply(pending.Entry); } }
+                TaskCompletionSource? drained;
                 lock (_queue)
                 {
                     _queue.RemoveRange(0, batch.Length);
                     _queuedBytes = _queue.Sum(p => p.Entry.Record.Length + 64L * (1 + p.Entry.Signals.Length));
-                    if (_queue.Count == 0) { _drained.TrySetResult(); }
+                    drained = _queue.Count == 0 ? _drained : null;
                 }
-                foreach (var pending in batch) { pending.Committed.TrySetResult(pending.Entry.Seq); }
                 _backoff = TimeSpan.FromSeconds(1);
                 // The batch is durable once the head accepted it; a stale journal is trimmed by the next flush or open.
                 try { _journal?.TrimThrough(batch[^1].Entry.Seq); }
                 catch (Exception error) { _logger.LogWarning(error, "Part {Part} could not trim its journal through seq {Seq}.", _part, batch[^1].Entry.Seq); }
+                // The batch is acknowledged once its snapshot step is done; a failed snapshot commit still acknowledges
+                // the durable batch and is then handled below exactly like a failed batch commit (ruling R12).
+                try
+                {
+                    if (_lease.Payload.SegmentsSinceSnapshot >= _options.SnapshotEvery) { await Snapshot(); }
+                }
+                finally
+                {
+                    drained?.TrySetResult();
+                    foreach (var pending in batch) { pending.Committed.TrySetResult(pending.Entry.Seq); }
+                }
             }
             catch (LeaseLostException lost)
             {
@@ -334,6 +347,38 @@ internal sealed class PartLog : IAsyncDisposable
             }
         }
         finally { _flushing.Release(); }
+    }
+
+    // Caller holds the flush lock. Folds the committed state into one snapshot that replaces the chain, then
+    // discards what it replaced. Journaled entries at or below SnapshotSeq were trimmed by the flush that
+    // committed them, and a reopen accepts covered entries of its own history (ruling R11).
+    private async Task Snapshot()
+    {
+        var payload = _lease.Payload;
+        SnapshotRecord[] records;
+        LogEntry[] recent;
+        lock (_queue)
+        {
+            // An own machine applies journaled changes before the head accepts them; the next flush snapshots instead.
+            if (_journal is not null && _queue.Count > 0) { return; }
+            lock (_records)
+            {
+                records = [.. _records.Select(r => new SnapshotRecord { GrainId = r.Key.GrainId, StateName = r.Key.StateName, Record = r.Value.Record, ETagSeq = r.Value.ETagSeq })];
+                recent = [.. _since.Where(e => e.Seq > payload.SnapshotSeq && e.Seq <= payload.LastSeq)];
+            }
+        }
+        var snapshot = new PartSnapshot { Seq = payload.LastSeq, Records = records, RecentSignals = recent };
+        var reference = await _mesh.Write(_key, PartSegments.SnapshotId(_part, payload.LastSeq), _serializer.SerializeToArray(snapshot));
+        await _lease.Commit(new HeadPayload { Head = null, Snapshot = reference, SnapshotSeq = payload.LastSeq, LastSeq = payload.LastSeq, SegmentsSinceSnapshot = 0 });
+        // Only refs of this log's own replaced chain are discarded, never one a read repaired (ruling R7): MeshStore
+        // shares shards between a repaired ref and its original. Open has no repair path today.
+        MeshRef[] replaced = [.. payload.Snapshot is { } previous ? [previous] : Array.Empty<MeshRef>(), .. _chain];
+        _chain.Clear();
+        foreach (var old in replaced)
+        {
+            try { await _mesh.Discard(_key, old); }
+            catch (Exception error) { _logger.LogWarning(error, "Part {Part} could not discard {Segment} after its snapshot at seq {Seq}.", _part, old.SegmentId, payload.LastSeq); }
+        }
     }
 
     // Seqs restart right after what the head accepted, so the next batch continues it without a gap.
