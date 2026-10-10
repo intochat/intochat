@@ -8,6 +8,7 @@ using DigitalBrain.Microsoft.CSharp.Runtime.Signals;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Flutter.Workspace;
 
@@ -20,15 +21,37 @@ internal static class BrainEventsEndpoints
     public static void Map(IEndpointRouteBuilder endpoints)
         => BrainRoutes.Group(endpoints).MapGet("/brain/events", Events);
 
-    private static async Task Events(HttpContext http, IDigitalBrain brain, CancellationToken ct)
+    private static async Task Events(HttpContext http, IDigitalBrain brain, ILoggerFactory logs, CancellationToken ct)
     {
         http.Response.ContentType = "text/event-stream";
         http.Response.Headers.CacheControl = "no-cache";
         await http.Response.Body.FlushAsync(ct);
-        await foreach (var snapshot in Snapshots(brain, BrainScope.CurrentId(), ct))
+        await foreach (var snapshot in Snapshots(brain, BrainScope.CurrentId(), logs.CreateLogger("DigitalBrain.Flutter.BrainEvents"), ct))
         {
             await http.Response.WriteAsync("event: brain-snapshot\ndata: " + snapshot + "\n\n", ct);
             await http.Response.Body.FlushAsync(ct);
+        }
+    }
+
+    // The runtime as last read. A read that fails keeps the previous answer, so a transient error never
+    // turns the graph's edges off; it is logged once when it starts and once when it ends.
+    private sealed class RuntimeView(IBrainRuntime runtime, ILogger log)
+    {
+        private BrainRuntimeSnapshot? _known;
+        private bool _failing;
+
+        public async Task<BrainRuntimeSnapshot?> Read(CancellationToken ct)
+        {
+            try
+            {
+                _known = await runtime.Inspect(ct);
+                if (_failing) { log.LogInformation("The brain runtime answers again."); _failing = false; }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                if (!_failing) { log.LogWarning(error, "The brain runtime could not be read; the graph keeps its last synapses."); _failing = true; }
+            }
+            return _known;
         }
     }
 
@@ -39,11 +62,12 @@ internal static class BrainEventsEndpoints
     // happened in between is missed, and a snapshot identical to the last one is not sent. A burst of
     // changes becomes one snapshot. A faulted kernel watch ends the stream with its error, so the
     // client sees a failure, never a clean end. The runtime is optional: a brain without one has no synapses.
-    internal static async IAsyncEnumerable<string> Snapshots(IDigitalBrain brain, string brainId, [EnumeratorCancellation] CancellationToken ct)
+    internal static async IAsyncEnumerable<string> Snapshots(IDigitalBrain brain, string brainId, ILogger log, [EnumeratorCancellation] CancellationToken ct)
     {
         var changes = Channel.CreateUnbounded<bool>();
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var runtime = brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(brainId));
+        var view = new RuntimeView(runtime, log);
         var waiting = 3;
         void Subscribed() { if (Interlocked.Decrement(ref waiting) == 0) { changes.Writer.TryWrite(true); } }
         _ = Watch(brain.On<InstanceCreated>(brain.Self, () => { Subscribed(); return Task.CompletedTask; }, stop.Token), required: true);
@@ -51,14 +75,14 @@ internal static class BrainEventsEndpoints
         _ = Watch(brain.On<BrainRuntimeChanged>(runtime, () => { Subscribed(); return Task.CompletedTask; }, stop.Token), required: false);
         try
         {
-            var (json, key) = await Snapshot(brain, runtime, brainId, ct);
+            var (json, key) = await Snapshot(brain, view, brainId, ct);
             var last = key;
             yield return json;
             await foreach (var _tick in changes.Reader.ReadAllAsync(ct))
             {
                 await Task.Delay(Burst, ct);
                 while (changes.Reader.TryRead(out var more)) { _ = more; }
-                (json, key) = await Snapshot(brain, runtime, brainId, ct);
+                (json, key) = await Snapshot(brain, view, brainId, ct);
                 if (key == last) { continue; }
                 last = key;
                 yield return json;
@@ -79,11 +103,9 @@ internal static class BrainEventsEndpoints
         }
     }
 
-    private static async Task<(string Json, string Key)> Snapshot(IDigitalBrain brain, IBrainRuntime runtime, string brainId, CancellationToken ct)
+    private static async Task<(string Json, string Key)> Snapshot(IDigitalBrain brain, RuntimeView view, string brainId, CancellationToken ct)
     {
-        BrainRuntimeSnapshot? running = null;
-        try { running = await runtime.Inspect(ct); }
-        catch (Exception error) when (error is not OperationCanceledException) { }
+        var running = await view.Read(ct);
         var behaviors = running?.Behaviors ?? [];
         var connected = running?.Session == SessionStatus.Connected;
 

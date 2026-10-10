@@ -8,6 +8,7 @@ using DigitalBrain.Microsoft.CSharp.Files;
 using DigitalBrain.Microsoft.CSharp.Runtime;
 using DigitalBrain.Microsoft.CSharp.Runtime.Signals;
 using DigitalBrain.Testing.Module;
+using Microsoft.Extensions.Logging.Abstractions;
 using Orleans.Metadata;
 
 namespace DigitalBrain.Modules.Flutter.Tests.Workspace;
@@ -26,13 +27,13 @@ public sealed class BrainEventsFacts
     private static JsonElement[] Synapses(JsonDocument snapshot)
         => [.. snapshot.RootElement.GetProperty("synapses").EnumerateArray()];
 
-    private static string Stamp()
+    private static string Stamp(string brainName)
     {
         CallerContextStamper.Stamp(new CallerContext
         {
             PrincipalId = "owner",
             AccountId = "owner",
-            BrainId = "owner",
+            BrainId = brainName,
             Kind = CallerKind.User,
             StampedBy = TrustedEdge.AuthenticatedHttp,
         });
@@ -44,10 +45,10 @@ public sealed class BrainEventsFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<CirclesModule>().StartAsync(ct);
-        var scope = Stamp();
+        var scope = Stamp("growth");
         await brain.Self.Create(new Owner("owner"));
         var grown = ICircle.Key(scope, "club");
-        await using var stream = BrainEventsEndpoints.Snapshots(brain, scope, ct).GetAsyncEnumerator(ct);
+        await using var stream = BrainEventsEndpoints.Snapshots(brain, scope, NullLogger.Instance, ct).GetAsyncEnumerator(ct);
 
         using var first = await Next(stream, ct);
         Assert.Equal(scope, first.RootElement.GetProperty("rootId").GetString());
@@ -67,12 +68,12 @@ public sealed class BrainEventsFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<AppsModule>().WithModule<CirclesModule>().StartAsync(ct);
-        var scope = Stamp();
+        var scope = Stamp("wiring");
         await brain.Self.Create(new Owner("owner"));
         var appKey = IApp.Key(scope, "watcher");
         await brain.Get<IApp>(appKey).Create(new AppManifest("watcher", "", [new("open", "")], [], []), "spec");
         var publisher = ICircle.Key(scope, "club");
-        await using var stream = BrainEventsEndpoints.Snapshots(brain, scope, ct).GetAsyncEnumerator(ct);
+        await using var stream = BrainEventsEndpoints.Snapshots(brain, scope, NullLogger.Instance, ct).GetAsyncEnumerator(ct);
 
         using var first = await Next(stream, ct);
         Assert.Empty(Synapses(first));
@@ -93,6 +94,57 @@ public sealed class BrainEventsFacts
         }
     }
 
+    [Fact]
+    public async Task ARuntimeThatCannotBeReadKeepsTheLastSynapsesInsteadOfEmittingADegradedSnapshot()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().WithModule<CirclesModule>().StartAsync(ct);
+        var scope = Stamp("degraded");
+        await brain.Self.Create(new Owner("owner"));
+        var appKey = IApp.Key(scope, "steady");
+        await brain.Get<IApp>(appKey).Create(new AppManifest("steady", "", [new("open", "")], [], []), "spec");
+        var publisher = ICircle.Key(scope, "club");
+        var runtime = brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(scope)).AsReference<IStubRuntime>();
+        await runtime.Fail(false);
+        await using var stream = BrainEventsEndpoints.Snapshots(brain, scope, NullLogger.Instance, ct).GetAsyncEnumerator(ct);
+        using var first = await Next(stream, ct);
+        await runtime.Run(appKey + "/synapses/club.cs", $"circles.circle/{publisher}", "CircleSpoke");
+        while (true)
+        {
+            using var wired = await Next(stream, ct);
+            if (Synapses(wired).Length == 1) { break; }
+        }
+
+        await runtime.Fail(true);
+        await brain.Get<ICircle>(publisher).Invite("bob");
+
+        while (true)
+        {
+            using var next = await Next(stream, ct);
+            Assert.Single(Synapses(next));
+            Assert.Equal("Running", Node(next, appKey).GetProperty("status").GetString());
+            if (Ids(next).Contains(publisher)) { break; }
+        }
+    }
+
+    [Fact]
+    public async Task ABrainWithNoRuntimeStreamsItsNeuronsAndNoSynapses()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        var scope = Stamp("alone");
+        await brain.Self.Create(new Owner("owner"));
+        var appKey = IApp.Key(scope, "alone");
+        await brain.Get<IApp>(appKey).Create(new AppManifest("alone", "", [new("open", "")], [], []), "spec");
+        await using var stream = BrainEventsEndpoints.Snapshots(brain, scope, NullLogger.Instance, ct).GetAsyncEnumerator(ct);
+
+        using var first = await Next(stream, ct);
+
+        Assert.Contains(appKey, Ids(first));
+        Assert.Empty(Synapses(first));
+        Assert.Equal("Idle", Node(first, appKey).GetProperty("status").GetString());
+    }
+
     private static JsonElement Node(JsonDocument snapshot, string id)
         => snapshot.RootElement.GetProperty("nodes").EnumerateArray().Single(node => node.GetProperty("id").GetString() == id);
 }
@@ -101,6 +153,7 @@ public sealed class BrainEventsFacts
 public interface IStubRuntime : INeuron
 {
     Task Run(string behavior, string neuron, string signal);
+    Task Fail(bool failing);
 }
 
 // Stands where the brain runtime would: it answers Inspect with the subscriptions a test hands it and
@@ -110,8 +163,18 @@ public sealed class StubRuntime : Neuron, IBrainRuntime, IStubRuntime
 {
     private static readonly ConcurrentDictionary<string, BrainRuntimeSnapshot> Snapshots = new();
 
+    private static readonly ConcurrentDictionary<string, bool> Failing = new();
+
+    public Task Fail(bool failing)
+    {
+        Failing[this.GetPrimaryKeyString()] = failing;
+        return PublishAsync(new BrainRuntimeChanged(this.GetPrimaryKeyString()));
+    }
+
     public Task<BrainRuntimeSnapshot> Inspect(CancellationToken cancellationToken = default)
-        => Task.FromResult(Snapshots.GetValueOrDefault(this.GetPrimaryKeyString()) ?? new(SessionStatus.None, null, null, null, []));
+        => Failing.GetValueOrDefault(this.GetPrimaryKeyString())
+            ? Task.FromException<BrainRuntimeSnapshot>(new InvalidOperationException("runtime unavailable"))
+            : Task.FromResult(Snapshots.GetValueOrDefault(this.GetPrimaryKeyString()) ?? new(SessionStatus.None, null, null, null, []));
 
     public Task Touch(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
