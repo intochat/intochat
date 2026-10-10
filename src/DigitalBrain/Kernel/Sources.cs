@@ -27,7 +27,7 @@ public abstract class Sources
         => SourceSet.Open<T>(brain, sources, null, coalesce: false, cancellationToken);
 
     public static Task React<T>(IDigitalBrain brain, Sources sources, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken) where T : Signal
-        => throw new NotImplementedException();
+        => Reaction.Run<T>(brain, sources, rebuild, cancellationToken);
 
     internal abstract Task<INeuron[]> SelectAsync(CancellationToken cancellationToken);
 
