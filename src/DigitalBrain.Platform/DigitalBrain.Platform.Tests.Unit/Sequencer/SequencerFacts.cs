@@ -60,4 +60,36 @@ public sealed class SequencerFacts
         Assert.False(await live.CompareAndSet(1, Record(bob, "live", 2, TimeSpan.FromMinutes(1))));
         Assert.True(await expired.CompareAndSet(1, Record(bob, "expired", 2, TimeSpan.FromMinutes(1))));
     }
+
+    [Fact(Timeout = 60_000)]
+    public async Task ADifferentKeyCannotTakeALiveLeaseUnderTheSameHolderName()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        using var alice = Machine();
+        using var mallory = Machine();
+        var sequencer = brain.Grains.GetGrain<ISequencerGrain>("p1");
+        await sequencer.CompareAndSet(0, Record(alice, "p1", 1, TimeSpan.FromMinutes(1)));
+        var forged = new HeadRecord
+        {
+            PartHash = "p1", Version = 2, Holder = alice.MachineId, HolderKey = mallory.PublicKey,
+            LeaseExpiry = DateTimeOffset.UtcNow + TimeSpan.FromMinutes(1),
+        };
+        forged.Signature = mallory.Sign(forged.SignedBytes());
+
+        Assert.False(await sequencer.CompareAndSet(1, forged));
+        Assert.Equal(1, (await sequencer.Get())!.Version);
+    }
+
+    [Fact(Timeout = 60_000)]
+    public async Task ARecordWithAGarbageHolderKeyIsRefusedAndNothingIsStored()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        var sequencer = brain.Grains.GetGrain<ISequencerGrain>("p1");
+        var record = new HeadRecord { PartHash = "p1", Version = 1, Holder = "x", HolderKey = [1, 2, 3], Signature = [4] };
+
+        Assert.False(await sequencer.CompareAndSet(0, record));
+        Assert.Null(await sequencer.Get());
+    }
 }
