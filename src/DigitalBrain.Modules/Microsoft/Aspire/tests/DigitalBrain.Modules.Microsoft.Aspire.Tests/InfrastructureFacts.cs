@@ -11,7 +11,7 @@ namespace DigitalBrain.Microsoft.Aspire.Tests;
 public sealed class InfrastructureFacts
 {
     [Fact]
-    public void TheAspireModuleShowsEachSiloAndOtherModulesShowNothing()
+    public void TheAspireModuleShowsEachSiloAndOtherModulesStayListedWithoutState()
     {
         var rows = InfrastructureView.Join(["postgres", "aspire", "clickhouse"],
         [
@@ -23,6 +23,8 @@ public sealed class InfrastructureFacts
         [
             ("aspire", "silo-0", "Exited", null),
             ("aspire", "silo-1", "Running", "Healthy"),
+            ("clickhouse", "clickhouse", "Unknown", null),
+            ("postgres", "postgres", "Unknown", null),
         ], rows.Select(row => (row.Module, row.Resource, row.State, row.Health)));
     }
 

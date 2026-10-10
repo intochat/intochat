@@ -8,6 +8,7 @@ public sealed record InfrastructureRow(
     [property: Id(3)] string? Health);
 
 // The aspire module's rows are the cluster's silos; with none reported the AppHost's state is unknown.
+// Every other module is listed without resource state: no neuron reports it since the AppHost bridge went.
 public static class InfrastructureView
 {
     public static IReadOnlyList<InfrastructureRow> Join(IEnumerable<string> moduleIds, IReadOnlyList<SiloView> silos)
@@ -17,7 +18,7 @@ public static class InfrastructureView
         var rows = new List<InfrastructureRow>();
         foreach (var module in moduleIds.Order(StringComparer.Ordinal))
         {
-            if (module != "aspire") { continue; }
+            if (module != "aspire") { rows.Add(new(module, module, "Unknown", null)); continue; }
             if (silos.Count == 0) { rows.Add(new(module, "silos", "Unknown", null)); continue; }
             foreach (var silo in silos.OrderBy(silo => silo.Name, StringComparer.Ordinal))
             { rows.Add(new(module, silo.Name, silo.State, silo.Health)); }

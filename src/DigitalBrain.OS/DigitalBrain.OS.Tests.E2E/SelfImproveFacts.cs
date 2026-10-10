@@ -17,7 +17,6 @@ public sealed class SelfImproveFacts
         if (Environment.GetEnvironmentVariable("DIGITALBRAIN_E2E_CANDIDATES") != "1")
         {
             Assert.Skip("Set DIGITALBRAIN_E2E_CANDIDATES=1 on a machine with docker and the Aspire CLI.");
-            return;
         }
         var ct = TestContext.Current.CancellationToken;
         await using var fixture = new SelfImproveHostFixture();
