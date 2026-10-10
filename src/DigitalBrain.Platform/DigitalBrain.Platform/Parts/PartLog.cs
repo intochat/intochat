@@ -38,6 +38,7 @@ internal sealed class PartLog : IAsyncDisposable
     private long _queuedBytes;
     private long _nextSeq;
     private long _applied;
+    private long _signalsFloor;
     private Exception? _closed;
     private bool _disposed;
 
@@ -83,6 +84,17 @@ internal sealed class PartLog : IAsyncDisposable
     public StoredRecord? Read(string grainId, string stateName)
     {
         lock (_records) { return _records.GetValueOrDefault((grainId, stateName)); }
+    }
+
+    // Entries at or below this seq may hold signals this log no longer serves (they predate the snapshot before last).
+    public long SignalsFloor
+    {
+        get { lock (_records) { return _signalsFloor; } }
+    }
+
+    public (long Floor, long Last, LogEntry[] Entries) SignalsOf(string grainId, long seq)
+    {
+        lock (_records) { return (_signalsFloor, _applied, [.. _since.Where(e => e.Seq > seq && e.GrainId == grainId && e.Signals.Length > 0)]); }
     }
 
     public IReadOnlyList<LogEntry> SignalsSince(long seq)
@@ -183,6 +195,7 @@ internal sealed class PartLog : IAsyncDisposable
             var snapshot = _serializer.Deserialize<PartSnapshot>(await _mesh.Read(_key, snapshotRef, ct))!;
             foreach (var record in snapshot.Records) { _records[(record.GrainId, record.StateName)] = new StoredRecord(record.Record, record.ETagSeq); }
             _since.AddRange(snapshot.RecentSignals);
+            _signalsFloor = snapshot.SignalsFrom;
         }
         var segments = new List<(MeshRef Ref, LogSegment Segment)>();
         for (var reference = payload.Head; reference is not null;)
@@ -367,7 +380,7 @@ internal sealed class PartLog : IAsyncDisposable
                 recent = [.. _since.Where(e => e.Seq > payload.SnapshotSeq && e.Seq <= payload.LastSeq)];
             }
         }
-        var snapshot = new PartSnapshot { Seq = payload.LastSeq, Records = records, RecentSignals = recent };
+        var snapshot = new PartSnapshot { Seq = payload.LastSeq, Records = records, RecentSignals = recent, SignalsFrom = payload.SnapshotSeq };
         var reference = await _mesh.Write(_key, PartSegments.SnapshotId(_part, payload.LastSeq), _serializer.SerializeToArray(snapshot));
         await _lease.Commit(new HeadPayload { Head = null, Snapshot = reference, SnapshotSeq = payload.LastSeq, LastSeq = payload.LastSeq, SegmentsSinceSnapshot = 0 });
         // Only refs of this log's own replaced chain are discarded, never one a read repaired (ruling R7): MeshStore

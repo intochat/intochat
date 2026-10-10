@@ -65,6 +65,7 @@ internal sealed class CloudPartJournal(CloudPart cloud, ISignalJournal own, ISig
 {
     public Task Append(GrainId publisher, Signal[] signals) => (cloud.Holds(publisher) ? dedicated : own).Append(publisher, signals);
     public Task<JournaledSignal[]> ReadSince(string brainId, long since, int limit) => own.ReadSince(brainId, since, limit);
+    public Task<PartSignals?> SignalsOf(GrainId publisher, long since) => (cloud.Holds(publisher) ? dedicated : own).SignalsOf(publisher, since);
 }
 
 public sealed class PartSignalFacts

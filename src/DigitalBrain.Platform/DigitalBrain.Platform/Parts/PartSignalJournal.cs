@@ -12,6 +12,13 @@ internal sealed class PartSignalJournal(PartLogs logs) : ISignalJournal
         await log.Append(publisher.ToString(), "", RecordChange.None, [], signals);
     }
 
+    public async Task<PartSignals?> SignalsOf(GrainId publisher, long since)
+    {
+        var log = await logs.For(PartId.Of(publisher.Key.ToString()!));
+        var (floor, last, entries) = log.SignalsOf(publisher.ToString(), since);
+        return new PartSignals(floor, last, [.. entries.SelectMany(e => e.Signals.Select(s => new JournaledSignal(e.Seq, s)))]);
+    }
+
     // Parts number their entries separately, so the brain's order is by entry seq, then part: stable while the
     // set of open parts is, and enough for a replay that reads from the start.
     public async Task<JournaledSignal[]> ReadSince(string brainId, long since, int limit)

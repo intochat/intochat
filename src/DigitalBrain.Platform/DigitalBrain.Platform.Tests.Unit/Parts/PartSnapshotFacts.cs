@@ -12,13 +12,13 @@ namespace DigitalBrain.Platform.Tests.Unit.Parts;
 
 public sealed class PartSnapshotFacts
 {
-    private static PartsOptions Options(int snapshotEvery = 2) => new()
+    internal static PartsOptions Options(int snapshotEvery = 2) => new()
     {
         Role = MachineRole.Cloud, SnapshotEvery = snapshotEvery, BatchDelay = TimeSpan.FromMilliseconds(5),
         MachineDirectory = Path.Combine(Path.GetTempPath(), $"machine-{Guid.NewGuid():N}"),
     };
 
-    private static async Task<(PartLog Log, PartLease Lease)> OpenAsync(ModuleBrain brain, PartId part, byte[] key, MachineIdentity machine, PartsOptions options,
+    internal static async Task<(PartLog Log, PartLease Lease)> OpenAsync(ModuleBrain brain, PartId part, byte[] key, MachineIdentity machine, PartsOptions options,
         CancellationToken ct)
     {
         var serializer = brain.SiloServices.GetRequiredService<Serializer>();
