@@ -30,7 +30,8 @@ final class SiloState {
   int get hashCode => Object.hash(id, sha, state, health);
 }
 
-// Mirrors the DeploymentChanged signal: the cluster's stage, the build it stands on, and every silo.
+// Mirrors the DeploymentChanged signal: the deployment's stage, the build it stands on, and every silo
+// of the Orleans membership.
 final class DeploymentChanged {
   const DeploymentChanged({
     required this.stage,

@@ -106,7 +106,7 @@ void main() {
         );
       }),
     );
-    final cluster = await client.watchCluster('b1').first;
+    final cluster = await client.watchDeployment('b1').first;
     expect(cluster.stage, 'rolling');
     expect(cluster.silos.map((silo) => silo.id), ['silo-1', 'silo-2']);
     expect(cluster.silos.last.health, isNull);

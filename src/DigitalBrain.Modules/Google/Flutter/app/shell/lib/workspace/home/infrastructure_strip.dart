@@ -5,12 +5,16 @@ import 'package:flutter/material.dart';
 
 enum InfrastructureHealth { green, amber, red }
 
-// Aspire health decides first, then state. A connection row carries its status as the state.
+// A silo row carries its Orleans membership status as the state (Active, Joining, Dead...); a
+// connection row carries its connection status. A health, when one is given, decides first.
 InfrastructureHealth infrastructureHealth(String state, String? health) {
-  if (health == 'Healthy' || state == 'Connected') {
+  if (health == 'Healthy' || state == 'Active' || state == 'Connected') {
     return InfrastructureHealth.green;
   }
   if (health == 'Unhealthy' ||
+      state == 'Dead' ||
+      state == 'Stopping' ||
+      state == 'ShuttingDown' ||
       state == 'Exited' ||
       state == 'FailedToStart' ||
       state == 'Stopped' ||
@@ -40,7 +44,7 @@ class InfrastructureStrip extends StatefulWidget {
 }
 
 class _InfrastructureStripState extends State<InfrastructureStrip> {
-  DeploymentChanged? _cluster;
+  DeploymentChanged? _deployment;
   String? _error;
   StreamSubscription<DeploymentChanged>? _subscription;
 
@@ -49,7 +53,7 @@ class _InfrastructureStripState extends State<InfrastructureStrip> {
     super.initState();
     _subscription = widget.watch?.call().listen(
       (cluster) => setState(() {
-        _cluster = cluster;
+        _deployment = cluster;
         _error = null;
       }),
       onError: (Object error) => setState(() => _error = error.toString()),
@@ -67,7 +71,7 @@ class _InfrastructureStripState extends State<InfrastructureStrip> {
     final motion = MediaQuery.of(context).disableAnimations
         ? Duration.zero
         : const Duration(milliseconds: 300);
-    final cluster = _cluster;
+    final cluster = _deployment;
     return Wrap(
       spacing: 12,
       runSpacing: 12,

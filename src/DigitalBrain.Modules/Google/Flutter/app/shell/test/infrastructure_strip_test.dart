@@ -31,6 +31,15 @@ void main() {
     expect(infrastructureHealth('Failing', null), InfrastructureHealth.red);
   });
 
+  test('an Orleans silo status decides its color', () {
+    expect(infrastructureHealth('Active', null), InfrastructureHealth.green);
+    expect(infrastructureHealth('Dead', null), InfrastructureHealth.red);
+    expect(infrastructureHealth('Stopping', null), InfrastructureHealth.red);
+    expect(infrastructureHealth('ShuttingDown', null), InfrastructureHealth.red);
+    expect(infrastructureHealth('Joining', null), InfrastructureHealth.amber);
+    expect(infrastructureHealth('Created', null), InfrastructureHealth.amber);
+  });
+
   DeploymentChanged cluster(List<SiloState> silos, {String stage = 'steady'}) =>
       DeploymentChanged(stage: stage, sha: 'abc1234567', silos: silos);
 

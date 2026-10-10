@@ -434,7 +434,7 @@ final class DigitalBrainUiClient {
     'Live signals are unavailable.',
   ).map(LiveEnvelope.fromJson);
 
-  Stream<DeploymentChanged> watchCluster(String brainId) =>
+  Stream<DeploymentChanged> watchDeployment(String brainId) =>
       watchLive(brainId, ['DeploymentChanged'])
           .where((envelope) => !envelope.isReady)
           .map((envelope) => DeploymentChanged.fromJson(envelope.payload));

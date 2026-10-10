@@ -773,7 +773,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       infrastructure: client == null
           ? null
           : InfrastructureStrip(
-              watch: () => client.watchCluster(project.id),
+              watch: () => client.watchDeployment(project.id),
               onTap: (_) => _openConnections(context),
             ),
       decorateIcon: client == null

@@ -35,7 +35,7 @@ internal sealed class DeploymentNeuron(
         catch (Exception error) when (error is not OperationCanceledException)
         {
             // The silos did not start moving: the live build stays what runs, and the caller learns the restart failed.
-            log.LogWarning(error, "Cluster {Cluster} could not restart onto {Target}.", this.GetPrimaryKeyString(), sha);
+            log.LogWarning(error, "Cluster {Deployment} could not restart onto {Target}.", this.GetPrimaryKeyString(), sha);
             if (previous.Length > 0) { await host.SetLive(previous, CancellationToken.None); }
             await Save(new DeploymentState { CurrentSha = previous }, Changed(previous, DeploymentStage.Steady));
             throw;
@@ -76,7 +76,7 @@ internal sealed class DeploymentNeuron(
         try { await host.SetLive(sha, CancellationToken.None); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            log.LogWarning(error, "Cluster {Cluster} could not point the live build at {Target}.", this.GetPrimaryKeyString(), sha);
+            log.LogWarning(error, "Cluster {Deployment} could not point the live build at {Target}.", this.GetPrimaryKeyString(), sha);
             await Save(new DeploymentState { CurrentSha = previous, Failure = error.Message }, Changed(previous, DeploymentStage.Steady));
             await StopReminder();
             throw;
@@ -112,7 +112,7 @@ internal sealed class DeploymentNeuron(
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            log.LogWarning(error, "Cluster {Cluster} could not set live to {Target} at step.", this.GetPrimaryKeyString(), target);
+            log.LogWarning(error, "Cluster {Deployment} could not set live to {Target} at step.", this.GetPrimaryKeyString(), target);
             var name = Snapshot.Remaining.FirstOrDefault(n => n != self) ?? self!;
             await NeverReady(name, new InstanceNeverReadyException($"live.json could not be written: {error.Message}", error));
             return;
@@ -217,11 +217,11 @@ internal sealed class DeploymentNeuron(
         var reason = $"{name} never became ready on {Snapshot.TargetSha}: {error.Message}";
         if (Snapshot.Stage == DeploymentStage.RollingBack)
         {
-            log.LogError(error, "Cluster {Cluster}: rolling back failed at {Instance}.", this.GetPrimaryKeyString(), name);
+            log.LogError(error, "Cluster {Deployment}: rolling back failed at {Instance}.", this.GetPrimaryKeyString(), name);
             await Finish($"{Snapshot.Failure}; rolling back: {reason}");
             return;
         }
-        log.LogWarning(error, "Cluster {Cluster}: {Reason}; rolling back to {Previous}.", this.GetPrimaryKeyString(), reason, Snapshot.PreviousSha);
+        log.LogWarning(error, "Cluster {Deployment}: {Reason}; rolling back to {Previous}.", this.GetPrimaryKeyString(), reason, Snapshot.PreviousSha);
         // The failed instance first, then the moved ones newest first: silos come back before the MCP servers that
         // wait for them to start.
         string[] back = [name, .. Snapshot.Rolled.Reverse().Where(rolled => rolled != name)];
@@ -273,7 +273,7 @@ internal sealed class DeploymentNeuron(
         else if (Snapshot.Stage == DeploymentStage.Restarting)
         {
             // live.json is written before the silos restart, so a different build means that restart never took.
-            log.LogWarning("Cluster {Cluster} restarted towards {Target} but runs {Current}.", this.GetPrimaryKeyString(), Snapshot.TargetSha, current);
+            log.LogWarning("Cluster {Deployment} restarted towards {Target} but runs {Current}.", this.GetPrimaryKeyString(), Snapshot.TargetSha, current);
             abandoned = Snapshot.TargetSha;
             await Save(new DeploymentState { CurrentSha = current }, Changed(current, DeploymentStage.Steady));
         }
@@ -296,7 +296,7 @@ internal sealed class DeploymentNeuron(
         try { await work(); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            log.LogWarning(error, "Cluster {Cluster} could not {Work}.", this.GetPrimaryKeyString(), what);
+            log.LogWarning(error, "Cluster {Deployment} could not {Work}.", this.GetPrimaryKeyString(), what);
         }
     }
 
@@ -337,7 +337,7 @@ internal sealed class DeploymentNeuron(
         catch (Exception error) when (error is not OperationCanceledException)
         {
             // No membership to read means no silos to show; the strip empties once and the warning is logged once.
-            if (!unreadable) { log.LogWarning(error, "Cluster {Cluster} could not read its silos.", this.GetPrimaryKeyString()); }
+            if (!unreadable) { log.LogWarning(error, "Cluster {Deployment} could not read its silos.", this.GetPrimaryKeyString()); }
             unreadable = true;
             read = [];
         }
