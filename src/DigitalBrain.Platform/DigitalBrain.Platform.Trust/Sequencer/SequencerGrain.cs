@@ -23,8 +23,8 @@ internal sealed class SequencerGrain(
         var current = store.State.Head;
         if ((current?.Version ?? 0) != expectedVersion || next.Version != expectedVersion + 1) { return false; }
         if (next.PartHash != this.GetPrimaryKeyString()) { return false; }
-        if (!MachineIdentity.Verify(next.HolderKey, next.SignedBytes(), next.Signature)) { return false; }
-        if (next.Holder != MachineIdentity.IdOf(next.HolderKey)) { return false; }
+        if (!MachineKeys.Verify(next.HolderKey, next.SignedBytes(), next.Signature)) { return false; }
+        if (next.Holder != MachineKeys.IdOf(next.HolderKey)) { return false; }
         if (current is not null && current.LeaseExpiry > time.GetUtcNow() && !current.HolderKey.AsSpan().SequenceEqual(next.HolderKey)) { return false; }
         store.State.Head = next;
         await store.WriteStateAsync();

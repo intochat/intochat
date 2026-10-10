@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>The trust ring: sequencer, node directory, keyrings, identity, ledger and the Marketplace catalog. It holds wrapped keys, signed heads, sealed shards and machine public keys, never a secret.</Description>
+    <RootNamespace>DigitalBrain.Platform</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Orleans.Sdk" />
+  </ItemGroup>
+  <ItemGroup><ProjectReference Include="../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" /></ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="DigitalBrain.Platform" />
+    <InternalsVisibleTo Include="DigitalBrain.Testing.Module" />
+    <InternalsVisibleTo Include="DigitalBrain.Platform.Tests.Unit" />
+    <InternalsVisibleTo Include="DigitalBrain.Trust" />
+    <InternalsVisibleTo Include="DigitalBrain.Trust.Tests.Unit" />
+  </ItemGroup>
+</Project>

@@ -11,7 +11,7 @@ public sealed class BoundaryFacts
     private static readonly string[] KernelLayers =
     [
         "DigitalBrain", "DigitalBrain.Platform.Contracts", "DigitalBrain.Client", "DigitalBrain.Framework",
-        "DigitalBrain.Client.Orleans", "DigitalBrain.Platform"
+        "DigitalBrain.Client.Orleans", "DigitalBrain.Platform.Trust", "DigitalBrain.Platform"
     ];
 
     [Theory]

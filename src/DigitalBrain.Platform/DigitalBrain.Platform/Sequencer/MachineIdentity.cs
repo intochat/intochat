@@ -15,7 +15,7 @@ internal sealed class MachineIdentity : IDisposable
         MachineId = IdOf(PublicKey);
     }
 
-    public static string IdOf(byte[] publicKey) => Convert.ToHexStringLower(SHA256.HashData(publicKey))[..16];
+    public static string IdOf(byte[] publicKey) => MachineKeys.IdOf(publicKey);
 
     public string MachineId { get; }
 
@@ -35,17 +35,7 @@ internal sealed class MachineIdentity : IDisposable
 
     public byte[] Sign(byte[] data) => _key.SignData(data, HashAlgorithmName.SHA256);
 
-    public static bool Verify(byte[] publicKey, byte[] data, byte[] signature)
-    {
-        try
-        {
-            using var key = ECDsa.Create();
-            key.ImportSubjectPublicKeyInfo(publicKey, out _);
-            return key.KeySize == 256 && key.ExportParameters(false).Curve.Oid.Value == ECCurve.NamedCurves.nistP256.Oid.Value
-                && key.VerifyData(data, signature, HashAlgorithmName.SHA256);
-        }
-        catch (CryptographicException) { return false; }
-    }
+    public static bool Verify(byte[] publicKey, byte[] data, byte[] signature) => MachineKeys.Verify(publicKey, data, signature);
 
     public void Dispose() => _key.Dispose();
 }

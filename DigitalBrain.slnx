@@ -177,6 +177,10 @@
     <Project Path="src/DigitalBrain.Platform/DigitalBrain.Platform.Tests.E2E/DigitalBrain.Platform.Tests.E2E.csproj" />
     <Project Path="src/DigitalBrain.Platform/DigitalBrain.Platform.Tests.Unit/DigitalBrain.Platform.Tests.Unit.csproj" />
     <Project Path="src/DigitalBrain.Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
+    <Project Path="src/DigitalBrain.Platform/DigitalBrain.Platform.Trust/DigitalBrain.Platform.Trust.csproj" />
+  </Folder>
+  <Folder Name="/Trust/">
+    <Project Path="src/DigitalBrain.Trust/DigitalBrain.Trust/DigitalBrain.Trust.csproj" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />

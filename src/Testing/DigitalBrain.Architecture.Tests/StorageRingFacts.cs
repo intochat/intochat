@@ -14,7 +14,8 @@ public sealed class StorageRingFacts
     public void NeuronsPersistInClusterStorageAndPlatformGrainsInPlatformStorage()
     {
         var platform = typeof(DigitalBrain.Platform.PlatformHosting).Assembly;
-        var sites = new[] { typeof(Neuron).Assembly, platform, Apps }
+        var trust = typeof(DigitalBrain.Platform.TrustHosting).Assembly;
+        var sites = new[] { typeof(Neuron).Assembly, platform, trust, Apps }
             .SelectMany(assembly => assembly.GetTypes())
             .Where(type => type is { IsClass: true, IsAbstract: false })
             .SelectMany(type => type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
@@ -23,12 +24,13 @@ public sealed class StorageRingFacts
             .Where(site => site.storage is not null)
             .ToArray();
         var offenders = sites
-            .Where(site => typeof(Neuron).IsAssignableFrom(site.type) || site.type.Assembly != platform
+            .Where(site => typeof(Neuron).IsAssignableFrom(site.type) || (site.type.Assembly != platform && site.type.Assembly != trust)
                 ? site.storage != DigitalBrainNames.ClusterGrainStorage
                 : site.storage != DigitalBrainNames.PlatformGrainStorage)
             .Select(site => $"{site.type.FullName} -> {site.storage}")
             .ToArray();
 
         Assert.True(offenders.Length == 0, string.Join(Environment.NewLine, offenders));
+        Assert.Contains(sites, site => site.type.Assembly == trust);
     }
 }

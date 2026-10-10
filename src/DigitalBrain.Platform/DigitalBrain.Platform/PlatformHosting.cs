@@ -68,7 +68,8 @@ public static class PlatformHosting
         services.AddGrpc();
         services.TryAddSingleton<DigitalBrain.Framework.Surface.NeuronSurface>();
         silo.AddStartupTask<IntegrationSeeder>();
-        silo.AddStartupTask<Mesh.SeedNodeRegistration>();
+        // Stage A: the trust grains share this silo.
+        silo.AddTrustCluster();
         services.TryAddSingleton<IGrantPolicySource, GrainGrantPolicySource>();
         services.TryAddSingleton<IIdentity, PlatformIdentity>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICallFilterStage, GrantCallFilterStage>());

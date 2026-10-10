@@ -74,16 +74,16 @@ internal sealed class BrainAuthorityGrain(
         // owner, whoever reaches it first. A caller is never crowned: a registered account's brain
         // is provisioned by its account before it is born, so it never arrives here untouched.
         if (State.AccountId is null && auth.Value.Posture == IdentityPosture.Open
-            && caller.AccountId == AccountSession.DefaultLogin
+            && caller.AccountId == DefaultOwner.Login
             && BrainScope.Create(caller.AccountId, caller.BrainId).Id == this.GetPrimaryKeyString())
         {
             await ProvisionOwner(new Member
             {
-                PrincipalId = AccountSession.DefaultLogin,
-                AccountId = AccountSession.DefaultLogin,
+                PrincipalId = DefaultOwner.Login,
+                AccountId = DefaultOwner.Login,
                 BrainId = caller.BrainId,
                 Role = MemberRole.Owner,
-                DisplayName = AccountSession.DefaultLogin,
+                DisplayName = DefaultOwner.Login,
             });
         }
         if (State.AccountId != caller.AccountId || State.BrainId != caller.BrainId)

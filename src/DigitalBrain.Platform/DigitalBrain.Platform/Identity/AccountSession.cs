@@ -16,7 +16,7 @@ namespace DigitalBrain.Platform.Identity;
 // the Orleans RequestContext so it travels with grain calls.
 public static class AccountSession
 {
-    public const string DefaultLogin = "owner";
+    public const string DefaultLogin = Authority.DefaultOwner.Login;
     public const string CheckPath = "/auth/check";
 
     private const string BasicScheme = "Basic";
