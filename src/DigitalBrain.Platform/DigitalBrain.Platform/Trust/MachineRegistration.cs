@@ -1,6 +1,7 @@
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Platform.Trust;
@@ -45,7 +46,7 @@ internal sealed class MachineRegistration(TrustDeployment deployment, MachineReg
 // A fresh store's owner brain is born once the silo is up, in the background (finding b, round 3 f): its creation
 // handlers (the OS defaults, the features) need the seeded integrations and may run long, so they neither block
 // the silo's start nor run before the Active-stage seeders.
-// R73: with the part log on, the brain is born only on the machine that acquires its core. A machine refused the
+// R73/R76: with the part log on, the brain is born only on the machine that acquires its core. A machine refused the
 // core (another own machine holds it, or its custody cannot open the core's key) has registered itself and stops
 // here; whichever machine holds the core gives the birth, so the trust side's NewBrain winner need not be it.
 internal sealed class OwnerBirth(BrainBirths births, IServiceProvider services, Microsoft.Extensions.Logging.ILogger<OwnerBirth> logger) : IStartupTask
@@ -69,6 +70,12 @@ internal sealed class OwnerBirth(BrainBirths births, IServiceProvider services, 
             {
                 if (logs is not null)
                 {
+                    if (!services.GetRequiredService<Microsoft.Extensions.Options.IOptions<Parts.PartsOptions>>().Value.CoreHolder)
+                    {
+                        Microsoft.Extensions.Logging.LoggerExtensions.LogInformation(logger,
+                            "This machine is not the core holder; brain {Brain}'s core and birth stay with the machine that is.", provision.Member.BrainId);
+                        return;
+                    }
                     var core = DigitalBrain.Framework.Parts.PartId.Core(DigitalBrain.Framework.BrainScope.Create(provision.Member.AccountId, provision.Member.BrainId).Id);
                     try { await logs.For(core); }
                     catch (Exception refused) when (refused is ServiceUnavailableException or UnauthorizedAccessException)

@@ -75,6 +75,24 @@ public sealed class TrustClusterHostingFacts
             Assert.Contains(machine.Annotations.OfType<ResourceCommandAnnotation>(), command => command.Name == TrustClusterHosting.ReleasePartCommand));
     }
 
+    // R76: only the primary machine holds the owner's core; the second machine carries no core-holder key.
+    [Fact]
+    public async Task OnlyMachineAIsTheCoreHolder()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        var brain = builder.AddDigitalBrain("memory", options: new()).WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite());
+        var trust = builder.AddExecutable("trust", "unused", ".").AsTrustCluster(brain, builder.Configuration);
+        var pairing = builder.AddParameter("machine-pairing-secret", "s3cret", secret: true);
+        var a = builder.AddExecutable("os-a", "unused", ".").WithHttpEndpoint(name: "http")
+            .AsTrustMachine(trust, pairing, "/machines/os-a", builder.Configuration).AsCoreHolder();
+        var b = builder.AddExecutable("os-b", "unused", ".").WithHttpEndpoint(name: "http")
+            .AsTrustMachine(trust, pairing, "/machines/os-b", builder.Configuration).AsSeparateCluster();
+
+        var key = DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.CoreHolderKey);
+        Assert.Equal("true", (await Environment(builder, a.Resource))[key]);
+        Assert.DoesNotContain(key, (await Environment(builder, b.Resource)).Keys);
+    }
+
     // Round 3 (d): the seed nodes live with the trust host that registers them, never on a machine.
     [Fact]
     public async Task TheTrustResourceRegistersTheSeedNodes()

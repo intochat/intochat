@@ -13,7 +13,7 @@ public sealed class FreshBootFacts
         var ct = TestContext.Current.CancellationToken;
         var handler = new Recording();
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var machine = await ModuleTest.Create().WithTrust(trust).WithPartLog()
+        await using var machine = await ModuleTest.Create().WithTrust(trust).WithPartLog().WithConfiguration(SecondMachineFacts.CoreHolder, "true")
             .ConfigureSilo(silo => silo.Services.AddSingleton<ICreationHandler>(handler))
             .StartAsync(ct);
 

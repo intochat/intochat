@@ -12,13 +12,15 @@ namespace DigitalBrain.Platform.Tests.Unit.Trust;
 // the core, and opens a part only under the one key the keyring holds for it.
 public sealed class SecondMachineFacts
 {
+    internal static readonly string CoreHolder = $"{PartsOptions.Key}:{nameof(PartsOptions.CoreHolder)}";
+
     [Fact(Timeout = 180_000)]
     public async Task ASecondOwnMachineStartsHealthyWhileTheFirstHoldsTheCore()
     {
         var ct = TestContext.Current.CancellationToken;
         var errors = new ErrorLog();
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var a = await ModuleTest.Create().WithTrust(trust).WithPartLog().StartAsync(ct);
+        await using var a = await ModuleTest.Create().WithTrust(trust).WithPartLog().WithConfiguration(CoreHolder, "true").StartAsync(ct);
         await a.SiloServices.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
         var scope = BrainScope.Create(ModuleTest.DefaultAccount, ModuleTest.DefaultAccount).Id;
         Assert.Contains(PartId.Core(scope), a.SiloServices.GetRequiredService<PartLogs>().Opened);
@@ -36,6 +38,24 @@ public sealed class SecondMachineFacts
 
         Assert.DoesNotContain(PartId.Core(scope), b.SiloServices.GetRequiredService<PartLogs>().Opened);
         Assert.Empty(errors.Lines);
+    }
+
+    // R76: the core has a designated holder; a machine that is not it never takes the core at boot, even first.
+    [Fact(Timeout = 180_000)]
+    public async Task OnlyTheCoreHolderAcquiresTheCoreAtBoot()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var core = PartId.Core(BrainScope.Create(ModuleTest.DefaultAccount, ModuleTest.DefaultAccount).Id);
+        await using var trust = await TrustHost.StartAsync(ct);
+        await using var b = await ModuleTest.Create().WithTrust(trust).WithPartLog().StartAsync(ct);
+        await b.SiloServices.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
+        Assert.DoesNotContain(core, b.SiloServices.GetRequiredService<PartLogs>().Opened);
+
+        await using var a = await ModuleTest.Create().WithTrust(trust).WithPartLog().WithConfiguration(CoreHolder, "true").StartAsync(ct);
+        await a.SiloServices.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
+
+        Assert.Contains(core, a.SiloServices.GetRequiredService<PartLogs>().Opened);
+        Assert.DoesNotContain(core, b.SiloServices.GetRequiredService<PartLogs>().Opened);
     }
 
     [Fact(Timeout = 180_000)]

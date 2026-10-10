@@ -93,9 +93,10 @@ var workdir = AspireModuleHosting.WorkdirOf(builder);
 var silos = AspireModuleHosting.InstanceNames("OperatingSystem").Take(1).Select(name =>
     AspireModuleHosting.AddLiveBuild(builder, workdir, name, "os", "DigitalBrain.OS.dll") is { } live
         // A live build reads the features published with it (AddLiveBuild), not the working tree's.
-        ? Silo(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS"))
+        // R76: A is the core holder, the machine the fronts and MCPs route to; B never races it for the core.
+        ? Silo(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS").AsCoreHolder())
         : Silo(AspireModuleHosting.OnDynamicPorts(builder.AddProject<Projects.DigitalBrain_OS>(name))
-            .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features))).ToArray();
+            .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features).AsCoreHolder())).ToArray();
 var osFront = AspireModuleHosting.AddFront(builder, "OperatingSystem", uiPort, silos.Select(silo => silo.GetEndpoint("http")));
 
 // The second machine (R40): its own directory, identity and Orleans cluster, the owner's role, fixed silo and

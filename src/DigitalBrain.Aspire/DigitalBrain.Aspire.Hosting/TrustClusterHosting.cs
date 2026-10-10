@@ -55,6 +55,7 @@ public static class TrustClusterHosting
     public const string PairingSecretKey = "DigitalBrain:Platform:Parts:PairingSecret";
     public const string RoleKey = "DigitalBrain:Platform:Parts:Role";
     public const string MachineDirectoryKey = "DigitalBrain:Platform:Parts:MachineDirectory";
+    public const string CoreHolderKey = "DigitalBrain:Platform:Parts:CoreHolder";
     public const string ReleasePartCommand = "release-part";
     private static readonly string ModuleGrainStateContainerKey = DigitalBrainConfiguration.ModuleOptionsSection("orleans") + ":GrainStateContainer";
 
@@ -76,6 +77,13 @@ public static class TrustClusterHosting
             .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Framework.DigitalBrainNames.GrainStateContainerKey), container)
             .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(ModuleGrainStateContainerKey), container)
             .WithPartRelease(configuration);
+    }
+
+    // R76: the primary machine the fronts and MCPs route to holds the owner's core; no other machine races for it at boot.
+    public static IResourceBuilder<T> AsCoreHolder<T>(this IResourceBuilder<T> machine) where T : IResourceWithEnvironment
+    {
+        ArgumentNullException.ThrowIfNull(machine);
+        return machine.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(CoreHolderKey), "true");
     }
 
     public const string OrleansSiloEndpoint = "orleans-silo";
