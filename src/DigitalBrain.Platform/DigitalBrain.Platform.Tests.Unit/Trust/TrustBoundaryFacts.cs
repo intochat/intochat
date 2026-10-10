@@ -31,11 +31,12 @@ public sealed class TrustBoundaryFacts
     }
 
     // Records that cross a client and are known to carry identifiers, sealed bytes or signatures only. Extending this
-    // list needs a controller ruling; the identity records joined it with R58.
+    // list needs a controller ruling: the identity records Account, Member and Grant (with their call records) joined
+    // it by R58/R62; no credential-shaped record is allowed.
     private static readonly Type[] Records =
     [
         typeof(HeadRecord), typeof(StorageNodeView), typeof(MarketplaceRecord), typeof(MachineSigned<>),
-        typeof(Account), typeof(Member), typeof(BrainProvision), typeof(PrincipalCredential),
+        typeof(Account), typeof(Member), typeof(BrainProvision),
         typeof(CallRequest), typeof(CallDecision), typeof(CallerContext), typeof(Grant),
     ];
 
@@ -51,6 +52,21 @@ public sealed class TrustBoundaryFacts
     };
 
     private static readonly string[] Plaintext = ["Password", "Secret", "Token", "Credential", "MasterKey"];
+
+    // R62: no state the trust cluster persists holds a credential; the pairing secret's hash is R52's binding check.
+    [Fact]
+    public void TheTrustHostHoldsNoCredential()
+    {
+        var holding = typeof(TrustHosting).Assembly.GetTypes()
+            .Where(type => type.GetCustomAttributes(typeof(GenerateSerializerAttribute), inherit: false).Length > 0)
+            .SelectMany(type => type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Select(property => (type, property)))
+            .Where(site => Plaintext.Any(word => site.property.Name.Contains(word, StringComparison.OrdinalIgnoreCase))
+                && !(site.type == typeof(AccountMachinesState) && site.property.Name == nameof(AccountMachinesState.PairingSecretHash)))
+            .Select(site => $"{site.type.Name}.{site.property.Name}")
+            .ToArray();
+
+        Assert.Empty(holding);
+    }
 
     [Fact]
     public void NoTrustClientCarriesPlaintextOrKeys()
@@ -83,7 +99,7 @@ public sealed class TrustBoundaryFacts
         if (type == typeof(string))
         {
             // A hash is not the credential it hashes.
-            if (Plaintext.Any(word => name.Contains(word, StringComparison.OrdinalIgnoreCase)) && !name.EndsWith("Hash", StringComparison.OrdinalIgnoreCase))
+            if (Plaintext.Any(word => name.Contains(word, StringComparison.OrdinalIgnoreCase)))
             { offenders.Add($"{at}: plaintext string '{name}'"); }
             return;
         }

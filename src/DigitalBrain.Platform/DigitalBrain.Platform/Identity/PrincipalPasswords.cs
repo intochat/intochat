@@ -4,11 +4,13 @@ using Microsoft.AspNetCore.Identity;
 
 namespace DigitalBrain.Platform.Identity;
 
-// Passwords stay on the machine (R30): it hashes on registration and verifies on sign-in against the hash the
-// trust side keeps, so no plaintext credential ever crosses the identity client.
-internal sealed partial class PrincipalPasswords(IIdentityClient identity, BrainBirths births)
+// Passwords stay on the machine (R30, R62): it hashes, stores and verifies them in its own credential grain, so
+// neither a password nor its hash crosses the identity client.
+internal sealed partial class PrincipalPasswords(IIdentityClient identity, BrainBirths births, IGrainFactory grains)
 {
     private static readonly PasswordHasher<string> Passwords = new();
+
+    private IPrincipalCredential Credential(string principalId) => grains.GetGrain<IPrincipalCredential>(principalId);
 
     public async Task<Member> Register(string principalId, string password, string displayName)
     {
@@ -17,23 +19,27 @@ internal sealed partial class PrincipalPasswords(IIdentityClient identity, Brain
         if (password is null || password.Length is < 12 or > 256)
         { throw new ArgumentException("Use a password between 12 and 256 characters."); }
         if (principalId is "owner" or "integrations") { throw new InvalidOperationException("That username is unavailable."); }
-        if (await identity.Credential(principalId) is { } existing)
+        var credential = Credential(principalId);
+        if (await credential.Hash() is { } existing)
         {
             // A registration interrupted before its brain was provisioned resumes with the same password.
-            if (existing.RegistrationComplete || Passwords.VerifyHashedPassword(principalId, existing.PasswordHash, password) == PasswordVerificationResult.Failed)
+            if (Passwords.VerifyHashedPassword(principalId, existing, password) == PasswordVerificationResult.Failed || await identity.IsRegistered(principalId))
             { throw new InvalidOperationException("That username is unavailable."); }
-            return await births.Born((await identity.CompleteRegistration(principalId))!);
+            return await births.Born((await identity.CompleteRegistration(principalId))
+                ?? await identity.RegisterPrincipal(principalId, displayName));
         }
-        return await births.Born(await identity.RegisterPrincipal(principalId, Passwords.HashPassword(principalId, password), displayName));
+        if (!await credential.TryCreate(Passwords.HashPassword(principalId, password))) { throw new InvalidOperationException("That username is unavailable."); }
+        return await births.Born(await identity.RegisterPrincipal(principalId, displayName));
     }
 
     public async Task<Member?> Authenticate(string principalId, string password)
     {
         if (string.IsNullOrEmpty(principalId) || string.IsNullOrEmpty(password) || password.Length > 256) { return null; }
-        if (await identity.Credential(principalId) is not { } credential) { return null; }
-        var result = Passwords.VerifyHashedPassword(principalId, credential.PasswordHash, password);
+        var credential = Credential(principalId);
+        if (await credential.Hash() is not { } hash) { return null; }
+        var result = Passwords.VerifyHashedPassword(principalId, hash, password);
         if (result == PasswordVerificationResult.Failed) { return null; }
-        if (result == PasswordVerificationResult.SuccessRehashNeeded) { await identity.SetPasswordHash(principalId, Passwords.HashPassword(principalId, password)); }
+        if (result == PasswordVerificationResult.SuccessRehashNeeded) { await credential.Rehash(Passwords.HashPassword(principalId, password)); }
         return await identity.CompleteRegistration(principalId) is { } provision ? await births.Born(provision) : null;
     }
 

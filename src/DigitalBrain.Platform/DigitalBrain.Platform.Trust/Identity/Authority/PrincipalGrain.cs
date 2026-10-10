@@ -10,7 +10,6 @@ namespace DigitalBrain.Platform.Identity.Authority;
 internal sealed record PrincipalState
 {
     [Id(0)] public Member? DefaultMembership { get; init; }
-    [Id(1)] public string? PasswordHash { get; init; }
     [Id(2)] public bool RegistrationComplete { get; init; }
     // The brains this principal is a member of, as their authorities announce it.
     [Id(3)] public string[] Brains { get; init; } = [];
@@ -21,14 +20,10 @@ internal sealed class PrincipalGrain(
     [PersistentState("principal", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<PrincipalState> storage,
     TimeProvider clock) : IdentityStateGrain<PrincipalState>(storage), IPrincipal
 {
-    // The machine hashes and verifies passwords (R30); this grain keeps only the hash.
-    public Task<PrincipalCredential?> Credential()
-        => Task.FromResult(State.PasswordHash is { } hash ? new PrincipalCredential(hash, State.RegistrationComplete) : null);
-
-    public async Task<BrainProvision> Register(string passwordHash, string displayName)
+    // No credential is held here (R62): the machine keeps the password hash.
+    public async Task<BrainProvision> Register(string displayName)
     {
         var principal = this.GetPrimaryKeyString();
-        ArgumentException.ThrowIfNullOrWhiteSpace(passwordHash);
         if (principal.Length is 0 or > 80 || !System.Text.RegularExpressions.Regex.IsMatch(principal, "^[a-z0-9][a-z0-9-]*$"))
         { throw new ArgumentException("Use a lowercase username containing letters, numbers and hyphens."); }
         if (principal is "owner" or "integrations" || State.DefaultMembership is not null)
@@ -43,9 +38,11 @@ internal sealed class PrincipalGrain(
             Role = MemberRole.Owner,
             JoinedAt = clock.GetUtcNow()
         };
-        await Persist(new() { DefaultMembership = member, PasswordHash = passwordHash });
+        await Persist(new() { DefaultMembership = member });
         return (await CompleteRegistration())!;
     }
+
+    public Task<bool> IsRegistered() => Task.FromResult(State.RegistrationComplete);
 
     // Idempotent: a completed registration answers its membership again, with no new brain.
     public async Task<BrainProvision?> CompleteRegistration()
@@ -63,12 +60,6 @@ internal sealed class PrincipalGrain(
         var created = await account.EnsureBrain(member);
         await Persist(State with { RegistrationComplete = true });
         return new(member, created);
-    }
-
-    public Task SetPasswordHash(string passwordHash)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(passwordHash);
-        return State.PasswordHash is null ? Task.CompletedTask : Persist(State with { PasswordHash = passwordHash });
     }
 
     public Task<Member?> DefaultMembership() => Task.FromResult(State.DefaultMembership);

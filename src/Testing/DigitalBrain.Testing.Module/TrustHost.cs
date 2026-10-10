@@ -49,7 +49,7 @@ public sealed class TrustHost : IAsyncDisposable
         {
             silo.UseLocalhostClustering(siloPort, gatewayPort, serviceId: id, clusterId: id);
             silo.AddMemoryGrainStorage(DigitalBrainNames.PlatformGrainStorage);
-            silo.AddTrustCluster();
+            silo.AddTrustCluster().AddTrustBoundary();
         });
         var host = builder.Build();
         try

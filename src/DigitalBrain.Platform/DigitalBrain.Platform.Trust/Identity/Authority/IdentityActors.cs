@@ -1,43 +1,43 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Identity;
+using DigitalBrain.Platform.Trust;
 
 namespace DigitalBrain.Platform.Identity.Authority;
 
 internal interface IPrincipal : IGrainWithStringKey
 {
-    Task<PrincipalCredential?> Credential();
-    Task<BrainProvision> Register(string passwordHash, string displayName);
-    Task<BrainProvision?> CompleteRegistration();
-    Task SetPasswordHash(string passwordHash);
+    [TrustInternal] Task<BrainProvision> Register(string displayName);
+    [TrustInternal] Task<BrainProvision?> CompleteRegistration();
+    Task<bool> IsRegistered();
     Task<Member?> DefaultMembership();
     Task<string[]> Brains();
     // One-way: a brain authority announces membership while the principal may be mid-registration.
-    [Orleans.Concurrency.OneWay] Task Joined(string brainId);
-    [Orleans.Concurrency.OneWay] Task Left(string brainId);
+    [Orleans.Concurrency.OneWay, TrustInternal] Task Joined(string brainId);
+    [Orleans.Concurrency.OneWay, TrustInternal] Task Left(string brainId);
 }
 
 internal interface IAccount : IGrainWithStringKey
 {
-    Task EnsureCreated(Account account);
+    [TrustInternal] Task EnsureCreated(Account account);
     Task<Account?> Read();
-    Task<BrainProvision> CreateBrain(string principalId, string operationId, string displayName);
+    [TrustInternal] Task<BrainProvision> CreateBrain(string principalId, string operationId, string displayName);
     // True when this call provisioned the brain's owner; the machine then creates the brain neuron (R57).
-    Task<bool> EnsureBrain(Member owner);
+    [TrustInternal] Task<bool> EnsureBrain(Member owner);
 }
 
 internal interface IBrainAuthority : IGrainWithStringKey
 {
-    Task Initialize(string accountId, string brainId);
+    [TrustInternal] Task Initialize(string accountId, string brainId);
     // The account that owns this brain; null until the brain is provisioned. Part keys are wrapped for it.
     [Orleans.Concurrency.AlwaysInterleave] Task<string?> Account();
     Task<Member?> Membership(string principalId);
-    Task EnsureMember(Member member);
-    Task<bool> ProvisionOwner(Member owner);
-    Task RemoveMember(string principalId);
+    [TrustInternal] Task EnsureMember(Member member);
+    [TrustInternal] Task<bool> ProvisionOwner(Member owner);
+    [TrustInternal] Task RemoveMember(string principalId);
     Task<CallDecision?> Authorize(CallRequest request);
-    Task<Grant> Grant(Grant grant);
-    Task<Grant> GrantAsOwner(CallerContext caller, Grant grant);
-    Task RevokeAsOwner(CallerContext caller, string appId, string semanticTypeId, GrantMode mode);
-    Task Revoke(string appId, string semanticTypeId, GrantMode mode);
+    [TrustInternal] Task<Grant> Grant(Grant grant);
+    [TrustInternal] Task<Grant> GrantAsOwner(CallerContext caller, Grant grant);
+    [TrustInternal] Task RevokeAsOwner(CallerContext caller, string appId, string semanticTypeId, GrantMode mode);
+    [TrustInternal] Task Revoke(string appId, string semanticTypeId, GrantMode mode);
     Task<Grant[]> ListGrants();
 }

@@ -63,6 +63,6 @@ public static class Program
                 options.GatewayListeningEndpoint = new System.Net.IPEndPoint(address, trust.GatewayPort);
             });
         }
-        return silo.AddTrustCluster();
+        return silo.AddTrustCluster().AddTrustBoundary();
     }
 }

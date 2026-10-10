@@ -23,6 +23,9 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
 
     private readonly SemaphoreSlim _signing = new(1, 1);
 
+    // The deployment's pairing secret, hashed (R52): what a ProvisionOwner binds this machine to the account with.
+    public byte[] PairingSecretHash { get; init; } = [];
+
     // Sequencer
     public Task<HeadRecord?> Get(string partHash) => Grains.GetGrain<ISequencerGrain>(partHash).Get();
 
@@ -78,8 +81,11 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
     public Task Remove(string account, string publisher, string name)
         => Signed(new MarketplaceRemoval(publisher, name), account, Catalog.Remove);
 
-    // Signed calls go one at a time so the trust side sees this machine's counter strictly rising.
     private async Task Signed<T>(T payload, string account, Func<MachineSigned<T>, Task> send)
+        => await Signed<T, bool>(payload, account, async signed => { await send(signed); return true; });
+
+    // Signed calls go one at a time so the trust side sees this machine's counter strictly rising.
+    private async Task<TResult> Signed<T, TResult>(T payload, string account, Func<MachineSigned<T>, Task<TResult>> send)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(account);
         await _signing.WaitAsync();
@@ -88,7 +94,7 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
             var now = time.GetUtcNow();
             var sequence = counter.Next();
             var signature = machine.Sign(MachineSigned<T>.SignedBytes(payload, account, machine.MachineId, now, sequence));
-            await send(new MachineSigned<T>(payload, account, machine.MachineId, now, sequence, signature));
+            return await send(new MachineSigned<T>(payload, account, machine.MachineId, now, sequence, signature));
         }
         finally { _signing.Release(); }
     }
@@ -102,35 +108,38 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
 
     public Task<Account?> ReadAccount(string accountId) => Account(accountId).Read();
 
-    public Task EnsureAccount(Account account) => Account(account.AccountId).EnsureCreated(account);
+    private IIdentityWrites Writes => Grains.GetGrain<IIdentityWrites>(IIdentityWrites.Key);
+
+    public Task EnsureAccount(Account account) => Signed(account, account.AccountId, Writes.EnsureAccount);
 
     public Task<BrainProvision> CreateBrain(string accountId, string principalId, string operationId, string displayName)
-        => Account(accountId).CreateBrain(principalId, operationId, displayName);
+        => Signed(new BrainRequest(accountId, principalId, operationId, displayName), accountId, Writes.CreateBrain);
 
-    public async Task<BrainProvision> EnsureBrain(Member owner) => new(owner, await Account(owner.AccountId).EnsureBrain(owner));
+    public async Task<BrainProvision> EnsureBrain(Member owner) => new(owner, await Signed(owner, owner.AccountId, Writes.EnsureBrain));
 
+    // R63: the provisioning machine binds itself to the account first (first registrant wins, R52), then provisions
+    // the owner in a call signed for that account.
     public async Task<BrainProvision> ProvisionOwner(Member owner)
-        => new(owner, await Authority(BrainScope.Create(owner.AccountId, owner.BrainId).Id).ProvisionOwner(owner));
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        await RegisterMachine(machine.MachineId, machine.PublicKey, owner.AccountId, PairingSecretHash,
+            machine.Sign(Signing.Registration(machine.MachineId, machine.PublicKey, owner.AccountId, PairingSecretHash)));
+        return new(owner, await Signed(owner, owner.AccountId, Writes.ProvisionOwner));
+    }
 
-    public Task<PrincipalCredential?> Credential(string principalId) => Principal(principalId).Credential();
+    public Task<bool> IsRegistered(string principalId) => Principal(principalId).IsRegistered();
 
-    public Task<BrainProvision> RegisterPrincipal(string principalId, string passwordHash, string displayName)
-        => Principal(principalId).Register(passwordHash, displayName);
+    public Task<BrainProvision> RegisterPrincipal(string principalId, string displayName)
+        => Signed(new PrincipalRegistration(principalId, displayName), principalId, Writes.RegisterPrincipal);
 
-    public Task<BrainProvision?> CompleteRegistration(string principalId) => Principal(principalId).CompleteRegistration();
-
-    public Task SetPasswordHash(string principalId, string passwordHash) => Principal(principalId).SetPasswordHash(passwordHash);
+    public Task<BrainProvision?> CompleteRegistration(string principalId)
+        => Signed(new PrincipalRegistration(principalId, ""), principalId, Writes.CompleteRegistration);
 
     public Task<string[]> BrainsOf(string principalId) => Principal(principalId).Brains();
 
     public Task<Member?> Membership(string brainScopeId, string principalId) => Authority(brainScopeId).Membership(principalId);
 
-    public async Task<Member?> EnsureMember(Member member)
-    {
-        var authority = Authority(BrainScope.Create(member.AccountId, member.BrainId).Id);
-        await authority.EnsureMember(member);
-        return await authority.Membership(member.PrincipalId);
-    }
+    public Task<Member?> EnsureMember(Member member) => Signed(member, member.AccountId, Writes.EnsureMember);
 
     public Task<CallDecision?> Authorize(CallRequest request)
         => Authority(BrainScope.Create(request.Caller.AccountId, request.Caller.BrainId).Id).Authorize(request);
@@ -138,8 +147,8 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
     public Task<Grant[]> ListGrants(string brainScopeId) => Authority(brainScopeId).ListGrants();
 
     public Task<Grant> GrantAsOwner(CallerContext caller, Grant grant)
-        => Authority(BrainScope.Create(caller.AccountId, caller.BrainId).Id).GrantAsOwner(caller, grant);
+        => Signed(new OwnerGrant(caller, grant), caller.AccountId, Writes.GrantAsOwner);
 
     public Task RevokeAsOwner(CallerContext caller, string appId, string semanticTypeId, GrantMode mode)
-        => Authority(BrainScope.Create(caller.AccountId, caller.BrainId).Id).RevokeAsOwner(caller, appId, semanticTypeId, mode);
+        => Signed(new OwnerRevoke(caller, appId, semanticTypeId, mode), caller.AccountId, Writes.RevokeAsOwner);
 }

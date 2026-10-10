@@ -21,20 +21,21 @@ internal sealed class MachineRegistration(MachineRegistrar registrar, IIdentityC
         if (options.Posture == IdentityPosture.Open)
         {
             var owner = AccountSession.DefaultLogin;
-            await identity.ProvisionOwner(new Member { PrincipalId = owner, AccountId = owner, BrainId = owner, Role = MemberRole.Owner, DisplayName = owner });
+            // Binding first: the signed provisioning is honoured only from a machine bound to the account (R63).
             await registrar.Bind(owner);
+            await identity.ProvisionOwner(new Member { PrincipalId = owner, AccountId = owner, BrainId = owner, Role = MemberRole.Owner, DisplayName = owner });
             return;
         }
         // Basic bootstrap is an explicit owner of one default scope, never a wildcard bypass.
         if (options.Username is not { Length: > 0 } principal || string.IsNullOrEmpty(options.Password)) { return; }
         var now = clock.GetUtcNow();
+        await registrar.Bind(principal);
         await identity.EnsureAccount(new Account { AccountId = principal, OwnerPrincipalId = principal, Name = principal, CreatedAt = now });
         var provision = await identity.EnsureBrain(new Member
         {
             PrincipalId = principal, AccountId = principal, BrainId = AccountSession.DefaultLogin,
             DisplayName = principal, Role = MemberRole.Owner, JoinedAt = now,
         });
-        await registrar.Bind(principal);
         await births.Born(provision);
     }
 }

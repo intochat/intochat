@@ -12,6 +12,9 @@ internal interface IMachineRegistry : IGrainWithStringKey
 
     // The account a signed call acts for, once the signature, binding, timestamp and counter hold.
     Task<string> Accept(SignedCall call);
+
+    // A signed call that acts for no bound account yet (a registration): signature, timestamp and counter only.
+    Task AcceptMachine(SignedCall call);
 }
 
 // One account's machines (R52): the first machine to bind it stores the pairing secret's hash; a later machine
@@ -50,17 +53,23 @@ internal sealed class MachineRegistryGrain(
     public async Task<string> Accept(SignedCall call)
     {
         ArgumentNullException.ThrowIfNull(call);
-        if (call.MachineId != MachineId || store.State.PublicKey is not { } key || !MachineKeys.Verify(key, call.SignedBytes, call.Signature))
-        { throw new UnauthorizedAccessException($"The call is not signed by registered machine {MachineId}."); }
         if (!store.State.Accounts.Contains(call.Account, StringComparer.Ordinal))
         { throw new UnauthorizedAccessException($"Machine {MachineId} does not serve account {call.Account}."); }
+        await AcceptMachine(call);
+        return call.Account;
+    }
+
+    public async Task AcceptMachine(SignedCall call)
+    {
+        ArgumentNullException.ThrowIfNull(call);
+        if (call.MachineId != MachineId || store.State.PublicKey is not { } key || !MachineKeys.Verify(key, call.SignedBytes, call.Signature))
+        { throw new UnauthorizedAccessException($"The call is not signed by registered machine {MachineId}."); }
         if ((call.Timestamp - time.GetUtcNow()).Duration() > Skew)
         { throw new UnauthorizedAccessException($"The signed call from machine {MachineId} is stale."); }
         if (call.Counter <= store.State.LastCounter)
         { throw new UnauthorizedAccessException($"The signed call from machine {MachineId} replays counter {call.Counter}."); }
         store.State.LastCounter = call.Counter;
         await store.WriteStateAsync();
-        return call.Account;
     }
 }
 

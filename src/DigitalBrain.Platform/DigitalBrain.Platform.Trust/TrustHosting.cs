@@ -24,5 +24,14 @@ public static class TrustHosting
         return silo;
     }
 
+    // A separate trust host refuses unsigned trust writes from outside its cluster (R63). A machine composing the trust
+    // grains in its own silo (Stage A) has no such boundary to keep.
+    public static ISiloBuilder AddTrustBoundary(this ISiloBuilder silo)
+    {
+        ArgumentNullException.ThrowIfNull(silo);
+        silo.AddIncomingGrainCallFilter<Trust.TrustBoundaryFilter>();
+        return silo;
+    }
+
     private sealed class TrustRegistration;
 }

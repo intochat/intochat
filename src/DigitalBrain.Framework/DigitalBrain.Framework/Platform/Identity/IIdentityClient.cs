@@ -2,9 +2,10 @@ using DigitalBrain.Platform.Identity;
 
 namespace DigitalBrain.Framework.Platform.Identity;
 
-// The accounts, principals and brain authorities the trust cluster holds (R58). Passwords never cross:
-// the machine hashes and verifies them, the trust side keeps only the hash. A provisioning call reports
-// whether the brain is new; the machine then creates the brain neuron itself (R57).
+// The accounts, memberships and brain authorities the trust cluster holds (R58, R62). No credential crosses:
+// passwords and their hashes stay on the machine. Every write that acts for an account is signed by the machine
+// and honoured only from a machine bound to that account (R63). A provisioning call reports whether the brain is
+// new; the machine then creates the brain neuron itself (R57).
 public interface IIdentityClient
 {
     Task<Account?> ReadAccount(string accountId);
@@ -17,13 +18,11 @@ public interface IIdentityClient
 
     Task<BrainProvision> ProvisionOwner(Member owner);
 
-    Task<PrincipalCredential?> Credential(string principalId);
+    Task<bool> IsRegistered(string principalId);
 
-    Task<BrainProvision> RegisterPrincipal(string principalId, string passwordHash, string displayName);
+    Task<BrainProvision> RegisterPrincipal(string principalId, string displayName);
 
     Task<BrainProvision?> CompleteRegistration(string principalId);
-
-    Task SetPasswordHash(string principalId, string passwordHash);
 
     Task<string[]> BrainsOf(string principalId);
 
@@ -42,6 +41,3 @@ public interface IIdentityClient
 
 [GenerateSerializer, Alias("identity.brain-provision")]
 public sealed record BrainProvision([property: Id(0)] Member Member, [property: Id(1)] bool NewBrain);
-
-[GenerateSerializer, Alias("identity.principal-credential")]
-public sealed record PrincipalCredential([property: Id(0)] string PasswordHash, [property: Id(1)] bool RegistrationComplete);

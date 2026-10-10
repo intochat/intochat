@@ -24,7 +24,7 @@ public sealed class TrustClientFacts
     [
         typeof(PartLease), typeof(PartKeys), typeof(MeshStore), typeof(PartLogs),
         typeof(IdentityStartup), typeof(DirectoryBrainAccess), typeof(GrainGrantPolicySource), typeof(IdentityDirectoryNeuron),
-        typeof(PrincipalPasswords), typeof(MachineRegistrar), typeof(MachineRegistration),
+        typeof(MachineRegistrar), typeof(MachineRegistration),
     ];
 
     [Fact]
@@ -47,7 +47,8 @@ public sealed class TrustClientFacts
     [
         typeof(DigitalBrain.Platform.Sequencer.ISequencerGrain), typeof(IKeyringGrain), typeof(IStorageNodeDirectory), typeof(IStorageShard),
         typeof(IMachineRegistry), typeof(IAccountMachines), typeof(DigitalBrain.Platform.Identity.Authority.IBrainAuthority),
-        typeof(DigitalBrain.Platform.Identity.Authority.IAccount), typeof(DigitalBrain.Platform.Identity.Authority.IPrincipal), typeof(IMarketplaceCatalog),
+        typeof(DigitalBrain.Platform.Identity.Authority.IAccount), typeof(DigitalBrain.Platform.Identity.Authority.IPrincipal), typeof(DigitalBrain.Platform.Identity.Authority.IIdentityWrites),
+        typeof(IMarketplaceCatalog),
     ];
 
     [Fact]
@@ -181,7 +182,7 @@ public sealed class TrustClientFacts
 
     // The brain's owner on record at the trust side, without binding the test host's own machine to the account.
     internal static Task Owned(ModuleBrain brain, string account, string brainId)
-        => brain.SiloServices.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>().ProvisionOwner(new()
+        => brain.Grains.GetGrain<DigitalBrain.Platform.Identity.Authority.IBrainAuthority>(DigitalBrain.Framework.BrainScope.Create(account, brainId).Id).ProvisionOwner(new()
         {
             PrincipalId = account, AccountId = account, BrainId = brainId,
             Role = DigitalBrain.Framework.Platform.Identity.MemberRole.Owner, DisplayName = account,
