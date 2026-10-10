@@ -3,7 +3,10 @@ using DigitalBrain.Framework.Parts;
 using DigitalBrain.Platform.Parts;
 using DigitalBrain.Platform.Tests.Unit.Sequencer;
 using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Framework.Mesh;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using Orleans.Serialization;
 using Orleans.Storage;
 
@@ -41,11 +44,27 @@ internal sealed class SignalProbeStorage(IGrainStorage inner) : IGrainStorage
     public Task ClearStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState) => inner.ClearStateAsync(stateName, grainId, grainState);
 }
 
-// Real timers (so batches flush) over a clock the fact can move past a lease.
-internal sealed class SkewedTime : TimeProvider
+// The counter's part on a machine of its own role and clock: a Cloud log over the silo's mesh, sequencer and keys,
+// with its own PartsOptions and time source, while every other part (the core) stays on the silo's Own logs.
+internal sealed class CloudPart(PartLogs logs, PartId part) : IAsyncDisposable
 {
-    public TimeSpan Skew { get; set; }
-    public override DateTimeOffset GetUtcNow() => base.GetUtcNow() + Skew;
+    public PartLogs Logs { get; } = logs;
+    public bool Holds(GrainId grain) => PartId.Of(grain.Key.ToString()!) == part;
+    public ValueTask DisposeAsync() => Logs.DisposeAsync();
+}
+
+internal sealed class CloudPartStorage(CloudPart cloud, IGrainStorage own, IGrainStorage dedicated) : IGrainStorage
+{
+    private IGrainStorage For(GrainId grain) => cloud.Holds(grain) ? dedicated : own;
+    public Task ReadStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState) => For(grainId).ReadStateAsync(stateName, grainId, grainState);
+    public Task WriteStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState) => For(grainId).WriteStateAsync(stateName, grainId, grainState);
+    public Task ClearStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState) => For(grainId).ClearStateAsync(stateName, grainId, grainState);
+}
+
+internal sealed class CloudPartJournal(CloudPart cloud, ISignalJournal own, ISignalJournal dedicated) : ISignalJournal
+{
+    public Task Append(GrainId publisher, Signal[] signals) => (cloud.Holds(publisher) ? dedicated : own).Append(publisher, signals);
+    public Task<JournaledSignal[]> ReadSince(string brainId, long since, int limit) => own.ReadSince(brainId, since, limit);
 }
 
 public sealed class PartSignalFacts
@@ -113,38 +132,59 @@ public sealed class PartSignalFacts
     }
 
     // On a non-own machine a commit refused by a lost lease closes the log (R12): the write throws and its
-    // signal is neither delivered nor in the log. A machine cannot start as Cloud here (kernel instance records
-    // live in the brain's core, which only own machines hold), so it boots Own, opening the core, and is then
-    // demoted before the counter's part opens. A Pinged after the failure orders the probe.
+    // signal is neither delivered nor in the log. The counter's part runs as Cloud on its own fake clock, stopped
+    // an hour behind the cluster: its leases are already expired to the sequencer and to a rival on the real clock,
+    // while it never ticks a renewal. A batch of one byte flushes at once, so no timer is involved either.
+    // Once the rival releases, the clock catches up so the part reopens, and a Pinged after the failure orders the probe.
     [Fact(Timeout = 60_000)]
     public async Task AWriteRefusedByALostLeaseNeverPublishesItsSignal()
     {
         var ct = TestContext.Current.CancellationToken;
-        var time = new SkewedTime();
+        var time = new FakeTimeProvider(DateTimeOffset.UtcNow - TimeSpan.FromHours(1));
+        var part = PartId.Of(Counter);
+        var cloud = new PartsOptions
+        {
+            Role = MachineRole.Cloud, BatchBytes = 1,
+            MachineDirectory = Path.Combine(Path.GetTempPath(), $"cloud-machine-{Guid.NewGuid():N}"),
+        };
         await using var brain = await ModuleTest.Create().WithPartLog()
-            .ConfigureSilo(silo => silo.Services.AddSingleton<TimeProvider>(time))
+            .ConfigureSilo(silo =>
+            {
+                silo.Services.AddSingleton(provider => new CloudPart(new PartLogs(provider.GetRequiredService<IGrainFactory>(),
+                    provider.GetRequiredService<IMeshStore>(), provider.GetRequiredService<IPartKeys>(), SequencerFacts.Machine(), PartLeaseFacts.Seen(),
+                    provider.GetRequiredService<Serializer>(), Options.Create(cloud), time, provider.GetRequiredService<ILoggerFactory>()), part));
+                silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (provider, _) =>
+                {
+                    var serializer = provider.GetRequiredService<Serializer>();
+                    var dedicated = provider.GetRequiredService<CloudPart>();
+                    return new CloudPartStorage(dedicated, new PartGrainStorage(provider.GetRequiredService<PartLogs>(), serializer),
+                        new PartGrainStorage(dedicated.Logs, serializer));
+                });
+                silo.Services.AddSingleton<ISignalJournal>(provider =>
+                {
+                    var dedicated = provider.GetRequiredService<CloudPart>();
+                    return new CloudPartJournal(dedicated, new PartSignalJournal(provider.GetRequiredService<PartLogs>()), new PartSignalJournal(dedicated.Logs));
+                });
+            })
             .StartAsync(ct);
-        var options = brain.SiloServices.GetRequiredService<IOptions<PartsOptions>>().Value;
-        options.Role = MachineRole.Cloud;
         var counter = brain.Get<ISignalCounter>(Counter);
         await counter.Change(1);
         await using var probe = await brain.SubscribeAsync<Signal>(counter, ct);
-        var part = PartId.Of(Counter);
         var key = await brain.SiloServices.GetRequiredService<IPartKeys>().Key(part, ModuleTest.DefaultAccount, ct);
         using var rival = SequencerFacts.Machine();
-        time.Skew = options.ShortLease + TimeSpan.FromSeconds(1);
-        var taken = await PartLease.Acquire(part, key, brain.Grains, rival, PartLeaseFacts.Seen(), new PartsOptions { Role = MachineRole.Cloud }, time,
+        var taken = await PartLease.Acquire(part, key, brain.Grains, rival, PartLeaseFacts.Seen(), new PartsOptions { Role = MachineRole.Cloud }, TimeProvider.System,
             brain.SiloServices.GetRequiredService<Serializer>());
 
         var error = await Assert.ThrowsAnyAsync<Exception>(() => counter.Change(2));
         await taken.Release();
+        time.SetUtcNow(DateTimeOffset.UtcNow + TimeSpan.FromSeconds(1));
         await counter.Ping();
 
         Assert.IsType<LeaseLostException>(error as LeaseLostException ?? error.InnerException);
         await using var next = probe.ReadAllAsync(ct).GetAsyncEnumerator(ct);
         Assert.True(await next.MoveNextAsync());
         Assert.IsType<Pinged>(next.Current);
-        var log = await brain.SiloServices.GetRequiredService<PartLogs>().For(part);
+        var log = await brain.SiloServices.GetRequiredService<CloudPart>().Logs.For(part);
         await log.Flushed();
         Assert.DoesNotContain(log.SignalsSince(0), entry => entry.Signals.OfType<Changed>().Any(c => c.Value == 2));
     }
