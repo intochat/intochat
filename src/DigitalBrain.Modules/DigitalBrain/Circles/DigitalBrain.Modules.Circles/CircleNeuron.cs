@@ -58,23 +58,20 @@ internal sealed class CircleNeuron(
         if (next.Members.Contains(brainId) || next.Invited.Contains(brainId))
         { throw new InvalidOperationException($"{brainId} is already in {Name} or invited to it."); }
         next.Invited = [.. next.Invited, brainId];
+        // The invited brain hears first, so a refused invitation is never recorded; the owner is busy
+        // meanwhile (not reentrant), so nothing can change under the record being built.
+        await GrainFactory.GetGrain<ICircle>(ICircle.Key(brainId, Name, Brain)).Invited();
         await Commit(next, [], tell: false);
-        try { await GrainFactory.GetGrain<ICircle>(ICircle.Key(brainId, Name, Brain)).Invited(); }
-        catch
-        {
-            var undo = Snapshot.Clone();
-            undo.Invited = [.. undo.Invited.Where(invited => invited != brainId)];
-            await Commit(undo, [], tell: false);
-            throw;
-        }
     }
 
     public async Task Invited()
     {
         var from = Caller();
-        if (Exists && Snapshot.Owner.Length > 0)
-        { throw new InvalidOperationException($"{Brain} already belongs to {Name}."); }
-        if (Exists && Snapshot.InvitedBy == from) { return; }
+        // Interleaves with a pull in flight (so the owner is never kept waiting on a member that waits on the
+        // owner), but not with the write that pull ends in.
+        if (running is { } writing) { await writing; }
+        // The owner is the authority: a copy left over from an earlier membership gives way to the new invitation.
+        if (Exists && Snapshot.Owner.Length == 0 && Snapshot.InvitedBy == from) { return; }
         await Save(new CircleRecord { Name = Name, InvitedBy = from }, new CircleInvited(Name, from));
         await Touched("invited", "invited");
     }
@@ -218,8 +215,20 @@ internal sealed class CircleNeuron(
             logger.LogWarning(error, "Circle {Circle} could not pull the state of {Owner}", this.GetPrimaryKeyString(), Address.Owner);
             return;
         }
-        if (latest is null) { await Clear(new CircleChanged(Name, [], [], 0)); await Touched("left", ""); }
-        else if (latest.Version > Snapshot.Version) { await Follow(latest); }
+        // An invitation may have replaced this copy while the owner was being asked.
+        if (!Exists || Snapshot.Owner.Length == 0) { return; }
+        if (latest is null) { await Writing(async () => { await Clear(new CircleChanged(Name, [], [], 0)); await Touched("left", ""); }); }
+        else if (latest.Version > Snapshot.Version) { await Writing(() => Follow(latest)); }
+    }
+
+    private Task? running;
+
+    private async Task Writing(Func<Task> write)
+    {
+        var task = write();
+        running = task;
+        try { await task; }
+        finally { if (running == task) { running = null; } }
     }
 
     private async Task Follow(CircleState state)

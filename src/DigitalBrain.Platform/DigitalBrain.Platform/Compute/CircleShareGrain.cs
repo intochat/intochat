@@ -52,15 +52,18 @@ internal sealed class CircleShareGrain(
     }
 }
 
-// Configure is the circle neuron's alone: the grain the kernel is running the call for must be the one the key names.
+// Configure is the circle neuron's alone: the grain the kernel is running the call for must be the circle neuron the key names.
 internal sealed class CircleShareGuard : IIncomingGrainCallFilter
 {
+    // The grain type of the Circles module's circle neuron.
+    private const string CircleNeuronType = "circles.circle";
+
     public async Task Invoke(IIncomingGrainCallContext context)
     {
         if (context.InterfaceMethod.DeclaringType == typeof(ICircleShares))
         {
             var key = context.TargetId.Key.ToString();
-            if (context.SourceId is not { } source || source.Key.ToString() != key || key!.Contains('@'))
+            if (context.SourceId is not { } source || source.Type.ToString() != CircleNeuronType || source.Key.ToString() != key || key!.Contains('@'))
             { throw new UnauthorizedAccessException($"Only the owner's circle {key} states its compute share."); }
         }
         await context.Invoke();

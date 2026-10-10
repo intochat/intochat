@@ -33,8 +33,8 @@ public interface ICircle : INeuron
     Task SetComputeShare(int percent);
     Task<CircleState> State();
 
-    // Owner copy -> invited brain's copy.
-    [Internal] Task Invited();
+    // Owner copy -> invited brain's copy. Interleaves so a former member still pulling from the owner never blocks a new invitation.
+    [Internal, Orleans.Concurrency.AlwaysInterleave] Task Invited();
     // Invited brain's copy -> owner copy; the joining brain is the kernel-stamped caller.
     [Internal] Task<CircleState> Joined();
     [Internal] Task Left();

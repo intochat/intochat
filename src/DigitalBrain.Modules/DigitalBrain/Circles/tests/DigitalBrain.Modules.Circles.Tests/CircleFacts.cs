@@ -191,6 +191,36 @@ public sealed class CircleFacts
     }
 
     [Fact]
+    public async Task AFormerMemberCanBeInvitedAgainRightAway()
+    {
+        await using var brain = await Start();
+        await Joined(brain, "bob");
+        Act("alice");
+        await Circle(brain, "alice").Leave("bob");
+        await Circle(brain, "alice").Invite("bob");
+
+        Act("bob");
+        var joined = await Circle(brain, "bob").Accept();
+
+        Assert.Equal(["alice", "bob"], joined.Members);
+    }
+
+    [Fact]
+    public async Task ARefusedInvitationLeavesTheOwnersRecordAsItWasAndPublishesNothingTwice()
+    {
+        await using var brain = await Start();
+        Act("alice");
+        var owners = Circle(brain, "alice");
+
+        await Assert.ThrowsAsync<ArgumentException>(() => owners.Invite("not/a-brain"));
+        await owners.Invite("bob");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => owners.Invite("bob"));
+
+        Assert.Equal(["bob"], (await owners.State()).Invited);
+        Assert.Equal(1, (await owners.State()).Version);
+    }
+
+    [Fact]
     public async Task AMemberCanLeaveAndTheOwnerCanRemoveAMember()
     {
         await using var brain = await Start();
