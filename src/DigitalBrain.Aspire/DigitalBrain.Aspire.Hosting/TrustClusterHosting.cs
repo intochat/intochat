@@ -13,17 +13,26 @@ namespace DigitalBrain.Aspire.Hosting;
 public static class TrustClusterHosting
 {
     public const string GatewayPortKey = "DigitalBrain:Platform:Trust:GatewayPort";
+    public const string SiloPortKey = "DigitalBrain:Platform:Trust:SiloPort";
+    public const string GatewayEndpoint = "gateway";
+    public const string SiloEndpoint = "silo";
     public const string AdvertisedAddressKey = "DigitalBrain:Platform:Trust:AdvertisedAddress";
     public const string GatewayKey = "DigitalBrain:Platform:Trust:Gateway";
     public const string Loopback = "127.0.0.1";
 
     // R66: on one PC the trust silo advertises and listens on loopback, so a machine's localhost gateway reaches it.
-    public static IResourceBuilder<T> AsTrustCluster<T>(this IResourceBuilder<T> trust, DigitalBrainBuilder brain, int gatewayPort)
-        where T : IResourceWithEnvironment, IResourceWithWaitSupport
+    // R71: its silo and gateway ports are Aspire endpoints, allocated per run unless the AppHost configuration fixes
+    // them (DigitalBrain:Platform:Trust:GatewayPort / SiloPort), so two AppHosts can run side by side.
+    public static IResourceBuilder<T> AsTrustCluster<T>(this IResourceBuilder<T> trust, DigitalBrainBuilder brain, IConfiguration configuration)
+        where T : IResourceWithEnvironment, IResourceWithWaitSupport, IResourceWithEndpoints
     {
         ArgumentNullException.ThrowIfNull(trust);
         ArgumentNullException.ThrowIfNull(brain);
-        trust.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(GatewayPortKey), gatewayPort.ToString(System.Globalization.CultureInfo.InvariantCulture))
+        ArgumentNullException.ThrowIfNull(configuration);
+        trust.WithEndpoint(name: GatewayEndpoint, port: configuration.GetValue<int?>(GatewayPortKey), scheme: "tcp", isProxied: false)
+            .WithEndpoint(name: SiloEndpoint, port: configuration.GetValue<int?>(SiloPortKey), scheme: "tcp", isProxied: false);
+        trust.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(GatewayPortKey), trust.GetEndpoint(GatewayEndpoint).Property(EndpointProperty.Port))
+            .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(SiloPortKey), trust.GetEndpoint(SiloEndpoint).Property(EndpointProperty.Port))
             .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(AdvertisedAddressKey), Loopback);
         if (brain.Clustering is { } tables && brain.GrainState is { } blobs)
         {
@@ -34,7 +43,9 @@ public static class TrustClusterHosting
         return trust;
     }
 
-    public static string GatewayOf(int gatewayPort) => $"localhost:{gatewayPort.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+    // The address machines dial: localhost on the trust silo's allocated gateway port.
+    public static ReferenceExpression GatewayOf<TTrust>(IResourceBuilder<TTrust> trust) where TTrust : IResourceWithEndpoints
+        => ReferenceExpression.Create($"localhost:{trust.GetEndpoint(GatewayEndpoint).Property(EndpointProperty.Port)}");
 
     public const string PairingSecretKey = "DigitalBrain:Platform:Parts:PairingSecret";
     public const string RoleKey = "DigitalBrain:Platform:Parts:Role";
@@ -45,15 +56,15 @@ public static class TrustClusterHosting
     // An own machine of the trust cluster: the private gateway, the deployment's pairing secret (R52), its own
     // directory and its own grain-state container (R61: machines keep local platform storage, never shared), and
     // the release-part command (R40, R64).
-    public static IResourceBuilder<T> AsTrustMachine<T, TTrust>(this IResourceBuilder<T> machine, IResourceBuilder<TTrust> trust, int trustGatewayPort,
+    public static IResourceBuilder<T> AsTrustMachine<T, TTrust>(this IResourceBuilder<T> machine, IResourceBuilder<TTrust> trust,
         IResourceBuilder<ParameterResource> pairingSecret, string machineDirectory, IConfiguration configuration)
         where T : IResourceWithEnvironment, IResourceWithWaitSupport, IResourceWithEndpoints
-        where TTrust : IResource
+        where TTrust : IResourceWithEndpoints
     {
         ArgumentNullException.ThrowIfNull(machine);
         var container = ContainerOf(machine.Resource.Name);
         return machine
-            .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(GatewayKey), GatewayOf(trustGatewayPort))
+            .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(GatewayKey), GatewayOf(trust))
             .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(PairingSecretKey), pairingSecret)
             .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(RoleKey), "Own")
             .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(MachineDirectoryKey), machineDirectory)

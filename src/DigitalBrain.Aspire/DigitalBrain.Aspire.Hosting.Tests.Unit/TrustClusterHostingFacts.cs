@@ -15,14 +15,17 @@ public sealed class TrustClusterHostingFacts
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
         var brain = builder.AddDigitalBrain("memory", options: new()).WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite());
-        var trust = builder.AddExecutable("trust", "unused", ".").AsTrustCluster(brain, 30100);
+        var trust = builder.AddExecutable("trust", "unused", ".").AsTrustCluster(brain, builder.Configuration);
 
         var values = await Environment(builder, trust.Resource);
 
         Assert.Equal(TrustClusterHosting.Loopback, values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.AdvertisedAddressKey)]);
-        Assert.Equal("30100", values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.GatewayPortKey)]);
         Assert.Contains(DigitalBrainConfiguration.IntegrationEnvironmentName("orleans", "GrainState"), values.Keys);
-        Assert.Equal("localhost:30100", TrustClusterHosting.GatewayOf(30100));
+        // R71: the ports are the trust resource's own endpoints, not literals, and machines dial that gateway.
+        Assert.IsType<EndpointReferenceExpression>(values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.GatewayPortKey)]);
+        Assert.IsType<EndpointReferenceExpression>(values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.SiloPortKey)]);
+        Assert.Contains(trust.Resource.Annotations.OfType<EndpointAnnotation>(), endpoint => endpoint.Name == TrustClusterHosting.GatewayEndpoint && endpoint.Port is null);
+        Assert.Equal("localhost:{trust.bindings.gateway.port}", TrustClusterHosting.GatewayOf(trust).ValueExpression);
     }
 
     [Fact]
@@ -30,7 +33,7 @@ public sealed class TrustClusterHostingFacts
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
         var brain = builder.AddDigitalBrain("memory", options: new()).WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite());
-        var trust = builder.AddExecutable("trust", "unused", ".").AsTrustCluster(brain, 30100);
+        var trust = builder.AddExecutable("trust", "unused", ".").AsTrustCluster(brain, builder.Configuration);
 
         var values = await Environment(builder, trust.Resource);
 
@@ -46,12 +49,12 @@ public sealed class TrustClusterHostingFacts
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
         var brain = builder.AddDigitalBrain("memory", options: new()).WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite());
-        var trust = builder.AddExecutable("trust", "unused", ".").AsTrustCluster(brain, 30100);
+        var trust = builder.AddExecutable("trust", "unused", ".").AsTrustCluster(brain, builder.Configuration);
         var pairing = builder.AddParameter("machine-pairing-secret", "s3cret", secret: true);
         var a = builder.AddExecutable("os-a", "unused", ".").WithHttpEndpoint(name: "http")
-            .AsTrustMachine(trust, 30100, pairing, "/machines/os-a", builder.Configuration);
+            .AsTrustMachine(trust, pairing, "/machines/os-a", builder.Configuration);
         var b = builder.AddExecutable("os-b", "unused", ".").WithHttpEndpoint(name: "http")
-            .AsTrustMachine(trust, 30100, pairing, "/machines/os-b", builder.Configuration).AsSeparateCluster(11112, 30001);
+            .AsTrustMachine(trust, pairing, "/machines/os-b", builder.Configuration).AsSeparateCluster(11112, 30001);
 
         var (onA, onB) = (await Environment(builder, a.Resource), await Environment(builder, b.Resource));
 
@@ -64,7 +67,7 @@ public sealed class TrustClusterHostingFacts
         Assert.All([onA, onB], values =>
         {
             Assert.Contains(DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.PairingSecretKey), values.Keys);
-            Assert.Equal("localhost:30100", values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.GatewayKey)]);
+            Assert.Equal("localhost:{trust.bindings.gateway.port}", ((ReferenceExpression)values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.GatewayKey)]).ValueExpression);
         });
         Assert.All(new IResource[] { a.Resource, b.Resource }, machine =>
             Assert.Contains(machine.Annotations.OfType<ResourceCommandAnnotation>(), command => command.Name == TrustClusterHosting.ReleasePartCommand));
@@ -89,6 +92,20 @@ public sealed class TrustClusterHostingFacts
         Assert.Equal("Basic", credential?.Scheme);
         Assert.Equal("operator:configured-bootstrap-password", System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(credential!.Parameter!)));
         Assert.Null(TrustClusterHosting.Credential(open));
+    }
+
+    // R71: an AppHost that fixes the trust ports gets exactly those.
+    [Fact]
+    public void ConfiguredTrustPortsAreUsedAsGiven()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        builder.Configuration[TrustClusterHosting.GatewayPortKey] = "30200";
+        builder.Configuration[TrustClusterHosting.SiloPortKey] = "11300";
+        var brain = builder.AddDigitalBrain("memory", options: new());
+        var trust = builder.AddExecutable("trust", "unused", ".").AsTrustCluster(brain, builder.Configuration);
+
+        var endpoints = trust.Resource.Annotations.OfType<EndpointAnnotation>().ToDictionary(endpoint => endpoint.Name, endpoint => endpoint.Port);
+        Assert.Equal((30200, 11300), (endpoints[TrustClusterHosting.GatewayEndpoint], endpoints[TrustClusterHosting.SiloEndpoint]));
     }
 
     internal static async Task<Dictionary<string, object>> Environment(IDistributedApplicationBuilder builder, IResource resource)

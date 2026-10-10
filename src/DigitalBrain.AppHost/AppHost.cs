@@ -80,8 +80,7 @@ var mcpPort = builder.Configuration.GetValue(McpPortKey, 5081);
 // catalog) is its own host and Orleans cluster on the orleans integration's tables and blobs, under its own
 // cluster id and container; each OS silo below is a machine that reaches it only through a private gateway
 // client (H2, R34). The trust host gets no other credential (R30) and no features copy (R56).
-const int TrustGatewayPort = 30100;
-var trust = builder.AddProject<Projects.DigitalBrain_Trust>("trust").AsTrustCluster(digitalBrain, TrustGatewayPort);
+var trust = builder.AddProject<Projects.DigitalBrain_Trust>("trust").AsTrustCluster(digitalBrain, builder.Configuration);
 // One pairing secret for every OS machine of this deployment (R52): the second machine joins the owner's account.
 var pairingSecret = builder.AddParameter("machine-pairing-secret", new GenerateParameterDefault { MinLength = 32, Special = false }, secret: true, persist: true);
 
@@ -124,7 +123,7 @@ IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where
     // platform seed nodes (Q25).
     silo.WithReference(digitalBrain)
         .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName("DigitalBrain:Platform:Mesh:SeedNodes"), "24")
-        .AsTrustMachine(trust, TrustGatewayPort, pairingSecret, Path.Combine(workdir, "machines", silo.Resource.Name), builder.Configuration)
+        .AsTrustMachine(trust, pairingSecret, Path.Combine(workdir, "machines", silo.Resource.Name), builder.Configuration)
         .WaitFor(cookieProtection)
         .WithHttpHealthCheck("/health", endpointName: "http");
     return builder.CreateResourceBuilder<IResourceWithEndpoints>(silo.Resource);
