@@ -36,13 +36,14 @@ public static class Views
         => brain.Get<IText>(appKey + "/views").Set(JsonSerializer.Serialize(views, Json));
 
     // The set of neurons the views name, following the registry text: a synapse watches it with
-    // React<T> or On<T> and maps a signal's Publisher back to the views it belongs to.
-    public static Sources Registry(DigitalBrainConnection brain, string appKey, Func<View, IEnumerable<INeuron>> members)
+    // React<T> or On<T> and maps a signal's Publisher back to the views it belongs to. Views sharing a
+    // neuron name it once.
+    public static Sources Registry<T>(DigitalBrainConnection brain, string appKey, Func<View, IEnumerable<string>> keys) where T : INeuron
         => Sources.Named<IText, TextChanged>(brain.Get<IText>(appKey + "/views"), async (registry, _) =>
         {
             var text = (await registry.Read()).Markdown;
             var views = text.Length == 0 ? [] : JsonSerializer.Deserialize<View[]>(text, Json) ?? [];
-            return views.SelectMany(members).DistinctBy(n => n.GetPrimaryKeyString(), StringComparer.Ordinal).ToArray();
+            return views.SelectMany(keys).Distinct(StringComparer.Ordinal).Select(key => (INeuron)brain.Get<T>(key)).ToArray();
         });
 
     public static async Task Compose(DigitalBrainConnection brain, string appKey, View view)

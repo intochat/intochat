@@ -7,6 +7,6 @@ using DigitalBrain.Postgres.Tables.Signals;
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
-var tables = Views.Registry(brain, appKey, view => view.Source.StartsWith("apptable:", StringComparison.Ordinal)
-    ? [brain.Get<ITable>(view.Source[9..])] : []);
+var tables = Views.Registry<ITable>(brain, appKey, view => view.Source.StartsWith("apptable:", StringComparison.Ordinal)
+    ? [view.Source[9..]] : []);
 await brain.React<RowUpserted>(tables, _ => app.Request("refresh", ""), brain.Stopping);

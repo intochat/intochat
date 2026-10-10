@@ -17,6 +17,17 @@ public static class Activity
 
     public static async Task Project(DigitalBrainConnection brain, string key)
     {
+        // A stale revision means another synapse's rebuild just wrote newer derived state; a rebuild
+        // reads authoritative state, so rerunning it from scratch is correct.
+        for (var attempt = 1; ; attempt++)
+        {
+            try { await Rebuild(brain, key); return; }
+            catch (InvalidOperationException) when (attempt < 3) { }
+        }
+    }
+
+    static async Task Rebuild(DigitalBrainConnection brain, string key)
+    {
         var queue = brain.Get<IText>(key + "/queue");
         var active = brain.Get<IText>(key + "/active-research");
         var layout = brain.Get<ILayout>(key + "/research-activity");

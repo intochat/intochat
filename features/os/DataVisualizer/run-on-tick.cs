@@ -7,7 +7,7 @@ using DigitalBrain.Time.Reminders.Signals;
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
-var reminders = Views.Registry(brain, appKey, view => view.RefreshSeconds > 0 ? [brain.Get<IReminder>($"{appKey}/views/{view.Id}/refresh")] : []);
+var reminders = Views.Registry<IReminder>(brain, appKey, view => view.RefreshSeconds > 0 ? [$"{appKey}/views/{view.Id}/refresh"] : []);
 await foreach (var tick in brain.On<ReminderTick>(reminders, brain.Stopping))
 {
     // Publisher.Name is the full grain id, so match the reminder key by suffix; a view removed since is skipped.

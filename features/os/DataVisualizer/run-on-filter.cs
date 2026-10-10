@@ -7,7 +7,7 @@ using DigitalBrain.Flutter.TextField.Signals;
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
-var fields = Views.Registry(brain, appKey, view => view.Filters.Select(column => (INeuron)brain.Get<ITextField>($"{appKey}/views/{view.FilterGroup ?? view.Id}/filter/{column}")));
+var fields = Views.Registry<ITextField>(brain, appKey, view => view.Filters.Select(column => $"{appKey}/views/{view.FilterGroup ?? view.Id}/filter/{column}"));
 await foreach (var changed in brain.On<TextFieldChanged>(fields, brain.Stopping))
 {
     // {app}/views/{group}/filter/{column}, the group being the view id or the shared FilterGroup;
