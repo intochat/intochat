@@ -62,6 +62,9 @@ internal sealed class ScriptedMcpServer : IAsyncDisposable
             _ => $"neurons_call {arguments.GetProperty("contract").GetString()} {arguments.GetProperty("key").GetString()} {arguments.GetProperty("method").GetString()}",
         };
         Calls.Add(key);
+        // As the real tool: neurons_call takes its arguments as one JSON array string, and anything else is an invocation error.
+        if (tool == "neurons_call" && arguments.GetProperty("arguments").ValueKind != JsonValueKind.String)
+        { return new { content = new[] { new { type = "text", text = "An error occurred invoking 'neurons_call'." } }, isError = true }; }
         var text = Answers.TryGetValue(key, out var answer) ? answer : tool switch
         {
             "neurons_context" => $"{{\"principalId\":\"owner\",\"brainId\":\"{brain}\"}}",

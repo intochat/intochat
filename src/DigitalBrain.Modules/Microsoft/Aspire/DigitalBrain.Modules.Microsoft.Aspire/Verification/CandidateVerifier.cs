@@ -73,8 +73,12 @@ internal sealed class CandidateVerifier(IGrainFactory grains, IClusterHost clust
         {
             yield return new($"call {call.Contract} {call.Key} {call.Method}", async ct =>
             {
-                using var arguments = JsonDocument.Parse(call.Arguments);
-                var body = JsonSerializer.Serialize(new { contract = call.Contract, key = call.Key, method = call.Method, arguments = arguments.RootElement });
+                // neurons_call takes the arguments as one JSON array string; a plan that is not an array fails here, not remotely.
+                using (var arguments = JsonDocument.Parse(call.Arguments))
+                {
+                    if (arguments.RootElement.ValueKind != JsonValueKind.Array) { return (false, $"arguments must be a JSON array: {call.Arguments}"); }
+                }
+                var body = JsonSerializer.Serialize(new { contract = call.Contract, key = call.Key, method = call.Method, arguments = call.Arguments });
                 var answer = await server.Run("neurons_call", body, ct);
                 var passed = !answer.IsError && (call.Expected == "*" || answer.Text.Contains(call.Expected, StringComparison.Ordinal));
                 return (passed, passed ? answer.Text : $"expected {call.Expected}; answered {answer.Text}");
