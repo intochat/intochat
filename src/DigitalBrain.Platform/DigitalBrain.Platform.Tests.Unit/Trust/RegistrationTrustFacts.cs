@@ -40,7 +40,9 @@ public sealed class RegistrationTrustFacts
     }
 
     [Fact(Timeout = 60_000)]
-    public async Task AnUnpairedMachineCannotRegisterAUsername()
+    // R72: every real machine carries a pairing hash (configured or its own); this drives the trust gate directly with a
+    // machine registered without one.
+    public async Task AMachineWithoutAPairingHashCannotRegisterAUsername()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().StartAsync(ct);

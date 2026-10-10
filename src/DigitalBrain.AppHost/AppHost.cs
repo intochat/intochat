@@ -104,7 +104,7 @@ var osFront = AspireModuleHosting.AddFront(builder, "OperatingSystem", uiPort, s
 var machineB = builder.AddProject<Projects.DigitalBrain_OS>("OperatingSystem-b")
     .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features)
     .WithHttpEndpoint(port: 5095, name: "http", isProxied: false)
-    .AsSeparateCluster(siloPort: 11112, gatewayPort: 30001);
+    .AsSeparateCluster();
 Silo(machineB);
 // The shell reaches the kernel through the front, so a roll restarting one silo never drops it.
 digitalBrain.WithShellFront(builder.CreateResourceBuilder<IResourceWithEndpoints>(osFront.Resource));
@@ -133,6 +133,8 @@ IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where
 IResourceBuilder<IResourceWithEndpoints> Mcp<T>(IResourceBuilder<T> mcp) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
 {
     mcp.WithReference(digitalBrain.AsClient(shareHttpIdentity: true))
+        // R70: the MCP reads memberships through the trust cluster's gateway, as the machines do.
+        .AsTrustClient(trust)
         .WithHttpHealthCheck("/health", endpointName: "http");
     foreach (var silo in silos) { mcp.WaitFor(silo); }
     return builder.CreateResourceBuilder<IResourceWithEndpoints>(mcp.Resource);

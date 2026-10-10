@@ -54,7 +54,7 @@ public sealed class TrustClusterHostingFacts
         var a = builder.AddExecutable("os-a", "unused", ".").WithHttpEndpoint(name: "http")
             .AsTrustMachine(trust, pairing, "/machines/os-a", builder.Configuration);
         var b = builder.AddExecutable("os-b", "unused", ".").WithHttpEndpoint(name: "http")
-            .AsTrustMachine(trust, pairing, "/machines/os-b", builder.Configuration).AsSeparateCluster(11112, 30001);
+            .AsTrustMachine(trust, pairing, "/machines/os-b", builder.Configuration).AsSeparateCluster();
 
         var (onA, onB) = (await Environment(builder, a.Resource), await Environment(builder, b.Resource));
 
@@ -63,7 +63,9 @@ public sealed class TrustClusterHostingFacts
         Assert.Equal(("/machines/os-a", "/machines/os-b"), (onA[directory], onB[directory]));
         Assert.NotEqual(onA[container], onB[container]);
         Assert.Equal("digitalbrain-os-b", onB["Orleans__ClusterId"]);
-        Assert.Equal(("11112", "30001"), (onB["Orleans__Endpoints__SiloPort"], onB["Orleans__Endpoints__GatewayPort"]));
+        Assert.IsType<EndpointReferenceExpression>(onB["Orleans__Endpoints__SiloPort"]);
+        Assert.IsType<EndpointReferenceExpression>(onB["Orleans__Endpoints__GatewayPort"]);
+        Assert.Contains(b.Resource.Annotations.OfType<EndpointAnnotation>(), endpoint => endpoint.Name == TrustClusterHosting.OrleansGatewayEndpoint && endpoint.Port is null);
         Assert.All([onA, onB], values =>
         {
             Assert.Contains(DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.PairingSecretKey), values.Keys);
@@ -71,6 +73,22 @@ public sealed class TrustClusterHostingFacts
         });
         Assert.All(new IResource[] { a.Resource, b.Resource }, machine =>
             Assert.Contains(machine.Annotations.OfType<ResourceCommandAnnotation>(), command => command.Name == TrustClusterHosting.ReleasePartCommand));
+    }
+
+    // R70: the MCP is an Orleans client of the deployment; it reaches the trust cluster through the allocated gateway.
+    [Fact]
+    public async Task TheMcpCarriesTheTrustGateway()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        var brain = builder.AddDigitalBrain("memory", options: new()).WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite());
+        var trust = builder.AddExecutable("trust", "unused", ".").AsTrustCluster(brain, builder.Configuration);
+        var mcp = builder.AddExecutable("digitalbrain-mcp-a", "unused", ".").WithReference(brain.AsClient()).AsTrustClient(trust);
+
+        var values = await Environment(builder, mcp.Resource);
+
+        Assert.Equal("localhost:{trust.bindings.gateway.port}",
+            ((ReferenceExpression)values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.GatewayKey)]).ValueExpression);
+        Assert.Contains(mcp.Resource.Annotations.OfType<WaitAnnotation>(), wait => wait.Resource == trust.Resource);
     }
 
     // R64: Secured sends the host's bootstrap Basic credential; Open sends none.

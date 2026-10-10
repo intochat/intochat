@@ -16,7 +16,8 @@ internal interface IMachineRegistry : IGrainWithStringKey
     // A signed call that acts for no bound account yet (a registration): signature, timestamp and counter only.
     Task AcceptMachine(SignedCall call);
 
-    // R67: a machine that registers usernames is bound to an account with the deployment's pairing secret.
+    // R67: a machine that registers usernames is bound to an account with a pairing secret. R72: the gate checks
+    // only that the hash is non-empty; every machine has one (configured or generated), so it is no deployment check.
     Task RequirePaired();
 }
 

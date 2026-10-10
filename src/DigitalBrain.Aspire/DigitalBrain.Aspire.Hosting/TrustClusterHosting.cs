@@ -64,25 +64,43 @@ public static class TrustClusterHosting
         ArgumentNullException.ThrowIfNull(machine);
         var container = ContainerOf(machine.Resource.Name);
         return machine
-            .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(GatewayKey), GatewayOf(trust))
+            .AsTrustClient(trust)
             .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(PairingSecretKey), pairingSecret)
             .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(RoleKey), "Own")
             .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(MachineDirectoryKey), machineDirectory)
             .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Framework.DigitalBrainNames.GrainStateContainerKey), container)
             .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(ModuleGrainStateContainerKey), container)
-            .WaitFor(machine.ApplicationBuilder.CreateResourceBuilder<IResource>(trust.Resource))
             .WithPartRelease(configuration);
     }
 
-    // A further machine on one PC: its own Orleans cluster and fixed silo and gateway ports beside the first machine's.
-    public static IResourceBuilder<T> AsSeparateCluster<T>(this IResourceBuilder<T> machine, int siloPort, int gatewayPort)
-        where T : IResourceWithEnvironment
+    public const string OrleansSiloEndpoint = "orleans-silo";
+    public const string OrleansGatewayEndpoint = "orleans-gateway";
+
+    // A further machine on one PC: its own Orleans cluster, with silo and gateway ports allocated per run like the
+    // trust's (R71), so two AppHosts run side by side.
+    public static IResourceBuilder<T> AsSeparateCluster<T>(this IResourceBuilder<T> machine)
+        where T : IResourceWithEnvironment, IResourceWithEndpoints
     {
         ArgumentNullException.ThrowIfNull(machine);
+        machine.WithEndpoint(name: OrleansSiloEndpoint, scheme: "tcp", isProxied: false)
+            .WithEndpoint(name: OrleansGatewayEndpoint, scheme: "tcp", isProxied: false);
         return machine
             .WithEnvironment("Orleans__ClusterId", ClusterOf(machine.Resource.Name))
-            .WithEnvironment("Orleans__Endpoints__SiloPort", siloPort.ToString(System.Globalization.CultureInfo.InvariantCulture))
-            .WithEnvironment("Orleans__Endpoints__GatewayPort", gatewayPort.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            .WithEnvironment("Orleans__Endpoints__SiloPort", machine.GetEndpoint(OrleansSiloEndpoint).Property(EndpointProperty.Port))
+            .WithEnvironment("Orleans__Endpoints__GatewayPort", machine.GetEndpoint(OrleansGatewayEndpoint).Property(EndpointProperty.Port));
+    }
+
+    // An Orleans-client host of the deployment (the MCP): it reads trust state through the same private gateway the
+    // machines dial (R70), so it starts once the trust silo is up.
+    public static IResourceBuilder<T> AsTrustClient<T, TTrust>(this IResourceBuilder<T> client, IResourceBuilder<TTrust> trust)
+        where T : IResourceWithEnvironment, IResourceWithWaitSupport
+        where TTrust : IResourceWithEndpoints
+    {
+        ArgumentNullException.ThrowIfNull(client);
+        ArgumentNullException.ThrowIfNull(trust);
+        return client
+            .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(GatewayKey), GatewayOf(trust))
+            .WaitFor(client.ApplicationBuilder.CreateResourceBuilder<IResource>(trust.Resource));
     }
 
     public static string ContainerOf(string machine) => "grainstate-" + machine.ToLowerInvariant();
