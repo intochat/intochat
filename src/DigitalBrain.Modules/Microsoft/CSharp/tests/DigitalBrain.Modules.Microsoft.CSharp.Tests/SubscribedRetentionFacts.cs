@@ -1,3 +1,4 @@
+using DigitalBrain.Framework;
 using DigitalBrain.Apps;
 using DigitalBrain.Apps.Signals;
 using DigitalBrain.Microsoft.CSharp.Runtime;
@@ -96,9 +97,48 @@ public sealed class SubscribedRetentionFacts
         Assert.Equal(1, sub.Dropped);
     }
 
+    [Fact(Timeout = 20_000)]
+    public async Task ASubscriptionIsSeededWhileItsSourceIsInALongTurn()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartWithAppsAsync(new FakeSessionHost(), ct);
+        await Programs(brain).Assign(Echo, new() { ["synapses/a.cs"] = RuntimeBrain.Idle }, []);
+        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
+        var source = brain.Get<ISlowRetainer>("slow");
+        var turn = source.HoldThenPublish();
+        await SlowRetainer.Entered.Task.WaitAsync(ct);
+
+        await Edge(brain).Subscribed(session, Behavior, source.GetGrainId().ToString(), nameof(Pinged));
+
+        SlowRetainer.Release.SetResult();
+        await turn;
+    }
+
     private static IBrainPrograms Programs(ModuleBrain brain) => brain.Grains().GetGrain<IBrainPrograms>(BrainRuntimeKeys.For(Brain));
 
     private static IBrainRuntime Runtime(ModuleBrain brain) => brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(Brain));
 
     private static IBrainRuntimeEdge Edge(ModuleBrain brain) => brain.Grains().GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For(Brain));
+}
+// A source that retains and is busy: its turn holds until released, the way a neuron mid-publish waits
+// on the runtime.
+[Alias("tests.csharp.slow-retainer")]
+public interface ISlowRetainer : IRetainsSignals
+{
+    Task HoldThenPublish();
+}
+
+public sealed class SlowRetainer : Neuron, ISlowRetainer
+{
+    public static TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public static TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public Task<RetainedSignal[]> Retained(string signal, long since) => Task.FromResult<RetainedSignal[]>([]);
+
+    public async Task HoldThenPublish()
+    {
+        Entered.SetResult();
+        await Release.Task;
+        await PublishAsync(new Pinged(1));
+    }
 }
