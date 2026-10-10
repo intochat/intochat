@@ -10,20 +10,31 @@ public sealed class CircleFacts
     private static readonly CancellationToken Ct = TestContext.Current.CancellationToken;
     private static readonly string Team = ICircle.Key("alice", "team");
 
-    private static Task<ModuleBrain> Start() => ModuleTest.Create().WithModule<CirclesModule>().StartAsync(Ct);
-
-    private static void Act(string brain) => CallerContextStamper.Stamp(new CallerContext
+    private static async Task<ModuleBrain> Start(Action<ISiloBuilder>? configure = null)
     {
-        PrincipalId = brain,
+        var builder = ModuleTest.Create().WithModule<CirclesModule>();
+        if (configure is not null) { builder = builder.ConfigureSilo(configure); }
+        var brain = await builder.StartAsync(Ct);
+        foreach (var name in new[] { "alice", "bob", "carol", "dave" })
+        { await brain.Get<IBrain>(name).Create(new Owner("acct-" + name)); }
+        return brain;
+    }
+
+    private static void Act(string brain, string? principal = null) => CallerContextStamper.Stamp(new CallerContext
+    {
+        PrincipalId = principal ?? brain,
         AccountId = "acct-" + brain,
         BrainId = brain,
         Kind = CallerKind.Platform,
         StampedBy = TrustedEdge.Platform,
     });
 
-    private static ICircle Circle(ModuleBrain brain, string member) => brain.Get<ICircle>(ICircle.Key(member, "team"));
+    // The copy a brain holds of the circle `owner` runs.
+    private static ICircle Circle(ModuleBrain brain, string holder, string owner = "alice", string name = "team")
+        => brain.Get<ICircle>(ICircle.Key(holder, name, owner));
 
-    private static ICircleChat Chat(ModuleBrain brain, string member) => brain.Get<ICircleChat>(ICircleChat.Key(ICircle.Key(member, "team")));
+    private static ICircleChat Chat(ModuleBrain brain, string holder, string owner = "alice")
+        => brain.Get<ICircleChat>(ICircleChat.Key(ICircle.Key(holder, "team", owner)));
 
     private static async Task Joined(ModuleBrain brain, string member)
     {
@@ -54,14 +65,13 @@ public sealed class CircleFacts
     }
 
     [Fact]
-    public async Task AnInvitationIsHeardBeforeItIsRecordedAndPublishedToTheInvitedBrain()
+    public async Task AnInvitationIsPublishedToTheInvitedBrain()
     {
         await using var brain = await Start();
         Act("bob");
-        var invited = Circle(brain, "bob");
 
         CircleInvited? heard = null;
-        await foreach (var signal in brain.On<CircleInvited>(invited, async () =>
+        await foreach (var signal in brain.On<CircleInvited>(Circle(brain, "bob"), async () =>
         {
             Act("alice");
             await Circle(brain, "alice").Invite("bob");
@@ -71,9 +81,74 @@ public sealed class CircleFacts
             break;
         }
 
-        Assert.Equal(new("team", "alice"), (heard!.Name, heard.From));
+        Assert.Equal(("team", "alice"), (heard!.Name, heard.From));
         Act("alice");
         Assert.Equal(["bob"], (await Circle(brain, "alice").State()).Invited);
+    }
+
+    private static ICircles Index(ModuleBrain brain, string holder) => brain.Get<ICircles>(ICircles.Key(holder));
+
+    [Fact]
+    public async Task AnInvitationToABrainWithNoCopyIsTouchedOnItsIndexAndListedAsInvited()
+    {
+        await using var brain = await Start();
+        Act("bob");
+
+        CircleTouched? touched = null;
+        await foreach (var signal in brain.On<CircleTouched>(Index(brain, "bob"), async () =>
+        {
+            Act("alice");
+            await Circle(brain, "alice").Invite("bob");
+        }, TestContext.Current.CancellationToken))
+        {
+            touched = signal;
+            break;
+        }
+
+        Assert.Equal(("team", "alice", "invited"), (touched!.Name, touched.Owner, touched.Kind));
+        Act("bob");
+        Assert.Equal(new CircleEntry("team", "alice", "invited"), Assert.Single(await Index(brain, "bob").Names()));
+        Act("alice");
+        Assert.Equal(new CircleEntry("team", "alice", "owner"), Assert.Single(await Index(brain, "alice").Names()));
+    }
+
+    [Fact]
+    public async Task ALineIsTouchedAsSpokeOnEveryMembersIndexAndALeaverDropsOutOfIt()
+    {
+        await using var brain = await Start();
+        await Joined(brain, "bob");
+        Act("bob");
+        Assert.Equal(new CircleEntry("team", "alice", "member"), Assert.Single(await Index(brain, "bob").Names()));
+
+        CircleTouched? onBob = null;
+        await foreach (var signal in brain.On<CircleTouched>(Index(brain, "bob"), async () =>
+        {
+            Act("alice");
+            await Chat(brain, "alice").Say("hi");
+        }, TestContext.Current.CancellationToken))
+        {
+            if (signal.Kind != "spoke") { continue; }
+            onBob = signal;
+            break;
+        }
+        Assert.Equal(("team", "alice"), (onBob!.Name, onBob.Owner));
+
+        CircleTouched? onAlice = null;
+        await foreach (var signal in brain.On<CircleTouched>(Index(brain, "alice"), async () =>
+        {
+            Act("bob");
+            await Chat(brain, "bob").Say("hello");
+        }, TestContext.Current.CancellationToken))
+        {
+            if (signal.Kind != "spoke") { continue; }
+            onAlice = signal;
+            break;
+        }
+        Assert.Equal("spoke", onAlice!.Kind);
+
+        Act("bob");
+        await Circle(brain, "bob").Leave("bob");
+        Assert.Empty(await Index(brain, "bob").Names());
     }
 
     [Fact]
@@ -85,6 +160,34 @@ public sealed class CircleFacts
 
         Act("carol");
         await Assert.ThrowsAsync<InvalidOperationException>(() => Circle(brain, "carol").Accept());
+    }
+
+    [Fact]
+    public async Task TwoOwnersMayEachRunACircleCalledTeamWithTheSameMember()
+    {
+        await using var brain = await Start();
+        Act("alice");
+        await Circle(brain, "alice").Invite("bob");
+        Act("dave");
+        await Circle(brain, "dave", "dave").Invite("bob");
+        Act("bob");
+        await Circle(brain, "bob").Accept();
+        await Circle(brain, "bob", "dave").Accept();
+
+        Assert.Equal(["alice", "bob"], await Circle(brain, "bob").Members());
+        Assert.Equal(["dave", "bob"], await Circle(brain, "bob", "dave").Members());
+    }
+
+    [Fact]
+    public async Task InvitationsMadeAtTheSameTimeAreAllKept()
+    {
+        await using var brain = await Start();
+        Act("alice");
+        var owners = Circle(brain, "alice");
+
+        await Task.WhenAll(owners.Invite("bob"), owners.Invite("carol"), owners.Invite("dave"));
+
+        Assert.Equal(["bob", "carol", "dave"], (await owners.State()).Invited.Order());
     }
 
     [Fact]
@@ -133,12 +236,12 @@ public sealed class CircleFacts
         await using var brain = await Start();
         await Joined(brain, "bob");
         Act("alice");
-        var ownersChat = Chat(brain, "alice");
+        var ownersChat = Chat(brain, "alice", "alice");
 
         CircleSpoke? heard = null;
         await foreach (var signal in brain.On<CircleSpoke>(ownersChat, async () =>
         {
-            Act("bob");
+            Act("bob", principal: "bobs-assistant");
             await Chat(brain, "bob").Say("hello circle");
         }, TestContext.Current.CancellationToken))
         {
@@ -146,6 +249,7 @@ public sealed class CircleFacts
             break;
         }
 
+        // The speaker is the brain the kernel says spoke, not the principal inside it.
         Assert.Equal(("team", "bob", "hello circle", 1L), (heard!.Name, heard.Speaker, heard.Text, heard.Sequence));
         Act("alice");
         Assert.Equal(new CircleLine("bob", "hello circle", 1), Assert.Single(await ownersChat.Read(0)));
@@ -185,6 +289,42 @@ public sealed class CircleFacts
     }
 
     [Fact]
+    public async Task ABrainActsOnlyOnItsOwnCopiesAndNoCallerReachesTheDeliveryBetweenCopies()
+    {
+        await using var brain = await Start();
+        await Joined(brain, "bob");
+        Act("carol");
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Circle(brain, "alice").Share("notes"));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Circle(brain, "bob").State());
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Circle(brain, "bob").Leave("bob"));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Chat(brain, "bob").Say("as bob"));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Chat(brain, "alice").Read(0));
+
+        // Even the member itself, from outside the cluster, cannot make a copy believe anything.
+        Act("bob");
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Circle(brain, "alice").Joined());
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Circle(brain, "alice").Left());
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Circle(brain, "alice").StateForCaller());
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Circle(brain, "bob").Invited());
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Circle(brain, "alice").Roster());
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Chat(brain, "alice").Relay("forged"));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Chat(brain, "alice").Pull(0));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Index(brain, "bob").Touch("team", "alice", "changed", "owner"));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            brain.Grains.GetGrain<ICircleShares>(Team).Configure(25, ["alice", "bob", "mallory"]));
+    }
+
+    [Fact]
+    public void ACircleNameIsLowercaseLettersDigitsAndDashes()
+    {
+        Assert.Equal("alice/circles/team-2", ICircle.Key("alice", "team-2"));
+        Assert.Equal("bob/circles/team@alice", ICircle.Key("bob", "team", "alice"));
+        foreach (var name in new[] { "", "a/b", "x@y", "Team", "has space", new string('a', 41) })
+        { Assert.Throws<ArgumentException>(() => ICircle.Key("alice", name)); }
+    }
+
+    [Fact]
     public async Task AComputeShareOverTheQuarterTheKernelKeepsIsRefused()
     {
         await using var brain = await Start();
@@ -198,20 +338,28 @@ public sealed class CircleFacts
     }
 
     [Fact]
-    public async Task AMembersCallFundedByTheCircleThrowsOnceItPassesTheOwnersShare()
+    public async Task AMembersCallFundedByTheCircleThrowsOnceItPassesTheShareAndANonMemberCannotUseIt()
     {
-        await using var brain = await ModuleTest.Create().WithModule<CirclesModule>()
-            .ConfigureSilo(silo => silo.Services.AddSingleton<IPriceList>(new FixedPriceList(100)))
-            .StartAsync(Ct);
+        await using var brain = await Start(silo => silo.Services.AddSingleton<IPriceList>(new FixedPriceList(100)));
         await Joined(brain, "bob");
         Act("alice");
         await Circle(brain, "alice").SetComputeShare(10);
-        Act("bob");
         var meter = brain.SiloServices.GetRequiredService<ICostMeter>();
 
+        // The brain that spends is the one the call's trace names, so each call runs in its own brain's trace.
+        using (TraceContext.Enter(TraceContext.Begin("acct-carol", "carol", new NeuronId("carol/edge"))))
+        {
+            Act("carol");
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+                meter.RecordAsync(CostKind.Model, "gpt-5.1:input", 1m, "mtok", Funding.Circle(Team), "c-2", Ct).AsTask());
+        }
         // The owner has nothing to share yet, so any priced call is over the circle's share.
-        await Assert.ThrowsAsync<BudgetExhaustedException>(() =>
-            meter.RecordAsync(CostKind.Model, "gpt-5.1:input", 1m, "mtok", Funding.Circle(Team), "c-1", Ct).AsTask());
+        using (TraceContext.Enter(TraceContext.Begin("acct-bob", "bob", new NeuronId("bob/edge"))))
+        {
+            Act("bob");
+            await Assert.ThrowsAsync<BudgetExhaustedException>(() =>
+                meter.RecordAsync(CostKind.Model, "gpt-5.1:input", 1m, "mtok", Funding.Circle(Team), "c-1", Ct).AsTask());
+        }
     }
 
     private sealed class FixedPriceList(long microsPerUnit) : IPriceList

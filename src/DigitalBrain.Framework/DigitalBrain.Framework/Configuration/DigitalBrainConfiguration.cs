@@ -14,6 +14,8 @@ public static class DigitalBrainConfiguration
     // live under these sections, and a brain-scoped overlay may restate options per brain.
     public const string ModulesSectionName = "DigitalBrain:Modules";
 
+    public const string WorkshopSectionName = "DigitalBrain:Workshop";
+
     public static string ModuleSection(ModuleId moduleId) => $"{ModulesSectionName}:{moduleId}";
 
     public static string ModuleSection(string moduleId) => ModuleSection(new ModuleId(moduleId));

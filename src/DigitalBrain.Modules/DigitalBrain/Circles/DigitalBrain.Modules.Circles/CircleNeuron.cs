@@ -2,6 +2,7 @@ using DigitalBrain.Circles.Signals;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Compute;
 using Microsoft.Extensions.Logging;
+using Orleans.Runtime;
 
 namespace DigitalBrain.Circles;
 
@@ -20,168 +21,230 @@ internal sealed class CircleRecord
     public CircleRecord Clone() => (CircleRecord)MemberwiseClone();
 }
 
-// One brain's copy of a circle. The owner's copy decides and hands each change to the members' copies
-// (Apply); a member's copy only follows. Reentrant because copies in different brains call each other
-// while a call is in flight (accepting calls the owner, who in turn tells the other members).
-[Orleans.Concurrency.Reentrant]
-[GrainType("circles.circle")]
+// One brain's copy of a circle. The owner's copy decides; a member's copy follows by pulling the owner's
+// state whenever it is told to or asked. Nothing here awaits another copy that could await this one
+// back, so the grain is not reentrant: every change is committed before any copy is told about it.
+[GrainType(CircleCallGuard.CircleType)]
 internal sealed class CircleNeuron(
     [PersistentState("circles.circle", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<CircleRecord> store,
-    ICircleShares shares, ILogger<CircleNeuron> logger)
+    ILogger<CircleNeuron> logger)
     : Neuron<CircleRecord>(store), ICircle
 {
-    private string Key => this.GetPrimaryKeyString();
-    private string Brain => BrainKey.BrainOf(Key);
-    private string Name => Key[(Brain.Length + "/circles/".Length)..];
+    private CircleAddress Address => CircleAddress.Of(this.GetPrimaryKeyString());
+    private string Brain => Address.Brain;
+    private string Name => Address.Name;
 
-    public Task<string[]> Members() => Task.FromResult(Current().Members);
+    public async Task<string[]> Members()
+    {
+        RequireBrain();
+        await Follow();
+        return Current().Members;
+    }
 
-    public Task<CircleState> State() => Task.FromResult(Describe(Exists ? Snapshot : throw new KeyNotFoundException($"{Brain} is not in a circle named {Name}.")));
+    public async Task<CircleState> State()
+    {
+        RequireBrain();
+        await Follow();
+        return Describe(Exists ? Snapshot : throw Missing());
+    }
+
+    public Task<CircleState> Roster() => Task.FromResult(Describe(Exists ? Snapshot : throw Missing()));
 
     public async Task Invite(string brainId)
     {
+        RequireBrain();
         if (!BrainScope.IsValidId(brainId)) { throw new ArgumentException("That is not a brain id.", nameof(brainId)); }
         var next = Owned();
         if (next.Members.Contains(brainId) || next.Invited.Contains(brainId))
         { throw new InvalidOperationException($"{brainId} is already in {Name} or invited to it."); }
-        // The invited brain hears first: an invitation nobody received is not recorded.
-        await GrainFactory.GetGrain<ICircle>(ICircle.Key(brainId, Name)).Invited(Brain);
         next.Invited = [.. next.Invited, brainId];
-        await Commit(next, exclude: null);
+        await Commit(next, [], tell: false);
+        try { await GrainFactory.GetGrain<ICircle>(ICircle.Key(brainId, Name, Brain)).Invited(); }
+        catch
+        {
+            var undo = Snapshot.Clone();
+            undo.Invited = [.. undo.Invited.Where(invited => invited != brainId)];
+            await Commit(undo, [], tell: false);
+            throw;
+        }
     }
 
-    public async Task Invited(string from)
+    public async Task Invited()
     {
+        var from = Caller();
         if (Exists && Snapshot.Owner.Length > 0)
-        { throw new InvalidOperationException($"{Brain} already has a circle named {Name}."); }
+        { throw new InvalidOperationException($"{Brain} already belongs to {Name}."); }
         if (Exists && Snapshot.InvitedBy == from) { return; }
         await Save(new CircleRecord { Name = Name, InvitedBy = from }, new CircleInvited(Name, from));
+        await Touched("invited", "invited");
     }
 
     public async Task<CircleState> Accept()
     {
+        RequireBrain();
         if (!Exists || Snapshot.InvitedBy is not { } owner || Snapshot.Owner.Length > 0)
         { throw new InvalidOperationException($"{Brain} has no invitation to {Name}."); }
-        var joined = await GrainFactory.GetGrain<ICircle>(ICircle.Key(owner, Name)).Joined(Brain);
+        var joined = await GrainFactory.GetGrain<ICircle>(ICircle.Key(owner, Name)).Joined();
         await Follow(joined);
         return Describe(Current());
     }
 
-    public async Task<CircleState> Joined(string brainId)
+    public async Task<CircleState> Joined()
     {
+        var joiner = Caller();
         var next = Owned();
-        if (!next.Invited.Contains(brainId)) { throw new InvalidOperationException($"{brainId} was not invited to {Name}."); }
-        next.Invited = [.. next.Invited.Where(invited => invited != brainId)];
-        next.Members = [.. next.Members, brainId];
-        return await Commit(next, exclude: brainId);
+        if (!next.Invited.Contains(joiner)) { throw new InvalidOperationException($"{joiner} was not invited to {Name}."); }
+        next.Invited = [.. next.Invited.Where(invited => invited != joiner)];
+        next.Members = [.. next.Members, joiner];
+        return await Commit(next, [], tell: true);
     }
 
     public async Task Leave(string brainId)
     {
+        RequireBrain();
         if (brainId == Brain)
         {
-            if (!Exists) { throw new KeyNotFoundException($"{Brain} is not in a circle named {Name}."); }
-            if (Snapshot.Owner == Brain) { throw new InvalidOperationException($"The owner cannot leave {Name}."); }
+            if (!Exists) { throw Missing(); }
+            if (Address.IsOwnerCopy) { throw new InvalidOperationException($"The owner cannot leave {Name}."); }
             var owner = Snapshot.Owner.Length > 0 ? Snapshot.Owner : Snapshot.InvitedBy!;
-            await GrainFactory.GetGrain<ICircle>(ICircle.Key(owner, Name)).Left(Brain);
+            await GrainFactory.GetGrain<ICircle>(ICircle.Key(owner, Name)).Left();
             await Clear(new CircleChanged(Name, [], [], 0));
+            await Touched("left", "");
             return;
         }
         var next = Owned();
         if (!next.Members.Contains(brainId) && !next.Invited.Contains(brainId))
         { throw new InvalidOperationException($"{brainId} is not in {Name}."); }
-        await Remove(next, brainId, informLeaver: true);
+        await Drop(next, brainId);
     }
 
-    public async Task Left(string brainId)
+    public async Task Left()
     {
+        var leaver = Caller();
         var next = Owned();
-        if (brainId == Brain) { throw new InvalidOperationException($"The owner cannot leave {Name}."); }
-        if (next.Members.Contains(brainId) || next.Invited.Contains(brainId)) { await Remove(next, brainId, informLeaver: false); }
+        if (next.Members.Contains(leaver) || next.Invited.Contains(leaver)) { await Drop(next, leaver, tellLeaver: false); }
     }
+
+    public Task<CircleState?> StateForCaller()
+    {
+        var asker = Caller();
+        if (!Address.IsOwnerCopy || !Exists) { throw new InvalidOperationException($"{Brain} does not run {Name}."); }
+        return Task.FromResult<CircleState?>(Snapshot.Members.Contains(asker) || Snapshot.Invited.Contains(asker) ? Describe(Snapshot) : null);
+    }
+
+    public Task Changed() => Follow();
 
     public async Task Share(string appName)
     {
+        RequireBrain();
         ArgumentException.ThrowIfNullOrWhiteSpace(appName);
         var next = Owned();
         if (next.SharedApps.Contains(appName)) { return; }
         next.SharedApps = [.. next.SharedApps, appName];
-        await Commit(next, exclude: null);
+        await Commit(next, [], tell: true);
     }
 
     public async Task Unshare(string appName)
     {
+        RequireBrain();
         ArgumentException.ThrowIfNullOrWhiteSpace(appName);
         var next = Owned();
         if (!next.SharedApps.Contains(appName)) { return; }
         next.SharedApps = [.. next.SharedApps.Where(shared => shared != appName)];
-        await Commit(next, exclude: null);
+        await Commit(next, [], tell: true);
     }
 
     public async Task SetComputeShare(int percent)
     {
+        RequireBrain();
         if (percent is < 0 or > ICircle.MaxComputeSharePercent)
         { throw new ArgumentOutOfRangeException(nameof(percent), percent, $"A circle may share 0 to {ICircle.MaxComputeSharePercent}% of the owner's compute."); }
         var next = Owned();
-        await shares.Configure(Key, CallerContextStamper.Require().AccountId, percent);
         next.ComputeSharePercent = percent;
-        await Commit(next, exclude: null);
+        await Commit(next, [], tell: true);
     }
 
-    public async Task Apply(CircleState state)
+    // A call from outside is acted on only by the brain that holds this copy.
+    private void RequireBrain()
     {
-        ArgumentNullException.ThrowIfNull(state);
-        if (!Exists || state.Version <= Snapshot.Version) { return; }
-        if (!state.Members.Contains(Brain)) { await Clear(new CircleChanged(Name, [], [], 0)); return; }
-        await Follow(state);
+        if (!CallerContextStamper.TryGet(out _) || BrainScope.CurrentId() != Brain)
+        { throw new UnauthorizedAccessException($"{this.GetPrimaryKeyString()} belongs to brain {Brain}."); }
     }
+
+    // The brain the kernel says made an [Internal] call (see CircleCallGuard).
+    private static string Caller() => RequestContext.Get(CircleCallGuard.From) as string
+        ?? throw new UnauthorizedAccessException("This call does not come from a copy of the circle.");
+
+    private KeyNotFoundException Missing() => new($"{Brain} is not in a circle named {Name}.");
 
     private CircleRecord Current()
-        => Exists && Snapshot.Owner.Length > 0 ? Snapshot : throw new KeyNotFoundException($"{Brain} is not in a circle named {Name}.");
+        => Exists && Snapshot.Owner.Length > 0 ? Snapshot : throw Missing();
 
     // The owner's record to change: a copy of this one, or the circle's first state when the owner starts it.
     private CircleRecord Owned()
     {
-        if (!Exists) { return new CircleRecord { Name = Name, Owner = Brain, Members = [Brain] }; }
-        if (Snapshot.Owner != Brain) { throw new InvalidOperationException($"Only the owner of {Name} can change it."); }
-        return Snapshot.Clone();
+        if (!Address.IsOwnerCopy) { throw new InvalidOperationException($"Only the owner of {Name} can change it."); }
+        return Exists ? Snapshot.Clone() : new CircleRecord { Name = Name, Owner = Brain, Members = [Brain] };
     }
 
-    private async Task<CircleState> Commit(CircleRecord next, string? exclude)
+    // The kernel knows the share and the members before the change is saved, and the change is saved
+    // before anyone is told.
+    private async Task<CircleState> Commit(CircleRecord next, string[] also, bool tell)
     {
         next.Version++;
+        await GrainFactory.GetGrain<ICircleShares>(this.GetPrimaryKeyString()).Configure(next.ComputeSharePercent, next.Members);
         await Save(next, Changed(next));
+        await Touched("changed", "owner");
         var state = Describe(next);
-        await Tell(state, next.Members.Where(member => member != Brain && member != exclude));
+        if (tell) { await Tell(next.Members.Where(member => member != Brain).Concat(also)); }
         return state;
     }
 
-    private async Task Remove(CircleRecord next, string brainId, bool informLeaver)
+    private async Task Drop(CircleRecord next, string brainId, bool tellLeaver = true)
     {
         next.Members = [.. next.Members.Where(member => member != brainId)];
         next.Invited = [.. next.Invited.Where(invited => invited != brainId)];
-        var state = await Commit(next, exclude: null);
-        if (informLeaver) { await Tell(state, [brainId]); }
+        await Commit(next, tellLeaver ? [brainId] : [], tell: true);
     }
 
-    private Task Follow(CircleState state)
+    // Pulls the owner's state into this copy: newer state replaces it, no longer being named clears it.
+    private async Task Follow()
     {
-        var next = new CircleRecord
+        if (!Exists || Address.IsOwnerCopy || Snapshot.Owner.Length == 0) { return; }
+        CircleState? latest;
+        try { latest = await GrainFactory.GetGrain<ICircle>(Address.OwnerKey).StateForCaller(); }
+        catch (Exception error)
+        {
+            logger.LogWarning(error, "Circle {Circle} could not pull the state of {Owner}", this.GetPrimaryKeyString(), Address.Owner);
+            return;
+        }
+        if (latest is null) { await Clear(new CircleChanged(Name, [], [], 0)); await Touched("left", ""); }
+        else if (latest.Version > Snapshot.Version) { await Follow(latest); }
+    }
+
+    private async Task Follow(CircleState state)
+    {
+        await Save(new CircleRecord
         {
             Name = state.Name, Owner = state.Owner, Members = state.Members, SharedApps = state.SharedApps,
             ComputeSharePercent = state.ComputeSharePercent, Invited = state.Invited, Version = state.Version,
-        };
-        return Save(next, Changed(next));
+        }, new CircleChanged(Name, state.Members, state.SharedApps, state.ComputeSharePercent));
+        await Touched("changed", "member");
     }
 
-    private async Task Tell(CircleState state, IEnumerable<string> brains)
+    // One-way: a brain that misses it pulls on its next read.
+    private async Task Tell(IEnumerable<string> brains)
     {
-        foreach (var brain in brains)
+        foreach (var brain in brains.Distinct())
         {
-            try { await GrainFactory.GetGrain<ICircle>(ICircle.Key(brain, Name)).Apply(state); }
-            catch (Exception error) { logger.LogWarning(error, "Circle {Circle} could not tell {Brain} of version {Version}", Key, brain, state.Version); }
+            try { await GrainFactory.GetGrain<ICircle>(ICircle.Key(brain, Name, Brain)).Changed(); }
+            catch (Exception error) { logger.LogWarning(error, "Circle {Circle} could not tell {Brain}", this.GetPrimaryKeyString(), brain); }
         }
     }
+
+    // The brain's index publishes every change to its circles (CircleTouched), after the copy is durable.
+    private Task Touched(string kind, string role)
+        => GrainFactory.GetGrain<ICircles>(ICircles.Key(Brain)).Touch(Name, Address.Owner, kind, role);
 
     private CircleChanged Changed(CircleRecord record) => new(Name, record.Members, record.SharedApps, record.ComputeSharePercent);
 

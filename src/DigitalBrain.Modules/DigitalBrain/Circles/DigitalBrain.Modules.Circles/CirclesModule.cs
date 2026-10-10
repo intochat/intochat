@@ -7,5 +7,9 @@ public sealed class CirclesModule() : Module(new ModuleId("circles"))
 {
     public override System.Reflection.Assembly? Contracts => typeof(ICircle).Assembly;
 
-    public override void Configure(ISiloBuilder silo) => ArgumentNullException.ThrowIfNull(silo);
+    public override void Configure(ISiloBuilder silo)
+    {
+        ArgumentNullException.ThrowIfNull(silo);
+        silo.AddIncomingGrainCallFilter<CircleCallGuard>();
+    }
 }

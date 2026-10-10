@@ -30,11 +30,13 @@ public readonly record struct Funding(FundingKind Kind, string? CircleKey = null
     }
 }
 
-// How a circle tells the kernel what share of its owner's budget its members may spend. The kernel
-// keeps the share where no neuron can reach it; the circle neuron only states it.
-public interface ICircleShares
+// How a circle tells the kernel what share of its owner's budget its members may spend. Not a neuron: keyed
+// by the circle's owner key, it accepts Configure only from the circle neuron with that very key (the kernel
+// names the calling grain), and it learns the owner's account from the kernel, never from the caller.
+[Alias("platform.circle-shares")]
+public interface ICircleShares : IGrainWithStringKey
 {
-    Task Configure(string circleKey, string ownerAccountId, int percent);
+    Task Configure(int percent, string[] members);
 }
 
 public interface ICostMeter

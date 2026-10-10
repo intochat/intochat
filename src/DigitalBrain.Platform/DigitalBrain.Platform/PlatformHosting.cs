@@ -29,7 +29,7 @@ public static class PlatformHosting
         silo.AddStartupTask<IdentityStartup>();
         services.AddMasterKeyWrapper();
         services.TryAddSingleton<DigitalBrain.Framework.Compute.ICostMeter, Compute.CostMeter>();
-        services.TryAddSingleton<DigitalBrain.Framework.Compute.ICircleShares, Compute.CircleShares>();
+        silo.AddIncomingGrainCallFilter<Compute.CircleShareGuard>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Http.IHttpMessageHandlerBuilderFilter, DigitalBrain.Framework.Compute.MeteredHttpHandlerFilter>());
         services.AddOptions<Compute.FeeOptions>().BindConfiguration(Compute.FeeOptions.Key);
         services.AddOptions<Mesh.MeshOptions>().BindConfiguration(Mesh.MeshOptions.Key)
@@ -59,7 +59,7 @@ public static class PlatformHosting
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICallFilterStage, GrantCallFilterStage>());
         services.AddOptions<ConnectionsOptions>().BindConfiguration(ConnectionsOptions.SectionName);
         // The Workshop edits the OS's own codebase; empty root means it is off until a host opts in.
-        services.AddOptions<WorkshopOptions>().BindConfiguration("DigitalBrain:Workshop");
+        services.AddOptions<WorkshopOptions>().BindConfiguration(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.WorkshopSectionName);
         // Silo singletons: a restart takes the pending logins with it, so a callback fails closed.
         services.TryAddSingleton<Connections.OAuth.OAuthLoginRequests>();
         services.TryAddSingleton<Connections.OAuth.OAuthTokenExchange>();

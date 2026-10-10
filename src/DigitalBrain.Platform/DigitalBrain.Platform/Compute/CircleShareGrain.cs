@@ -1,48 +1,70 @@
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Compute;
+using Orleans.Runtime;
 
 namespace DigitalBrain.Platform.Compute;
 
-// Per circle key: what share of its owner's budget the circle's members may spend, and what they
-// have drawn. A plain grain, not a neuron, so no script can address it.
+// Per circle key (the owner's copy): the members who may spend, the share of the owner's budget they may
+// spend, and what they have drawn today. A plain grain, not a neuron, so no script can address it.
 internal interface ICircleShareGrain : IGrainWithStringKey
 {
-    Task Configure(string ownerAccountId, int percent);
-    Task<string?> Owner();
-    // Draws when the total drawn stays within percent of (ownerFunds + already drawn).
-    Task<bool> TryDraw(long micros, long ownerFunds);
+    // The owner's account when `member` may draw `micros` now; null when that is over the circle's share.
+    // A brain outside the circle is refused outright.
+    Task<string?> TryDraw(string member, long micros);
+    // What ICircleShares.Configure does once the guard has accepted the caller; unreachable outside Platform.
+    Task Apply(int percent, string[] members);
 }
 
 [GrainType("circle-share")]
 internal sealed class CircleShareGrain(
-    [PersistentState("circle-share", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<CircleShareState> store)
-    : Grain, ICircleShareGrain
+    [PersistentState("circle-share", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<CircleShareState> store,
+    TimeProvider clock)
+    : Grain, ICircleShares, ICircleShareGrain
 {
-    public async Task Configure(string ownerAccountId, int percent)
+    public Task Configure(int percent, string[] members) => Apply(percent, members);
+
+    public async Task Apply(int percent, string[] members)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(ownerAccountId);
         ArgumentOutOfRangeException.ThrowIfNegative(percent);
-        store.State.OwnerAccountId = ownerAccountId;
+        ArgumentNullException.ThrowIfNull(members);
+        var brain = BrainKey.BrainOf(this.GetPrimaryKeyString());
+        var owner = (await GrainFactory.GetGrain<IBrain>(brain).Read())?.Owner?.AccountId
+            ?? throw new InvalidOperationException($"Brain {brain} has no owner account.");
+        store.State.OwnerAccountId = owner;
         store.State.Percent = percent;
+        store.State.Members = [.. members];
         await store.WriteStateAsync();
     }
 
-    public Task<string?> Owner() => Task.FromResult(store.State.OwnerAccountId);
-
-    public async Task<bool> TryDraw(long micros, long ownerFunds)
+    public async Task<string?> TryDraw(string member, long micros)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(micros);
-        var cap = Math.Max(0, ownerFunds + store.State.SpentMicros) * store.State.Percent / 100;
-        if (store.State.SpentMicros + micros > cap) { return false; }
-        store.State.SpentMicros += micros;
+        if (store.State.OwnerAccountId is not { } owner) { return null; }
+        if (!store.State.Members.Contains(member)) { throw new UnauthorizedAccessException($"{member} is not in circle {this.GetPrimaryKeyString()}."); }
+        var today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime).DayNumber;
+        if (store.State.Day != today) { store.State.Day = today; store.State.DrawnMicros = 0; }
+        var balance = await GrainFactory.GetGrain<ILedgerGrain>(owner).Balance();
+        var cap = Math.Max(0, balance) * store.State.Percent / 100 - store.State.DrawnMicros;
+        if (micros > cap) { return null; }
+        store.State.DrawnMicros += micros;
         await store.WriteStateAsync();
-        return true;
+        return owner;
     }
 }
 
-internal sealed class CircleShares(IGrainFactory grains) : DigitalBrain.Framework.Compute.ICircleShares
+// Configure is the circle neuron's alone: the grain the kernel is running the call for must be the one the key names.
+internal sealed class CircleShareGuard : IIncomingGrainCallFilter
 {
-    public Task Configure(string circleKey, string ownerAccountId, int percent)
-        => grains.GetGrain<ICircleShareGrain>(circleKey).Configure(ownerAccountId, percent);
+    public async Task Invoke(IIncomingGrainCallContext context)
+    {
+        if (context.InterfaceMethod.DeclaringType == typeof(ICircleShares))
+        {
+            var key = context.TargetId.Key.ToString();
+            if (context.SourceId is not { } source || source.Key.ToString() != key || key!.Contains('@'))
+            { throw new UnauthorizedAccessException($"Only the owner's circle {key} states its compute share."); }
+        }
+        await context.Invoke();
+    }
 }
 
 [GenerateSerializer, Alias("platform.circle-share-state")]
@@ -50,5 +72,7 @@ internal sealed class CircleShareState
 {
     [Id(0)] public string? OwnerAccountId { get; set; }
     [Id(1)] public int Percent { get; set; }
-    [Id(2)] public long SpentMicros { get; set; }
+    [Id(2)] public long DrawnMicros { get; set; }
+    [Id(3)] public string[] Members { get; set; } = [];
+    [Id(4)] public int Day { get; set; }
 }

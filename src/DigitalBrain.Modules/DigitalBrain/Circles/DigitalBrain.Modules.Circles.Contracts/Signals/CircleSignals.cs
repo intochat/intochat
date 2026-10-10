@@ -18,3 +18,11 @@ public sealed record CircleSpoke(
     [property: Id(1)] string Speaker,
     [property: Id(2)] string Text,
     [property: Id(3)] long Sequence) : Signal;
+
+// Published by the brain's circles index whenever any of its circle copies, invitations or chats changes,
+// so one subscription on the index covers every circle the brain is in. Kind: changed, invited, spoke or left.
+[GenerateSerializer, Alias("circles.circle-touched")]
+public sealed record CircleTouched(
+    [property: Id(0)] string Name,
+    [property: Id(1)] string Owner,
+    [property: Id(2)] string Kind) : Signal;
