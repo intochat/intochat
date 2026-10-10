@@ -1,0 +1,353 @@
+using System.Net.NetworkInformation;
+using System.Text.RegularExpressions;
+using Azure.Storage.Blobs;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Platform.Integrations;
+using Microsoft.Extensions.Configuration;
+
+namespace DigitalBrain.Microsoft.Aspire.Candidates;
+
+// Candidates are git worktrees under {Workdir}/worktrees, published to {Workdir}/builds and run as
+// a container beside their own Azurite on a private network. The repository is Workdir's parent.
+internal sealed partial class DockerCandidateHost : ICandidateHost
+{
+    public const int FirstPort = 5190;
+    public const string Image = "mcr.microsoft.com/dotnet/aspnet:11.0.0-rc.1";
+    private const string AzuriteImage = "mcr.microsoft.com/azure-storage/azurite";
+    private const string OsProject = "src/DigitalBrain.OS/DigitalBrain.OS/DigitalBrain.OS.csproj";
+    private const string Integrations = IntegrationSchema.SectionName + ":";
+
+    // The model is the one deployment Integration a candidate keeps: the AI module's provider ids.
+    internal static readonly string[] ModelIntegrations = ["openai", "anthropic", "google", "xai", "openrouter", "typesafe"];
+
+    // Deployment shape the OS reads besides its Integrations: module options, identity, posture, master key.
+    private static readonly string[] CopiedSections = ["DigitalBrain:Modules:", "DigitalBrain:Identity:", "DigitalBrain:Auth:"];
+
+    private readonly IProcessRunner processes;
+    private readonly IConfiguration live;
+    private readonly Func<CancellationToken, Task<string>> workdir;
+    private readonly Func<string, CancellationToken, Task> copyState;
+    private readonly Func<int, bool> listening;
+    private readonly HttpClient http;
+    private readonly Dictionary<string, int> ports = [];
+    private readonly Lock gate = new();
+
+    public DockerCandidateHost(IModuleIntegrations<AspireModule> integrations, IConfiguration configuration, IProcessRunner processes)
+        : this(processes, configuration, ct => Workdir(integrations, ct), null, null, new HttpClient { Timeout = TimeSpan.FromSeconds(5) })
+    {
+    }
+
+    internal DockerCandidateHost(
+        IProcessRunner processes,
+        IConfiguration configuration,
+        Func<CancellationToken, Task<string>> workdir,
+        Func<string, CancellationToken, Task>? copyState,
+        Func<int, bool>? listening,
+        HttpClient http)
+    {
+        this.processes = processes;
+        live = configuration;
+        this.workdir = workdir;
+        this.copyState = copyState ?? CopyLiveState;
+        this.listening = listening ?? Listening;
+        this.http = http;
+    }
+
+    public IReadOnlyDictionary<string, string> LastRunEnvironment { get; private set; } = new Dictionary<string, string>();
+
+    public async Task<PreparedCandidate> Prepare(string baseSha, string summary, IReadOnlyDictionary<string, string> files, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(files);
+        var root = await workdir(ct);
+        var git = Git(root);
+        var staging = Path.Combine(root, "worktrees", $"staging-{Guid.NewGuid():N}");
+        try
+        {
+            await git.AddWorktree(staging, baseSha, ct);
+            foreach (var (path, content) in files)
+            {
+                var target = Path.GetFullPath(Path.Combine(staging, path));
+                if (!target.StartsWith(Path.GetFullPath(staging) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                { throw new CandidateHostException("prepare", $"{path} leaves the worktree"); }
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                await File.WriteAllTextAsync(target, content, ct);
+            }
+            await git.Stage(staging, ct);
+            await git.Commit(staging, summary, ct);
+            var sha = await git.ShortSha(staging, ct);
+            var worktree = WorktreeOf(root, sha);
+            Directory.Move(staging, worktree);
+            await git.RepairWorktrees(ct);
+            return new(sha, worktree);
+        }
+        catch (InvalidOperationException error) { throw new CandidateHostException("prepare", error.Message); }
+        catch (IOException error) { throw new CandidateHostException("prepare", error.Message); }
+    }
+
+    // The candidate is one commit over its base: every project a changed file sits in builds, and
+    // every test project of a module it touches runs.
+    public async Task BuildGate(string sha, CancellationToken ct)
+    {
+        var worktree = WorktreeOf(await workdir(ct), sha);
+        string[] changed;
+        try { changed = await Git(Path.GetDirectoryName(worktree)!).ChangedFiles(worktree, "HEAD~1", ct); }
+        catch (InvalidOperationException error) { throw new CandidateHostException("gate", error.Message); }
+        var projects = changed.Select(file => ProjectOf(worktree, file)).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        foreach (var project in projects)
+        { await Dotnet("gate", worktree, ct, "build", project); }
+        var tests = projects
+            .Select(project => Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(project)!)!, "tests"))
+            .Where(Directory.Exists)
+            .SelectMany(folder => Directory.GetDirectories(folder).Where(dir => Directory.EnumerateFiles(dir, "*.csproj").Any()))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        foreach (var test in tests)
+        { await Dotnet("gate", worktree, ct, "test", "--project", test); }
+    }
+
+    public async Task<string> Publish(string sha, CancellationToken ct)
+    {
+        var root = await workdir(ct);
+        var build = Path.Combine(root, "builds", sha);
+        var dockerfile = Path.Combine(root, "Candidate.Dockerfile");
+        await File.WriteAllTextAsync(dockerfile, $"FROM {Image}\nWORKDIR /app\nCOPY . .\nENTRYPOINT [\"dotnet\", \"DigitalBrain.OS.dll\"]\n", ct);
+        await Dotnet("publish", WorktreeOf(root, sha), ct, "publish", OsProject, "-c", "Release", "-o", build);
+        await Docker("publish", ct, "build", "-t", ImageOf(sha), "-f", dockerfile, build);
+        return build;
+    }
+
+    public async Task<RunningCandidate> Run(string sha, CancellationToken ct)
+    {
+        var port = await AllocatePort(ct);
+        lock (gate) { ports[sha] = port; }
+        var network = NetworkOf(sha);
+        var azurite = AzuriteOf(sha);
+        await Docker("run", ct, "network", "create", network);
+        await Docker("run", ct, "run", "-d", "--name", azurite, "--network", network, "-p", $"{port + 5}:10000", AzuriteImage,
+            "azurite", "--blobHost", "0.0.0.0", "--tableHost", "0.0.0.0", "--skipApiVersionCheck", "--loose");
+        try { await copyState($"http://127.0.0.1:{port + 5}/{AzuriteCopy.AccountName}", ct); }
+        catch (Exception error) when (error is not OperationCanceledException) { throw new CandidateHostException("run", $"copying live storage failed: {error.Message}"); }
+
+        var environment = Environment(sha);
+        LastRunEnvironment = environment;
+        // Values travel through the docker CLI's own environment; `-e NAME` keeps secrets off the command line.
+        string[] args = ["run", "-d", "--name", ContainerOf(sha), "--network", network, "-p", $"{port}:5080", "-p", $"{port + 1}:5081",
+            "--add-host", "host.docker.internal:host-gateway",
+            .. environment.Keys.SelectMany(key => new[] { "-e", key }), ImageOf(sha)];
+        var result = await processes.RunAsync("docker", args, ".", environment, ct);
+        if (result.ExitCode != 0) { throw new CandidateHostException("run", Tail(result)); }
+        return new(sha, new CandidateEndpoints($"http://localhost:{port + 1}", $"http://localhost:{port}"), ContainerOf(sha));
+    }
+
+    // A readiness wait on a fresh process, bounded by the plan's budget; a stopped container fails at once.
+    public async Task WaitHealthy(string sha, TimeSpan budget, CancellationToken ct)
+    {
+        int port;
+        lock (gate)
+        {
+            if (!ports.TryGetValue(sha, out port)) { throw new CandidateHostException("healthy", $"{sha} is not running on this host"); }
+        }
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(budget);
+        try
+        {
+            while (true)
+            {
+                var state = await processes.RunAsync("docker", ["inspect", "-f", "{{.State.Running}}", ContainerOf(sha)], ".", null, limit.Token);
+                if (state.ExitCode != 0 || !state.Output.Trim().Equals("true", StringComparison.OrdinalIgnoreCase))
+                {
+                    var logs = await processes.RunAsync("docker", ["logs", "--tail", "40", ContainerOf(sha)], ".", null, ct);
+                    throw new CandidateHostException("healthy", $"{ContainerOf(sha)} stopped: {Tail(logs)}");
+                }
+                try
+                {
+                    using var response = await http.GetAsync(new Uri($"http://localhost:{port + 1}/health"), limit.Token);
+                    if (response.IsSuccessStatusCode) { return; }
+                }
+                catch (HttpRequestException) { }
+                await Task.Delay(TimeSpan.FromSeconds(1), limit.Token);
+            }
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new TimeoutException($"{ContainerOf(sha)} was not healthy within {budget}.");
+        }
+    }
+
+    public async Task Commit(string sha, string branch, CancellationToken ct)
+    {
+        try { await Git(await workdir(ct)).FastForward(branch, sha, ct); }
+        catch (InvalidOperationException error) { throw new CandidateHostException("commit", error.Message); }
+    }
+
+    public async Task Remove(string sha, CancellationToken ct)
+    {
+        await Ignoring("No such", ct, "rm", "-f", ContainerOf(sha), AzuriteOf(sha));
+        await Ignoring("not found", ct, "network", "rm", NetworkOf(sha));
+        lock (gate) { ports.Remove(sha); }
+    }
+
+    public async Task<string[]> Orphans(string[] known, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(known);
+        var listed = await processes.RunAsync("docker", ["ps", "-a", "--filter", "name=candidate-", "--format", "{{.Names}}"], ".", null, ct);
+        if (listed.ExitCode != 0) { throw new CandidateHostException("orphans", Tail(listed)); }
+        var orphans = listed.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(name => (Name: name, Match: CandidateName().Match(name)))
+            .Where(item => item.Match.Success && !known.Contains(item.Match.Groups["sha"].Value, StringComparer.Ordinal))
+            .ToArray();
+        foreach (var sha in orphans.Select(item => item.Match.Groups["sha"].Value).Distinct(StringComparer.Ordinal))
+        { await Remove(sha, ct); }
+        return [.. orphans.Select(item => item.Name)];
+    }
+
+    // The environment the AppHost projects into the OS resource, re-pointed at the candidate's own
+    // storage and ports. Of the deployment Integrations only the model's keys travel.
+    internal Dictionary<string, string> Environment(string sha)
+    {
+        var copied = live.AsEnumerable()
+            .Where(pair => pair.Value is not null && Travels(pair.Key))
+            .ToDictionary(pair => DigitalBrainConfiguration.EnvironmentName(pair.Key), pair => pair.Value!, StringComparer.Ordinal);
+        var storage = CandidateConnectionString(sha);
+        var container = live[DigitalBrainNames.GrainStateContainerKey] is { Length: > 0 } named ? named : DigitalBrainNames.GrainStateContainer;
+        var environment = new Dictionary<string, string>(copied, StringComparer.Ordinal)
+        {
+            ["ASPNETCORE_URLS"] = "http://+:5080;http://+:5081",
+            ["ASPNETCORE_ENVIRONMENT"] = live["ASPNETCORE_ENVIRONMENT"] ?? "Development",
+            ["DOTNET_ENVIRONMENT"] = live["DOTNET_ENVIRONMENT"] ?? live["ASPNETCORE_ENVIRONMENT"] ?? "Development",
+            ["Orleans__ServiceId"] = $"intochat-c{sha}",
+            ["Orleans__ClusterId"] = $"intochat-c{sha}",
+            ["Orleans__Clustering__ProviderType"] = "Development",
+            ["Orleans__Endpoints__AdvertisedIPAddress"] = "127.0.0.1",
+            ["Orleans__Endpoints__SiloPort"] = "11111",
+            ["Orleans__Endpoints__GatewayPort"] = "30000",
+            ["Orleans__EnableDistributedTracing"] = "true",
+            ["Orleans__Reminders__ProviderType"] = "AzureTableStorage",
+            ["Orleans__Reminders__ServiceKey"] = DigitalBrainNames.Reminders,
+            [$"Orleans__GrainStorage__{DigitalBrainNames.DefaultGrainStorage}__ProviderType"] = "AzureBlobStorage",
+            [$"Orleans__GrainStorage__{DigitalBrainNames.DefaultGrainStorage}__ServiceKey"] = DigitalBrainNames.GrainState,
+            [$"ConnectionStrings__{DigitalBrainNames.Clustering}"] = storage,
+            [$"ConnectionStrings__{DigitalBrainNames.Reminders}"] = storage,
+            [$"ConnectionStrings__{DigitalBrainNames.GrainState}"] = storage,
+            [DigitalBrainConfiguration.EnvironmentName(DigitalBrainNames.GrainStateContainerKey)] = container,
+            ["DigitalBrain__Http__UiPort"] = "5080",
+            ["DigitalBrain__Http__McpPort"] = "5081",
+            [DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ModuleOptionsSection("apps") + ":Features")] = "/app/features",
+            ["OTEL_SERVICE_NAME"] = $"candidate-{sha}",
+        };
+        if (live["OTEL_EXPORTER_OTLP_ENDPOINT"] is { Length: > 0 } otlp)
+        { environment["OTEL_EXPORTER_OTLP_ENDPOINT"] = otlp.Replace("localhost", "host.docker.internal", StringComparison.OrdinalIgnoreCase).Replace("127.0.0.1", "host.docker.internal", StringComparison.Ordinal); }
+        foreach (var key in new[] { "OTEL_EXPORTER_OTLP_PROTOCOL", "OTEL_EXPORTER_OTLP_HEADERS" })
+        {
+            if (live[key] is { Length: > 0 } value) { environment[key] = value; }
+        }
+        return environment;
+    }
+
+    private static bool Travels(string key)
+    {
+        if (key.StartsWith(Integrations, StringComparison.OrdinalIgnoreCase))
+        {
+            var id = key[Integrations.Length..].Split(':')[0];
+            return key.Length > Integrations.Length + id.Length && ModelIntegrations.Contains(id, StringComparer.OrdinalIgnoreCase);
+        }
+        return key.Equals(DigitalBrainNames.MasterKeyConfigurationKey, StringComparison.OrdinalIgnoreCase)
+            || CopiedSections.Any(section => key.StartsWith(section, StringComparison.OrdinalIgnoreCase));
+    }
+
+    // Integration registrations live in grain state too; a copy carries only the model's.
+    internal static bool CarriesForeignIntegration(string blobName)
+    {
+        var match = IntegrationBlob().Match(blobName);
+        return match.Success && !ModelIntegrations.Contains(match.Groups["id"].Value, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private async Task CopyLiveState(string candidateBlobEndpoint, CancellationToken ct)
+    {
+        var source = live.GetConnectionString(DigitalBrainNames.GrainState)
+            ?? throw new InvalidOperationException($"The live process has no ConnectionStrings:{DigitalBrainNames.GrainState}.");
+        var container = live[DigitalBrainNames.GrainStateContainerKey] is { Length: > 0 } named ? named : DigitalBrainNames.GrainStateContainer;
+        await AzuriteCopy.CopyAsync(new BlobServiceClient(source), container, AzuriteCopy.At(candidateBlobEndpoint), container, CarriesForeignIntegration, ct);
+    }
+
+    private async Task<int> AllocatePort(CancellationToken ct)
+    {
+        var listed = await processes.RunAsync("docker", ["ps", "--format", "{{.Ports}}"], ".", null, ct);
+        if (listed.ExitCode != 0) { throw new CandidateHostException("run", Tail(listed)); }
+        int[] reserved;
+        lock (gate) { reserved = [.. ports.Values]; }
+        for (var port = FirstPort; port < FirstPort + 1000; port += 10)
+        {
+            var block = Enumerable.Range(port, 6).ToArray();
+            if (reserved.Contains(port)) { continue; }
+            if (block.Any(p => listed.Output.Contains($":{p}->", StringComparison.Ordinal) || listening(p))) { continue; }
+            return port;
+        }
+        throw new CandidateHostException("run", "no free candidate port block");
+    }
+
+    private static bool Listening(int port)
+        => IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners().Any(endpoint => endpoint.Port == port);
+
+    private static string? ProjectOf(string worktree, string file)
+    {
+        var full = Path.GetFullPath(worktree);
+        for (var dir = Path.GetDirectoryName(Path.GetFullPath(Path.Combine(full, file))); dir is not null && dir.Length > full.Length; dir = Path.GetDirectoryName(dir))
+        {
+            if (Directory.Exists(dir) && Directory.EnumerateFiles(dir, "*.csproj").FirstOrDefault() is { } project) { return project; }
+        }
+        return null;
+    }
+
+    private async Task Dotnet(string stage, string worktree, CancellationToken ct, params string[] args)
+    {
+        var result = await processes.RunAsync("dotnet", args, worktree, null, ct);
+        if (result.ExitCode != 0) { throw new CandidateHostException(stage, $"dotnet {string.Join(' ', args)}:\n{Tail(result)}"); }
+    }
+
+    private async Task Docker(string stage, CancellationToken ct, params string[] args)
+    {
+        var result = await processes.RunAsync("docker", args, ".", null, ct);
+        if (result.ExitCode != 0) { throw new CandidateHostException(stage, $"docker {string.Join(' ', args)}:\n{Tail(result)}"); }
+    }
+
+    private async Task Ignoring(string absent, CancellationToken ct, params string[] args)
+    {
+        var result = await processes.RunAsync("docker", args, ".", null, ct);
+        if (result.ExitCode != 0 && !(result.Error + result.Output).Contains(absent, StringComparison.OrdinalIgnoreCase))
+        { throw new CandidateHostException("remove", $"docker {string.Join(' ', args)}:\n{Tail(result)}"); }
+    }
+
+    private static string Tail(ProcessResult result, int lines = 40)
+    {
+        var all = (result.Output + "\n" + result.Error).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return string.Join('\n', all.TakeLast(lines));
+    }
+
+    private static async Task<string> Workdir(IModuleIntegrations<AspireModule> integrations, CancellationToken ct)
+    {
+        var snapshot = await integrations.Get("aspire").ReadAsync(ct);
+        return snapshot.Settings.TryGetValue("Workdir", out var workdir) && workdir is { Length: > 0 }
+            ? Path.GetFullPath(workdir)
+            : throw new CandidateHostException("prepare", "the aspire Integration has no Workdir");
+    }
+
+    private Git Git(string root) => new(processes, Path.GetDirectoryName(Path.GetFullPath(root))!);
+
+    private static string CandidateConnectionString(string sha)
+        => $"DefaultEndpointsProtocol=http;AccountName={AzuriteCopy.AccountName};AccountKey={AzuriteCopy.AccountKey};"
+            + $"BlobEndpoint=http://{AzuriteOf(sha)}:10000/{AzuriteCopy.AccountName};TableEndpoint=http://{AzuriteOf(sha)}:10002/{AzuriteCopy.AccountName};";
+
+    private static string WorktreeOf(string root, string sha) => Path.Combine(root, "worktrees", sha);
+    private static string ImageOf(string sha) => $"digitalbrain-candidate:{sha}";
+    private static string ContainerOf(string sha) => $"candidate-{sha}";
+    private static string AzuriteOf(string sha) => $"candidate-{sha}-azurite";
+    private static string NetworkOf(string sha) => $"candidate-{sha}";
+
+    [GeneratedRegex("^candidate-(?<sha>[0-9a-f]{7,40})(-azurite)?$", RegexOptions.CultureInvariant)]
+    private static partial Regex CandidateName();
+
+    [GeneratedRegex("(^|[^a-z0-9])integration/(?<id>[a-z][a-z0-9.-]*?)(\\.json)?$", RegexOptions.CultureInvariant)]
+    private static partial Regex IntegrationBlob();
+}

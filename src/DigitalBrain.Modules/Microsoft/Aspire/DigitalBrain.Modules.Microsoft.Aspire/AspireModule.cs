@@ -2,6 +2,7 @@ using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Modules;
+using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -13,9 +14,21 @@ public sealed class AspireModule() : Module(new ModuleId("aspire")), IHttpModule
 {
     public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.Microsoft.Aspire.ICluster).Assembly;
 
+    public static IntegrationSchema Integration { get; } = IntegrationSchema.For("aspire", "Aspire")
+        .RequiresSetting("Workdir");
+
+    // Discovery refuses a connector without an authentication method; the deployment's Workdir is its only credential.
+    public static ConnectorDefinition Connector => new("aspire", "Aspire", ["deployment"], ["aspire"])
+    {
+        Neurons = [typeof(ICandidate), typeof(ICluster)],
+        Signals = [typeof(CandidatePromoted), typeof(CandidateFailed), typeof(ClusterChanged)],
+    };
+
     public override void Configure(ISiloBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
+        builder.Services.TryAddSingleton<Candidates.IProcessRunner, Candidates.SystemProcessRunner>();
+        builder.Services.TryAddSingleton<Candidates.ICandidateHost, Candidates.DockerCandidateHost>();
         builder.Services.TryAddSingleton<Verification.ICandidateVerifier, Verification.CandidateVerifier>();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<Cluster.ClusterNeuron>, Cluster.ClusterReconcile>());
     }

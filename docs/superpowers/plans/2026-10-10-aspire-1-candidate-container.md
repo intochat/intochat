@@ -617,14 +617,14 @@ ENTRYPOINT ["dotnet", "DigitalBrain.OS.dll"]
 - `Remove`: `docker rm -f candidate-{sha} candidate-{sha}-azurite`, `docker network rm candidate-{sha}`; ignore "No such container".
 - `Orphans(known)`: `docker ps -a --filter name=candidate- --format {{.Names}}`, remove those whose sha is not in `known`.
 
-- [ ] **Step 1: Failing facts** with a recording fake `IProcessRunner`:
+- [x] **Step 1: Failing facts** with a recording fake `IProcessRunner`:
   - `TheCandidateContainerGetsNoIntegrationButTheModel` — `Run` then assert `LastRunEnvironment.Keys.Where(k => k.StartsWith("DigitalBrain__Integrations__"))` are all LLM keys.
   - `RemoveDeletesTheContainerItsAzuriteAndItsNetwork` — command list.
   - `OrphansRemovesOnlyUnknownCandidates`.
   - `AFailingBuildRaisesAGateErrorWithTheOutputTail`.
-- [ ] Steps 2–4: fail, implement, pass.
-- [ ] **Step 5:** Register `DockerCandidateHost` in `AspireModule.Configure`.
-- [ ] **Step 6:** Commit `"Aspire: Docker candidate host"`.
+- [x] Steps 2–4: fail, implement, pass.
+- [x] **Step 5:** Register `DockerCandidateHost` in `AspireModule.Configure`.
+- [x] **Step 6:** Commit `"Aspire: Docker candidate host"`.
 
 ---
 
