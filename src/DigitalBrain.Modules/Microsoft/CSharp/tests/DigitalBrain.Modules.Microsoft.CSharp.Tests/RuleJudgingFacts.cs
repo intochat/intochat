@@ -56,6 +56,21 @@ public sealed class RuleJudgingFacts
     }
 
     [Fact]
+    public async Task ABundleWithAnAllowingRulePassesWhenNoSessionWasRunning()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new JudgingHost { RequireSession = true };
+        await using var brain = await Start(host, ct);
+        var sandbox = brain.SiloServices.GetRequiredService<IScriptSandbox>();
+        var bundle = new Dictionary<string, string> { ["synapses/a.cs"] = Synapse, ["rules/shouting.cs"] = Rules };
+
+        var spoken = Assert.Single(await sandbox.Judge(Brain, bundle, new AppRequested("ask", "hey", Guid.NewGuid()), ct));
+
+        Assert.True(spoken.Allowed);
+        Assert.Single(host.Started);
+    }
+
+    [Fact]
     public async Task ABundleWithoutRulesNeverReachesTheSession()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -226,6 +241,10 @@ public sealed class RuleJudgingFacts
 
         public ConcurrentQueue<JudgeRequest> Judged { get; } = new();
 
+        public bool RequireSession { get; init; }
+
+        public ConcurrentBag<string> Started { get; } = [];
+
         public Task Put(CompiledBehavior behavior, CancellationToken cancellationToken)
         {
             _blobs[behavior.Hash] = behavior.Assembly;
@@ -246,11 +265,13 @@ public sealed class RuleJudgingFacts
             switch (path.Split('/'))
             {
                 case ["sessions", var id, "judge"]:
+                    if (RequireSession && !Started.Contains(id)) { return new(HttpStatusCode.NotFound); }
                     var judge = (await request.Content!.ReadFromJsonAsync<JudgeRequest>(RuntimeProtocol.Json, cancellationToken))!;
                     Judged.Enqueue(judge);
                     var answer = await _judge.JudgeAsync(id, judge, cancellationToken);
                     return new(HttpStatusCode.OK) { Content = JsonContent.Create(answer, options: RuntimeProtocol.Json) };
-                case ["sessions", _] when request.Method == HttpMethod.Post:
+                case ["sessions", var started] when request.Method == HttpMethod.Post:
+                    Started.Add(started);
                     return new(HttpStatusCode.Accepted);
                 default:
                     return new(HttpStatusCode.NotFound);

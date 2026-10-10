@@ -78,6 +78,13 @@ internal sealed class BrainRuntimeNeuron(
         if (Snapshot.Programs.Length > 0) { await EnsureSessionAsync(); }
     }
 
+    public async Task Hold(CancellationToken cancellationToken = default)
+    {
+        var start = await PrepareSessionAsync(restart: false);
+        await _sandboxCalls;
+        await runner.Ensure(start, cancellationToken);
+    }
+
     public async Task<ProgramView> Assign(string owner, Dictionary<string, string> sources, Dictionary<string, string> settings)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
@@ -211,6 +218,9 @@ internal sealed class BrainRuntimeNeuron(
             // after the source has accepted the current selection, including the saved addition.
             await GrainFactory.GetGrain<INeuron>(GrainId.Parse(neuron)).Watch(this.AsReference<INeuronObserver>(),
                 Snapshot.Subscriptions.Where(s => s.Neuron == neuron).Select(s => s.Signal).Distinct(StringComparer.Ordinal).ToArray());
+            // The log after the watermark comes first; a source whose part is leased elsewhere fails the subscribe here.
+            await CatchUpAsync(neuron, push: false);
+            existing = Snapshot.Subscriptions.First(s => s.Id == existing.Id);
             // A reloaded behavior gets what waited while it was down without another arrival.
             if (existing.Pending.Length > 0 && Snapshot.Session is { Status: SessionStatus.Connected })
             { streams.TryPush(session, SignalBatchEvent.Kind, Batch(existing)); }
@@ -314,7 +324,17 @@ internal sealed class BrainRuntimeNeuron(
 
     // On a host with a part log a live signal is a nudge: the source's log after each watermark is what is buffered,
     // so a signal the runtime never heard live arrives too and none arrives twice. False when nothing is journaled.
-    private async Task<bool> CatchUpAsync(string neuron)
+    public async Task CatchUp()
+    {
+        foreach (var neuron in Snapshot.Subscriptions.Select(s => s.Neuron).Distinct(StringComparer.Ordinal).ToArray())
+        {
+            try { await CatchUpAsync(neuron); }
+            catch (Exception error)
+            { logger.LogWarning(error, "Brain {Brain} could not read {Neuron}'s part log from its watermark; live signals and the next re-subscribe retry.", Brain, neuron); }
+        }
+    }
+
+    private async Task<bool> CatchUpAsync(string neuron, bool push = true)
     {
         var matching = Snapshot.Subscriptions.Where(s => s.Neuron == neuron).ToArray();
         if (matching.Length == 0) { return true; }
@@ -339,7 +359,7 @@ internal sealed class BrainRuntimeNeuron(
         }).ToArray();
         if (!changed) { return true; }
         await Save(Snapshot with { Subscriptions = next }, Changed());
-        if (Snapshot.Session is { Status: SessionStatus.Connected } session)
+        if (push && Snapshot.Session is { Status: SessionStatus.Connected } session)
         {
             foreach (var subscription in arrived) { streams.TryPush(session.Id, SignalBatchEvent.Kind, Batch(subscription)); }
         }
@@ -364,7 +384,12 @@ internal sealed class BrainRuntimeNeuron(
     // the renewal timer's first tick watches it right after activation instead.
     internal Task ResumeAsync()
     {
-        if (Snapshot.Subscriptions.Length > 0) { RenewSourceWatches(dueTime: TimeSpan.Zero); }
+        if (Snapshot.Subscriptions.Length > 0)
+        {
+            RenewSourceWatches(dueTime: TimeSpan.Zero);
+            // Off the activation turn: a source's log may be on a part this machine has yet to open.
+            _ = this.AsReference<IBrainRuntimeArrivals>().CatchUp();
+        }
         // Signals may have arrived while watches were absent. Relaunch disposable behaviors so
         // their subscribe-then-read recovery runs against durable state, with fresh credentials.
         return Snapshot.Programs.Length > 0 ? EnsureSessionAsync(restart: true) : Task.CompletedTask;
@@ -375,6 +400,9 @@ internal sealed class BrainRuntimeNeuron(
     // a new one (the old token stops speaking); a live one is ensured again, refreshing its token or
     // restoring it if the host lost it. Heartbeats are the detector; nothing here probes the host.
     private async Task EnsureSessionAsync(bool restart = false)
+        => OffTurn(runner.Ensure, await PrepareSessionAsync(restart), "start");
+
+    private async Task<SessionStart> PrepareSessionAsync(bool restart)
     {
         var session = Snapshot.Session;
         if (restart || session is null || session.Status == SessionStatus.Refused || Silent(session))
@@ -383,7 +411,7 @@ internal sealed class BrainRuntimeNeuron(
             await Save(Snapshot with { Session = session }, Changed());
             await reminders.RegisterOrUpdateReminder(this.GetGrainId(), ReconcileReminder, ReconcilePeriod, ReconcilePeriod);
         }
-        OffTurn(runner.Ensure, new SessionStart(Brain, session.Id, tokens.Issue(Brain, session.Id), EdgeUrl()), "start");
+        return new SessionStart(Brain, session.Id, tokens.Issue(Brain, session.Id), EdgeUrl());
     }
 
     private bool Silent(SessionRecord session) => (session.LastHeartbeat ?? session.Started) < time.GetUtcNow() - SilenceLimit;

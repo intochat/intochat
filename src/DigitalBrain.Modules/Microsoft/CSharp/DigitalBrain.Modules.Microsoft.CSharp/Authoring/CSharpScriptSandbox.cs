@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Net;
 using System.Text.Json;
 using System.Security.Cryptography;
 using System.Text;
@@ -90,7 +91,16 @@ public sealed class CSharpScriptSandbox(CSharpToolService tools, IBehaviorAssemb
                 JsonSerializer.SerializeToElement(signal, type, RuntimeProtocol.Json),
                 // The host answers inside the budget, so a hung rule is reported (and quarantined) rather than cut off.
                 options.Value.RuleTimeout * 0.8);
-            var answer = await services.GetRequiredService<SessionRunner>().Judge(brain, request, deadline.Token).ConfigureAwait(false);
+            var runner = services.GetRequiredService<SessionRunner>();
+            JudgeAnswer answer;
+            try { answer = await runner.Judge(brain, request, deadline.Token).ConfigureAwait(false); }
+            catch (HttpRequestException missing) when (missing.StatusCode == HttpStatusCode.NotFound)
+            {
+                // Sessions are caches: reaped or not yet started, it is ensured like a script run would and asked once more.
+                await services.GetRequiredService<IGrainFactory>().GetGrain<IBrainRuntime>(BrainRuntimeKeys.For(brain))
+                    .Hold(deadline.Token).WaitAsync(deadline.Token).ConfigureAwait(false);
+                answer = await runner.Judge(brain, request, deadline.Token).ConfigureAwait(false);
+            }
             return [.. answer.Verdicts.Select(verdict => new Verdict(verdict.Allowed, verdict.Reason) { Rule = verdict.Rule })];
         }
         catch (Exception error) when (!cancellationToken.IsCancellationRequested

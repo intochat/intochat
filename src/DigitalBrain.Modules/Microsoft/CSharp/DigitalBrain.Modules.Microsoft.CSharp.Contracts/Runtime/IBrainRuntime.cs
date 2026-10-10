@@ -11,4 +11,6 @@ public interface IBrainRuntime : INeuron
     Task<BrainRuntimeSnapshot> Inspect(CancellationToken cancellationToken = default);
     // Sign-in and the shell call this: ensures a session when anything is assigned, otherwise nothing.
     Task Touch(CancellationToken cancellationToken = default);
+    // Rules are judged in the session: ensures it with or without programs and returns once the host holds it.
+    Task Hold(CancellationToken cancellationToken = default);
 }
