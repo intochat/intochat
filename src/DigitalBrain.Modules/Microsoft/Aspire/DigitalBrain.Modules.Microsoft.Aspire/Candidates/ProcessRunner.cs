@@ -25,7 +25,12 @@ internal sealed class SystemProcessRunner : IProcessRunner
         process.Start();
         var output = process.StandardOutput.ReadToEndAsync(ct);
         var error = process.StandardError.ReadToEndAsync(ct);
-        await process.WaitForExitAsync(ct);
+        try { await process.WaitForExitAsync(ct); }
+        catch (OperationCanceledException)
+        {
+            if (!process.HasExited) { process.Kill(entireProcessTree: true); }
+            throw;
+        }
         return new(process.ExitCode, await output, await error);
     }
 

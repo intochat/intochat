@@ -10,8 +10,11 @@ internal static class AzuriteCopy
     public const string AccountName = "devstoreaccount1";
     public const string AccountKey = "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==";
 
+    // Readiness is established before the copy; a failing request fails the copy instead of retrying.
+    public static BlobClientOptions NoRetries => new() { Retry = { MaxRetries = 0 } };
+
     public static BlobServiceClient At(string blobEndpoint)
-        => new(new Uri(blobEndpoint), new StorageSharedKeyCredential(AccountName, AccountKey));
+        => new(new Uri(blobEndpoint), new StorageSharedKeyCredential(AccountName, AccountKey), NoRetries);
 
     public static async Task CopyAsync(BlobServiceClient from, string sourceContainer, BlobServiceClient to, string destinationContainer, Func<string, bool> skip, CancellationToken ct)
     {

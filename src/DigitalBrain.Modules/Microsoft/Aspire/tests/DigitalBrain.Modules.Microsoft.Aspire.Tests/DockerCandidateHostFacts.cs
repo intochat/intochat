@@ -37,15 +37,19 @@ public sealed class DockerCandidateHostFacts : IDisposable
         Assert.Contains("candidate-abc1234-azurite:10000", host.LastRunEnvironment["ConnectionStrings__grainstate"], StringComparison.Ordinal);
         var run = processes.Commands.Single(command => command.StartsWith("docker run -d --name candidate-abc1234 ", StringComparison.Ordinal));
         Assert.DoesNotContain("model-key", run, StringComparison.Ordinal);
+        Assert.True(host.LastRunEnvironment.TryGetValue("DigitalBrain__MasterKey", out var masterKey));
+        Assert.NotEqual("master", masterKey);
+        Assert.All(host.LastRunEnvironment.Where(pair => pair.Key.StartsWith("ConnectionStrings__", StringComparison.Ordinal)),
+            pair => Assert.Contains("candidate-abc1234-azurite", pair.Value, StringComparison.Ordinal));
     }
 
     [Fact]
-    public void TheStorageCopyLeavesEveryIntegrationButTheModelBehind()
+    public void TheStorageCopyLeavesEveryIntegrationBehind()
     {
-        Assert.True(DockerCandidateHost.CarriesForeignIntegration("registration-integration/github"));
-        Assert.True(DockerCandidateHost.CarriesForeignIntegration("integration.registration/integration/postgres.json"));
-        Assert.False(DockerCandidateHost.CarriesForeignIntegration("registration-integration/openrouter"));
-        Assert.False(DockerCandidateHost.CarriesForeignIntegration("app.state/alice/apps/notes"));
+        Assert.True(DockerCandidateHost.CarriesIntegration("registration-integration/github"));
+        Assert.True(DockerCandidateHost.CarriesIntegration("integration.registration/integration/postgres.json"));
+        Assert.True(DockerCandidateHost.CarriesIntegration("registration-integration/openrouter"));
+        Assert.False(DockerCandidateHost.CarriesIntegration("app.state/alice/apps/notes"));
     }
 
     [Fact]
@@ -88,7 +92,7 @@ public sealed class DockerCandidateHostFacts : IDisposable
 
     private DockerCandidateHost Host(Dictionary<string, string?>? live = null)
         => new(processes, new ConfigurationBuilder().AddInMemoryCollection(live ?? []).Build(),
-            _ => Task.FromResult(workdir), (_, _) => Task.CompletedTask, _ => false, new HttpClient());
+            _ => Task.FromResult(workdir), (_, _) => Task.CompletedTask, _ => false, new HttpClient(), (_, _, _) => Task.CompletedTask);
 
     private sealed class RecordingProcessRunner : IProcessRunner
     {

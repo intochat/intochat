@@ -29,6 +29,8 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
     private readonly Func<CancellationToken, Task<string>> workdir;
     private readonly Func<string, CancellationToken, Task> copyState;
     private readonly Func<int, bool> listening;
+    private readonly Func<string, int, CancellationToken, Task> azuriteReady;
+    private static readonly TimeSpan AzuriteBudget = TimeSpan.FromSeconds(30);
     private readonly HttpClient http;
     private readonly Dictionary<string, int> ports = [];
     private readonly Lock gate = new();
@@ -44,13 +46,15 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         Func<CancellationToken, Task<string>> workdir,
         Func<string, CancellationToken, Task>? copyState,
         Func<int, bool>? listening,
-        HttpClient http)
+        HttpClient http,
+        Func<string, int, CancellationToken, Task>? azuriteReady = null)
     {
         this.processes = processes;
         live = configuration;
         this.workdir = workdir;
         this.copyState = copyState ?? CopyLiveState;
         this.listening = listening ?? Listening;
+        this.azuriteReady = azuriteReady ?? AzuriteReady;
         this.http = http;
     }
 
@@ -62,9 +66,11 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         var root = await workdir(ct);
         var git = Git(root);
         var staging = Path.Combine(root, "worktrees", $"staging-{Guid.NewGuid():N}");
+        var added = false;
         try
         {
             await git.AddWorktree(staging, baseSha, ct);
+            added = true;
             foreach (var (path, content) in files)
             {
                 var target = Path.GetFullPath(Path.Combine(staging, path));
@@ -77,21 +83,25 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
             await git.Commit(staging, summary, ct);
             var sha = await git.ShortSha(staging, ct);
             var worktree = WorktreeOf(root, sha);
-            Directory.Move(staging, worktree);
-            await git.RepairWorktrees(ct);
+            await git.MoveWorktree(staging, worktree, ct);
             return new(sha, worktree);
         }
-        catch (InvalidOperationException error) { throw new CandidateHostException("prepare", error.Message); }
-        catch (IOException error) { throw new CandidateHostException("prepare", error.Message); }
+        catch (Exception error) when (error is InvalidOperationException or IOException or CandidateHostException)
+        {
+            if (added) { await git.RemoveWorktree(staging, CancellationToken.None); }
+            throw error as CandidateHostException ?? new CandidateHostException("prepare", error.Message);
+        }
     }
 
     // The candidate is one commit over its base: every project a changed file sits in builds, and
     // every test project of a module it touches runs.
     public async Task BuildGate(string sha, CancellationToken ct)
     {
-        var worktree = WorktreeOf(await workdir(ct), sha);
+        Checked(sha);
+        var root = await workdir(ct);
+        var worktree = WorktreeOf(root, sha);
         string[] changed;
-        try { changed = await Git(Path.GetDirectoryName(worktree)!).ChangedFiles(worktree, "HEAD~1", ct); }
+        try { changed = await Git(root).ChangedFiles(worktree, "HEAD~1", ct); }
         catch (InvalidOperationException error) { throw new CandidateHostException("gate", error.Message); }
         var projects = changed.Select(file => ProjectOf(worktree, file)).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         foreach (var project in projects)
@@ -119,13 +129,14 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
 
     public async Task<RunningCandidate> Run(string sha, CancellationToken ct)
     {
-        var port = await AllocatePort(ct);
-        lock (gate) { ports[sha] = port; }
+        Checked(sha);
+        var port = await AllocatePort(sha, ct);
         var network = NetworkOf(sha);
         var azurite = AzuriteOf(sha);
         await Docker("run", ct, "network", "create", network);
         await Docker("run", ct, "run", "-d", "--name", azurite, "--network", network, "-p", $"{port + 5}:10000", AzuriteImage,
             "azurite", "--blobHost", "0.0.0.0", "--tableHost", "0.0.0.0", "--skipApiVersionCheck", "--loose");
+        await azuriteReady(sha, port + 5, ct);
         try { await copyState($"http://127.0.0.1:{port + 5}/{AzuriteCopy.AccountName}", ct); }
         catch (Exception error) when (error is not OperationCanceledException) { throw new CandidateHostException("run", $"copying live storage failed: {error.Message}"); }
 
@@ -177,12 +188,14 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
 
     public async Task Commit(string sha, string branch, CancellationToken ct)
     {
+        Checked(sha);
         try { await Git(await workdir(ct)).FastForward(branch, sha, ct); }
         catch (InvalidOperationException error) { throw new CandidateHostException("commit", error.Message); }
     }
 
     public async Task Remove(string sha, CancellationToken ct)
     {
+        Checked(sha);
         await Ignoring("No such", ct, "rm", "-f", ContainerOf(sha), AzuriteOf(sha));
         await Ignoring("not found", ct, "network", "rm", NetworkOf(sha));
         lock (gate) { ports.Remove(sha); }
@@ -199,7 +212,18 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
             .ToArray();
         foreach (var sha in orphans.Select(item => item.Match.Groups["sha"].Value).Distinct(StringComparer.Ordinal))
         { await Remove(sha, ct); }
-        return [.. orphans.Select(item => item.Name)];
+        // A network can outlive its containers when a Run failed between `network create` and `docker run`.
+        var networks = await processes.RunAsync("docker", ["network", "ls", "--filter", "name=candidate-", "--format", "{{.Name}}"], ".", null, ct);
+        if (networks.ExitCode != 0) { throw new CandidateHostException("orphans", Tail(networks)); }
+        var removedShas = orphans.Select(item => item.Match.Groups["sha"].Value).ToHashSet(StringComparer.Ordinal);
+        var strayNetworks = networks.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(name => (Name: name, Match: CandidateNetwork().Match(name)))
+            .Where(item => item.Match.Success && !known.Contains(item.Match.Groups["sha"].Value, StringComparer.Ordinal) && !removedShas.Contains(item.Match.Groups["sha"].Value))
+            .Select(item => item.Name)
+            .ToArray();
+        foreach (var network in strayNetworks)
+        { await Ignoring("not found", ct, "network", "rm", network); }
+        return [.. orphans.Select(item => item.Name), .. strayNetworks];
     }
 
     // The environment the AppHost projects into the OS resource, re-pointed at the candidate's own
@@ -235,6 +259,8 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
             ["DigitalBrain__Http__McpPort"] = "5081",
             [DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ModuleOptionsSection("apps") + ":Features")] = "/app/features",
             ["OTEL_SERVICE_NAME"] = $"candidate-{sha}",
+            // Never the live key: copied user Connections stay sealed and unreadable in the candidate.
+            [DigitalBrainNames.MasterKeyEnvironmentVariable] = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)),
         };
         if (live["OTEL_EXPORTER_OTLP_ENDPOINT"] is { Length: > 0 } otlp)
         { environment["OTEL_EXPORTER_OTLP_ENDPOINT"] = otlp.Replace("localhost", "host.docker.internal", StringComparison.OrdinalIgnoreCase).Replace("127.0.0.1", "host.docker.internal", StringComparison.Ordinal); }
@@ -252,39 +278,63 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
             var id = key[Integrations.Length..].Split(':')[0];
             return key.Length > Integrations.Length + id.Length && ModelIntegrations.Contains(id, StringComparer.OrdinalIgnoreCase);
         }
-        return key.Equals(DigitalBrainNames.MasterKeyConfigurationKey, StringComparison.OrdinalIgnoreCase)
-            || CopiedSections.Any(section => key.StartsWith(section, StringComparison.OrdinalIgnoreCase));
+        return CopiedSections.Any(section => key.StartsWith(section, StringComparison.OrdinalIgnoreCase));
     }
 
-    // Integration registrations live in grain state too; a copy carries only the model's.
-    internal static bool CarriesForeignIntegration(string blobName)
-    {
-        var match = IntegrationBlob().Match(blobName);
-        return match.Success && !ModelIntegrations.Contains(match.Groups["id"].Value, StringComparer.OrdinalIgnoreCase);
-    }
+    // Integration registrations live in grain state, sealed with the live master key; none is copied.
+    // The candidate's IntegrationSeeder re-seeds the model's from the env keys it receives.
+    internal static bool CarriesIntegration(string blobName) => IntegrationBlob().IsMatch(blobName);
 
     private async Task CopyLiveState(string candidateBlobEndpoint, CancellationToken ct)
     {
         var source = live.GetConnectionString(DigitalBrainNames.GrainState)
             ?? throw new InvalidOperationException($"The live process has no ConnectionStrings:{DigitalBrainNames.GrainState}.");
         var container = live[DigitalBrainNames.GrainStateContainerKey] is { Length: > 0 } named ? named : DigitalBrainNames.GrainStateContainer;
-        await AzuriteCopy.CopyAsync(new BlobServiceClient(source), container, AzuriteCopy.At(candidateBlobEndpoint), container, CarriesForeignIntegration, ct);
+        await AzuriteCopy.CopyAsync(new BlobServiceClient(source, AzuriteCopy.NoRetries), container, AzuriteCopy.At(candidateBlobEndpoint), container, CarriesIntegration, ct);
     }
 
-    private async Task<int> AllocatePort(CancellationToken ct)
+    private async Task<int> AllocatePort(string sha, CancellationToken ct)
     {
         var listed = await processes.RunAsync("docker", ["ps", "--format", "{{.Ports}}"], ".", null, ct);
         if (listed.ExitCode != 0) { throw new CandidateHostException("run", Tail(listed)); }
-        int[] reserved;
-        lock (gate) { reserved = [.. ports.Values]; }
-        for (var port = FirstPort; port < FirstPort + 1000; port += 10)
+        lock (gate)
         {
-            var block = Enumerable.Range(port, 6).ToArray();
-            if (reserved.Contains(port)) { continue; }
-            if (block.Any(p => listed.Output.Contains($":{p}->", StringComparison.Ordinal) || listening(p))) { continue; }
-            return port;
+            for (var port = FirstPort; port < FirstPort + 1000; port += 10)
+            {
+                if (ports.ContainsValue(port)) { continue; }
+                if (Enumerable.Range(port, 6).Any(p => listed.Output.Contains($":{p}->", StringComparison.Ordinal) || listening(p))) { continue; }
+                ports[sha] = port;
+                return port;
+            }
         }
         throw new CandidateHostException("run", "no free candidate port block");
+    }
+
+    // Azurite was just started: wait (bounded) until it answers HTTP, failing at once if its container stops.
+    private async Task AzuriteReady(string sha, int port, CancellationToken ct)
+    {
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(AzuriteBudget);
+        try
+        {
+            while (true)
+            {
+                var state = await processes.RunAsync("docker", ["inspect", "-f", "{{.State.Running}}", AzuriteOf(sha)], ".", null, limit.Token);
+                if (state.ExitCode != 0 || !state.Output.Trim().Equals("true", StringComparison.OrdinalIgnoreCase))
+                { throw new CandidateHostException("run", $"{AzuriteOf(sha)} stopped: {Tail(state)}"); }
+                try
+                {
+                    using var response = await http.GetAsync(new Uri($"http://127.0.0.1:{port}/{AzuriteCopy.AccountName}?comp=properties&restype=service"), limit.Token);
+                    return;
+                }
+                catch (HttpRequestException) { }
+                await Task.Delay(TimeSpan.FromMilliseconds(250), limit.Token);
+            }
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new CandidateHostException("run", $"{AzuriteOf(sha)} did not answer within {AzuriteBudget}.");
+        }
     }
 
     private static bool Listening(int port)
@@ -315,7 +365,8 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
     private async Task Ignoring(string absent, CancellationToken ct, params string[] args)
     {
         var result = await processes.RunAsync("docker", args, ".", null, ct);
-        if (result.ExitCode != 0 && !(result.Error + result.Output).Contains(absent, StringComparison.OrdinalIgnoreCase))
+        var errors = result.Error.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (result.ExitCode != 0 && (errors.Length == 0 || !errors.All(line => line.Contains(absent, StringComparison.OrdinalIgnoreCase))))
         { throw new CandidateHostException("remove", $"docker {string.Join(' ', args)}:\n{Tail(result)}"); }
     }
 
@@ -347,6 +398,17 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
 
     [GeneratedRegex("^candidate-(?<sha>[0-9a-f]{7,40})(-azurite)?$", RegexOptions.CultureInvariant)]
     private static partial Regex CandidateName();
+
+    [GeneratedRegex("^candidate-(?<sha>[0-9a-f]{7,40})$", RegexOptions.CultureInvariant)]
+    private static partial Regex CandidateNetwork();
+
+    [GeneratedRegex("^[0-9a-f]{7,40}$", RegexOptions.CultureInvariant)]
+    private static partial Regex Sha();
+
+    private static void Checked(string sha)
+    {
+        if (sha is null || !Sha().IsMatch(sha)) { throw new CandidateHostException("sha", $"'{sha}' is not a commit sha"); }
+    }
 
     [GeneratedRegex("(^|[^a-z0-9])integration/(?<id>[a-z][a-z0-9.-]*?)(\\.json)?$", RegexOptions.CultureInvariant)]
     private static partial Regex IntegrationBlob();

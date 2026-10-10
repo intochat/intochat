@@ -10,7 +10,12 @@ internal sealed class Git(IProcessRunner processes, string repository)
     }
 
     public Task AddWorktree(string path, string baseSha, CancellationToken ct) => Run(repository, ct, "worktree", "add", "--detach", path, baseSha);
-    public Task RepairWorktrees(CancellationToken ct) => Run(repository, ct, "worktree", "repair");
+    public Task MoveWorktree(string from, string to, CancellationToken ct) => Run(repository, ct, "worktree", "move", from, to);
+    public async Task RemoveWorktree(string path, CancellationToken ct)
+    {
+        try { await Run(repository, ct, "worktree", "remove", "--force", path); }
+        catch (InvalidOperationException) { }
+    }
     public Task Stage(string worktree, CancellationToken ct) => Run(worktree, ct, "add", "-A");
     public Task Commit(string worktree, string message, CancellationToken ct) => Run(worktree, ct, "commit", "-m", message, "--allow-empty");
     public Task<string> ShortSha(string worktree, CancellationToken ct) => Run(worktree, ct, "rev-parse", "--short=7", "HEAD");
