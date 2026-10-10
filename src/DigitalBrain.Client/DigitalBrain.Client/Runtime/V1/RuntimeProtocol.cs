@@ -39,7 +39,8 @@ public sealed record RuntimeReport(
 [GenerateSerializer, Alias("microsoft.csharp.runtime.subscribe-report")]
 public sealed record SubscribeReport([property: Id(0)] string Behavior, [property: Id(1)] string Contract, [property: Id(2)] string Key, [property: Id(3)] string Signal);
 [GenerateSerializer, Alias("microsoft.csharp.runtime.acknowledge-report")]
-public sealed record AcknowledgeReport([property: Id(0)] string Subscription, [property: Id(1)] long Watermark);
+// CpuMicroseconds is the whole sandbox process's processor time spent while the synapse handled the acknowledged batch.
+public sealed record AcknowledgeReport([property: Id(0)] string Subscription, [property: Id(1)] long Watermark, [property: Id(2)] long CpuMicroseconds = 0);
 [GenerateSerializer, Alias("microsoft.csharp.runtime.behavior-status-report")]
 public sealed record BehaviorStatusReport([property: Id(0)] string Behavior, [property: Id(1)] string Hash, [property: Id(2)] string Status, [property: Id(3)] int? ExitCode, [property: Id(4)] string? Error);
 [GenerateSerializer, Alias("microsoft.csharp.runtime.logs-report")]

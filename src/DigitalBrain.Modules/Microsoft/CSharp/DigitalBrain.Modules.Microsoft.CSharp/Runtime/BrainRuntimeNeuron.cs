@@ -4,6 +4,7 @@ using System.Text.Json;
 using DigitalBrain.Client.Runtime;
 using DigitalBrain.Client.Runtime.V1;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Compute;
 using DigitalBrain.Microsoft.CSharp.Assemblies;
 using DigitalBrain.Microsoft.CSharp.Catalog;
 using DigitalBrain.Microsoft.CSharp.Edge;
@@ -53,12 +54,18 @@ internal sealed class BrainRuntimeNeuron(
     private readonly Dictionary<string, INeuron> _watched = new(StringComparer.Ordinal);
     // Last status the sandbox reported per behavior id. Memory only: a fresh activation shows Starting until the host speaks.
     private readonly Dictionary<string, (string Status, string? Error)> _reported = new(StringComparer.Ordinal);
+    // The trace each pushed batch carried, per (subscription, watermark), so its ack prices the CPU it cost under that trace.
+    private readonly Dictionary<(string Subscription, long Watermark), Trace> _batchTraces = new();
+    private ICostMeter? _meter;
     private IGrainTimer? _watchRenewal;
     // The tail of this activation's sandbox calls; each runs after the one before it, whatever its outcome.
     private Task _sandboxCalls = Task.CompletedTask;
 
     private string RuntimeId => this.GetPrimaryKeyString();
     private string Brain => RuntimeId[..RuntimeId.LastIndexOf('/')];
+
+    // The host composer may not have wired a meter yet; a brain without one simply does not price CPU.
+    private ICostMeter? Meter => _meter ??= ServiceProvider.GetService<ICostMeter>();
 
     public Task<BrainRuntimeSnapshot> Inspect(CancellationToken cancellationToken = default)
         => Task.FromResult(new BrainRuntimeSnapshot(Snapshot.Session?.Status ?? SessionStatus.None, Snapshot.Session?.Id,
@@ -223,7 +230,7 @@ internal sealed class BrainRuntimeNeuron(
         RequireSpeaking(session);
         ArgumentNullException.ThrowIfNull(acknowledgements);
         if (acknowledgements.Length is 0 or > RuntimeProtocol.MaximumAcknowledgements
-            || acknowledgements.Any(ack => ack is null || string.IsNullOrWhiteSpace(ack.Subscription) || ack.Watermark < 0))
+            || acknowledgements.Any(ack => ack is null || string.IsNullOrWhiteSpace(ack.Subscription) || ack.Watermark < 0 || ack.CpuMicroseconds < 0))
         { throw new ArgumentException("An acknowledgement batch needs 1 to 256 valid subscription watermarks.", nameof(acknowledgements)); }
         var watermarks = acknowledgements.GroupBy(ack => ack.Subscription, StringComparer.Ordinal)
             .ToDictionary(group => group.Key, group => group.Max(ack => ack.Watermark), StringComparer.Ordinal);
@@ -236,6 +243,17 @@ internal sealed class BrainRuntimeNeuron(
             return trimmed;
         }).ToArray();
         if (changed) { await Save(Snapshot with { Subscriptions = next }, Changed()); }
+        if (Meter is { } meter)
+        {
+            foreach (var acknowledgement in acknowledgements)
+            {
+                _batchTraces.Remove((acknowledgement.Subscription, acknowledgement.Watermark), out var batch);
+                if (acknowledgement.CpuMicroseconds <= 0) { continue; }
+                using var entered = batch is null ? null : TraceContext.Enter(batch);
+                await meter.RecordAsync(CostKind.Script, "cpu-ms", acknowledgement.CpuMicroseconds / 1000m, "ms", Funding.Local,
+                    $"{acknowledgement.Subscription}:{acknowledgement.Watermark}", CancellationToken.None);
+            }
+        }
     }
 
     // The status the sandbox last reported for an assigned behavior. An exit is remembered, never disarmed:
@@ -252,7 +270,7 @@ internal sealed class BrainRuntimeNeuron(
     public Task<IReadOnlyList<SignalBatchEvent>> PendingBatches(string session)
     {
         RequireSpeaking(session);
-        return Task.FromResult<IReadOnlyList<SignalBatchEvent>>([.. Snapshot.Subscriptions.Where(s => s.Pending.Length > 0).Select(subscription => Batch(subscription))]);
+        return Task.FromResult<IReadOnlyList<SignalBatchEvent>>([.. Snapshot.Subscriptions.Where(s => s.Pending.Length > 0).Select(Batch)]);
     }
 
     public async Task<IReadOnlyList<AssignmentEvent>> Assignments(string session)
@@ -286,9 +304,7 @@ internal sealed class BrainRuntimeNeuron(
         await Save(Snapshot with { Subscriptions = next }, Changed());
         if (Snapshot.Session is { Status: SessionStatus.Connected } session)
         {
-            // The publish's trace rides along, so the behavior's reaction joins it.
-            var trace = System.Diagnostics.Activity.Current?.Id;
-            foreach (var subscription in arrived) { streams.TryPush(session.Id, SignalBatchEvent.Kind, Batch(subscription, trace)); }
+            foreach (var subscription in arrived) { streams.TryPush(session.Id, SignalBatchEvent.Kind, Batch(subscription)); }
         }
     }
 
@@ -379,7 +395,18 @@ internal sealed class BrainRuntimeNeuron(
     // can. A SAS signs the path and query, not the host, so the rewritten URL stays valid.
     private static Uri Reachable(Uri url) => url.IsLoopback ? new UriBuilder(url) { Host = DockerHost }.Uri : url;
 
-    private static SignalBatchEvent Batch(Subscription subscription, string? trace = null) => new(subscription.Id, subscription.Pending, subscription.Watermark, trace);
+    // The batch carries the trace of its first signal, so the behavior's reaction joins it; that same
+    // trace is remembered until the ack, so the ack prices the CPU the run cost under it.
+    private SignalBatchEvent Batch(Subscription subscription)
+    {
+        var trace = FirstSignalTrace(subscription.Pending);
+        if (trace is not null) { _batchTraces[(subscription.Id, subscription.Watermark)] = trace; }
+        return new SignalBatchEvent(subscription.Id, subscription.Pending, subscription.Watermark,
+            trace is null ? System.Diagnostics.Activity.Current?.Id : $"00-{trace.TraceId}-{System.Diagnostics.ActivitySpanId.CreateRandom().ToHexString()}-01");
+    }
+
+    private static Trace? FirstSignalTrace(string[] pending)
+        => pending.Length == 0 ? null : JsonSerializer.Deserialize<Signal>(pending[0], RuntimeProtocol.Json)?.Trace;
 
     // A source that retains the signal seeds a new subscription with the backlog the synapse missed.
     // A source without retention contributes nothing: the cast fails and there is nothing to seed.

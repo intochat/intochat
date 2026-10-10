@@ -99,10 +99,10 @@ public sealed class SessionConnection : IAsyncDisposable
         return body.GetProperty("subscription").GetString() ?? throw new InvalidOperationException("The brain answered a subscribe without a subscription id.");
     }
 
-    public async Task AcknowledgeAsync(string subscription, long watermark, CancellationToken cancellationToken)
+    public async Task AcknowledgeAsync(string subscription, long watermark, CancellationToken cancellationToken, long cpuMicroseconds = 0)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var pending = new PendingAcknowledgement(new(subscription, watermark), System.Diagnostics.Activity.Current?.Id);
+        var pending = new PendingAcknowledgement(new(subscription, watermark, cpuMicroseconds), System.Diagnostics.Activity.Current?.Id);
         if (!_acknowledgements.Writer.TryWrite(pending)) { throw new ObjectDisposedException(nameof(SessionConnection)); }
         // Cancelling a caller's wait must not cancel a report shared with other subscriptions.
         await pending.Completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -127,7 +127,7 @@ public sealed class SessionConnection : IAsyncDisposable
                     try
                     {
                         var reports = group.GroupBy(item => item.Report.Subscription, StringComparer.Ordinal)
-                            .Select(items => new AcknowledgeReport(items.Key, items.Max(item => item.Report.Watermark))).ToArray();
+                            .Select(items => new AcknowledgeReport(items.Key, items.Max(item => item.Report.Watermark), items.Max(item => item.Report.CpuMicroseconds))).ToArray();
                         await ReportAsync(new RuntimeReport(Acknowledgements: reports), "acknowledge", reportLifetime.Token).ConfigureAwait(false);
                         foreach (var item in group) { item.Completion.TrySetResult(); }
                     }
