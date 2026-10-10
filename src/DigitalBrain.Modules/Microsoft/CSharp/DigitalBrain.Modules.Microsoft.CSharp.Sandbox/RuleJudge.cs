@@ -20,6 +20,12 @@ internal sealed class RuleJudge(BehaviorLoader loader, IOptions<SandboxOptions> 
     private readonly ConcurrentQueue<(string Session, string Hash)> _order = new();
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _threads = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<(string Session, string Hash, string Rule), byte> _quarantined = new();
+
+    private sealed class RunState
+    {
+        public const int Running = 0, Finished = 1, Abandoned = 2;
+        public int State;
+    }
     private int _started;
 
     public int ThreadsStarted => Volatile.Read(ref _started);
@@ -32,28 +38,43 @@ internal sealed class RuleJudge(BehaviorLoader loader, IOptions<SandboxOptions> 
         { return new([new(Library, false, $"this sandbox does not know the signal {request.SignalType}")]); }
         var signal = (Signal)request.Signal.Deserialize(type, RuntimeProtocol.Json)!;
         var clock = System.Diagnostics.Stopwatch.StartNew();
-        var rules = await Load(session, request).WaitAsync(request.Budget, cancellationToken).ConfigureAwait(false);
+        RuleSet rules;
+        try { rules = await Load(session, request).WaitAsync(request.Budget, cancellationToken).ConfigureAwait(false); }
+        catch (TimeoutException) { return new([new(Library, false, "rule did not answer (still loading)")]); }
         var verdicts = new List<JudgeVerdict>(rules.Failures);
         foreach (var rule in rules.Matching(signal))
         {
             var name = rule.Type.Name;
-            var key = (session, request.Hash, name);
+            var key = (session, request.Hash, rule.Type.FullName ?? name);
             if (_quarantined.ContainsKey(key)) { verdicts.Add(new(name, false, "rule did not answer (quarantined)")); continue; }
             var remaining = request.Budget - clock.Elapsed;
             var slots = _threads.GetOrAdd(session, _ => new SemaphoreSlim(options.Value.RuleThreads));
             if (remaining <= TimeSpan.Zero || !await slots.WaitAsync(remaining, cancellationToken).ConfigureAwait(false))
             { verdicts.Add(new(name, false, "rule did not answer (busy)")); continue; }
             var done = new TaskCompletionSource<JudgeVerdict>(TaskCreationOptions.RunContinuationsAsynchronously);
-            // The slot is released when the thread ends, not when the caller stops waiting: a hung rule keeps its slot.
-            var thread = new Thread(() => { try { done.SetResult(RuleSet.Run(rule, signal)); } finally { slots.Release(); } })
+            var run = new RunState();
+            // The slot is released when the thread ends, not when the caller stops waiting: a hung rule keeps its
+            // slot. A rule abandoned while running is quarantined until its thread ends, whichever happens first.
+            var thread = new Thread(() =>
+            {
+                try { done.SetResult(RuleSet.Run(rule, signal)); }
+                finally
+                {
+                    slots.Release();
+                    if (Interlocked.Exchange(ref run.State, RunState.Finished) == RunState.Abandoned) { _quarantined.TryRemove(key, out _); }
+                }
+            })
             { IsBackground = true, Name = "rule " + name };
+            try { thread.Start(); }
+            catch { slots.Release(); throw; }
             Interlocked.Increment(ref _started);
-            thread.Start();
             var left = request.Budget - clock.Elapsed;
             try { verdicts.Add(await done.Task.WaitAsync(left > TimeSpan.Zero ? left : TimeSpan.Zero, cancellationToken).ConfigureAwait(false)); }
-            catch (TimeoutException)
+            catch (Exception abandoned) when (abandoned is TimeoutException or OperationCanceledException)
             {
                 _quarantined[key] = 0;
+                if (Interlocked.Exchange(ref run.State, RunState.Abandoned) == RunState.Finished) { _quarantined.TryRemove(key, out _); }
+                if (abandoned is OperationCanceledException) { throw; }
                 verdicts.Add(new(name, false, "rule did not answer"));
             }
         }

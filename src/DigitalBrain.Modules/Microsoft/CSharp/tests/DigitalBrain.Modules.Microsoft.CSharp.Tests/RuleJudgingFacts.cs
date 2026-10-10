@@ -163,6 +163,35 @@ public sealed class RuleJudgingFacts
         Assert.Equal(threads, host.ThreadsStarted);
     }
 
+    [Fact]
+    public async Task ASlowRuleRunsAgainOnceItsThreadFinishes()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new JudgingHost();
+        await using var brain = await Start(host, ct);
+        var sandbox = brain.SiloServices.GetRequiredService<IScriptSandbox>();
+        var bundle = new Dictionary<string, string>
+        {
+            ["synapses/a.cs"] = Synapse,
+            ["rules/slow.cs"] = """
+                public sealed class Slow : ILogic<DigitalBrain.Apps.Signals.AppRequested>
+                {
+                    private static int calls;
+                    public Verdict Validate(DigitalBrain.Apps.Signals.AppRequested signal)
+                    {
+                        if (Interlocked.Increment(ref calls) == 1) { Thread.Sleep(1500); }
+                        return Verdict.Allow();
+                    }
+                }
+                """,
+        };
+
+        Assert.False(Assert.Single(await sandbox.Judge(Brain, bundle, new AppRequested("ask", "a", Guid.NewGuid()), ct)).Allowed);
+        await Task.Delay(1500, ct);
+
+        Assert.True(Assert.Single(await sandbox.Judge(Brain, bundle, new AppRequested("ask", "b", Guid.NewGuid()), ct)).Allowed);
+    }
+
     private static Task<ModuleBrain> Start(JudgingHost host, CancellationToken ct, bool apps = false)
     {
         var builder = apps ? ModuleTest.Create().WithModule<AppsModule>().WithModule<CSharpModule>() : ModuleTest.Create().WithModule<CSharpModule>();
