@@ -19,10 +19,11 @@ internal sealed class TrustGatewayClient(IOptions<TrustOptions> options, ILogger
         ?? throw new InvalidOperationException("The trust gateway client is used before the silo initialized it.");
 
     public void Participate(ISiloLifecycle lifecycle) =>
-        lifecycle.Subscribe(nameof(TrustGatewayClient), ServiceLifecycleStage.RuntimeInitialize, Start, Stop);
+        lifecycle.Subscribe(nameof(TrustGatewayClient), ServiceLifecycleStage.RuntimeInitialize, StartAsync, StopAsync);
 
-    private async Task Start(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
+        if (_host is not null) { return; }
         var trust = options.Value;
         if (trust.Gateway is not { } gateway || !TrustOptions.TryParse(gateway, out var host, out var port))
         { throw new InvalidOperationException($"{TrustOptions.Key}:Gateway is not host:port."); }
@@ -37,7 +38,7 @@ internal sealed class TrustGatewayClient(IOptions<TrustOptions> options, ILogger
         await _host.StartAsync(cancellationToken);
     }
 
-    private async Task Stop(CancellationToken cancellationToken)
+    public async Task StopAsync(CancellationToken cancellationToken)
     {
         if (_host is { } host) { await host.StopAsync(cancellationToken); }
     }

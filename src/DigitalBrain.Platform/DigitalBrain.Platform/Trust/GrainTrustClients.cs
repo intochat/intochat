@@ -12,11 +12,16 @@ namespace DigitalBrain.Platform.Trust;
 
 // The machine's only way to the trust grains (Stage A: direct grain calls on the given factory; with a gateway, the
 // private trust client's). Calls that act for an account are signed by this machine (R37).
-internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIdentity machine, TimeProvider time, MachineCounter counter)
+internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIdentity? machine, TimeProvider time, MachineCounter? counter)
     : ISequencerClient, INodeDirectoryClient, IKeyringClient, IMarketplaceClient, IIdentityClient
 {
     public GrainTrustClients(IGrainFactory grains, MachineIdentity machine, TimeProvider time, MachineCounter counter)
         : this(() => grains, machine, time, counter) { }
+
+    // A host that is not a machine (the MCP): it reads trust state and signs nothing (R70).
+    internal static GrainTrustClients Reading(Func<IGrainFactory> grains, TimeProvider time) => new(grains, null, time, null);
+
+    private MachineIdentity Machine => machine ?? throw new InvalidOperationException("This host is not a machine; it signs no trust call.");
 
     // Facts only: a throwaway counter file per instance, which a production machine must never have (R65).
     internal static GrainTrustClients WithScratchCounter(IGrainFactory grains, MachineIdentity machine) =>
@@ -96,9 +101,9 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
         try
         {
             var now = time.GetUtcNow();
-            var sequence = counter.Next();
-            var signature = machine.Sign(MachineSigned<T>.SignedBytes(payload, account, machine.MachineId, now, sequence));
-            return await send(new MachineSigned<T>(payload, account, machine.MachineId, now, sequence, signature));
+            var sequence = (counter ?? throw new InvalidOperationException("This host is not a machine; it signs no trust call.")).Next();
+            var signature = Machine.Sign(MachineSigned<T>.SignedBytes(payload, account, Machine.MachineId, now, sequence));
+            return await send(new MachineSigned<T>(payload, account, Machine.MachineId, now, sequence, signature));
         }
         finally { _signing.Release(); }
     }
@@ -126,8 +131,8 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
     public async Task<BrainProvision> ProvisionOwner(Member owner)
     {
         ArgumentNullException.ThrowIfNull(owner);
-        await RegisterMachine(machine.MachineId, machine.PublicKey, owner.AccountId, PairingSecretHash,
-            machine.Sign(Signing.Registration(machine.MachineId, machine.PublicKey, owner.AccountId, PairingSecretHash)));
+        await RegisterMachine(Machine.MachineId, Machine.PublicKey, owner.AccountId, PairingSecretHash,
+            Machine.Sign(Signing.Registration(Machine.MachineId, Machine.PublicKey, owner.AccountId, PairingSecretHash)));
         return new(owner, await Signed(owner, owner.AccountId, Writes.ProvisionOwner));
     }
 

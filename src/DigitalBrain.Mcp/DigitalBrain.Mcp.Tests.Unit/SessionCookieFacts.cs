@@ -78,7 +78,17 @@ public sealed class SessionCookieFacts
         builder.Services.AddSingleton<IDigitalBrain>(brain);
         builder.Services.AddSingleton(brain.Grains);
         if (mcp) { builder.Services.AddDigitalBrainMcp(); }
-        else { builder.Services.AddIdentity(); }
+        else
+        {
+            builder.Services.AddIdentity();
+            // The runtime's identity endpoints sign in through the machine's passwords and the trust clients.
+            builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>());
+            foreach (var name in new[] { "DigitalBrain.Platform.Identity.PrincipalPasswords", "DigitalBrain.Platform.Identity.BrainBirths" })
+            {
+                var type = typeof(DigitalBrain.Platform.PlatformHosting).Assembly.GetType(name, throwOnError: true)!;
+                builder.Services.AddSingleton(type, brain.SiloServices.GetRequiredService(type));
+            }
+        }
         builder.Services.AddDataProtection().PersistKeysToFileSystem(keys);
         // The runtime's protection identity is currently registered separately from AddIdentity.
         if (!mcp) { builder.Services.AddDataProtection().SetApplicationName("IntoChat.v1"); }
