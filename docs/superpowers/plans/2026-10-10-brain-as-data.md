@@ -1652,13 +1652,51 @@ internal sealed class NoSignalJournal : ISignalJournal
 
 The signal path is now durable (Task 14); this task makes `brain.On<T>(source)` replay from it after reactivation instead of only receiving live notifications.
 
-- [ ] **Step 1: Map with LSP:** `goToDefinition`/`incomingCalls` on `ISignalSubscription.ReadAllAsync`, `SignalSubscription` (`INeuronObserver`), the durable subscription inside the brain runtime (`brain.On<T>` — `findReferences` on `IBrainSubscriptions.SubscribeAsync` from the CSharp module's `BrainRuntimeNeuron`), and where its watermark is persisted. Write the resulting file list and watermark type here.
-- [ ] **Step 2: Write the step-level tasks for this task into this file**, fixed by these requirements:
-  - A durable subscription's watermark is a part-log seq.
-  - On (re)activation it reads `PartLog.SignalsSince(watermark)` for the source's part and delivers those signals before live ones, deduplicating by seq (at-least-once stays the contract, CLAUDE.md "dedup through neuron state").
-  - A source in a part not leased on this machine is out of scope until the transport (Task 22) and fails with `ServiceUnavailableException`.
-  - `brain.On<T>` signature unchanged.
-- [ ] **Step 3: Implement them** TDD, committing per step.
+- [x] **Step 1: Map with LSP.** Result:
+  - `brain.On<T>(source)` in a behavior runs over `SessionSignalSubscription<T>` (Client) → `SessionConnection.SubscribeAsync` → `IBrainRuntimeEdge.Subscribed` on `BrainRuntimeNeuron` (`src/DigitalBrain.Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp/Runtime/BrainRuntimeNeuron.cs`). The durable subscription is the `Subscription` record (`Runtime/Subscription.cs`) in `BrainRuntimeState.Subscriptions`, persisted in the runtime neuron's own state. Its `Watermark` (`Delivered + Pending.Length`) is the sandbox's ack counter, not a source position; live signals reach it through `INeuronObserver.OnSignalAsync` → one-way `IBrainRuntimeArrivals.Arrived`; `ResumeAsync` (from `BrainRuntimeActivation`) re-watches sources on activation.
+  - `IBrainSubscriptions.SubscribeAsync` / `ISignalSubscription.ReadAllAsync` / `SignalSubscription` (Client.Orleans `BrainClient`, `ModuleBrain`, `E2EBrain`, `ObservedBrain`) are silo/test live handles with no durable watermark; they stay live-only.
+  - Signal durability: `ISignalJournal` (Framework `Runtime/Signalling/SignalJournal.cs`, `NoSignalJournal` registered by `BrainHosting`), `PartSignalJournal` (Platform, swapped in by `MachineHosting.AddMachinePartLog`), `PartLog.SignalsSince`, `PartSnapshot.RecentSignals`; test double `CloudPartJournal` in `PartSignalFacts.cs`.
+  - **Watermark type:** `long SourceSeq` on `Subscription`, the part-log seq of the last entry of the source's part it has buffered. It lives in the runtime neuron's state (state lives in neurons; `brain.On<T>` unchanged). Signals of one entry share its seq, so dedup is by entry seq.
+- [x] **Step 2: Step-level tasks** (requirements: watermark is a part-log seq; (re)activation reads the source's part from it before live delivery, dedup by seq; a part not leasable here fails with `ServiceUnavailableException`; `brain.On<T>` unchanged; plain hosts unchanged).
+
+#### Task 16.1: The journal reads one publisher's signals from a part-log seq
+
+**Files:**
+- Modify: `src/DigitalBrain.Framework/DigitalBrain.Framework/Runtime/Signalling/SignalJournal.cs`, `src/DigitalBrain.Platform/DigitalBrain.Platform/Parts/PartSignalJournal.cs`, `.../Parts/PartLog.cs`, `.../Parts/PartLogModel.cs`
+- Test: `src/DigitalBrain.Platform/DigitalBrain.Platform.Tests.Unit/Parts/PublisherSignalsFacts.cs` (new); `PartSignalFacts.cs` (`CloudPartJournal` gains the member)
+
+**Interfaces:**
+- `Task<PartSignals?> ISignalJournal.SignalsOf(GrainId publisher, long since)`; `record PartSignals(long Floor, long Last, JournaledSignal[] Signals)`: `JournaledSignal.Sequence` is the entry's part-log seq; `Last` is the log's `LastSeq` (a new subscription's starting watermark); entries at or below `Floor` may no longer be served. `NoSignalJournal` returns `null` (nothing to replay).
+- `PartSignalJournal.SignalsOf` opens the publisher's part through `PartLogs.For` (a part leased by another machine throws `ServiceUnavailableException` from `PartLease.Acquire`).
+- Retention: `PartSnapshot.SignalsFrom` (the previous snapshot seq, below which `RecentSignals` is incomplete), `PartLog.SignalsFloor` set from it on replay (0 for a log never snapshotted).
+
+- [ ] **Step 1: Failing facts:** `APublishersSignalsAreReadAfterASeqWithTheirEntrySeq`, `APartHeldByAnotherMachineIsUnavailable`, `ASnapshotRaisesTheFloorAReopenedLogServesFrom`, `PlainHostsHaveNothingToReplay`.
+- [ ] **Step 2: Run** `dotnet test --project src/DigitalBrain.Platform/DigitalBrain.Platform.Tests.Unit -- --filter-class "*PublisherSignalsFacts*"` → FAIL (compile). **Step 3: Implement.** **Step 4: Run** → PASS.
+- [ ] **Step 5: Commit:** `Signals: the journal reads one publisher's signals from a part-log seq, with the floor its log still serves`.
+
+#### Task 16.2: A runtime subscription's watermark is its source's part-log seq
+
+**Files:**
+- Modify: `.../CSharp/DigitalBrain.Modules.Microsoft.CSharp/Runtime/Subscription.cs`, `Runtime/BrainRuntimeNeuron.cs`
+- Test: `src/DigitalBrain.Modules/Microsoft/CSharp/tests/DigitalBrain.Modules.Microsoft.CSharp.Tests/PartLogReplayFacts.cs` (new)
+
+**Interfaces:** `Subscription.SourceSeq`; a new subscription starts at `PartSignals.Last`; on a journaled host a live arrival is a nudge: the runtime reads `SignalsOf(source, min SourceSeq)` and buffers each signal with seq above a subscription's `SourceSeq`, then advances it. `null` from the journal keeps today's path (buffer the live signal).
+
+- [ ] **Step 1: Failing facts:** `ANewSubscriptionStartsAtItsSourcesCurrentSeq` (a signal journalled before subscribing is not replayed), `ASignalJournalledWithoutANotificationArrivesWithTheNextLiveOneOnce` (entry appended straight to the part log, then a live ping: pending holds each once, in seq order).
+- [ ] **Step 2: Run** `... -- --filter-class "*PartLogReplayFacts*"` → FAIL. **Step 3: Implement.** **Step 4: Run** → PASS.
+- [ ] **Step 5: Commit:** `CSharp: a runtime subscription's watermark is its source's part-log seq, and live arrivals deliver from the log once`.
+
+#### Task 16.3: Reactivation catches up from the watermark; an unleasable source is unavailable
+
+**Files:** `Runtime/BrainRuntimeNeuron.cs`, `Runtime/IBrainRuntimeArrivals.cs`; test `PartLogReplayFacts.cs`.
+
+**Interfaces:** `[OneWay] Task IBrainRuntimeArrivals.CatchUp()` sent by `ResumeAsync` (never reads a log inside activation); a re-subscribing behavior (`Subscribed` on an existing subscription) catches up before its batch is pushed, so `ServiceUnavailableException` from the journal reaches the sandbox; a read whose `Floor` is above a watermark logs `SubscriptionGap` and continues from what is served.
+
+- [ ] **Step 1: Failing facts:** `SignalsJournalledWhileTheRuntimeSleptAreDeliveredWhenItReactivates`, `AReactivatedRuntimeDoesNotRedeliverWhatItBuffered`, `ASourceWhosePartIsNotLeasedHereFailsTheSubscribeAsUnavailable` (journal double throwing `ServiceUnavailableException`).
+- [ ] **Step 2: Run** → FAIL. **Step 3: Implement.** **Step 4: Run** the Platform, Framework, CSharp and Apps suites → PASS.
+- [ ] **Step 5: Commit:** `CSharp: a reactivated runtime reads its sources' part logs from each watermark before live signals`.
+
+`GET /brains/{id}/signals` (`ISignalJournal.ReadSince`, commit 6bc6cd2ff) keeps its per-read rank: its durable cursor is a `(part, seq)` vector, which Task 16 defines per source part; re-basing the endpoint on it is left to the shell's signals view.
 
 ### Stage A acceptance (live)
 
