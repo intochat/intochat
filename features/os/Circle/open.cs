@@ -1,5 +1,4 @@
 using DigitalBrain.Apps;
-using DigitalBrain.Apps.Signals;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Workspace;
@@ -7,9 +6,8 @@ using DigitalBrain.Flutter.Workspace;
 // The surface composer: it rebuilds the surface and, unless the shell docks us, opens the window.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = CircleView.Key(brain);
-await foreach (var request in brain.On<AppRequested>(brain.Get<IApp>(appKey), brain.Stopping))
+await foreach (var request in brain.On(brain.Get<IApp>(appKey), "open", brain.Stopping))
 {
-    if (request.Operation != "open") { continue; }
     try
     {
         await CircleView.Compose(brain);

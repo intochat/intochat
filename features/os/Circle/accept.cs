@@ -1,14 +1,12 @@
 using DigitalBrain.Apps;
-using DigitalBrain.Apps.Signals;
 using DigitalBrain.Circles;
 using DigitalBrain.Client;
 
 // "accept": join the circle this brain was invited to.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var app = brain.Get<IApp>(CircleView.Key(brain));
-await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
+await foreach (var request in brain.On(app, "accept", brain.Stopping))
 {
-    if (request.Operation != "accept") { continue; }
     try
     {
         var name = await CircleView.Resolve(brain, request.Input.Trim()) ?? throw new InvalidOperationException("You have no invitation named " + request.Input.Trim() + ".");

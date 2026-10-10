@@ -1,14 +1,12 @@
 using DigitalBrain.Apps;
-using DigitalBrain.Apps.Signals;
 using DigitalBrain.Circles;
 using DigitalBrain.Client;
 
 // "create": a circle exists once its owner's copy holds state; a zero compute share is the first write.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var app = brain.Get<IApp>(CircleView.Key(brain));
-await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
+await foreach (var request in brain.On(app, "create", brain.Stopping))
 {
-    if (request.Operation != "create") { continue; }
     var name = request.Input.Trim();
     try
     {

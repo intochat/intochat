@@ -1,15 +1,13 @@
 using System.Globalization;
 using DigitalBrain.Apps;
-using DigitalBrain.Apps.Signals;
 using DigitalBrain.Circles;
 using DigitalBrain.Client;
 
 // "set-share": the compute share of a circle, 0 to 25 percent. The slider posts a bare number.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var app = brain.Get<IApp>(CircleView.Key(brain));
-await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
+await foreach (var request in brain.On(app, "set-share", brain.Stopping))
 {
-    if (request.Operation != "set-share") { continue; }
     try
     {
         var (name, rest) = await CircleView.Split(brain, request.Input);
