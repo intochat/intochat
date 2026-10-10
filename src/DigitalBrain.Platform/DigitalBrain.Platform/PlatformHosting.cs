@@ -66,6 +66,8 @@ public static class PlatformHosting
         services.TryAddSingleton<BrainBirths>();
         services.TryAddSingleton<PrincipalPasswords>();
         silo.AddStartupTask<Trust.MachineRegistration>(Trust.MachineRegistration.Stage);
+        services.TryAddSingleton<Trust.OwnerBirth>();
+        silo.AddStartupTask((provider, ct) => provider.GetRequiredService<Trust.OwnerBirth>().Execute(ct), Trust.OwnerBirth.Stage);
         services.TryAddSingleton<IReadOnlyList<IntegrationSchema>>(provider =>
             IntegrationDiscovery.Collect(provider.GetRequiredService<ModuleInventory>().Types));
         services.TryAddSingleton<IReadOnlyList<ConnectorDefinition>>(provider =>

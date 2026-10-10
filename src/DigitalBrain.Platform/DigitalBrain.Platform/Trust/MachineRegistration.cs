@@ -9,7 +9,7 @@ namespace DigitalBrain.Platform.Trust;
 // record at the trust side and registers itself for it: the Open posture's default owner (the same provisioning
 // an authorized call would do lazily) or the Secured bootstrap user with its account and default brain. It never
 // waits for anyone to sign in, so a fresh store boots.
-internal sealed class MachineRegistration(MachineRegistrar registrar, IIdentityClient identity, BrainBirths births,
+internal sealed class MachineRegistration(MachineRegistrar registrar, IIdentityClient identity, OwnerBirth birth,
     IOptions<AuthOptions> auth, TimeProvider clock) : IStartupTask
 {
     // Ahead of the Active-stage startup tasks (feature boot, seeders) that may read a brain's kernel.
@@ -23,9 +23,7 @@ internal sealed class MachineRegistration(MachineRegistrar registrar, IIdentityC
             var owner = AccountSession.DefaultLogin;
             // Binding first: the signed provisioning is honoured only from a machine bound to the account (R63).
             await registrar.Bind(owner);
-            // A fresh store's owner brain is born here, so its creation handlers (the OS defaults, the features)
-            // run at boot rather than waiting for a first call.
-            await births.Born(await identity.ProvisionOwner(new Member { PrincipalId = owner, AccountId = owner, BrainId = owner, Role = MemberRole.Owner, DisplayName = owner }));
+            birth.Await(await identity.ProvisionOwner(new Member { PrincipalId = owner, AccountId = owner, BrainId = owner, Role = MemberRole.Owner, DisplayName = owner }));
             return;
         }
         // Basic bootstrap is an explicit owner of one default scope, never a wildcard bypass.
@@ -38,6 +36,32 @@ internal sealed class MachineRegistration(MachineRegistrar registrar, IIdentityC
             PrincipalId = principal, AccountId = principal, BrainId = AccountSession.DefaultLogin,
             DisplayName = principal, Role = MemberRole.Owner, JoinedAt = now,
         });
-        await births.Born(provision);
+        birth.Await(provision);
+    }
+}
+
+// A fresh store's owner brain is born once the silo is up, in the background (finding b, round 3 f): its creation
+// handlers (the OS defaults, the features) need the seeded integrations and may run long, so they neither block
+// the silo's start nor run before the Active-stage seeders.
+internal sealed class OwnerBirth(BrainBirths births, Microsoft.Extensions.Logging.ILogger<OwnerBirth> logger) : IStartupTask
+{
+    public const int Stage = ServiceLifecycleStage.Active + 1;
+
+    private BrainProvision? _provision;
+
+    public Task Born { get; private set; } = Task.CompletedTask;
+
+    public void Await(BrainProvision provision) => _provision = provision;
+
+    public Task Execute(CancellationToken cancellationToken)
+    {
+        if (_provision is not { NewBrain: true } provision) { return Task.CompletedTask; }
+        Born = Task.Run(async () =>
+        {
+            try { await births.Born(provision); }
+            catch (Exception error) when (error is not OperationCanceledException)
+            { Microsoft.Extensions.Logging.LoggerExtensions.LogError(logger, error, "The owner brain {Brain} was not born at boot.", provision.Member.BrainId); }
+        }, CancellationToken.None);
+        return Task.CompletedTask;
     }
 }
