@@ -225,9 +225,9 @@ internal interface ICandidateVerifier
 
 Fakes (tests): `FakeCandidateHost` records `Calls` (`"prepare"`, `"gate {sha}"`, `"publish {sha}"`, `"run {sha}"`, `"healthy {sha}"`, `"commit {sha} {branch}"`, `"remove {sha}"`), returns sha `"sha0001"`, `"sha0002"`… from `Prepare`, endpoints `http://localhost:5191` / `5190`; flags `FailAt` (string stage name → throws `CandidateHostException`), `Healthy` (false → `WaitHealthy` throws `TimeoutException`), `Orphaned` (string[] returned by `Orphans`). Captures `RunEnvironment` dictionary for Review Focus #1 (the docker host fills it; the fake just exposes the same property for the neuron-level assertion that nothing else is passed). `FakeClusterHost`: `Current` (string, default `"base000"`), `Restarts` (int), `SetLive` sets `Current`, `Silos` returns two `SiloView("silo-0"/"silo-1", Current, "Running", "Healthy")`. `FakeVerifier`: `Passed` flag, returns a report with one check.
 
-- [ ] **Step 1:** Create the interfaces and fakes.
-- [ ] **Step 2:** Build the module and test projects (`dotnet build src/DigitalBrain.Modules/Microsoft/Aspire/tests/DigitalBrain.Modules.Microsoft.Aspire.Tests/DigitalBrain.Modules.Microsoft.Aspire.Tests.csproj`). Tests project needs `InternalsVisibleTo` — check with LSP whether the module already grants it (the Revisions module did for its tests); add `<InternalsVisibleTo Include="DigitalBrain.Modules.Microsoft.Aspire.Tests" />` to the module csproj if missing.
-- [ ] **Step 3:** Commit explicit files: `"Aspire: candidate and cluster host seams"`.
+- [x] **Step 1:** Create the interfaces and fakes.
+- [x] **Step 2:** Build the module and test projects (`dotnet build src/DigitalBrain.Modules/Microsoft/Aspire/tests/DigitalBrain.Modules.Microsoft.Aspire.Tests/DigitalBrain.Modules.Microsoft.Aspire.Tests.csproj`). Tests project needs `InternalsVisibleTo` — check with LSP whether the module already grants it (the Revisions module did for its tests); add `<InternalsVisibleTo Include="DigitalBrain.Modules.Microsoft.Aspire.Tests" />` to the module csproj if missing.
+- [x] **Step 3:** Commit explicit files: `"Aspire: candidate and cluster host seams"`.
 
 ---
 
