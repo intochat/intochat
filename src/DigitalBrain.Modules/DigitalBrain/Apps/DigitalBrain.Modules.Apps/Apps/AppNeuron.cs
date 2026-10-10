@@ -168,12 +168,18 @@ internal sealed class AppNeuron(
 
     public Task<Guid> CurrentBuildAttempt() => Task.FromResult(Snapshot.BuildAttempt);
 
-    public async Task Progress(string line)
+    public async Task Progress(string state, string detail)
     {
-        if (Snapshot.Status != AppStatus.Building || string.IsNullOrWhiteSpace(line)) { return; }
-        var next = Snapshot.Clone();
-        next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), line.Trim()];
-        await Persist(next);
+        if (!AppActivity.States.Contains(state, StringComparer.Ordinal))
+        { throw new ArgumentException($"'{state}' is not an activity state: {string.Join(", ", AppActivity.States)}.", nameof(state)); }
+        detail = (detail ?? "").Trim();
+        if (Snapshot.Status == AppStatus.Building && detail.Length > 0)
+        {
+            var next = Snapshot.Clone();
+            next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), detail];
+            await Persist(next);
+        }
+        await PublishAsync(new AppActivity(Name(), state, detail));
     }
 
     public async Task<AppSnapshot> CompleteBuild(Guid attempt, Dictionary<string, string>? files, string? error, AppManifest? manifest = null)

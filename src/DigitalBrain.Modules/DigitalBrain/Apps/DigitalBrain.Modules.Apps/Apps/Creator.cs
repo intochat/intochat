@@ -84,10 +84,15 @@ internal sealed class Creator(
                 task.AppendLine().AppendLine("Current files:");
                 foreach (var (path, source) in snapshot.Files) { task.AppendLine($"--- {path} ---").AppendLine(source); }
             }
+            await app.Progress("working", $"Building {snapshot.Manifest.Title}");
             var built = Parse<BuiltApp>(await BuilderConversation(app, task.ToString(), cancellationToken));
             var files = new Dictionary<string, string>(built.Files ?? new Dictionary<string, string>(), StringComparer.Ordinal);
             if (files.Count == 0)
-            { await app.CompleteBuild(attempt, null, "the Builder produced no files"); return; }
+            {
+                await app.CompleteBuild(attempt, null, "the Builder produced no files");
+                await app.Progress("attention", "The Builder produced no files");
+                return;
+            }
             // Manifest changes land with the files, inside the attempt check: a stale
             // worker's manifest is discarded with its files.
             var manifest = built.Operations is { Length: > 0 } || built.Settings is { Count: > 0 }
@@ -99,10 +104,12 @@ internal sealed class Creator(
                     snapshot.Manifest.Slots)
                 : null;
             await app.CompleteBuild(attempt, files, null, manifest);
+            await app.Progress("completed", $"Built {snapshot.Manifest.Title}");
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             await app.CompleteBuild(attempt, null, error.Message);
+            await app.Progress("attention", error.Message);
         }
     }
 
@@ -141,13 +148,18 @@ internal sealed class Creator(
             {
                 return string.Concat(result.Messages.SelectMany(message => message.Content).OfType<AiText>().Select(content => content.Text)).Trim();
             }
-            await app.Progress($"round {round + 1}: {string.Join(", ", calls.Select(call => call.Name))}");
+            await app.Progress(BuilderState(calls), $"round {round + 1}: {string.Join(", ", calls.Select(call => call.Name))}");
             var results = new List<AiContent>();
             foreach (var call in calls) { results.Add(new AiToolResult(call.CallId, await ExecuteBuilderTool(call, cancellationToken))); }
             messages.Add(new AiMessage("tool", results.ToArray()));
         }
         throw new InvalidDataException($"The Builder used tools for {MaxBuilderRounds} rounds without producing the implementation.");
     }
+
+    private static string BuilderState(AiToolCall[] calls)
+        => calls.Any(call => call.Name == BuilderTools.SearchContracts) ? "searching"
+         : calls.Any(call => call.Name == BuilderTools.ReadContracts) ? "reading"
+         : "working";
 
     private async Task<string> ExecuteBuilderTool(AiToolCall call, CancellationToken cancellationToken)
     {

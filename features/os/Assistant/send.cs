@@ -9,6 +9,7 @@ var app = brain.Get<IApp>(Assistant.Key(brain));
 await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
 {
     if (request.Operation != "send" || request.Input.Length is < 1 or > 32000) { continue; }
+    await app.Progress("listening", "Heard you");
     if (request.Input.Length > Assistant.MaxRoutedChars)
     {
         await Assistant.AskModel(brain, await app.Read(), request.Input, "", request.RequestId);
@@ -18,6 +19,7 @@ await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
     {
         await Assistant.Status(brain, "Jev unavailable; asking the model. " + error.Message[..Math.Min(error.Message.Length, 200)]);
+        await app.Progress("attention", "Jev unavailable; asking the model");
         await Assistant.AskModel(brain, await app.Read(), request.Input, "", request.RequestId);
     }
 }

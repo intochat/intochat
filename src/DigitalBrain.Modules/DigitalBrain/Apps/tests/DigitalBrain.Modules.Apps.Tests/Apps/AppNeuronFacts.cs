@@ -160,9 +160,33 @@ public sealed class AppNeuronFacts
         var app = brain.Get<IApp>(IApp.Key(Brain, "progress"));
         await app.Create(Manifest(), "spec");
         await app.BeginBuild(null);
-        await app.Progress("round 1: compile-checking synapses/echo.cs");
+        await app.Progress("working", "round 1: compile-checking synapses/echo.cs");
         var snapshot = await app.Read();
         Assert.Contains("round 1: compile-checking synapses/echo.cs", snapshot.Activity);
+    }
+
+    [Fact]
+    public async Task ProgressPublishesAppActivityEvenWhenTheAppIsNotBuilding()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Start();
+        var app = brain.Get<IApp>(IApp.Key(Brain, "activity"));
+        await app.Create(Manifest(), "spec");
+        await using var activity = await brain.SubscribeAsync<AppActivity>(app, ct);
+        await app.Progress("listening", "Heard you");
+        await using var stream = activity.ReadAllAsync(ct).GetAsyncEnumerator(ct);
+        Assert.True(await stream.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct));
+        Assert.Equal(("activity", "listening", "Heard you"), (stream.Current.App, stream.Current.State, stream.Current.Detail));
+        Assert.DoesNotContain("Heard you", (await app.Read()).Activity);
+    }
+
+    [Fact]
+    public async Task ProgressRefusesAStateOutsideTheTen()
+    {
+        await using var brain = await Start();
+        var app = brain.Get<IApp>(IApp.Key(Brain, "badstate"));
+        await app.Create(Manifest(), "spec");
+        await Assert.ThrowsAsync<ArgumentException>(() => app.Progress("dancing", "x"));
     }
 
     [Fact]

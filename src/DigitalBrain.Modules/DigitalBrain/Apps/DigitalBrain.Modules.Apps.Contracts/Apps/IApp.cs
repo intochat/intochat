@@ -18,7 +18,8 @@ public interface IApp : INeuron
     [ResponseTimeout("00:10:00")] Task<AppSnapshot> Rollback(string version);
     Task<AppSnapshot> BeginBuild(string? instruction);
     Task<Guid> CurrentBuildAttempt();
-    Task Progress(string line);
+    // Publishes AppActivity (State is one of AppActivity.States) and, while building, appends Detail to the activity feed.
+    Task Progress(string state, string detail);
     [ResponseTimeout("00:10:00")] Task<AppSnapshot> CompleteBuild(Guid attempt, Dictionary<string, string>? files, string? error, AppManifest? manifest = null);
     Task<AppBundle> Export();
     // Publishes the current version once its scripts compile: it becomes the Marketplace listing and the

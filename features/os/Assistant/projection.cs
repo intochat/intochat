@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Agents.Signals;
+using DigitalBrain.Apps;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter.Chat;
 using DigitalBrain.Flutter.Text;
@@ -9,6 +10,7 @@ using DigitalBrain.Flutter.Text.Signals;
 // Signals invalidate a projection; their payloads never patch a second conversation history.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
+var app = brain.Get<IApp>(appKey);
 var pointer = brain.Get<IText>(appKey + "/conversation");
 var chat = brain.Get<IChat>(appKey + "/transcript");
 using var writer = new SemaphoreSlim(1, 1);
@@ -42,7 +44,7 @@ async Task Selection(int generation, CancellationTokenSource scope)
 
 async Task Started(IAgent agent, string source, long generation, CancellationToken ct)
 {
-    await foreach (var signal in brain.On<TurnStarted>(agent, () => Project(agent, source, generation, ct), ct)) { await Project(agent, source, generation, ct, signal.Version); }
+    await foreach (var signal in brain.On<TurnStarted>(agent, () => Project(agent, source, generation, ct), ct)) { await app.Progress("working", "Working on your message"); await Project(agent, source, generation, ct, signal.Version); }
 }
 
 async Task Progress(IAgent agent, string source, long generation, CancellationToken ct)
@@ -52,12 +54,12 @@ async Task Progress(IAgent agent, string source, long generation, CancellationTo
 
 async Task Completed(IAgent agent, string source, long generation, CancellationToken ct)
 {
-    await foreach (var signal in brain.On<TurnCompleted>(agent, () => Project(agent, source, generation, ct), ct)) { await Project(agent, source, generation, ct, signal.Version); }
+    await foreach (var signal in brain.On<TurnCompleted>(agent, () => Project(agent, source, generation, ct), ct)) { await app.Progress("completed", "Answered"); await Project(agent, source, generation, ct, signal.Version); }
 }
 
 async Task Failed(IAgent agent, string source, long generation, CancellationToken ct)
 {
-    await foreach (var signal in brain.On<TurnFailed>(agent, () => Project(agent, source, generation, ct), ct)) { await Project(agent, source, generation, ct, signal.Version); }
+    await foreach (var signal in brain.On<TurnFailed>(agent, () => Project(agent, source, generation, ct), ct)) { await app.Progress("attention", "The turn failed"); await Project(agent, source, generation, ct, signal.Version); }
 }
 
 async Task Cleared(IAgent agent, string source, long generation, CancellationToken ct)
