@@ -12,7 +12,7 @@ internal interface IGmailMailboxIndex : IGrainWithStringKey
 [GenerateSerializer, Alias("gmail.mailbox-index-state")]
 internal sealed record GmailMailboxIndexState { [Id(0)] public string[] Connections { get; init; } = []; }
 [GrainType("gmail.mailbox-index")]
-internal sealed class GmailMailboxIndex([PersistentState("gmail-mailbox-index", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<GmailMailboxIndexState> store) : Grain, IGmailMailboxIndex
+internal sealed class GmailMailboxIndex([PersistentState("gmail-mailbox-index", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<GmailMailboxIndexState> store) : Grain, IGmailMailboxIndex
 {
     public Task<string[]> Read() => Task.FromResult(store.State.Connections);
     public async Task Add(string connectionKey) { store.State = store.State with { Connections = store.State.Connections.Append(connectionKey).Distinct().ToArray() }; await store.WriteStateAsync(); }

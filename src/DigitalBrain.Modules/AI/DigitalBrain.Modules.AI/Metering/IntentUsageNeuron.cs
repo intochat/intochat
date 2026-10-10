@@ -12,7 +12,7 @@ internal sealed record IntentUsageStorage
 
 [GrainType("ai-intent-usage")]
 internal sealed class IntentUsageNeuron(
-    [PersistentState("intent-usage", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<IntentUsageStorage> store)
+    [PersistentState("intent-usage", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<IntentUsageStorage> store)
     : Neuron, IIntentUsage
 {
     public async Task RecordAsync(TokenUsageEntry entry, CancellationToken cancellationToken = default)

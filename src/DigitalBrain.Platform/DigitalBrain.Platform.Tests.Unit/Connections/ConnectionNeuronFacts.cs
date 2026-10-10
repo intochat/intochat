@@ -64,7 +64,7 @@ public sealed class ConnectionNeuronFacts
             Assert.DoesNotContain("hunter2", System.Text.Json.JsonSerializer.Serialize(await connection.Read()), StringComparison.Ordinal);
             Assert.Equal("len:7", await brain.Get<IExample>(Key()).Echo());
             Assert.Equal("hunter2", await brain.Get<IExample>(Key()).SeenValue());
-            var storage = brain.SiloServices.GetRequiredKeyedService<IGrainStorage>(DigitalBrainNames.DefaultGrainStorage);
+            var storage = brain.SiloServices.GetRequiredKeyedService<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage);
             var state = new GrainState<ExampleState>();
             await storage.ReadStateAsync("example", brain.Get<IExample>(Key()).GetGrainId(), state);
             Assert.True(state.RecordExists);

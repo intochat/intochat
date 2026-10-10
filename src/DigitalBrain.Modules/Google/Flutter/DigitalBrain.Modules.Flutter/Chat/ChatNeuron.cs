@@ -5,7 +5,7 @@ namespace DigitalBrain.Flutter.Chat;
 
 [GrainType(UIVocabulary.ChatType)]
 internal sealed class ChatNeuron(
-    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ChatState> store)
+    [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ChatState> store)
     : Neuron, IChat
 {
     public async Task Project(ChatProjection projection)

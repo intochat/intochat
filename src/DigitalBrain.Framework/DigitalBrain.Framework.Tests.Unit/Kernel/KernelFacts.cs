@@ -13,7 +13,7 @@ public interface ILedger : INeuron
 }
 
 [GrainType("test-ledger")]
-public sealed class LedgerNeuron([PersistentState("state", "Default")] IPersistentState<LedgerState> state) : Neuron, ILedger
+public sealed class LedgerNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<LedgerState> state) : Neuron, ILedger
 {
     public Task Set(int value) { state.State.Value = value; return state.WriteStateAsync(); }
     public Task Clear() => state.ClearStateAsync();
@@ -22,7 +22,7 @@ public sealed class LedgerNeuron([PersistentState("state", "Default")] IPersiste
 public interface IPlainGrain : IGrainWithStringKey { Task Set(int value); }
 
 [GrainType("test-plain")]
-public sealed class PlainGrain([PersistentState("state", "Default")] IPersistentState<LedgerState> state) : Grain, IPlainGrain
+public sealed class PlainGrain([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<LedgerState> state) : Grain, IPlainGrain
 {
     public Task Set(int value) { state.State.Value = value; return state.WriteStateAsync(); }
 }

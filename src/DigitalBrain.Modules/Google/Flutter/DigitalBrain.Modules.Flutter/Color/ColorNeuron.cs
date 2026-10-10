@@ -9,7 +9,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Color;
 
 [GrainType(UIVocabulary.ColorType)]
-internal sealed class ColorNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ColorState> store)
+internal sealed class ColorNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ColorState> store)
     : Neuron<ColorState>(store), IColor
 {
     private static readonly Regex Hex = new("^#[0-9A-Fa-f]{6}$", RegexOptions.CultureInvariant | RegexOptions.Compiled);

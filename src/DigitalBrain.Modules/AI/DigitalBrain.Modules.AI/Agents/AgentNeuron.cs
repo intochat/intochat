@@ -27,7 +27,7 @@ internal sealed record AgentStorage
 
 [GrainType("agent")]
 internal sealed class AgentNeuron(
-    [PersistentState("agent", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<AgentStorage> store) : Neuron, IAgent, IAgentDriver
+    [PersistentState("agent", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<AgentStorage> store) : Neuron, IAgent, IAgentDriver
 {
     private const int KeptRuns = 64;
     // Replayed history is bounded by size as well as count: tool results (capability listings,

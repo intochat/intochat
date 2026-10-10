@@ -6,7 +6,7 @@ namespace DigitalBrain.Microsoft.Aspire.Candidates;
 // At most one candidate is live per brain; the rest wait here in proposal order.
 [GrainType("aspire.candidates")]
 internal sealed class CandidateQueueNeuron(
-    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<CandidateQueueState> store,
+    [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<CandidateQueueState> store,
     ICandidateHost host)
     : Neuron<CandidateQueueState>(store), ICandidates
 {

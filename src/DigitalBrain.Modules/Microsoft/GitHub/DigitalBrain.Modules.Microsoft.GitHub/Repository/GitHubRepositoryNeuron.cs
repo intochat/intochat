@@ -22,7 +22,7 @@ internal sealed class GitHubRepositoryNeuron : ConnectionNeuron<GitHubRepository
 
     public GitHubRepositoryNeuron(IGitHubRepositorySource source, IGitHubUserAccess access, IGitHubInstallationVerifier verifier,
         GitHubAppRegistration registration,
-        [PersistentState("github", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<GitHubRepositoryState> state)
+        [PersistentState("github", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<GitHubRepositoryState> state)
         : base(state)
     {
         _source = source;

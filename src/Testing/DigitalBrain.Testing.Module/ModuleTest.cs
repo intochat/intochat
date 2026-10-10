@@ -51,7 +51,7 @@ public static class ModuleTest
             silo.Services.AddDigitalBrainClient();
             silo.AddDigitalBrainPlatform();
             foreach (var module in modules) { module.Configure(silo); }
-            silo.AddMemoryGrainStorage("Default");
+            silo.AddMemoryGrainStorage(DigitalBrainNames.ClusterGrainStorage);
             if (options.UseReminders) { silo.UseInMemoryReminderService(); }
             options.ConfigureSilo?.Invoke(silo);
             silo.AddKernelRegistration();

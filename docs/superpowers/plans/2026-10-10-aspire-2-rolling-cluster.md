@@ -114,7 +114,7 @@ Algorithm (each line persisted before its side effect):
 
 - [x] **Step 1:** `dotnet run digitalbrain.cs`; two `os` replicas healthy.
 - [x] **Step 2:** Publish a build of a trivially additive change (new Calculator operation) by proposing a candidate and verifying it (plan 1 flow), then call `ICluster.Roll(sha)` via `digitalbrain-mcp` `neurons_call` instead of `Promote`.
-- [ ] **Step 3:** (FAIL live 2026-10-10: ~10 s 5080 hang and proxied /ready 503s while instances drain; task-6-report D1) While it rolls, loop `curl -sf localhost:5081/health` and `localhost:5080` once a second from a separate terminal and record any non-200; expected: none. The shell stays connected (check its workspace neuron through `digitalbrain-mcp`).
+- [ ] **Step 3:** (FAIL live 2026-10-10: ~10 s 5080 hang and proxied /ready 503s while instances drain; task-6-report D1. Fix wave: drain phase, front /ready, per-instance front readiness, shell on the front landed; MCP-instance rolls and their rollback showed zero failed samples, a silo roll still lost 5080 for ~10-20 s (DCP force-kill of the stopping silo, DCP tunnel re-bind failure); not passed, see final-fix-report.md) While it rolls, loop `curl -sf localhost:5081/health` and `localhost:5080` once a second from a separate terminal and record any non-200; expected: none. The shell stays connected (check its workspace neuron through `digitalbrain-mcp`).
 - [x] **Step 4:** `ICluster.Read()` → `Steady` on the new sha; both replicas on it (`Silos()`); `list_traces` shows the roll; no errors in `list_structured_logs`.
 - [x] **Step 5:** Failure path with a candidate whose silo throws on start → rollback to previous sha, still serving.
 - [x] **Step 6:** Regression suites of every touched project; commit fixes.

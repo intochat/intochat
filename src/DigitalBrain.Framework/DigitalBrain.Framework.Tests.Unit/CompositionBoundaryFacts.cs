@@ -78,7 +78,7 @@ public sealed class CompositionBoundaryFacts
     {
         var builder = WebApplication.CreateBuilder();
         builder.AddDigitalBrainServer(_ => { });
-        builder.UseOrleans(silo => silo.UseLocalhostClustering().AddMemoryGrainStorageAsDefault().UseInMemoryReminderService());
+        builder.UseOrleans(silo => silo.UseLocalhostClustering().AddMemoryGrainStorage(DigitalBrainNames.ClusterGrainStorage).UseInMemoryReminderService());
         await using var app = builder.Build();
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => app.StartAsync(TestContext.Current.CancellationToken));
         Assert.Contains("IBrainAccess", error.Message, StringComparison.Ordinal);

@@ -9,7 +9,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.InfoBar;
 
 [GrainType(UIVocabulary.InfoBarType)]
-internal sealed class InfoBarNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<InfoBarState> store)
+internal sealed class InfoBarNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<InfoBarState> store)
     : Neuron<InfoBarState>(store), IInfoBar
 {
     public Task Show(string severity, string title, string body)

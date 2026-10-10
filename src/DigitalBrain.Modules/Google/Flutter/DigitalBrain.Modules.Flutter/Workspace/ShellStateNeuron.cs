@@ -4,7 +4,7 @@ using DigitalBrain.Framework;
 namespace DigitalBrain.Flutter.Workspace;
 
 [GrainType("intochat.shell-state")]
-internal sealed class ShellStateNeuron([PersistentState("head", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ShellHeadState> state) : Neuron, IShellState
+internal sealed class ShellStateNeuron([PersistentState("head", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ShellHeadState> state) : Neuron, IShellState
 {
     // The shell is the person's, not a brain's: its key is the digest of account and principal,
     // so the only stamped caller admitted is the one whose digest this is.

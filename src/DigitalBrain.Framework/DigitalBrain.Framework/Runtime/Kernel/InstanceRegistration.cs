@@ -3,7 +3,7 @@ using Orleans.Storage;
 
 namespace DigitalBrain.Framework;
 
-// Wraps the Default grain storage: a neuron's first persisted write registers it in its brain's
+// Wraps the cluster grain storage: a neuron's first persisted write registers it in its brain's
 // instance directory, clearing its state retires it. There is no other registration path.
 internal sealed class InstanceRegistration(IGrainStorage inner, IGrainFactory grains, IGrainContextAccessor context) : IGrainStorage, ILifecycleParticipant<ISiloLifecycle>
 {
@@ -48,15 +48,15 @@ internal sealed class InstanceRegistration(IGrainStorage inner, IGrainFactory gr
         return grains.GetGrain<IInstanceDirectory>(InstanceDirectoryKey.Of(brain, grainId.Type.ToString()!));
     }
 
-    // Replaces the keyed Default storage registration with this decorator around it. False when no
-    // Default storage is registered yet: MS DI cannot decorate a registration that comes later.
+    // Replaces the keyed cluster storage registration with this decorator around it. False when no
+    // cluster storage is registered yet: MS DI cannot decorate a registration that comes later.
     public static bool TryDecorate(IServiceCollection services)
     {
         var original = services.LastOrDefault(descriptor => descriptor.ServiceType == typeof(IGrainStorage)
-            && Equals(descriptor.ServiceKey, DigitalBrainNames.DefaultGrainStorage));
+            && Equals(descriptor.ServiceKey, DigitalBrainNames.ClusterGrainStorage));
         if (original is null) { return false; }
         services.Remove(original);
-        services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.DefaultGrainStorage, (provider, key) =>
+        services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (provider, key) =>
             new InstanceRegistration(Create(original, provider, key), provider.GetRequiredService<IGrainFactory>(), provider.GetRequiredService<IGrainContextAccessor>()));
         return true;
     }

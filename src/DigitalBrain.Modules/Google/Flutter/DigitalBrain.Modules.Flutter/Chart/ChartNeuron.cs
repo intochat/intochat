@@ -8,7 +8,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Chart;
 
 [GrainType(UIVocabulary.ChartType)]
-internal sealed class ChartNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ChartState> store)
+internal sealed class ChartNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ChartState> store)
     : Neuron<ChartState>(store), IChart
 {
     private static readonly HashSet<string> Kinds = new(StringComparer.OrdinalIgnoreCase) { "bar", "line", "pie" };

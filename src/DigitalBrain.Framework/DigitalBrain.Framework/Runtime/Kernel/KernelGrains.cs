@@ -29,7 +29,7 @@ internal static class InstanceDirectoryKey
 
 [GrainType("kernel.instances")]
 internal sealed class InstanceDirectoryGrain(
-    [PersistentState("instances", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<InstanceDirectoryGrain.State> store,
+    [PersistentState("instances", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<InstanceDirectoryGrain.State> store,
     TimeProvider time) : Grain, IInstanceDirectory
 {
     [GenerateSerializer, Alias("kernel.instances.state")]
@@ -73,7 +73,7 @@ internal sealed class InstanceDirectoryGrain(
 
 [GrainType("kernel.types")]
 internal sealed class InstanceTypesGrain(
-    [PersistentState("types", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<InstanceTypesGrain.State> store) : Grain, IInstanceTypes
+    [PersistentState("types", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<InstanceTypesGrain.State> store) : Grain, IInstanceTypes
 {
     [GenerateSerializer, Alias("kernel.types.state")]
     public sealed class State
@@ -109,7 +109,7 @@ internal interface ITypeTable : IGrainWithStringKey
 [GrainType("kernel.typetable")]
 internal sealed class TypeTableGrain(
     CompiledTypes compiled,
-    [PersistentState("features", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<TypeTableGrain.State> store) : Grain, ITypeTable
+    [PersistentState("features", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<TypeTableGrain.State> store) : Grain, ITypeTable
 {
     // The loaded features, and the types each brought (a TypeEntry's Provider names its feature).
     [GenerateSerializer, Alias("kernel.typetable.state")]

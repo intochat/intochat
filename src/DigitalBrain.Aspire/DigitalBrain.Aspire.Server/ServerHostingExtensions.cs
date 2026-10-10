@@ -64,10 +64,10 @@ public static class ServerHostingExtensions
             if (definition.AzureStorage)
             {
                 silo.Services.AddKeyedSingleton<IGrainStorageSerializer>(
-                    DigitalBrainNames.DefaultGrainStorage,
+                    DigitalBrainNames.ClusterGrainStorage,
                     static (services, _) => new OrleansGrainStorageSerializer(
                         services.GetRequiredService<Orleans.Serialization.Serializer>()));
-                silo.Services.AddOptions<AzureBlobStorageOptions>(DigitalBrainNames.DefaultGrainStorage)
+                silo.Services.AddOptions<AzureBlobStorageOptions>(DigitalBrainNames.ClusterGrainStorage)
                     .Configure<IConfiguration>(static (options, configuration) =>
                         options.ContainerName = configuration[DigitalBrainNames.GrainStateContainerKey] is { Length: > 0 } container ? container : DigitalBrainNames.GrainStateContainer);
             }
@@ -81,7 +81,7 @@ public static class ServerHostingExtensions
                 module.Configure(silo);
                 silo.Services.AddSingleton(module);
             }
-            // The Default storage may be composed after this delegate; startup validation refuses a
+            // The cluster grain storage may be composed after this delegate; startup validation refuses a
             // server whose storage was never wrapped, so no instance registration is silently lost.
             silo.TryAddKernelRegistration();
         });
@@ -101,7 +101,7 @@ public static class ServerHostingExtensions
             if (!services.GetServices<DigitalBrain.Framework.ICallFilterStage>().Any())
             { throw new InvalidOperationException("Register an authorization policy or AddDigitalBrainPlatform before starting the server."); }
             if (!DigitalBrain.Framework.BrainHosting.HasKernelRegistration(services))
-            { throw new InvalidOperationException("The Default grain storage is not wrapped by the kernel registration: register it before the silo delegate runs."); }
+            { throw new InvalidOperationException("The cluster grain storage is not wrapped by the kernel registration: register it before the silo delegate runs."); }
             return Task.CompletedTask;
         }
         public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

@@ -6,7 +6,7 @@ namespace DigitalBrain.Flutter.Surface;
 
 [GrainType(UIVocabulary.SurfaceType)]
 internal sealed class SurfaceNeuron(
-    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<SurfaceState> store)
+    [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<SurfaceState> store)
     : Neuron, ISurface
 {
     public async Task Set(SurfaceDefinition definition, long expectedRevision)

@@ -9,7 +9,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Person;
 
 [GrainType(UIVocabulary.PersonType)]
-internal sealed class PersonNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<PersonState> store)
+internal sealed class PersonNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<PersonState> store)
     : Neuron<PersonState>(store), IPerson
 {
     public Task Set(string displayName, string avatarUrl)

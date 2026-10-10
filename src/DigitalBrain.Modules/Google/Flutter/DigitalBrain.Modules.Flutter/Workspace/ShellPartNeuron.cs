@@ -7,7 +7,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Workspace;
 
 [GrainType("intochat.shell-part")]
-internal sealed class ShellPartNeuron([PersistentState("part", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ShellPartState> state) : Grain, IShellPart
+internal sealed class ShellPartNeuron([PersistentState("part", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ShellPartState> state) : Grain, IShellPart
 {
     public async Task Put(string json)
     {

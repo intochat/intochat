@@ -1,4 +1,5 @@
 using System.Globalization;
+using DigitalBrain.Framework;
 using DigitalBrain.Framework.Compute;
 
 namespace DigitalBrain.Platform.Compute;
@@ -7,7 +8,7 @@ namespace DigitalBrain.Platform.Compute;
 // grouping, so Group aggregates buckets instead of scanning the ring.
 [GrainType("usage")]
 internal sealed class UsageGrain(
-    [PersistentState("usage")] IPersistentState<UsageState> store)
+    [PersistentState("usage", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<UsageState> store)
     : Grain, IUsageGrain
 {
     private const int RecentLimit = 5_000;

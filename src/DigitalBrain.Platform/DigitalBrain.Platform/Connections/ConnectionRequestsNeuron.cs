@@ -18,7 +18,7 @@ public sealed class ConnectionRequestsState
 // Script-facing connection requests: a script asks for a connector kind; the user connects it.
 [GrainType("integrations.accounts")]
 internal sealed class ConnectionRequestsNeuron(
-    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ConnectionRequestsState> store,
+    [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ConnectionRequestsState> store,
     ConnectorCatalog catalog,
     IReadOnlyList<ConnectorDefinition> connectors)
     : Neuron<ConnectionRequestsState>(store), IConnectionRequests, IConnectionCatalogUpdates

@@ -11,7 +11,7 @@ namespace DigitalBrain.Apps;
 // its results back in.
 [GrainType(DigitalBrain.Framework.AppGrainType.Name)]
 internal sealed class AppNeuron(
-    [PersistentState("app2", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<AppState> store,
+    [PersistentState("app2", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<AppState> store,
     TimeProvider clock, IOptions<AppsOptions> options,
     IEnumerable<IAppRuntime> runtimes, IEnumerable<IAppStorageHook> storageHooks)
     : Neuron<AppState>(store), IApp, IRetainsSignals

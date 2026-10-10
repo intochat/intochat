@@ -1,8 +1,10 @@
+using DigitalBrain.Framework;
+
 namespace DigitalBrain.Platform.Compute;
 
 [GrainType("trace-budget")]
 internal sealed class TraceBudgetGrain(
-    [PersistentState("trace-budget")] IPersistentState<TraceBudgetState> store)
+    [PersistentState("trace-budget", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<TraceBudgetState> store)
     : Grain, ITraceBudgetGrain
 {
     public async Task<bool> TrySpend(long micros, long budget)

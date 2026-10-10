@@ -89,7 +89,7 @@ public sealed class PostgresWriteTableFacts
             silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=sample;Username=reader";
             silo.Services.AddSingleton<ITableStore>(new MemoryTables());
             silo.Services.AddSingleton<IIncomingGrainCallFilter>(race);
-            silo.Services.AddKeyedSingleton<IGrainStorage>("Default", race);
+            silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, race);
         }).StartAsync(ct);
         Stamp();
         await brain.AuthorizeCallerAsync();

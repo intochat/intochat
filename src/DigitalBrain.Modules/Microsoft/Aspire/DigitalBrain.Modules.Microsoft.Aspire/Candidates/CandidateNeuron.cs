@@ -7,7 +7,7 @@ namespace DigitalBrain.Microsoft.Aspire.Candidates;
 
 [GrainType("aspire.candidate")]
 internal sealed class CandidateNeuron(
-    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<CandidateState> store,
+    [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<CandidateState> store,
     ICandidateHost host,
     ICandidateVerifier verifier,
     ILogger<CandidateNeuron> log)

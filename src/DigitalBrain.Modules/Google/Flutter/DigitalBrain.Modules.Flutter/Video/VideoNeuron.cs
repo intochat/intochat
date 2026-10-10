@@ -9,7 +9,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Video;
 
 [GrainType(UIVocabulary.VideoType)]
-internal sealed class VideoNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<VideoState> store)
+internal sealed class VideoNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<VideoState> store)
     : Neuron<VideoState>(store), IVideo
 {
     public Task Load(string url, double duration)

@@ -9,7 +9,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Clock;
 
 [GrainType(UIVocabulary.ClockType)]
-internal sealed class ClockNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ClockState> store)
+internal sealed class ClockNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ClockState> store)
     : Neuron<ClockState>(store), IClock
 {
     public Task Set(string label, DateTimeOffset? dueAt)

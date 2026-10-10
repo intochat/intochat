@@ -20,7 +20,7 @@ internal sealed record BrainAuthorityState
 // Deliberately non-reentrant: a Once grant is checked and persisted in one turn.
 [GrainType("identity.brain-access.v2")]
 internal sealed class BrainAuthorityGrain(
-    [PersistentState("access", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<BrainAuthorityState> storage,
+    [PersistentState("access", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<BrainAuthorityState> storage,
     TimeProvider clock, IOptions<AuthOptions> auth) : IdentityStateGrain<BrainAuthorityState>(storage), IBrainAuthority
 {
     public async Task Initialize(string accountId, string brainId)

@@ -42,17 +42,17 @@ public static class BrainHosting
         return silo;
     }
 
-    // Wraps the Default grain storage so a neuron's first write registers it with the kernel. Call
-    // after the Default storage provider is registered; without one there is nothing to register in.
+    // Wraps the cluster grain storage so a neuron's first write registers it with the kernel. Call
+    // after the cluster storage provider is registered; without one there is nothing to register in.
     public static ISiloBuilder AddKernelRegistration(this ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
         if (!InstanceRegistration.TryDecorate(silo.Services))
-        { throw new InvalidOperationException($"Register the '{DigitalBrainNames.DefaultGrainStorage}' grain storage before the kernel registration."); }
+        { throw new InvalidOperationException($"Register the '{DigitalBrainNames.ClusterGrainStorage}' grain storage before the kernel registration."); }
         return silo;
     }
 
-    // For hosts whose Default storage may be composed after this point (configuration-bound
+    // For hosts whose cluster storage may be composed after this point (configuration-bound
     // providers are registered before the silo delegate runs; a later UseOrleans call is not).
     public static bool TryAddKernelRegistration(this ISiloBuilder silo)
     {
@@ -60,11 +60,11 @@ public static class BrainHosting
         return InstanceRegistration.TryDecorate(silo.Services);
     }
 
-    // Whether the resolved Default storage is the kernel's registration wrapper: what a host checks
+    // Whether the resolved cluster storage is the kernel's registration wrapper: what a host checks
     // at startup after TryAddKernelRegistration.
     public static bool HasKernelRegistration(IServiceProvider services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        return services.GetKeyedService<Orleans.Storage.IGrainStorage>(DigitalBrainNames.DefaultGrainStorage) is InstanceRegistration;
+        return services.GetKeyedService<Orleans.Storage.IGrainStorage>(DigitalBrainNames.ClusterGrainStorage) is InstanceRegistration;
     }
 }

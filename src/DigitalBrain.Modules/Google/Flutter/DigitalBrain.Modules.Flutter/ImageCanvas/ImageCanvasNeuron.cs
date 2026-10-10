@@ -6,7 +6,7 @@ namespace DigitalBrain.Flutter.ImageCanvas;
 
 [GrainType(UIVocabulary.ImageCanvasType)]
 internal sealed class ImageCanvasNeuron(
-    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ImageCanvasState> store)
+    [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ImageCanvasState> store)
     : Neuron, IImageCanvas
 {
     public async Task Set(ImageCanvasDefinition definition, long expectedRevision)

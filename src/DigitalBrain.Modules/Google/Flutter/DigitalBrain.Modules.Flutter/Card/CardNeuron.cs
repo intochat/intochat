@@ -9,7 +9,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Card;
 
 [GrainType(UIVocabulary.CardType)]
-internal sealed class CardNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<CardState> store)
+internal sealed class CardNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<CardState> store)
     : Neuron<CardState>(store), ICard
 {
     public Task Set(string title, string body, IReadOnlyList<UiChildRef>? children = null)

@@ -9,7 +9,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.TextField;
 
 [GrainType(UIVocabulary.TextFieldType)]
-internal sealed class TextFieldNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<TextFieldState> store)
+internal sealed class TextFieldNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<TextFieldState> store)
     : Neuron<TextFieldState>(store), ITextField
 {
     private static readonly HashSet<string> Kinds = new(StringComparer.OrdinalIgnoreCase) { "text", "number", "password", "secret", "suggest", "multiline" };

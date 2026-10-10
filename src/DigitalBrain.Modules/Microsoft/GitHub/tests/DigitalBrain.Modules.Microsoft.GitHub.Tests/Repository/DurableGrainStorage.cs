@@ -16,7 +16,7 @@ internal sealed class DurableGrainStorage
     private readonly ConcurrentDictionary<(string StateName, GrainId GrainId), byte[]> _records = new();
 
     public void Register(ISiloBuilder silo)
-        => silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.DefaultGrainStorage,
+        => silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage,
             (services, _) => new Silo(_records, services.GetRequiredService<Serializer>()));
 
     private sealed class Silo(ConcurrentDictionary<(string, GrainId), byte[]> records, Serializer serializer) : IGrainStorage

@@ -9,7 +9,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Graph;
 
 [GrainType(UIVocabulary.GraphType)]
-internal sealed class GraphNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<GraphState> store)
+internal sealed class GraphNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<GraphState> store)
     : Neuron<GraphState>(store), IGraph
 {
     public Task Render(string title, IReadOnlyList<GraphNode> nodes, IReadOnlyList<GraphEdge> edges)

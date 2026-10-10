@@ -9,7 +9,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Toggle;
 
 [GrainType(UIVocabulary.ToggleType)]
-internal sealed class ToggleNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ToggleState> store)
+internal sealed class ToggleNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ToggleState> store)
     : Neuron<ToggleState>(store), IToggle
 {
     public Task Set(string label, bool on)

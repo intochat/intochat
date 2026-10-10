@@ -9,7 +9,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Image;
 
 [GrainType(UIVocabulary.ImageType)]
-internal sealed class ImageNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ImageState> store)
+internal sealed class ImageNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ImageState> store)
     : Neuron<ImageState>(store), IImage
 {
     public Task Set(string url, string mediaType, string prompt)

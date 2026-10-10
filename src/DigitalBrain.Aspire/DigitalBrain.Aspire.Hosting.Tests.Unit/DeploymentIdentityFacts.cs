@@ -96,7 +96,7 @@ public sealed class DeploymentIdentityFacts
             if (resource == server.Resource)
             {
                 Assert.Equal(DigitalBrainNames.Reminders, configuration.EnvironmentVariables.ToDictionary()["Orleans__Reminders__ServiceKey"]);
-                Assert.Equal(DigitalBrainNames.GrainState, configuration.EnvironmentVariables.ToDictionary()["Orleans__GrainStorage__Default__ServiceKey"]);
+                Assert.Equal(DigitalBrainNames.GrainState, configuration.EnvironmentVariables.ToDictionary()[$"Orleans__GrainStorage__{DigitalBrainNames.ClusterGrainStorage}__ServiceKey"]);
             }
         }
     }
@@ -185,7 +185,7 @@ public sealed class DeploymentIdentityFacts
         host.Configuration[AuthOptions.PostureKey] = "Open";
         DigitalBrain.Aspire.Server.ServerHostingExtensions.AddDigitalBrainServer(host, server => server.UseAzureStorage());
         using var provider = host.Services.BuildServiceProvider();
-        var options = provider.GetRequiredService<IOptionsMonitor<Orleans.Configuration.AzureBlobStorageOptions>>().Get(DigitalBrainNames.DefaultGrainStorage);
+        var options = provider.GetRequiredService<IOptionsMonitor<Orleans.Configuration.AzureBlobStorageOptions>>().Get(DigitalBrainNames.ClusterGrainStorage);
         Assert.Equal("brain-rabc1234", options.ContainerName);
     }
 

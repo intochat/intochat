@@ -15,7 +15,7 @@ internal sealed class ConnectionIndexNeuron : Grain, IConnectionIndex
     private readonly IPersistentState<ConnectionIndexState> _store;
 
     public ConnectionIndexNeuron(
-        [PersistentState("connections", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ConnectionIndexState> store)
+        [PersistentState("connections", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ConnectionIndexState> store)
         => _store = store;
 
     public Task<string[]> List() => Task.FromResult<string[]>([.. _store.State.Keys]);

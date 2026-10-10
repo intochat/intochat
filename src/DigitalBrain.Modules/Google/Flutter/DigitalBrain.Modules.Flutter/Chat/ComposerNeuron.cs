@@ -12,7 +12,7 @@ internal sealed record ComposerStorage
 
 [GrainType(UIVocabulary.ComposerType)]
 internal sealed class ComposerNeuron(
-    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ComposerStorage> store)
+    [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ComposerStorage> store)
     : Neuron, IComposer
 {
     private ComposerState State => store.State.State;

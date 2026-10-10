@@ -8,7 +8,7 @@ namespace DigitalBrain.Flutter.Workspace;
 
 [GrainType("ui.workspace")]
 internal sealed class WorkspaceNeuron(
-    [PersistentState("workspace", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<WorkspaceStorage> store, IOptions<FlutterModuleOptions> options)
+    [PersistentState("workspace", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<WorkspaceStorage> store, IOptions<FlutterModuleOptions> options)
     : Neuron, IWorkspace
 {
     public async Task<WorkspaceOpenResult> Open(OpenWindow request)

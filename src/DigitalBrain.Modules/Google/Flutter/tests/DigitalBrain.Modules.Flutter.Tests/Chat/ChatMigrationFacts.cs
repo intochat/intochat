@@ -1,5 +1,6 @@
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Chat;
+using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
 
@@ -15,7 +16,7 @@ public sealed class ChatMigrationFacts
             .ConfigureSilo(silo =>
             {
                 silo.AddMemoryGrainStorage("legacy-chat");
-                silo.Services.AddKeyedSingleton<IGrainStorage>("Default", (services, _) =>
+                silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (services, _) =>
                     new LegacyStorage(services.GetRequiredKeyedService<IGrainStorage>("legacy-chat")));
             }).StartAsync(ct);
         var chat = brain.Get<IChat>("legacy");

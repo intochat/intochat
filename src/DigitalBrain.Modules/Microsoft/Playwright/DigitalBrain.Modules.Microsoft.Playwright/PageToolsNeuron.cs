@@ -13,7 +13,7 @@ public sealed class PageToolsStore
 
 [GrainType("playwright.page-tools")]
 internal sealed partial class PageToolsNeuron(
-    [PersistentState("playwright.page-tools", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<PageToolsStore> store)
+    [PersistentState("playwright.page-tools", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<PageToolsStore> store)
     : Neuron, IPageTools
 {
     private const int RenderingBudgetMs = 15_000;

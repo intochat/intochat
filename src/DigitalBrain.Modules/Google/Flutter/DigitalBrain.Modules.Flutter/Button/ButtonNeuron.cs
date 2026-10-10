@@ -10,7 +10,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Button;
 
 [GrainType(UIVocabulary.ButtonType)]
-internal sealed class ButtonNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ButtonState> store)
+internal sealed class ButtonNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ButtonState> store)
     : Neuron<ButtonState>(store), IButton
 {
     public Task Set(string label, string action, bool enabled = true)

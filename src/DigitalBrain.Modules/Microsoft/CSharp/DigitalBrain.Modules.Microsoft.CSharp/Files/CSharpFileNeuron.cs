@@ -12,7 +12,7 @@ namespace DigitalBrain.Microsoft.CSharp.Files;
 // sandbox session.
 [GrainType("microsoft.csharp.file")]
 internal sealed partial class CSharpFileNeuron(
-    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<CSharpFileState> store)
+    [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<CSharpFileState> store)
     : Neuron<CSharpFileState>(store), ICSharpFile
 {
     internal const int MaximumSourceBytes = 128 * 1024;

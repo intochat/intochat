@@ -6,7 +6,7 @@ namespace DigitalBrain.Flutter.Layout;
 
 [GrainType(UIVocabulary.LayoutType)]
 internal sealed class LayoutNeuron(
-    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<LayoutState> store)
+    [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<LayoutState> store)
     : Neuron, ILayout
 {
     public async Task Set(LayoutDefinition definition, long expectedRevision)

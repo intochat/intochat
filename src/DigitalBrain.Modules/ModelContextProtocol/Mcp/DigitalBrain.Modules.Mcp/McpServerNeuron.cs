@@ -19,7 +19,7 @@ public sealed class McpServerStore
 // call retried once on a fresh one; what the brain knows about the server lives in the persisted state.
 [GrainType("mcp.server")]
 internal sealed class McpServerNeuron(
-    [PersistentState("mcp.server", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<McpServerStore> store)
+    [PersistentState("mcp.server", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<McpServerStore> store)
     : Neuron, IMcpServer
 {
     private const int MaxText = 128 * 1024;

@@ -7,7 +7,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.VoiceInput;
 
 [GrainType(UIVocabulary.VoiceInputType)]
-internal sealed class VoiceInputNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<VoiceInputState> store)
+internal sealed class VoiceInputNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<VoiceInputState> store)
     : Neuron<VoiceInputState>(store), IVoiceInput
 {
     public Task Configure(string label)

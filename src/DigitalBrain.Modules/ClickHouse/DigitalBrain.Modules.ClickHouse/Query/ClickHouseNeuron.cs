@@ -13,7 +13,7 @@ internal sealed class ClickHouseConnectionState : ConnectionState { }
 [GrainType(ClickHouseNames.NeuronType)]
 internal sealed class ClickHouseNeuron(
     IClickHouseProvider provider, IClickHouseSourceFactory sources,
-    [PersistentState("clickhouse", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ClickHouseConnectionState> store)
+    [PersistentState("clickhouse", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ClickHouseConnectionState> store)
     : ConnectionNeuron<ClickHouseConnectionState>(store), IClickHouse
 {
     private const int MaxTableNameLength = 255;

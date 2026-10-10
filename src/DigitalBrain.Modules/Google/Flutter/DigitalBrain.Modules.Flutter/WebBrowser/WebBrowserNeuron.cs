@@ -10,7 +10,7 @@ namespace DigitalBrain.Flutter.WebBrowser;
 
 [GrainType(UIVocabulary.WebBrowserType), Reentrant]
 internal sealed class WebBrowserNeuron(
-    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<WebBrowserState> store)
+    [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<WebBrowserState> store)
     : Neuron<WebBrowserState>(store), IWebBrowser, IWebBrowserConnector
 {
     private const int ReasonClip = 200;

@@ -14,7 +14,7 @@ internal sealed class WindowsConnectionState : ConnectionState
 [GrainType("windows")]
 internal sealed class WindowsNeuron(
     IMachineIdentity identity,
-    [PersistentState("windows", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<WindowsConnectionState> store)
+    [PersistentState("windows", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<WindowsConnectionState> store)
     : ConnectionNeuron<WindowsConnectionState>(store), IWindows
 {
     public Task<WindowsFacts> Facts() => Task.FromResult(new WindowsFacts(

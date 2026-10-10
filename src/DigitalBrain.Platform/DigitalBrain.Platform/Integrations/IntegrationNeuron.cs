@@ -31,7 +31,7 @@ internal sealed class IntegrationNeuron : Grain, IIntegration
     private IntegrationSchema? _definition;
 
     public IntegrationNeuron(
-        [PersistentState("registration", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<IntegrationState> store,
+        [PersistentState("registration", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<IntegrationState> store,
         IReadOnlyList<IntegrationSchema> definitions,
         ISecretSealer sealer, ILogger<IntegrationNeuron> logger)
     {

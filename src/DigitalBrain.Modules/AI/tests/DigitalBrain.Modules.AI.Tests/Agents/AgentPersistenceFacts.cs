@@ -31,8 +31,8 @@ public sealed class AgentPersistenceFacts
             {
                 silo.Services.AddSingleton<IChatClient>(StubChatClient.Replying("reply"));
                 var original = silo.Services.Last(service => service.ServiceType == typeof(IGrainStorage)
-                    && Equals(service.ServiceKey, DigitalBrainNames.DefaultGrainStorage));
-                silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.DefaultGrainStorage, (services, key) =>
+                    && Equals(service.ServiceKey, DigitalBrainNames.ClusterGrainStorage));
+                silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (services, key) =>
                     new GatedStorage((IGrainStorage)original.KeyedImplementationFactory!(services, key), writes));
             }).StartAsync(ct);
         var source = AgentFacts.Key("committed");

@@ -6,7 +6,7 @@ using Orleans.Concurrency;
 namespace DigitalBrain.Flutter.Form;
 
 [GrainType(UIVocabulary.FormType)]
-internal sealed class FormNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<FormState> store)
+internal sealed class FormNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<FormState> store)
     : Neuron<FormState>(store), IForm
 {
     public Task<FormState> Define(FormDefinition definition)

@@ -5,7 +5,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Select;
 
 [GrainType(UIVocabulary.SelectType)]
-internal sealed class SelectNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<SelectState> store)
+internal sealed class SelectNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<SelectState> store)
     : Neuron<SelectState>(store), ISelect
 {
     public Task Set(string label, IReadOnlyList<SelectOption> options, string? selected)

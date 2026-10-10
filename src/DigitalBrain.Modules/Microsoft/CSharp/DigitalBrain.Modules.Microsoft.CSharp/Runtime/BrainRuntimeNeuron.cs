@@ -26,7 +26,7 @@ namespace DigitalBrain.Microsoft.CSharp.Runtime;
 // backstop that relaunches a lost session, not the detector.
 [GrainType("microsoft.csharp.runtime")]
 internal sealed class BrainRuntimeNeuron(
-    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<BrainRuntimeState> store,
+    [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<BrainRuntimeState> store,
     SessionRunner runner,
     SessionTokens tokens,
     SessionStreams streams,

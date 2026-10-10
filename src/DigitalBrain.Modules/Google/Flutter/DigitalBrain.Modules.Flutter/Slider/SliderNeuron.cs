@@ -9,7 +9,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Slider;
 
 [GrainType(UIVocabulary.SliderType)]
-internal sealed class SliderNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<SliderState> store)
+internal sealed class SliderNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<SliderState> store)
     : Neuron<SliderState>(store), ISlider
 {
     public Task Configure(double min, double max, double step)

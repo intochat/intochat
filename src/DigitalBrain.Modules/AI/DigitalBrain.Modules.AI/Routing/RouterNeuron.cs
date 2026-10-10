@@ -18,7 +18,7 @@ namespace DigitalBrain.AI.Routing;
 // It keeps its own decisions and shows them to the model, so each request is judged against state.
 [GrainType("ai.router")]
 internal sealed class RouterNeuron(
-    [PersistentState("router", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<RouterStorage> store)
+    [PersistentState("router", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<RouterStorage> store)
     : Neuron<RouterStorage>(store), IRouter, IRouterWork
 {
     private const int MaxOptions = 255;

@@ -9,7 +9,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Tree;
 
 [GrainType(UIVocabulary.TreeType)]
-internal sealed class TreeNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<TreeState> store)
+internal sealed class TreeNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<TreeState> store)
     : Neuron<TreeState>(store), ITree
 {
     public Task Set(IReadOnlyList<TreeNode> nodes)

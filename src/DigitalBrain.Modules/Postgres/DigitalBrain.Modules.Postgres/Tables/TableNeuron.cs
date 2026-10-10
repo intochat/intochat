@@ -15,7 +15,7 @@ internal sealed record TableState
 
 [GrainType(GrainType)]
 internal sealed partial class TableNeuron(ITableStore provider, ITablePlacements placements,
-    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<TableState> state) : Neuron, ITable, ITableLifetime
+    [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<TableState> state) : Neuron, ITable, ITableLifetime
 {
     public const string GrainType = "postgres.table";
 

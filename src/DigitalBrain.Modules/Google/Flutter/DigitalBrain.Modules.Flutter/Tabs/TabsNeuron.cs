@@ -9,7 +9,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.Tabs;
 
 [GrainType(UIVocabulary.TabsType)]
-internal sealed class TabsNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<TabsState> store)
+internal sealed class TabsNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<TabsState> store)
     : Neuron<TabsState>(store), ITabs
 {
     public Task Set(IReadOnlyList<TabItem> tabs, string selectedId)

@@ -8,7 +8,7 @@ namespace DigitalBrain.Microsoft.Aspire.Cluster;
 
 [GrainType("aspire.cluster")]
 internal sealed class ClusterNeuron(
-    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ClusterState> store,
+    [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ClusterState> store,
     IClusterHost host,
     ICandidateHost candidates,
     IOptions<AspireOptions> options,

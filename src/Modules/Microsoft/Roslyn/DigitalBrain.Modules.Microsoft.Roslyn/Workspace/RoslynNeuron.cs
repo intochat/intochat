@@ -7,7 +7,7 @@ namespace DigitalBrain.Microsoft.Roslyn;
 
 [GrainType("microsoft.roslyn")]
 internal sealed class RoslynNeuron(
-    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<WorkspaceState> state,
+    [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<WorkspaceState> state,
     SolutionWorkspace workspace,
     ChangeSetEditor editor,
     TimeProvider clock)

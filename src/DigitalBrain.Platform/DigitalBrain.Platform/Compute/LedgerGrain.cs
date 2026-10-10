@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using DigitalBrain.Framework;
 using DigitalBrain.Framework.Compute;
 
 namespace DigitalBrain.Platform.Compute;
@@ -10,7 +11,7 @@ namespace DigitalBrain.Platform.Compute;
 // rewritten entry is caught by Verify. Balance always equals the sum of the entries.
 [GrainType("ledger")]
 internal sealed class LedgerGrain(
-    [PersistentState("ledger")] IPersistentState<LedgerState> store)
+    [PersistentState("ledger", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<LedgerState> store)
     : Grain, ILedgerGrain
 {
     private const int IdempotencyWindow = 10_000;

@@ -18,7 +18,7 @@ public sealed class AgentRecoveryFacts
         var client = StubChatClient.Replying("never");
         await using var brain = await AgentFacts.Brain(client, ct);
         var key = AgentFacts.Key("recovered");
-        var storage = brain.SiloServices.GetRequiredKeyedService<IGrainStorage>(DigitalBrainNames.DefaultGrainStorage);
+        var storage = brain.SiloServices.GetRequiredKeyedService<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage);
         await storage.WriteStateAsync("agent", GrainId.Create("agent", key), new GrainState<AgentStorage>(new AgentStorage
         {
             ActiveRun = new AgentRun("interrupted-run", AgentRunStatus.Running, "hello", DateTimeOffset.UtcNow)

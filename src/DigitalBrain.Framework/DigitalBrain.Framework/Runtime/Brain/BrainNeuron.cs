@@ -5,7 +5,7 @@ namespace DigitalBrain.Framework;
 // The brain's first neuron: its state, its creation, its lifecycle signals.
 [GrainType("brain")]
 internal sealed class BrainNeuron(
-    [PersistentState("brain", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<State> store,
+    [PersistentState("brain", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<State> store,
     IEnumerable<ICreationHandler> creation,
     ILogger<BrainNeuron> logger) : Neuron<State>(store), IBrain, IKernelAnnouncer
 {

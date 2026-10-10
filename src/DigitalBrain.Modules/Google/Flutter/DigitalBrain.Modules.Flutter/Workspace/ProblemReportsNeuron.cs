@@ -6,7 +6,7 @@ namespace DigitalBrain.Flutter.Workspace;
 
 [GrainType("intochat.problem-reports")]
 internal sealed class ProblemReportsNeuron(
-    [PersistentState("problem-reports", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<ProblemReportsState> store)
+    [PersistentState("problem-reports", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ProblemReportsState> store)
     : Neuron, IProblemReports
 {
     private const int MaxMessageLength = 4_000;

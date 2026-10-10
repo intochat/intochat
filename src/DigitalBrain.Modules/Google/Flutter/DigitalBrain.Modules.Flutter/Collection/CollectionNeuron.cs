@@ -6,7 +6,7 @@ namespace DigitalBrain.Flutter.Collection;
 
 [GrainType(UIVocabulary.CollectionType)]
 internal sealed class CollectionNeuron(
-    [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<CollectionState> store)
+    [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<CollectionState> store)
     : Neuron, ICollectionView
 {
     public async Task Set(CollectionDefinition definition, long expectedRevision)

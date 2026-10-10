@@ -12,7 +12,7 @@ internal sealed record AccountState
 
 [GrainType("identity.account.v2")]
 internal sealed class AccountGrain(
-    [PersistentState("account", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<AccountState> storage,
+    [PersistentState("account", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<AccountState> storage,
     TimeProvider clock) : IdentityStateGrain<AccountState>(storage), IAccount
 {
     public async Task EnsureCreated(Account account)

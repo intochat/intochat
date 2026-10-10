@@ -210,8 +210,8 @@ public sealed class AgentTurnStartFacts
         => ModuleTest.Create().WithModule<AIModule>().ConfigureSilo(silo =>
         {
             silo.Services.AddSingleton<IChatClient>(client);
-            var original = silo.Services.Last(service => service.ServiceType == typeof(IGrainStorage) && Equals(service.ServiceKey, DigitalBrainNames.DefaultGrainStorage));
-            silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.DefaultGrainStorage, (services, key) =>
+            var original = silo.Services.Last(service => service.ServiceType == typeof(IGrainStorage) && Equals(service.ServiceKey, DigitalBrainNames.ClusterGrainStorage));
+            silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (services, key) =>
                 new AgentWriteStorage((IGrainStorage)original.KeyedImplementationFactory!(services, key), writes));
         }).StartAsync(ct);
 

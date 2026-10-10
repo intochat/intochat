@@ -10,7 +10,7 @@ public interface ICounter : INeuron
 [GenerateSerializer]
 public sealed class CounterState { [Id(0)] public int Value { get; set; } }
 [GrainType("test-counter")]
-public sealed class CounterNeuron([PersistentState("state", "Default")] IPersistentState<CounterState> state) : Neuron, ICounter
+public sealed class CounterNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<CounterState> state) : Neuron, ICounter
 {
     public Task<int> Read() => Task.FromResult(state.State.Value);
     public async Task Set(int value)
@@ -36,7 +36,7 @@ public interface IProbe : INeuron
 }
 
 [GrainType("test-probe")]
-public sealed class ProbeNeuron([PersistentState("state", "Default")] IPersistentState<ProbeState> state) : Neuron<ProbeState>(state), IProbe
+public sealed class ProbeNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ProbeState> state) : Neuron<ProbeState>(state), IProbe
 {
     public int Value => Snapshot.Value;
     public Task<bool> Saved() => Task.FromResult(Exists);

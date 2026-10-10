@@ -9,7 +9,7 @@ namespace DigitalBrain.AI.GroupChat;
 
 [GrainType("ai.group-chat")]
 internal sealed class GroupChatNeuron(
-    [PersistentState("ai.group-chat", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<GroupChatState> store)
+    [PersistentState("ai.group-chat", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<GroupChatState> store)
     : Neuron<GroupChatState>(store), IGroupChat
 {
     private const string AgreementMarker = "AGREE";

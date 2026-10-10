@@ -9,7 +9,7 @@ namespace DigitalBrain.Google.Gmail;
 
 [GrainType("gmail")]
 internal sealed class GmailNeuron(
-    [PersistentState("gmail", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<GmailState> store)
+    [PersistentState("gmail", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<GmailState> store)
     : ConnectionNeuron<GmailState>(store), IGmail, IGmailInbound
 {
     // Verified Pub/Sub delivery arrives unstamped; the connection's own state decides. A stamped

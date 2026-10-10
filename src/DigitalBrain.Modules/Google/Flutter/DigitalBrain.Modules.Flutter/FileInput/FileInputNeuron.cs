@@ -5,7 +5,7 @@ using Orleans.Runtime;
 namespace DigitalBrain.Flutter.FileInput;
 
 [GrainType(UIVocabulary.FileInputType)]
-internal sealed class FileInputNeuron([PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<FileInputState> store)
+internal sealed class FileInputNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<FileInputState> store)
     : Neuron<FileInputState>(store), IFileInput
 {
     public Task Configure(string label)
