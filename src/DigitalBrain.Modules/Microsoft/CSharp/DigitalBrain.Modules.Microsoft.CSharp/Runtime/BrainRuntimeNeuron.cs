@@ -456,7 +456,13 @@ internal sealed class BrainRuntimeNeuron(
         var previous = _watched.Values.ToArray();
         RenewSourceWatches(dueTime: ObserverRenewal);
         var observer = this.AsReference<INeuronObserver>();
-        foreach (var source in previous.Where(source => !_watched.ContainsValue(source))) { await source.Unwatch(observer); }
+        foreach (var source in previous.Where(source => !_watched.ContainsValue(source)))
+        {
+            // A source that is gone (its type left the host) cannot be unwatched either; its lease simply lapses.
+            try { await source.Unwatch(observer); }
+            catch (Exception error) when (error is not OperationCanceledException)
+            { logger.LogDebug(error, "Brain runtime {Runtime} could not unwatch {Source}.", this.GetPrimaryKeyString(), source.GetGrainId()); }
+        }
         foreach (var (key, source) in _watched) { await WatchAsync(key, source, observer, rethrow: key == required); }
     }
 
@@ -464,10 +470,20 @@ internal sealed class BrainRuntimeNeuron(
     // every other source: it is logged and skipped, unless it is the one being subscribed right now.
     private async Task WatchAsync(string key, INeuron source, INeuronObserver observer, bool rethrow)
     {
-        try { await source.Watch(observer, Snapshot.Subscriptions.Where(s => s.Neuron == key).Select(s => s.Signal).Distinct(StringComparer.Ordinal).ToArray()); }
+        try
+        {
+            await source.Watch(observer, Snapshot.Subscriptions.Where(s => s.Neuron == key).Select(s => s.Signal).Distinct(StringComparer.Ordinal).ToArray());
+            _unwatchable.Remove(key);
+        }
         catch (Exception error) when (!rethrow && error is not OperationCanceledException)
-        { logger.LogWarning(error, "Brain runtime {Runtime} could not watch {Source}.", this.GetPrimaryKeyString(), key); }
+        {
+            // Logged once per activation and source: the renewal timer retries it every period.
+            if (_unwatchable.Add(key)) { logger.LogWarning(error, "Brain runtime {Runtime} could not watch {Source}; retrying quietly.", this.GetPrimaryKeyString(), key); }
+            else { logger.LogDebug(error, "Brain runtime {Runtime} still cannot watch {Source}.", this.GetPrimaryKeyString(), key); }
+        }
     }
+
+    private readonly HashSet<string> _unwatchable = new(StringComparer.Ordinal);
 
     // One watch per distinct source across every behavior. Sources keep observers for a lease; renewing
     // on a timer also keeps this activation alive.
