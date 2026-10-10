@@ -57,19 +57,98 @@ Widget _host(Widget child, {bool reduced = false}) => MediaQuery(
 Finder _entry(String id) => find.byKey(ValueKey('enter_$id'));
 
 void main() {
-  test(
-    'growth keeps the neurons and apps and skips every unknown signal',
-    () async {
-      final frames = await loadGrowth(_page, pageSize: 2);
+  test('growth keeps the neurons and apps and skips every unknown signal', () {
+    final growth = Growth();
+    _journal.forEach(growth.add);
 
-      expect(frames.map((f) => f.nodes.map((n) => n.id).toList()), [
+    expect(
+      [
+        for (var i = 0; i < growth.frames; i++)
+          growth.frame(i).nodes.map((n) => n.id).toList(),
+      ],
+      [
         <String>[],
         ['b1/chats/main'],
         ['b1/chats/main', 'apps/notes'],
         ['b1/chats/main', 'apps/notes', 'apps/files'],
-      ]);
-    },
-  );
+      ],
+    );
+  });
+
+  testWidgets('the first page starts the replay before the rest has arrived', (
+    tester,
+  ) async {
+    final second = Completer<SignalsPage>();
+    final frames = <int?>[];
+    Future<SignalsPage> load(int since, int limit) =>
+        since == 0 ? _page(0, 3) : second.future;
+    await tester.pumpWidget(
+      _host(
+        BrainReplayBar(
+          load: load,
+          pageSize: 3,
+          onFrame: (f) => frames.add(f?.nodes.length),
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('brain-replay-start')));
+    await tester.pump();
+    await tester.pump();
+
+    expect(frames, [0]);
+    await tester.pump(const Duration(milliseconds: 450));
+    expect(frames, [0, 1]);
+    await tester.pump(const Duration(milliseconds: 450));
+    expect(frames, [0, 1, 2]);
+    // The player waits at the loaded end instead of going live.
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(frames.last, 2);
+    expect(find.byKey(const ValueKey('brain-replay-live')), findsOneWidget);
+
+    second.complete(_page(3, 3).then((p) => p));
+    await tester.pump(const Duration(milliseconds: 450));
+    expect(frames.last, 3);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('a failed page keeps the loaded frames and retry resumes', (
+    tester,
+  ) async {
+    var failing = true;
+    final frames = <int?>[];
+    Future<SignalsPage> load(int since, int limit) async {
+      if (since > 0 && failing) throw StateError('journal unavailable');
+      return _page(since, 3);
+    }
+
+    await tester.pumpWidget(
+      _host(
+        BrainReplayBar(
+          load: load,
+          pageSize: 3,
+          onFrame: (f) => frames.add(f?.nodes.length),
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('brain-replay-start')));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('brain-replay-retry')), findsOneWidget);
+    expect(find.byKey(const ValueKey('brain-replay-scrub')), findsOneWidget);
+    expect(frames, [0]);
+
+    failing = false;
+    await tester.tap(find.byKey(const ValueKey('brain-replay-retry')));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('brain-replay-retry')), findsNothing);
+    await tester.pump(const Duration(milliseconds: 450 * 4));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('brain-replay-is-live')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
 
   testWidgets('a new neuron in the live feed enters the graph by diff', (
     tester,

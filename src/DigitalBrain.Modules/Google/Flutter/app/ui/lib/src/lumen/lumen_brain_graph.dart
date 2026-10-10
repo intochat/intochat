@@ -173,6 +173,7 @@ final class _LumenBrainGraphState extends State<LumenBrainGraph> {
                     children: [
                       for (final route in routes)
                         Positioned.fill(
+                          key: ValueKey('line_${route.edge.id}'),
                           child: _Entry(
                             key: ValueKey('enter_${route.edge.id}'),
                             animate: freshEdges.contains(route.edge.id),
@@ -194,6 +195,7 @@ final class _LumenBrainGraphState extends State<LumenBrainGraph> {
                       ),
                       for (final event in delegations)
                         Positioned(
+                          key: ValueKey('at_delegation_${event.operationId}'),
                           left:
                               (positions[event.neuronId]!.dx +
                                       positions[event.targetId]!.dx) /
@@ -214,6 +216,7 @@ final class _LumenBrainGraphState extends State<LumenBrainGraph> {
                         ),
                       for (final route in routes)
                         Positioned(
+                          key: ValueKey('at_synapse_${route.edge.id}'),
                           left: route.controlPosition.dx - 22,
                           top: route.controlPosition.dy - 22,
                           child: _Entry(
@@ -236,6 +239,7 @@ final class _LumenBrainGraphState extends State<LumenBrainGraph> {
                         ),
                       for (final node in widget.snapshot.nodes)
                         Positioned(
+                          key: ValueKey('at_node_${node.id}'),
                           left: positions[node.id]!.dx - 58,
                           top: positions[node.id]!.dy - 42,
                           child: _Entry(

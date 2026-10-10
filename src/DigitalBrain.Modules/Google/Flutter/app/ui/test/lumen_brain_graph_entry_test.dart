@@ -80,4 +80,26 @@ void main() {
     await tester.pump();
     expect(_opacity(tester, 'b'), 1);
   });
+
+  testWidgets('inserting a neuron mid-list keeps every other tile mounted', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_host(_snapshot(['a', 'c'])));
+    final before = [
+      tester.element(find.byKey(const ValueKey('neuron_a'))),
+      tester.element(find.byKey(const ValueKey('neuron_c'))),
+    ];
+    await tester.pumpWidget(_host(_snapshot(['a', 'b', 'c'])));
+    await tester.pump(const Duration(milliseconds: 60));
+    expect(
+      tester.element(find.byKey(const ValueKey('neuron_a'))),
+      same(before[0]),
+    );
+    expect(
+      tester.element(find.byKey(const ValueKey('neuron_c'))),
+      same(before[1]),
+    );
+    expect(_opacity(tester, 'c'), 1);
+    await tester.pumpAndSettle();
+  });
 }
