@@ -1,29 +1,26 @@
-using DigitalBrain;
-using DigitalBrain.Framework;
-using DigitalBrain.Framework.Metering;
+using DigitalBrain.Framework.Compute;
 using Microsoft.Extensions.AI;
 
 namespace DigitalBrain.AI.Metering;
 
-// Records the provider's reported token classes for embedding calls made under an IntentContext.
-// Embeddings are a separate meter from chat, so they are recorded with their own provider/model
-// identity rather than folded into a chat entry.
+// Prices the provider's reported input tokens for embedding calls through the kernel's cost meter.
+// Embeddings are their own row: the item carries the embedding model id, not a chat model's.
 internal sealed class MeteringEmbeddingGenerator(
-    IEmbeddingGenerator<string, Embedding<float>> innerGenerator, IIntentUsageSink sink, string provider, string model)
+    IEmbeddingGenerator<string, Embedding<float>> innerGenerator, ICostMeter meter, Funding funding, string model)
     : DelegatingEmbeddingGenerator<string, Embedding<float>>(innerGenerator)
 {
     public override async Task<GeneratedEmbeddings<Embedding<float>>> GenerateAsync(
         IEnumerable<string> values, EmbeddingGenerationOptions? options = null, CancellationToken cancellationToken = default)
     {
         var embeddings = await base.GenerateAsync(values, options, cancellationToken).ConfigureAwait(false);
-        if (IntentContext.Current is { } intent)
+        if (embeddings.Usage?.InputTokenCount is { } input)
         {
-            var usage = embeddings.Usage;
-            var entry = new TokenUsageEntry(MeterKind.Embedding, provider, model,
-                usage?.InputTokenCount, usage?.CachedInputTokenCount, usage?.ReasoningTokenCount,
-                usage?.OutputTokenCount, usage?.TotalTokenCount, usage is not null, DateTimeOffset.UtcNow);
-            try { await sink.RecordAsync(intent.IntentId, new IntentUsageEntry<TokenUsageEntry>(entry), cancellationToken).ConfigureAwait(false); }
-            catch { /* Metering is an observer: a storage fault must never fail the embedding call. */ }
+            var id = Guid.NewGuid().ToString("N");
+            try
+            {
+                await meter.RecordAsync(CostKind.Model, $"{model}:input", input / 1_000_000m, "mtok", funding, $"{id}:input", cancellationToken).ConfigureAwait(false);
+            }
+            catch { /* Metering is an observer: a ledger fault must never fail the embedding call. */ }
         }
         return embeddings;
     }
