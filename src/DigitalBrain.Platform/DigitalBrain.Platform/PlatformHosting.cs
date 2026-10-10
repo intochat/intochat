@@ -78,6 +78,7 @@ public static class PlatformHosting
         endpoints.MapIntegrations();
         endpoints.MapConnectionNeurons();
         Compute.ComputeEndpoints.MapCompute(endpoints);
+        Signals.SignalsEndpoints.MapSignals(endpoints);
         endpoints.MapCapabilities();
         IdentityEndpoints.Map(endpoints);
         return endpoints;

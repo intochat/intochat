@@ -35,6 +35,19 @@ internal sealed class PartLogs(IGrainFactory grains, IMeshStore mesh, IPartKeys 
         }
     }
 
+    // The logs this silo has open for a brain: its core and every app part touched since the silo started.
+    public async Task<PartLog[]> OpenFor(string brainId)
+    {
+        List<PartLog> open = [];
+        foreach (var (key, opening) in _logs)
+        {
+            if (!(key.StartsWith(brainId + "/", StringComparison.Ordinal) && opening.IsValueCreated)) { continue; }
+            try { open.Add(await opening.Value); }
+            catch (Exception) { }
+        }
+        return [.. open.Where(log => !log.Closed)];
+    }
+
     public async ValueTask DisposeAsync()
     {
         foreach (var opening in _logs.Values)

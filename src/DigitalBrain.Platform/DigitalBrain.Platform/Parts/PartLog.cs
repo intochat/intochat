@@ -14,6 +14,7 @@ internal sealed record StoredRecord(byte[] Record, long ETagSeq);
 internal sealed class PartLog : IAsyncDisposable
 {
     private readonly PartId _part;
+    public PartId Part => _part;
     private readonly byte[] _key;
     private readonly PartLease _lease;
     private readonly IMeshStore _mesh;

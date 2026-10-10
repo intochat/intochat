@@ -6,7 +6,13 @@ public interface ISignalJournal
 {
     // A signal published without a state write: durable once this completes.
     Task Append(GrainId publisher, Signal[] signals);
+
+    // The brain's journalled signals after `since` (0 reads from the start), in sequence order, at most `limit`.
+    Task<JournaledSignal[]> ReadSince(string brainId, long since, int limit);
 }
+
+// Sequence numbers are the brain's own ordering of its journalled signals: strictly increasing, 1-based.
+public sealed record JournaledSignal(long Sequence, Signal Signal);
 
 public static class SignalJournal
 {
@@ -42,4 +48,6 @@ public static class SignalJournal
 internal sealed class NoSignalJournal : ISignalJournal
 {
     public Task Append(GrainId publisher, Signal[] signals) => Task.CompletedTask;
+
+    public Task<JournaledSignal[]> ReadSince(string brainId, long since, int limit) => Task.FromResult<JournaledSignal[]>([]);
 }
