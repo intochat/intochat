@@ -99,6 +99,23 @@ public sealed class ModuleTestBuilder
         _options = _options with { HttpEdge = true };
         return this;
     }
+    // The cluster storage is the machine's part log over an in-process mesh of 8 platform-owned nodes (4+2,
+    // 2 manifest replicas); platform storage outlives a silo restart; the default brain is provisioned so neurons inside it have an owning account.
+    public ModuleTestBuilder WithPartLog()
+    {
+        EnsureMutable();
+        _options = _options with { PartLog = true };
+        var platform = new System.Collections.Concurrent.ConcurrentDictionary<string, (byte[] State, long ETag)>(StringComparer.Ordinal);
+        return ConfigureSilo(silo =>
+        {
+            foreach (var memory in silo.Services.Where(d => d.ServiceType == typeof(Orleans.Storage.IGrainStorage)
+                && Equals(d.ServiceKey, DigitalBrainNames.PlatformGrainStorage)).ToArray()) { silo.Services.Remove(memory); }
+            silo.Services.AddKeyedSingleton<Orleans.Storage.IGrainStorage>(DigitalBrainNames.PlatformGrainStorage, (provider, _) =>
+                new SessionGrainStorage(platform, provider.GetRequiredService<Orleans.Serialization.Serializer>()));
+            silo.Services.Configure<DigitalBrain.Platform.Mesh.MeshOptions>(mesh => { mesh.DataShards = 4; mesh.ParityShards = 2; mesh.ManifestReplicas = 2; });
+            DigitalBrain.Platform.Parts.MachineHosting.AddMachinePartLog(silo);
+        });
+    }
     public ModuleTestBuilder WithReminders()
     {
         EnsureMutable();

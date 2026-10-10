@@ -50,6 +50,12 @@ internal sealed class PartLog : IAsyncDisposable
         get { lock (_records) { return _applied; } }
     }
 
+    // After a lease loss or an ambiguous commit every Append fails; only a reopen replays the head again.
+    public bool Closed
+    {
+        get { lock (_queue) { return _closed is not null || _disposed; } }
+    }
+
     public static async Task<PartLog> Open(PartId part, byte[] key, PartLease lease, IMeshStore mesh, Serializer serializer, PartsOptions options,
         TimeProvider time, ILogger<PartLog> logger, CancellationToken ct)
     {

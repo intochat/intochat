@@ -30,6 +30,7 @@ internal sealed class BrainAuthorityGrain(
         { throw new InvalidOperationException("Brain authority scope conflict."); }
         if (State.AccountId is null) { await Persist(State with { AccountId = accountId, BrainId = brainId }); }
     }
+    public Task<string?> Account() => Task.FromResult(State.AccountId);
     public Task<Member?> Membership(string principalId) => Task.FromResult(State.Members.GetValueOrDefault(principalId));
     public async Task ProvisionOwner(Member owner)
     {

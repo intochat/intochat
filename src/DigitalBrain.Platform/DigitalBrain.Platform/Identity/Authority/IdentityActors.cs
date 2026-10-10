@@ -25,6 +25,8 @@ internal interface IAccount : IGrainWithStringKey
 internal interface IBrainAuthority : IGrainWithStringKey
 {
     Task Initialize(string accountId, string brainId);
+    // The account that owns this brain; null until the brain is provisioned. Part keys are wrapped for it.
+    [Orleans.Concurrency.AlwaysInterleave] Task<string?> Account();
     Task<Member?> Membership(string principalId);
     Task EnsureMember(Member member);
     Task ProvisionOwner(Member owner);

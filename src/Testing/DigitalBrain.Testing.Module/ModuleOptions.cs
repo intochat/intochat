@@ -13,4 +13,5 @@ internal sealed record ModuleOptions
     public Action<IClientBuilder>? ConfigureClient { get; init; }
     public bool UseReminders { get; init; }
     public bool HttpEdge { get; init; }
+    public bool PartLog { get; init; }
 }
