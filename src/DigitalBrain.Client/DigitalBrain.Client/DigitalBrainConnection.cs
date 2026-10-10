@@ -48,5 +48,15 @@ public sealed class DigitalBrainConnection : IDigitalBrain, IAsyncDisposable
         }, cancellationToken, Stopping, onSubscribed);
     }
 
+    // Scripts hold this class, not the interface, so the vocabulary's set and rebuild entry points are reachable here.
+    public IAsyncEnumerable<T> On<T>(Sources sources, CancellationToken cancellationToken = default) where T : Signal
+        => Sources.Stream<T>(this, sources, cancellationToken);
+
+    public Task React<T>(INeuron neuron, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken = default) where T : Signal
+        => Sources.React<T>(this, Sources.Of(neuron), rebuild, cancellationToken);
+
+    public Task React<T>(Sources sources, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken = default) where T : Signal
+        => Sources.React<T>(this, sources, rebuild, cancellationToken);
+
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }

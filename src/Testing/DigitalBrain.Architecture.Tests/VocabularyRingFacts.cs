@@ -18,7 +18,10 @@ public sealed class VocabularyRingFacts
     // are what scripts compile against, so they root reachability for the vocabulary's shapes.
     private static readonly Assembly[] Ring = ContractsRing();
 
-    private static readonly Dictionary<Type, string> Allowlist = new();
+    private static readonly Dictionary<Type, string> Allowlist = new()
+    {
+        [typeof(Sources)] = "A set of neurons for IDigitalBrain.On/React: names neurons through a delegate, never crosses the wire (spec 2026-10-10 synapse subscription contract).",
+    };
 
     private static readonly string[] Namespaces = ["DigitalBrain"];
 
@@ -68,10 +71,14 @@ public sealed class VocabularyRingFacts
     public void TheBrainSeenByAProgramHasExactlyGetOnSelfAndKernel()
     {
         var methods = typeof(IDigitalBrain).GetMethods().Where(m => !m.IsSpecialName).Select(m => m.Name).Order().ToArray();
-        Assert.Equal(["Get", "On", "On"], methods);
-        var watches = typeof(IDigitalBrain).GetMethods().Where(m => m.Name == "On").OrderBy(m => m.GetParameters().Length).ToArray();
+        Assert.Equal(["Get", "On", "On", "On", "React", "React"], methods);
+        var watches = typeof(IDigitalBrain).GetMethods().Where(m => m.Name == "On").OrderBy(m => m.GetParameters().Length).ThenBy(m => m.GetParameters()[0].ParameterType.Name).ToArray();
         Assert.Equal([typeof(INeuron), typeof(CancellationToken)], watches[0].GetParameters().Select(p => p.ParameterType));
-        Assert.Equal([typeof(INeuron), typeof(Func<Task>), typeof(CancellationToken)], watches[1].GetParameters().Select(p => p.ParameterType));
+        Assert.Equal([typeof(Sources), typeof(CancellationToken)], watches[1].GetParameters().Select(p => p.ParameterType));
+        Assert.Equal([typeof(INeuron), typeof(Func<Task>), typeof(CancellationToken)], watches[2].GetParameters().Select(p => p.ParameterType));
+        var reacts = typeof(IDigitalBrain).GetMethods().Where(m => m.Name == "React").OrderBy(m => m.GetParameters()[0].ParameterType.Name).ToArray();
+        Assert.Equal([typeof(INeuron), typeof(Func<CancellationToken, Task>), typeof(CancellationToken)], reacts[0].GetParameters().Select(p => p.ParameterType));
+        Assert.Equal([typeof(Sources), typeof(Func<CancellationToken, Task>), typeof(CancellationToken)], reacts[1].GetParameters().Select(p => p.ParameterType));
         Assert.Equal(["Kernel", "Self"], typeof(IDigitalBrain).GetProperties().Select(p => p.Name).Order());
         Assert.Equal(typeof(IKernelView), typeof(IDigitalBrain).GetProperty("Kernel")!.PropertyType);
         Assert.Equal(typeof(IBrain), typeof(IDigitalBrain).GetProperty("Self")!.PropertyType);
