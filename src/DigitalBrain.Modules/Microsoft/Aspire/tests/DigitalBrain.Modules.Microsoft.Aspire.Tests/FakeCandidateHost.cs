@@ -10,11 +10,13 @@ internal sealed class FakeCandidateHost : ICandidateHost
     public string? FailAt { get; set; }
     public bool Healthy { get; set; } = true;
     public string[] Orphaned { get; set; } = [];
+    public string? PreparedFrom { get; private set; }
     public Dictionary<string, string> RunEnvironment { get; } = [];
 
     public Task<PreparedCandidate> Prepare(string baseSha, string summary, IReadOnlyDictionary<string, string> files, CancellationToken ct)
     {
         Calls.Add("prepare");
+        PreparedFrom = baseSha;
         Fail("prepare");
         var sha = $"sha{++prepared:0000}";
         return Task.FromResult(new PreparedCandidate(sha, $"worktrees/{sha}"));
@@ -60,7 +62,11 @@ internal sealed class FakeCandidateHost : ICandidateHost
         return Task.CompletedTask;
     }
 
-    public Task<string[]> Orphans(string[] known, CancellationToken ct) => Task.FromResult(Orphaned);
+    public Task<string[]> Orphans(string[] known, CancellationToken ct)
+    {
+        Calls.Add("orphans");
+        return Task.FromResult(Orphaned);
+    }
 
     private void Fail(string stage)
     {

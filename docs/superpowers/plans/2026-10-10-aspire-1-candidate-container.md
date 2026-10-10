@@ -258,7 +258,7 @@ internal sealed record CandidateState
 
 Key: `ICandidate.Key(brain, sha)`; parse `Sha` as last segment, `BrainId` via `BrainKey.BrainOf(Key)` (as `RevisionNeuron` does). Budget for `WaitHealthy` = `plan.Budget`.
 
-- [ ] **Step 1: Write failing facts** in `CandidateFacts.cs`:
+- [x] **Step 1: Write failing facts** in `CandidateFacts.cs`:
 
 ```csharp
 public sealed class CandidateFacts
@@ -316,8 +316,8 @@ public sealed class CandidateFacts
 
 Write the commented facts in full in the same style as the first (arrange with the fakes, act, assert the listed values).
 
-- [ ] **Step 2:** `dotnet test --project src/DigitalBrain.Modules/Microsoft/Aspire/tests/DigitalBrain.Modules.Microsoft.Aspire.Tests -- --filter-class "*CandidateFacts"` → FAIL (types missing).
-- [ ] **Step 3: Implement `CandidateNeuron`.**
+- [x] **Step 2:** `dotnet test --project src/DigitalBrain.Modules/Microsoft/Aspire/tests/DigitalBrain.Modules.Microsoft.Aspire.Tests -- --filter-class "*CandidateFacts"` → FAIL (types missing).
+- [x] **Step 3: Implement `CandidateNeuron`.**
 
 ```csharp
 [GrainType("aspire.candidate")]
@@ -440,10 +440,10 @@ Before relying on `Save(next, params Signal?[])` and `Exists`, LSP `goToDefiniti
 
 `Index.Ended` needs `ICandidates` (Task 4). For this task, register `ICandidates` stub-free: write Task 4's neuron first if the facts need it, or order Steps so Task 4 lands in the same commit. **Decision:** implement Task 4 in this task's commit; its facts are Task 4.
 
-- [ ] **Step 4:** `ClusterNeuron.Restart` is needed by the first fact — implement Task 5 Step 3's minimal `ClusterNeuron` here too (same commit), facts in Task 5.
-- [ ] **Step 5:** Register in `AspireModule.Configure(ISiloBuilder)`: `TryAddSingleton<ICandidateVerifier, CandidateVerifier>()`, `TryAddSingleton<ICandidateHost, DockerCandidateHost>()`, `TryAddSingleton<IClusterHost, AspireCliClusterHost>()` (implementations from Tasks 6, 8, 9; until they exist, leave the registrations commented out of this commit and add them in their tasks — tests inject fakes).
-- [ ] **Step 6:** Run the filter → PASS (6 facts).
-- [ ] **Step 7:** Commit explicit files: `"Aspire: candidate stage machine"`.
+- [x] **Step 4:** `ClusterNeuron.Restart` is needed by the first fact — implement Task 5 Step 3's minimal `ClusterNeuron` here too (same commit), facts in Task 5.
+- [x] **Step 5:** Register in `AspireModule.Configure(ISiloBuilder)`: `TryAddSingleton<ICandidateVerifier, CandidateVerifier>()`, `TryAddSingleton<ICandidateHost, DockerCandidateHost>()`, `TryAddSingleton<IClusterHost, AspireCliClusterHost>()` (implementations from Tasks 6, 8, 9; until they exist, leave the registrations commented out of this commit and add them in their tasks — tests inject fakes).
+- [x] **Step 6:** Run the filter → PASS (6 facts).
+- [x] **Step 7:** Commit explicit files: `"Aspire: candidate stage machine"`.
 
 ---
 

@@ -48,6 +48,8 @@ public interface ICandidates : INeuron
 {
     [ResponseTimeout("00:05:00")] Task<string> Propose(CandidateProposal proposal);
     [ReadOnly, AlwaysInterleave] Task<string?> Live();
-    Task Ended(string sha);
+    [ReadOnly, AlwaysInterleave] Task<string[]> Known();
+    // Interleaved: the live candidate reports its end while the index is still inside StartLive.
+    [AlwaysInterleave] Task Ended(string sha);
     static string Key(string brainId) => $"{brainId}/aspire/candidates";
 }
