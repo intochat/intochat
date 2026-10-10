@@ -67,3 +67,9 @@ public sealed record LogsRequestEvent([property: Id(0)] string Behavior, [proper
 // What the brain posts to the sandbox host to open (or reopen) its session: the host dials EdgeUrl back.
 [GenerateSerializer, Alias("microsoft.csharp.runtime.session-start")]
 public sealed record SessionStart([property: Id(0)] string Brain, [property: Id(1)] string Session, [property: Id(2)] string Token, [property: Id(3)] string EdgeUrl);
+
+// What the brain posts to its session to judge a signal against an app's rules: the rules library by
+// hash (fetched like a behavior) and the signal as JSON with its type. Each verdict names its rule.
+public sealed record JudgeRequest(string Hash, Uri Assembly, string SignalType, JsonElement Signal);
+public sealed record JudgeVerdict(string Rule, bool Allowed, string Reason);
+public sealed record JudgeAnswer(JudgeVerdict[] Verdicts);

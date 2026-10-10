@@ -80,6 +80,8 @@ public sealed class FeatureCatalogFacts : IDisposable
 
     private sealed class Sandbox(bool success) : IScriptSandbox
     {
+        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
+            => Task.FromResult<Verdict[]>([]);
         public bool CanRun => true;
         public string AuthoringDescription => "";
         public Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken)

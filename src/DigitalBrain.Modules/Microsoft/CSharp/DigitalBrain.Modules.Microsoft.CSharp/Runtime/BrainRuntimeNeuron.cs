@@ -393,7 +393,7 @@ internal sealed class BrainRuntimeNeuron(
 
     // Local blob storage answers on this machine's loopback, which no sandbox can reach; the Docker host
     // can. A SAS signs the path and query, not the host, so the rewritten URL stays valid.
-    private static Uri Reachable(Uri url) => url.IsLoopback ? new UriBuilder(url) { Host = DockerHost }.Uri : url;
+    internal static Uri Reachable(Uri url) => url.IsLoopback ? new UriBuilder(url) { Host = DockerHost }.Uri : url;
 
     // The batch carries the trace of its first signal, so the behavior's reaction joins it; that same
     // trace is remembered until the ack, so the ack prices the CPU the run cost under it.

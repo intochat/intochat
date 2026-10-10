@@ -1,14 +1,26 @@
+using System.Collections.Concurrent;
+using System.Net;
+using System.Net.Http.Json;
 using DigitalBrain.Apps;
 using DigitalBrain.Apps.Signals;
+using DigitalBrain.Client.Runtime.V1;
 using DigitalBrain.Microsoft.CSharp;
+using DigitalBrain.Microsoft.CSharp.Assemblies;
+using DigitalBrain.Microsoft.CSharp.Catalog;
+using DigitalBrain.Microsoft.CSharp.Files;
+using DigitalBrain.Microsoft.CSharp.Sandbox;
+using DigitalBrain.Microsoft.CSharp.Sessions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
-// Judge compiles the bundle's shared classes and runs each ILogic<T> whose T matches the signal;
-// synapses and rules over other signals are not consulted, and each verdict names its rule.
+// Judge compiles the bundle's shared classes here and runs each ILogic<T> whose T matches the signal in
+// the brain's sandbox session (the real sandbox RuleJudge behind an in-process host). Rules fail closed:
+// a rule that never answers, throws on load or does not compile is a rejection.
 public sealed class RuleJudgingFacts
 {
+    private const string Brain = "rule-judging-facts";
     private const string Synapse = "Console.WriteLine(1);";
 
     private const string Rules = """
@@ -27,27 +39,158 @@ public sealed class RuleJudgingFacts
         """;
 
     [Fact]
-    public async Task EveryMatchingRuleJudgesTheSignal()
+    public async Task EveryMatchingRuleJudgesTheSignalInTheSession()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<CSharpModule>().WithReminders().StartAsync(ct);
+        var host = new JudgingHost();
+        await using var brain = await Start(host, ct);
         var sandbox = brain.SiloServices.GetRequiredService<IScriptSandbox>();
         var bundle = new Dictionary<string, string> { ["synapses/a.cs"] = Synapse, ["rules/shouting.cs"] = Rules };
 
-        var shouted = Assert.Single(await sandbox.Judge(bundle, new AppRequested("ask", "HEY", Guid.NewGuid()), ct));
-        var spoken = Assert.Single(await sandbox.Judge(bundle, new AppRequested("ask", "hey", Guid.NewGuid()), ct));
+        var shouted = Assert.Single(await sandbox.Judge(Brain, bundle, new AppRequested("ask", "HEY", Guid.NewGuid()), ct));
+        var spoken = Assert.Single(await sandbox.Judge(Brain, bundle, new AppRequested("ask", "hey", Guid.NewGuid()), ct));
 
         Assert.Equal(("NoShouting", false, "no shouting"), (shouted.Rule, shouted.Allowed, shouted.Reason));
         Assert.True(spoken.Allowed);
+        Assert.Equal(2, host.Judged.Count);
     }
 
     [Fact]
-    public async Task ABundleWithoutRulesHasNoVerdicts()
+    public async Task ABundleWithoutRulesNeverReachesTheSession()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<CSharpModule>().WithReminders().StartAsync(ct);
+        var host = new JudgingHost();
+        await using var brain = await Start(host, ct);
         var sandbox = brain.SiloServices.GetRequiredService<IScriptSandbox>();
+        var bundle = new Dictionary<string, string> { ["synapses/a.cs"] = Synapse, ["shared/text.cs"] = "static class Text { }" };
 
-        Assert.Empty(await sandbox.Judge(new Dictionary<string, string> { ["synapses/a.cs"] = Synapse }, new AppRequested("ask", "HEY", Guid.NewGuid()), ct));
+        Assert.Empty(await sandbox.Judge(Brain, bundle, new AppRequested("ask", "HEY", Guid.NewGuid()), ct));
+        Assert.Empty(host.Judged);
+    }
+
+    [Fact]
+    public async Task ARuleThatThrowsOnLoadIsARejectionNamingIt()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Start(new JudgingHost(), ct);
+        var sandbox = brain.SiloServices.GetRequiredService<IScriptSandbox>();
+        var bundle = new Dictionary<string, string>
+        {
+            ["synapses/a.cs"] = Synapse,
+            ["rules/broken.cs"] = """
+                public sealed class Broken : ILogic<DigitalBrain.Apps.Signals.AppRequested>
+                {
+                    static Broken() => throw new InvalidOperationException("cannot start");
+                    public Verdict Validate(DigitalBrain.Apps.Signals.AppRequested signal) => Verdict.Allow();
+                }
+                """,
+        };
+
+        var verdict = Assert.Single(await sandbox.Judge(Brain, bundle, new AppRequested("ask", "hey", Guid.NewGuid()), ct));
+
+        Assert.Equal(("Broken", false), (verdict.Rule, verdict.Allowed));
+    }
+
+    [Fact]
+    public async Task RulesThatDoNotCompileAreARejection()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Start(new JudgingHost(), ct);
+        var sandbox = brain.SiloServices.GetRequiredService<IScriptSandbox>();
+        var bundle = new Dictionary<string, string> { ["synapses/a.cs"] = Synapse, ["rules/torn.cs"] = "public sealed class Torn : ILogic<Missing> { }" };
+
+        var verdict = Assert.Single(await sandbox.Judge(Brain, bundle, new AppRequested("ask", "hey", Guid.NewGuid()), ct));
+
+        Assert.False(verdict.Allowed);
+        Assert.Contains("do not compile", verdict.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ARuleThatLoopsForeverIsRejectedWithinTheTimeoutAndTheAppStaysResponsive()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Start(new JudgingHost(), ct, apps: true);
+        var app = brain.Get<IApp>(IApp.Key(Brain, "looping"));
+        await app.Create(new AppManifest("Looping", "", [new("ask", "")], [], []), "spec");
+        await app.BeginBuild(null);
+        await app.CompleteBuild(await app.CurrentBuildAttempt(), new()
+        {
+            ["synapses/a.cs"] = RuntimeBrain.Idle,
+            ["rules/forever.cs"] = """
+                public sealed class Forever : ILogic<DigitalBrain.Apps.Signals.AppRequested>
+                {
+                    public Verdict Validate(DigitalBrain.Apps.Signals.AppRequested signal)
+                    { while (true) { Thread.Sleep(50); } }
+                }
+                """,
+        }, null);
+        var started = DateTimeOffset.UtcNow;
+
+        var error = await Assert.ThrowsAsync<ArgumentException>(() => app.Request("ask", "now"));
+
+        Assert.Contains("rule did not answer", error.Message, StringComparison.Ordinal);
+        Assert.True(DateTimeOffset.UtcNow - started < TimeSpan.FromSeconds(10));
+        await app.CurrentBuildAttempt().WaitAsync(TimeSpan.FromSeconds(5), ct);
+    }
+
+    private static Task<ModuleBrain> Start(JudgingHost host, CancellationToken ct, bool apps = false)
+    {
+        var builder = apps ? ModuleTest.Create().WithModule<AppsModule>().WithModule<CSharpModule>() : ModuleTest.Create().WithModule<CSharpModule>();
+        return builder.WithReminders().ConfigureSilo(silo =>
+        {
+            silo.Services.AddHttpClient<SessionRunner>().ConfigurePrimaryHttpMessageHandler(() => host);
+            silo.Services.AddSingleton<IBehaviorAssemblies>(host);
+            silo.Services.AddSingleton(new DigitalBrain.Framework.CompiledTypes([typeof(IPinger).Assembly, typeof(ICSharpFile).Assembly]));
+            silo.Services.PostConfigure<CSharpOptions>(options => options.RuleTimeout = TimeSpan.FromSeconds(1));
+            silo.Services.PostConfigure<CSharpDeploymentSettings>(options =>
+            {
+                options.EdgeUrl = "http://edge.test/";
+                options.SandboxUrl = FakeSessionHost.Url;
+            });
+        }).StartAsync(ct);
+    }
+
+    // The sandbox host's session API with its real RuleJudge, and the assembly store it downloads from.
+    private sealed class JudgingHost : HttpMessageHandler, IBehaviorAssemblies
+    {
+        private const string Store = "http://assemblies.test/";
+        private readonly ConcurrentDictionary<string, byte[]> _blobs = new(StringComparer.Ordinal);
+        private readonly RuleJudge _judge;
+
+        public JudgingHost() => _judge = new(new BehaviorLoader(new HttpClient(this),
+            Options.Create(new SandboxOptions { CacheRoot = Path.Combine(Path.GetTempPath(), "rules-" + Guid.NewGuid().ToString("N")) })));
+
+        public ConcurrentQueue<JudgeRequest> Judged { get; } = new();
+
+        public Task Put(CompiledBehavior behavior, CancellationToken cancellationToken)
+        {
+            _blobs[behavior.Hash] = behavior.Assembly;
+            _blobs[behavior.Hash + ".pdb"] = behavior.Symbols;
+            return Task.CompletedTask;
+        }
+
+        public Task<bool> Exists(string hash, CancellationToken cancellationToken) => Task.FromResult(_blobs.ContainsKey(hash));
+
+        public Task<Uri> ReadUrl(string name, TimeSpan lifetime, CancellationToken cancellationToken) => Task.FromResult(new Uri(Store + name));
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var url = request.RequestUri!;
+            var path = url.AbsolutePath.Trim('/');
+            if (url.ToString().StartsWith(Store, StringComparison.Ordinal))
+            { return _blobs.TryGetValue(path, out var bytes) ? new(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) } : new(HttpStatusCode.NotFound); }
+            switch (path.Split('/'))
+            {
+                case ["sessions", var id, "judge"]:
+                    var judge = (await request.Content!.ReadFromJsonAsync<JudgeRequest>(RuntimeProtocol.Json, cancellationToken))!;
+                    Judged.Enqueue(judge);
+                    var answer = await _judge.JudgeAsync(id, judge, cancellationToken);
+                    return new(HttpStatusCode.OK) { Content = JsonContent.Create(answer, options: RuntimeProtocol.Json) };
+                case ["sessions", _] when request.Method == HttpMethod.Post:
+                    return new(HttpStatusCode.Accepted);
+                default:
+                    return new(HttpStatusCode.NotFound);
+            }
+        }
     }
 }

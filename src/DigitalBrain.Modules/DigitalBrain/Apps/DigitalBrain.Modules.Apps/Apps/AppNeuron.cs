@@ -398,7 +398,7 @@ internal sealed class AppNeuron(
         var requested = new AppRequested(operation, input, id) with { Publisher = Id };
         if (await Rejection(requested) is { } rejected)
         {
-            await PublishAsync(new AppRejected(operation, rejected.Rule, rejected.Reason));
+            await PublishAsync(new AppRejected(operation, rejected));
             await PublishAsync(new AppActivity(Name(), "attention", $"{rejected.Rule} refused {operation}: {rejected.Reason}"));
             throw new ArgumentException($"{rejected.Rule} refused {operation}: {rejected.Reason}");
         }
@@ -413,12 +413,15 @@ internal sealed class AppNeuron(
     }
 
     // The bundle's rules judge the would-be request before it is published; the first rejection wins.
-    // The sandbox picks the rules out of the program's shared classes; no program means no rules.
+    // The sandbox picks the rules out of the program's shared classes; no program means no rules. Rules
+    // fail closed: a program that declares one is rejected when no sandbox can run it.
     private async Task<Verdict?> Rejection(AppRequested requested)
     {
         var program = Sources(Snapshot);
-        if (program.Count == 0 || ServiceProvider.GetService<IScriptSandbox>() is not { } sandbox) { return null; }
-        var verdicts = await sandbox.Judge(program, requested, CancellationToken.None);
+        if (program.Count == 0) { return null; }
+        if (ServiceProvider.GetService<IScriptSandbox>() is not { } sandbox)
+        { return AppRules.Declared(program) ? Verdict.Reject("no sandbox") with { Rule = "rules" } : null; }
+        var verdicts = await sandbox.Judge(BrainId(), program, requested, CancellationToken.None);
         return verdicts.FirstOrDefault(verdict => !verdict.Allowed);
     }
 

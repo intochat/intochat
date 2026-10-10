@@ -308,6 +308,8 @@ public sealed class AppRouteFacts
 
     private sealed class RouteSandbox : IScriptSandbox
     {
+        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
+            => Task.FromResult<Verdict[]>([]);
         public bool CanRun => true;
         public string AuthoringDescription => "csharp uses sandbox contracts.";
         public Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken)

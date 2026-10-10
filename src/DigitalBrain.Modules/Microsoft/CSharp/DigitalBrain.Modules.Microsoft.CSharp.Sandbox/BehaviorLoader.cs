@@ -24,7 +24,7 @@ internal sealed class BehaviorLoader(HttpClient downloads, IOptions<SandboxOptio
         return BehaviorRun.Start(session, assignment, context, loaded, options.Value.LogLines, logger);
     }
 
-    private async Task<byte[]> CachedAsync(string name, Uri url, bool verify, CancellationToken cancellationToken)
+    internal async Task<byte[]> CachedAsync(string name, Uri url, bool verify, CancellationToken cancellationToken)
     {
         var path = Path.Combine(options.Value.CacheRoot, name);
         if (File.Exists(path))
@@ -45,7 +45,7 @@ internal sealed class BehaviorLoader(HttpClient downloads, IOptions<SandboxOptio
     // other. Everything the host already carries (the client, the contracts, the framework) is shared from
     // the default context, so a behavior's types are the host's types; anything else in the host's
     // directory is loaded there once.
-    private sealed class BehaviorContext(string behavior) : AssemblyLoadContext("behavior " + behavior, isCollectible: true)
+    internal sealed class BehaviorContext(string behavior) : AssemblyLoadContext("behavior " + behavior, isCollectible: true)
     {
         protected override Assembly? Load(AssemblyName name)
         {

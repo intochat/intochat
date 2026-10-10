@@ -10,6 +10,7 @@ builder.Services.AddOptions<SandboxOptions>().BindConfiguration(SandboxOptions.S
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.PropertyNamingPolicy = RuntimeProtocol.Json.PropertyNamingPolicy);
 builder.Services.AddHttpClient<BehaviorLoader>();
 builder.Services.AddSingleton<Sessions>();
+builder.Services.AddSingleton<RuleJudge>();
 // The host reports its logs and spans wherever the deployment points OTLP (the Aspire dashboard locally).
 if (!string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]))
 {

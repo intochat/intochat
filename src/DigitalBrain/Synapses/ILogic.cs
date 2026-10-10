@@ -8,9 +8,10 @@ public interface ILogic<TSignal> where TSignal : Signal
 }
 
 // Rule names the rule that judged; the sandbox stamps it, a rule never sets it.
-public sealed record Verdict(bool Allowed, string Reason)
+[GenerateSerializer, Alias("brain.verdict")]
+public sealed record Verdict([property: Id(0)] bool Allowed, [property: Id(1)] string Reason)
 {
-    public string Rule { get; init; } = "";
+    [Id(2)] public string Rule { get; init; } = "";
 
     public static Verdict Allow() => new(true, "");
     public static Verdict Reject(string reason) => new(false, reason);

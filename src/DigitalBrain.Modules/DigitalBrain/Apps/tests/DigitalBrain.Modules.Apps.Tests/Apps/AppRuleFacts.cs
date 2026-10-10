@@ -69,6 +69,32 @@ public sealed class AppRuleFacts
     }
 
     [Fact]
+    public async Task WithoutASandboxAProgramThatDeclaresARuleIsRejected()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().WithFakeAppRuntime(new()).StartAsync(ct);
+        var app = await App(brain, "unjudged", new()
+        {
+            ["synapses/answer.cs"] = "Console.WriteLine(1);",
+            ["rules/curfew.cs"] = "public sealed class Curfew : ILogic<DigitalBrain.Apps.Signals.AppRequested> { public Verdict Validate(DigitalBrain.Apps.Signals.AppRequested r) => Verdict.Allow(); }",
+        });
+
+        var error = await Assert.ThrowsAsync<ArgumentException>(() => app.Request("ask", "now"));
+
+        Assert.Contains("no sandbox", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task WithoutASandboxAProgramWithoutRulesPasses()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().WithFakeAppRuntime(new()).StartAsync(ct);
+        var app = await App(brain, "plain", new() { ["synapses/answer.cs"] = "Console.WriteLine(1);", ["shared/text.cs"] = "static class Text { }" });
+
+        Assert.NotEqual(Guid.Empty, await app.Request("ask", "now"));
+    }
+
+    [Fact]
     public void TheBuilderWritesRulesBeforeSynapses()
     {
         var rules = AgentPrompts.Builder.IndexOf("rules/", StringComparison.Ordinal);
@@ -101,7 +127,7 @@ public sealed class AppRuleFacts
             => Task.FromResult(new ScriptContractCatalog([], [], ""));
         public Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
             => Task.FromResult(new ScriptCompilationCheck(true, []));
-        public Task<Verdict[]> Judge(IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
+        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
         {
             Judged.Add(signal);
             return Task.FromResult<Verdict[]>([rule(signal)]);

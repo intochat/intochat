@@ -315,6 +315,8 @@ public sealed class AppCreatorFacts
 
     private sealed class GatedSandbox : IScriptSandbox
     {
+        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
+            => Task.FromResult<Verdict[]>([]);
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public bool CanRun => true;
@@ -331,6 +333,8 @@ public sealed class AppCreatorFacts
 
     private sealed class CreatorSandbox : IScriptSandbox
     {
+        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
+            => Task.FromResult<Verdict[]>([]);
         public bool CanRun => true;
         public string AuthoringDescription => "csharp uses sandbox contracts.";
         public Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken)

@@ -1,15 +1,19 @@
 using System.Collections.Concurrent;
-using System.Reflection;
-using System.Runtime.Loader;
+using System.Text.Json;
 using System.Security.Cryptography;
 using System.Text;
 using DigitalBrain.Apps;
 using DigitalBrain.Microsoft.CSharp.Assemblies;
 using DigitalBrain.Microsoft.CSharp.Catalog;
+using DigitalBrain.Microsoft.CSharp.Runtime;
+using DigitalBrain.Microsoft.CSharp.Sessions;
+using DigitalBrain.Client.Runtime.V1;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Microsoft.CSharp.Authoring;
 
-public sealed class CSharpScriptSandbox(CSharpToolService tools, IBehaviorAssemblies assemblies) : IScriptSandbox
+public sealed class CSharpScriptSandbox(CSharpToolService tools, IBehaviorAssemblies assemblies, IServiceProvider services, IOptions<CSharpOptions> options) : IScriptSandbox
 {
     public bool CanRun => tools.CanRun;
     public string AuthoringDescription => """
@@ -51,71 +55,59 @@ public sealed class CSharpScriptSandbox(CSharpToolService tools, IBehaviorAssemb
         { Hashes = result.Assemblies.ToDictionary(file => file.Key, file => file.Value.Hash, StringComparer.Ordinal) };
     }
 
-    // Rules are compiled once per bundle content and kept loaded; the vocabulary and contracts resolve
-    // from the host, so ILogic<T> and the signal types are the host's own. A rule that throws rejects.
-    public Task<Verdict[]> Judge(IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
+    // Rules run in the brain's sandbox session, never here: this host compiles the bundle's shared
+    // classes off the grain thread (once per content), stores the library like a behavior, and asks the
+    // session for verdicts. No answer in time, or no answer at all, is a rejection.
+    public async Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(bundle);
         ArgumentNullException.ThrowIfNull(signal);
-        if (tools.Check is not { } checker) { return Task.FromResult<Verdict[]>([]); }
-        var rules = RuleSets.Load(bundle, checker);
-        var verdicts = new List<Verdict>();
-        foreach (var rule in rules.Where(rule => rule.Signal.IsInstanceOfType(signal)))
+        if (tools.Check is not { } checker)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            Verdict verdict;
-            try { verdict = (Verdict)rule.Validate.Invoke(Activator.CreateInstance(rule.Type), [signal])!; }
-            catch (Exception error) when (error is TargetInvocationException or MissingMethodException or InvalidCastException or NullReferenceException)
-            { verdict = Verdict.Reject($"the rule failed: {(error.InnerException ?? error).Message}"); }
-            verdicts.Add(verdict with { Rule = rule.Type.Name });
+            return bundle.Values.Any(source => CSharpScriptCheck.IsShared(source) && source.Contains("ILogic", StringComparison.Ordinal))
+                ? [Verdict.Reject("no sandbox") with { Rule = RulesName }] : [];
         }
-        return Task.FromResult(verdicts.ToArray());
+        var key = Key(bundle);
+        if (!_shared.TryGetValue(key, out var shared))
+        {
+            shared = await Task.Run(() => checker.CompileShared(bundle), cancellationToken).ConfigureAwait(false);
+            if (shared.Library is { } library) { await assemblies.Put(library, cancellationToken).ConfigureAwait(false); }
+            if (_shared.Count >= SharedCapacity) { _shared.Clear(); }
+            _shared[key] = shared;
+        }
+        if (shared.Errors.Count > 0)
+        {
+            return [Verdict.Reject("the rules do not compile: " + string.Join("; ", shared.Errors.Select(error => $"{error.File}:{error.Line} {error.Message}"))) with { Rule = RulesName }];
+        }
+        if (!shared.HasRules || shared.Library is not { } compiled) { return []; }
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(options.Value.RuleTimeout);
+        try
+        {
+            var url = BrainRuntimeNeuron.Reachable(await assemblies.ReadUrl(compiled.Hash, RuleUrlLifetime, deadline.Token).ConfigureAwait(false));
+            var type = signal.GetType();
+            var request = new JudgeRequest(compiled.Hash, url, type.FullName + ", " + type.Assembly.GetName().Name,
+                JsonSerializer.SerializeToElement(signal, type, RuntimeProtocol.Json));
+            var answer = await services.GetRequiredService<SessionRunner>().Judge(brain, request, deadline.Token).ConfigureAwait(false);
+            return [.. answer.Verdicts.Select(verdict => new Verdict(verdict.Allowed, verdict.Reason) { Rule = verdict.Rule })];
+        }
+        catch (Exception error) when (!cancellationToken.IsCancellationRequested
+            && error is OperationCanceledException or HttpRequestException or JsonException or InvalidOperationException or NotSupportedException)
+        {
+            return [Verdict.Reject("rule did not answer") with { Rule = RulesName }];
+        }
     }
 
-    private sealed record Rule(Type Type, Type Signal, MethodInfo Validate);
+    private const string RulesName = "rules";
+    private const int SharedCapacity = 256;
+    private static readonly TimeSpan RuleUrlLifetime = TimeSpan.FromMinutes(10);
+    private readonly ConcurrentDictionary<string, SharedLibrary> _shared = new(StringComparer.Ordinal);
 
-    private static class RuleSets
+    private static string Key(IReadOnlyDictionary<string, string> bundle)
     {
-        private const int Capacity = 64;
-        private static readonly ConcurrentDictionary<string, Rule[]> Loaded = new(StringComparer.Ordinal);
-        private static readonly ConcurrentQueue<(string Key, AssemblyLoadContext? Context)> Order = new();
-
-        public static Rule[] Load(IReadOnlyDictionary<string, string> bundle, CSharpScriptCheck checker)
-        {
-            var key = Key(bundle);
-            if (Loaded.TryGetValue(key, out var cached)) { return cached; }
-            var compiled = checker.CompileShared(bundle);
-            AssemblyLoadContext? context = null;
-            Rule[] rules = [];
-            if (compiled is not null)
-            {
-                context = new AssemblyLoadContext("rules-" + key[..12], isCollectible: true);
-                using var image = new MemoryStream(compiled.Assembly);
-                rules = Find(context.LoadFromStream(image));
-            }
-            if (!Loaded.TryAdd(key, rules)) { context?.Unload(); return Loaded[key]; }
-            Order.Enqueue((key, context));
-            while (Order.Count > Capacity && Order.TryDequeue(out var evicted))
-            {
-                Loaded.TryRemove(evicted.Key, out _);
-                evicted.Context?.Unload();
-            }
-            return rules;
-        }
-
-        private static Rule[] Find(Assembly assembly)
-            => [.. assembly.GetTypes()
-                .Where(type => type is { IsClass: true, IsAbstract: false, ContainsGenericParameters: false } && type.GetConstructor(Type.EmptyTypes) is not null)
-                .SelectMany(type => type.GetInterfaces()
-                    .Where(contract => contract.IsGenericType && contract.GetGenericTypeDefinition() == typeof(ILogic<>))
-                    .Select(contract => new Rule(type, contract.GetGenericArguments()[0], contract.GetMethod(nameof(ILogic<Signal>.Validate))!)))];
-
-        private static string Key(IReadOnlyDictionary<string, string> bundle)
-        {
-            var text = new StringBuilder();
-            foreach (var (path, source) in bundle.OrderBy(file => file.Key, StringComparer.Ordinal))
-            { text.Append(path).Append((char)0).Append(source).Append((char)0); }
-            return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text.ToString())));
-        }
+        var text = new StringBuilder();
+        foreach (var (path, source) in bundle.OrderBy(file => file.Key, StringComparer.Ordinal))
+        { text.Append(path).Append((char)0).Append(source).Append((char)0); }
+        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text.ToString())));
     }
 }

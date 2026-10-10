@@ -11,6 +11,8 @@ public sealed record ScriptDiagnostic(string File, string Id, int Line, string M
 
 public sealed record CompiledBehavior(byte[] Assembly, byte[] Symbols, string Hash);
 
+public sealed record SharedLibrary(CompiledBehavior? Library, bool HasRules, IReadOnlyList<ScriptDiagnostic> Errors);
+
 public sealed record ScriptCompilation(bool Success, IReadOnlyList<ScriptDiagnostic> Errors, IReadOnlyDictionary<string, CompiledBehavior> Assemblies);
 
 // The single compiler: compiles each behavior in-process against what the sandbox carries and,
@@ -80,21 +82,35 @@ public sealed class CSharpScriptCheck
         return new(errors.Count == 0, errors, errors.Count == 0 ? assemblies : new Dictionary<string, CompiledBehavior>());
     }
 
-    // The bundle's shared classes alone, as one library: where its rules (ILogic<T>) live. Null when the
-    // bundle has no shared class or they do not compile; the publish gate reports those errors.
-    public CompiledBehavior? CompileShared(IReadOnlyDictionary<string, string> files)
+    // The bundle's shared classes alone, as one library: where its rules (ILogic<T>) live. HasRules says
+    // whether any class implements ILogic<>, so a bundle without rules never reaches the sandbox.
+    public SharedLibrary CompileShared(IReadOnlyDictionary<string, string> files)
     {
         ArgumentNullException.ThrowIfNull(files);
         var libraries = files.Where(file => IsShared(file.Value)).OrderBy(file => file.Key, StringComparer.Ordinal).ToArray();
-        if (libraries.Length == 0) { return null; }
+        if (libraries.Length == 0) { return new(null, false, []); }
         var trees = libraries.Select(library => CSharpSyntaxTree.ParseText(SourceText.From(library.Value, Encoding.UTF8), Parse, library.Key))
             .Append(CSharpSyntaxTree.ParseText(SourceText.From(GlobalUsings, Encoding.UTF8), Parse, "GlobalUsings.cs"));
         var compilation = CSharpCompilation.Create("rules", trees, References.Value, Options.WithOutputKind(OutputKind.DynamicallyLinkedLibrary));
         using var assembly = new MemoryStream();
-        if (!compilation.Emit(assembly).Success) { return null; }
+        var emitted = compilation.Emit(assembly);
+        if (!emitted.Success)
+        {
+            return new(null, false, [.. emitted.Diagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+                .Select(diagnostic => new ScriptDiagnostic(diagnostic.Location.SourceTree?.FilePath ?? "", diagnostic.Id, diagnostic.Location.GetLineSpan().StartLinePosition.Line + 1, diagnostic.GetMessage()))]);
+        }
+        var logic = compilation.GetTypeByMetadataName("DigitalBrain.ILogic`1");
+        var hasRules = logic is not null && Types(compilation.Assembly.GlobalNamespace)
+            .Any(type => type.AllInterfaces.Any(contract => SymbolEqualityComparer.Default.Equals(contract.OriginalDefinition, logic)));
         var bytes = assembly.ToArray();
-        return new(bytes, [], Convert.ToHexStringLower(SHA256.HashData(bytes)));
+        return new(new(bytes, [], Convert.ToHexStringLower(SHA256.HashData(bytes))), hasRules, []);
     }
+
+    private static IEnumerable<INamedTypeSymbol> Types(INamespaceSymbol space)
+        => space.GetTypeMembers().SelectMany(Nested).Concat(space.GetNamespaceMembers().SelectMany(Types));
+
+    private static IEnumerable<INamedTypeSymbol> Nested(INamedTypeSymbol type)
+        => type.GetTypeMembers().SelectMany(Nested).Prepend(type);
 
     // Exactly what the sandbox image carries: the .NET runtime, plus the vocabulary, the client and every
     // contract assembly with what they depend on. Nothing else this host loads (the framework ring, the

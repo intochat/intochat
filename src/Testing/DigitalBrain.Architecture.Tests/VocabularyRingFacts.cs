@@ -9,8 +9,9 @@ public sealed class VocabularyRingFacts
 {
     private static readonly Assembly Vocabulary = typeof(Signal).Assembly;
 
-    // IKernelView is the ratified script-visible kernel slice (kernel design Q8).
-    private static readonly Type[] Roots = [typeof(INeuron), typeof(IBrain), typeof(Synapse), typeof(IDigitalBrain), typeof(INeuronObserver), typeof(IKernelView)];
+    // IKernelView is the ratified script-visible kernel slice (kernel design Q8). ILogic<> is what a rule
+    // implements (spec 2026-10-10 section 6): like Synapse, a shape scripts build on, not one a contract carries.
+    private static readonly Type[] Roots = [typeof(INeuron), typeof(IBrain), typeof(Synapse), typeof(ILogic<>), typeof(IDigitalBrain), typeof(INeuronObserver), typeof(IKernelView)];
 
     // The Contracts ring: DigitalBrain plus every production assembly whose DigitalBrain references stay
     // inside the ring (module *.Contracts projects). Their neuron contracts, signals and wire exceptions
