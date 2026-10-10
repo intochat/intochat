@@ -32,7 +32,7 @@ public sealed class PartLogFacts
         CancellationToken ct, IMeshStore? mesh = null)
     {
         var serializer = brain.SiloServices.GetRequiredService<Serializer>();
-        var lease = await PartLease.Acquire(part, key, brain.Grains, machine, PartLeaseFacts.Seen(), options, time, serializer);
+        var lease = await PartLease.Acquire(part, key, PartLeaseFacts.Sequencer(brain), machine, PartLeaseFacts.Seen(), options, time, serializer);
         return await PartLog.Open(part, key, lease, mesh ?? brain.SiloServices.GetRequiredService<IMeshStore>(), serializer, options, time,
             NullLogger<PartLog>.Instance, ct);
     }
@@ -99,7 +99,7 @@ public sealed class PartLogFacts
         using var machine = SequencerFacts.Machine();
         var serializer = brain.SiloServices.GetRequiredService<Serializer>();
         var options = Cloud(TimeSpan.FromMilliseconds(50));
-        var lease = await PartLease.Acquire(part, key, brain.Grains, machine, PartLeaseFacts.Seen(), options, TimeProvider.System, serializer);
+        var lease = await PartLease.Acquire(part, key, PartLeaseFacts.Sequencer(brain), machine, PartLeaseFacts.Seen(), options, TimeProvider.System, serializer);
         await using var log = await PartLog.Open(part, key, lease, brain.SiloServices.GetRequiredService<IMeshStore>(), serializer, options,
             TimeProvider.System, NullLogger<PartLog>.Instance, ct);
 
@@ -121,7 +121,7 @@ public sealed class PartLogFacts
         var serializer = brain.SiloServices.GetRequiredService<Serializer>();
         var mesh = brain.SiloServices.GetRequiredService<IMeshStore>();
         var options = Cloud();
-        var lease = await PartLease.Acquire(part, key, brain.Grains, machine, PartLeaseFacts.Seen(), options, TimeProvider.System, serializer);
+        var lease = await PartLease.Acquire(part, key, PartLeaseFacts.Sequencer(brain), machine, PartLeaseFacts.Seen(), options, TimeProvider.System, serializer);
         await using (var log = await PartLog.Open(part, key, lease, mesh, serializer, options, TimeProvider.System, NullLogger<PartLog>.Instance, ct))
         {
             await log.Append("g1", "s", RecordChange.Write, [1], []);
@@ -248,7 +248,7 @@ public sealed class PartLogFacts
         }
 
         time.Advance(aliceOptions.OwnLease + TimeSpan.FromMinutes(1));
-        var b = await PartLease.Acquire(part, key, brain.Grains, bob, PartLeaseFacts.Seen(), Own(), time, brain.SiloServices.GetRequiredService<Serializer>());
+        var b = await PartLease.Acquire(part, key, PartLeaseFacts.Sequencer(brain), bob, PartLeaseFacts.Seen(), Own(), time, brain.SiloServices.GetRequiredService<Serializer>());
         await b.Commit(new HeadPayload { SnapshotSeq = 1, LastSeq = 1 });
         await b.Release();
 
@@ -284,7 +284,7 @@ public sealed class PartLogFacts
             await b.Flushed();
         }
         // Alice takes the part back, then her open fails before it recovers the journal: she stays the holder.
-        await PartLease.Acquire(part, key, brain.Grains, alice, PartLeaseFacts.Seen(), aliceOptions, time, serializer);
+        await PartLease.Acquire(part, key, PartLeaseFacts.Sequencer(brain), alice, PartLeaseFacts.Seen(), aliceOptions, time, serializer);
 
         await Assert.ThrowsAsync<JournalConflictException>(() => OpenAsync(brain, part, key, alice, aliceOptions, time, ct));
         var aside = Assert.Single(Directory.GetFiles(Path.GetDirectoryName(JournalPath(aliceOptions, part))!, "*.conflict-*"));

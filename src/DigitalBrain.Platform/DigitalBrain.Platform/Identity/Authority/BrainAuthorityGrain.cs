@@ -32,7 +32,7 @@ internal sealed class BrainAuthorityGrain(
     }
     public Task<string?> Account() => Task.FromResult(State.AccountId);
     public Task<Member?> Membership(string principalId) => Task.FromResult(State.Members.GetValueOrDefault(principalId));
-    public async Task ProvisionOwner(Member owner)
+    public async Task<bool> ProvisionOwner(Member owner)
     {
         await Initialize(owner.AccountId, owner.BrainId);
         if (owner.Role != MemberRole.Owner) { throw new ArgumentException("An owner is required."); }
@@ -41,11 +41,12 @@ internal sealed class BrainAuthorityGrain(
             // Provisioning happens once: a retry is a no-op, and a revoked owner stays revoked. A
             // different principal holding the owner role is the one thing that must not pass quietly.
             var current = State.Members.Values.FirstOrDefault(member => member.Role == MemberRole.Owner);
-            if (current is null || current.PrincipalId == owner.PrincipalId) { return; }
+            if (current is null || current.PrincipalId == owner.PrincipalId) { return false; }
             throw new InvalidOperationException($"Brain {owner.BrainId} already belongs to {current.PrincipalId}; {owner.PrincipalId} cannot be provisioned as its owner.");
         }
         await Persist(State with { Members = new(State.Members) { [owner.PrincipalId] = owner }, OwnerProvisioned = true });
         await GrainFactory.GetGrain<IPrincipal>(owner.PrincipalId).Joined(owner.BrainId);
+        return true;
     }
     public async Task EnsureMember(Member member)
     {

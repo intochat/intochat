@@ -1,6 +1,7 @@
 using DigitalBrain.Framework.Parts;
 using DigitalBrain.Platform.Mesh;
 using DigitalBrain.Platform.Sequencer;
+using DigitalBrain.Platform.Trust;
 using Orleans.Serialization;
 
 namespace DigitalBrain.Platform.Parts;
@@ -11,7 +12,7 @@ internal sealed class PartLease
 {
     private readonly PartId _part;
     private readonly byte[] _key;
-    private readonly ISequencerGrain _sequencer;
+    private readonly ISequencerClient _sequencer;
     private readonly MachineIdentity _machine;
     private readonly SeenVersions _seen;
     private readonly PartsOptions _options;
@@ -21,7 +22,7 @@ internal sealed class PartLease
     private readonly SemaphoreSlim _gate = new(1, 1);
     private bool _lost;
 
-    private PartLease(PartId part, byte[] key, ISequencerGrain sequencer, MachineIdentity machine, SeenVersions seen,
+    private PartLease(PartId part, byte[] key, ISequencerClient sequencer, MachineIdentity machine, SeenVersions seen,
         PartsOptions options, TimeProvider time, Serializer serializer) =>
         (_part, _key, _sequencer, _machine, _seen, _options, _time, _serializer) = (part, key, sequencer, machine, seen, options, time, serializer);
 
@@ -40,12 +41,12 @@ internal sealed class PartLease
 
     private string Context => $"part-head|{_part.Value}";
 
-    public static async Task<PartLease> Acquire(PartId part, byte[] key, IGrainFactory grains, MachineIdentity machine, SeenVersions seen,
+    public static async Task<PartLease> Acquire(PartId part, byte[] key, ISequencerClient sequencer, MachineIdentity machine, SeenVersions seen,
         PartsOptions options, TimeProvider time, Serializer serializer)
     {
         if (part.IsCore && options.Role != MachineRole.Own) { throw new UnauthorizedAccessException($"The core of {part.BrainId} is held only by its owner's machines."); }
-        var lease = new PartLease(part, key, grains.GetGrain<ISequencerGrain>(HeadRecord.HashOf(part.Value)), machine, seen, options, time, serializer);
-        if (await lease._sequencer.Get() is { } current)
+        var lease = new PartLease(part, key, sequencer, machine, seen, options, time, serializer);
+        if (await lease._sequencer.Get(lease.Hash) is { } current)
         {
             seen.Check(lease.Hash, current.Version);
             if (current.Holder != machine.MachineId && current.LeaseExpiry > time.GetUtcNow())
@@ -84,7 +85,7 @@ internal sealed class PartLease
                 Payload = SegmentSeal.Close(_key, Context, _serializer.SerializeToArray(next)),
             };
             record.Signature = _machine.Sign(record.SignedBytes());
-            if (!await _sequencer.CompareAndSet(Version, record))
+            if (!await _sequencer.CompareAndSet(Hash, Version, record))
             {
                 _lost = true;
                 throw new LeaseLostException($"The sequencer refused version {Version + 1} of part {_part}.");

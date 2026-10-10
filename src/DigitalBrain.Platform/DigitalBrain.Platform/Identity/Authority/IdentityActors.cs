@@ -5,8 +5,10 @@ namespace DigitalBrain.Platform.Identity.Authority;
 
 internal interface IPrincipal : IGrainWithStringKey
 {
-    Task<Member> Register(string password, string displayName);
-    Task<Member?> Authenticate(string password);
+    Task<PrincipalCredential?> Credential();
+    Task<BrainProvision> Register(string passwordHash, string displayName);
+    Task<BrainProvision?> CompleteRegistration();
+    Task SetPasswordHash(string passwordHash);
     Task<Member?> DefaultMembership();
     Task<string[]> Brains();
     // One-way: a brain authority announces membership while the principal may be mid-registration.
@@ -18,8 +20,9 @@ internal interface IAccount : IGrainWithStringKey
 {
     Task EnsureCreated(Account account);
     Task<Account?> Read();
-    Task<Member> CreateBrain(string principalId, string operationId, string displayName);
-    Task EnsureBrain(Member owner);
+    Task<BrainProvision> CreateBrain(string principalId, string operationId, string displayName);
+    // True when this call provisioned the brain's owner; the machine then creates the brain neuron (R57).
+    Task<bool> EnsureBrain(Member owner);
 }
 
 internal interface IBrainAuthority : IGrainWithStringKey
@@ -29,7 +32,7 @@ internal interface IBrainAuthority : IGrainWithStringKey
     [Orleans.Concurrency.AlwaysInterleave] Task<string?> Account();
     Task<Member?> Membership(string principalId);
     Task EnsureMember(Member member);
-    Task ProvisionOwner(Member owner);
+    Task<bool> ProvisionOwner(Member owner);
     Task RemoveMember(string principalId);
     Task<CallDecision?> Authorize(CallRequest request);
     Task<Grant> Grant(Grant grant);

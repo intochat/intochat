@@ -20,6 +20,7 @@ public sealed class AppPublishFacts
     private static async Task<IApp> LiveApp(ModuleBrain brain, string publisher, string name = "echo")
     {
         Caller.Clear();
+        await AppOwner.Own(brain, publisher);
         var app = brain.Get<IApp>(IApp.Key(AppOwner.Scope(publisher), name));
         await app.Create(Manifest(), Spec);
         await app.BeginBuild(null);
@@ -219,6 +220,7 @@ public sealed class AppPublishFacts
             .ConfigureSilo(silo => silo.Services.AddSingleton<IScriptSandbox>(new RefusingSandbox(("any.cs", 1, "would refuse"))))
             .StartAsync(ct);
         Caller.Clear();
+        await AppOwner.Own(brain, "intochat");
         var app = brain.Get<IApp>(IApp.Key(AppOwner.Scope("intochat"), "prose"));
         await app.Create(Manifest(), Spec);
         await app.BeginBuild(null);

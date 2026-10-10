@@ -8,6 +8,10 @@ internal static class AppOwner
 {
     public static string Scope(string principal) => BrainScope.Create("account-" + principal, principal).Id;
 
+    // The publisher's brain exists on this machine, so the Marketplace accepts its listings (R54, R55).
+    public static Task Own(DigitalBrain.Testing.Module.ModuleBrain brain, string principal)
+        => DigitalBrain.Testing.Module.BrainIdentityExtensions.OwnBrainAsync(brain, "account-" + principal, principal, principal);
+
     public static void Stamp(string principal) => CallerContextStamper.Stamp(new CallerContext
     {
         PrincipalId = principal,

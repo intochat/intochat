@@ -45,7 +45,7 @@ public sealed class PublisherSignalsFacts
         var part = PartId.Of(held);
         var key = await brain.SiloServices.GetRequiredService<IPartKeys>().Key(part, ModuleTest.DefaultAccount, ct);
         using var rival = SequencerFacts.Machine();
-        var taken = await PartLease.Acquire(part, key, brain.Grains, rival, PartLeaseFacts.Seen(), new PartsOptions { Role = MachineRole.Cloud },
+        var taken = await PartLease.Acquire(part, key, PartLeaseFacts.Sequencer(brain), rival, PartLeaseFacts.Seen(), new PartsOptions { Role = MachineRole.Cloud },
             TimeProvider.System, brain.SiloServices.GetRequiredService<Serializer>());
 
         await Assert.ThrowsAsync<ServiceUnavailableException>(() =>

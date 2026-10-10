@@ -22,7 +22,7 @@ public sealed class PartSnapshotFacts
         CancellationToken ct)
     {
         var serializer = brain.SiloServices.GetRequiredService<Serializer>();
-        var lease = await PartLease.Acquire(part, key, brain.Grains, machine, PartLeaseFacts.Seen(), options, TimeProvider.System, serializer);
+        var lease = await PartLease.Acquire(part, key, PartLeaseFacts.Sequencer(brain), machine, PartLeaseFacts.Seen(), options, TimeProvider.System, serializer);
         var log = await PartLog.Open(part, key, lease, brain.SiloServices.GetRequiredService<IMeshStore>(), serializer, options, TimeProvider.System,
             NullLogger<PartLog>.Instance, ct);
         return (log, lease);
@@ -164,7 +164,7 @@ public sealed class PartSnapshotFacts
         var options = Options(snapshotEvery: 1);
         options.Role = MachineRole.Own;
         var mesh = new HeldMesh(brain.SiloServices.GetRequiredService<IMeshStore>());
-        var lease = await PartLease.Acquire(part, key, brain.Grains, machine, PartLeaseFacts.Seen(), options, TimeProvider.System, serializer);
+        var lease = await PartLease.Acquire(part, key, PartLeaseFacts.Sequencer(brain), machine, PartLeaseFacts.Seen(), options, TimeProvider.System, serializer);
         await using var log = await PartLog.Open(part, key, lease, mesh, serializer, options, TimeProvider.System, NullLogger<PartLog>.Instance, ct);
 
         await log.Append("g1", "s", RecordChange.Write, [1], []);

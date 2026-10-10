@@ -1,16 +1,16 @@
 using DigitalBrain.Framework;
-using DigitalBrain.Platform.Identity.Authority;
+using DigitalBrain.Framework.Platform.Identity;
 
 namespace DigitalBrain.Platform.Identity.Directory;
 
 // The directory-backed answer to the brain membership question asked by HTTP route filters.
-internal sealed class DirectoryBrainAccess(IGrainFactory grains) : IBrainAccess
+internal sealed class DirectoryBrainAccess(IIdentityClient identity) : IBrainAccess
 {
     public ValueTask<bool> CanAccessAsync(string principalId, string accountId, string brainId, CancellationToken cancellationToken = default)
         => new(HasMembership(principalId, accountId, brainId, cancellationToken));
     // A brain id is global and belongs to one account; asking under any other account is a miss.
     private async Task<bool> HasMembership(string principalId, string accountId, string brainId, CancellationToken ct)
-        => await grains.GetGrain<IBrainAuthority>(BrainScope.Create(accountId, brainId).Id).Membership(principalId).WaitAsync(ct) is { } member
+        => await identity.Membership(BrainScope.Create(accountId, brainId).Id, principalId).WaitAsync(ct) is { } member
             && member.AccountId == accountId;
 
 }

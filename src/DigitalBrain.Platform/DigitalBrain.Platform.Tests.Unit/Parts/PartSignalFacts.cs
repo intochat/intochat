@@ -151,7 +151,7 @@ public sealed class PartSignalFacts
         await using var brain = await ModuleTest.Create().WithPartLog()
             .ConfigureSilo(silo =>
             {
-                silo.Services.AddSingleton(provider => new CloudPart(new PartLogs(provider.GetRequiredService<IGrainFactory>(),
+                silo.Services.AddSingleton(provider => new CloudPart(new PartLogs(provider.GetRequiredService<DigitalBrain.Platform.Trust.ISequencerClient>(), provider.GetRequiredService<DigitalBrain.Platform.Trust.IKeyringClient>(),
                     provider.GetRequiredService<IMeshStore>(), provider.GetRequiredService<IPartKeys>(), SequencerFacts.Machine(), PartLeaseFacts.Seen(),
                     provider.GetRequiredService<Serializer>(), Options.Create(cloud), time, provider.GetRequiredService<ILoggerFactory>()), part));
                 silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (provider, _) =>
@@ -173,7 +173,7 @@ public sealed class PartSignalFacts
         await using var probe = await brain.SubscribeAsync<Signal>(counter, ct);
         var key = await brain.SiloServices.GetRequiredService<IPartKeys>().Key(part, ModuleTest.DefaultAccount, ct);
         using var rival = SequencerFacts.Machine();
-        var taken = await PartLease.Acquire(part, key, brain.Grains, rival, PartLeaseFacts.Seen(), new PartsOptions { Role = MachineRole.Cloud }, TimeProvider.System,
+        var taken = await PartLease.Acquire(part, key, PartLeaseFacts.Sequencer(brain), rival, PartLeaseFacts.Seen(), new PartsOptions { Role = MachineRole.Cloud }, TimeProvider.System,
             brain.SiloServices.GetRequiredService<Serializer>());
 
         var error = await Assert.ThrowsAnyAsync<Exception>(() => counter.Change(2));

@@ -31,6 +31,9 @@ public sealed class PartsOptions
 
     public int SnapshotEvery { get; set; } = 64;
 
+    // Shared by every machine of one deployment (R52): a second machine joins an account only with it.
+    public string? PairingSecret { get; set; }
+
     public TimeSpan Lease => Role == MachineRole.Own ? OwnLease : ShortLease;
 
     public bool AcknowledgeOnJournal => Role == MachineRole.Own;

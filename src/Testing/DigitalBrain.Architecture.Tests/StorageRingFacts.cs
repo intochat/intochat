@@ -10,12 +10,6 @@ public sealed class StorageRingFacts
 
     // Neurons keyed outside every brain that hold no brain's data: trust-cluster services (ruling R1), which a
     // machine cannot host because it holds only brain parts (Q27).
-    private static readonly HashSet<string> TrustClusterNeurons =
-    [
-        // The cross-brain app catalog at @platform/marketplace (Q24, R14).
-        "DigitalBrain.Apps.MarketplaceNeuron",
-    ];
-
     [Fact]
     public void NeuronsPersistInClusterStorageAndPlatformGrainsInPlatformStorage()
     {
@@ -29,15 +23,12 @@ public sealed class StorageRingFacts
             .Where(site => site.storage is not null)
             .ToArray();
         var offenders = sites
-            .Where(site => TrustClusterNeurons.Contains(site.type.FullName!)
-                ? site.storage != DigitalBrainNames.PlatformGrainStorage
-                : typeof(Neuron).IsAssignableFrom(site.type) || site.type.Assembly != platform
-                    ? site.storage != DigitalBrainNames.ClusterGrainStorage
-                    : site.storage != DigitalBrainNames.PlatformGrainStorage)
+            .Where(site => typeof(Neuron).IsAssignableFrom(site.type) || site.type.Assembly != platform
+                ? site.storage != DigitalBrainNames.ClusterGrainStorage
+                : site.storage != DigitalBrainNames.PlatformGrainStorage)
             .Select(site => $"{site.type.FullName} -> {site.storage}")
             .ToArray();
 
         Assert.True(offenders.Length == 0, string.Join(Environment.NewLine, offenders));
-        Assert.All(TrustClusterNeurons, name => Assert.Contains(sites, site => site.type.FullName == name));
     }
 }

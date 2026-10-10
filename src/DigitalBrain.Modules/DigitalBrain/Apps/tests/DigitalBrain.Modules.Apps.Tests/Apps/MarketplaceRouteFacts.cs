@@ -25,6 +25,7 @@ public sealed class MarketplaceRouteFacts
         var publisherScope = BrainScope.Create("account-intochat", "intochat").Id;
         var source = brain.Get<IApp>(IApp.Key(publisherScope, "echo"));
         Caller.Clear();
+        await AppOwner.Own(brain, "intochat");
         await source.Create(new("Echo", "echoes", [new("ask", "ask it")], [], [], Icon: "icon.svg"), Spec);
         await source.BeginBuild(null);
         await source.CompleteBuild(await source.CurrentBuildAttempt(),

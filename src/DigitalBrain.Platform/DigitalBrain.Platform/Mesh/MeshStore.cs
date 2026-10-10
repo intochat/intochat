@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using DigitalBrain.Framework.Mesh;
 using Microsoft.Extensions.Options;
+using DigitalBrain.Platform.Trust;
 using Orleans.Serialization;
 
 namespace DigitalBrain.Platform.Mesh;
@@ -9,13 +10,11 @@ namespace DigitalBrain.Platform.Mesh;
 // scattered; its manifest (shard cids, nodes and challenges) is sealed with the same key and replicated, and the
 // ref pins the manifest by content id. Writes create, they never overwrite, so a failure leaves only unreachable
 // shards for the reachability sweep, never a half-changed segment.
-internal sealed class MeshStore(IGrainFactory grains, Serializer serializer, IOptions<MeshOptions> options) : IMeshStore
+internal sealed class MeshStore(INodeDirectoryClient directory, Serializer serializer, IOptions<MeshOptions> options) : IMeshStore
 {
     private const int MinShardSize = 16;
 
-    private IStorageNodeDirectory Directory => grains.GetGrain<IStorageNodeDirectory>(IStorageNodeDirectory.Key);
-
-    private IStorageShard Shard(string nodeId, string cid) => grains.GetGrain<IStorageShard>(StorageShards.Key(nodeId, cid));
+    private INodeDirectoryClient Directory => directory;
 
     public async Task<MeshRef> Write(byte[] key, string segmentId, byte[] plaintext, CancellationToken cancellationToken = default)
     {
@@ -52,7 +51,7 @@ internal sealed class MeshStore(IGrainFactory grains, Serializer serializer, IOp
         {
             if (round >= shard.Challenges.Length) { return new ShardAudit(shard.Index, shard.NodeId, false, "challenges exhausted"); }
             var challenge = shard.Challenges[round];
-            var proof = await Shard(shard.NodeId, shard.Cid).Prove(challenge.Nonce);
+            var proof = await directory.Prove(shard.NodeId, shard.Cid, challenge.Nonce);
             var passed = proof is not null && CryptographicOperations.FixedTimeEquals(proof, challenge.Expected);
             await Directory.ReportAudit(shard.NodeId, passed);
             return new ShardAudit(shard.Index, shard.NodeId, passed, proof is null ? "shard missing" : passed ? "ok" : "wrong proof");
@@ -101,15 +100,15 @@ internal sealed class MeshStore(IGrainFactory grains, Serializer serializer, IOp
         SegmentManifest manifest;
         try { manifest = await ReadManifest(key, reference, cancellationToken); }
         catch (ServiceUnavailableException) { return; }
-        await Task.WhenAll(manifest.Shards.Select(shard => Shard(shard.NodeId, shard.Cid).Drop()));
-        await Task.WhenAll(reference.ManifestNodes.Select(nodeId => Shard(nodeId, reference.ManifestCid).Drop()));
+        await Task.WhenAll(manifest.Shards.Select(shard => directory.Discard(shard.NodeId, shard.Cid)));
+        await Task.WhenAll(reference.ManifestNodes.Select(nodeId => directory.Discard(nodeId, reference.ManifestCid)));
     }
 
     // Put is idempotent on a node, so re-storing an unmoved shard only refreshes its challenges.
     private async Task<ShardLocation> Store(int index, string nodeId, byte[] bytes)
     {
         var cid = StorageProof.ContentId(bytes);
-        await Shard(nodeId, cid).Put(bytes);
+        await directory.Put(nodeId, cid, bytes);
         return new ShardLocation { Index = index, Cid = cid, NodeId = nodeId, Challenges = Challenges(bytes) };
     }
 
@@ -119,7 +118,7 @@ internal sealed class MeshStore(IGrainFactory grains, Serializer serializer, IOp
         var cid = StorageProof.ContentId(sealedManifest);
         var replicas = await Directory.Place(options.Value.ManifestReplicas, []);
         cancellationToken.ThrowIfCancellationRequested();
-        await Task.WhenAll(replicas.Select(nodeId => Shard(nodeId, cid).Put(sealedManifest)));
+        await Task.WhenAll(replicas.Select(nodeId => directory.Put(nodeId, cid, sealedManifest)));
         return new MeshRef(segmentId, cid, replicas);
     }
 
@@ -130,7 +129,7 @@ internal sealed class MeshStore(IGrainFactory grains, Serializer serializer, IOp
         foreach (var nodeId in reference.ManifestNodes)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (await Shard(nodeId, reference.ManifestCid).Get() is { } bytes && StorageProof.ContentId(bytes) == reference.ManifestCid)
+            if (await directory.Get(nodeId, reference.ManifestCid) is { } bytes && StorageProof.ContentId(bytes) == reference.ManifestCid)
             {
                 var manifest = serializer.Deserialize<SegmentManifest>(SegmentSeal.Open(key, ManifestContext(reference.SegmentId), bytes))
                     ?? throw new InvalidDataException("Manifest is empty.");
@@ -149,7 +148,7 @@ internal sealed class MeshStore(IGrainFactory grains, Serializer serializer, IOp
     {
         var fetched = await Task.WhenAll(manifest.Shards.Select(async location =>
             health.TryGetValue(location.NodeId, out var node) && node.Online
-                ? await Shard(location.NodeId, location.Cid).Get() is { } bytes && StorageProof.ContentId(bytes) == location.Cid ? bytes : null
+                ? await directory.Get(location.NodeId, location.Cid) is { } bytes && StorageProof.ContentId(bytes) == location.Cid ? bytes : null
                 : null));
         return (fetched, [.. Enumerable.Range(0, fetched.Length).Where(i => fetched[i] is null)]);
     }

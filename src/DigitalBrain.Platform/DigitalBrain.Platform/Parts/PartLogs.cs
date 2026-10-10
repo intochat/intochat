@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
 using DigitalBrain.Framework.Mesh;
 using DigitalBrain.Framework.Parts;
-using DigitalBrain.Platform.Identity.Authority;
 using DigitalBrain.Platform.Sequencer;
+using DigitalBrain.Platform.Trust;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Orleans.Serialization;
@@ -12,7 +12,7 @@ namespace DigitalBrain.Platform.Parts;
 // The part logs this silo holds: one per leased part, opened on first use and reopened once closed (a lost
 // lease or an ambiguous commit). The owner account that wraps a part's key comes from the trust side, the
 // brain's authority, never from the brain neuron: the brain's own record lives in the part it would unlock.
-internal sealed class PartLogs(IGrainFactory grains, IMeshStore mesh, IPartKeys keys, MachineIdentity machine, SeenVersions seen,
+internal sealed class PartLogs(ISequencerClient sequencer, IKeyringClient keyring, IMeshStore mesh, IPartKeys keys, MachineIdentity machine, SeenVersions seen,
     Serializer serializer, IOptions<PartsOptions> options, TimeProvider time, ILoggerFactory logging) : IAsyncDisposable
 {
     private readonly ConcurrentDictionary<string, Lazy<Task<PartLog>>> _logs = new(StringComparer.Ordinal);
@@ -62,14 +62,14 @@ internal sealed class PartLogs(IGrainFactory grains, IMeshStore mesh, IPartKeys 
     private async Task<PartLog> Open(PartId part)
     {
         var key = await keys.Key(part, await Owner(part.BrainId));
-        var lease = await PartLease.Acquire(part, key, grains, machine, seen, options.Value, time, serializer);
+        var lease = await PartLease.Acquire(part, key, sequencer, machine, seen, options.Value, time, serializer);
         return await PartLog.Open(part, key, lease, mesh, serializer, options.Value, time, logging.CreateLogger<PartLog>(), CancellationToken.None);
     }
 
     private async Task<string> Owner(string brainId)
     {
         if (_owners.TryGetValue(brainId, out var cached)) { return cached; }
-        var owner = await grains.GetGrain<IBrainAuthority>(brainId).Account()
+        var owner = await keyring.OwnerOf(brainId)
             ?? throw new ServiceUnavailableException($"Brain {brainId} has no owning account yet; its parts cannot be opened.");
         return _owners.GetOrAdd(brainId, owner);
     }

@@ -47,6 +47,17 @@ public static class PlatformHosting
         services.TryAddSingleton<Keys.IMasterKeyCustody>(provider => new Keys.ConfiguredMasterKeyCustody(
             System.Text.Encoding.UTF8.GetBytes(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MasterKeyOptions>>().Value.MasterKey)));
         services.TryAddSingleton<DigitalBrain.Framework.Parts.IPartKeys, Keys.PartKeys>();
+        // The machine reaches the trust grains only through these clients; Stage A hosts them in this silo.
+        services.TryAddSingleton(provider => ActivatorUtilities.CreateInstance<Trust.GrainTrustClients>(provider));
+        services.TryAddSingleton<Trust.ISequencerClient>(provider => provider.GetRequiredService<Trust.GrainTrustClients>());
+        services.TryAddSingleton<Trust.INodeDirectoryClient>(provider => provider.GetRequiredService<Trust.GrainTrustClients>());
+        services.TryAddSingleton<Trust.IKeyringClient>(provider => provider.GetRequiredService<Trust.GrainTrustClients>());
+        services.TryAddSingleton<DigitalBrain.Framework.Platform.Marketplace.IMarketplaceClient>(provider => provider.GetRequiredService<Trust.GrainTrustClients>());
+        services.TryAddSingleton<IIdentityClient>(provider => provider.GetRequiredService<Trust.GrainTrustClients>());
+        services.TryAddSingleton<Trust.MachineRegistrar>();
+        services.TryAddSingleton<BrainBirths>();
+        services.TryAddSingleton<PrincipalPasswords>();
+        silo.AddStartupTask<Trust.MachineRegistration>();
         services.TryAddSingleton<IReadOnlyList<IntegrationSchema>>(provider =>
             IntegrationDiscovery.Collect(provider.GetRequiredService<ModuleInventory>().Types));
         services.TryAddSingleton<IReadOnlyList<ConnectorDefinition>>(provider =>

@@ -20,6 +20,9 @@ public sealed class SecretOwnershipFacts
         builder.Services.AddSingleton(brain.Grains);
         builder.Services.AddSingleton<DigitalBrain.IDigitalBrain>(brain);
         builder.Services.AddSingleton<Orleans.IGrainFactory>(brain.Grains);
+        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>());
+        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Platform.Identity.PrincipalPasswords>());
+        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Platform.Identity.BrainBirths>());
         await using var app = builder.Build();
         DigitalBrain.Platform.PlatformHosting.MapDigitalBrainPlatform(app);
         var endpoint = ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints)

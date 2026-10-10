@@ -49,7 +49,7 @@ public static class IdentityHosting
         services.AddKernelCors();
         services.TryAddSingleton<IBrainAccess>(provider =>
         {
-            var directory = new DirectoryBrainAccess(provider.GetRequiredService<Orleans.IGrainFactory>());
+            var directory = new DirectoryBrainAccess(provider.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>());
             return provider.GetRequiredService<IOptions<AuthOptions>>().Value.Posture == IdentityPosture.Open
                 ? new OpenOwnerBrainAccess(directory) : directory;
         });

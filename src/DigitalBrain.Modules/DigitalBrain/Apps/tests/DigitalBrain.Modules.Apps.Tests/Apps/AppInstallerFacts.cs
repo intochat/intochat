@@ -30,6 +30,7 @@ public sealed class AppInstallerFacts
     private static async Task<IApp> Published(ModuleBrain brain, string publisher = "intochat")
     {
         Caller.Clear();
+        await AppOwner.Own(brain, publisher);
         var app = Mine(brain, publisher);
         await app.Create(Manifest(), Spec);
         await app.BeginBuild(null);
