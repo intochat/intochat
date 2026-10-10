@@ -39,4 +39,8 @@
   <ItemGroup>
     <InternalsVisibleTo Include="DigitalBrain.Modules.AI.Tests" />
   </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Pricing/models.prices.json" LogicalName="DigitalBrain.AI.Pricing.models.prices.json" />
+  </ItemGroup>
 </Project>

@@ -2,7 +2,9 @@ using DigitalBrain;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Media;
 using DigitalBrain.AI.Models;
+using DigitalBrain.AI.Pricing;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Compute;
 using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Framework.Modules;
 using DigitalBrain.Framework.Platform.Integrations;
@@ -34,6 +36,7 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai")), IHttpMod
 
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<IAiCredentials, RegistrationCredentials>();
+        services.TryAddSingleton<IPriceList, ModelPriceList>();
         AIClients.Add(services);
         services.AddHttpClient();
         services.TryAddSingleton<HttpSystemOne>();
