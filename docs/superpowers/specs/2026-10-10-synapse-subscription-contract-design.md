@@ -1,6 +1,8 @@
 # Synapse subscription contract
 
-Date: 2026-10-10. Status: proposed.
+Date: 2026-10-10. Status: proposed. Amended 2026-10-10 while planning: the merge lives in the
+vocabulary as default interface methods, `Sources.Named` names the registry's change signal, and
+the `onSubscribed` overload stays (see "Amendments").
 
 ## Problem
 
@@ -40,13 +42,13 @@ IAsyncEnumerable<T> On<T>(Sources sources, CancellationToken cancellationToken =
 ```csharp
 // src/DigitalBrain/Kernel/Sources.cs
 // A set of neurons to watch. Either fixed, or named by one neuron: Select is asked on subscribe
-// and again whenever Registry publishes any signal. Select is an ordinary neuron call, so it
-// typically reads the registry's state and returns the ids it names.
-public sealed record Sources(INeuron? Registry, Func<CancellationToken, Task<INeuron[]>> Select)
+// and again whenever Registry publishes TChange. Select is an ordinary neuron call, so it
+// typically reads the registry's state and returns the neurons it names.
+public abstract class Sources
 {
-    public static Sources Of(params INeuron[] neurons) => new(null, _ => Task.FromResult(neurons));
-    public static Sources Named<TRegistry>(TRegistry registry, Func<TRegistry, CancellationToken, Task<INeuron[]>> select)
-        where TRegistry : INeuron => new(registry, ct => select(registry, ct));
+    public static Sources Of(params INeuron[] neurons);
+    public static Sources Named<TRegistry, TChange>(TRegistry registry, Func<TRegistry, CancellationToken, Task<INeuron[]>> select)
+        where TRegistry : INeuron where TChange : Signal;
 }
 ```
 
@@ -58,8 +60,9 @@ Semantics, from the script's point of view:
   that stayed keep their watermark. No signal from a staying member is lost or duplicated by the
   re-selection.
 - Each member is a durable per-source subscription exactly as `On<T>(neuron)` is today. The set
-  stream is a merge of them, done in the client's `WatchStream` layer. A kernel-side single
-  subscription over a set is a later optimisation; it does not change this contract.
+  stream is a merge of them, written once as a default interface method on `IDigitalBrain` over
+  `On<T>(neuron, onSubscribed, ct)`. A kernel-side single subscription over a set is a later
+  optimisation; it does not change this contract.
 - Ordering is per member. Across members there is no ordering guarantee, same as two independent
   loops today.
 - Cancellation ends every member subscription and the stream.
@@ -92,11 +95,12 @@ Client-side filter on `On<AppRequested>(app)`. Keeps `AppRequested` and the kern
 the script no longer carries the `continue`. Watermark advances through non-matching requests
 the same way it does today when the loop body `continue`s.
 
-### 4. Removal
+### 4. The `onSubscribed` overload stays
 
-`On<T>(INeuron, Func<Task> onSubscribed, CancellationToken)` is removed from `IDigitalBrain`,
-`IDigitalBrains` and every implementation. Its only honest use is `React`. `WatchStream` keeps
-its `onSubscribed` hook internally because `React` is built on it.
+`On<T>(INeuron, Func<Task> onSubscribed, CancellationToken)` remains on `IDigitalBrain`: it is
+the only way a caller learns that registration completed before the first signal, and both
+`React` and the gRPC watch replay (`NeuronsService`) are built on it. Scripts stop using it
+directly; the Creator prompt no longer shows it.
 
 ## What does not change
 
@@ -108,19 +112,14 @@ its `onSubscribed` hook internally because `React` is built on it.
 
 ## Implementations touched
 
-`IDigitalBrain` has nine implementations; each gains `On<T>(Sources)` and loses the
-`onSubscribed` overload. `React` needs no per-implementation code.
+None of the nine `IDigitalBrain` implementations change. `On<T>(Sources)` and both `React`
+overloads are default interface methods in `src/DigitalBrain/Kernel/IDigitalBrain.cs`, built on
+the two existing `On<T>` methods; the merge is `src/DigitalBrain/Kernel/SourceSet.cs`, internal
+to the vocabulary. The two client rings do not reference each other, so this is the only place
+one merge can serve both, the silo and the test brains alike.
 
-| Implementation | Work |
-|---|---|
-| `DigitalBrain.Client/DigitalBrainConnection` | `SetWatchStream<T>`: merge of per-member `WatchStream<T>`, registry-driven re-select |
-| `DigitalBrain.Client.Orleans/BrainClient`, `OrleansBrain` | Same merge over its `WatchStream` |
-| `Framework/Runtime/Brain/CurrentBrain`, `IDigitalBrains` | Forward |
-| `Platform/Neurons/SignalWatch` | Adapt the reflective opener to the new overload set |
-| `Testing/Observation/BehaviorRun`, `Testing.Module/ModuleBrain`, `Testing.E2E/E2EBrain` | Forward to the shared merge |
-
-The merge lives once, in `DigitalBrain.Client`, as `SourceSetStream<T>`; the Orleans client and
-the test brains reuse it by passing their own per-neuron opener.
+`DigitalBrain.Architecture.Tests/VocabularyRingFacts` pins `IDigitalBrain`'s member list and
+the vocabulary allowlist; both facts change with the contract.
 
 ## Scripts after the change
 
@@ -150,6 +149,7 @@ await foreach (var clicked in brain.On<ButtonClicked>(Sources.Of(keys), brain.St
 var tables = Sources.Named(registry, async (r, ct) =>
     Views.Parse((await r.Read()).Markdown).Where(v => v.IsTable).Select(v => brain.Get<ITable>(v.TableId)).ToArray());
 await brain.React<RowUpserted>(tables, _ => app.Request("refresh", ""), brain.Stopping);
+// Sources.Named<IText, TextChanged>(registry, …): the registry is a text neuron that publishes TextChanged.
 ```
 
 `Circle/watch.cs`:
@@ -183,9 +183,20 @@ Verification is the loop in CLAUDE.md: the rewritten features load and compile a
 
 ## Order of work
 
-1. Vocabulary: `Sources`, `On<T>(Sources)`, `React`, remove the `onSubscribed` overload.
-2. Client merge (`SourceSetStream<T>`) and its facts; all nine implementations compile.
+1. Vocabulary: `Sources`, `SourceSet<T>`, `On<T>(Sources)`, `React`; architecture facts.
+2. Facts over real grains for the set stream and `React`.
 3. `AppSubscriptions.On(app, operation)`.
 4. Rewrite the 12 multi-loop scripts, then the 22 filter scripts; `Creator` prompt text that
    shows the old pattern (`Apps/Authoring/AgentPrompts.cs`) updated to the new one.
 5. Live verification.
+
+## Amendments (2026-10-10, planning)
+
+- The two client rings (`DigitalBrain.Client`, `DigitalBrain.Client.Orleans`) do not reference
+  each other and twin their `WatchStream`. A merge written in one cannot serve the other, so the
+  merge and `React` are default interface methods in the vocabulary, over the existing `On<T>`.
+- `Sources.Named` takes the registry's change signal as a type argument. `On<T>` is typed; there
+  is no "any signal" subscription to build on.
+- The `onSubscribed` overload is not removed. `React` needs "registration completed" to run the
+  first rebuild at the right moment, and `Platform/Neurons/NeuronsService` uses it for retained
+  replay. It becomes runtime machinery scripts no longer touch.
