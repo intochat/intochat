@@ -1,6 +1,7 @@
 using DigitalBrain.Framework;
 using Grpc.Core;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Platform.Neurons;
 
@@ -20,12 +21,18 @@ internal static class BrainCall
         CallerContextStamper.Stamp(CallerContextStamper.Require() with { BrainId = brainId });
     }
 
-    public static RpcException Translate(Exception error) => error switch
+    // A caller's own mistakes come back with their reason; the host's failures stay in its logs.
+    public static RpcException Translate(Exception error, ILogger? logger = null)
     {
-        ArgumentException e => new RpcException(new Status(StatusCode.InvalidArgument, e.Message)),
-        UnauthorizedAccessException e => new RpcException(new Status(StatusCode.PermissionDenied, e.Message)),
-        KeyNotFoundException e => new RpcException(new Status(StatusCode.NotFound, e.Message)),
-        TypeLoadException e => new RpcException(new Status(StatusCode.InvalidArgument, e.Message)),
-        _ => new RpcException(new Status(StatusCode.Internal, error.Message)),
-    };
+        switch (error)
+        {
+            case ArgumentException e: return new RpcException(new Status(StatusCode.InvalidArgument, e.Message));
+            case UnauthorizedAccessException e: return new RpcException(new Status(StatusCode.PermissionDenied, e.Message));
+            case KeyNotFoundException e: return new RpcException(new Status(StatusCode.NotFound, e.Message));
+            case TypeLoadException e: return new RpcException(new Status(StatusCode.InvalidArgument, e.Message));
+            default:
+                logger?.LogError(error, "Neuron channel call failed");
+                return new RpcException(new Status(StatusCode.Internal, "The neuron channel failed; see the host's logs."));
+        }
+    }
 }

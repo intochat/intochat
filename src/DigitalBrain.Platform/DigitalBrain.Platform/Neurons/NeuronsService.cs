@@ -5,19 +5,23 @@ using DigitalBrain.Framework.Surface;
 using DigitalBrain.Platform.Neurons.Proto;
 using Google.Protobuf;
 using Grpc.Core;
+using Microsoft.Extensions.Logging;
 using CallRequest = DigitalBrain.Platform.Neurons.Proto.CallRequest;
 
 namespace DigitalBrain.Platform.Neurons;
 
 // The gRPC edge of the two operations every caller has: neurons_call and brain.On<T>. The brain
 // rides in the message, so each call decides access the way a /brains/{brainId} route does.
-internal sealed class NeuronsService(NeuronSurface surface, IDigitalBrain brain) : Proto.Neurons.NeuronsBase
+internal sealed class NeuronsService(NeuronSurface surface, IDigitalBrain brain, ILogger<NeuronsService> logger) : Proto.Neurons.NeuronsBase
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) } };
 
     // A watcher that stops reading (a backgrounded tab) keeps this many envelopes; older ones are
     // dropped, which loses nothing because a change signal only tells the view to read again.
     internal const int BufferedEnvelopes = 256;
+
+    // One screen watches its nodes; more than this in one call is a mistake, not a screen.
+    internal const int MaximumWatches = 64;
 
     public override async Task<CallReply> Call(CallRequest request, ServerCallContext context)
     {
@@ -28,7 +32,7 @@ internal sealed class NeuronsService(NeuronSurface surface, IDigitalBrain brain)
             var result = await surface.Call(request.Contract, request.Key, request.Method, arguments, context.CancellationToken);
             return new CallReply { Result = result is { } json ? ByteString.CopyFromUtf8(json.GetRawText()) : ByteString.Empty };
         }
-        catch (Exception error) when (error is not RpcException and not OperationCanceledException) { throw BrainCall.Translate(error); }
+        catch (Exception error) when (error is not RpcException and not OperationCanceledException) { throw BrainCall.Translate(error, logger); }
     }
 
     // Retained last signal per source and type first, then live ones, until the client goes away.
@@ -36,6 +40,8 @@ internal sealed class NeuronsService(NeuronSurface surface, IDigitalBrain brain)
     {
         await BrainCall.Enter(context, request.BrainId);
         if (request.Sources.Count == 0) { throw new RpcException(new Status(StatusCode.InvalidArgument, "Name at least one source.")); }
+        if (request.Sources.Sum(source => Math.Max(1, source.SignalTypes.Count)) > MaximumWatches)
+        { throw new RpcException(new Status(StatusCode.InvalidArgument, $"At most {MaximumWatches} source signals per watch.")); }
         var ct = context.CancellationToken;
         var channel = Channel.CreateBounded<SignalEnvelope>(new BoundedChannelOptions(BufferedEnvelopes) { FullMode = BoundedChannelFullMode.DropOldest });
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -56,15 +62,20 @@ internal sealed class NeuronsService(NeuronSurface surface, IDigitalBrain brain)
         catch (Exception error) when (error is not RpcException and not OperationCanceledException)
         {
             await stop.CancelAsync();
-            throw BrainCall.Translate(error);
+            throw BrainCall.Translate(error, logger);
         }
         _ = Task.WhenAll(pumps).ContinueWith(_ => channel.Writer.TryComplete(), CancellationToken.None);
         try
         {
             await foreach (var envelope in channel.Reader.ReadAllAsync(ct)) { await responseStream.WriteAsync(envelope, ct); }
         }
-        catch (Exception error) when (error is not RpcException and not OperationCanceledException) { throw BrainCall.Translate(error); }
-        finally { await stop.CancelAsync(); }
+        catch (Exception error) when (error is not RpcException and not OperationCanceledException) { throw BrainCall.Translate(error, logger); }
+        finally
+        {
+            await stop.CancelAsync();
+            // Pumps end on the cancel; waiting keeps a late failure observed instead of lost.
+            try { await Task.WhenAll(pumps); } catch (Exception error) when (error is not OperationCanceledException) { logger.LogDebug(error, "A watch pump ended with an error after the stream closed"); }
+        }
     }
 
     private async Task Pump(INeuron neuron, string key, Type type, ChannelWriter<SignalEnvelope> writer, CancellationToken ct)

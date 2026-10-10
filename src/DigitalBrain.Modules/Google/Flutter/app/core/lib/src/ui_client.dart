@@ -153,8 +153,19 @@ final class DigitalBrainUiClient {
     liveTransportEnv,
     defaultValue: 'grpc',
   );
-  bool get grpcLive =>
-      _link != null || (_ownsClient && _liveTransport != 'http');
+  bool get grpcLive {
+    final live = _link != null || (_ownsClient && _liveTransport != 'http');
+    if (!live && !_pollingAnnounced) {
+      _pollingAnnounced = true;
+      developer.log(
+        'live updates stay on HTTP polling (transport=$_liveTransport, ownsClient=$_ownsClient)',
+        name: 'digitalbrain.channel',
+      );
+    }
+    return live;
+  }
+
+  bool _pollingAnnounced = false;
 
   NeuronLink? _link;
   set link(NeuronLink value) => _link = value;
