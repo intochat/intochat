@@ -78,7 +78,9 @@ var mcpPort = builder.Configuration.GetValue(McpPortKey, 5081);
 // port. First boot runs from source; once a candidate is promoted, {repo}/.digitalbrain/live.json names the
 // published build every instance runs, and a restart moves an instance onto the next one.
 var workdir = AspireModuleHosting.WorkdirOf(builder);
-var silos = AspireModuleHosting.InstanceNames("OperatingSystem").Select(name =>
+// While the part log is on, one OS silo is the own machine (R23): two Role=Own silos with separate machine
+// identities would contest every part's lease. A second instance returns with Stage B's host shape.
+var silos = AspireModuleHosting.InstanceNames("OperatingSystem").Take(1).Select(name =>
     AspireModuleHosting.AddLiveBuild(builder, workdir, name, "os", "DigitalBrain.OS.dll") is { } live
         // A live build reads the features published with it (AddLiveBuild), not the working tree's.
         ? Silo(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS"))
@@ -98,7 +100,7 @@ builder.Build().Run();
 
 IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
 {
-    // Stage A: each OS silo is an own machine running the part log in its own directory, over a mesh of
+    // Stage A: the OS silo is an own machine running the part log in its own directory, over a mesh of
     // platform seed nodes (Q25).
     silo.WithReference(digitalBrain)
         .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName("DigitalBrain:Platform:Mesh:SeedNodes"), "24")
