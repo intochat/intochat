@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Compute;
 
 namespace DigitalBrain.Testing;
 
@@ -31,9 +32,11 @@ public sealed class Person : IDisposable
 
     public string Key(string suffix) => $"{BrainId}/{suffix}";
 
+    // A fresh trace paid by this person's account, as the edge begins one per request; both are restored on dispose.
     public IDisposable AsCaller()
     {
         var previous = Orleans.Runtime.RequestContext.Get(CallerContextStamper.RequestContextKey);
+        var trace = TraceContext.Enter(TraceContext.Begin(AccountId, BrainId, new NeuronId($"{BrainId}/edge")));
         CallerContextStamper.Stamp(new CallerContext
         {
             PrincipalId = PrincipalId,
@@ -42,11 +45,11 @@ public sealed class Person : IDisposable
             Kind = CallerKind.User,
             StampedBy = TrustedEdge.AuthenticatedHttp,
         });
-        return new CallerScope(previous);
+        return new CallerScope(previous, trace);
     }
 
     // The Open posture's synthetic owner: no cookie, account and brain "owner".
-    public static Person OpenOwner(HttpClient http) => new("owner", "owner", "owner", http, ownsHttp: false);
+    internal static Person OpenOwner(HttpClient http) => new("owner", "owner", "owner", http, ownsHttp: false);
 
     public static async Task<Person> RegisterAsync(HttpClient origin, string principal, CancellationToken ct)
     {
@@ -80,10 +83,11 @@ public sealed class Person : IDisposable
         if (_ownsHttp) { Http.Dispose(); }
     }
 
-    private sealed class CallerScope(object? previous) : IDisposable
+    private sealed class CallerScope(object? previous, IDisposable trace) : IDisposable
     {
         public void Dispose()
         {
+            trace.Dispose();
             if (previous is null) { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
             else { Orleans.Runtime.RequestContext.Set(CallerContextStamper.RequestContextKey, previous); }
         }

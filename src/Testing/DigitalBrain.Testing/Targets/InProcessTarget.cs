@@ -250,7 +250,9 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain
         return person;
     }
 
-    public Person Owner => Person.OpenOwner(HttpClient);
+    public Person Owner => Services.GetRequiredService<IOptions<AuthOptions>>().Value.Posture == IdentityPosture.Open
+        ? Person.OpenOwner(HttpClient)
+        : throw new InvalidOperationException("Only the Open posture has a synthetic owner; register a person with PersonAsync.");
 
     public ValueTask DisposeAsync()
     {

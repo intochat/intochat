@@ -26,6 +26,7 @@ public interface ITestBrain : IDigitalBrain, IBrainSubscriptions, IAsyncDisposab
     // Registers an account through the brain's HTTP edge; the brain owns its cookie client.
     Task<Person> PersonAsync(string name, CancellationToken cancellationToken = default);
 
-    // The Open posture's synthetic owner: owner/owner, no cookie, the brain's plain client.
+    // The Open posture's synthetic owner: owner/owner, no cookie, the brain's plain client; throws on another posture.
+    // A Person taken before RestartAsync holds the stopped host's client: take it again after a restart.
     Person Owner { get; }
 }
