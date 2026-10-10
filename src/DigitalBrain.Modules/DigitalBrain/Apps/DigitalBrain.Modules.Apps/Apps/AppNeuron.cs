@@ -79,7 +79,8 @@ internal sealed class AppNeuron(
     {
         RequireCreated();
         ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        if (!AppFiles.IsProgram(path)) { throw new ArgumentException("A program file is synapses/*.cs or lib/*.cs."); }
+        if (path == AppFiles.DeclarationPath) { throw new ArgumentException($"{AppFiles.DeclarationPath} is the app's declaration: change it through SaveManifest and SaveSpec."); }
+        if (!AppFiles.IsProgram(path)) { throw new ArgumentException("A program file is a .cs file: a synapse (top-level statements) or a shared class."); }
         if (Replayed(operationId)) { return Describe(Snapshot); }
         var next = Snapshot.Clone();
         next.Edited = true;
@@ -100,7 +101,7 @@ internal sealed class AppNeuron(
         RequireCreated();
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentException.ThrowIfNullOrWhiteSpace(source);
-        if (AppFiles.IsProgram(path)) { throw new ArgumentException("Programs are written through WriteBehavior"); }
+        if (path.EndsWith(".cs", StringComparison.Ordinal)) { throw new ArgumentException("Programs are written through WriteBehavior; app.cs through SaveManifest and SaveSpec."); }
         if (Replayed(operationId)) { return Describe(Snapshot); }
         var next = Snapshot.Clone();
         next.Edited = true;
@@ -186,10 +187,10 @@ internal sealed class AppNeuron(
             await Persist(next);
             return Describe(Snapshot);
         }
-        if (files.ContainsKey(AppFiles.SpecPath))
+        if (files.ContainsKey(AppFiles.DeclarationPath))
         {
             next.Status = AppStatus.Failed;
-            next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), $"build failed: {AppFiles.SpecPath} belongs to the Author, not the Builder"];
+            next.Activity = [.. next.Activity.TakeLast(MaxActivity - 1), $"build failed: {AppFiles.DeclarationPath} belongs to the Author, not the Builder"];
             await Persist(next);
             return Describe(Snapshot);
         }
@@ -458,6 +459,8 @@ internal sealed class AppNeuron(
         var scripts = Snapshot.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal))
             .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
         if (scripts.Count == 0) { return; }
+        // The declaration compiles with the program it describes.
+        scripts[AppFiles.DeclarationPath] = AppDeclaration.Write(new(Name(), Snapshot.Version, Snapshot.Manifest!, Snapshot.Spec));
         var sandbox = ServiceProvider.GetService<IScriptSandbox>();
         if (sandbox is null) { return; }
         ScriptCompilationCheck check;

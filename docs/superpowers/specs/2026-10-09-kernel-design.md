@@ -75,7 +75,7 @@ Related, earlier in the same conversation:
 
 ### 2.2 Implemented status (2026-10-10)
 
-Phases 1–5 are done on `os-runtime`; Phase 6 (features load through the kernel) is pending design.
+Phases 1ï¿½5 are done on `os-runtime`; Phase 6 (features load through the kernel) is pending design.
 Where the code deviates from this spec:
 
 - **Key grammar:** only `/` separates a brain from the rest of a key. UI parts are `{brain}/ui/{name}`
@@ -84,7 +84,7 @@ Where the code deviates from this spec:
   again if the write fails). Bare keys (the brain itself, account-keyed neurons) and
   `@platform/...` keys (e.g. `@platform/meters/{period}`, `@platform/marketplace`) never register. A neuron keeps one persisted
   record (multi-state grains folded into the primary state). `TryAddKernelRegistration` false fails startup.
-- **Kernel surface:** `IKernel.InstancesIn(brain, …)` for platform code with no caller; `IAppIndex` is
+- **Kernel surface:** `IKernel.InstancesIn(brain, ï¿½)` for platform code with no caller; `IAppIndex` is
   gone, scripts read apps through `brain.Kernel`.
 - **Access:** declared on contracts as `[Public]`, `[Shared]`, `[Internal]`, `[PerAccount]` (else the
   owner rule), enforced once by `NeuronCallFilter`, on `INeuron` contracts only.
@@ -269,6 +269,25 @@ Order (smallest blast radius first, each its own commit):
 - Replace "publish shipped apps at startup" and `ShippedCatalog` with the disk source.
 - `dotnet run digitalbrain.cs`: file-based entry that starts AppHost/kernel; first feature loads `features/`.
 - Separate design pass before starting (it reshapes `IApp` bundle) â€” brainstorm, then plan.
+
+**Decided 2026-10-10 (user):**
+- **Format:** an app is a folder of `.cs` files. `app.cs` holds the manifest as a typed C# declaration
+  (title, icon, operations, settings, account slots) with the spec as its leading comment. Every other
+  file is either a synapse (one `await foreach brain.On<T>(â€¦)`) or a shared class (was `lib/`).
+  `app.json`, `app.spec.md`, the `synapses/` and `lib/` folders disappear. The manifest is read from
+  `app.cs` syntactically (Roslyn), never by running it; it still compiles with the bundle.
+- **Entry:** `digitalbrain.cs` at the repo root is a file-based app that runs the AppHost
+  (`dotnet run digitalbrain.cs`). The AppHost stays the composition root; the kernel's disk source loads
+  `./features` at startup.
+- **Split:** 6a = the format (parser, all first-party apps converted, Creator prompts, publish/export,
+  shell). 6b = one load path (disk, marketplace, Creator) into kernel state, `./features` replaces
+  `ShippedCatalog` + publish-at-startup, the feature type layer, `digitalbrain.cs`.
+
+**6a status (2026-10-10): implemented, uncommitted.** `app.cs` = `static class App { const Name; const Version;
+static readonly AppManifest Manifest = new(...); }` with the spec as leading comment; read by `AppDeclaration`
+(Apps module, Roslyn syntax only) at the folder/bundle boundary â€” neuron state and `AppBundle` keep
+Manifest + Spec, so wire shapes (and Dart) are unchanged. Synapse vs shared is syntactic
+(`CSharpScriptCheck.IsShared`: no top-level statements). `icon.svg` and other data files stay as non-.cs assets.
 
 ## 6. Verification evidence per phase
 

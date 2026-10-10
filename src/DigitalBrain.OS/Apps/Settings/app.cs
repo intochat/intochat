@@ -1,3 +1,4 @@
+/*
 # Settings
 
 The primary Settings surface presents credential-free connections and installed app bindings.
@@ -20,3 +21,27 @@ of surface composition, preference persistence and connection discovery.
 Connection status and membership changes publish a credential-free catalog invalidation signal.
 Settings observes it and pending-authorization requests, then invokes the same serialized refresh
 operation used by the button. Repeated delivery rebuilds stable card keys without duplicates.
+*/
+
+using DigitalBrain.Apps;
+
+static class App
+{
+    public const string Name = "settings";
+    public const string Version = "1.1.6";
+
+    public static readonly AppManifest Manifest = new(
+        Title: "Settings",
+        Description: "Available connections and the connections used by your apps.",
+        Operations:
+        [
+            new("open", "Compose the settings surface and publish the current preferences to {app}/preferences; input \"docked\" skips the window."),
+            new("read", "Publish the current preferences to {app}/preferences."),
+            new("refresh-connections", "Rebuild this brain's credential-free connection summaries and installed app bindings as cards."),
+            new("save-preferences", "Save DisplayName and Theme with the Baseline snapshot from preferences/baseline. Reject stale drafts and preserve invalid drafts."),
+            new("reload-preferences", "Discard editable drafts and load the stored preferences."),
+            new("reconcile-preferences", "Refresh clean drafts from stored preferences; retain unsaved edits and report conflicts."),
+        ],
+        Settings: [],
+        Slots: []);
+}

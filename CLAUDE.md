@@ -74,14 +74,18 @@ Ring boundaries and config-key ownership are enforced by `src/Testing/DigitalBra
 
 ## Self-programming apps
 
-A user app is an app neuron (`IApp`, keyed `{brainScope}/apps/{name}`) holding this bundle:
+A user app is an app neuron (`IApp`, keyed `{brainScope}/apps/{name}`) holding a folder of `.cs` files:
 
 ```
-app.json         manifest: title, icon, operations, settings, account slots
-app.spec.md      the program in natural language
-synapses/*.cs    implementation, one small script per reaction → one ICSharpFile each
-lib/*.cs      shared classes every synapse compiles with
+app.cs       `static class App`: Name, Version and the AppManifest (title, icon, operations, settings,
+             account slots); its leading comment is the spec, the program in natural language
+*.cs         a synapse when it has top-level statements (one reaction each), otherwise a shared class
+             compiled into every synapse — the split is syntactic (`CSharpScriptCheck.IsShared`)
+icon.svg …   other files are data the program reads
 ```
+
+`app.cs` is read by syntax only (`AppDeclaration`, Roslyn), never run; it compiles with the bundle.
+Inside the neuron the manifest and spec are state; `app.cs` is how a bundle/folder carries them.
 
 - **Spec is the program, the LLM is a compiler.** The Creator (`Apps/Creator.cs`,
   `Apps/Authoring/AgentPrompts.cs`) writes the spec, then the behaviors. There is no model at

@@ -13,10 +13,10 @@ public sealed class OsAssistantAppFacts
         Assert.Equal(["open", "send", "new", "voice"], bundle.Manifest.Operations.Select(operation => operation.Name));
         Assert.Equal("icon.svg", bundle.Manifest.Icon);
         Assert.Contains("icon.svg", bundle.Files.Keys);
-        Assert.Contains("lib/Assistant.cs", bundle.Files.Keys);
-        Assert.Contains("synapses/open.cs", bundle.Files.Keys);
-        Assert.Contains("synapses/send.cs", bundle.Files.Keys);
-        Assert.Contains("synapses/new.cs", bundle.Files.Keys);
+        Assert.Contains("Assistant.cs", bundle.Files.Keys);
+        Assert.Contains("open.cs", bundle.Files.Keys);
+        Assert.Contains("send.cs", bundle.Files.Keys);
+        Assert.Contains("new.cs", bundle.Files.Keys);
     }
 
     [Fact]

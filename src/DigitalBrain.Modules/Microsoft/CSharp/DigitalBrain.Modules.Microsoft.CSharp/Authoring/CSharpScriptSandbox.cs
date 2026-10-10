@@ -7,10 +7,10 @@ public sealed class CSharpScriptSandbox(CSharpToolService tools, IBehaviorAssemb
 {
     public bool CanRun => tools.CanRun;
     public string AuthoringDescription => """
-        - "csharp": one C# file-based app per concern under "files" as "synapses/<name>.cs" (a single
-                  synapse is fine). Each synapse is one reaction: one `await foreach` over one
-                  `brain.On<T>(source, brain.Stopping)`, acting through neurons. Shared code goes in
-                  "lib/*.cs".
+        - "csharp": one C# file per concern under "files" as "<name>.cs" (a single synapse is fine).
+                  A synapse is a file with top-level statements and is one reaction: one `await foreach`
+                  over one `brain.On<T>(source, brain.Stopping)`, acting through neurons. Shared code is a
+                  file of only type declarations. "app.cs" is the app's declaration; never write it.
                   The app's own operations arrive as `AppRequested` signals (change only the reaction):
                     using DigitalBrain.Apps;
                     using DigitalBrain.Apps.Signals;

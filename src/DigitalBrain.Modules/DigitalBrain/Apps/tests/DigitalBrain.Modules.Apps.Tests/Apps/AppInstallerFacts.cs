@@ -227,7 +227,7 @@ public sealed class AppInstallerFacts
         Caller.Clear();
 
         Assert.Equal("1.2.0", installed.Version);
-        Assert.Equal("// greet\n", installed.Files["synapses/greet.cs"]);
+        Assert.Equal("// greet\n", installed.Files["greet.cs"]);
         Assert.Equal(new AppOrigin("os", new AppSource.Shipped(), "greeter", "1.2.0"), installed.Origin);
         Assert.True(entry.Installed);
         Assert.False(entry.UpdateAvailable);

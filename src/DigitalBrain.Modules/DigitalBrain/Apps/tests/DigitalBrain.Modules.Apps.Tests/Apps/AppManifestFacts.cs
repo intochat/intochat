@@ -58,18 +58,25 @@ public sealed class AppManifestFacts
         try
         {
             Directory.CreateDirectory(Path.Combine(root, "player"));
-            File.WriteAllText(Path.Combine(root, "player", "app.json"), """
-                {"name":"player","title":"Player","description":"plays","version":"1.0.0",
-                 "operations":[{"name":"play","description":"Play"},{"name":"volume","description":"Volume"}],
-                 "settings":[],
-                 "toolbar":[{"operation":"play","icon":"play","label":"Play"},
-                            {"operation":"volume","kind":"slider","icon":"volume","min":0,"max":100}]}
+            File.WriteAllText(Path.Combine(root, "player", "app.cs"), """
+                using DigitalBrain.Apps;
+                static class App
+                {
+                    public const string Name = "player";
+                    public const string Version = "1.0.0";
+                    public static readonly AppManifest Manifest = new(
+                        Title: "Player", Description: "plays",
+                        Operations: [new("play", "Play"), new("volume", "Volume")],
+                        Settings: [], Slots: [],
+                        Toolbar: [new("play", Icon: "play", Label: "Play"),
+                                  new("volume", Kind: AppToolbarKinds.Slider, Icon: "volume", Min: 0, Max: 100)]);
+                }
                 """);
             var bundle = Assert.Single(new DirectoryShippedAppSource(root, "vendor").Load());
 
             Assert.Equal([("play", "button", null), ("volume", "slider", 100d)],
                 bundle.Manifest.Toolbar!.Select(entry => (entry.Operation, entry.Kind, entry.Max)));
-            Assert.Contains("\"toolbar\"", ShippedAppFolder.ToFiles(bundle)["app.json"], StringComparison.Ordinal);
+            Assert.Contains("Toolbar:", ShippedAppFolder.ToFiles(bundle)["app.cs"], StringComparison.Ordinal);
         }
         finally { Directory.Delete(root, recursive: true); }
     }
@@ -81,9 +88,14 @@ public sealed class AppManifestFacts
         try
         {
             Directory.CreateDirectory(Path.Combine(root, "player"));
-            File.WriteAllText(Path.Combine(root, "player", "app.json"), """
-                {"name":"player","title":"Player","description":"plays","version":"1.0.0","operations":[],"settings":[],
-                 "toolbar":[{"operation":"play"}]}
+            File.WriteAllText(Path.Combine(root, "player", "app.cs"), """
+                using DigitalBrain.Apps;
+                static class App
+                {
+                    public const string Name = "player";
+                    public const string Version = "1.0.0";
+                    public static readonly AppManifest Manifest = new("Player", "plays", [], [], [], Toolbar: [new("play")]);
+                }
                 """);
             Assert.Throws<InvalidDataException>(() => new DirectoryShippedAppSource(root, "vendor").Load());
         }

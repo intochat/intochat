@@ -17,22 +17,20 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
         File.WriteAllText(path, content);
     }
 
-    private const string Manifest = """
-        {"name":"echo","title":"Echo","description":"Echoes.","version":"1.0.0","operations":[],"settings":[]}
-        """;
+    private static readonly string Manifest = Declarations.Of("echo", "1.0.0", "Echo", "Echoes.");
 
     [Fact]
     public void AFolderOfAppFoldersLoadsLikeTheEmbeddedSource()
     {
-        Write("echo/app.json", Manifest);
-        Write("echo/synapses/app.cs", "// program\r\nreturn;\r\n");
+        Write("echo/app.cs", Manifest);
+        Write("echo/synapses/program.cs", "// program\r\nreturn;\r\n");
         Write("echo/synapses/extra.cs", "// behavior\n");
         var source = new DirectoryShippedAppSource(_root, "vendor");
         var app = Assert.Single(source.Load());
         Assert.Equal("echo", app.Name);
         // Line endings normalize exactly as the embedded source does, so content hashes agree
         // across checkouts.
-        Assert.Equal("// program\nreturn;\n", app.Files["synapses/app.cs"]);
+        Assert.Equal("// program\nreturn;\n", app.Files["synapses/program.cs"]);
         Assert.Equal("// behavior\n", app.Files["synapses/extra.cs"]);
     }
 
@@ -43,7 +41,7 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
     [Fact]
     public void ConfigurationNamesEachVendorAndItsPath()
     {
-        Write("echo/app.json", Manifest);
+        Write("echo/app.cs", Manifest);
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             [ShippedAppsServiceCollectionExtensions.ConfigurationSection + ":vendor:Path"] = _root,
@@ -68,11 +66,9 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
     [Fact]
     public void AWrittenBundleReadsBackIdentically()
     {
-        Write("Echo/app.json", """
-            {"name":"echo","title":"Echo","description":"Echoes.","version":"1.0.0","icon":"icon.svg","operations":[{"name":"ask","description":"Echo"}],"settings":[{"name":"Tone","description":"how","default":"flat"}]}
-            """);
-        Write("Echo/app.spec.md", "## Scenario: Echo\nEchoes.\n");
-        Write("Echo/synapses/echo.cs", "// echo\n");
+        Write("Echo/app.cs", Declarations.Of("echo", "1.0.0", "Echo", "Echoes.",
+            [new("ask", "Echo")], [new("Tone", "how", "flat")], "icon.svg", "## Scenario: Echo\nEchoes."));
+        Write("Echo/echo.cs", "// echo\n");
         Write("Echo/icon.svg", "<svg/>");
         var source = new DirectoryShippedAppSource(_root, "vendor", development: true);
         var loaded = Assert.Single(source.Load());
@@ -81,8 +77,8 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
         var edited = loaded with
         {
             Version = "1.1.0",
-            Spec = "## Scenario: Echo\nEchoes twice.\n",
-            Files = new(loaded.Files.Where(file => file.Key != "synapses/echo.cs"), StringComparer.Ordinal) { ["synapses/twice.cs"] = "// twice\n" },
+            Spec = "## Scenario: Echo\nEchoes twice.",
+            Files = new(loaded.Files.Where(file => file.Key != "echo.cs"), StringComparer.Ordinal) { ["twice.cs"] = "// twice\n" },
         };
         source.Write(edited);
 
@@ -93,7 +89,7 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
         Assert.Equal(edited.Manifest.Operations, reread.Manifest.Operations);
         Assert.Equal(edited.Manifest.Settings, reread.Manifest.Settings);
         Assert.Equal(edited.Files.OrderBy(f => f.Key), reread.Files.OrderBy(f => f.Key));
-        Assert.False(File.Exists(Path.Combine(_root, "Echo", "behaviors", "echo.cs")));
+        Assert.False(File.Exists(Path.Combine(_root, "Echo", "synapses", "echo.cs")));
         Assert.Single(Directory.GetDirectories(_root));
     }
 
@@ -103,7 +99,7 @@ public sealed class DirectoryShippedAppSourceFacts : IDisposable
         var source = new DirectoryShippedAppSource(_root, "vendor", development: true);
         source.Write(new("lead-finder", "1.0.0", new("Lead finder", "Finds leads.", [], [], []), "## Scenario: Finds\nIt finds.\n",
             new() { ["synapses/finds.cs"] = "// t\n" }));
-        Assert.True(File.Exists(Path.Combine(_root, "LeadFinder", "app.json")));
+        Assert.True(File.Exists(Path.Combine(_root, "LeadFinder", "app.cs")));
         Assert.Equal("lead-finder", Assert.Single(source.Load()).Name);
     }
 

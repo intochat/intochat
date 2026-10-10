@@ -16,7 +16,7 @@ internal static class ShippedAssistant
         var os = XDocument.Load(Path.Combine(directory.FullName, "DigitalBrain.slnx")).Descendants("Project")
             .Select(element => element.Attribute("Path")!.Value.Replace('\\', '/'))
             .Single(path => Path.GetFileNameWithoutExtension(path) == "DigitalBrain.OS");
-        var lib = File.ReadAllText(Path.Combine(directory.FullName, Path.GetDirectoryName(os)!, "..", "Apps", "Assistant", "lib", "Assistant.cs"));
+        var lib = File.ReadAllText(Path.Combine(directory.FullName, Path.GetDirectoryName(os)!, "..", "Apps", "Assistant", "Assistant.cs"));
         var list = Regex.Match(lib, @"string\[\] Contracts = \[(?<types>[^\]]*)\];").Groups["types"].Value;
         // The contract assemblies built beside this test stand in for the deployed host's compiled layer.
         var deployed = new DigitalBrain.Framework.CompiledTypes(Directory.GetFiles(AppContext.BaseDirectory, "DigitalBrain.Modules.*.Contracts.dll")

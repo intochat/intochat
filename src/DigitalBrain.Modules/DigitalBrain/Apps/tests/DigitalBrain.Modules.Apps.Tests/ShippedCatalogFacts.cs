@@ -17,10 +17,8 @@ public sealed class ShippedCatalogFacts : IDisposable
 
     private void WriteEcho(string body = "// echo\n")
     {
-        Write("Echo/app.json", """
-            {"name":"echo","title":"Echo","description":"Echoes.","version":"2.0.0","operations":[],"settings":[]}
-            """);
-        Write("Echo/synapses/echo.cs", body);
+        Write("Echo/app.cs", Declarations.Of("echo", "2.0.0", "Echo", "Echoes."));
+        Write("Echo/echo.cs", body);
     }
 
     private EmbeddedShippedAppSource Embedded(string publisher)
@@ -37,8 +35,8 @@ public sealed class ShippedCatalogFacts : IDisposable
         Assert.Equal([("intochat", "echo", "2.0.0"), ("os", "greeter", "1.2.0")],
             listings.Select(listing => (listing.Publisher, listing.Name, listing.Version)));
         Assert.All(listings, listing => Assert.IsType<AppSource.Shipped>(listing.Source));
-        Assert.Equal("// greet\n", (await catalog.Find("os", "greeter"))!.Files["synapses/greet.cs"]);
-        Assert.Equal("// echo\n", (await catalog.Find("intochat", "echo"))!.Files["synapses/echo.cs"]);
+        Assert.Equal("// greet\n", (await catalog.Find("os", "greeter"))!.Files["greet.cs"]);
+        Assert.Equal("// echo\n", (await catalog.Find("intochat", "echo"))!.Files["echo.cs"]);
         Assert.Null(await catalog.Find("intochat", "greeter"));
     }
 

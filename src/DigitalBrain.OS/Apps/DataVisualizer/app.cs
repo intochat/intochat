@@ -1,3 +1,4 @@
+/*
 # Data Visualizer
 
 A view is a source SELECT against the Postgres database bound to db, or an app-owned table,
@@ -37,3 +38,31 @@ Shared filter values remain durable through recomposition and behavior restart.
 Refine validates string/null filter values and SQL output columns before changing state.
 Optional filterColumns replaces the control list, including removing obsolete filters,
 without deleting shared field neurons used by another view.
+*/
+
+using DigitalBrain.Apps;
+
+static class App
+{
+    public const string Name = "datavisualizer";
+    public const string Version = "1.1.6";
+
+    public static readonly AppManifest Manifest = new(
+        Title: "Data Visualizer",
+        Description: "Live tables and charts over your data: SQL or app tables, filtered from the UI.",
+        Operations:
+        [
+            new("open", "Compose the app surface listing every view; input \"docked\" skips the window."),
+            new("show", "Create a view from JSON {title, kind: table|chart, source: sql|apptable:<id>, sql, filters: [outputColumn], refreshSeconds}. SQL is a SELECT without a row limit; the app applies equality filters with bound parameters before its 200-row display limit. Charts use the first output column as labels and the second as numeric values. The view id is derived from the request id; the table or chart neuron holds the result."),
+            new("refine", "Set visible equality filters and optionally replace SQL: JSON {view, filters: {outputColumn: value}, sql, linkFiltersTo}. New filter columns become controls. Empty values clear filters. Optional linkFiltersTo is an existing view id whose same-named declared filters should be shared; changing either control refreshes both views. Prefer filters over embedding filter values in SQL. Optional filterColumns replaces the control list (empty removes all); SQL columns and value types are validated before saving."),
+            new("read", "Refresh a view: input is the view id. The result is the view's table or chart neuron."),
+            new("close", "Remove a view and its window: input is the view id."),
+            new("refresh", "Refresh current source data and filter values; input is a view id or empty for all views."),
+        ],
+        Settings: [],
+        Slots:
+        [
+            new("db", "postgres"),
+        ],
+        Icon: "icon.svg");
+}

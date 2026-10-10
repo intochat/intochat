@@ -1,3 +1,4 @@
+/*
 # Calculator
 
 A keypad that evaluates arithmetic. Opening it composes a display and a grid of buttons and opens
@@ -23,3 +24,28 @@ Clicking "C" shows an empty display.
 ## Scenario: Clear from the dock empties the display
 
 The toolbar's Clear button posts "clear"; the display neuron becomes empty whatever it held.
+*/
+
+using DigitalBrain.Apps;
+
+static class App
+{
+    public const string Name = "calculator";
+    public const string Version = "1.1.1";
+
+    public static readonly AppManifest Manifest = new(
+        Title: "Calculator",
+        Description: "A keypad that evaluates arithmetic expressions.",
+        Operations:
+        [
+            new("open", "Open the calculator keypad."),
+            new("clear", "Empty the display."),
+        ],
+        Settings: [],
+        Slots: [],
+        Icon: "icon.svg",
+        Toolbar:
+        [
+            new("clear", Icon: "backspace", Label: "Clear"),
+        ]);
+}

@@ -1,3 +1,4 @@
+/*
 # Customer Researcher
 
 Small signal-driven scenarios compose a researcher window, submit commands and verify company details against observed pages. UI buttons and assistant tools invoke the same operations. The installed app owns its Postgres table across behavior files and upgrades.
@@ -81,3 +82,32 @@ remains mounted below the independently scrolling activity list while research e
 ## Scenario: Missing storage configuration is actionable
 
 Opening an installation with no tables binding shows persistent database connection guidance above the company field. Research fails before browser/model work with the same binding and retry instructions, preserving existing records. Reopening after configuration removes the guidance.
+*/
+
+using DigitalBrain.Apps;
+
+static class App
+{
+    public const string Name = "customer-researcher";
+    public const string Version = "1.1.30";
+
+    public static readonly AppManifest Manifest = new(
+        Title: "Customer Researcher",
+        Description: "Research companies live in a driven browser and save verified findings to a Postgres table.",
+        Operations:
+        [
+            new("open", "Compose the researcher surface and open its window; with input \"docked\", compose it without a window."),
+            new("research", "Queue a company by name, location or website; the queue and status neurons show the outcome."),
+            new("stop", "Stop active and queued research without removing saved records."),
+            new("result", "Read the stored research row for a company query into {app}/result/{requestId}, or null."),
+        ],
+        Settings:
+        [
+            new("Model", "Uses the host default LLM.", ""),
+        ],
+        Slots:
+        [
+            new("tables", "postgres"),
+        ],
+        Icon: "icon.svg");
+}

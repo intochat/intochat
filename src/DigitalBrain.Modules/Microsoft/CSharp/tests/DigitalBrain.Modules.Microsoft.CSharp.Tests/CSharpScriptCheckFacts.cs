@@ -84,33 +84,33 @@ public sealed class CSharpScriptCheckFacts
     }
 
     [Fact]
-    public void ALibraryFileIsCompiledIntoEverySynapseAndYieldsNoAssembly()
+    public void AFileOfOnlyTypesIsSharedIntoEverySynapseAndYieldsNoAssembly()
     {
         var result = _check.Compile(new Dictionary<string, string>
         {
-            ["lib/Greeting.cs"] = "public static class Greeting { public static string Of(string name) => \"hi \" + name; }\n",
-            ["synapses/a.cs"] = "Console.WriteLine(Greeting.Of(\"a\"));\n",
-            ["synapses/b.cs"] = "Console.WriteLine(Greeting.Of(\"b\"));\n",
+            ["Greeting.cs"] = "public static class Greeting { public static string Of(string name) => \"hi \" + name; }\n",
+            ["a.cs"] = "Console.WriteLine(Greeting.Of(\"a\"));\n",
+            ["b.cs"] = "Console.WriteLine(Greeting.Of(\"b\"));\n",
         });
         Assert.True(result.Success, string.Join("; ", result.Errors.Select(error => error.Message)));
-        Assert.Equal(["synapses/a.cs", "synapses/b.cs"], result.Assemblies.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(["a.cs", "b.cs"], result.Assemblies.Keys.Order(StringComparer.Ordinal));
     }
 
     [Fact]
-    public void AnErrorInALibraryFileIsReportedAgainstTheLibraryFile()
+    public void AnErrorInASharedFileIsReportedAgainstThatFile()
     {
         var result = _check.Compile(new Dictionary<string, string>
         {
-            ["lib/Broken.cs"] = "public static class Broken { int x = \"no\"; }\n",
-            ["synapses/a.cs"] = "await Task.CompletedTask;\n",
+            ["Broken.cs"] = "public static class Broken { int x = \"no\"; }\n",
+            ["a.cs"] = "await Task.CompletedTask;\n",
         });
         Assert.False(result.Success);
-        Assert.Contains(result.Errors, error => error.File == "lib/Broken.cs" && error.Id == "CS0029");
+        Assert.Contains(result.Errors, error => error.File == "Broken.cs" && error.Id == "CS0029");
     }
 
     [Fact]
-    public void ALibraryAloneCompilesNothing()
-        => Assert.Throws<ArgumentException>(() => _check.Compile(new Dictionary<string, string> { ["lib/Only.cs"] = "public static class Only {}\n" }));
+    public void SharedFilesAloneCompileNothing()
+        => Assert.Throws<ArgumentException>(() => _check.Compile(new Dictionary<string, string> { ["Only.cs"] = "public static class Only {}\n" }));
 
     [Fact]
     public void CompilingNothingIsRefused()

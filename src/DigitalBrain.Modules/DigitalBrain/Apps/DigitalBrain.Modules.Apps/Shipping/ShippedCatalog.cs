@@ -67,6 +67,7 @@ public sealed class ShippedCatalog
         var scripts = bundle.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal))
             .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
         if (scripts.Count == 0 || sandbox is null) { return; }
+        scripts[AppFiles.DeclarationPath] = AppDeclaration.Write(new(bundle.Name, bundle.Version, bundle.Manifest, bundle.Spec));
         ScriptCompilationCheck check;
         try { check = await sandbox.Compile(scripts, CancellationToken.None); }
         catch (InvalidOperationException) { return; }

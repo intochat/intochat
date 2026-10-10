@@ -11,9 +11,8 @@ public sealed class OsSelfImproveAppFacts
             .Single(app => app.Name == "selfimprove");
         Assert.Equal(["open", "request"], bundle.Manifest.Operations.Select(operation => operation.Name));
         Assert.Equal("icon.svg", bundle.Manifest.Icon);
-        Assert.Contains("lib/SelfImprove.cs", bundle.Files.Keys);
-        Assert.Equal(["synapses/failed.cs", "synapses/healthy.cs", "synapses/open.cs", "synapses/request.cs", "synapses/verified.cs"],
-            bundle.Files.Keys.Where(file => file.StartsWith("synapses/", StringComparison.Ordinal)).Order());
+        Assert.Equal(["SelfImprove.cs", "failed.cs", "healthy.cs", "open.cs", "request.cs", "verified.cs"],
+            bundle.Files.Keys.Where(AppFiles.IsProgram).Order(StringComparer.Ordinal));
         Assert.Contains("## Scenario:", bundle.Spec, StringComparison.Ordinal);
     }
 }

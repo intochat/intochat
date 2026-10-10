@@ -1,4 +1,3 @@
-using System.Text.Json;
 using DigitalBrain.Apps;
 
 namespace DigitalBrain.Apps;
@@ -28,53 +27,27 @@ public sealed class EmbeddedShippedAppSource(System.Reflection.Assembly assembly
     }
 }
 
-// A shipped app folder is the same shape wherever it comes from: app.json is the manifest,
-// app.spec.md the spec, every other file travels in the bundle.
+// A shipped app folder is the same shape wherever it comes from: app.cs declares the name, version
+// and manifest with the spec as its leading comment; every other file travels in the bundle.
 internal static class ShippedAppFolder
 {
-    private const string ManifestFile = "app.json";
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
-
     internal static AppBundle ToBundle(string folder, IReadOnlyDictionary<string, string> files)
     {
-        var manifestText = files.GetValueOrDefault(ManifestFile) ?? throw new InvalidDataException($"Shipped app {folder} has no {ManifestFile}.");
-        var manifest = JsonSerializer.Deserialize<AppJson>(manifestText, Json) ?? throw new InvalidDataException($"{folder}/{ManifestFile} is empty.");
+        var source = files.GetValueOrDefault(AppFiles.DeclarationPath) ?? throw new InvalidDataException($"Shipped app {folder} has no {AppFiles.DeclarationPath}.");
+        AppDeclarationContent declared;
+        try { declared = AppDeclaration.Read(source); }
+        catch (InvalidDataException error) { throw new InvalidDataException($"{folder}/{error.Message}", error); }
         var bundleFiles = files
-            .Where(file => file.Key is not ManifestFile and not AppFiles.SpecPath)
+            .Where(file => file.Key != AppFiles.DeclarationPath)
             .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
-        return new(manifest.Name, manifest.Version ?? "1.0.0",
-            new AppManifest(
-                manifest.Title,
-                manifest.Description,
-                [.. manifest.Operations.Select(operation => new AppOperation(operation.Name, operation.Description))],
-                [.. manifest.Settings.Select(setting => new AppSetting(setting.Name, setting.Description, setting.Default))],
-                [.. (manifest.Slots ?? []).Select(slot => new AppSlot(slot.Name, slot.Connector))],
-                manifest.Icon,
-                manifest.Toolbar is null ? null
-                    : [.. manifest.Toolbar.Select(entry => new AppToolbarEntry(entry.Operation, entry.Kind ?? AppToolbarKinds.Button, entry.Icon, entry.Label, entry.Min, entry.Max))])
-                .Validated(),
-            files.GetValueOrDefault(AppFiles.SpecPath, ""),
-            bundleFiles);
+        return new(declared.Name, declared.Version, declared.Manifest, declared.Spec, bundleFiles);
     }
 
     internal static Dictionary<string, string> ToFiles(AppBundle bundle)
-    {
-        var manifest = new AppJson(bundle.Name, bundle.Manifest.Title, bundle.Manifest.Description,
-            [.. bundle.Manifest.Operations.Select(operation => new OperationJson(operation.Name, operation.Description))],
-            [.. bundle.Manifest.Settings.Select(setting => new SettingJson(setting.Name, setting.Description, setting.Default))],
-            bundle.Version,
-            bundle.Manifest.Slots.Length == 0 ? null : [.. bundle.Manifest.Slots.Select(slot => new SlotJson(slot.Name, slot.Connector))],
-            bundle.Manifest.Icon,
-            bundle.Manifest.Toolbar is { Length: > 0 } toolbar
-                ? [.. toolbar.Select(entry => new ToolbarJson(entry.Operation, entry.Kind, entry.Icon, entry.Label, entry.Min, entry.Max))]
-                : null);
-        var files = new Dictionary<string, string>(bundle.Files, StringComparer.Ordinal)
+        => new(bundle.Files, StringComparer.Ordinal)
         {
-            [ManifestFile] = JsonSerializer.Serialize(manifest, Pretty) + "\n",
-            [AppFiles.SpecPath] = bundle.Spec,
+            [AppFiles.DeclarationPath] = AppDeclaration.Write(new(bundle.Name, bundle.Version, bundle.Manifest, bundle.Spec)),
         };
-        return files;
-    }
 
     // A new app's folder: its title in PascalCase, the way src/IntoChat/Apps names folders.
     internal static string FolderName(AppBundle bundle)
@@ -86,16 +59,4 @@ internal static class ShippedAppFolder
         var name = string.Concat(words);
         return name.Length > 0 ? name : bundle.Name;
     }
-
-    private static readonly JsonSerializerOptions Pretty = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true,
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
-    };
-
-    private sealed record AppJson(string Name, string Title, string Description, IReadOnlyList<OperationJson> Operations, IReadOnlyList<SettingJson> Settings, string? Version = null, IReadOnlyList<SlotJson>? Slots = null, string? Icon = null, IReadOnlyList<ToolbarJson>? Toolbar = null);
-    private sealed record OperationJson(string Name, string Description);
-    private sealed record SettingJson(string Name, string Description, string Default);
-    private sealed record SlotJson(string Name, string Connector);
-    private sealed record ToolbarJson(string Operation, string? Kind, string? Icon, string? Label, double? Min, double? Max);
 }

@@ -16,11 +16,10 @@ public sealed record ScriptCompilation(bool Success, IReadOnlyList<ScriptDiagnos
 // The single compiler: compiles each behavior in-process against what the sandbox carries and,
 // when every file is clean, emits one assembly per file named by its content hash. The sandbox only
 // loads what this emits. The implicit console usings plus the script client's namespaces are imported.
-// Files under lib/ are shared: each one is compiled into every program file's assembly and yields none itself.
+// A file without top-level statements is shared: it is compiled into every synapse's assembly and
+// yields none itself. A synapse is a file with top-level statements; the split is purely syntactic.
 public sealed class CSharpScriptCheck
 {
-    public const string LibraryPrefix = "lib/";
-
     private const string GlobalUsings = """
         global using System;
         global using System.Collections.Generic;
@@ -39,15 +38,15 @@ public sealed class CSharpScriptCheck
     private static readonly CSharpCompilationOptions Options = new(OutputKind.ConsoleApplication, deterministic: true, nullableContextOptions: NullableContextOptions.Enable);
     private static readonly EmitOptions Emit = new(debugInformationFormat: DebugInformationFormat.PortablePdb);
 
-    public static bool IsLibrary(string path)
-        => path.StartsWith(LibraryPrefix, StringComparison.Ordinal) && path.EndsWith(".cs", StringComparison.Ordinal);
+    public static bool IsShared(string source)
+        => !CSharpSyntaxTree.ParseText(source ?? "", Parse).GetCompilationUnitRoot().Members.OfType<global::Microsoft.CodeAnalysis.CSharp.Syntax.GlobalStatementSyntax>().Any();
 
     public ScriptCompilation Compile(IReadOnlyDictionary<string, string> files)
     {
         ArgumentNullException.ThrowIfNull(files);
-        var libraries = files.Where(file => IsLibrary(file.Key)).OrderBy(file => file.Key, StringComparer.Ordinal).ToArray();
-        var programs = files.Where(file => !IsLibrary(file.Key)).OrderBy(file => file.Key, StringComparer.Ordinal).ToArray();
-        if (programs.Length == 0) { throw new ArgumentException("Pass at least one program file to compile; lib/ files are shared, not programs.", nameof(files)); }
+        var libraries = files.Where(file => IsShared(file.Value)).OrderBy(file => file.Key, StringComparer.Ordinal).ToArray();
+        var programs = files.Where(file => !IsShared(file.Value)).OrderBy(file => file.Key, StringComparer.Ordinal).ToArray();
+        if (programs.Length == 0) { throw new ArgumentException("Pass at least one synapse (a file with top-level statements) to compile; files of only type declarations are shared, not programs.", nameof(files)); }
         var errors = new List<ScriptDiagnostic>();
         var assemblies = new Dictionary<string, CompiledBehavior>(StringComparer.Ordinal);
         var shared = libraries.Select(library =>

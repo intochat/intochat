@@ -1,3 +1,4 @@
+/*
 # Assistant
 
 The brain's conversational assistant. A message runs one agent turn through the brain's agent
@@ -89,3 +90,35 @@ An operation failure settles that invocation with an understandable error and do
 commands. A transcript exceeding the app response limit directs the caller to read the full
 conversation in the assistant; it never truncates or deletes durable history. If a command loop
 cannot settle an error, its failure reaches the runtime supervisor so pending work can recover.
+*/
+
+using DigitalBrain.Apps;
+
+static class App
+{
+    public const string Name = "assistant";
+    public const string Version = "1.7.1";
+
+    public static readonly AppManifest Manifest = new(
+        Title: "Assistant",
+        Description: "Talk to your brain: ask questions, find capabilities and open what you need.",
+        Operations:
+        [
+            new("open", "Compose the assistant surface; input \"docked\" composes it for the working area without opening a window."),
+            new("send", "Start a turn in the current conversation with this message; the transcript neuron shows the answer."),
+            new("new", "Start a new conversation; the conversation neuron holds its id."),
+            new("voice", "Begin a voice message from the dock; the composer neuron captures and transcribes it."),
+        ],
+        Settings:
+        [
+            new("Model", "Model catalog id; empty uses the deployment default.", ""),
+            new("RouteGate", "Confidence (0-1) above which Jev answers a request directly, without the language model.", "0.8"),
+        ],
+        Slots: [],
+        Icon: "icon.svg",
+        Toolbar:
+        [
+            new("send", Kind: "text", Label: "Message your brain"),
+            new("voice", Icon: "mic", Label: "Voice"),
+        ]);
+}

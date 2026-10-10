@@ -1,3 +1,4 @@
+/*
 # Router
 
 Route a request to the right capability and carry it out, without a chat model deciding. The
@@ -19,3 +20,24 @@ When the routed contract is the timer, the router composes a text part and a sur
 
 When the router's confidence is below its gate, "ask" answers without dispatching and says the
 request was not clear enough to route.
+*/
+
+using DigitalBrain.Apps;
+
+static class App
+{
+    public const string Name = "router";
+    public const string Version = "1.1.1";
+
+    public static readonly AppManifest Manifest = new(
+        Title: "Router",
+        Description: "Route a request to the right capability with Jev, then carry it out.",
+        Operations:
+        [
+            new("open", "Open the Jev console: a prompt, a send button and the route it answers."),
+            new("ask", "Route a request through Jev and carry it out."),
+        ],
+        Settings: [],
+        Slots: [],
+        Icon: "icon.svg");
+}

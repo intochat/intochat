@@ -210,18 +210,18 @@ public sealed class AppNeuronFacts
     }
 
     [Fact]
-    public async Task ABuildThatRewritesTheSpecFailsTheSpecBelongsToTheAuthor()
+    public async Task ABuildThatRewritesTheDeclarationFailsItBelongsToTheAuthor()
     {
         await using var brain = await Start();
         var app = brain.Get<IApp>(IApp.Key(Brain, "spec-guard"));
         await app.Create(Manifest(), "the authored spec");
         await app.BeginBuild(null);
         var failed = await app.CompleteBuild(await app.CurrentBuildAttempt(),
-            new() { [AppFiles.SpecPath] = "hijacked" }, null);
+            new() { [AppFiles.DeclarationPath] = "// hijacked" }, null);
         Assert.Equal(AppStatus.Failed, failed.Status);
         Assert.Equal("the authored spec", failed.Spec);
-        Assert.False(failed.Files.ContainsKey(AppFiles.SpecPath));
-        Assert.Contains(failed.Activity, line => line.Contains("app.spec.md", StringComparison.Ordinal));
+        Assert.False(failed.Files.ContainsKey(AppFiles.DeclarationPath));
+        Assert.Contains(failed.Activity, line => line.Contains("app.cs", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -259,19 +259,19 @@ public sealed class AppNeuronFacts
     }
 
     [Fact]
-    public async Task ASynapseIsKeyedUnderTheAppsSynapsesFolderAndTheOldFolderIsRefused()
+    public async Task AProgramIsAnyCsFileButTheDeclarationIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
         var runtime = new FakeAppRuntime();
         await using var brain = await Start(runtime);
         var app = brain.Get<IApp>(IApp.Key(Brain, "keyed"));
         await app.Create(Manifest(), "## Scenario: Keys\nIt keys.");
-        var refused = await Assert.ThrowsAsync<ArgumentException>(() => app.WriteBehavior("behaviors/old.cs", "// p", Guid.NewGuid()));
-        Assert.Contains("synapses/", refused.Message, StringComparison.Ordinal);
-        var snapshot = await app.WriteBehavior("synapses/new.cs", "// p", Guid.NewGuid());
-        Assert.Contains("synapses/new.cs", snapshot.Files.Keys);
+        var refused = await Assert.ThrowsAsync<ArgumentException>(() => app.WriteBehavior("app.cs", "// p", Guid.NewGuid()));
+        Assert.Contains("SaveManifest", refused.Message, StringComparison.Ordinal);
+        var snapshot = await app.WriteBehavior("new.cs", "// p", Guid.NewGuid());
+        Assert.Contains("new.cs", snapshot.Files.Keys);
         var deployment = Assert.Single(runtime.Deployed);
-        Assert.Equal(["synapses/new.cs"], deployment.Sources.Keys);
-        Assert.Equal("// p", deployment.Sources["synapses/new.cs"]);
+        Assert.Equal(["new.cs"], deployment.Sources.Keys);
+        Assert.Equal("// p", deployment.Sources["new.cs"]);
     }
 }

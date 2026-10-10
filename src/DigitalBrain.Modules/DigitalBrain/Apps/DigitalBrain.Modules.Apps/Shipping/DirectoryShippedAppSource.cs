@@ -25,7 +25,7 @@ public sealed class DirectoryShippedAppSource(string path, string publisher, boo
         var root = new DirectoryInfo(path);
         root.Create();
         var folder = root.EnumerateDirectories().FirstOrDefault(candidate =>
-            File.Exists(Path.Combine(candidate.FullName, "app.json"))
+            File.Exists(Path.Combine(candidate.FullName, AppFiles.DeclarationPath))
             && ShippedAppFolder.ToBundle(candidate.Name, ReadFolder(candidate)).Name == bundle.Name)
             ?? root.CreateSubdirectory(ShippedAppFolder.FolderName(bundle));
         var files = ShippedAppFolder.ToFiles(bundle);

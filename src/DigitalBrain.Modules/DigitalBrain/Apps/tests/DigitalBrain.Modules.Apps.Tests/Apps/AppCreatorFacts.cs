@@ -197,9 +197,11 @@ public sealed class AppCreatorFacts
     }
 
     [Fact]
-    public void TheBuilderIsToldToWriteSynapsesAndNeverBehaviors()
+    public void TheBuilderIsToldToWriteFlatCsFilesAndNeverTheDeclaration()
     {
-        Assert.Contains("synapses/", AgentPrompts.Builder, StringComparison.Ordinal);
+        Assert.Contains("\"notify.cs\"", AgentPrompts.Builder, StringComparison.Ordinal);
+        Assert.Contains("app.cs", AgentPrompts.Builder, StringComparison.Ordinal);
+        Assert.DoesNotContain("synapses/", AgentPrompts.Builder, StringComparison.Ordinal);
         Assert.DoesNotContain("behaviors/", AgentPrompts.Builder, StringComparison.Ordinal);
     }
 

@@ -13,6 +13,6 @@ public sealed class OsCalculatorAppFacts
         Assert.Equal(["open", "clear"], bundle.Manifest.Operations.Select(operation => operation.Name));
         var clear = Assert.Single(bundle.Manifest.Toolbar!);
         Assert.Equal(("clear", "button", "backspace", "Clear"), (clear.Operation, clear.Kind, clear.Icon, clear.Label));
-        Assert.Contains("synapses/clear.cs", bundle.Files.Keys);
+        Assert.Contains("clear.cs", bundle.Files.Keys);
     }
 }

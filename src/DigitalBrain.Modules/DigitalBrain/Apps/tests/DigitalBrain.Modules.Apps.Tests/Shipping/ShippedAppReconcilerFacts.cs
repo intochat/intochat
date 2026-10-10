@@ -16,10 +16,10 @@ public sealed class ShippedAppReconcilerFacts : IDisposable
 
     public ShippedAppReconcilerFacts()
     {
-        Directory.CreateDirectory(Path.Combine(_root, "Greeter", "synapses"));
-        File.WriteAllText(Path.Combine(_root, "Greeter", "app.json"),
-            """{"name":"greeter","title":"Greeter","description":"Greets.","version":"1.2.0","operations":[{"name":"ask","description":"Greet"}],"settings":[]}""");
-        File.WriteAllText(Path.Combine(_root, "Greeter", "synapses", "greet.cs"), "// greet\n");
+        Directory.CreateDirectory(Path.Combine(_root, "Greeter"));
+        File.WriteAllText(Path.Combine(_root, "Greeter", "app.cs"),
+            Declarations.Of("greeter", "1.2.0", "Greeter", "Greets.", [new("ask", "Greet")]));
+        File.WriteAllText(Path.Combine(_root, "Greeter", "greet.cs"), "// greet\n");
     }
 
     public void Dispose() => Directory.Delete(_root, recursive: true);
@@ -50,7 +50,7 @@ public sealed class ShippedAppReconcilerFacts : IDisposable
         await catalog.SaveToSource("os", current with
         {
             Version = version,
-            Files = new(current.Files, StringComparer.Ordinal) { ["synapses/greet.cs"] = "// greet v2\n" },
+            Files = new(current.Files, StringComparer.Ordinal) { ["greet.cs"] = "// greet v2\n" },
         });
     }
 
@@ -69,7 +69,7 @@ public sealed class ShippedAppReconcilerFacts : IDisposable
 
         var after = await copy.Read();
         Assert.Equal("2.0.0", after.Version);
-        Assert.Equal("// greet v2\n", after.Files["synapses/greet.cs"]);
+        Assert.Equal("// greet v2\n", after.Files["greet.cs"]);
         Assert.Equal("2.0.0", after.Origin!.Version);
         Assert.IsType<AppSource.Shipped>(after.Origin.Source);
         Assert.False(after.Edited);
@@ -89,7 +89,7 @@ public sealed class ShippedAppReconcilerFacts : IDisposable
         var after = await copy.Read();
         Assert.True(after.Edited);
         Assert.Equal("1.2.1", after.Version);
-        Assert.Equal("// greet\n", after.Files["synapses/greet.cs"]);
+        Assert.Equal("// greet\n", after.Files["greet.cs"]);
         Assert.Equal("1.2.0", after.Origin!.Version);
     }
 
