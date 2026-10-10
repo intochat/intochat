@@ -7,7 +7,7 @@ public sealed class OsCalculatorAppFacts
     [Fact]
     public void TheCalculatorDeclaresAClearButtonAndTheSynapseThatAnswersIt()
     {
-        var bundle = new EmbeddedShippedAppSource(typeof(OsCatalog).Assembly, "DigitalBrain.OS.Apps/", "os").Load()
+        var bundle = SolutionProjects.FeaturesOf("os")
             .Single(app => app.Name == "calculator");
 
         Assert.Equal(["open", "clear"], bundle.Manifest.Operations.Select(operation => operation.Name));

@@ -17,10 +17,10 @@ public sealed class AppInstallerFacts
 
     private static Task<ModuleBrain> Start() => ModuleTest.Create().WithModule<AppsModule>().WithFakeAppRuntime(new()).StartAsync(Ct);
 
-    // A host that ships os/greeter 1.2.0 from the image.
-    private static Task<ModuleBrain> StartShipping() => ModuleTest.Create().WithModule<AppsModule>()
+    // A host whose features folder (AppsOptions.Features) holds os/greeter 1.2.0.
+    private static Task<ModuleBrain> StartShipping() => ModuleTest.Create()
+        .WithModule<AppsModule, AppsOptions>(options => options.Features = Path.Combine(AppContext.BaseDirectory, "FeatureFixture"))
         .WithFakeAppRuntime(new())
-        .ConfigureSilo(silo => silo.Services.AddShippedApps(typeof(AppInstallerFacts).Assembly, "ShippedFixture/", "os"))
         .StartAsync(Ct);
 
     private static AppInstaller Installer(ModuleBrain brain) => brain.SiloServices.GetRequiredService<AppInstaller>();
@@ -283,5 +283,41 @@ public sealed class AppInstallerFacts
         await Assert.ThrowsAsync<UnauthorizedAccessException>(app.Publish);
         Caller.Clear();
         Assert.Null(await brain.Get<IMarketplace>(IMarketplace.Key).Read("os", "echo"));
+    }
+
+    [Fact]
+    public async Task AnInstalledFeatureIsLoadedIntoTheKernelUnderItsOwner()
+    {
+        await using var brain = await StartShipping();
+        AppOwner.Stamp("alice");
+        await Installer(brain).Install("os", "greeter", Ct);
+        Caller.Clear();
+
+        var kernel = brain.SiloServices.GetRequiredService<DigitalBrain.Framework.IKernel>();
+        Assert.Equal(new DigitalBrain.Framework.Feature("greeter", "1.2.0", "os"), Assert.Single(await kernel.Features(AppOwner.Scope("alice"), Ct)));
+
+        await Mine(brain, "alice", "greeter").Delete();
+        Assert.Empty(await kernel.Features(AppOwner.Scope("alice"), Ct));
+    }
+
+    [Fact]
+    public async Task ASignalAFeatureDeclaresInASharedFileIsAKernelType()
+    {
+        await using var brain = await Start();
+        var app = Mine(brain, "alice");
+        await app.Create(Manifest(), Spec);
+        await app.BeginBuild(null);
+        await app.CompleteBuild(await app.CurrentBuildAttempt(), new()
+        {
+            ["echo.cs"] = "// v1",
+            ["echoed.cs"] = "namespace Echo;\npublic sealed record Echoed(string Text) : DigitalBrain.Signal;\n",
+        }, null);
+
+        AppOwner.Stamp("alice");
+        var types = await brain.SiloServices.GetRequiredService<DigitalBrain.Framework.IKernel>().Types(Ct);
+        Caller.Clear();
+        var echoed = Assert.Single(types, type => type.Name == "Echo.Echoed");
+        Assert.Equal((TypeKind.Signal, $"feature:{AppOwner.Scope("alice")}/echo"), (echoed.Kind, echoed.Provider));
+        Assert.Equal(["string Text"], echoed.Shape);
     }
 }

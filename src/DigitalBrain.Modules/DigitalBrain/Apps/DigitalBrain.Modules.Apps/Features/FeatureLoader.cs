@@ -1,0 +1,25 @@
+namespace DigitalBrain.Apps;
+
+// The one load path for a feature bundle into a brain, whatever the source: the features folder,
+// a person's Marketplace listing, or an app the Creator published. A new app is imported, an
+// existing one has its program replaced (settings, connections and data stay); either way the
+// copy remembers where it came from. Whether a load is allowed is the caller's policy.
+public sealed class FeatureLoader(IGrainFactory grains)
+{
+    public async Task<AppSnapshot> Load(string brain, string name, AppBundle bundle, AppOrigin origin, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(bundle);
+        ArgumentNullException.ThrowIfNull(origin);
+        using var span = FeatureCatalog.Telemetry.StartActivity("feature.assign");
+        span?.SetTag("feature.brain", brain);
+        span?.SetTag("feature.owner", origin.Publisher);
+        span?.SetTag("feature.name", name);
+        span?.SetTag("feature.version", bundle.Version);
+        var target = grains.GetGrain<IApp>(IApp.Key(brain, name));
+        var named = bundle with { Name = name };
+        if ((await target.Read().WaitAsync(ct)).Manifest.Title.Length == 0) { await target.Import(named).WaitAsync(ct); }
+        else { await target.Replace(named).WaitAsync(ct); }
+        await target.RecordOrigin(origin with { Version = bundle.Version }).WaitAsync(ct);
+        return await target.Read().WaitAsync(ct);
+    }
+}

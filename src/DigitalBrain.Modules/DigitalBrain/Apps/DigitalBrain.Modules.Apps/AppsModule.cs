@@ -22,12 +22,14 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
         ArgumentNullException.ThrowIfNull(silo);
         silo.Services.TryAddSingleton(TimeProvider.System);
         silo.AddIncomingGrainCallFilter<MarketplaceWriteGuard>();
+        silo.Services.TryAddSingleton(FeatureCatalog.From);
+        silo.Services.TryAddSingleton<FeatureLoader>();
         silo.Services.TryAddSingleton<MarketplaceView>();
         silo.Services.TryAddSingleton<AppInstaller>();
         silo.Services.TryAddSingleton<AppWorkQueue>();
         silo.Services.TryAddSingleton<AppAuthoringPolicy>();
         silo.Services.TryAddSingleton<Creator>();
-        silo.AddStartupTask<ShippedAppReconcileHost>();
+        silo.AddStartupTask<FeatureBoot>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppRuntime, CSharpAppRuntime>());
     }
 

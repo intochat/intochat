@@ -12,6 +12,10 @@ public sealed class AppsOptions : IModuleOptions
     // How long a Building status blocks a new build before it counts as a stale, dead attempt.
     public int BuildFreshForSeconds { get; set; } = 900;
 
+    // The features folder: {owner}/{App}/app.cs. The host loads it at boot and lists it in the
+    // Marketplace; a relative path resolves against the host's base directory. Unset: no features.
+    public string? Features { get; set; }
+
     public void Validate()
     {
         if (BuildFreshForSeconds < 0) { throw new InvalidOperationException("BuildFreshForSeconds cannot be negative."); }

@@ -5,33 +5,29 @@ using DigitalBrain.Modules.Apps.Tests.Runtimes;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace DigitalBrain.Apps.Tests.Shipping;
+namespace DigitalBrain.Apps.Tests.Features;
 
-// Every brain activation brings the brain's unedited shipped apps to the catalog's version; a copy the
+// Every brain activation brings the brain's unedited features to the features folder's version; a copy the
 // person edited, or that came from a person's brain, stays exactly as it is.
-public sealed class ShippedAppReconcilerFacts : IDisposable
+public sealed class FeatureReconcilerFacts : IDisposable
 {
     private static readonly CancellationToken Ct = TestContext.Current.CancellationToken;
     private readonly string _root = Directory.CreateTempSubdirectory("reconciler-").FullName;
 
-    public ShippedAppReconcilerFacts()
+    public FeatureReconcilerFacts()
     {
-        Directory.CreateDirectory(Path.Combine(_root, "Greeter"));
-        File.WriteAllText(Path.Combine(_root, "Greeter", "app.cs"),
+        Directory.CreateDirectory(Path.Combine(_root, "os", "Greeter"));
+        File.WriteAllText(Path.Combine(_root, "os", "Greeter", "app.cs"),
             Declarations.Of("greeter", "1.2.0", "Greeter", "Greets.", [new("ask", "Greet")]));
-        File.WriteAllText(Path.Combine(_root, "Greeter", "greet.cs"), "// greet\n");
+        File.WriteAllText(Path.Combine(_root, "os", "Greeter", "greet.cs"), "// greet\n");
     }
 
     public void Dispose() => Directory.Delete(_root, recursive: true);
 
-    // A host that ships os/greeter from a writable development folder, so a test can bump the catalog.
+    // A host whose writable features folder holds os/greeter, so a test can bump the catalog.
     private Task<ModuleBrain> Start() => ModuleTest.Create().WithModule<AppsModule>()
         .WithFakeAppRuntime(new())
-        .ConfigureSilo(silo =>
-        {
-            silo.Services.AddSingleton<IShippedAppSource>(new DirectoryShippedAppSource(_root, "os", development: true));
-            silo.Services.AddSingleton<ShippedCatalog>();
-        })
+        .ConfigureSilo(silo => silo.Services.AddSingleton(new FeatureCatalog(new FeatureDirectory(_root, writable: true))))
         .StartAsync(Ct);
 
     private static async Task<IApp> Installed(ModuleBrain brain)
@@ -45,7 +41,7 @@ public sealed class ShippedAppReconcilerFacts : IDisposable
     // Writes a newer bundle back to the folder and reloads the catalog, so the catalog outruns the copy.
     private static async Task ShipNewerVersion(ModuleBrain brain, string version = "2.0.0")
     {
-        var catalog = brain.SiloServices.GetRequiredService<ShippedCatalog>();
+        var catalog = brain.SiloServices.GetRequiredService<FeatureCatalog>();
         var current = (await catalog.Find("os", "greeter"))!;
         await catalog.SaveToSource("os", current with
         {
@@ -54,8 +50,8 @@ public sealed class ShippedAppReconcilerFacts : IDisposable
         });
     }
 
-    private static IShippedAppReconciler Reconciler(ModuleBrain brain)
-        => brain.Get<IShippedAppReconciler>(IShippedAppReconciler.Key(AppOwner.Scope("alice")));
+    private static IFeatureReconciler Reconciler(ModuleBrain brain)
+        => brain.Get<IFeatureReconciler>(IFeatureReconciler.Key(AppOwner.Scope("alice")));
 
     [Fact(Timeout = 60_000)]
     public async Task ReconcilingPutsAnOlderUneditedShippedAppOnTheCatalogVersion()

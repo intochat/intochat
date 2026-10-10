@@ -60,6 +60,28 @@ public sealed class Kernel(IGrainFactory grains) : IKernel
         return grains.GetGrain<IInstanceDirectory>(InstanceDirectoryKey.Of(brain, type)).Retire(key).WaitAsync(cancellationToken);
     }
 
+    public Task<Feature[]> Features(string brain, CancellationToken cancellationToken = default)
+        => TypeTable(brain).Features().WaitAsync(cancellationToken);
+
+    public Task LoadFeature(string brain, Feature feature, TypeEntry[] types, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(feature);
+        ArgumentNullException.ThrowIfNull(types);
+        return TypeTable(brain).Load(feature, types).WaitAsync(cancellationToken);
+    }
+
+    public Task UnloadFeature(string brain, string name, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        return TypeTable(brain).Unload(name).WaitAsync(cancellationToken);
+    }
+
+    private ITypeTable TypeTable(string brain)
+    {
+        if (!BrainScope.IsValidId(brain)) { throw new ArgumentException($"'{brain}' is not a brain id.", nameof(brain)); }
+        return grains.GetGrain<ITypeTable>(brain);
+    }
+
     // A contract's default grain type; a contract several grains implement has none and is refused.
     public string TypeOf(Type contract)
     {

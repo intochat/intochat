@@ -331,6 +331,7 @@ internal sealed class AppNeuron(
         next.Origin = origin;
         next.Edited = false;
         await Persist(next);
+        await RecordFeature();
     }
 
 
@@ -340,9 +341,8 @@ internal sealed class AppNeuron(
         if (ServiceProvider.GetService<IHostEnvironment>() is not { } environment || !environment.IsDevelopment())
         { throw new InvalidOperationException("Save to source is only available in development."); }
         if (Snapshot.Origin is not { Source: AppSource.Shipped } origin)
-        { throw new InvalidOperationException($"{Name()} is not a copy of a shipped app, so it has no source to save to."); }
-        var catalog = ServiceProvider.GetService<ShippedCatalog>()
-            ?? throw new InvalidOperationException("This host ships no apps.");
+        { throw new InvalidOperationException($"{Name()} is not a copy of a feature from the features folder, so it has no source to save to."); }
+        var catalog = ServiceProvider.GetRequiredService<FeatureCatalog>();
         var exported = await Export();
         var shipped = await catalog.Find(origin.Publisher, origin.Name);
         var version = Bump(Newest(exported.Version, shipped?.Version ?? exported.Version), minor: false);
@@ -370,6 +370,7 @@ internal sealed class AppNeuron(
         { await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).Remove(publisher, Name()); }
         // Everything the app owns goes with it: its program, then its storage.
         if (Runtime is { } runtime) { await runtime.Retire(key, CancellationToken.None); }
+        if (ServiceProvider.GetService<IKernel>() is { } kernel) { await kernel.UnloadFeature(BrainId(), Name()); }
         foreach (var hook in storageHooks) { await hook.OnRetired(Snapshot.BrainScopeId ?? "", key, CancellationToken.None); }
         // Clearing the record ends the app's existence: the kernel retires the instance.
         var gone = new AppState();
@@ -411,10 +412,20 @@ internal sealed class AppNeuron(
     // The whole program, every time: the runtime decides what changed. No program means nothing runs.
     private async Task Deploy()
     {
+        await RecordFeature();
         if (Runtime is not { } runtime) { return; }
         var sources = Sources(Snapshot);
         if (sources.Count == 0) { await runtime.Retire(this.GetPrimaryKeyString(), CancellationToken.None); return; }
         await runtime.Deploy(this.GetPrimaryKeyString(), sources, Configuration(Snapshot), CancellationToken.None);
+    }
+
+    // Every program assignment lands in the kernel as this brain's feature, whatever its source:
+    // the features folder, the Marketplace or the Creator. Owner is where it came from.
+    private async Task RecordFeature()
+    {
+        if (ServiceProvider.GetService<IKernel>() is not { } kernel || Snapshot.Manifest is null || BrainId().Length == 0) { return; }
+        var feature = new Feature(Name(), Snapshot.Version, Snapshot.Origin?.Publisher ?? BrainId());
+        await kernel.LoadFeature(BrainId(), feature, FeatureTypes.Of(Sources(Snapshot), feature.Provider));
     }
 
     // The program reads brain.Setting("App") to find this neuron, brain.Setting(name) for each

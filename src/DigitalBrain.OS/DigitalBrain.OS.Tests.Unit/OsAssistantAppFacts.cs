@@ -7,7 +7,7 @@ public sealed class OsAssistantAppFacts
     [Fact]
     public void TheShippedAssistantDeclaresItsOperationsIconAndSynapses()
     {
-        var bundle = new EmbeddedShippedAppSource(typeof(OsCatalog).Assembly, "DigitalBrain.OS.Apps/", "os").Load()
+        var bundle = SolutionProjects.FeaturesOf("os")
             .Single(app => app.Name == "assistant");
 
         Assert.Equal(["open", "send", "new", "voice"], bundle.Manifest.Operations.Select(operation => operation.Name));
@@ -22,7 +22,7 @@ public sealed class OsAssistantAppFacts
     [Fact]
     public void TheAssistantToolbarIsATextFieldAndAVoiceButton()
     {
-        var bundle = new EmbeddedShippedAppSource(typeof(OsCatalog).Assembly, "DigitalBrain.OS.Apps/", "os").Load()
+        var bundle = SolutionProjects.FeaturesOf("os")
             .Single(app => app.Name == "assistant");
 
         Assert.Equal([("send", "text", null), ("voice", "button", "mic")],
@@ -32,7 +32,7 @@ public sealed class OsAssistantAppFacts
     [Fact]
     public void TheShippedAssistantDeclaresTheRouteGateSetting()
     {
-        var bundle = new EmbeddedShippedAppSource(typeof(OsCatalog).Assembly, "DigitalBrain.OS.Apps/", "os").Load()
+        var bundle = SolutionProjects.FeaturesOf("os")
             .Single(app => app.Name == "assistant");
 
         var gate = Assert.Single(bundle.Manifest.Settings, setting => setting.Name == "RouteGate");

@@ -75,7 +75,7 @@ Related, earlier in the same conversation:
 
 ### 2.2 Implemented status (2026-10-10)
 
-Phases 1�5 are done on `os-runtime`; Phase 6 (features load through the kernel) is pending design.
+Phases 1-6 are done on `os-runtime` (6b implemented, uncommitted, 2026-10-10).
 Where the code deviates from this spec:
 
 - **Key grammar:** only `/` separates a brain from the rest of a key. UI parts are `{brain}/ui/{name}`
@@ -89,6 +89,16 @@ Where the code deviates from this spec:
 - **Access:** declared on contracts as `[Public]`, `[Shared]`, `[Internal]`, `[PerAccount]` (else the
   owner rule), enforced once by `NeuronCallFilter`, on `INeuron` contracts only.
 - **MCP** still loads contract DLLs to make calls; it reads types from the kernel.
+- **Features (6b):** first-party apps are `./features/{owner}/{App}/` (owner = account: `os`, `intochat`),
+  configured as `DigitalBrain:Modules:apps:Options:Features` (AppHost passes the repo folder; the image
+  publishes a copy at `{app}/features`). `FeatureCatalog` loads and compile-checks it at boot
+  (`feature.load` spans); `FeatureLoader` is the one bundle-to-`IApp` path (Install, Update, reconcile);
+  `ShippedCatalog`, the embedded/directory sources and `Shipped:{vendor}` config are gone. The app neuron
+  records every program assignment (folder, Marketplace, Creator) as a kernel feature:
+  `IKernel.Features/LoadFeature/UnloadFeature` on the `kernel.typetable` grain, which also lists public
+  `Signal` records from the bundle's shared files in `Types()` (Provider `feature:{owner}/{name}`) and
+  announces new ones as `TypeAdded`. `Features` is platform-side only (not on `IKernelView`).
+  `digitalbrain.cs` launches the AppHost (`dotnet run --project`), it does not host it.
 
 ## 3. Target model
 

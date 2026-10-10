@@ -7,5 +7,5 @@
   </ItemGroup>
   <ItemGroup><ProjectReference Include="../../../../Time/DigitalBrain.Modules.Time/DigitalBrain.Modules.Time.csproj" /></ItemGroup>
   <ItemGroup><Using Include="DigitalBrain.Testing.Module" /></ItemGroup>
-  <ItemGroup><Compile Remove="ShippedFixture/**" /><EmbeddedResource Include="ShippedFixture/**" LogicalName="ShippedFixture/%(RecursiveDir)%(Filename)%(Extension)" /></ItemGroup>
+  <ItemGroup><Compile Remove="FeatureFixture/**" /><None Include="FeatureFixture/**" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
 </Project>

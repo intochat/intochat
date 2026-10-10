@@ -16,10 +16,10 @@ public sealed class SaveToSourceFacts : IDisposable
 
     public SaveToSourceFacts()
     {
-        Directory.CreateDirectory(Path.Combine(_root, "Greeter"));
-        File.WriteAllText(Path.Combine(_root, "Greeter", "app.cs"),
+        Directory.CreateDirectory(Path.Combine(_root, "intochat", "Greeter"));
+        File.WriteAllText(Path.Combine(_root, "intochat", "Greeter", "app.cs"),
             Declarations.Of("greeter", "1.2.0", "Greeter", "Greets.", [new("ask", "Greet")]));
-        File.WriteAllText(Path.Combine(_root, "Greeter", "greet.cs"), "// greet\n");
+        File.WriteAllText(Path.Combine(_root, "intochat", "Greeter", "greet.cs"), "// greet\n");
     }
 
     public void Dispose() => Directory.Delete(_root, recursive: true);
@@ -28,8 +28,7 @@ public sealed class SaveToSourceFacts : IDisposable
         .WithFakeAppRuntime(new())
         .ConfigureSilo(silo =>
         {
-            silo.Services.AddSingleton<IShippedAppSource>(new DirectoryShippedAppSource(_root, "intochat", development: true));
-            silo.Services.AddSingleton<ShippedCatalog>();
+            silo.Services.AddSingleton(new FeatureCatalog(new FeatureDirectory(_root, writable: true)));
             silo.Services.AddSingleton<IHostEnvironment>(new Environment(environment));
         })
         .StartAsync(Ct);
@@ -53,14 +52,14 @@ public sealed class SaveToSourceFacts : IDisposable
 
         var saved = await copy.SaveToSource();
 
-        Assert.Equal("// greet warmly\n", File.ReadAllText(Path.Combine(_root, "Greeter", "greet.cs")));
-        Assert.Contains("Version = \"1.2.2\"", File.ReadAllText(Path.Combine(_root, "Greeter", "app.cs")), StringComparison.Ordinal);
+        Assert.Equal("// greet warmly\n", File.ReadAllText(Path.Combine(_root, "intochat", "Greeter", "greet.cs")));
+        Assert.Contains("Version = \"1.2.2\"", File.ReadAllText(Path.Combine(_root, "intochat", "Greeter", "app.cs")), StringComparison.Ordinal);
         Assert.Equal("1.2.2", saved.Version);
         Assert.Equal(new AppOrigin("intochat", new AppSource.Shipped(), "greeter", "1.2.2"), saved.Origin);
         Assert.False(saved.Edited);
-        var listing = Assert.Single(await brain.SiloServices.GetRequiredService<ShippedCatalog>().Listings());
+        var listing = Assert.Single(await brain.SiloServices.GetRequiredService<FeatureCatalog>().Listings());
         Assert.Equal("1.2.2", listing.Version);
-        Assert.Equal("// greet warmly\n", (await brain.SiloServices.GetRequiredService<ShippedCatalog>().Find("intochat", "greeter"))!.Files["greet.cs"]);
+        Assert.Equal("// greet warmly\n", (await brain.SiloServices.GetRequiredService<FeatureCatalog>().Find("intochat", "greeter"))!.Files["greet.cs"]);
     }
 
     [Fact]
@@ -70,7 +69,7 @@ public sealed class SaveToSourceFacts : IDisposable
         var copy = await InstalledAndEdited(brain);
 
         await Assert.ThrowsAsync<InvalidOperationException>(copy.SaveToSource);
-        Assert.Equal("// greet\n", File.ReadAllText(Path.Combine(_root, "Greeter", "greet.cs")));
+        Assert.Equal("// greet\n", File.ReadAllText(Path.Combine(_root, "intochat", "Greeter", "greet.cs")));
         Assert.True((await copy.Read()).Edited);
     }
 
@@ -83,7 +82,7 @@ public sealed class SaveToSourceFacts : IDisposable
         await app.RecordOrigin(new AppOrigin("bob", new AppSource.Brain("account-bob", "bob"), "greeter", "1.0.0"));
 
         await Assert.ThrowsAsync<InvalidOperationException>(app.SaveToSource);
-        Assert.Equal("// greet\n", File.ReadAllText(Path.Combine(_root, "Greeter", "greet.cs")));
+        Assert.Equal("// greet\n", File.ReadAllText(Path.Combine(_root, "intochat", "Greeter", "greet.cs")));
     }
 
     private sealed class Environment(string name) : IHostEnvironment

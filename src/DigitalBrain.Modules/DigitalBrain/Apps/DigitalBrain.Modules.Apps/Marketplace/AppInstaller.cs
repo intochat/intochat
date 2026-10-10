@@ -2,10 +2,10 @@ using DigitalBrain.Framework;
 
 namespace DigitalBrain.Apps;
 
-// The one way an app crosses brains: copy a listed bundle into the caller's brain and remember
-// where it came from. A person's bundle is read through ExportPublished, which is public; a shipped
-// one comes from the catalog. Install needs no authority beyond the caller's own brain.
-public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketplace, ShippedCatalog? catalog = null)
+// The one way an app crosses brains: a listed bundle goes into the caller's brain through the
+// feature loader. A person's bundle is read through ExportPublished, which is public; a feature
+// comes from the features folder. Install needs no authority beyond the caller's own brain.
+public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketplace, FeatureCatalog catalog, FeatureLoader loader)
 {
     public async Task<AppSnapshot> Install(string publisher, string name, CancellationToken ct)
     {
@@ -17,14 +17,13 @@ public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketpla
         if ((await target.Read().WaitAsync(ct)).Manifest.Title.Length > 0)
         { throw new InvalidOperationException($"You already have an app named {name}."); }
         var bundle = await Bundle(listing.Source, listing.Publisher, name, ct);
-        await target.Import(bundle).WaitAsync(ct);
-        await target.RecordOrigin(new(listing.Publisher, listing.Source, name, bundle.Version)).WaitAsync(ct);
-        return await target.Read().WaitAsync(ct);
+        return await loader.Load(scope, name, bundle, new(listing.Publisher, listing.Source, name, bundle.Version), ct);
     }
 
     public async Task<AppSnapshot> Update(string name, CancellationToken ct)
     {
-        var target = grains.GetGrain<IApp>(IApp.Key(BrainScope.CurrentId(), name));
+        var scope = BrainScope.CurrentId();
+        var target = grains.GetGrain<IApp>(IApp.Key(scope, name));
         var current = await target.Read().WaitAsync(ct);
         if (current.Origin is not { } origin)
         { throw new InvalidOperationException($"{name} was not installed from the Marketplace."); }
@@ -33,10 +32,7 @@ public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketpla
         var listing = await marketplace.Read(origin.Publisher, origin.Name, ct) ?? throw Gone(origin.Source, origin.Publisher, origin.Name);
         if (AppVersions.Compare(listing.Version, origin.Version) <= 0) { return current; }
         var bundle = await Bundle(origin.Source, origin.Publisher, origin.Name, ct);
-        // Replace swaps the program in place: settings, connections and stored data stay.
-        await target.Replace(bundle with { Name = name }).WaitAsync(ct);
-        await target.RecordOrigin(origin with { Version = bundle.Version }).WaitAsync(ct);
-        return await target.Read().WaitAsync(ct);
+        return await loader.Load(scope, name, bundle, origin, ct);
     }
 
     public async Task<MarketplaceEntry> Entry(MarketplaceListing listing, CancellationToken ct)
@@ -50,14 +46,14 @@ public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketpla
         return new(listing, installed, update);
     }
 
-    // The published bundle a source holds: a person's brain or the shipped catalog.
+    // The published bundle a source holds: a person's brain or the features folder.
     public async Task<AppBundle> Bundle(AppSource source, string publisher, string name, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(source);
         return source switch
         {
             AppSource.Brain => await grains.GetGrain<IApp>(IApp.Key(source.Scope()!, name)).ExportPublished().WaitAsync(ct),
-            AppSource.Shipped => (catalog is null ? null : await catalog.Find(publisher, name)) ?? throw Gone(source, publisher, name),
+            AppSource.Shipped => await catalog.Find(publisher, name) ?? throw Gone(source, publisher, name),
             _ => throw new NotSupportedException($"Unknown app source {source.GetType().Name}."),
         };
     }

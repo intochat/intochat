@@ -28,11 +28,11 @@ using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Aspire.Hosting;
 using Microsoft.Extensions.Configuration;
 
-// The AppHost owns its deployment keys: the published ports and the IntoChat vendor's shipped-apps binding (leaves under
-// ShippedAppsServiceCollectionExtensions.ConfigurationSection).
+// The AppHost owns its deployment keys: the published ports, and the features folder it hands the OS
+// (the apps module's Features option, under DigitalBrainConfiguration.ModuleOptionsSection).
 const string UiPortKey = "DigitalBrain:Http:UiPort";
 const string McpPortKey = "DigitalBrain:Http:McpPort";
-const string IntoChatShippedAppsKey = "DigitalBrain:Modules:apps:Shipped:intochat";
+var featuresKey = DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.ModuleOptionsSection("apps") + ":Features";
 
 var builder = DistributedApplication.CreateBuilder(args);
 // `aspire run -- --DigitalBrain:Profile local` composes profiles/*.json; dev is today's composition.
@@ -65,11 +65,12 @@ var digitalBrain = builder.AddDigitalBrain("Modules", DigitalBrainHostingOptions
 
 var cookieProtection = digitalBrain.AddBlobContainer(digitalBrain.Identity!.ProtectionContainerName);
 
-var intoChatApps = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "IntoChat", "Apps"));
+// The repository's ./features: os and intochat apps, loaded by the OS at boot.
+var features = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..", "features"));
 
 var runtime = builder.AddProject<Projects.DigitalBrain_OS>("OperatingSystem")
     .WithReference(digitalBrain)
-    .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(IntoChatShippedAppsKey + ":Path"), intoChatApps)
+    .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features)
     .WaitFor(cookieProtection)
     .WithHttpEndpoint(
         port: builder.Configuration.GetValue(UiPortKey, 5080),

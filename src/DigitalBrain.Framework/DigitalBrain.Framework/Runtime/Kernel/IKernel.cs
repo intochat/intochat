@@ -13,4 +13,12 @@ public interface IKernel : IKernelView
     // State belongs to the neuron and is cleared through its own storage (which retires it on its
     // own); this drops the directory entry and announces InstanceRetired.
     Task Retire(string type, string key, CancellationToken cancellationToken = default);
+
+    // The features loaded into a brain. The app neuron records its own program here whenever it is
+    // assigned, so features from disk, the Marketplace and the Creator land the same way.
+    Task<Feature[]> Features(string brain, CancellationToken cancellationToken = default);
+
+    Task LoadFeature(string brain, Feature feature, TypeEntry[] types, CancellationToken cancellationToken = default);
+
+    Task UnloadFeature(string brain, string name, CancellationToken cancellationToken = default);
 }

@@ -25,7 +25,7 @@ public sealed class SelfImproveFacts
         {
             branch = "os-runtime",
             summary = "Calculator: add percent",
-            files = new Dictionary<string, string> { ["src/DigitalBrain.OS/Apps/Calculator/app.cs"] = "// Calculator\n" },
+            files = new Dictionary<string, string> { ["features/os/Calculator/app.cs"] = "// Calculator\n" },
             plan = new
             {
                 calls = new[] { new { contract = "DigitalBrain.Apps.IApp", key = appKey, method = "Read", arguments = "[]", expected = "\"Name\":\"selfimprove\"" } },

@@ -2,9 +2,9 @@ using DigitalBrain.Apps;
 
 namespace DigitalBrain.Modules.Apps.Tests;
 
-public sealed class ShippedCatalogFacts : IDisposable
+public sealed class FeatureCatalogFacts : IDisposable
 {
-    private readonly string _root = Directory.CreateTempSubdirectory("shipped-catalog-").FullName;
+    private readonly string _root = Directory.CreateTempSubdirectory("feature-catalog-").FullName;
 
     public void Dispose() => Directory.Delete(_root, recursive: true);
 
@@ -17,18 +17,24 @@ public sealed class ShippedCatalogFacts : IDisposable
 
     private void WriteEcho(string body = "// echo\n")
     {
-        Write("Echo/app.cs", Declarations.Of("echo", "2.0.0", "Echo", "Echoes."));
-        Write("Echo/echo.cs", body);
+        Write("intochat/Echo/app.cs", Declarations.Of("echo", "2.0.0", "Echo", "Echoes."));
+        Write("intochat/Echo/echo.cs", body);
     }
 
-    private EmbeddedShippedAppSource Embedded(string publisher)
-        => new(typeof(ShippedCatalogFacts).Assembly, "ShippedFixture/", publisher);
+    private void WriteGreeter(string owner, string folder = "Greeter")
+    {
+        Write($"{owner}/{folder}/app.cs", Declarations.Of("greeter", "1.2.0", "Greeter", "Greets."));
+        Write($"{owner}/{folder}/greet.cs", "// greet\n");
+    }
+
+    private FeatureCatalog Catalog(IScriptSandbox? sandbox = null) => new(new FeatureDirectory(_root), sandbox);
 
     [Fact]
-    public async Task TheCatalogListsEmbeddedAndDirectoryAppsAsShipped()
+    public async Task TheCatalogListsEveryOwnersFeaturesAsShipped()
     {
         WriteEcho();
-        var catalog = new ShippedCatalog([Embedded("os"), new DirectoryShippedAppSource(_root, "intochat")], new Sandbox(success: true));
+        WriteGreeter("os");
+        var catalog = Catalog(new Sandbox(success: true));
 
         var listings = await catalog.Listings();
 
@@ -38,31 +44,39 @@ public sealed class ShippedCatalogFacts : IDisposable
         Assert.Equal("// greet\n", (await catalog.Find("os", "greeter"))!.Files["greet.cs"]);
         Assert.Equal("// echo\n", (await catalog.Find("intochat", "echo"))!.Files["echo.cs"]);
         Assert.Null(await catalog.Find("intochat", "greeter"));
+        Assert.True(await catalog.IsOwner("os"));
+        Assert.False(await catalog.IsOwner("alice"));
     }
 
     [Fact]
-    public async Task TheSameAppShippedTwiceUnderOnePublisherIsRefused()
+    public async Task TheSameAppTwiceUnderOneOwnerIsRefused()
     {
-        var catalog = new ShippedCatalog([Embedded("os"), Embedded("os")]);
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(catalog.Listings);
+        WriteGreeter("os");
+        WriteGreeter("os", "GreeterAgain");
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(Catalog().Listings);
         Assert.Contains("os/greeter", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task OneAppNameUnderTwoPublishersIsTwoApps()
+    public async Task OneAppNameUnderTwoOwnersIsTwoApps()
     {
-        var catalog = new ShippedCatalog([Embedded("os"), Embedded("intochat")]);
-        Assert.Equal(2, (await catalog.Listings()).Count);
+        WriteGreeter("os");
+        WriteGreeter("intochat");
+        Assert.Equal(2, (await Catalog().Listings()).Count);
     }
 
     [Fact]
     public async Task ABundleThatDoesNotCompileNeverReachesTheCatalog()
     {
         WriteEcho("this is not C#");
-        var catalog = new ShippedCatalog([new DirectoryShippedAppSource(_root, "intochat")], new Sandbox(success: false));
+        var catalog = Catalog(new Sandbox(success: false));
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => catalog.Find("intochat", "echo"));
         Assert.Contains("intochat/echo 2.0.0 does not compile", error.Message, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task AHostWithNoFeaturesFolderHasNoFeatures()
+        => Assert.Empty(await new FeatureCatalog(null).Listings());
 
     private sealed class Sandbox(bool success) : IScriptSandbox
     {

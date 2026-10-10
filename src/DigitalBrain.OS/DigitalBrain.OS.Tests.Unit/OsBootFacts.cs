@@ -5,15 +5,15 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DigitalBrain.OS.Tests.Unit;
 
-// A new brain is born with the OS defaults, installed as its owner from the shipped catalog.
+// A new brain is born with the OS defaults, installed as its owner from the features folder.
 public sealed class OsBootFacts
 {
     [Fact(Timeout = 60_000)]
-    public async Task AFreshBrainHasTheOsAppsInstalledFromTheShippedCatalog()
+    public async Task AFreshBrainHasTheOsAppsInstalledFromTheFeaturesFolder()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create()
-            .WithModule<AppsModule>()
+            .WithModule<AppsModule, AppsOptions>(options => options.Features = SolutionProjects.Features)
             .ConfigureSilo(silo =>
             {
                 silo.Services.RemoveAll<IAppRuntime>();
@@ -66,8 +66,7 @@ public sealed class OsBootFacts
         .ConfigureSilo(silo =>
         {
             silo.Services.RemoveAll<IAppRuntime>();
-            silo.Services.AddSingleton<IShippedAppSource>(new HelloSource());
-            silo.Services.AddSingleton<ShippedCatalog>();
+            silo.Services.AddSingleton(new FeatureCatalog(new FeatureDirectory(HelloFeatures())));
             silo.Services.AddOperatingSystemBoot(os => { foreach (var app in defaults) { os.Apps.Add(app); } });
         })
         .StartAsync(ct);
@@ -88,11 +87,15 @@ public sealed class OsBootFacts
         return scope;
     }
 
-    private sealed class HelloSource : IShippedAppSource
+    // A features folder holding os/hello, written once per run.
+    private static string HelloFeatures()
     {
-        public string Publisher => "os";
-        public IReadOnlyList<AppBundle> Load() =>
-        [new("hello", "1.0.0", new("Hello", "Shows hello world", [new("open", "Open")], [new("Greeting", "what to say", "hello")], []),
-            "## Scenario: Greets\nIt greets.", new() { ["synapses/hello.cs"] = "// b" })];
+        var root = Directory.CreateTempSubdirectory("os-boot-features-").FullName;
+        var folder = Directory.CreateDirectory(Path.Combine(root, "os", "Hello")).FullName;
+        File.WriteAllText(Path.Combine(folder, AppFiles.DeclarationPath), AppDeclaration.Write(new("hello", "1.0.0",
+            new("Hello", "Shows hello world", [new("open", "Open")], [new("Greeting", "what to say", "hello")], []), "## Scenario: Greets" + Environment.NewLine + "It greets.")));
+        Directory.CreateDirectory(Path.Combine(folder, "synapses"));
+        File.WriteAllText(Path.Combine(folder, "synapses", "hello.cs"), "// b");
+        return root;
     }
 }

@@ -7,12 +7,11 @@ namespace DigitalBrain.OS.Tests.Unit;
 
 public sealed class OsShippedAppFacts
 {
-    private static readonly EmbeddedShippedAppSource Source = new(typeof(OsCatalog).Assembly, "DigitalBrain.OS.Apps/", "os");
 
     [Fact]
     public void TheOperatingSystemShipsSettings()
     {
-        Assert.Equal(["assistant", "calculator", "datavisualizer", "filmcraft", "photocraft", "router", "selfimprove", "settings"], Source.Load().Select(app => app.Name).Order());
+        Assert.Equal(["assistant", "calculator", "datavisualizer", "filmcraft", "photocraft", "router", "selfimprove", "settings"], SolutionProjects.FeaturesOf("os").Select(app => app.Name).Order());
     }
 
     [Fact]
@@ -28,7 +27,7 @@ public sealed class OsShippedAppFacts
     [Fact]
     public void EveryOsProgramCompilesAgainstCurrentContracts()
     {
-        foreach (var app in Source.Load())
+        foreach (var app in SolutionProjects.FeaturesOf("os"))
         {
             var sources = new Dictionary<string, string>(app.Files.Where(file => AppFiles.IsProgram(file.Key)));
             var result = new CSharpScriptCheck().Compile(sources);

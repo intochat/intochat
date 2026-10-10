@@ -57,8 +57,8 @@ public sealed class AppManifestFacts
         var root = Directory.CreateTempSubdirectory("toolbar-manifest-").FullName;
         try
         {
-            Directory.CreateDirectory(Path.Combine(root, "player"));
-            File.WriteAllText(Path.Combine(root, "player", "app.cs"), """
+            Directory.CreateDirectory(Path.Combine(root, "vendor", "player"));
+            File.WriteAllText(Path.Combine(root, "vendor", "player", "app.cs"), """
                 using DigitalBrain.Apps;
                 static class App
                 {
@@ -72,11 +72,11 @@ public sealed class AppManifestFacts
                                   new("volume", Kind: AppToolbarKinds.Slider, Icon: "volume", Min: 0, Max: 100)]);
                 }
                 """);
-            var bundle = Assert.Single(new DirectoryShippedAppSource(root, "vendor").Load());
+            var bundle = Assert.Single(new FeatureDirectory(root).Load()).Bundle;
 
             Assert.Equal([("play", "button", null), ("volume", "slider", 100d)],
                 bundle.Manifest.Toolbar!.Select(entry => (entry.Operation, entry.Kind, entry.Max)));
-            Assert.Contains("Toolbar:", ShippedAppFolder.ToFiles(bundle)["app.cs"], StringComparison.Ordinal);
+            Assert.Contains("Toolbar:", FeatureFolder.ToFiles(bundle)["app.cs"], StringComparison.Ordinal);
         }
         finally { Directory.Delete(root, recursive: true); }
     }
@@ -87,8 +87,8 @@ public sealed class AppManifestFacts
         var root = Directory.CreateTempSubdirectory("toolbar-bad-").FullName;
         try
         {
-            Directory.CreateDirectory(Path.Combine(root, "player"));
-            File.WriteAllText(Path.Combine(root, "player", "app.cs"), """
+            Directory.CreateDirectory(Path.Combine(root, "vendor", "player"));
+            File.WriteAllText(Path.Combine(root, "vendor", "player", "app.cs"), """
                 using DigitalBrain.Apps;
                 static class App
                 {
@@ -97,7 +97,7 @@ public sealed class AppManifestFacts
                     public static readonly AppManifest Manifest = new("Player", "plays", [], [], [], Toolbar: [new("play")]);
                 }
                 """);
-            Assert.Throws<InvalidDataException>(() => new DirectoryShippedAppSource(root, "vendor").Load());
+            Assert.Throws<InvalidDataException>(() => new FeatureDirectory(root).Load());
         }
         finally { Directory.Delete(root, recursive: true); }
     }

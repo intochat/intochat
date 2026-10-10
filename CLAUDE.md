@@ -42,7 +42,12 @@ Three framework rings, one per consumer — the project graph mirrors script vis
 | `src/DigitalBrain.Platform` | host composers only | Kernel/credential implementation: plain grains, not neurons, so no edge can address them. |
 
 The OS host is `src/DigitalBrain.OS` (`OsCatalog` composes the modules); `src/DigitalBrain.AppHost` runs it
-under Aspire with the `digitalbrain-mcp` server.
+under Aspire with the `digitalbrain-mcp` server. `dotnet run digitalbrain.cs` from the repo root starts it
+(a file-based launcher for the AppHost; arguments after `--` go to the AppHost).
+
+First-party apps live in `features/{owner}/{App}/` at the repo root (`features/os`, `features/intochat`;
+the folder name under `features/` is the owner account). The AppHost passes that folder as
+`DigitalBrain:Modules:apps:Options:Features`; the published image carries a copy at `{app}/features`.
 
 ### Module shape
 
@@ -98,11 +103,14 @@ Inside the neuron the manifest and spec are state; `app.cs` is how a bundle/fold
   inside the grain, with a watermark. Script processes are caches: they get reaped and re-run from the
   top. So setup must be cheap and idempotent, state lives in neurons, delivery is at-least-once (dedup
   through neuron state), and derived state is rebuilt from scratch rather than patched.
-- **Publish → Marketplace → Install.** Install is the only way an app crosses brains. It copies the
+- **Publish → Marketplace → Install.** Install is the only way an app crosses brains. Every bundle
+  (features folder, Marketplace, Creator publish) loads through one path, `FeatureLoader`: it copies the
   bundle, records `Origin`, and binds settings and slots to the installer's own connections. Updates
   replace the program and keep the data. Editing the program detaches the copy from its origin.
-  First-party apps (`os`, `intochat` accounts) ship from `src/DigitalBrain.OS/Apps` and
-  `src/IntoChat/Apps`, and are published at startup.
+  First-party apps are the `./features` folder: loaded and compile-checked at boot (`FeatureCatalog`),
+  listed in the Marketplace under their owner, installed as OS defaults, and brought to the folder's
+  version on every brain activation (`FeatureReconciler`). Every program assignment is recorded in the
+  kernel as a feature (`IKernel.Features`, its signal types in `Types()`).
 
 Open design fronts (don't improvise): cross-app subscription scopes, renderable palette / UiPart,
 run-token tightening.
@@ -147,7 +155,8 @@ A change is done only when the running system shows it. Unit tests catch regress
 prove the feature works.
 
 1. **Build clean.** LSP diagnostics show no errors, then build each affected project.
-2. **Run it.** Start the app with `aspire run` from `src/DigitalBrain.AppHost`. Then call
+2. **Run it.** Start the app with `dotnet run digitalbrain.cs` from the repo root (or `aspire run` from
+   `src/DigitalBrain.AppHost`). Then call
    `mcp__aspire__list_resources`: every resource must be Running/Healthy. If one isn't, read
    `list_console_logs` for it before doing anything else.
 3. **Drive it through `digitalbrain-mcp`** (`localhost:5081/mcp`; `/brains/{brainId}/mcp` selects a brain):

@@ -17,8 +17,11 @@ internal static class SolutionProjects
         return Path.GetFullPath(Path.Combine(Root, Path.GetDirectoryName(entry)!));
     }
 
-    // The AppHost hands the OS IntoChat's bundles from the directory beside its own (AppHost.cs).
-    internal static string IntoChatApps => Path.GetFullPath(Path.Combine(DirectoryOf("DigitalBrain.AppHost"), "..", "IntoChat", "Apps"));
+    // The AppHost hands the OS the repository's features folder (AppHost.cs): {owner}/{App}/app.cs.
+    internal static string Features => Path.Combine(Root, "features");
+
+    internal static IReadOnlyList<DigitalBrain.Apps.AppBundle> FeaturesOf(string owner)
+        => [.. new DigitalBrain.Apps.FeatureDirectory(Features).Load().Where(feature => feature.Owner == owner).Select(feature => feature.Bundle)];
 
     private static string FindRoot()
     {

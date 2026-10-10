@@ -50,8 +50,7 @@ public sealed class BrainRuntimeFacts(ReferenceBrainFixture host) : BrainFact(ho
     {
         var ct = TestContext.Current.CancellationToken;
         var scope = Brain.WorkspaceId;
-        var bundle = new DirectoryShippedAppSource(IntoChatApps(), "intochat")
-            .Load().Single(candidate => candidate.Name == "word-count");
+        var bundle = new FeatureDirectory(Features()).Load().Single(candidate => candidate.Owner == "intochat" && candidate.Bundle.Name == "word-count").Bundle;
         (await Brain.HttpClient.PostAsJsonAsync($"/brains/{scope}/apps/import", bundle, ct)).EnsureSuccessStatusCode();
 
         var runtime = Brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(scope));
@@ -67,18 +66,13 @@ public sealed class BrainRuntimeFacts(ReferenceBrainFixture host) : BrainFact(ho
         Assert.Equal(SessionStatus.Connected, (await runtime.Inspect(ct)).Session);
     }
 
-    // The AppHost hands the OS IntoChat's bundles from the directory beside its own (AppHost.cs);
-    // the AppHost project is found through the solution, never by a path literal.
-    private static string IntoChatApps()
+    // The AppHost hands the OS the repository's features folder, beside the solution (AppHost.cs).
+    private static string Features()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {
             var solution = Path.Combine(directory.FullName, "DigitalBrain.slnx");
-            if (!File.Exists(solution)) { continue; }
-            var appHost = XDocument.Load(solution).Descendants("Project")
-                .Select(element => element.Attribute("Path")!.Value.Replace('\\', '/'))
-                .Single(path => Path.GetFileNameWithoutExtension(path) == "DigitalBrain.AppHost");
-            return Path.GetFullPath(Path.Combine(directory.FullName, Path.GetDirectoryName(appHost)!, "..", "IntoChat", "Apps"));
+            if (File.Exists(solution)) { return Path.Combine(directory.FullName, "features"); }
         }
         throw new InvalidOperationException("The app bundle is read from the repository; run the test from inside it.");
     }

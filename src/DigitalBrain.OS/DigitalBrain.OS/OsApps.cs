@@ -5,8 +5,8 @@ using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.OS;
 
-// The operating system's default apps: Marketplace entries every new brain installs. The list
-// is deployment configuration; a distribution names its own.
+// The operating system's default apps: features (features/os in the repository) every new brain
+// installs from the Marketplace. The list is deployment configuration; a distribution names its own.
 public sealed record OsApp(string Publisher, string Name);
 
 public sealed class OsAppsOptions
@@ -18,7 +18,8 @@ public static class OsAppsHosting
 {
     private sealed class OsAppsRegistered;
 
-    // The operating system names and ships its own apps; a distribution's configure only adds.
+    // The operating system names its own apps; a distribution's configure only adds. The apps
+    // themselves are features the host loads from its features folder (AppsOptions.Features).
     // Idempotent: the composition wires this itself, and a host calling it again is a no-op
     // apart from its own configure delegate.
     public static IServiceCollection AddOperatingSystemApps(this IServiceCollection services, Action<OsAppsOptions>? configure = null)
@@ -30,7 +31,6 @@ public static class OsAppsHosting
             return services;
         }
         services.AddSingleton<OsAppsRegistered>();
-        services.AddShippedApps(typeof(OsCatalog).Assembly, "DigitalBrain.OS.Apps/", publisher: "os");
         services.Configure<OsAppsOptions>(os =>
         {
             // Idempotent so a host that both composes the OS and wires the apps explicitly

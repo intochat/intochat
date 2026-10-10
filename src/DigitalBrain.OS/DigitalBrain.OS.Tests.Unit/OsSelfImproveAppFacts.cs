@@ -7,7 +7,7 @@ public sealed class OsSelfImproveAppFacts
     [Fact]
     public void TheShippedSelfImproveAppDeclaresItsOperationsAndOneSynapsePerReaction()
     {
-        var bundle = new EmbeddedShippedAppSource(typeof(OsCatalog).Assembly, "DigitalBrain.OS.Apps/", "os").Load()
+        var bundle = SolutionProjects.FeaturesOf("os")
             .Single(app => app.Name == "selfimprove");
         Assert.Equal(["open", "request"], bundle.Manifest.Operations.Select(operation => operation.Name));
         Assert.Equal("icon.svg", bundle.Manifest.Icon);
