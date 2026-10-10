@@ -17,10 +17,11 @@ public static class BrainBrowser
     public static async Task<BrowserSession> OpenBrowserAsync(this ITestBrain brain, BrowserOptions options, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(options);
-        var aspire = AspireBrainExtensions.Of(brain);
-        var session = aspire.Session;
+        // Invalid options fail before the brain is touched or any browser resource is acquired.
         var resolved = BrowserOptionsResolver.Resolve(options, BrowserEnvironment.HeadedRequested, Debugger.IsAttached,
             BrowserEnvironment.LocationRequested);
+        var aspire = AspireBrainExtensions.Of(brain);
+        var session = aspire.Session;
         var booted = session.BrowserServer is null ? BrowserLocation.Local : BrowserLocation.Container;
         if (options.Location is { } expected && expected != booted)
         { throw new InvalidOperationException($"This brain booted a {booted} browser; start the target with new AspireTarget<TAppHost>(BrowserLocation.{expected})."); }

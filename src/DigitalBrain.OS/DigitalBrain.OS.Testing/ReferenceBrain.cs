@@ -28,6 +28,8 @@ public static class ReferenceBrain
     public static TestBrain Create(string modelApiKey = "fixture-key", Dictionary<string, string?>? privateConfiguration = null)
     {
         var brain = TestBrain.Create().On(new AspireTarget<Projects.DigitalBrain_AppHost>())
+            // The AppHost runs two machines; A holds the core and is the one the fronts and MCPs route to.
+            .WithExecution(new TestExecutionOptions { ServerResourceName = "OperatingSystem-a" })
             .WithOptions<AIModule, AIOptions>(ai => ai.WithoutLocalModels().WithoutVoiceToText().WithoutWebSearch()
                 .WithDefaultLlm<IGpt56Luna>().WithModelEndpoint(AiProvider.OpenAI, new(UnconfiguredProvider, "v1/")))
             .WithOptions<QdrantModule, QdrantModuleOptions>(qdrant => qdrant.Host = false)

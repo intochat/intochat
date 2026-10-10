@@ -62,7 +62,7 @@ public sealed class AspireTestSession : IAsyncDisposable
         }
     }
 
-    private static async Task<AspireTestSession> StartCoreAsync(
+    internal static async Task<AspireTestSession> StartCoreAsync(
         Func<CancellationToken, Task<IDistributedApplicationTestingBuilder>> createBuilder,
         TestExecutionOptions options, CancellationToken cancellationToken, BrowserLocation browserLocation = BrowserLocation.Local)
     {

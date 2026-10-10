@@ -33,6 +33,9 @@ public sealed class PackedCompositionFacts
             "DigitalBrain.Client",
             "DigitalBrain.Aspire.Server",
             "DigitalBrain.Aspire.Client",
+            // The composition's storage: the orleans module and its Azurite hosting.
+            "DigitalBrain.Modules.Microsoft.Orleans",
+            "DigitalBrain.Modules.Microsoft.Orleans.Aspire.Hosting",
         };
         foreach (var project in roots) { Collect(ProjectPath(root, project)); }
         foreach (var project in projects.Order())
@@ -86,6 +89,8 @@ public sealed class PackedCompositionFacts
                 <PackageReference Include="DigitalBrain.Testing.Playwright" Version="{{version}}" />
                 <PackageReference Include="DigitalBrain.Aspire.Server" Version="{{version}}" />
                 <PackageReference Include="DigitalBrain.Aspire.Client" Version="{{version}}" />
+                <PackageReference Include="DigitalBrain.Modules.Microsoft.Orleans" Version="{{version}}" />
+                <PackageReference Include="DigitalBrain.Modules.Microsoft.Orleans.Aspire.Hosting" Version="{{version}}" />
                 <PackageReference Include="Aspire.Hosting.Orchestration.$(NETCoreSdkRuntimeIdentifier)" Version="{{aspireVersion}}" ExcludeAssets="all" PrivateAssets="all" />
                 <PackageReference Include="Aspire.Dashboard.Sdk.$(NETCoreSdkRuntimeIdentifier)" Version="{{aspireVersion}}" ExcludeAssets="all" PrivateAssets="all" />
               </ItemGroup>

@@ -1,3 +1,6 @@
+using Aspire.Hosting;
+using Aspire.Hosting.Testing;
+
 namespace DigitalBrain.Testing.Aspire;
 
 public static class AspireBrainExtensions
@@ -5,6 +8,14 @@ public static class AspireBrainExtensions
     // The connection string of one of the AppHost's resources, e.g. a fixture database.
     public static ValueTask<string?> GetConnectionStringAsync(this ITestBrain brain, string resourceName, CancellationToken cancellationToken = default)
         => Of(brain).Session.GetConnectionStringAsync(resourceName, cancellationToken);
+
+    // A client for another of the AppHost's resources (a consuming process beside the brain), once it is healthy.
+    public static async Task<HttpClient> CreateHttpClientAsync(this ITestBrain brain, string resourceName, string endpointName, CancellationToken cancellationToken = default)
+    {
+        var app = Of(brain).Session.App;
+        await app.ResourceNotifications.WaitForResourceHealthyAsync(resourceName, cancellationToken).ConfigureAwait(false);
+        return app.CreateHttpClient(resourceName, endpointName);
+    }
 
     internal static AspireBrain Of(ITestBrain brain)
     {

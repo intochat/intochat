@@ -73,7 +73,7 @@ public sealed partial class RepositoryPathLiteralFacts
             .Where(key => !ProjectionFacts.Contains(key, StringComparer.Ordinal))
             .Order().ToArray();
         Assert.True(offenders.Length == 0,
-            "Test code names environment variables; speak through the E2E builder (ExportingTelemetryTo, InEnvironment, ConfigureModule, WithHostConfiguration with a typed key):\n"
+            "Test code names environment variables; speak through TestBrain (WithIntegration, WithOptions, ExportingTelemetryTo, InEnvironment, WithHostConfiguration with a typed key):\n"
             + string.Join('\n', offenders));
     }
 
