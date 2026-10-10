@@ -115,7 +115,7 @@ public sealed class ClusterChangedFacts
         await grain.Read();
         await early.NextAsync(ct: ct);
 
-        var retained = await brain.Get<IRetainsSignals>(ICluster.Key("owner")).Retained(nameof(ClusterChanged), 0);
+        var retained = await grain.AsReference<IRetainsSignals>().Retained(nameof(ClusterChanged), 0);
 
         var last = Assert.IsType<ClusterChanged>(Assert.Single(retained).Signal);
         Assert.Equal(["silo-0:Running:Healthy"], last.Silos.Select(Describe));
@@ -129,6 +129,9 @@ public sealed class ClusterChangedFacts
 
         var response = await brain.HttpClient.GetAsync("/brains/ws-infra/infrastructure", ct);
 
+        var sibling = await brain.HttpClient.GetAsync("/brains/ws-infra/signals", ct);
+
+        Assert.Equal(HttpStatusCode.OK, sibling.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 

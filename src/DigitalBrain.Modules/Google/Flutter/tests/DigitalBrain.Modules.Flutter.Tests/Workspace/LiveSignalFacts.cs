@@ -53,7 +53,7 @@ public sealed class LiveSignalFacts
         Assert.True(await next.WaitAsync(TimeSpan.FromSeconds(10), ct));
         using var envelope = JsonDocument.Parse(stream.Current);
         Assert.Equal("Beat", envelope.RootElement.GetProperty("type").GetString());
-        Assert.Equal("beater-live", envelope.RootElement.GetProperty("publisher").GetString());
+        Assert.Equal("test.beater/beater-live", envelope.RootElement.GetProperty("publisher").GetString());
         Assert.Equal(7, envelope.RootElement.GetProperty("payload").GetProperty("pulse").GetInt32());
     }
 
