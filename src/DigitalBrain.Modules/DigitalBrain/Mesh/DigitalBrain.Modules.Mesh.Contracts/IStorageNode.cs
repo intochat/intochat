@@ -8,14 +8,14 @@ namespace DigitalBrain.Mesh;
 [Alias("mesh.node"), Orleans.Metadata.DefaultGrainType("mesh.node")]
 public interface IStorageNode : INeuron
 {
-    [Description("Store a shard under its content id.")]
+    [Description("Store a shard under its content id; storing the same shard again adds a reference.")]
     Task Put(string cid, byte[] shard, CancellationToken cancellationToken = default);
 
     [Description("Return a stored shard, or null when this node does not hold it.")]
     [ReadOnly, AlwaysInterleave]
     Task<byte[]?> Get(string cid, CancellationToken cancellationToken = default);
 
-    [Description("Drop a shard.")]
+    [Description("Drop one reference to a shard; its bytes go when the last reference does.")]
     Task Delete(string cid, CancellationToken cancellationToken = default);
 
     [Description("Prove a shard is held: SHA-256 of the nonce followed by the shard, or null when it is not.")]

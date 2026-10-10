@@ -41,4 +41,23 @@ public sealed class AuditRepairFacts
 
         Assert.Empty((await objects.Repair("doc", ct)).Moved);
     }
+
+    [Fact(Timeout = 60_000)]
+    public async Task DeletingOneObjectKeepsTheIdenticalShardsOfAnotherAuditable()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // 40 data shards over a 17-byte ciphertext leave 23 all-zero shards per object on 41 nodes,
+        // so two objects must place an identical shard on at least one shared node.
+        await using var host = await MeshHost.StartAsync(ct, options => { options.DataShards = 40; options.ParityShards = 1; });
+        var nodes = host.Get<IStorageNodes>(MeshHost.Key("nodes"));
+        for (var i = 0; i < 41; i++) { await nodes.Register($"n{i}", $"owner{i}", ct); }
+        var objects = host.Get<IMeshObjects>(MeshHost.Key("objects"));
+        await objects.Put("a", [7], Key, ct);
+        await objects.Put("b", [8], Key, ct);
+
+        await objects.Delete("a", ct);
+
+        Assert.Equal([8], await objects.Get("b", Key, ct));
+        Assert.All(await objects.Audit("b", ct), r => Assert.True(r.Passed, r.Reason));
+    }
 }

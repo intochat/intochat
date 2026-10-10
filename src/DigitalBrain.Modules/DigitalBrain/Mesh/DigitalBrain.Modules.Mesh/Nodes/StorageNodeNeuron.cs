@@ -12,7 +12,10 @@ internal sealed class StorageNodeNeuron(
     {
         ArgumentNullException.ThrowIfNull(shard);
         if (StorageProof.ContentId(shard) != cid) { throw new InvalidDataException($"Shard bytes do not match content id '{cid}'."); }
+        // Identical bytes share one content id (zero-padded shards of small objects), so the node keeps one copy
+        // and counts the references; a delete by one object must not take the shard from another.
         store.State.Shards[cid] = shard;
+        store.State.References[cid] = store.State.References.GetValueOrDefault(cid) + 1;
         await store.WriteStateAsync(cancellationToken);
     }
 
@@ -21,7 +24,15 @@ internal sealed class StorageNodeNeuron(
 
     public async Task Delete(string cid, CancellationToken cancellationToken = default)
     {
-        if (store.State.Shards.Remove(cid)) { await store.WriteStateAsync(cancellationToken); }
+        if (!store.State.Shards.ContainsKey(cid)) { return; }
+        var remaining = store.State.References.GetValueOrDefault(cid, 1) - 1;
+        if (remaining > 0) { store.State.References[cid] = remaining; }
+        else
+        {
+            store.State.Shards.Remove(cid);
+            store.State.References.Remove(cid);
+        }
+        await store.WriteStateAsync(cancellationToken);
     }
 
     public Task<byte[]?> Prove(string cid, byte[] nonce, CancellationToken cancellationToken = default) =>
@@ -35,4 +46,5 @@ internal sealed class StorageNodeNeuron(
 internal sealed class StorageNodeState
 {
     [Id(0)] public Dictionary<string, byte[]> Shards { get; set; } = new(StringComparer.Ordinal);
+    [Id(1)] public Dictionary<string, int> References { get; set; } = new(StringComparer.Ordinal);
 }

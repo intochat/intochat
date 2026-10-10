@@ -47,4 +47,27 @@ public sealed class StorageNodeFacts
         Assert.Null(await node.Prove(cid, [1], ct));
         Assert.Null(await node.Get(cid, ct));
     }
+
+    [Fact(Timeout = 60_000)]
+    public async Task AShardPutTwiceSurvivesOneDeleteAndGoesWithTheSecond()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var host = await MeshHost.StartAsync(ct);
+        var node = host.Get<IStorageNode>(MeshHost.Key("nodes/seed-1"));
+        byte[] shard = [0, 0, 0, 0];
+        var cid = StorageProof.ContentId(shard);
+        await node.Put(cid, shard, ct);
+        await node.Put(cid, shard, ct);
+
+        await node.Delete(cid, ct);
+
+        Assert.Equal(shard, await node.Get(cid, ct));
+        Assert.Equal(StorageProof.Compute([1], shard), await node.Prove(cid, [1], ct));
+        Assert.Equal(4, await node.BytesStored(ct));
+
+        await node.Delete(cid, ct);
+
+        Assert.Null(await node.Get(cid, ct));
+        Assert.Equal(0, await node.BytesStored(ct));
+    }
 }
