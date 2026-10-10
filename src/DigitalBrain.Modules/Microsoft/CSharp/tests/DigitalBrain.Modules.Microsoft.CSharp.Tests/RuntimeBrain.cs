@@ -19,7 +19,7 @@ internal static class RuntimeBrain
 
     public static Dictionary<string, string> One(string source) => new(StringComparer.Ordinal) { [""] = source };
 
-    public static Task<ModuleBrain> StartAsync(FakeSessionHost host, CancellationToken ct, bool http = false, IBehaviorAssemblies? assemblies = null, TimeProvider? time = null, bool traced = false)
+    public static Task<ModuleBrain> StartAsync(FakeSessionHost host, CancellationToken ct, bool http = false, IBehaviorAssemblies? assemblies = null, TimeProvider? time = null, bool traced = false, bool partLog = false)
     {
         var builder = ModuleTest.Create().WithModule<CSharpModule>().WithReminders()
             .ConfigureSilo(silo =>
@@ -36,6 +36,7 @@ internal static class RuntimeBrain
             });
         // The product's server hosting propagates traces across grain calls; a fact about traces opts in.
         if (traced) { builder = builder.ConfigureSilo(silo => silo.AddActivityPropagation()).ConfigureClient(client => client.AddActivityPropagation()); }
+        if (partLog) { builder = builder.WithPartLog(); }
         return (http ? builder.WithHttpEdge() : builder).StartAsync(ct);
     }
 

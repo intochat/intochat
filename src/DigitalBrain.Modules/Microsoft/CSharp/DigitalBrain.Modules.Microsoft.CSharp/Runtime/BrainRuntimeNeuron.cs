@@ -35,6 +35,7 @@ internal sealed class BrainRuntimeNeuron(
     CompiledTypes types,
     IReminderRegistry reminders,
     TimeProvider time,
+    ISignalJournal journal,
     IOptions<CSharpOptions> options,
     IOptions<CSharpDeploymentSettings> deployment,
     ILogger<BrainRuntimeNeuron> logger)
@@ -187,7 +188,9 @@ internal sealed class BrainRuntimeNeuron(
         var existing = Snapshot.Subscriptions.FirstOrDefault(s => s.Behavior == behavior && s.Neuron == neuron && s.Signal == signal);
         if (existing is null)
         {
-            existing = new(Guid.NewGuid().ToString("N"), behavior, neuron, signal, [], 0, 0);
+            // A new subscription starts at its source's current seq; what came before is the retained seed's to give.
+            var position = await journal.SignalsOf(GrainId.Parse(neuron), long.MaxValue);
+            existing = new(Guid.NewGuid().ToString("N"), behavior, neuron, signal, [], 0, 0, position?.Last ?? 0);
             // A source that retains the signal seeds the new subscription with the backlog the synapse
             // missed. Watch before seeding: anything published between the seed and the watch arrives
             // through the watch itself, and a duplicate is at-least-once's to bear; nothing is lost.
@@ -289,6 +292,7 @@ internal sealed class BrainRuntimeNeuron(
 
     public async Task Arrived(Signal signal)
     {
+        if (await CatchUpAsync(signal.Publisher.Name)) { return; }
         var json = JsonSerializer.Serialize(signal, signal.GetType(), RuntimeProtocol.Json);
         var name = signal.GetType().Name;
         var cap = options.Value.MaximumPending;
@@ -306,6 +310,40 @@ internal sealed class BrainRuntimeNeuron(
         {
             foreach (var subscription in arrived) { streams.TryPush(session.Id, SignalBatchEvent.Kind, Batch(subscription)); }
         }
+    }
+
+    // On a host with a part log a live signal is a nudge: the source's log after each watermark is what is buffered,
+    // so a signal the runtime never heard live arrives too and none arrives twice. False when nothing is journaled.
+    private async Task<bool> CatchUpAsync(string neuron)
+    {
+        var matching = Snapshot.Subscriptions.Where(s => s.Neuron == neuron).ToArray();
+        if (matching.Length == 0) { return true; }
+        var since = matching.Min(s => s.SourceSeq);
+        if (await journal.SignalsOf(GrainId.Parse(neuron), since) is not { } read) { return false; }
+        var cap = options.Value.MaximumPending;
+        var arrived = new List<Subscription>();
+        var changed = false;
+        var next = Snapshot.Subscriptions.Select(s =>
+        {
+            if (s.Neuron != neuron) { return s; }
+            if (read.Floor > s.SourceSeq)
+            { logger.LogWarning("SubscriptionGap {Subscription} {Neuron}: its watermark {Watermark} is below seq {Floor}, the oldest its source's log still serves.", s.Id, neuron, s.SourceSeq, read.Floor); }
+            var buffered = s;
+            foreach (var item in read.Signals.Where(j => j.Sequence > s.SourceSeq && j.Signal.GetType().Name == s.Signal))
+            { buffered = buffered.Arrive(JsonSerializer.Serialize(item.Signal, item.Signal.GetType(), RuntimeProtocol.Json), cap); }
+            var through = Math.Max(Math.Max(s.SourceSeq, read.Floor), read.Signals.Length == 0 ? 0 : read.Signals[^1].Sequence);
+            buffered = buffered with { SourceSeq = through };
+            if (buffered.Pending.Length != s.Pending.Length || buffered.Delivered != s.Delivered) { arrived.Add(buffered); }
+            changed |= buffered != s;
+            return buffered;
+        }).ToArray();
+        if (!changed) { return true; }
+        await Save(Snapshot with { Subscriptions = next }, Changed());
+        if (Snapshot.Session is { Status: SessionStatus.Connected } session)
+        {
+            foreach (var subscription in arrived) { streams.TryPush(session.Id, SignalBatchEvent.Kind, Batch(subscription)); }
+        }
+        return true;
     }
 
     public async Task ReceiveReminder(string reminderName, TickStatus status)
