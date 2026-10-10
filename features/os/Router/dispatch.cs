@@ -5,7 +5,6 @@ using DigitalBrain.Apps.Signals;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Button;
-using DigitalBrain.Flutter.Button.Signals;
 using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Text;
@@ -26,39 +25,33 @@ string[] Capabilities = [typeof(IAppStudio).FullName!, typeof(IApp).FullName!, t
     typeof(IWindows).FullName!, typeof(IConsole).FullName!, typeof(IFileSystem).FullName!, typeof(ITimer).FullName!, typeof(IText).FullName!];
 var scope = brain.Setting("Brain")!;
 
-await Task.WhenAll(Operations(), SendClicks());
-return;
+await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
+{
+    try
+    {
+        switch (request.Operation)
+        {
+            case "open":
+                await Compose();
+                if (request.Input != "docked")
+                {
+                    await brain.Get<IWorkspace>(scope).EnsureOpenAsync(appKey + "/window", "Jev",
+                        WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, Name("surface"))), brain.Stopping);
+                }
+                break;
+            case "ask" when request.Input.Length is >= 1 and <= 32000:
+                await Ask(request.Input);
+                break;
+            case "ask":
+                await brain.Get<IText>(Name("result")).Set("A request has 1-32000 characters.");
+                break;
+        }
+    }
+    catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
+    { await brain.Get<IText>(Name("result")).Set(error.Message[..Math.Min(error.Message.Length, 2000)]); }
+}
 
 string Name(string part) => appKey + "/" + part;
-
-async Task Operations()
-{
-    await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
-    {
-        try
-        {
-            switch (request.Operation)
-            {
-                case "open":
-                    await Compose();
-                    if (request.Input != "docked")
-                    {
-                        await brain.Get<IWorkspace>(scope).EnsureOpenAsync(appKey + "/window", "Jev",
-                            WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, Name("surface"))), brain.Stopping);
-                    }
-                    break;
-                case "ask" when request.Input.Length is >= 1 and <= 32000:
-                    await Ask(request.Input);
-                    break;
-                case "ask":
-                    await brain.Get<IText>(Name("result")).Set("A request has 1-32000 characters.");
-                    break;
-            }
-        }
-        catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-        { await brain.Get<IText>(Name("result")).Set(error.Message[..Math.Min(error.Message.Length, 2000)]); }
-    }
-}
 
 async Task<string> Ask(string request)
 {
@@ -85,16 +78,6 @@ async Task OpenBuiltApps(GoalRun run)
         var built = brain.Get<IApp>(scope + "/apps/" + name);
         if ((await built.Read()).Manifest.Operations.Any(operation => operation.Name == "open"))
         { await built.Request("open", ""); }
-    }
-}
-
-async Task SendClicks()
-{
-    await foreach (var clicked in brain.On<ButtonClicked>(brain.Get<IButton>(Name("send")), brain.Stopping))
-    {
-        if (clicked.RequestId == Guid.Empty) { continue; }
-        var text = (await brain.Get<ITextField>(Name("prompt")).Read()).Value.Trim();
-        if (text.Length is >= 1 and <= 32000) { await app.Request("ask", text); }
     }
 }
 

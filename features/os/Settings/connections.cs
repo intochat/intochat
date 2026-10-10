@@ -2,18 +2,16 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using DigitalBrain.Apps;
-using DigitalBrain.Apps.Signals;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Button;
-using DigitalBrain.Flutter.Button.Signals;
 using DigitalBrain.Flutter.Card;
 using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Integrations;
 
-// Connection discovery: the refresh request, the refresh button and the connection registry's
-// own signals all lead to the same serialized rebuild of the credential-free cards.
+// Connection discovery: the refresh request rebuilds the credential-free cards. The refresh button
+// (connection-clicks.cs) and the registry's own signals (connection-refresh.cs, connection-requested.cs)
+// all post that request.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var scope = brain.Setting("Brain") ?? appKey[..appKey.IndexOf("/apps/", StringComparison.Ordinal)];
@@ -21,48 +19,15 @@ var app = brain.Get<IApp>(appKey);
 var connections = brain.Get<IConnectionRequests>(scope);
 var layout = brain.Get<ILayout>(appKey + "/connections");
 
-using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(brain.Stopping);
-var loops = new[] { Operations(), RefreshClicks(), ConnectionChanges(), ConnectionRequests() };
-await Task.WhenAny(loops);
-lifetime.Cancel();
-await Task.WhenAll(loops);
-
-async Task Operations()
+await foreach (var _ in brain.On(app, "refresh-connections", brain.Stopping))
 {
-    await foreach (var request in brain.On<AppRequested>(app, lifetime.Token))
-    { if (request.Operation == "refresh-connections") { await Refresh(); } }
-}
-
-async Task RefreshClicks()
-{
-    await foreach (var _ in brain.On<ButtonClicked>(brain.Get<IButton>(appKey + "/refresh-connections"), lifetime.Token))
-    { await app.Request("refresh-connections", ""); }
-}
-
-async Task ConnectionChanges()
-{
-    await foreach (var _ in brain.On<ConnectionsChanged>(connections, QueueRefresh, lifetime.Token))
-    { await QueueRefresh(); }
-}
-
-async Task ConnectionRequests()
-{
-    await foreach (var _ in brain.On<ConnectionRequested>(connections, QueueRefresh, lifetime.Token))
-    { await QueueRefresh(); }
-}
-
-async Task QueueRefresh() => await app.Request("refresh-connections", "");
-
-async Task Refresh()
-{
-    string? error = null;
     try { await Project(); }
-    catch (Exception) when (!lifetime.Token.IsCancellationRequested)
+    catch (Exception) when (!brain.Stopping.IsCancellationRequested)
     {
-        error = "Connections could not load. Use Refresh connections to try again.";
+        var error = "Connections could not load. Use Refresh connections to try again.";
         await Show([await Card("error", "Connections unavailable", error)]);
+        await brain.Get<IText>(appKey + "/status").Set(error);
     }
-    if (error is not null) { await brain.Get<IText>(appKey + "/status").Set(error); }
 }
 
 async Task Project()
@@ -72,7 +37,7 @@ async Task Project()
     var current = await connections.ListConnections();
     var pending = await connections.ListPending();
     var apps = new List<(string Name, AppSnapshot State)>();
-    await foreach (var instance in brain.Kernel.Instances<IApp>(lifetime.Token))
+    await foreach (var instance in brain.Kernel.Instances<IApp>(brain.Stopping))
     { if (IApp.NameOf(scope, instance.Key) is { } name) { apps.Add((name, await brain.Get<IApp>(instance.Key).Read())); } }
     string Provider(string id) => kinds.FirstOrDefault(kind => kind.Id == id)?.DisplayName ?? id;
     var cards = new List<UiChildRef>
