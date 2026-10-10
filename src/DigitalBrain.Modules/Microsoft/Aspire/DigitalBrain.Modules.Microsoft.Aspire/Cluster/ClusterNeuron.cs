@@ -122,7 +122,7 @@ internal sealed class ClusterNeuron(
         if (Snapshot.Handover is { } handover)
         {
             // On the handed-over silo this activation is its readiness; elsewhere that silo is waited for.
-            if (handover == self || await Ready(handover)) { await Complete(); }
+            if (handover == self || await Ready(handover, Snapshot.HandoverAt ?? DateTimeOffset.MinValue)) { await Complete(); }
             return;
         }
         var next = Snapshot.Remaining.FirstOrDefault(name => name != self);
@@ -134,7 +134,7 @@ internal sealed class ClusterNeuron(
         if (next is null)
         {
             if (!await Drained(self!)) { return; }
-            await SaveQuietly(Snapshot with { Handover = self, Remaining = [], Rolled = [.. Snapshot.Rolled, self!], Draining = null });
+            await SaveQuietly(Snapshot with { Handover = self, HandoverAt = DateTimeOffset.UtcNow, Remaining = [], Rolled = [.. Snapshot.Rolled, self!], Draining = null });
             handedOver = true;
             await host.RestartInstance(self!, CancellationToken.None);
             return;
@@ -145,9 +145,9 @@ internal sealed class ClusterNeuron(
     }
 
     // Before an instance stops, the front stops routing it while another instance of its role still serves: the
-    // instance drains, and the step waits until the front has taken it out. Going forward, a drain that fails, or
-    // a front left with nothing to route to, rolls back. Going back, the instance restarts regardless: the restart
-    // is the way back.
+    // instance drains, and the step waits until the front has taken it out. A drain that fails, or a front left with
+    // nothing to route to, is a never-ready outcome: going forward it rolls back; going back it stops the roll back
+    // (NeverReady), since restarting the only routable instance would take the port down.
     private async Task<bool> Drained(string name)
     {
         try
@@ -158,11 +158,6 @@ internal sealed class ClusterNeuron(
                 await SaveQuietly(Snapshot with { Draining = name });
             }
             await host.WaitOutOfFront(name, options.Value.SiloStepBudget, CancellationToken.None);
-            return true;
-        }
-        catch (Exception error) when (Snapshot.Stage == ClusterStage.RollingBack)
-        {
-            log.LogWarning(error, "Cluster {Cluster}: {Instance} did not leave the front cleanly while rolling back; restarting it anyway.", this.GetPrimaryKeyString(), name);
             return true;
         }
         catch (InstanceNeverReadyException error)
@@ -182,6 +177,7 @@ internal sealed class ClusterNeuron(
     private async Task<bool> Moved(string name)
     {
         var budget = options.Value.SiloStepBudget;
+        var since = DateTimeOffset.UtcNow;
         using var bounded = new CancellationTokenSource(budget);
         try { await host.RestartInstance(name, bounded.Token); }
         catch (OperationCanceledException error) when (bounded.IsCancellationRequested)
@@ -194,14 +190,14 @@ internal sealed class ClusterNeuron(
             await NeverReady(name, new InstanceNeverReadyException($"instance {name} failed to restart: {error.Message}", error));
             return false;
         }
-        return await Ready(name);
+        return await Ready(name, since);
     }
 
-    private async Task<bool> Ready(string name)
+    private async Task<bool> Ready(string name, DateTimeOffset since)
     {
         try
         {
-            await host.WaitInstance(name, options.Value.SiloStepBudget, CancellationToken.None);
+            await host.WaitInstance(name, since, options.Value.SiloStepBudget, CancellationToken.None);
             return true;
         }
         catch (InstanceNeverReadyException error)
@@ -231,7 +227,7 @@ internal sealed class ClusterNeuron(
         // The failed instance first, then the moved ones newest first: silos come back before the MCP servers that
         // wait for them to start.
         string[] back = [name, .. Snapshot.Rolled.Reverse().Where(rolled => rolled != name)];
-        await Save(Snapshot with { Stage = ClusterStage.RollingBack, TargetSha = Snapshot.PreviousSha, PreviousSha = Snapshot.TargetSha, Remaining = back, Rolled = [], Handover = null, Draining = null, Failure = reason },
+        await Save(Snapshot with { Stage = ClusterStage.RollingBack, TargetSha = Snapshot.PreviousSha, PreviousSha = Snapshot.TargetSha, Remaining = back, Rolled = [], Handover = null, HandoverAt = null, Draining = null, Failure = reason },
             new ClusterChanged(Snapshot.CurrentSha, ClusterStage.RollingBack, Snapshot.PreviousSha, reason));
         Drive();
     }

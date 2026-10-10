@@ -166,7 +166,7 @@ internal sealed class AspireCliClusterHost : IClusterHost
     // A readiness wait on a freshly started process: Running in `describe`, then the front's route to it answers 200
     // (its /ready through the front's tunnel, counted in by the front's health check). The budget bounds it; an
     // instance that stops fails at once.
-    public async Task<SiloView> WaitInstance(string name, TimeSpan budget, CancellationToken ct)
+    public async Task<SiloView> WaitInstance(string name, DateTimeOffset since, TimeSpan budget, CancellationToken ct)
     {
         using var bounded = CancellationTokenSource.CreateLinkedTokenSource(ct);
         bounded.CancelAfter(budget);
@@ -176,7 +176,9 @@ internal sealed class AspireCliClusterHost : IClusterHost
             {
                 var resource = (await Describe(bounded.Token)).FirstOrDefault(item => Text(item, "displayName", "name") == name);
                 var state = resource.ValueKind == JsonValueKind.Object ? Text(resource, "state") : null;
-                if (state is "Exited" or "Finished" or "FailedToStart")
+                // The old process stopping (restart issued, not yet started again) is not a failed start: only a
+                // process that started after the restart was issued and then stopped is.
+                if (state is "Exited" or "Finished" or "FailedToStart" && StartedSince(resource, since))
                 {
                     throw new InstanceNeverReadyException($"instance {name} stopped ({state}) while starting");
                 }
@@ -192,6 +194,11 @@ internal sealed class AspireCliClusterHost : IClusterHost
             throw new InstanceNeverReadyException($"instance {name} was not ready within {budget}", new TimeoutException());
         }
     }
+
+    internal static bool StartedSince(JsonElement resource, DateTimeOffset since)
+        => resource.ValueKind != JsonValueKind.Object || Text(resource, "startTimestamp") is not { } started
+            || !DateTimeOffset.TryParse(started, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var start)
+            || start >= since;
 
     private static readonly TimeSpan ReadyInterval = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(5);

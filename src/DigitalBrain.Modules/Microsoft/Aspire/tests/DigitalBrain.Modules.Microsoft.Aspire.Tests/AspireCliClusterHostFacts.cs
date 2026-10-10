@@ -87,7 +87,7 @@ public sealed class AspireCliClusterHostFacts : IDisposable
         var runner = new RecordingRunner("""{"resources":[{"displayName":"OperatingSystem-b","state":"Exited"}]}""");
         var host = new AspireCliClusterHost(runner, _ => Task.FromResult(workdir), "OperatingSystem-a");
 
-        await Assert.ThrowsAsync<InstanceNeverReadyException>(() => host.WaitInstance("OperatingSystem-b", TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<InstanceNeverReadyException>(() => host.WaitInstance("OperatingSystem-b", DateTimeOffset.MinValue, TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken));
     }
 
     private static readonly Func<CancellationToken, Task<IReadOnlyDictionary<string, Uri>>> Fronts =
@@ -107,7 +107,7 @@ public sealed class AspireCliClusterHostFacts : IDisposable
         var http = new Answers(uri => uri.Port == 5002 ? HttpStatusCode.OK : HttpStatusCode.BadGateway);
         var host = new AspireCliClusterHost(new RecordingRunner(TwoRunningSilos), _ => Task.FromResult(workdir), "OperatingSystem-a", Fronts, http);
 
-        await Assert.ThrowsAsync<InstanceNeverReadyException>(() => host.WaitInstance("OperatingSystem-b", TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<InstanceNeverReadyException>(() => host.WaitInstance("OperatingSystem-b", DateTimeOffset.MinValue, TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
         Assert.Contains(new Uri("http://localhost:5080/_instances/OperatingSystem-b/ready"), http.Asked);
         Assert.DoesNotContain(http.Asked, uri => uri.Port == 5002);
     }
@@ -118,7 +118,7 @@ public sealed class AspireCliClusterHostFacts : IDisposable
         var http = new Answers(uri => uri.AbsolutePath == "/_instances/OperatingSystem-b/ready" ? HttpStatusCode.OK : HttpStatusCode.ServiceUnavailable);
         var host = new AspireCliClusterHost(new RecordingRunner(TwoRunningSilos), _ => Task.FromResult(workdir), "OperatingSystem-a", Fronts, http);
 
-        var ready = await host.WaitInstance("OperatingSystem-b", TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken);
+        var ready = await host.WaitInstance("OperatingSystem-b", DateTimeOffset.MinValue, TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken);
 
         Assert.Equal("Running", ready.State);
     }
@@ -162,6 +162,31 @@ public sealed class AspireCliClusterHostFacts : IDisposable
             lock (Requests) { Requests.Add((request.Method, request.RequestUri!)); }
             return Task.FromResult(new HttpResponseMessage(answer(request.RequestUri!)));
         }
+    }
+
+    // Seen live: a handover's wait read the old process's Finished between the restart's stop and its start.
+    [Fact]
+    public async Task TheOldProcessStoppingIsNotAFailedStart()
+    {
+        var restarted = DateTimeOffset.Parse("2026-10-10T12:54:43Z", System.Globalization.CultureInfo.InvariantCulture);
+        var runner = new RecordingRunner("""{"resources":[{"displayName":"OperatingSystem-b","state":"Finished","startTimestamp":"2026-10-10T12:40:00Z"}]}""");
+        var host = new AspireCliClusterHost(runner, _ => Task.FromResult(workdir), "OperatingSystem-a", Fronts, new Answers(_ => HttpStatusCode.OK));
+
+        var waited = await Assert.ThrowsAsync<InstanceNeverReadyException>(() => host.WaitInstance("OperatingSystem-b", restarted, TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
+
+        Assert.Contains("not ready within", waited.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AProcessThatStartedAfterTheRestartAndStoppedNeverBecomesReady()
+    {
+        var restarted = DateTimeOffset.Parse("2026-10-10T12:54:43Z", System.Globalization.CultureInfo.InvariantCulture);
+        var runner = new RecordingRunner("""{"resources":[{"displayName":"OperatingSystem-b","state":"Finished","startTimestamp":"2026-10-10T12:54:50Z"}]}""");
+        var host = new AspireCliClusterHost(runner, _ => Task.FromResult(workdir), "OperatingSystem-a", Fronts, new Answers(_ => HttpStatusCode.OK));
+
+        var waited = await Assert.ThrowsAsync<InstanceNeverReadyException>(() => host.WaitInstance("OperatingSystem-b", restarted, TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken));
+
+        Assert.Contains("stopped (Finished)", waited.Message, StringComparison.Ordinal);
     }
 
     [Fact]

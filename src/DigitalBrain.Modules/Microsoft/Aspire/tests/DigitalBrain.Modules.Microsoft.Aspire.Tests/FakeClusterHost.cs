@@ -72,7 +72,7 @@ internal sealed class FakeClusterHost : IClusterHost
 
     // Every drain, front wait and restart, in order: "drain name", "out name", "restart name".
     public List<string> Steps { get; } = [];
-    // Instances whose front wait finds no other routable instance of the role.
+    // "name" or "name@sha": that instance's front wait finds no other routable instance of the role.
     public HashSet<string> NoPeer { get; } = [];
     // An instance whose front wait holds at its gate until the fact opens it.
     public Dictionary<string, RestartGate> OutGates { get; } = [];
@@ -91,13 +91,13 @@ internal sealed class FakeClusterHost : IClusterHost
             gate.Reached.TrySetResult();
             await gate.Open.Task.WaitAsync(ct);
         }
-        if (NoPeer.Contains(name))
+        if (NoPeer.Contains(name) || NoPeer.Contains($"{name}@{Current}"))
         {
             throw new InstanceNeverReadyException($"no other instance is routable through the front; {name} must not stop");
         }
     }
 
-    public Task<SiloView> WaitInstance(string name, TimeSpan budget, CancellationToken ct)
+    public Task<SiloView> WaitInstance(string name, DateTimeOffset since, TimeSpan budget, CancellationToken ct)
     {
         Waited.Add($"{name}@{Current}");
         if (NeverHealthy.Contains($"{name}@{Current}"))

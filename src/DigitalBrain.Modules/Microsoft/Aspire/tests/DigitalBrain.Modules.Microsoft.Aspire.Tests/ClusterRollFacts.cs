@@ -198,7 +198,7 @@ public sealed class ClusterRollFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var cluster = new FakeClusterHost { Self = "silo-0" };
-        cluster.NoPeer.Add("silo-1");
+        cluster.NoPeer.Add("silo-1@sha0001");
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
         var grain = brain.Get<ICluster>(ICluster.Key("owner"));
         await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
@@ -226,5 +226,24 @@ public sealed class ClusterRollFacts
         Assert.Contains("not a cluster instance", refused.Message, StringComparison.Ordinal);
         Assert.Empty(cluster.Steps);
         Assert.Equal(ClusterStage.Steady, (await grain.Read()).Stage);
+    }
+
+    [Fact]
+    public async Task ARollBackStopsRatherThanRestartTheOnlyRoutableInstance()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var cluster = new FakeClusterHost { Self = "silo-0" };
+        cluster.NeverHealthy.Add("silo-1@sha0001");
+        // Going back, the front can route nothing but the instance about to restart.
+        cluster.NoPeer.Add("mcp-b@base000");
+        await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
+        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
+        await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
+
+        await grain.Roll("sha0001");
+        var steady = await changes.NextAsync(change => change.Stage == ClusterStage.Steady, ct);
+
+        Assert.Contains("rolling back", steady.Failure, StringComparison.Ordinal);
+        Assert.DoesNotContain("mcp-b@base000", cluster.RestartedSilos);
     }
 }

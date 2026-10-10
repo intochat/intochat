@@ -17,4 +17,6 @@ internal sealed record ClusterState
     [Id(7)] public string? Failure { get; init; }
     // The instance this step drained: a resumed step waits for it to leave the front without draining it again.
     [Id(8)] public string? Draining { get; init; }
+    // When the handed-over silo's restart was issued: its old process stopping before then is not a failed start.
+    [Id(9)] public DateTimeOffset? HandoverAt { get; init; }
 }
