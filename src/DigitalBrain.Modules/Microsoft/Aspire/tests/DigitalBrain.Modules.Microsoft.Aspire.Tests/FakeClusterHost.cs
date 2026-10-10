@@ -8,6 +8,11 @@ internal sealed class FakeClusterHost : IClusterHost
     public int Restarts { get; private set; }
     public bool DieOnRestart { get; set; }
 
+    public Dictionary<string, int> SpanCounts { get; } = [];
+
+    public Task<int> Spans(string service, string span, CancellationToken ct) =>
+        Task.FromResult(SpanCounts.GetValueOrDefault($"{service} {span}"));
+
     public Task<string> CurrentSha(CancellationToken ct) => Task.FromResult(Current);
 
     public Task SetLive(string sha, CancellationToken ct)

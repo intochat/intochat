@@ -20,6 +20,7 @@ public sealed class AspireModule() : Module<AspireOptions>(new ModuleId("aspire"
     {
         ArgumentNullException.ThrowIfNull(builder);
         builder.Services.TryAddSingleton<AspireBridge>();
+        builder.Services.TryAddSingleton<Verification.ICandidateVerifier, Verification.CandidateVerifier>();
         builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<Cluster.ClusterNeuron>, Cluster.ClusterReconcile>());
     }
 

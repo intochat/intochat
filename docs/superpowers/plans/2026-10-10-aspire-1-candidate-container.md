@@ -540,8 +540,8 @@ Port of `RevisionVerifier.cs` with these changes:
 - Resource checks removed (plan no longer has them); the first check stays `context` (child answers for the brain), the second is `activation`: `neurons_call` on `DigitalBrain.Apps.IApps`-equivalent list — **find via LSP** the kernel/app index contract that enumerates the brain's apps, and call its read method; passes when it answers without error (proves copied state activates).
 - Spans: the candidate exports OTLP to the live dashboard with `OTEL_SERVICE_NAME=candidate-{sha}` (Task 8). Spans check uses `IClusterHost.Spans(serviceName, spanName, ct)` → add that method to `IClusterHost` (`Task<int> Spans(string service, string span, CancellationToken ct)`, implemented in Task 9 via the Aspire MCP `list_traces` tool, as `AspireCliTelemetry` did) and to `FakeClusterHost` (`SpanCounts` dictionary).
 
-- [ ] **Step 1:** Failing facts: `ACandidateAnsweringForAnotherBrainFailsTheContextCheck`, `ACallAnsweringTheExpectedTextPasses`, `AMissingSpanFailsWithItsCount`, `VerificationStopsAtTheFirstFailedCheck` — each wires `ScriptedMcpServer` (read the moved file to see how it scripts answers) and asserts `report.Checks` names/`Passed`.
-- [ ] Steps 2–5: fail, implement, pass, commit `"Aspire: candidates verified through IMcpServer"`.
+- [x] **Step 1:** Failing facts: `ACandidateAnsweringForAnotherBrainFailsTheContextCheck`, `ACallAnsweringTheExpectedTextPasses`, `AMissingSpanFailsWithItsCount`, `VerificationStopsAtTheFirstFailedCheck` — each wires `ScriptedMcpServer` (read the moved file to see how it scripts answers) and asserts `report.Checks` names/`Passed`.
+- [x] Steps 2–5: fail, implement, pass, commit `"Aspire: candidates verified through IMcpServer"`.
 
 ---
 
