@@ -1,16 +1,18 @@
 using System.Diagnostics;
-using System.Globalization;
 using System.Text.Json;
 using DigitalBrain.Mcp;
 using DigitalBrain.Microsoft.Aspire.Cluster;
+using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Microsoft.Aspire.Verification;
 
 // The developer's loop as a neuron: the candidate's MCP answers for the same brain, its apps
 // activate from the copied state, every expectation answers as written, every span appears.
-internal sealed class CandidateVerifier(IGrainFactory grains, IClusterHost cluster) : ICandidateVerifier
+internal sealed class CandidateVerifier(IGrainFactory grains, IClusterHost cluster, ILogger<CandidateVerifier> logger) : ICandidateVerifier
 {
     private const string AppContract = "DigitalBrain.Apps.IApp";
+
+    private sealed record Check(string Name, Func<CancellationToken, Task<(bool Passed, string Detail)>> Run);
 
     public async Task<VerificationReport> Verify(string brainId, string sha, CandidateEndpoints endpoints, VerificationPlan plan, CancellationToken ct)
     {
@@ -19,63 +21,72 @@ internal sealed class CandidateVerifier(IGrainFactory grains, IClusterHost clust
         var clock = Stopwatch.StartNew();
         var server = grains.GetGrain<IMcpServer>($"{brainId}/mcp/candidate-{sha}");
         List<VerificationCheck> checks = [];
+        try { await server.Connect(new($"candidate {sha}", $"{endpoints.Mcp}/brains/{brainId}/mcp"), ct); }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            checks.Add(new("connect", false, error.Message));
+            return new([.. checks], clock.Elapsed);
+        }
         try
         {
-            await server.Connect(new($"candidate {sha}", $"{endpoints.Mcp}/brains/{brainId}/mcp"), ct);
             foreach (var check in Checks(brainId, sha, plan, server))
             {
                 VerificationCheck outcome;
-                try { outcome = await check(ct); }
-                catch (Exception error) when (error is InvalidOperationException or HttpRequestException or JsonException)
-                { outcome = new(checks.Count.ToString(CultureInfo.InvariantCulture), false, error.Message); }
+                try
+                {
+                    var (passed, detail) = await check.Run(ct);
+                    outcome = new(check.Name, passed, detail);
+                }
+                catch (Exception error) when (error is not OperationCanceledException)
+                { outcome = new(check.Name, false, error.Message); }
                 checks.Add(outcome);
                 if (!outcome.Passed) { break; }
             }
         }
-        catch (InvalidOperationException error)
-        {
-            checks.Add(new("connect", false, error.Message));
-        }
         finally
         {
-            await server.Disconnect(CancellationToken.None);
+            try { await server.Disconnect(CancellationToken.None); }
+            catch (Exception error) when (error is not OperationCanceledException)
+            { logger.LogWarning(error, "Disconnecting candidate {Sha}'s MCP server failed", sha); }
         }
         return new([.. checks], clock.Elapsed);
     }
 
-    private IEnumerable<Func<CancellationToken, Task<VerificationCheck>>> Checks(string brainId, string sha, VerificationPlan plan, IMcpServer server)
+    private IEnumerable<Check> Checks(string brainId, string sha, VerificationPlan plan, IMcpServer server)
     {
-        yield return async ct =>
+        yield return new("context", async ct =>
         {
             var context = await server.Run("neurons_context", "{}", ct);
-            if (context.IsError) { return new("context", false, context.Text); }
+            if (context.IsError) { return (false, context.Text); }
             using var document = JsonDocument.Parse(context.Text);
-            var answered = document.RootElement.GetProperty("brainId").GetString();
-            return new("context", answered == brainId, $"candidate answers for brain '{answered}'");
-        };
-        yield return async ct =>
+            if (document.RootElement.ValueKind != JsonValueKind.Object || !document.RootElement.TryGetProperty("brainId", out var id) || id.ValueKind != JsonValueKind.String)
+            { return (false, $"no brainId in the candidate's answer: {context.Text}"); }
+            var answered = id.GetString();
+            return (answered == brainId, $"candidate answers for brain '{answered}'");
+        });
+        yield return new("activation", async ct =>
         {
             var apps = await server.Run("neurons_list", JsonSerializer.Serialize(new { contract = AppContract }), ct);
-            return new("activation", !apps.IsError, apps.IsError ? apps.Text : "the brain's apps list from the copied state");
-        };
+            return (!apps.IsError, apps.IsError ? apps.Text : "the brain's apps list from the copied state");
+        });
         foreach (var call in plan.Calls)
         {
-            yield return async ct =>
+            yield return new($"call {call.Contract} {call.Key} {call.Method}", async ct =>
             {
                 using var arguments = JsonDocument.Parse(call.Arguments);
                 var body = JsonSerializer.Serialize(new { contract = call.Contract, key = call.Key, method = call.Method, arguments = arguments.RootElement });
                 var answer = await server.Run("neurons_call", body, ct);
                 var passed = !answer.IsError && (call.Expected == "*" || answer.Text.Contains(call.Expected, StringComparison.Ordinal));
-                return new($"call {call.Contract} {call.Key} {call.Method}", passed, passed ? answer.Text : $"expected {call.Expected}; answered {answer.Text}");
-            };
+                return (passed, passed ? answer.Text : $"expected {call.Expected}; answered {answer.Text}");
+            });
         }
         foreach (var span in plan.Spans)
         {
-            yield return async ct =>
+            yield return new($"span {span}", async ct =>
             {
                 var count = await cluster.Spans($"candidate-{sha}", span, ct);
-                return new($"span {span}", count > 0, $"{count} span(s)");
-            };
+                return (count > 0, $"{count} span(s)");
+            });
         }
     }
 }

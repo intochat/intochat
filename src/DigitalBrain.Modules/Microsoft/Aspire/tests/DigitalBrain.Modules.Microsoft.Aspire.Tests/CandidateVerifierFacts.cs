@@ -90,4 +90,47 @@ public sealed class CandidateVerifierFacts
         Assert.Equal("call DigitalBrain.Apps.IApp owner/apps/calculator Read", report.FirstFailure);
         Assert.Equal(1, server.Calls.Count(call => call == ReadKey));
     }
+
+    [Fact]
+    public async Task ACandidateThatCannotBeReachedFailsTheConnectCheck()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (brain, _) = await StartAsync(ct);
+        await using var _ = brain;
+
+        var report = await brain.SiloServices.GetRequiredService<ICandidateVerifier>()
+            .Verify(BrainId, Sha, new("http://127.0.0.1:1", "http://ui"), new([], [], TimeSpan.FromMinutes(1)), ct);
+
+        Assert.Equal("connect", report.FirstFailure);
+        Assert.Single(report.Checks);
+    }
+
+    [Fact]
+    public async Task AContextAnswerWithoutABrainIdFailsTheContextCheckByName()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var server = await ScriptedMcpServer.StartAsync(ct);
+        server.Answers["neurons_context"] = "[]";
+        var (brain, _) = await StartAsync(ct);
+        await using var _ = brain;
+
+        var report = await Verify(brain, server, new([], [], TimeSpan.FromMinutes(1)), ct);
+
+        Assert.Equal("context", report.FirstFailure);
+    }
+
+    [Fact]
+    public async Task AnAppListErrorFailsTheActivationCheck()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var server = await ScriptedMcpServer.StartAsync(ct);
+        server.Failures.Add("neurons_list DigitalBrain.Apps.IApp");
+        var (brain, _) = await StartAsync(ct);
+        await using var _ = brain;
+
+        var report = await Verify(brain, server, new([Read], [], TimeSpan.FromMinutes(1)), ct);
+
+        Assert.Equal("activation", report.FirstFailure);
+        Assert.Equal(2, report.Checks.Length);
+    }
 }

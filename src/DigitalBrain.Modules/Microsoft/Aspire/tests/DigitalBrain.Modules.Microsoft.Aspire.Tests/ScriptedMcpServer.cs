@@ -11,6 +11,7 @@ internal sealed class ScriptedMcpServer : IAsyncDisposable
     private static readonly string[] Tools = ["neurons_context", "neurons_list", "neurons_get", "neurons_call"];
     private readonly WebApplication _app;
     public Dictionary<string, string> Answers { get; } = new(StringComparer.Ordinal);
+    public HashSet<string> Failures { get; } = [];
     public List<string> Calls { get; } = [];
     public string Endpoint => _app.Urls.Single();
 
@@ -67,7 +68,7 @@ internal sealed class ScriptedMcpServer : IAsyncDisposable
             "neurons_list" => "[]",
             _ => null,
         };
-        return text is null
+        return text is null || Failures.Contains(key)
             ? new { content = new[] { new { type = "text", text = $"no script for {key}" } }, isError = true }
             : new { content = new[] { new { type = "text", text } }, isError = false };
     }
