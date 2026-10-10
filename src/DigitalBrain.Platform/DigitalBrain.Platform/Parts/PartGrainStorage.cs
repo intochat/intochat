@@ -1,3 +1,4 @@
+using DigitalBrain.Framework;
 using System.Globalization;
 using DigitalBrain.Framework.Parts;
 using Orleans.Serialization;
@@ -25,15 +26,16 @@ internal sealed class PartGrainStorage(PartLogs logs, Serializer serializer) : I
     public async Task WriteStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
     {
         var log = await logs.For(PartId.Of(grainId.Key.ToString()!));
-        // Task 14 replaces [] with the signals pending for this write, so they commit in the same entry.
-        var seq = await log.AppendIfCurrent(grainId.ToString(), stateName, Expected(grainState), RecordChange.Write, serializer.SerializeToArray(grainState.State), []);
+        // The signals of the Save behind this write commit in the same entry, so neither is durable without the other.
+        var seq = await log.AppendIfCurrent(grainId.ToString(), stateName, Expected(grainState), RecordChange.Write, serializer.SerializeToArray(grainState.State),
+            SignalJournal.TakePending(grainId));
         (grainState.ETag, grainState.RecordExists) = (seq.ToString(CultureInfo.InvariantCulture), true);
     }
 
     public async Task ClearStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
     {
         var log = await logs.For(PartId.Of(grainId.Key.ToString()!));
-        await log.AppendIfCurrent(grainId.ToString(), stateName, Expected(grainState), RecordChange.Clear, [], []);
+        await log.AppendIfCurrent(grainId.ToString(), stateName, Expected(grainState), RecordChange.Clear, [], SignalJournal.TakePending(grainId));
         (grainState.ETag, grainState.RecordExists) = (null, false);
     }
 

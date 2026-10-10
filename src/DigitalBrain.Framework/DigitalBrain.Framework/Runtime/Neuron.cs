@@ -53,12 +53,38 @@ public abstract class Neuron : Grain, INeuron
         return Task.CompletedTask;
     }
 
-    protected Task PublishAsync(Signal signal)
+    // A signal is durable before any observer sees it (Q27).
+    protected async Task PublishAsync(Signal signal)
     {
-        var stamped = signal with { Publisher = Id, Trace = TraceContext.Current };
+        var stamped = Stamp(signal);
+        await Journal.Append(this.GetGrainId(), [stamped]);
+        await Notify(stamped);
+    }
+
+    private protected ISignalJournal Journal => ServiceProvider.GetRequiredService<ISignalJournal>();
+
+    private protected Signal Stamp(Signal signal) => signal with { Publisher = Id, Trace = TraceContext.Current };
+
+    private protected Task Notify(Signal stamped)
+    {
         ServiceProvider.GetRequiredService<LocalSignalHub>().Publish(this.GetGrainId(), stamped);
         return Observers.Notify(watch => watch.Observer.OnSignalAsync(stamped),
             watch => watch.Signals is null || watch.Signals.Contains(stamped.GetType().Name));
+    }
+
+    // The signals a state change caused ride in its storage write when the storage takes them (a part log);
+    // otherwise they are journaled after it. Either way a failed write publishes nothing.
+    private protected async Task Announce(Func<Task> write, Signal[] signals)
+    {
+        Signal[] stamped = [.. signals.Select(Stamp)];
+        bool taken;
+        using (SignalJournal.Attach(this.GetGrainId(), stamped))
+        {
+            await write();
+            taken = SignalJournal.Taken;
+        }
+        if (!taken) { await Journal.Append(this.GetGrainId(), stamped); }
+        foreach (var signal in stamped) { await Notify(signal); }
     }
 }
 
@@ -71,15 +97,8 @@ public abstract class Neuron<TState>(IPersistentState<TState> store) : Neuron wh
     // Existence is the record's, not the object's.
     protected bool Exists => store.RecordExists;
 
-    protected async Task Save(TState next, Signal changed, Signal? acted = null)
-    {
-        await SaveQuietly(next);
-        await PublishAsync(changed);
-        if (acted is not null)
-        {
-            await PublishAsync(acted);
-        }
-    }
+    protected Task Save(TState next, Signal changed, Signal? acted = null) =>
+        Announce(() => SaveQuietly(next), acted is null ? [changed] : [changed, acted]);
 
     // Writes without announcing: for plumbing that no watcher observes. A neuron keeps all of its
     // persisted state in this one record, so its first write is the one that registers it.
@@ -92,9 +111,5 @@ public abstract class Neuron<TState>(IPersistentState<TState> store) : Neuron wh
     }
 
     // Clearing the record is what ends the neuron's existence: the kernel retires the instance.
-    protected async Task Clear(Signal changed)
-    {
-        await store.ClearStateAsync();
-        await PublishAsync(changed);
-    }
+    protected Task Clear(Signal changed) => Announce(store.ClearStateAsync, [changed]);
 }

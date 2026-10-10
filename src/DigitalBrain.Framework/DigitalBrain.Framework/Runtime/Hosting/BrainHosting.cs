@@ -28,6 +28,7 @@ public static class BrainHosting
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IOutgoingGrainCallFilter, TraceOutgoingFilter>());
         silo.Services.TryAddSingleton<LocalSignalHub>();
         silo.Services.TryAddSingleton<ILocalSignalHub>(sp => sp.GetRequiredService<LocalSignalHub>());
+        silo.Services.TryAddSingleton<ISignalJournal, NoSignalJournal>();
         silo.Services.TryAddSingleton<IDigitalBrain, CurrentBrain>();
         silo.Services.TryAddSingleton<Kernel>();
         silo.Services.TryAddSingleton<IKernel>(sp => sp.GetRequiredService<Kernel>());
