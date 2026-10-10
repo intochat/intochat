@@ -192,7 +192,7 @@ internal sealed class BrainRuntimeNeuron(
             // missed. Watch before seeding: anything published between the seed and the watch arrives
             // through the watch itself, and a duplicate is at-least-once's to bear; nothing is lost.
             await Save(Snapshot with { Subscriptions = [.. Snapshot.Subscriptions, existing] }, Changed());
-            await WatchSourcesAsync();
+            await WatchSourcesAsync(required: neuron);
             var seeded = await SeedRetainedAsync(neuron, signal, existing.Watermark);
             if (seeded.Length > 0)
             {
@@ -451,14 +451,22 @@ internal sealed class BrainRuntimeNeuron(
         return new UriBuilder(wildcard) { Host = DockerHost }.Uri.ToString();
     }
 
-    private async Task WatchSourcesAsync()
+    private async Task WatchSourcesAsync(string? required = null)
     {
         var previous = _watched.Values.ToArray();
         RenewSourceWatches(dueTime: ObserverRenewal);
         var observer = this.AsReference<INeuronObserver>();
         foreach (var source in previous.Where(source => !_watched.ContainsValue(source))) { await source.Unwatch(observer); }
-        foreach (var (key, source) in _watched)
-        { await source.Watch(observer, Snapshot.Subscriptions.Where(s => s.Neuron == key).Select(s => s.Signal).Distinct(StringComparer.Ordinal).ToArray()); }
+        foreach (var (key, source) in _watched) { await WatchAsync(key, source, observer, rethrow: key == required); }
+    }
+
+    // One source that cannot be watched (its type left the host with an older program) must not starve
+    // every other source: it is logged and skipped, unless it is the one being subscribed right now.
+    private async Task WatchAsync(string key, INeuron source, INeuronObserver observer, bool rethrow)
+    {
+        try { await source.Watch(observer, Snapshot.Subscriptions.Where(s => s.Neuron == key).Select(s => s.Signal).Distinct(StringComparer.Ordinal).ToArray()); }
+        catch (Exception error) when (!rethrow && error is not OperationCanceledException)
+        { logger.LogWarning(error, "Brain runtime {Runtime} could not watch {Source}.", this.GetPrimaryKeyString(), key); }
     }
 
     // One watch per distinct source across every behavior. Sources keep observers for a lease; renewing
@@ -475,8 +483,7 @@ internal sealed class BrainRuntimeNeuron(
         _watchRenewal = watched.Length == 0 ? null : this.RegisterGrainTimer(
             async _ =>
             {
-                foreach (var (key, source) in watched)
-                { await source.Watch(observer, Snapshot.Subscriptions.Where(s => s.Neuron == key).Select(s => s.Signal).Distinct(StringComparer.Ordinal).ToArray()); }
+                foreach (var (key, source) in watched) { await WatchAsync(key, source, observer, rethrow: false); }
             },
             // Serialize renewal with subscription changes so an old selection cannot overwrite a new one.
             new GrainTimerCreationOptions { DueTime = dueTime, Period = ObserverRenewal, KeepAlive = true });

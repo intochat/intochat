@@ -181,6 +181,26 @@ public sealed class BrainRuntimeNeuronFacts
         Assert.Empty(await Edge(brain).PendingBatches(session));
     }
 
+    // An older program's subscription can name a neuron type the host no longer carries; it must not
+    // keep every other source from being watched.
+    [Fact(Timeout = 60_000)]
+    public async Task ASourceThatCannotBeWatchedDoesNotStarveTheOthers()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        await Programs(brain).Assign(Owner, Synapse(), []);
+        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
+        await Assert.ThrowsAnyAsync<Exception>(() => Edge(brain).Subscribed(session, Behavior, "revisions.index/acc-brain", nameof(Pinged)));
+        var pinger = brain.Get<IPinger>("pinger");
+
+        var subscription = await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+        await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
+        await pinger.Ping(1);
+        await changes.NextAsync(ct: ct);
+
+        Assert.Equal(subscription, Assert.Single(await Edge(brain).PendingBatches(session)).Subscription);
+    }
+
     // A reloaded behavior subscribes again; what waited for it while it was down is pushed at once, not on the next arrival.
     [Fact(Timeout = 60_000)]
     public async Task AResubscribingBehaviorGetsWhatIsPendingForIt()
