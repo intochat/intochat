@@ -93,6 +93,37 @@ public sealed class CostMeterFacts
         AssertRow(await brain.Grains.GetGrain<IUsageGrain>(BrainId).Group(UsageGrouping.Kind, DateTimeOffset.UtcNow.AddDays(-1), 10), "Model", 1_250, 1);
     }
 
+    [Fact]
+    public async Task ACircleFundedCallDrawsFromTheOwnersShareAndThrowsOverIt()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await MeteredBrain(100, ct);
+        await brain.Grains.GetGrain<ILedgerGrain>("acct-owner").Credit("top-up", 1_000, "test");
+        await brain.SiloServices.GetRequiredService<ICircleShares>().Configure("owner/circles/c", "acct-owner", 20);
+        StampCaller();
+        var meter = Meter(brain);
+
+        var first = await meter.RecordAsync(CostKind.Model, "gpt-5.1:input", 1m, "mtok", Funding.Circle("owner/circles/c"), "c-1", ct);
+        await Assert.ThrowsAsync<BudgetExhaustedException>(() =>
+            meter.RecordAsync(CostKind.Model, "gpt-5.1:input", 1m, "mtok", Funding.Circle("owner/circles/c"), "c-2", ct).AsTask());
+
+        Assert.Equal(125, first.Micros);
+        Assert.Equal(875, await brain.Grains.GetGrain<ILedgerGrain>("acct-owner").Balance());
+        Assert.Equal(0, await brain.Grains.GetGrain<ILedgerGrain>(Account).Balance());
+    }
+
+    [Fact]
+    public async Task ACircleWithNoShareFundsNothing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await MeteredBrain(100, ct);
+        await brain.Grains.GetGrain<ILedgerGrain>("acct-owner").Credit("top-up", 1_000, "test");
+        StampCaller();
+
+        await Assert.ThrowsAsync<BudgetExhaustedException>(() =>
+            Meter(brain).RecordAsync(CostKind.Model, "gpt-5.1:input", 1m, "mtok", Funding.Circle("owner/circles/none"), "c-1", ct).AsTask());
+    }
+
     private static Task<ModuleBrain> MeteredBrain(long? pricePerUnit, CancellationToken ct)
         => ModuleTest.Create()
             .ConfigureSilo(silo => silo.Services.AddSingleton<IPriceList>(new FixedPriceList(pricePerUnit)))

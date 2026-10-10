@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>Circles: brains that share apps, a chat and a share of the owner's compute.</Description>
+    <RootNamespace>DigitalBrain.Modules.Circles</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="DigitalBrain.Modules.Circles.Tests" />
+    <ProjectReference Include="../DigitalBrain.Modules.Circles.Contracts/DigitalBrain.Modules.Circles.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" /></ItemGroup>
+</Project>

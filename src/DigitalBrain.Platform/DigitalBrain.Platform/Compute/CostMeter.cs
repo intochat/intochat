@@ -30,10 +30,10 @@ internal sealed class CostMeter(
         long micros;
         if (Price(kind, item, quantity) is { } listMicros)
         {
-            micros = funding switch
+            micros = funding.Kind switch
             {
-                Funding.Local or Funding.OwnConnection => 0,
-                Funding.Integration => listMicros + FeeOn(listMicros),
+                FundingKind.Local or FundingKind.OwnConnection => 0,
+                FundingKind.Integration or FundingKind.Circle => listMicros + FeeOn(listMicros),
                 _ => throw new ArgumentOutOfRangeException(nameof(funding)),
             };
         }
@@ -59,13 +59,25 @@ internal sealed class CostMeter(
         var fresh = true;
         if (micros > 0)
         {
-            if (trace.BudgetMicros is { } budget
+            var payer = trace.PayerAccountId;
+            if (funding.Kind == FundingKind.Circle) { payer = await DrawFromCircle(funding.CircleKey!, micros, trace.TraceId); }
+            else if (trace.BudgetMicros is { } budget
                 && !await grains.GetGrain<ITraceBudgetGrain>(trace.TraceId).TrySpend(micros, budget))
             { throw new BudgetExhaustedException(trace.TraceId); }
-            fresh = await grains.GetGrain<ILedgerGrain>(trace.PayerAccountId).Charge(cost);
+            fresh = await grains.GetGrain<ILedgerGrain>(payer).Charge(cost);
         }
         if (fresh) { await grains.GetGrain<IUsageGrain>(trace.BrainId).Add(cost, origin); }
         return cost;
+    }
+
+    // A circle-funded call is paid by the circle owner, within the circle share of the owner budget.
+    private async Task<string> DrawFromCircle(string circleKey, long micros, string traceId)
+    {
+        var share = grains.GetGrain<ICircleShareGrain>(circleKey);
+        var owner = await share.Owner();
+        if (owner is null || !await share.TryDraw(micros, await grains.GetGrain<ILedgerGrain>(owner).Balance()))
+        { throw new BudgetExhaustedException(traceId); }
+        return owner;
     }
 
     private long? Price(CostKind kind, string item, decimal quantity)
