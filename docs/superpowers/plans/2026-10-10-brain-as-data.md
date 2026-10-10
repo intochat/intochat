@@ -66,6 +66,11 @@ Stage A is specified to the step. Stages B and C are specified to interfaces, te
 | `src/DigitalBrain.Platform/DigitalBrain.Platform/Parts/PartSignalJournal.cs` | `ISignalJournal` over `PartLogs` |
 | `src/DigitalBrain.Platform/DigitalBrain.Platform/Parts/MachineHosting.cs` | `AddMachinePartLog(silo)`: puts `cluster` storage on the part log |
 | `src/DigitalBrain.Platform/DigitalBrain.Platform/PlatformHosting.cs` | registrations |
+| `src/DigitalBrain.Platform/DigitalBrain.Platform/Trust/*` | `ISequencerClient`, `INodeDirectoryClient`, `IKeyringClient`, grain and gateway implementations, `TrustOptions` (Task 18) |
+| `src/DigitalBrain.Platform/DigitalBrain.Platform/TrustHosting.cs` | `AddTrustCluster`: trust grains only, `platform` storage (Task 18) |
+| `src/DigitalBrain.Trust/*` | trust cluster host (Task 18) |
+| `src/DigitalBrain.Framework/DigitalBrain.Framework/Parts/IMasterKeyCustody.cs` | custody contract, moved from Platform (Task 19) |
+| `src/DigitalBrain.Modules/Microsoft/Windows/DigitalBrain.Modules.Microsoft.Windows/Tpm*.cs` | TPM custody and machine key (Task 19) |
 
 ---
 
@@ -1715,17 +1720,124 @@ Each plan opens with a gate task that writes its step-level tasks into this file
 ## Plan 5 — Trust cluster and machine hosts (Tasks 17–19)
 
 ### Task 17 (gate): host shapes
-- Measure: cold start of a machine host (single silo, `UseLocalhostClustering`, `platform` storage absent, `cluster` = part log) and of the trust cluster (Azure storage, no modules, no neurons).
-- Write: step-level tasks for 18–19 here.
+
+**Measured** (2026-10-10, HEAD 8c5677e48, in-process `InProcessTestCluster`, Debug, one test process; a scratch timing fact under `DigitalBrain.Platform.Tests.Unit` run in three invocations, each starting every shape twice; deleted after measuring because it asserts nothing). "Cold" = first silo in the process (JIT, Orleans type manifest and grain-type discovery); "warm" = second silo in the same process.
+
+| Shape | Cold (median; 3 runs) | Warm (median) | Dominated by |
+|---|---|---|---|
+| Trust only: bare silo, memory `platform` storage, no `AddDigitalBrain`, no modules, no neurons — deploy | 0.70 s (0.69 / 0.70 / 0.73) | 0.11 s | Orleans silo start + first-time type discovery |
+| …then first sequencer `Get`, keyring `Get`, 24 seed-node `Register`s | 0.12 s | 0.01 s | first activations (memory writes) |
+| Module host (`ModuleTest.Create()`: kernel + platform + client, memory `cluster` and `platform`) | 0.18 s* | 0.12 s | silo start; the platform's trust registrations are not separable in `AddDigitalBrainPlatform` |
+| Machine host (`WithPartLog()`: part log, 8 seed nodes, owner provisioned, core part opened = lease + first CAS + first mesh write) | 0.21 s* | 0.15 s | the part log adds ~0.04 s over the module host |
+
+\* started after the trust-only silo in the same process, so JIT was already paid; a true cold figure is ~0.6 s more. Azure storage was **not** measured in-process (no Azurite fixture is wired into the Platform unit suite and the AppHost was off-limits); the memory rows are a stated **lower bound** for the trust cluster. Live context from Stage A: the OS silo restarted in ~20 s, which is the OS modules and the features catalog, not the trust grains or the part log.
+
+**Conclusions.** Trust grains cost nothing measurable at start (lazy activation; 24 seed registrations ≈ 10 ms warm). The part log costs ~40 ms per part opened. A machine host's cold start is Orleans plus its modules; the trust/machine split does not move it.
+
+**Rulings (bind Tasks 18–19):**
+- **H1 — a machine is one silo (Q12), in Stage B too.** No shared identity, no part-pinned placement. Reason: silo start is sub-second and a part reopens in ~40 ms from its journal and head, so a roll is a restart the journal covers (Q26); two silos of one machine would need an exclusive cross-process journal writer and a placement director that duplicates the lease. Scale-out is more machines leasing different parts. R23 is permanent; the AppHost keeps one silo per machine resource.
+- **H2 — machines and the trust host are separate Orleans clusters**, never one cluster with a placement strategy. Reason: inside one cluster Orleans' single-activation directory makes "B acquires A's part" meaningless (same grain id, same activation) and lets a machine address trust grains around the client seam. Stage B's client implementations hold an `IClusterClient` to the trust cluster's gateway; Task 21 replaces it with the transport.
+- **H3 — Task 18's handover part is an app part** (`{scope}/apps/counter`), never the core: kernel instance records (`InstanceDirectoryGrain` and the rest of `KernelGrains.cs`) live in the core part, which only an own machine holds (Q11). Machine A (Own) holds the core and the app part; machine B (Own, its own directory and identity) acquires only the app part after A releases it.
+- **H4 — the trust composition hosts no `Neuron`.** LSP: `SecretsNeuron`, `IntegrationNeuron`, `ConnectionIndexNeuron`, `WorkshopNeuron`, `ConnectionRequestsNeuron` all derive from `Grain`, not `Neuron`. Secrets, Integration and ConnectionIndex (`platform` storage) move to the trust host (R4). `WorkshopNeuron` (no state; edits the OS's own codebase) and `ConnectionRequestsNeuron` (`cluster` storage) stay on the machine host. `DigitalBrain.Apps.MarketplaceNeuron` *is* a `Neuron` in `platform` storage (R14, the only `StorageRingFacts.TrustClusterNeurons` entry): it leaves the trust side and becomes an ordinary neuron of the `platform` account's own brain (`BrainScope.Create("platform", "platform")`) on the platform's own machine; the allowlist is deleted.
+- **H5 — owner lookup rides the keyring client.** `PartLogs` resolves a brain's owner through `IBrainAuthority.Account()`, a trust grain; it goes behind `IKeyringClient.OwnerOf(brainId)` (the keyring is wrapped under exactly that owner's custody) rather than a fourth client.
+- **H6 — custody is a Framework contract.** `IMasterKeyCustody` is `internal` to Platform; a module cannot implement it. Task 19 moves it to `src/DigitalBrain.Framework/DigitalBrain.Framework/Parts/IMasterKeyCustody.cs` (platform-facing interface ring); Platform keeps `ConfiguredMasterKeyCustody`.
+
+**Carried from Stage A (Task 18 absorbs):** R16 — ~430 module facts write into never-created brains and fail when the part log is forced on; Task 18 Step 7 provisions the default brain on every `ModuleTest` host. R25 — kernel plain grains publish instance signals one-way after their write; they stay machine-side in the core part, so Task 18 Step 7 moves them onto `ISignalJournal` (riding the core part's entry) or, if that is more than one step, records in the ledger that R25 stays parked — never dropped silently. Also: `SecretsNeuron.Resolve` and the integration credential path return plaintext across a grain call; across clusters that is a Q4 breach on the wire, accepted for Stage B's loopback gateway only and closed by Task 21 (sealed to the calling machine's key).
 
 ### Task 18: Two hosts
-- **Produces:** `src/DigitalBrain.Trust` (trust cluster host: sequencer, node directory, keyrings, ledger, identity, relay endpoint; `platform` storage only; the architecture test forbids any `Neuron` type in its composition) and the OS host becoming a machine host (`AddMachinePartLog`, `Role` from configuration). Machines reach trust grains only through `ISequencerClient`, `INodeDirectoryClient`, `IKeyringClient` (Stage A: direct grain calls; Task 21: the transport).
-- **Tests:** `AMachineRunsAPartFromAnotherMachinesLog` (two machine hosts in one test process with separate directories against one trust host; A writes and releases, B acquires and reads).
-- **Acceptance:** two machine processes on one PC hand a part back and forth, driven through `digitalbrain-mcp`.
+
+**Contract (fixed):** `src/DigitalBrain.Trust` (trust cluster host: sequencer, node directory, keyrings, ledger, identity, relay endpoint; `platform` storage only; the architecture test forbids any `Neuron` type in its composition) and the OS host becoming a machine host (`AddMachinePartLog`, `Role` from configuration). Machines reach trust grains only through `ISequencerClient`, `INodeDirectoryClient`, `IKeyringClient` (Stage A: direct grain calls; Task 21: the transport). Test `AMachineRunsAPartFromAnotherMachinesLog` (two machine hosts in one test process with separate directories against one trust host; A writes and releases, B acquires and reads). Acceptance: two machine processes on one PC hand a part back and forth, driven through `digitalbrain-mcp`.
+
+**Files:**
+- Create: `src/DigitalBrain.Platform/DigitalBrain.Platform/Trust/ISequencerClient.cs`, `INodeDirectoryClient.cs`, `IKeyringClient.cs`, `GrainTrustClients.cs`, `TrustOptions.cs`, `TrustGatewayClient.cs`
+- Create: `src/DigitalBrain.Platform/DigitalBrain.Platform/TrustHosting.cs`
+- Create: `src/DigitalBrain.Trust/DigitalBrain.Trust/DigitalBrain.Trust.csproj`, `Program.cs`; `src/DigitalBrain.Trust/DigitalBrain.Trust.Tests.Unit/TrustHostFacts.cs`
+- Create: `src/Testing/DigitalBrain.Testing.Module/TrustHost.cs`
+- Modify: `src/DigitalBrain.Platform/DigitalBrain.Platform/PlatformHosting.cs`, `Parts/MachineHosting.cs`, `Parts/PartLease.cs`, `Parts/PartLogs.cs`, `Keys/PartKeys.cs`, `Mesh/MeshStore.cs`, `Mesh/SeedNodeRegistration.cs`
+- Modify: `src/DigitalBrain.OS/DigitalBrain.OS/OsMachine.cs`, `src/DigitalBrain.AppHost/AppHost.cs`, `src/Testing/DigitalBrain.Testing.Module/ModuleTest.cs`, `ModuleTestBuilder.cs` (`WithTrust(TrustHost)`)
+- Modify: the Apps module's `MarketplaceNeuron` and its callers (H4; paths from LSP `findReferences`), `src/Testing/DigitalBrain.Architecture.Tests/StorageRingFacts.cs`, `src/Testing/DigitalBrain.Architecture.Tests/ConfigurationKeyOwners.json`, `DigitalBrain.slnx` (and the local git-ignored `DigitalBrain-lsp.sln`)
+- Test: `src/DigitalBrain.Platform/DigitalBrain.Platform.Tests.Unit/Trust/TrustClientFacts.cs`, `src/DigitalBrain.Platform/DigitalBrain.Platform.Tests.Unit/Parts/MachineHandoverFacts.cs`, `src/Testing/DigitalBrain.Architecture.Tests/TrustCompositionFacts.cs`
+
+**Interfaces:**
+- Produces (Platform, `internal`, namespace `DigitalBrain.Platform.Trust`; only wrapped keys, signed heads and sealed shards cross them — never a key or plaintext):
+
+```csharp
+internal interface ISequencerClient
+{
+    Task<HeadRecord?> Get(string partHash);
+    Task<bool> CompareAndSet(string partHash, long expectedVersion, HeadRecord next);
+}
+
+internal interface INodeDirectoryClient
+{
+    Task Register(string nodeId, string ownerAccount);
+    Task SetOnline(string nodeId, bool online);
+    Task ReportAudit(string nodeId, bool passed);
+    Task<string[]> Place(int count, string[] exclude);
+    Task<StorageNodeView[]> List();
+    Task Put(string nodeId, string cid, byte[] sealedShard);
+    Task<byte[]?> Get(string nodeId, string cid);
+    Task<byte[]?> Prove(string nodeId, string cid, byte[] nonce);
+    Task Discard(string nodeId, string cid);
+}
+
+internal interface IKeyringClient
+{
+    Task<byte[]?> Get(string brainId, string partId);           // the wrapped part key
+    Task<bool> TryAdd(string brainId, string partId, byte[] wrapped);
+    Task<string?> OwnerOf(string brainId);                      // H5
+}
+```
+
+  The shard methods mirror `IStorageShard` — LSP `documentSymbol` on `Mesh/SeedShardGrain.cs` for the exact set before writing them.
+- `GrainTrustClients(IGrainFactory grains)` implements all three over the existing grains. Registered against the silo's own grain factory when `DigitalBrain:Platform:Trust:Gateway` is absent (every Stage A host and `ModuleTest`), and against `TrustGatewayClient`'s `IClusterClient` when it is set.
+- `TrustOptions` (key `DigitalBrain:Platform:Trust`): `string? Gateway` (`host:port` of the trust gateway), `string ClusterId = "digitalbrain-trust"`, `string ServiceId = "digitalbrain-trust"`; `Validate()`. Added to `ConfigurationKeyOwners.json`.
+- `PlatformHosting` split:
+  - `TrustHosting.AddTrustCluster(ISiloBuilder)` — trust grains only: identity (`AddIdentity`, `IdentityStartup`, account/principal/`BrainAuthorityGrain`), `AddMasterKeyWrapper` (Secrets/Integration seal), `IntegrationSeeder`, `SeedNodeRegistration` with `MeshOptions`, ledger/usage/trace-budget/circle-share grains, sequencer, keyring, node directory, seed shards, and the Secrets/Integration/ConnectionIndex/Identity endpoints; a relay endpoint placeholder that Task 21 fills. No `AddDigitalBrain`, no modules, no `cluster` storage, no `IPartKeys`, no `PartsOptions`.
+  - `MachineHosting.AddMachinePartLog` registers the machine side: `PartsOptions`, `MachineIdentity`, `SeenVersions`, `IMasterKeyCustody`, `IPartKeys`, `IMeshStore`, `PartLogs`, part-log storage and journal, and the three clients.
+  - `AddDigitalBrainPlatform` keeps the rest (cost meter and `CircleShareGuard` filter, connector/integration discovery, `IModuleIntegrations<>`, gRPC surface, OAuth flow, Workshop) and, while no gateway is configured, also calls `AddTrustCluster` — so every Stage A host composes exactly as today.
+- `PartLease.For`, `PartKeys`, `MeshStore`, `PartLogs` (owner lookup) and `SeedNodeRegistration` take the clients instead of `IGrainFactory` (LSP `incomingCalls` on each constructor first).
+- `src/DigitalBrain.Trust`: a generic host — `UseOrleans(silo => { clustering; Azure blob `platform` storage through the Orleans module's offered integration; silo.AddTrustCluster(); })`. References Platform; references no module.
+- OS host: `OsMachine.AddMachinePartLogWhenConfigured` keeps its shape (R22); with `Trust:Gateway` set the OS composes no `platform` storage (the AppHost stops wiring it to the OS role).
+
+- [ ] **Step 1: Failing facts — clients.** `TrustClientFacts`: `AMachineReachesTrustGrainsOnlyThroughTheClients` (reflection: `PartLease`, `PartKeys`, `MeshStore`, `PartLogs` have no `IGrainFactory` constructor parameter) and `TheGrainClientsRoundTripAHeadAWrappedKeyAndAShard` (a `ModuleTest` host: CAS a head, add/get a wrapped key, put/get a shard through `GrainTrustClients`). Run `dotnet test --project src/DigitalBrain.Platform/DigitalBrain.Platform.Tests.Unit -- --filter-class "*TrustClientFacts*"` → FAIL.
+- [ ] **Step 2: Implement** the interfaces, `GrainTrustClients` and the constructor swaps; LSP diagnostics clean; Platform suite → PASS. Commit: `Trust: machines reach the sequencer, node directory and keyrings only through three clients`.
+- [ ] **Step 3: Failing facts — trust composition.** `TrustCompositionFacts.TheTrustHostComposesNoNeuron`: build a silo with only `AddTrustCluster()` and memory `platform` storage; from its grain-type manifest (verify the Orleans API — `GrainClassMap`/`GrainTypeResolver` or the silo manifest — with context7 before writing) assert no activatable grain class is assignable to `Neuron` once the trust host restricts its application parts to Platform's trust namespaces, and that the only keyed `IGrainStorage` is `platform`. `StorageRingFacts`: `MarketplaceIsANeuronOfThePlatformBrain` replaces the `TrustClusterNeurons` allowlist. Run → FAIL.
+- [ ] **Step 4: Implement** `TrustHosting.AddTrustCluster` (including the application-part restriction), move the registrations out of `AddDigitalBrainPlatform`, move `MarketplaceNeuron` to the `platform` brain (LSP `findReferences` on its key and every `GetGrain<IMarketplace>` site; the Apps `AppNeuron` file is outside this change), delete `TrustClusterNeurons`. Architecture suite → only the 6 known failures; Platform and Apps suites → PASS. Commit: `Trust: the trust cluster composes trust grains in platform storage and no neuron; the Marketplace is a neuron of the platform brain`.
+- [ ] **Step 5: Failing fact — the handover.** `MachineHandoverFacts.AMachineRunsAPartFromAnotherMachinesLog`, one test process, three Orleans clusters (H2):
+  1. `TrustHost` (new in `DigitalBrain.Testing.Module`): a one-silo `InProcessTestCluster` with `AddTrustCluster()`, memory `platform` storage, its gateway on a free port, 8 seed nodes registered with owner `platform`, the default owner provisioned (`IBrainAuthority.ProvisionOwner`).
+  2. Machine A: `ModuleTest.Create().WithPartLog().WithTrust(trust)` plus the counter test neuron of Task 13 — `Trust:Gateway` = trust's gateway, its own temp `MachineDirectory` (own identity and journal), `Role = Own`, its own `ClusterId`/`ServiceId`, no `platform` storage.
+  3. Machine B: the same with another directory and cluster id. Both use the test's configured master key (custody is the owner's until Task 19).
+
+  Scenario: A creates the brain (core part on A) and increments `IPartCounter` at `{scope}/apps/counter/c1` three times; A releases the app part (add `PartLogs.Release(PartId)`: deactivate that part's activations, flush, `PartLease.Release`); B calls `Read()` on its own counter grain at the same key → B's `PartLogs` acquires the part from the trust sequencer, replays A's segments from the mesh with the wrapped key from the keyring, returns 3; B increments to 4 and releases; A reads 4. Also assert that B never opened the core part and that neither machine's services hold a keyed `IGrainStorage` named `platform`. Run `-- --filter-class "*MachineHandoverFacts*"` → FAIL.
+- [ ] **Step 6: Implement** `TrustOptions`, `TrustGatewayClient` (connects before the silo's first lease — LSP-check `SeedNodeRegistration`'s and the part-log open's startup stages; fix readiness, never a longer timeout), `WithTrust`, `PartLogs.Release`; with a gateway, a machine registers no `platform` storage and no trust grains. Kill any run over 5 minutes and debug it. Platform suite → PASS. Commit: `Parts: a machine runs a part from another machine's log; machines reach a separate trust cluster through its gateway`.
+- [ ] **Step 7: Carried from Stage A.** `ModuleTest` provisions the default brain on every host (R16); run every module unit suite once with `WithPartLog()` forced on in a scratch run (not committed) and record what still fails in the ledger. R25 as ruled in Task 17. Commit: `Testing: every module host starts with its default brain provisioned`.
+- [ ] **Step 8: Hosts.** Create `src/DigitalBrain.Trust` (Azure blob `platform` storage via the Orleans module's offered integration from 8c5677e48 — LSP `goToDefinition` on it) and `TrustHostFacts.TheTrustHostStartsWithNoModules` (`DigitalBrain.Aspire.Testing`, Azurite; skips without a container runtime like the repo's other hosting facts). AppHost: a `trust` resource; the OS role gets `Trust:Gateway` and loses `platform` storage; a second machine resource `OperatingSystem-b` with its own `MachineDirectory`, `Role = Own`, its own cluster id (H1, H2), and an Aspire resource command `release-part` on each machine. Build each project; a copy-lock on the AppHost/OS bin is not a compile error. Commit: `Trust: the trust cluster is its own host; the AppHost runs it beside two machine hosts`.
+- [ ] **Step 9: Acceptance (live).** `dotnet run digitalbrain.cs` on free ports (never 5080/5081 while the peer session runs); `mcp__aspire__list_resources` all Healthy (`trust`, `OperatingSystem-a`, `OperatingSystem-b`). Through `digitalbrain-mcp` on A: `neurons_context`; `neurons_call` a mutation on an app-part neuron; `release-part` on A; through B's MCP endpoint `neurons_get` the same neuron → A's state; mutate on B, `release-part` on B, `neurons_get` on A → B's state. `list_traces`: `ISequencerGrain/CompareAndSet` spans on the same part hash from both machines, served by `trust`; `list_structured_logs`: no `LeaseLost`, `RollbackDetected`, `JournalConflict`. Record in the ledger.
+- [ ] **Step 10: Regression net.** Platform, Architecture (6 known), Apps, OS unit, and the Trust suite. Commit only the files above, by explicit path.
 
 ### Task 19: Custody in hardware (Windows module)
-- **Produces:** `TpmMasterKeyCustody : IMasterKeyCustody` and a TPM-backed machine key behind the Windows module's per-OS contract; `DigitalBrain:Platform:Parts:Custody = Tpm|Configured`, with `Configured` refused in production.
-- **Tests:** TPM facts skip when no TPM is present (the repo's live-gated pattern); a fact that production refuses configured custody.
+
+**Contract (fixed):** `TpmMasterKeyCustody : IMasterKeyCustody` and a TPM-backed machine key behind the Windows module's per-OS contract; `DigitalBrain:Platform:Parts:Custody = Tpm|Configured`, with `Configured` refused in production. TPM facts skip when no TPM is present (the repo's live-gated pattern); a fact that production refuses configured custody.
+
+**Files:**
+- Move: `src/DigitalBrain.Platform/DigitalBrain.Platform/Keys/IMasterKeyCustody.cs` → `src/DigitalBrain.Framework/DigitalBrain.Framework/Parts/IMasterKeyCustody.cs` (public; H6)
+- Create: `src/DigitalBrain.Modules/Microsoft/Windows/DigitalBrain.Modules.Microsoft.Windows/TpmMasterKeyCustody.cs`, `TpmMachineKey.cs`
+- Modify: `src/DigitalBrain.Modules/Microsoft/Windows/DigitalBrain.Modules.Microsoft.Windows/WindowsModule.cs`; `src/DigitalBrain.Platform/DigitalBrain.Platform/Parts/PartsOptions.cs` (`Custody`), `Parts/MachineHosting.cs`, `PlatformHosting.cs`, `Sequencer/MachineIdentity.cs` (signing-key source), `Keys/ConfiguredMasterKeyCustody.cs`, `Keys/PartKeys.cs`
+- Test: `src/DigitalBrain.Modules/Microsoft/Windows/tests/DigitalBrain.Modules.Microsoft.Windows.Tests/TpmCustodyFacts.cs`, `src/DigitalBrain.Platform/DigitalBrain.Platform.Tests.Unit/Parts/CustodyOptionsFacts.cs`
+
+**Interfaces:**
+- `public enum MasterKeyCustodyKind { Configured = 0, Tpm = 1 }`; `PartsOptions.Custody` (key `DigitalBrain:Platform:Parts:Custody`, default `Configured`; `PartsOptions.cs` is already in `ConfigurationKeyOwners.json`).
+- `public interface IMasterKeyCustody { byte[] Wrap(string accountId, string context, byte[] secret); byte[] Unwrap(string accountId, string context, byte[] wrapped); }` — Framework, signature unchanged.
+- `internal sealed class TpmMasterKeyCustody : IMasterKeyCustody` — a non-exportable key per account in the Microsoft Platform Crypto Provider (CNG `CngProvider("Microsoft Platform Crypto Provider")`); wrapping is AES-GCM under a key the TPM operation derives; `static bool IsAvailable()`. Verify the CNG/TPM API with microsoft-learn before coding.
+- `TpmMachineKey` — the machine's ECDsa P-256 head-signing key (Task 8) held in the TPM instead of `identity.key`; `MachineIdentity.LoadOrCreate` takes the key source. (The Windows module has its own `MachineIdentity.cs`, distinct from `DigitalBrain.Platform.Sequencer.MachineIdentity` — LSP before touching either.)
+- `WindowsModule` registers both when `Custody = Tpm`. `MachineHosting` validates at start: `Custody = Configured` with `IHostEnvironment.IsProduction()` → start refused (`InvalidOperationException` naming the key); `Custody = Tpm` with no registered TPM custody or no TPM → refused the same way.
+
+- [ ] **Step 1: Move `IMasterKeyCustody` to Framework** (LSP `findReferences`; update `ConfiguredMasterKeyCustody`, `PartKeys`, `PlatformHosting`). Build Framework and Platform; Platform suite → PASS. Commit: `Keys: master key custody is a framework contract a per-OS module can implement`.
+- [ ] **Step 2: Failing facts.** `CustodyOptionsFacts.ProductionRefusesConfiguredCustody` (a `WithPartLog()` host, environment `Production`, `Custody = Configured` → start throws naming `DigitalBrain:Platform:Parts:Custody`) and `TpmCustodyWithoutAProviderIsRefused`. `TpmCustodyFacts`, each skipping when `!TpmMasterKeyCustody.IsAvailable()` (the repo's live-gated `Assert.Skip` pattern): `AWrappedKeyUnwrapsOnlyThroughTheSameTpmKey`, `TheTpmKeyIsNotExportable`, `TheMachineSignsHeadsWithItsTpmKey`. Run both suites → FAIL (or SKIP on a TPM-less runner, reported as such).
+- [ ] **Step 3: Implement** `Custody`, the start-time validation, `TpmMasterKeyCustody`, `TpmMachineKey`, the Windows module registration. Platform and Windows suites → PASS/SKIP. Commit: `Windows: master key custody and the machine signing key live in the TPM; production refuses configured custody`.
+- [ ] **Step 4: Live.** Check the PC's TPM (`Get-Tpm`) and record it; the AppHost sets `Custody = Tpm` on the machine resources; restart one; `digitalbrain-mcp` `neurons_get` reads a neuron's state back (its part key unwrapped through the TPM); `list_structured_logs` shows no custody errors. Record in the ledger.
+
 
 ## Plan 6 — Transport (Tasks 20–22)
 
