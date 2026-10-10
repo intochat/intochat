@@ -92,9 +92,15 @@ public static class ServiceDefaultsExtensions
         }
 
         builder.Services.AddOpenTelemetry()
-            .ConfigureResource(resource => resource.AddService(
-                serviceName: builder.Environment.ApplicationName,
-                serviceNamespace: TelemetryPrefix))
+            // A host that names itself (Aspire's OTEL_SERVICE_NAME and service.instance.id, a candidate's
+            // candidate-{sha}) keeps that name, so its telemetry lands on its own resource; AddService would
+            // overwrite both with the assembly name and a fresh instance id.
+            .ConfigureResource(resource =>
+            {
+                if (string.IsNullOrWhiteSpace(builder.Configuration["OTEL_SERVICE_NAME"]))
+                { resource.AddService(serviceName: builder.Environment.ApplicationName, serviceNamespace: TelemetryPrefix); }
+                else { resource.AddAttributes([new("service.namespace", TelemetryPrefix)]); }
+            })
             .WithMetrics(metrics => metrics
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
