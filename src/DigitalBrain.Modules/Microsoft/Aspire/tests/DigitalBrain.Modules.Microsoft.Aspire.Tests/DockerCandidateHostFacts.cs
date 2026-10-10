@@ -121,7 +121,7 @@ public sealed class DockerCandidateHostFacts : IDisposable
             return Task.FromResult(answers.FirstOrDefault(answer => command.StartsWith(answer.Prefix, StringComparison.Ordinal)).Result ?? new(0, "", ""));
         }
 
-        public IRunningProcess Start(string file, string[] args, string workingDirectory, IReadOnlyDictionary<string, string> environment)
+        public int Detach(string file, string[] args, string workingDirectory)
             => throw new NotSupportedException();
     }
 }

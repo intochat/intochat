@@ -47,8 +47,8 @@ public sealed class AspireCliClusterHostFacts : IDisposable
 
         await host.RestartSilos(TestContext.Current.CancellationToken);
 
-        Assert.Equal([["resource", "digitalbrain-mcp", "restart"], ["resource", "OperatingSystem", "restart"]],
-            runner.Calls.Select(call => call.Take(3).ToArray()));
+        Assert.Equal([["resource", "digitalbrain-mcp", "restart"]], runner.Calls.Select(call => call.Take(3).ToArray()));
+        Assert.Equal([["resource", "OperatingSystem", "restart"]], runner.Detached.Select(call => call.Take(3).ToArray()));
     }
 
     [Fact]
@@ -82,7 +82,12 @@ public sealed class AspireCliClusterHostFacts : IDisposable
             return Task.FromResult(new ProcessResult(0, output, ""));
         }
 
-        public IRunningProcess Start(string file, string[] args, string workingDirectory, IReadOnlyDictionary<string, string> environment)
-            => throw new NotSupportedException();
+        public List<string[]> Detached { get; } = [];
+
+        public int Detach(string file, string[] args, string workingDirectory)
+        {
+            Detached.Add(args);
+            return 1;
+        }
     }
 }

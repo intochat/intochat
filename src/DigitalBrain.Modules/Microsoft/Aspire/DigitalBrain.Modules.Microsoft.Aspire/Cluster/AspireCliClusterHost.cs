@@ -47,11 +47,14 @@ internal sealed class AspireCliClusterHost : IClusterHost
     }
 
     // The MCP server is an Orleans client of the same build: both restart onto live.json's build. This call
-    // runs inside the silo, so the silo restarts last: its restart ends the caller.
+    // runs inside the silo, so the silo restarts last: its restart ends the caller. Stopping the silo signals
+    // its console, and a CLI sharing that console cancels the restart between stop and start (seen live):
+    // the silo's restart is issued detached and is not awaited.
     public async Task RestartSilos(CancellationToken ct)
     {
         await Aspire(["resource", McpResource, "restart"], ct);
-        await Aspire(["resource", SiloResource, "restart"], ct);
+        var repository = await Repository(ct);
+        processes.Detach("aspire", Arguments(repository, ["resource", SiloResource, "restart"]), repository);
     }
 
     // `otel spans` lists one JSON object per span; `source` is the exporting service's name (its OTEL service.name).
@@ -94,13 +97,17 @@ internal sealed class AspireCliClusterHost : IClusterHost
 
     private async Task<string> Aspire(string[] command, CancellationToken ct)
     {
-        var repository = Path.GetDirectoryName(Path.GetFullPath(await workdir(ct)))!;
-        string[] args = [.. command, "--apphost", Path.Combine(repository, AppHostProject), "--non-interactive", "--nologo"];
-        var result = await processes.RunAsync("aspire", args, repository, null, ct);
+        var repository = await Repository(ct);
+        var result = await processes.RunAsync("aspire", Arguments(repository, command), repository, null, ct);
         return result.ExitCode == 0
             ? result.Output
             : throw new InvalidOperationException($"aspire {string.Join(' ', command)} exited {result.ExitCode}: {result.Error}{result.Output}");
     }
+
+    private async Task<string> Repository(CancellationToken ct) => Path.GetDirectoryName(Path.GetFullPath(await workdir(ct)))!;
+
+    private static string[] Arguments(string repository, string[] command)
+        => [.. command, "--apphost", Path.Combine(repository, AppHostProject), "--non-interactive", "--nologo"];
 
     private static async Task<string> Workdir(IModuleIntegrations<AspireModule> integrations, CancellationToken ct)
     {

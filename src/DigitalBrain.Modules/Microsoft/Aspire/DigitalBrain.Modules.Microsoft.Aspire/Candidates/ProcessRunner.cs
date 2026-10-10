@@ -4,17 +4,12 @@ namespace DigitalBrain.Microsoft.Aspire.Candidates;
 
 internal sealed record ProcessResult(int ExitCode, string Output, string Error);
 
-internal interface IRunningProcess : IAsyncDisposable
-{
-    int Id { get; }
-    Task<int> Exited { get; }
-    Task StopAsync(CancellationToken ct);
-}
-
 internal interface IProcessRunner
 {
     Task<ProcessResult> RunAsync(string file, string[] args, string workingDirectory, IReadOnlyDictionary<string, string>? environment, CancellationToken ct);
-    IRunningProcess Start(string file, string[] args, string workingDirectory, IReadOnlyDictionary<string, string> environment);
+    // Starts a process that outlives the caller: it gets a console of its own, so the console signal that
+    // stops the caller (Aspire stopping the silo) never reaches it. Answers the process id.
+    int Detach(string file, string[] args, string workingDirectory);
 }
 
 internal sealed class SystemProcessRunner : IProcessRunner
@@ -34,12 +29,12 @@ internal sealed class SystemProcessRunner : IProcessRunner
         return new(process.ExitCode, await output, await error);
     }
 
-    // A long-running process inherits the host's streams: nobody drains a redirected pipe, and a full one blocks the child.
-    public IRunningProcess Start(string file, string[] args, string workingDirectory, IReadOnlyDictionary<string, string> environment)
+    public int Detach(string file, string[] args, string workingDirectory)
     {
-        var process = new Process { StartInfo = Info(file, args, workingDirectory, environment, redirect: false), EnableRaisingEvents = true };
-        process.Start();
-        return new Running(process);
+        var info = Info(file, args, workingDirectory, null, redirect: false);
+        info.CreateNoWindow = true;
+        using var process = Process.Start(info) ?? throw new InvalidOperationException($"{file} did not start");
+        return process.Id;
     }
 
     private static ProcessStartInfo Info(string file, string[] args, string workingDirectory, IReadOnlyDictionary<string, string>? environment, bool redirect)
@@ -48,13 +43,5 @@ internal sealed class SystemProcessRunner : IProcessRunner
         foreach (var argument in args) { info.ArgumentList.Add(argument); }
         foreach (var (name, value) in environment ?? new Dictionary<string, string>()) { info.Environment[name] = value; }
         return info;
-    }
-
-    private sealed class Running(Process process) : IRunningProcess
-    {
-        public int Id => process.Id;
-        public Task<int> Exited => process.WaitForExitAsync().ContinueWith(_ => process.ExitCode, TaskScheduler.Default);
-        public Task StopAsync(CancellationToken ct) { if (!process.HasExited) { process.Kill(entireProcessTree: true); } return process.WaitForExitAsync(ct); }
-        public ValueTask DisposeAsync() { process.Dispose(); return ValueTask.CompletedTask; }
     }
 }
