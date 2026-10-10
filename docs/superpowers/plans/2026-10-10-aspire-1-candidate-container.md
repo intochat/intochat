@@ -161,10 +161,10 @@ Signals (`Signals/CandidateSignals.cs`), each `: Signal`, `[GenerateSerializer]`
 `CandidateChanged(string Sha, CandidateStage Stage)`, `CandidateStarted(string Sha, CandidateEndpoints Endpoints)`, `CandidateHealthy(string Sha)`, `CandidateVerified(string Sha, VerificationReport Report)`, `CandidatePromoted(string Sha)`, `CandidateFailed(string Sha, CandidateStage Stage, string Reason)`.
 `Signals/ClusterSignals.cs`: `ClusterChanged(string CurrentSha, ClusterStage Stage, string? TargetSha)`.
 
-- [ ] **Step 1:** LSP `findReferences` on `IAspire`, `AspireResource`, `ResourceStateChanged`, `AspireBridgeCommand`, `AspireBridgeCommandResult`, `AspireBridgeRoutes`; write the list into the task notes.
-- [ ] **Step 2:** Create the new contract files above.
-- [ ] **Step 3:** `dotnet build src/DigitalBrain.Modules/Microsoft/Aspire/DigitalBrain.Modules.Microsoft.Aspire.Contracts/DigitalBrain.Modules.Microsoft.Aspire.Contracts.csproj` → success (old types still present; deletion in Task 7).
-- [ ] **Step 4:** Commit: `git add <each new file>`; `git commit -m "Aspire: candidate and cluster contracts"`.
+- [x] **Step 1:** LSP `findReferences` on `IAspire`, `AspireResource`, `ResourceStateChanged`, `AspireBridgeCommand`, `AspireBridgeCommandResult`, `AspireBridgeRoutes`; write the list into the task notes.
+- [x] **Step 2:** Create the new contract files above.
+- [x] **Step 3:** `dotnet build src/DigitalBrain.Modules/Microsoft/Aspire/DigitalBrain.Modules.Microsoft.Aspire.Contracts/DigitalBrain.Modules.Microsoft.Aspire.Contracts.csproj` → success (old types still present; deletion in Task 7).
+- [x] **Step 4:** Commit: `git add <each new file>`; `git commit -m "Aspire: candidate and cluster contracts"`.
 
 ---
 
