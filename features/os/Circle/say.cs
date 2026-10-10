@@ -1,14 +1,12 @@
 using DigitalBrain.Apps;
-using DigitalBrain.Apps.Signals;
 using DigitalBrain.Circles;
 using DigitalBrain.Client;
 
 // "say": speak in a circle; the chat dedups at-least-once delivery by the request id. watch.cs rebuilds the transcript when the index reports the line.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var app = brain.Get<IApp>(CircleView.Key(brain));
-await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
+await foreach (var request in brain.On(app, "say", brain.Stopping))
 {
-    if (request.Operation != "say") { continue; }
     try
     {
         var spoken = await CircleView.Split(brain, request.Input);
