@@ -97,7 +97,7 @@ public sealed class CSharpScriptSandbox(CSharpToolService tools, IBehaviorAssemb
             catch (HttpRequestException missing) when (missing.StatusCode == HttpStatusCode.NotFound)
             {
                 // Sessions are caches: reaped or not yet started, it is ensured like a script run would and asked once more.
-                await services.GetRequiredService<IGrainFactory>().GetGrain<IBrainRuntime>(BrainRuntimeKeys.For(brain))
+                await services.GetRequiredService<IGrainFactory>().GetGrain<IBrainRuntimeSession>(BrainRuntimeKeys.For(brain))
                     .Hold(deadline.Token).WaitAsync(deadline.Token).ConfigureAwait(false);
                 answer = await runner.Judge(brain, request, deadline.Token).ConfigureAwait(false);
             }

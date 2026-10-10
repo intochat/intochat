@@ -39,7 +39,7 @@ internal sealed class BrainRuntimeNeuron(
     IOptions<CSharpOptions> options,
     IOptions<CSharpDeploymentSettings> deployment,
     ILogger<BrainRuntimeNeuron> logger)
-    : Neuron<BrainRuntimeState>(store), IBrainRuntime, IBrainRuntimeEdge, IBrainPrograms, IBrainRuntimeArrivals, IRemindable, INeuronObserver
+    : Neuron<BrainRuntimeState>(store), IBrainRuntime, IBrainRuntimeEdge, IBrainPrograms, IBrainRuntimeArrivals, IBrainRuntimeSession, IRemindable, INeuronObserver
 {
     internal const string ReconcileReminder = "reconcile";
     // Orleans reminders fire at most once a minute.
