@@ -16,7 +16,7 @@ class ComputeUsagePanel extends StatefulWidget {
     this.refreshSignal,
     this.savedHistory,
   });
-  final DigitalBrainUiClient client;
+  final DigitalBrainUiClient? client;
   final String workspaceId, workspaceName;
   final VoidCallback onClose;
   final Listenable? refreshSignal;
@@ -77,6 +77,8 @@ class _ComputeUsagePanelState extends State<ComputeUsagePanel> {
   }
 
   Future<void> _load({bool more = false}) async {
+    final client = widget.client;
+    if (client == null) return;
     if (_busy) {
       if (!more) _pendingRefresh = true;
       return;
@@ -87,9 +89,11 @@ class _ComputeUsagePanelState extends State<ComputeUsagePanel> {
       _error = null;
       _retryMore = more;
     });
-    final summary = more ? Future<void>.value() : _loadSummary(generation);
+    final summary = more
+        ? Future<void>.value()
+        : _loadSummary(generation, client);
     try {
-      final page = await widget.client.readComputeUsage(
+      final page = await client.readComputeUsage(
         widget.workspaceId,
         cursor: more ? _cursor : null,
       );
@@ -121,9 +125,9 @@ class _ComputeUsagePanelState extends State<ComputeUsagePanel> {
     }
   }
 
-  Future<void> _loadSummary(int generation) async {
+  Future<void> _loadSummary(int generation, DigitalBrainUiClient client) async {
     try {
-      final value = await widget.client.readComputeSummary();
+      final value = await client.readComputeSummary();
       if (mounted && generation == _generation) {
         setState(() {
           _summary = value;
@@ -220,6 +224,10 @@ class _ComputeUsagePanelState extends State<ComputeUsagePanel> {
 
   @override
   Widget build(BuildContext context) {
+    final client = widget.client;
+    if (client == null) {
+      return const Center(child: Text('Not connected to a brain'));
+    }
     final items = _visible;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -32,6 +32,13 @@ class ComputeClient extends WorkspaceClient {
   }
 }
 
+Widget buildWorkspace({DigitalBrainUiClient? programmingClient}) {
+  return WorkspaceApp(
+    store: WorkspaceStore(persistence: MemoryPersistence()),
+    programmingClient: programmingClient,
+  );
+}
+
 void main() {
   for (final width in [1440.0, 390.0]) {
     testWidgets(
@@ -69,4 +76,15 @@ void main() {
       },
     );
   }
+
+  testWidgets('compute button opens a not-connected panel without a client', (
+    tester,
+  ) async {
+    await tester.pumpWidget(buildWorkspace(programmingClient: null));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('compute-usage-button')));
+    await tester.pumpAndSettle();
+    expect(find.text('Not connected to a brain'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
 }

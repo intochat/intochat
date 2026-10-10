@@ -1002,9 +1002,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     onSwitchAccount: widget.onSwitchAccount,
     onSavedWork: () => _projectFiles(context),
     onSearch: () => _search(context),
-    onCompute: widget.programmingClient == null
-        ? null
-        : () => _openCompute(context),
+    onCompute: () => _openCompute(context),
     onSettings: widget.programmingClient == null
         ? () => _openConfiguration(context)
         : () => _openApplication('settings'),
@@ -1043,7 +1041,6 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
 
   void _openCompute(BuildContext context) {
     final client = widget.programmingClient;
-    if (client == null) return;
     final project = store.currentProject;
     Widget panel(BuildContext dialogContext) => ComputeUsagePanel(
       client: client,
