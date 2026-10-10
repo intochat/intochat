@@ -8,8 +8,6 @@ internal interface IKeyringGrain : IGrainWithStringKey
     Task<byte[]?> Get(string partId);
 
     Task<bool> TryAdd(string partId, byte[] wrapped);
-
-    Task Replace(string partId, byte[] wrapped);
 }
 
 [GrainType("platform.keyring")]
@@ -24,12 +22,6 @@ internal sealed class KeyringGrain(
         store.State.Keys[partId] = wrapped;
         await store.WriteStateAsync();
         return true;
-    }
-
-    public async Task Replace(string partId, byte[] wrapped)
-    {
-        store.State.Keys[partId] = wrapped;
-        await store.WriteStateAsync();
     }
 }
 

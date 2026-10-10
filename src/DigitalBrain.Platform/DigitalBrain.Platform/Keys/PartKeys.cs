@@ -16,12 +16,5 @@ internal sealed class PartKeys(IGrainFactory grains, IMasterKeyCustody custody) 
             : custody.Unwrap(ownerAccount, Context(part), (await keyring.Get(part.Value))!);
     }
 
-    public async Task<byte[]> Rotate(PartId part, string ownerAccount, CancellationToken cancellationToken = default)
-    {
-        var key = RandomNumberGenerator.GetBytes(32);
-        await grains.GetGrain<IKeyringGrain>(part.BrainId).Replace(part.Value, custody.Wrap(ownerAccount, Context(part), key));
-        return key;
-    }
-
     private static string Context(PartId part) => $"part-key|{part.Value}";
 }

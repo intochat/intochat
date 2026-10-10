@@ -3,8 +3,7 @@ namespace DigitalBrain.Framework.Parts;
 // The key that encrypts one part (Q6). Only a silo holding the part's lease asks for it; no grain call carries it.
 public interface IPartKeys
 {
+    // No rotation yet: replacing a part key without re-sealing its head, segments, snapshot and journal would make
+    // every byte of the part unreadable. It returns with the re-seal (circle revocation).
     Task<byte[]> Key(PartId part, string ownerAccount, CancellationToken cancellationToken = default);
-
-    // Revoking a circle rotates one part key; the part log re-seals from its next snapshot.
-    Task<byte[]> Rotate(PartId part, string ownerAccount, CancellationToken cancellationToken = default);
 }
