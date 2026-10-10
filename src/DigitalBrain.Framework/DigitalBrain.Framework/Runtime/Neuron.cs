@@ -76,6 +76,9 @@ public abstract class Neuron : Grain, INeuron
     // otherwise they are journaled after it. Either way a failed write publishes nothing.
     private protected async Task Announce(Func<Task> write, Signal[] signals)
     {
+        // Stamping needs the grain's identity. A neuron constructed outside a silo has none: its write runs
+        // first, so a storage failure surfaces as itself rather than as the missing identity.
+        if (((IGrainBase)this).GrainContext is null) { await write(); }
         Signal[] stamped = [.. signals.Select(Stamp)];
         bool taken;
         using (SignalJournal.Attach(this.GetGrainId(), stamped))

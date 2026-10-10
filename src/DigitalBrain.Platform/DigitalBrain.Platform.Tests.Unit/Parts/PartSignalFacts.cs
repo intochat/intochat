@@ -1,7 +1,9 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Parts;
 using DigitalBrain.Platform.Parts;
+using DigitalBrain.Platform.Tests.Unit.Sequencer;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Orleans.Serialization;
 using Orleans.Storage;
 
@@ -37,6 +39,13 @@ internal sealed class SignalProbeStorage(IGrainStorage inner) : IGrainStorage
         await inner.WriteStateAsync(stateName, grainId, grainState);
     }
     public Task ClearStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState) => inner.ClearStateAsync(stateName, grainId, grainState);
+}
+
+// Real timers (so batches flush) over a clock the fact can move past a lease.
+internal sealed class SkewedTime : TimeProvider
+{
+    public TimeSpan Skew { get; set; }
+    public override DateTimeOffset GetUtcNow() => base.GetUtcNow() + Skew;
 }
 
 public sealed class PartSignalFacts
@@ -101,6 +110,43 @@ public sealed class PartSignalFacts
         Assert.IsType<InconsistentStateException>(error as InconsistentStateException ?? error.InnerException);
         Assert.DoesNotContain(log.SignalsSince(0), entry => entry.Signals.OfType<Changed>().Any(c => c.Value == 2));
         Assert.DoesNotContain(probe.Snapshot, c => c.Value == 2);
+    }
+
+    // On a non-own machine a commit refused by a lost lease closes the log (R12): the write throws and its
+    // signal is neither delivered nor in the log. A machine cannot start as Cloud here (kernel instance records
+    // live in the brain's core, which only own machines hold), so it boots Own, opening the core, and is then
+    // demoted before the counter's part opens. A Pinged after the failure orders the probe.
+    [Fact(Timeout = 60_000)]
+    public async Task AWriteRefusedByALostLeaseNeverPublishesItsSignal()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var time = new SkewedTime();
+        await using var brain = await ModuleTest.Create().WithPartLog()
+            .ConfigureSilo(silo => silo.Services.AddSingleton<TimeProvider>(time))
+            .StartAsync(ct);
+        var options = brain.SiloServices.GetRequiredService<IOptions<PartsOptions>>().Value;
+        options.Role = MachineRole.Cloud;
+        var counter = brain.Get<ISignalCounter>(Counter);
+        await counter.Change(1);
+        await using var probe = await brain.SubscribeAsync<Signal>(counter, ct);
+        var part = PartId.Of(Counter);
+        var key = await brain.SiloServices.GetRequiredService<IPartKeys>().Key(part, ModuleTest.DefaultAccount, ct);
+        using var rival = SequencerFacts.Machine();
+        time.Skew = options.ShortLease + TimeSpan.FromSeconds(1);
+        var taken = await PartLease.Acquire(part, key, brain.Grains, rival, PartLeaseFacts.Seen(), new PartsOptions { Role = MachineRole.Cloud }, time,
+            brain.SiloServices.GetRequiredService<Serializer>());
+
+        var error = await Assert.ThrowsAnyAsync<Exception>(() => counter.Change(2));
+        await taken.Release();
+        await counter.Ping();
+
+        Assert.IsType<LeaseLostException>(error as LeaseLostException ?? error.InnerException);
+        await using var next = probe.ReadAllAsync(ct).GetAsyncEnumerator(ct);
+        Assert.True(await next.MoveNextAsync());
+        Assert.IsType<Pinged>(next.Current);
+        var log = await brain.SiloServices.GetRequiredService<PartLogs>().For(part);
+        await log.Flushed();
+        Assert.DoesNotContain(log.SignalsSince(0), entry => entry.Signals.OfType<Changed>().Any(c => c.Value == 2));
     }
 
     [Fact(Timeout = 60_000)]
