@@ -35,11 +35,11 @@ const string McpPortKey = "DigitalBrain:Http:McpPort";
 var featuresKey = DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.ModuleOptionsSection("apps") + ":Features";
 
 var builder = DistributedApplication.CreateBuilder(args);
+// `aspire run -- --DigitalBrain:Profile local` composes profiles/*.json; dev is today's composition.
+builder.Configuration.AddDigitalBrainProfiles(builder.AppHostDirectory);
 if (builder.Configuration["DigitalBrain:ConfigFile"] is { Length: > 0 } configFile)
 { builder.Configuration.AddJsonFile(configFile, optional: false); }
 var shellEnabled = builder.Configuration.GetValue("DigitalBrain:Shell:Enabled", true);
-// `aspire run -- --DigitalBrain:Profile local` composes profiles/*.json; dev is today's composition.
-builder.Configuration.AddDigitalBrainProfiles(builder.AppHostDirectory);
 var digitalBrain = builder.AddDigitalBrain("Modules", DigitalBrainHostingOptions.Named(builder.Configuration, "intochat", useAzureStorage: true))
     .WithHttpIdentity()
     .WithHosting<AIModuleHosting, AIOptions>(ai =>
