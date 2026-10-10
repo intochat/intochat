@@ -30,6 +30,9 @@ internal sealed class PartLog : IAsyncDisposable
     // Only while opening: the accepted entries a journal is checked against.
     private readonly Dictionary<long, LogEntry> _replayed = [];
     private readonly List<Pending> _queue = [];
+    // Own machine only, under the queue lock: the committed record of every key a queued change already applied
+    // over (null: no record), so a snapshot folds the committed prefix while changes are still queued.
+    private readonly Dictionary<(string GrainId, string StateName), StoredRecord?> _committedUnder = [];
     private readonly SemaphoreSlim _flushing = new(1, 1);
     private readonly CancellationTokenSource _stop = new();
     private TaskCompletionSource _drained = Completed();
@@ -134,6 +137,7 @@ internal sealed class PartLog : IAsyncDisposable
                     _closed = error;
                     throw;
                 }
+                RememberCommitted(entry);
                 Apply(entry);
             }
             _nextSeq++;
@@ -245,6 +249,7 @@ internal sealed class PartLog : IAsyncDisposable
         {
             foreach (var entry in rest)
             {
+                RememberCommitted(entry);
                 Apply(entry);
                 Enqueue(new Pending(entry, new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously)));
             }
@@ -269,6 +274,31 @@ internal sealed class PartLog : IAsyncDisposable
             if (entry.Signals.Length > 0) { _since.Add(entry); }
             _applied = Math.Max(_applied, entry.Seq);
         }
+    }
+
+    // Caller holds the queue lock.
+    private void RememberCommitted(LogEntry entry)
+    {
+        var key = (entry.GrainId, entry.StateName);
+        if (!_committedUnder.ContainsKey(key)) { _committedUnder[key] = Read(entry.GrainId, entry.StateName); }
+    }
+
+    // Caller holds the queue lock, after a batch committed: what it wrote is now the committed record, and a key
+    // with no change left in the queue is committed as it stands.
+    private void Committed(Pending[] batch)
+    {
+        foreach (var entry in batch.Select(p => p.Entry))
+        {
+            var key = (entry.GrainId, entry.StateName);
+            if (!_committedUnder.ContainsKey(key)) { continue; }
+            switch (entry.Change)
+            {
+                case RecordChange.Write: _committedUnder[key] = new StoredRecord(entry.Record, entry.Seq); break;
+                case RecordChange.Clear: _committedUnder[key] = null; break;
+            }
+        }
+        var queued = _queue.Select(p => (p.Entry.GrainId, p.Entry.StateName)).ToHashSet();
+        foreach (var key in _committedUnder.Keys.Where(k => !queued.Contains(k)).ToArray()) { _committedUnder.Remove(key); }
     }
 
     // Caller holds the queue lock. True when this is the first change of a new batch.
@@ -321,7 +351,10 @@ internal sealed class PartLog : IAsyncDisposable
                     _queue.RemoveRange(0, batch.Length);
                     _queuedBytes = _queue.Sum(p => p.Entry.Record.Length + 64L * (1 + p.Entry.Signals.Length));
                     drained = _queue.Count == 0 ? _drained : null;
+                    Committed(batch);
                 }
+                // Changes queued while this batch committed start the next batch; no later append schedules it.
+                if (drained is null) { ScheduleFlush(_options.BatchDelay); }
                 _backoff = TimeSpan.FromSeconds(1);
                 // The batch is durable once the head accepted it; a stale journal is trimmed by the next flush or open.
                 try { _journal?.TrimThrough(batch[^1].Entry.Seq); }
@@ -364,7 +397,7 @@ internal sealed class PartLog : IAsyncDisposable
 
     // Caller holds the flush lock. Folds the committed state into one snapshot that replaces the chain, then
     // discards what it replaced. Journaled entries at or below SnapshotSeq were trimmed by the flush that
-    // committed them, and a reopen accepts covered entries of its own history (ruling R11).
+    // committed them; queued ones stay above it. A reopen accepts covered entries the head records as its own (R27).
     private async Task Snapshot()
     {
         var payload = _lease.Payload;
@@ -372,11 +405,16 @@ internal sealed class PartLog : IAsyncDisposable
         LogEntry[] recent;
         lock (_queue)
         {
-            // An own machine applies journaled changes before the head accepts them; the next flush snapshots instead.
-            if (_journal is not null && _queue.Count > 0) { return; }
+            // An own machine applies journaled changes before the head accepts them: fold the committed prefix only.
             lock (_records)
             {
-                records = [.. _records.Select(r => new SnapshotRecord { GrainId = r.Key.GrainId, StateName = r.Key.StateName, Record = r.Value.Record, ETagSeq = r.Value.ETagSeq })];
+                var committed = new Dictionary<(string GrainId, string StateName), StoredRecord>(_records);
+                foreach (var (key, record) in _committedUnder)
+                {
+                    if (record is null) { committed.Remove(key); }
+                    else { committed[key] = record; }
+                }
+                records = [.. committed.Select(r => new SnapshotRecord { GrainId = r.Key.GrainId, StateName = r.Key.StateName, Record = r.Value.Record, ETagSeq = r.Value.ETagSeq })];
                 recent = [.. _since.Where(e => e.Seq > payload.SnapshotSeq && e.Seq <= payload.LastSeq)];
             }
         }
@@ -408,6 +446,7 @@ internal sealed class PartLog : IAsyncDisposable
         {
             failed = [.. _queue];
             _queue.Clear();
+            _committedUnder.Clear();
             _queuedBytes = 0;
             if (_journal is null) { _nextSeq = _lease.Payload.LastSeq + 1; }
             _drained.TrySetResult();
