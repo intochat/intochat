@@ -61,6 +61,34 @@ public sealed class AspireCliClusterHostFacts : IDisposable
     }
 
     [Fact]
+    public async Task InstancesRollMcpServersFirstAndTheCallingSiloRestartsDetached()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runner = new RecordingRunner("""
+            {"resources":[
+              {"displayName":"OperatingSystem-b"},{"displayName":"OperatingSystem-a"},{"displayName":"OperatingSystem-front"},
+              {"displayName":"digitalbrain-mcp-b"},{"displayName":"digitalbrain-mcp-a"}]}
+            """);
+        var host = new AspireCliClusterHost(runner, _ => Task.FromResult(workdir), "OperatingSystem-a");
+
+        var instances = await host.Instances(ct);
+        await host.RestartSilo("OperatingSystem-b", ct);
+        await host.RestartSilo("OperatingSystem-a", ct);
+
+        Assert.Equal(["digitalbrain-mcp-a", "digitalbrain-mcp-b", "OperatingSystem-a", "OperatingSystem-b"], instances);
+        Assert.Equal(["resource", "OperatingSystem-b", "restart"], runner.Calls[^1].Take(3));
+        Assert.Equal([["resource", "OperatingSystem-a", "restart"]], runner.Detached.Select(call => call.Take(3).ToArray()));
+    }
+
+    [Fact]
+    public void AnInstanceIsReachedOnItsOwnHttpUrl()
+    {
+        using var json = System.Text.Json.JsonDocument.Parse("""{"urls":[{"name":"https","url":"https://localhost:7001"},{"name":"http","url":"http://localhost:5001"}]}""");
+
+        Assert.Equal(new Uri("http://localhost:5001"), AspireCliClusterHost.Endpoint(json.RootElement));
+    }
+
+    [Fact]
     public async Task SpansCountTheNamedSpansOfTheService()
     {
         var runner = new RecordingRunner("""

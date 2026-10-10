@@ -10,7 +10,7 @@ using Orleans.Hosting;
 
 namespace DigitalBrain.Microsoft.Aspire;
 
-public sealed class AspireModule() : Module(new ModuleId("aspire")), IHttpModule
+public sealed class AspireModule() : Module<AspireOptions>(new ModuleId("aspire")), IHttpModule
 {
     public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.Microsoft.Aspire.ICluster).Assembly;
 

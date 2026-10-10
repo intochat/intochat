@@ -21,8 +21,33 @@ internal sealed class FakeClusterHost : IClusterHost
         return Task.CompletedTask;
     }
 
+    public string[] InstanceNames { get; set; } = ["mcp-a", "mcp-b", "silo-0", "silo-1"];
+    public string? Self { get; set; }
+    public List<string> RestartedSilos { get; } = [];
+    public HashSet<string> NeverHealthy { get; } = [];
+    // An instance whose restart fails once, as if the activation driving the roll were cut off there.
+    public string? InterruptAt { get; set; }
+
     public Task<SiloView[]> Silos(CancellationToken ct) =>
-        Task.FromResult<SiloView[]>([new("silo-0", Current, "Running", "Healthy"), new("silo-1", Current, "Running", "Healthy")]);
+        Task.FromResult<SiloView[]>([.. InstanceNames.Where(name => name.StartsWith("silo-", StringComparison.Ordinal)).Select(name => new SiloView(name, Current, "Running", "Healthy"))]);
+
+    public Task<string[]> Instances(CancellationToken ct) => Task.FromResult(InstanceNames);
+
+    public Task RestartSilo(string name, CancellationToken ct)
+    {
+        if (name == InterruptAt)
+        {
+            InterruptAt = null;
+            return Task.FromException(new InvalidOperationException($"cut off before restarting {name}"));
+        }
+        RestartedSilos.Add($"{name}@{Current}");
+        return Task.CompletedTask;
+    }
+
+    public Task<SiloView> WaitSilo(string name, TimeSpan budget, CancellationToken ct) =>
+        NeverHealthy.Contains(name)
+            ? Task.FromException<SiloView>(new TimeoutException($"{name} not ready within {budget}"))
+            : Task.FromResult(new SiloView(name, Current, "Running", "Healthy"));
 
     public Task RestartSilos(CancellationToken ct)
     {

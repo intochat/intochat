@@ -77,7 +77,7 @@ Task<SiloView> WaitSilo(string name, TimeSpan budget, CancellationToken ct); // 
 
 `AspireCliClusterHost`: `execute_resource_command` with the replica's resource name (replicas appear as `os-<suffix>` in `list_resources`; confirm). `WaitSilo`: readiness wait on that replica's state via `list_resources`, bounded by the caller's budget. `FakeClusterHost`: `RestartedSilos` list, `NeverHealthy` set of names → `TimeoutException`.
 
-- [ ] Steps: implement, unit fact in `ClusterFacts` for the fake's contract is unnecessary; covered by Task 5. Build. Commit with Task 5.
+- [x] Steps: implement, unit fact in `ClusterFacts` for the fake's contract is unnecessary; covered by Task 5. Build. Commit with Task 5.
 
 ### Task 5: ICluster.Roll
 
@@ -102,13 +102,13 @@ Algorithm (each line persisted before its side effect):
 
 `StepBudget`: `AspireOptions.SiloStepBudget` (default 3 minutes, option not a hard-coded constant).
 
-- [ ] **Step 1: Failing facts:**
+- [x] **Step 1: Failing facts:**
   - `RollingRestartsEverySiloOnceAndEndsSteadyOnTheNewSha`
   - `RollingResumesFromTheRemainingSilosAfterReactivation` (deactivate the cluster grain between steps)
   - `ASiloThatNeverBecomesHealthyRollsBackToThePreviousSha` (`NeverHealthy = {"os-1"}`; `Current` back to previous; `ClusterChanged` Steady; Roll throws)
   - `RollIsRefusedWhileRestarting`
-- [ ] Steps 2–4: fail, implement, pass.
-- [ ] **Step 5:** Commit `"Aspire: the cluster rolls silo by silo"`.
+- [x] Steps 2–4: fail, implement, pass.
+- [x] **Step 5:** Commit `"Aspire: the cluster rolls silo by silo"`.
 
 ### Task 6: Verification loop
 

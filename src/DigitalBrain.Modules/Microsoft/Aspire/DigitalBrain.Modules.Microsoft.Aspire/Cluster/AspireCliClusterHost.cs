@@ -1,6 +1,7 @@
 using System.Text.Json;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.Aspire.Candidates;
+using DigitalBrain.ServiceDefaults;
 
 namespace DigitalBrain.Microsoft.Aspire.Cluster;
 
@@ -70,6 +71,82 @@ internal sealed class AspireCliClusterHost : IClusterHost
             var repository = await Repository(ct);
             processes.Detach("aspire", Arguments(repository, ["resource", own, "restart"]), repository);
         }
+    }
+
+    public string? Self => self;
+
+    public async Task<string[]> Instances(CancellationToken ct)
+    {
+        var names = (await Describe(ct)).Select(resource => Text(resource, "displayName", "name")).OfType<string>().Distinct().Order(StringComparer.Ordinal).ToArray();
+        return [.. names.Where(name => Instance(name, McpResource)), .. names.Where(name => Instance(name, SiloResource))];
+    }
+
+    // Restarting the silo this call runs in ends the caller: that restart is detached, as in RestartSilos.
+    public async Task RestartSilo(string name, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        if (name == self)
+        {
+            var repository = await Repository(ct);
+            processes.Detach("aspire", Arguments(repository, ["resource", name, "restart"]), repository);
+            return;
+        }
+        await Aspire(["resource", name, "restart"], ct);
+    }
+
+    // A readiness wait on a freshly started process: Running in `describe`, then its own /ready (the front's probe,
+    // dependency-free) answers 200 on the instance's endpoint. The budget bounds it; an instance that stops fails at once.
+    public async Task<SiloView> WaitSilo(string name, TimeSpan budget, CancellationToken ct)
+    {
+        using var bounded = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        bounded.CancelAfter(budget);
+        try
+        {
+            while (true)
+            {
+                var resource = (await Describe(bounded.Token)).FirstOrDefault(item => Text(item, "displayName", "name") == name);
+                var state = resource.ValueKind == JsonValueKind.Object ? Text(resource, "state") : null;
+                if (state is "Exited" or "Finished" or "FailedToStart")
+                {
+                    throw new InvalidOperationException($"instance {name} stopped ({state}) while starting");
+                }
+                if (state == "Running" && Endpoint(resource) is { } endpoint && await Ready(endpoint, bounded.Token))
+                {
+                    return new SiloView(name, await CurrentSha(bounded.Token), state, Text(resource, "healthStatus", "health"));
+                }
+                await Task.Delay(ReadyInterval, bounded.Token);
+            }
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new TimeoutException($"instance {name} was not ready within {budget}");
+        }
+    }
+
+    private static readonly TimeSpan ReadyInterval = TimeSpan.FromSeconds(1);
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(5) };
+
+    private static async Task<bool> Ready(Uri endpoint, CancellationToken ct)
+    {
+        try
+        {
+            using var response = await Http.GetAsync(new Uri(endpoint, HealthProbes.ReadyPath), ct);
+            return response.IsSuccessStatusCode;
+        }
+        catch (HttpRequestException) { return false; }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested) { return false; }
+    }
+
+    // `describe` lists a resource's urls as strings or as objects carrying `url`; the instance's own http endpoint.
+    internal static Uri? Endpoint(JsonElement resource)
+    {
+        if (!resource.TryGetProperty("urls", out var urls) || urls.ValueKind != JsonValueKind.Array) { return null; }
+        return urls.EnumerateArray()
+            .Select(url => url.ValueKind == JsonValueKind.String ? url.GetString() : url.ValueKind == JsonValueKind.Object ? Text(url, "url") : null)
+            .Select(url => Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri : null)
+            .OfType<Uri>()
+            .OrderBy(uri => uri.Scheme == Uri.UriSchemeHttp ? 0 : 1)
+            .FirstOrDefault(uri => uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
     }
 
     // The AppHost runs each role as named instances {role}-{x}, x a single letter (AspireModuleHosting.Instances);
