@@ -64,8 +64,20 @@ internal sealed class InstanceRegistration(IGrainStorage inner, IGrainFactory gr
         return true;
     }
 
+    // Puts back the descriptor TryDecorate wrapped, for a host that recomposes the cluster storage afterwards.
+    public static bool TryUndecorate(IServiceCollection services)
+    {
+        var wrapped = services.LastOrDefault(descriptor => descriptor.ServiceType == typeof(IGrainStorage)
+            && Equals(descriptor.ServiceKey, DigitalBrainNames.ClusterGrainStorage));
+        if (wrapped?.KeyedImplementationFactory?.Target is not Decorated decorated) { return false; }
+        services[services.IndexOf(wrapped)] = decorated.Original;
+        return true;
+    }
+
     private sealed class Decorated(ServiceDescriptor original)
     {
+        public ServiceDescriptor Original => original;
+
         public IGrainStorage Create(IServiceProvider provider, object? key) =>
             new InstanceRegistration(InstanceRegistration.Create(original, provider, key), provider.GetRequiredService<IGrainFactory>(), provider.GetRequiredService<IGrainContextAccessor>());
     }

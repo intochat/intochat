@@ -61,6 +61,14 @@ public static class BrainHosting
         return InstanceRegistration.TryDecorate(silo.Services);
     }
 
+    // Undoes TryAddKernelRegistration so a later composition step can wrap the cluster storage itself; the step
+    // then calls TryAddKernelRegistration again. False when the storage is not wrapped.
+    public static bool TryRemoveKernelRegistration(this ISiloBuilder silo)
+    {
+        ArgumentNullException.ThrowIfNull(silo);
+        return InstanceRegistration.TryUndecorate(silo.Services);
+    }
+
     // Whether the resolved cluster storage is the kernel's registration wrapper: what a host checks
     // at startup after TryAddKernelRegistration.
     public static bool HasKernelRegistration(IServiceProvider services)

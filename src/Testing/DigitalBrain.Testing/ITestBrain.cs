@@ -17,6 +17,7 @@ public interface ITestBrain : IDigitalBrain, IBrainSubscriptions, IAsyncDisposab
     Task DeactivateAsync(IAddressable neuron, CancellationToken cancellationToken = default);
 
     // In-process: the host is rebuilt over the same memory stores, on the same HTTP address.
+    // Neuron references and services taken before the restart belong to the stopped host: take them again after it.
     Task RestartAsync(CancellationToken cancellationToken = default);
 
     // Deleted in Task 20: the module tier's name for Services during the sweep.

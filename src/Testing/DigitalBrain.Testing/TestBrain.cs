@@ -168,6 +168,8 @@ public sealed class TestBrain
     {
         EnsureMutable();
         _started = true;
+        if (_silo is not null && _target is not InProcessTarget)
+        { throw new NotSupportedException("ConfigureSilo and ConfigureClient reach the in-process host only."); }
         Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
         _execution.Validate();
         var composition = _composition.Build();
