@@ -1,5 +1,4 @@
 using DigitalBrain;
-using Orleans.Concurrency;
 using Orleans.Metadata;
 
 namespace DigitalBrain.Microsoft.Orleans;
@@ -20,6 +19,6 @@ public sealed record ClusterSnapshot([property: Id(0)] SiloView[] Silos, [proper
 [Alias("orleans.cluster"), DefaultGrainType("orleans.cluster")]
 public interface ICluster : INeuron
 {
-    [ReadOnly, AlwaysInterleave] Task<ClusterSnapshot> Read();
+    Task<ClusterSnapshot> Read();
     static string Key(string brainId) => $"{brainId}/orleans/cluster";
 }
