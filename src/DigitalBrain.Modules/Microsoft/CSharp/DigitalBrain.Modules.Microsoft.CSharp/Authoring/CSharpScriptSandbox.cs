@@ -87,12 +87,14 @@ public sealed class CSharpScriptSandbox(CSharpToolService tools, IBehaviorAssemb
             var url = BrainRuntimeNeuron.Reachable(await assemblies.ReadUrl(compiled.Hash, RuleUrlLifetime, deadline.Token).ConfigureAwait(false));
             var type = signal.GetType();
             var request = new JudgeRequest(compiled.Hash, url, type.FullName + ", " + type.Assembly.GetName().Name,
-                JsonSerializer.SerializeToElement(signal, type, RuntimeProtocol.Json));
+                JsonSerializer.SerializeToElement(signal, type, RuntimeProtocol.Json),
+                // The host answers inside the budget, so a hung rule is reported (and quarantined) rather than cut off.
+                options.Value.RuleTimeout * 0.8);
             var answer = await services.GetRequiredService<SessionRunner>().Judge(brain, request, deadline.Token).ConfigureAwait(false);
             return [.. answer.Verdicts.Select(verdict => new Verdict(verdict.Allowed, verdict.Reason) { Rule = verdict.Rule })];
         }
         catch (Exception error) when (!cancellationToken.IsCancellationRequested
-            && error is OperationCanceledException or HttpRequestException or JsonException or InvalidOperationException or NotSupportedException)
+            && error is OperationCanceledException or HttpRequestException or JsonException or InvalidOperationException or NotSupportedException or Azure.RequestFailedException)
         {
             return [Verdict.Reject("rule did not answer") with { Rule = RulesName }];
         }

@@ -133,6 +133,36 @@ public sealed class RuleJudgingFacts
         await app.CurrentBuildAttempt().WaitAsync(TimeSpan.FromSeconds(5), ct);
     }
 
+    [Fact]
+    public async Task ASecondRequestToAHungRuleIsRejectedAtOnceWithoutANewThread()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new JudgingHost();
+        await using var brain = await Start(host, ct);
+        var sandbox = brain.SiloServices.GetRequiredService<IScriptSandbox>();
+        var bundle = new Dictionary<string, string>
+        {
+            ["synapses/a.cs"] = Synapse,
+            ["rules/hung.cs"] = """
+                public sealed class Hung : ILogic<DigitalBrain.Apps.Signals.AppRequested>
+                {
+                    public Verdict Validate(DigitalBrain.Apps.Signals.AppRequested signal)
+                    { while (true) { Thread.Sleep(50); } }
+                }
+                """,
+        };
+
+        var first = Assert.Single(await sandbox.Judge(Brain, bundle, new AppRequested("ask", "a", Guid.NewGuid()), ct));
+        var threads = host.ThreadsStarted;
+        var started = DateTimeOffset.UtcNow;
+        var second = Assert.Single(await sandbox.Judge(Brain, bundle, new AppRequested("ask", "b", Guid.NewGuid()), ct));
+
+        Assert.Equal(("Hung", false, "rule did not answer"), (first.Rule, first.Allowed, first.Reason));
+        Assert.Equal(("Hung", false, "rule did not answer (quarantined)"), (second.Rule, second.Allowed, second.Reason));
+        Assert.True(DateTimeOffset.UtcNow - started < TimeSpan.FromMilliseconds(500));
+        Assert.Equal(threads, host.ThreadsStarted);
+    }
+
     private static Task<ModuleBrain> Start(JudgingHost host, CancellationToken ct, bool apps = false)
     {
         var builder = apps ? ModuleTest.Create().WithModule<AppsModule>().WithModule<CSharpModule>() : ModuleTest.Create().WithModule<CSharpModule>();
@@ -157,8 +187,13 @@ public sealed class RuleJudgingFacts
         private readonly ConcurrentDictionary<string, byte[]> _blobs = new(StringComparer.Ordinal);
         private readonly RuleJudge _judge;
 
-        public JudgingHost() => _judge = new(new BehaviorLoader(new HttpClient(this),
-            Options.Create(new SandboxOptions { CacheRoot = Path.Combine(Path.GetTempPath(), "rules-" + Guid.NewGuid().ToString("N")) })));
+        public JudgingHost()
+        {
+            var options = Options.Create(new SandboxOptions { CacheRoot = Path.Combine(Path.GetTempPath(), "rules-" + Guid.NewGuid().ToString("N")) });
+            _judge = new(new BehaviorLoader(new HttpClient(this), options), options);
+        }
+
+        public int ThreadsStarted => _judge.ThreadsStarted;
 
         public ConcurrentQueue<JudgeRequest> Judged { get; } = new();
 

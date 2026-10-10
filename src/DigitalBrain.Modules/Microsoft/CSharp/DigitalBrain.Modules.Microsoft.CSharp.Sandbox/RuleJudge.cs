@@ -2,19 +2,27 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json;
 using DigitalBrain.Client.Runtime.V1;
+using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Microsoft.CSharp.Sandbox;
 
 // Runs an app's rules (ILogic<T> in its shared classes) against one signal, inside the brain's session:
 // each brain's rules load into their own context, so statics never cross brains. Anything that fails
-// while loading or running a rule is that rule's rejection; a rule never fails open.
-internal sealed class RuleJudge(BehaviorLoader loader)
+// while loading or running a rule is that rule's rejection; a rule never fails open. Each rule runs on a
+// dedicated thread from a small per-session budget (a hung thread cannot be stopped, only fenced in), and a
+// rule that misses its budget is quarantined until the bundle changes: it is rejected without running.
+internal sealed class RuleJudge(BehaviorLoader loader, IOptions<SandboxOptions> options)
 {
     private const int Capacity = 256;
     private const string Library = "rules";
 
     private readonly ConcurrentDictionary<(string Session, string Hash), Lazy<Task<RuleSet>>> _loaded = new();
     private readonly ConcurrentQueue<(string Session, string Hash)> _order = new();
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _threads = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<(string Session, string Hash, string Rule), byte> _quarantined = new();
+    private int _started;
+
+    public int ThreadsStarted => Volatile.Read(ref _started);
 
     public async Task<JudgeAnswer> JudgeAsync(string session, JudgeRequest request, CancellationToken cancellationToken)
     {
@@ -23,10 +31,43 @@ internal sealed class RuleJudge(BehaviorLoader loader)
         if (type is null || !typeof(Signal).IsAssignableFrom(type))
         { return new([new(Library, false, $"this sandbox does not know the signal {request.SignalType}")]); }
         var signal = (Signal)request.Signal.Deserialize(type, RuntimeProtocol.Json)!;
-        var rules = await Load(session, request).WaitAsync(cancellationToken).ConfigureAwait(false);
-        // Rules are user code: they run off the request thread, and an abandoned one only costs this session a thread.
-        var verdicts = await Task.Run(() => rules.Judge(signal), cancellationToken).WaitAsync(cancellationToken).ConfigureAwait(false);
-        return new(verdicts);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var rules = await Load(session, request).WaitAsync(request.Budget, cancellationToken).ConfigureAwait(false);
+        var verdicts = new List<JudgeVerdict>(rules.Failures);
+        foreach (var rule in rules.Matching(signal))
+        {
+            var name = rule.Type.Name;
+            var key = (session, request.Hash, name);
+            if (_quarantined.ContainsKey(key)) { verdicts.Add(new(name, false, "rule did not answer (quarantined)")); continue; }
+            var remaining = request.Budget - clock.Elapsed;
+            var slots = _threads.GetOrAdd(session, _ => new SemaphoreSlim(options.Value.RuleThreads));
+            if (remaining <= TimeSpan.Zero || !await slots.WaitAsync(remaining, cancellationToken).ConfigureAwait(false))
+            { verdicts.Add(new(name, false, "rule did not answer (busy)")); continue; }
+            var done = new TaskCompletionSource<JudgeVerdict>(TaskCreationOptions.RunContinuationsAsynchronously);
+            // The slot is released when the thread ends, not when the caller stops waiting: a hung rule keeps its slot.
+            var thread = new Thread(() => { try { done.SetResult(RuleSet.Run(rule, signal)); } finally { slots.Release(); } })
+            { IsBackground = true, Name = "rule " + name };
+            Interlocked.Increment(ref _started);
+            thread.Start();
+            var left = request.Budget - clock.Elapsed;
+            try { verdicts.Add(await done.Task.WaitAsync(left > TimeSpan.Zero ? left : TimeSpan.Zero, cancellationToken).ConfigureAwait(false)); }
+            catch (TimeoutException)
+            {
+                _quarantined[key] = 0;
+                verdicts.Add(new(name, false, "rule did not answer"));
+            }
+        }
+        return new([.. verdicts]);
+    }
+
+    // The session stopped: its rule contexts unload and its quarantine is forgotten.
+    public void Forget(string session)
+    {
+        foreach (var key in _loaded.Keys.Where(key => key.Session == session).ToArray())
+        {
+            if (_loaded.TryRemove(key, out var gone) && gone.Value.IsCompletedSuccessfully) { gone.Value.Result.Unload(); }
+        }
+        foreach (var key in _quarantined.Keys.Where(key => key.Session == session).ToArray()) { _quarantined.TryRemove(key, out _); }
     }
 
     private Task<RuleSet> Load(string session, JudgeRequest request)
@@ -76,24 +117,24 @@ internal sealed class RuleJudge(BehaviorLoader loader)
             return new(context, rules, [.. failures]);
         }
 
-        public JudgeVerdict[] Judge(Signal signal)
+        public JudgeVerdict[] Failures => failures;
+
+        public IEnumerable<(Type Type, Type Signal, MethodInfo Validate)> Matching(Signal signal)
+            => rules.Where(rule => rule.Signal.IsInstanceOfType(signal));
+
+        public static JudgeVerdict Run((Type Type, Type Signal, MethodInfo Validate) rule, Signal signal)
         {
-            var verdicts = new List<JudgeVerdict>(failures);
-            foreach (var (type, judged, validate) in rules.Where(rule => rule.Signal.IsInstanceOfType(signal)))
+            try
             {
-                try
-                {
-                    var verdict = (Verdict?)validate.Invoke(Activator.CreateInstance(type), [signal])
-                        ?? throw new InvalidOperationException("the rule returned no verdict");
-                    verdicts.Add(new(type.Name, verdict.Allowed, verdict.Reason));
-                }
-                catch (Exception error)
-                {
-                    var cause = error is TargetInvocationException { InnerException: { } inner } ? inner : error;
-                    verdicts.Add(new(type.Name, false, "the rule failed: " + cause.Message));
-                }
+                var verdict = (Verdict?)rule.Validate.Invoke(Activator.CreateInstance(rule.Type), [signal])
+                    ?? throw new InvalidOperationException("the rule returned no verdict");
+                return new(rule.Type.Name, verdict.Allowed, verdict.Reason);
             }
-            return [.. verdicts];
+            catch (Exception error)
+            {
+                var cause = error is TargetInvocationException { InnerException: { } inner } ? inner : error;
+                return new(rule.Type.Name, false, "the rule failed: " + cause.Message);
+            }
         }
 
         public void Unload() => context?.Unload();

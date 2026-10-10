@@ -69,7 +69,8 @@ public sealed record LogsRequestEvent([property: Id(0)] string Behavior, [proper
 public sealed record SessionStart([property: Id(0)] string Brain, [property: Id(1)] string Session, [property: Id(2)] string Token, [property: Id(3)] string EdgeUrl);
 
 // What the brain posts to its session to judge a signal against an app's rules: the rules library by
-// hash (fetched like a behavior) and the signal as JSON with its type. Each verdict names its rule.
-public sealed record JudgeRequest(string Hash, Uri Assembly, string SignalType, JsonElement Signal);
+// hash (fetched like a behavior), the signal as JSON with its type, and the time the rules may take.
+// Each verdict names its rule.
+public sealed record JudgeRequest(string Hash, Uri Assembly, string SignalType, JsonElement Signal, TimeSpan Budget);
 public sealed record JudgeVerdict(string Rule, bool Allowed, string Reason);
 public sealed record JudgeAnswer(JudgeVerdict[] Verdicts);
