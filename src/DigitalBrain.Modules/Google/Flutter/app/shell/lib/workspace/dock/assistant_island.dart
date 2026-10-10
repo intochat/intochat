@@ -17,13 +17,15 @@ class AssistantIsland extends StatefulWidget {
     this.floating = false,
     this.retryAfter = const Duration(seconds: 1),
     this.retryCeiling = const Duration(seconds: 30),
+    this.stableAfter = const Duration(seconds: 5),
   });
 
   final Stream<AppActivity> Function()? watch;
   // The brain the feed belongs to; a different brain reopens the feed.
   final String? brainId;
   final bool floating;
-  final Duration retryAfter, retryCeiling;
+  // A feed that stays open this long counts as healthy: only then does the retry pause start over.
+  final Duration retryAfter, retryCeiling, stableAfter;
 
   @override
   State<AssistantIsland> createState() => _AssistantIslandState();
@@ -39,7 +41,7 @@ class _AssistantIslandState extends State<AssistantIsland>
   InoPresenceState _state = InoPresenceState.idle;
   String _detail = '';
   StreamSubscription<AppActivity>? _subscription;
-  Timer? _retry;
+  Timer? _retry, _stable;
   bool _bobbed = false;
   late Duration _pause = widget.retryAfter;
 
@@ -55,9 +57,10 @@ class _AssistantIslandState extends State<AssistantIsland>
   void _connect() {
     unawaited(_subscription?.cancel());
     _retry?.cancel();
+    _stable?.cancel();
+    _stable = Timer(widget.stableAfter, () => _pause = widget.retryAfter);
     _subscription = widget.watch?.call().listen(
       (activity) {
-        _pause = widget.retryAfter;
         final state = _stateOf(activity.state);
         if (activity.app != _app || state == null) return;
         setState(() {
@@ -74,6 +77,7 @@ class _AssistantIslandState extends State<AssistantIsland>
   }
 
   void _lost() {
+    _stable?.cancel();
     if (!mounted) return;
     if (_state != InoPresenceState.disconnected || _detail.isNotEmpty) {
       setState(() {
@@ -129,6 +133,7 @@ class _AssistantIslandState extends State<AssistantIsland>
   @override
   void dispose() {
     _retry?.cancel();
+    _stable?.cancel();
     unawaited(_subscription?.cancel());
     _float.dispose();
     super.dispose();

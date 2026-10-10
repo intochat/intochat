@@ -211,4 +211,43 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1300));
     expect(tester.getTopLeft(find.byType(InoPresence)).dy, lessThan(rested.dy));
   });
+
+  testWidgets(
+    'a feed that answers then fails at once does not reset the pause',
+    (tester) async {
+      final feeds = <StreamController<AppActivity>>[];
+      await tester.pumpWidget(
+        hostWatch(() {
+          final feed = StreamController<AppActivity>();
+          feeds.add(feed);
+          return feed.stream;
+        }),
+      );
+      Future<void> answerThenFail() async {
+        feeds.last.add(
+          const AppActivity(app: 'assistant', state: 'idle', detail: ''),
+        );
+        await tester.pump();
+        await feeds.last.close();
+        await tester.pump();
+      }
+
+      await answerThenFail();
+      await tester.pump(const Duration(seconds: 1));
+      expect(feeds, hasLength(2));
+      await answerThenFail();
+      await tester.pump(const Duration(seconds: 1));
+      expect(feeds, hasLength(2));
+      await tester.pump(const Duration(seconds: 1));
+      expect(feeds, hasLength(3));
+
+      // A feed that stays open for a while is healthy again: the next loss waits the base pause.
+      await tester.pump(const Duration(seconds: 6));
+      await feeds.last.close();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(feeds, hasLength(4));
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 }
