@@ -9,7 +9,7 @@ namespace DigitalBrain.ServiceDefaults;
 // An instance behind a load balancer drains before it stops: /ready turns Unhealthy and the host keeps serving,
 // so the balancer's probe takes the instance out before anything shuts down. A roll begins the drain from outside
 // (POST /drain) and waits until the front no longer routes the instance; a stop the roll did not begin drains
-// here. Either way, once stopping begins the host keeps serving for DrainDelay, then stops the web server before
+// here, serving for DrainDelay once stopping begins. Either way the host then stops the web server before
 // any hosted service: hosted services stop in reverse registration order, so Orleans (registered after the web
 // host) would otherwise stop first while Kestrel still accepts, and a straggler would hang instead of being
 // refused. ApplicationStopping fires before any hosted service stops and its callbacks run synchronously, so
@@ -17,10 +17,16 @@ namespace DigitalBrain.ServiceDefaults;
 internal sealed class Drain(IConfiguration configuration, IHostApplicationLifetime lifetime, IServiceProvider services) : IHostedService, IHealthCheck
 {
     private volatile bool draining;
+    // Begun from outside (POST /drain): the roll waited until the front stopped routing this instance before it
+    // stopped it, so the stop does not wait again. Seen live: DCP on Windows kills a stopping executable after a
+    // few seconds, and a second DrainDelay at stop meant Orleans never left the cluster gracefully.
+    private volatile bool drainedByRoll;
 
-    public bool Draining => draining;
-
-    public void Begin() => draining = true;
+    public void Begin()
+    {
+        drainedByRoll = true;
+        draining = true;
+    }
 
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
         => Task.FromResult(draining ? HealthCheckResult.Unhealthy("draining") : HealthCheckResult.Healthy());
@@ -32,7 +38,7 @@ internal sealed class Drain(IConfiguration configuration, IHostApplicationLifeti
             lifetime.ApplicationStopping.Register(() =>
             {
                 draining = true;
-                Thread.Sleep(delay);
+                if (!drainedByRoll) { Thread.Sleep(delay); }
                 if (services.GetService<IServer>() is { } server)
                 {
                     using var bounded = new CancellationTokenSource(HealthProbes.ServerStop);
