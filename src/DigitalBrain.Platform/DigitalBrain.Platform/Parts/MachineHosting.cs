@@ -3,6 +3,7 @@ using DigitalBrain.Framework.Parts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Orleans.Storage;
 
 namespace DigitalBrain.Platform.Parts;
@@ -43,16 +44,22 @@ public static class MachineHosting
         return silo;
     }
 
-    // R35/R78: a production own machine holds its custody root in hardware; a Cloud machine holds only non-private
+    // R35/R78/R81: a production own machine holds its custody root in hardware or acknowledges a configured one; a Cloud machine holds only non-private
     // parts (Q24) and may keep Configured custody. Tpm custody needs a module that provides it.
     private static void ValidateCustody(PartsOptions parts, IHostEnvironment environment, IServiceProvider provider)
     {
         const string key = DigitalBrainNames.CustodyConfigurationKey;
         if (parts.Custody == MasterKeyCustodyKind.Configured)
         {
-            if (parts.Role == MachineRole.Own && environment.IsProduction())
-            { throw new InvalidOperationException($"{key} = Configured is refused for an own machine in Production; a production own machine holds its master keys in the TPM ({key} = Tpm)."); }
-            return;
+            if (parts.Role != MachineRole.Own || !environment.IsProduction()) { return; }
+            // R81: the operator may accept a configured root explicitly; it is said at every start.
+            if (parts.ConfiguredCustodyAcknowledged)
+            {
+                provider.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(MachineHosting)).LogWarning(
+                    "{Key} = Configured on a production own machine (acknowledged): the custody root is a configured secret, not hardware.", key);
+                return;
+            }
+            throw new InvalidOperationException($"{key} = Configured is refused for an own machine in Production; a production own machine holds its master keys in the TPM ({key} = Tpm) or acknowledges a configured root ({PartsOptions.Key}:{nameof(PartsOptions.ConfiguredCustodyAcknowledged)} = true).");
         }
         IMasterKeyCustody custody;
         try { custody = provider.GetRequiredService<IMasterKeyCustody>(); }

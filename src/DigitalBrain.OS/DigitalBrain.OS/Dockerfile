@@ -40,6 +40,8 @@ COPY features /app/features
 
 # The image enables the OS catalog; configuration may disable modules
 # (DigitalBrain__Modules__{id}__Enabled=false).
+# A production own machine (DigitalBrain__Platform__Parts__Role=Own) must set DigitalBrain__Platform__Parts__Custody=Tpm
+# (Windows + TPM) or DigitalBrain__Platform__Parts__ConfiguredCustodyAcknowledged=true, or it refuses to start (R81).
 ENV ASPNETCORE_ENVIRONMENT=Production \
     ASPNETCORE_URLS=http://0.0.0.0:8080 \
     DOTNET_EnableDiagnostics=0 \
