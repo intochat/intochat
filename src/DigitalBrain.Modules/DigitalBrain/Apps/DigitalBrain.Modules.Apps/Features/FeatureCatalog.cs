@@ -8,7 +8,8 @@ namespace DigitalBrain.Apps;
 // The features the host loads from its features folder (DigitalBrain:Modules:apps:Options:Features):
 // code, not content anyone wrote at runtime. Loaded at boot and on first read; only Save to source
 // reloads it. A bundle that does not compile never reaches the catalog, so loading is where a
-// feature passes the publish gate. A host with no folder configured has no features.
+// feature passes the publish gate; one that fails is skipped and reported through Failures, and
+// every other feature still loads. A host with no folder configured has no features.
 public sealed class FeatureCatalog
 {
     internal static readonly ActivitySource Telemetry = new("DigitalBrain.Apps.Features");
@@ -16,7 +17,7 @@ public sealed class FeatureCatalog
     private readonly FeatureDirectory? _directory;
     private readonly IScriptSandbox? _sandbox;
     private readonly Lock _gate = new();
-    private Task<IReadOnlyDictionary<(string Owner, string Name), AppBundle>>? _bundles;
+    private Task<Loaded>? _loaded;
 
     public FeatureCatalog(FeatureDirectory? directory, IScriptSandbox? sandbox = null)
     {
@@ -35,6 +36,8 @@ public sealed class FeatureCatalog
     }
 
     public FeatureDirectory? Directory => _directory;
+
+    public async Task<IReadOnlyList<FeatureFailure>> Failures() => (await Snapshot()).Failures;
 
     public async Task<AppBundle?> Find(string owner, string name)
         => (await Bundles()).GetValueOrDefault((owner, name));
@@ -58,25 +61,31 @@ public sealed class FeatureCatalog
         if (!await IsOwner(owner)) { throw new InvalidOperationException($"{owner} is not an owner in the features folder."); }
         directory.Write(owner, bundle);
         var reloaded = Load(directory, _sandbox);
-        var bundles = await reloaded;
-        lock (_gate) { _bundles = reloaded; }
-        return bundles.GetValueOrDefault((owner, bundle.Name))
+        var loaded = await reloaded;
+        if (loaded.Failures.FirstOrDefault(failure => failure.Owner == owner && failure.Name == bundle.Name) is { } failed)
+        { throw new InvalidOperationException(failed.Reason); }
+        lock (_gate) { _loaded = reloaded; }
+        return loaded.Bundles.GetValueOrDefault((owner, bundle.Name))
             ?? throw new InvalidOperationException($"{owner}/{bundle.Name} was written but did not load back.");
     }
 
-    internal Task<IReadOnlyDictionary<(string Owner, string Name), AppBundle>> Bundles()
+    internal async Task<IReadOnlyDictionary<(string Owner, string Name), AppBundle>> Bundles() => (await Snapshot()).Bundles;
+
+    private Task<Loaded> Snapshot()
     {
-        lock (_gate) { return _bundles ??= _directory is null ? Task.FromResult(Empty) : Load(_directory, _sandbox); }
+        lock (_gate) { return _loaded ??= _directory is null ? Task.FromResult(Nothing) : Load(_directory, _sandbox); }
     }
 
-    private static readonly IReadOnlyDictionary<(string Owner, string Name), AppBundle> Empty
-        = new Dictionary<(string Owner, string Name), AppBundle>();
+    private static readonly Loaded Nothing = new(new Dictionary<(string Owner, string Name), AppBundle>(), []);
 
-    private static async Task<IReadOnlyDictionary<(string Owner, string Name), AppBundle>> Load(FeatureDirectory directory, IScriptSandbox? sandbox)
+    private sealed record Loaded(IReadOnlyDictionary<(string Owner, string Name), AppBundle> Bundles, FeatureFailure[] Failures);
+
+    private static async Task<Loaded> Load(FeatureDirectory directory, IScriptSandbox? sandbox)
     {
         using var load = Telemetry.StartActivity("features.load");
         load?.SetTag("features.path", directory.Path);
         var bundles = new SortedDictionary<(string Owner, string Name), AppBundle>();
+        List<FeatureFailure> failures = [];
         foreach (var feature in directory.Load())
         {
             using var each = Telemetry.StartActivity("feature.load");
@@ -85,10 +94,17 @@ public sealed class FeatureCatalog
             each?.SetTag("feature.version", feature.Bundle.Version);
             if (!bundles.TryAdd((feature.Owner, feature.Bundle.Name), feature.Bundle))
             { throw new InvalidOperationException($"{feature.Owner}/{feature.Bundle.Name} ships twice."); }
-            await RequireCompiles(feature.Owner, feature.Bundle, sandbox);
+            try { await RequireCompiles(feature.Owner, feature.Bundle, sandbox); }
+            catch (InvalidOperationException error)
+            {
+                bundles.Remove((feature.Owner, feature.Bundle.Name));
+                failures.Add(new(feature.Owner, feature.Bundle.Name, feature.Bundle.Version, error.Message));
+                each?.SetStatus(ActivityStatusCode.Error, error.Message);
+            }
         }
         load?.SetTag("features.count", bundles.Count);
-        return bundles;
+        load?.SetTag("features.failed", failures.Count);
+        return new(bundles, [.. failures]);
     }
 
     // The same gate AppNeuron.Publish applies; a host without a sandbox cannot check and does not.
@@ -106,3 +122,5 @@ public sealed class FeatureCatalog
             + string.Join("; ", check.Errors.Select(error => $"{error.File}:{error.Line} {error.Message}")));
     }
 }
+
+public sealed record FeatureFailure(string Owner, string Name, string Version, string Reason);

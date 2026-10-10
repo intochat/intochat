@@ -34,7 +34,7 @@ public sealed class FeatureCatalogFacts : IDisposable
     {
         WriteEcho();
         WriteGreeter("os");
-        var catalog = Catalog(new Sandbox(success: true));
+        var catalog = Catalog(new Sandbox(success: _ => true));
 
         var listings = await catalog.Listings();
 
@@ -66,19 +66,26 @@ public sealed class FeatureCatalogFacts : IDisposable
     }
 
     [Fact]
-    public async Task ABundleThatDoesNotCompileNeverReachesTheCatalog()
+    public async Task ABundleThatDoesNotCompileIsSkippedAndReportedWhileTheOthersLoad()
     {
         WriteEcho("this is not C#");
-        var catalog = Catalog(new Sandbox(success: false));
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => catalog.Find("intochat", "echo"));
-        Assert.Contains("intochat/echo 2.0.0 does not compile", error.Message, StringComparison.Ordinal);
+        WriteGreeter("os");
+        WriteGreeter("intochat", "Hello");
+        var catalog = Catalog(new Sandbox(success: files => !files.Values.Any(source => source.Contains("not C#", StringComparison.Ordinal))));
+
+        Assert.Equal([("intochat", "greeter"), ("os", "greeter")],
+            (await catalog.Listings()).Select(listing => (listing.Publisher, listing.Name)));
+        Assert.Null(await catalog.Find("intochat", "echo"));
+        var failure = Assert.Single(await catalog.Failures());
+        Assert.Equal(("intochat", "echo", "2.0.0"), (failure.Owner, failure.Name, failure.Version));
+        Assert.Contains("intochat/echo 2.0.0 does not compile", failure.Reason, StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task AHostWithNoFeaturesFolderHasNoFeatures()
         => Assert.Empty(await new FeatureCatalog(null).Listings());
 
-    private sealed class Sandbox(bool success) : IScriptSandbox
+    private sealed class Sandbox(Func<IReadOnlyDictionary<string, string>, bool> success) : IScriptSandbox
     {
         public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
             => Task.FromResult<Verdict[]>([]);
@@ -87,7 +94,7 @@ public sealed class FeatureCatalogFacts : IDisposable
         public Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken)
             => throw new NotSupportedException();
         public Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
-            => Task.FromResult(success
+            => Task.FromResult(success(files)
                 ? new ScriptCompilationCheck(true, [])
                 : new ScriptCompilationCheck(false, [.. files.Keys.Select(file => new ScriptCompilationDiagnostic(file, "CS1002", 1, "; expected"))]));
     }

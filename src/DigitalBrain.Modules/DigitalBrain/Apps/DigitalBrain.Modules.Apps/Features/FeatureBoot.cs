@@ -25,6 +25,8 @@ internal sealed class FeatureBoot(
         {
             var loaded = await catalog.Bundles();
             logger.LogInformation("Loaded {Count} features from {Path}.", loaded.Count, catalog.Directory?.Path ?? "(none)");
+            foreach (var failure in await catalog.Failures())
+            { logger.LogError("Feature {Owner}/{Name} {Version} was skipped: {Reason}", failure.Owner, failure.Name, failure.Version, failure.Reason); }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         { logger.LogError(error, "The features folder {Path} did not load.", catalog.Directory?.Path); }
