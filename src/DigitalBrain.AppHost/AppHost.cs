@@ -35,6 +35,9 @@ const string McpPortKey = "DigitalBrain:Http:McpPort";
 var featuresKey = DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.ModuleOptionsSection("apps") + ":Features";
 
 var builder = DistributedApplication.CreateBuilder(args);
+if (builder.Configuration["DigitalBrain:ConfigFile"] is { Length: > 0 } configFile)
+{ builder.Configuration.AddJsonFile(configFile, optional: false); }
+var shellEnabled = builder.Configuration.GetValue("DigitalBrain:Shell:Enabled", true);
 // `aspire run -- --DigitalBrain:Profile local` composes profiles/*.json; dev is today's composition.
 builder.Configuration.AddDigitalBrainProfiles(builder.AppHostDirectory);
 var digitalBrain = builder.AddDigitalBrain("Modules", DigitalBrainHostingOptions.Named(builder.Configuration, "intochat", useAzureStorage: true))
@@ -54,8 +57,9 @@ var digitalBrain = builder.AddDigitalBrain("Modules", DigitalBrainHostingOptions
     .WithHosting<PostgresModuleHosting, PostgresModuleOptions>(database => database.WithPostgres(options => options.DatabaseName = "digitalbrain"))
     .WithHosting<GmailModuleHosting, GmailModuleOptions>(gmail => gmail.WithGmail())
     .WithHosting<SalesforceModuleHosting, SalesforceModuleOptions>(salesforce => salesforce.WithHostedMcp())
-    .WithHosting<GitHubModuleHosting>()
-    .WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp())
+    .WithHosting<GitHubModuleHosting>();
+if (shellEnabled) { digitalBrain = digitalBrain.WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp()); }
+digitalBrain = digitalBrain
     .WithHosting<AspireModuleHosting>()
     .WithHosting<CSharpModuleHosting>()
     // PhotoCraft and FilmCraft: headless MCP servers plus their web builds, which the shell's browser may drive.
