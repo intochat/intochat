@@ -75,6 +75,22 @@ public sealed class TrustClusterHostingFacts
             Assert.Contains(machine.Annotations.OfType<ResourceCommandAnnotation>(), command => command.Name == TrustClusterHosting.ReleasePartCommand));
     }
 
+    // Round 3 (d): the seed nodes live with the trust host that registers them, never on a machine.
+    [Fact]
+    public async Task TheTrustResourceRegistersTheSeedNodes()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        var brain = builder.AddDigitalBrain("memory", options: new()).WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite());
+        var trust = builder.AddExecutable("trust", "unused", ".").AsTrustCluster(brain, builder.Configuration);
+        var pairing = builder.AddParameter("machine-pairing-secret", "s3cret", secret: true);
+        var machine = builder.AddExecutable("os-a", "unused", ".").WithHttpEndpoint(name: "http")
+            .AsTrustMachine(trust, pairing, "/machines/os-a", builder.Configuration);
+
+        var seeds = DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.SeedNodesKey);
+        Assert.Equal("24", (await Environment(builder, trust.Resource))[seeds]);
+        Assert.DoesNotContain(seeds, (await Environment(builder, machine.Resource)).Keys);
+    }
+
     // R70: the MCP is an Orleans client of the deployment; it reaches the trust cluster through the allocated gateway.
     [Fact]
     public async Task TheMcpCarriesTheTrustGateway()

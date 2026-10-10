@@ -14,6 +14,8 @@ public static class TrustClusterHosting
 {
     public const string GatewayPortKey = "DigitalBrain:Platform:Trust:GatewayPort";
     public const string SiloPortKey = "DigitalBrain:Platform:Trust:SiloPort";
+    public const string SeedNodesKey = "DigitalBrain:Platform:Mesh:SeedNodes";
+    public const int DefaultSeedNodes = 24;
     public const string GatewayEndpoint = "gateway";
     public const string SiloEndpoint = "silo";
     public const string AdvertisedAddressKey = "DigitalBrain:Platform:Trust:AdvertisedAddress";
@@ -33,7 +35,10 @@ public static class TrustClusterHosting
             .WithEndpoint(name: SiloEndpoint, port: configuration.GetValue<int?>(SiloPortKey), scheme: "tcp", isProxied: false);
         trust.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(GatewayPortKey), trust.GetEndpoint(GatewayEndpoint).Property(EndpointProperty.Port))
             .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(SiloPortKey), trust.GetEndpoint(SiloEndpoint).Property(EndpointProperty.Port))
-            .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(AdvertisedAddressKey), Loopback);
+            .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(AdvertisedAddressKey), Loopback)
+            // The seed nodes are registered by the trust host's SeedNodeRegistration (Q25); the machines only place on them.
+            .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(SeedNodesKey),
+                configuration.GetValue(SeedNodesKey, DefaultSeedNodes).ToString(System.Globalization.CultureInfo.InvariantCulture));
         if (brain.Clustering is { } tables && brain.GrainState is { } blobs)
         {
             trust.WithEnvironment(DigitalBrainConfiguration.IntegrationEnvironmentName("orleans", "Clustering"), tables.Resource.ConnectionStringExpression)

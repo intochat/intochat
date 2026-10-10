@@ -99,11 +99,10 @@ var silos = AspireModuleHosting.InstanceNames("OperatingSystem").Take(1).Select(
 var osFront = AspireModuleHosting.AddFront(builder, "OperatingSystem", uiPort, silos.Select(silo => silo.GetEndpoint("http")));
 
 // The second machine (R40): its own directory, identity and Orleans cluster, the owner's role, fixed silo and
-// gateway ports beside the first machine's defaults, and its own HTTP port serving its own /mcp. It is not behind
+// gateway ports allocated per run (R71), and its own allocated HTTP port serving its own /mcp. It is not behind
 // the front: it is another machine of the same owner, reached directly.
-var machineB = builder.AddProject<Projects.DigitalBrain_OS>("OperatingSystem-b")
+var machineB = AspireModuleHosting.OnDynamicPorts(builder.AddProject<Projects.DigitalBrain_OS>("OperatingSystem-b"))
     .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features)
-    .WithHttpEndpoint(port: 5095, name: "http", isProxied: false)
     .AsSeparateCluster();
 Silo(machineB);
 // The shell reaches the kernel through the front, so a roll restarting one silo never drops it.
@@ -122,7 +121,6 @@ IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where
     // Stage A: the OS silo is an own machine running the part log in its own directory, over a mesh of
     // platform seed nodes (Q25).
     silo.WithReference(digitalBrain)
-        .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName("DigitalBrain:Platform:Mesh:SeedNodes"), "24")
         .AsTrustMachine(trust, pairingSecret, Path.Combine(workdir, "machines", silo.Resource.Name), builder.Configuration)
         .WaitFor(cookieProtection)
         .WithHttpHealthCheck("/health", endpointName: "http");
