@@ -9,6 +9,7 @@ typedef Pause = Future<void> Function(Duration delay);
 // subscription, so it lives above Home: it keeps counting while Home is hidden. It reconnects only when the
 // stream fails or closes, with growing pauses. Touches are told apart by retention sequence: the first
 // replay of a cold start only seeds the high-water mark; afterwards only a sequence above it is news.
+// Only the server's ready marker (or a touch) proves a connection was made: an error never seeds.
 class CircleActivityFeed extends ChangeNotifier {
   CircleActivityFeed(
     this._watch, {
@@ -26,8 +27,8 @@ class CircleActivityFeed extends ChangeNotifier {
   int get count => _count;
   StreamSubscription<CircleTouched>? _subscription;
   int? _highest;
-  // A connection that was established (it delivered something, or ended after being open) has seeded the
-  // feed: from then on a replay is compared with the mark, not swallowed as the cold-start seed.
+  // A connection that reached ready (or delivered a touch) has seeded the feed: from then on a replay is
+  // compared with the mark, not swallowed as the cold-start seed.
   bool _seeded = false;
   bool _disposed = false;
   Duration _next = Duration.zero;
@@ -37,9 +38,8 @@ class CircleActivityFeed extends ChangeNotifier {
     try {
       _subscription = _watch().listen(
         _touched,
-        onError: (Object error) =>
-            _reconnect(established: error is! TableRequestException),
-        onDone: () => _reconnect(established: true),
+        onError: (Object _) => _reconnect(),
+        onDone: _reconnect,
         cancelOnError: true,
       );
     } catch (_) {
@@ -47,9 +47,8 @@ class CircleActivityFeed extends ChangeNotifier {
     }
   }
 
-  void _reconnect({bool established = false}) {
+  void _reconnect() {
     if (_disposed) return;
-    if (established) _seeded = true;
     _subscription?.cancel();
     _next = _next == Duration.zero
         ? firstPause
@@ -64,6 +63,10 @@ class CircleActivityFeed extends ChangeNotifier {
 
   void _touched(CircleTouched touch) {
     _next = Duration.zero;
+    if (touch.ready) {
+      _seeded = true;
+      return;
+    }
     final sequence = touch.sequence;
     var news = true;
     if (sequence != null) {

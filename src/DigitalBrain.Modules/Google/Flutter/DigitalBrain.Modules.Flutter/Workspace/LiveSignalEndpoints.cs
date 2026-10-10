@@ -18,34 +18,38 @@ namespace DigitalBrain.Flutter.Workspace;
 
 // One server-sent stream of the signals a shell screen renders live: GET /brains/{id}/live?type=A&type=B.
 // Each event is {"type","publisher","payload"}. A source's last retained signal of the type is sent first,
-// so a screen opened late starts from the current state instead of waiting for the next change.
+// so a screen opened late starts from the current state instead of waiting for the next change. Once the
+// retained values of every source there at connect time are written, one {"type":"ready"} event follows:
+// the client knows it is connected and the replay is complete.
 internal static class LiveSignalEndpoints
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) } };
 
     // Sources yields the neurons that publish the type: those that exist now, then any that appear later.
+    // It calls listed once the ones that exist now are yielded; ending the sequence counts as listed too.
     internal sealed record LiveFeed(
         string Type,
-        Func<IDigitalBrain, string, CancellationToken, IAsyncEnumerable<INeuron>> Sources,
+        Func<IDigitalBrain, string, Action, CancellationToken, IAsyncEnumerable<INeuron>> Sources,
         Func<IDigitalBrain, INeuron, Func<Task>, CancellationToken, IAsyncEnumerable<Signal>> Watch);
 
     internal static LiveFeed Feed<T>(
-        Func<IDigitalBrain, string, CancellationToken, IAsyncEnumerable<INeuron>> sources) where T : Signal
+        Func<IDigitalBrain, string, Action, CancellationToken, IAsyncEnumerable<INeuron>> sources) where T : Signal
         => new(typeof(T).Name, sources, (brain, source, subscribed, ct) => brain.On<T>(source, subscribed, ct));
 
     internal static readonly LiveFeed[] Feeds =
     [
-        Feed<ClusterChanged>(static (brain, brainId, _) => Single(brain.Get<ICluster>(ICluster.Key(brainId)))),
+        Feed<ClusterChanged>(static (brain, brainId, _, _) => Single(brain.Get<ICluster>(ICluster.Key(brainId)))),
         Feed<AppActivity>(Apps),
-        Feed<CircleTouched>(static (brain, brainId, _) => Single(brain.Get<ICircles>(ICircles.Key(brainId)))),
+        Feed<CircleTouched>(static (brain, brainId, _, _) => Single(brain.Get<ICircles>(ICircles.Key(brainId)))),
     ];
 
     private static async IAsyncEnumerable<INeuron> Single(INeuron neuron) { await Task.CompletedTask; yield return neuron; }
 
     // Apps already there, then each one the kernel announces: the watch is registered before the listing, so none is missed.
-    private static async IAsyncEnumerable<INeuron> Apps(IDigitalBrain brain, string brainId, [EnumeratorCancellation] CancellationToken ct)
+    // A null key marks the end of the listing.
+    private static async IAsyncEnumerable<INeuron> Apps(IDigitalBrain brain, string brainId, Action listed, [EnumeratorCancellation] CancellationToken ct)
     {
-        var keys = Channel.CreateUnbounded<string>();
+        var keys = Channel.CreateUnbounded<string?>();
         _ = Task.Run(async () =>
         {
             try
@@ -53,6 +57,7 @@ internal static class LiveSignalEndpoints
                 await foreach (var created in brain.On<InstanceCreated>(brain.Self, async () =>
                 {
                     await foreach (var instance in brain.Kernel.Instances<IApp>(ct)) { keys.Writer.TryWrite(instance.Key); }
+                    keys.Writer.TryWrite(null);
                 }, ct)) { keys.Writer.TryWrite(created.Key); }
             }
             catch (OperationCanceledException) { }
@@ -61,7 +66,8 @@ internal static class LiveSignalEndpoints
         HashSet<string> seen = [];
         await foreach (var key in keys.Reader.ReadAllAsync(ct))
         {
-            if (IApp.NameOf(brainId, key) is not null && seen.Add(key)) { yield return brain.Get<IApp>(key); }
+            if (key is null) { listed(); }
+            else if (IApp.NameOf(brainId, key) is not null && seen.Add(key)) { yield return brain.Get<IApp>(key); }
         }
     }
 
@@ -96,7 +102,9 @@ internal static class LiveSignalEndpoints
         return ([.. Feeds.Where(feed => requested.Contains(feed.Type))], null);
     }
 
-    // The envelopes as JSON text, retained signals first per source, then live ones, until ct ends the stream.
+    internal const string Ready = "{\"type\":\"ready\"}";
+
+    // The envelopes as JSON text, retained signals first per source, then Ready, then live ones, until ct ends the stream.
     // The stream stays open with no sources at all: a source may appear later. A source or feed that fails is logged and dropped.
     internal static async IAsyncEnumerable<string> Stream(IDigitalBrain brain, string brainId, LiveFeed[] feeds, ILogger log, [EnumeratorCancellation] CancellationToken ct)
     {
@@ -104,33 +112,67 @@ internal static class LiveSignalEndpoints
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         try
         {
-            foreach (var feed in feeds) { _ = Task.Run(() => Discover(brain, brainId, feed, channel.Writer, log, stop.Token), CancellationToken.None); }
+            var replayed = feeds.Select(feed => Task.Run(() => Discover(brain, brainId, feed, channel.Writer, log, stop.Token), CancellationToken.None)).ToArray();
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.WhenAll(replayed);
+                    await channel.Writer.WriteAsync(Ready, stop.Token);
+                }
+                catch (OperationCanceledException) { }
+            }, CancellationToken.None);
             await foreach (var envelope in channel.Reader.ReadAllAsync(ct)) { yield return envelope; }
         }
         finally { await stop.CancelAsync(); }
     }
 
-    private static async Task Discover(IDigitalBrain brain, string brainId, LiveFeed feed, ChannelWriter<string> writer, ILogger log, CancellationToken ct)
+    // Completes once the retained values of the sources listed at connect time are written (or the feed failed);
+    // discovery keeps running after that.
+    private static Task Discover(IDigitalBrain brain, string brainId, LiveFeed feed, ChannelWriter<string> writer, ILogger log, CancellationToken ct)
     {
-        try
+        var replayed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        List<Task> initial = [];
+        void Listed()
         {
-            await foreach (var source in feed.Sources(brain, brainId, ct))
-            { _ = Task.Run(() => Pump(brain, feed, source, writer, log, ct), CancellationToken.None); }
+            Task[] pending;
+            lock (initial) { if (replayed.Task.IsCompleted) { return; } pending = [.. initial]; }
+            _ = Task.WhenAll(pending).ContinueWith(_ => replayed.TrySetResult(), TaskScheduler.Default);
         }
-        catch (OperationCanceledException) { }
-        catch (Exception error) { log.LogWarning(error, "Live {Type} feed dropped: its sources failed.", feed.Type); }
+        _ = Task.Run(async () =>
+        {
+            var listing = true;
+            try
+            {
+                await foreach (var source in feed.Sources(brain, brainId, () => { listing = false; Listed(); }, ct))
+                {
+                    var replay = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                    if (listing) { lock (initial) { initial.Add(replay.Task); } }
+                    _ = Task.Run(() => Pump(brain, feed, source, writer, log, replay, ct), CancellationToken.None);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception error) { log.LogWarning(error, "Live {Type} feed dropped: its sources failed.", feed.Type); }
+            finally { if (listing) { listing = false; Listed(); } }
+        }, CancellationToken.None);
+        return replayed.Task;
     }
 
-    private static async Task Pump(IDigitalBrain brain, LiveFeed feed, INeuron source, ChannelWriter<string> writer, ILogger log, CancellationToken ct)
+    private static async Task Pump(IDigitalBrain brain, LiveFeed feed, INeuron source, ChannelWriter<string> writer, ILogger log, TaskCompletionSource replayed, CancellationToken ct)
     {
         try
         {
             // Retention is read once the watch is registered, so nothing published in between is missed.
-            await foreach (var signal in feed.Watch(brain, source, () => Replay(feed, source, writer, log, ct), ct))
+            await foreach (var signal in feed.Watch(brain, source, async () =>
+            {
+                try { await Replay(feed, source, writer, log, ct); }
+                finally { replayed.TrySetResult(); }
+            }, ct))
             { await writer.WriteAsync(Envelope(signal, await SequenceOf(source, feed.Type, signal, ct)), ct); }
         }
         catch (OperationCanceledException) { }
         catch (Exception error) { log.LogWarning(error, "Live {Type} source {Source} dropped.", feed.Type, source.GetPrimaryKeyString()); }
+        finally { replayed.TrySetResult(); }
     }
 
     private static async Task Replay(LiveFeed feed, INeuron source, ChannelWriter<string> writer, ILogger log, CancellationToken ct)

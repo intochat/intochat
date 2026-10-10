@@ -51,7 +51,8 @@ final class ClusterChanged {
 }
 
 // One event of GET /brains/{id}/live: the signal's simple type name, the neuron that published it,
-// and the signal itself as camelCase JSON.
+// and the signal itself as camelCase JSON. One {"type":"ready"} event follows the retained replay of
+// every source: the stream is connected and what comes after it is live.
 final class LiveEnvelope {
   const LiveEnvelope({
     required this.type,
@@ -66,6 +67,7 @@ final class LiveEnvelope {
   // sent on connect rather than a live publish.
   final int? sequence;
   final bool replay;
+  bool get isReady => type == 'ready';
 
   factory LiveEnvelope.fromJson(Map<String, dynamic> json) => LiveEnvelope(
     type: json['type'] as String,
@@ -101,10 +103,20 @@ final class CircleTouched {
     required this.kind,
     this.sequence,
     this.replay = false,
-  });
+  }) : ready = false;
+
+  // The live feed's ready marker: connected, retained replay complete. It carries no touch.
+  const CircleTouched.ready()
+    : name = '',
+      owner = '',
+      kind = '',
+      sequence = null,
+      replay = false,
+      ready = true;
+
   final String name, owner, kind;
   final int? sequence;
-  final bool replay;
+  final bool replay, ready;
 
   factory CircleTouched.fromJson(
     Map<String, dynamic> json, {

@@ -11,9 +11,10 @@ namespace DigitalBrain.Modules.Flutter.Tests.Workspace;
 
 public sealed class LiveSignalFacts
 {
-    private static async IAsyncEnumerable<INeuron> Keys(IDigitalBrain brain, string[] now, Channel<string>? later, [EnumeratorCancellation] CancellationToken ct)
+    private static async IAsyncEnumerable<INeuron> Keys(IDigitalBrain brain, string[] now, Channel<string>? later, Action listed, [EnumeratorCancellation] CancellationToken ct)
     {
         foreach (var key in now) { yield return brain.Get<IBeater>(key); }
+        listed();
         if (later is null) { yield break; }
         await foreach (var key in later.Reader.ReadAllAsync(ct)) { yield return brain.Get<IBeater>(key); }
     }
@@ -21,7 +22,7 @@ public sealed class LiveSignalFacts
     private static LiveSignalEndpoints.LiveFeed Feed(string key) => Feed([key], null);
 
     private static LiveSignalEndpoints.LiveFeed Feed(string[] now, Channel<string>? later)
-        => LiveSignalEndpoints.Feed<Beat>((brain, _, ct) => Keys(brain, now, later, ct));
+        => LiveSignalEndpoints.Feed<Beat>((brain, _, listed, ct) => Keys(brain, now, later, listed, ct));
 
     private static IAsyncEnumerator<string> Open(ModuleBrain brain, LiveSignalEndpoints.LiveFeed[] feeds, CancellationToken ct)
         => LiveSignalEndpoints.Stream(brain, "brain", feeds, NullLogger.Instance, ct).GetAsyncEnumerator(ct);
@@ -32,6 +33,14 @@ public sealed class LiveSignalFacts
         return JsonDocument.Parse(stream.Current);
     }
 
+    // The next envelope after the ready marker: the stream is connected and replayed, so what follows is live.
+    private static async Task<Task<bool>> AfterReady(IAsyncEnumerator<string> stream, CancellationToken ct)
+    {
+        Assert.True(await stream.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct));
+        Assert.Equal(LiveSignalEndpoints.Ready, stream.Current);
+        return stream.MoveNextAsync().AsTask();
+    }
+
     [Fact]
     public async Task APublishedSignalIsForwardedAsATypedEnvelope()
     {
@@ -39,7 +48,7 @@ public sealed class LiveSignalFacts
         await using var brain = await ModuleTest.Create().StartAsync(ct);
         var beater = brain.Get<IBeater>("beater-live");
         await using var stream = Open(brain, [Feed("beater-live")], ct);
-        var next = stream.MoveNextAsync().AsTask();
+        var next = await AfterReady(stream, ct);
         await beater.Beat(7);
         Assert.True(await next.WaitAsync(TimeSpan.FromSeconds(10), ct));
         using var envelope = JsonDocument.Parse(stream.Current);
@@ -72,7 +81,7 @@ public sealed class LiveSignalFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await CirclesBrain(ct);
         await using var stream = LiveSignalEndpoints.Stream(brain, "bob", [CircleFeed], NullLogger.Instance, ct).GetAsyncEnumerator(ct);
-        var next = stream.MoveNextAsync().AsTask();
+        var next = await AfterReady(stream, ct);
         Act("alice");
         await brain.Get<ICircle>(ICircle.Key("alice", "team")).Invite("bob");
         Assert.True(await next.WaitAsync(TimeSpan.FromSeconds(10), ct));
@@ -106,7 +115,7 @@ public sealed class LiveSignalFacts
         await using var brain = await ModuleTest.Create().StartAsync(ct);
         var beater = brain.Get<IBeater>("beater-plain");
         await using var stream = Open(brain, [Feed("beater-plain")], ct);
-        var next = stream.MoveNextAsync().AsTask();
+        var next = await AfterReady(stream, ct);
         await beater.BeatUnretained(1);
         Assert.True(await next.WaitAsync(TimeSpan.FromSeconds(10), ct));
         using var envelope = JsonDocument.Parse(stream.Current);
@@ -134,7 +143,7 @@ public sealed class LiveSignalFacts
         await using var brain = await ModuleTest.Create().StartAsync(ct);
         var later = Channel.CreateUnbounded<string>();
         await using var stream = Open(brain, [Feed([], later)], ct);
-        var next = stream.MoveNextAsync().AsTask();
+        var next = await AfterReady(stream, ct);
         await Task.Delay(300, ct);
         Assert.False(next.IsCompleted);
         later.Writer.TryWrite("beater-new");
@@ -150,11 +159,54 @@ public sealed class LiveSignalFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().StartAsync(ct);
-        var broken = LiveSignalEndpoints.Feed<Beat>((_, _, _) => throw new InvalidOperationException("no sources"));
+        var broken = LiveSignalEndpoints.Feed<Beat>((_, _, _, _) => throw new InvalidOperationException("no sources"));
         await brain.Get<IBeater>("beater-ok").Beat(3);
         await using var stream = Open(brain, [broken, Feed("beater-ok")], ct);
         using var envelope = await Next(stream, ct);
         Assert.Equal(3, envelope.RootElement.GetProperty("payload").GetProperty("pulse").GetInt32());
+    }
+
+    [Fact]
+    public async Task ReadyFollowsTheReplayOfEverySelectedFeed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await CirclesBrain(ct);
+        Act("alice");
+        await brain.Get<ICircle>(ICircle.Key("alice", "team")).Invite("bob");
+        await brain.Get<IBeater>("beater-ready").Beat(4);
+        await using var stream = LiveSignalEndpoints.Stream(brain, "bob", [CircleFeed, Feed("beater-ready")], NullLogger.Instance, ct).GetAsyncEnumerator(ct);
+        using var first = await Next(stream, ct);
+        using var second = await Next(stream, ct);
+        Assert.Equal(["Beat", "CircleTouched"], new[] { first, second }.Select(e => e.RootElement.GetProperty("type").GetString()).Order());
+        using var ready = await Next(stream, ct);
+        Assert.Equal("ready", ready.RootElement.GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public async Task ALateSubscriberGetsTheReplayThenReadyThenLiveSignals()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        var beater = brain.Get<IBeater>("beater-late-ready");
+        await beater.Beat(1);
+        await using var stream = Open(brain, [Feed("beater-late-ready")], ct);
+        using var replayed = await Next(stream, ct);
+        Assert.True(replayed.RootElement.GetProperty("replay").GetBoolean());
+        var next = await AfterReady(stream, ct);
+        await beater.Beat(2);
+        Assert.True(await next.WaitAsync(TimeSpan.FromSeconds(10), ct));
+        using var live = JsonDocument.Parse(stream.Current);
+        Assert.Equal(2, live.RootElement.GetProperty("payload").GetProperty("pulse").GetInt32());
+    }
+
+    [Fact]
+    public async Task AFeedWithNoSourcesYetIsReadyAtOnce()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var stream = Open(brain, [Feed([], Channel.CreateUnbounded<string>())], ct);
+        using var ready = await Next(stream, ct);
+        Assert.Equal("ready", ready.RootElement.GetProperty("type").GetString());
     }
 
     [Fact]
@@ -164,7 +216,7 @@ public sealed class LiveSignalFacts
         await using var brain = await ModuleTest.Create().StartAsync(ct);
         using var disconnect = CancellationTokenSource.CreateLinkedTokenSource(ct);
         await using var stream = Open(brain, [Feed("beater-gone")], disconnect.Token);
-        var next = stream.MoveNextAsync().AsTask();
+        var next = await AfterReady(stream, ct);
         await Task.Delay(300, ct);
         await disconnect.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => next.WaitAsync(TimeSpan.FromSeconds(10), ct));

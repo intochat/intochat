@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:digitalbrain_flutter_shell/workspace/home/circle_activity_badge.dart';
@@ -185,6 +186,7 @@ void main() {
   ) async {
     final f = feed();
     addTearDown(f.dispose);
+    live.add(const CircleTouched.ready());
     await live.close();
     await tester.pump();
     pauses.single.complete();
@@ -192,6 +194,85 @@ void main() {
     live.add(touch('spoke', 'club', 3, true));
     await tester.pump();
     expect(f.count, 1);
+  });
+
+  testWidgets('a refused connect with a socket error does not seed the feed', (
+    tester,
+  ) async {
+    final f = feed();
+    addTearDown(f.dispose);
+    live.addError(const SocketException('Connection refused'));
+    await tester.pump();
+    pauses.single.complete();
+    await tester.pump();
+    live.add(touch('spoke', 'club', 3, true));
+    await tester.pump();
+    expect(f.count, 0);
+  });
+
+  testWidgets('ready seeds the feed without counting anything', (tester) async {
+    final f = feed();
+    addTearDown(f.dispose);
+    live.add(const CircleTouched.ready());
+    await tester.pump();
+    expect(f.count, 0);
+    live.add(touch('spoke', 'club', 1, true));
+    await tester.pump();
+    expect(f.count, 1);
+  });
+
+  testWidgets(
+    'a replay after an empty ready connection and an outage is counted once',
+    (tester) async {
+      final f = feed();
+      addTearDown(f.dispose);
+      live.add(const CircleTouched.ready());
+      await tester.pump();
+      live.addError(const SocketException('reset'));
+      await tester.pump();
+      pauses.single.complete();
+      await tester.pump();
+      live
+        ..add(touch('spoke', 'club', 4, true))
+        ..add(const CircleTouched.ready());
+      await tester.pump();
+      expect(f.count, 1);
+      await live.close();
+      await tester.pump();
+      pauses.last.complete();
+      await tester.pump();
+      live
+        ..add(touch('spoke', 'club', 4, true))
+        ..add(const CircleTouched.ready());
+      await tester.pump();
+      expect(f.count, 1);
+    },
+  );
+
+  testWidgets('ready resets the backoff', (tester) async {
+    final lengths = <Duration>[];
+    late StreamController<CircleTouched> current;
+    final f = CircleActivityFeed(
+      () => (current = StreamController<CircleTouched>()).stream,
+      pause: (d) {
+        lengths.add(d);
+        return Future.value();
+      },
+    );
+    addTearDown(f.dispose);
+    current.addError(const SocketException('refused'));
+    await tester.pump();
+    current.addError(const SocketException('refused'));
+    await tester.pump();
+    current.add(const CircleTouched.ready());
+    await tester.pump();
+    current.addError(const SocketException('reset'));
+    await tester.pump();
+    expect(lengths, [
+      const Duration(seconds: 1),
+      const Duration(seconds: 2),
+      const Duration(seconds: 1),
+    ]);
   });
 
   testWidgets('a connection that never opened does not seed the feed', (

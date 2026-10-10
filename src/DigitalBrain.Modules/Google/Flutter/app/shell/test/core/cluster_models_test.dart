@@ -35,6 +35,14 @@ void main() {
     expect(envelope.payload['state'], 'working');
   });
 
+  test('the ready event is a marker, not a signal', () {
+    expect(LiveEnvelope.fromJson({'type': 'ready'}).isReady, isTrue);
+    expect(
+      LiveEnvelope.fromJson({'type': 'AppActivity', 'payload': {}}).isReady,
+      isFalse,
+    );
+  });
+
   test('an AppActivity payload decodes the app, its state and detail', () {
     final activity = AppActivity.fromJson({
       'app': 'assistant',

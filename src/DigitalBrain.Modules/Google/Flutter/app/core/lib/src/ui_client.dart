@@ -409,21 +409,26 @@ final class DigitalBrainUiClient {
     'Live signals are unavailable.',
   ).map(LiveEnvelope.fromJson);
 
-  Stream<ClusterChanged> watchCluster(String brainId) => watchLive(brainId, [
-    'ClusterChanged',
-  ]).map((envelope) => ClusterChanged.fromJson(envelope.payload));
+  Stream<ClusterChanged> watchCluster(String brainId) =>
+      watchLive(brainId, ['ClusterChanged'])
+          .where((envelope) => !envelope.isReady)
+          .map((envelope) => ClusterChanged.fromJson(envelope.payload));
 
-  Stream<AppActivity> watchActivity(String brainId) => watchLive(brainId, [
-    'AppActivity',
-  ]).map((envelope) => AppActivity.fromJson(envelope.payload));
+  Stream<AppActivity> watchActivity(String brainId) =>
+      watchLive(brainId, ['AppActivity'])
+          .where((envelope) => !envelope.isReady)
+          .map((envelope) => AppActivity.fromJson(envelope.payload));
 
+  // The circle touches, with the feed's ready marker passed through as CircleTouched.ready().
   Stream<CircleTouched> watchCircles(String brainId) =>
       watchLive(brainId, ['CircleTouched']).map(
-        (envelope) => CircleTouched.fromJson(
-          envelope.payload,
-          sequence: envelope.sequence,
-          replay: envelope.replay,
-        ),
+        (envelope) => envelope.isReady
+            ? const CircleTouched.ready()
+            : CircleTouched.fromJson(
+                envelope.payload,
+                sequence: envelope.sequence,
+                replay: envelope.replay,
+              ),
       );
 
   Stream<Map<String, dynamic>> _serverEvents(String path, String unavailable) {
