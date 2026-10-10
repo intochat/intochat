@@ -5,7 +5,7 @@ internal interface IClusterHost
 {
     Task<string> CurrentSha(CancellationToken ct);                        // from {Workdir}/live.json
     Task SetLive(string sha, CancellationToken ct);                       // writes live.json (build must exist)
-    Task<SiloView[]> Silos(CancellationToken ct);                         // list_resources filtered to silo replicas
-    Task RestartSilos(CancellationToken ct);                              // execute_resource_command restart on the silo resource
-    Task<int> Spans(string service, string span, CancellationToken ct);  // list_traces: spans named `span` exported by `service`
+    Task<SiloView[]> Silos(CancellationToken ct);                         // `aspire describe`: the OperatingSystem replicas
+    Task RestartSilos(CancellationToken ct);                              // `aspire resource ... restart`: digitalbrain-mcp, then the silo (which runs this call)
+    Task<int> Spans(string service, string span, CancellationToken ct);  // `aspire otel spans`: spans named `span` whose source is `service` or `service-*`
 }

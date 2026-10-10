@@ -304,6 +304,11 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         return environment;
     }
 
+    internal const string OtlpHttpEndpoint = "ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL";
+
+    private static string FromContainer(string url)
+        => url.Replace("localhost", "host.docker.internal", StringComparison.OrdinalIgnoreCase).Replace("127.0.0.1", "host.docker.internal", StringComparison.Ordinal);
+
     private Dictionary<string, string> Copied()
     {
         var environment = live.AsEnumerable()
@@ -312,12 +317,19 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         environment["ASPNETCORE_ENVIRONMENT"] = live["ASPNETCORE_ENVIRONMENT"] ?? "Development";
         environment["DOTNET_ENVIRONMENT"] = live["DOTNET_ENVIRONMENT"] ?? live["ASPNETCORE_ENVIRONMENT"] ?? "Development";
         environment[Env("DigitalBrain:Auth:Posture")] = "Open";
-        if (live["OTEL_EXPORTER_OTLP_ENDPOINT"] is { Length: > 0 } otlp)
-        { environment["OTEL_EXPORTER_OTLP_ENDPOINT"] = otlp.Replace("localhost", "host.docker.internal", StringComparison.OrdinalIgnoreCase).Replace("127.0.0.1", "host.docker.internal", StringComparison.Ordinal); }
-        foreach (var key in new[] { "OTEL_EXPORTER_OTLP_PROTOCOL", "OTEL_EXPORTER_OTLP_HEADERS" })
+        // The dashboard's plain-HTTP OTLP endpoint when the AppHost opened one: its TLS endpoint's dev certificate
+        // names localhost and is not trusted inside the container.
+        if (live[OtlpHttpEndpoint] is { Length: > 0 } otlpHttp)
         {
-            if (live[key] is { Length: > 0 } value) { environment[key] = value; }
+            environment["OTEL_EXPORTER_OTLP_ENDPOINT"] = FromContainer(otlpHttp);
+            environment["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/protobuf";
         }
+        else if (live["OTEL_EXPORTER_OTLP_ENDPOINT"] is { Length: > 0 } otlp)
+        {
+            environment["OTEL_EXPORTER_OTLP_ENDPOINT"] = FromContainer(otlp);
+            if (live["OTEL_EXPORTER_OTLP_PROTOCOL"] is { Length: > 0 } protocol) { environment["OTEL_EXPORTER_OTLP_PROTOCOL"] = protocol; }
+        }
+        if (live["OTEL_EXPORTER_OTLP_HEADERS"] is { Length: > 0 } headers) { environment["OTEL_EXPORTER_OTLP_HEADERS"] = headers; }
         return environment;
     }
 

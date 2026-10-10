@@ -10,6 +10,8 @@ internal sealed class AspireCliClusterHost : IClusterHost
 {
     public const string SiloResource = "OperatingSystem";
     public const string McpResource = "digitalbrain-mcp";
+    // `otel spans` caps its result; a verification run's spans must not fall off that window.
+    private const string SpanLimit = "10000";
     private const string AppHostProject = "src/DigitalBrain.AppHost/DigitalBrain.AppHost.csproj";
 
     private readonly IProcessRunner processes;
@@ -44,20 +46,25 @@ internal sealed class AspireCliClusterHost : IClusterHost
             .OrderBy(silo => silo.Name, StringComparer.Ordinal)];
     }
 
-    // The MCP server is an Orleans client of the same build: both restart onto live.json's build.
+    // The MCP server is an Orleans client of the same build: both restart onto live.json's build. This call
+    // runs inside the silo, so the silo restarts last: its restart ends the caller.
     public async Task RestartSilos(CancellationToken ct)
     {
-        await Aspire(["resource", SiloResource, "restart"], ct);
         await Aspire(["resource", McpResource, "restart"], ct);
+        await Aspire(["resource", SiloResource, "restart"], ct);
     }
 
     // `otel spans` lists one JSON object per span; `source` is the exporting service's name (its OTEL service.name).
     public async Task<int> Spans(string service, string span, CancellationToken ct)
     {
-        using var json = JsonDocument.Parse(JsonPart(await Aspire(["otel", "spans", "--format", "Json", "--search", span], ct)));
+        using var json = JsonDocument.Parse(JsonPart(await Aspire(["otel", "spans", "--format", "Json", "--search", span, "--limit", SpanLimit], ct)));
         return json.RootElement.ValueKind != JsonValueKind.Array ? 0
-            : json.RootElement.EnumerateArray().Count(item => Text(item, "name") == span && Text(item, "source") == service);
+            : json.RootElement.EnumerateArray().Count(item => Text(item, "name") == span && From(Text(item, "source"), service));
     }
+
+    // A replica's service name carries a suffix: candidate-{sha}-mcp is still candidate-{sha}'s.
+    private static bool From(string? source, string service)
+        => source is not null && (source == service || source.StartsWith(service + "-", StringComparison.Ordinal));
 
     internal static IEnumerable<JsonElement> Resources(JsonElement root) => root.ValueKind switch
     {
@@ -75,11 +82,14 @@ internal sealed class AspireCliClusterHost : IClusterHost
         return null;
     }
 
-    // The CLI may print log lines before its JSON.
-    private static string JsonPart(string output)
+    // The CLI may print log lines before its JSON: the document starts at the first line that opens one.
+    internal static string JsonPart(string output)
     {
-        var start = output.IndexOfAny(['[', '{']);
-        return start < 0 ? "[]" : output[start..];
+        var lines = output.Split('\n');
+        var start = Array.FindIndex(lines, line => line.TrimStart().StartsWith('[') || line.TrimStart().StartsWith('{'));
+        return start < 0
+            ? throw new InvalidOperationException($"aspire printed no JSON: {output}")
+            : string.Join('\n', lines[start..]);
     }
 
     private async Task<string> Aspire(string[] command, CancellationToken ct)

@@ -21,6 +21,8 @@ public sealed class LiveBuildHostingFacts : IDisposable
         Assert.NotNull(silo);
         Assert.Equal("dotnet", silo.Resource.Command);
         Assert.Equal([Path.Combine(workdir, "builds", "abc1234", "os", "DigitalBrain.OS.dll")], await ArgumentsOf(silo.Resource));
+        var environment = await AspireCompositionTest.EnvironmentOf(AspireCompositionTest.CreateBuilder(), silo.Resource, TestContext.Current.CancellationToken);
+        Assert.Equal(Path.Combine(workdir, "builds", "abc1234", "os"), environment["ASPNETCORE_CONTENTROOT"]);
     }
 
     [Fact]
@@ -32,6 +34,17 @@ public sealed class LiveBuildHostingFacts : IDisposable
         SetLive("def5678");
 
         Assert.Equal([Path.Combine(workdir, "builds", "def5678", "os", "DigitalBrain.OS.dll")], await ArgumentsOf(silo.Resource));
+        var environment = await AspireCompositionTest.EnvironmentOf(AspireCompositionTest.CreateBuilder(), silo.Resource, TestContext.Current.CancellationToken);
+        Assert.Equal(Path.Combine(workdir, "builds", "def5678", "os"), environment["DOTNET_CONTENTROOT"]);
+    }
+
+    [Fact]
+    public void ALiveBuildThatIsGoneFallsBackToSource()
+    {
+        SetLive("abc1234");
+        Directory.Delete(Path.Combine(workdir, "builds"), recursive: true);
+
+        Assert.Null(AspireModuleHosting.AddLiveBuild(AspireCompositionTest.CreateBuilder(), workdir, "OperatingSystem", "os", "DigitalBrain.OS.dll"));
     }
 
     [Fact]
@@ -41,6 +54,7 @@ public sealed class LiveBuildHostingFacts : IDisposable
     private void SetLive(string sha)
     {
         var build = Path.Combine(workdir, "builds", sha);
+        Directory.CreateDirectory(Path.Combine(build, "os"));
         File.WriteAllText(Path.Combine(workdir, "live.json"),
             System.Text.Json.JsonSerializer.Serialize(new { sha, path = build }));
     }

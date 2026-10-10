@@ -40,14 +40,14 @@ public sealed class AspireCliClusterHostFacts : IDisposable
     }
 
     [Fact]
-    public async Task RestartingRestartsTheSiloThenTheMcpServer()
+    public async Task RestartingRestartsTheMcpServerBeforeTheSiloThatAsked()
     {
         var runner = new RecordingRunner("");
         var host = new AspireCliClusterHost(runner, _ => Task.FromResult(workdir));
 
         await host.RestartSilos(TestContext.Current.CancellationToken);
 
-        Assert.Equal([["resource", "OperatingSystem", "restart"], ["resource", "digitalbrain-mcp", "restart"]],
+        Assert.Equal([["resource", "digitalbrain-mcp", "restart"], ["resource", "OperatingSystem", "restart"]],
             runner.Calls.Select(call => call.Take(3).ToArray()));
     }
 
@@ -56,13 +56,21 @@ public sealed class AspireCliClusterHostFacts : IDisposable
     {
         var runner = new RecordingRunner("""
             [{"name":"features.load","source":"DigitalBrain.OS"},{"name":"features.load","source":"DigitalBrain.OS"},
-             {"name":"features.load","source":"DigitalBrain.Mcp"},{"name":"other","source":"DigitalBrain.OS"}]
+             {"name":"features.load","source":"DigitalBrain.OS-mcp"},{"name":"features.load","source":"DigitalBrain.Mcp"},{"name":"other","source":"DigitalBrain.OS"}]
             """);
         var host = new AspireCliClusterHost(runner, _ => Task.FromResult(workdir));
 
-        Assert.Equal(2, await host.Spans("DigitalBrain.OS", "features.load", TestContext.Current.CancellationToken));
-        Assert.Equal(["otel", "spans", "--format", "Json", "--search", "features.load"], runner.Calls.Single().Take(6));
+        Assert.Equal(3, await host.Spans("DigitalBrain.OS", "features.load", TestContext.Current.CancellationToken));
+        Assert.Equal(["otel", "spans", "--format", "Json", "--search", "features.load", "--limit", "10000"], runner.Calls.Single().Take(8));
     }
+
+    [Fact]
+    public void TheJsonStartsAtTheFirstLineThatOpensADocument()
+        => Assert.Equal("[{\"a\":\"[x]\"}]", AspireCliClusterHost.JsonPart("info: started [ok]\n[{\"a\":\"[x]\"}]"));
+
+    [Fact]
+    public void OutputWithoutJsonIsAnError()
+        => Assert.Throws<InvalidOperationException>(() => AspireCliClusterHost.JsonPart("Resource 'x' not found."));
 
     private sealed class RecordingRunner(string output) : IProcessRunner
     {
