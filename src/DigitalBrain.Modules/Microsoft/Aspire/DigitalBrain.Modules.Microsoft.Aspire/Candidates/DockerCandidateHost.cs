@@ -283,17 +283,17 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
     {
         var environment = Copied();
         foreach (var (key, value) in model) { environment[key] = value; }
-        foreach (var (key, value) in Orleans(sha)) { environment[key] = value; }
+        foreach (var (key, value) in OrleansIdentity(sha)) { environment[key] = value; }
+        // The candidate silo composes the orleans module: its storage, clustering and reminders are the orleans
+        // integration, pointed at the candidate's own Azurite (never Orleans__* provider keys).
+        var storage = CandidateConnectionString(sha);
         foreach (var (key, value) in new Dictionary<string, string>
         {
             ["ASPNETCORE_URLS"] = "http://+:5080",
-            [$"Orleans__Reminders__ProviderType"] = "AzureTableStorage",
-            [$"Orleans__Reminders__ServiceKey"] = DigitalBrainNames.Reminders,
-            [$"Orleans__GrainStorage__{DigitalBrainNames.ClusterGrainStorage}__ProviderType"] = "AzureBlobStorage",
-            [$"Orleans__GrainStorage__{DigitalBrainNames.ClusterGrainStorage}__ServiceKey"] = DigitalBrainNames.GrainState,
-            [$"Orleans__GrainStorage__{DigitalBrainNames.PlatformGrainStorage}__ProviderType"] = "AzureBlobStorage",
-            [$"Orleans__GrainStorage__{DigitalBrainNames.PlatformGrainStorage}__ServiceKey"] = DigitalBrainNames.GrainState,
-            [ConnectionVariable(DigitalBrainNames.Reminders)] = CandidateConnectionString(sha),
+            [IntegrationVariable(OrleansIntegration, "Clustering")] = storage,
+            [IntegrationVariable(OrleansIntegration, "GrainState")] = storage,
+            [IntegrationVariable(OrleansIntegration, "Reminders")] = storage,
+            [IntegrationVariable(OrleansIntegration, "GrainStateContainer")] = GrainStateContainer,
             [DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ModuleOptionsSection("apps") + ":Features")] = "/app/features",
             ["OTEL_SERVICE_NAME"] = $"candidate-{sha}",
             // Never the live key: copied user Connections stay sealed and unreadable in the candidate.
@@ -324,7 +324,14 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         var modules = Env(DigitalBrainConfiguration.ModulesSectionName) + "__";
         foreach (var key in environment.Keys.Where(key => key.StartsWith(modules, StringComparison.Ordinal)).ToArray())
         { environment.Remove(key); }
-        foreach (var (key, value) in Orleans(sha)) { environment[key] = value; }
+        foreach (var (key, value) in OrleansIdentity(sha)) { environment[key] = value; }
+        // An Orleans client, not a silo: it finds the gateway through Azure table clustering and keeps its
+        // cookie keys beside the grain state, both by connection string.
+        var storage = CandidateConnectionString(sha);
+        environment["Orleans__Clustering__ProviderType"] = "AzureTableStorage";
+        environment["Orleans__Clustering__ServiceKey"] = DigitalBrainNames.Clustering;
+        environment[ConnectionVariable(DigitalBrainNames.Clustering)] = storage;
+        environment[ConnectionVariable(DigitalBrainNames.GrainState)] = storage;
         environment["ASPNETCORE_URLS"] = "http://+:5081";
         environment["OTEL_SERVICE_NAME"] = $"candidate-{sha}-mcp";
         return environment;
@@ -364,23 +371,15 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         return environment;
     }
 
-    // Azure table clustering in the candidate's Azurite: the silo advertises its network address and
-    // its MCP client finds the gateway there.
-    private Dictionary<string, string> Orleans(string sha)
+    private const string OrleansIntegration = "orleans";
+
+    // The candidate cluster's identity, shared by its silo and its MCP client.
+    private static Dictionary<string, string> OrleansIdentity(string sha) => new(StringComparer.Ordinal)
     {
-        var storage = CandidateConnectionString(sha);
-        return new(StringComparer.Ordinal)
-        {
-            ["Orleans__ServiceId"] = $"intochat-c{sha}",
-            ["Orleans__ClusterId"] = $"intochat-c{sha}",
-            ["Orleans__Clustering__ProviderType"] = "AzureTableStorage",
-            ["Orleans__Clustering__ServiceKey"] = DigitalBrainNames.Clustering,
-            ["Orleans__EnableDistributedTracing"] = "true",
-            [ConnectionVariable(DigitalBrainNames.Clustering)] = storage,
-            [ConnectionVariable(DigitalBrainNames.GrainState)] = storage,
-            [Env(DigitalBrainNames.GrainStateContainerKey)] = GrainStateContainer,
-        };
-    }
+        ["Orleans__ServiceId"] = $"intochat-c{sha}",
+        ["Orleans__ClusterId"] = $"intochat-c{sha}",
+        ["Orleans__EnableDistributedTracing"] = "true",
+    };
 
     private string GrainStateContainer => live[DigitalBrainNames.GrainStateContainerKey] is { Length: > 0 } named ? named : DigitalBrainNames.GrainStateContainer;
 
