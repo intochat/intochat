@@ -40,7 +40,7 @@ internal sealed class CostMeter(
         else
         {
             micros = 0;
-            logger.LogWarning("Unpriced {Kind} {Item}", kind, item);
+            logger.LogDebug("Unpriced {Kind} {Item}", kind, item);
         }
 
         var cost = new Cost
