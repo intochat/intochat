@@ -72,10 +72,9 @@ public static class ModuleTest
             lifetime.Own("cluster", cluster);
             await cluster.DeployAsync(deadline.Token).ConfigureAwait(false);
             var brain = new ModuleBrain(cluster, options.Execution, lifetime);
-            // R16: every host starts with its default brain's owner on record, so a part key resolves its owner
-            // whether or not the part log is on; a machine host also registers its mesh and creates the brain.
+            // R16/R59: the silo itself provisions its default owner at boot; a machine host also registers its mesh
+            // and creates the brain.
             if (options.PartLog) { await ProvisionMachineAsync(brain).WaitAsync(deadline.Token).ConfigureAwait(false); }
-            else { await ProvisionOwnerAsync(brain).WaitAsync(deadline.Token).ConfigureAwait(false); }
             if (options.HttpEdge)
             {
                 var edge = await ModuleHttpEdge.StartAsync(brain, modules, options, masterKey, siloServiceTypes, deadline.Token).ConfigureAwait(false);
@@ -95,23 +94,12 @@ public static class ModuleTest
     // The default brain is the Open posture's: account and brain "owner", as an HTTP caller reaches it.
     public const string DefaultAccount = Platform.Identity.AccountSession.DefaultLogin;
 
-    // Open posture only: a Secured host's bootstrap user owns the default brain id instead.
-    private static Task ProvisionOwnerAsync(ModuleBrain brain) =>
-        brain.SiloServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<Platform.Identity.Configuration.AuthOptions>>().Value.Posture
-            != Platform.Identity.Configuration.IdentityPosture.Open ? Task.CompletedTask :
-        brain.SiloServices.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>().ProvisionOwner(new DigitalBrain.Framework.Platform.Identity.Member
-        {
-            PrincipalId = DefaultAccount, AccountId = DefaultAccount, BrainId = DefaultAccount,
-            Role = DigitalBrain.Framework.Platform.Identity.MemberRole.Owner, DisplayName = DefaultAccount,
-        });
-
     // Through the trust clients, so a machine of a separate trust cluster provisions the same way.
     private static async Task ProvisionMachineAsync(ModuleBrain brain)
     {
         var nodes = brain.SiloServices.GetRequiredService<Platform.Trust.INodeDirectoryClient>();
         for (var i = 0; i < 8; i++) { await nodes.Register($"node-{i}", "platform").ConfigureAwait(false); }
         var scope = BrainScope.Create(DefaultAccount, DefaultAccount).Id;
-        await ProvisionOwnerAsync(brain).ConfigureAwait(false);
         // A machine of a separate trust cluster leaves the brain to the fact: the core part goes to whichever
         // machine creates it, and a second machine must not contend for it.
         if (brain.SiloServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<Platform.Trust.TrustOptions>>().Value.Gateway is not null) { return; }

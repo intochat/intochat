@@ -1,7 +1,5 @@
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Platform;
-using DigitalBrain.Platform.Identity.Authority;
 using DigitalBrain.Platform.Identity.Configuration;
 using DigitalBrain.Platform.Mesh;
 using Microsoft.Extensions.Configuration;
@@ -11,7 +9,7 @@ using Microsoft.Extensions.Hosting;
 namespace DigitalBrain.Testing.Module;
 
 // A trust cluster of its own (H2) for facts that run machines against it: one silo with only the trust grains,
-// memory platform storage, 8 seed nodes and the default owner on record. Machines join it through
+// memory platform storage and 8 seed nodes; each machine provisions its own default owner at boot (R59). Machines join it through
 // ModuleTestBuilder.WithTrust, each with its own private gateway client. It is a real silo on TCP ports, not an
 // InProcessTestCluster: those connect over an in-memory transport no outside client can reach.
 public sealed class TrustHost : IAsyncDisposable
@@ -57,11 +55,6 @@ public sealed class TrustHost : IAsyncDisposable
         try
         {
             await host.StartAsync(cancellationToken).ConfigureAwait(false);
-            var owner = ModuleTest.DefaultAccount;
-            await host.Services.GetRequiredService<IGrainFactory>().GetGrain<IBrainAuthority>(BrainScope.Create(owner, owner).Id).ProvisionOwner(new Member
-            {
-                PrincipalId = owner, AccountId = owner, BrainId = owner, Role = MemberRole.Owner, DisplayName = owner,
-            }).ConfigureAwait(false);
             return new TrustHost(host, gatewayPort, id, id, Convert.ToHexStringLower(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16)));
         }
         catch

@@ -1,0 +1,27 @@
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Parts;
+using DigitalBrain.Platform.Parts;
+using DigitalBrain.Platform.Trust;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace DigitalBrain.Platform.Tests.Unit.Trust;
+
+// R59: on an empty store nothing has provisioned the default owner yet; the machine does it at boot, before the
+// kernel's first read, so the owner's core part opens without any authorized call having run first.
+public sealed class FreshMachineFacts
+{
+    [Fact(Timeout = 120_000)]
+    public async Task AFreshMachineProvisionsItsDefaultOwnerAtBoot()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var trust = await TrustHost.StartAsync(ct);
+        var scope = BrainScope.Create(ModuleTest.DefaultAccount, ModuleTest.DefaultAccount).Id;
+        Assert.Null(await trust.Grains.GetGrain<DigitalBrain.Platform.Identity.Authority.IBrainAuthority>(scope).Account());
+
+        await using var machine = await ModuleTest.Create().WithTrust(trust).WithPartLog().StartAsync(ct);
+
+        Assert.Equal(ModuleTest.DefaultAccount, await machine.SiloServices.GetRequiredService<IKeyringClient>().OwnerOf(scope));
+        var core = await machine.SiloServices.GetRequiredService<PartLogs>().For(PartId.Core(scope));
+        Assert.False(core.Closed);
+    }
+}

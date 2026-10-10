@@ -80,7 +80,7 @@ public static class PlatformHosting
         services.TryAddSingleton<Trust.MachineRegistrar>();
         services.TryAddSingleton<BrainBirths>();
         services.TryAddSingleton<PrincipalPasswords>();
-        silo.AddStartupTask<Trust.MachineRegistration>();
+        silo.AddStartupTask<Trust.MachineRegistration>(Trust.MachineRegistration.Stage);
         services.TryAddSingleton<IReadOnlyList<IntegrationSchema>>(provider =>
             IntegrationDiscovery.Collect(provider.GetRequiredService<ModuleInventory>().Types));
         services.TryAddSingleton<IReadOnlyList<ConnectorDefinition>>(provider =>
