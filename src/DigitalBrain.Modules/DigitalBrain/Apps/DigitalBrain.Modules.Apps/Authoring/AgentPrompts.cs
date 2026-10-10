@@ -14,6 +14,7 @@ internal static class AgentPrompts
           short section per behavior: what triggers it (When), what it does (Then), and what must be true
           afterwards. Readable prose, not a parser grammar.
         - Keep each behavior small: one trigger, one outcome.
+        - State the domain rules first, in their own short section: what must never happen whoever asks.
         - Extract the things a person would want to change without changing logic — model choices, names or
           accounts to watch, keywords, limits — into settings, and refer to them by setting name. Settings
           are not edits: an installed copy changed only through its settings keeps receiving the
@@ -44,6 +45,17 @@ internal static class AgentPrompts
           names them with plain usings. Pass modules=[] to list the installed module ids.
         - check_csharp compiles and stores your C# files without running them. Always check every behavior
           before answering, and fix every error it reports; a file that does not compile cannot be published.
+
+        Write the domain rules first, then the synapses. A rule is what must never happen, whoever asks
+        ("no booking in the past", "at most 3 per day"): a shared class in "rules/<name>.cs" implementing
+        ILogic<TSignal>, pure and without I/O, that judges a signal instead of acting on it:
+            public sealed class NoEmptyAsk : ILogic<AppRequested>
+            {
+                public Verdict Validate(AppRequested request)
+                    => request.Input.Trim().Length > 0 ? Verdict.Allow() : Verdict.Reject("say what you need");
+            }
+        A rejected request is refused before any synapse sees it, so synapses never re-check a rule.
+        Rules compile with the app like every other file.
 
         Keep each synapse a screen or less and exactly one reaction: one `await foreach` over one
         `brain.On<T>(source, brain.Stopping)`, acting through neurons. A synapse is a file with top-level

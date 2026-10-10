@@ -395,14 +395,31 @@ internal sealed class AppNeuron(
         }
         if (input.Length > MaxPayloadLength) { throw new ArgumentException("A request input is at most 64 KiB."); }
         var id = Guid.NewGuid();
+        var requested = new AppRequested(operation, input, id) with { Publisher = Id };
+        if (await Rejection(requested) is { } rejected)
+        {
+            await PublishAsync(new AppRejected(operation, rejected.Rule, rejected.Reason));
+            await PublishAsync(new AppActivity(Name(), "attention", $"{rejected.Rule} refused {operation}: {rejected.Reason}"));
+            throw new ArgumentException($"{rejected.Rule} refused {operation}: {rejected.Reason}");
+        }
         // A request is a fact for the app's synapses; it is published for whoever is watching and kept
         // for whoever subscribes later, so a synapse that starts after the request still gets it.
         var next = Snapshot.Clone();
-        var retained = new RetainedSignal(next.RequestSequence + 1, new AppRequested(operation, input, id) with { Publisher = Id });
+        var retained = new RetainedSignal(next.RequestSequence + 1, requested);
         next.RequestSequence = retained.Sequence;
         next.RequestRetention = [.. next.RequestRetention.TakeLast(RetainedCapacity - 1), retained];
         await Save(next, new AppRequested(operation, input, id));
         return id;
+    }
+
+    // The bundle's rules judge the would-be request before it is published; the first rejection wins.
+    // The sandbox picks the rules out of the program's shared classes; no program means no rules.
+    private async Task<Verdict?> Rejection(AppRequested requested)
+    {
+        var program = Sources(Snapshot);
+        if (program.Count == 0 || ServiceProvider.GetService<IScriptSandbox>() is not { } sandbox) { return null; }
+        var verdicts = await sandbox.Judge(program, requested, CancellationToken.None);
+        return verdicts.FirstOrDefault(verdict => !verdict.Allowed);
     }
 
     public Task<RetainedSignal[]> Retained(string signal, long since)

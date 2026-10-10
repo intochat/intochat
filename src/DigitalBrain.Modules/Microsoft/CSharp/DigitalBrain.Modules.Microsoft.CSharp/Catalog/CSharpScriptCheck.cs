@@ -80,6 +80,22 @@ public sealed class CSharpScriptCheck
         return new(errors.Count == 0, errors, errors.Count == 0 ? assemblies : new Dictionary<string, CompiledBehavior>());
     }
 
+    // The bundle's shared classes alone, as one library: where its rules (ILogic<T>) live. Null when the
+    // bundle has no shared class or they do not compile; the publish gate reports those errors.
+    public CompiledBehavior? CompileShared(IReadOnlyDictionary<string, string> files)
+    {
+        ArgumentNullException.ThrowIfNull(files);
+        var libraries = files.Where(file => IsShared(file.Value)).OrderBy(file => file.Key, StringComparer.Ordinal).ToArray();
+        if (libraries.Length == 0) { return null; }
+        var trees = libraries.Select(library => CSharpSyntaxTree.ParseText(SourceText.From(library.Value, Encoding.UTF8), Parse, library.Key))
+            .Append(CSharpSyntaxTree.ParseText(SourceText.From(GlobalUsings, Encoding.UTF8), Parse, "GlobalUsings.cs"));
+        var compilation = CSharpCompilation.Create("rules", trees, References.Value, Options.WithOutputKind(OutputKind.DynamicallyLinkedLibrary));
+        using var assembly = new MemoryStream();
+        if (!compilation.Emit(assembly).Success) { return null; }
+        var bytes = assembly.ToArray();
+        return new(bytes, [], Convert.ToHexStringLower(SHA256.HashData(bytes)));
+    }
+
     // Exactly what the sandbox image carries: the .NET runtime, plus the vocabulary, the client and every
     // contract assembly with what they depend on. Nothing else this host loads (the framework ring, the
     // platform, drivers, the compiler) is a behavior's to reach; it would compile here and fail to load there.
