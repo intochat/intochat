@@ -1,4 +1,5 @@
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Parts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -34,6 +35,29 @@ public static class MachineHosting
         services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (provider, _) =>
             ActivatorUtilities.CreateInstance<PartGrainStorage>(provider));
         silo.TryAddKernelRegistration();
+        services.AddOptions<PartsOptions>().Validate<IHostEnvironment, IServiceProvider>((parts, environment, provider) =>
+        {
+            ValidateCustody(parts, environment, provider);
+            return true;
+        });
         return silo;
+    }
+
+    // R35: a production machine holds its custody root in hardware; Tpm custody needs a module that provides it.
+    private static void ValidateCustody(PartsOptions parts, IHostEnvironment environment, IServiceProvider provider)
+    {
+        const string key = DigitalBrainNames.CustodyConfigurationKey;
+        if (parts.Custody == MasterKeyCustodyKind.Configured)
+        {
+            if (environment.IsProduction())
+            { throw new InvalidOperationException($"{key} = Configured is refused in Production; a production machine holds its master keys in the TPM ({key} = Tpm)."); }
+            return;
+        }
+        IMasterKeyCustody custody;
+        try { custody = provider.GetRequiredService<IMasterKeyCustody>(); }
+        catch (Exception exception) when (exception is InvalidOperationException or System.Security.Cryptography.CryptographicException)
+        { throw new InvalidOperationException($"{key} = Tpm, but this machine's TPM custody cannot be opened: {exception.Message}", exception); }
+        if (custody is Keys.ConfiguredMasterKeyCustody)
+        { throw new InvalidOperationException($"{key} = Tpm, but no TPM custody is registered (the Windows module provides it on a Windows machine)."); }
     }
 }

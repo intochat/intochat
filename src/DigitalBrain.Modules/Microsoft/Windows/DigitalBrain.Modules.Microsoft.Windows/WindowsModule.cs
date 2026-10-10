@@ -1,6 +1,8 @@
 using System.Reflection;
 using DigitalBrain.Framework;
+using System.Runtime.Versioning;
 using DigitalBrain.Framework.Modules;
+using DigitalBrain.Framework.Parts;
 using DigitalBrain.Framework.Platform.Integrations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -23,5 +25,22 @@ public sealed class WindowsModule() : Module<WindowsOptions>(new ModuleId("windo
         ArgumentNullException.ThrowIfNull(silo);
         silo.Services.TryAddSingleton<IMachineIdentity, MachineIdentity>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<WindowsNeuron>, WindowsActivation>());
+        if (OperatingSystem.IsWindows()
+            && Enum.TryParse<MasterKeyCustodyKind>(silo.Configuration[DigitalBrainNames.CustodyConfigurationKey], ignoreCase: true, out var custody)
+            && custody == MasterKeyCustodyKind.Tpm)
+        { UseTpmCustody(silo.Services); }
+    }
+
+    // Replaces the platform's file key and configured custody whichever registered first. Without a TPM the factory
+    // throws, and the platform's start validation refuses the machine naming the custody key.
+    [SupportedOSPlatform("windows")]
+    private static void UseTpmCustody(IServiceCollection services)
+    {
+        services.RemoveAll<IMasterKeyCustody>();
+        services.RemoveAll<IMachineSigningKey>();
+        services.AddSingleton<IMasterKeyCustody>(_ => TpmMasterKeyCustody.IsAvailable()
+            ? new TpmMasterKeyCustody()
+            : throw new InvalidOperationException("The Microsoft Platform Crypto Provider (TPM) is not available on this machine."));
+        services.AddSingleton<IMachineSigningKey>(_ => new TpmMachineSigningKey());
     }
 }

@@ -38,6 +38,9 @@ public sealed class PartsOptions
     // Another own machine never races for it; the core moves only by an explicit release on its holder.
     public bool CoreHolder { get; set; }
 
+    // R35: Tpm needs a hardware custody module (Windows); Configured is refused when the host runs in Production.
+    public DigitalBrain.Framework.Parts.MasterKeyCustodyKind Custody { get; set; } = DigitalBrain.Framework.Parts.MasterKeyCustodyKind.Configured;
+
     public TimeSpan Lease => Role == MachineRole.Own ? OwnLease : ShortLease;
 
     public bool AcknowledgeOnJournal => Role == MachineRole.Own;

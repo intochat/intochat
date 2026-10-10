@@ -47,7 +47,8 @@ public sealed class InProcessTarget : ITestTarget
 
     internal static async Task<WebApplication> BuildAsync(TestBrainPlan plan, InProcessSession session, int httpPort, CancellationToken cancellationToken)
     {
-        var builder = WebApplication.CreateBuilder();
+        // Neither Development (which changes feature and token behaviour) nor Production (which refuses configured custody).
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Testing" });
         builder.WebHost.UseUrls($"http://127.0.0.1:{httpPort}");
         builder.Configuration.AddInMemoryCollection(TestLogging.QuietDefaults);
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>

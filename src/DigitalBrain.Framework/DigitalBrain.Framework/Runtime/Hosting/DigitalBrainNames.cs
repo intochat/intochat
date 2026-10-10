@@ -13,4 +13,6 @@ public static class DigitalBrainNames
     public const string PlatformGrainStorage = "platform";
     public const string MasterKeyConfigurationKey = "DigitalBrain:MasterKey";
     public const string MasterKeyEnvironmentVariable = "DigitalBrain__MasterKey";
+    // PartsOptions.Custody's key, here so a per-OS module reads it without the Platform ring.
+    public const string CustodyConfigurationKey = "DigitalBrain:Platform:Parts:Custody";
 }
