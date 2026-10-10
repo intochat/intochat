@@ -13,7 +13,9 @@ final class SiloState {
     id: json['id'] as String,
     sha: json['sha'] as String? ?? '',
     state: json['state'] as String? ?? 'Unknown',
-    health: json['health'] as String?,
+    health: (json['health'] as String?)?.isEmpty == true
+        ? null
+        : json['health'] as String?,
   );
 
   @override

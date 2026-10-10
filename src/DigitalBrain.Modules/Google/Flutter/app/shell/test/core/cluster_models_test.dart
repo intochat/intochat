@@ -8,7 +8,7 @@ void main() {
       'sha': 'abc',
       'silos': [
         {'id': 's1', 'sha': 'abc', 'state': 'Running', 'health': 'Healthy'},
-        {'id': 's2'},
+        {'id': 's2', 'health': ''},
       ],
     });
     expect(cluster.stage, 'rolling');
