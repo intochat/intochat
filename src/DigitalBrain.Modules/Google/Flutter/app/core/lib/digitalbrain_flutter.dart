@@ -14,3 +14,4 @@ export 'src/models/table_models.dart';
 export 'src/models/workspace_models.dart';
 export 'src/signals_client.dart';
 export 'src/ui_client.dart';
+export 'src/neuron_channel.dart';
