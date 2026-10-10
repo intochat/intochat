@@ -1,5 +1,6 @@
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Platform.Integrations;
 
 namespace DigitalBrain.Testing.Aspire;
 
@@ -12,6 +13,9 @@ public sealed class AspireTarget<TAppHost> : ITestTarget where TAppHost : class
         if (plan.Modules.Count > 0) { throw new NotSupportedException("The AppHost owns composition; use WithOptions/WithIntegration on an Aspire target."); }
         if (plan.Services is not null) { throw new NotSupportedException("ConfigureServices is in-process only; put a fake behind WithIntegration."); }
         if (plan.Client is not null || plan.Silo is not null) { throw new NotSupportedException("ConfigureSilo and ConfigureClient reach the in-process host only."); }
+        var integration = IntegrationSchema.SectionName + ":";
+        if (plan.Execution.HostConfiguration.Keys.FirstOrDefault(key => key.StartsWith(integration, StringComparison.OrdinalIgnoreCase)) is { } leaked)
+        { throw new ArgumentException($"Host configuration reaches the AppHost's command line; set '{leaked}' with WithIntegration so it travels in the private file."); }
         var (options, secrets) = Split(plan.Configuration);
         var identity = "test-" + Guid.NewGuid().ToString("N");
         // Arguments reach the AppHost builder before its program composes modules; adding to
@@ -20,8 +24,8 @@ public sealed class AspireTarget<TAppHost> : ITestTarget where TAppHost : class
         [
             $"{DigitalBrainHostingOptions.PersistentStorageKey}=false",
             $"{DigitalBrainHostingOptions.ClusterIdKey}={identity}",
-            .. options.Select(pair => $"{pair.Key}={pair.Value}"),
-            .. plan.Execution.HostConfiguration.Select(pair => $"{pair.Key}={pair.Value}"),
+            .. options.Where(pair => pair.Value is not null).Select(pair => $"{pair.Key}={pair.Value}"),
+            .. plan.Execution.HostConfiguration.Where(pair => pair.Value is not null).Select(pair => $"{pair.Key}={pair.Value}"),
         ];
         var execution = plan.Execution with
         {

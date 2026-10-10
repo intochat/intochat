@@ -26,6 +26,17 @@ public sealed class AspireTargetFacts
     }
 
     [Fact]
+    public async Task AnIntegrationKeyInHostConfigurationIsRefusedBeforeItReachesTheCommandLine()
+    {
+        var key = IntegrationSchema.Key("postgres", "ConnectionString");
+        var execution = new TestExecutionOptions { HostConfiguration = new Dictionary<string, string?> { [key] = "Host=db;Password=p" } };
+        var refusal = await Assert.ThrowsAsync<ArgumentException>(() => TestBrain.Create().WithExecution(execution)
+            .On(new AspireTarget<object>()).StartAsync(TestContext.Current.CancellationToken));
+        Assert.Contains(key, refusal.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Password", refusal.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task WithOptionsOnAnUndeclaredModuleProjectsReplaceOptionsIntoThePlanConfiguration()
     {
         var target = new RecordingTarget();

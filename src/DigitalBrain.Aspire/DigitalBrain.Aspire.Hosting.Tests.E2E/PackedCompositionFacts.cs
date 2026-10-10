@@ -23,6 +23,7 @@ public sealed class PackedCompositionFacts
         var projects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var roots = new[]
         {
+            "DigitalBrain.Testing.Aspire",
             "DigitalBrain.Testing.E2E",
             "DigitalBrain.Testing.Module",
             // The harness no longer drags modules in; one contracts package proves module
