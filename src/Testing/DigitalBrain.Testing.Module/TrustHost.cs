@@ -30,6 +30,10 @@ public sealed class TrustHost : IAsyncDisposable
     // One per test host (R52): every machine of the fact joins the default owner's account with it.
     public string PairingSecret { get; }
 
+    // The owner's custody root, shared by the fact's machines the way an owner's devices share it (Task 19
+    // moves it into hardware): a part key wrapped on one machine unwraps on the other.
+    public string MasterKey { get; } = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+
     public IGrainFactory Grains => _host.Services.GetRequiredService<IGrainFactory>();
 
     public static async Task<TrustHost> StartAsync(CancellationToken cancellationToken = default)

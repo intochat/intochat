@@ -26,6 +26,7 @@ public static class MachineHosting
         silo.AddDigitalBrainPlatform();
         var services = silo.Services;
         services.TryAddSingleton<PartLogs>();
+        silo.AddMachineHandover();
         foreach (var journal in services.Where(d => d.ServiceType == typeof(ISignalJournal)).ToArray()) { services.Remove(journal); }
         services.AddSingleton<ISignalJournal, PartSignalJournal>();
         foreach (var existing in services.Where(d => d.ServiceType == typeof(IGrainStorage) && Equals(d.ServiceKey, DigitalBrainNames.ClusterGrainStorage)).ToArray())

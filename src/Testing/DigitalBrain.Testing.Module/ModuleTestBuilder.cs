@@ -133,6 +133,7 @@ public sealed class ModuleTestBuilder
                     [$"{key}:{nameof(DigitalBrain.Platform.Trust.TrustOptions.ClusterId)}"] = trust.ClusterId,
                     [$"{key}:{nameof(DigitalBrain.Platform.Trust.TrustOptions.ServiceId)}"] = trust.ServiceId,
                     [$"{DigitalBrain.Platform.Parts.PartsOptions.Key}:{nameof(DigitalBrain.Platform.Parts.PartsOptions.PairingSecret)}"] = trust.PairingSecret,
+                    [DigitalBrainNames.MasterKeyConfigurationKey] = trust.MasterKey,
                 },
             },
         };

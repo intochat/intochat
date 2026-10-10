@@ -84,6 +84,18 @@ internal sealed class PartLog : IAsyncDisposable
         return log;
     }
 
+    // Every record this log holds, as of now.
+    internal (string GrainId, string StateName, StoredRecord Record)[] Records()
+    {
+        lock (_records) { return [.. _records.Select(entry => (entry.Key.GrainId, entry.Key.StateName, entry.Value))]; }
+    }
+
+    // The grains this log holds a record for: what a release deactivates before another machine takes the part.
+    internal string[] GrainIds
+    {
+        get { lock (_records) { return [.. _records.Keys.Select(key => key.GrainId).Distinct(StringComparer.Ordinal)]; } }
+    }
+
     public StoredRecord? Read(string grainId, string stateName)
     {
         lock (_records) { return _records.GetValueOrDefault((grainId, stateName)); }

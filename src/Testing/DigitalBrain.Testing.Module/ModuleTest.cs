@@ -27,7 +27,8 @@ public static class ModuleTest
         // cluster gets a throwaway key and the Open test posture, shared with the HTTP edge so
         // both sides of the brain protect with the same key. A fact that needs Secured overrides
         // the posture through its PrivateConfiguration.
-        var masterKey = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+        var masterKey = options.Execution.PrivateConfiguration.GetValueOrDefault(DigitalBrainNames.MasterKeyConfigurationKey)
+            ?? Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
         // One machine per session: a restarted silo is the same machine, with the same identity and journal.
         var machineDirectory = Path.Combine(Path.GetTempPath(), $"digitalbrain-machine-{Guid.NewGuid():N}");
         builder.ConfigureHost(host =>
@@ -102,6 +103,9 @@ public static class ModuleTest
             PrincipalId = DefaultAccount, AccountId = DefaultAccount, BrainId = DefaultAccount,
             Role = DigitalBrain.Framework.Platform.Identity.MemberRole.Owner, DisplayName = DefaultAccount,
         }).ConfigureAwait(false);
+        // A machine of a separate trust cluster leaves the brain to the fact: the core part goes to whichever
+        // machine creates it, and a second machine must not contend for it.
+        if (brain.SiloServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<Platform.Trust.TrustOptions>>().Value.Gateway is not null) { return; }
         await brain.Grains.GetGrain<IBrain>(scope).Create(new Owner(DefaultAccount)).ConfigureAwait(false);
     }
 }

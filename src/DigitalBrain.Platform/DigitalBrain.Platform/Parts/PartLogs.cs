@@ -48,6 +48,24 @@ internal sealed class PartLogs(ISequencerClient sequencer, IKeyringClient keyrin
         return [.. open.Where(log => !log.Closed)];
     }
 
+    // The parts this silo holds: every log opened and not closed.
+    public PartId[] Opened =>
+        [.. _logs.Values.Where(opening => opening.IsValueCreated && opening.Value.IsCompletedSuccessfully && !opening.Value.Result.Closed)
+            .Select(opening => opening.Value.Result.Part)];
+
+    // Hands the part back: its activations here are deactivated so none serves state another machine may change,
+    // the log flushes, and the lease is released so another machine can take it. A part this silo does not hold
+    // is a no-op.
+    public async Task Release(PartId part, Func<string[], Task>? deactivate = null)
+    {
+        if (!_logs.TryRemove(part.Value, out var opening) || !opening.IsValueCreated) { return; }
+        PartLog log;
+        try { log = await opening.Value; }
+        catch (Exception error) when (error is not OperationCanceledException) { return; }
+        if (deactivate is not null) { await deactivate(log.GrainIds); }
+        await log.DisposeAsync();
+    }
+
     public async ValueTask DisposeAsync()
     {
         foreach (var opening in _logs.Values)

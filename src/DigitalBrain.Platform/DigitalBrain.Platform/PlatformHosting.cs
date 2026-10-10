@@ -119,6 +119,7 @@ public static class PlatformHosting
         Signals.SignalsEndpoints.MapSignals(endpoints);
         endpoints.MapCapabilities();
         IdentityEndpoints.Map(endpoints);
+        Parts.MachinePartEndpoints.Map(endpoints);
         endpoints.MapGrpcService<Neurons.NeuronsService>();
         return endpoints;
     }
