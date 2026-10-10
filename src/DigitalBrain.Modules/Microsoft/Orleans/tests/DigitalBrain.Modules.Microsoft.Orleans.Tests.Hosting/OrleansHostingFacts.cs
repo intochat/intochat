@@ -23,11 +23,8 @@ public sealed class OrleansHostingFacts
         Assert.Contains(DigitalBrainConfiguration.IntegrationEnvironmentName("orleans", OrleansStorageHosting.ClusteringField), environment.Keys);
         Assert.Contains(DigitalBrainConfiguration.IntegrationEnvironmentName("orleans", OrleansStorageHosting.GrainStateField), environment.Keys);
         Assert.Contains(DigitalBrainConfiguration.IntegrationEnvironmentName("orleans", OrleansStorageHosting.RemindersField), environment.Keys);
-        // The silo keeps only the development clustering Aspire's Orleans resource requires; no storage provider keys.
-        Assert.DoesNotContain("Orleans__Clustering__ServiceKey", environment.Keys);
-        Assert.Equal("Development", environment["Orleans__Clustering__ProviderType"]);
-        Assert.DoesNotContain(environment.Keys, key => key.StartsWith("Orleans__Reminders__", StringComparison.Ordinal)
-            || key.StartsWith("Orleans__GrainStorage__", StringComparison.Ordinal));
+        AssertNoProviderKeys(environment);
+        Assert.Contains("Orleans__ClusterId", environment.Keys);
         Assert.Single(builder.Resources.OfType<AzureStorageResource>());
         Assert.Contains(silo.Resource.Annotations.OfType<WaitAnnotation>(), wait => wait.Resource is AzureStorageResource);
     }
@@ -40,6 +37,7 @@ public sealed class OrleansHostingFacts
         var silo = builder.AddExecutable("os", "unused", ".").WithReference(brain);
         var environment = await EnvironmentOf(builder, silo.Resource, TestContext.Current.CancellationToken);
         Assert.DoesNotContain(environment.Keys, key => key.StartsWith(IntegrationPrefix, StringComparison.Ordinal));
+        AssertNoProviderKeys(environment);
         Assert.Empty(builder.Resources.OfType<AzureStorageResource>());
     }
 
@@ -64,6 +62,13 @@ public sealed class OrleansHostingFacts
         var environment = await EnvironmentOf(builder, client.Resource, TestContext.Current.CancellationToken);
         Assert.Equal("AzureTableStorage", environment["Orleans__Clustering__ProviderType"]);
         Assert.Equal(DigitalBrain.Framework.DigitalBrainNames.Clustering, environment["Orleans__Clustering__ServiceKey"]);
+    }
+
+    private static void AssertNoProviderKeys(Dictionary<string, object> environment)
+    {
+        Assert.DoesNotContain("Orleans__Clustering__ProviderType", environment.Keys);
+        Assert.DoesNotContain(environment.Keys, key => key.StartsWith("Orleans__Clustering__", StringComparison.Ordinal)
+            || key.StartsWith("Orleans__Reminders__", StringComparison.Ordinal) || key.StartsWith("Orleans__GrainStorage__", StringComparison.Ordinal));
     }
 
     [Fact]

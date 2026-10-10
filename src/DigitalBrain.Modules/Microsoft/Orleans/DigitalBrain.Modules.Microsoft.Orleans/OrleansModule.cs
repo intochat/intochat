@@ -11,7 +11,8 @@ public sealed class OrleansModule() : Module<OrleansOptions>(new ModuleId("orlea
     public static IntegrationSchema Integration { get; } = IntegrationSchema.For("orleans", "Orleans")
         .OffersSecret(OrleansStorageHosting.ClusteringField)
         .OffersSecret(OrleansStorageHosting.GrainStateField)
-        .OffersSecret(OrleansStorageHosting.RemindersField);
+        .OffersSecret(OrleansStorageHosting.RemindersField)
+        .OffersSetting(OrleansStorageHosting.GrainStateContainerField);
 
     public static ConnectorDefinition Connector => new("orleans", "Orleans", ["deployment"], ["orleans"])
     {

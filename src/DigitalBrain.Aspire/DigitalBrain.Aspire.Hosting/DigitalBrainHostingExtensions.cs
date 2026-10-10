@@ -65,6 +65,13 @@ public static class DigitalBrainHostingExtensions
 
         builder.WithAnnotation(new BrainSiloAnnotation(brain));
         builder.WithReference(brain.Orleans);
+        // The silo keeps the identity and endpoint keys; its providers come from the orleans module, so the
+        // development clustering Aspire requires on the Orleans resource must not reach it.
+        builder.WithEnvironment(context =>
+        {
+            foreach (var key in context.EnvironmentVariables.Keys.Where(IsOrleansProviderKey).ToArray())
+            { context.EnvironmentVariables.Remove(key); }
+        });
         // Development clustering advertises localhost gateways. Local executables must bind
         // that address too, rather than Orleans selecting a VPN/container adapter address.
         if (brain.Clustering is null && builder.Resource is ProjectResource or ExecutableResource)
@@ -136,6 +143,14 @@ public static class DigitalBrainHostingExtensions
         WaitUntilHealthy(builder, client.Brain.StartupDependencies);
         return builder;
     }
+
+    private static bool IsOrleansProviderKey(string key)
+        => key.StartsWith("Orleans__Clustering__", StringComparison.Ordinal)
+            || key.StartsWith("Orleans__Reminders__", StringComparison.Ordinal)
+            || key.StartsWith("Orleans__GrainStorage__", StringComparison.Ordinal)
+            || key.StartsWith("Orleans__Streaming__", StringComparison.Ordinal)
+            || key.StartsWith("Orleans__GrainDirectory__", StringComparison.Ordinal)
+            || key.StartsWith("Orleans__BroadcastChannel__", StringComparison.Ordinal);
 
     private static void WaitUntilHealthy<TResource>(
         IResourceBuilder<TResource> builder,

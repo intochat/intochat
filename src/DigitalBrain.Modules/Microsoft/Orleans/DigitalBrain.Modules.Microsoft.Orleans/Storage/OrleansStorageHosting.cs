@@ -16,6 +16,7 @@ public static class OrleansStorageHosting
     public const string ClusteringField = "Clustering";
     public const string GrainStateField = "GrainState";
     public const string RemindersField = "Reminders";
+    public const string GrainStateContainerField = "GrainStateContainer";
 
     private static readonly string[] GrainStores = [DigitalBrainNames.ClusterGrainStorage, DigitalBrainNames.PlatformGrainStorage];
 
@@ -35,7 +36,7 @@ public static class OrleansStorageHosting
         {
             throw new InvalidOperationException($"The orleans integration is partial; missing: {string.Join(", ", missing)}. Set all three or none.");
         }
-        return AddAzure(silo, clustering!, grainState!, reminders!);
+        return AddAzure(silo, clustering!, grainState!, reminders!, configuration[OrleansModule.Integration.Key(GrainStateContainerField)]);
     }
 
     private static ISiloBuilder AddMemory(ISiloBuilder silo)
@@ -52,7 +53,7 @@ public static class OrleansStorageHosting
         return silo;
     }
 
-    private static ISiloBuilder AddAzure(ISiloBuilder silo, string clustering, string grainState, string reminders)
+    private static ISiloBuilder AddAzure(ISiloBuilder silo, string clustering, string grainState, string reminders, string? container)
     {
         silo.UseAzureStorageClustering(options => options.TableServiceClient = new TableServiceClient(clustering));
         silo.UseAzureTableReminderService(options => options.TableServiceClient = new TableServiceClient(reminders));
@@ -61,8 +62,9 @@ public static class OrleansStorageHosting
             silo.AddAzureBlobGrainStorage(name, options => options.BlobServiceClient = new BlobServiceClient(grainState));
             silo.Services.AddKeyedSingleton<IGrainStorageSerializer>(name, static (services, _) =>
                 new OrleansGrainStorageSerializer(services.GetRequiredService<global::Orleans.Serialization.Serializer>()));
+            // The integration setting wins; the module option is the deployment default.
             silo.Services.AddOptions<AzureBlobStorageOptions>(name).Configure<IOptions<OrleansOptions>>(
-                (options, module) => options.ContainerName = module.Value.GrainStateContainer);
+                (options, module) => options.ContainerName = string.IsNullOrWhiteSpace(container) ? module.Value.GrainStateContainer : container);
         }
         return silo;
     }

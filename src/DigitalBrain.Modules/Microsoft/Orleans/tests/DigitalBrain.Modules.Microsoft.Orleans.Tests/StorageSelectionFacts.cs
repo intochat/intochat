@@ -1,6 +1,9 @@
 using DigitalBrain.Microsoft.Orleans;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Orleans.Configuration;
+using Orleans.Serialization;
 using Orleans.Hosting;
 using Orleans.Storage;
 
@@ -30,6 +33,26 @@ public sealed class StorageSelectionFacts
         var error = Assert.Throws<InvalidOperationException>(() => silo.AddOrleansStorage(configuration));
         Assert.Contains("GrainState", error.Message, StringComparison.Ordinal);
         Assert.Contains("Reminders", error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("from-integration", "from-option", "from-integration")]
+    [InlineData(null, "from-option", "from-option")]
+    public void TheIntegrationGrainStateContainerWinsOverTheModuleOption(string? integration, string option, string expected)
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            [OrleansModule.Integration.Key(OrleansStorageHosting.ClusteringField)] = "UseDevelopmentStorage=true",
+            [OrleansModule.Integration.Key(OrleansStorageHosting.GrainStateField)] = "UseDevelopmentStorage=true",
+            [OrleansModule.Integration.Key(OrleansStorageHosting.RemindersField)] = "UseDevelopmentStorage=true",
+            [OrleansModule.Integration.Key(OrleansStorageHosting.GrainStateContainerField)] = integration,
+        }).Build();
+        var services = new ServiceCollection();
+        services.AddSerializer();
+        services.Configure<OrleansOptions>(options => options.GrainStateContainer = option);
+        new FakeSilo(services, configuration).AddOrleansStorage(configuration);
+        using var provider = services.BuildServiceProvider();
+        Assert.Equal(expected, provider.GetRequiredService<IOptionsMonitor<AzureBlobStorageOptions>>().Get("cluster").ContainerName);
     }
 
     private sealed class FakeSilo(IServiceCollection services, IConfiguration configuration) : ISiloBuilder
