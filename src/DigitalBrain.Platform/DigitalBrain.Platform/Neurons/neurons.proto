@@ -24,7 +24,7 @@ message CallReply {
 message WatchSource {
   string contract = 1;
   string key = 2;
-  repeated string types = 3;   // signal type names: short ("ButtonChanged") or full
+  repeated string signal_types = 3;   // signal type names: short ("ButtonChanged") or full
 }
 
 message WatchRequest {
