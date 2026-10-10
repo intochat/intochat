@@ -39,6 +39,10 @@ public interface ICandidate : INeuron
     [AlwaysInterleave, ResponseTimeout("00:30:00")] Task<CandidateSnapshot> Verify();
     [ResponseTimeout("00:10:00")] Task<CandidateSnapshot> Promote();
     Task<CandidateSnapshot> Discard();
+    // Starts without holding the caller: the index must be free when a failing Start reports Ended.
+    [OneWay, AlwaysInterleave] Task Begin();
+    // Completes a Promoting candidate once the cluster runs its build; a no-op in any other stage.
+    Task<CandidateSnapshot> Finish();
     static string Key(string brainId, string sha) => $"{brainId}/aspire/candidate/{sha}";
 }
 
@@ -49,7 +53,6 @@ public interface ICandidates : INeuron
     [ResponseTimeout("00:05:00")] Task<string> Propose(CandidateProposal proposal);
     [ReadOnly, AlwaysInterleave] Task<string?> Live();
     [ReadOnly, AlwaysInterleave] Task<string[]> Known();
-    // Interleaved: the live candidate reports its end while the index is still inside StartLive.
-    [AlwaysInterleave] Task Ended(string sha);
+    Task Ended(string sha);
     static string Key(string brainId) => $"{brainId}/aspire/candidates";
 }

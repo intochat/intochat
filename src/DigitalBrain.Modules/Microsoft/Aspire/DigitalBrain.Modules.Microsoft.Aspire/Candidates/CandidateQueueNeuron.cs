@@ -1,6 +1,4 @@
-using DigitalBrain;
 using DigitalBrain.Framework;
-using Orleans.Concurrency;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Microsoft.Aspire.Candidates;
@@ -10,7 +8,7 @@ namespace DigitalBrain.Microsoft.Aspire.Candidates;
 internal sealed class CandidateQueueNeuron(
     [PersistentState("state", DigitalBrainNames.DefaultGrainStorage)] IPersistentState<CandidateQueueState> store,
     ICandidateHost host)
-    : Neuron<CandidateQueueState>(store), ICandidates, ICandidateQueueWork
+    : Neuron<CandidateQueueState>(store), ICandidates
 {
     private string BrainId => BrainKey.BrainOf(this.GetPrimaryKeyString());
 
@@ -24,8 +22,7 @@ internal sealed class CandidateQueueNeuron(
         if (Snapshot.Live is null)
         {
             await Save(Snapshot with { Live = prepared.Sha }, new CandidateChanged(prepared.Sha, CandidateStage.Building));
-            // One-way through a self reference: Start outlives the call and must not hold the index.
-            await this.AsReference<ICandidateQueueWork>().StartLive(prepared.Sha);
+            await candidate.Begin();
         }
         else
         {
@@ -49,14 +46,6 @@ internal sealed class CandidateQueueNeuron(
         if (Snapshot.Live != sha) { return; }
         var next = Snapshot.Queue.FirstOrDefault();
         await Save(Snapshot with { Live = next, Queue = next is null ? [] : Snapshot.Queue[1..] }, new CandidateChanged(sha, CandidateStage.Discarded));
-        if (next is not null) { await this.AsReference<ICandidateQueueWork>().StartLive(next); }
+        if (next is not null) { await GrainFactory.GetGrain<ICandidate>(ICandidate.Key(BrainId, next)).Begin(); }
     }
-
-    public Task StartLive(string sha) => GrainFactory.GetGrain<ICandidate>(ICandidate.Key(BrainId, sha)).Start();
-}
-
-[Alias("aspire.candidates-work"), Orleans.Metadata.DefaultGrainType("aspire.candidates")]
-internal interface ICandidateQueueWork : IGrainWithStringKey
-{
-    [OneWay] Task StartLive(string sha);
 }

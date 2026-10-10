@@ -1,4 +1,3 @@
-using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.Aspire.Verification;
 using Orleans.Runtime;
@@ -85,13 +84,22 @@ internal sealed class CandidateNeuron(
         return Describe();
     }
 
+    public Task Begin() => Start();
+
     public async Task<CandidateSnapshot> Promote()
     {
-        if (Snapshot.Stage == CandidateStage.Promoted) { return Describe(); }
+        if (Snapshot.Stage is CandidateStage.Promoting or CandidateStage.Promoted) { return Describe(); }
         if (Snapshot.Stage != CandidateStage.Verified) { throw new InvalidOperationException($"Candidate {Sha} is {Snapshot.Stage}; only a Verified candidate can be promoted."); }
         await Move(CandidateStage.Promoting, Snapshot, null);
         await host.Commit(Sha, Snapshot.Branch, CancellationToken.None);
+        // The silo running this grain may die inside Restart; the cluster calls Finish once the new build is up.
         await LiveCluster.Restart(Sha);
+        return await Finish();
+    }
+
+    public async Task<CandidateSnapshot> Finish()
+    {
+        if (Snapshot.Stage != CandidateStage.Promoting) { return Describe(); }
         await host.Remove(Sha, CancellationToken.None);
         await Move(CandidateStage.Promoted, Snapshot, new CandidatePromoted(Sha));
         await Index.Ended(Sha);

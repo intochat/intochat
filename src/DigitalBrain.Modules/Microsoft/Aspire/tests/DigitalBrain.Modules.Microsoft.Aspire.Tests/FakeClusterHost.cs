@@ -6,6 +6,7 @@ internal sealed class FakeClusterHost : IClusterHost
 {
     public string Current { get; set; } = "base000";
     public int Restarts { get; private set; }
+    public bool DieOnRestart { get; set; }
 
     public Task<string> CurrentSha(CancellationToken ct) => Task.FromResult(Current);
 
@@ -21,6 +22,6 @@ internal sealed class FakeClusterHost : IClusterHost
     public Task RestartSilos(CancellationToken ct)
     {
         Restarts++;
-        return Task.CompletedTask;
+        return DieOnRestart ? Task.FromException(new InvalidOperationException("silo died")) : Task.CompletedTask;
     }
 }

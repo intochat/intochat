@@ -128,4 +128,48 @@ public sealed class CandidateFacts
         Assert.Contains("fake", result.Failure);
         Assert.Equal("remove sha0001", host.Calls[^1]);
     }
+
+    [Fact]
+    public async Task APromotionCutOffByTheRestartEndsWhenTheClusterReactivatesOnTheNewBuild()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new FakeCandidateHost();
+        var cluster = new FakeClusterHost { DieOnRestart = true };
+        await using var brain = await StartAsync(host, cluster, new FakeVerifier(), ct);
+        var index = brain.Get<ICandidates>(ICandidates.Key("owner"));
+        var candidate = brain.Get<ICandidate>(ICandidate.Key("owner", "sha0001"));
+        await using var promoted = await brain.Observe<CandidatePromoted>(candidate, ct);
+        await using var healthy = await brain.Observe<CandidateHealthy>(candidate, ct);
+        var sha = await index.Propose(new("os-runtime", "change", [], Plan));
+        await healthy.NextAsync(ct: ct);
+        await candidate.Verify();
+        await Assert.ThrowsAsync<InvalidOperationException>(candidate.Promote);
+        Assert.Equal(CandidateStage.Promoting, (await candidate.Read()).Stage);
+        Assert.Equal(sha, await index.Live());
+
+        await brain.DeactivateAsync(brain.Get<ICluster>(ICluster.Key("owner")), ct);
+        await brain.Get<ICluster>(ICluster.Key("owner")).Read();
+
+        Assert.Equal(sha, (await promoted.NextAsync(ct: ct)).Sha);
+        Assert.Equal(CandidateStage.Promoted, (await candidate.Read()).Stage);
+        Assert.Null(await index.Live());
+        Assert.Equal($"remove {sha}", host.Calls.Last(call => call.StartsWith("remove", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task PromotingWhileAlreadyPromotingReturnsTheSnapshotUnchanged()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var cluster = new FakeClusterHost { DieOnRestart = true };
+        var (brain, candidate) = await ProposedAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
+        await using var _ = brain;
+        await candidate.Start();
+        await candidate.Verify();
+        await Assert.ThrowsAsync<InvalidOperationException>(candidate.Promote);
+
+        var again = await candidate.Promote();
+
+        Assert.Equal(CandidateStage.Promoting, again.Stage);
+        Assert.Equal(1, cluster.Restarts);
+    }
 }

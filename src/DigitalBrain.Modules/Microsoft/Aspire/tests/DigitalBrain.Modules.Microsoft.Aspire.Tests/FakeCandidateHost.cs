@@ -10,6 +10,7 @@ internal sealed class FakeCandidateHost : ICandidateHost
     public string? FailAt { get; set; }
     public bool Healthy { get; set; } = true;
     public string[] Orphaned { get; set; } = [];
+    public string[] OrphansKnown { get; private set; } = [];
     public string? PreparedFrom { get; private set; }
     public Dictionary<string, string> RunEnvironment { get; } = [];
 
@@ -65,6 +66,8 @@ internal sealed class FakeCandidateHost : ICandidateHost
     public Task<string[]> Orphans(string[] known, CancellationToken ct)
     {
         Calls.Add("orphans");
+        OrphansKnown = known;
+        Fail("orphans");
         return Task.FromResult(Orphaned);
     }
 

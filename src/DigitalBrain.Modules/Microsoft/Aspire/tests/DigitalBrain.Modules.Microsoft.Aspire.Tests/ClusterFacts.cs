@@ -51,14 +51,31 @@ public sealed class ClusterFacts
     }
 
     [Fact]
-    public async Task OrphanCandidateContainersAreRemovedOnActivation()
+    public async Task OrphanCandidateContainersAreRemovedOnActivationKeepingTheLiveCandidate()
     {
         var ct = TestContext.Current.CancellationToken;
         var host = new FakeCandidateHost { Orphaned = ["candidate-dead"] };
         await using var brain = await CandidateFacts.StartAsync(host, new FakeClusterHost(), new FakeVerifier(), ct);
+        var sha = await brain.Get<ICandidates>(ICandidates.Key("owner")).Propose(new("b", "one", [], CandidateFacts.Plan));
+        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
 
-        await brain.Get<ICluster>(ICluster.Key("owner")).Read();
+        await brain.DeactivateAsync(grain, ct);
+        await grain.Read();
 
+        Assert.Contains("orphans", host.Calls);
+        Assert.Equal([sha], host.OrphansKnown);
+    }
+
+    [Fact]
+    public async Task AFailingOrphanSweepDoesNotFailTheActivation()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new FakeCandidateHost { FailAt = "orphans" };
+        await using var brain = await CandidateFacts.StartAsync(host, new FakeClusterHost(), new FakeVerifier(), ct);
+
+        var read = await brain.Get<ICluster>(ICluster.Key("owner")).Read();
+
+        Assert.Equal(ClusterStage.Steady, read.Stage);
         Assert.Contains("orphans", host.Calls);
     }
 }
