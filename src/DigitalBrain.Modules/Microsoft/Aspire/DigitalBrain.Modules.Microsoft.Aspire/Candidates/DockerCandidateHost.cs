@@ -285,6 +285,9 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
             [Env(IntegrationSchema.Key("csharp", "RunTokenKey"))] = Secret(),
             [Env(IntegrationSchema.Key("postgres", "ConnectionString"))] =
                 $"Host={PostgresOf(sha)};Port=5432;Username=postgres;Password={postgresPassword};Database={PostgresDatabase}",
+            // The copied postgres options may place a database per brain, which needs the server's admin connection.
+            [Env(IntegrationSchema.Key("postgres", "AdminConnection"))] =
+                $"Host={PostgresOf(sha)};Port=5432;Username=postgres;Password={postgresPassword}",
             [Env(IntegrationSchema.Key("clickhouse", "ConnectionString"))] =
                 $"Host={ClickHouseOf(sha)};Port=8123;Protocol=http;Username=default;Password={clickHousePassword};Database=default",
         })
