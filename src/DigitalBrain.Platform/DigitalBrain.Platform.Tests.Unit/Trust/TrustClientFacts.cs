@@ -41,6 +41,28 @@ public sealed class TrustClientFacts
         Assert.Empty(reaching);
     }
 
+    // R60: every trust grain that remains in the trust cluster. A grain interface added to Platform.Trust must be
+    // listed here, and only GrainTrustClients may address one from the machine's assembly.
+    private static readonly Type[] TrustGrains =
+    [
+        typeof(DigitalBrain.Platform.Sequencer.ISequencerGrain), typeof(IKeyringGrain), typeof(IStorageNodeDirectory), typeof(IStorageShard),
+        typeof(IMachineRegistry), typeof(IAccountMachines), typeof(DigitalBrain.Platform.Identity.Authority.IBrainAuthority),
+        typeof(DigitalBrain.Platform.Identity.Authority.IAccount), typeof(DigitalBrain.Platform.Identity.Authority.IPrincipal), typeof(IMarketplaceCatalog),
+    ];
+
+    [Fact]
+    public void OnlyTheClientsAddressATrustGrainFromTheMachine()
+    {
+        var declared = typeof(TrustHosting).Assembly.GetTypes()
+            .Where(type => type.IsInterface && type.GetInterfaces().Any(i => i == typeof(IGrainWithStringKey) || i == typeof(IGrainWithGuidKey) || i == typeof(IGrainWithIntegerKey)))
+            .Select(type => type.FullName).Order();
+        Assert.Equal(declared, TrustGrains.Select(type => type.FullName).Order());
+
+        var callers = TrustGrainCallers.Find(typeof(GrainTrustClients).Assembly, TrustGrains);
+        // The scan sees the clients themselves, so a lone entry means no other caller, not a blind scan.
+        Assert.Equal([typeof(GrainTrustClients).FullName!], callers);
+    }
+
     [Fact(Timeout = 60_000)]
     public async Task TheGrainClientsRoundTripAHeadAWrappedKeyAShardAndAListing()
     {
