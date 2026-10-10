@@ -17,5 +17,6 @@
   "DigitalBrain.Platform.Tests.Unit/Connections/TwoConnectorFacts.cs",
   "DigitalBrain.ServiceDefaults/Configuration/ServiceTelemetryOptions.cs",
   "DigitalBrain.Platform/Compute/FeeOptions.cs",
+  "DigitalBrain.Platform/Mesh/MeshOptions.cs",
   "DigitalBrain.ServiceDefaults/HealthProbes.cs"
 ]

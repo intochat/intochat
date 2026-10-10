@@ -1,4 +1,4 @@
-namespace DigitalBrain.Mesh;
+namespace DigitalBrain.Platform.Mesh;
 
 // Systematic Reed–Solomon over GF(2^8) with a Cauchy parity matrix: any k of the k+m shards rebuild the data.
 internal sealed class ReedSolomon
@@ -90,6 +90,7 @@ internal sealed class ReedSolomon
     public byte[][] Reconstruct(byte[]?[] shards, int shardSize)
     {
         if (shards.Length != TotalShards) { throw new ArgumentException($"Expected {TotalShards} shard slots."); }
+        if (shards.Any(shard => shard is not null && shard.Length != shardSize)) { throw new ArgumentException($"Every shard must be {shardSize} bytes."); }
 
         var present = Enumerable.Range(0, TotalShards).Where(i => shards[i] is not null).Take(DataShards).ToArray();
         if (present.Length < DataShards)

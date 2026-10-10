@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
-using DigitalBrain.Mesh;
+using DigitalBrain.Platform.Mesh;
 
-namespace DigitalBrain.Modules.Mesh.Tests;
+namespace DigitalBrain.Platform.Tests.Unit.Mesh;
 
 public sealed class ReedSolomonFacts
 {

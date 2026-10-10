@@ -60,13 +60,6 @@
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Tools/DigitalBrain.Modules.Tools/DigitalBrain.Modules.Tools.csproj" />
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Tools/tests/DigitalBrain.Modules.Tools.Tests/DigitalBrain.Modules.Tools.Tests.csproj" />
   </Folder>
-  <Folder Name="/Modules/DigitalBrain/Mesh/">
-    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Mesh/DigitalBrain.Modules.Mesh.Contracts/DigitalBrain.Modules.Mesh.Contracts.csproj" />
-    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Mesh/DigitalBrain.Modules.Mesh/DigitalBrain.Modules.Mesh.csproj" />
-  </Folder>
-  <Folder Name="/Modules/DigitalBrain/Mesh/tests/">
-    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Mesh/tests/DigitalBrain.Modules.Mesh.Tests/DigitalBrain.Modules.Mesh.Tests.csproj" />
-  </Folder>
   <Folder Name="/Modules/Google/" />
   <Folder Name="/Modules/Google/Flutter/">
     <Project Path="src/DigitalBrain.Modules/Google/Flutter/DigitalBrain.Modules.Flutter.Aspire.Hosting/DigitalBrain.Modules.Flutter.Aspire.Hosting.csproj" />

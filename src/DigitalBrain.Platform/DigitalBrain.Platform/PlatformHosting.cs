@@ -31,6 +31,9 @@ public static class PlatformHosting
         services.TryAddSingleton<DigitalBrain.Framework.Compute.ICostMeter, Compute.CostMeter>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<Microsoft.Extensions.Http.IHttpMessageHandlerBuilderFilter, DigitalBrain.Framework.Compute.MeteredHttpHandlerFilter>());
         services.AddOptions<Compute.FeeOptions>().BindConfiguration(Compute.FeeOptions.Key);
+        services.AddOptions<Mesh.MeshOptions>().BindConfiguration(Mesh.MeshOptions.Key)
+            .Validate(mesh => { mesh.Validate(); return true; }).ValidateOnStart();
+        services.TryAddSingleton<DigitalBrain.Framework.Mesh.IMeshStore, Mesh.MeshStore>();
         services.TryAddSingleton<IReadOnlyList<IntegrationSchema>>(provider =>
             IntegrationDiscovery.Collect(provider.GetRequiredService<ModuleInventory>().Types));
         services.TryAddSingleton<IReadOnlyList<ConnectorDefinition>>(provider =>

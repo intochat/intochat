@@ -21,7 +21,6 @@ public static partial class OsCatalog
         new DigitalBrain.Apps.AppsModule(),
         new DigitalBrain.Flutter.FlutterModule(),
         new DigitalBrain.Google.Gmail.GmailModule(),
-        new DigitalBrain.Mesh.MeshModule(),
         new DigitalBrain.Microsoft.Aspire.AspireModule(),
         new DigitalBrain.Microsoft.CSharp.CSharpModule(),
         new DigitalBrain.Microsoft.GitHub.GitHubModule(),
