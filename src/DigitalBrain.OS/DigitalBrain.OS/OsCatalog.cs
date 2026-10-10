@@ -28,7 +28,6 @@ public static partial class OsCatalog
         new DigitalBrain.Microsoft.Playwright.PlaywrightModule(),
         new DigitalBrain.Postgres.PostgresModule(),
         new DigitalBrain.Qdrant.QdrantModule(),
-        new DigitalBrain.Revisions.RevisionsModule(),
         new DigitalBrain.Salesforce.SalesforceModule(),
         new DigitalBrain.Supabase.SupabaseModule(),
         new DigitalBrain.Time.TimeModule(),

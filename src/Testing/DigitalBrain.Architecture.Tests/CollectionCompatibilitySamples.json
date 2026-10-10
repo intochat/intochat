@@ -238,20 +238,6 @@
     "Expected": "[\"legacy-value\"]"
   },
   {
-    "Type": "DigitalBrain.Microsoft.Aspire.AspireResource",
-    "Member": "Urls",
-    "Representation": "array",
-    "Payload": "MAEBRXTOM21pY3Jvc29mdC5hc3BpcmUucmVzb3VyY2XowAHBAcEBwQEpNQADQRlsZWdhY3ktdmFsdWXg4A==",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
-    "Type": "DigitalBrain.Microsoft.Aspire.AspireResource",
-    "Member": "Urls",
-    "Representation": "list",
-    "Payload": "MAEBRXTOM21pY3Jvc29mdC5hc3BpcmUucmVzb3VyY2XowAHBAcEBwQExAVnRtylXU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuTGlzdGAxW1tzdHJpbmddXQADQRlsZWdhY3ktdmFsdWXg4A==",
-    "Expected": "[\"legacy-value\"]"
-  },
-  {
     "Type": "DigitalBrain.Microsoft.GitHub.PullRequestSnapshot",
     "Member": "Checks",
     "Representation": "array",

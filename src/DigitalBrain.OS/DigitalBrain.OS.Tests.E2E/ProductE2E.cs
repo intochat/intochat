@@ -4,7 +4,6 @@ using DigitalBrain.Apps;
 using DigitalBrain.ClickHouse;
 using DigitalBrain.Flutter;
 using DigitalBrain.Google.Gmail;
-using DigitalBrain.Microsoft.Aspire;
 using DigitalBrain.Microsoft.GitHub;
 using DigitalBrain.Postgres;
 using DigitalBrain.Qdrant;

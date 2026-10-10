@@ -564,11 +564,11 @@ Port of `RevisionVerifier.cs` with these changes:
 - `AspireModuleHosting.cs`: remove bridge key projection and the hosted `AspireBridgeClient`.
 - `AspireOptions.cs`: drop `ApplicationName` if no reference remains.
 
-- [ ] **Step 1:** LSP `findReferences` on `RevisionsModule`, `IRevision`, `IRevisions`, `ILauncherClient`, `AspireModule.ConfigurationRoot`, `AspireOptions.ApplicationName`; text search (not code) for `Launcher`, `revisions` in json/slnx/csproj/md.
-- [ ] **Step 2:** Delete and modify as listed.
-- [ ] **Step 3:** Build each affected project: AppHost, OS, OS.Tests.Unit, OS.Tests.E2E, Aspire module + tests, Architecture.Tests.
-- [ ] **Step 4:** Run `dotnet test --project src/DigitalBrain.Modules/Microsoft/Aspire/tests/DigitalBrain.Modules.Microsoft.Aspire.Tests`, `src/DigitalBrain.OS/DigitalBrain.OS.Tests.Unit`, `src/Testing/DigitalBrain.Architecture.Tests` → PASS.
-- [ ] **Step 5:** Commit explicit files (use `git add -u <each deleted/modified path>` per path, plus new files): `"Aspire: delete Launcher, Revisions and the bridge"`.
+- [x] **Step 1:** LSP `findReferences` on `RevisionsModule`, `IRevision`, `IRevisions`, `ILauncherClient`, `AspireModule.ConfigurationRoot`, `AspireOptions.ApplicationName`; text search (not code) for `Launcher`, `revisions` in json/slnx/csproj/md.
+- [x] **Step 2:** Delete and modify as listed.
+- [x] **Step 3:** Build each affected project: AppHost, OS, OS.Tests.Unit, OS.Tests.E2E, Aspire module + tests, Architecture.Tests.
+- [x] **Step 4:** Run `dotnet test --project src/DigitalBrain.Modules/Microsoft/Aspire/tests/DigitalBrain.Modules.Microsoft.Aspire.Tests`, `src/DigitalBrain.OS/DigitalBrain.OS.Tests.Unit`, `src/Testing/DigitalBrain.Architecture.Tests` → PASS.
+- [x] **Step 5:** Commit explicit files (use `git add -u <each deleted/modified path>` per path, plus new files): `"Aspire: delete Launcher, Revisions and the bridge"`.
 
 ---
 
@@ -657,7 +657,7 @@ AppHost: when `{Workdir}/live.json` exists, the OS silo resource is `AddExecutab
 
 Mechanical rename: `DigitalBrain.Revisions` → `DigitalBrain.Microsoft.Aspire`; `IRevisions` → `ICandidates.Key(scope)`; `IRevision.Key` → `ICandidate.Key`; `RevisionProposal` → `CandidateProposal`; `RevisionChanged/Healthy/Verified/Failed` → `Candidate*`; `RevisionStage` → `CandidateStage`; `revision.Verify(snapshot.Plan)` → `candidate.Verify()`. `PlanJson` drops `HealthyResources` and `AspireKey`. `RenderListAsync` appends the cluster line: `` $"Live: `{cluster.CurrentSha}` — {cluster.Stage}" `` from `ICluster.Read()`.
 
-- [ ] **Step 1:** Edit. **Step 2:** Compile-check via the features catalog test: find the test that compile-checks `./features` at boot (LSP on `FeatureCatalog`) and run it. **Step 3:** Commit `"SelfImprove: candidates and the live cluster"`.
+- [x] **Step 1:** Edit. **Step 2:** Compile-check via the features catalog test: find the test that compile-checks `./features` at boot (LSP on `FeatureCatalog`) and run it. **Step 3:** Commit `"SelfImprove: candidates and the live cluster"`.
 
 ---
 

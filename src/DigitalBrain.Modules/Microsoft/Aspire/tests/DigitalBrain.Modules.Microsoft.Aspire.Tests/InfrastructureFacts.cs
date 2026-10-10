@@ -1,54 +1,53 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using DigitalBrain.Microsoft.Aspire;
+using Microsoft.Extensions.DependencyInjection;
+using DigitalBrain.Microsoft.Aspire.Candidates;
+using DigitalBrain.Microsoft.Aspire.Cluster;
+using DigitalBrain.Microsoft.Aspire.Verification;
 
-namespace DigitalBrain.Modules.Microsoft.Aspire.Tests;
+namespace DigitalBrain.Microsoft.Aspire.Tests;
 
-// What the brain stands on: each composed module with the AppHost resource that carries its id.
+// What the brain stands on: the aspire module's rows are the cluster's silos.
 public sealed class InfrastructureFacts
 {
     [Fact]
-    public void ModulesJoinTheResourcesThatCarryTheirIdAndAspireIsTheAppHost()
+    public void TheAspireModuleShowsEachSiloAndOtherModulesShowNothing()
     {
-        var rows = InfrastructureView.Join(["postgres", "aspire", "clickhouse", "ai"],
+        var rows = InfrastructureView.Join(["postgres", "aspire", "clickhouse"],
         [
-            new("Modules-postgres-server", "Container", "Running", "Healthy", []),
-            new("Modules-postgres-database", "Database", "Running", null, []),
-            new("Modules-clickhouse", "Container", "Exited", "Unhealthy", []),
-            new("OperatingSystem", "Project", "Running", "Healthy", []),
+            new("silo-1", "sha0001", "Running", "Healthy"),
+            new("silo-0", "sha0001", "Exited", null),
         ]);
 
         Assert.Equal(
         [
-            ("aspire", "apphost", "Running", "Healthy"),
-            ("clickhouse", "Modules-clickhouse", "Exited", "Unhealthy"),
-            ("postgres", "Modules-postgres-database", "Running", null),
-            ("postgres", "Modules-postgres-server", "Running", "Healthy"),
+            ("aspire", "silo-0", "Exited", null),
+            ("aspire", "silo-1", "Running", "Healthy"),
         ], rows.Select(row => (row.Module, row.Resource, row.State, row.Health)));
     }
 
     [Fact]
-    public void WithoutAnyReportTheAppHostIsUnknown()
+    public void WithoutSilosTheAppHostIsUnknown()
         => Assert.Equal(("aspire", "Unknown", null),
             InfrastructureView.Join(["aspire"], []).Select(row => (row.Module, row.State, row.Health)).Single());
 
     [Fact]
-    public async Task TheBrainRouteAnswersTheJoinedRows()
+    public async Task TheBrainRouteAnswersTheClusterSilos()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create()
             .WithModule<AspireModule>()
-            .ConfigureModule<AspireModule, AspireOptions>(aspire => aspire.ApplicationName = "DigitalBrain")
+            .ConfigureSilo(silo =>
+            {
+                silo.Services.AddSingleton<ICandidateHost>(new FakeCandidateHost());
+                silo.Services.AddSingleton<IClusterHost>(new FakeClusterHost());
+                silo.Services.AddSingleton<ICandidateVerifier>(new FakeVerifier());
+            })
             .WithHttpEdge()
             .StartAsync(ct);
-        await brain.Grains.GetGrain<IAspireResourceReporter>("DigitalBrain")
-            .Report(new("Modules-aspire-dashboard", "Container", "Running", "Healthy", []));
 
         var rows = await brain.HttpClient.GetFromJsonAsync<JsonElement>("/brains/ws-infra/infrastructure", ct);
 
-        var aspire = Assert.Single(rows.EnumerateArray());
-        Assert.Equal(("aspire", "apphost", "Running", "Healthy"),
-            (aspire.GetProperty("module").GetString(), aspire.GetProperty("resource").GetString(),
-             aspire.GetProperty("state").GetString(), aspire.GetProperty("health").GetString()));
+        Assert.Equal(["silo-0", "silo-1"], rows.EnumerateArray().Select(row => row.GetProperty("resource").GetString()));
     }
 }

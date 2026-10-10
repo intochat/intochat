@@ -24,8 +24,8 @@ public sealed class OsCatalogFacts
     }
 
     [Fact]
-    public void TheOperatingSystemComposesTheRevisionsModule()
-        => Assert.Contains(OsCatalog.Modules, module => module.Id.ToString() == "revisions");
+    public void TheOperatingSystemComposesTheAspireModule()
+        => Assert.Contains(OsCatalog.Modules, module => module.Id.ToString() == "aspire");
 
     [Fact]
     public void CatalogIdsAreUnique()
