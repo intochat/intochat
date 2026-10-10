@@ -11,6 +11,7 @@ namespace DigitalBrain.Microsoft.Aspire.Verification;
 internal sealed class CandidateVerifier(IGrainFactory grains, IClusterHost cluster, ILogger<CandidateVerifier> logger) : ICandidateVerifier
 {
     private const string AppContract = "DigitalBrain.Apps.IApp";
+    private const string ReconcilerContract = "DigitalBrain.Apps.IFeatureReconciler";
 
     private sealed record Check(string Name, Func<CancellationToken, Task<(bool Passed, string Detail)>> Run);
 
@@ -66,6 +67,11 @@ internal sealed class CandidateVerifier(IGrainFactory grains, IClusterHost clust
         });
         yield return new("activation", async ct =>
         {
+            // Features reconcile on the brain's activation without anyone waiting: reconciling here makes the
+            // candidate's apps the folder's versions before any plan call reads them.
+            var reconcile = JsonSerializer.Serialize(new { contract = ReconcilerContract, key = $"{brainId}/apps-reconciler", method = "Reconcile", arguments = "[]" });
+            var reconciled = await server.Run("neurons_call", reconcile, ct);
+            if (reconciled.IsError) { return (false, $"reconciling features failed: {reconciled.Text}"); }
             var apps = await server.Run("neurons_list", JsonSerializer.Serialize(new { contract = AppContract }), ct);
             return (!apps.IsError, apps.IsError ? apps.Text : "the brain's apps list from the copied state");
         });

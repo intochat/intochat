@@ -44,6 +44,22 @@ public sealed class CandidateVerifierFacts
         Assert.Equal("context", report.FirstFailure);
     }
 
+    // The candidate's features reconcile on its brain's activation, asynchronously: the check reconciles them
+    // itself, so the plan's calls meet the candidate's apps, not the copied versions.
+    [Fact]
+    public async Task TheActivationCheckReconcilesTheBrainsFeaturesBeforeListingItsApps()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var server = await ScriptedMcpServer.StartAsync(ct);
+        var (brain, _) = await StartAsync(ct);
+        await using var _ = brain;
+
+        var report = await Verify(brain, server, new([], [], TimeSpan.FromMinutes(1)), ct);
+
+        Assert.True(report.Passed);
+        Assert.Equal([$"neurons_call DigitalBrain.Apps.IFeatureReconciler {BrainId}/apps-reconciler Reconcile", "neurons_list DigitalBrain.Apps.IApp"], server.Calls.Skip(1));
+    }
+
     [Fact]
     public async Task ACallAnsweringTheExpectedTextPasses()
     {

@@ -69,6 +69,7 @@ internal sealed class ScriptedMcpServer : IAsyncDisposable
         {
             "neurons_context" => $"{{\"principalId\":\"owner\",\"brainId\":\"{brain}\"}}",
             "neurons_list" => "[]",
+            _ when key.StartsWith("neurons_call DigitalBrain.Apps.IFeatureReconciler ", StringComparison.Ordinal) => "",
             _ => null,
         };
         return text is null || Failures.Contains(key)
