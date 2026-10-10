@@ -76,3 +76,19 @@ public sealed class SiloBrainListener : Neuron, ISiloBrainListener
         }
     }
 }
+
+[GenerateSerializer]
+public sealed record MembersChanged : Signal;
+[Alias("test.registry")]
+public interface ITestRegistry : INeuron
+{
+    Task Set(string[] members);
+    Task<string[]> Members();
+}
+[GrainType("test-registry")]
+public sealed class TestRegistry : Neuron, ITestRegistry
+{
+    private string[] _members = [];
+    public async Task Set(string[] members) { _members = members; await PublishAsync(new MembersChanged()); }
+    public Task<string[]> Members() => Task.FromResult(_members);
+}

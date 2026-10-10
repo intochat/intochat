@@ -24,7 +24,7 @@ public abstract class Sources
     // The entry points behind IDigitalBrain.On<T>(Sources) and React<T>: one body in the vocabulary,
     // reached from the interface defaults and from DigitalBrainConnection alike.
     public static IAsyncEnumerable<T> Stream<T>(IDigitalBrain brain, Sources sources, CancellationToken cancellationToken) where T : Signal
-        => throw new NotImplementedException();
+        => SourceSet.Open<T>(brain, sources, null, coalesce: false, cancellationToken);
 
     public static Task React<T>(IDigitalBrain brain, Sources sources, Func<CancellationToken, Task> rebuild, CancellationToken cancellationToken) where T : Signal
         => throw new NotImplementedException();
