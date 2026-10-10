@@ -228,7 +228,8 @@ public sealed class AspireModuleHosting : ModuleHosting<DigitalBrain.Microsoft.A
                 }
             });
 
-        private static readonly string GrainStateConnection = $"ConnectionStrings__{DigitalBrain.Framework.DigitalBrainNames.GrainState}";
+        // One storage source: the orleans integration the silo itself reads.
+        private static readonly string GrainStateConnection = DigitalBrainConfiguration.IntegrationEnvironmentName("orleans", "GrainState");
 
         private static async Task<string?> Resolve(object value, CancellationToken ct) => value switch
         {

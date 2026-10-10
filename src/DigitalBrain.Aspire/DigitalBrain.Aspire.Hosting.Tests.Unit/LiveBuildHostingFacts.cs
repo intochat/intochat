@@ -2,6 +2,7 @@ using Aspire.Hosting.ApplicationModel;
 using Aspire.Hosting;
 using DigitalBrain.Aspire.Testing;
 using DigitalBrain.Microsoft.Aspire;
+using DigitalBrain.Microsoft.Orleans;
 
 namespace DigitalBrain.Aspire.Hosting.Tests.Unit;
 
@@ -69,6 +70,21 @@ public sealed class LiveBuildHostingFacts : IDisposable
 
         var model = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>((string)environment[AspireModuleHosting.CandidateModelVariable])!;
         Assert.Equal(new Dictionary<string, string> { [AspireModuleHosting.IntegrationVariable("openrouter", "ApiKey")] = "model-key" }, model);
+    }
+
+    // The candidate host reads the live grain state from the same orleans integration the silo stores in.
+    [Fact]
+    public async Task TheAspireIntegrationCarriesTheLiveGrainStateOfTheOrleansIntegration()
+    {
+        var builder = AspireCompositionTest.CreateBuilder();
+        var brain = builder.AddDigitalBrain("modules").WithHosting<AspireModuleHosting>();
+        var silo = builder.AddExecutable("silo", "unused", ".")
+            .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.IntegrationEnvironmentName("orleans", OrleansStorageHosting.GrainStateField), "UseDevelopmentStorage=true")
+            .WithReference(brain);
+
+        var environment = await AspireCompositionTest.EnvironmentOf(builder, silo.Resource, TestContext.Current.CancellationToken);
+
+        Assert.Equal("UseDevelopmentStorage=true", environment[AspireModuleHosting.LiveGrainStateVariable]);
     }
 
     // Each role runs two named instances on dynamic ports; a YARP front owns the fixed port, routes everything to
