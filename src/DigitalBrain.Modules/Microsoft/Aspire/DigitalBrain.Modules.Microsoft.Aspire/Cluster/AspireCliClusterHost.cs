@@ -92,7 +92,7 @@ internal sealed class AspireCliClusterHost : IClusterHost
     }
 
     // Restarting the silo this call runs in ends the caller: that restart is detached, as in RestartSilos.
-    public async Task RestartSilo(string name, CancellationToken ct)
+    public async Task RestartInstance(string name, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         if (name == self)
@@ -106,7 +106,7 @@ internal sealed class AspireCliClusterHost : IClusterHost
 
     // A readiness wait on a freshly started process: Running in `describe`, then its own /ready (the front's probe,
     // dependency-free) answers 200 on the instance's endpoint. The budget bounds it; an instance that stops fails at once.
-    public async Task<SiloView> WaitSilo(string name, TimeSpan budget, CancellationToken ct)
+    public async Task<SiloView> WaitInstance(string name, TimeSpan budget, CancellationToken ct)
     {
         using var bounded = CancellationTokenSource.CreateLinkedTokenSource(ct);
         bounded.CancelAfter(budget);
@@ -118,7 +118,7 @@ internal sealed class AspireCliClusterHost : IClusterHost
                 var state = resource.ValueKind == JsonValueKind.Object ? Text(resource, "state") : null;
                 if (state is "Exited" or "Finished" or "FailedToStart")
                 {
-                    throw new InvalidOperationException($"instance {name} stopped ({state}) while starting");
+                    throw new InstanceNeverReadyException($"instance {name} stopped ({state}) while starting");
                 }
                 if (state == "Running" && Endpoint(resource) is { } endpoint && await Ready(endpoint, bounded.Token))
                 {
@@ -129,7 +129,7 @@ internal sealed class AspireCliClusterHost : IClusterHost
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            throw new TimeoutException($"instance {name} was not ready within {budget}");
+            throw new InstanceNeverReadyException($"instance {name} was not ready within {budget}", new TimeoutException());
         }
     }
 

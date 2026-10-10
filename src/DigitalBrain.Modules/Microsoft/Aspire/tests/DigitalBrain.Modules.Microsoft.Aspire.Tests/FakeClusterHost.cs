@@ -24,30 +24,43 @@ internal sealed class FakeClusterHost : IClusterHost
     public string[] InstanceNames { get; set; } = ["mcp-a", "mcp-b", "silo-0", "silo-1"];
     public string? Self { get; set; }
     public List<string> RestartedSilos { get; } = [];
+    // "name@sha": that instance never becomes ready on that build; "name@sha exits": it stops while starting.
     public HashSet<string> NeverHealthy { get; } = [];
     // An instance whose restart fails once, as if the activation driving the roll were cut off there.
     public string? InterruptAt { get; set; }
+    public TaskCompletionSource<string> SelfRestarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public List<string> Waited { get; } = [];
+    public TaskCompletionSource<string> Interrupted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public Task<SiloView[]> Silos(CancellationToken ct) =>
         Task.FromResult<SiloView[]>([.. InstanceNames.Where(name => name.StartsWith("silo-", StringComparison.Ordinal)).Select(name => new SiloView(name, Current, "Running", "Healthy"))]);
 
     public Task<string[]> Instances(CancellationToken ct) => Task.FromResult(InstanceNames);
 
-    public Task RestartSilo(string name, CancellationToken ct)
+    public Task RestartInstance(string name, CancellationToken ct)
     {
         if (name == InterruptAt)
         {
             InterruptAt = null;
+            Interrupted.TrySetResult(name);
             return Task.FromException(new InvalidOperationException($"cut off before restarting {name}"));
         }
         RestartedSilos.Add($"{name}@{Current}");
+        if (name == Self) { SelfRestarted.TrySetResult(name); }
         return Task.CompletedTask;
     }
 
-    public Task<SiloView> WaitSilo(string name, TimeSpan budget, CancellationToken ct) =>
-        NeverHealthy.Contains(name)
-            ? Task.FromException<SiloView>(new TimeoutException($"{name} not ready within {budget}"))
+    public Task<SiloView> WaitInstance(string name, TimeSpan budget, CancellationToken ct)
+    {
+        Waited.Add($"{name}@{Current}");
+        if (NeverHealthy.Contains($"{name}@{Current}"))
+        {
+            return Task.FromException<SiloView>(new InstanceNeverReadyException($"{name} not ready within {budget}", new TimeoutException()));
+        }
+        return NeverHealthy.Contains($"{name}@{Current} exits")
+            ? Task.FromException<SiloView>(new InstanceNeverReadyException($"instance {name} stopped (Exited) while starting"))
             : Task.FromResult(new SiloView(name, Current, "Running", "Healthy"));
+    }
 
     public Task RestartSilos(CancellationToken ct)
     {

@@ -13,7 +13,7 @@ internal sealed class ClusterNeuron(
     ICandidateHost candidates,
     IOptions<AspireOptions> options,
     ILogger<ClusterNeuron> log)
-    : Neuron<ClusterState>(store), ICluster
+    : Neuron<ClusterState>(store), ICluster, IClusterDriver, IRemindable
 {
     private string BrainId => BrainKey.BrainOf(this.GetPrimaryKeyString());
 
@@ -45,68 +45,138 @@ internal sealed class ClusterNeuron(
         return Describe();
     }
 
-    // Every step is persisted before its side effect: the silo running this grain restarts last, and the next
-    // activation (or a repeated Roll of the same sha) continues from Remaining.
+    public const string RollReminder = "aspire.cluster.roll";
+    private static readonly TimeSpan ReminderPeriod = TimeSpan.FromMinutes(1);
+
+    // A Step is queued or running in this activation: a reminder tick or a resend meanwhile does nothing.
+    private bool driving;
+    // This activation issued its own silo's restart: it ends with that silo, and the next activation finishes.
+    private bool handedOver;
+
+    private static bool Moving(ClusterStage stage) => stage is ClusterStage.Rolling or ClusterStage.RollingBack;
+
+    // Validates and records the roll, points live.json at sha, and answers: the steps run one-way (Step).
     public async Task<ClusterSnapshot> Roll(string sha)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sha);
         if (Snapshot.Stage == ClusterStage.Restarting) { throw new InvalidOperationException($"the cluster is restarting onto {Snapshot.TargetSha}"); }
+        if (Snapshot.Stage == ClusterStage.RollingBack) { throw new InvalidOperationException($"the cluster is rolling back onto {Snapshot.TargetSha}"); }
         if (Snapshot.Stage == ClusterStage.Rolling && Snapshot.TargetSha != sha) { throw new InvalidOperationException($"the cluster is rolling onto {Snapshot.TargetSha}"); }
-        if (Snapshot.Stage == ClusterStage.Steady && Snapshot.CurrentSha == sha) { return Describe(); }
-        if (Snapshot.Stage == ClusterStage.Steady)
+        if (Snapshot.Stage == ClusterStage.Rolling) { Drive(); return Describe(); }
+        if (Snapshot.CurrentSha == sha) { return Describe(); }
+        // A roll can only go back to a build that runs; the first move off source is a Restart.
+        if (Snapshot.CurrentSha.Length == 0) { throw new InvalidOperationException("the cluster runs no live build to roll back to; restart onto the first one"); }
+        var previous = Snapshot.CurrentSha;
+        var instances = await host.Instances(CancellationToken.None);
+        await Save(new ClusterState { CurrentSha = previous, Stage = ClusterStage.Rolling, TargetSha = sha, PreviousSha = previous, Remaining = instances },
+            new ClusterChanged(previous, ClusterStage.Rolling, sha));
+        // The reminder reactivates the cluster when nothing else would: after its own silo's restart, or a crash mid-roll.
+        await this.RegisterOrUpdateReminder(RollReminder, ReminderPeriod, ReminderPeriod);
+        try { await host.SetLive(sha, CancellationToken.None); }
+        catch (Exception error) when (error is not OperationCanceledException)
         {
-            var previous = Snapshot.CurrentSha;
-            var instances = await host.Instances(CancellationToken.None);
-            await Save(Snapshot with { Stage = ClusterStage.Rolling, TargetSha = sha, PreviousSha = previous, Remaining = instances, Handover = null },
-                new ClusterChanged(previous, ClusterStage.Rolling, sha));
-            try { await host.SetLive(sha, CancellationToken.None); }
-            catch (Exception error) when (error is not OperationCanceledException)
-            {
-                log.LogWarning(error, "Cluster {Cluster} could not point the live build at {Target}.", this.GetPrimaryKeyString(), sha);
-                await Save(new ClusterState { CurrentSha = previous }, new ClusterChanged(previous, ClusterStage.Steady, null));
-                throw;
-            }
+            log.LogWarning(error, "Cluster {Cluster} could not point the live build at {Target}.", this.GetPrimaryKeyString(), sha);
+            await Save(new ClusterState { CurrentSha = previous, Failure = error.Message }, new ClusterChanged(previous, ClusterStage.Steady, null, error.Message));
+            await StopReminder();
+            throw;
         }
-        var self = host.Self;
-        foreach (var name in Snapshot.Remaining.Where(name => name != self).ToArray())
-        {
-            await host.RestartSilo(name, CancellationToken.None);
-            try
-            {
-                await host.WaitSilo(name, options.Value.SiloStepBudget, CancellationToken.None);
-            }
-            catch (TimeoutException error)
-            {
-                await RollBack(name, error);
-            }
-            await SaveQuietly(Snapshot with { Remaining = [.. Snapshot.Remaining.Where(remaining => remaining != name)] });
-        }
-        if (Snapshot.Remaining.Length == 0)
-        {
-            await Complete(Snapshot.TargetSha!);
-            return Describe();
-        }
-        // Only this silo is left: its restart ends this activation, and the next one, on the new build, ends the roll.
-        await SaveQuietly(Snapshot with { Handover = self });
-        await host.RestartSilo(self!, CancellationToken.None);
+        Drive();
         return Describe();
     }
 
-    private async Task RollBack(string name, TimeoutException error)
+    public Task ReceiveReminder(string reminderName, TickStatus status)
     {
-        var target = Snapshot.TargetSha;
-        var previous = Snapshot.PreviousSha ?? "";
-        log.LogWarning(error, "Cluster {Cluster}: {Instance} never became ready on {Target}; rolling back to {Previous}.", this.GetPrimaryKeyString(), name, target, previous);
-        if (previous.Length > 0) { await host.SetLive(previous, CancellationToken.None); }
-        await host.RestartSilo(name, CancellationToken.None);
-        await Save(new ClusterState { CurrentSha = previous }, new ClusterChanged(previous, ClusterStage.Steady, null));
-        throw new InvalidOperationException($"silo {name} never became healthy on {target}", error);
+        if (reminderName == RollReminder) { Drive(); }
+        return Task.CompletedTask;
     }
 
-    private async Task Complete(string sha)
+    private void Drive()
     {
-        await Save(new ClusterState { CurrentSha = sha }, new ClusterChanged(sha, ClusterStage.Steady, null));
-        await Guarded(() => GrainFactory.GetGrain<ICandidate>(ICandidate.Key(BrainId, sha)).Finish(), "finish the promoted candidate");
+        if (driving || handedOver || !Moving(Snapshot.Stage)) { return; }
+        driving = true;
+        _ = this.AsReference<IClusterDriver>().Step();
+    }
+
+    // One instance per Step: restart it onto TargetSha, wait until it is ready, record it, hand on to the next Step.
+    public async Task Step()
+    {
+        driving = false;
+        if (handedOver || !Moving(Snapshot.Stage)) { return; }
+        var target = Snapshot.TargetSha!;
+        // Intent is persisted before live.json moves: a step cut off between the two points live.json here.
+        if (await host.CurrentSha(CancellationToken.None) != target) { await host.SetLive(target, CancellationToken.None); }
+        var self = host.Self;
+        if (Snapshot.Handover is { } handover)
+        {
+            // On the handed-over silo this activation is its readiness; elsewhere that silo is waited for.
+            if (handover == self || await Ready(handover)) { await Complete(); }
+            return;
+        }
+        var next = Snapshot.Remaining.FirstOrDefault(name => name != self);
+        if (next is null && Snapshot.Remaining.Length == 0)
+        {
+            await Complete();
+            return;
+        }
+        if (next is null)
+        {
+            await SaveQuietly(Snapshot with { Handover = self, Remaining = [], Rolled = [.. Snapshot.Rolled, self!] });
+            handedOver = true;
+            await host.RestartInstance(self!, CancellationToken.None);
+            return;
+        }
+        await host.RestartInstance(next, CancellationToken.None);
+        if (!await Ready(next)) { return; }
+        await SaveQuietly(Snapshot with { Remaining = [.. Snapshot.Remaining.Where(name => name != next)], Rolled = [.. Snapshot.Rolled, next] });
+        Drive();
+    }
+
+    private async Task<bool> Ready(string name)
+    {
+        try
+        {
+            await host.WaitInstance(name, options.Value.SiloStepBudget, CancellationToken.None);
+            return true;
+        }
+        catch (InstanceNeverReadyException error)
+        {
+            await NeverReady(name, error);
+            return false;
+        }
+    }
+
+    // A roll whose instance never becomes ready goes back over every instance it moved, the failed one included.
+    // A roll back that fails as well stops there, Steady on the build it was going back to, naming both failures.
+    private async Task NeverReady(string name, InstanceNeverReadyException error)
+    {
+        var reason = $"{name} never became ready on {Snapshot.TargetSha}: {error.Message}";
+        if (Snapshot.Stage == ClusterStage.RollingBack)
+        {
+            log.LogError(error, "Cluster {Cluster}: rolling back failed at {Instance}.", this.GetPrimaryKeyString(), name);
+            await Finish($"{Snapshot.Failure}; rolling back: {reason}");
+            return;
+        }
+        log.LogWarning(error, "Cluster {Cluster}: {Reason}; rolling back to {Previous}.", this.GetPrimaryKeyString(), reason, Snapshot.PreviousSha);
+        string[] back = Snapshot.Rolled.Contains(name) ? Snapshot.Rolled : [.. Snapshot.Rolled, name];
+        await Save(Snapshot with { Stage = ClusterStage.RollingBack, TargetSha = Snapshot.PreviousSha, PreviousSha = Snapshot.TargetSha, Remaining = back, Rolled = [], Handover = null, Failure = reason },
+            new ClusterChanged(Snapshot.CurrentSha, ClusterStage.RollingBack, Snapshot.PreviousSha, reason));
+        Drive();
+    }
+
+    private Task Complete() => Finish(Snapshot.Failure);
+
+    private async Task Finish(string? failure)
+    {
+        var current = Snapshot.TargetSha!;
+        var rolledForward = Snapshot.Stage == ClusterStage.Rolling;
+        await Save(new ClusterState { CurrentSha = current, Failure = failure }, new ClusterChanged(current, ClusterStage.Steady, null, failure));
+        await StopReminder();
+        if (rolledForward) { await Guarded(() => GrainFactory.GetGrain<ICandidate>(ICandidate.Key(BrainId, current)).Finish(), "finish the promoted candidate"); }
+    }
+
+    private async Task StopReminder()
+    {
+        if (await this.GetReminder(RollReminder) is { } reminder) { await this.UnregisterReminder(reminder); }
     }
 
     // Runs on every activation: completes a restart the previous build began, and sweeps container orphans.
@@ -115,19 +185,10 @@ internal sealed class ClusterNeuron(
         var current = await host.CurrentSha(ct);
         string? finished = null;
         string? abandoned = null;
-        if (Snapshot.Stage == ClusterStage.Rolling && Snapshot.Handover is not null && current == Snapshot.TargetSha)
+        if (Moving(Snapshot.Stage))
         {
-            await Complete(current);
-        }
-        else if (Snapshot.Stage == ClusterStage.Rolling && current != Snapshot.TargetSha)
-        {
-            // live.json goes to the target before any instance restarts and back only on rollback: the roll is over.
-            log.LogWarning("Cluster {Cluster} rolled towards {Target} but runs {Current}.", this.GetPrimaryKeyString(), Snapshot.TargetSha, current);
-            await Save(new ClusterState { CurrentSha = current }, new ClusterChanged(current, ClusterStage.Steady, null));
-        }
-        else if (Snapshot.Stage == ClusterStage.Rolling)
-        {
-            // A roll cut off between instances keeps its Remaining; Roll of the same sha resumes it.
+            // A roll outlives its activation: this one continues at the persisted step.
+            Drive();
         }
         else if (Snapshot.Stage == ClusterStage.Restarting && current == Snapshot.TargetSha)
         {
@@ -164,7 +225,7 @@ internal sealed class ClusterNeuron(
         }
     }
 
-    private ClusterSnapshot Describe() => new(Snapshot.CurrentSha, Snapshot.Stage, Snapshot.TargetSha, [], Snapshot.Remaining);
+    private ClusterSnapshot Describe() => new(Snapshot.CurrentSha, Snapshot.Stage, Snapshot.TargetSha, Snapshot.Remaining, Snapshot.Failure);
 }
 
 internal sealed class ClusterReconcile : IActivationHandler<ClusterNeuron>

@@ -6,9 +6,13 @@ internal sealed record ClusterState
     [Id(0)] public string CurrentSha { get; init; } = "";
     [Id(1)] public ClusterStage Stage { get; init; } = ClusterStage.Steady;
     [Id(2)] public string? TargetSha { get; init; }
-    // Rolling: the instances still on the previous build, in roll order.
+    // Rolling or RollingBack: the instances still to move onto TargetSha, in roll order, and those already moved.
     [Id(3)] public string[] Remaining { get; init; } = [];
-    [Id(4)] public string? PreviousSha { get; init; }
-    // Rolling: the silo whose own restart was issued detached; the next activation on the target build ends the roll.
-    [Id(5)] public string? Handover { get; init; }
+    [Id(4)] public string[] Rolled { get; init; } = [];
+    // The build the roll leaves; a roll back swaps it with TargetSha.
+    [Id(5)] public string? PreviousSha { get; init; }
+    // The silo whose own restart was issued detached; the next activation ends the roll once it is ready.
+    [Id(6)] public string? Handover { get; init; }
+    // Why a roll is going back (RollingBack) or went back (Steady after it).
+    [Id(7)] public string? Failure { get; init; }
 }

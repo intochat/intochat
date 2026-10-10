@@ -142,6 +142,19 @@ public sealed class DeploymentIdentityFacts
     }
 
     [Fact]
+    public void ADevelopmentRunGetsAClusterOfItsOwnUnderTheStableServiceId()
+    {
+        var first = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = ["--environment", "Development"], DisableDashboard = true });
+        var second = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = ["--environment", "Development"], DisableDashboard = true });
+
+        var one = first.AddDigitalBrain("Modules", DigitalBrainHostingOptions.Named(first.Configuration, "intochat", useAzureStorage: false));
+        var two = second.AddDigitalBrain("Modules", DigitalBrainHostingOptions.Named(second.Configuration, "intochat", useAzureStorage: false));
+
+        Assert.Equal(("intochat", "intochat"), (one.ServiceId, two.ServiceId));
+        Assert.NotEqual(one.ClusterId, two.ClusterId);
+    }
+
+    [Fact]
     public async Task TheSiloReceivesTheGrainStateContainerItMustOpen()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });

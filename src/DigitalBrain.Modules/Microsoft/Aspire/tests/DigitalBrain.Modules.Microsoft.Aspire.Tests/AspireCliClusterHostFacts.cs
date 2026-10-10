@@ -72,12 +72,21 @@ public sealed class AspireCliClusterHostFacts : IDisposable
         var host = new AspireCliClusterHost(runner, _ => Task.FromResult(workdir), "OperatingSystem-a");
 
         var instances = await host.Instances(ct);
-        await host.RestartSilo("OperatingSystem-b", ct);
-        await host.RestartSilo("OperatingSystem-a", ct);
+        await host.RestartInstance("OperatingSystem-b", ct);
+        await host.RestartInstance("OperatingSystem-a", ct);
 
         Assert.Equal(["digitalbrain-mcp-a", "digitalbrain-mcp-b", "OperatingSystem-a", "OperatingSystem-b"], instances);
         Assert.Equal(["resource", "OperatingSystem-b", "restart"], runner.Calls[^1].Take(3));
         Assert.Equal([["resource", "OperatingSystem-a", "restart"]], runner.Detached.Select(call => call.Take(3).ToArray()));
+    }
+
+    [Fact]
+    public async Task AnInstanceThatExitsWhileStartingNeverBecomesReady()
+    {
+        var runner = new RecordingRunner("""{"resources":[{"displayName":"OperatingSystem-b","state":"Exited"}]}""");
+        var host = new AspireCliClusterHost(runner, _ => Task.FromResult(workdir), "OperatingSystem-a");
+
+        await Assert.ThrowsAsync<InstanceNeverReadyException>(() => host.WaitInstance("OperatingSystem-b", TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken));
     }
 
     [Fact]

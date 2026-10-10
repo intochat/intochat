@@ -10,7 +10,7 @@ public sealed class CandidateFacts
     internal static readonly VerificationPlan Plan = new([new("DigitalBrain.Apps.IApp", "owner/apps/calculator", "Read", "[]", "*")], [], TimeSpan.FromMinutes(5));
 
     internal static Task<ModuleBrain> StartAsync(FakeCandidateHost host, FakeClusterHost cluster, FakeVerifier verifier, CancellationToken ct)
-        => ModuleTest.Create().WithModule<AspireModule>()
+        => ModuleTest.Create().WithModule<AspireModule>().WithReminders()
             .ConfigureSilo(silo =>
             {
                 silo.Services.AddSingleton<ICandidateHost>(host);

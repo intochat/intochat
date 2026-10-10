@@ -3,64 +3,88 @@ namespace DigitalBrain.Microsoft.Aspire.Tests;
 public sealed class ClusterRollFacts
 {
     [Fact]
-    public async Task RollingRestartsEverySiloOnceAndEndsSteadyOnTheNewSha()
+    public async Task RollingRestartsEveryInstanceOnceAndEndsSteadyOnTheNewShaAfterTheHandover()
     {
         var ct = TestContext.Current.CancellationToken;
         var cluster = new FakeClusterHost { Self = "silo-0" };
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
         var grain = brain.Get<ICluster>(ICluster.Key("owner"));
-        await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
 
         var rolling = await grain.Roll("sha0001");
+        await cluster.SelfRestarted.Task.WaitAsync(ct);
         await brain.DeactivateAsync(grain, ct);
-        var read = await grain.Read();
+        await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
+        var steady = await changes.NextAsync(change => change.Stage == ClusterStage.Steady, ct);
 
         Assert.Equal(ClusterStage.Rolling, rolling.Stage);
-        Assert.Equal(["silo-0"], rolling.Remaining);
+        Assert.Equal(("sha0001", null), (steady.CurrentSha, steady.Failure));
         Assert.Equal(["mcp-a@sha0001", "mcp-b@sha0001", "silo-1@sha0001", "silo-0@sha0001"], cluster.RestartedSilos);
+        var read = await grain.Read();
         Assert.Equal((ClusterStage.Steady, "sha0001"), (read.Stage, read.CurrentSha));
         Assert.Empty(read.Remaining);
-        Assert.Equal(ClusterStage.Rolling, (await changes.NextAsync(ct: ct)).Stage);
     }
 
     [Fact]
-    public async Task RollingResumesFromTheRemainingSilosAfterReactivation()
+    public async Task AHandoverFinishedOnAnotherSiloWaitsForTheHandedOverSilo()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var cluster = new FakeClusterHost { Self = "silo-0" };
+        await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
+        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
+        await grain.Roll("sha0001");
+        await cluster.SelfRestarted.Task.WaitAsync(ct);
+
+        cluster.Self = "silo-1";
+        await brain.DeactivateAsync(grain, ct);
+        await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
+        await changes.NextAsync(change => change.Stage == ClusterStage.Steady, ct);
+
+        Assert.Equal("silo-0@sha0001", cluster.Waited[^1]);
+    }
+
+    [Fact]
+    public async Task RollingResumesOnTheNextActivationWithoutAnotherRoll()
     {
         var ct = TestContext.Current.CancellationToken;
         var cluster = new FakeClusterHost { Self = "silo-0", InterruptAt = "silo-1" };
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
         var grain = brain.Get<ICluster>(ICluster.Key("owner"));
-        await Assert.ThrowsAnyAsync<Exception>(() => grain.Roll("sha0001"));
-
-        await brain.DeactivateAsync(grain, ct);
-        var cut = await grain.Read();
         await grain.Roll("sha0001");
+        await cluster.Interrupted.Task.WaitAsync(ct);
+        await brain.DeactivateAsync(grain, ct);
+
+        var cut = await grain.Read();
+        await cluster.SelfRestarted.Task.WaitAsync(ct);
 
         Assert.Equal(ClusterStage.Rolling, cut.Stage);
-        Assert.Equal(["silo-0", "silo-1"], cut.Remaining);
+        Assert.Contains("silo-1", cut.Remaining);
         Assert.Equal(["mcp-a@sha0001", "mcp-b@sha0001", "silo-1@sha0001", "silo-0@sha0001"], cluster.RestartedSilos);
     }
 
-    [Fact]
-    public async Task ASiloThatNeverBecomesHealthyRollsBackToThePreviousSha()
+    [Theory]
+    [InlineData("silo-1@sha0001")]
+    [InlineData("silo-1@sha0001 exits")]
+    public async Task AnInstanceThatNeverBecomesReadyRollsEveryMovedInstanceBack(string never)
     {
         var ct = TestContext.Current.CancellationToken;
         var cluster = new FakeClusterHost { Self = "silo-0" };
-        cluster.NeverHealthy.Add("silo-1");
+        cluster.NeverHealthy.Add(never);
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
         var grain = brain.Get<ICluster>(ICluster.Key("owner"));
         await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
 
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => grain.Roll("sha0001"));
-        var read = await grain.Read();
+        await grain.Roll("sha0001");
+        var back = await changes.NextAsync(change => change.Stage == ClusterStage.RollingBack, ct);
+        var steady = await changes.NextAsync(change => change.Stage == ClusterStage.Steady, ct);
 
-        Assert.Contains("silo-1", error.Message, StringComparison.Ordinal);
+        Assert.Equal("base000", back.TargetSha);
+        Assert.Equal("base000", steady.CurrentSha);
+        Assert.Contains("silo-1", steady.Failure, StringComparison.Ordinal);
         Assert.Equal("base000", cluster.Current);
-        Assert.Equal("silo-1@base000", cluster.RestartedSilos[^1]);
+        Assert.Equal(["mcp-a@sha0001", "mcp-b@sha0001", "silo-1@sha0001", "mcp-a@base000", "mcp-b@base000", "silo-1@base000"], cluster.RestartedSilos);
+        var read = await grain.Read();
         Assert.Equal((ClusterStage.Steady, "base000"), (read.Stage, read.CurrentSha));
-        Assert.Equal(ClusterStage.Rolling, (await changes.NextAsync(ct: ct)).Stage);
-        var steady = await changes.NextAsync(ct: ct);
-        Assert.Equal(("base000", ClusterStage.Steady, null), (steady.CurrentSha, steady.Stage, steady.TargetSha));
+        Assert.NotNull(read.Failure);
     }
 
     [Fact]
@@ -80,10 +104,11 @@ public sealed class ClusterRollFacts
     public async Task RollIsRefusedWhileRollingOntoAnotherSha()
     {
         var ct = TestContext.Current.CancellationToken;
-        var cluster = new FakeClusterHost { Self = "silo-0" };
+        var cluster = new FakeClusterHost { InterruptAt = "mcp-a" };
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
         var grain = brain.Get<ICluster>(ICluster.Key("owner"));
         await grain.Roll("sha0001");
+        await cluster.Interrupted.Task.WaitAsync(ct);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => grain.Roll("sha0002"));
     }

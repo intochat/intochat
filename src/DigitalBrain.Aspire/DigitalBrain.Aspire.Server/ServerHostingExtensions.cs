@@ -45,6 +45,16 @@ public static class ServerHostingExtensions
         builder.UseOrleans(silo =>
         {
             if (definition.AzureStorage) { ConfigureStandaloneAzureClustering(silo, builder.Configuration); }
+            // Development silos restart constantly (rolls, aspire restarts): rows of silos that are gone are swept
+            // within minutes, not the default week. Startup connectivity validation stays on.
+            if (builder.Environment.IsDevelopment())
+            {
+                silo.Configure<ClusterMembershipOptions>(membership =>
+                {
+                    membership.DefunctSiloCleanupPeriod = TimeSpan.FromMinutes(1);
+                    membership.DefunctSiloExpiration = TimeSpan.FromMinutes(5);
+                });
+            }
             silo.Services.AddDigitalBrainClient();
             if (definition.AzureStorage)
             {
