@@ -98,7 +98,13 @@ builder.Build().Run();
 
 IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
 {
+    // Stage A: each OS silo is an own machine running the part log in its own directory, over a mesh of
+    // platform seed nodes (Q25).
     silo.WithReference(digitalBrain)
+        .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName("DigitalBrain:Platform:Mesh:SeedNodes"), "24")
+        .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName("DigitalBrain:Platform:Parts:Role"), "Own")
+        .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName("DigitalBrain:Platform:Parts:MachineDirectory"),
+            Path.Combine(workdir, "machines", silo.Resource.Name))
         .WaitFor(cookieProtection)
         .WithHttpHealthCheck("/health", endpointName: "http");
     return builder.CreateResourceBuilder<IResourceWithEndpoints>(silo.Resource);

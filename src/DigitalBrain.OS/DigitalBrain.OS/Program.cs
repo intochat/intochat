@@ -14,6 +14,7 @@ var builder = WebApplication.CreateBuilder(args);
 // is IntoChat's own is branding, features and configuration.
 builder.AddDigitalBrainServer(server => server.UseAzureStorage().UseOrleansDashboard().AddOperatingSystem());
 builder.AddDigitalBrainPlatform();
+builder.AddMachinePartLogWhenConfigured();
 // Features (os and intochat apps) load from the folder DigitalBrain:Modules:apps:Options:Features
 // names: the AppHost passes the repository's ./features, the image carries a copy.
 
