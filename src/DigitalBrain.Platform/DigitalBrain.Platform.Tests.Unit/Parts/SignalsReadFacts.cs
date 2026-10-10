@@ -62,4 +62,14 @@ public sealed class SignalsReadFacts
         Assert.Empty(page.Signals);
         Assert.Equal(7, page.Next);
     }
+
+    [Fact]
+    public void EveryResponseSaysTheCursorIsExperimental()
+    {
+        var context = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+
+        SignalsEndpoints.MarkExperimental(context.Response);
+
+        Assert.Equal("unstable-cursor", context.Response.Headers["X-DigitalBrain-Experimental"].ToString());
+    }
 }

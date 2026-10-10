@@ -43,7 +43,7 @@ internal sealed class PartLogs(IGrainFactory grains, IMeshStore mesh, IPartKeys 
         {
             if (!(key.StartsWith(brainId + "/", StringComparison.Ordinal) && opening.IsValueCreated)) { continue; }
             try { open.Add(await opening.Value); }
-            catch (Exception) { }
+            catch (Exception error) { logging.CreateLogger<PartLogs>().LogWarning(error, "Part log {Part} failed to open and is left out of brain {Brain}'s open logs.", key, brainId); }
         }
         return [.. open.Where(log => !log.Closed)];
     }
