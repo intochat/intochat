@@ -1,45 +1,19 @@
-using System.Text.Json;
 using DigitalBrain.Apps;
 using DigitalBrain.Client;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.Text.Signals;
 using DigitalBrain.Flutter.TextField;
 using DigitalBrain.Flutter.TextField.Signals;
 
-// Every filter field of every view is watched; changing one refreshes that view (and its group).
+// Every filter field of every view is watched; a change refreshes each view sharing that field's group.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
-var registry = brain.Get<IText>(appKey + "/views");
-
-while (!brain.Stopping.IsCancellationRequested)
+var fields = Views.Registry(brain, appKey, view => view.Filters.Select(column => (INeuron)brain.Get<ITextField>($"{appKey}/views/{view.FilterGroup ?? view.Id}/filter/{column}")));
+await foreach (var changed in brain.On<TextFieldChanged>(fields, brain.Stopping))
 {
-    var snapshot = await registry.Read();
-    var views = snapshot.Markdown.Length == 0 ? [] : JsonSerializer.Deserialize<View[]>(snapshot.Markdown, Views.Json) ?? [];
-    using var scope = CancellationTokenSource.CreateLinkedTokenSource(brain.Stopping);
-    async Task Changed()
-    {
-        if ((await registry.Read()).Version != snapshot.Version) { await scope.CancelAsync(); }
-    }
-    async Task Registry()
-    {
-        await foreach (var _ in brain.On<TextChanged>(registry, Changed, scope.Token)) { await Changed(); }
-    }
-    try
-    {
-        var fields = views.SelectMany(view => view.Filters.Select(column => new
-        {
-            Name = $"{appKey}/views/{view.FilterGroup ?? view.Id}/filter/{column}",
-            View = view.Id,
-        })).GroupBy(field => field.Name);
-        await Task.WhenAll(fields.Select(group => Pump<TextFieldChanged>(brain.Get<ITextField>(group.Key),
-            group.Select(field => field.View).Distinct().ToArray(), scope.Token)).Append(Registry()));
-    }
-    catch (OperationCanceledException) when (!brain.Stopping.IsCancellationRequested) { }
-}
-
-async Task Pump<T>(INeuron source, string[] views, CancellationToken ct) where T : Signal
-{
-    async Task Refresh() { foreach (var view in views) { await app.Request("refresh", view); } }
-    await foreach (var _ in brain.On<T>(source, Refresh, ct)) { await Refresh(); }
+    // {app}/views/{group}/filter/{column}, the group being the view id or the shared FilterGroup;
+    // Publisher.Name is the full grain id, so match by suffix.
+    var views = (await Views.All(brain, appKey))
+        .Where(view => view.Filters.Any(column => changed.Publisher.Name.EndsWith($"/{appKey}/views/{view.FilterGroup ?? view.Id}/filter/{column}", StringComparison.Ordinal)))
+        .Select(view => view.Id).Distinct(StringComparer.Ordinal);
+    foreach (var id in views) { await app.Request("refresh", id); }
 }

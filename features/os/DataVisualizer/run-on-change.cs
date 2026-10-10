@@ -7,7 +7,4 @@ using DigitalBrain.Flutter.Text.Signals;
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
-var registry = brain.Get<IText>(appKey + "/views");
-
-await foreach (var _ in brain.On<TextChanged>(registry, Refresh, brain.Stopping)) { await Refresh(); }
-async Task Refresh() { await app.Request("refresh", ""); }
+await brain.React<TextChanged>(brain.Get<IText>(appKey + "/views"), _ => app.Request("refresh", ""), brain.Stopping);

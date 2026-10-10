@@ -3,12 +3,14 @@ using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using DigitalBrain;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Card;
 using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Text;
+using DigitalBrain.Flutter.Text.Signals;
 using DigitalBrain.Flutter.TextField;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Time.Reminders;
@@ -32,6 +34,16 @@ public static class Views
 
     public static Task Save(DigitalBrainConnection brain, string appKey, View[] views)
         => brain.Get<IText>(appKey + "/views").Set(JsonSerializer.Serialize(views, Json));
+
+    // The set of neurons the views name, following the registry text: a synapse watches it with
+    // React<T> or On<T> and maps a signal's Publisher back to the views it belongs to.
+    public static Sources Registry(DigitalBrainConnection brain, string appKey, Func<View, IEnumerable<INeuron>> members)
+        => Sources.Named<IText, TextChanged>(brain.Get<IText>(appKey + "/views"), async (registry, _) =>
+        {
+            var text = (await registry.Read()).Markdown;
+            var views = text.Length == 0 ? [] : JsonSerializer.Deserialize<View[]>(text, Json) ?? [];
+            return views.SelectMany(members).DistinctBy(n => n.GetPrimaryKeyString(), StringComparer.Ordinal).ToArray();
+        });
 
     public static async Task Compose(DigitalBrainConnection brain, string appKey, View view)
     {
