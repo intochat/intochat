@@ -16,11 +16,11 @@ public sealed class GrantRevokeFacts(ReferenceBrainFixture host)
         await using var brain = await host.LeaseAsync(ct);
         var suffix = Guid.NewGuid().ToString("N")[..8];
 
-        using var alicePerson = await People.SignedIn(brain.HttpClient, "alice-" + suffix, ct);
-        using var bobPerson = await People.SignedIn(brain.HttpClient, "bob-" + suffix, ct);
-        var alice = alicePerson.Client;
-        var bob = bobPerson.Client;
-        var workspace = alicePerson.Workspace;
+        using var alicePerson = await Person.RegisterAsync(brain.HttpClient, "alice-" + suffix, ct);
+        using var bobPerson = await Person.RegisterAsync(brain.HttpClient, "bob-" + suffix, ct);
+        var alice = alicePerson.Http;
+        var bob = bobPerson.Http;
+        var workspace = alicePerson.BrainId;
         using var create = await alice.PostAsJsonAsync(
             $"/brains/{workspace}/grants",
             new { appId = "app-1", semanticTypeId = "person.birthDate", mode = 2, workspaceId = workspace },

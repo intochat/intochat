@@ -17,12 +17,12 @@ public sealed class BrainRouteIsolationFacts(ReferenceBrainFixture host)
         await using var brain = await host.LeaseAsync(ct);
         var suffix = Guid.NewGuid().ToString("N")[..8];
 
-        using var alicePerson = await People.SignedIn(brain.HttpClient, "alice-" + suffix, ct);
-        using var bobPerson = await People.SignedIn(brain.HttpClient, "bob-" + suffix, ct);
-        var alice = alicePerson.Client;
-        var bob = bobPerson.Client;
-        var aliceBrain = alicePerson.Workspace;
-        var bobBrain = bobPerson.Workspace;
+        using var alicePerson = await Person.RegisterAsync(brain.HttpClient, "alice-" + suffix, ct);
+        using var bobPerson = await Person.RegisterAsync(brain.HttpClient, "bob-" + suffix, ct);
+        var alice = alicePerson.Http;
+        var bob = bobPerson.Http;
+        var aliceBrain = alicePerson.BrainId;
+        var bobBrain = bobPerson.BrainId;
         // Bob reaches his own workspace but is forbidden from Alice's scoped value and app node.
         using var ownUi = await bob.GetAsync($"/brains/{bobBrain}/ui/sliders/volume", ct);
         Assert.Equal(HttpStatusCode.OK, ownUi.StatusCode);

@@ -242,8 +242,15 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain
         previous.Dispose();
     }
 
-    public Task<Person> PersonAsync(string name, CancellationToken cancellationToken = default)
-        => throw new NotSupportedException("People arrive with the identity helpers (one-host testing, Task 8).");
+    public async Task<Person> PersonAsync(string name, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var person = await Person.RegisterAsync(HttpClient, name, cancellationToken).ConfigureAwait(false);
+        _lifetime.Own("person", new Release(() => { person.Dispose(); return ValueTask.CompletedTask; }));
+        return person;
+    }
+
+    public Person Owner => Person.OpenOwner(HttpClient);
 
     public ValueTask DisposeAsync()
     {

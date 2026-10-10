@@ -23,8 +23,9 @@ public interface ITestBrain : IDigitalBrain, IBrainSubscriptions, IAsyncDisposab
     // Deleted in Task 20: the module tier's name for Services during the sweep.
     IServiceProvider SiloServices => Services;
 
+    // Registers an account through the brain's HTTP edge; the brain owns its cookie client.
     Task<Person> PersonAsync(string name, CancellationToken cancellationToken = default);
-}
 
-// A registered account with its own brain (Task 8 gives it identity, a cookie client and AsCaller).
-public sealed record Person(string Name);
+    // The Open posture's synthetic owner: owner/owner, no cookie, the brain's plain client.
+    Person Owner { get; }
+}

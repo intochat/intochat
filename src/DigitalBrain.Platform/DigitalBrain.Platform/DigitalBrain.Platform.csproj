@@ -15,5 +15,4 @@
   <ItemGroup><Protobuf Include="Neurons/neurons.proto" GrpcServices="Both" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" /><ProjectReference Include="../DigitalBrain.Platform.Contracts/DigitalBrain.Platform.Contracts.csproj" /><ProjectReference Include="../DigitalBrain.Platform.Trust/DigitalBrain.Platform.Trust.csproj" /></ItemGroup>
   <ItemGroup><InternalsVisibleTo Include="DigitalBrain.Platform.Tests.Unit" /><InternalsVisibleTo Include="DigitalBrain.Platform.Tests.E2E" /></ItemGroup>
-  <ItemGroup><InternalsVisibleTo Include="DigitalBrain.Testing.Module" /></ItemGroup>
 </Project>

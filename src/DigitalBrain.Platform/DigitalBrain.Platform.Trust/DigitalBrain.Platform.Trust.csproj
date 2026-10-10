@@ -10,7 +10,6 @@
   <ItemGroup><ProjectReference Include="../../DigitalBrain.Framework/DigitalBrain.Framework/DigitalBrain.Framework.csproj" /></ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="DigitalBrain.Platform" />
-    <InternalsVisibleTo Include="DigitalBrain.Testing.Module" />
     <InternalsVisibleTo Include="DigitalBrain.Platform.Tests.Unit" />
     <InternalsVisibleTo Include="DigitalBrain.Trust" />
     <InternalsVisibleTo Include="DigitalBrain.Trust.Tests.Unit" />
