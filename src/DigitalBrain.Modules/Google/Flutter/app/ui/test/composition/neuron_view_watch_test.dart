@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  _resubscribe();
   testWidgets('a watched view reloads on events and never on a timer', (
     tester,
   ) async {
@@ -45,5 +46,44 @@ void main() {
     await tester.pumpAndSettle();
     expect(loads, lessThanOrEqualTo(4));
     await events.close();
+  });
+}
+
+void _resubscribe() {
+  testWidgets('a watched view resubscribes after its stream ends', (
+    tester,
+  ) async {
+    var loads = 0, subscriptions = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NeuronView(
+            kind: 'text',
+            name: 'hello',
+            load: (kind, name) async {
+              loads++;
+              return {
+                'definition': {'markdown': 'load $loads'},
+              };
+            },
+            // Each subscription delivers one event and ends, as a proxy idle-close would.
+            watch: (kind, name) {
+              subscriptions++;
+              return Stream<void>.fromIterable([null]);
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(subscriptions, 1);
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+    expect(
+      subscriptions,
+      greaterThanOrEqualTo(2),
+      reason: 'a finished stream is reopened',
+    );
+    expect(loads, greaterThanOrEqualTo(2));
   });
 }

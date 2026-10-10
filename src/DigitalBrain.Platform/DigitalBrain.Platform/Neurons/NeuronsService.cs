@@ -15,6 +15,10 @@ internal sealed class NeuronsService(NeuronSurface surface, IDigitalBrain brain)
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) } };
 
+    // A watcher that stops reading (a backgrounded tab) keeps this many envelopes; older ones are
+    // dropped, which loses nothing because a change signal only tells the view to read again.
+    internal const int BufferedEnvelopes = 256;
+
     public override async Task<CallReply> Call(CallRequest request, ServerCallContext context)
     {
         await BrainCall.Enter(context, request.BrainId);
@@ -33,17 +37,18 @@ internal sealed class NeuronsService(NeuronSurface surface, IDigitalBrain brain)
         await BrainCall.Enter(context, request.BrainId);
         if (request.Sources.Count == 0) { throw new RpcException(new Status(StatusCode.InvalidArgument, "Name at least one source.")); }
         var ct = context.CancellationToken;
-        var channel = Channel.CreateUnbounded<SignalEnvelope>();
+        var channel = Channel.CreateBounded<SignalEnvelope>(new BoundedChannelOptions(BufferedEnvelopes) { FullMode = BoundedChannelFullMode.DropOldest });
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var pumps = new List<Task>();
         try
         {
+            var types = await brain.Kernel.Types(ct);
             foreach (var source in request.Sources)
             {
                 var neuron = await surface.Reference(source.Contract, source.Key, ct);
                 foreach (var name in source.SignalTypes.Distinct(StringComparer.Ordinal))
                 {
-                    var type = SignalTypes.Find(name);
+                    var type = SignalTypes.Find(name, types);
                     pumps.Add(Task.Run(() => Pump(neuron, source.Key, type, channel.Writer, stop.Token), CancellationToken.None));
                 }
             }
@@ -58,6 +63,7 @@ internal sealed class NeuronsService(NeuronSurface surface, IDigitalBrain brain)
         {
             await foreach (var envelope in channel.Reader.ReadAllAsync(ct)) { await responseStream.WriteAsync(envelope, ct); }
         }
+        catch (Exception error) when (error is not RpcException and not OperationCanceledException) { throw BrainCall.Translate(error); }
         finally { await stop.CancelAsync(); }
     }
 
@@ -73,11 +79,13 @@ internal sealed class NeuronsService(NeuronSurface surface, IDigitalBrain brain)
         catch (Exception error) { writer.TryComplete(error); }
     }
 
+    // A source that retains nothing is quiet; a refused read is the watcher's to hear.
     private static async Task Replay(INeuron neuron, string key, string type, ChannelWriter<SignalEnvelope> writer, CancellationToken ct)
     {
         RetainedSignal[] retained;
         try { retained = await neuron.AsReference<IRetainsSignals>().Retained(type, 0).WaitAsync(ct); }
-        catch (Exception error) when (error is not OperationCanceledException) { return; } // the source retains nothing
+        catch (UnauthorizedAccessException error) { writer.TryComplete(error); return; }
+        catch (Exception error) when (error is not OperationCanceledException) { return; }
         if (retained.LastOrDefault() is { } last) { await writer.WriteAsync(Envelope(key, last.Signal, last.Sequence), ct); }
     }
 

@@ -111,14 +111,27 @@ class _NeuronViewState extends State<NeuronView> {
     }
   }
 
+  Timer? _resubscribe;
+
   void _subscribe(Stream<void> Function(String, String) watch) {
     _watch?.cancel();
     _watch = watch(widget.kind, widget.name).listen(
       (_) => _reload(),
-      // A broken stream falls back to the timer until a rebuild resubscribes.
-      onError: (Object _) =>
-          _timer ??= Timer.periodic(widget.refreshEvery, (_) => _reload()),
+      onError: (Object _) => _reopen(watch),
+      onDone: () => _reopen(watch),
     );
+  }
+
+  // A stream that ends or breaks (a proxy idle-close, a silo roll) is reopened after a pause;
+  // the pause reads the node once so nothing published meanwhile is missed.
+  void _reopen(Stream<void> Function(String, String) watch) {
+    if (!mounted || _resubscribe != null) return;
+    _resubscribe = Timer(widget.refreshEvery, () {
+      _resubscribe = null;
+      if (!mounted) return;
+      _reload();
+      _subscribe(watch);
+    });
   }
 
   void _changed() {
@@ -699,6 +712,7 @@ class _NeuronViewState extends State<NeuronView> {
   @override
   void dispose() {
     _timer?.cancel();
+    _resubscribe?.cancel();
     _watch?.cancel();
     _events.removeListener(_changed);
     if (widget.events == null) _events.dispose();

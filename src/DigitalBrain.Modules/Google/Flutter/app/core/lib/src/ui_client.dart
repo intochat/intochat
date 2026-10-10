@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
@@ -165,9 +166,18 @@ final class DigitalBrainUiClient {
   /// The node's own change signal; the view reads the node once per event.
   Stream<NeuronSignal> watchNode(String brainId, String kind, String name) {
     final contract = NodeContracts.of(kind);
-    return channel.watch(brainId, [
-      WatchSourceSpec(contract.contract, name, [contract.changed]),
-    ]);
+    return channel
+        .watch(brainId, [
+          WatchSourceSpec(contract.contract, name, [contract.changed]),
+        ])
+        .map((signal) {
+          // Delivery latency as the comparison measures it: envelope stamp to arrival.
+          developer.log(
+            'neuron.latency ms=${DateTime.now().millisecondsSinceEpoch - signal.serverTimeMs} type=${signal.type} source=${signal.source}',
+            name: 'digitalbrain.channel',
+          );
+          return signal;
+        });
   }
 
   /// WorkspaceChanged over the channel: the same revision ping the SSE route sends.

@@ -1,33 +1,29 @@
 using System.Collections.Concurrent;
-using System.Reflection;
 
 namespace DigitalBrain.Platform.Neurons;
 
-// The CLR type behind a signal name the shell knows: short ("ButtonChanged") or full. The
-// contract assemblies this host carries are the only place a signal can come from.
+// The CLR type behind a signal name the shell knows: short ("ButtonChanged") or full. Only the
+// brain's own signal types (the kernel's type table) are watchable; an unknown name costs one pass
+// over that table and is never remembered.
 internal static class SignalTypes
 {
-    private static readonly ConcurrentDictionary<string, Type?> Found = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, Type> Loaded = new(StringComparer.Ordinal);
 
-    public static Type Find(string name)
+    public static Type Find(string name, TypeEntry[] types)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        return Found.GetOrAdd(name, Search) ?? throw new ArgumentException($"{name} is not a signal type of this brain.");
+        ArgumentNullException.ThrowIfNull(types);
+        var matches = types.Where(entry => entry.Kind == TypeKind.Signal
+                && (entry.Name == name || entry.Name.EndsWith("." + name, StringComparison.Ordinal)))
+            .Select(entry => entry.Name).Distinct(StringComparer.Ordinal).ToArray();
+        // An ambiguous short name resolves to nothing, so the caller is told to pass the full name.
+        if (matches.Length != 1) { throw new ArgumentException($"{name} is not a signal type of this brain."); }
+        return Loaded.GetOrAdd(matches[0], Load) ?? throw new ArgumentException($"{name} is a signal type of this brain, but this host does not carry it.");
     }
 
-    // An ambiguous short name resolves to nothing, so the caller is told to pass the full name.
-    private static Type? Search(string name)
-    {
-        var matches = AppDomain.CurrentDomain.GetAssemblies().Where(assembly => !assembly.IsDynamic)
-            .SelectMany(Types)
-            .Where(type => typeof(Signal).IsAssignableFrom(type) && !type.IsAbstract && (type.FullName == name || type.Name == name))
-            .Distinct().ToArray();
-        return matches.Length == 1 ? matches[0] : null;
-    }
-
-    private static IEnumerable<Type> Types(Assembly assembly)
-    {
-        try { return assembly.GetTypes(); }
-        catch (ReflectionTypeLoadException error) { return error.Types.Where(type => type is not null)!; }
-    }
+    private static Type Load(string fullName)
+        => AppDomain.CurrentDomain.GetAssemblies().Where(assembly => !assembly.IsDynamic)
+            .Select(assembly => assembly.GetType(fullName, throwOnError: false))
+            .FirstOrDefault(type => type is not null && typeof(Signal).IsAssignableFrom(type))
+            ?? throw new ArgumentException($"{fullName} is a signal type of this brain, but this host does not carry it.");
 }
