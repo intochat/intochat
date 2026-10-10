@@ -8,36 +8,20 @@ public sealed class AppSubscriptionFacts
     private static readonly TimeSpan Wait = TimeSpan.FromSeconds(10);
 
     [Fact]
-    public async Task OnlyTheNamedOperationsRequestsAreYielded()
+    public async Task OnlyTheNamedOperationsRequestsAreYieldedMatchedOrdinally()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
         IDigitalBrain program = brain;
         var app = brain.Get<IApp>(IApp.Key(Brain, "filtered"));
-        await app.Create(new AppManifest("Filtered", "", [new("open", ""), new("add", "")], [], []), "spec");
-        await using var adds = program.On(app, "add", ct).GetAsyncEnumerator(ct);
-        var next = adds.MoveNextAsync().AsTask();
-        await Task.Delay(300, ct);
-        await app.Request("open", "");
-        var id = await app.Request("add", "2+3");
-        Assert.True(await next.WaitAsync(Wait, ct));
-        Assert.Equal((id, "add", "2+3"), (adds.Current.RequestId, adds.Current.Operation, adds.Current.Input));
-    }
-
-    [Fact]
-    public async Task TheOperationFilterIsOrdinal()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
-        IDigitalBrain program = brain;
-        var app = brain.Get<IApp>(IApp.Key(Brain, "cased"));
-        await app.Create(new AppManifest("Cased", "", [new("open", ""), new("Open", "")], [], []), "spec");
-        await using var lower = program.On(app, "open", ct).GetAsyncEnumerator(ct);
-        var next = lower.MoveNextAsync().AsTask();
-        await Task.Delay(300, ct);
+        await app.Create(new AppManifest("Filtered", "", [new("open", ""), new("Open", ""), new("add", "")], [], []), "spec");
+        await using var opens = program.On(app, "open", ct).GetAsyncEnumerator(ct);
+        var next = opens.MoveNextAsync().AsTask();
+        await Task.Delay(300, ct); // no registration gate on this overload: let the subscription register
         await app.Request("Open", "");
-        await app.Request("open", "x");
+        await app.Request("add", "2+3");
+        var id = await app.Request("open", "x");
         Assert.True(await next.WaitAsync(Wait, ct));
-        Assert.Equal("x", lower.Current.Input);
+        Assert.Equal((id, "open", "x"), (opens.Current.RequestId, opens.Current.Operation, opens.Current.Input));
     }
 }

@@ -18,7 +18,15 @@ await foreach (var clicked in brain.On<ButtonClicked>(buttons, brain.Stopping))
     var input = operation == "save-preferences"
         ? JsonSerializer.Serialize(new Submission((await brain.Get<ITextField>(appKey + "/preferences/display-name").Read()).Value,
             (await brain.Get<ITextField>(appKey + "/preferences/theme").Read()).Value,
-            (await brain.Get<IText>(appKey + "/preferences/baseline").Read()).Markdown is { Length: > 0 } json ? JsonSerializer.Deserialize<PreferenceState>(json) : null))
+            Baseline((await brain.Get<IText>(appKey + "/preferences/baseline").Read()).Markdown)))
         : "";
     await app.Request(operation, input);
+}
+
+// A malformed baseline is sent as none, which Save rejects with a status, instead of crash-looping this synapse.
+static PreferenceState? Baseline(string json)
+{
+    if (string.IsNullOrEmpty(json)) { return null; }
+    try { return JsonSerializer.Deserialize<PreferenceState>(json); }
+    catch (JsonException) { return null; }
 }
