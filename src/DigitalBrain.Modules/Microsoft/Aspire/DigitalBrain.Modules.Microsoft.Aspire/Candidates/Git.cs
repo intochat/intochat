@@ -22,5 +22,13 @@ internal sealed class Git(IProcessRunner processes, string repository)
     public Task<string> ShortSha(string worktree, CancellationToken ct) => Run(worktree, ct, "rev-parse", "--short=7", "HEAD");
     public async Task<string[]> ChangedFiles(string worktree, string baseSha, CancellationToken ct)
         => (await Run(worktree, ct, "diff", "--name-only", baseSha, "HEAD")).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-    public Task FastForward(string branch, string sha, CancellationToken ct) => Run(repository, ct, "update-ref", "refs/heads/" + branch, sha);
+    // Fast-forward only. The branch checked out in the repository moves with its working tree and index (a bare
+    // ref move left them on the old commit, so the next commit there reverted the promotion); any other branch
+    // moves by fetch, which refuses what is not a fast-forward.
+    public async Task FastForward(string branch, string sha, CancellationToken ct)
+    {
+        var current = await Run(repository, ct, "rev-parse", "--abbrev-ref", "HEAD");
+        if (current == branch) { await Run(repository, ct, "merge", "--ff-only", sha); }
+        else { await Run(repository, ct, "fetch", ".", $"{sha}:refs/heads/{branch}"); }
+    }
 }
