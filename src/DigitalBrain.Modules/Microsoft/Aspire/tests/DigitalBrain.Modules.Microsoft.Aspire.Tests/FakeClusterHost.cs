@@ -49,10 +49,13 @@ internal sealed class FakeClusterHost : IClusterHost
     // Released on each read of the silos.
     public SemaphoreSlim SiloRead { get; } = new(0);
 
+    // When set, reading the silos fails, like the AppHost being down.
+    public bool SilosFail { get; set; }
+
     public Task<SiloView[]> Silos(CancellationToken ct)
     {
         SiloRead.Release();
-        return SilosNow();
+        return SilosFail ? Task.FromException<SiloView[]>(new InvalidOperationException("aspire describe exited 1")) : SilosNow();
     }
 
     private Task<SiloView[]> SilosNow() =>

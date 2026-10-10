@@ -255,7 +255,8 @@ internal sealed class ClusterNeuron(
         {
             DueTime = options.Value.ClusterSampling,
             Period = options.Value.ClusterSampling,
-            Interleave = false,
+            // A roll holds the grain for minutes per instance; sampling meanwhile is what shows a silo restarting.
+            Interleave = true,
             KeepAlive = true,
         });
         var current = await host.CurrentSha(ct);
@@ -307,12 +308,16 @@ internal sealed class ClusterNeuron(
     private ClusterChanged? last;
     private long sequence = DateTimeOffset.UtcNow.Ticks;
     private long lastSequence;
+    private bool unreadable;
 
-    private ClusterChanged Changed(string sha, ClusterStage stage)
+    private ClusterChanged Changed(string sha, ClusterStage stage) => new(stage.ToString(), sha, silos);
+
+    // What was retained is what committed: a refused write publishes nothing and retains nothing.
+    private async Task Save(ClusterState next, ClusterChanged changed)
     {
-        last = new ClusterChanged(stage.ToString(), sha, silos);
+        await base.Save(next, changed);
+        last = changed;
         lastSequence = ++sequence;
-        return last;
     }
 
     public Task<RetainedSignal[]> Retained(string signal, long since)
@@ -327,11 +332,14 @@ internal sealed class ClusterNeuron(
         try
         {
             read = [.. (await host.Silos(ct)).OrderBy(silo => silo.Name, StringComparer.Ordinal).Select(silo => new SiloState(silo.Name, silo.Sha, silo.State, silo.Health ?? ""))];
+            unreadable = false;
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            log.LogWarning(error, "Cluster {Cluster} could not read its silos.", this.GetPrimaryKeyString());
-            return;
+            // No AppHost to ask means no silos to show; the strip empties once and the warning is logged once.
+            if (!unreadable) { log.LogWarning(error, "Cluster {Cluster} could not read its silos.", this.GetPrimaryKeyString()); }
+            unreadable = true;
+            read = [];
         }
         var next = new ClusterChanged(Snapshot.Stage.ToString(), Snapshot.CurrentSha, read);
         if (last is { } previous && previous.Stage == next.Stage && previous.Sha == next.Sha && previous.Silos.SequenceEqual(next.Silos)) { return; }

@@ -26,7 +26,7 @@ public interface ICluster : INeuron
     [ResponseTimeout("00:10:00")] Task<ClusterSnapshot> Restart(string sha);
     // Instance by instance onto a compatible build: the MCP clients, then the silos, the one running the roll last.
     // Answers once the roll is under way; its end is ClusterChanged(Steady): on sha, or back on the previous build
-    // with the Failure that sent it back. Callers follow a roll through Read()/ClusterChanged and never resend Roll
+    // with the Failure that sent it back, which Read() reports. Callers follow a roll through Read()/ClusterChanged and never resend Roll
     // while it runs: a step holds the cluster for up to two SiloStepBudgets, and a resend queued behind it outlives
     // the default response timeout. Refused unless the calling process is one of the cluster's instances.
     Task<ClusterSnapshot> Roll(string sha);

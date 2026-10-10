@@ -64,6 +64,47 @@ public sealed class ClusterChangedFacts
     }
 
     [Fact]
+    public async Task ASampleTakenWhileARollIsInProgressPublishesTheChangedSilos()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var cluster = new FakeClusterHost { Self = "silo-0", Reported = Silos("Running", "silo-0", "silo-1") };
+        var gate = cluster.RestartGates["mcp-b"] = new RestartGate();
+        await using var brain = await StartAsync(cluster, ct);
+        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
+        await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
+
+        await grain.Roll("sha0001");
+        await gate.Reached.Task.WaitAsync(ct);
+        // The step holds the grain here; the sample still runs and shows the silo that is restarting.
+        cluster.Reported = [new("silo-0", "sha0001", "Running", "Healthy"), new("silo-1", "sha0001", "Starting", "")];
+        var seen = await changes.NextAsync(change => change.Stage == nameof(ClusterStage.Rolling) && change.Silos.Any(silo => silo.State == "Starting"), ct);
+        gate.Open.SetResult();
+
+        Assert.Contains("silo-1:Starting:", seen.Silos.Select(Describe));
+    }
+
+    [Fact]
+    public async Task AnUnreadableAppHostEmptiesTheSilosOnce()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var cluster = new FakeClusterHost { Reported = Silos("Running", "silo-0") };
+        await using var brain = await StartAsync(cluster, ct);
+        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
+        await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
+        await grain.Read();
+        await changes.NextAsync(change => change.Silos.Length == 1, ct);
+
+        cluster.SilosFail = true;
+        var empty = await changes.NextAsync(ct: ct);
+        await WaitSamples(cluster, 4, ct);
+        cluster.SilosFail = false;
+        var back = await changes.NextAsync(ct: ct);
+
+        Assert.Empty(empty.Silos);
+        Assert.Equal(["silo-0:Running:Healthy"], back.Silos.Select(Describe));
+    }
+
+    [Fact]
     public async Task ALateSubscriberIsSeededWithTheLastClusterChanged()
     {
         var ct = TestContext.Current.CancellationToken;
