@@ -7,13 +7,16 @@ namespace DigitalBrain.Circles;
 internal sealed class CirclesIndexRecord
 {
     [Id(0)] public CircleEntry[] Entries { get; set; } = [];
+    [Id(1)] public RetainedSignal[] Touches { get; set; } = [];
+    [Id(2)] public long Sequence { get; set; }
 }
 
 [GrainType(CircleCallGuard.IndexType)]
 internal sealed class CirclesIndexNeuron(
     [PersistentState("circles.index", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<CirclesIndexRecord> store)
-    : Neuron<CirclesIndexRecord>(store), ICircles
+    : Neuron<CirclesIndexRecord>(store), ICircles, IRetainsSignals
 {
+    private const int RetainedCapacity = 64;
     private static readonly string[] Kinds = ["changed", "invited", "spoke", "left"];
     private static readonly string[] Roles = ["owner", "member", "invited"];
 
@@ -34,10 +37,17 @@ internal sealed class CirclesIndexNeuron(
         CircleEntry[] entries = kind == "left" ? [.. others]
             : Roles.Contains(role) ? [.. others, new(name, owner, role)]
             : Snapshot.Entries;
-        if (entries.SequenceEqual(Snapshot.Entries)) { await PublishAsync(signal); return; }
+        // The latest touch of each circle is retained, so a subscriber that arrives later is seeded with where things stand.
+        var sequence = Snapshot.Sequence + 1;
+        var kept = Snapshot.Touches.Where(touch => touch.Signal is not CircleTouched old || !(old.Name == name && old.Owner == owner));
         await Save(new CirclesIndexRecord
         {
             Entries = [.. entries.OrderBy(entry => entry.Name, StringComparer.Ordinal).ThenBy(entry => entry.Owner, StringComparer.Ordinal)],
+            Touches = [.. kept.TakeLast(RetainedCapacity - 1), new RetainedSignal(sequence, signal with { Publisher = Id })],
+            Sequence = sequence,
         }, signal);
     }
+
+    public Task<RetainedSignal[]> Retained(string signal, long since)
+        => Task.FromResult<RetainedSignal[]>(signal == nameof(CircleTouched) ? [.. Snapshot.Touches.Where(touch => touch.Sequence > since)] : []);
 }

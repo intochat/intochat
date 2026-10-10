@@ -152,6 +152,22 @@ public sealed class CircleFacts
     }
 
     [Fact]
+    public async Task ASubscriberToTheIndexAfterATouchIsSeededWithIt()
+    {
+        await using var brain = await Start();
+        Act("alice");
+        await Circle(brain, "alice").Invite("bob");
+        Act("bob");
+
+        var retained = await Index(brain, "bob").AsReference<IRetainsSignals>().Retained(nameof(CircleTouched), 0);
+
+        var touch = Assert.IsType<CircleTouched>(Assert.Single(retained).Signal);
+        Assert.Equal(("team", "alice", "invited"), (touch.Name, touch.Owner, touch.Kind));
+        Assert.EndsWith(ICircles.Key("bob"), touch.Publisher.Name, StringComparison.Ordinal);
+        Assert.Empty(await Index(brain, "bob").AsReference<IRetainsSignals>().Retained(nameof(CircleTouched), retained[0].Sequence));
+    }
+
+    [Fact]
     public async Task OnlyAnInvitedBrainCanJoin()
     {
         await using var brain = await Start();
