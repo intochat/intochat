@@ -49,12 +49,22 @@ public sealed class FeatureCatalogFacts : IDisposable
     }
 
     [Fact]
-    public async Task TheSameAppTwiceUnderOneOwnerIsRefused()
+    public async Task TwoFoldersShippingTheSameAppAreBothSkippedAndReportedWhileAThirdLoads()
     {
         WriteGreeter("os");
         WriteGreeter("os", "GreeterAgain");
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(Catalog().Listings);
-        Assert.Contains("os/greeter", error.Message, StringComparison.Ordinal);
+        WriteEcho();
+        var catalog = Catalog();
+
+        Assert.Equal([("intochat", "echo")], (await catalog.Listings()).Select(listing => (listing.Publisher, listing.Name)));
+        Assert.Null(await catalog.Find("os", "greeter"));
+        var failures = await catalog.Failures();
+        Assert.Equal(2, failures.Count);
+        Assert.All(failures, failure =>
+        {
+            Assert.Contains("os/Greeter", failure.Reason, StringComparison.Ordinal);
+            Assert.Contains("os/GreeterAgain", failure.Reason, StringComparison.Ordinal);
+        });
     }
 
     [Fact]

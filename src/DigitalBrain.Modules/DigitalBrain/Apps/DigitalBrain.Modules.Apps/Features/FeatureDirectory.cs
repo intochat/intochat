@@ -1,7 +1,7 @@
 namespace DigitalBrain.Apps;
 
 // A feature as it sits in a features folder: {owner}/{AppFolder}/app.cs plus its other files.
-public sealed record ShippedFeature(string Owner, AppBundle Bundle);
+public sealed record ShippedFeature(string Owner, AppBundle Bundle, string Folder);
 
 // The features folder on disk: one subfolder per owner account (os, intochat), one folder per app
 // under it. A development host opens it writable, so Save to source writes an edited app back into
@@ -18,7 +18,7 @@ public sealed class FeatureDirectory(string path, bool writable = false)
         if (!root.Exists) { throw new DirectoryNotFoundException($"Features folder '{path}' does not exist."); }
         return [.. root.EnumerateDirectories().OrderBy(owner => owner.Name, StringComparer.Ordinal)
             .SelectMany(owner => owner.EnumerateDirectories().OrderBy(folder => folder.Name, StringComparer.Ordinal)
-                .Select(folder => new ShippedFeature(owner.Name, FeatureFolder.ToBundle($"{owner.Name}/{folder.Name}", ReadFolder(folder)))))];
+                .Select(folder => new ShippedFeature(owner.Name, FeatureFolder.ToBundle($"{owner.Name}/{folder.Name}", ReadFolder(folder)), $"{owner.Name}/{folder.Name}")))];
     }
 
     public void Write(string owner, AppBundle bundle)

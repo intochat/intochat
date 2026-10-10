@@ -24,7 +24,7 @@ public sealed class FeatureDirectoryFacts : IDisposable
         Write("vendor/echo/synapses/program.cs", "// program\r\nreturn;\r\n");
         Write("vendor/echo/synapses/extra.cs", "// behavior\n");
         var source = new FeatureDirectory(_root);
-        var (owner, app) = Assert.Single(source.Load());
+        var (owner, app, _) = Assert.Single(source.Load());
         Assert.Equal(("vendor", "echo"), (owner, app.Name));
         // Line endings normalize, so content hashes agree across checkouts.
         Assert.Equal("// program\nreturn;\n", app.Files["synapses/program.cs"]);

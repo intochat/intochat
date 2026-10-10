@@ -86,14 +86,21 @@ public sealed class FeatureCatalog
         load?.SetTag("features.path", directory.Path);
         var bundles = new SortedDictionary<(string Owner, string Name), AppBundle>();
         List<FeatureFailure> failures = [];
-        foreach (var feature in directory.Load())
+        var shipped = directory.Load();
+        var twice = shipped.GroupBy(feature => (feature.Owner, feature.Bundle.Name)).Where(group => group.Count() > 1).ToDictionary(group => group.Key, group => group.ToArray());
+        foreach (var feature in shipped)
         {
+            if (twice.TryGetValue((feature.Owner, feature.Bundle.Name), out var copies))
+            {
+                var reason = $"{feature.Owner}/{feature.Bundle.Name} ships twice: {string.Join(", ", copies.Select(copy => copy.Folder))}.";
+                failures.Add(new(feature.Owner, feature.Bundle.Name, feature.Bundle.Version, reason));
+                continue;
+            }
             using var each = Telemetry.StartActivity("feature.load");
             each?.SetTag("feature.owner", feature.Owner);
             each?.SetTag("feature.name", feature.Bundle.Name);
             each?.SetTag("feature.version", feature.Bundle.Version);
-            if (!bundles.TryAdd((feature.Owner, feature.Bundle.Name), feature.Bundle))
-            { throw new InvalidOperationException($"{feature.Owner}/{feature.Bundle.Name} ships twice."); }
+            bundles[(feature.Owner, feature.Bundle.Name)] = feature.Bundle;
             try { await RequireCompiles(feature.Owner, feature.Bundle, sandbox); }
             catch (InvalidOperationException error)
             {
