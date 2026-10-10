@@ -35,6 +35,7 @@ public static class ModuleTest
                 [DigitalBrainNames.MasterKeyConfigurationKey] = masterKey,
                 [DigitalBrain.Framework.Platform.Integrations.IntegrationSchema.Key("csharp", "RunTokenKey")] = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)),
                 [Platform.Identity.Configuration.AuthOptions.PostureKey] = nameof(Platform.Identity.Configuration.IdentityPosture.Open),
+                [$"{Platform.Parts.PartsOptions.Key}:MachineDirectory"] = Path.Combine(Path.GetTempPath(), $"digitalbrain-machine-{Guid.NewGuid():N}"),
             });
             foreach (var definition in modules)
             {

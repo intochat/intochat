@@ -18,5 +18,6 @@
   "DigitalBrain.ServiceDefaults/Configuration/ServiceTelemetryOptions.cs",
   "DigitalBrain.Platform/Compute/FeeOptions.cs",
   "DigitalBrain.Platform/Mesh/MeshOptions.cs",
+  "DigitalBrain.Platform/Parts/PartsOptions.cs",
   "DigitalBrain.ServiceDefaults/HealthProbes.cs"
 ]

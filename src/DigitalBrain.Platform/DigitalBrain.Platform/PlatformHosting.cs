@@ -34,6 +34,13 @@ public static class PlatformHosting
         services.AddOptions<Mesh.MeshOptions>().BindConfiguration(Mesh.MeshOptions.Key)
             .Validate(mesh => { mesh.Validate(); return true; }).ValidateOnStart();
         services.TryAddSingleton<DigitalBrain.Framework.Mesh.IMeshStore, Mesh.MeshStore>();
+        services.AddOptions<Parts.PartsOptions>().BindConfiguration(Parts.PartsOptions.Key)
+            .Validate(parts => { parts.Validate(); return true; }).ValidateOnStart();
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton(provider => Sequencer.MachineIdentity.LoadOrCreate(Path.Combine(
+            provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<Parts.PartsOptions>>().Value.MachineDirectory, "identity.key")));
+        services.TryAddSingleton(provider => new Sequencer.SeenVersions(Path.Combine(
+            provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<Parts.PartsOptions>>().Value.MachineDirectory, "seen.json")));
         // The custody root is the same configured master key the owner-key wrapper derives from.
         services.TryAddSingleton<Keys.IMasterKeyCustody>(provider => new Keys.ConfiguredMasterKeyCustody(
             System.Text.Encoding.UTF8.GetBytes(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MasterKeyOptions>>().Value.MasterKey)));
