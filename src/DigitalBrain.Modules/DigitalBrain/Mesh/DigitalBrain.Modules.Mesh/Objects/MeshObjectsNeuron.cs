@@ -65,6 +65,60 @@ internal sealed partial class MeshObjectsNeuron(
             ? new ObjectManifestView(objectId, m.Version, m.Shards.Select(s => new ShardView(s.Index, s.Cid, s.NodeId)).ToArray())
             : null);
 
+    public async Task<AuditResult[]> Audit(string objectId, CancellationToken cancellationToken = default)
+    {
+        var manifest = store.State.Objects.GetValueOrDefault(objectId) ?? throw new KeyNotFoundException(objectId);
+        var results = new List<AuditResult>();
+        foreach (var shard in manifest.Shards)
+        {
+            if (shard.NextChallenge >= shard.Challenges.Length)
+            {
+                results.Add(new(shard.Index, shard.NodeId, false, "challenges exhausted"));
+                continue;
+            }
+            var challenge = shard.Challenges[shard.NextChallenge];
+            var proof = await Node(shard.NodeId).Prove(shard.Cid, challenge.Nonce, cancellationToken);
+            var passed = proof is not null && CryptographicOperations.FixedTimeEquals(proof, challenge.Expected);
+            await Nodes.ReportAudit(shard.NodeId, passed, cancellationToken);
+            results.Add(new(shard.Index, shard.NodeId, passed, proof is null ? "shard missing" : passed ? "ok" : "wrong proof"));
+            shard.NextChallenge++;
+        }
+        await store.WriteStateAsync(cancellationToken);
+        return [.. results];
+    }
+
+    public async Task<RepairResult> Repair(string objectId, CancellationToken cancellationToken = default)
+    {
+        var manifest = store.State.Objects.GetValueOrDefault(objectId) ?? throw new KeyNotFoundException(objectId);
+        var (shards, unreadable) = await Fetch(manifest, cancellationToken);
+        var health = (await Nodes.List(cancellationToken)).ToDictionary(n => n.NodeId, StringComparer.Ordinal);
+        var bad = unreadable
+            .Concat(manifest.Shards.Where(s => !health.TryGetValue(s.NodeId, out var n) || !n.Online || n.Reputation < 0.25
+                || s.NextChallenge >= s.Challenges.Length).Select(s => s.Index))
+            .Distinct().Order().ToArray();
+        if (bad.Length == 0) { return new RepairResult([]); }
+
+        var rs = new ReedSolomon(manifest.DataShards, manifest.ParityShards);
+        var full = rs.Reconstruct(shards, manifest.ShardSize);
+        var targets = await Nodes.Place(bad.Length, manifest.Shards.Select(s => s.NodeId).ToArray(), cancellationToken);
+
+        var moved = new List<ShardMove>();
+        var stale = new List<ShardLocation>();
+        for (var i = 0; i < bad.Length; i++)
+        {
+            var old = manifest.Shards[bad[i]];
+            var bytes = full[bad[i]];
+            var cid = StorageProof.ContentId(bytes);
+            await Node(targets[i]).Put(cid, bytes, cancellationToken);
+            manifest.Shards[bad[i]] = new ShardLocation { Index = bad[i], Cid = cid, NodeId = targets[i], Challenges = Challenges(bytes) };
+            moved.Add(new ShardMove(bad[i], old.NodeId, targets[i]));
+            stale.Add(old);
+        }
+        await store.WriteStateAsync(cancellationToken);
+        foreach (var old in stale) { await Node(old.NodeId).Delete(old.Cid, cancellationToken); }
+        return new RepairResult([.. moved]);
+    }
+
     // A shard whose bytes do not hash to its cid is an erasure, never data.
     private async Task<(byte[]?[] Shards, int[] Bad)> Fetch(ObjectManifest manifest, CancellationToken cancellationToken)
     {

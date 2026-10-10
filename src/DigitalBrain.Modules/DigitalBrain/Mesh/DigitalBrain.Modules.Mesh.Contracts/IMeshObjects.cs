@@ -20,6 +20,12 @@ public interface IMeshObjects : INeuron
     [Description("Where an object's shards are: version, content ids and nodes.")]
     [ReadOnly, AlwaysInterleave]
     Task<ObjectManifestView?> Manifest(string objectId, CancellationToken cancellationToken = default);
+
+    [Description("Challenge every shard holder with a fresh storage proof.")]
+    Task<AuditResult[]> Audit(string objectId, CancellationToken cancellationToken = default);
+
+    [Description("Rebuild shards that are missing, corrupt or on unhealthy nodes and move them to healthy nodes.")]
+    Task<RepairResult> Repair(string objectId, CancellationToken cancellationToken = default);
 }
 
 [GenerateSerializer, Alias("mesh.manifest-view")]
@@ -33,3 +39,19 @@ public sealed record ShardView(
     [property: Id(0)] int Index,
     [property: Id(1)] string Cid,
     [property: Id(2)] string NodeId);
+
+[GenerateSerializer, Alias("mesh.audit-result")]
+public sealed record AuditResult(
+    [property: Id(0)] int Index,
+    [property: Id(1)] string NodeId,
+    [property: Id(2)] bool Passed,
+    [property: Id(3)] string Reason);
+
+[GenerateSerializer, Alias("mesh.repair-result")]
+public sealed record RepairResult([property: Id(0)] ShardMove[] Moved);
+
+[GenerateSerializer, Alias("mesh.shard-move")]
+public sealed record ShardMove(
+    [property: Id(0)] int Index,
+    [property: Id(1)] string FromNode,
+    [property: Id(2)] string ToNode);
