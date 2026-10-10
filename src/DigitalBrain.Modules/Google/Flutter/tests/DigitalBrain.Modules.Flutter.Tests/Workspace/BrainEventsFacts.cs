@@ -128,7 +128,7 @@ public sealed class BrainEventsFacts
     }
 
     [Fact]
-    public async Task ARuntimeThatKeepsFailingPastTheTtlStreamsIdleNodesWithoutEdges()
+    public async Task ARuntimeThatKeepsFailingPastTheTtlStreamsIdleNodesWithoutEdgesAndEdgesReturnWhenItRecoversQuietly()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<AppsModule>().WithModule<CirclesModule>().StartAsync(ct);
@@ -139,7 +139,7 @@ public sealed class BrainEventsFacts
         var publisher = ICircle.Key(scope, "club");
         var runtime = brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(scope)).AsReference<IStubRuntime>();
         await runtime.Fail(false);
-        await using var stream = BrainEventsEndpoints.Snapshots(brain, scope, NullLogger.Instance, ct, TimeSpan.FromSeconds(1)).GetAsyncEnumerator(ct);
+        await using var stream = BrainEventsEndpoints.Snapshots(brain, scope, NullLogger.Instance, ct, TimeSpan.FromSeconds(1), TimeSpan.FromMilliseconds(200)).GetAsyncEnumerator(ct);
         using var first = await Next(stream, ct);
         await runtime.Run(appKey + "/synapses/club.cs", $"circles.circle/{publisher}", "CircleSpoke");
         while (true)
@@ -159,6 +159,14 @@ public sealed class BrainEventsFacts
                 break;
             }
             Assert.Equal("Running", Node(next, appKey).GetProperty("status").GetString());
+        }
+
+        await runtime.Fail(false, announce: false);
+
+        while (true)
+        {
+            using var recovered = await Next(stream, ct);
+            if (Synapses(recovered).Length == 1) { break; }
         }
     }
 
@@ -188,7 +196,7 @@ public sealed class BrainEventsFacts
 public interface IStubRuntime : INeuron
 {
     Task Run(string behavior, string neuron, string signal);
-    Task Fail(bool failing);
+    Task Fail(bool failing, bool announce = true);
 }
 
 // Stands where the brain runtime would: it answers Inspect with the subscriptions a test hands it and
@@ -200,10 +208,10 @@ public sealed class StubRuntime : Neuron, IBrainRuntime, IStubRuntime
 
     private static readonly ConcurrentDictionary<string, bool> Failing = new();
 
-    public Task Fail(bool failing)
+    public Task Fail(bool failing, bool announce = true)
     {
         Failing[this.GetPrimaryKeyString()] = failing;
-        return PublishAsync(new BrainRuntimeChanged(this.GetPrimaryKeyString()));
+        return announce ? PublishAsync(new BrainRuntimeChanged(this.GetPrimaryKeyString())) : Task.CompletedTask;
     }
 
     public Task<BrainRuntimeSnapshot> Inspect(CancellationToken cancellationToken = default)

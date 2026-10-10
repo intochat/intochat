@@ -35,6 +35,7 @@ internal static class BrainEventsEndpoints
     }
 
     internal static readonly TimeSpan StaleAfter = TimeSpan.FromSeconds(30);
+    internal static readonly TimeSpan RetryEvery = TimeSpan.FromSeconds(10);
 
     // The runtime as last read. A read that fails keeps the previous answer, so a transient error never
     // turns the graph's edges off; it is logged once when it starts and once when it ends. A runtime that
@@ -73,13 +74,14 @@ internal static class BrainEventsEndpoints
     // happened in between is missed, and a snapshot identical to the last one is not sent. A burst of
     // changes becomes one snapshot. A faulted kernel watch ends the stream with its error, so the
     // client sees a failure, never a clean end. The runtime is optional: a brain without one has no synapses.
-    internal static async IAsyncEnumerable<string> Snapshots(IDigitalBrain brain, string brainId, ILogger log, [EnumeratorCancellation] CancellationToken ct, TimeSpan? staleAfter = null)
+    internal static async IAsyncEnumerable<string> Snapshots(IDigitalBrain brain, string brainId, ILogger log, [EnumeratorCancellation] CancellationToken ct, TimeSpan? staleAfter = null, TimeSpan? retryEvery = null)
     {
         var changes = Channel.CreateUnbounded<bool>();
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var runtime = brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(brainId));
         var view = new RuntimeView(runtime, log, staleAfter ?? StaleAfter);
         var waiting = 3;
+        var retrying = 0;
         void Subscribed() { if (Interlocked.Decrement(ref waiting) == 0) { changes.Writer.TryWrite(true); } }
         _ = Watch(brain.On<InstanceCreated>(brain.Self, () => { Subscribed(); return Task.CompletedTask; }, stop.Token), required: true);
         _ = Watch(brain.On<InstanceRetired>(brain.Self, () => { Subscribed(); return Task.CompletedTask; }, stop.Token), required: true);
@@ -103,14 +105,13 @@ internal static class BrainEventsEndpoints
         }
         finally { await stop.CancelAsync(); }
 
-        // A failing runtime is read again once it turns stale, even if nothing else changes.
+        // While the runtime fails it is read again at a fixed interval, even if nothing else changes, until a read
+        // succeeds: one pending retry at most, so a quiet recovery reaches the graph and retries never stack.
         void Recheck()
         {
-            if (view.StaleIn is { } left && left > TimeSpan.Zero)
-            {
-                _ = Task.Delay(left + TimeSpan.FromMilliseconds(50), stop.Token).ContinueWith(
-                    _ => changes.Writer.TryWrite(true), TaskContinuationOptions.OnlyOnRanToCompletion);
-            }
+            if (view.StaleIn is null || Interlocked.CompareExchange(ref retrying, 1, 0) != 0) { return; }
+            _ = Task.Delay(retryEvery ?? RetryEvery, stop.Token).ContinueWith(
+                _ => { Volatile.Write(ref retrying, 0); changes.Writer.TryWrite(true); }, TaskContinuationOptions.OnlyOnRanToCompletion);
         }
 
         async Task Watch<T>(IAsyncEnumerable<T> signals, bool required)

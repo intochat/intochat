@@ -10,6 +10,7 @@ using DigitalBrain.Microsoft.CSharp.Runtime;
 using DigitalBrain.Microsoft.CSharp.Sessions;
 using DigitalBrain.Client.Runtime.V1;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Microsoft.CSharp.Authoring;
@@ -104,8 +105,9 @@ public sealed class CSharpScriptSandbox(CSharpToolService tools, IBehaviorAssemb
                         .Hold(deadline.Token).WaitAsync(deadline.Token).ConfigureAwait(false);
                     answer = await runner.Judge(brain, request, deadline.Token).ConfigureAwait(false);
                 }
-                catch (Exception) when (!cancellationToken.IsCancellationRequested)
+                catch (Exception retry) when (!cancellationToken.IsCancellationRequested)
                 {
+                    Log()?.LogDebug(retry, "Judge for brain {Brain} could not ensure the session or ask again.", brain);
                     return [Verdict.Reject("rule did not answer") with { Rule = RulesName }];
                 }
             }
@@ -114,9 +116,12 @@ public sealed class CSharpScriptSandbox(CSharpToolService tools, IBehaviorAssemb
         catch (Exception error) when (!cancellationToken.IsCancellationRequested
             && error is OperationCanceledException or HttpRequestException or JsonException or InvalidOperationException or NotSupportedException or Azure.RequestFailedException)
         {
+            Log()?.LogDebug(error, "Judge for brain {Brain} got no answer.", brain);
             return [Verdict.Reject("rule did not answer") with { Rule = RulesName }];
         }
     }
+
+    private ILogger? Log() => services.GetService<ILoggerFactory>()?.CreateLogger<CSharpScriptSandbox>();
 
     private const string RulesName = "rules";
     private const int SharedCapacity = 256;

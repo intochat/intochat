@@ -18,6 +18,7 @@ public sealed record CircleState(
 // member (and invited brain) holds a copy `{brain}/circles/{name}@{owner}` that follows it by pulling
 // the owner's state. A brain acts only on its own copies; the [Internal] methods are how the copies of
 // one circle talk to each other, and each is accepted only from the copy the kernel says is calling.
+// The alias and grain type literals must equal DigitalBrain.Framework.CircleGrainType.Name (a Circles fact asserts it).
 [Alias("circles.circle"), DefaultGrainType("circles.circle")]
 public interface ICircle : INeuron
 {

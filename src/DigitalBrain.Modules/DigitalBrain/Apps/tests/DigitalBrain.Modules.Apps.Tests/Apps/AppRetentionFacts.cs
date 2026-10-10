@@ -106,4 +106,22 @@ public sealed class AppRetentionFacts
         var activity = Assert.IsType<AppActivity>(item.Signal);
         Assert.Equal(("crashed", "attention", "interrupted"), (activity.App, activity.State, activity.Detail));
     }
+
+    [Theory]
+    [InlineData("listening")]
+    [InlineData("waiting")]
+    [InlineData("idle")]
+    [InlineData("completed")]
+    public async Task AReactivatedAppKeepsARetainedActivityThatIsNotATurnInProgress(string state)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        var (app, retains) = await CreatedAppAsync(brain, "calm-" + state);
+        await app.Progress(state, "steady");
+
+        await brain.DeactivateAsync(app, ct);
+
+        var activity = Assert.IsType<AppActivity>(Assert.Single(await retains.Retained(nameof(AppActivity), 0)).Signal);
+        Assert.Equal((state, "steady"), (activity.State, activity.Detail));
+    }
 }

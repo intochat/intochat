@@ -304,6 +304,12 @@ public sealed class CircleFacts
     }
 
     [Fact]
+    public void TheCircleContractsAliasEqualsTheSharedGrainTypeName()
+    {
+        Assert.Equal(DigitalBrain.Framework.CircleGrainType.Name, ((Orleans.AliasAttribute)Attribute.GetCustomAttribute(typeof(ICircle), typeof(Orleans.AliasAttribute))!).Alias);
+    }
+
+    [Fact]
     public async Task SayingTwiceUnderOneRequestIdYieldsOneLine()
     {
         await using var brain = await Start();

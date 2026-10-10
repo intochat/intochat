@@ -166,9 +166,9 @@ internal sealed class AppNeuron(
         return Describe(Snapshot);
     }
 
-    private static readonly string[] LiveStates = ["working", "listening", "reading", "searching", "waiting", "accepted"];
+    private static readonly string[] LiveStates = ["working", "reading", "searching", "accepted"];
 
-    // A live activity retained across a deactivation belongs to a turn that died with the process; a late
+    // A turn-in-progress activity (not listening or waiting, which an idle app on a live synapse keeps) retained across a deactivation belongs to a turn that died with the process; a late
     // listener must not see it as current. Retention only: nothing is published.
     internal Task Interrupt()
     {
