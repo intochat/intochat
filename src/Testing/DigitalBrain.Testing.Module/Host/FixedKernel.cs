@@ -14,5 +14,7 @@ public sealed class FixedKernel(params System.Reflection.Assembly[] assemblies) 
 
     public IAsyncEnumerable<Instance> Instances(string? type, CancellationToken cancellationToken = default) => AsyncEnumerable.Empty<Instance>();
 
+    public Task<string[]> Brains(CancellationToken cancellationToken = default) => Task.FromResult<string[]>([]);
+
     public Task<Instance[]> Running(CancellationToken cancellationToken = default) => Task.FromResult<Instance[]>([]);
 }

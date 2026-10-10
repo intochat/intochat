@@ -8,7 +8,7 @@ namespace DigitalBrain.Revisions;
 public interface IRevision : INeuron
 {
     [ReadOnly, AlwaysInterleave] Task<RevisionSnapshot> Read();
-    Task<RevisionSnapshot> Propose(string branch, string worktreePath, string summary, VerificationPlan plan);
+    Task<RevisionSnapshot> Propose(string branch, string summary, VerificationPlan plan);
     Task<RevisionSnapshot> Queue();
     [AlwaysInterleave, ResponseTimeout("00:15:00")] Task<RevisionSnapshot> Start();
     [AlwaysInterleave, ResponseTimeout("00:30:00")] Task<RevisionSnapshot> Verify(VerificationPlan plan);

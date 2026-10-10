@@ -4,7 +4,6 @@ namespace DigitalBrain.Revisions;
 internal sealed record RevisionState
 {
     [Id(0)] public string Branch { get; init; } = "";
-    [Id(1)] public string Worktree { get; init; } = "";
     [Id(2)] public string Summary { get; init; } = "";
     [Id(3)] public RevisionStage Stage { get; init; } = RevisionStage.Proposed;
     [Id(4)] public string? McpEndpoint { get; init; }

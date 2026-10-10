@@ -8,6 +8,10 @@ internal interface IPrincipal : IGrainWithStringKey
     Task<Member> Register(string password, string displayName);
     Task<Member?> Authenticate(string password);
     Task<Member?> DefaultMembership();
+    Task<string[]> Brains();
+    // One-way: a brain authority announces membership while the principal may be mid-registration.
+    [Orleans.Concurrency.OneWay] Task Joined(string brainId);
+    [Orleans.Concurrency.OneWay] Task Left(string brainId);
 }
 
 internal interface IAccount : IGrainWithStringKey

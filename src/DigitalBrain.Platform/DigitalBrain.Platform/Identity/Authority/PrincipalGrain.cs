@@ -13,6 +13,8 @@ internal sealed record PrincipalState
     [Id(0)] public Member? DefaultMembership { get; init; }
     [Id(1)] public string? PasswordHash { get; init; }
     [Id(2)] public bool RegistrationComplete { get; init; }
+    // The brains this principal is a member of, as their authorities announce it.
+    [Id(3)] public string[] Brains { get; init; } = [];
 }
 
 [GrainType("identity.principal.v2")]
@@ -78,4 +80,12 @@ internal sealed class PrincipalGrain(
     }
 
     public Task<Member?> DefaultMembership() => Task.FromResult(State.DefaultMembership);
+
+    public Task<string[]> Brains() => Task.FromResult(State.Brains);
+
+    public Task Joined(string brainId)
+        => State.Brains.Contains(brainId, StringComparer.Ordinal) ? Task.CompletedTask : Persist(State with { Brains = [.. State.Brains, brainId] });
+
+    public Task Left(string brainId)
+        => State.Brains.Contains(brainId, StringComparer.Ordinal) ? Persist(State with { Brains = [.. State.Brains.Where(known => known != brainId)] }) : Task.CompletedTask;
 }

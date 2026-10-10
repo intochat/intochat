@@ -26,6 +26,15 @@ public sealed class Kernel(IGrainFactory grains) : IKernel
     public Task<TypeEntry[]> Types(CancellationToken cancellationToken = default)
         => grains.GetGrain<ITypeTable>(CallerContextStamper.TryGet(out _) ? BrainScope.CurrentId() : TypeTableKey.NoBrain).List().WaitAsync(cancellationToken);
 
+    public async Task<string[]> Brains(CancellationToken cancellationToken = default)
+    {
+        var current = BrainScope.CurrentId();
+        var caller = CallerContextStamper.Require();
+        var members = await grains.GetGrain<Platform.Identity.IIdentityDirectory>(Platform.Identity.IdentityGrains.Directory)
+            .BrainsOfAsync(caller.PrincipalId, cancellationToken).WaitAsync(cancellationToken);
+        return members.Contains(current, StringComparer.Ordinal) ? members : [current, .. members];
+    }
+
     public async Task<Instance[]> Running(CancellationToken cancellationToken = default)
     {
         var brain = BrainScope.CurrentId();

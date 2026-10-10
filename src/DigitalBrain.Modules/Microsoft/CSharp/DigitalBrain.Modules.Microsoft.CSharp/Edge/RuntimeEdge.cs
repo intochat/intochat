@@ -85,6 +85,9 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
             case RuntimeProtocol.KernelRunning when invocation.Arguments.Length == 0:
                 answer = await kernel.Running(cancellationToken).ConfigureAwait(false);
                 break;
+            case RuntimeProtocol.KernelBrains when invocation.Arguments.Length == 0:
+                answer = await kernel.Brains(cancellationToken).ConfigureAwait(false);
+                break;
             default:
                 throw new ArgumentException($"The kernel has no method {invocation.Method} taking {invocation.Arguments.Length} arguments.");
         }

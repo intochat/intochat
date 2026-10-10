@@ -18,6 +18,9 @@ internal sealed class SessionKernel(SessionConnection session, string behavior, 
     public Task<Instance[]> Running(CancellationToken cancellationToken = default)
         => Ask<Instance>(RuntimeProtocol.KernelRunning, [], cancellationToken);
 
+    public Task<string[]> Brains(CancellationToken cancellationToken = default)
+        => Ask<string>(RuntimeProtocol.KernelBrains, [], cancellationToken);
+
     public Task<TypeEntry[]> Types(CancellationToken cancellationToken = default)
         => Ask<TypeEntry>(RuntimeProtocol.KernelTypes, [], cancellationToken);
 

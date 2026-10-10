@@ -13,6 +13,10 @@ public interface IKernelView
     // The compiled modules' neurons, signals and connectors, then the brain's own features.
     Task<TypeEntry[]> Types(CancellationToken cancellationToken = default);
 
+    // The brains the stamped caller is a member of, the current one included. Ids only: reaching
+    // another brain is a new session, never a key from this one.
+    Task<string[]> Brains(CancellationToken cancellationToken = default);
+
     // The caller's instances active somewhere in the cluster right now. Asked on demand; costly.
     Task<Instance[]> Running(CancellationToken cancellationToken = default);
 }

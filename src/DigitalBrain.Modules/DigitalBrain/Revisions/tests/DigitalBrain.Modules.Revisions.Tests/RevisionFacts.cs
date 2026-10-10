@@ -26,7 +26,7 @@ public sealed class RevisionFacts
         await using var verified = await brain.Observe<RevisionVerified>(revision, ct);
         await using var promoted = await brain.Observe<RevisionPromoted>(revision, ct);
 
-        Assert.Equal(RevisionStage.Proposed, (await revision.Propose("os-runtime", @"E:\wt\sha0001", "change", Plan)).Stage);
+        Assert.Equal(RevisionStage.Proposed, (await revision.Propose("os-runtime", "change", Plan)).Stage);
         Assert.Equal(RevisionStage.Healthy, (await revision.Start()).Stage);
         Assert.Equal("http://localhost:5091", (await started.NextAsync(ct: ct)).McpEndpoint);
         Assert.Equal("sha0001", (await healthy.NextAsync(ct: ct)).Sha);
@@ -46,7 +46,7 @@ public sealed class RevisionFacts
         await using var brain = await StartAsync(new FakeLauncher(), new FakeVerifier(), ct);
         var revision = brain.Get<IRevision>(IRevision.Key("owner", "sha0001"));
         await using var promoted = await brain.Observe<RevisionPromoted>(revision, ct);
-        await revision.Propose("os-runtime", @"E:\wt\sha0001", "change", Plan);
+        await revision.Propose("os-runtime", "change", Plan);
         await revision.Start();
         var error = await Assert.ThrowsAsync<InvalidOperationException>(revision.Promote);
         Assert.Contains("Verified", error.Message, StringComparison.Ordinal);
@@ -66,7 +66,7 @@ public sealed class RevisionFacts
         await using var brain = await StartAsync(new FakeLauncher(), verifier, ct);
         var revision = brain.Get<IRevision>(IRevision.Key("owner", "sha0001"));
         await using var failed = await brain.Observe<RevisionFailed>(revision, ct);
-        await revision.Propose("os-runtime", @"E:\wt\sha0001", "change", Plan);
+        await revision.Propose("os-runtime", "change", Plan);
         await revision.Start();
         var snapshot = await revision.Verify(Plan);
         Assert.Equal(RevisionStage.Failed, snapshot.Stage);
@@ -89,7 +89,7 @@ public sealed class RevisionFacts
         await using var brain = await StartAsync(new FakeLauncher(), verifier, ct);
         var revision = brain.Get<IRevision>(IRevision.Key("owner", "sha0001"));
         await using var failed = await brain.Observe<RevisionFailed>(revision, ct);
-        await revision.Propose("os-runtime", @"E:\wt\sha0001", "change", Plan);
+        await revision.Propose("os-runtime", "change", Plan);
         await revision.Start();
         var snapshot = await revision.Verify(Plan with { Budget = TimeSpan.FromMilliseconds(100) });
         Assert.Equal(RevisionStage.Failed, snapshot.Stage);
@@ -104,23 +104,22 @@ public sealed class RevisionFacts
         await using var brain = await StartAsync(new FakeLauncher { Healthy = false }, new FakeVerifier(), ct);
         var revision = brain.Get<IRevision>(IRevision.Key("owner", "sha0001"));
         await using var failed = await brain.Observe<RevisionFailed>(revision, ct);
-        await revision.Propose("os-runtime", @"E:\wt\sha0001", "change", Plan);
+        await revision.Propose("os-runtime", "change", Plan);
         Assert.Equal(RevisionStage.Failed, (await revision.Start()).Stage);
         Assert.Equal(RevisionStage.Started, (await failed.NextAsync(ct: ct)).Stage);
     }
 
     [Fact]
-    public async Task DiscardStopsTheChildAndKeepsTheWorktreeOnTheSnapshot()
+    public async Task DiscardStopsTheChildThroughTheLauncher()
     {
         var ct = TestContext.Current.CancellationToken;
         var launcher = new FakeLauncher();
         await using var brain = await StartAsync(launcher, new FakeVerifier(), ct);
         var revision = brain.Get<IRevision>(IRevision.Key("owner", "sha0001"));
-        await revision.Propose("os-runtime", @"E:\wt\sha0001", "change", Plan);
+        await revision.Propose("os-runtime", "change", Plan);
         await revision.Start();
         var discarded = await revision.Discard();
         Assert.Equal(RevisionStage.Discarded, discarded.Stage);
-        Assert.Equal(@"E:\wt\sha0001", discarded.Worktree);
         Assert.Contains("discard sha0001", launcher.Calls);
     }
 }

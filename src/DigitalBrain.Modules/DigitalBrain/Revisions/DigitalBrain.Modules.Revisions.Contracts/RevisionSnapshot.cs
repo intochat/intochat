@@ -14,7 +14,6 @@ public sealed record RevisionProposal(
 public sealed record RevisionSnapshot(
     [property: Id(0)] string Sha,
     [property: Id(1)] string Branch,
-    [property: Id(2)] string Worktree,
     [property: Id(3)] string Summary,
     [property: Id(4)] RevisionStage Stage,
     [property: Id(5)] string? McpEndpoint,

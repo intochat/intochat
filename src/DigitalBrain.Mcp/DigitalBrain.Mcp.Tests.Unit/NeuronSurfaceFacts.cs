@@ -62,6 +62,7 @@ public sealed class NeuronSurfaceFacts
         using var client = Client(app);
         var (context, _) = await Tool(client, "neurons_context", new { }, ct);
         var scope = JsonDocument.Parse(context).RootElement.GetProperty("brainId").GetString()!;
+        Assert.Contains(scope, JsonDocument.Parse(context).RootElement.GetProperty("brains").EnumerateArray().Select(each => each.GetString()));
         var manifest = JsonSerializer.Serialize(new object[] { new AppManifest("Echo", "echoes", [], [], []), "Echoes." }, JsonSerializerOptions.Web);
         var (created, failed) = await Tool(client, "neurons_call", new { contract = typeof(IApp).FullName!, key = scope + "/apps/echo", method = "Create", arguments = manifest }, ct);
         Assert.False(failed, created);

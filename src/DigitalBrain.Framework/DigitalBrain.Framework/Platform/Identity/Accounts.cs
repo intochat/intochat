@@ -35,6 +35,9 @@ public interface IIdentityDirectory : IGrainWithStringKey
     // the account or the brain was shared with it.
     Task<bool> CanAccessAsync(string principalId, string accountId, string brainId, CancellationToken cancellationToken = default);
 
+    // The brains the principal holds a member record for, owned or shared.
+    Task<string[]> BrainsOfAsync(string principalId, CancellationToken cancellationToken = default);
+
     Task<Member> ShareBrainAsync(string accountId, string brainId, string principalId, string displayName, MemberRole role, CancellationToken cancellationToken = default);
 }
 

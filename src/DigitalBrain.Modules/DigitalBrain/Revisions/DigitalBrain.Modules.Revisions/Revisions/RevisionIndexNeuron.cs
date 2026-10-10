@@ -19,22 +19,21 @@ internal sealed class RevisionIndexNeuron(
         ArgumentNullException.ThrowIfNull(proposal);
         var committed = await launcher.Propose(proposal.Branch, proposal.Summary, proposal.Files, CancellationToken.None);
         var revision = GrainFactory.GetGrain<IRevision>(IRevision.Key(BrainId, committed.Sha));
-        await revision.Propose(proposal.Branch, committed.Worktree, proposal.Summary, proposal.Plan);
+        await revision.Propose(proposal.Branch, proposal.Summary, proposal.Plan);
         if (Snapshot.Live is null)
         {
-            await Save(Snapshot with { Shas = [.. Snapshot.Shas, committed.Sha], Live = committed.Sha }, new RevisionChanged(committed.Sha, RevisionStage.Starting));
+            await Save(Snapshot with { Live = committed.Sha }, new RevisionChanged(committed.Sha, RevisionStage.Starting));
             // One-way through a self reference: Start outlives the call and must not hold the index.
             await this.AsReference<IRevisionIndexWork>().StartLive(committed.Sha);
         }
         else
         {
-            await Save(Snapshot with { Shas = [.. Snapshot.Shas, committed.Sha], Queue = [.. Snapshot.Queue, committed.Sha] }, new RevisionChanged(committed.Sha, RevisionStage.Queued));
+            await Save(Snapshot with { Queue = [.. Snapshot.Queue, committed.Sha] }, new RevisionChanged(committed.Sha, RevisionStage.Queued));
             await revision.Queue();
         }
         return committed.Sha;
     }
 
-    public Task<string[]> List() => Task.FromResult(Snapshot.Shas);
     public Task<string?> Live() => Task.FromResult(Snapshot.Live);
 
     public async Task Ended(string sha)

@@ -44,6 +44,7 @@ internal sealed class BrainAuthorityGrain(
             throw new InvalidOperationException($"Brain {owner.BrainId} already belongs to {current.PrincipalId}; {owner.PrincipalId} cannot be provisioned as its owner.");
         }
         await Persist(State with { Members = new(State.Members) { [owner.PrincipalId] = owner }, OwnerProvisioned = true });
+        await GrainFactory.GetGrain<IPrincipal>(owner.PrincipalId).Joined(owner.BrainId);
     }
     public async Task EnsureMember(Member member)
     {
@@ -54,12 +55,14 @@ internal sealed class BrainAuthorityGrain(
             return;
         }
         await Persist(State with { Members = new(State.Members) { [member.PrincipalId] = member } });
+        await GrainFactory.GetGrain<IPrincipal>(member.PrincipalId).Joined(member.BrainId);
     }
-    public Task RemoveMember(string principalId)
+    public async Task RemoveMember(string principalId)
     {
         var members = new Dictionary<string, Member>(State.Members);
         members.Remove(principalId);
-        return Persist(State with { Members = members });
+        await Persist(State with { Members = members });
+        if (State.BrainId is { } brain) { await GrainFactory.GetGrain<IPrincipal>(principalId).Left(brain); }
     }
     public async Task<CallDecision?> Authorize(CallRequest request)
     {

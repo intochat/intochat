@@ -20,13 +20,12 @@ internal sealed class RevisionNeuron(
 
     public Task<RevisionSnapshot> Read() => Task.FromResult(Describe());
 
-    public async Task<RevisionSnapshot> Propose(string branch, string worktreePath, string summary, VerificationPlan plan)
+    public async Task<RevisionSnapshot> Propose(string branch, string summary, VerificationPlan plan)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(branch);
-        ArgumentException.ThrowIfNullOrWhiteSpace(worktreePath);
         ArgumentNullException.ThrowIfNull(plan);
         if (Exists && Snapshot.History.Length > 0) { throw new InvalidOperationException($"Revision {Sha} is already {Snapshot.Stage}."); }
-        await Move(RevisionStage.Proposed, new RevisionState { Branch = branch, Worktree = worktreePath, Summary = summary, Plan = plan }, new RevisionBuilding(Sha));
+        await Move(RevisionStage.Proposed, new RevisionState { Branch = branch, Summary = summary, Plan = plan }, new RevisionBuilding(Sha));
         return Describe();
     }
 
@@ -119,5 +118,5 @@ internal sealed class RevisionNeuron(
         => Save(next with { Stage = stage, History = [.. next.History, stage] }, new RevisionChanged(Sha, stage), acted);
 
     private RevisionSnapshot Describe()
-        => new(Sha, Snapshot.Branch, Snapshot.Worktree, Snapshot.Summary, Snapshot.Stage, Snapshot.McpEndpoint, Snapshot.Plan, Snapshot.Report, Snapshot.Failure, Snapshot.History);
+        => new(Sha, Snapshot.Branch, Snapshot.Summary, Snapshot.Stage, Snapshot.McpEndpoint, Snapshot.Plan, Snapshot.Report, Snapshot.Failure, Snapshot.History);
 }

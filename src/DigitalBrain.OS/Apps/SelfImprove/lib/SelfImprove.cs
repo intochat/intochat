@@ -29,15 +29,14 @@ public static class SelfImprove
         return new(change.Branch, change.Summary, change.Files, plan);
     }
 
-    // The list is rebuilt from the index every time, never patched.
+    // The list is rebuilt from the kernel's revision instances every time, never patched.
     public static async Task RenderListAsync(DigitalBrainConnection brain)
     {
-        var scope = Scope(brain);
         var lines = new List<string>();
-        foreach (var sha in await brain.Get<IRevisions>(scope).List())
+        await foreach (var instance in brain.Kernel.Instances<IRevision>(brain.Stopping))
         {
-            var revision = await brain.Get<IRevision>(IRevision.Key(scope, sha)).Read();
-            lines.Add($"- `{sha}` — {revision.Stage} — {revision.Summary}");
+            var revision = await brain.Get<IRevision>(instance.Key).Read();
+            lines.Add($"- `{revision.Sha}` — {revision.Stage} — {revision.Summary}");
         }
         await brain.Get<IText>(Key(brain) + "/revisions").Set(lines.Count == 0 ? "_No revisions yet._" : string.Join("\n", lines));
     }

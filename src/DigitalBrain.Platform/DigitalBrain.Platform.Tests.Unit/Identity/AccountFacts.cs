@@ -36,6 +36,32 @@ public sealed class AccountFacts
     }
 
     [Fact]
+    public async Task AMemberSeesItsOwnAndSharedBrainsOnly()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        var directory = brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory);
+        var alice = await directory.RegisterAsync("alice", "correct-password", "Alice", ct);
+        var bob = await directory.RegisterAsync("bob", "another-password", "Bob", ct);
+        await directory.ShareBrainAsync(alice.AccountId, alice.BrainId, "carol", "Carol", MemberRole.Member, ct);
+
+        Assert.Equal([alice.BrainId], await BrainsAs(brain, alice));
+        Assert.Equal([bob.BrainId], await BrainsAs(brain, bob));
+        Assert.Equal([alice.BrainId], await directory.BrainsOfAsync("carol", ct));
+    }
+
+    // Not async: the stamp is an AsyncLocal and must stay with the calling fact.
+    private static Task<string[]> BrainsAs(ModuleBrain host, Member member)
+    {
+        DigitalBrain.Framework.CallerContextStamper.Stamp(new()
+        {
+            PrincipalId = member.PrincipalId, AccountId = member.AccountId, BrainId = member.BrainId,
+            Kind = DigitalBrain.Framework.CallerKind.User, StampedBy = DigitalBrain.Framework.TrustedEdge.AuthenticatedHttp,
+        });
+        return new DigitalBrain.Framework.Kernel(host.Grains).Brains(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public async Task ReservedPlatformNamesCannotBeRegistered()
     {
         var ct = TestContext.Current.CancellationToken;

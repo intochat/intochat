@@ -40,7 +40,7 @@ internal sealed class InstanceRegistration(IGrainStorage inner, IGrainFactory gr
 
     // Only neurons inside a brain are instances: "{brain}/..." where the first segment is a brain id.
     // Kernel grains, workers and other grains never register, nor do keys outside every brain: a
-    // bare key (the brain itself, account-keyed neurons, "marketplace") or a "@platform/..." key.
+    // bare key (the brain itself, account-keyed neurons) or a "@platform/..." key (the marketplace, meters).
     private IInstanceDirectory? Directory(GrainId grainId)
     {
         if (context.GrainContext?.GrainInstance is not Neuron) { return null; }

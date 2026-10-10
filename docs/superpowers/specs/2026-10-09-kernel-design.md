@@ -81,8 +81,8 @@ Where the code deviates from this spec:
 - **Key grammar:** only `/` separates a brain from the rest of a key. UI parts are `{brain}/ui/{name}`
   (were `{brain}:{name}`); `BrainScope.IsValidId` refuses `:` and a leading `@`.
 - **Registration:** only `{brain}/...` keys register, registered before the first write lands (retired
-  again if the write fails). Bare keys (the brain itself, account-keyed neurons, `marketplace`) and
-  `@platform/...` keys (e.g. `@platform/meters/{period}`) never register. A neuron keeps one persisted
+  again if the write fails). Bare keys (the brain itself, account-keyed neurons) and
+  `@platform/...` keys (e.g. `@platform/meters/{period}`, `@platform/marketplace`) never register. A neuron keeps one persisted
   record (multi-state grains folded into the primary state). `TryAddKernelRegistration` false fails startup.
 - **Kernel surface:** `IKernel.InstancesIn(brain, �)` for platform code with no caller; `IAppIndex` is
   gone, scripts read apps through `brain.Kernel`.
@@ -283,19 +283,28 @@ Order (smallest blast radius first, each its own commit):
 
 ## 7. Risks and open items
 
-- **Write funnel uniqueness.** If some neurons write state outside the base funnel, registration misses
-  them. Phase 0 must prove one funnel or create it.
+Decided 2026-10-10 (end of Phase 5):
+
+- **Write funnel — resolved.** There is no single base funnel; the registration hook is the decorator
+  around the keyed `IGrainStorage` "Default" (`InstanceRegistration`), which every neuron write passes.
+- **Platform ring stays** as the credential-implementation ring (identity, secrets, connections,
+  integrations behind `[PlatformAssembly]`). It does not merge into Framework; kernel types are not
+  neurons and live in Framework.
+- **Revisions.** The launcher owns runtime facts: worktree, ports, `aspire run` process state and which
+  revision is *served* (`RevisionsDocument.Current`). The brain owns only scheduling: `IRevisions`
+  (keyed by brain id, never an instance) keeps the *live* pointer and the proposal-ordered queue. The
+  revisions themselves are kernel instances `{brain}/revisions/{sha}`, listed with
+  `Kernel.Instances<IRevision>()`; `IRevisions.List()` and the grain-side worktree are gone.
+- **Marketplace** is platform-wide at `@platform/marketplace` (`IMarketplace.Key`). Like every
+  `@platform/...` key it is outside every brain and never registers as an instance; listings stay records
+  inside it, not instances.
+- **Brains list:** `IKernelView.Brains()` answers the brain ids the stamped caller is a member of (the
+  current one included). Brain authorities announce membership to the principal grain (one-way
+  `Joined`/`Left`); `IIdentityDirectory.BrainsOfAsync` reads it. Exposed in MCP `neurons_context`
+  (`brains`) and to scripts through the runtime edge (`Brains`).
 - **Partition hot spots.** Types with very many instances (messages?) — if a type is high-cardinality,
-  it should probably not be a neuron per item. Flag any type over ~10k instances per brain in Phase 3.
+  it should probably not be a neuron per item. Flag any type over ~10k instances per brain.
 - **`IManagementGrain` cost.** Cluster fan-out; on-demand only. If per-brain liveness becomes hot, add an
   in-memory per-brain counter in the kernel — not before.
-- **Platform ring after Phase 5.** With kernel types not being neurons, the Platform ring may reduce to
-  "kernel implementation" or merge into Framework. Decide at end of Phase 5, not before.
-- **Revisions duplication** (`IRevisions` grain vs launcher `Revisions`): who owns "which revision is
-  live" — kernel or launcher? Decide in Phase 3.
-- **Marketplace** is platform-wide, not per brain — its listings are instances of a platform brain
-  (`platform/marketplace/{id}`)? Decide in Phase 3.
-- **Brains list:** `kernel.Identity` owns brains; a user's brains = instances of `IBrain` across brains
-  they're a member of. Confirm in Phase 5.
 - **Script-defined neurons** — deferred fork; feature type layer is ready for it.
 - **Dart mirrors** of every reshaped record change in the same commit as the C# change.

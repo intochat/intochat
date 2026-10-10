@@ -26,8 +26,7 @@ public sealed class RevisionIndexFacts
         Assert.Equal("sha0001", sha);
         while ((await revision.Read()).Stage != RevisionStage.Healthy) { await changes.NextAsync(ct: ct); }
         Assert.Equal(["propose sha0001", "start sha0001", "healthy sha0001"], launcher.Calls);
-        Assert.Equal(@"E:\wt\sha0001", (await revision.Read()).Worktree);
-        Assert.Equal([sha], await index.List());
+        Assert.Equal(["owner/revisions/" + sha], await new DigitalBrain.Framework.Kernel(brain.Grains).InstancesIn("owner", "revisions.revision", ct).Select(instance => instance.Key).ToArrayAsync(ct));
         Assert.Equal(sha, await index.Live());
     }
 

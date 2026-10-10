@@ -8,7 +8,7 @@ namespace DigitalBrain.Apps;
 [Internal]
 public interface IMarketplace : INeuron
 {
-    const string Key = "marketplace";
+    const string Key = "@platform/marketplace";
 
     [Public, Orleans.Concurrency.ReadOnly, Orleans.Concurrency.AlwaysInterleave] Task<MarketplaceListing[]> List();
     [Public, Orleans.Concurrency.ReadOnly, Orleans.Concurrency.AlwaysInterleave] Task<MarketplaceListing?> Read(string publisher, string name);
