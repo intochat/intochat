@@ -39,6 +39,16 @@ public sealed class TestBrainFacts
     }
 
     [Fact]
+    public async Task AnObservationOpenAcrossARestartEndsWithoutFailingTheSession()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = await TestBrain.Create().WithModule<PulseModule>().StartAsync(ct);
+        await brain.Observe<Pulsed>(brain.Get<IPulse>("owner/pulse"), ct);
+        await brain.RestartAsync(ct);
+        await brain.DisposeAsync();
+    }
+
+    [Fact]
     public async Task ADeactivatedNeuronReloadsItsStateOnTheNextCall()
     {
         var ct = TestContext.Current.CancellationToken;

@@ -28,6 +28,7 @@ public sealed class InProcessTarget : ITestTarget
     {
         ArgumentNullException.ThrowIfNull(plan);
         if (plan.Client is not null) { throw new NotSupportedException("An in-process brain has no external client to configure; use ConfigureServices."); }
+        var (siloPort, gatewayPort) = FreePorts();
         var session = new InProcessSession(
             new MemoryStores(),
             Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)),
@@ -35,7 +36,7 @@ public sealed class InProcessTarget : ITestTarget
             Path.Combine(Path.GetTempPath(), $"digitalbrain-machine-{Guid.NewGuid():N}"),
             // Localhost clustering binds fixed default ports; parallel brains each take a free pair, and a
             // restart rebinds the same pair.
-            FreePort(), FreePort());
+            siloPort, gatewayPort);
         var app = await BuildAsync(plan, session, httpPort: 0, cancellationToken).ConfigureAwait(false);
         return new InProcessBrain(plan, session, app, new TestSessionLifetime(plan.Execution));
     }
@@ -80,11 +81,22 @@ public sealed class InProcessTarget : ITestTarget
         }
     }
 
-    private static int FreePort()
+    // Both listeners stay open while the ports are read, so the pair is distinct.
+    private static (int Silo, int Gateway) FreePorts()
     {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        return ((IPEndPoint)listener.LocalEndpoint).Port;
+        var silo = new TcpListener(IPAddress.Loopback, 0);
+        var gateway = new TcpListener(IPAddress.Loopback, 0);
+        try
+        {
+            silo.Start();
+            gateway.Start();
+            return (((IPEndPoint)silo.LocalEndpoint).Port, ((IPEndPoint)gateway.LocalEndpoint).Port);
+        }
+        finally
+        {
+            silo.Stop();
+            gateway.Stop();
+        }
     }
 }
 
@@ -119,8 +131,10 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain
     private readonly TestBrainPlan _plan;
     private readonly InProcessSession _session;
     private readonly TestSessionLifetime _lifetime;
-    private WebApplication _app;
+    private WebApplication? _app;
     private HttpClient _http;
+    // Observations hold subscriptions on the current host; a restart ends them with it.
+    private TestSessionLifetime _observations;
 
     public InProcessBrain(TestBrainPlan plan, InProcessSession session, WebApplication app, TestSessionLifetime lifetime)
     {
@@ -129,16 +143,23 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain
         _app = app;
         _lifetime = lifetime;
         _http = NewClient(app);
-        // Released in reverse: tracked observations first, then the client, then the host current at disposal.
-        _lifetime.Own("host", new Release(async () => { await _app.StopAsync().ConfigureAwait(false); await _app.DisposeAsync().ConfigureAwait(false); }));
+        _observations = new TestSessionLifetime(plan.Execution);
+        // Released in reverse: observations, the client, the host current at disposal, the machine directory.
+        _lifetime.Own("machine-directory", new Release(() =>
+        {
+            if (Directory.Exists(_session.MachineDirectory)) { Directory.Delete(_session.MachineDirectory, recursive: true); }
+            return ValueTask.CompletedTask;
+        }));
+        _lifetime.Own("host", new Release(StopHostAsync));
         _lifetime.Own("http-client", new Release(() => { _http.Dispose(); return ValueTask.CompletedTask; }));
+        _lifetime.Own("observations", new Release(() => _observations.DisposeAsync()));
     }
 
     public HttpClient HttpClient => _http;
-    public IServiceProvider Services => _app.Services;
+    public IServiceProvider Services => (_app ?? throw new InvalidOperationException("The brain's host failed to restart.")).Services;
     public TestExecutionOptions Execution => _plan.Execution;
     int ITrackedBrain.BufferCapacity => Services.GetRequiredService<IOptions<SubscriptionOptions>>().Value.BufferCapacity;
-    void ITrackedBrain.Track(IAsyncDisposable resource) => _lifetime.Own("observation", resource);
+    void ITrackedBrain.Track(IAsyncDisposable resource) => _observations.Own("observation", resource);
 
     private IDigitalBrains Brains => Services.GetRequiredService<IDigitalBrains>();
 
@@ -166,9 +187,11 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain
 
     public async Task RestartAsync(CancellationToken cancellationToken = default)
     {
-        var port = new Uri(_app.Urls.Single()).Port;
-        await _app.StopAsync(cancellationToken).ConfigureAwait(false);
-        await _app.DisposeAsync().ConfigureAwait(false);
+        var port = new Uri((_app ?? throw new InvalidOperationException("The brain's host failed to restart.")).Urls.Single()).Port;
+        var observations = _observations;
+        _observations = new TestSessionLifetime(_plan.Execution);
+        await observations.DisposeAsync().ConfigureAwait(false);
+        await StopHostAsync().ConfigureAwait(false);
         _app = await InProcessTarget.BuildAsync(_plan, _session, port, cancellationToken).ConfigureAwait(false);
         var previous = _http;
         _http = NewClient(_app);
@@ -179,6 +202,14 @@ internal sealed class InProcessBrain : ITestBrain, ITrackedBrain
         => throw new NotSupportedException("People arrive with the identity helpers (one-host testing, Task 8).");
 
     public ValueTask DisposeAsync() => _lifetime.DisposeAsync();
+
+    private async ValueTask StopHostAsync()
+    {
+        if (_app is not { } app) { return; }
+        _app = null;
+        await app.StopAsync().ConfigureAwait(false);
+        await app.DisposeAsync().ConfigureAwait(false);
+    }
 
     private static HttpClient NewClient(WebApplication app) => new() { BaseAddress = new Uri(app.Urls.Single()) };
 
