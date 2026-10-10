@@ -60,13 +60,6 @@
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Tools/DigitalBrain.Modules.Tools/DigitalBrain.Modules.Tools.csproj" />
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Tools/tests/DigitalBrain.Modules.Tools.Tests/DigitalBrain.Modules.Tools.Tests.csproj" />
   </Folder>
-  <Folder Name="/Modules/DigitalBrain/Machine/">
-    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Machine/DigitalBrain.Modules.Machine.Contracts/DigitalBrain.Modules.Machine.Contracts.csproj" />
-    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Machine/DigitalBrain.Modules.Machine/DigitalBrain.Modules.Machine.csproj" />
-  </Folder>
-  <Folder Name="/Modules/DigitalBrain/Machine/tests/">
-    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Machine/tests/DigitalBrain.Modules.Machine.Tests/DigitalBrain.Modules.Machine.Tests.csproj" />
-  </Folder>
   <Folder Name="/Modules/DigitalBrain/Mesh/">
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Mesh/DigitalBrain.Modules.Mesh.Contracts/DigitalBrain.Modules.Mesh.Contracts.csproj" />
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Mesh/DigitalBrain.Modules.Mesh/DigitalBrain.Modules.Mesh.csproj" />

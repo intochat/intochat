@@ -11,7 +11,7 @@ using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.TextField;
 using DigitalBrain.Flutter.Workspace;
-using DigitalBrain.Machine;
+using DigitalBrain.Microsoft.Windows;
 using DigitalBrain.Microsoft.CSharp.Files;
 using ITimer = DigitalBrain.Time.Timers.ITimer;
 
@@ -23,7 +23,7 @@ var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 // What Jev may act on here: building apps, writing C#, the PC's console and files, timers and notes.
 string[] Capabilities = [typeof(IAppStudio).FullName!, typeof(IApp).FullName!, typeof(ICSharpFile).FullName!,
-    typeof(IConsole).FullName!, typeof(IFileSystem).FullName!, typeof(ITimer).FullName!, typeof(IText).FullName!];
+    typeof(IWindows).FullName!, typeof(IConsole).FullName!, typeof(IFileSystem).FullName!, typeof(ITimer).FullName!, typeof(IText).FullName!];
 var scope = brain.Setting("Brain")!;
 
 await Task.WhenAll(Operations(), SendClicks());

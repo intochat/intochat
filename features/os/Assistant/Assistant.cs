@@ -12,7 +12,7 @@ using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Flutter.Form;
 using DigitalBrain.Integrations;
-using DigitalBrain.Machine;
+using DigitalBrain.Microsoft.Windows;
 using DigitalBrain.Microsoft.CSharp.Files;
 using DigitalBrain.Postgres;
 using DigitalBrain.Mcp;
@@ -31,7 +31,7 @@ public static class Assistant
     // What the model may act on: the contracts this app composes, checked by the compiler.
     public static readonly string[] Contracts = [typeof(IConnectionRequests).FullName!, typeof(IPostgresServer).FullName!, typeof(IApp).FullName!,
         typeof(IWorkspace).FullName!, typeof(IForm).FullName!, typeof(ICSharpFile).FullName!,
-        typeof(IConsole).FullName!, typeof(IFileSystem).FullName!,
+        typeof(IWindows).FullName!, typeof(IConsole).FullName!, typeof(IFileSystem).FullName!,
         typeof(IMcpServer).FullName!, typeof(IPageTools).FullName!];
 
     public static string Key(DigitalBrainConnection brain) => brain.Setting("App")!;

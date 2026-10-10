@@ -91,7 +91,7 @@ public sealed class AssistantGateFacts
             },
         })
             .WithModule<AIModule>().RequireModules([new AppsModule(), new DigitalBrain.Flutter.FlutterModule()])
-            .WithModule<CSharpModule>().WithModule<PostgresModule>().WithModule<DigitalBrain.Machine.MachineModule>()
+            .WithModule<CSharpModule>().WithModule<PostgresModule>().WithModule<DigitalBrain.Microsoft.Windows.WindowsModule>()
             .WithModule<DigitalBrain.Tools.ToolsModule>().WithModule<DigitalBrain.Mcp.McpModule>().WithModule<DigitalBrain.Microsoft.Playwright.PlaywrightModule>().WithReminders()
             .StartAsync(ct);
         Stamp();
@@ -119,7 +119,7 @@ public sealed class AssistantGateFacts
             },
         })
             .WithModule<AIModule>().RequireModules([new AppsModule(), new DigitalBrain.Flutter.FlutterModule()])
-            .WithModule<CSharpModule>().WithModule<PostgresModule>().WithModule<DigitalBrain.Machine.MachineModule>()
+            .WithModule<CSharpModule>().WithModule<PostgresModule>().WithModule<DigitalBrain.Microsoft.Windows.WindowsModule>()
             .WithModule<DigitalBrain.Tools.ToolsModule>().WithModule<DigitalBrain.Mcp.McpModule>().WithModule<DigitalBrain.Microsoft.Playwright.PlaywrightModule>().WithReminders()
             .StartAsync(ct);
     }

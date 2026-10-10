@@ -10,14 +10,14 @@ public sealed class RouteResultFacts
     public void HintListsTheChosenRouteThenTheNextLikelyCapabilities()
     {
         var route = new RouteResult("DigitalBrain.Time.Timers.ITimer", "Start", 0.62,
-            new() { ["timer"] = 0.62, ["apps.app2"] = 0.25, ["ui.text"] = 0.10, ["machine.console"] = 0.03 });
+            new() { ["timer"] = 0.62, ["apps.app2"] = 0.25, ["ui.text"] = 0.10, ["windows.console"] = 0.03 });
 
         var hint = route.Hint();
 
         Assert.StartsWith("Likely capabilities (Jev):\n- DigitalBrain.Time.Timers.ITimer.Start (0.62)", hint, StringComparison.Ordinal);
         Assert.Contains("- apps.app2 (0.25)", hint, StringComparison.Ordinal);
         Assert.Contains("- ui.text (0.10)", hint, StringComparison.Ordinal);
-        Assert.DoesNotContain("machine.console", hint, StringComparison.Ordinal);
+        Assert.DoesNotContain("windows.console", hint, StringComparison.Ordinal);
         Assert.DoesNotContain("- timer (", hint, StringComparison.Ordinal);
     }
 
