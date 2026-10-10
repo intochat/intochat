@@ -113,7 +113,9 @@ public sealed class AspireModuleHosting : ModuleHosting<DigitalBrain.Microsoft.A
                 yarp.AddRoute(HealthProbes.ReadyPath, all).WithTransformPathSet(HealthProbes.AlivePath);
                 foreach (var endpoint in endpoints)
                 {
-                    yarp.AddRoute(InstancePath(endpoint.Resource.Name), Probed(yarp.AddCluster(endpoint.Resource.Name, endpoint)))
+                    // Seen live: the front kept routing an instance its probe had marked Unhealthy, its cluster's
+                    // only destination (panic fallback). The instance's own route must answer 503 then.
+                    yarp.AddRoute(InstancePath(endpoint.Resource.Name), Probed(yarp.AddCluster(endpoint.Resource.Name, endpoint), HealthyOnly))
                         .WithTransformPathSet(HealthProbes.AlivePath);
                 }
             });
@@ -143,9 +145,12 @@ public sealed class AspireModuleHosting : ModuleHosting<DigitalBrain.Microsoft.A
 
     public static string InstancePath(string instance) => $"/_instances/{instance}{HealthProbes.ReadyPath}";
 
-    private static global::Aspire.Hosting.Yarp.YarpCluster Probed(global::Aspire.Hosting.Yarp.YarpCluster cluster)
+    private const string HealthyOnly = "HealthyAndUnknown";
+
+    private static global::Aspire.Hosting.Yarp.YarpCluster Probed(global::Aspire.Hosting.Yarp.YarpCluster cluster, string? available = null)
         => cluster.WithHealthCheckConfig(new global::Yarp.ReverseProxy.Configuration.HealthCheckConfig
         {
+            AvailableDestinationsPolicy = available,
             Active = new global::Yarp.ReverseProxy.Configuration.ActiveHealthCheckConfig { Enabled = true, Path = HealthPath },
             Passive = new global::Yarp.ReverseProxy.Configuration.PassiveHealthCheckConfig { Enabled = true },
         });

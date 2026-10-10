@@ -117,6 +117,7 @@ public sealed class LiveBuildHostingFacts : IDisposable
             Assert.Equal($"http://{instance}", environment[$"REVERSEPROXY__CLUSTERS__cluster_{instance}__DESTINATIONS__destination1__ADDRESS"]);
             Assert.Equal("/ready", environment[$"REVERSEPROXY__CLUSTERS__cluster_{instance}__HEALTHCHECK__ACTIVE__PATH"]);
             Assert.Equal("00:00:01", environment[$"REVERSEPROXY__CLUSTERS__cluster_{instance}__HEALTHCHECK__ACTIVE__INTERVAL"]);
+            Assert.Equal("HealthyAndUnknown", environment[$"REVERSEPROXY__CLUSTERS__cluster_{instance}__HEALTHCHECK__AVAILABLEDESTINATIONSPOLICY"]);
         }
         Assert.Contains($"services__{role}-a__http__0", environment.Keys);
         Assert.Contains($"services__{role}-b__http__0", environment.Keys);
