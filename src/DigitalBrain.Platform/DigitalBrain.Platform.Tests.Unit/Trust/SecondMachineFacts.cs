@@ -1,13 +1,43 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Parts;
+using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Platform.Parts;
+using DigitalBrain.Platform.Trust;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Platform.Tests.Unit.Trust;
 
-// R74: every machine of the owner opens a part under the one key the keyring holds for it.
+// R73/R74: a second own machine of the same owner joins while the first holds the core. It registers, never opens
+// the core, and opens a part only under the one key the keyring holds for it.
 public sealed class SecondMachineFacts
 {
+    [Fact(Timeout = 180_000)]
+    public async Task ASecondOwnMachineStartsHealthyWhileTheFirstHoldsTheCore()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var errors = new ErrorLog();
+        await using var trust = await TrustHost.StartAsync(ct);
+        await using var a = await ModuleTest.Create().WithTrust(trust).WithPartLog().StartAsync(ct);
+        await a.SiloServices.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
+        var scope = BrainScope.Create(ModuleTest.DefaultAccount, ModuleTest.DefaultAccount).Id;
+        Assert.Contains(PartId.Core(scope), a.SiloServices.GetRequiredService<PartLogs>().Opened);
+
+        await using var b = await ModuleTest.Create().WithTrust(trust).WithPartLog()
+            .ConfigureSilo(silo => silo.Services.AddSingleton<ILoggerProvider>(errors))
+            .StartAsync(ct);
+        var birth = b.SiloServices.GetRequiredService<OwnerBirth>();
+        await birth.Born.WaitAsync(ct);
+        // The live race: the trust side named B the new brain's machine while A already held the core.
+        var owner = ModuleTest.DefaultAccount;
+        birth.Await(new BrainProvision(new Member { PrincipalId = owner, AccountId = owner, BrainId = owner, Role = MemberRole.Owner, DisplayName = owner }, NewBrain: true));
+        await birth.Execute(ct);
+        await birth.Born.WaitAsync(ct);
+
+        Assert.DoesNotContain(PartId.Core(scope), b.SiloServices.GetRequiredService<PartLogs>().Opened);
+        Assert.Empty(errors.Lines);
+    }
+
     [Fact(Timeout = 180_000)]
     public async Task TwoMachinesRacingForAPartKeyEndWithOneKey()
     {
@@ -40,5 +70,27 @@ public sealed class SecondMachineFacts
 
         var refused = await Assert.ThrowsAsync<ServiceUnavailableException>(() => b.SiloServices.GetRequiredService<PartLogs>().For(part));
         Assert.Contains("not unwrappable on this machine", refused.Message, StringComparison.Ordinal);
+    }
+
+    private sealed class ErrorLog : ILoggerProvider
+    {
+        public List<string> Lines { get; } = [];
+
+        public ILogger CreateLogger(string categoryName) => new Logger(this, categoryName);
+
+        public void Dispose() { }
+
+        private sealed class Logger(ErrorLog log, string category) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Error;
+
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            {
+                if (!IsEnabled(logLevel)) { return; }
+                lock (log.Lines) { log.Lines.Add($"{category}: {formatter(state, exception)} {exception?.Message}"); }
+            }
+        }
     }
 }
