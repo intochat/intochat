@@ -181,6 +181,7 @@
   </Folder>
   <Folder Name="/Trust/">
     <Project Path="src/DigitalBrain.Trust/DigitalBrain.Trust/DigitalBrain.Trust.csproj" />
+    <Project Path="src/DigitalBrain.Trust/DigitalBrain.Trust.Tests.Unit/DigitalBrain.Trust.Tests.Unit.csproj" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />

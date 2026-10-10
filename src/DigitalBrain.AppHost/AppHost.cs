@@ -76,6 +76,23 @@ var features = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..
 var uiPort = builder.Configuration.GetValue(UiPortKey, 5080);
 var mcpPort = builder.Configuration.GetValue(McpPortKey, 5081);
 
+// Stage B (Task 18): the trust cluster (sequencer, node directory, keyrings, identity, ledger and the Marketplace
+// catalog) is its own host and Orleans cluster on the orleans integration's tables and blobs, under its own
+// cluster id and container; each OS silo below is a machine that reaches it only through a private gateway
+// client (H2, R34). The trust host gets no other credential (R30) and no features copy (R56).
+const int TrustGatewayPort = 30100;
+Func<string, string> env = DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName;
+var trust = builder.AddProject<Projects.DigitalBrain_Trust>("trust")
+    .WithEnvironment(env("DigitalBrain:Platform:Trust:GatewayPort"), TrustGatewayPort.ToString(System.Globalization.CultureInfo.InvariantCulture));
+if (digitalBrain.Clustering is { } trustTables && digitalBrain.GrainState is { } trustBlobs)
+{
+    trust.WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.IntegrationEnvironmentName("orleans", "Clustering"), trustTables.Resource.ConnectionStringExpression)
+        .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.IntegrationEnvironmentName("orleans", "GrainState"), trustBlobs.Resource.ConnectionStringExpression)
+        .WaitFor(trustTables).WaitFor(trustBlobs);
+}
+// One pairing secret for every OS machine of this deployment (R52): the second machine joins the owner's account.
+var pairingSecret = builder.AddParameter("machine-pairing-secret", new GenerateParameterDefault { MinLength = 32, Special = false }, secret: true, persist: true);
+
 // Each role runs named instances ({role}-a, {role}-b) on dynamic ports behind a YARP front on the fixed port;
 // the MCP role runs two, the OS role one (below). First boot runs from source; once a candidate is promoted, {repo}/.digitalbrain/live.json names the
 // published build every instance runs, and a restart moves an instance onto the next one.
@@ -89,6 +106,17 @@ var silos = AspireModuleHosting.InstanceNames("OperatingSystem").Take(1).Select(
         : Silo(AspireModuleHosting.OnDynamicPorts(builder.AddProject<Projects.DigitalBrain_OS>(name))
             .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features))).ToArray();
 var osFront = AspireModuleHosting.AddFront(builder, "OperatingSystem", uiPort, silos.Select(silo => silo.GetEndpoint("http")));
+
+// The second machine (R40): its own directory, identity and Orleans cluster, the owner's role, fixed silo and
+// gateway ports beside the first machine's defaults, and its own HTTP port serving its own /mcp. It is not behind
+// the front: it is another machine of the same owner, reached directly.
+var machineB = builder.AddProject<Projects.DigitalBrain_OS>("OperatingSystem-b")
+    .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features)
+    .WithHttpEndpoint(port: 5095, name: "http", isProxied: false)
+    .WithEnvironment("Orleans__ClusterId", "digitalbrain-machine-b")
+    .WithEnvironment("Orleans__Endpoints__SiloPort", "11112")
+    .WithEnvironment("Orleans__Endpoints__GatewayPort", "30001");
+Silo(machineB);
 // The shell reaches the kernel through the front, so a roll restarting one silo never drops it.
 digitalBrain.WithShellFront(builder.CreateResourceBuilder<IResourceWithEndpoints>(osFront.Resource));
 
@@ -105,12 +133,27 @@ IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where
     // Stage A: the OS silo is an own machine running the part log in its own directory, over a mesh of
     // platform seed nodes (Q25).
     silo.WithReference(digitalBrain)
+        .WithEnvironment(env("DigitalBrain:Platform:Trust:Gateway"), "localhost:" + TrustGatewayPort.ToString(System.Globalization.CultureInfo.InvariantCulture))
+        .WithEnvironment(env("DigitalBrain:Platform:Parts:PairingSecret"), pairingSecret)
+        .WaitFor(trust)
         .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName("DigitalBrain:Platform:Mesh:SeedNodes"), "24")
         .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName("DigitalBrain:Platform:Parts:Role"), "Own")
         .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName("DigitalBrain:Platform:Parts:MachineDirectory"),
             Path.Combine(workdir, "machines", silo.Resource.Name))
         .WaitFor(cookieProtection)
-        .WithHttpHealthCheck("/health", endpointName: "http");
+        .WithHttpHealthCheck("/health", endpointName: "http")
+        // Hands one part to another machine (R40): POST /machine/parts/{part}/release as this machine's owner.
+        .WithHttpCommand("/machine/parts/release", "Release part", commandName: "release-part", endpointName: "http", commandOptions: new HttpCommandOptions
+        {
+            Description = "Release one part so another machine of this owner can take it.",
+            Arguments = [new InteractionInput { Name = "part", Label = "Part", InputType = InputType.Text, Required = true }],
+            PrepareRequest = request =>
+            {
+                var part = request.Arguments.GetString("part") ?? "";
+                request.Request.RequestUri = new Uri(request.Request.RequestUri!, $"/machine/parts/{Uri.EscapeDataString(part)}/release");
+                return Task.CompletedTask;
+            },
+        });
     return builder.CreateResourceBuilder<IResourceWithEndpoints>(silo.Resource);
 }
 
