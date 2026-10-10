@@ -71,6 +71,7 @@ public sealed class SessionCookieFacts
     private static async Task<WebApplication> Host(bool mcp, DirectoryInfo keys, ModuleBrain brain)
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { ApplicationName = mcp ? "DigitalBrain.Mcp" : "IntoChat" });
+        builder.Services.AddGrpc(); // the platform maps the Neurons channel beside its routes
         builder.Configuration[AuthOptions.PostureKey] = "Secured";
         builder.Configuration[IdentityHostOptions.Key(nameof(IdentityHostOptions.CookieName))] = "intochat.session";
         builder.Configuration[IdentityHostOptions.Key(nameof(IdentityHostOptions.ProtectionApplicationName))] = "IntoChat.v1";
