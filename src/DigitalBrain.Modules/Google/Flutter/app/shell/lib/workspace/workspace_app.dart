@@ -94,7 +94,9 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       final controller = WorkspaceRemoteController(
         read: (id) =>
             client.readWorkspace(id, cancelled: _remoteCancelled.future),
-        watch: client.watchWorkspace,
+        watch: client.grpcLive
+            ? client.watchWorkspaceChannel
+            : client.watchWorkspace,
         apply: (state) {
           if (mounted) store.reconcileWorkspace(project, state);
         },
@@ -529,6 +531,10 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
             workspace,
             'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}',
           ),
+          watch: client.grpcLive
+              ? (kind, name) =>
+                    client.watchNode(workspace, kind, name).map((_) {})
+              : null,
           onActivate: (result) => _accept(result),
           onAction: (event) async {
             await client.appRequest(workspace, 'event', body: event);
@@ -746,6 +752,10 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
                 project.id,
                 'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}',
               ),
+              watch: client.grpcLive
+                  ? (kind, name) =>
+                        client.watchNode(project.id, kind, name).map((_) {})
+                  : null,
               enabled: false,
             ),
       watchBrain: client == null
