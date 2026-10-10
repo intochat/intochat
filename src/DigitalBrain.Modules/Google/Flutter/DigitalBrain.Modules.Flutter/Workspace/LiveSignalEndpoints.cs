@@ -4,6 +4,8 @@ using System.Text.Json.Serialization;
 using System.Threading.Channels;
 using DigitalBrain.Apps;
 using DigitalBrain.Apps.Signals;
+using DigitalBrain.Circles;
+using DigitalBrain.Circles.Signals;
 using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.Aspire;
 using Microsoft.AspNetCore.Builder;
@@ -35,6 +37,7 @@ internal static class LiveSignalEndpoints
     [
         Feed<ClusterChanged>(static (brain, brainId, _) => Single(brain.Get<ICluster>(ICluster.Key(brainId)))),
         Feed<AppActivity>(Apps),
+        Feed<CircleTouched>(static (brain, brainId, _) => Single(brain.Get<ICircles>(ICircles.Key(brainId)))),
     ];
 
     private static async IAsyncEnumerable<INeuron> Single(INeuron neuron) { await Task.CompletedTask; yield return neuron; }

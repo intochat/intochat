@@ -193,9 +193,6 @@ final class DigitalBrainUiClient {
     );
   }
 
-  @Deprecated('The infrastructure endpoint is gone; use watchCluster.')
-  Future<List<Object>> readInfrastructure(String brainId) async => const [];
-
   /// The route that publishes an open request; the app answers through neurons, never here.
   static String appOpenPath(String brainId, String appId) =>
       appRequestPath(brainId, appId);
@@ -372,6 +369,14 @@ final class DigitalBrainUiClient {
   Stream<ClusterChanged> watchCluster(String brainId) => watchLive(brainId, [
     'ClusterChanged',
   ]).map((envelope) => ClusterChanged.fromJson(envelope.payload));
+
+  Stream<AppActivity> watchActivity(String brainId) => watchLive(brainId, [
+    'AppActivity',
+  ]).map((envelope) => AppActivity.fromJson(envelope.payload));
+
+  Stream<CircleTouched> watchCircles(String brainId) => watchLive(brainId, [
+    'CircleTouched',
+  ]).map((envelope) => CircleTouched.fromJson(envelope.payload));
 
   Stream<Map<String, dynamic>> _serverEvents(String path, String unavailable) {
     final abort = Completer<void>();

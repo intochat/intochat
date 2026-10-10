@@ -67,3 +67,36 @@ final class LiveEnvelope {
     payload: Map<String, dynamic>.from(json['payload'] as Map? ?? const {}),
   );
 }
+
+// Mirrors the AppActivity signal: what one app is doing right now. State is an Ino presence name.
+final class AppActivity {
+  const AppActivity({
+    required this.app,
+    required this.state,
+    required this.detail,
+  });
+  final String app, state, detail;
+
+  factory AppActivity.fromJson(Map<String, dynamic> json) => AppActivity(
+    app: json['app'] as String? ?? '',
+    state: json['state'] as String? ?? 'idle',
+    detail: json['detail'] as String? ?? '',
+  );
+}
+
+// Mirrors the CircleTouched signal: something changed in one of the brain's circles.
+// Kind is changed, invited, spoke or left.
+final class CircleTouched {
+  const CircleTouched({
+    required this.name,
+    required this.owner,
+    required this.kind,
+  });
+  final String name, owner, kind;
+
+  factory CircleTouched.fromJson(Map<String, dynamic> json) => CircleTouched(
+    name: json['name'] as String? ?? '',
+    owner: json['owner'] as String? ?? '',
+    kind: json['kind'] as String? ?? 'changed',
+  );
+}

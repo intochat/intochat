@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Channels;
+using DigitalBrain.Circles.Signals;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Framework;
 using DigitalBrain.Testing.Module;
@@ -45,6 +46,24 @@ public sealed class LiveSignalFacts
         Assert.Equal("Beat", envelope.RootElement.GetProperty("type").GetString());
         Assert.Equal("beater-live", envelope.RootElement.GetProperty("publisher").GetString());
         Assert.Equal(7, envelope.RootElement.GetProperty("payload").GetProperty("pulse").GetInt32());
+    }
+
+    [Fact]
+    public async Task ACircleTouchedSignalArrivesAsAnEnvelope()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        var feed = LiveSignalEndpoints.Feed<CircleTouched>((b, _, c) => Keys(b, ["toucher-live"], null, c));
+        Assert.Equal("CircleTouched", feed.Type);
+        await using var stream = Open(brain, [feed], ct);
+        var next = stream.MoveNextAsync().AsTask();
+        await Task.Delay(300, ct);
+        await brain.Get<IBeater>("toucher-live").Touch("club", "ann", "spoke");
+        Assert.True(await next.WaitAsync(TimeSpan.FromSeconds(10), ct));
+        using var envelope = JsonDocument.Parse(stream.Current);
+        Assert.Equal("CircleTouched", envelope.RootElement.GetProperty("type").GetString());
+        Assert.Equal("spoke", envelope.RootElement.GetProperty("payload").GetProperty("kind").GetString());
+        Assert.Equal("club", envelope.RootElement.GetProperty("payload").GetProperty("name").GetString());
     }
 
     [Fact]
@@ -114,20 +133,21 @@ public sealed class LiveSignalFacts
     }
 
     [Fact]
-    public void ClusterAndAppActivityAreTheLiveFeeds()
-        => Assert.Equal(["ClusterChanged", "AppActivity"], LiveSignalEndpoints.Feeds.Select(feed => feed.Type));
+    public void ClusterAppActivityAndCircleTouchedAreTheLiveFeeds()
+        => Assert.Equal(["ClusterChanged", "AppActivity", "CircleTouched"], LiveSignalEndpoints.Feeds.Select(feed => feed.Type));
 }
 
 [GenerateSerializer, Alias("test.beat")] public sealed record Beat([property: Id(0)] int Pulse) : Signal;
 
 [Alias("test.beater"), Orleans.Metadata.DefaultGrainType("test.beater")]
-public interface IBeater : INeuron { Task Beat(int pulse); }
+public interface IBeater : INeuron { Task Beat(int pulse); Task Touch(string name, string owner, string kind); }
 
 [GrainType("test.beater")]
 public sealed class Beater : Neuron, IBeater, IRetainsSignals
 {
     private Beat? last;
     public async Task Beat(int pulse) { last = new Beat(pulse) { Publisher = this.GetPrimaryKeyString() }; await PublishAsync(new Beat(pulse)); }
+    public Task Touch(string name, string owner, string kind) => PublishAsync(new CircleTouched(name, owner, kind));
     public Task<RetainedSignal[]> Retained(string signal, long since)
         => Task.FromResult<RetainedSignal[]>(signal == nameof(Beat) && last is not null ? [new RetainedSignal(1, last)] : []);
 }
