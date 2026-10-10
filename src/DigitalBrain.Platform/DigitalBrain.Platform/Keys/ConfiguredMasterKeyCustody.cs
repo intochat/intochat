@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using DigitalBrain.Platform.Mesh;
+using DigitalBrain.Framework.Parts;
 
 namespace DigitalBrain.Platform.Keys;
 

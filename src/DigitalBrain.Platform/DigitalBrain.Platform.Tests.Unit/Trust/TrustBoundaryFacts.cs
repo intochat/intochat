@@ -1,5 +1,6 @@
 using System.Reflection;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Parts;
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Framework.Platform.Marketplace;

@@ -40,14 +40,15 @@ public static class PlatformHosting
         services.AddOptions<Parts.PartsOptions>().BindConfiguration(Parts.PartsOptions.Key)
             .Validate(parts => { parts.Validate(); return true; }).ValidateOnStart();
         services.TryAddSingleton(TimeProvider.System);
-        services.TryAddSingleton(provider => Sequencer.MachineIdentity.LoadOrCreate(Path.Combine(
+        services.TryAddSingleton<DigitalBrain.Framework.Parts.IMachineSigningKey>(provider => Sequencer.FileMachineSigningKey.LoadOrCreate(Path.Combine(
             provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<Parts.PartsOptions>>().Value.MachineDirectory, "identity.key")));
+        services.TryAddSingleton(provider => new Sequencer.MachineIdentity(provider.GetRequiredService<DigitalBrain.Framework.Parts.IMachineSigningKey>()));
         // R75: the identity key is the machine's; what it remembers of a trust deployment lives in that deployment's folder.
         services.TryAddSingleton<Trust.TrustDeployment>();
         services.TryAddSingleton(provider => new Sequencer.SeenVersions(() => Path.Combine(
             provider.GetRequiredService<Trust.TrustDeployment>().Directory, "seen.json")));
         // The custody root is the same configured master key the owner-key wrapper derives from.
-        services.TryAddSingleton<Keys.IMasterKeyCustody>(provider => new Keys.ConfiguredMasterKeyCustody(
+        services.TryAddSingleton<DigitalBrain.Framework.Parts.IMasterKeyCustody>(provider => new Keys.ConfiguredMasterKeyCustody(
             System.Text.Encoding.UTF8.GetBytes(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MasterKeyOptions>>().Value.MasterKey)));
         services.TryAddSingleton<DigitalBrain.Framework.Parts.IPartKeys, Keys.PartKeys>();
         // The machine reaches the trust grains only through these clients; Stage A hosts them in this silo.

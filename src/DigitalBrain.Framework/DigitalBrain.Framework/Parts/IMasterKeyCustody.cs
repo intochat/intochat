@@ -1,8 +1,8 @@
-namespace DigitalBrain.Platform.Keys;
+namespace DigitalBrain.Framework.Parts;
 
 // Holds each user's master key (Q3, Q6). Callers hand it secrets to wrap; the master key never leaves it.
-// Stage A derives it from a configured root; Task 19 moves custody into the machine's TPM.
-internal interface IMasterKeyCustody
+// The platform's default derives it from a configured root; a per-OS module (Windows: the TPM) holds it in hardware.
+public interface IMasterKeyCustody
 {
     byte[] Wrap(string accountId, string context, byte[] secret);
 
