@@ -74,8 +74,8 @@ var features = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..
 var uiPort = builder.Configuration.GetValue(UiPortKey, 5080);
 var mcpPort = builder.Configuration.GetValue(McpPortKey, 5081);
 
-// Each role runs two named instances ({role}-a, {role}-b) on dynamic ports behind a YARP front on the fixed
-// port. First boot runs from source; once a candidate is promoted, {repo}/.digitalbrain/live.json names the
+// Each role runs named instances ({role}-a, {role}-b) on dynamic ports behind a YARP front on the fixed port;
+// the MCP role runs two, the OS role one (below). First boot runs from source; once a candidate is promoted, {repo}/.digitalbrain/live.json names the
 // published build every instance runs, and a restart moves an instance onto the next one.
 var workdir = AspireModuleHosting.WorkdirOf(builder);
 // While the part log is on, one OS silo is the own machine (R23): two Role=Own silos with separate machine
