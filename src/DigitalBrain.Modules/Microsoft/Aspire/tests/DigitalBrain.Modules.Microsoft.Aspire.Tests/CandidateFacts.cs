@@ -40,9 +40,11 @@ public sealed class CandidateFacts
         await candidate.Propose("os-runtime", "change", Plan);
         Assert.Equal(CandidateStage.Healthy, (await candidate.Start()).Stage);
         Assert.Equal(CandidateStage.Verified, (await candidate.Verify()).Stage);
-        var final = await candidate.Promote();
+        Assert.Equal(CandidateStage.Promoting, (await candidate.Promote()).Stage);
+        await brain.DeactivateAsync(brain.Get<ICluster>(ICluster.Key("owner")), ct);
+        await brain.Get<ICluster>(ICluster.Key("owner")).Read();
 
-        Assert.Equal(CandidateStage.Promoted, final.Stage);
+        Assert.Equal(CandidateStage.Promoted, (await candidate.Read()).Stage);
         Assert.Equal("sha0001", (await promoted.NextAsync(ct: ct)).Sha);
         Assert.Equal("sha0001", cluster.Current);
         Assert.Equal(1, cluster.Restarts);
@@ -76,7 +78,7 @@ public sealed class CandidateFacts
         await candidate.Promote();
         var again = await candidate.Promote();
 
-        Assert.Equal(CandidateStage.Promoted, again.Stage);
+        Assert.Equal(CandidateStage.Promoting, again.Stage);
         Assert.Equal(1, cluster.Restarts);
     }
 

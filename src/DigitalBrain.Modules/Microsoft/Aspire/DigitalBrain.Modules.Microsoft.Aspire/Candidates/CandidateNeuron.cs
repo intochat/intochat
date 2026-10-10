@@ -99,9 +99,10 @@ internal sealed class CandidateNeuron(
         if (Snapshot.Stage != CandidateStage.Verified) { throw new InvalidOperationException($"Candidate {Sha} is {Snapshot.Stage}; only a Verified candidate can be promoted."); }
         await Move(CandidateStage.Promoting, Snapshot, null);
         await host.Commit(Sha, Snapshot.Branch, CancellationToken.None);
-        // The silo running this grain may die inside Restart; the cluster calls Finish once the new build is up.
-        await LiveCluster.Restart(Sha);
-        return await Finish();
+        // The silos restart onto the build after Restart returns, this one among them: finishing here would race
+        // its own shutdown (seen live: Remove killed mid-way). The new build's cluster activation calls Finish.
+        var cluster = await LiveCluster.Restart(Sha);
+        return cluster.Stage == ClusterStage.Steady && cluster.CurrentSha == Sha ? await Finish() : Describe();
     }
 
     public async Task<CandidateSnapshot> Finish()
