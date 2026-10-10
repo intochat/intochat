@@ -30,8 +30,9 @@ public sealed class OwnerProvisioningFacts
             Assert.Equal(MemberRole.Owner, owner.Role);
             Assert.Null(await authority.Membership("os"));
         }
-        // The handler reached every brain's authority while the brain was being born.
-        Assert.Equal(3, handler.Decisions.Count);
+        // The handler reached every brain's authority while the brain was being born: the three people's and the
+        // owner brain the machine bears at boot (R59).
+        Assert.Equal(4, handler.Decisions.Count);
     }
 
     [Fact]

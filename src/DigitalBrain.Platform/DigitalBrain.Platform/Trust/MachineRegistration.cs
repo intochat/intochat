@@ -23,7 +23,9 @@ internal sealed class MachineRegistration(MachineRegistrar registrar, IIdentityC
             var owner = AccountSession.DefaultLogin;
             // Binding first: the signed provisioning is honoured only from a machine bound to the account (R63).
             await registrar.Bind(owner);
-            await identity.ProvisionOwner(new Member { PrincipalId = owner, AccountId = owner, BrainId = owner, Role = MemberRole.Owner, DisplayName = owner });
+            // A fresh store's owner brain is born here, so its creation handlers (the OS defaults, the features)
+            // run at boot rather than waiting for a first call.
+            await births.Born(await identity.ProvisionOwner(new Member { PrincipalId = owner, AccountId = owner, BrainId = owner, Role = MemberRole.Owner, DisplayName = owner }));
             return;
         }
         // Basic bootstrap is an explicit owner of one default scope, never a wildcard bypass.
