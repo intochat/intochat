@@ -27,28 +27,37 @@ public sealed class AspireCliClusterHostFacts : IDisposable
         var runner = new RecordingRunner("""
             info: something
             {"resources":[
-              {"name":"OperatingSystem-x1","displayName":"OperatingSystem","state":"Running","healthStatus":"Healthy"},
-              {"name":"digitalbrain-mcp-y2","displayName":"digitalbrain-mcp","state":"Running","healthStatus":"Healthy"}]}
+              {"name":"OperatingSystem-b-x1","displayName":"OperatingSystem-b","state":"Running","healthStatus":"Healthy"},
+              {"name":"OperatingSystem-a-x2","displayName":"OperatingSystem-a","state":"Starting"},
+              {"name":"OperatingSystem-front-x3","displayName":"OperatingSystem-front","state":"Running","healthStatus":"Healthy"},
+              {"name":"OperatingSystem-rebuilder-x4","displayName":"OperatingSystem-rebuilder","state":"NotStarted"},
+              {"name":"digitalbrain-mcp-a-y2","displayName":"digitalbrain-mcp-a","state":"Running","healthStatus":"Healthy"}]}
             """);
         var host = new AspireCliClusterHost(runner, _ => Task.FromResult(workdir));
         await host.SetLive("abc1234", ct);
 
         var silos = await host.Silos(ct);
 
-        Assert.Equal([new SiloView("OperatingSystem-x1", "abc1234", "Running", "Healthy")], silos);
+        Assert.Equal([new SiloView("OperatingSystem-a", "abc1234", "Starting", null), new SiloView("OperatingSystem-b", "abc1234", "Running", "Healthy")], silos);
         Assert.Equal(["describe", "--format", "Json", "--apphost"], runner.Calls.Single().Take(4));
     }
 
     [Fact]
-    public async Task RestartingRestartsTheMcpServerBeforeTheSiloThatAsked()
+    public async Task RestartingRestartsTheMcpServersBeforeTheSilosAndTheSiloThatAskedLast()
     {
-        var runner = new RecordingRunner("");
-        var host = new AspireCliClusterHost(runner, _ => Task.FromResult(workdir));
+        var runner = new RecordingRunner("""
+            {"resources":[
+              {"name":"OperatingSystem-a-x1","displayName":"OperatingSystem-a"},{"name":"OperatingSystem-b-x2","displayName":"OperatingSystem-b"},
+              {"name":"OperatingSystem-front-x3","displayName":"OperatingSystem-front"},
+              {"name":"digitalbrain-mcp-b-y1","displayName":"digitalbrain-mcp-b"},{"name":"digitalbrain-mcp-a-y2","displayName":"digitalbrain-mcp-a"}]}
+            """);
+        var host = new AspireCliClusterHost(runner, _ => Task.FromResult(workdir), "OperatingSystem-a");
 
         await host.RestartSilos(TestContext.Current.CancellationToken);
 
-        Assert.Equal([["resource", "digitalbrain-mcp", "restart"]], runner.Calls.Select(call => call.Take(3).ToArray()));
-        Assert.Equal([["resource", "OperatingSystem", "restart"]], runner.Detached.Select(call => call.Take(3).ToArray()));
+        Assert.Equal([["describe", "--format", "Json"], ["resource", "digitalbrain-mcp-a", "restart"], ["resource", "digitalbrain-mcp-b", "restart"], ["resource", "OperatingSystem-b", "restart"]],
+            runner.Calls.Select(call => call.Take(3).ToArray()));
+        Assert.Equal([["resource", "OperatingSystem-a", "restart"]], runner.Detached.Select(call => call.Take(3).ToArray()));
     }
 
     [Fact]

@@ -25,7 +25,7 @@ public static class AccountSession
     private const int MaxEncodedCredentialChars = 1024;
 
     // Probed by the shell's login screen and by container probes; never gated.
-    private static readonly string[] AnonymousPaths = ["/health", "/alive"];
+    private static readonly string[] AnonymousPaths = ["/health", "/ready", "/alive"];
 
     public static WebApplication UseAccountSession(this WebApplication app)
     {

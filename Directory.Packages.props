@@ -25,6 +25,7 @@
     <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.6.0" />
     <PackageVersion Include="Aspire.Hosting.Orleans" Version="13.6.0" />
     <PackageVersion Include="Aspire.Hosting.Qdrant" Version="13.6.0" />
+    <PackageVersion Include="Aspire.Hosting.Yarp" Version="13.6.0" />
     <PackageVersion Include="Aspire.Hosting.ClickHouse" Version="13.5.3" />
     <PackageVersion Include="Aspire.Azure.Data.Tables" Version="13.6.0" />
     <PackageVersion Include="Aspire.Azure.Storage.Blobs" Version="13.6.0" />

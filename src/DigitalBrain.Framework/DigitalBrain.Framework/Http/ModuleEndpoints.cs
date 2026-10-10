@@ -10,7 +10,12 @@ public static class ModuleEndpoints
     {
         // A composed host always answers for its own liveness; deployments health-check these
         // paths, so they are not optional plumbing a host can forget.
-        app.MapHealthChecks("/health").AllowAnonymous();
+        // /ready adds the "drain" check (ServiceDefaults): a stopping instance leaves its load balancer first.
+        app.MapHealthChecks("/health", new HealthCheckOptions
+        {
+            Predicate = static registration => !registration.Tags.Contains("drain"),
+        }).AllowAnonymous();
+        app.MapHealthChecks("/ready").AllowAnonymous();
         app.MapHealthChecks("/alive", new HealthCheckOptions
         {
             Predicate = static registration => registration.Tags.Contains("live"),

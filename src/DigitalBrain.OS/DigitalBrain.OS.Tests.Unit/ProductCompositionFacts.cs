@@ -42,7 +42,7 @@ public sealed class ProductCompositionFacts
     {
         await using var appHost = await DistributedApplicationTestingBuilder.CreateAsync<AppHost::Projects.DigitalBrain_AppHost>(
             ["Parameters:Modules-digitalbrain-master-key=synthetic-composition-test-key-32chars"], TestContext.Current.CancellationToken);
-        var runtime = appHost.Resources.Single(resource => resource.Name == "OperatingSystem");
+        var runtime = appHost.Resources.Single(resource => resource.Name == "OperatingSystem-a");
         var environment = new Dictionary<string, object>();
         var context = new EnvironmentCallbackContext(appHost.ExecutionContext, runtime, environment, TestContext.Current.CancellationToken);
         foreach (var callback in runtime.Annotations.OfType<EnvironmentCallbackAnnotation>()) { await callback.Callback(context); }
@@ -70,7 +70,7 @@ public sealed class ProductCompositionFacts
         Assert.DoesNotContain("registry", catalogModules);
         Assert.Contains(appHost.Resources, resource => resource.Name == "Modules-openrouter-api-key"
             && resource is ParameterResource { Secret: true });
-        var runtime = appHost.Resources.Single(resource => resource.Name == "OperatingSystem");
+        var runtime = appHost.Resources.Single(resource => resource.Name == "OperatingSystem-a");
         var environment = new Dictionary<string, object>();
         var context = new EnvironmentCallbackContext(appHost.ExecutionContext, runtime, environment, TestContext.Current.CancellationToken);
         foreach (var callback in runtime.Annotations.OfType<EnvironmentCallbackAnnotation>())

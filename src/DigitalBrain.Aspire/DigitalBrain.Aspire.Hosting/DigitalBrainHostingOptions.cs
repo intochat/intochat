@@ -7,6 +7,8 @@ public sealed record DigitalBrainHostingOptions
     public const string ServiceIdKey = "Orleans:ServiceId";
     public const string ClusterIdKey = "Orleans:ClusterId";
     public const string GrainStateContainerKey = DigitalBrain.Framework.DigitalBrainNames.GrainStateContainerKey;
+    // Read by ServiceDefaults (Drain): how long a stopping instance keeps serving after /ready turns Unhealthy.
+    public const string DrainDelayKey = "DigitalBrain:Http:DrainDelay";
     public const string PersistentStorageKey = "DigitalBrain:Hosting:PersistentStorage";
     public const string EnvironmentKey = "DigitalBrain:Hosting:Environment";
 

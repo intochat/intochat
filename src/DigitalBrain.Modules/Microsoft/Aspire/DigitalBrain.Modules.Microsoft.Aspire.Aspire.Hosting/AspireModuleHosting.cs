@@ -6,6 +6,7 @@ using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.Aspire.Cluster;
 using global::Aspire.Hosting;
 using global::Aspire.Hosting.ApplicationModel;
+using global::Aspire.Hosting.Yarp;
 
 namespace DigitalBrain.Microsoft.Aspire;
 
@@ -62,20 +63,79 @@ public sealed class AspireModuleHosting : ModuleHosting<DigitalBrain.Microsoft.A
             .WithOtlpExporter();
     }
 
-    // The OS silo and the MCP client each run Replicas processes behind one fixed host port: Aspire's proxy owns
-    // the port and balances across replicas, each listening on its own internal port (ASPNETCORE_URLS for a
-    // project, `env` for an executable). Orleans silo/gateway ports come per replica from the brain reference.
-    // Aspire 13.6 honours the replica count only for project resources: a live-build executable still runs once.
-    public const int Replicas = 2;
+    // The OS silo and the MCP client each run as two named instances, {role}-a and {role}-b, on dynamic ports
+    // (Aspire 13.6 replicates only project resources, and a live build is an executable). A YARP front owns the
+    // role's fixed host port and balances across them; its active health check takes an instance out while
+    // it restarts, so the port stays served during a roll.
+    public static readonly string[] Instances = ["a", "b"];
+    // ServiceDefaults' readiness: /health plus the drain of a stopping instance.
+    public const string HealthPath = "/ready";
 
-    public static IResourceBuilder<T> Replicated<T>(IResourceBuilder<T> resource, int port, string? env = null) where T : IResourceWithEndpoints
+    public static string[] InstanceNames(string role) => [.. Instances.Select(instance => $"{role}-{instance}")];
+
+    // An instance listens on dynamic ports only: a project's launch profile pins its applicationUrl ports, which
+    // two instances of the same project would share.
+    public static IResourceBuilder<T> OnDynamicPorts<T>(IResourceBuilder<T> instance, string? env = null) where T : IResourceWithEndpoints
     {
-        ArgumentNullException.ThrowIfNull(resource);
-        return resource.WithHttpEndpoint(port: port, name: "http", env: env, isProxied: true)
-            .WithAnnotation(new ReplicaAnnotation(Replicas), ResourceAnnotationMutationBehavior.Replace);
+        ArgumentNullException.ThrowIfNull(instance);
+        if (!instance.Resource.Annotations.OfType<EndpointAnnotation>().Any(endpoint => endpoint.Name == "http"))
+        {
+            instance.WithHttpEndpoint(name: "http", env: env);
+        }
+        // Not proxied either: Aspire's proxy keeps accepting while the instance restarts and holds the request,
+        // where a closed port is refused at once and the front moves on to the other instance.
+        foreach (var endpoint in instance.Resource.Annotations.OfType<EndpointAnnotation>())
+        {
+            endpoint.Port = null;
+            endpoint.IsProxied = false;
+        }
+        return instance;
     }
 
-    public const string OtlpHttpEndpoint =Candidates.DockerCandidateHost.OtlpHttpEndpoint;
+    public static string FrontName(string role) => $"{role}-front";
+
+    public static IResourceBuilder<YarpResource> AddFront(IDistributedApplicationBuilder builder, string role, int port, IEnumerable<EndpointReference> instances)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        EndpointReference[] endpoints = [.. instances];
+        var front = builder.AddYarp(FrontName(role))
+            .WithHostPort(port)
+            .WithConfiguration(yarp => yarp.AddRoute("/{**catch-all}", yarp.AddCluster(role, [.. endpoints.Cast<object>()])
+                .WithHealthCheckConfig(new global::Yarp.ReverseProxy.Configuration.HealthCheckConfig
+                {
+                    Active = new global::Yarp.ReverseProxy.Configuration.ActiveHealthCheckConfig { Enabled = true, Path = HealthPath },
+                    Passive = new global::Yarp.ReverseProxy.Configuration.PassiveHealthCheckConfig { Enabled = true },
+                })));
+        // The destinations resolve through service discovery (http://{instance}); the front starts after them. A
+        // stopping instance drains (ServiceDefaults): /ready fails and it keeps serving until the probe has
+        // taken it out of the cluster.
+        foreach (var endpoint in endpoints)
+        {
+            var instance = builder.CreateResourceBuilder(endpoint.Resource);
+            front.WithReference(endpoint).WaitForStart(instance);
+            if (endpoint.Resource is IResourceWithEnvironment)
+            {
+                builder.CreateResourceBuilder((IResourceWithEnvironment)endpoint.Resource).WithEnvironment(DrainDelayVariable, DrainDelay.ToString("c"));
+            }
+        }
+        // Aspire 13.6 writes a TimeSpan of the cluster config as its fields (INTERVAL__TICKS, ...), which YARP's
+        // binder does not read; the probe cadence is set as the section's own value instead.
+        var health = $"REVERSEPROXY__CLUSTERS__cluster_{role}__HEALTHCHECK__";
+        return front
+            .WithEnvironment(health + "ACTIVE__INTERVAL", ProbeInterval.ToString("c"))
+            .WithEnvironment(health + "ACTIVE__TIMEOUT", ProbeTimeout.ToString("c"))
+            .WithEnvironment(health + "PASSIVE__REACTIVATIONPERIOD", Reactivation.ToString("c"));
+    }
+
+    public static readonly TimeSpan ProbeInterval = TimeSpan.FromSeconds(1);
+    // A busy silo answers its probe in more than a second; a timed-out probe counts as a failure.
+    public static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(3);
+    public static readonly TimeSpan Reactivation = TimeSpan.FromSeconds(5);
+    // YARP marks a destination unhealthy after two failed probes (ConsecutiveFailures), so draining covers five.
+    public static readonly TimeSpan DrainDelay = ProbeInterval * 5;
+    public static string DrainDelayVariable => DigitalBrainConfiguration.EnvironmentName(DigitalBrainHostingOptions.DrainDelayKey);
+
+    public const string OtlpHttpEndpoint = Candidates.DockerCandidateHost.OtlpHttpEndpoint;
     public const string AspNetCoreContentRoot = "ASPNETCORE_CONTENTROOT";
     public const string DotnetContentRoot = "DOTNET_CONTENTROOT";
     public const string FeaturesFolder = "features";

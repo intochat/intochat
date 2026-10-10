@@ -71,21 +71,57 @@ public sealed class LiveBuildHostingFacts : IDisposable
         Assert.Equal(new Dictionary<string, string> { [AspireModuleHosting.IntegrationVariable("openrouter", "ApiKey")] = "model-key" }, model);
     }
 
-    [Fact]
-    public void TheSiloRunsTwoReplicasBehindTheFixedPorts()
+    // Each role runs two named instances on dynamic ports; a YARP front owns the fixed port, routes everything to
+    // both instances and health-checks them, so a restarting instance leaves the port served.
+    [Theory]
+    [InlineData("OperatingSystem", 5080)]
+    [InlineData("digitalbrain-mcp", 5081)]
+    public async Task TheSiloRunsTwoReplicasBehindTheFixedPorts(string role, int port)
     {
         SetLive("abc1234");
         var builder = AspireCompositionTest.CreateBuilder();
-        var source = AspireModuleHosting.Replicated(builder.AddExecutable("source", "dotnet", "."), 5080);
-        var live = AspireModuleHosting.Replicated(AspireModuleHosting.AddLiveBuild(builder, workdir, "digitalbrain-mcp", "os", "DigitalBrain.Mcp.dll")!, 5081, "ASPNETCORE_HTTP_PORTS");
+        var instances = AspireModuleHosting.InstanceNames(role)
+            .Select(name => AspireModuleHosting.OnDynamicPorts(AspireModuleHosting.AddLiveBuild(builder, workdir, name, "os", "DigitalBrain.OS.dll")!, "ASPNETCORE_HTTP_PORTS"))
+            .ToArray();
 
-        foreach (var (resource, port) in new[] { (source.Resource, 5080), (live.Resource, 5081) })
+        var front = AspireModuleHosting.AddFront(builder, role, port, instances.Select(instance => instance.GetEndpoint("http")));
+
+        Assert.Equal([role + "-a", role + "-b"], instances.Select(instance => instance.Resource.Name));
+        Assert.All(instances, instance => Assert.Null(Assert.Single(instance.Resource.Annotations.OfType<EndpointAnnotation>()).Port));
+        Assert.Equal(role + "-front", front.Resource.Name);
+        Assert.Equal(port, Assert.Single(front.Resource.Annotations.OfType<EndpointAnnotation>(), endpoint => endpoint.Name == "http").Port);
+        using var app = builder.Build();
+        var environment = await AspireCompositionTest.EnvironmentOf(builder, front.Resource, TestContext.Current.CancellationToken);
+        var cluster = $"REVERSEPROXY__CLUSTERS__cluster_{role}__";
+        Assert.Equal("/{**catch-all}", environment["REVERSEPROXY__ROUTES__route0__MATCH__PATH"]);
+        Assert.Equal($"cluster_{role}", environment["REVERSEPROXY__ROUTES__route0__CLUSTERID"]);
+        Assert.Equal($"http://{role}-a", environment[cluster + "DESTINATIONS__destination1__ADDRESS"]);
+        Assert.Equal($"http://{role}-b", environment[cluster + "DESTINATIONS__destination2__ADDRESS"]);
+        Assert.Equal("/ready", environment[cluster + "HEALTHCHECK__ACTIVE__PATH"]);
+        Assert.Equal("00:00:01", environment[cluster + "HEALTHCHECK__ACTIVE__INTERVAL"]);
+        Assert.Contains($"services__{role}-a__http__0", environment.Keys);
+        Assert.Contains($"services__{role}-b__http__0", environment.Keys);
+        foreach (var instance in instances)
         {
-            Assert.Equal(2, Assert.Single(resource.Annotations.OfType<ReplicaAnnotation>()).Replicas);
-            var http = Assert.Single(resource.Annotations.OfType<EndpointAnnotation>(), endpoint => endpoint.Name == "http");
-            Assert.Equal(port, http.Port);
-            Assert.True(http.IsProxied);
+            var drain = await AspireCompositionTest.EnvironmentOf(builder, instance.Resource, TestContext.Current.CancellationToken);
+            Assert.Equal("00:00:05", drain[AspireModuleHosting.DrainDelayVariable]);
         }
+    }
+
+    // A launch profile's applicationUrl pins ports; two instances of one project would share them.
+    [Fact]
+    public void AnInstanceDropsThePortsItsProfilePinned()
+    {
+        var instance = AspireCompositionTest.CreateBuilder().AddExecutable("OperatingSystem-a", "dotnet", ".")
+            .WithHttpEndpoint(port: 5310, name: "http").WithHttpsEndpoint(port: 60275, name: "https");
+
+        AspireModuleHosting.OnDynamicPorts(instance);
+
+        Assert.All(instance.Resource.Annotations.OfType<EndpointAnnotation>(), endpoint =>
+        {
+            Assert.Null(endpoint.Port);
+            Assert.False(endpoint.IsProxied);
+        });
     }
 
     [Fact]

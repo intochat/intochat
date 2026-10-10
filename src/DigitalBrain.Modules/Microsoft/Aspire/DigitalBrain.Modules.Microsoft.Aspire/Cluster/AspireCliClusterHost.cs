@@ -16,16 +16,19 @@ internal sealed class AspireCliClusterHost : IClusterHost
 
     private readonly IProcessRunner processes;
     private readonly Func<CancellationToken, Task<string>> workdir;
+    private readonly string? self;
 
+    // Aspire names each instance's telemetry after its resource: OTEL_SERVICE_NAME is this silo's instance name.
     public AspireCliClusterHost(IModuleIntegrations<AspireModule> integrations, IProcessRunner processes)
-        : this(processes, ct => Workdir(integrations, ct))
+        : this(processes, ct => Workdir(integrations, ct), Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME"))
     {
     }
 
-    internal AspireCliClusterHost(IProcessRunner processes, Func<CancellationToken, Task<string>> workdir)
+    internal AspireCliClusterHost(IProcessRunner processes, Func<CancellationToken, Task<string>> workdir, string? self = null)
     {
         this.processes = processes;
         this.workdir = workdir;
+        this.self = self;
     }
 
     public async Task<string> CurrentSha(CancellationToken ct) => LiveBuildFile.Read(await workdir(ct))?.Sha ?? string.Empty;
@@ -39,22 +42,45 @@ internal sealed class AspireCliClusterHost : IClusterHost
     public async Task<SiloView[]> Silos(CancellationToken ct)
     {
         var sha = await CurrentSha(ct);
-        using var json = JsonDocument.Parse(JsonPart(await Aspire(["describe", "--format", "Json"], ct)));
-        return [.. Resources(json.RootElement)
-            .Where(resource => Text(resource, "displayName", "name") is { } name && name.StartsWith(SiloResource, StringComparison.Ordinal))
-            .Select(resource => new SiloView(Text(resource, "name", "displayName")!, sha, Text(resource, "state") ?? "Unknown", Text(resource, "healthStatus", "health")))
+        return [.. (await Describe(ct))
+            .Where(resource => Instance(Text(resource, "displayName", "name"), SiloResource))
+            .Select(resource => new SiloView(Text(resource, "displayName", "name")!, sha, Text(resource, "state") ?? "Unknown", Text(resource, "healthStatus", "health")))
             .OrderBy(silo => silo.Name, StringComparer.Ordinal)];
     }
 
-    // The MCP server is an Orleans client of the same build: both restart onto live.json's build. This call
-    // runs inside the silo, so the silo restarts last: its restart ends the caller. Stopping the silo signals
-    // its console, and a CLI sharing that console cancels the restart between stop and start (seen live):
-    // the silo's restart is issued detached and is not awaited.
+    // The MCP servers are Orleans clients of the same build: they restart onto live.json's build first, then the
+    // silos. This call runs inside one silo, so that silo restarts last: its restart ends the caller. Stopping
+    // the silo signals its console, and a CLI sharing that console cancels the restart between stop and start
+    // (seen live): the caller's own restart is issued detached and is not awaited.
     public async Task RestartSilos(CancellationToken ct)
     {
-        await Aspire(["resource", McpResource, "restart"], ct);
-        var repository = await Repository(ct);
-        processes.Detach("aspire", Arguments(repository, ["resource", SiloResource, "restart"]), repository);
+        var names = (await Describe(ct)).Select(resource => Text(resource, "displayName", "name")).OfType<string>().Distinct().Order(StringComparer.Ordinal).ToArray();
+        foreach (var mcp in names.Where(name => Instance(name, McpResource)))
+        {
+            await Aspire(["resource", mcp, "restart"], ct);
+        }
+        var silos = names.Where(name => Instance(name, SiloResource)).ToArray();
+        var own = self is not null && silos.Contains(self) ? self : null;
+        foreach (var silo in silos.Where(name => name != own))
+        {
+            await Aspire(["resource", silo, "restart"], ct);
+        }
+        if (own is not null)
+        {
+            var repository = await Repository(ct);
+            processes.Detach("aspire", Arguments(repository, ["resource", own, "restart"]), repository);
+        }
+    }
+
+    // The AppHost runs each role as named instances {role}-{x}, x a single letter (AspireModuleHosting.Instances);
+    // {role}-front and the rebuilders are not instances.
+    internal static bool Instance(string? name, string role)
+        => name is not null && name.Length == role.Length + 2 && name.StartsWith(role + "-", StringComparison.Ordinal) && char.IsAsciiLetterLower(name[^1]);
+
+    private async Task<JsonElement[]> Describe(CancellationToken ct)
+    {
+        using var json = JsonDocument.Parse(JsonPart(await Aspire(["describe", "--format", "Json"], ct)));
+        return [.. Resources(json.RootElement).Select(resource => resource.Clone())];
     }
 
     // `otel spans` lists one JSON object per span; `source` is the exporting service's name (its OTEL service.name).

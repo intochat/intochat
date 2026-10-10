@@ -70,37 +70,39 @@ var features = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..
 var uiPort = builder.Configuration.GetValue(UiPortKey, 5080);
 var mcpPort = builder.Configuration.GetValue(McpPortKey, 5081);
 
-// Both resources run AspireModuleHosting.Replicas processes behind the fixed ports (Replicated).
-// First boot runs from source; once a candidate is promoted, {repo}/.digitalbrain/live.json names the
-// published build both resources run, and a restart moves them onto the next one.
-var liveOs = AspireModuleHosting.AddLiveBuild(builder, AspireModuleHosting.WorkdirOf(builder), "OperatingSystem", "os", "DigitalBrain.OS.dll");
-var runtime = liveOs is null
-    ? Silo(AspireModuleHosting.Replicated(builder.AddProject<Projects.DigitalBrain_OS>("OperatingSystem"), uiPort)
-        .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features))
-    // A live build reads the features published with it (AddLiveBuild), not the working tree's.
-    : Silo(AspireModuleHosting.Replicated(liveOs, uiPort, "ASPNETCORE_HTTP_PORTS"));
+// Each role runs two named instances ({role}-a, {role}-b) on dynamic ports behind a YARP front on the fixed
+// port. First boot runs from source; once a candidate is promoted, {repo}/.digitalbrain/live.json names the
+// published build every instance runs, and a restart moves an instance onto the next one.
+var workdir = AspireModuleHosting.WorkdirOf(builder);
+var silos = AspireModuleHosting.InstanceNames("OperatingSystem").Select(name =>
+    AspireModuleHosting.AddLiveBuild(builder, workdir, name, "os", "DigitalBrain.OS.dll") is { } live
+        // A live build reads the features published with it (AddLiveBuild), not the working tree's.
+        ? Silo(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS"))
+        : Silo(AspireModuleHosting.OnDynamicPorts(builder.AddProject<Projects.DigitalBrain_OS>(name))
+            .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features))).ToArray();
+AspireModuleHosting.AddFront(builder, "OperatingSystem", uiPort, silos.Select(silo => silo.GetEndpoint("http")));
 
-var liveMcp = AspireModuleHosting.AddLiveBuild(builder, AspireModuleHosting.WorkdirOf(builder), "digitalbrain-mcp", "mcp", "DigitalBrain.Mcp.dll");
-if (liveMcp is null)
-{
-    Mcp(AspireModuleHosting.Replicated(builder.AddProject<Projects.DigitalBrain_Mcp>("digitalbrain-mcp"), mcpPort));
-}
-else
-{
-    Mcp(AspireModuleHosting.Replicated(liveMcp, mcpPort, "ASPNETCORE_HTTP_PORTS"));
-}
+var mcps = AspireModuleHosting.InstanceNames("digitalbrain-mcp").Select(name =>
+    AspireModuleHosting.AddLiveBuild(builder, workdir, name, "mcp", "DigitalBrain.Mcp.dll") is { } live
+        ? Mcp(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS"))
+        : Mcp(AspireModuleHosting.OnDynamicPorts(builder.AddProject<Projects.DigitalBrain_Mcp>(name)))).ToArray();
+AspireModuleHosting.AddFront(builder, "digitalbrain-mcp", mcpPort, mcps.Select(mcp => mcp.GetEndpoint("http")));
 
 builder.Build().Run();
 
-IResourceBuilder<IResource> Silo<T>(IResourceBuilder<T> silo) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
+IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
 {
     silo.WithReference(digitalBrain)
         .WaitFor(cookieProtection)
         .WithHttpHealthCheck("/health", endpointName: "http");
-    return builder.CreateResourceBuilder<IResource>(silo.Resource);
+    return builder.CreateResourceBuilder<IResourceWithEndpoints>(silo.Resource);
 }
 
-void Mcp<T>(IResourceBuilder<T> mcp) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
-    => mcp.WithReference(digitalBrain.AsClient(shareHttpIdentity: true))
-        .WithHttpHealthCheck("/health", endpointName: "http")
-        .WaitFor(runtime);
+// The MCP server is an Orleans client: it starts once every silo instance is up.
+IResourceBuilder<IResourceWithEndpoints> Mcp<T>(IResourceBuilder<T> mcp) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
+{
+    mcp.WithReference(digitalBrain.AsClient(shareHttpIdentity: true))
+        .WithHttpHealthCheck("/health", endpointName: "http");
+    foreach (var silo in silos) { mcp.WaitFor(silo); }
+    return builder.CreateResourceBuilder<IResourceWithEndpoints>(mcp.Resource);
+}

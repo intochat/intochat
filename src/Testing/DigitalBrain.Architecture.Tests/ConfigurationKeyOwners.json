@@ -16,5 +16,6 @@
   "DigitalBrain.Platform.Tests.Unit/Connections/OAuthFlowFacts.cs",
   "DigitalBrain.Platform.Tests.Unit/Connections/TwoConnectorFacts.cs",
   "DigitalBrain.ServiceDefaults/Configuration/ServiceTelemetryOptions.cs",
-  "DigitalBrain.Platform/Compute/FeeOptions.cs"
+  "DigitalBrain.Platform/Compute/FeeOptions.cs",
+  "DigitalBrain.ServiceDefaults/Drain.cs"
 ]
