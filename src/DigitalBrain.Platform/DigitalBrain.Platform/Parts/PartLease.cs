@@ -31,7 +31,10 @@ internal sealed class PartLease
 
     public bool NeedsRenewal => _expiry - _time.GetUtcNow() < (_options.Role == MachineRole.Own ? _options.OwnLease / 2 : _options.RenewBefore);
 
-    private string Hash => HeadRecord.HashOf(_part.Value);
+    // Past its expiry the part is anyone's to take; only the next CAS can tell whether this machine still holds it.
+    public bool Expired => _expiry <= _time.GetUtcNow();
+
+    private string Hash =>HeadRecord.HashOf(_part.Value);
 
     private string Context => $"part-head|{_part.Value}";
 

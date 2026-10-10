@@ -1,0 +1,341 @@
+using DigitalBrain.Framework.Mesh;
+using DigitalBrain.Framework.Parts;
+using DigitalBrain.Platform.Sequencer;
+using Microsoft.Extensions.Logging;
+using Orleans.Serialization;
+
+namespace DigitalBrain.Platform.Parts;
+
+internal sealed record StoredRecord(byte[] Record, long ETagSeq);
+
+// One part's log on the machine that holds its lease (Q18, Q26). Changes are group-committed as sealed mesh
+// segments chained by Prev, and a change is durable only once a head the sequencer accepted names its segment.
+// An own machine journals first and acknowledges from the journal, so it keeps writing through an outage.
+internal sealed class PartLog : IAsyncDisposable
+{
+    private readonly PartId _part;
+    private readonly byte[] _key;
+    private readonly PartLease _lease;
+    private readonly IMeshStore _mesh;
+    private readonly Serializer _serializer;
+    private readonly PartsOptions _options;
+    private readonly TimeProvider _time;
+    private readonly ILogger<PartLog> _logger;
+    private readonly PartJournal? _journal;
+    private readonly Dictionary<(string GrainId, string StateName), StoredRecord> _records = [];
+    private readonly List<LogEntry> _since = [];
+    private readonly List<MeshRef> _chain = [];
+    // Only while opening: the accepted entries a journal is checked against.
+    private readonly Dictionary<long, LogEntry> _replayed = [];
+    private readonly List<Pending> _queue = [];
+    private readonly SemaphoreSlim _flushing = new(1, 1);
+    private readonly CancellationTokenSource _stop = new();
+    private TaskCompletionSource _drained = Completed();
+    private Task _renewing = Task.CompletedTask;
+    private TimeSpan _backoff = TimeSpan.FromSeconds(1);
+    private long _queuedBytes;
+    private long _nextSeq;
+    private long _applied;
+    private Exception? _closed;
+    private bool _disposed;
+
+    private PartLog(PartId part, byte[] key, PartLease lease, IMeshStore mesh, Serializer serializer, PartsOptions options, TimeProvider time,
+        ILogger<PartLog> logger, PartJournal? journal) =>
+        (_part, _key, _lease, _mesh, _serializer, _options, _time, _logger, _journal) = (part, key, lease, mesh, serializer, options, time, logger, journal);
+
+    private sealed record Pending(LogEntry Entry, TaskCompletionSource<long> Committed);
+
+    public long LastSeq
+    {
+        get { lock (_records) { return _applied; } }
+    }
+
+    public static async Task<PartLog> Open(PartId part, byte[] key, PartLease lease, IMeshStore mesh, Serializer serializer, PartsOptions options,
+        TimeProvider time, ILogger<PartLog> logger, CancellationToken ct)
+    {
+        var journal = options.Role == MachineRole.Own
+            ? new PartJournal(Path.Combine(options.MachineDirectory, "journal", $"{HeadRecord.HashOf(part.Value)}.log"), key, serializer)
+            : null;
+        var log = new PartLog(part, key, lease, mesh, serializer, options, time, logger, journal);
+        try
+        {
+            await log.Replay(ct);
+            log.Recover();
+        }
+        catch
+        {
+            await log.ReleaseQuietly();
+            throw;
+        }
+        log._renewing = log.RenewLoop();
+        return log;
+    }
+
+    public StoredRecord? Read(string grainId, string stateName)
+    {
+        lock (_records) { return _records.GetValueOrDefault((grainId, stateName)); }
+    }
+
+    public IReadOnlyList<LogEntry> SignalsSince(long seq)
+    {
+        lock (_records) { return [.. _since.Where(e => e.Seq > seq && e.Signals.Length > 0)]; }
+    }
+
+    public Task<long> Append(string grainId, string stateName, RecordChange change, byte[] record, Signal[] signals)
+    {
+        Pending pending;
+        bool first, full;
+        lock (_queue)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_closed is not null) { return Task.FromException<long>(_closed); }
+            var entry = new LogEntry { Seq = _nextSeq, GrainId = grainId, StateName = stateName, Change = change, Record = record, Signals = signals };
+            if (_journal is not null)
+            {
+                _journal.Append(entry);
+                Apply(entry);
+            }
+            _nextSeq++;
+            pending = new Pending(entry, new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously));
+            first = Enqueue(pending);
+            full = _queuedBytes >= _options.BatchBytes;
+        }
+        if (full) { ScheduleFlush(TimeSpan.Zero); }
+        else if (first) { ScheduleFlush(_options.BatchDelay); }
+        return _options.AcknowledgeOnJournal && _journal is not null ? Task.FromResult(pending.Entry.Seq) : pending.Committed.Task;
+    }
+
+    // Completes once every queued change is committed (or failed); asks for a flush now rather than at the next timer.
+    internal Task Flushed()
+    {
+        Task drained;
+        lock (_queue)
+        {
+            if (_queue.Count == 0) { return Task.CompletedTask; }
+            drained = _drained.Task;
+        }
+        ScheduleFlush(TimeSpan.Zero);
+        return drained;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _stop.CancelAsync();
+        await _renewing;
+        bool pending;
+        lock (_queue) { pending = _queue.Count > 0 && _closed is null; }
+        if (pending) { await Flush(); }
+        lock (_queue)
+        {
+            _disposed = true;
+            pending = _queue.Count > 0;
+        }
+        // An own machine with journaled changes the head has not accepted keeps its lease: letting another machine
+        // take the part now would only turn those changes into a conflict.
+        if (_closed is null && !pending) { await ReleaseQuietly(); }
+    }
+
+    private async Task Replay(CancellationToken ct)
+    {
+        var payload = _lease.Payload;
+        if (payload.Snapshot is { } snapshotRef)
+        {
+            var snapshot = _serializer.Deserialize<PartSnapshot>(await _mesh.Read(_key, snapshotRef, ct))!;
+            foreach (var record in snapshot.Records) { _records[(record.GrainId, record.StateName)] = new StoredRecord(record.Record, record.ETagSeq); }
+        }
+        var segments = new List<(MeshRef Ref, LogSegment Segment)>();
+        for (var reference = payload.Head; reference is not null;)
+        {
+            var segment = _serializer.Deserialize<LogSegment>(await _mesh.Read(_key, reference, ct))!;
+            segments.Add((reference, segment));
+            if (segment.FirstSeq <= payload.SnapshotSeq + 1) { break; }
+            reference = segment.Prev;
+        }
+        segments.Reverse();
+        foreach (var (reference, segment) in segments)
+        {
+            _chain.Add(reference);
+            foreach (var entry in segment.Entries.Where(e => e.Seq > payload.SnapshotSeq && e.Seq <= payload.LastSeq))
+            {
+                Apply(entry);
+                _replayed[entry.Seq] = entry;
+            }
+        }
+        _applied = payload.LastSeq;
+        _nextSeq = payload.LastSeq + 1;
+    }
+
+    // Journaled entries the head already covers must be the ones it accepted; the rest must continue right after
+    // it. Anything else means another machine wrote the part meanwhile (Review Focus 2).
+    private void Recover()
+    {
+        var replayed = _replayed.ToDictionary();
+        _replayed.Clear();
+        if (_journal is null) { return; }
+        var lastSeq = _lease.Payload.LastSeq;
+        var journaled = _journal.Read();
+        var conflict = journaled.Where(e => e.Seq <= lastSeq).Any(e => replayed.TryGetValue(e.Seq, out var accepted) && !Same(accepted, e));
+        var rest = journaled.Where(e => e.Seq > lastSeq).ToArray();
+        conflict |= rest.Select((e, i) => e.Seq != lastSeq + 1 + i).Any(gap => gap);
+        if (conflict)
+        {
+            _journal.SetAside();
+            throw new JournalConflictException($"The journal of part {_part} does not continue the head at seq {lastSeq}; another machine wrote the part meanwhile.");
+        }
+        _journal.TrimThrough(lastSeq);
+        lock (_queue)
+        {
+            foreach (var entry in rest)
+            {
+                Apply(entry);
+                Enqueue(new Pending(entry, new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously)));
+            }
+            _nextSeq = lastSeq + 1 + rest.Length;
+        }
+        if (rest.Length > 0) { ScheduleFlush(TimeSpan.Zero); }
+    }
+
+    private static bool Same(LogEntry a, LogEntry b) =>
+        a.GrainId == b.GrainId && a.StateName == b.StateName && a.Change == b.Change && a.Record.AsSpan().SequenceEqual(b.Record) && a.Signals.Length == b.Signals.Length;
+
+    private void Apply(LogEntry entry)
+    {
+        lock (_records)
+        {
+            switch (entry.Change)
+            {
+                case RecordChange.Write: _records[(entry.GrainId, entry.StateName)] = new StoredRecord(entry.Record, entry.Seq); break;
+                case RecordChange.Clear: _records.Remove((entry.GrainId, entry.StateName)); break;
+            }
+            if (entry.Signals.Length > 0) { _since.Add(entry); }
+            _applied = Math.Max(_applied, entry.Seq);
+        }
+    }
+
+    // Caller holds the queue lock. True when this is the first change of a new batch.
+    private bool Enqueue(Pending pending)
+    {
+        var first = _queue.Count == 0;
+        if (first) { _drained = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously); }
+        _queue.Add(pending);
+        _queuedBytes += pending.Entry.Record.Length + 64L * (1 + pending.Entry.Signals.Length);
+        return first;
+    }
+
+    private void ScheduleFlush(TimeSpan delay) => _ = FlushAfter(delay);
+
+    private async Task FlushAfter(TimeSpan delay)
+    {
+        try
+        {
+            if (delay > TimeSpan.Zero) { await Task.Delay(delay, _time, _stop.Token); }
+            else { await Task.Yield(); }
+        }
+        catch (OperationCanceledException) { return; }
+        if (_stop.IsCancellationRequested) { return; }
+        await Flush();
+    }
+
+    private async Task Flush()
+    {
+        await _flushing.WaitAsync();
+        try
+        {
+            Pending[] batch;
+            lock (_queue) { batch = [.. _queue]; }
+            if (batch.Length == 0) { return; }
+            var payload = _lease.Payload;
+            var segment = new LogSegment { FirstSeq = batch[0].Entry.Seq, Entries = [.. batch.Select(p => p.Entry)], Prev = payload.Head };
+            try
+            {
+                var reference = await _mesh.Write(_key, PartSegments.SegmentId(_part, segment.FirstSeq), _serializer.SerializeToArray(segment));
+                await _lease.Commit(new HeadPayload
+                {
+                    Head = reference, Snapshot = payload.Snapshot, SnapshotSeq = payload.SnapshotSeq,
+                    LastSeq = batch[^1].Entry.Seq, SegmentsSinceSnapshot = payload.SegmentsSinceSnapshot + 1,
+                });
+                _chain.Add(reference);
+                if (_journal is null) { foreach (var pending in batch) { Apply(pending.Entry); } }
+                lock (_queue)
+                {
+                    _queue.RemoveRange(0, batch.Length);
+                    _queuedBytes = _queue.Sum(p => p.Entry.Record.Length + 64L * (1 + p.Entry.Signals.Length));
+                    if (_queue.Count == 0) { _drained.TrySetResult(); }
+                }
+                _journal?.TrimThrough(batch[^1].Entry.Seq);
+                foreach (var pending in batch) { pending.Committed.TrySetResult(pending.Entry.Seq); }
+                _backoff = TimeSpan.FromSeconds(1);
+            }
+            catch (LeaseLostException lost)
+            {
+                _logger.LogWarning(lost, "Part {Part} lost its lease; {Count} changes are not durable.", _part, batch.Length);
+                lock (_queue) { _closed = lost; }
+                FailAll(lost);
+            }
+            catch (Exception error) when (_journal is not null)
+            {
+                _logger.LogWarning(error, "Part {Part} could not commit; {Count} journaled changes wait for the next attempt.", _part, batch.Length);
+                ScheduleFlush(_backoff);
+                _backoff = TimeSpan.FromTicks(Math.Min(_backoff.Ticks * 2, TimeSpan.FromSeconds(60).Ticks));
+            }
+            catch (Exception error)
+            {
+                _logger.LogWarning(error, "Part {Part} could not commit; {Count} changes fail.", _part, batch.Length);
+                FailAll(error);
+            }
+        }
+        finally { _flushing.Release(); }
+    }
+
+    // Seqs restart right after what the head accepted, so the next batch continues it without a gap.
+    private void FailAll(Exception error)
+    {
+        Pending[] failed;
+        lock (_queue)
+        {
+            failed = [.. _queue];
+            _queue.Clear();
+            _queuedBytes = 0;
+            if (_journal is null) { _nextSeq = _lease.Payload.LastSeq + 1; }
+            _drained.TrySetResult();
+        }
+        foreach (var pending in failed) { pending.Committed.TrySetException(error); }
+    }
+
+    private async Task RenewLoop()
+    {
+        var period = _options.Role == MachineRole.Own ? _options.OwnLease / 8 : _options.RenewBefore / 2;
+        using var timer = new PeriodicTimer(period, _time);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(_stop.Token))
+            {
+                bool busy;
+                lock (_queue) { busy = _queue.Count > 0 || _closed is not null; }
+                // A pending flush renews through its own commit; an expired lease is settled by the next CAS, not revived.
+                if (busy || _lease.Expired || !_lease.NeedsRenewal) { continue; }
+                try { await _lease.Renew(); }
+                catch (LeaseLostException lost)
+                {
+                    lock (_queue) { _closed = lost; }
+                    FailAll(lost);
+                }
+                catch (Exception error) { _logger.LogWarning(error, "Part {Part} could not renew its lease.", _part); }
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task ReleaseQuietly()
+    {
+        try { await _lease.Release(); }
+        catch (Exception error) { _logger.LogWarning(error, "Part {Part} could not release its lease.", _part); }
+    }
+
+    private static TaskCompletionSource Completed()
+    {
+        var done = new TaskCompletionSource();
+        done.SetResult();
+        return done;
+    }
+}
