@@ -105,14 +105,21 @@ internal static class LiveSignalEndpoints
     internal const string Ready = "{\"type\":\"ready\"}";
 
     // The envelopes as JSON text, retained signals first per source, then Ready, then live ones, until ct ends the stream.
-    // The stream stays open with no sources at all: a source may appear later. A source or feed that fails is logged and dropped.
+    // The stream stays open with no sources at all: a source may appear later. A source or feed that fails is logged and dropped;
+    // when every feed has failed the stream ends with an error, so the client sees a failure instead of a silent hang.
     internal static async IAsyncEnumerable<string> Stream(IDigitalBrain brain, string brainId, LiveFeed[] feeds, ILogger log, [EnumeratorCancellation] CancellationToken ct)
     {
         var channel = Channel.CreateUnbounded<string>();
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         try
         {
-            var replayed = feeds.Select(feed => Task.Run(() => Discover(brain, brainId, feed, channel.Writer, log, stop.Token), CancellationToken.None)).ToArray();
+            var failed = 0;
+            void Failed()
+            {
+                if (Interlocked.Increment(ref failed) == feeds.Length)
+                { channel.Writer.TryComplete(new InvalidOperationException("Every live feed failed; see the server log.")); }
+            }
+            var replayed = feeds.Select(feed => Task.Run(() => Discover(brain, brainId, feed, channel.Writer, log, Failed, stop.Token), CancellationToken.None)).ToArray();
             _ = Task.Run(async () =>
             {
                 try
@@ -120,7 +127,7 @@ internal static class LiveSignalEndpoints
                     await Task.WhenAll(replayed);
                     await channel.Writer.WriteAsync(Ready, stop.Token);
                 }
-                catch (OperationCanceledException) { }
+                catch (Exception closed) when (closed is OperationCanceledException or ChannelClosedException) { }
             }, CancellationToken.None);
             await foreach (var envelope in channel.Reader.ReadAllAsync(ct)) { yield return envelope; }
         }
@@ -129,7 +136,7 @@ internal static class LiveSignalEndpoints
 
     // Completes once the retained values of the sources listed at connect time are written (or the feed failed);
     // discovery keeps running after that.
-    private static Task Discover(IDigitalBrain brain, string brainId, LiveFeed feed, ChannelWriter<string> writer, ILogger log, CancellationToken ct)
+    private static Task Discover(IDigitalBrain brain, string brainId, LiveFeed feed, ChannelWriter<string> writer, ILogger log, Action failed, CancellationToken ct)
     {
         var replayed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         List<Task> initial = [];
@@ -152,7 +159,7 @@ internal static class LiveSignalEndpoints
                 }
             }
             catch (OperationCanceledException) { }
-            catch (Exception error) { log.LogWarning(error, "Live {Type} feed dropped: its sources failed.", feed.Type); }
+            catch (Exception error) { log.LogWarning(error, "Live {Type} feed dropped: its sources failed.", feed.Type); failed(); }
             finally { if (listing) { listing = false; Listed(); } }
         }, CancellationToken.None);
         return replayed.Task;

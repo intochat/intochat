@@ -10,6 +10,7 @@ internal sealed class CircleChatRecord
 {
     [Id(0)] public CircleLine[] Lines { get; set; } = [];
     [Id(1)] public long Last { get; set; }
+    [Id(2)] public string[] Said { get; set; } = [];
 }
 
 // One brain's copy of a circle's chat. The owner's copy numbers each line, with the brain that said it as
@@ -22,26 +23,27 @@ internal sealed class CircleChatNeuron(
     : Neuron<CircleChatRecord>(store), ICircleChat
 {
     private const int Kept = 500;
+    private const int KeptRequests = 64;
 
     private CircleAddress Address => CircleAddress.OfChat(this.GetPrimaryKeyString());
     private ICircle Circle => GrainFactory.GetGrain<ICircle>(Address.CircleKey);
 
-    public async Task Say(string text)
+    public async Task Say(string text, string? requestId = null)
     {
         RequireBrain();
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
         var address = Address;
         if (!(await Circle.Roster()).Members.Contains(address.Brain)) { throw new InvalidOperationException($"{address.Brain} is not in {address.Name}."); }
-        if (address.IsOwnerCopy) { await Publish(address.Brain, text); return; }
-        await GrainFactory.GetGrain<ICircleChat>(ICircleChat.Key(address.OwnerKey)).Relay(text);
+        if (address.IsOwnerCopy) { await Publish(address.Brain, text, requestId); return; }
+        await GrainFactory.GetGrain<ICircleChat>(ICircleChat.Key(address.OwnerKey)).Relay(text, requestId);
         await Sync();
     }
 
-    public async Task<long> Relay(string text)
+    public async Task<long> Relay(string text, string? requestId = null)
     {
         var speaker = Caller();
         if (!(await Circle.Roster()).Members.Contains(speaker)) { throw new InvalidOperationException($"{speaker} is not in {Address.Name}."); }
-        return await Publish(speaker, text);
+        return await Publish(speaker, text, requestId);
     }
 
     public async Task<CircleLine[]> Pull(long after)
@@ -69,12 +71,15 @@ internal sealed class CircleChatNeuron(
     private static string Caller() => RequestContext.Get(CircleCallGuard.From) as string
         ?? throw new UnauthorizedAccessException("This call does not come from a copy of the circle.");
 
-    private async Task<long> Publish(string speaker, string text)
+    // A line said twice under one request id is one line: the owner's copy remembers the last ids per speaker.
+    private async Task<long> Publish(string speaker, string text, string? requestId)
     {
+        var said = string.IsNullOrWhiteSpace(requestId) ? null : $"{speaker}/{requestId}";
+        if (said is not null && Snapshot.Said.Contains(said, StringComparer.Ordinal)) { return Snapshot.Last; }
         var address = Address;
         var members = (await Circle.Roster()).Members;
         var line = new CircleLine(speaker, text, Snapshot.Last + 1);
-        await Take(line);
+        await Take(line, said);
         foreach (var member in members.Where(member => member != address.Brain))
         {
             try { await GrainFactory.GetGrain<ICircleChat>(ICircleChat.Key(ICircle.Key(member, address.Name, address.Owner))).Notify(); }
@@ -102,11 +107,11 @@ internal sealed class CircleChatNeuron(
         foreach (var line in lines.OrderBy(line => line.Sequence)) { await Take(line); }
     }
 
-    private async Task Take(CircleLine line)
+    private async Task Take(CircleLine line, string? said = null)
     {
         if (line.Sequence <= Snapshot.Last) { return; }
         var lines = Snapshot.Lines.Length >= Kept ? Snapshot.Lines[1..] : Snapshot.Lines;
-        await Save(new CircleChatRecord { Lines = [.. lines, line], Last = line.Sequence },
+        await Save(new CircleChatRecord { Lines = [.. lines, line], Last = line.Sequence, Said = said is null ? Snapshot.Said : [.. Snapshot.Said.TakeLast(KeptRequests - 1), said] },
             new CircleSpoke(Address.Name, line.Speaker, line.Text, line.Sequence));
         await GrainFactory.GetGrain<ICircles>(ICircles.Key(Address.Brain)).Touch(Address.Name, Address.Owner, "spoke", "");
     }

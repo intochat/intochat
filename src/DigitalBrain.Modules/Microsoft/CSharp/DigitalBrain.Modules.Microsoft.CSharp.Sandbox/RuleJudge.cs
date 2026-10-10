@@ -19,7 +19,7 @@ internal sealed class RuleJudge(BehaviorLoader loader, IOptions<SandboxOptions> 
     private readonly ConcurrentDictionary<(string Session, string Hash), Lazy<Task<RuleSet>>> _loaded = new();
     private readonly ConcurrentQueue<(string Session, string Hash)> _order = new();
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _threads = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<(string Session, string Hash, string Rule), byte> _quarantined = new();
+    private readonly ConcurrentDictionary<(string Session, string Hash, string Rule), RunState> _quarantined = new();
 
     private sealed class RunState
     {
@@ -54,14 +54,15 @@ internal sealed class RuleJudge(BehaviorLoader loader, IOptions<SandboxOptions> 
             var done = new TaskCompletionSource<JudgeVerdict>(TaskCreationOptions.RunContinuationsAsynchronously);
             var run = new RunState();
             // The slot is released when the thread ends, not when the caller stops waiting: a hung rule keeps its
-            // slot. A rule abandoned while running is quarantined until its thread ends, whichever happens first.
+            // slot. A rule abandoned while running is quarantined until its own thread ends, whichever happens first;
+            // the entry is that run, so another run of the same rule finishing cannot clear it.
             var thread = new Thread(() =>
             {
                 try { done.SetResult(RuleSet.Run(rule, signal)); }
                 finally
                 {
                     slots.Release();
-                    if (Interlocked.Exchange(ref run.State, RunState.Finished) == RunState.Abandoned) { _quarantined.TryRemove(key, out _); }
+                    if (Interlocked.Exchange(ref run.State, RunState.Finished) == RunState.Abandoned) { _quarantined.TryRemove(new(key, run)); }
                 }
             })
             { IsBackground = true, Name = "rule " + name };
@@ -72,8 +73,8 @@ internal sealed class RuleJudge(BehaviorLoader loader, IOptions<SandboxOptions> 
             try { verdicts.Add(await done.Task.WaitAsync(left > TimeSpan.Zero ? left : TimeSpan.Zero, cancellationToken).ConfigureAwait(false)); }
             catch (Exception abandoned) when (abandoned is TimeoutException or OperationCanceledException)
             {
-                _quarantined[key] = 0;
-                if (Interlocked.Exchange(ref run.State, RunState.Abandoned) == RunState.Finished) { _quarantined.TryRemove(key, out _); }
+                _quarantined[key] = run;
+                if (Interlocked.Exchange(ref run.State, RunState.Abandoned) == RunState.Finished) { _quarantined.TryRemove(new(key, run)); }
                 if (abandoned is OperationCanceledException) { throw; }
                 verdicts.Add(new(name, false, "rule did not answer"));
             }

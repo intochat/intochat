@@ -71,6 +71,20 @@ public sealed class RuleJudgingFacts
     }
 
     [Fact]
+    public async Task ASessionThatCannotBeEnsuredRejectsWithRuleDidNotAnswer()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new JudgingHost { RequireSession = true, StartThrows = true };
+        await using var brain = await Start(host, ct);
+        var sandbox = brain.SiloServices.GetRequiredService<IScriptSandbox>();
+        var bundle = new Dictionary<string, string> { ["synapses/a.cs"] = Synapse, ["rules/shouting.cs"] = Rules };
+
+        var verdict = Assert.Single(await sandbox.Judge(Brain, bundle, new AppRequested("ask", "hey", Guid.NewGuid()), ct));
+
+        Assert.Equal(("rules", false, "rule did not answer"), (verdict.Rule, verdict.Allowed, verdict.Reason));
+    }
+
+    [Fact]
     public async Task ABundleWithoutRulesNeverReachesTheSession()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -243,6 +257,8 @@ public sealed class RuleJudgingFacts
 
         public bool RequireSession { get; init; }
 
+        public bool StartThrows { get; init; }
+
         public ConcurrentBag<string> Started { get; } = [];
 
         public Task Put(CompiledBehavior behavior, CancellationToken cancellationToken)
@@ -271,6 +287,7 @@ public sealed class RuleJudgingFacts
                     var answer = await _judge.JudgeAsync(id, judge, cancellationToken);
                     return new(HttpStatusCode.OK) { Content = JsonContent.Create(answer, options: RuntimeProtocol.Json) };
                 case ["sessions", var started] when request.Method == HttpMethod.Post:
+                    if (StartThrows) { throw new TimeoutException("the session grain did not answer"); }
                     Started.Add(started);
                     return new(HttpStatusCode.Accepted);
                 default:

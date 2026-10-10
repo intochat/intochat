@@ -91,4 +91,19 @@ public sealed class AppRetentionFacts
         Assert.Equal(("lively", "completed", "Done"), (activity.App, activity.State, activity.Detail));
         Assert.Empty(await retains.Retained(nameof(AppActivity), item.Sequence));
     }
+
+    [Fact]
+    public async Task AReactivatedAppWithARetainedWorkingActivitySeedsAttention()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        var (app, retains) = await CreatedAppAsync(brain, "crashed");
+        await app.Progress("working", "Reading your mail");
+
+        await brain.DeactivateAsync(app, ct);
+
+        var item = Assert.Single(await retains.Retained(nameof(AppActivity), 0));
+        var activity = Assert.IsType<AppActivity>(item.Signal);
+        Assert.Equal(("crashed", "attention", "interrupted"), (activity.App, activity.State, activity.Detail));
+    }
 }

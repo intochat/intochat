@@ -167,6 +167,17 @@ public sealed class LiveSignalFacts
     }
 
     [Fact]
+    public async Task AStreamWhoseEveryFeedFailedEndsWithAnError()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        var broken = LiveSignalEndpoints.Feed<Beat>((_, _, _, _) => throw new InvalidOperationException("no sources"));
+        await using var stream = Open(brain, [broken], ct);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => stream.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct));
+    }
+
+    [Fact]
     public async Task ReadyFollowsTheReplayOfEverySelectedFeed()
     {
         var ct = TestContext.Current.CancellationToken;

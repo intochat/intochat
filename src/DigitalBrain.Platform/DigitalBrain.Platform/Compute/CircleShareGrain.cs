@@ -55,8 +55,7 @@ internal sealed class CircleShareGrain(
 // Configure is the circle neuron's alone: the grain the kernel is running the call for must be the circle neuron the key names.
 internal sealed class CircleShareGuard : IIncomingGrainCallFilter
 {
-    // The grain type of the Circles module's circle neuron.
-    private const string CircleNeuronType = "circles.circle";
+    private const string CircleNeuronType = CircleGrainType.Name;
 
     public async Task Invoke(IIncomingGrainCallContext context)
     {

@@ -1,3 +1,4 @@
+using DigitalBrain.Framework;
 using Orleans.Runtime;
 
 namespace DigitalBrain.Circles;
@@ -8,7 +9,7 @@ namespace DigitalBrain.Circles;
 internal sealed class CircleCallGuard : IIncomingGrainCallFilter
 {
     public const string From = "circles.from";
-    public const string CircleType = "circles.circle";
+    public const string CircleType = CircleGrainType.Name;
     public const string ChatType = "circles.chat";
     public const string IndexType = "circles.index";
 

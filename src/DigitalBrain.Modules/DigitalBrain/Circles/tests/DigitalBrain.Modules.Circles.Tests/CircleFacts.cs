@@ -304,6 +304,25 @@ public sealed class CircleFacts
     }
 
     [Fact]
+    public async Task SayingTwiceUnderOneRequestIdYieldsOneLine()
+    {
+        await using var brain = await Start();
+        await Joined(brain, "bob");
+
+        Act("alice");
+        await Chat(brain, "alice").Say("hi", "request-1");
+        await Chat(brain, "alice").Say("hi", "request-1");
+        Act("bob");
+        await Chat(brain, "bob").Say("yo", "request-1");
+        await Chat(brain, "bob").Say("yo", "request-1");
+
+        CircleLine[] expected = [new("alice", "hi", 1), new("bob", "yo", 2)];
+        Assert.Equal(expected, await Chat(brain, "bob").Read(0));
+        Act("alice");
+        Assert.Equal(expected, await Chat(brain, "alice").Read(0));
+    }
+
+    [Fact]
     public async Task LinesFromBothBrainsAreNumberedOnceInTheOwnersOrder()
     {
         await using var brain = await Start();

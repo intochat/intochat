@@ -14,11 +14,12 @@ public sealed record CircleLine(
 [Alias("circles.chat"), DefaultGrainType("circles.chat")]
 public interface ICircleChat : INeuron
 {
-    Task Say(string text);
+    // A requestId makes the call idempotent: saying twice under one id is one line.
+    Task Say(string text, string? requestId = null);
     Task<CircleLine[]> Read(long since);
 
     // Member copy -> owner copy; the speaker is the kernel-stamped caller's brain.
-    [Internal] Task<long> Relay(string text);
+    [Internal] Task<long> Relay(string text, string? requestId = null);
     [Internal] Task<CircleLine[]> Pull(long after);
     [Internal, Orleans.Concurrency.OneWay] Task Notify();
 

@@ -31,6 +31,7 @@ public sealed class AppsModule() : Module<AppsOptions>(new ModuleId("apps")), IH
         silo.Services.TryAddSingleton<Creator>();
         silo.AddStartupTask<FeatureBoot>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppRuntime, CSharpAppRuntime>());
+        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<AppNeuron>, AppActivation>());
     }
 
     public void Configure(IEndpointRouteBuilder endpoints)

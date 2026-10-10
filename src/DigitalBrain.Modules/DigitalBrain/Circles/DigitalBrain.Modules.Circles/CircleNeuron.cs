@@ -69,7 +69,7 @@ internal sealed class CircleNeuron(
         var from = Caller();
         // Interleaves with a pull in flight (so the owner is never kept waiting on a member that waits on the
         // owner), but not with the write that pull ends in.
-        if (running is { } writing) { await writing; }
+        if (running is { } writing) { try { await writing; } catch { /* the pull's failure is the pull's; this invitation proceeds */ } }
         // The owner is the authority: a copy left over from an earlier membership gives way to the new invitation.
         if (Exists && Snapshot.Owner.Length == 0 && Snapshot.InvitedBy == from) { return; }
         await Save(new CircleRecord { Name = Name, InvitedBy = from }, new CircleInvited(Name, from));

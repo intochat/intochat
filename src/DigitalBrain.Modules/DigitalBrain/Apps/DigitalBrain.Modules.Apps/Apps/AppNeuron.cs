@@ -166,6 +166,21 @@ internal sealed class AppNeuron(
         return Describe(Snapshot);
     }
 
+    private static readonly string[] LiveStates = ["working", "listening", "reading", "searching", "waiting", "accepted"];
+
+    // A live activity retained across a deactivation belongs to a turn that died with the process; a late
+    // listener must not see it as current. Retention only: nothing is published.
+    internal Task Interrupt()
+    {
+        if (!Exists || Snapshot.ActivityRetention is not [{ Signal: AppActivity { State: var state } retained }]
+            || !LiveStates.Contains(state, StringComparer.Ordinal))
+        { return Task.CompletedTask; }
+        var next = Snapshot.Clone();
+        next.ActivitySequence++;
+        next.ActivityRetention = [new RetainedSignal(next.ActivitySequence, retained with { State = "attention", Detail = "interrupted" })];
+        return SaveQuietly(next);
+    }
+
     public Task<Guid> CurrentBuildAttempt() => Task.FromResult(Snapshot.BuildAttempt);
 
     public async Task Progress(string state, string detail)
@@ -552,4 +567,9 @@ internal sealed class AppNeuron(
         state.PublishedVersion,
         state.Origin,
         state.Edited);
+}
+
+internal sealed class AppActivation : IActivationHandler<AppNeuron>
+{
+    public Task Activated(AppNeuron neuron, CancellationToken cancellationToken) => neuron.Interrupt();
 }

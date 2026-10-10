@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Channels;
@@ -33,23 +34,33 @@ internal static class BrainEventsEndpoints
         }
     }
 
+    internal static readonly TimeSpan StaleAfter = TimeSpan.FromSeconds(30);
+
     // The runtime as last read. A read that fails keeps the previous answer, so a transient error never
-    // turns the graph's edges off; it is logged once when it starts and once when it ends.
-    private sealed class RuntimeView(IBrainRuntime runtime, ILogger log)
+    // turns the graph's edges off; it is logged once when it starts and once when it ends. A runtime that
+    // keeps failing past `staleAfter` is no longer believed: the answer becomes none (nodes only, Idle).
+    private sealed class RuntimeView(IBrainRuntime runtime, ILogger log, TimeSpan staleAfter)
     {
         private BrainRuntimeSnapshot? _known;
-        private bool _failing;
+        private long? _failingSince;
+
+        public TimeSpan? StaleIn => _failingSince is { } since ? staleAfter - Stopwatch.GetElapsedTime(since) : null;
 
         public async Task<BrainRuntimeSnapshot?> Read(CancellationToken ct)
         {
             try
             {
                 _known = await runtime.Inspect(ct);
-                if (_failing) { log.LogInformation("The brain runtime answers again."); _failing = false; }
+                if (_failingSince is not null) { log.LogInformation("The brain runtime answers again."); _failingSince = null; }
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
-                if (!_failing) { log.LogWarning(error, "The brain runtime could not be read; the graph keeps its last synapses."); _failing = true; }
+                if (_failingSince is null)
+                {
+                    log.LogWarning(error, "The brain runtime could not be read; the graph keeps its last synapses for {Seconds}s.", staleAfter.TotalSeconds);
+                    _failingSince = Stopwatch.GetTimestamp();
+                }
+                else if (StaleIn <= TimeSpan.Zero) { _known = null; }
             }
             return _known;
         }
@@ -62,12 +73,12 @@ internal static class BrainEventsEndpoints
     // happened in between is missed, and a snapshot identical to the last one is not sent. A burst of
     // changes becomes one snapshot. A faulted kernel watch ends the stream with its error, so the
     // client sees a failure, never a clean end. The runtime is optional: a brain without one has no synapses.
-    internal static async IAsyncEnumerable<string> Snapshots(IDigitalBrain brain, string brainId, ILogger log, [EnumeratorCancellation] CancellationToken ct)
+    internal static async IAsyncEnumerable<string> Snapshots(IDigitalBrain brain, string brainId, ILogger log, [EnumeratorCancellation] CancellationToken ct, TimeSpan? staleAfter = null)
     {
         var changes = Channel.CreateUnbounded<bool>();
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var runtime = brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(brainId));
-        var view = new RuntimeView(runtime, log);
+        var view = new RuntimeView(runtime, log, staleAfter ?? StaleAfter);
         var waiting = 3;
         void Subscribed() { if (Interlocked.Decrement(ref waiting) == 0) { changes.Writer.TryWrite(true); } }
         _ = Watch(brain.On<InstanceCreated>(brain.Self, () => { Subscribed(); return Task.CompletedTask; }, stop.Token), required: true);
@@ -76,6 +87,7 @@ internal static class BrainEventsEndpoints
         try
         {
             var (json, key) = await Snapshot(brain, view, brainId, ct);
+            Recheck();
             var last = key;
             yield return json;
             await foreach (var _tick in changes.Reader.ReadAllAsync(ct))
@@ -83,12 +95,23 @@ internal static class BrainEventsEndpoints
                 await Task.Delay(Burst, ct);
                 while (changes.Reader.TryRead(out var more)) { _ = more; }
                 (json, key) = await Snapshot(brain, view, brainId, ct);
+                Recheck();
                 if (key == last) { continue; }
                 last = key;
                 yield return json;
             }
         }
         finally { await stop.CancelAsync(); }
+
+        // A failing runtime is read again once it turns stale, even if nothing else changes.
+        void Recheck()
+        {
+            if (view.StaleIn is { } left && left > TimeSpan.Zero)
+            {
+                _ = Task.Delay(left + TimeSpan.FromMilliseconds(50), stop.Token).ContinueWith(
+                    _ => changes.Writer.TryWrite(true), TaskContinuationOptions.OnlyOnRanToCompletion);
+            }
+        }
 
         async Task Watch<T>(IAsyncEnumerable<T> signals, bool required)
         {
