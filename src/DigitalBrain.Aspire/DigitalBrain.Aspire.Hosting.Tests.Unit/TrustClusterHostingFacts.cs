@@ -1,3 +1,4 @@
+using global::Microsoft.Extensions.Configuration;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Aspire.Hosting;
@@ -22,6 +23,72 @@ public sealed class TrustClusterHostingFacts
         Assert.Equal("30100", values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.GatewayPortKey)]);
         Assert.Contains(DigitalBrainConfiguration.IntegrationEnvironmentName("orleans", "GrainState"), values.Keys);
         Assert.Equal("localhost:30100", TrustClusterHosting.GatewayOf(30100));
+    }
+
+    [Fact]
+    public async Task TheTrustResourceStoresOnPlatformStorageAndComposesNoModule()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        var brain = builder.AddDigitalBrain("memory", options: new()).WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite());
+        var trust = builder.AddExecutable("trust", "unused", ".").AsTrustCluster(brain, 30100);
+
+        var values = await Environment(builder, trust.Resource);
+
+        Assert.Contains(DigitalBrainConfiguration.IntegrationEnvironmentName("orleans", "GrainState"), values.Keys);
+        Assert.DoesNotContain(values.Keys, key => key.StartsWith("DigitalBrain__Modules__", StringComparison.Ordinal));
+        Assert.DoesNotContain(values.Keys, key => key.StartsWith("DigitalBrain__Integrations__", StringComparison.Ordinal)
+            && !key.StartsWith("DigitalBrain__Integrations__orleans__", StringComparison.Ordinal));
+    }
+
+    // R61: each machine has its own directory and grain-state container; the second also its own Orleans cluster.
+    [Fact]
+    public async Task EachMachineHasItsOwnDirectoryContainerAndClusterAndThePairingSecret()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        var brain = builder.AddDigitalBrain("memory", options: new()).WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite());
+        var trust = builder.AddExecutable("trust", "unused", ".").AsTrustCluster(brain, 30100);
+        var pairing = builder.AddParameter("machine-pairing-secret", "s3cret", secret: true);
+        var a = builder.AddExecutable("os-a", "unused", ".").WithHttpEndpoint(name: "http")
+            .AsTrustMachine(trust, 30100, pairing, "/machines/os-a", builder.Configuration);
+        var b = builder.AddExecutable("os-b", "unused", ".").WithHttpEndpoint(name: "http")
+            .AsTrustMachine(trust, 30100, pairing, "/machines/os-b", builder.Configuration).AsSeparateCluster(11112, 30001);
+
+        var (onA, onB) = (await Environment(builder, a.Resource), await Environment(builder, b.Resource));
+
+        var directory = DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.MachineDirectoryKey);
+        var container = DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Framework.DigitalBrainNames.GrainStateContainerKey);
+        Assert.Equal(("/machines/os-a", "/machines/os-b"), (onA[directory], onB[directory]));
+        Assert.NotEqual(onA[container], onB[container]);
+        Assert.Equal("digitalbrain-os-b", onB["Orleans__ClusterId"]);
+        Assert.Equal(("11112", "30001"), (onB["Orleans__Endpoints__SiloPort"], onB["Orleans__Endpoints__GatewayPort"]));
+        Assert.All([onA, onB], values =>
+        {
+            Assert.Contains(DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.PairingSecretKey), values.Keys);
+            Assert.Equal("localhost:30100", values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.GatewayKey)]);
+        });
+        Assert.All(new IResource[] { a.Resource, b.Resource }, machine =>
+            Assert.Contains(machine.Annotations.OfType<ResourceCommandAnnotation>(), command => command.Name == TrustClusterHosting.ReleasePartCommand));
+    }
+
+    // R64: Secured sends the host's bootstrap Basic credential; Open sends none.
+    [Fact]
+    public void TheReleaseCommandCarriesTheBootstrapCredentialOnlyWhenSecured()
+    {
+        var secured = new global::Microsoft.Extensions.Configuration.ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            [DigitalBrain.Platform.Identity.Configuration.AuthOptions.PostureKey] = "Secured",
+            [DigitalBrain.Platform.Identity.Configuration.AuthOptions.Key("Username")] = "operator",
+            [DigitalBrain.Platform.Identity.Configuration.AuthOptions.Key("Password")] = "configured-bootstrap-password",
+        }).Build();
+        var open = new global::Microsoft.Extensions.Configuration.ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            [DigitalBrain.Platform.Identity.Configuration.AuthOptions.PostureKey] = "Open",
+        }).Build();
+
+        var credential = TrustClusterHosting.Credential(secured);
+        Assert.Equal("Basic", credential?.Scheme);
+        Assert.Equal("operator:configured-bootstrap-password", System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(credential!.Parameter!)));
+        Assert.Null(TrustClusterHosting.Credential(open));
     }
 
     internal static async Task<Dictionary<string, object>> Environment(IDistributedApplicationBuilder builder, IResource resource)

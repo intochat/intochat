@@ -1,6 +1,10 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
+using System.Net.Http.Headers;
+using System.Text;
 using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Platform.Identity.Configuration;
+using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Aspire.Hosting;
 
@@ -31,4 +35,76 @@ public static class TrustClusterHosting
     }
 
     public static string GatewayOf(int gatewayPort) => $"localhost:{gatewayPort.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+
+    public const string PairingSecretKey = "DigitalBrain:Platform:Parts:PairingSecret";
+    public const string RoleKey = "DigitalBrain:Platform:Parts:Role";
+    public const string MachineDirectoryKey = "DigitalBrain:Platform:Parts:MachineDirectory";
+    public const string ReleasePartCommand = "release-part";
+    private static readonly string ModuleGrainStateContainerKey = DigitalBrainConfiguration.ModuleOptionsSection("orleans") + ":GrainStateContainer";
+
+    // An own machine of the trust cluster: the private gateway, the deployment's pairing secret (R52), its own
+    // directory and its own grain-state container (R61: machines keep local platform storage, never shared), and
+    // the release-part command (R40, R64).
+    public static IResourceBuilder<T> AsTrustMachine<T, TTrust>(this IResourceBuilder<T> machine, IResourceBuilder<TTrust> trust, int trustGatewayPort,
+        IResourceBuilder<ParameterResource> pairingSecret, string machineDirectory, IConfiguration configuration)
+        where T : IResourceWithEnvironment, IResourceWithWaitSupport, IResourceWithEndpoints
+        where TTrust : IResource
+    {
+        ArgumentNullException.ThrowIfNull(machine);
+        var container = ContainerOf(machine.Resource.Name);
+        return machine
+            .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(GatewayKey), GatewayOf(trustGatewayPort))
+            .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(PairingSecretKey), pairingSecret)
+            .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(RoleKey), "Own")
+            .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(MachineDirectoryKey), machineDirectory)
+            .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(DigitalBrain.Framework.DigitalBrainNames.GrainStateContainerKey), container)
+            .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(ModuleGrainStateContainerKey), container)
+            .WaitFor(machine.ApplicationBuilder.CreateResourceBuilder<IResource>(trust.Resource))
+            .WithPartRelease(configuration);
+    }
+
+    // A further machine on one PC: its own Orleans cluster and fixed silo and gateway ports beside the first machine's.
+    public static IResourceBuilder<T> AsSeparateCluster<T>(this IResourceBuilder<T> machine, int siloPort, int gatewayPort)
+        where T : IResourceWithEnvironment
+    {
+        ArgumentNullException.ThrowIfNull(machine);
+        return machine
+            .WithEnvironment("Orleans__ClusterId", ClusterOf(machine.Resource.Name))
+            .WithEnvironment("Orleans__Endpoints__SiloPort", siloPort.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            .WithEnvironment("Orleans__Endpoints__GatewayPort", gatewayPort.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    public static string ContainerOf(string machine) => "grainstate-" + machine.ToLowerInvariant();
+
+    public static string ClusterOf(string machine) => "digitalbrain-" + machine.ToLowerInvariant();
+
+    public static IResourceBuilder<T> WithPartRelease<T>(this IResourceBuilder<T> machine, IConfiguration configuration)
+        where T : IResourceWithEndpoints
+    {
+        ArgumentNullException.ThrowIfNull(machine);
+        ArgumentNullException.ThrowIfNull(configuration);
+        return machine.WithHttpCommand("/machine/parts/release", "Release part", commandName: ReleasePartCommand, endpointName: "http", commandOptions: new HttpCommandOptions
+        {
+            Description = "Release one part so another machine of this owner can take it.",
+            Arguments = [new InteractionInput { Name = "part", Label = "Part", InputType = InputType.Text, Required = true }],
+            PrepareRequest = request =>
+            {
+                var part = request.Arguments.GetString("part") ?? "";
+                request.Request.RequestUri = new Uri(request.Request.RequestUri!, "/machine/parts/" + Uri.EscapeDataString(part) + "/release");
+                request.Request.Headers.Authorization = Credential(configuration);
+                return Task.CompletedTask;
+            },
+        });
+    }
+
+    // R64: under Secured the command speaks as the host's bootstrap user; Open sends no credential.
+    public static AuthenticationHeaderValue? Credential(IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        if (!string.Equals(configuration[AuthOptions.PostureKey], nameof(IdentityPosture.Secured), StringComparison.OrdinalIgnoreCase)) { return null; }
+        var username = configuration[AuthOptions.Key(nameof(AuthOptions.Username))];
+        var password = configuration[AuthOptions.Key(nameof(AuthOptions.Password))];
+        if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password)) { return null; }
+        return new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes(username + ":" + password)));
+    }
 }
