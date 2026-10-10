@@ -7,5 +7,6 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Orleans.Sdk" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Orleans.Core.Abstractions" />
+    <InternalsVisibleTo Include="DigitalBrain.Client.Orleans.Tests.Unit" />
   </ItemGroup>
 </Project>

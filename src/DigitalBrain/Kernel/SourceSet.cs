@@ -6,7 +6,8 @@ namespace DigitalBrain;
 // subscription, all writing to one channel. A registry change re-selects: members that left are
 // cancelled, members that joined are pumped from their current position, members that stayed
 // keep their subscription (and so their watermark). Any pump or select failure ends the stream
-// with that error; cancellation ends it quietly. A hand-written enumerator, not a compiler
+// with that error. Disposal ends it quietly; cancelling the token throws OperationCanceledException
+// from the pending read. A hand-written enumerator, not a compiler
 // iterator, because a consumer may dispose it while a read is in flight: disposal cancels the
 // pending read, lets it settle, and only then releases every member.
 internal static class SourceSet
@@ -86,7 +87,8 @@ internal static class SourceSet
         private async Task Select(bool first, CancellationToken ct)
         {
             var selected = await sources.SelectAsync(ct).ConfigureAwait(false);
-            var wanted = selected.ToDictionary(n => n.GetPrimaryKeyString(), n => n, StringComparer.Ordinal);
+            var wanted = new Dictionary<string, INeuron>(StringComparer.Ordinal);
+            foreach (var neuron in selected) { wanted.TryAdd(neuron.GetPrimaryKeyString(), neuron); }
             foreach (var (key, member) in _members.Where(m => !wanted.ContainsKey(m.Key)).ToArray())
             {
                 _members.Remove(key);
@@ -113,9 +115,10 @@ internal static class SourceSet
         {
             try
             {
-                await Select(first: true, ct).ConfigureAwait(false);
-                if (sources.IsFixed) { return; }
-                await foreach (var _ in sources.Changes(brain, ct).WithCancellation(ct).ConfigureAwait(false))
+                if (sources.IsFixed) { await Select(first: true, ct).ConfigureAwait(false); return; }
+                // The first select runs once the registry subscription is registered, so a change published
+                // while it runs is delivered to the loop below and re-selects.
+                await foreach (var _ in sources.Changes(brain, () => Select(first: true, ct), ct).WithCancellation(ct).ConfigureAwait(false))
                 { await Select(first: false, ct).ConfigureAwait(false); }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { }

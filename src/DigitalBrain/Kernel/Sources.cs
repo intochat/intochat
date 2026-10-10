@@ -31,15 +31,16 @@ public abstract class Sources
 
     internal abstract Task<INeuron[]> SelectAsync(CancellationToken cancellationToken);
 
-    // Every element means "select again". Empty for a fixed set; the merge skips the pump then.
-    internal abstract IAsyncEnumerable<Signal> Changes(IDigitalBrain brain, CancellationToken cancellationToken);
+    // Every element means "select again". onSubscribed runs once the change subscription is registered,
+    // so a select made there cannot miss a change. Empty for a fixed set; the merge never opens it then.
+    internal abstract IAsyncEnumerable<Signal> Changes(IDigitalBrain brain, Func<Task> onSubscribed, CancellationToken cancellationToken);
 
     internal bool IsFixed => this is Fixed;
 
     private sealed class Fixed(INeuron[] neurons) : Sources
     {
         internal override Task<INeuron[]> SelectAsync(CancellationToken cancellationToken) => Task.FromResult(neurons);
-        internal override IAsyncEnumerable<Signal> Changes(IDigitalBrain brain, CancellationToken cancellationToken) => Empty();
+        internal override IAsyncEnumerable<Signal> Changes(IDigitalBrain brain, Func<Task> onSubscribed, CancellationToken cancellationToken) => Empty();
         private static async IAsyncEnumerable<Signal> Empty() { await Task.CompletedTask; yield break; }
     }
 
@@ -47,9 +48,10 @@ public abstract class Sources
         where TRegistry : INeuron where TChange : Signal
     {
         internal override Task<INeuron[]> SelectAsync(CancellationToken cancellationToken) => select(registry, cancellationToken);
-        internal override async IAsyncEnumerable<Signal> Changes(IDigitalBrain brain, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        internal override async IAsyncEnumerable<Signal> Changes(IDigitalBrain brain, Func<Task> onSubscribed,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            await foreach (var change in brain.On<TChange>(registry, cancellationToken).ConfigureAwait(false)) { yield return change; }
+            await foreach (var change in brain.On<TChange>(registry, onSubscribed, cancellationToken).ConfigureAwait(false)) { yield return change; }
         }
     }
 }
