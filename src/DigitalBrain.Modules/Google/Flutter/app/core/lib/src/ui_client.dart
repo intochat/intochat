@@ -528,10 +528,9 @@ final class DigitalBrainUiClient {
 
   /// The brain's neurons as snapshots: the whole brain with [brainId], or one chat's view with [chatName].
   Stream<BrainSnapshot> watchBrain({String? chatName, String? brainId}) {
-    assert(
-      (chatName == null) != (brainId == null),
-      'Name a chat or a brain, not both.',
-    );
+    if ((chatName == null) == (brainId == null)) {
+      throw ArgumentError('Name a chat or a brain, not both.');
+    }
     final path = brainId != null
         ? '/brains/${Uri.encodeComponent(brainId)}/brain/events'
         : '/chats/${Uri.encodeComponent(chatName!)}/brain/events';

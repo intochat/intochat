@@ -26,6 +26,9 @@ class CircleActivityFeed extends ChangeNotifier {
   int get count => _count;
   StreamSubscription<CircleTouched>? _subscription;
   int? _highest;
+  // A connection that was established (it delivered something, or ended after being open) has seeded the
+  // feed: from then on a replay is compared with the mark, not swallowed as the cold-start seed.
+  bool _seeded = false;
   bool _disposed = false;
   Duration _next = Duration.zero;
 
@@ -34,8 +37,9 @@ class CircleActivityFeed extends ChangeNotifier {
     try {
       _subscription = _watch().listen(
         _touched,
-        onError: (Object _) => _reconnect(),
-        onDone: _reconnect,
+        onError: (Object error) =>
+            _reconnect(established: error is! TableRequestException),
+        onDone: () => _reconnect(established: true),
         cancelOnError: true,
       );
     } catch (_) {
@@ -43,8 +47,9 @@ class CircleActivityFeed extends ChangeNotifier {
     }
   }
 
-  void _reconnect() {
+  void _reconnect({bool established = false}) {
     if (_disposed) return;
+    if (established) _seeded = true;
     _subscription?.cancel();
     _next = _next == Duration.zero
         ? firstPause
@@ -62,10 +67,10 @@ class CircleActivityFeed extends ChangeNotifier {
     final sequence = touch.sequence;
     var news = true;
     if (sequence != null) {
-      final seen = _highest;
-      news = seen == null ? !touch.replay : sequence > seen;
-      if (seen == null || sequence > seen) _highest = sequence;
+      news = _seeded ? sequence > (_highest ?? -1) : !touch.replay;
+      if (sequence > (_highest ?? -1)) _highest = sequence;
     }
+    _seeded = true;
     if (!news || (touch.kind != 'spoke' && touch.kind != 'invited')) return;
     _count++;
     notifyListeners();

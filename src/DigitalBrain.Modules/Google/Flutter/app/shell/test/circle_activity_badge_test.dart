@@ -180,6 +180,34 @@ void main() {
     },
   );
 
+  testWidgets('a touch missed after an empty first connection is counted', (
+    tester,
+  ) async {
+    final f = feed();
+    addTearDown(f.dispose);
+    await live.close();
+    await tester.pump();
+    pauses.single.complete();
+    await tester.pump();
+    live.add(touch('spoke', 'club', 3, true));
+    await tester.pump();
+    expect(f.count, 1);
+  });
+
+  testWidgets('a connection that never opened does not seed the feed', (
+    tester,
+  ) async {
+    final f = feed();
+    addTearDown(f.dispose);
+    live.addError(TableRequestException(503, 'down'));
+    await tester.pump();
+    pauses.single.complete();
+    await tester.pump();
+    live.add(touch('spoke', 'club', 3, true));
+    await tester.pump();
+    expect(f.count, 0);
+  });
+
   testWidgets('a source with no sequence counts every touch', (tester) async {
     final f = feed();
     addTearDown(f.dispose);
