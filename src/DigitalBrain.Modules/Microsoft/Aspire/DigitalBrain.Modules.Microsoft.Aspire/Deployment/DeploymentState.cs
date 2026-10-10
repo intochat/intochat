@@ -1,10 +1,10 @@
-namespace DigitalBrain.Microsoft.Aspire.Cluster;
+namespace DigitalBrain.Microsoft.Aspire.Deployment;
 
-[GenerateSerializer, Alias("aspire.cluster.state")]
-internal sealed record ClusterState
+[GenerateSerializer, Alias("aspire.deployment.state")]
+internal sealed record DeploymentState
 {
     [Id(0)] public string CurrentSha { get; init; } = "";
-    [Id(1)] public ClusterStage Stage { get; init; } = ClusterStage.Steady;
+    [Id(1)] public DeploymentStage Stage { get; init; } = DeploymentStage.Steady;
     [Id(2)] public string? TargetSha { get; init; }
     // Rolling or RollingBack: the instances still to move onto TargetSha, in roll order, and those already moved.
     [Id(3)] public string[] Remaining { get; init; } = [];

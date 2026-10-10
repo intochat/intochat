@@ -39,7 +39,7 @@ public static class SelfImprove
             var candidate = await brain.Get<ICandidate>(instance.Key).Read();
             lines.Add($"- `{candidate.Sha}` — {candidate.Stage} — {candidate.Summary}");
         }
-        var cluster = await brain.Get<ICluster>(ICluster.Key(Scope(brain))).Read();
+        var cluster = await brain.Get<IDeployment>(IDeployment.Key(Scope(brain))).Read();
         var live = $"Live: `{cluster.CurrentSha}` — {cluster.Stage}";
         await brain.Get<IText>(Key(brain) + "/revisions").Set(lines.Count == 0 ? "_No candidates yet._\n\n" + live : string.Join("\n", lines) + "\n\n" + live);
     }

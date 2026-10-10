@@ -1,4 +1,5 @@
-using DigitalBrain.Microsoft.Aspire.Cluster;
+using DigitalBrain.Microsoft.Aspire.Deployment;
+using DigitalBrain.Microsoft.Orleans;
 
 namespace DigitalBrain.Microsoft.Aspire.Tests;
 
@@ -43,23 +44,23 @@ internal sealed class FakeClusterHost : IClusterHost
     public List<string> Waited { get; } = [];
     public TaskCompletionSource<string> Interrupted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    // What `aspire describe` reports; when null, the silo-* instances running the current build.
+    // The membership the orleans cluster neuron reports (FakeMembership); when null, the silo-* instances running the current build.
     public SiloView[]? Reported { get; set; }
 
     // Released on each read of the silos.
     public SemaphoreSlim SiloRead { get; } = new(0);
 
-    // When set, reading the silos fails, like the AppHost being down.
+    // When set, reading the membership fails.
     public bool SilosFail { get; set; }
 
-    public Task<SiloView[]> Silos(CancellationToken ct)
+    public Task<SiloView[]> Silos()
     {
         SiloRead.Release();
-        return SilosFail ? Task.FromException<SiloView[]>(new InvalidOperationException("aspire describe exited 1")) : SilosNow();
+        return SilosFail ? Task.FromException<SiloView[]>(new InvalidOperationException("membership unreadable")) : SilosNow();
     }
 
     private Task<SiloView[]> SilosNow() =>
-        Reported is { } reported ? Task.FromResult(reported) : Task.FromResult<SiloView[]>([.. InstanceNames.Where(name => name.StartsWith("silo-", StringComparison.Ordinal)).Select(name => new SiloView(name, Current, "Running", "Healthy"))]);
+        Reported is { } reported ? Task.FromResult(reported) : Task.FromResult<SiloView[]>([.. InstanceNames.Where(name => name.StartsWith("silo-", StringComparison.Ordinal)).Select(name => new SiloView(name, name, "Active", null, Current))]);
 
     public Task<string[]> Instances(CancellationToken ct) => Task.FromResult(InstanceNames);
 
@@ -112,16 +113,16 @@ internal sealed class FakeClusterHost : IClusterHost
         }
     }
 
-    public Task<SiloView> WaitInstance(string name, DateTimeOffset since, TimeSpan budget, CancellationToken ct)
+    public Task WaitInstance(string name, DateTimeOffset since, TimeSpan budget, CancellationToken ct)
     {
         Waited.Add($"{name}@{Current}");
         if (NeverHealthy.Contains($"{name}@{Current}"))
         {
-            return Task.FromException<SiloView>(new InstanceNeverReadyException($"{name} not ready within {budget}", new TimeoutException()));
+            return Task.FromException(new InstanceNeverReadyException($"{name} not ready within {budget}", new TimeoutException()));
         }
         return NeverHealthy.Contains($"{name}@{Current} exits")
-            ? Task.FromException<SiloView>(new InstanceNeverReadyException($"instance {name} stopped (Exited) while starting"))
-            : Task.FromResult(new SiloView(name, Current, "Running", "Healthy"));
+            ? Task.FromException(new InstanceNeverReadyException($"instance {name} stopped (Exited) while starting"))
+            : Task.CompletedTask;
     }
 
     public Task RestartSilos(CancellationToken ct)

@@ -30,9 +30,9 @@ final class SiloState {
   int get hashCode => Object.hash(id, sha, state, health);
 }
 
-// Mirrors the ClusterChanged signal: the cluster's stage, the build it stands on, and every silo.
-final class ClusterChanged {
-  const ClusterChanged({
+// Mirrors the DeploymentChanged signal: the cluster's stage, the build it stands on, and every silo.
+final class DeploymentChanged {
+  const DeploymentChanged({
     required this.stage,
     required this.sha,
     required this.silos,
@@ -40,7 +40,7 @@ final class ClusterChanged {
   final String stage, sha;
   final List<SiloState> silos;
 
-  factory ClusterChanged.fromJson(Map<String, dynamic> json) => ClusterChanged(
+  factory DeploymentChanged.fromJson(Map<String, dynamic> json) => DeploymentChanged(
     stage: (json['stage'] as String? ?? 'steady').toLowerCase(),
     sha: json['sha'] as String? ?? '',
     silos: [

@@ -2,7 +2,7 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Mcp;
 using DigitalBrain.Tools;
-using DigitalBrain.Microsoft.Aspire.Cluster;
+using DigitalBrain.Microsoft.Aspire.Deployment;
 using DigitalBrain.Microsoft.Aspire.Verification;
 using Microsoft.Extensions.DependencyInjection;
 

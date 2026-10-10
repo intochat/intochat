@@ -3,7 +3,7 @@ using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Microsoft.Aspire.Cluster;
+using DigitalBrain.Microsoft.Aspire.Deployment;
 using DigitalBrain.ServiceDefaults;
 using global::Aspire.Hosting;
 using global::Aspire.Hosting.ApplicationModel;

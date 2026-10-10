@@ -16,7 +16,7 @@ internal sealed class CandidateQueueNeuron(
     {
         ArgumentNullException.ThrowIfNull(proposal);
         await Heal();
-        var cluster = await GrainFactory.GetGrain<ICluster>(ICluster.Key(BrainId)).Read();
+        var cluster = await GrainFactory.GetGrain<IDeployment>(IDeployment.Key(BrainId)).Read();
         var prepared = await host.Prepare(cluster.CurrentSha, proposal.Summary, proposal.Files, CancellationToken.None);
         var candidate = GrainFactory.GetGrain<ICandidate>(ICandidate.Key(BrainId, prepared.Sha));
         await candidate.Propose(proposal.Branch, proposal.Summary, proposal.Plan);

@@ -237,14 +237,14 @@ public sealed class LiveSignalFacts
     public void AnUnknownOrMissingTypeIsRefused()
     {
         Assert.NotNull(LiveSignalEndpoints.Select([]).Error);
-        Assert.Contains("Nope", LiveSignalEndpoints.Select(["ClusterChanged", "Nope"]).Error);
-        Assert.Null(LiveSignalEndpoints.Select(["ClusterChanged", "ClusterChanged"]).Error);
-        Assert.Single(LiveSignalEndpoints.Select(["ClusterChanged", "ClusterChanged"]).Feeds);
+        Assert.Contains("Nope", LiveSignalEndpoints.Select(["DeploymentChanged", "Nope"]).Error);
+        Assert.Null(LiveSignalEndpoints.Select(["DeploymentChanged", "DeploymentChanged"]).Error);
+        Assert.Single(LiveSignalEndpoints.Select(["DeploymentChanged", "DeploymentChanged"]).Feeds);
     }
 
     [Fact]
     public void ClusterAppActivityAndCircleTouchedAreTheLiveFeeds()
-        => Assert.Equal(["ClusterChanged", "AppActivity", "CircleTouched"], LiveSignalEndpoints.Feeds.Select(feed => feed.Type));
+        => Assert.Equal(["DeploymentChanged", "AppActivity", "CircleTouched"], LiveSignalEndpoints.Feeds.Select(feed => feed.Type));
 }
 
 [GenerateSerializer, Alias("test.beat")] public sealed record Beat([property: Id(0)] int Pulse) : Signal;

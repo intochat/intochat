@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using DigitalBrain.Mcp;
-using DigitalBrain.Microsoft.Aspire.Cluster;
+using DigitalBrain.Microsoft.Aspire.Deployment;
 using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Microsoft.Aspire.Verification;

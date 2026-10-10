@@ -77,10 +77,10 @@ void main() {
       baseUri: Uri.parse('http://test'),
       httpClient: MockClient.streaming((request, _) async {
         expect(request.url.path, '/brains/b1/live');
-        expect(request.url.queryParametersAll['type'], ['ClusterChanged']);
+        expect(request.url.queryParametersAll['type'], ['DeploymentChanged']);
         final event = jsonEncode({
-          'type': 'ClusterChanged',
-          'publisher': 'b1/aspire/cluster',
+          'type': 'DeploymentChanged',
+          'publisher': 'b1/aspire/deployment',
           'payload': {
             'stage': 'rolling',
             'sha': 'abc1234567',

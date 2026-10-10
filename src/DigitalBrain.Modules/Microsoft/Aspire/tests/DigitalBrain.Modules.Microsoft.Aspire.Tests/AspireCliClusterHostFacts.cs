@@ -1,6 +1,6 @@
 using DigitalBrain.Microsoft.Aspire.Candidates;
 using System.Net;
-using DigitalBrain.Microsoft.Aspire.Cluster;
+using DigitalBrain.Microsoft.Aspire.Deployment;
 
 namespace DigitalBrain.Microsoft.Aspire.Tests;
 
@@ -18,29 +18,6 @@ public sealed class AspireCliClusterHostFacts : IDisposable
 
         await Assert.ThrowsAsync<DirectoryNotFoundException>(() => host.SetLive("missing", TestContext.Current.CancellationToken));
         Assert.Equal(string.Empty, await host.CurrentSha(TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
-    public async Task SilosAreTheOperatingSystemResourcesTheCliDescribes()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        Directory.CreateDirectory(Path.Combine(workdir, "builds", "abc1234"));
-        var runner = new RecordingRunner("""
-            info: something
-            {"resources":[
-              {"name":"OperatingSystem-b-x1","displayName":"OperatingSystem-b","state":"Running","healthStatus":"Healthy"},
-              {"name":"OperatingSystem-a-x2","displayName":"OperatingSystem-a","state":"Starting"},
-              {"name":"OperatingSystem-front-x3","displayName":"OperatingSystem-front","state":"Running","healthStatus":"Healthy"},
-              {"name":"OperatingSystem-rebuilder-x4","displayName":"OperatingSystem-rebuilder","state":"NotStarted"},
-              {"name":"digitalbrain-mcp-a-y2","displayName":"digitalbrain-mcp-a","state":"Running","healthStatus":"Healthy"}]}
-            """);
-        var host = new AspireCliClusterHost(runner, _ => Task.FromResult(workdir));
-        await host.SetLive("abc1234", ct);
-
-        var silos = await host.Silos(ct);
-
-        Assert.Equal([new SiloView("OperatingSystem-a", "abc1234", "Starting", null), new SiloView("OperatingSystem-b", "abc1234", "Running", "Healthy")], silos);
-        Assert.Equal(["describe", "--format", "Json", "--apphost"], runner.Calls.Single().Take(4));
     }
 
     [Fact]
@@ -118,9 +95,7 @@ public sealed class AspireCliClusterHostFacts : IDisposable
         var http = new Answers(uri => uri.AbsolutePath == "/_instances/OperatingSystem-b/ready" ? HttpStatusCode.OK : HttpStatusCode.ServiceUnavailable);
         var host = new AspireCliClusterHost(new RecordingRunner(TwoRunningSilos), _ => Task.FromResult(workdir), "OperatingSystem-a", Fronts, http);
 
-        var ready = await host.WaitInstance("OperatingSystem-b", DateTimeOffset.MinValue, TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken);
-
-        Assert.Equal("Running", ready.State);
+        await host.WaitInstance("OperatingSystem-b", DateTimeOffset.MinValue, TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken);
     }
 
     [Fact]

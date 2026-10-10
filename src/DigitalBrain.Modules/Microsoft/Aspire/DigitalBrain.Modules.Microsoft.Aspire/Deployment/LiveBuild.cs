@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace DigitalBrain.Microsoft.Aspire.Cluster;
+namespace DigitalBrain.Microsoft.Aspire.Deployment;
 
 internal sealed record LiveBuild(string Sha, string Path);
 

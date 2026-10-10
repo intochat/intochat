@@ -38,7 +38,7 @@ internal static class LiveSignalEndpoints
 
     internal static readonly LiveFeed[] Feeds =
     [
-        Feed<ClusterChanged>(static (brain, brainId, _, _) => Single(brain.Get<ICluster>(ICluster.Key(brainId)))),
+        Feed<DeploymentChanged>(static (brain, brainId, _, _) => Single(brain.Get<IDeployment>(IDeployment.Key(brainId)))),
         Feed<AppActivity>(Apps),
         Feed<CircleTouched>(static (brain, brainId, _, _) => Single(brain.Get<ICircles>(ICircles.Key(brainId)))),
     ];

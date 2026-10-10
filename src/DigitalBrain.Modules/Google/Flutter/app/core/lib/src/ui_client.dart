@@ -424,7 +424,7 @@ final class DigitalBrainUiClient {
     'Workspace events are unavailable.',
   ).map(WorkspaceRevision.fromJson);
 
-  /// The live signals of `types` (simple type names, e.g. ClusterChanged) on the brain's
+  /// The live signals of `types` (simple type names, e.g. DeploymentChanged) on the brain's
   /// `/live` feed. Each source's retained value arrives first, so a late listener starts current.
   Stream<LiveEnvelope> watchLive(
     String brainId,
@@ -434,10 +434,10 @@ final class DigitalBrainUiClient {
     'Live signals are unavailable.',
   ).map(LiveEnvelope.fromJson);
 
-  Stream<ClusterChanged> watchCluster(String brainId) =>
-      watchLive(brainId, ['ClusterChanged'])
+  Stream<DeploymentChanged> watchCluster(String brainId) =>
+      watchLive(brainId, ['DeploymentChanged'])
           .where((envelope) => !envelope.isReady)
-          .map((envelope) => ClusterChanged.fromJson(envelope.payload));
+          .map((envelope) => DeploymentChanged.fromJson(envelope.payload));
 
   Stream<AppActivity> watchActivity(String brainId) =>
       watchLive(brainId, ['AppActivity'])

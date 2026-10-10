@@ -1,12 +1,13 @@
 using System.Net;
 using DigitalBrain.Microsoft.Aspire.Candidates;
-using DigitalBrain.Microsoft.Aspire.Cluster;
+using DigitalBrain.Microsoft.Aspire.Deployment;
 using DigitalBrain.Microsoft.Aspire.Verification;
+using DigitalBrain.Microsoft.Orleans;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Microsoft.Aspire.Tests;
 
-public sealed class ClusterChangedFacts
+public sealed class DeploymentChangedFacts
 {
     private static readonly TimeSpan Sampling = TimeSpan.FromMilliseconds(40);
 
@@ -23,74 +24,74 @@ public sealed class ClusterChangedFacts
         return (http ? builder.WithHttpEdge() : builder).StartAsync(ct);
     }
 
-    private static SiloView[] Silos(string state, params string[] ids) => [.. ids.Select(id => new SiloView(id, "sha0001", state, "Healthy"))];
+    private static SiloView[] Silos(string state, params string[] ids) => [.. ids.Select(id => new SiloView(id, id, state, null, "sha0001"))];
 
     [Fact]
-    public async Task TwoDifferentSiloListsPublishTwoClusterChangedWithTheSilos()
+    public async Task TwoDifferentSiloListsPublishTwoDeploymentChangedWithTheSilos()
     {
         var ct = TestContext.Current.CancellationToken;
-        var cluster = new FakeClusterHost { Reported = Silos("Running", "silo-0") };
+        var cluster = new FakeClusterHost { Reported = Silos("Active", "silo-0") };
         await using var brain = await StartAsync(cluster, ct);
-        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
-        await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
+        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
 
         await grain.Read();
         var first = await changes.NextAsync(change => change.Silos.Length == 1, ct);
-        cluster.Reported = Silos("Running", "silo-0", "silo-1");
+        cluster.Reported = Silos("Active", "silo-0", "silo-1");
         var second = await changes.NextAsync(ct: ct);
 
         Assert.Equal(("Steady", "base000"), (first.Stage, first.Sha));
-        Assert.Equal(["silo-0:Running:Healthy"], first.Silos.Select(Describe));
-        Assert.Equal(["silo-0:Running:Healthy", "silo-1:Running:Healthy"], second.Silos.Select(Describe));
+        Assert.Equal(["silo-0:Active"], first.Silos.Select(Describe));
+        Assert.Equal(["silo-0:Active", "silo-1:Active"], second.Silos.Select(Describe));
     }
 
     [Fact]
     public async Task AnUnchangedSiloListPublishesNothingMore()
     {
         var ct = TestContext.Current.CancellationToken;
-        var cluster = new FakeClusterHost { Reported = Silos("Running", "silo-0") };
+        var cluster = new FakeClusterHost { Reported = Silos("Active", "silo-0") };
         await using var brain = await StartAsync(cluster, ct);
-        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
-        await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
+        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
 
         await grain.Read();
         await changes.NextAsync(ct: ct);
         // Several samples of the same list pass before the list changes; the next signal is the change, not a repeat.
         await WaitSamples(cluster, 4, ct);
-        cluster.Reported = Silos("Exited", "silo-0");
+        cluster.Reported = Silos("Dead", "silo-0");
         var next = await changes.NextAsync(ct: ct);
 
-        Assert.Equal(["silo-0:Exited:Healthy"], next.Silos.Select(Describe));
+        Assert.Equal(["silo-0:Dead"], next.Silos.Select(Describe));
     }
 
     [Fact]
     public async Task ASampleTakenWhileARollIsInProgressPublishesTheChangedSilos()
     {
         var ct = TestContext.Current.CancellationToken;
-        var cluster = new FakeClusterHost { Self = "silo-0", Reported = Silos("Running", "silo-0", "silo-1") };
+        var cluster = new FakeClusterHost { Self = "silo-0", Reported = Silos("Active", "silo-0", "silo-1") };
         var gate = cluster.RestartGates["mcp-b"] = new RestartGate();
         await using var brain = await StartAsync(cluster, ct);
-        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
-        await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
+        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
 
         await grain.Roll("sha0001");
         await gate.Reached.Task.WaitAsync(ct);
         // The step holds the grain here; the sample still runs and shows the silo that is restarting.
-        cluster.Reported = [new("silo-0", "sha0001", "Running", "Healthy"), new("silo-1", "sha0001", "Starting", "")];
-        var seen = await changes.NextAsync(change => change.Stage == nameof(ClusterStage.Rolling) && change.Silos.Any(silo => silo.State == "Starting"), ct);
+        cluster.Reported = [new("silo-0", "silo-0", "Active", null, "sha0001"), new("silo-1", "silo-1", "Joining", null, "sha0001")];
+        var seen = await changes.NextAsync(change => change.Stage == nameof(DeploymentStage.Rolling) && change.Silos.Any(silo => silo.State == "Joining"), ct);
         gate.Open.SetResult();
 
-        Assert.Contains("silo-1:Starting:", seen.Silos.Select(Describe));
+        Assert.Contains("silo-1:Joining", seen.Silos.Select(Describe));
     }
 
     [Fact]
-    public async Task AnUnreadableAppHostEmptiesTheSilosOnce()
+    public async Task AnUnreadableMembershipEmptiesTheSilosOnce()
     {
         var ct = TestContext.Current.CancellationToken;
-        var cluster = new FakeClusterHost { Reported = Silos("Running", "silo-0") };
+        var cluster = new FakeClusterHost { Reported = Silos("Active", "silo-0") };
         await using var brain = await StartAsync(cluster, ct);
-        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
-        await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
+        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
         await grain.Read();
         await changes.NextAsync(change => change.Silos.Length == 1, ct);
 
@@ -101,24 +102,24 @@ public sealed class ClusterChangedFacts
         var back = await changes.NextAsync(ct: ct);
 
         Assert.Empty(empty.Silos);
-        Assert.Equal(["silo-0:Running:Healthy"], back.Silos.Select(Describe));
+        Assert.Equal(["silo-0:Active"], back.Silos.Select(Describe));
     }
 
     [Fact]
-    public async Task ALateSubscriberIsSeededWithTheLastClusterChanged()
+    public async Task ALateSubscriberIsSeededWithTheLastDeploymentChanged()
     {
         var ct = TestContext.Current.CancellationToken;
-        var cluster = new FakeClusterHost { Reported = Silos("Running", "silo-0") };
+        var cluster = new FakeClusterHost { Reported = Silos("Active", "silo-0") };
         await using var brain = await StartAsync(cluster, ct);
-        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
-        await using var early = await brain.Observe<ClusterChanged>(grain, ct);
+        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        await using var early = await brain.Observe<DeploymentChanged>(grain, ct);
         await grain.Read();
         await early.NextAsync(ct: ct);
 
-        var retained = await grain.AsReference<IRetainsSignals>().Retained(nameof(ClusterChanged), 0);
+        var retained = await grain.AsReference<IRetainsSignals>().Retained(nameof(DeploymentChanged), 0);
 
-        var last = Assert.IsType<ClusterChanged>(Assert.Single(retained).Signal);
-        Assert.Equal(["silo-0:Running:Healthy"], last.Silos.Select(Describe));
+        var last = Assert.IsType<DeploymentChanged>(Assert.Single(retained).Signal);
+        Assert.Equal(["silo-0:Active"], last.Silos.Select(Describe));
     }
 
     [Fact]
@@ -135,7 +136,7 @@ public sealed class ClusterChangedFacts
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    private static string Describe(SiloState silo) => $"{silo.Id}:{silo.State}:{silo.Health}";
+    private static string Describe(SiloState silo) => $"{silo.Id}:{silo.State}";
 
     private static async Task WaitSamples(FakeClusterHost cluster, int count, CancellationToken ct)
     {

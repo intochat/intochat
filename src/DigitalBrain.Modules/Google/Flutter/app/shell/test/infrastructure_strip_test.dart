@@ -31,13 +31,13 @@ void main() {
     expect(infrastructureHealth('Failing', null), InfrastructureHealth.red);
   });
 
-  ClusterChanged cluster(List<SiloState> silos, {String stage = 'steady'}) =>
-      ClusterChanged(stage: stage, sha: 'abc1234567', silos: silos);
+  DeploymentChanged cluster(List<SiloState> silos, {String stage = 'steady'}) =>
+      DeploymentChanged(stage: stage, sha: 'abc1234567', silos: silos);
 
   testWidgets(
     'the strip shows a chip per silo, follows the signal without polling, and a tap names the silo',
     (tester) async {
-      final signals = StreamController<ClusterChanged>();
+      final signals = StreamController<DeploymentChanged>();
       final tapped = <String>[];
       await tester.pumpWidget(
         MaterialApp(
@@ -96,7 +96,7 @@ void main() {
     tester,
   ) async {
     Future<int> avatarsDuringSwitch({required bool reduced}) async {
-      final signals = StreamController<ClusterChanged>();
+      final signals = StreamController<DeploymentChanged>();
       await tester.pumpWidget(
         MediaQuery(
           data: MediaQueryData(disableAnimations: reduced),
@@ -133,7 +133,7 @@ void main() {
   });
 
   testWidgets('a failing feed says so', (tester) async {
-    final signals = StreamController<ClusterChanged>();
+    final signals = StreamController<DeploymentChanged>();
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(body: InfrastructureStrip(watch: () => signals.stream)),

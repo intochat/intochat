@@ -32,7 +32,7 @@ Color infrastructureColor(InfrastructureHealth health) => switch (health) {
 class InfrastructureStrip extends StatefulWidget {
   const InfrastructureStrip({super.key, this.watch, this.onTap});
 
-  final Stream<ClusterChanged> Function()? watch;
+  final Stream<DeploymentChanged> Function()? watch;
   final ValueChanged<String>? onTap;
 
   @override
@@ -40,9 +40,9 @@ class InfrastructureStrip extends StatefulWidget {
 }
 
 class _InfrastructureStripState extends State<InfrastructureStrip> {
-  ClusterChanged? _cluster;
+  DeploymentChanged? _cluster;
   String? _error;
-  StreamSubscription<ClusterChanged>? _subscription;
+  StreamSubscription<DeploymentChanged>? _subscription;
 
   @override
   void initState() {

@@ -1,6 +1,6 @@
 namespace DigitalBrain.Microsoft.Aspire.Tests;
 
-public sealed class ClusterRollFacts
+public sealed class DeploymentRollFacts
 {
     [Fact]
     public async Task RollingRestartsEveryInstanceOnceAndEndsSteadyOnTheNewShaAfterTheHandover()
@@ -8,20 +8,20 @@ public sealed class ClusterRollFacts
         var ct = TestContext.Current.CancellationToken;
         var cluster = new FakeClusterHost { Self = "silo-0" };
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
+        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
 
         var rolling = await grain.Roll("sha0001");
         await cluster.SelfRestarted.Task.WaitAsync(ct);
         await brain.DeactivateAsync(grain, ct);
-        await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
-        var steady = await changes.NextAsync(change => change.Stage == nameof(ClusterStage.Steady), ct);
+        await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
+        var steady = await changes.NextAsync(change => change.Stage == nameof(DeploymentStage.Steady), ct);
 
-        Assert.Equal(ClusterStage.Rolling, rolling.Stage);
+        Assert.Equal(DeploymentStage.Rolling, rolling.Stage);
         Assert.Equal("sha0001", steady.Sha);
         Assert.Null((await grain.Read()).Failure);
         Assert.Equal(["mcp-a@sha0001", "mcp-b@sha0001", "silo-1@sha0001", "silo-0@sha0001"], cluster.RestartedSilos);
         var read = await grain.Read();
-        Assert.Equal((ClusterStage.Steady, "sha0001"), (read.Stage, read.CurrentSha));
+        Assert.Equal((DeploymentStage.Steady, "sha0001"), (read.Stage, read.CurrentSha));
         Assert.Empty(read.Remaining);
     }
 
@@ -31,14 +31,14 @@ public sealed class ClusterRollFacts
         var ct = TestContext.Current.CancellationToken;
         var cluster = new FakeClusterHost { Self = "silo-0" };
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
+        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
         await grain.Roll("sha0001");
         await cluster.SelfRestarted.Task.WaitAsync(ct);
 
         cluster.Self = "silo-1";
         await brain.DeactivateAsync(grain, ct);
-        await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
-        await changes.NextAsync(change => change.Stage == nameof(ClusterStage.Steady), ct);
+        await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
+        await changes.NextAsync(change => change.Stage == nameof(DeploymentStage.Steady), ct);
 
         Assert.Equal("silo-0@sha0001", cluster.Waited[^1]);
     }
@@ -49,19 +49,19 @@ public sealed class ClusterRollFacts
         var ct = TestContext.Current.CancellationToken;
         var cluster = new FakeClusterHost { Self = "silo-0", InterruptAt = "silo-1" };
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
-        await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
+        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
 
         await grain.Roll("sha0001");
-        var back = await changes.NextAsync(change => change.Stage == nameof(ClusterStage.RollingBack), ct);
-        var steady = await changes.NextAsync(change => change.Stage == nameof(ClusterStage.Steady), ct);
+        var back = await changes.NextAsync(change => change.Stage == nameof(DeploymentStage.RollingBack), ct);
+        var steady = await changes.NextAsync(change => change.Stage == nameof(DeploymentStage.Steady), ct);
 
         Assert.Equal("base000", steady.Sha);
         Assert.Contains("silo-1", (await grain.Read()).Failure, StringComparison.Ordinal);
         Assert.Equal("base000", cluster.Current);
         Assert.Equal(["mcp-a@sha0001", "mcp-b@sha0001", "silo-1@base000", "mcp-b@base000", "mcp-a@base000"], cluster.RestartedSilos);
         var read = await grain.Read();
-        Assert.Equal((ClusterStage.Steady, "base000"), (read.Stage, read.CurrentSha));
+        Assert.Equal((DeploymentStage.Steady, "base000"), (read.Stage, read.CurrentSha));
         Assert.NotNull(read.Failure);
     }
 
@@ -74,19 +74,19 @@ public sealed class ClusterRollFacts
         var cluster = new FakeClusterHost { Self = "silo-0" };
         cluster.NeverHealthy.Add(never);
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
-        await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
+        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
 
         await grain.Roll("sha0001");
-        var back = await changes.NextAsync(change => change.Stage == nameof(ClusterStage.RollingBack), ct);
-        var steady = await changes.NextAsync(change => change.Stage == nameof(ClusterStage.Steady), ct);
+        var back = await changes.NextAsync(change => change.Stage == nameof(DeploymentStage.RollingBack), ct);
+        var steady = await changes.NextAsync(change => change.Stage == nameof(DeploymentStage.Steady), ct);
 
         Assert.Equal("base000", steady.Sha);
         Assert.Contains("silo-1", (await grain.Read()).Failure, StringComparison.Ordinal);
         Assert.Equal("base000", cluster.Current);
         Assert.Equal(["mcp-a@sha0001", "mcp-b@sha0001", "silo-1@sha0001", "silo-1@base000", "mcp-b@base000", "mcp-a@base000"], cluster.RestartedSilos);
         var read = await grain.Read();
-        Assert.Equal((ClusterStage.Steady, "base000"), (read.Stage, read.CurrentSha));
+        Assert.Equal((DeploymentStage.Steady, "base000"), (read.Stage, read.CurrentSha));
         Assert.NotNull(read.Failure);
     }
 
@@ -96,7 +96,7 @@ public sealed class ClusterRollFacts
         var ct = TestContext.Current.CancellationToken;
         var cluster = new FakeClusterHost();
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
+        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
         await grain.Restart("sha0001");
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => grain.Roll("sha0002"));
@@ -110,8 +110,8 @@ public sealed class ClusterRollFacts
         var cluster = new FakeClusterHost { Self = "silo-0" };
         var gate = cluster.RestartGates["mcp-b"] = new RestartGate();
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
-        await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
+        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
 
         await grain.Roll("sha0001");
         await gate.Reached.Task.WaitAsync(ct);
@@ -119,15 +119,15 @@ public sealed class ClusterRollFacts
         cluster.Current = "base000";
         cluster.DieOnSetLiveSha.Add("sha0001");
         gate.Open.SetResult();
-        var back = await changes.NextAsync(change => change.Stage == nameof(ClusterStage.RollingBack), ct);
-        var steady = await changes.NextAsync(change => change.Stage == nameof(ClusterStage.Steady), ct);
+        var back = await changes.NextAsync(change => change.Stage == nameof(DeploymentStage.RollingBack), ct);
+        var steady = await changes.NextAsync(change => change.Stage == nameof(DeploymentStage.Steady), ct);
 
         Assert.Equal("base000", steady.Sha);
         Assert.Contains("live.json could not be written", (await grain.Read()).Failure, StringComparison.Ordinal);
         Assert.Equal("base000", cluster.Current);
         Assert.Equal(["mcp-a@sha0001", "mcp-b@sha0001", "silo-1@base000", "mcp-b@base000", "mcp-a@base000"], cluster.RestartedSilos);
         var read = await grain.Read();
-        Assert.Equal((ClusterStage.Steady, "base000"), (read.Stage, read.CurrentSha));
+        Assert.Equal((DeploymentStage.Steady, "base000"), (read.Stage, read.CurrentSha));
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public sealed class ClusterRollFacts
         var cluster = new FakeClusterHost { Self = "silo-0" };
         var gate = cluster.RestartGates["mcp-b"] = new RestartGate();
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
+        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
 
         await grain.Roll("sha0001");
         await gate.Reached.Task.WaitAsync(ct);
@@ -147,14 +147,14 @@ public sealed class ClusterRollFacts
         await deactivated;
         await cluster.SelfRestarted.Task.WaitAsync(ct);
         await brain.DeactivateAsync(grain, ct);
-        await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
-        var steady = await changes.NextAsync(change => change.Stage == nameof(ClusterStage.Steady), ct);
+        await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
+        var steady = await changes.NextAsync(change => change.Stage == nameof(DeploymentStage.Steady), ct);
 
         Assert.Equal("sha0001", steady.Sha);
         Assert.Null((await grain.Read()).Failure);
         Assert.Equal(["mcp-a@sha0001", "mcp-b@sha0001", "silo-1@sha0001", "silo-0@sha0001"], cluster.RestartedSilos);
         var read = await grain.Read();
-        Assert.Equal((ClusterStage.Steady, "sha0001"), (read.Stage, read.CurrentSha));
+        Assert.Equal((DeploymentStage.Steady, "sha0001"), (read.Stage, read.CurrentSha));
         Assert.Empty(read.Remaining);
     }
 
@@ -165,7 +165,7 @@ public sealed class ClusterRollFacts
         var cluster = new FakeClusterHost { Self = "silo-0" };
         var gate = cluster.RestartGates["mcp-b"] = new RestartGate();
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
+        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
         await grain.Roll("sha0001");
         await gate.Reached.Task.WaitAsync(ct);
 
@@ -183,7 +183,7 @@ public sealed class ClusterRollFacts
         var ct = TestContext.Current.CancellationToken;
         var cluster = new FakeClusterHost { Self = "silo-0" };
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
+        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
 
         await grain.Roll("sha0001");
         await cluster.SelfRestarted.Task.WaitAsync(ct);
@@ -199,11 +199,11 @@ public sealed class ClusterRollFacts
         var cluster = new FakeClusterHost { Self = "silo-0" };
         cluster.NoPeer.Add("silo-1@sha0001");
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
-        await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
+        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
 
         await grain.Roll("sha0001");
-        var steady = await changes.NextAsync(change => change.Stage == nameof(ClusterStage.Steady), ct);
+        var steady = await changes.NextAsync(change => change.Stage == nameof(DeploymentStage.Steady), ct);
 
         Assert.Equal("base000", steady.Sha);
         Assert.Contains("no other instance is routable", (await grain.Read()).Failure, StringComparison.Ordinal);
@@ -217,14 +217,14 @@ public sealed class ClusterRollFacts
         var ct = TestContext.Current.CancellationToken;
         var cluster = new FakeClusterHost { Current = "base000", Self = null };
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
+        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
         await grain.Read();
 
         var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => grain.Roll("sha0001"));
 
         Assert.Contains("not a cluster instance", refused.Message, StringComparison.Ordinal);
         Assert.Empty(cluster.Steps);
-        Assert.Equal(ClusterStage.Steady, (await grain.Read()).Stage);
+        Assert.Equal(DeploymentStage.Steady, (await grain.Read()).Stage);
     }
 
     [Fact]
@@ -236,11 +236,11 @@ public sealed class ClusterRollFacts
         // Going back, the front can route nothing but the instance about to restart.
         cluster.NoPeer.Add("mcp-b@base000");
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
-        await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
+        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
 
         await grain.Roll("sha0001");
-        var steady = await changes.NextAsync(change => change.Stage == nameof(ClusterStage.Steady), ct);
+        var steady = await changes.NextAsync(change => change.Stage == nameof(DeploymentStage.Steady), ct);
 
         Assert.Contains("rolling back", (await grain.Read()).Failure, StringComparison.Ordinal);
         Assert.DoesNotContain("mcp-b@base000", cluster.RestartedSilos);

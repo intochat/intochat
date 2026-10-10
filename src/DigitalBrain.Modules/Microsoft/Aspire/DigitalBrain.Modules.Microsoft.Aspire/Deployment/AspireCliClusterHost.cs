@@ -3,7 +3,7 @@ using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.Aspire.Candidates;
 using DigitalBrain.ServiceDefaults;
 
-namespace DigitalBrain.Microsoft.Aspire.Cluster;
+namespace DigitalBrain.Microsoft.Aspire.Deployment;
 
 // The live AppHost through the `aspire` CLI (13.6 has no `aspire mcp start`): `describe`, `resource restart`, `otel spans`.
 // The AppHost project is found from the repository, Workdir's parent.
@@ -71,15 +71,6 @@ internal sealed class AspireCliClusterHost : IClusterHost
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sha);
         LiveBuildFile.Write(await DeploymentWorkdir(ct), sha);
-    }
-
-    public async Task<SiloView[]> Silos(CancellationToken ct)
-    {
-        var sha = await CurrentSha(ct);
-        return [.. (await Describe(ct))
-            .Where(resource => Instance(Text(resource, "displayName", "name"), SiloResource))
-            .Select(resource => new SiloView(Text(resource, "displayName", "name")!, sha, Text(resource, "state") ?? "Unknown", Text(resource, "healthStatus", "health")))
-            .OrderBy(silo => silo.Name, StringComparer.Ordinal)];
     }
 
     // The MCP servers are Orleans clients of the same build: they restart onto live.json's build first, then the
@@ -166,7 +157,7 @@ internal sealed class AspireCliClusterHost : IClusterHost
     // A readiness wait on a freshly started process: Running in `describe`, then the front's route to it answers 200
     // (its /ready through the front's tunnel, counted in by the front's health check). The budget bounds it; an
     // instance that stops fails at once.
-    public async Task<SiloView> WaitInstance(string name, DateTimeOffset since, TimeSpan budget, CancellationToken ct)
+    public async Task WaitInstance(string name, DateTimeOffset since, TimeSpan budget, CancellationToken ct)
     {
         using var bounded = CancellationTokenSource.CreateLinkedTokenSource(ct);
         bounded.CancelAfter(budget);
@@ -184,7 +175,7 @@ internal sealed class AspireCliClusterHost : IClusterHost
                 }
                 if (state == "Running" && await Routed(await FrontOf(name, bounded.Token), name, bounded.Token))
                 {
-                    return new SiloView(name, await CurrentSha(bounded.Token), state, Text(resource, "healthStatus", "health"));
+                    return;
                 }
                 await Task.Delay(ReadyInterval, bounded.Token);
             }

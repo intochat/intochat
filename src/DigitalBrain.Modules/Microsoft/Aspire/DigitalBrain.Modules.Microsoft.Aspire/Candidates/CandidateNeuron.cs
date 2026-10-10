@@ -17,7 +17,7 @@ internal sealed class CandidateNeuron(
     private string Sha => Key[(Key.LastIndexOf('/') + 1)..];
     private string BrainId => BrainKey.BrainOf(Key);
     private ICandidates Index => GrainFactory.GetGrain<ICandidates>(ICandidates.Key(BrainId));
-    private ICluster LiveCluster => GrainFactory.GetGrain<ICluster>(ICluster.Key(BrainId));
+    private IDeployment LiveCluster => GrainFactory.GetGrain<IDeployment>(IDeployment.Key(BrainId));
 
     public Task<CandidateSnapshot> Read() => Task.FromResult(Describe());
 
@@ -108,18 +108,18 @@ internal sealed class CandidateNeuron(
         }
         // The silos restart onto the build after Restart returns, this one among them: finishing here would race
         // its own shutdown (seen live: Remove killed mid-way). The new build's cluster activation calls Finish.
-        ClusterSnapshot cluster;
+        DeploymentSnapshot cluster;
         try { cluster = await LiveCluster.Restart(Sha); }
         catch (Exception error)
         {
             // A restart the cluster still heads for is settled by its next activation; any other is not happening.
             if (Snapshot.Stage != CandidateStage.Promoting) { return Describe(); }
-            if (await LiveCluster.Read() is { Stage: ClusterStage.Restarting } heading && heading.TargetSha == Sha) { return Describe(); }
+            if (await LiveCluster.Read() is { Stage: DeploymentStage.Restarting } heading && heading.TargetSha == Sha) { return Describe(); }
             await Uncommitted(previous);
             await Fail($"restart: {error.Message}", removeContainer: true);
             return Describe();
         }
-        return cluster.Stage == ClusterStage.Steady && cluster.CurrentSha == Sha ? await Finish() : Describe();
+        return cluster.Stage == DeploymentStage.Steady && cluster.CurrentSha == Sha ? await Finish() : Describe();
     }
 
     public async Task<CandidateSnapshot> Finish()

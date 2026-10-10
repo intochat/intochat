@@ -1,5 +1,5 @@
 using DigitalBrain.Microsoft.Aspire.Candidates;
-using DigitalBrain.Microsoft.Aspire.Cluster;
+using DigitalBrain.Microsoft.Aspire.Deployment;
 using DigitalBrain.Microsoft.Aspire.Verification;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -41,8 +41,8 @@ public sealed class CandidateFacts
         Assert.Equal(CandidateStage.Healthy, (await candidate.Start()).Stage);
         Assert.Equal(CandidateStage.Verified, (await candidate.Verify()).Stage);
         Assert.Equal(CandidateStage.Promoting, (await candidate.Promote()).Stage);
-        await brain.DeactivateAsync(brain.Get<ICluster>(ICluster.Key("owner")), ct);
-        await brain.Get<ICluster>(ICluster.Key("owner")).Read();
+        await brain.DeactivateAsync(brain.Get<IDeployment>(IDeployment.Key("owner")), ct);
+        await brain.Get<IDeployment>(IDeployment.Key("owner")).Read();
 
         Assert.Equal(CandidateStage.Promoted, (await candidate.Read()).Stage);
         Assert.Equal("sha0001", (await promoted.NextAsync(ct: ct)).Sha);
@@ -149,8 +149,8 @@ public sealed class CandidateFacts
         Assert.Equal(CandidateStage.Promoting, (await candidate.Promote()).Stage);
         Assert.Equal(sha, await index.Live());
 
-        await brain.DeactivateAsync(brain.Get<ICluster>(ICluster.Key("owner")), ct);
-        await brain.Get<ICluster>(ICluster.Key("owner")).Read();
+        await brain.DeactivateAsync(brain.Get<IDeployment>(IDeployment.Key("owner")), ct);
+        await brain.Get<IDeployment>(IDeployment.Key("owner")).Read();
 
         Assert.Equal(sha, (await promoted.NextAsync(ct: ct)).Sha);
         Assert.Equal(CandidateStage.Promoted, (await candidate.Read()).Stage);
@@ -191,7 +191,7 @@ public sealed class CandidateFacts
         await healthy.NextAsync(ct: ct);
         await first.Verify();
         await first.Promote();
-        await brain.DeactivateAsync(brain.Get<ICluster>(ICluster.Key("owner")), ct);
+        await brain.DeactivateAsync(brain.Get<IDeployment>(IDeployment.Key("owner")), ct);
 
         var queued = await index.Propose(new("os-runtime", "two", [], Plan));
 
@@ -256,8 +256,8 @@ public sealed class CandidateFacts
         Assert.Equal(CandidateStage.Failed, result.Stage);
         Assert.Equal("base000", host.Live);
         Assert.Equal("base000", cluster.Current);
-        var read = await brain.Get<ICluster>(ICluster.Key("owner")).Read();
-        Assert.Equal((ClusterStage.Steady, "base000"), (read.Stage, read.CurrentSha));
+        var read = await brain.Get<IDeployment>(IDeployment.Key("owner")).Read();
+        Assert.Equal((DeploymentStage.Steady, "base000"), (read.Stage, read.CurrentSha));
     }
 
     [Fact]
@@ -273,8 +273,8 @@ public sealed class CandidateFacts
         await candidate.Promote();
         cluster.Current = "base000";
 
-        await brain.DeactivateAsync(brain.Get<ICluster>(ICluster.Key("owner")), ct);
-        await brain.Get<ICluster>(ICluster.Key("owner")).Read();
+        await brain.DeactivateAsync(brain.Get<IDeployment>(IDeployment.Key("owner")), ct);
+        await brain.Get<IDeployment>(IDeployment.Key("owner")).Read();
 
         Assert.Equal(CandidateStage.Failed, (await candidate.Read()).Stage);
         Assert.Contains("uncommit sha0001 ", host.Calls);
@@ -293,7 +293,7 @@ public sealed class CandidateFacts
         await using var _ = brain;
         await candidate.Start();
         await candidate.Verify();
-        var live = brain.Get<ICluster>(ICluster.Key("owner"));
+        var live = brain.Get<IDeployment>(IDeployment.Key("owner"));
         await live.Restart("sha0001");
         await brain.DeactivateAsync(live, ct);
 

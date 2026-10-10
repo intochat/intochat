@@ -11,7 +11,7 @@ namespace DigitalBrain.Microsoft.Aspire;
 
 public sealed class AspireModule() : Module<AspireOptions>(new ModuleId("aspire"))
 {
-    public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.Microsoft.Aspire.ICluster).Assembly;
+    public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.Microsoft.Aspire.IDeployment).Assembly;
 
     // Workdir: where candidates are built. The two secrets are what the hosting ring hands a candidate host and
     // nothing else of the live deployment: CandidateModel, the model Integrations' environment as a JSON object
@@ -31,8 +31,8 @@ public sealed class AspireModule() : Module<AspireOptions>(new ModuleId("aspire"
     // Discovery refuses a connector without an authentication method; the deployment's Workdir is its only credential.
     public static ConnectorDefinition Connector => new("aspire", "Aspire", ["deployment"], ["aspire"])
     {
-        Neurons = [typeof(ICandidate), typeof(ICluster)],
-        Signals = [typeof(CandidatePromoted), typeof(CandidateFailed), typeof(ClusterChanged)],
+        Neurons = [typeof(ICandidate), typeof(IDeployment)],
+        Signals = [typeof(CandidatePromoted), typeof(CandidateFailed), typeof(DeploymentChanged)],
     };
 
     public override void Configure(ISiloBuilder builder)
@@ -40,8 +40,8 @@ public sealed class AspireModule() : Module<AspireOptions>(new ModuleId("aspire"
         ArgumentNullException.ThrowIfNull(builder);
         builder.Services.TryAddSingleton<Candidates.IProcessRunner, Candidates.SystemProcessRunner>();
         builder.Services.TryAddSingleton<Candidates.ICandidateHost, Candidates.DockerCandidateHost>();
-        builder.Services.TryAddSingleton<Cluster.IClusterHost, Cluster.AspireCliClusterHost>();
+        builder.Services.TryAddSingleton<Deployment.IClusterHost, Deployment.AspireCliClusterHost>();
         builder.Services.TryAddSingleton<Verification.ICandidateVerifier, Verification.CandidateVerifier>();
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<Cluster.ClusterNeuron>, Cluster.ClusterReconcile>());
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<Deployment.DeploymentNeuron>, Deployment.DeploymentReconcile>());
     }
 }
