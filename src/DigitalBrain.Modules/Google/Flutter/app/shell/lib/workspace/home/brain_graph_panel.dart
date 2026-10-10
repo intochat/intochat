@@ -14,11 +14,14 @@ class BrainGraphPanel extends StatefulWidget {
     required this.watch,
     this.loadSignals,
     this.height = 360,
+    this.retryAfter = const Duration(seconds: 1),
+    this.retryCeiling = const Duration(seconds: 30),
   });
 
   final Stream<BrainSnapshot> Function() watch;
   final SignalsLoader? loadSignals;
   final double height;
+  final Duration retryAfter, retryCeiling;
 
   @override
   State<BrainGraphPanel> createState() => _BrainGraphPanelState();
@@ -30,20 +33,43 @@ class _BrainGraphPanelState extends State<BrainGraphPanel> {
   String? _selected;
   StreamSubscription<BrainSnapshot>? _subscription;
 
+  Timer? _retry;
+  late Duration _pause = widget.retryAfter;
+
   @override
   void initState() {
     super.initState();
+    _connect();
+  }
+
+  // A feed that ends or fails keeps the last graph, marked stale, and is reopened with a growing pause;
+  // the reopened feed starts with the whole brain again.
+  void _connect() {
+    unawaited(_subscription?.cancel());
     _subscription = widget.watch().listen(
       (snapshot) => setState(() {
+        _pause = widget.retryAfter;
         _live = snapshot;
         _error = null;
       }),
-      onError: (Object error) => setState(() => _error = error),
+      onError: _lost,
+      onDone: () => _lost(StateError('The brain feed ended.')),
+      cancelOnError: true,
     );
+  }
+
+  void _lost(Object error) {
+    if (!mounted) return;
+    if (_error == null) setState(() => _error = error);
+    _retry?.cancel();
+    _retry = Timer(_pause, _connect);
+    final doubled = _pause * 2;
+    _pause = doubled > widget.retryCeiling ? widget.retryCeiling : doubled;
   }
 
   @override
   void dispose() {
+    _retry?.cancel();
     unawaited(_subscription?.cancel());
     super.dispose();
   }

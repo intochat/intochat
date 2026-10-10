@@ -138,14 +138,13 @@ void main() {
           child: Scaffold(
             body: Center(
               child: SizedBox(
+                key: const ValueKey('dock-room'),
                 width: 400,
-                child: Center(
-                  child: Dock(
-                    app: 'assistant',
-                    manifest: bare,
-                    floating: true,
-                    onRequest: (_, _) async {},
-                  ),
+                child: Dock(
+                  app: 'assistant',
+                  manifest: bare,
+                  floating: true,
+                  onRequest: (_, _) async {},
                 ),
               ),
             ),
@@ -157,7 +156,7 @@ void main() {
     expect(tester.getSize(ino).width, 64);
     expect(
       tester.getCenter(ino).dx,
-      tester.getCenter(find.byType(SizedBox).first).dx,
+      tester.getCenter(find.byKey(const ValueKey('dock-room'))).dx,
     );
   });
 }

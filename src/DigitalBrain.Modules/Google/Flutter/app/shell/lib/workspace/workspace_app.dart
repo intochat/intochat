@@ -774,7 +774,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
           ? null
           : InfrastructureStrip(
               watch: () => client.watchCluster(project.id),
-              onTap: (silo) => _openConnections(context, silo),
+              onTap: (_) => _openConnections(context),
             ),
       decorateIcon: client == null
           ? null
@@ -1050,7 +1050,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     ),
   );
 
-  void _openConnections(BuildContext context, String module) {
+  void _openConnections(BuildContext context, [String? connectorId]) {
     final request = _connectionsRequest;
     if (request == null) return;
     showDialog<void>(
@@ -1063,7 +1063,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
           child: ConnectWindow(
             request: request,
             connectorRequest: _connectorRequest,
-            initialConnectorId: module,
+            initialConnectorId: connectorId,
             onOpen: widget.onOpenUrl,
           ),
         ),

@@ -35,26 +35,32 @@ class Dock extends StatelessWidget {
   final bool floating;
 
   @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      // Ino is always in the dock: small beside a focused app's toolbar, large when nothing is focused.
-      AssistantIsland(
-        key: const ValueKey('assistant-island'),
-        watch: watchActivity,
-        brainId: brainId,
-        floating: floating,
-      ),
-      for (final entry in manifest.toolbar)
-        _DockEntry(
-          key: ValueKey('dock-entry-${entry.operation}'),
-          entry: entry,
-          manifestIcon: manifest.icon,
-          iconRoute: iconRoute,
-          loadIcon: loadIcon,
-          onRequest: onRequest,
+  Widget build(BuildContext context) => LayoutBuilder(
+    // Floating Ino is centered in the room the dock is given; a dock in a scroller wraps its content.
+    builder: (context, constraints) => Row(
+      mainAxisSize: floating && constraints.hasBoundedWidth
+          ? MainAxisSize.max
+          : MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // Ino is always in the dock: small beside a focused app's toolbar, large when nothing is focused.
+        AssistantIsland(
+          key: const ValueKey('assistant-island'),
+          watch: watchActivity,
+          brainId: brainId,
+          floating: floating,
         ),
-    ],
+        for (final entry in manifest.toolbar)
+          _DockEntry(
+            key: ValueKey('dock-entry-${entry.operation}'),
+            entry: entry,
+            manifestIcon: manifest.icon,
+            iconRoute: iconRoute,
+            loadIcon: loadIcon,
+            onRequest: onRequest,
+          ),
+      ],
+    ),
   );
 }
 
