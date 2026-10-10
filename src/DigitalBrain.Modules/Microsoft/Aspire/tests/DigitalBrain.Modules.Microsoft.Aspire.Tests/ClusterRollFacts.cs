@@ -177,4 +177,54 @@ public sealed class ClusterRollFacts
 
         Assert.Contains("rolling onto sha0001", refused.Message, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task EveryInstanceDrainsAndLeavesTheFrontBeforeItRestarts()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var cluster = new FakeClusterHost { Self = "silo-0" };
+        await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
+        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
+
+        await grain.Roll("sha0001");
+        await cluster.SelfRestarted.Task.WaitAsync(ct);
+
+        string[] expected = [.. new[] { "mcp-a", "mcp-b", "silo-1", "silo-0" }.SelectMany(name => new[] { $"drain {name}", $"out {name}", $"restart {name}" })];
+        Assert.Equal(expected, cluster.Steps);
+    }
+
+    [Fact]
+    public async Task AFrontWithNoOtherRoutableInstanceRollsBackBeforeTheInstanceStops()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var cluster = new FakeClusterHost { Self = "silo-0" };
+        cluster.NoPeer.Add("silo-1");
+        await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
+        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
+        await using var changes = await brain.Observe<ClusterChanged>(grain, ct);
+
+        await grain.Roll("sha0001");
+        var steady = await changes.NextAsync(change => change.Stage == ClusterStage.Steady, ct);
+
+        Assert.Equal("base000", steady.CurrentSha);
+        Assert.Contains("no other instance is routable", steady.Failure, StringComparison.Ordinal);
+        // silo-1 never restarted onto the new build; going back it restarts regardless, then the moved MCP servers.
+        Assert.Equal(["mcp-a@sha0001", "mcp-b@sha0001", "silo-1@base000", "mcp-b@base000", "mcp-a@base000"], cluster.RestartedSilos);
+    }
+
+    [Fact]
+    public async Task RollIsRefusedInAProcessThatIsNotAClusterInstance()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var cluster = new FakeClusterHost { Current = "base000", Self = null };
+        await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
+        var grain = brain.Get<ICluster>(ICluster.Key("owner"));
+        await grain.Read();
+
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => grain.Roll("sha0001"));
+
+        Assert.Contains("not a cluster instance", refused.Message, StringComparison.Ordinal);
+        Assert.Empty(cluster.Steps);
+        Assert.Equal(ClusterStage.Steady, (await grain.Read()).Stage);
+    }
 }

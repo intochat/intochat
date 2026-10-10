@@ -15,4 +15,6 @@ internal sealed record ClusterState
     [Id(6)] public string? Handover { get; init; }
     // Why a roll is going back (RollingBack) or went back (Steady after it).
     [Id(7)] public string? Failure { get; init; }
+    // The instance this step drained: a resumed step waits for it to leave the front without draining it again.
+    [Id(8)] public string? Draining { get; init; }
 }

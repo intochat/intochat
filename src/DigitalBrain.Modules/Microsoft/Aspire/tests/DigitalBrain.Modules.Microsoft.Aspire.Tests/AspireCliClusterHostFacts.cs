@@ -1,4 +1,5 @@
 using DigitalBrain.Microsoft.Aspire.Candidates;
+using System.Net;
 using DigitalBrain.Microsoft.Aspire.Cluster;
 
 namespace DigitalBrain.Microsoft.Aspire.Tests;
@@ -87,6 +88,80 @@ public sealed class AspireCliClusterHostFacts : IDisposable
         var host = new AspireCliClusterHost(runner, _ => Task.FromResult(workdir), "OperatingSystem-a");
 
         await Assert.ThrowsAsync<InstanceNeverReadyException>(() => host.WaitInstance("OperatingSystem-b", TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken));
+    }
+
+    private static readonly Func<CancellationToken, Task<IReadOnlyDictionary<string, Uri>>> Fronts =
+        _ => Task.FromResult<IReadOnlyDictionary<string, Uri>>(new Dictionary<string, Uri> { ["OperatingSystem"] = new("http://localhost:5080") });
+
+    private const string TwoRunningSilos = """
+        {"resources":[
+          {"displayName":"OperatingSystem-a","state":"Running","urls":[{"name":"http","url":"http://localhost:5001"}]},
+          {"displayName":"OperatingSystem-b","state":"Running","urls":[{"name":"http","url":"http://localhost:5002"}]}]}
+        """;
+
+    // Seen live: the instance's own port answered /ready while the front's tunnel to it was dead. Ready means the
+    // front reaches it.
+    [Fact]
+    public async Task AnInstanceTheFrontCannotReachIsNotReadyThoughItsOwnPortAnswers()
+    {
+        var http = new Answers(uri => uri.Port == 5002 ? HttpStatusCode.OK : HttpStatusCode.BadGateway);
+        var host = new AspireCliClusterHost(new RecordingRunner(TwoRunningSilos), _ => Task.FromResult(workdir), "OperatingSystem-a", Fronts, http);
+
+        await Assert.ThrowsAsync<InstanceNeverReadyException>(() => host.WaitInstance("OperatingSystem-b", TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken));
+        Assert.Contains(new Uri("http://localhost:5080/_instances/OperatingSystem-b/ready"), http.Asked);
+        Assert.DoesNotContain(http.Asked, uri => uri.Port == 5002);
+    }
+
+    [Fact]
+    public async Task AnInstanceIsReadyOnceTheFrontRoutesIt()
+    {
+        var http = new Answers(uri => uri.AbsolutePath == "/_instances/OperatingSystem-b/ready" ? HttpStatusCode.OK : HttpStatusCode.ServiceUnavailable);
+        var host = new AspireCliClusterHost(new RecordingRunner(TwoRunningSilos), _ => Task.FromResult(workdir), "OperatingSystem-a", Fronts, http);
+
+        var ready = await host.WaitInstance("OperatingSystem-b", TimeSpan.FromMinutes(1), TestContext.Current.CancellationToken);
+
+        Assert.Equal("Running", ready.State);
+    }
+
+    [Fact]
+    public async Task DrainingPostsToTheInstancesOwnEndpoint()
+    {
+        var http = new Answers(_ => HttpStatusCode.Accepted);
+        var host = new AspireCliClusterHost(new RecordingRunner(TwoRunningSilos), _ => Task.FromResult(workdir), "OperatingSystem-a", Fronts, http);
+
+        await host.DrainInstance("OperatingSystem-b", TestContext.Current.CancellationToken);
+
+        Assert.Equal([(HttpMethod.Post, new Uri("http://localhost:5002/drain"))], http.Requests);
+    }
+
+    [Fact]
+    public async Task AnInstanceLeavesTheFrontOnlyWhileAnotherInstanceStillServes()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var bothOut = new Answers(_ => HttpStatusCode.ServiceUnavailable);
+        var peerServes = new Answers(uri => uri.AbsolutePath == "/_instances/OperatingSystem-a/ready" ? HttpStatusCode.OK : HttpStatusCode.ServiceUnavailable);
+
+        var refused = await Assert.ThrowsAsync<InstanceNeverReadyException>(() =>
+            new AspireCliClusterHost(new RecordingRunner(TwoRunningSilos), _ => Task.FromResult(workdir), "OperatingSystem-a", Fronts, bothOut).WaitOutOfFront("OperatingSystem-b", TimeSpan.FromMinutes(1), ct));
+        await new AspireCliClusterHost(new RecordingRunner(TwoRunningSilos), _ => Task.FromResult(workdir), "OperatingSystem-a", Fronts, peerServes).WaitOutOfFront("OperatingSystem-b", TimeSpan.FromMinutes(1), ct);
+
+        Assert.Contains("no other OperatingSystem instance", refused.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheFrontsAreTheIntegrationsJson()
+        => Assert.Equal(new Uri("http://localhost:5081"), AspireCliClusterHost.ParseFronts("""{"OperatingSystem":"http://localhost:5080","digitalbrain-mcp":"http://localhost:5081"}""")["digitalbrain-mcp"]);
+
+    private sealed class Answers(Func<Uri, HttpStatusCode> answer) : HttpMessageHandler
+    {
+        public List<(HttpMethod, Uri)> Requests { get; } = [];
+        public IEnumerable<Uri> Asked => Requests.Select(request => request.Item2);
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            lock (Requests) { Requests.Add((request.Method, request.RequestUri!)); }
+            return Task.FromResult(new HttpResponseMessage(answer(request.RequestUri!)));
+        }
     }
 
     [Fact]

@@ -8,7 +8,9 @@ internal interface IClusterHost
     Task<SiloView[]> Silos(CancellationToken ct);                         // `aspire describe`: the OperatingSystem-{x} instances
     Task RestartSilos(CancellationToken ct);                              // `aspire resource ... restart`: digitalbrain-mcp-*, then OperatingSystem-* (the calling silo last)
     Task RestartInstance(string name, CancellationToken ct);              // `aspire resource {name} restart`: one instance, by name from Instances(); the calling silo's own restart is detached
-    Task<SiloView> WaitInstance(string name, TimeSpan budget, CancellationToken ct); // Running and its own /ready answers 200; else InstanceNeverReadyException (budget spent, or the instance exited)
+    Task DrainInstance(string name, CancellationToken ct);                // POST /drain on the instance's own endpoint: its /ready turns Unhealthy, it keeps serving
+    Task WaitOutOfFront(string name, TimeSpan budget, CancellationToken ct); // the front no longer routes name and still routes another instance of its role; else InstanceNeverReadyException
+    Task<SiloView> WaitInstance(string name, TimeSpan budget, CancellationToken ct); // Running and the front routes it (/_instances/{name}/ready answers 200); else InstanceNeverReadyException (budget spent, or the instance exited)
     Task<string[]> Instances(CancellationToken ct);                       // the roll order: digitalbrain-mcp-{x}, then OperatingSystem-{x}
     string? Self { get; }                                                 // the OperatingSystem-{x} instance this process is
     Task<int> Spans(string service, string span, CancellationToken ct);  // `aspire otel spans`: spans named `span` whose source is `service` or `service-*`

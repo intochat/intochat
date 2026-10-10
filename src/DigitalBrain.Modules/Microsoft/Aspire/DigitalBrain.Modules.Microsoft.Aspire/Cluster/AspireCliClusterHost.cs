@@ -19,19 +19,42 @@ internal sealed class AspireCliClusterHost : IClusterHost
     private readonly Func<CancellationToken, Task<string>> resolveWorkdir;
     private Task<string>? workdirRead;
     private readonly string? self;
+    private readonly Func<CancellationToken, Task<IReadOnlyDictionary<string, Uri>>> resolveFronts;
+    private Task<IReadOnlyDictionary<string, Uri>>? frontsRead;
+    private readonly HttpClient http;
 
     // Aspire names each instance's telemetry after its resource: OTEL_SERVICE_NAME is this silo's instance name.
     public AspireCliClusterHost(IModuleIntegrations<AspireModule> integrations, IProcessRunner processes)
-        : this(processes, ct => Workdir(integrations, ct), Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME"))
+        : this(processes, ct => Workdir(integrations, ct), Environment.GetEnvironmentVariable("OTEL_SERVICE_NAME"), ct => Fronts(integrations, ct))
     {
     }
 
-    internal AspireCliClusterHost(IProcessRunner processes, Func<CancellationToken, Task<string>> workdir, string? self = null)
+    internal AspireCliClusterHost(IProcessRunner processes, Func<CancellationToken, Task<string>> workdir, string? self = null,
+        Func<CancellationToken, Task<IReadOnlyDictionary<string, Uri>>>? fronts = null, HttpMessageHandler? handler = null)
     {
         this.processes = processes;
         resolveWorkdir = workdir;
         this.self = self;
+        resolveFronts = fronts ?? (_ => Task.FromResult<IReadOnlyDictionary<string, Uri>>(new Dictionary<string, Uri>()));
+        http = handler is null ? SharedHttp : new HttpClient(handler) { Timeout = ProbeTimeout };
     }
+
+    // Read once, like Workdir: the fronts are the AppHost's fixed ports and never move while it runs.
+    private async Task<Uri> FrontOf(string instance, CancellationToken ct)
+    {
+        var read = frontsRead ??= resolveFronts(CancellationToken.None);
+        IReadOnlyDictionary<string, Uri> fronts;
+        try { fronts = await read.WaitAsync(ct); }
+        catch when (read.IsFaulted || read.IsCanceled) { frontsRead = null; throw; }
+        var role = RoleOf(instance);
+        return fronts.TryGetValue(role, out var front) ? front : throw new InvalidOperationException($"the aspire Integration names no front for {role}");
+    }
+
+    internal static string RoleOf(string instance) => instance[..^2];
+
+    // The front's own route to one instance (AspireModuleHosting.InstancePath): 200 only while the front's health
+    // check counts the instance in and reaches it over the same tunnel it routes requests through.
+    internal static string InstancePath(string instance) => $"/_instances/{instance}{HealthProbes.ReadyPath}";
 
     // The deployment's Workdir is read from its Integration once: a roll must not call a grain while a silo leaves
     // the cluster (seen live: the Integration's directory lookup hit the stopping silo and failed the step).
@@ -104,8 +127,45 @@ internal sealed class AspireCliClusterHost : IClusterHost
         await Aspire(["resource", name, "restart"], ct);
     }
 
-    // A readiness wait on a freshly started process: Running in `describe`, then its own /ready (the front's probe,
-    // dependency-free) answers 200 on the instance's endpoint. The budget bounds it; an instance that stops fails at once.
+    public async Task DrainInstance(string name, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        var resource = (await Describe(ct)).FirstOrDefault(item => Text(item, "displayName", "name") == name);
+        var endpoint = (resource.ValueKind == JsonValueKind.Object ? Endpoint(resource) : null)
+            ?? throw new InvalidOperationException($"instance {name} has no http endpoint to drain");
+        using var response = await http.PostAsync(new Uri(endpoint, HealthProbes.DrainPath), null, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
+    // The instance has left the front once the front's route to it stops answering 200; before it stops, another
+    // instance of the role must still answer through the front, or stopping this one takes the port down.
+    public async Task WaitOutOfFront(string name, TimeSpan budget, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        var front = await FrontOf(name, ct);
+        using var bounded = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        bounded.CancelAfter(budget);
+        try
+        {
+            while (await Routed(front, name, bounded.Token)) { await Task.Delay(ReadyInterval, bounded.Token); }
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new InstanceNeverReadyException($"the front still routed {name} after {budget}", new TimeoutException());
+        }
+        var role = RoleOf(name);
+        foreach (var peer in await Instances(ct))
+        {
+            if (peer != name && RoleOf(peer) == role && await Routed(front, peer, ct)) { return; }
+        }
+        throw new InstanceNeverReadyException($"no other {role} instance is routable through the front; {name} must not stop");
+    }
+
+    private Task<bool> Routed(Uri front, string instance, CancellationToken ct) => Ready(new Uri(front, InstancePath(instance)), ct);
+
+    // A readiness wait on a freshly started process: Running in `describe`, then the front's route to it answers 200
+    // (its /ready through the front's tunnel, counted in by the front's health check). The budget bounds it; an
+    // instance that stops fails at once.
     public async Task<SiloView> WaitInstance(string name, TimeSpan budget, CancellationToken ct)
     {
         using var bounded = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -120,7 +180,7 @@ internal sealed class AspireCliClusterHost : IClusterHost
                 {
                     throw new InstanceNeverReadyException($"instance {name} stopped ({state}) while starting");
                 }
-                if (state == "Running" && Endpoint(resource) is { } endpoint && await Ready(endpoint, bounded.Token))
+                if (state == "Running" && await Routed(await FrontOf(name, bounded.Token), name, bounded.Token))
                 {
                     return new SiloView(name, await CurrentSha(bounded.Token), state, Text(resource, "healthStatus", "health"));
                 }
@@ -134,13 +194,14 @@ internal sealed class AspireCliClusterHost : IClusterHost
     }
 
     private static readonly TimeSpan ReadyInterval = TimeSpan.FromSeconds(1);
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(5) };
+    private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(5);
+    private static readonly HttpClient SharedHttp = new() { Timeout = ProbeTimeout };
 
-    private static async Task<bool> Ready(Uri endpoint, CancellationToken ct)
+    private async Task<bool> Ready(Uri probe, CancellationToken ct)
     {
         try
         {
-            using var response = await Http.GetAsync(new Uri(endpoint, HealthProbes.ReadyPath), ct);
+            using var response = await http.GetAsync(probe, ct);
             return response.IsSuccessStatusCode;
         }
         catch (HttpRequestException) { return false; }
@@ -221,6 +282,18 @@ internal sealed class AspireCliClusterHost : IClusterHost
 
     private static string[] Arguments(string repository, string[] command)
         => [.. command, "--apphost", Path.Combine(repository, AppHostProject), "--non-interactive", "--nologo"];
+
+    private static async Task<IReadOnlyDictionary<string, Uri>> Fronts(IModuleIntegrations<AspireModule> integrations, CancellationToken ct)
+    {
+        var snapshot = await integrations.Get("aspire").ReadAsync(ct);
+        return snapshot.Settings.TryGetValue(AspireModule.FrontsField, out var fronts) && fronts is { Length: > 0 }
+            ? ParseFronts(fronts)
+            : throw new InvalidOperationException("the aspire Integration has no Fronts");
+    }
+
+    // {"OperatingSystem":"http://localhost:5080", ...}: each role's front, as the AppHost published it.
+    internal static IReadOnlyDictionary<string, Uri> ParseFronts(string json)
+        => JsonSerializer.Deserialize<Dictionary<string, string>>(json)!.ToDictionary(pair => pair.Key, pair => new Uri(pair.Value), StringComparer.Ordinal);
 
     private static async Task<string> Workdir(IModuleIntegrations<AspireModule> integrations, CancellationToken ct)
     {

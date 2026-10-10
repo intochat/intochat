@@ -20,9 +20,12 @@ public sealed class AspireModule() : Module<AspireOptions>(new ModuleId("aspire"
     public const string WorkdirField = "Workdir";
     public const string CandidateModelField = "CandidateModel";
     public const string LiveGrainStateField = "LiveGrainState";
+    // Each role's front (its fixed port) as JSON, {role: url}: a roll reaches an instance the way the front does.
+    public const string FrontsField = "Fronts";
 
     public static IntegrationSchema Integration { get; } = IntegrationSchema.For("aspire", "Aspire")
         .RequiresSetting(WorkdirField)
+        .OffersSetting(FrontsField)
         .OffersSecret(CandidateModelField)
         .OffersSecret(LiveGrainStateField);
 

@@ -68,10 +68,13 @@ internal sealed class ClusterNeuron(
         if (Snapshot.CurrentSha.Length == 0) { throw new InvalidOperationException("the cluster runs no live build to roll back to; restart onto the first one"); }
         var previous = Snapshot.CurrentSha;
         var instances = await host.Instances(CancellationToken.None);
+        // The roll ends on the silo running it: a process that is none of the instances could never hand over.
+        if (host.Self is not { } self || !instances.Contains(self)) { throw new InvalidOperationException("this process is not a cluster instance"); }
+        // The reminder reactivates the cluster when nothing else would: after its own silo's restart, or a crash
+        // mid-roll. Registered before the roll is recorded, so no recorded roll is ever without it.
+        await this.RegisterOrUpdateReminder(RollReminder, ReminderPeriod, ReminderPeriod);
         await Save(new ClusterState { CurrentSha = previous, Stage = ClusterStage.Rolling, TargetSha = sha, PreviousSha = previous, Remaining = instances },
             new ClusterChanged(previous, ClusterStage.Rolling, sha));
-        // The reminder reactivates the cluster when nothing else would: after its own silo's restart, or a crash mid-roll.
-        await this.RegisterOrUpdateReminder(RollReminder, ReminderPeriod, ReminderPeriod);
         try { await host.SetLive(sha, CancellationToken.None); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
@@ -84,10 +87,11 @@ internal sealed class ClusterNeuron(
         return Describe();
     }
 
-    public Task ReceiveReminder(string reminderName, TickStatus status)
+    public async Task ReceiveReminder(string reminderName, TickStatus status)
     {
-        if (reminderName == RollReminder) { Drive(); }
-        return Task.CompletedTask;
+        if (reminderName != RollReminder) { return; }
+        if (Moving(Snapshot.Stage)) { Drive(); }
+        else { await StopReminder(); }
     }
 
     private void Drive()
@@ -129,14 +133,48 @@ internal sealed class ClusterNeuron(
         }
         if (next is null)
         {
-            await SaveQuietly(Snapshot with { Handover = self, Remaining = [], Rolled = [.. Snapshot.Rolled, self!] });
+            if (!await Drained(self!)) { return; }
+            await SaveQuietly(Snapshot with { Handover = self, Remaining = [], Rolled = [.. Snapshot.Rolled, self!], Draining = null });
             handedOver = true;
             await host.RestartInstance(self!, CancellationToken.None);
             return;
         }
-        if (!await Moved(next)) { return; }
-        await SaveQuietly(Snapshot with { Remaining = [.. Snapshot.Remaining.Where(name => name != next)], Rolled = [.. Snapshot.Rolled, next] });
+        if (!await Drained(next) || !await Moved(next)) { return; }
+        await SaveQuietly(Snapshot with { Remaining = [.. Snapshot.Remaining.Where(name => name != next)], Rolled = [.. Snapshot.Rolled, next], Draining = null });
         Drive();
+    }
+
+    // Before an instance stops, the front stops routing it while another instance of its role still serves: the
+    // instance drains, and the step waits until the front has taken it out. Going forward, a drain that fails, or
+    // a front left with nothing to route to, rolls back. Going back, the instance restarts regardless: the restart
+    // is the way back.
+    private async Task<bool> Drained(string name)
+    {
+        try
+        {
+            if (Snapshot.Draining != name)
+            {
+                await host.DrainInstance(name, CancellationToken.None);
+                await SaveQuietly(Snapshot with { Draining = name });
+            }
+            await host.WaitOutOfFront(name, options.Value.SiloStepBudget, CancellationToken.None);
+            return true;
+        }
+        catch (Exception error) when (Snapshot.Stage == ClusterStage.RollingBack)
+        {
+            log.LogWarning(error, "Cluster {Cluster}: {Instance} did not leave the front cleanly while rolling back; restarting it anyway.", this.GetPrimaryKeyString(), name);
+            return true;
+        }
+        catch (InstanceNeverReadyException error)
+        {
+            await NeverReady(name, error);
+            return false;
+        }
+        catch (Exception error)
+        {
+            await NeverReady(name, new InstanceNeverReadyException($"instance {name} could not drain: {error.Message}", error));
+            return false;
+        }
     }
 
     // The restart itself is bounded too: an instance whose start waits on something that never comes (a failed
@@ -193,7 +231,7 @@ internal sealed class ClusterNeuron(
         // The failed instance first, then the moved ones newest first: silos come back before the MCP servers that
         // wait for them to start.
         string[] back = [name, .. Snapshot.Rolled.Reverse().Where(rolled => rolled != name)];
-        await Save(Snapshot with { Stage = ClusterStage.RollingBack, TargetSha = Snapshot.PreviousSha, PreviousSha = Snapshot.TargetSha, Remaining = back, Rolled = [], Handover = null, Failure = reason },
+        await Save(Snapshot with { Stage = ClusterStage.RollingBack, TargetSha = Snapshot.PreviousSha, PreviousSha = Snapshot.TargetSha, Remaining = back, Rolled = [], Handover = null, Draining = null, Failure = reason },
             new ClusterChanged(Snapshot.CurrentSha, ClusterStage.RollingBack, Snapshot.PreviousSha, reason));
         Drive();
     }

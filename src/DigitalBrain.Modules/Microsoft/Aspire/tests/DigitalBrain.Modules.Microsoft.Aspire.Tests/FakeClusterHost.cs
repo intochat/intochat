@@ -61,12 +61,40 @@ internal sealed class FakeClusterHost : IClusterHost
             throw new InvalidOperationException($"cut off before restarting {name}");
         }
         RestartedSilos.Add($"{name}@{Current}");
+        Steps.Add($"restart {name}");
         if (RestartGates.TryGetValue(name, out var gate))
         {
             gate.Reached.TrySetResult();
             await gate.Open.Task.WaitAsync(ct);
         }
         if (name == Self) { SelfRestarted.TrySetResult(name); }
+    }
+
+    // Every drain, front wait and restart, in order: "drain name", "out name", "restart name".
+    public List<string> Steps { get; } = [];
+    // Instances whose front wait finds no other routable instance of the role.
+    public HashSet<string> NoPeer { get; } = [];
+    // An instance whose front wait holds at its gate until the fact opens it.
+    public Dictionary<string, RestartGate> OutGates { get; } = [];
+
+    public Task DrainInstance(string name, CancellationToken ct)
+    {
+        Steps.Add($"drain {name}");
+        return Task.CompletedTask;
+    }
+
+    public async Task WaitOutOfFront(string name, TimeSpan budget, CancellationToken ct)
+    {
+        Steps.Add($"out {name}");
+        if (OutGates.TryGetValue(name, out var gate))
+        {
+            gate.Reached.TrySetResult();
+            await gate.Open.Task.WaitAsync(ct);
+        }
+        if (NoPeer.Contains(name))
+        {
+            throw new InstanceNeverReadyException($"no other instance is routable through the front; {name} must not stop");
+        }
     }
 
     public Task<SiloView> WaitInstance(string name, TimeSpan budget, CancellationToken ct)
