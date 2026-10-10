@@ -1,6 +1,6 @@
 using DigitalBrain.Testing.E2E;
-using DigitalBrain.Testing.E2E.Diagnostics;
-using static DigitalBrain.Testing.E2E.Diagnostics.TraceAssertions;
+using DigitalBrain.Testing.Aspire.Diagnostics;
+using static DigitalBrain.Testing.Aspire.Diagnostics.TraceAssertions;
 
 namespace DigitalBrain.Framework.Tests.E2E;
 

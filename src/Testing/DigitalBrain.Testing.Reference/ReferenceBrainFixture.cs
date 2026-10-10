@@ -2,7 +2,7 @@ using DigitalBrain.AI;
 using DigitalBrain.AI.Models;
 using DigitalBrain.Flutter;
 using DigitalBrain.Testing.Model;
-using DigitalBrain.Testing.E2E.Diagnostics;
+using DigitalBrain.Testing.Aspire.Diagnostics;
 
 namespace DigitalBrain.Testing.E2E;
 

@@ -46,7 +46,9 @@ public sealed class TestBrain
         where TModule : Module<TOptions>, new() where TOptions : class, IModuleOptions, new()
     {
         EnsureMutable();
-        _composition.ConfigureModule<TModule, TOptions>(options);
+        // A declared module carries its options; an undeclared one belongs to the target's host, which replaces its own.
+        if (_composition.Declares<TModule>()) { _composition.ConfigureModule<TModule, TOptions>(options); }
+        else { _composition.ProjectOptions<TModule, TOptions>(options); }
         return this;
     }
 
@@ -175,6 +177,7 @@ public sealed class TestBrain
         var composition = _composition.Build();
         Dictionary<string, string?> configuration = new(_execution.PrivateConfiguration, StringComparer.OrdinalIgnoreCase);
         foreach (var (key, value) in _configuration) { configuration[key] = value; }
+        foreach (var (key, value) in composition.OptionOverrides) { configuration[key] = value; }
         var services = composition.RequiresLocalServices ? composition.ConfigureLocalServices + _services : _services;
         var plan = new TestBrainPlan(composition.Modules, configuration, services, _execution, Client: null, Silo: _silo);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

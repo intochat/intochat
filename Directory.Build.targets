@@ -13,11 +13,6 @@
     <None Include="$(MSBuildThisFileDirectory)src/Assets/nuget/icon.png" Pack="true" PackagePath="/" Visible="false" />
   </ItemGroup>
 
-  <!-- One file, two consumers: imported here for in-repo test projects and packed into the
-       DigitalBrain.Testing.E2E package's buildTransitive for everyone else. -->
-  <Import Project="$(MSBuildThisFileDirectory)src/Testing/DigitalBrain.Testing.E2E/Build/DigitalBrain.Testing.E2E.targets"
-          Condition="$(MSBuildProjectName.EndsWith('.Tests.E2E'))" />
-
   <!-- Pinned to CodeGraph 1.6.0 in Directory.Build.props until the Windows fix ships:
        https://github.com/colbymchenry/codegraph/issues/2094 -->
   <Target Name="RefreshCodeGraph"

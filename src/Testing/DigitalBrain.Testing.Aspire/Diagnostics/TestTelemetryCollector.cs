@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 
-namespace DigitalBrain.Testing.E2E.Diagnostics;
+namespace DigitalBrain.Testing.Aspire.Diagnostics;
 
 // Receives OTLP/HTTP protobuf trace exports from the test host and its child processes so a test can
 // count real spans. It listens on a loopback port and keeps a thread-safe snapshot.

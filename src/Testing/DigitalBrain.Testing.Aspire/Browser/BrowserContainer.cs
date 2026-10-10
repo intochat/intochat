@@ -1,6 +1,6 @@
 using Aspire.Hosting;
 
-namespace DigitalBrain.Testing.E2E;
+namespace DigitalBrain.Testing.Aspire;
 
 // Chromium as a resource of the test host: Playwright's own image serving `run-server`, at the
 // exact version of the Playwright driver the tests drive it with (the wire protocol requires an

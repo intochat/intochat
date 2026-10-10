@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace DigitalBrain.Testing.E2E;
+namespace DigitalBrain.Testing.Aspire;
 
 // Own this outside the server sessions. Failed rehearsals retain their data by default.
 public sealed class DurableStorageVolume : IAsyncDisposable

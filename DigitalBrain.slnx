@@ -160,6 +160,7 @@
   <Folder Name="/Testing/">
     <Project Path="src/Testing/DigitalBrain.Architecture.Tests/DigitalBrain.Architecture.Tests.csproj" />
     <Project Path="src/Testing/DigitalBrain.Aspire.Testing/DigitalBrain.Aspire.Testing.csproj" />
+    <Project Path="src/Testing/DigitalBrain.Testing.Aspire/DigitalBrain.Testing.Aspire.csproj" />
     <Project Path="src/Testing/DigitalBrain.Testing.E2E/DigitalBrain.Testing.E2E.csproj" />
     <Project Path="src/Testing/DigitalBrain.Testing.Tests/DigitalBrain.Testing.Tests.csproj" />
     <Project Path="src/Testing/DigitalBrain.Testing.Module/DigitalBrain.Testing.Module.csproj" />

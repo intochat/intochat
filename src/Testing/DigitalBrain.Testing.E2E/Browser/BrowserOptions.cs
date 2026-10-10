@@ -1,12 +1,9 @@
 using System.Runtime.CompilerServices;
+using DigitalBrain.Testing.Aspire;
 
 [assembly: InternalsVisibleTo("DigitalBrain.Framework.Tests.E2E")]
 
 namespace DigitalBrain.Testing.E2E;
-
-// Where Chromium runs. A container needs only Docker; a local browser needs `playwright install`
-// and is what a person debugging wants, because only it can show a window.
-public enum BrowserLocation { Container, Local }
 
 public sealed record BrowserOptions
 {

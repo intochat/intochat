@@ -1,4 +1,4 @@
-namespace DigitalBrain.Testing.E2E.Diagnostics;
+namespace DigitalBrain.Testing.Aspire.Diagnostics;
 
 public static class TraceAssertions
 {

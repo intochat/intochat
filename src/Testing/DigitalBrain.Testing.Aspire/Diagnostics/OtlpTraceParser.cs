@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace DigitalBrain.Testing.E2E.Diagnostics;
+namespace DigitalBrain.Testing.Aspire.Diagnostics;
 
 // Minimal OTLP/HTTP protobuf reader for the fields the trace budget and the capture facts need: span
 // identity, name, instrumentation scope, string attributes, and GenAI log bodies. It deliberately

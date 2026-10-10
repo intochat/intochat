@@ -1,6 +1,6 @@
 using System.Net.Sockets;
 using Aspire.Hosting.ApplicationModel;
-using DigitalBrain.Testing.E2E;
+using DigitalBrain.Testing.Aspire;
 namespace DigitalBrain.Platform.Tests.E2E;
 
 public sealed class ProjectEndpointFacts

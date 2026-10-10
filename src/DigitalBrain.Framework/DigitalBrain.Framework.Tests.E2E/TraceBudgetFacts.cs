@@ -1,8 +1,8 @@
 using System.Net.Http.Json;
 using DigitalBrain.Testing.E2E;
-using DigitalBrain.Testing.E2E.Diagnostics;
+using DigitalBrain.Testing.Aspire.Diagnostics;
 using DigitalBrain.Testing.E2E.Workspace;
-using static DigitalBrain.Testing.E2E.Diagnostics.TraceAssertions;
+using static DigitalBrain.Testing.Aspire.Diagnostics.TraceAssertions;
 
 namespace DigitalBrain.Framework.Tests.E2E;
 

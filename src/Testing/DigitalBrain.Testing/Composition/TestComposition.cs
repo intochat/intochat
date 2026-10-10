@@ -10,12 +10,15 @@ namespace DigitalBrain.Testing;
 public sealed class BrainComposition
 {
     private readonly Action<IServiceCollection>[] _localServices;
-    internal BrainComposition(IReadOnlyList<ModuleDefinition> modules, Action<IServiceCollection>[] localServices)
+    internal BrainComposition(IReadOnlyList<ModuleDefinition> modules, Action<IServiceCollection>[] localServices, IReadOnlyDictionary<string, string?> optionOverrides)
     {
         Modules = modules;
+        OptionOverrides = optionOverrides;
         _localServices = localServices;
     }
     public IReadOnlyList<ModuleDefinition> Modules { get; }
+    // Options for modules the host composes itself (an AppHost): configuration keys, not modules.
+    public IReadOnlyDictionary<string, string?> OptionOverrides { get; }
     public bool RequiresLocalServices => _localServices.Length > 0;
     public void ConfigureLocalServices(IServiceCollection services)
     {
@@ -26,6 +29,20 @@ public sealed class BrainComposition
 public sealed class BrainCompositionBuilder
 {
     private readonly Dictionary<Type, ModuleDraft> _modules = [];
+    private readonly Dictionary<Type, ModuleOptionsSlot> _projected = [];
+
+    public bool Declares<TModule>() where TModule : ModuleContract => _modules.ContainsKey(typeof(TModule));
+
+    // Options for a module this composition does not declare: the host that composes it replaces its own options.
+    public BrainCompositionBuilder ProjectOptions<TModule, TOptions>(Action<TOptions> configureOptions)
+        where TModule : Module<TOptions>, new() where TOptions : class, IModuleOptions, new()
+    {
+        ArgumentNullException.ThrowIfNull(configureOptions);
+        if (!_projected.TryGetValue(typeof(TModule), out var slot))
+        { _projected.Add(typeof(TModule), slot = new ModuleOptionsSlot<TModule, TOptions>(null)); }
+        slot.Edit(configureOptions);
+        return this;
+    }
 
     public BrainCompositionBuilder WithModule<TModule>(Action<ModuleConfiguration<TModule>>? configure = null)
         where TModule : ModuleContract, new()
@@ -74,7 +91,12 @@ public sealed class BrainCompositionBuilder
     {
         var modules = ModuleComposition.Resolve(_modules.Values.Select(m => m.Compile()).ToArray());
         ModuleSettingsValidation.ValidatePublicSettings(modules);
-        return new(modules, _modules.Values.SelectMany(m => m.LocalServices).ToArray());
+        Dictionary<string, string?> overrides = new(StringComparer.OrdinalIgnoreCase);
+        foreach (var slot in _projected.Values)
+        {
+            foreach (var (key, value) in ModuleOptionsProjection.Overrides(slot.Compile())) { overrides[key] = value; }
+        }
+        return new(modules, _modules.Values.SelectMany(m => m.LocalServices).ToArray(), overrides);
     }
 
     private void Declare<TModule>(out ModuleDraft draft) where TModule : ModuleContract, new()
@@ -88,6 +110,26 @@ public sealed class BrainCompositionBuilder
     private ModuleDraft RequireDeclared<TModule>()
         => _modules.TryGetValue(typeof(TModule), out var draft) ? draft
             : throw new InvalidOperationException($"{typeof(TModule).Name} is not declared in this application.");
+}
+
+// WithOptions over a host that composes its modules itself: the module's code-declared options are replaced by
+// these, flattened to DigitalBrain:Modules:{id}:Options:* beside {id}:ReplaceOptions=true.
+public static class ModuleOptionsProjection
+{
+    public static IReadOnlyDictionary<string, string?> Overrides<TModule, TOptions>(TOptions options)
+        where TModule : Module<TOptions>, new() where TOptions : class, IModuleOptions, new()
+        => Overrides(ModuleOptionsSerialization.Compile<TModule, TOptions>(options));
+
+    public static IReadOnlyDictionary<string, string?> Overrides(ModuleDefinition module)
+    {
+        ArgumentNullException.ThrowIfNull(module);
+        Dictionary<string, string?> overrides = new(StringComparer.OrdinalIgnoreCase)
+        {
+            [DigitalBrainConfiguration.ModuleSection(module.Id.ToString()) + ":ReplaceOptions"] = "true",
+        };
+        foreach (var (key, value) in module.Settings.Where(pair => pair.Value is not null)) { overrides[key] = value; }
+        return overrides;
+    }
 }
 
 public static class ModuleComposition

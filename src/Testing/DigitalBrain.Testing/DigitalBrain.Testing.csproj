@@ -3,6 +3,7 @@
     <IsPackable>true</IsPackable>
     <Description>One harness for every DigitalBrain test: the TestBrain builder, targets that run the product recipe, signal probes, behavior runs, bounded waits and a fake model endpoint.</Description>
   </PropertyGroup>
+  <ItemGroup><InternalsVisibleTo Include="DigitalBrain.Testing.Aspire" /></ItemGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.Orleans.Sdk" />

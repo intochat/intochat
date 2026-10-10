@@ -12,7 +12,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Orleans.Configuration;
 
-namespace DigitalBrain.Testing.E2E;
+namespace DigitalBrain.Testing.Aspire;
 
 public sealed class AspireTestSession : IAsyncDisposable
 {
@@ -47,15 +47,7 @@ public sealed class AspireTestSession : IAsyncDisposable
                 settings.Configuration ??= new ConfigurationManager();
                 settings.Configuration.AddInMemoryCollection(options.PrivateConfiguration);
             }, ct),
-            declareTopology: null, options, cancellationToken, browser);
-
-    public static Task<AspireTestSession> StartAsync(TestExecutionOptions options,
-        Action<IDistributedApplicationTestingBuilder> declareTopology, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(declareTopology);
-        return StartCoreAsync(_ => Task.FromResult(CreateModuleBuilder()),
-            declareTopology, options, cancellationToken);
-    }
+            options, cancellationToken, browser);
 
     internal static void AllocateProjectHttpPorts(IEnumerable<IResource> resources)
     {
@@ -70,18 +62,8 @@ public sealed class AspireTestSession : IAsyncDisposable
         }
     }
 
-    private static IDistributedApplicationTestingBuilder CreateModuleBuilder()
-    {
-        // Aspire discovers its metadata on the caller stack. The build-transitive factory is
-        // compiled into the consuming assembly, even when an assembly fixture starts the host.
-        var factory = System.Reflection.Assembly.GetEntryAssembly()!
-            .GetType("DigitalBrain.Testing.Generated.ModuleBuilderFactory", throwOnError: true)!;
-        return (IDistributedApplicationTestingBuilder)factory.GetMethod("Create")!.Invoke(null, null)!;
-    }
-
     private static async Task<AspireTestSession> StartCoreAsync(
         Func<CancellationToken, Task<IDistributedApplicationTestingBuilder>> createBuilder,
-        Action<IDistributedApplicationTestingBuilder>? declareTopology,
         TestExecutionOptions options, CancellationToken cancellationToken, BrowserLocation browserLocation = BrowserLocation.Local)
     {
         options.Validate();
@@ -104,7 +86,6 @@ public sealed class AspireTestSession : IAsyncDisposable
         }
         try
         {
-            // Module hosts explicitly use the consuming test assembly's Aspire metadata.
             var builder = await createBuilder(ct).ConfigureAwait(false);
             lifetime.Own("builder", builder);
             PrivateTestConfiguration? privateSettings = null;
@@ -125,8 +106,6 @@ public sealed class AspireTestSession : IAsyncDisposable
             });
             builder.Configuration.AddInMemoryCollection(options.HostConfiguration);
             builder.Services.AddLogging(logging => logging.SetMinimumLevel(LogLevel.Warning));
-            Advance("topology");
-            declareTopology?.Invoke(builder);
             var hosts = SiloHosts.Find(builder.Resources);
             var selectedHost = SiloHosts.Select(builder.Resources, options.ServerResourceName);
             var selectedBrain = SiloHosts.BrainOf(selectedHost);

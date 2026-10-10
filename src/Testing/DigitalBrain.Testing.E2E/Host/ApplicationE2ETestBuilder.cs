@@ -3,7 +3,7 @@ using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Modules;
-using DigitalBrain.Testing.E2E.Diagnostics;
+using DigitalBrain.Testing.Aspire.Diagnostics;
 
 namespace DigitalBrain.Testing.E2E;
 
@@ -32,9 +32,7 @@ public sealed class E2ETestBuilder<TAppHost> where TAppHost : class
         var prefix = DigitalBrainConfiguration.ModuleSection(id) + ":";
         foreach (var key in _optionOverrides.Keys.Where(key => key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).ToArray())
         { _optionOverrides.Remove(key); }
-        _optionOverrides[prefix + "ReplaceOptions"] = "true";
-        foreach (var (key, value) in ModuleOptionsSerialization.FlattenOptions(edited, id))
-        { if (value is not null) { _optionOverrides[key] = value; } }
+        foreach (var (key, value) in ModuleOptionsProjection.Overrides<TModule, TOptions>(edited)) { _optionOverrides[key] = value; }
         return this;
     }
 

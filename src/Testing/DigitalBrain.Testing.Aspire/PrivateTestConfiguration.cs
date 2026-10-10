@@ -4,7 +4,7 @@ using System.Text.Json;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
 
-namespace DigitalBrain.Testing.E2E;
+namespace DigitalBrain.Testing.Aspire;
 
 internal sealed class PrivateTestConfiguration : IAsyncDisposable
 {
