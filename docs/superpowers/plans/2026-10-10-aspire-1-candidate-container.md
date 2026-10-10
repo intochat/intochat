@@ -663,10 +663,19 @@ Mechanical rename: `DigitalBrain.Revisions` → `DigitalBrain.Microsoft.Aspire`;
 
 ### Task 11: Verification loop (done means seen running)
 
-- [ ] **Step 1:** `docker info` works; `dotnet run digitalbrain.cs` from repo root. `mcp__aspire__list_resources`: all Running/Healthy.
-- [ ] **Step 2:** First boot from source; publish the current HEAD once so the live cluster runs a build: through `digitalbrain-mcp` `neurons_call` `ICluster.Restart` with the current sha after `DockerCandidateHost.Publish` (or propose a no-op candidate). Confirm `live.json` and the `os` resource is the executable.
-- [ ] **Step 3:** Through `digitalbrain-mcp`, `neurons_call` the SelfImprove app `request` with a change set adding a Calculator operation (`features/os/Calculator`) and a plan calling it. Watch: `docker ps` shows `candidate-{sha}`; `CandidateVerified` then `CandidatePromoted`; `ICluster.Read()` → `Steady` on the new sha; the shell reconnects; the new operation answers on 5081.
-- [ ] **Step 4:** `list_traces` shows `candidate-{sha}` spans and the cluster restart; `list_structured_logs` has no errors from `aspire.candidate`/`aspire.cluster`.
-- [ ] **Step 5:** Failure path: a change set that does not compile → `Failed(Building)`, no container left (`docker ps -a`).
-- [ ] **Step 6:** Regression: module tests, OS unit + E2E, Architecture tests.
-- [ ] **Step 7:** Commit any fixes; note results in the plan's checkboxes.
+- [x] **Step 1:** `docker info` works; `dotnet run digitalbrain.cs` from repo root. `mcp__aspire__list_resources`: all Running/Healthy.
+- [x] **Step 2:** First boot from source; publish the current HEAD once so the live cluster runs a build: through `digitalbrain-mcp` `neurons_call` `ICluster.Restart` with the current sha after `DockerCandidateHost.Publish` (or propose a no-op candidate). Confirm `live.json` and the `os` resource is the executable.
+- [x] **Step 3:** Through `digitalbrain-mcp`, `neurons_call` the SelfImprove app `request` with a change set adding a Calculator operation (`features/os/Calculator`) and a plan calling it. Watch: `docker ps` shows `candidate-{sha}`; `CandidateVerified` then `CandidatePromoted`; `ICluster.Read()` → `Steady` on the new sha; the shell reconnects; the new operation answers on 5081.
+- [x] **Step 4:** `list_traces` shows `candidate-{sha}` spans and the cluster restart; `list_structured_logs` has no errors from `aspire.candidate`/`aspire.cluster`.
+- [x] **Step 5:** Failure path: a change set that does not compile → `Failed(Building)`, no container left (`docker ps -a`).
+- [x] **Step 6:** Regression: module tests, OS unit + E2E, Architecture tests.
+- [x] **Step 7:** Commit any fixes; note results in the plan's checkboxes.
+
+Task 11 notes (2026-10-10, report `.superpowers/sdd/2026-10-10-aspire-1-candidate-container/task-11-report.md`):
+- **Bootstrap (first promote from a source-booted AppHost):** the AppHost picks executable-vs-project at model build, so before the first `dotnet run digitalbrain.cs`: `git worktree add --detach .digitalbrain/worktrees/{sha} HEAD`; `dotnet publish src/DigitalBrain.OS/DigitalBrain.OS/DigitalBrain.OS.csproj -c Release -o .digitalbrain/builds/{sha}/os` and the same for `src/DigitalBrain.Mcp/DigitalBrain.Mcp/DigitalBrain.Mcp.csproj` into `.../mcp`; remove the worktree; write `.digitalbrain/live.json` = `{"sha":"{sha}","path":"<abs>/.digitalbrain/builds/{sha}"}`; start the AppHost. OperatingSystem and digitalbrain-mcp then run as executables on that build; later rolls go through `ICluster.Restart` with no AppHost restart. Remove live.json to return to source mode.
+- Step 1-2: all resources Running/Healthy; OS + MCP ran `builds/ac8ec6f/{os,mcp}`; ICluster.Restart rolled live through b5741a9 … 545d595 (Steady each time).
+- Step 3: candidate ddf9423 (Calculator `add`) Building→Starting→Healthy→Verifying→Verified→Promoting→Promoted; report: context, activation, two calls and `span features.load` (1 span) passed in 2.45s; ICluster Steady on ddf9423; `add 2+3` on 5081 set `owner/apps/calculator/sum` = 5. Shell reconnect not checked.
+- Step 4: 134 spans from `candidate-ddf9423` (features.load trace 8ec43de9772ecaec8848626dd3062aba); ICluster/Restart trace e7f4ec90e2320d292738afce19c69144; no aspire.candidate/aspire.cluster errors after the fixes.
+- Step 5: f254c14 (non-compiling Broken.cs) Failed at Building (CS1525) in ~6s, no candidate container or network, worktree kept, report names the stage.
+- Step 6: Aspire module 41/41, Aspire.Hosting unit 37/37, OS unit 30/30, MCP unit 26/26, CSharp 141/142 (CpuMetering fact fails without our change too). OS E2E: 5 synapse/shell facts fail the same way at ac8ec6f; SelfImprove E2E not run (it would promote into the shared branch). Architecture: 7 failures, 5 fail at 80dbe6e as well; DockerCandidateHost/LiveBuildHostingFacts entries are ours and need a ruling (see report).
+- Fixes found live: 14 commits b5741a9..1a0d0b6 (MCP carries Aspire contracts; runtime watch isolation; detached silo restart; restart that never took settles; candidate postgres admin + supabase + no Foundry transcription; verifier call arguments; activation reconciles features; SelfImprove follows each candidate to its end; ServiceDefaults honours OTEL_SERVICE_NAME; candidate export cadence; promotion fast-forwards the checked-out tree; Promote finishes on the new build).
