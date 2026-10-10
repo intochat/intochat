@@ -111,6 +111,70 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  test(
+    'a frame in a long journal equals the first i neurons, past checkpoints',
+    () {
+      final growth = Growth();
+      for (var i = 1; i <= 300; i++) {
+        growth.add(_signal(i, 'InstanceCreated', {'Type': 't', 'Key': 'n$i'}));
+      }
+      growth.add(_signal(301, 'InstanceRetired', {'Key': 'n5'}));
+
+      expect(growth.frames, 302);
+      for (final i in [0, 63, 64, 65, 200, 300]) {
+        expect(growth.frame(i).nodes.map((n) => n.id), [
+          for (var k = 1; k <= i; k++) 'n$k',
+        ]);
+      }
+      expect(growth.frame(301).nodes.length, 299);
+      expect(growth.frame(301).nodes.any((n) => n.id == 'n5'), isFalse);
+      expect(growth.frame(150).nodes.length, 150);
+    },
+  );
+
+  testWidgets('an empty journal goes live without showing the empty brain', (
+    tester,
+  ) async {
+    final frames = <int?>[];
+    await tester.pumpWidget(
+      _host(
+        BrainReplayBar(
+          load: (since, limit) async => SignalsPage(next: since),
+          onFrame: (f) => frames.add(f?.nodes.length),
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('brain-replay-start')));
+    await tester.pumpAndSettle();
+
+    expect(frames, isEmpty);
+    expect(find.byKey(const ValueKey('brain-replay-is-live')), findsOneWidget);
+  });
+
+  testWidgets('reduced motion goes live at once even while pages load', (
+    tester,
+  ) async {
+    final never = Completer<SignalsPage>();
+    final frames = <int?>[];
+    await tester.pumpWidget(
+      _host(
+        BrainReplayBar(
+          load: (since, limit) => since == 0 ? _page(0, 3) : never.future,
+          pageSize: 3,
+          onFrame: (f) => frames.add(f?.nodes.length),
+        ),
+        reduced: true,
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('brain-replay-start')));
+    await tester.pump();
+    await tester.pump();
+
+    expect(frames, [null]);
+    expect(find.byKey(const ValueKey('brain-replay-is-live')), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('a failed page keeps the loaded frames and retry resumes', (
     tester,
   ) async {
@@ -136,6 +200,9 @@ void main() {
 
     expect(find.byKey(const ValueKey('brain-replay-retry')), findsOneWidget);
     expect(find.byKey(const ValueKey('brain-replay-scrub')), findsOneWidget);
+    // The player stopped instead of idling as playing.
+    expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+    expect(find.byIcon(Icons.pause), findsNothing);
     expect(frames, [0]);
 
     failing = false;

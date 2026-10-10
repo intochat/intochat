@@ -81,25 +81,76 @@ void main() {
     expect(_opacity(tester, 'b'), 1);
   });
 
-  testWidgets('inserting a neuron mid-list keeps every other tile mounted', (
-    tester,
-  ) async {
-    await tester.pumpWidget(_host(_snapshot(['a', 'c'])));
-    final before = [
-      tester.element(find.byKey(const ValueKey('neuron_a'))),
-      tester.element(find.byKey(const ValueKey('neuron_c'))),
-    ];
-    await tester.pumpWidget(_host(_snapshot(['a', 'b', 'c'])));
-    await tester.pump(const Duration(milliseconds: 60));
-    expect(
-      tester.element(find.byKey(const ValueKey('neuron_a'))),
-      same(before[0]),
-    );
-    expect(
-      tester.element(find.byKey(const ValueKey('neuron_c'))),
-      same(before[1]),
-    );
-    expect(_opacity(tester, 'c'), 1);
-    await tester.pumpAndSettle();
-  });
+  testWidgets(
+    'inserting a neuron, a synapse and a delegation in the middle keeps the existing ones mounted',
+    (tester) async {
+      BrainSynapse edge(String id, String from, String to) => BrainSynapse(
+        id: id,
+        sourceId: from,
+        targetId: to,
+        signalType: 'S',
+        kind: 'Declared',
+      );
+      BrainActivity delegation(String op, String from, String to) =>
+          BrainActivity(
+            id: op,
+            neuronId: from,
+            direction: 'out',
+            sequence: 1,
+            signalType: 'S',
+            timestamp: DateTime.utc(2026),
+            operationId: op,
+            kind: 'delegation',
+            state: 'started',
+            targetId: to,
+          );
+      BrainSnapshot snapshot(
+        List<String> ids,
+        List<BrainSynapse> edges,
+        List<BrainActivity> activity,
+      ) => BrainSnapshot(
+        rootId: 'r',
+        observedAt: DateTime.utc(2026),
+        nodes: [for (final id in ids) _node(id)],
+        synapses: edges,
+        activity: activity,
+      );
+      Finder tile(String id) => find.byKey(ValueKey('neuron_$id'));
+      Finder synapse(String id) => find.byKey(ValueKey('synapse_$id'));
+      Finder request(String op) => find.byKey(ValueKey('delegation_$op'));
+
+      await tester.pumpWidget(
+        _host(
+          snapshot(['a', 'c'], [edge('ac', 'a', 'c')], [
+            delegation('keep', 'a', 'c'),
+          ]),
+        ),
+      );
+      final before = {
+        'a': tester.element(tile('a')),
+        'c': tester.element(tile('c')),
+        'ac': tester.element(synapse('ac')),
+        'keep': tester.element(request('keep')),
+      };
+
+      await tester.pumpWidget(
+        _host(
+          snapshot(
+            ['a', 'b', 'c'],
+            [edge('ab', 'a', 'b'), edge('ac', 'a', 'c')],
+            [delegation('new', 'b', 'a'), delegation('keep', 'a', 'c')],
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 60));
+
+      expect(tester.element(tile('a')), same(before['a']));
+      expect(tester.element(tile('c')), same(before['c']));
+      expect(tester.element(synapse('ac')), same(before['ac']));
+      expect(tester.element(request('keep')), same(before['keep']));
+      expect(_opacity(tester, 'c'), 1);
+      expect(_opacity(tester, 'ac'), 1);
+      await tester.pumpAndSettle();
+    },
+  );
 }

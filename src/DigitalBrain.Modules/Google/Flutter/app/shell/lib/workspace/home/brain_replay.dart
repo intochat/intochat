@@ -55,52 +55,62 @@ final class Growth {
     }
   }
 
-  // The frame after step [index] (1-based), from the frame before it.
-  BrainSnapshot step(BrainSnapshot previous, int index) {
-    final op = _ops[index - 1];
-    if (op.adds) {
-      return _copy(previous, [
-        ...previous.nodes,
-        BrainNeuron(
-          id: op.id,
-          type: op.type,
-          name: op.id,
-          label: op.id.split('/').last,
-          module: '',
-        ),
-      ], previous.synapses);
+  static const checkpointEvery = 64;
+  final _checkpoints = <int, BrainSnapshot>{0: emptyBrain()};
+
+  // The frame after step [index] from the frame before it.
+  BrainSnapshot step(BrainSnapshot previous, int index) =>
+      _apply(previous, index - 1, index);
+
+  // Steps (from, to] applied with one copy of the node and synapse lists.
+  BrainSnapshot _apply(BrainSnapshot base, int from, int to) {
+    final nodes = [...base.nodes];
+    var synapses = base.synapses;
+    for (var i = from; i < to; i++) {
+      final op = _ops[i];
+      if (op.adds) {
+        nodes.add(
+          BrainNeuron(
+            id: op.id,
+            type: op.type,
+            name: op.id,
+            label: op.id.split('/').last,
+            module: '',
+          ),
+        );
+      } else {
+        nodes.removeWhere((n) => n.id == op.id);
+        synapses = [
+          for (final e in synapses)
+            if (e.sourceId != op.id && e.targetId != op.id) e,
+        ];
+      }
     }
-    return _copy(
-      previous,
-      [
-        for (final n in previous.nodes)
-          if (n.id != op.id) n,
-      ],
-      [
-        for (final e in previous.synapses)
-          if (e.sourceId != op.id && e.targetId != op.id) e,
-      ],
+    return BrainSnapshot(
+      rootId: base.rootId,
+      observedAt: base.observedAt,
+      nodes: nodes,
+      synapses: synapses,
     );
   }
 
+  // The nearest cached checkpoint at or before [index] plus at most checkpointEvery steps.
   BrainSnapshot frame(int index) {
-    var snapshot = emptyBrain();
-    for (var i = 1; i <= index; i++) {
-      snapshot = step(snapshot, i);
-    }
-    return snapshot;
+    final checkpoint = index ~/ checkpointEvery * checkpointEvery;
+    final base = _checkpoint(checkpoint);
+    return index == checkpoint ? base : _apply(base, checkpoint, index);
   }
 
-  static BrainSnapshot _copy(
-    BrainSnapshot s,
-    List<BrainNeuron> nodes,
-    List<BrainSynapse> synapses,
-  ) => BrainSnapshot(
-    rootId: s.rootId,
-    observedAt: s.observedAt,
-    nodes: nodes,
-    synapses: synapses,
-  );
+  BrainSnapshot _checkpoint(int at) {
+    final cached = _checkpoints[at];
+    if (cached != null) return cached;
+    final built = _apply(
+      _checkpoint(at - checkpointEvery),
+      at - checkpointEvery,
+      at,
+    );
+    return _checkpoints[at] = built;
+  }
 }
 
 // A scrub bar over the brain's journal. [onFrame] receives the graph to show while
@@ -126,7 +136,7 @@ class BrainReplayBar extends StatefulWidget {
 
 class _BrainReplayBarState extends State<BrainReplayBar> {
   final _growth = Growth();
-  bool _started = false, _more = true;
+  bool _started = false, _began = false, _more = true;
   int _since = 0, _index = 0;
   bool _loading = false, _playing = false, _live = true;
   BrainSnapshot _current = emptyBrain();
@@ -144,6 +154,7 @@ class _BrainReplayBarState extends State<BrainReplayBar> {
   // Reads pages until the journal ends. Every page that arrives is kept; a failed page leaves
   // what was loaded in place and offers a retry that resumes at the same sequence.
   Future<void> _read() async {
+    final resume = _error != null && _began;
     setState(() {
       _loading = true;
       _error = null;
@@ -152,7 +163,6 @@ class _BrainReplayBarState extends State<BrainReplayBar> {
       while (_more) {
         final page = await widget.load(_since, widget.pageSize);
         if (!mounted) return;
-        final first = !_started;
         setState(() {
           for (final signal in page.signals) {
             _growth.add(signal);
@@ -164,14 +174,19 @@ class _BrainReplayBarState extends State<BrainReplayBar> {
           }
           _started = true;
         });
-        if (first) _play(from: 0);
+        if (!_began && _last > 0) {
+          _began = true;
+          _play(from: 0);
+        }
       }
       if (!mounted) return;
       setState(() => _loading = false);
-      if (_playing && MediaQuery.disableAnimationsOf(context)) _goLive();
+      if (resume) _play();
     } catch (error) {
       if (mounted) {
+        _halt();
         setState(() {
+          _playing = false;
           _loading = false;
           _error = error.toString();
         });
@@ -189,8 +204,8 @@ class _BrainReplayBarState extends State<BrainReplayBar> {
     setState(() {
       _playing = false;
       _live = true;
+      if (_index != _last) _current = _growth.frame(_last);
       _index = _last;
-      _current = _growth.frame(_last);
     });
     widget.onFrame(null);
   }
@@ -209,7 +224,7 @@ class _BrainReplayBarState extends State<BrainReplayBar> {
   void _play({int? from}) {
     _halt();
     final reduced = MediaQuery.disableAnimationsOf(context);
-    if (reduced && !_more) {
+    if (reduced) {
       _goLive();
       return;
     }
