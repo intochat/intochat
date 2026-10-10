@@ -42,17 +42,9 @@ public static class CircleView
         return new(await Selected(brain), trimmed);
     }
 
-    public static async Task<string[]> Names(DigitalBrainConnection brain)
-    {
-        var prefix = Scope(brain) + "/circles/";
-        var names = new List<string>();
-        await foreach (var instance in brain.Kernel.Instances<ICircle>())
-        {
-            if (instance.Key.StartsWith(prefix, StringComparison.Ordinal) && instance.Key.Length > prefix.Length && instance.Key.IndexOf('/', prefix.Length) < 0)
-            { names.Add(instance.Key[prefix.Length..]); }
-        }
-        return [.. names.Order(StringComparer.Ordinal)];
-    }
+    public static async Task<string[]> Names(DigitalBrainConnection brain) =>
+        [.. (await brain.Get<ICircles>(ICircles.Key(Scope(brain))).Names())
+            .Select(entry => entry.Role == "owner" ? entry.Name : entry.Name + "@" + entry.Owner).Order(StringComparer.Ordinal)];
 
     public static ICircle Circle(DigitalBrainConnection brain, string reference) => brain.Get<ICircle>(Scope(brain) + "/circles/" + reference);
     public static ICircleChat Chat(DigitalBrainConnection brain, string reference) => brain.Get<ICircleChat>(ICircleChat.Key(Scope(brain) + "/circles/" + reference));

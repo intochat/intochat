@@ -14,10 +14,11 @@ await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
     {
         var (name, rest) = await CircleView.Split(brain, request.Input);
         if (name.Length == 0) { throw new InvalidOperationException("Select or name a circle first."); }
-        var percent = (int)Math.Round(double.Parse(rest, CultureInfo.InvariantCulture));
+        if (!double.TryParse(rest, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) || !double.IsFinite(value))
+        { throw new ArgumentException("The compute share is a number from 0 to " + ICircle.MaxComputeSharePercent + "."); }
+        var percent = (int)Math.Round(value);
         await CircleView.Circle(brain, name).SetComputeShare(Math.Clamp(percent, 0, ICircle.MaxComputeSharePercent));
         await CircleView.Status(brain, "");
-        await CircleView.Project(brain);
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
     { await CircleView.Status(brain, error.Message); }

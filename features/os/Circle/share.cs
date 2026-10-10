@@ -14,7 +14,6 @@ await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
         var (name, shared) = await CircleView.Split(brain, request.Input);
         await CircleView.Circle(brain, name).Share(shared);
         await CircleView.Status(brain, "Shared " + shared + " with " + name + ".");
-        await CircleView.Project(brain);
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
     { await CircleView.Status(brain, error.Message); }
