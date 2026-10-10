@@ -74,7 +74,9 @@ var mcpPort = builder.Configuration.GetValue(McpPortKey, 5081);
 // published build both resources run, and a restart moves them onto the next one.
 var liveOs = AspireModuleHosting.AddLiveBuild(builder, AspireModuleHosting.WorkdirOf(builder), "OperatingSystem", "os", "DigitalBrain.OS.dll");
 var runtime = liveOs is null
-    ? Silo(builder.AddProject<Projects.DigitalBrain_OS>("OperatingSystem").WithHttpEndpoint(port: uiPort, name: "http", isProxied: false))
+    ? Silo(builder.AddProject<Projects.DigitalBrain_OS>("OperatingSystem").WithHttpEndpoint(port: uiPort, name: "http", isProxied: false)
+        .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features))
+    // A live build reads the features published with it (AddLiveBuild), not the working tree's.
     : Silo(liveOs.WithHttpEndpoint(port: uiPort, name: "http", env: "ASPNETCORE_HTTP_PORTS", isProxied: false));
 
 var liveMcp = AspireModuleHosting.AddLiveBuild(builder, AspireModuleHosting.WorkdirOf(builder), "digitalbrain-mcp", "mcp", "DigitalBrain.Mcp.dll");
@@ -92,7 +94,6 @@ builder.Build().Run();
 IResourceBuilder<IResource> Silo<T>(IResourceBuilder<T> silo) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
 {
     silo.WithReference(digitalBrain)
-        .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features)
         .WaitFor(cookieProtection)
         .WithHttpHealthCheck("/health", endpointName: "http");
     return builder.CreateResourceBuilder<IResource>(silo.Resource);

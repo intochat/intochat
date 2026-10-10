@@ -1,4 +1,5 @@
 using Aspire.Hosting.ApplicationModel;
+using Aspire.Hosting;
 using DigitalBrain.Aspire.Testing;
 using DigitalBrain.Microsoft.Aspire;
 
@@ -22,7 +23,7 @@ public sealed class LiveBuildHostingFacts : IDisposable
         Assert.Equal("dotnet", silo.Resource.Command);
         Assert.Equal([Path.Combine(workdir, "builds", "abc1234", "os", "DigitalBrain.OS.dll")], await ArgumentsOf(silo.Resource));
         var environment = await AspireCompositionTest.EnvironmentOf(AspireCompositionTest.CreateBuilder(), silo.Resource, TestContext.Current.CancellationToken);
-        Assert.Equal(Path.Combine(workdir, "builds", "abc1234", "os"), environment["ASPNETCORE_CONTENTROOT"]);
+        Assert.Equal(Path.Combine(workdir, "builds", "abc1234", "os"), environment[AspireModuleHosting.AspNetCoreContentRoot]);
     }
 
     [Fact]
@@ -35,7 +36,39 @@ public sealed class LiveBuildHostingFacts : IDisposable
 
         Assert.Equal([Path.Combine(workdir, "builds", "def5678", "os", "DigitalBrain.OS.dll")], await ArgumentsOf(silo.Resource));
         var environment = await AspireCompositionTest.EnvironmentOf(AspireCompositionTest.CreateBuilder(), silo.Resource, TestContext.Current.CancellationToken);
-        Assert.Equal(Path.Combine(workdir, "builds", "def5678", "os"), environment["DOTNET_CONTENTROOT"]);
+        Assert.Equal(Path.Combine(workdir, "builds", "def5678", "os"), environment[AspireModuleHosting.DotnetContentRoot]);
+    }
+
+    // The live silo's apps are the ones published with its build, never the working tree's.
+    [Fact]
+    public async Task TheSiloReadsTheFeaturesPublishedWithItsBuild()
+    {
+        SetLive("abc1234");
+        var features = Path.Combine(workdir, "builds", "abc1234", "os", AspireModuleHosting.FeaturesFolder);
+        Directory.CreateDirectory(features);
+
+        var silo = AspireModuleHosting.AddLiveBuild(AspireCompositionTest.CreateBuilder(), workdir, "OperatingSystem", "os", "DigitalBrain.OS.dll")!;
+
+        var environment = await AspireCompositionTest.EnvironmentOf(AspireCompositionTest.CreateBuilder(), silo.Resource, TestContext.Current.CancellationToken);
+        Assert.Equal(features, environment[AspireModuleHosting.FeaturesVariable]);
+    }
+
+    // The candidate host's only view of the live deployment: the model Integrations' values, packed into the
+    // aspire Integration. No other Integration of the silo's environment is handed over.
+    [Fact]
+    public async Task TheAspireIntegrationCarriesTheModelsAndNoOtherIntegration()
+    {
+        var builder = AspireCompositionTest.CreateBuilder();
+        var brain = builder.AddDigitalBrain("modules").WithHosting<AspireModuleHosting>();
+        var silo = builder.AddExecutable("silo", "unused", ".")
+            .WithEnvironment(AspireModuleHosting.IntegrationVariable("openrouter", "ApiKey"), "model-key")
+            .WithEnvironment(AspireModuleHosting.IntegrationVariable("github", "PrivateKeyPem"), "pem")
+            .WithReference(brain);
+
+        var environment = await AspireCompositionTest.EnvironmentOf(builder, silo.Resource, TestContext.Current.CancellationToken);
+
+        var model = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>((string)environment[AspireModuleHosting.CandidateModelVariable])!;
+        Assert.Equal(new Dictionary<string, string> { [AspireModuleHosting.IntegrationVariable("openrouter", "ApiKey")] = "model-key" }, model);
     }
 
     [Fact]

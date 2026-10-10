@@ -1,3 +1,4 @@
+using System.Text.Json;
 using DigitalBrain;
 using DigitalBrain.Aspire.Hosting;
 using DigitalBrain.Framework.Configuration;
@@ -15,6 +16,7 @@ public sealed class AspireModuleHosting : ModuleHosting<DigitalBrain.Microsoft.A
     {
         ArgumentNullException.ThrowIfNull(brain);
         brain.AddProjection(new Workdir(WorkdirOf(brain.ApplicationBuilder)));
+        brain.AddProjection(new CandidateSecrets());
         // Candidates are containers: they reach the dashboard's plain-HTTP OTLP endpoint (launchSettings), not the
         // TLS one, whose dev certificate names localhost and is not trusted inside the container.
         if (brain.ApplicationBuilder.Configuration[OtlpHttpEndpoint] is { Length: > 0 } otlp)
@@ -47,20 +49,73 @@ public sealed class AspireModuleHosting : ModuleHosting<DigitalBrain.Microsoft.A
             .WithArgs(context => context.Args.Add(Path.Combine(Folder(), assembly)))
             .WithEnvironment(context =>
             {
-                context.EnvironmentVariables["ASPNETCORE_CONTENTROOT"] = Folder();
-                context.EnvironmentVariables["DOTNET_CONTENTROOT"] = Folder();
+                context.EnvironmentVariables[AspNetCoreContentRoot] = Folder();
+                context.EnvironmentVariables[DotnetContentRoot] = Folder();
+                // The published OS carries the features of its own commit: the live apps are the promoted ones,
+                // never the working tree's.
+                if (Directory.Exists(Path.Combine(Folder(), FeaturesFolder)))
+                {
+                    context.EnvironmentVariables[FeaturesVariable] = Path.Combine(Folder(), FeaturesFolder);
+                }
             })
             .WithEnvironment("ASPNETCORE_ENVIRONMENT", "Development")
             .WithOtlpExporter();
     }
 
     public const string OtlpHttpEndpoint = Candidates.DockerCandidateHost.OtlpHttpEndpoint;
+    public const string AspNetCoreContentRoot = "ASPNETCORE_CONTENTROOT";
+    public const string DotnetContentRoot = "DOTNET_CONTENTROOT";
+    public const string FeaturesFolder = "features";
+    public static string FeaturesKey => DigitalBrainConfiguration.ModuleOptionsSection("apps") + ":Features";
+
+    // The model Integrations a candidate keeps (the AI module's provider ids); every other Integration it boots
+    // with is its own.
+    public static readonly string[] ModelIntegrations = ["openai", "anthropic", "google", "xai", "openrouter", "typesafe"];
+
+    public static string CandidateModelVariable => DigitalBrainConfiguration.EnvironmentName(AspireModule.Integration.Key(AspireModule.CandidateModelField));
+    public static string LiveGrainStateVariable => DigitalBrainConfiguration.EnvironmentName(AspireModule.Integration.Key(AspireModule.LiveGrainStateField));
+    public static string FeaturesVariable => DigitalBrainConfiguration.EnvironmentName(FeaturesKey);
+    public static string IntegrationVariable(string id, string field) => DigitalBrainConfiguration.IntegrationEnvironmentName(id, field);
 
     private sealed class Workdir(string path) : DigitalBrainModuleProjection
     {
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
             => ResourceBuilderExtensions.WithEnvironment(builder,
                 DigitalBrainConfiguration.EnvironmentName(AspireModule.Integration.Key("Workdir")), path);
+    }
+
+    // Run mode only (candidates are local): reads the silo's own environment as composed so far, so this
+    // projection must come after the AI module's and after the brain's grain-state reference (it does: hosting
+    // projections apply in registration order, after the references), and hands the aspire Integration the
+    // model's values and the live grain-state connection. DockerCandidateHost reads them only from there.
+    private sealed class CandidateSecrets : DigitalBrainModuleProjection
+    {
+        public override void Apply<TResource>(IResourceBuilder<TResource> builder)
+            => ResourceBuilderExtensions.WithEnvironment(builder, async context =>
+            {
+                if (!context.ExecutionContext.IsRunMode) { return; }
+                var prefixes = ModelIntegrations.Select(id => DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.SectionName, id) + "__").ToArray();
+                var model = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var (name, value) in context.EnvironmentVariables.ToArray())
+                {
+                    if (prefixes.Any(prefix => name.StartsWith(prefix, StringComparison.Ordinal)) && await Resolve(value, context.CancellationToken) is { Length: > 0 } resolved)
+                    { model[name] = resolved; }
+                }
+                context.EnvironmentVariables[CandidateModelVariable] = JsonSerializer.Serialize(model);
+                if (context.EnvironmentVariables.TryGetValue(GrainStateConnection, out var grainState) && await Resolve(grainState, context.CancellationToken) is { Length: > 0 } connection)
+                {
+                    context.EnvironmentVariables[LiveGrainStateVariable] = connection;
+                }
+            });
+
+        private static readonly string GrainStateConnection = $"ConnectionStrings__{DigitalBrain.Framework.DigitalBrainNames.GrainState}";
+
+        private static async Task<string?> Resolve(object value, CancellationToken ct) => value switch
+        {
+            string text => text,
+            IValueProvider provider => await provider.GetValueAsync(ct),
+            _ => value.ToString(),
+        };
     }
 
     private sealed class Variable(string name, string value) : DigitalBrainModuleProjection

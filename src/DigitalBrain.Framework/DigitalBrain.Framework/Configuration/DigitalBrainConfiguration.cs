@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DigitalBrain.Framework.Modules;
+using DigitalBrain.Framework.Platform.Integrations;
 
 namespace DigitalBrain.Framework.Configuration;
 
@@ -51,6 +52,12 @@ public static class DigitalBrainConfiguration
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         return EnvironmentName($"{configurationRoot}:{name}");
     }
+
+    // An Integration field's environment name, for a deployer composing another process's environment
+    // (a candidate silo's own, freshly generated values). Reading a deployment's credentials still goes
+    // through IModuleIntegrations; this only names the variable.
+    public static string IntegrationEnvironmentName(string integrationId, string field)
+        => EnvironmentName(IntegrationSchema.Key(integrationId, field));
 
     // omitDefaults: a cross-process projection sends only values the sender decided, so a leaf
     // equal to the type's default cannot pin the receiver's own configuration. An in-process

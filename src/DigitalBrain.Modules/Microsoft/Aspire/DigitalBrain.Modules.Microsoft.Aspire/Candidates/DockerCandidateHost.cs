@@ -1,10 +1,12 @@
 using System.Net.NetworkInformation;
 using System.Security.Cryptography;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Azure.Storage.Blobs;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Microsoft.Aspire.Candidates;
@@ -18,23 +20,21 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
     public const string Image = "mcr.microsoft.com/dotnet/aspnet:11.0.0-rc.1";
     private const string AzuriteImage = "mcr.microsoft.com/azure-storage/azurite:3.35.0";
     private const string PostgresImage = "postgres:18.3";
-    private const string ClickHouseImage = "clickhouse/clickhouse-server:latest";
+    private const string ClickHouseImage = "clickhouse/clickhouse-server:25.8";
     private const string OsProject = "src/DigitalBrain.OS/DigitalBrain.OS/DigitalBrain.OS.csproj";
     private const string McpProject = "src/DigitalBrain.Mcp/DigitalBrain.Mcp/DigitalBrain.Mcp.csproj";
-    private const string Integrations = IntegrationSchema.SectionName + ":";
     private const string PostgresDatabase = "digitalbrain";
     private static readonly TimeSpan DependencyBudget = TimeSpan.FromSeconds(90);
 
-    // The model is the one live Integration a candidate keeps: the AI module's provider ids.
-    internal static readonly string[] ModelIntegrations = ["openai", "anthropic", "google", "xai", "openrouter", "typesafe"];
-
-    // Deployment shape the OS reads besides its Integrations: module options and identity.
-    private static readonly string[] CopiedSections = ["DigitalBrain:Modules:", "DigitalBrain:Identity:"];
+    // Deployment shape the OS reads besides its Integrations: module options and identity. No Integration
+    // travels from configuration; the model's arrive through the aspire Integration (CandidateSecrets).
+    private static readonly string[] CopiedSections = [DigitalBrainConfiguration.ModulesSectionName + ":", IdentityHostOptions.SectionName + ":"];
 
     private readonly IProcessRunner processes;
     private readonly IConfiguration live;
     private readonly Func<CancellationToken, Task<string>> workdir;
-    private readonly Func<string, CancellationToken, Task> copyState;
+    private readonly Func<CancellationToken, Task<CandidateSecrets>> secrets;
+    private readonly Func<string, string, CancellationToken, Task> copyState;
     private readonly Func<int, bool> listening;
     private readonly Func<string, int, CancellationToken, Task> dependenciesReady;
     private readonly HttpClient http;
@@ -42,7 +42,7 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
     private readonly Lock gate = new();
 
     public DockerCandidateHost(IModuleIntegrations<AspireModule> integrations, IConfiguration configuration, IProcessRunner processes)
-        : this(processes, configuration, ct => Workdir(integrations, ct), null, null, new HttpClient { Timeout = TimeSpan.FromSeconds(5) })
+        : this(processes, configuration, ct => Workdir(integrations, ct), ct => Secrets(integrations, ct), null, null, new HttpClient { Timeout = TimeSpan.FromSeconds(5) })
     {
     }
 
@@ -50,7 +50,8 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         IProcessRunner processes,
         IConfiguration configuration,
         Func<CancellationToken, Task<string>> workdir,
-        Func<string, CancellationToken, Task>? copyState,
+        Func<CancellationToken, Task<CandidateSecrets>> secrets,
+        Func<string, string, CancellationToken, Task>? copyState,
         Func<int, bool>? listening,
         HttpClient http,
         Func<string, int, CancellationToken, Task>? dependenciesReady = null)
@@ -58,6 +59,7 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         this.processes = processes;
         live = configuration;
         this.workdir = workdir;
+        this.secrets = secrets;
         this.copyState = copyState ?? CopyLiveState;
         this.listening = listening ?? Listening;
         this.dependenciesReady = dependenciesReady ?? DependenciesReady;
@@ -149,6 +151,7 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
     public async Task<RunningCandidate> Run(string sha, CancellationToken ct)
     {
         Checked(sha);
+        var given = await secrets(ct);
         var port = await AllocatePort(sha, ct);
         var network = NetworkOf(sha);
         try
@@ -165,10 +168,12 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
                 "run", "-d", "--name", ClickHouseOf(sha), "--network", network,
                 "--health-cmd", "clickhouse-client --query 'SELECT 1'", "--health-interval", "1s", "-e", "CLICKHOUSE_USER", "-e", "CLICKHOUSE_PASSWORD", ClickHouseImage);
             await dependenciesReady(sha, port + 5, ct);
-            try { await copyState($"http://127.0.0.1:{port + 5}/{AzuriteCopy.AccountName}", ct); }
+            if (given.LiveGrainState is not { Length: > 0 } liveGrainState)
+            { throw new CandidateHostException("run", $"the aspire Integration has no {AspireModule.LiveGrainStateField}"); }
+            try { await copyState(liveGrainState, $"http://127.0.0.1:{port + 5}/{AzuriteCopy.AccountName}", ct); }
             catch (Exception error) when (error is not OperationCanceledException) { throw new CandidateHostException("run", $"copying live storage failed: {error.Message}"); }
 
-            var environment = Environment(sha, postgresPassword, clickHousePassword);
+            var environment = Environment(sha, given.Model, postgresPassword, clickHousePassword);
             LastRunEnvironment = environment;
             await Container("run", ct, environment, ["run", "-d", "--name", ContainerOf(sha), "--hostname", ContainerOf(sha), "--network", network,
                 "-p", $"{port}:5080", "--add-host", "host.docker.internal:host-gateway",
@@ -182,7 +187,9 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         }
         catch
         {
-            await Remove(sha, CancellationToken.None);
+            // Cleanup is best effort: a failing removal must not replace the error that ended the run.
+            try { await Remove(sha, CancellationToken.None); }
+            catch (CandidateHostException) { }
             throw;
         }
     }
@@ -221,17 +228,25 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
         }
     }
 
-    public async Task Commit(string sha, string branch, CancellationToken ct)
+    public async Task<string?> Commit(string sha, CancellationToken ct)
     {
         Checked(sha);
-        try { await Git(await workdir(ct)).FastForward(branch, sha, ct); }
+        try { return await Git(await workdir(ct)).Advance(LiveRef, sha, ct); }
+        catch (InvalidOperationException error) { throw new CandidateHostException("commit", error.Message); }
+    }
+
+    public async Task Uncommit(string sha, string? previous, CancellationToken ct)
+    {
+        Checked(sha);
+        try { await Git(await workdir(ct)).Retreat(LiveRef, sha, previous, ct); }
         catch (InvalidOperationException error) { throw new CandidateHostException("commit", error.Message); }
     }
 
     public async Task Remove(string sha, CancellationToken ct)
     {
         Checked(sha);
-        await Ignoring("No such", ct, "rm", "-f", ContainerOf(sha), McpOf(sha), AzuriteOf(sha), PostgresOf(sha), ClickHouseOf(sha));
+        // -v: postgres and clickhouse keep their data in anonymous volumes, which outlive a plain rm.
+        await Ignoring("No such", ct, "rm", "-f", "-v", ContainerOf(sha), McpOf(sha), AzuriteOf(sha), PostgresOf(sha), ClickHouseOf(sha));
         await Ignoring("not found", ct, "network", "rm", NetworkOf(sha));
         lock (gate) { ports.Remove(sha); }
     }
@@ -264,9 +279,10 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
     // The environment the AppHost projects into the OS resource, re-pointed at the candidate's own
     // storage, databases and keys. Of the live Integrations only the model's values travel; every
     // other Integration the silo needs to boot is the candidate's own.
-    internal Dictionary<string, string> Environment(string sha, string postgresPassword, string clickHousePassword)
+    internal Dictionary<string, string> Environment(string sha, IReadOnlyDictionary<string, string> model, string postgresPassword, string clickHousePassword)
     {
         var environment = Copied();
+        foreach (var (key, value) in model) { environment[key] = value; }
         foreach (var (key, value) in Orleans(sha)) { environment[key] = value; }
         foreach (var (key, value) in new Dictionary<string, string>
         {
@@ -275,23 +291,21 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
             [$"Orleans__Reminders__ServiceKey"] = DigitalBrainNames.Reminders,
             [$"Orleans__GrainStorage__{DigitalBrainNames.DefaultGrainStorage}__ProviderType"] = "AzureBlobStorage",
             [$"Orleans__GrainStorage__{DigitalBrainNames.DefaultGrainStorage}__ServiceKey"] = DigitalBrainNames.GrainState,
-            [$"ConnectionStrings__{DigitalBrainNames.Reminders}"] = CandidateConnectionString(sha),
-            ["DigitalBrain__Http__UiPort"] = "5080",
-            ["DigitalBrain__Http__McpPort"] = "5081",
+            [ConnectionVariable(DigitalBrainNames.Reminders)] = CandidateConnectionString(sha),
             [DigitalBrainConfiguration.EnvironmentName(DigitalBrainConfiguration.ModuleOptionsSection("apps") + ":Features")] = "/app/features",
             ["OTEL_SERVICE_NAME"] = $"candidate-{sha}",
             // Never the live key: copied user Connections stay sealed and unreadable in the candidate.
             [DigitalBrainNames.MasterKeyEnvironmentVariable] = Secret(),
-            [Env(IntegrationSchema.Key("csharp", "RunTokenKey"))] = Secret(),
-            [Env(IntegrationSchema.Key("postgres", "ConnectionString"))] =
+            [IntegrationVariable("csharp", "RunTokenKey")] = Secret(),
+            [IntegrationVariable("postgres", "ConnectionString")] =
                 $"Host={PostgresOf(sha)};Port=5432;Username=postgres;Password={postgresPassword};Database={PostgresDatabase}",
             // The copied postgres options may place a database per brain, which needs the server's admin connection.
-            [Env(IntegrationSchema.Key("postgres", "AdminConnection"))] =
+            [IntegrationVariable("postgres", "AdminConnection")] =
                 $"Host={PostgresOf(sha)};Port=5432;Username=postgres;Password={postgresPassword}",
             // Supabase is postgres: a copied UseBackingStore option boots against the candidate's own server.
-            [Env(IntegrationSchema.Key("supabase", "ConnectionString"))] =
+            [IntegrationVariable("supabase", "ConnectionString")] =
                 $"Host={PostgresOf(sha)};Port=5432;Username=postgres;Password={postgresPassword};Database={PostgresDatabase}",
-            [Env(IntegrationSchema.Key("clickhouse", "ConnectionString"))] =
+            [IntegrationVariable("clickhouse", "ConnectionString")] =
                 $"Host={ClickHouseOf(sha)};Port=8123;Protocol=http;Username=default;Password={clickHousePassword};Database=default",
         })
         { environment[key] = value; }
@@ -305,7 +319,8 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
     internal Dictionary<string, string> McpEnvironment(string sha)
     {
         var environment = Copied();
-        foreach (var key in environment.Keys.Where(key => key.StartsWith("DigitalBrain__Integrations__", StringComparison.Ordinal) || key.StartsWith("DigitalBrain__Modules__", StringComparison.Ordinal)).ToArray())
+        var modules = Env(DigitalBrainConfiguration.ModulesSectionName) + "__";
+        foreach (var key in environment.Keys.Where(key => key.StartsWith(modules, StringComparison.Ordinal)).ToArray())
         { environment.Remove(key); }
         foreach (var (key, value) in Orleans(sha)) { environment[key] = value; }
         environment["ASPNETCORE_URLS"] = "http://+:5081";
@@ -314,7 +329,7 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
     }
 
     internal const string OtlpHttpEndpoint = "ASPIRE_DASHBOARD_OTLP_HTTP_ENDPOINT_URL";
-    private static readonly string[] ExportCadence = ["OTEL_BSP_SCHEDULE_DELAY", "OTEL_BLRP_SCHEDULE_DELAY", "OTEL_METRIC_EXPORT_INTERVAL"];
+    internal static readonly string[] ExportCadence = ["OTEL_BSP_SCHEDULE_DELAY", "OTEL_BLRP_SCHEDULE_DELAY", "OTEL_METRIC_EXPORT_INTERVAL"];
 
     private static string FromContainer(string url)
         => url.Replace("localhost", "host.docker.internal", StringComparison.OrdinalIgnoreCase).Replace("127.0.0.1", "host.docker.internal", StringComparison.Ordinal);
@@ -326,7 +341,7 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
             .ToDictionary(pair => DigitalBrainConfiguration.EnvironmentName(pair.Key), pair => pair.Value!, StringComparer.Ordinal);
         environment["ASPNETCORE_ENVIRONMENT"] = live["ASPNETCORE_ENVIRONMENT"] ?? "Development";
         environment["DOTNET_ENVIRONMENT"] = live["DOTNET_ENVIRONMENT"] ?? live["ASPNETCORE_ENVIRONMENT"] ?? "Development";
-        environment[Env("DigitalBrain:Auth:Posture")] = "Open";
+        environment[Env(AuthOptions.PostureKey)] = "Open";
         // The dashboard's plain-HTTP OTLP endpoint when the AppHost opened one: its TLS endpoint's dev certificate
         // names localhost and is not trusted inside the container.
         if (live[OtlpHttpEndpoint] is { Length: > 0 } otlpHttp)
@@ -359,23 +374,15 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
             ["Orleans__Clustering__ProviderType"] = "AzureTableStorage",
             ["Orleans__Clustering__ServiceKey"] = DigitalBrainNames.Clustering,
             ["Orleans__EnableDistributedTracing"] = "true",
-            [$"ConnectionStrings__{DigitalBrainNames.Clustering}"] = storage,
-            [$"ConnectionStrings__{DigitalBrainNames.GrainState}"] = storage,
+            [ConnectionVariable(DigitalBrainNames.Clustering)] = storage,
+            [ConnectionVariable(DigitalBrainNames.GrainState)] = storage,
             [Env(DigitalBrainNames.GrainStateContainerKey)] = GrainStateContainer,
         };
     }
 
     private string GrainStateContainer => live[DigitalBrainNames.GrainStateContainerKey] is { Length: > 0 } named ? named : DigitalBrainNames.GrainStateContainer;
 
-    private static bool Travels(string key)
-    {
-        if (key.StartsWith(Integrations, StringComparison.OrdinalIgnoreCase))
-        {
-            var id = key[Integrations.Length..].Split(':')[0];
-            return key.Length > Integrations.Length + id.Length && ModelIntegrations.Contains(id, StringComparer.OrdinalIgnoreCase);
-        }
-        return CopiedSections.Any(section => key.StartsWith(section, StringComparison.OrdinalIgnoreCase));
-    }
+    private static bool Travels(string key) => CopiedSections.Any(section => key.StartsWith(section, StringComparison.OrdinalIgnoreCase));
 
     // Integration registrations live in grain state, sealed with the live master key; none is copied.
     // The candidate's IntegrationSeeder seeds the model's and its own from the env keys it receives.
@@ -384,10 +391,8 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
 
     private const string DeploymentMarker = ".digitalbrain-deployment.json";
 
-    private async Task CopyLiveState(string candidateBlobEndpoint, CancellationToken ct)
+    private async Task CopyLiveState(string source, string candidateBlobEndpoint, CancellationToken ct)
     {
-        var source = live.GetConnectionString(DigitalBrainNames.GrainState)
-            ?? throw new InvalidOperationException($"The live process has no ConnectionStrings:{DigitalBrainNames.GrainState}.");
         await AzuriteCopy.CopyAsync(new BlobServiceClient(source, AzuriteCopy.NoRetries), GrainStateContainer, AzuriteCopy.At(candidateBlobEndpoint), GrainStateContainer, LeftBehind, ct);
     }
 
@@ -497,15 +502,30 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
     private static async Task<string> Workdir(IModuleIntegrations<AspireModule> integrations, CancellationToken ct)
     {
         var snapshot = await integrations.Get("aspire").ReadAsync(ct);
-        return snapshot.Settings.TryGetValue("Workdir", out var workdir) && workdir is { Length: > 0 }
+        return snapshot.Settings.TryGetValue(AspireModule.WorkdirField, out var workdir) && workdir is { Length: > 0 }
             ? Path.GetFullPath(workdir)
             : throw new CandidateHostException("prepare", "the aspire Integration has no Workdir");
+    }
+
+    // The aspire Integration's two secrets, projected by AspireModuleHosting from the live resource's environment.
+    private static async Task<CandidateSecrets> Secrets(IModuleIntegrations<AspireModule> integrations, CancellationToken ct)
+    {
+        var released = await integrations.Get("aspire").ReleaseAsync(ct);
+        var model = released.Values.TryGetValue(AspireModule.CandidateModelField, out var json) && json is { Length: > 0 }
+            ? JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? []
+            : [];
+        return new(model, released.Values.GetValueOrDefault(AspireModule.LiveGrainStateField));
     }
 
     private Git Git(string root) => new(processes, Path.GetDirectoryName(Path.GetFullPath(root))!);
 
     private static string Secret() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
-    private static string Env(string key) => DigitalBrainConfiguration.EnvironmentName(key);
+    internal static string Env(string key) => DigitalBrainConfiguration.EnvironmentName(key);
+    internal static string ConnectionVariable(string name) => $"ConnectionStrings__{name}";
+    internal static string IntegrationVariable(string id, string field) => DigitalBrainConfiguration.IntegrationEnvironmentName(id, field);
+
+    // Promotion advances this ref, never a branch someone has checked out; people fast-forward their branch from it.
+    public const string LiveRef = "refs/digitalbrain/live";
 
     private static string CandidateConnectionString(string sha)
         => $"DefaultEndpointsProtocol=http;AccountName={AzuriteCopy.AccountName};AccountKey={AzuriteCopy.AccountKey};"
@@ -538,3 +558,5 @@ internal sealed partial class DockerCandidateHost : ICandidateHost
     [GeneratedRegex("(^|[^a-z0-9])integration/(?<id>[a-z][a-z0-9.-]*?)(\\.json)?$", RegexOptions.CultureInvariant)]
     private static partial Regex IntegrationBlob();
 }
+
+internal sealed record CandidateSecrets(IReadOnlyDictionary<string, string> Model, string? LiveGrainState);

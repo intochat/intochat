@@ -56,17 +56,30 @@ internal sealed class FakeCandidateHost : ICandidateHost
         return Healthy ? Task.CompletedTask : Task.FromException(new TimeoutException($"{sha} not healthy"));
     }
 
-    public Task Commit(string sha, string branch, CancellationToken ct)
+    public string? Live { get; private set; } = "base000";
+
+    public Task<string?> Commit(string sha, CancellationToken ct)
     {
-        Calls.Add($"commit {sha} {branch}");
+        Calls.Add($"commit {sha}");
         Fail("commit");
+        var previous = Live;
+        Live = sha;
+        return Task.FromResult(previous);
+    }
+
+    public Task Uncommit(string sha, string? previous, CancellationToken ct)
+    {
+        Calls.Add($"uncommit {sha} {previous}");
+        if (Live == sha) { Live = previous ?? "parent"; }
         return Task.CompletedTask;
     }
+
+    public bool RemoveFails { get; set; }
 
     public Task Remove(string sha, CancellationToken ct)
     {
         Calls.Add($"remove {sha}");
-        return Task.CompletedTask;
+        return RemoveFails ? Task.FromException(new CandidateHostException("remove", "docker gone")) : Task.CompletedTask;
     }
 
     public Task<string[]> Orphans(string[] known, CancellationToken ct)

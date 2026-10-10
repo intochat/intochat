@@ -48,7 +48,7 @@ public sealed class CandidateFacts
         Assert.Equal("sha0001", (await promoted.NextAsync(ct: ct)).Sha);
         Assert.Equal("sha0001", cluster.Current);
         Assert.Equal(1, cluster.Restarts);
-        Assert.Equal(["gate sha0001", "publish sha0001", "run sha0001", "healthy sha0001", "commit sha0001 os-runtime", "remove sha0001"], host.Calls.Where(call => call != "orphans"));
+        Assert.Equal(["gate sha0001", "publish sha0001", "run sha0001", "healthy sha0001", "commit sha0001", "remove sha0001"], host.Calls.Where(call => call != "orphans"));
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public sealed class CandidateFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var host = new FakeCandidateHost();
-        var cluster = new FakeClusterHost { DieOnRestart = true };
+        var cluster = new FakeClusterHost();
         await using var brain = await StartAsync(host, cluster, new FakeVerifier(), ct);
         var index = brain.Get<ICandidates>(ICandidates.Key("owner"));
         var candidate = brain.Get<ICandidate>(ICandidate.Key("owner", "sha0001"));
@@ -146,8 +146,7 @@ public sealed class CandidateFacts
         var sha = await index.Propose(new("os-runtime", "change", [], Plan));
         await healthy.NextAsync(ct: ct);
         await candidate.Verify();
-        await Assert.ThrowsAsync<InvalidOperationException>(candidate.Promote);
-        Assert.Equal(CandidateStage.Promoting, (await candidate.Read()).Stage);
+        Assert.Equal(CandidateStage.Promoting, (await candidate.Promote()).Stage);
         Assert.Equal(sha, await index.Live());
 
         await brain.DeactivateAsync(brain.Get<ICluster>(ICluster.Key("owner")), ct);
@@ -163,12 +162,12 @@ public sealed class CandidateFacts
     public async Task PromotingWhileAlreadyPromotingReturnsTheSnapshotUnchanged()
     {
         var ct = TestContext.Current.CancellationToken;
-        var cluster = new FakeClusterHost { DieOnRestart = true };
+        var cluster = new FakeClusterHost();
         var (brain, candidate) = await ProposedAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
         await using var _ = brain;
         await candidate.Start();
         await candidate.Verify();
-        await Assert.ThrowsAsync<InvalidOperationException>(candidate.Promote);
+        await candidate.Promote();
 
         var again = await candidate.Promote();
 
@@ -181,7 +180,7 @@ public sealed class CandidateFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var host = new FakeCandidateHost();
-        var cluster = new FakeClusterHost { DieOnRestart = true };
+        var cluster = new FakeClusterHost();
         await using var brain = await StartAsync(host, cluster, new FakeVerifier(), ct);
         var index = brain.Get<ICandidates>(ICandidates.Key("owner"));
         var first = brain.Get<ICandidate>(ICandidate.Key("owner", "sha0001"));
@@ -191,7 +190,7 @@ public sealed class CandidateFacts
         await index.Propose(new("os-runtime", "one", [], Plan));
         await healthy.NextAsync(ct: ct);
         await first.Verify();
-        await Assert.ThrowsAsync<InvalidOperationException>(first.Promote);
+        await first.Promote();
         await brain.DeactivateAsync(brain.Get<ICluster>(ICluster.Key("owner")), ct);
 
         var queued = await index.Propose(new("os-runtime", "two", [], Plan));
@@ -219,5 +218,117 @@ public sealed class CandidateFacts
         Assert.Equal(CandidateStage.Starting, (await failed.NextAsync(ct: ct)).Stage);
         Assert.Equal("disk gone", (await first.Read()).Failure);
         Assert.Equal("sha0002", (await secondStarted.NextAsync(ct: ct)).Sha);
+    }
+
+    [Fact]
+    public async Task ACommitThatFailsFailsThePromotionWithoutRestarting()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new FakeCandidateHost();
+        var cluster = new FakeClusterHost();
+        var (brain, candidate) = await ProposedAsync(host, cluster, new FakeVerifier(), ct);
+        await using var _ = brain;
+        await candidate.Start();
+        await candidate.Verify();
+        host.FailAt = "commit";
+
+        var result = await candidate.Promote();
+
+        Assert.Equal(CandidateStage.Failed, result.Stage);
+        Assert.Contains("commit", result.Failure, StringComparison.Ordinal);
+        Assert.Equal(0, cluster.Restarts);
+        Assert.Equal("remove sha0001", host.Calls[^1]);
+    }
+
+    [Fact]
+    public async Task ARestartThatFailsPutsTheLiveRefAndBuildBackAndFailsThePromotion()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new FakeCandidateHost();
+        var cluster = new FakeClusterHost { DieOnRestart = true };
+        var (brain, candidate) = await ProposedAsync(host, cluster, new FakeVerifier(), ct);
+        await using var _ = brain;
+        await candidate.Start();
+        await candidate.Verify();
+
+        var result = await candidate.Promote();
+
+        Assert.Equal(CandidateStage.Failed, result.Stage);
+        Assert.Equal("base000", host.Live);
+        Assert.Equal("base000", cluster.Current);
+        var read = await brain.Get<ICluster>(ICluster.Key("owner")).Read();
+        Assert.Equal((ClusterStage.Steady, "base000"), (read.Stage, read.CurrentSha));
+    }
+
+    [Fact]
+    public async Task ARestartThatNeverTookFailsThePromotingCandidateOnTheClustersNextActivation()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new FakeCandidateHost();
+        var cluster = new FakeClusterHost();
+        var (brain, candidate) = await ProposedAsync(host, cluster, new FakeVerifier(), ct);
+        await using var _ = brain;
+        await candidate.Start();
+        await candidate.Verify();
+        await candidate.Promote();
+        cluster.Current = "base000";
+
+        await brain.DeactivateAsync(brain.Get<ICluster>(ICluster.Key("owner")), ct);
+        await brain.Get<ICluster>(ICluster.Key("owner")).Read();
+
+        Assert.Equal(CandidateStage.Failed, (await candidate.Read()).Stage);
+        Assert.Contains("uncommit sha0001 ", host.Calls);
+        Assert.NotEqual("sha0001", host.Live);
+    }
+
+    // The cluster persisted a restart towards this very sha (a Promote retried after a crash): the activation
+    // Promote's own Restart call causes finishes the candidate while Promote is still waiting on it.
+    [Fact]
+    public async Task APromoteThatActivatesTheClusterIntoItsOwnFinishDoesNotDeadlock()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new FakeCandidateHost();
+        var cluster = new FakeClusterHost();
+        var (brain, candidate) = await ProposedAsync(host, cluster, new FakeVerifier(), ct);
+        await using var _ = brain;
+        await candidate.Start();
+        await candidate.Verify();
+        var live = brain.Get<ICluster>(ICluster.Key("owner"));
+        await live.Restart("sha0001");
+        await brain.DeactivateAsync(live, ct);
+
+        var result = await candidate.Promote().WaitAsync(TimeSpan.FromSeconds(30), ct);
+
+        Assert.Equal(CandidateStage.Promoted, result.Stage);
+    }
+
+    [Fact]
+    public async Task TwoStartsBuildOnce()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new FakeCandidateHost();
+        var (brain, candidate) = await ProposedAsync(host, new FakeClusterHost(), new FakeVerifier(), ct);
+        await using var _ = brain;
+
+        var first = candidate.Start();
+        var second = candidate.Start();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => Task.WhenAll(first, second));
+
+        Assert.Equal(CandidateStage.Healthy, (await candidate.Read()).Stage);
+        Assert.Single(host.Calls, call => call == "gate sha0001");
+    }
+
+    [Fact]
+    public async Task AFailureWhoseCleanupFailsStillEndsFailed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new FakeCandidateHost { Healthy = false, RemoveFails = true };
+        var (brain, candidate) = await ProposedAsync(host, new FakeClusterHost(), new FakeVerifier(), ct);
+        await using var _ = brain;
+
+        var result = await candidate.Start();
+
+        Assert.Equal(CandidateStage.Failed, result.Stage);
+        Assert.Equal("sha0001 not healthy", result.Failure);
     }
 }

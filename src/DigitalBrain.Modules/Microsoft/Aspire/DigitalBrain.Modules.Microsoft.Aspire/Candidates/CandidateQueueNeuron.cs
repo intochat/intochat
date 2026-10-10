@@ -15,6 +15,7 @@ internal sealed class CandidateQueueNeuron(
     public async Task<string> Propose(CandidateProposal proposal)
     {
         ArgumentNullException.ThrowIfNull(proposal);
+        await Heal();
         var cluster = await GrainFactory.GetGrain<ICluster>(ICluster.Key(BrainId)).Read();
         var prepared = await host.Prepare(cluster.CurrentSha, proposal.Summary, proposal.Files, CancellationToken.None);
         var candidate = GrainFactory.GetGrain<ICandidate>(ICandidate.Key(BrainId, prepared.Sha));
@@ -31,6 +32,23 @@ internal sealed class CandidateQueueNeuron(
         }
         return prepared.Sha;
     }
+
+    public async Task Heal()
+    {
+        foreach (var sha in Snapshot.Queue)
+        {
+            if (Ended((await Candidate(sha).Read()).Stage)) { await Ended(sha); }
+        }
+        if (Snapshot.Live is not { } live) { return; }
+        var stage = (await Candidate(live).Read()).Stage;
+        if (Ended(stage)) { await Ended(live); }
+        // Begin is a no-op past Queued, so a Begin that did arrive and is still building is not repeated.
+        else if (stage is CandidateStage.Proposed or CandidateStage.Queued) { await Candidate(live).Begin(); }
+    }
+
+    private static bool Ended(CandidateStage stage) => stage is CandidateStage.Promoted or CandidateStage.Discarded or CandidateStage.Failed;
+
+    private ICandidate Candidate(string sha) => GrainFactory.GetGrain<ICandidate>(ICandidate.Key(BrainId, sha));
 
     public Task<string?> Live() => Task.FromResult(Snapshot.Live);
 

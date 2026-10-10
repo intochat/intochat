@@ -1,4 +1,8 @@
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Configuration;
+using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.Aspire.Candidates;
+using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.Extensions.Configuration;
 
 namespace DigitalBrain.Microsoft.Aspire.Tests;
@@ -12,53 +16,84 @@ public sealed class DockerCandidateHostFacts : IDisposable
 
     public void Dispose() => Directory.Delete(Path.GetDirectoryName(workdir)!, recursive: true);
 
+    // The candidate host reads no Integration from configuration: the model's values and the live grain-state
+    // connection arrive as the aspire Integration's secrets; every other Integration is the candidate's own.
     [Fact]
     public async Task NoLiveIntegrationValueReachesTheCandidateButTheModels()
     {
+        var transcription = DigitalBrainConfiguration.ModuleOptionsSection("ai") + ":Default:Transcription";
         var live = new Dictionary<string, string?>
         {
-            ["DigitalBrain:Integrations:openrouter:ApiKey"] = "model-key",
-            ["DigitalBrain:Integrations:typesafe:Endpoint"] = "https://jev",
-            ["DigitalBrain:Integrations:github:PrivateKeyPem"] = "pem",
-            ["DigitalBrain:Integrations:postgres:ConnectionString"] = "Host=live-postgres",
-            ["DigitalBrain:Integrations:postgres:AdminConnection"] = "Host=live-postgres-admin",
-            ["DigitalBrain:Integrations:supabase:ConnectionString"] = "Host=live-supabase",
-            ["DigitalBrain:Integrations:clickhouse:ConnectionString"] = "Host=live-clickhouse",
-            ["DigitalBrain:Integrations:aspire:Workdir"] = "E:/repo/.digitalbrain",
-            ["DigitalBrain:Integrations:csharp:RunTokenKey"] = "live-run-token",
-            ["DigitalBrain:Modules:ai:Options:DefaultModel"] = "deepseek",
-            ["DigitalBrain:Modules:ai:Options:Default:Transcription"] = "IWhisperLargeV3Turbo",
-            ["DigitalBrain:MasterKey"] = "live-master",
-            ["DigitalBrain:Auth:Posture"] = "Owner",
+            [IntegrationSchema.Key("openrouter", "ApiKey")] = "live-config-model-key",
+            [IntegrationSchema.Key("github", "PrivateKeyPem")] = "pem",
+            [IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=live-postgres",
+            [IntegrationSchema.Key("postgres", "AdminConnection")] = "Host=live-postgres-admin",
+            [IntegrationSchema.Key("supabase", "ConnectionString")] = "Host=live-supabase",
+            [IntegrationSchema.Key("clickhouse", "ConnectionString")] = "Host=live-clickhouse",
+            [IntegrationSchema.Key("aspire", "Workdir")] = "E:/repo/.digitalbrain",
+            [IntegrationSchema.Key("csharp", "RunTokenKey")] = "live-run-token",
+            [DigitalBrainConfiguration.ModuleOptionsSection("ai") + ":DefaultModel"] = "deepseek",
+            [transcription] = "IWhisperLargeV3Turbo",
+            [AuthOptions.PostureKey] = "Owner",
             ["ConnectionStrings:grainstate"] = "live-grainstate",
             ["ConnectionStrings:clustering"] = "live-clustering",
-            ["OTEL_BSP_SCHEDULE_DELAY"] = "1000",
+            [DockerCandidateHost.ExportCadence[0]] = "1000",
         };
-        var host = Host(live);
+        var model = new Dictionary<string, string>
+        {
+            [DockerCandidateHost.IntegrationVariable("openrouter", "ApiKey")] = "model-key",
+            [DockerCandidateHost.IntegrationVariable("typesafe", "Endpoint")] = "https://jev",
+        };
+        string? copiedFrom = null;
+        var host = Host(live, new CandidateSecrets(model, "live-grainstate"), (source, _, _) => { copiedFrom = source; return Task.CompletedTask; });
 
         await host.Run("abc1234", TestContext.Current.CancellationToken);
 
-        string[] model = ["model-key", "https://jev"];
-        var forbidden = live.Where(pair => pair.Key.StartsWith("DigitalBrain:Integrations:", StringComparison.Ordinal) || pair.Key.StartsWith("ConnectionStrings:", StringComparison.Ordinal) || pair.Key == "DigitalBrain:MasterKey")
-            .Select(pair => pair.Value!).Except(model).ToArray();
+        Assert.Equal("live-grainstate", copiedFrom);
+        var forbidden = live.Where(pair => pair.Key.StartsWith(IntegrationSchema.SectionName, StringComparison.Ordinal) || pair.Key.StartsWith("ConnectionStrings:", StringComparison.Ordinal))
+            .Select(pair => pair.Value!).ToArray();
         foreach (var environment in new[] { host.LastRunEnvironment, host.LastMcpEnvironment })
         {
             Assert.All(environment, pair => Assert.DoesNotContain(forbidden, value => pair.Value.Contains(value, StringComparison.Ordinal)));
         }
-        Assert.Equal("model-key", host.LastRunEnvironment["DigitalBrain__Integrations__openrouter__ApiKey"]);
-        Assert.Equal("https://jev", host.LastRunEnvironment["DigitalBrain__Integrations__typesafe__Endpoint"]);
-        Assert.DoesNotContain(host.LastMcpEnvironment.Keys, key => key.StartsWith("DigitalBrain__Integrations__", StringComparison.Ordinal));
-        Assert.Equal(32, Convert.FromBase64String(host.LastRunEnvironment["DigitalBrain__MasterKey"]).Length);
-        Assert.Equal(32, Convert.FromBase64String(host.LastRunEnvironment["DigitalBrain__Integrations__csharp__RunTokenKey"]).Length);
-        Assert.Contains("candidate-abc1234-postgres", host.LastRunEnvironment["DigitalBrain__Integrations__postgres__ConnectionString"], StringComparison.Ordinal);
-        Assert.Contains("candidate-abc1234-postgres", host.LastRunEnvironment["DigitalBrain__Integrations__postgres__AdminConnection"], StringComparison.Ordinal);
-        Assert.Contains("candidate-abc1234-postgres", host.LastRunEnvironment["DigitalBrain__Integrations__supabase__ConnectionString"], StringComparison.Ordinal);
-        Assert.DoesNotContain("DigitalBrain__Modules__ai__Options__Default__Transcription", host.LastRunEnvironment.Keys);
-        Assert.Contains("candidate-abc1234-clickhouse", host.LastRunEnvironment["DigitalBrain__Integrations__clickhouse__ConnectionString"], StringComparison.Ordinal);
-        Assert.Equal("Open", host.LastRunEnvironment["DigitalBrain__Auth__Posture"]);
-        Assert.Equal("1000", host.LastRunEnvironment["OTEL_BSP_SCHEDULE_DELAY"]);
-        Assert.Equal(host.LastRunEnvironment["ConnectionStrings__clustering"], host.LastMcpEnvironment["ConnectionStrings__clustering"]);
+        Assert.Equal("model-key", host.LastRunEnvironment[DockerCandidateHost.IntegrationVariable("openrouter", "ApiKey")]);
+        Assert.Equal("https://jev", host.LastRunEnvironment[DockerCandidateHost.IntegrationVariable("typesafe", "Endpoint")]);
+        Assert.DoesNotContain(host.LastMcpEnvironment.Values, value => value is "model-key" or "https://jev");
+        Assert.Equal(32, Convert.FromBase64String(host.LastRunEnvironment[DigitalBrainNames.MasterKeyEnvironmentVariable]).Length);
+        Assert.Equal(32, Convert.FromBase64String(host.LastRunEnvironment[DockerCandidateHost.IntegrationVariable("csharp", "RunTokenKey")]).Length);
+        Assert.Contains("candidate-abc1234-postgres", host.LastRunEnvironment[DockerCandidateHost.IntegrationVariable("postgres", "ConnectionString")], StringComparison.Ordinal);
+        Assert.Contains("candidate-abc1234-postgres", host.LastRunEnvironment[DockerCandidateHost.IntegrationVariable("postgres", "AdminConnection")], StringComparison.Ordinal);
+        Assert.Contains("candidate-abc1234-postgres", host.LastRunEnvironment[DockerCandidateHost.IntegrationVariable("supabase", "ConnectionString")], StringComparison.Ordinal);
+        Assert.DoesNotContain(DockerCandidateHost.Env(transcription), host.LastRunEnvironment.Keys);
+        Assert.Contains("candidate-abc1234-clickhouse", host.LastRunEnvironment[DockerCandidateHost.IntegrationVariable("clickhouse", "ConnectionString")], StringComparison.Ordinal);
+        Assert.Equal("Open", host.LastRunEnvironment[DockerCandidateHost.Env(AuthOptions.PostureKey)]);
+        Assert.Equal("1000", host.LastRunEnvironment[DockerCandidateHost.ExportCadence[0]]);
+        var clustering = DockerCandidateHost.ConnectionVariable(DigitalBrainNames.Clustering);
+        Assert.Equal(host.LastRunEnvironment[clustering], host.LastMcpEnvironment[clustering]);
         Assert.DoesNotContain(processes.Commands, command => command.Contains("model-key", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ARunWithoutTheLiveGrainStateFailsBeforeStartingTheSilo()
+    {
+        var host = Host(secrets: new CandidateSecrets(new Dictionary<string, string>(), null));
+
+        var error = await Assert.ThrowsAsync<CandidateHostException>(() => host.Run("abc1234", TestContext.Current.CancellationToken));
+
+        Assert.Contains(AspireModule.LiveGrainStateField, error.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(processes.Commands, command => command.Contains("--name candidate-abc1234 ", StringComparison.Ordinal));
+    }
+
+    // Cleanup after a failed run is best effort: its own failure must not hide why the run failed.
+    [Fact]
+    public async Task AFailingCleanupDoesNotMaskTheRunsError()
+    {
+        processes.Answer("docker network create", new(1, "", "network create failed: pool overlaps"));
+        processes.Answer("docker rm", new(1, "", "daemon unreachable"));
+
+        var error = await Assert.ThrowsAsync<CandidateHostException>(() => Host().Run("abc1234", TestContext.Current.CancellationToken));
+
+        Assert.Contains("pool overlaps", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -78,7 +113,7 @@ public sealed class DockerCandidateHostFacts : IDisposable
 
         await Host().Remove("abc1234", TestContext.Current.CancellationToken);
 
-        Assert.Equal(["docker rm -f candidate-abc1234 candidate-abc1234-mcp candidate-abc1234-azurite candidate-abc1234-postgres candidate-abc1234-clickhouse", "docker network rm candidate-abc1234"], processes.Commands);
+        Assert.Equal(["docker rm -f -v candidate-abc1234 candidate-abc1234-mcp candidate-abc1234-azurite candidate-abc1234-postgres candidate-abc1234-clickhouse", "docker network rm candidate-abc1234"], processes.Commands);
     }
 
     [Fact]
@@ -97,10 +132,10 @@ public sealed class DockerCandidateHostFacts : IDisposable
     [Fact]
     public async Task AFailingBuildRaisesAGateErrorWithTheOutputTail()
     {
-        var project = Path.Combine(workdir, "worktrees", "abc1234", "src", "Mod", "Mod.X");
+        var project = Path.Combine(workdir, "worktrees", "abc1234", "lib", "Mod", "Mod.X");
         Directory.CreateDirectory(project);
         await File.WriteAllTextAsync(Path.Combine(project, "Mod.X.csproj"), "<Project />", TestContext.Current.CancellationToken);
-        processes.Answer("git -c core.longpaths=true diff", new(0, "src/Mod/Mod.X/Thing.cs\n", ""));
+        processes.Answer("git -c core.longpaths=true diff", new(0, "lib/Mod/Mod.X/Thing.cs\n", ""));
         processes.Answer("dotnet build", new(1, string.Join('\n', Enumerable.Range(1, 100).Select(i => $"line {i}")) + "\nThing.cs(3,1): error CS1002: ; expected", ""));
 
         var error = await Assert.ThrowsAsync<CandidateHostException>(() => Host().BuildGate("abc1234", TestContext.Current.CancellationToken));
@@ -110,9 +145,10 @@ public sealed class DockerCandidateHostFacts : IDisposable
         Assert.DoesNotContain("line 1\n", error.Message, StringComparison.Ordinal);
     }
 
-    private DockerCandidateHost Host(Dictionary<string, string?>? live = null)
+    private DockerCandidateHost Host(Dictionary<string, string?>? live = null, CandidateSecrets? secrets = null, Func<string, string, CancellationToken, Task>? copyState = null)
         => new(processes, new ConfigurationBuilder().AddInMemoryCollection(live ?? []).Build(),
-            _ => Task.FromResult(workdir), (_, _) => Task.CompletedTask, _ => false, new HttpClient(), (_, _, _) => Task.CompletedTask);
+            _ => Task.FromResult(workdir), _ => Task.FromResult(secrets ?? new CandidateSecrets(new Dictionary<string, string>(), "live-grainstate")),
+            copyState ?? ((_, _, _) => Task.CompletedTask), _ => false, new HttpClient(), (_, _, _) => Task.CompletedTask);
 
     private sealed class RecordingProcessRunner : IProcessRunner
     {

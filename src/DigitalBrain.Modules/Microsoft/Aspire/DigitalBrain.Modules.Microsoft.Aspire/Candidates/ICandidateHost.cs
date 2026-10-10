@@ -11,7 +11,8 @@ internal interface ICandidateHost
     Task<string> Publish(string sha, CancellationToken ct);           // returns build folder {Workdir}/builds/{sha}
     Task<RunningCandidate> Run(string sha, CancellationToken ct);     // image + azurite + copy of live storage
     Task WaitHealthy(string sha, TimeSpan budget, CancellationToken ct); // throws TimeoutException
-    Task Commit(string sha, string branch, CancellationToken ct);     // fast-forward branch to sha
+    Task<string?> Commit(string sha, CancellationToken ct);            // CAS fast-forward of refs/digitalbrain/live to sha; returns what it held
+    Task Uncommit(string sha, string? previous, CancellationToken ct); // puts the live ref back while it still holds sha
     Task Remove(string sha, CancellationToken ct);                    // container + its azurite + network
     Task<string[]> Orphans(string[] known, CancellationToken ct);     // removes candidate-* containers not in known, returns removed
 }

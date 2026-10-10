@@ -35,14 +35,19 @@ public interface ICandidate : INeuron
     [ReadOnly, AlwaysInterleave] Task<CandidateSnapshot> Read();
     Task<CandidateSnapshot> Propose(string branch, string summary, VerificationPlan plan);
     Task<CandidateSnapshot> Queue();
-    [AlwaysInterleave, ResponseTimeout("00:20:00")] Task<CandidateSnapshot> Start();
-    [AlwaysInterleave, ResponseTimeout("00:30:00")] Task<CandidateSnapshot> Verify();
+    // Start and Verify mutate the candidate: they run one at a time, never beside Discard or another Start.
+    [ResponseTimeout("00:20:00")] Task<CandidateSnapshot> Start();
+    [ResponseTimeout("00:30:00")] Task<CandidateSnapshot> Verify();
     [ResponseTimeout("00:10:00")] Task<CandidateSnapshot> Promote();
     Task<CandidateSnapshot> Discard();
     // Starts without holding the caller: the index must be free when a failing Start reports Ended.
-    [OneWay, AlwaysInterleave] Task Begin();
-    // Completes a Promoting candidate once the cluster runs its build; a no-op in any other stage.
-    Task<CandidateSnapshot> Finish();
+    // A no-op unless the candidate is Proposed or Queued, so the index may re-send it to heal a lost one.
+    [OneWay] Task Begin();
+    // The cluster's activation settles a Promoting candidate: Finish once the cluster runs its build, Abandon
+    // when the restart never took. Both interleave (Promote may be what activated the cluster) and are no-ops
+    // in any other stage.
+    [AlwaysInterleave] Task<CandidateSnapshot> Finish();
+    [AlwaysInterleave] Task<CandidateSnapshot> Abandon(string reason);
     static string Key(string brainId, string sha) => $"{brainId}/aspire/candidate/{sha}";
 }
 
@@ -55,5 +60,8 @@ public interface ICandidates : INeuron
     [ReadOnly, AlwaysInterleave] Task<string[]> Known();
     // One-way: a candidate ends from inside calls the index may itself be awaiting (cluster reactivation inside Propose).
     [OneWay] Task Ended(string sha);
+    // One-way calls are at most once: re-derives Live and Queue from the candidates' own stages, applying a lost
+    // Ended and re-sending a lost Begin. Runs on every Propose and on the cluster's activation.
+    [OneWay] Task Heal();
     static string Key(string brainId) => $"{brainId}/aspire/candidates";
 }
