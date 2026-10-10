@@ -8,6 +8,7 @@ using DigitalBrain.ServiceDefaults;
 using global::Aspire.Hosting;
 using global::Aspire.Hosting.ApplicationModel;
 using global::Aspire.Hosting.Yarp;
+using global::Aspire.Hosting.Yarp.Transforms;
 
 namespace DigitalBrain.Microsoft.Aspire;
 
@@ -18,6 +19,7 @@ public sealed class AspireModuleHosting : ModuleHosting<DigitalBrain.Microsoft.A
     {
         ArgumentNullException.ThrowIfNull(brain);
         brain.AddProjection(new Workdir(WorkdirOf(brain.ApplicationBuilder)));
+        brain.AddProjection(new Fronts(brain.ApplicationBuilder));
         brain.AddProjection(new CandidateSecrets());
         // Candidates are containers: they reach the dashboard's plain-HTTP OTLP endpoint (launchSettings), not the
         // TLS one, whose dev certificate names localhost and is not trusted inside the container.
@@ -94,18 +96,27 @@ public sealed class AspireModuleHosting : ModuleHosting<DigitalBrain.Microsoft.A
 
     public static string FrontName(string role) => $"{role}-front";
 
+    // Three routes: everything to the role's instances; the front's own /ready, answered by whichever instance the
+    // front routes to (its /alive, so a draining instance's 503 does not leak through); and one route per instance,
+    // /_instances/{instance}/ready, through a cluster of that instance alone with the same health check. A roll
+    // reads that route to see the instance the way the front does: in (200) or out.
     public static IResourceBuilder<YarpResource> AddFront(IDistributedApplicationBuilder builder, string role, int port, IEnumerable<EndpointReference> instances)
     {
         ArgumentNullException.ThrowIfNull(builder);
         EndpointReference[] endpoints = [.. instances];
         var front = builder.AddYarp(FrontName(role))
             .WithHostPort(port)
-            .WithConfiguration(yarp => yarp.AddRoute("/{**catch-all}", yarp.AddCluster(role, [.. endpoints.Cast<object>()])
-                .WithHealthCheckConfig(new global::Yarp.ReverseProxy.Configuration.HealthCheckConfig
+            .WithConfiguration(yarp =>
+            {
+                var all = Probed(yarp.AddCluster(role, [.. endpoints.Cast<object>()]));
+                yarp.AddRoute("/{**catch-all}", all);
+                yarp.AddRoute(HealthProbes.ReadyPath, all).WithTransformPathSet(HealthProbes.AlivePath);
+                foreach (var endpoint in endpoints)
                 {
-                    Active = new global::Yarp.ReverseProxy.Configuration.ActiveHealthCheckConfig { Enabled = true, Path = HealthPath },
-                    Passive = new global::Yarp.ReverseProxy.Configuration.PassiveHealthCheckConfig { Enabled = true },
-                })));
+                    yarp.AddRoute(InstancePath(endpoint.Resource.Name), Probed(yarp.AddCluster(endpoint.Resource.Name, endpoint)))
+                        .WithTransformPathSet(HealthProbes.AlivePath);
+                }
+            });
         // The destinations resolve through service discovery (http://{instance}); the front starts after them. A
         // stopping instance drains (ServiceDefaults): /ready fails and it keeps serving until the probe has
         // taken it out of the cluster.
@@ -120,12 +131,24 @@ public sealed class AspireModuleHosting : ModuleHosting<DigitalBrain.Microsoft.A
         }
         // Aspire 13.6 writes a TimeSpan of the cluster config as its fields (INTERVAL__TICKS, ...), which YARP's
         // binder does not read; the probe cadence is set as the section's own value instead.
-        var health = $"REVERSEPROXY__CLUSTERS__cluster_{role}__HEALTHCHECK__";
-        return front
-            .WithEnvironment(health + "ACTIVE__INTERVAL", ProbeInterval.ToString("c"))
-            .WithEnvironment(health + "ACTIVE__TIMEOUT", ProbeTimeout.ToString("c"))
-            .WithEnvironment(health + "PASSIVE__REACTIVATIONPERIOD", Reactivation.ToString("c"));
+        foreach (var cluster in endpoints.Select(endpoint => endpoint.Resource.Name).Prepend(role))
+        {
+            var health = $"REVERSEPROXY__CLUSTERS__cluster_{cluster}__HEALTHCHECK__";
+            front.WithEnvironment(health + "ACTIVE__INTERVAL", ProbeInterval.ToString("c"))
+                .WithEnvironment(health + "ACTIVE__TIMEOUT", ProbeTimeout.ToString("c"))
+                .WithEnvironment(health + "PASSIVE__REACTIVATIONPERIOD", Reactivation.ToString("c"));
+        }
+        return front;
     }
+
+    public static string InstancePath(string instance) => $"/_instances/{instance}{HealthProbes.ReadyPath}";
+
+    private static global::Aspire.Hosting.Yarp.YarpCluster Probed(global::Aspire.Hosting.Yarp.YarpCluster cluster)
+        => cluster.WithHealthCheckConfig(new global::Yarp.ReverseProxy.Configuration.HealthCheckConfig
+        {
+            Active = new global::Yarp.ReverseProxy.Configuration.ActiveHealthCheckConfig { Enabled = true, Path = HealthPath },
+            Passive = new global::Yarp.ReverseProxy.Configuration.PassiveHealthCheckConfig { Enabled = true },
+        });
 
     public static readonly TimeSpan ProbeInterval = TimeSpan.FromSeconds(1);
     // A busy silo answers its probe in more than a second; a timed-out probe counts as a failure.
@@ -163,6 +186,23 @@ public sealed class AspireModuleHosting : ModuleHosting<DigitalBrain.Microsoft.A
     // projection must come after the AI module's and after the brain's grain-state reference (it does: hosting
     // projections apply in registration order, after the references), and hands the aspire Integration the
     // model's values and the live grain-state connection. DockerCandidateHost reads them only from there.
+    // Each role's front as the aspire Integration's Fronts ({role: url}), read when the silo starts: the fronts are
+    // added after the brain is composed, and their fixed ports are the AppHost's.
+    private sealed class Fronts(IDistributedApplicationBuilder app) : DigitalBrainModuleProjection
+    {
+        public override void Apply<TResource>(IResourceBuilder<TResource> builder)
+            => ResourceBuilderExtensions.WithEnvironment(builder, context =>
+            {
+                var fronts = app.Resources.OfType<YarpResource>()
+                    .Where(front => front.Name.EndsWith(FrontSuffix, StringComparison.Ordinal))
+                    .ToDictionary(front => front.Name[..^FrontSuffix.Length], front => $"http://localhost:{front.Annotations.OfType<EndpointAnnotation>().Single(endpoint => endpoint.Name == "http").Port}", StringComparer.Ordinal);
+                if (fronts.Count > 0) { context.EnvironmentVariables[FrontsVariable] = JsonSerializer.Serialize(fronts); }
+            });
+    }
+
+    private const string FrontSuffix = "-front";
+    public static string FrontsVariable => DigitalBrainConfiguration.EnvironmentName(AspireModule.Integration.Key(AspireModule.FrontsField));
+
     private sealed class CandidateSecrets : DigitalBrainModuleProjection
     {
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)

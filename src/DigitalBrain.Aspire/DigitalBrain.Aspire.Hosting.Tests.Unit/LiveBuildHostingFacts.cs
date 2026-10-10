@@ -101,6 +101,23 @@ public sealed class LiveBuildHostingFacts : IDisposable
         Assert.Equal($"http://{role}-b", environment[cluster + "DESTINATIONS__destination2__ADDRESS"]);
         Assert.Equal("/ready", environment[cluster + "HEALTHCHECK__ACTIVE__PATH"]);
         Assert.Equal("00:00:01", environment[cluster + "HEALTHCHECK__ACTIVE__INTERVAL"]);
+        // The front answers its own /ready from whichever instance it routes to, on that instance's /alive: a
+        // draining instance's 503 is not the front's.
+        Assert.Equal("/ready", environment["REVERSEPROXY__ROUTES__route1__MATCH__PATH"]);
+        Assert.Equal($"cluster_{role}", environment["REVERSEPROXY__ROUTES__route1__CLUSTERID"]);
+        Assert.Equal("/alive", environment["REVERSEPROXY__ROUTES__route1__TRANSFORMS__0__PathSet"]);
+        // One route per instance, through a cluster of that instance alone with the same health check: a roll
+        // sees the instance as the front does.
+        foreach (var (instance, index) in instances.Select((instance, index) => (instance.Resource.Name, index)))
+        {
+            var route = $"REVERSEPROXY__ROUTES__route{index + 2}__";
+            Assert.Equal($"/_instances/{instance}/ready", environment[route + "MATCH__PATH"]);
+            Assert.Equal($"cluster_{instance}", environment[route + "CLUSTERID"]);
+            Assert.Equal("/alive", environment[route + "TRANSFORMS__0__PathSet"]);
+            Assert.Equal($"http://{instance}", environment[$"REVERSEPROXY__CLUSTERS__cluster_{instance}__DESTINATIONS__destination1__ADDRESS"]);
+            Assert.Equal("/ready", environment[$"REVERSEPROXY__CLUSTERS__cluster_{instance}__HEALTHCHECK__ACTIVE__PATH"]);
+            Assert.Equal("00:00:01", environment[$"REVERSEPROXY__CLUSTERS__cluster_{instance}__HEALTHCHECK__ACTIVE__INTERVAL"]);
+        }
         Assert.Contains($"services__{role}-a__http__0", environment.Keys);
         Assert.Contains($"services__{role}-b__http__0", environment.Keys);
         foreach (var instance in instances)
@@ -108,6 +125,23 @@ public sealed class LiveBuildHostingFacts : IDisposable
             var drain = await AspireCompositionTest.EnvironmentOf(builder, instance.Resource, TestContext.Current.CancellationToken);
             Assert.Equal(AspireModuleHosting.DrainDelay.ToString("c"), drain[AspireModuleHosting.DrainDelayVariable]);
         }
+    }
+
+    // A roll reaches each instance through its role's front: the silos learn every front's fixed port.
+    [Fact]
+    public async Task TheAspireIntegrationNamesEachRolesFront()
+    {
+        var builder = AspireCompositionTest.CreateBuilder();
+        var brain = builder.AddDigitalBrain("modules").WithHosting<AspireModuleHosting>();
+        var silo = builder.AddExecutable("silo", "unused", ".").WithReference(brain);
+        var mcp = AspireModuleHosting.OnDynamicPorts(builder.AddExecutable("digitalbrain-mcp-a", "unused", "."), "ASPNETCORE_HTTP_PORTS");
+        AspireModuleHosting.AddFront(builder, "OperatingSystem", 5080, [silo.WithHttpEndpoint(name: "http").GetEndpoint("http")]);
+        AspireModuleHosting.AddFront(builder, "digitalbrain-mcp", 5081, [mcp.GetEndpoint("http")]);
+
+        var environment = await AspireCompositionTest.EnvironmentOf(builder, silo.Resource, TestContext.Current.CancellationToken);
+
+        var fronts = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>((string)environment[AspireModuleHosting.FrontsVariable])!;
+        Assert.Equal(new Dictionary<string, string> { ["OperatingSystem"] = "http://localhost:5080", ["digitalbrain-mcp"] = "http://localhost:5081" }, fronts);
     }
 
     // A launch profile's applicationUrl pins ports; two instances of one project would share them.
