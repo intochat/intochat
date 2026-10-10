@@ -67,7 +67,7 @@ public sealed class PublisherSignalsFacts
         await using (log)
         {
             for (var i = 1; i <= 4; i++) { await log.Append("g1", "s", RecordChange.Write, [(byte)i], [new Probed(i.ToString())]); }
-            Assert.Equal(0, log.SignalsFloor);
+            Assert.Equal(2, log.SignalsFloor);
         }
         var (reopened, _) = await PartSnapshotFacts.OpenAsync(brain, part, key, machine, options, ct);
         await using var __ = reopened;

@@ -130,4 +130,25 @@ public sealed class PartSnapshotFacts
 
         Assert.Equal(["one", "two", "three"], reopened.SignalsSince(0).SelectMany(e => e.Signals).OfType<Probed>().Select(p => p.Value));
     }
+
+    [Fact(Timeout = 60_000)]
+    public async Task AfterTwoSnapshotsTheLogServesSignalsOnlyAboveTheFirst()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await PartLogFacts.StartAsync(ct);
+        var part = PartId.ForApp("home", "notes");
+        var key = RandomNumberGenerator.GetBytes(32);
+        using var machine = SequencerFacts.Machine();
+        var (log, lease) = await OpenAsync(brain, part, key, machine, Options(), ct);
+        await using var _ = log;
+
+        foreach (var value in new[] { "one", "two", "three", "four", "five" }) { await log.Append("g1", "s", RecordChange.Write, [1], [new Probed(value)]); }
+
+        Assert.Equal(4, lease.Payload.SnapshotSeq);
+        var (floor, last, entries) = log.SignalsOf("g1", 0);
+        Assert.Equal(2, floor);
+        Assert.Equal(5, last);
+        Assert.Equal([3L, 4L, 5L], entries.Select(e => e.Seq));
+        Assert.Equal([3L, 4L, 5L], log.SignalsSince(0).Select(e => e.Seq));
+    }
 }

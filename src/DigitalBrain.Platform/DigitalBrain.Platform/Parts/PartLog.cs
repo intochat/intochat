@@ -385,6 +385,12 @@ internal sealed class PartLog : IAsyncDisposable
         await _lease.Commit(new HeadPayload { Head = null, Snapshot = reference, SnapshotSeq = payload.LastSeq, LastSeq = payload.LastSeq, SegmentsSinceSnapshot = 0, Writers = payload.Writers });
         // Only refs of this log's own replaced chain are discarded, never one a read repaired (ruling R7): MeshStore
         // shares shards between a repaired ref and its original. Open has no repair path today.
+        // Serve exactly what a reopen from this snapshot would: signals after the previous snapshot's seq.
+        lock (_records)
+        {
+            _since.RemoveAll(e => e.Seq <= payload.SnapshotSeq);
+            _signalsFloor = Math.Max(_signalsFloor, payload.SnapshotSeq);
+        }
         MeshRef[] replaced = [.. payload.Snapshot is { } previous ? [previous] : Array.Empty<MeshRef>(), .. _chain];
         _chain.Clear();
         foreach (var old in replaced)
