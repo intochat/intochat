@@ -18,6 +18,9 @@ public interface IMeshStore
     // Rebuilds shards that are missing, corrupt or on unhealthy nodes onto nodes of other owners, with fresh
     // challenges, as a new manifest. Returns the same ref when nothing needed moving and reissue is false.
     Task<MeshRepair> Repair(byte[] key, MeshRef reference, bool reissue = false, CancellationToken cancellationToken = default);
+
+    // Drops a segment's shards and manifest replicas. Safe because segments never share a shard (random padding).
+    Task Discard(byte[] key, MeshRef reference, CancellationToken cancellationToken = default);
 }
 
 // The manifest is itself sealed and pinned by its content id, so a ref cannot be pointed at other shards.

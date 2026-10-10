@@ -60,19 +60,4 @@ public sealed class AuditRepairFacts
         Assert.NotEqual(reference.ManifestCid, repair.Reference.ManifestCid);
         Assert.All(await store.Audit(Key, repair.Reference, 0, ct), r => Assert.True(r.Passed, r.Reason));
     }
-
-    [Fact(Timeout = 60_000)]
-    public async Task IdenticalShardsOfTwoSegmentsSurviveEitherOneBeingAudited()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        // 40 data shards over a short sealed segment leave many all-zero shards per segment on 41 nodes,
-        // so two segments place an identical shard on at least one shared node.
-        var (brain, store, _) = await MeshStoreFacts.StartAsync(41, ct, options => { options.DataShards = 40; options.ParityShards = 1; });
-        await using var _ = brain;
-        await store.Write(Key, "part/log/1", [7], ct);
-        var second = await store.Write(Key, "part/log/2", [8], ct);
-
-        Assert.Equal([8], await store.Read(Key, second, ct));
-        Assert.All(await store.Audit(Key, second, 0, ct), r => Assert.True(r.Passed, r.Reason));
-    }
 }

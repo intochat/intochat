@@ -135,4 +135,35 @@ public sealed class MeshStoreFacts
 
         await Assert.ThrowsAnyAsync<CryptographicException>(() => store.Read(RandomNumberGenerator.GetBytes(32), reference, ct));
     }
+
+    [Fact(Timeout = 60_000)]
+    public async Task TwoSegmentsOfTheSameShortDataShareNoShard()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (brain, store, _) = await StartAsync(41, ct, options => { options.DataShards = 40; options.ParityShards = 1; });
+        await using var _ = brain;
+
+        var a = await Manifest(brain, Key, await store.Write(Key, "part/log/1", [7], ct));
+        var b = await Manifest(brain, Key, await store.Write(Key, "part/log/2", [7], ct));
+
+        Assert.Empty(a.Shards.Select(s => s.Cid).Intersect(b.Shards.Select(s => s.Cid)));
+    }
+
+    [Fact(Timeout = 60_000)]
+    public async Task DiscardingASegmentRemovesItsShardsAndLeavesOthersReadable()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var (brain, store, _) = await StartAsync(8, ct);
+        await using var _ = brain;
+        var gone = await store.Write(Key, "part/log/1", [1, 2, 3], ct);
+        var kept = await store.Write(Key, "part/log/2", [4, 5, 6], ct);
+        var shards = (await Manifest(brain, Key, gone)).Shards;
+
+        await store.Discard(Key, gone, ct);
+        await store.Discard(Key, gone, ct);
+
+        foreach (var shard in shards) { Assert.Null(await Shard(brain, shard.NodeId, shard.Cid).Get()); }
+        await Assert.ThrowsAsync<ServiceUnavailableException>(() => store.Read(Key, gone, ct));
+        Assert.Equal(new byte[] { 4, 5, 6 }, await store.Read(Key, kept, ct));
+    }
 }

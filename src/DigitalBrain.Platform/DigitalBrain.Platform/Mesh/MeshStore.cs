@@ -11,6 +11,8 @@ namespace DigitalBrain.Platform.Mesh;
 // shards for the reachability sweep, never a half-changed segment.
 internal sealed class MeshStore(IGrainFactory grains, Serializer serializer, IOptions<MeshOptions> options) : IMeshStore
 {
+    private const int MinShardSize = 16;
+
     private IStorageNodeDirectory Directory => grains.GetGrain<IStorageNodeDirectory>(IStorageNodeDirectory.Key);
 
     private IStorageShard Shard(string nodeId, string cid) => grains.GetGrain<IStorageShard>(StorageShards.Key(nodeId, cid));
@@ -21,7 +23,7 @@ internal sealed class MeshStore(IGrainFactory grains, Serializer serializer, IOp
         var settings = options.Value;
         var rs = new ReedSolomon(settings.DataShards, settings.ParityShards);
         var sealedData = SegmentSeal.Close(key, DataContext(segmentId), plaintext);
-        var shards = rs.Encode(sealedData, out var shardSize);
+        var shards = rs.Encode(Padded(sealedData, rs.DataShards), out var shardSize);
         var nodes = await Directory.Place(rs.TotalShards, []);
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -81,6 +83,26 @@ internal sealed class MeshStore(IGrainFactory grains, Serializer serializer, IOp
             SealedLength = manifest.SealedLength, Shards = locations,
         };
         return new MeshRepair(await WriteManifest(key, reference.SegmentId, repaired, cancellationToken), moved);
+    }
+
+    // Padding is never read (Join stops at SealedLength); random bytes keep every segment's shards unique. A shard is
+    // at least MinShardSize bytes, since one-byte shards of different segments would collide by chance.
+    private static byte[] Padded(byte[] sealedData, int dataShards)
+    {
+        var shardSize = Math.Max(MinShardSize, (sealedData.Length + dataShards - 1) / dataShards);
+        var padded = new byte[shardSize * dataShards];
+        sealedData.CopyTo(padded, 0);
+        RandomNumberGenerator.Fill(padded.AsSpan(sealedData.Length));
+        return padded;
+    }
+
+    public async Task Discard(byte[] key, MeshRef reference, CancellationToken cancellationToken = default)
+    {
+        SegmentManifest manifest;
+        try { manifest = await ReadManifest(key, reference, cancellationToken); }
+        catch (ServiceUnavailableException) { return; }
+        await Task.WhenAll(manifest.Shards.Select(shard => Shard(shard.NodeId, shard.Cid).Drop()));
+        await Task.WhenAll(reference.ManifestNodes.Select(nodeId => Shard(nodeId, reference.ManifestCid).Drop()));
     }
 
     // Put is idempotent on a node, so re-storing an unmoved shard only refreshes its challenges.
