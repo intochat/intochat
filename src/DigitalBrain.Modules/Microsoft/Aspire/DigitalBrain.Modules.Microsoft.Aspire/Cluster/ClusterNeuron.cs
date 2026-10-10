@@ -41,7 +41,13 @@ internal sealed class ClusterNeuron(
             finished = Snapshot.TargetSha;
             await Save(new ClusterState { CurrentSha = current }, new ClusterChanged(current, ClusterStage.Steady, null));
         }
-        else if (Snapshot.Stage == ClusterStage.Steady && Snapshot.CurrentSha != current)
+        else if (Snapshot.Stage == ClusterStage.Restarting)
+        {
+            // live.json is written before the silos restart, so a different build means that restart never took.
+            log.LogWarning("Cluster {Cluster} restarted towards {Target} but runs {Current}.", this.GetPrimaryKeyString(), Snapshot.TargetSha, current);
+            await Save(new ClusterState { CurrentSha = current }, new ClusterChanged(current, ClusterStage.Steady, null));
+        }
+        else if (Snapshot.CurrentSha != current)
         {
             await SaveQuietly(Snapshot with { CurrentSha = current });
         }
