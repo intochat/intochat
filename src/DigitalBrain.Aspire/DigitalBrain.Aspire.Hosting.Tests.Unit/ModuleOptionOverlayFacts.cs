@@ -65,9 +65,9 @@ public sealed class ModuleOptionOverlayFacts
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
         builder.Configuration[DigitalBrainConfiguration.CompositionModuleOptionsSection("first", "scoped") + ":ConnectionName"] = "first-db";
         builder.Configuration[DigitalBrainConfiguration.CompositionModuleOptionsSection("second", "scoped") + ":ConnectionName"] = "second-db";
-        var first = builder.AddDigitalBrain("first", options: new() { UseAzureStorage = true, PersistentStorage = false })
+        var first = builder.AddDigitalBrain("first", options: new() { PersistentStorage = false })
             .WithHosting<ScopedServerHosting>();
-        var second = builder.AddDigitalBrain("second", options: new() { UseAzureStorage = true, PersistentStorage = false })
+        var second = builder.AddDigitalBrain("second", options: new() { PersistentStorage = false })
             .WithHosting<ScopedServerHosting>();
         Assert.Equal("first-db", first.GetModuleConfiguration("scoped")[DigitalBrainConfiguration.ModuleOptionsSection("scoped") + ":ConnectionName"]);
         Assert.Equal("second-db", second.GetModuleConfiguration("scoped")[DigitalBrainConfiguration.ModuleOptionsSection("scoped") + ":ConnectionName"]);
@@ -95,7 +95,7 @@ public sealed class ModuleOptionOverlayFacts
             ],
             DisableDashboard = true,
         });
-        var brain = builder.AddDigitalBrain("modules", options: new() { UseAzureStorage = true, PersistentStorage = false })
+        var brain = builder.AddDigitalBrain("modules", options: new() { PersistentStorage = false })
             .WithModule(new OverlaidModule(), settings: HostingModuleOptions.Flatten(new OverlaidOptions { Endpoint = "declared", Delay = 42 }, "OverlaidModule"));
 
         var options = brain.GetModuleConfiguration("OverlaidModule").GetModuleOptions<OverlaidOptions>("OverlaidModule");

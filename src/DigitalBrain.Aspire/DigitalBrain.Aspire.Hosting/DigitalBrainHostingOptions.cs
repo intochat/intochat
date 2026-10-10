@@ -14,7 +14,6 @@ public sealed record DigitalBrainHostingOptions
     public string? ClusterId { get; init; }
     // The blob container the default grain storage opens; a revision runs in its own copy.
     public string? GrainStateContainer { get; init; }
-    public bool UseAzureStorage { get; init; }
     public bool PersistentStorage { get; init; } = true;
     public string? DataVolume { get; init; }
     // Development or Production for every silo host; null leaves each resource's own default.
@@ -23,7 +22,7 @@ public sealed record DigitalBrainHostingOptions
     // A deployment's identity: configuration first, then the name the product calls itself. The cluster id defaults
     // in AddDigitalBrain: a fresh one per Development run (membership rows of a stopped run never block the next
     // run's silos), the service id otherwise.
-    public static DigitalBrainHostingOptions Named(IConfiguration configuration, string defaultIdentity, bool useAzureStorage)
+    public static DigitalBrainHostingOptions Named(IConfiguration configuration, string defaultIdentity)
     {
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentException.ThrowIfNullOrWhiteSpace(defaultIdentity);
@@ -32,7 +31,6 @@ public sealed record DigitalBrainHostingOptions
             ServiceId = configuration[ServiceIdKey] ?? defaultIdentity,
             ClusterId = configuration[ClusterIdKey],
             GrainStateContainer = configuration[DigitalBrain.Framework.DigitalBrainNames.GrainStateContainerKey] ?? DigitalBrain.Framework.DigitalBrainNames.GrainStateContainer,
-            UseAzureStorage = useAzureStorage,
         };
     }
 }

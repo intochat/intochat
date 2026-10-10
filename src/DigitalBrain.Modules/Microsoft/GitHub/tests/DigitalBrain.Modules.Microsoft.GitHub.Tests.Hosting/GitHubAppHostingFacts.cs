@@ -19,7 +19,7 @@ public sealed class GitHubAppHostingFacts
     public async Task OAuthAndWebhookSecretsAreProjectedOnlyWhenTheirFeaturesAreConfigured(bool oauth, bool webhook)
     {
         var builder = CreateBuilder();
-        var brain = builder.AddDigitalBrain("brain", options: new() { UseAzureStorage = true, PersistentStorage = false })
+        var brain = builder.AddDigitalBrain("brain", options: new() { PersistentStorage = false })
             .WithHosting<GitHubModuleHosting>();
         new DigitalBrainModuleBuilder<GitHubModuleHosting>(brain).WithGitHubApp(options =>
             {

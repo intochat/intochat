@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>Aspire AppHost integration for the DigitalBrain Orleans module: Azurite clustering, grain state and reminders.</Description>
+    <RootNamespace>DigitalBrain.Microsoft.Orleans</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.Azure.Storage" />
+    <PackageReference Include="Aspire.Hosting.Orleans" />
+    <ProjectReference Include="../DigitalBrain.Modules.Microsoft.Orleans/DigitalBrain.Modules.Microsoft.Orleans.csproj" />
+    <ProjectReference Include="../../../../DigitalBrain.Aspire/DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" />
+  </ItemGroup>
+</Project>

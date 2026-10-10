@@ -27,5 +27,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../DigitalBrain.Modules/Postgres/DigitalBrain.Modules.Postgres.Aspire.Hosting/DigitalBrain.Modules.Postgres.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="../DigitalBrain.Modules/Microsoft/Orleans/DigitalBrain.Modules.Microsoft.Orleans.Aspire.Hosting/DigitalBrain.Modules.Microsoft.Orleans.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
   </ItemGroup>
 </Project>

@@ -105,7 +105,9 @@
   </Folder>
   <Folder Name="/Modules/Microsoft/Orleans/">
     <Project Path="src/DigitalBrain.Modules/Microsoft/Orleans/DigitalBrain.Modules.Microsoft.Orleans.Contracts/DigitalBrain.Modules.Microsoft.Orleans.Contracts.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/Orleans/DigitalBrain.Modules.Microsoft.Orleans.Aspire.Hosting/DigitalBrain.Modules.Microsoft.Orleans.Aspire.Hosting.csproj" />
     <Project Path="src/DigitalBrain.Modules/Microsoft/Orleans/DigitalBrain.Modules.Microsoft.Orleans/DigitalBrain.Modules.Microsoft.Orleans.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/Orleans/tests/DigitalBrain.Modules.Microsoft.Orleans.Tests.Hosting/DigitalBrain.Modules.Microsoft.Orleans.Tests.Hosting.csproj" />
     <Project Path="src/DigitalBrain.Modules/Microsoft/Orleans/tests/DigitalBrain.Modules.Microsoft.Orleans.Tests/DigitalBrain.Modules.Microsoft.Orleans.Tests.csproj" />
   </Folder>
   <Folder Name="/Modules/Microsoft/Playwright/">

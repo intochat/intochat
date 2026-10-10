@@ -17,6 +17,7 @@ using DigitalBrain.Google.Gmail;
 using DigitalBrain.Microsoft.Aspire;
 using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Microsoft.GitHub;
+using DigitalBrain.Microsoft.Orleans;
 using DigitalBrain.Microsoft.Playwright;
 using DigitalBrain.Postgres;
 using DigitalBrain.Postgres.Aspire.Hosting;
@@ -40,7 +41,8 @@ builder.Configuration.AddDigitalBrainProfiles(builder.AppHostDirectory);
 if (builder.Configuration["DigitalBrain:ConfigFile"] is { Length: > 0 } configFile)
 { builder.Configuration.AddJsonFile(configFile, optional: false); }
 var shellEnabled = builder.Configuration.GetValue("DigitalBrain:Shell:Enabled", true);
-var digitalBrain = builder.AddDigitalBrain("Modules", DigitalBrainHostingOptions.Named(builder.Configuration, "intochat", useAzureStorage: true))
+var digitalBrain = builder.AddDigitalBrain("Modules", DigitalBrainHostingOptions.Named(builder.Configuration, "intochat"))
+    .WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite())
     .WithHttpIdentity()
     .WithHosting<AIModuleHosting, AIOptions>(ai =>
     {

@@ -94,16 +94,12 @@ public sealed class DigitalBrainBuilder
 
     internal DigitalBrainBuilder(
         IDistributedApplicationBuilder builder, string name,
-        IResourceBuilder<DigitalBrainResource> resource, OrleansService orleans,
-        IResourceBuilder<AzureStorageResource>? storage,
-        IResourceBuilder<AzureBlobStorageResource>? grainState)
+        IResourceBuilder<DigitalBrainResource> resource, OrleansService orleans)
     {
         ApplicationBuilder = builder;
         Name = name;
         Resource = resource;
         Orleans = orleans;
-        Storage = storage;
-        GrainState = grainState;
     }
 
     public string Name { get; }
@@ -111,7 +107,7 @@ public sealed class DigitalBrainBuilder
     public string ClusterId { get; internal init; } = null!;
     public string GrainStateContainer { get; internal init; } = null!;
     public string? Environment { get; internal init; }
-    public string? ClusteringResourceName { get; internal init; }
+    public string? ClusteringResourceName { get; set; }
 
     public string ResourceName(string name) => $"{Name}-{name}";
 
@@ -119,13 +115,13 @@ public sealed class DigitalBrainBuilder
 
     public IResourceBuilder<DigitalBrainResource> Resource { get; }
 
-    internal IResourceBuilder<AzureBlobStorageResource>? GrainState { get; }
+    public IResourceBuilder<AzureBlobStorageResource>? GrainState { get; set; }
 
-    internal IResourceBuilder<AzureStorageResource>? Storage { get; }
+    public IResourceBuilder<AzureStorageResource>? Storage { get; set; }
 
-    internal OrleansService Orleans { get; }
-    internal IResourceBuilder<AzureTableStorageResource>? Clustering { get; init; }
-    internal IResourceBuilder<AzureTableStorageResource>? Reminders { get; init; }
+    public OrleansService Orleans { get; }
+    public IResourceBuilder<AzureTableStorageResource>? Clustering { get; set; }
+    public IResourceBuilder<AzureTableStorageResource>? Reminders { get; set; }
 
     internal IReadOnlyList<DigitalBrainModuleProjection> Projections => _projections;
 
@@ -163,7 +159,7 @@ public sealed class DigitalBrainBuilder
         _projections.Add(projection);
     }
 
-    internal void RequireHealthyBeforeStart(IResource dependency)
+    public void RequireHealthyBeforeStart(IResource dependency)
     {
         ArgumentNullException.ThrowIfNull(dependency);
 

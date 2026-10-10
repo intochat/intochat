@@ -46,6 +46,7 @@ public sealed partial class RepositoryPathLiteralFacts
         "DigitalBrain.Aspire.Hosting.Tests.Unit/ConfigurationFileFacts.cs",
         "DigitalBrain.Aspire.Hosting.Tests.Unit/ConfigurationGrammarFacts.cs",
         "DigitalBrain.Aspire.Hosting.Tests.Unit/DeploymentIdentityFacts.cs",
+        "DigitalBrain.Modules.Microsoft.Orleans.Tests.Hosting/OrleansHostingFacts.cs",
         "DigitalBrain.Aspire.Hosting.Tests.Unit/LiveBuildHostingFacts.cs",
         "DigitalBrain.Deployment.Tests/DigitalBrainDeploymentFacts.cs",
         "DigitalBrain.Modules.Microsoft.GitHub.Tests.Hosting/GitHubAppHostingFacts.cs",

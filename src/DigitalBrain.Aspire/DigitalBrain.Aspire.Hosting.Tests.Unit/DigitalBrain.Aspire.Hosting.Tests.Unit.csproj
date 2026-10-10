@@ -6,6 +6,7 @@
     <ProjectReference Include="../DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" />
     <ProjectReference Include="../DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />
     <ProjectReference Include="../../Testing/DigitalBrain.Aspire.Testing/DigitalBrain.Aspire.Testing.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Modules/Microsoft/Orleans/DigitalBrain.Modules.Microsoft.Orleans.Aspire.Hosting/DigitalBrain.Modules.Microsoft.Orleans.Aspire.Hosting.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules/Postgres/DigitalBrain.Modules.Postgres.Aspire.Hosting/DigitalBrain.Modules.Postgres.Aspire.Hosting.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules/Microsoft/Aspire/DigitalBrain.Modules.Microsoft.Aspire.Aspire.Hosting/DigitalBrain.Modules.Microsoft.Aspire.Aspire.Hosting.csproj" />
   </ItemGroup>
