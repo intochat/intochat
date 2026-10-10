@@ -62,7 +62,20 @@ public sealed class AspireModuleHosting : ModuleHosting<DigitalBrain.Microsoft.A
             .WithOtlpExporter();
     }
 
-    public const string OtlpHttpEndpoint = Candidates.DockerCandidateHost.OtlpHttpEndpoint;
+    // The OS silo and the MCP client each run Replicas processes behind one fixed host port: Aspire's proxy owns
+    // the port and balances across replicas, each listening on its own internal port (ASPNETCORE_URLS for a
+    // project, `env` for an executable). Orleans silo/gateway ports come per replica from the brain reference.
+    // Aspire 13.6 honours the replica count only for project resources: a live-build executable still runs once.
+    public const int Replicas = 2;
+
+    public static IResourceBuilder<T> Replicated<T>(IResourceBuilder<T> resource, int port, string? env = null) where T : IResourceWithEndpoints
+    {
+        ArgumentNullException.ThrowIfNull(resource);
+        return resource.WithHttpEndpoint(port: port, name: "http", env: env, isProxied: true)
+            .WithAnnotation(new ReplicaAnnotation(Replicas), ResourceAnnotationMutationBehavior.Replace);
+    }
+
+    public const string OtlpHttpEndpoint =Candidates.DockerCandidateHost.OtlpHttpEndpoint;
     public const string AspNetCoreContentRoot = "ASPNETCORE_CONTENTROOT";
     public const string DotnetContentRoot = "DOTNET_CONTENTROOT";
     public const string FeaturesFolder = "features";

@@ -70,23 +70,24 @@ var features = Path.GetFullPath(Path.Combine(builder.AppHostDirectory, "..", "..
 var uiPort = builder.Configuration.GetValue(UiPortKey, 5080);
 var mcpPort = builder.Configuration.GetValue(McpPortKey, 5081);
 
+// Both resources run AspireModuleHosting.Replicas processes behind the fixed ports (Replicated).
 // First boot runs from source; once a candidate is promoted, {repo}/.digitalbrain/live.json names the
 // published build both resources run, and a restart moves them onto the next one.
 var liveOs = AspireModuleHosting.AddLiveBuild(builder, AspireModuleHosting.WorkdirOf(builder), "OperatingSystem", "os", "DigitalBrain.OS.dll");
 var runtime = liveOs is null
-    ? Silo(builder.AddProject<Projects.DigitalBrain_OS>("OperatingSystem").WithHttpEndpoint(port: uiPort, name: "http", isProxied: false)
+    ? Silo(AspireModuleHosting.Replicated(builder.AddProject<Projects.DigitalBrain_OS>("OperatingSystem"), uiPort)
         .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features))
     // A live build reads the features published with it (AddLiveBuild), not the working tree's.
-    : Silo(liveOs.WithHttpEndpoint(port: uiPort, name: "http", env: "ASPNETCORE_HTTP_PORTS", isProxied: false));
+    : Silo(AspireModuleHosting.Replicated(liveOs, uiPort, "ASPNETCORE_HTTP_PORTS"));
 
 var liveMcp = AspireModuleHosting.AddLiveBuild(builder, AspireModuleHosting.WorkdirOf(builder), "digitalbrain-mcp", "mcp", "DigitalBrain.Mcp.dll");
 if (liveMcp is null)
 {
-    Mcp(builder.AddProject<Projects.DigitalBrain_Mcp>("digitalbrain-mcp").WithHttpEndpoint(port: mcpPort, name: "http", isProxied: false));
+    Mcp(AspireModuleHosting.Replicated(builder.AddProject<Projects.DigitalBrain_Mcp>("digitalbrain-mcp"), mcpPort));
 }
 else
 {
-    Mcp(liveMcp.WithHttpEndpoint(port: mcpPort, name: "http", env: "ASPNETCORE_HTTP_PORTS", isProxied: false));
+    Mcp(AspireModuleHosting.Replicated(liveMcp, mcpPort, "ASPNETCORE_HTTP_PORTS"));
 }
 
 builder.Build().Run();

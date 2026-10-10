@@ -60,7 +60,8 @@ silo.Configure<GrainVersioningOptions>(options =>
 - Modify: anything that assumed one silo — find via LSP: Orleans clustering in dev (localhost clustering supports one silo only; switch to Azure Table / Azurite clustering, which the hosting extensions may already support — read `DigitalBrainHostingExtensions.cs`), silo port assignment (each replica needs its own silo/gateway port; Aspire assigns per-replica when ports come from endpoints, check).
 - Test: hosting fact `TheSiloRunsTwoReplicasBehindTheFixedPorts` (Aspire.Testing model inspection: `ReplicaAnnotation` count 2, endpoints 5080/5081 proxied).
 
-- [ ] Steps: failing fact → implement → pass → run the AppHost (`dotnet run digitalbrain.cs`) → `list_resources` shows `os` with two replicas Running/Healthy → `curl localhost:5081/health` OK → commit `"AppHost: two silo replicas behind 5080/5081"`.
+- [x] Steps: failing fact → implement → pass → run the AppHost (`dotnet run digitalbrain.cs`) → `list_resources` shows `os` with two replicas Running/Healthy → `curl localhost:5081/health` OK → commit `"AppHost: two silo replicas behind 5080/5081"`.
+  - Note (T3): source run verified with 2 OperatingSystem + 2 digitalbrain-mcp replicas; the live-build executable variant carries the ReplicaAnnotation but Aspire 13.6 runs executables once (needs a ruling).
 
 ### Task 4: Per-replica restart in IClusterHost
 

@@ -72,6 +72,23 @@ public sealed class LiveBuildHostingFacts : IDisposable
     }
 
     [Fact]
+    public void TheSiloRunsTwoReplicasBehindTheFixedPorts()
+    {
+        SetLive("abc1234");
+        var builder = AspireCompositionTest.CreateBuilder();
+        var source = AspireModuleHosting.Replicated(builder.AddExecutable("source", "dotnet", "."), 5080);
+        var live = AspireModuleHosting.Replicated(AspireModuleHosting.AddLiveBuild(builder, workdir, "digitalbrain-mcp", "os", "DigitalBrain.Mcp.dll")!, 5081, "ASPNETCORE_HTTP_PORTS");
+
+        foreach (var (resource, port) in new[] { (source.Resource, 5080), (live.Resource, 5081) })
+        {
+            Assert.Equal(2, Assert.Single(resource.Annotations.OfType<ReplicaAnnotation>()).Replicas);
+            var http = Assert.Single(resource.Annotations.OfType<EndpointAnnotation>(), endpoint => endpoint.Name == "http");
+            Assert.Equal(port, http.Port);
+            Assert.True(http.IsProxied);
+        }
+    }
+
+    [Fact]
     public void ALiveBuildThatIsGoneFallsBackToSource()
     {
         SetLive("abc1234");
