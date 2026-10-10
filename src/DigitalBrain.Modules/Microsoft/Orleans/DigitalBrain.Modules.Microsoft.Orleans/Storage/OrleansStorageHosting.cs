@@ -31,7 +31,7 @@ public static class OrleansStorageHosting
         var reminders = configuration[OrleansModule.Integration.Key(RemindersField)];
         var fields = new[] { (Field: ClusteringField, Value: clustering), (Field: GrainStateField, Value: grainState), (Field: RemindersField, Value: reminders) };
         var missing = fields.Where(pair => string.IsNullOrWhiteSpace(pair.Value)).Select(pair => pair.Field).ToArray();
-        if (missing.Length == fields.Length) { return AddMemory(silo); }
+        if (missing.Length == fields.Length) { return AddMemory(silo, configuration); }
         if (missing.Length > 0)
         {
             throw new InvalidOperationException($"The orleans integration is partial; missing: {string.Join(", ", missing)}. Set all three or none.");
@@ -39,10 +39,17 @@ public static class OrleansStorageHosting
         return AddAzure(silo, clustering!, grainState!, reminders!, configuration[OrleansModule.Integration.Key(GrainStateContainerField)]);
     }
 
-    private static ISiloBuilder AddMemory(ISiloBuilder silo)
+    // Orleans' own endpoint keys pick the ports, so two localhost silos in one machine (parallel test
+    // brains) each bind their own pair; absent, the Orleans defaults.
+    public const string SiloPortKey = "Orleans:Endpoints:SiloPort";
+    public const string GatewayPortKey = "Orleans:Endpoints:GatewayPort";
+
+    private static ISiloBuilder AddMemory(ISiloBuilder silo, IConfiguration configuration)
     {
         silo.Services.TryAddSingleton<MemoryStores>();
-        silo.UseLocalhostClustering();
+        silo.UseLocalhostClustering(
+            configuration.GetValue(SiloPortKey, EndpointOptions.DEFAULT_SILO_PORT),
+            configuration.GetValue(GatewayPortKey, EndpointOptions.DEFAULT_GATEWAY_PORT));
         silo.UseInMemoryReminderService();
         foreach (var name in GrainStores)
         {

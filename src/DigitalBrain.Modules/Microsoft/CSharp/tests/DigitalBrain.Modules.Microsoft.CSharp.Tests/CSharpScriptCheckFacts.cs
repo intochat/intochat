@@ -30,7 +30,7 @@ public sealed class CSharpScriptCheckFacts
     [Theory]
     [InlineData("DigitalBrain.Framework.BrainScope.CurrentId();")]
     [InlineData("Console.WriteLine(typeof(Microsoft.CodeAnalysis.SyntaxTree));")]
-    [InlineData("Console.WriteLine(typeof(Microsoft.AspNetCore.Http.HttpContext));")]
+    [InlineData("Console.WriteLine(typeof(global::Microsoft.AspNetCore.Http.HttpContext));")]
     public void ABehaviorCompilesOnlyAgainstWhatTheSandboxCarries(string line)
     {
         var result = _check.Compile(new Dictionary<string, string> { ["synapses/reach.cs"] = line + "\nawait Task.CompletedTask;\n" });

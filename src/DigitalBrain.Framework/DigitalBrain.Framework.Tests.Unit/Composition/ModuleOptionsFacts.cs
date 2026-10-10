@@ -78,7 +78,7 @@ public sealed class ModuleOptionsFacts
         await using var brain = await ModuleTest.Create()
             .WithModule<FakeModule, FakeOptions>(options => { options.Flag = true; options.Endpoint = new("https://x.example/"); })
             .StartAsync(TestContext.Current.CancellationToken);
-        var options = brain.SiloServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<FakeOptions>>().Value;
+        var options = brain.SiloServices.GetRequiredService<global::Microsoft.Extensions.Options.IOptions<FakeOptions>>().Value;
         Assert.True(options.Flag);
         Assert.Equal(new Uri("https://x.example/"), options.Endpoint);
     }

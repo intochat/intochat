@@ -99,7 +99,7 @@ public sealed class PackedCompositionFacts
             ("DigitalBrain.Modules.AI.Contracts", "_ = typeof(DigitalBrain.AI.Models.ILLM);"),
             ("DigitalBrain.Client", "_ = typeof(DigitalBrain.Client.DigitalBrainClient);"),
             ("DigitalBrain.Testing.Module", "await using var brain = await DigitalBrain.Testing.Module.ModuleTest.Create().StartAsync();"),
-            ("DigitalBrain.Aspire.Server", "var builder = Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder(); DigitalBrain.Aspire.Server.ServerHostingExtensions.AddDigitalBrainServer(builder, _ => { });"),
+            ("DigitalBrain.Aspire.Server", "var builder = global::Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder(); DigitalBrain.Aspire.Server.ServerHostingExtensions.AddDigitalBrainServer(builder, _ => { });"),
         })
         {
             var profile = Path.Combine(scratch, id);

@@ -66,7 +66,7 @@ public sealed class SignalsReadFacts
     [Fact]
     public void EveryResponseSaysTheCursorIsExperimental()
     {
-        var context = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        var context = new global::Microsoft.AspNetCore.Http.DefaultHttpContext();
 
         SignalsEndpoints.MarkExperimental(context.Response);
 

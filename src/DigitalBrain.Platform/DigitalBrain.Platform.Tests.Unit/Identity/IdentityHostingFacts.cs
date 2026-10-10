@@ -84,7 +84,7 @@ public sealed class IdentityHostingFacts
         services.AddCookieProtection();
         if (hasStore && storeRegisteredAfter) { AddStore(); }
         using var provider = services.BuildServiceProvider();
-        var repository = provider.GetRequiredService<IOptions<Microsoft.AspNetCore.DataProtection.KeyManagement.KeyManagementOptions>>().Value.XmlRepository;
+        var repository = provider.GetRequiredService<IOptions<global::Microsoft.AspNetCore.DataProtection.KeyManagement.KeyManagementOptions>>().Value.XmlRepository;
         if (hasStore) { Assert.IsType<CookieProtectionStorage.BlobKeyRepository>(repository); }
         else { Assert.Null(repository); }
     }

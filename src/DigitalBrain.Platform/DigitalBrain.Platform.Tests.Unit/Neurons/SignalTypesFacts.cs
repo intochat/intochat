@@ -1,5 +1,5 @@
 using DigitalBrain.Platform.Neurons;
-using DigitalBrain.Testing.Module.Neurons;
+using DigitalBrain.Testing.Neurons;
 
 namespace DigitalBrain.Platform.Tests.Unit.Neurons;
 

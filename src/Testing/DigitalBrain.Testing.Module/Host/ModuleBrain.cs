@@ -33,7 +33,7 @@ public sealed class ModuleBrain : IDigitalBrain, IBrainSubscriptions, IAsyncDisp
     public HttpClient HttpClient => _http ?? throw new InvalidOperationException(
         "This brain has no HTTP edge. Start it with ModuleTest.Create()...WithHttpEdge().");
 
-    internal void AttachHttpEdge(Microsoft.AspNetCore.Builder.WebApplication edge)
+    internal void AttachHttpEdge(global::Microsoft.AspNetCore.Builder.WebApplication edge)
     {
         _http = new HttpClient { BaseAddress = new Uri(edge.Urls.Single()) };
         _lifetime.Own("http-client", new DisposableClient(_http));

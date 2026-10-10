@@ -3,7 +3,7 @@ using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 
-namespace DigitalBrain.Testing.Module.Tests.Unit;
+namespace DigitalBrain.Testing.Tests;
 
 [GenerateSerializer]
 public sealed record Number([property: Id(0)] int Value) : Signal;

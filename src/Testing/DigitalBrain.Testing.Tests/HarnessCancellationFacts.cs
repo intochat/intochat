@@ -2,7 +2,7 @@ using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Xunit;
-namespace DigitalBrain.Testing.Module.Tests.Unit;
+namespace DigitalBrain.Testing.Tests;
 
 public sealed class HarnessCancellationFacts
 {

@@ -102,7 +102,7 @@ public static class ModuleTest
         var scope = BrainScope.Create(DefaultAccount, DefaultAccount).Id;
         // A machine of a separate trust cluster leaves the brain to the fact: the core part goes to whichever
         // machine creates it, and a second machine must not contend for it.
-        if (brain.SiloServices.GetRequiredService<Microsoft.Extensions.Options.IOptions<Platform.Trust.TrustOptions>>().Value.Gateway is not null) { return; }
+        if (brain.SiloServices.GetRequiredService<global::Microsoft.Extensions.Options.IOptions<Platform.Trust.TrustOptions>>().Value.Gateway is not null) { return; }
         await brain.Grains.GetGrain<IBrain>(scope).Create(new Owner(DefaultAccount)).ConfigureAwait(false);
     }
 }

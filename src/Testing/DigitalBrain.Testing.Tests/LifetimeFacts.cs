@@ -1,6 +1,7 @@
+using DigitalBrain.Testing.Module;
 using Xunit;
 
-namespace DigitalBrain.Testing.Module.Tests.Unit;
+namespace DigitalBrain.Testing.Tests;
 
 public sealed class LifetimeFacts
 {

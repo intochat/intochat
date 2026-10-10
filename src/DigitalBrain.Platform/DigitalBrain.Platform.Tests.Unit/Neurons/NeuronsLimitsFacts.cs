@@ -1,7 +1,7 @@
 using DigitalBrain.Platform.Neurons;
 using DigitalBrain.Platform.Neurons.Proto;
 using DigitalBrain.Testing.Module;
-using DigitalBrain.Testing.Module.Neurons;
+using DigitalBrain.Testing.Neurons;
 using Grpc.Core;
 
 namespace DigitalBrain.Platform.Tests.Unit.Neurons;
