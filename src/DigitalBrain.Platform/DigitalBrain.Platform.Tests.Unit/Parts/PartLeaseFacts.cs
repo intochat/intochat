@@ -55,6 +55,24 @@ public sealed class PartLeaseFacts
     }
 
     [Fact(Timeout = 60_000)]
+    public async Task ConcurrentCommitsAndRenewalsOnOneLeaseAllSucceedInOrder()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        var part = PartId.ForApp("home", "notes");
+        using var alice = SequencerFacts.Machine();
+        var lease = await PartLease.Acquire(part, RandomNumberGenerator.GetBytes(32), brain.Grains, alice, Seen(), new PartsOptions(), TimeProvider.System,
+            brain.SiloServices.GetRequiredService<Serializer>());
+        var start = lease.Version;
+
+        var calls = Enumerable.Range(0, 10).SelectMany(i => new[] { lease.Commit(new HeadPayload { LastSeq = i }), lease.Renew() });
+        await Task.WhenAll(calls.ToArray());
+
+        Assert.Equal(start + 20, (await brain.Grains.GetGrain<ISequencerGrain>(HeadRecord.HashOf(part.Value)).Get())!.Version);
+        Assert.Equal(start + 20, lease.Version);
+    }
+
+    [Fact(Timeout = 60_000)]
     public async Task TheCoreIsNeverLeasedToAMachineThatIsNotTheOwners()
     {
         var ct = TestContext.Current.CancellationToken;
