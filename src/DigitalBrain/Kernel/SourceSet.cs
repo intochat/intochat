@@ -28,7 +28,8 @@ internal static class SourceSet
     {
         private readonly CancellationTokenSource _lifetime = CancellationTokenSource.CreateLinkedTokenSource(streamCancellation, enumeratorCancellation);
         private readonly Channel<T> _channel = Channel.CreateUnbounded<T>(new UnboundedChannelOptions { SingleReader = true });
-        private readonly Dictionary<string, (Task Pump, CancellationTokenSource Stop)> _members = new(StringComparer.Ordinal);
+        // Members are keyed by the neuron itself: a grain reference equates by grain id, a script's neuron by its key.
+        private readonly Dictionary<INeuron, (Task Pump, CancellationTokenSource Stop)> _members = [];
         private readonly TaskCompletionSource _registered = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private Task? _follow;
         private T? _current;
@@ -87,22 +88,21 @@ internal static class SourceSet
         private async Task Select(bool first, CancellationToken ct)
         {
             var selected = await sources.SelectAsync(ct).ConfigureAwait(false);
-            var wanted = new Dictionary<string, INeuron>(StringComparer.Ordinal);
-            foreach (var neuron in selected) { wanted.TryAdd(neuron.GetPrimaryKeyString(), neuron); }
-            foreach (var (key, member) in _members.Where(m => !wanted.ContainsKey(m.Key)).ToArray())
+            var wanted = selected.ToHashSet();
+            foreach (var (key, member) in _members.Where(m => !wanted.Contains(m.Key)).ToArray())
             {
                 _members.Remove(key);
                 await member.Stop.CancelAsync().ConfigureAwait(false);
                 await member.Pump.ConfigureAwait(false);
                 member.Stop.Dispose();
             }
-            var joining = wanted.Where(w => !_members.ContainsKey(w.Key)).ToArray();
+            var joining = wanted.Where(w => !_members.ContainsKey(w)).ToArray();
             var ready = new TaskCompletionSource[joining.Length];
             for (var i = 0; i < joining.Length; i++)
             {
                 var gate = ready[i] = new(TaskCreationOptions.RunContinuationsAsynchronously);
                 var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                _members[joining[i].Key] = (Pump(joining[i].Value, () => { gate.TrySetResult(); return Task.CompletedTask; }, stop.Token), stop);
+                _members[joining[i]] = (Pump(joining[i], () => { gate.TrySetResult(); return Task.CompletedTask; }, stop.Token), stop);
             }
             if (first)
             {
