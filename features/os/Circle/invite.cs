@@ -12,6 +12,7 @@ await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
     try
     {
         var (name, brainId) = await CircleView.Split(brain, request.Input);
+        if (name.Length == 0 || brainId.Length == 0) { throw new ArgumentException("Name a circle and a brain id."); }
         await CircleView.Circle(brain, name).Invite(brainId);
         await CircleView.Status(brain, "Invited " + brainId + " to " + name + ".");
     }

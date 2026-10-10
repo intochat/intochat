@@ -12,6 +12,7 @@ await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
     try
     {
         var (name, shared) = await CircleView.Split(brain, request.Input);
+        if (name.Length == 0 || shared.Length == 0) { throw new ArgumentException("Name a circle and an app."); }
         await CircleView.Circle(brain, name).Share(shared);
         await CircleView.Status(brain, "Shared " + shared + " with " + name + ".");
     }

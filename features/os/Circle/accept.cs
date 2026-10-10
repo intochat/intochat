@@ -12,8 +12,9 @@ await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
     try
     {
         var name = await CircleView.Resolve(brain, request.Input.Trim()) ?? throw new InvalidOperationException("You have no invitation named " + request.Input.Trim() + ".");
-        await CircleView.Circle(brain, name).Accept();
+        // The selection is written first: Accept triggers the rebuild that marks it.
         await CircleView.Select(brain, name);
+        await CircleView.Circle(brain, name).Accept();
         await CircleView.Status(brain, "Joined " + CircleView.Plain(name) + ".");
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)

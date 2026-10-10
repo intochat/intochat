@@ -18,8 +18,9 @@ await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
         var spoken = await CircleView.Split(brain, request.Input);
         if (spoken.Name.Length == 0) { throw new InvalidOperationException("Select or name a circle first."); }
         if (spoken.Rest.Length == 0) { throw new ArgumentException("There is nothing to say."); }
-        await last.Set(request.RequestId.ToString());
         await CircleView.Chat(brain, spoken.Name).Say(spoken.Rest);
+        await last.Set(request.RequestId.ToString());
+        await CircleView.Status(brain, "");
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
     { await CircleView.Status(brain, error.Message); }

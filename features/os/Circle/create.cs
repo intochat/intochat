@@ -14,8 +14,9 @@ await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
     {
         if (!CircleView.IsName(name)) { throw new ArgumentException("A circle name is 1 to 40 of a-z, 0-9 and -."); }
         if ((await CircleView.Names(brain)).Contains(name)) { throw new InvalidOperationException("You already have a circle named " + name + "."); }
-        await CircleView.Circle(brain, name).SetComputeShare(0);
+        // The selection is written first: the circle write below triggers the rebuild that marks it.
         await CircleView.Select(brain, name);
+        await CircleView.Circle(brain, name).SetComputeShare(0);
         await CircleView.Status(brain, "Created " + name + ".");
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
