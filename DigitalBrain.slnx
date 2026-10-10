@@ -110,6 +110,11 @@
     <Project Path="src/DigitalBrain.Modules/Microsoft/Playwright/DigitalBrain.Modules.Microsoft.Playwright/DigitalBrain.Modules.Microsoft.Playwright.csproj" />
     <Project Path="src/DigitalBrain.Modules/Microsoft/Playwright/tests/DigitalBrain.Modules.Microsoft.Playwright.Tests/DigitalBrain.Modules.Microsoft.Playwright.Tests.csproj" />
   </Folder>
+  <Folder Name="/Modules/Microsoft/Windows/">
+    <Project Path="src/DigitalBrain.Modules/Microsoft/Windows/DigitalBrain.Modules.Microsoft.Windows.Contracts/DigitalBrain.Modules.Microsoft.Windows.Contracts.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/Windows/DigitalBrain.Modules.Microsoft.Windows/DigitalBrain.Modules.Microsoft.Windows.csproj" />
+    <Project Path="src/DigitalBrain.Modules/Microsoft/Windows/tests/DigitalBrain.Modules.Microsoft.Windows.Tests/DigitalBrain.Modules.Microsoft.Windows.Tests.csproj" />
+  </Folder>
   <Folder Name="/Modules/ModelContextProtocol/" />
   <Folder Name="/Modules/ModelContextProtocol/Mcp/">
     <Project Path="src/DigitalBrain.Modules/ModelContextProtocol/Mcp/DigitalBrain.Modules.Mcp.Contracts/DigitalBrain.Modules.Mcp.Contracts.csproj" />
