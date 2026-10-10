@@ -7,6 +7,7 @@ import '../apps/app_screen.dart';
 import '../apps/apps_request.dart';
 import 'app_detail_screen.dart';
 import 'app_icon.dart';
+import 'brain_graph_panel.dart';
 
 // An app the shell runs itself rather than a brain app (C# files in developer mode).
 class LocalApp {
@@ -41,6 +42,8 @@ class HomeScreen extends StatefulWidget {
     this.onStop,
     this.surfaceBuilder,
     this.infrastructure,
+    this.watchBrain,
+    this.loadSignals,
   });
 
   final String workspaceId;
@@ -55,6 +58,9 @@ class HomeScreen extends StatefulWidget {
   // A small, non-interactive render of the app's surface for its tile.
   final Widget Function(RunningApp app)? surfaceBuilder;
   final Widget? infrastructure;
+  // The brain snapshot feed and its signal journal; Home draws the graph when the feed is given.
+  final Stream<BrainSnapshot> Function()? watchBrain;
+  final SignalsLoader? loadSignals;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -201,6 +207,19 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 12),
           widget.infrastructure!,
+          const SizedBox(height: 32),
+        ],
+        if (widget.watchBrain != null) ...[
+          Text(
+            'Brain',
+            key: const ValueKey('home-brain'),
+            style: textTheme.titleLarge,
+          ),
+          const SizedBox(height: 12),
+          BrainGraphPanel(
+            watch: widget.watchBrain!,
+            loadSignals: widget.loadSignals,
+          ),
           const SizedBox(height: 32),
         ],
         Text(

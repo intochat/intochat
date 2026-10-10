@@ -34,6 +34,10 @@ final class _LumenBrainGraphState extends State<LumenBrainGraph> {
   final _transform = TransformationController();
   final _positions = <String, Offset>{};
   bool _viewInitialized = false;
+  // What the canvas has already shown: the first snapshot is the baseline, every later
+  // id that appears is the visible diff and enters with an animation.
+  final _seenNodes = <String>{}, _seenEdges = <String>{};
+  bool _seeded = false;
 
   void _fit(Size viewport, Rect bounds) {
     final scale = math
@@ -121,6 +125,21 @@ final class _LumenBrainGraphState extends State<LumenBrainGraph> {
       ),
     );
     final routes = _synapseRoutes(positions, widget.snapshot.synapses);
+    final freshNodes = _seeded
+        ? {
+            for (final node in ordered)
+              if (!_seenNodes.contains(node.id)) node.id,
+          }
+        : <String>{};
+    final freshEdges = _seeded
+        ? {
+            for (final route in routes)
+              if (!_seenEdges.contains(route.edge.id)) route.edge.id,
+          }
+        : <String>{};
+    _seenNodes.addAll(ordered.map((node) => node.id));
+    _seenEdges.addAll(routes.map((route) => route.edge.id));
+    _seeded = true;
     final delegations = widget.stale
         ? <BrainActivity>[]
         : widget.snapshot.activeDelegations
@@ -152,15 +171,20 @@ final class _LumenBrainGraphState extends State<LumenBrainGraph> {
                   height: size.height,
                   child: Stack(
                     children: [
-                      Positioned.fill(
-                        child: CustomPaint(
-                          painter: _SynapsePainter(
-                            routes,
-                            widget.activeEdges,
-                            widget.selectedId,
+                      for (final route in routes)
+                        Positioned.fill(
+                          child: _Entry(
+                            key: ValueKey('enter_${route.edge.id}'),
+                            animate: freshEdges.contains(route.edge.id),
+                            child: CustomPaint(
+                              painter: _SynapsePainter(
+                                [route],
+                                widget.activeEdges,
+                                widget.selectedId,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
                       Positioned.fill(
                         child: IgnorePointer(
                           child: CustomPaint(
@@ -192,17 +216,20 @@ final class _LumenBrainGraphState extends State<LumenBrainGraph> {
                         Positioned(
                           left: route.controlPosition.dx - 22,
                           top: route.controlPosition.dy - 22,
-                          child: SizedBox.square(
-                            dimension: 44,
-                            child: LumenIconButton(
-                              key: ValueKey('synapse_${route.edge.id}'),
-                              label:
-                                  'Inspect ${route.edge.kind} synapse ${route.edge.signalType}, from ${route.edge.sourceId} to ${route.edge.targetId}',
-                              selected: widget.selectedId == route.edge.id,
-                              onPressed: () => widget.onSynapse(route.edge),
-                              icon: const Icon(
-                                Icons.arrow_outward_rounded,
-                                size: 16,
+                          child: _Entry(
+                            animate: freshEdges.contains(route.edge.id),
+                            child: SizedBox.square(
+                              dimension: 44,
+                              child: LumenIconButton(
+                                key: ValueKey('synapse_${route.edge.id}'),
+                                label:
+                                    'Inspect ${route.edge.kind} synapse ${route.edge.signalType}, from ${route.edge.sourceId} to ${route.edge.targetId}',
+                                selected: widget.selectedId == route.edge.id,
+                                onPressed: () => widget.onSynapse(route.edge),
+                                icon: const Icon(
+                                  Icons.arrow_outward_rounded,
+                                  size: 16,
+                                ),
                               ),
                             ),
                           ),
@@ -211,26 +238,31 @@ final class _LumenBrainGraphState extends State<LumenBrainGraph> {
                         Positioned(
                           left: positions[node.id]!.dx - 58,
                           top: positions[node.id]!.dy - 42,
-                          child: GestureDetector(
-                            onPanUpdate: (details) => setState(() {
-                              final next = _positions[node.id]! + details.delta;
-                              _positions[node.id] = Offset(
-                                math.max(65, next.dx),
-                                math.max(50, next.dy),
-                              );
-                            }),
-                            child: _NeuronTile(
-                              node: node,
-                              selected: widget.selectedId == node.id,
-                              active:
-                                  !widget.stale &&
-                                  (node.status == 'Running' ||
-                                      widget.activeNodes.contains(node.id) ||
-                                      (brainNeuronIcon(node) ==
-                                              NeuronIconKind.assistant &&
-                                          assistantWorking)),
-                              stale: widget.stale,
-                              onTap: () => widget.onNeuron(node),
+                          child: _Entry(
+                            key: ValueKey('enter_${node.id}'),
+                            animate: freshNodes.contains(node.id),
+                            child: GestureDetector(
+                              onPanUpdate: (details) => setState(() {
+                                final next =
+                                    _positions[node.id]! + details.delta;
+                                _positions[node.id] = Offset(
+                                  math.max(65, next.dx),
+                                  math.max(50, next.dy),
+                                );
+                              }),
+                              child: _NeuronTile(
+                                node: node,
+                                selected: widget.selectedId == node.id,
+                                active:
+                                    !widget.stale &&
+                                    (node.status == 'Running' ||
+                                        widget.activeNodes.contains(node.id) ||
+                                        (brainNeuronIcon(node) ==
+                                                NeuronIconKind.assistant &&
+                                            assistantWorking)),
+                                stale: widget.stale,
+                                onTap: () => widget.onNeuron(node),
+                              ),
                             ),
                           ),
                         ),
@@ -251,6 +283,29 @@ final class _LumenBrainGraphState extends State<LumenBrainGraph> {
           ],
         );
       },
+    );
+  }
+}
+
+// A new neuron or synapse fades and grows in; reduced motion, the baseline and
+// anything already on the canvas appear at once.
+final class _Entry extends StatelessWidget {
+  const _Entry({super.key, required this.animate, required this.child});
+  final bool animate;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    final enter = animate && !MediaQuery.disableAnimationsOf(context);
+    final duration = enter ? const Duration(milliseconds: 450) : Duration.zero;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: enter ? 0 : 1, end: 1),
+      duration: duration,
+      curve: Curves.easeOutBack,
+      child: child,
+      builder: (context, value, child) => Opacity(
+        opacity: value.clamp(0.0, 1.0),
+        child: Transform.scale(scale: .6 + .4 * value, child: child),
+      ),
     );
   }
 }
