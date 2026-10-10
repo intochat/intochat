@@ -1,14 +1,13 @@
 using DigitalBrain.AI.Routing;
 using DigitalBrain.Apps;
-using DigitalBrain.Apps.Signals;
 
 // The assistant tool path: "send" by request. The composer path lives in submissions.cs.
 // Jev first: the request is asked of the router and this reaction ends; routed.cs answers it.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var app = brain.Get<IApp>(Assistant.Key(brain));
-await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
+await foreach (var request in brain.On(app, "send", brain.Stopping))
 {
-    if (request.Operation != "send" || request.Input.Length is < 1 or > 32000) { continue; }
+    if (request.Input.Length is < 1 or > 32000) { continue; }
     await app.Progress("listening", "Heard you");
     if (request.Input.Length > Assistant.MaxRoutedChars)
     {

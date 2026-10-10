@@ -1,14 +1,12 @@
 using DigitalBrain.Apps;
-using DigitalBrain.Apps.Signals;
 using DigitalBrain.Flutter.Text;
 
 // The "new" request: start another conversation and clear the status line.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var key = Assistant.Key(brain);
 var app = brain.Get<IApp>(key);
-await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
+await foreach (var request in brain.On(app, "new", brain.Stopping))
 {
-    if (request.Operation != "new") { continue; }
     await Start("c-" + request.RequestId.ToString("N"));
 }
 

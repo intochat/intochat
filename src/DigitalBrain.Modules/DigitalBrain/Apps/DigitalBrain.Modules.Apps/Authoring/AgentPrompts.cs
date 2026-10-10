@@ -58,10 +58,16 @@ internal static class AgentPrompts
         Rules compile with the app like every other file.
 
         Keep each synapse a screen or less and exactly one reaction: one `await foreach` over one
-        `brain.On<T>(source, brain.Stopping)`, acting through neurons. A synapse is a file with top-level
-        statements; shared code is a file of only type declarations, compiled into every synapse. The app's own operations arrive as `AppRequested` signals:
-            await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
-            { if (request.Operation == "open") { /* compose the UI through neurons */ } }
+        `brain.On<T>(source, brain.Stopping)`, or one `brain.React<T>(source, rebuild, brain.Stopping)`
+        when any signal means "rebuild from state". A synapse is a file with top-level statements;
+        shared code is a file of only type declarations, compiled into every synapse. The app's own
+        operations arrive as `AppRequested` signals; a synapse for one operation watches only it:
+            await foreach (var request in brain.On(app, "open", brain.Stopping))
+            { /* compose the UI through neurons */ }
+        A set of neurons is one source: `Sources.Of(a, b)` for a fixed set, or
+        `Sources.Named<IText, TextChanged>(registry, async (r, ct) => …)` when a neuron's state names
+        the members; `signal.Publisher` says which member spoke. Never write a while loop, a
+        Task.WhenAll of loops, a SemaphoreSlim or a linked CancellationTokenSource in a synapse.
         Never answer a request: a result is neuron state (a text, a card, a table) the caller reads. UI
         signals (ButtonClicked, ComposerSubmitted) get their own synapse each. Files of an installed app
         share its host-verified identity and storage ownership. Never derive authority from a setting.

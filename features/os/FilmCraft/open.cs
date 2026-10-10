@@ -1,5 +1,4 @@
 using DigitalBrain.Apps;
-using DigitalBrain.Apps.Signals;
 using DigitalBrain.ArtCraft;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter;
@@ -18,9 +17,8 @@ var app = brain.Get<IApp>(appKey);
 string Name(string part) => appKey + "/" + part;
 UiChildRef Ref(string kind, string part) => new(kind, Name(part));
 
-await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
+await foreach (var request in brain.On(app, "open", brain.Stopping))
 {
-    if (request.Operation != "open") { continue; }
     var status = brain.Get<IText>(Name("status"));
     try
     {

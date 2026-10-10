@@ -1,5 +1,4 @@
 using DigitalBrain.Apps;
-using DigitalBrain.Apps.Signals;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Microsoft.Aspire;
 
@@ -7,9 +6,8 @@ using DigitalBrain.Microsoft.Aspire;
 // else is live. The answer is the sha in the last neuron; the list shows the stage.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var app = brain.Get<IApp>(SelfImprove.Key(brain));
-await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
+await foreach (var request in brain.On(app, "request", brain.Stopping))
 {
-    if (request.Operation != "request") { continue; }
     var last = brain.Get<IText>(SelfImprove.Key(brain) + "/last");
     try
     {

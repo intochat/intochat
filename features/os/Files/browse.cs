@@ -1,5 +1,4 @@
 using DigitalBrain.Apps;
-using DigitalBrain.Apps.Signals;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter.Collection;
 using DigitalBrain.Flutter.Text;
@@ -10,9 +9,8 @@ var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var listing = brain.Get<ICollectionView>(appKey + "/listing");
 
-await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
+await foreach (var request in brain.On(app, "browse", brain.Stopping))
 {
-    if (request.Operation != "browse") { continue; }
     try
     {
         var all = await Machine.Entries(brain, request.Input);

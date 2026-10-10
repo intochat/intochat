@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
 using DigitalBrain.Apps;
-using DigitalBrain.Apps.Signals;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter.Card;
 using DigitalBrain.Flutter.Chart;
@@ -18,9 +17,8 @@ var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var connection = brain.Setting("Account__db") ?? "";
 var json = Views.Json;
-await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
+await foreach (var request in brain.On(app, "refresh", brain.Stopping))
 {
-    if (request.Operation != "refresh") { continue; }
     foreach (var view in (await Views.All(brain, appKey)).Where(view => request.Input.Length == 0 || view.Id == request.Input))
     { while (!await Run(await Views.Current(brain, appKey, view.Id))) { brain.Stopping.ThrowIfCancellationRequested(); } }
 }
