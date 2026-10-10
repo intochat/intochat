@@ -1,5 +1,6 @@
 using DigitalBrain.Apps.Signals;
 using DigitalBrain.Modules.Apps.Tests;
+using DigitalBrain.Modules.Apps.Tests.Runtimes;
 using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -78,7 +79,7 @@ public sealed class AppRuleFacts
     private static AppManifest Manifest() => new("Rules", "judged", [new("ask", "ask it")], [], []);
 
     private static Task<ModuleBrain> Start(JudgingSandbox sandbox, CancellationToken ct)
-        => ModuleTest.Create().WithModule<AppsModule>()
+        => ModuleTest.Create().WithModule<AppsModule>().WithFakeAppRuntime(new())
             .ConfigureSilo(silo => silo.Services.AddSingleton<IScriptSandbox>(sandbox))
             .StartAsync(ct);
 
