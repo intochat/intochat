@@ -25,11 +25,11 @@ public sealed class GmailPushAuthenticationFacts
             .WithExecution(new() { PrivateConfiguration = new Dictionary<string, string?>() { [AuthOptions.PostureKey] = "Secured" } })
             .ConfigureSilo(silo => silo.Services.AddSingleton<IGmailPushAuthenticator>(new TestPushAuthenticator()))
             .WithHttpEdge().StartAsync(ct);
-        using var rejected = await brain.HttpClient.PostAsJsonAsync("/google/gmail/watch", new { message = new { data = "e30=" } }, ct);
+        using var rejected = await brain.HttpClient.PostAsJsonAsync("/google/gmail/watch/owner", new { message = new { data = "e30=" } }, ct);
         Assert.Equal(HttpStatusCode.Unauthorized, rejected.StatusCode);
         brain.HttpClient.DefaultRequestHeaders.Authorization = new("Bearer", "test-google-push");
         var payload = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("{\"emailAddress\":\"unconnected@gmail.com\",\"historyId\":\"1\"}"));
-        using var accepted = await brain.HttpClient.PostAsJsonAsync("/google/gmail/watch", new { message = new { data = payload } }, ct);
+        using var accepted = await brain.HttpClient.PostAsJsonAsync("/google/gmail/watch/owner", new { message = new { data = payload } }, ct);
         Assert.Equal(HttpStatusCode.Accepted, accepted.StatusCode);
     }
 }

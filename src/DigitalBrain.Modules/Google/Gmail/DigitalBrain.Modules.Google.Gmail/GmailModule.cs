@@ -16,6 +16,7 @@ public sealed class GmailModule() : Module<GmailModuleOptions>(new ModuleId("gma
     public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.Google.Gmail.IGmail).Assembly;
 
     public const string HttpClientName = "DigitalBrain.Gmail";
+    public const string WatchPath = "/google/gmail/watch";
 
     public static IntegrationSchema[] Integrations { get; } = [
         IntegrationSchema.For("google-oauth", "Google OAuth").RequiresSecret("ClientId").RequiresSecret("ClientSecret"),
@@ -43,16 +44,18 @@ public sealed class GmailModule() : Module<GmailModuleOptions>(new ModuleId("gma
 
     public void Configure(IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapPost("/google/gmail/watch", async (GmailPubSubPush envelope, HttpRequest request, IGmailPushAuthenticator authenticator, IGrainFactory grains, CancellationToken ct) =>
+        // The Pub/Sub push subscription URL names the brain; each Gmail connection of that brain
+        // decides by its own mailbox whether the delivery is its.
+        endpoints.MapPost(WatchPath + "/{brainId}", async (string brainId, GmailPubSubPush envelope, HttpRequest request, IGmailPushAuthenticator authenticator, IGrainFactory grains, CancellationToken ct) =>
         {
+            if (!BrainScope.IsValidId(brainId)) { return Results.NotFound(); }
             if (!await authenticator.AuthenticateAsync(request, ct)) { return Results.Unauthorized(); }
-            if (!GmailPubSub.TryUnwrap(envelope, out var push))
-            {
-                return Results.BadRequest();
-            }
+            if (!GmailPubSub.TryUnwrap(envelope, out var push)) { return Results.BadRequest(); }
 
-            foreach (var key in await grains.GetGrain<IGmailMailboxIndex>(push.EmailAddress.ToLowerInvariant()).Read())
-            { await grains.GetGrain<IGmailInbound>(key).AcceptWatchPush(push); }
+            foreach (var key in await grains.GetGrain<IConnectionIndex>(brainId).List())
+            {
+                if (ConnectionKeys.Parse(key).ConnectorId == Connector.Id) { await grains.GetGrain<IGmailInbound>(key).AcceptWatchPush(push); }
+            }
             return Results.Accepted();
         }).AllowAnonymous();
     }

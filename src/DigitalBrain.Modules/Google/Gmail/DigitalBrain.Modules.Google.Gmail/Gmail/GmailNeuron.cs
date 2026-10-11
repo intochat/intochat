@@ -28,7 +28,7 @@ internal sealed class GmailNeuron(
         try { await UseCredentialAsync((_, _) => Task.FromResult(true), CancellationToken.None); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            // One revoked grant must not fail the fan-out to every other connection on this mailbox.
+            // One revoked grant must not fail the fan-out to the brain's other Gmail connections.
             // The message may carry a provider reply; only the type is kept.
             await MarkExpired($"Google refused the Gmail token refresh ({error.GetType().Name}). Reconnect Gmail.");
             return;
@@ -44,8 +44,6 @@ internal sealed class GmailNeuron(
         using var json = JsonDocument.Parse(await profile.Content.ReadAsStringAsync());
         var email = json.RootElement.TryGetProperty("emailAddress", out var address) && address.ValueKind == JsonValueKind.String ? address.GetString() : null;
         if (string.IsNullOrWhiteSpace(email)) { throw new GmailUnavailableException("Google did not verify the mailbox identity. Reconnect Gmail."); }
-        if (Snapshot.Account is { } previous && !string.Equals(previous, email, StringComparison.OrdinalIgnoreCase))
-        { await GrainFactory.GetGrain<IGmailMailboxIndex>(previous.ToLowerInvariant()).Remove(this.GetPrimaryKeyString()); }
         Snapshot.Account = email;
         return grant;
     }
@@ -61,13 +59,6 @@ internal sealed class GmailNeuron(
             var status => ConnectionProbeResult.Failing($"Google answered the profile check with HTTP {(int)status}."),
         };
     }
-
-    protected override Task OnConnectedAsync()
-        => Snapshot.Account is { } email ? GrainFactory.GetGrain<IGmailMailboxIndex>(email.ToLowerInvariant()).Add(this.GetPrimaryKeyString()) : Task.CompletedTask;
-
-    // The base calls this before it clears Account.
-    protected override Task OnDisconnectedAsync()
-        => Snapshot.Account is { } email ? GrainFactory.GetGrain<IGmailMailboxIndex>(email.ToLowerInvariant()).Remove(this.GetPrimaryKeyString()) : Task.CompletedTask;
 
     private async Task<HttpResponseMessage> ProfileAsync(string accessToken, CancellationToken ct)
     {

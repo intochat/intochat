@@ -14,7 +14,7 @@ public sealed class GmailConnectedFacts
         => CallerContextStamper.Stamp(new() { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
 
     [Fact]
-    public async Task AGrantConnectsTheMailboxAndIndexesItsEmail()
+    public async Task AGrantConnectsTheMailboxAndTracksTheConnectionInItsBrain()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var stub = await TokenEndpointStub.StartAsync(ct);
@@ -30,7 +30,7 @@ public sealed class GmailConnectedFacts
             var view = await brain.Grains.GetConnectionInbound(key).AcceptGrant(new("google-oauth", "access-token", "refresh-token", DateTimeOffset.UtcNow.AddHours(1), GmailScopes.Read, null, "{}"));
             Assert.Equal("user@gmail.com", view.Account);
             Assert.Equal("user@gmail.com", (await connected.NextAsync(ct: ct)).Account);
-            Assert.Equal([key], await brain.Grains.GetGrain<IGmailMailboxIndex>("user@gmail.com").Read());
+            Assert.Equal([key], await brain.Grains.GetGrain<IConnectionIndex>(scope).List());
         }
         finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
     }
