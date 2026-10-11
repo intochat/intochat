@@ -11,6 +11,7 @@ public interface ITableIndex : IGrainWithStringKey
     [Orleans.Concurrency.AlwaysInterleave] Task Register(string tableId);
     [Orleans.Concurrency.AlwaysInterleave] Task RequireOpen();
     Task Retire();
+    Task Reopen();
 }
 
 public interface ITableLifetime : IGrainWithStringKey

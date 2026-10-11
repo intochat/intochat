@@ -41,6 +41,7 @@ internal sealed class AppNeuron(
         next.Settings = manifest.Settings.ToDictionary(setting => setting.Name, setting => setting.Default, StringComparer.Ordinal);
         next.Version = "0.1.0";
         next.Status = AppStatus.Drafted;
+        await Reopen();
         Record(next);
         await Persist(next);
         return Describe(Snapshot);
@@ -323,6 +324,7 @@ internal sealed class AppNeuron(
         next.Connections = [];
         next.Version = bundle.Version;
         Adopt(next, origin);
+        await Reopen();
         return await Land(next);
     }
 
@@ -446,6 +448,11 @@ internal sealed class AppNeuron(
         // Clearing the record ends the app's existence: the kernel retires the instance.
         var gone = new AppState();
         await Clear(new AppChanged(Name(), gone.Version, gone.Status));
+    }
+
+    private async Task Reopen()
+    {
+        foreach (var hook in storageHooks) { await hook.OnCreated(BrainId(), this.GetPrimaryKeyString(), CancellationToken.None); }
     }
 
     public async Task<Guid> Request(string operation, string input)

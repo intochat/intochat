@@ -49,6 +49,14 @@ internal sealed class TableIndexNeuron(
         { await GrainFactory.GetGrain<ITableLifetime>(table).Retire(this.GetPrimaryKeyString()); }
     }
 
+    // A fresh install of the same app: its old tables were dropped by Retire, so it starts empty.
+    public async Task Reopen()
+    {
+        await writes.WaitAsync();
+        try { if (state.State.Retired) { await Persist(new()); } }
+        finally { writes.Release(); }
+    }
+
     public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
         writes.Dispose();
