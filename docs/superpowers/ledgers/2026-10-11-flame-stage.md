@@ -30,3 +30,4 @@ git-ignored `.superpowers/sdd/2026-10-11-flame-stage/`. Implementers on Opus (us
 Scan clean apart from F2.
 
 ## Task log
+- Task 1: complete (commits af9c2d018..799c26dd8, review clean; sonnet review). Minor (deferred): record `==` is reference equality on the Dictionary members, so no later task may use record equality for no-op detection. Note: `DigitalBrain.slnx` gained a `/Modules/DigitalBrain/Flame/` folder because `RepositoryLayoutFacts` requires every project in the solution; Tasks 2 and 5 add their projects there.
