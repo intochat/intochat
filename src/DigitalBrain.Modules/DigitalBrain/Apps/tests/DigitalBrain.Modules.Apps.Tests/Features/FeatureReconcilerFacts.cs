@@ -1,5 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Apps.Signals;
+using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Modules.Apps.Tests;
 using DigitalBrain.Modules.Apps.Tests.Runtimes;
 using DigitalBrain.Testing;
@@ -125,6 +126,27 @@ public sealed class FeatureReconcilerFacts : IDisposable
 
         var signal = await reconciled.NextAsync(ct: ct);
         Assert.Equal(("greeter", "1.2.0", "2.0.0"), (signal.Name, signal.From, signal.To));
+    }
+
+    // A circle brain gets no OS default, but the room it was born with is a feature like any other (R125, T26-13).
+    [Fact]
+    public async Task ReconcilingPutsACircleBrainsShippedAppOnTheCatalogVersion()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Start();
+        var alice = await brain.PersonAsync("alice", ct);
+        var circle = (await brain.Services.GetRequiredService<IIdentityClient>()
+            .CreateBrain(alice.AccountId, alice.PrincipalId, Guid.NewGuid().ToString("N"), "friends", BrainKind.Circle)).Member.BrainId;
+        var shipped = (await brain.Services.GetRequiredService<FeatureCatalog>().Find("os", "greeter"))!;
+        await brain.Services.GetRequiredService<FeatureLoader>()
+            .Load(circle, "greeter", shipped, new AppOrigin("os", new AppSource.Shipped(), "greeter", shipped.Version), ct);
+        await ShipNewerVersion(brain);
+
+        await brain.Get<IFeatureReconciler>(IFeatureReconciler.Key(circle)).Reconcile(ct);
+
+        var after = await brain.Get<IApp>(IApp.Key(circle, "greeter")).Read();
+        Assert.Equal(("2.0.0", "2.0.0"), (after.Version, after.Origin!.Version));
+        Assert.Equal("// greet v2\n", after.Files["greet.cs"]);
     }
 
     [Fact]
