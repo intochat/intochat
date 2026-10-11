@@ -1,10 +1,13 @@
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using DigitalBrain.Framework.Configuration;
 using DigitalBrain.Platform.Identity.Configuration;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace DigitalBrain.Aspire.Hosting;
 
@@ -60,7 +63,21 @@ public static class TrustClusterHosting
                 .WithEnvironment(DigitalBrainConfiguration.IntegrationEnvironmentName("orleans", "GrainState"), blobs.Resource.ConnectionStringExpression)
                 .WaitFor(tables).WaitFor(blobs);
         }
-        return trust;
+        return trust.WithLinkHealthCheck();
+    }
+
+    // Every trust client waits for the trust (AsTrustClient), and a machine's first dial at its silo's start ends that start
+    // when nothing answers. The trust process runs long before its silo is active and binds the link listener (seconds, or
+    // tens of seconds over a membership row its previous run left), so the trust is healthy only once that listener answers
+    // where machines dial it (EndpointOf). The relay is bound before the listener (TrustLinkEndpoint.Start).
+    private static IResourceBuilder<T> WithLinkHealthCheck<T>(this IResourceBuilder<T> trust) where T : IResourceWithEndpoints
+    {
+        var link = trust.GetEndpoint(LinkEndpoint);
+        var key = $"{trust.Resource.Name}_{LinkEndpoint}_quic_check";
+        trust.ApplicationBuilder.Services.AddHealthChecks().Add(new HealthCheckRegistration(key,
+            _ => new QuicListenerHealthCheck(() => link.IsAllocated ? new IPEndPoint(IPAddress.Parse(Loopback), link.Port) : null),
+            failureStatus: null, tags: null, timeout: QuicListenerHealthCheck.Within));
+        return trust.WithHealthCheck(key);
     }
 
     // The address machines dial: the loopback address the trust host listens on (R66), with its allocated link port;

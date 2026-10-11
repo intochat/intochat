@@ -1,4 +1,8 @@
+using System.Net.Quic;
+using System.Net.Security;
 using global::Microsoft.Extensions.Configuration;
+using global::Microsoft.Extensions.DependencyInjection;
+using global::Microsoft.Extensions.Diagnostics.HealthChecks;
 using Aspire.Hosting;
 using Aspire.Hosting.ApplicationModel;
 using DigitalBrain.Aspire.Hosting;
@@ -288,6 +292,65 @@ public sealed class TrustClusterHostingFacts
         using var key = System.Security.Cryptography.ECDsa.Create();
         key.ImportPkcs8PrivateKey(File.ReadAllBytes(identity), out _);
         Assert.Equal(Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(key.ExportSubjectPublicKeyInfo()))[..16], pin);
+    }
+
+    // Live 2026-10-11: OS-a's first trust dial (its silo's MachineRegistration startup task) met no listener and ended its
+    // start: the trust process ran 20 s before its silo was active and bound the link listener, and a resource without a
+    // health check is healthy as soon as it runs. Every trust client waits for the trust, so the trust is healthy only once
+    // a QUIC listener answers on its link endpoint.
+    [Fact]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows"), System.Runtime.Versioning.SupportedOSPlatform("linux"), System.Runtime.Versioning.SupportedOSPlatform("macos")]
+    public async Task TheTrustIsHealthyOnlyOnceAQuicListenerAnswersOnItsLinkEndpoint()
+    {
+        if (!QuicListener.IsSupported) { Assert.Skip("QUIC is not supported on this machine."); }
+        var ct = TestContext.Current.CancellationToken;
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        var brain = builder.AddDigitalBrain("memory", options: new());
+        var trust = builder.AddExecutable("trust", "unused", ".").AsTrustCluster(brain, builder.Configuration);
+        var pairing = builder.AddParameter("machine-pairing-secret", "s3cret", secret: true);
+        var machine = builder.AddExecutable("os-a", "unused", ".").WithHttpEndpoint(name: "http")
+            .AsTrustMachine(trust, pairing, "/machines/os-a", builder.Configuration);
+        var check = Assert.Single(trust.Resource.Annotations.OfType<HealthCheckAnnotation>()).Key;
+        Assert.Contains(machine.Resource.Annotations.OfType<WaitAnnotation>(), wait => wait.Resource == trust.Resource && wait.WaitType == WaitType.WaitUntilHealthy);
+        var link = trust.Resource.Annotations.OfType<EndpointAnnotation>().Single(endpoint => endpoint.Name == TrustClusterHosting.LinkEndpoint);
+        var port = FreeUdpPort();
+        link.AllocatedEndpoint = new AllocatedEndpoint(link, TrustClusterHosting.Loopback, port);
+        await using var app = builder.Build();
+        var health = app.Services.GetRequiredService<HealthCheckService>();
+
+        var beforeListening = await health.CheckHealthAsync(registration => registration.Name == check, ct);
+        await using var listener = await Listen(new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, port), ct);
+        var listening = await health.CheckHealthAsync(registration => registration.Name == check, ct);
+
+        Assert.Equal((HealthStatus.Unhealthy, HealthStatus.Healthy), (beforeListening.Status, listening.Status));
+    }
+
+    private static int FreeUdpPort()
+    {
+        using var socket = new System.Net.Sockets.Socket(System.Net.Sockets.AddressFamily.InterNetwork, System.Net.Sockets.SocketType.Dgram, System.Net.Sockets.ProtocolType.Udp);
+        socket.Bind(new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 0));
+        return ((System.Net.IPEndPoint)socket.LocalEndPoint!).Port;
+    }
+
+    // A QUIC listener with no application behind it: the probe never gets past version negotiation, so its certificate is never used.
+    [System.Runtime.Versioning.SupportedOSPlatform("windows"), System.Runtime.Versioning.SupportedOSPlatform("linux"), System.Runtime.Versioning.SupportedOSPlatform("macos")]
+    private static async Task<QuicListener> Listen(System.Net.IPEndPoint at, CancellationToken cancellationToken)
+    {
+        using var key = System.Security.Cryptography.ECDsa.Create();
+        var certificate = new System.Security.Cryptography.X509Certificates.CertificateRequest("CN=trust-link-probe", key, System.Security.Cryptography.HashAlgorithmName.SHA256)
+            .CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddHours(1));
+        List<SslApplicationProtocol> protocols = [new("trust-link-probe")];
+        return await QuicListener.ListenAsync(new QuicListenerOptions
+        {
+            ListenEndPoint = at,
+            ApplicationProtocols = protocols,
+            ConnectionOptionsCallback = (_, _, _) => ValueTask.FromResult(new QuicServerConnectionOptions
+            {
+                DefaultStreamErrorCode = 1,
+                DefaultCloseErrorCode = 1,
+                ServerAuthenticationOptions = new SslServerAuthenticationOptions { ApplicationProtocols = protocols, ServerCertificate = certificate },
+            }),
+        }, cancellationToken);
     }
 
     internal static async Task<Dictionary<string, object>> Environment(IDistributedApplicationBuilder builder, IResource resource)
