@@ -43,4 +43,14 @@ public sealed class CompositionFacts
         await layout.Set(new("column", [new("table", "owner/a/apps/data/views/v1/table"), new("chart", "owner/a/apps/data/views/v1/chart")]), 0);
         Assert.Equal(["table", "chart"], (await layout.Read()).Definition.Children.Select(c => c.Kind));
     }
+
+    [Fact]
+    public async Task ASurfaceAcceptsASceneChild()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        var surface = brain.Get<ISurface>("owner/a/apps/ino/surface");
+        await surface.Set(new("Ino", [new(UIVocabulary.SceneType, "owner/a/apps/ino/scenes/home")]), 0);
+        Assert.Equal([UIVocabulary.SceneType], (await surface.Read()).Definition.Children.Select(c => c.Kind));
+    }
 }

@@ -1,6 +1,7 @@
 import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:digitalbrain_ui/digitalbrain_ui.dart';
 import 'package:flame_test/flame_test.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 SceneState scene(
@@ -135,6 +136,122 @@ void main() {
           reports.add('$nodeId:$kind');
       game.simulateTap('a');
       expect(reports, ['a:tap']);
+    },
+  );
+
+  flameTester.testGameWidget(
+    'applying the same state again keeps a patched tween running',
+    setUp: (game, _) async {
+      SceneState pulsing() => scene(
+        [node('a', 'circle')],
+        machines: [
+          {
+            'id': 'm',
+            'initial': 's1',
+            'states': [
+              {
+                'name': 's1',
+                'apply': [
+                  {
+                    'nodeId': 'a',
+                    'style': null,
+                    'parameters': null,
+                    'transform': null,
+                    'tweens': [
+                      {
+                        'property': 'scale',
+                        'from': 1,
+                        'to': 2,
+                        'milliseconds': 500,
+                        'curve': 'linear',
+                        'repeat': true,
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+            'transitions': [],
+          },
+        ],
+      );
+      game.apply(pulsing());
+      await game.ready();
+      game.apply(pulsing());
+      await game.ready();
+    },
+    verify: (game, _) async {
+      expect(game.componentFor('a')!.restarts, 1);
+    },
+  );
+
+  flameTester.testGameWidget(
+    'a parent that changes type keeps its child, and a moved child follows its new parent',
+    setUp: (game, _) async {
+      Map<String, Object?> parent(
+        String id,
+        String type,
+        List<Map<String, Object?>> children,
+      ) => {...node(id, type), 'children': children};
+      game.apply(
+        scene([
+          parent('p', 'group', [node('c', 'circle')]),
+          parent('q', 'group', [node('d', 'rect')]),
+        ]),
+      );
+      await game.ready();
+      game.apply(
+        scene([
+          parent('p', 'rect', [node('c', 'circle')]),
+          parent('q', 'group', []),
+          parent('r', 'group', [node('d', 'rect')]),
+        ]),
+      );
+      await game.ready();
+    },
+    verify: (game, _) async {
+      expect(game.componentFor('p'), isA<RectNode>());
+      expect(game.componentFor('c')!.parent, same(game.componentFor('p')));
+      expect(game.componentFor('c')!.isMounted, isTrue);
+      expect(game.componentFor('d')!.parent, same(game.componentFor('r')));
+      expect(game.componentFor('d')!.isMounted, isTrue);
+    },
+  );
+
+  flameTester.testGameWidget(
+    'a drag keeps the engine awake while it moves',
+    setUp: (game, _) async {
+      game.apply(
+        scene([
+          {
+            ...node('a', 'rect', inputs: ['drag']),
+            'transform': {
+              'x': 0,
+              'y': 0,
+              'z': 0,
+              'scale': 1,
+              'rotation': 0,
+              'opacity': 1,
+            },
+          },
+        ]),
+      );
+      await game.ready();
+    },
+    verify: (game, tester) async {
+      final center = game.canvasSize / 2;
+      final gesture = await tester.startGesture(
+        Offset(center.x, center.y),
+        kind: PointerDeviceKind.mouse,
+      );
+      await gesture.moveBy(const Offset(20, 0));
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(game.paused, isTrue);
+      await gesture.moveBy(const Offset(20, 0));
+      expect(game.paused, isFalse);
+      await gesture.up();
     },
   );
 }

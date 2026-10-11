@@ -1,14 +1,13 @@
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flame/events.dart';
-import 'package:flame/flame.dart';
-import 'package:flame/particles.dart';
 import 'package:flutter/animation.dart';
-import 'package:flutter/painting.dart';
+import 'package:flutter/foundation.dart';
+
+import 'primitive_nodes.dart';
 
 import 'scene_game.dart';
 
@@ -48,8 +47,17 @@ abstract class NodeComponent extends PositionComponent
   double param(String name, double fallback) =>
       double.tryParse(params[name] ?? '') ?? fallback;
 
-  /// Resets the component to its node definition, dropping earlier patches.
+  /// Number of times this node's tweens were (re)started.
+  @visibleForTesting
+  int restarts = 0;
+  String _signature = '';
+
+  /// Sets the component to its effective node (definition plus current-state patches). An
+  /// unchanged effective node is a no-op, so running tweens keep going across refreshes.
   void configure(SceneNode node) {
+    final signature = _signatureOf(node);
+    if (signature == _signature) return;
+    _signature = signature;
     style = node.style;
     params = Map.of(node.parameters);
     inputs = node.inputs;
@@ -58,13 +66,39 @@ abstract class NodeComponent extends PositionComponent
     changed();
   }
 
-  void patch(NodePatch patch) {
-    if (patch.style != null) style = patch.style;
-    if (patch.parameters != null) params = {...params, ...patch.parameters!};
-    if (patch.transform != null) _transform(patch.transform!);
-    if (patch.tweens != null) _tweens = patch.tweens!;
-    changed();
+  static String _signatureOf(SceneNode node) {
+    final t = node.transform;
+    final params = node.parameters.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    return [
+      node.style,
+      params.map((e) => '${e.key}=${e.value}').join('&'),
+      node.inputs.join(','),
+      '${t.x},${t.y},${t.z},${t.scale},${t.rotation},${t.opacity}',
+      _tweenKeyOf(node.tweens),
+    ].join('|');
   }
+
+  static String _tweenKeyOf(List<SceneTween> tweens) => tweens
+      .map(
+        (t) =>
+            '${t.property}|${t.from}|${t.to}|${t.milliseconds}|${t.curve}|${t.repeat}',
+      )
+      .join(';');
+
+  /// [node] with [patch] layered on top.
+  static SceneNode withPatch(SceneNode node, NodePatch patch) => SceneNode(
+    id: node.id,
+    type: node.type,
+    transform: patch.transform ?? node.transform,
+    style: patch.style ?? node.style,
+    parameters: patch.parameters == null
+        ? node.parameters
+        : {...node.parameters, ...patch.parameters!},
+    children: node.children,
+    tweens: patch.tweens ?? node.tweens,
+    inputs: node.inputs,
+  );
 
   void _transform(SceneTransform t) {
     position.setValues(t.x, t.y);
@@ -80,12 +114,7 @@ abstract class NodeComponent extends PositionComponent
   void changed() {
     paint.color = color;
     opacity = _opacity.clamp(0, 1);
-    final key = _tweens
-        .map(
-          (t) =>
-              '${t.property}|${t.from}|${t.to}|${t.milliseconds}|${t.curve}|${t.repeat}',
-        )
-        .join(';');
+    final key = _tweenKeyOf(_tweens);
     if (key != _tweenKey) {
       _tweenKey = key;
       _runTweens();
@@ -93,6 +122,7 @@ abstract class NodeComponent extends PositionComponent
   }
 
   void _runTweens() {
+    restarts++;
     for (final effect in children.whereType<Effect>().toList()) {
       effect.removeFromParent();
     }
@@ -163,6 +193,7 @@ abstract class NodeComponent extends PositionComponent
   @override
   void onDragEnd(DragEndEvent event) {
     super.onDragEnd(event);
+    game.wake();
     if (inputs.contains('drag')) {
       game.report(
         this,
@@ -175,261 +206,8 @@ abstract class NodeComponent extends PositionComponent
 
   @override
   void onDragUpdate(DragUpdateEvent event) {
+    game.wake();
     if (inputs.contains('drag')) position.add(event.localDelta);
-  }
-}
-
-final class CircleNode extends NodeComponent {
-  CircleNode(super.node);
-
-  @override
-  void changed() {
-    final radius = param('radius', 24);
-    size.setAll(radius * 2);
-    super.changed();
-  }
-
-  @override
-  void render(ui.Canvas canvas) =>
-      canvas.drawCircle((size / 2).toOffset(), size.x / 2, paint);
-}
-
-final class RectNode extends NodeComponent {
-  RectNode(super.node);
-
-  @override
-  void changed() {
-    size.setValues(param('width', 48), param('height', 48));
-    super.changed();
-  }
-
-  @override
-  void render(ui.Canvas canvas) {
-    final radius = param('radius', 0);
-    canvas.drawRRect(
-      ui.RRect.fromRectAndRadius(size.toRect(), ui.Radius.circular(radius)),
-      paint,
-    );
-  }
-}
-
-final class TextNode extends NodeComponent {
-  TextNode(super.node);
-  TextPainter? _painter;
-
-  @override
-  void changed() {
-    super.changed();
-    _painter = TextPainter(
-      text: TextSpan(
-        text: params['text'] ?? '',
-        style: TextStyle(color: color, fontSize: param('size', 16)),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    size.setValues(_painter!.width, _painter!.height);
-  }
-
-  // Text draws through a layer so opacity and OpacityEffect fade it like the shapes.
-  @override
-  void render(ui.Canvas canvas) {
-    final painter = _painter;
-    if (painter == null) return;
-    canvas.saveLayer(size.toRect(), ui.Paint()..color = paint.color);
-    painter.paint(canvas, Offset.zero);
-    canvas.restore();
-  }
-}
-
-final class SpriteNode extends NodeComponent {
-  SpriteNode(super.node);
-  ui.Image? _image;
-  String? _loading;
-
-  @override
-  void changed() {
-    size.setValues(param('width', 48), param('height', 48));
-    super.changed();
-    final src = params['src'];
-    if (src != null && src != _loading) {
-      _loading = src;
-      _image = null;
-      Flame.images
-          .load(src)
-          .then((image) {
-            if (_loading == src) _image = image;
-            if (isMounted) game.wake();
-          })
-          .catchError((Object _) => _image = null);
-    }
-  }
-
-  @override
-  void render(ui.Canvas canvas) {
-    final image = _image;
-    if (image == null) {
-      // A failed or pending load draws as a rect so the layout holds.
-      canvas.drawRect(size.toRect(), paint);
-      return;
-    }
-    canvas.drawImageRect(
-      image,
-      ui.Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
-      size.toRect(),
-      paint,
-    );
-  }
-}
-
-/// `d` is a move/line list: `M x y L x y L x y Z`.
-final class PathNode extends NodeComponent {
-  PathNode(super.node);
-  ui.Path _path = ui.Path();
-
-  @override
-  void changed() {
-    _path = parse(params['d'] ?? '');
-    final bounds = _path.getBounds();
-    size.setValues(bounds.right, bounds.bottom);
-    super.changed();
-    paint
-      ..style = params['fill'] == 'true'
-          ? ui.PaintingStyle.fill
-          : ui.PaintingStyle.stroke
-      ..strokeWidth = param('stroke', 2);
-  }
-
-  static ui.Path parse(String d) {
-    final path = ui.Path();
-    final tokens = d
-        .replaceAllMapped(RegExp('[MLZmlz]'), (m) => ' ${m[0]} ')
-        .split(RegExp(r'[\s,]+'))
-        .where((t) => t.isNotEmpty)
-        .toList();
-    var command = 'M';
-    for (var i = 0; i < tokens.length;) {
-      final token = tokens[i];
-      if (RegExp('^[MLZmlz]\$').hasMatch(token)) {
-        command = token.toUpperCase();
-        i++;
-        if (command == 'Z') path.close();
-        continue;
-      }
-      if (i + 1 >= tokens.length) break;
-      final x = double.tryParse(token) ?? 0;
-      final y = double.tryParse(tokens[i + 1]) ?? 0;
-      if (command == 'M') {
-        path.moveTo(x, y);
-        command = 'L';
-      } else {
-        path.lineTo(x, y);
-      }
-      i += 2;
-    }
-    return path;
-  }
-
-  @override
-  void render(ui.Canvas canvas) => canvas.drawPath(_path, paint);
-}
-
-final class ParticlesNode extends NodeComponent {
-  ParticlesNode(super.node);
-  final _random = math.Random();
-
-  @override
-  void changed() {
-    size.setAll(param('radius', 48) * 2);
-    super.changed();
-  }
-
-  @override
-  void update(double dt) {
-    super.update(dt);
-    if (children.whereType<ParticleSystemComponent>().isEmpty) {
-      add(ParticleSystemComponent(position: size / 2, particle: _burst()));
-    }
-  }
-
-  Particle _burst() {
-    final speed = param('speed', 60);
-    final dot = ui.Paint()..color = sceneColor(params['color']) ?? color;
-    return Particle.generate(
-      count: param('count', 24).round(),
-      lifespan: 1.5,
-      generator: (_) {
-        final direction = _random.nextDouble() * 2 * math.pi;
-        return AcceleratedParticle(
-          speed:
-              Vector2(math.cos(direction), math.sin(direction)) *
-              speed *
-              (0.5 + _random.nextDouble()),
-          child: CircleParticle(radius: param('dot', 2), paint: dot),
-        );
-      },
-    );
-  }
-
-  @override
-  void render(ui.Canvas canvas) {}
-}
-
-final class GroupNode extends NodeComponent {
-  GroupNode(super.node);
-
-  @override
-  void render(ui.Canvas canvas) {}
-}
-
-/// Any node type this shell does not know: a dashed outline and the type name.
-final class PlaceholderNode extends NodeComponent {
-  PlaceholderNode(super.node);
-  TextPainter? _label;
-
-  @override
-  void changed() {
-    size.setValues(param('width', 96), param('height', 48));
-    super.changed();
-    _label = TextPainter(
-      text: TextSpan(
-        text: typeName,
-        style: const TextStyle(color: Color(0xFF9AA4B2), fontSize: 11),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout(maxWidth: size.x);
-  }
-
-  @override
-  void render(ui.Canvas canvas) {
-    final outline = ui.Paint()
-      ..color = const Color(0xFF9AA4B2)
-      ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = 1;
-    const dash = 6.0;
-    void dashed(Offset from, Offset to) {
-      final length = (to - from).distance;
-      final step = (to - from) / length;
-      for (var d = 0.0; d < length; d += dash * 2) {
-        canvas.drawLine(
-          from + step * d,
-          from + step * math.min(d + dash, length),
-          outline,
-        );
-      }
-    }
-
-    final r = size.toRect();
-    dashed(r.topLeft, r.topRight);
-    dashed(r.topRight, r.bottomRight);
-    dashed(r.bottomRight, r.bottomLeft);
-    dashed(r.bottomLeft, r.topLeft);
-    final label = _label;
-    if (label != null) {
-      label.paint(
-        canvas,
-        Offset((size.x - label.width) / 2, (size.y - label.height) / 2),
-      );
-    }
   }
 }
 

@@ -20,6 +20,7 @@ public static class UIVocabulary
     public const string VideoType = "video";
     public const string WebBrowserType = "webbrowser";
     public const string ChartType = "chart";
+    public const string SceneType = "scene";
     public const string GraphType = "graph";
     public const string TableType = "table";
     public const string CalendarType = "calendar";

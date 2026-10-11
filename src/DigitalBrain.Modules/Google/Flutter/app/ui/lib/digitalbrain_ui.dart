@@ -32,6 +32,8 @@ export 'src/components/image_canvas/ui_image_canvas.dart';
 export 'src/composition/neuron_view.dart';
 export 'src/composition/renderer_registry.dart';
 export 'src/flame/node_components.dart';
+export 'src/flame/placeholder_node.dart';
+export 'src/flame/primitive_nodes.dart';
 export 'src/flame/scene_game.dart';
 export 'src/flame/scene_view.dart';
 export 'src/composition/ui_collection_view.dart';

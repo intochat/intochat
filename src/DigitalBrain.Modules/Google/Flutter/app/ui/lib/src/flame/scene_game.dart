@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 
 import 'node_components.dart';
+import 'placeholder_node.dart';
+import 'primitive_nodes.dart';
 
 typedef SceneInputHandler = void Function(
   String nodeId,
@@ -37,9 +39,25 @@ final class SceneGame extends FlameGame {
   void apply(SceneState state) {
     _state = state;
     wake();
+    final patches = <String, List<NodePatch>>{};
+    for (final machine in state.definition.machines) {
+      if (machine.states.isEmpty) continue;
+      final current = state.current[machine.id] ?? machine.initial;
+      final def = machine.states.firstWhere(
+        (s) => s.name == current,
+        orElse: () => machine.states.first,
+      );
+      for (final patch in def.apply) {
+        (patches[patch.nodeId] ??= []).add(patch);
+      }
+    }
     final seen = <String>{};
-    void walk(SceneNode node, Component parent) {
-      seen.add(node.id);
+    void walk(SceneNode definition, Component parent) {
+      seen.add(definition.id);
+      final node = (patches[definition.id] ?? const <NodePatch>[]).fold(
+        definition,
+        NodeComponent.withPatch,
+      );
       var component = _byId[node.id];
       if (component == null || component.typeName != node.type) {
         component?.removeFromParent();
@@ -48,6 +66,8 @@ final class SceneGame extends FlameGame {
         parent.add(component);
       } else {
         component.configure(node);
+        // A parent rebuilt for a new type, or a node moved in the definition, takes it along.
+        if (component.parent != parent) component.parent = parent;
       }
       for (final child in node.children) {
         walk(child, component);
@@ -59,17 +79,6 @@ final class SceneGame extends FlameGame {
     }
     for (final id in _byId.keys.where((k) => !seen.contains(k)).toList()) {
       _byId.remove(id)!.removeFromParent();
-    }
-    for (final machine in state.definition.machines) {
-      if (machine.states.isEmpty) continue;
-      final current = state.current[machine.id] ?? machine.initial;
-      final def = machine.states.firstWhere(
-        (s) => s.name == current,
-        orElse: () => machine.states.first,
-      );
-      for (final patch in def.apply) {
-        _byId[patch.nodeId]?.patch(patch);
-      }
     }
     final camera = state.definition.camera;
     this.camera.viewfinder
