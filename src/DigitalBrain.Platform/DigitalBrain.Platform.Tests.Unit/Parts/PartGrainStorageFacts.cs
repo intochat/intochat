@@ -97,6 +97,26 @@ public sealed class PartGrainStorageFacts
     }
 
     [Fact(Timeout = 60_000)]
+    public async Task ARefusedWriteKeepsTheSignalsOfItsSavePending()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().AsMachine().StartAsync(ct);
+        var counter = brain.Get<IPartCounter>(Counter);
+        await counter.Increment();
+        await counter.Increment();
+        var direct = new PartGrainStorage(brain.Services.GetRequiredService<PartLogs>(), brain.Services.GetRequiredService<Orleans.Serialization.Serializer>());
+        var stale = new GrainState<PartCounterState>(new PartCounterState { Value = 9 }, "0");
+        Signal[] signals = [new Signal()];
+
+        using (SignalJournal.Attach(counter.GetGrainId(), signals))
+        {
+            await Assert.ThrowsAsync<InconsistentStateException>(() => direct.WriteStateAsync("counter", counter.GetGrainId(), stale));
+
+            Assert.Single(SignalJournal.TakePending(counter.GetGrainId()));
+        }
+    }
+
+    [Fact(Timeout = 60_000)]
     public async Task AKeyOutsideEveryBrainIsRefusedOnAMachine()
     {
         var ct = TestContext.Current.CancellationToken;

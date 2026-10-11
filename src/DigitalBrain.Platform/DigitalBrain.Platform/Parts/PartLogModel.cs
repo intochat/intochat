@@ -27,6 +27,9 @@ public sealed class LogEntry
     [Id(4)] public byte[] Record { get; set; } = [];
 
     [Id(5)] public Signal[] Signals { get; set; } = [];
+
+    // The change's size as the log counts it against its limits, measured once when it is appended; not serialized.
+    [NonSerialized] internal long Bytes;
 }
 
 [GenerateSerializer, Alias("platform.parts.segment")]

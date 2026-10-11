@@ -38,8 +38,7 @@ internal sealed class PartGrainStorage(PartLogs logs, Serializer serializer, Par
         RefuseStandIn(grainId);
         var log = await logs.For(PartId.Of(grainId.Key.ToString()!));
         // The signals of the Save behind this write commit in the same entry, so neither is durable without the other.
-        var seq = await log.AppendIfCurrent(grainId.ToString(), stateName, Expected(grainState), RecordChange.Write, serializer.SerializeToArray(grainState.State),
-            SignalJournal.TakePending(grainId));
+        var seq = await Append(log, grainId, stateName, Expected(grainState), RecordChange.Write, serializer.SerializeToArray(grainState.State));
         (grainState.ETag, grainState.RecordExists) = (seq.ToString(CultureInfo.InvariantCulture), true);
     }
 
@@ -53,9 +52,21 @@ internal sealed class PartGrainStorage(PartLogs logs, Serializer serializer, Par
         catch (MissingMethodException error)
         { throw new InvalidOperationException($"{typeof(T).Name} has no parameterless constructor, so {grainId} cannot be cleared to a fresh state.", error); }
         var log = await logs.For(PartId.Of(grainId.Key.ToString()!));
-        await log.AppendIfCurrent(grainId.ToString(), stateName, Expected(grainState), RecordChange.Clear, [], SignalJournal.TakePending(grainId));
+        await Append(log, grainId, stateName, Expected(grainState), RecordChange.Clear, []);
         grainState.State = fresh;
         (grainState.ETag, grainState.RecordExists) = (null, false);
+    }
+
+    // A refused change (stale ETag, too large) commits nothing, so its signals stay pending for the Save that raised them.
+    private static async Task<long> Append(PartLog log, GrainId grainId, string stateName, long? expected, RecordChange change, byte[] record)
+    {
+        var signals = SignalJournal.TakePending(grainId);
+        try { return await log.AppendIfCurrent(grainId.ToString(), stateName, expected, change, record, signals); }
+        catch (Exception error) when (error is InconsistentStateException or ChangeTooLargeException)
+        {
+            SignalJournal.Restore(grainId, signals);
+            throw;
+        }
     }
 
     // A stand-in read no state; a write through it would open the part on a machine that does not hold it.

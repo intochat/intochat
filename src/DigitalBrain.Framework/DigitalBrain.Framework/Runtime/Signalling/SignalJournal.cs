@@ -44,6 +44,13 @@ public static class SignalJournal
         return taken;
     }
 
+    // A storage write that was refused before anything committed hands its signals back to the Save behind it.
+    public static void Restore(GrainId grainId, Signal[] signals)
+    {
+        if (signals.Length == 0 || Pending.Value is not { } pending || pending.Publisher != grainId) { return; }
+        pending.Signals.InsertRange(0, signals);
+    }
+
     internal static bool Taken => Pending.Value is { Signals.Count: 0 };
 
     private sealed class Scope(Batch? previous) : IDisposable
