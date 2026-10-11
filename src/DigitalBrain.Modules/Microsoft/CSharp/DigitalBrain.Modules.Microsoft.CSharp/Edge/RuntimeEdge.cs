@@ -166,8 +166,7 @@ internal sealed class RuntimeEdge(SessionTokens tokens, CompiledTypes types, IGr
     // A behavior started without a caller (tests, the platform) calls without a stamp, as grain code does.
     private static void Stamp(BehaviorIdentity identity)
     {
-        if (identity.Principal is { } principal)
-        { CallerContextStamper.Stamp(principal with { Kind = CallerKind.App, StampedBy = TrustedEdge.AppProxy, AppId = identity.Owner }); }
+        if (identity.Caller is { } caller) { CallerContextStamper.Stamp(caller); }
     }
 
     private static SseItem<string> Item(string kind, object payload) => new(JsonSerializer.Serialize(payload, payload.GetType(), RuntimeProtocol.Json), kind);

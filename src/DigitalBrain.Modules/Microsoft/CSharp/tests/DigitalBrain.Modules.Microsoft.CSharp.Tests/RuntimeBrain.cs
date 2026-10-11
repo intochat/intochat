@@ -32,9 +32,9 @@ internal static class RuntimeBrain
             });
     }
 
-    public static Task<ITestBrain> StartAsync(FakeSessionHost host, CancellationToken ct, IBehaviorAssemblies? assemblies = null, TimeProvider? time = null, bool partLog = false, ISignalJournal? journal = null)
+    public static Task<ITestBrain> StartAsync(FakeSessionHost host, CancellationToken ct, IBehaviorAssemblies? assemblies = null, TimeProvider? time = null, bool partLog = false, ISignalJournal? journal = null, bool apps = false)
     {
-        var builder = Create(host);
+        var builder = Create(host, apps);
         // The clock moves sessions past their heartbeat limit; the assembly store and the journal are storage seams.
         if (time is not null) { builder = builder.ConfigureServices(services => services.AddSingleton(time)); }
         if (assemblies is not null) { builder = builder.ConfigureServices(services => services.AddSingleton(assemblies)); }

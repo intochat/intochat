@@ -22,6 +22,9 @@ public interface IPinger : INeuron
 
     Task<string> Caller();
     Task RefuseUnavailable();
+
+    // The caller the first Unwatch carried, as Caller() reports one, once one came: unwatches run off the runtime's turn.
+    [Orleans.Concurrency.AlwaysInterleave] Task<string> Unwatched();
 }
 
 [GenerateSerializer, Alias("tests.csharp.pinged")]
@@ -43,7 +46,19 @@ public sealed class Pinger : Neuron, IPinger
 
     public Task<int> Double(int number, CancellationToken cancellationToken = default) => Task.FromResult(number * 2);
 
-    public Task<string> Caller() => Task.FromResult(CallerContextStamper.TryGet(out var caller)
+    private readonly TaskCompletionSource<string> _unwatched = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public Task<string> Caller() => Task.FromResult(Describe());
+
+    public override Task Unwatch(INeuronObserver observer)
+    {
+        _unwatched.TrySetResult(Describe());
+        return base.Unwatch(observer);
+    }
+
+    public Task<string> Unwatched() => _unwatched.Task;
+
+    private static string Describe() => CallerContextStamper.TryGet(out var caller)
         ? $"{caller.PrincipalId} {caller.Kind} {caller.StampedBy} {caller.AppId}"
-        : "unstamped");
+        : "unstamped";
 }

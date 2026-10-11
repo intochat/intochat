@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -66,7 +67,7 @@ internal sealed class BrainRuntimeNeuron(
     // Last status the sandbox reported per behavior id. Memory only: a fresh activation shows Starting until the host speaks.
     private readonly Dictionary<string, (string Status, string? Error)> _reported = new(StringComparer.Ordinal);
     // The trace each pushed batch carried, per (subscription, watermark), so its ack prices the CPU it cost under that trace.
-    private readonly Dictionary<(string Subscription, long Watermark), Trace> _batchTraces = new();
+    private readonly Dictionary<(string Subscription, long Watermark), BatchTrace> _batchTraces = new();
     // Batches that reached a live stream and are not acknowledged yet, per (subscription, watermark): each started a run.
     private readonly HashSet<(string Subscription, long Watermark)> _started = [];
     // What each behavior's runs did since this activation. Memory only, like _reported.
@@ -150,7 +151,8 @@ internal sealed class BrainRuntimeNeuron(
     }
 
     // A synapse that is gone, or whose assembly changed, is not the synapse its subscriptions were declared by:
-    // they go with it, and a changed synapse's new assembly declares its own when it runs.
+    // they go with it, and a changed synapse's new assembly declares its own when it runs. A program that now
+    // speaks for another principal is judged again by every source it watches.
     public async Task<ProgramView> Apply(long ticket)
     {
         if (!_compiled.TryGetValue(ticket, out var compiled))
@@ -171,7 +173,7 @@ internal sealed class BrainRuntimeNeuron(
             Subscriptions = [.. Snapshot.Subscriptions.Where(s => !replaced.Contains(s.Behavior, StringComparer.Ordinal))],
         }, Changed());
         foreach (var gone in replaced) { Forget(gone); }
-        if (replaced.Length > 0) { await WatchSourcesAsync(); }
+        if (replaced.Length > 0 || (previous is not null && previous.Principal != program.Principal)) { await WatchSourcesAsync(); }
         if (Snapshot.Session is null) { await EnsureSessionAsync(); }
         else
         {
@@ -283,7 +285,8 @@ internal sealed class BrainRuntimeNeuron(
             // missed. Watch before seeding: anything published between the seed and the watch arrives
             // through the watch itself, and a duplicate is at-least-once's to bear; nothing is lost.
             await Save(Snapshot with { Subscriptions = [.. Snapshot.Subscriptions, existing] }, Changed());
-            await WatchSourcesAsync(required: neuron);
+            try { await WatchSourcesAsync(required: existing); }
+            catch (Exception error) when (IsRefusal(error)) { await RefuseAsync(existing); throw; }
             var seeded = await SeedRetainedAsync(neuron, signal, existing.Watermark);
             if (seeded.Length > 0)
             {
@@ -297,8 +300,8 @@ internal sealed class BrainRuntimeNeuron(
         {
             // Persistence can succeed before source registration fails. A retry is ready only
             // after the source has accepted the current selection, including the saved addition.
-            await GrainFactory.GetGrain<INeuron>(GrainId.Parse(neuron)).Watch(this.AsReference<INeuronObserver>(),
-                Snapshot.Subscriptions.Where(s => s.Neuron == neuron).Select(s => s.Signal).Distinct(StringComparer.Ordinal).ToArray());
+            try { await WatchAsync(neuron, GrainFactory.GetGrain<INeuron>(GrainId.Parse(neuron)), this.AsReference<INeuronObserver>(), required: existing); }
+            catch (Exception error) when (IsRefusal(error)) { await RefuseAsync(existing); throw; }
             // The log after the watermark comes first; a source whose part is leased elsewhere fails the subscribe here.
             await CatchUpAsync(neuron, push: false);
             existing = Snapshot.Subscriptions.First(s => s.Id == existing.Id);
@@ -355,11 +358,14 @@ internal sealed class BrainRuntimeNeuron(
         // A replayed ack prices nothing again. Metering observes the run: it is priced after this turn, so a slow
         // ledger never holds the runtime, and a meter that fails does not fail the ack.
         PricedRun[] priced = [.. advanced.Where(run => run.Report.CpuMicroseconds > 0).Select(run => new PricedRun(run.Report.Subscription,
-            run.Report.Watermark, run.Report.CpuMicroseconds, run.Before.Behavior, Find(run.Before.Behavior)?.Owner, run.After.Delivered, traces[run.Report.Subscription]))];
+            run.Report.Watermark, run.Report.CpuMicroseconds, run.Before.Behavior, Find(run.Before.Behavior)?.Owner, run.After.Delivered, traces[run.Report.Subscription]?.Trace))];
         if (priced.Length > 0 && Meter is { } meter) { _pricing = PriceAsync(_pricing, meter, priced); }
     }
 
     private sealed record PricedRun(string Subscription, long Watermark, long CpuMicroseconds, string Behavior, string? App, long Delivered, Trace? Trace);
+
+    // A pushed batch's trace and the traceparent it carried: the run's span sits under the batch's own span.
+    private sealed record BatchTrace(Trace Trace, string TraceParent);
 
     // Runs on this activation's scheduler between turns and reads nothing of the runtime's state.
     private async Task PriceAsync(Task previous, ICostMeter meter, PricedRun[] runs)
@@ -380,9 +386,9 @@ internal sealed class BrainRuntimeNeuron(
 
     // The batches of a subscription at or below an acknowledged watermark are settled: none is in flight any
     // more. The trace of the latest of them is the run's.
-    private Trace? Settle(string subscription, long watermark)
+    private BatchTrace? Settle(string subscription, long watermark)
     {
-        Trace? latest = null;
+        BatchTrace? latest = null;
         var at = long.MinValue;
         foreach (var key in _batchTraces.Keys.Where(key => key.Subscription == subscription && key.Watermark <= watermark).ToArray())
         {
@@ -471,7 +477,7 @@ internal sealed class BrainRuntimeNeuron(
         var drops = new List<(Subscription Buffered, long Count)>();
         var next = Snapshot.Subscriptions.Select(s =>
         {
-            if (s.Signal != name || s.Neuron != signal.Publisher.Name) { return s; }
+            if (s.Signal != name || s.Neuron != signal.Publisher.Name || !Accepted(s)) { return s; }
             var buffered = s.Arrive(json, cap);
             arrived.Add(buffered);
             if (buffered.Dropped > s.Dropped) { drops.Add((buffered, buffered.Dropped - s.Dropped)); }
@@ -487,7 +493,22 @@ internal sealed class BrainRuntimeNeuron(
         Flush();
     }
 
-    public Task CatchUp() => CatchUpSourcesAsync([.. Snapshot.Subscriptions.Select(s => s.Neuron).Distinct(StringComparer.Ordinal)]);
+    // A reactivated runtime has no source's acceptance yet: each source is watched on its lane, off every turn,
+    // and only then is its log read, in a short turn of its own.
+    public Task CatchUp()
+    {
+        foreach (var neuron in Snapshot.Subscriptions.Select(s => s.Neuron).Distinct(StringComparer.Ordinal).ToArray()) { _ = ReadAfterWatchAsync(neuron); }
+        return Task.CompletedTask;
+    }
+
+    private async Task ReadAfterWatchAsync(string neuron)
+    {
+        await WatchOffTurn(neuron, again: false);
+        try { await this.AsReference<IBrainRuntimeArrivals>().Read(neuron); }
+        catch (Exception error) { logger.LogDebug(error, "Brain {Brain} could not ask itself to read {Neuron}'s part log.", Brain, neuron); }
+    }
+
+    public Task Read(string source) => CatchUpSourcesAsync([source]);
 
     // A source whose log cannot be read now stays nudged, so the next reminder reads it again.
     private async Task CatchUpSourcesAsync(string[] sources)
@@ -508,9 +529,10 @@ internal sealed class BrainRuntimeNeuron(
 
     // On a host with a part log a live signal is a nudge: the source's log after each watermark is what is buffered,
     // so a signal the runtime never heard live arrives too and none arrives twice. False when nothing is journaled.
+    // Only a subscription its source accepted on this activation is buffered; any other keeps its watermark.
     private async Task<bool> CatchUpAsync(string neuron, bool push = true)
     {
-        var matching = Snapshot.Subscriptions.Where(s => s.Neuron == neuron).ToArray();
+        var matching = Snapshot.Subscriptions.Where(s => s.Neuron == neuron && Accepted(s)).ToArray();
         if (matching.Length == 0) { return true; }
         var since = matching.Min(s => s.SourceSeq);
         if (await journal.SignalsOf(GrainId.Parse(neuron), since) is not { } read) { return false; }
@@ -520,7 +542,7 @@ internal sealed class BrainRuntimeNeuron(
         var changed = false;
         var next = Snapshot.Subscriptions.Select(s =>
         {
-            if (s.Neuron != neuron) { return s; }
+            if (s.Neuron != neuron || !Accepted(s)) { return s; }
             if (read.Floor > s.SourceSeq)
             { logger.LogWarning("SubscriptionGap {Subscription} {Neuron}: its watermark {Watermark} is below seq {Floor}, the oldest its source's log still serves.", s.Id, neuron, s.SourceSeq, read.Floor); }
             var buffered = s;
@@ -558,13 +580,13 @@ internal sealed class BrainRuntimeNeuron(
         { await Save(Snapshot with { Session = session with { TokenIssued = time.GetUtcNow() } }, Changed()); }
     }
 
-    // A source's own signal may be what activated this runtime, so watching it now would deadlock;
-    // the renewal timer's first tick watches it right after activation instead.
+    // A source's own signal may be what activated this runtime, so waiting for its watch now would deadlock;
+    // the catch-up watches every source on its lane, off the activation turn, before it reads the source's log.
     internal Task ResumeAsync()
     {
         if (Snapshot.Subscriptions.Length > 0)
         {
-            RenewSourceWatches(dueTime: TimeSpan.Zero);
+            SyncWatched();
             // Off the activation turn: a source's log may be on a part this machine has yet to open.
             _ = this.AsReference<IBrainRuntimeArrivals>().CatchUp();
         }
@@ -653,9 +675,9 @@ internal sealed class BrainRuntimeNeuron(
     private SignalBatchEvent Batch(Subscription subscription)
     {
         var trace = FirstSignalTrace(subscription.Pending);
-        if (trace is not null) { _batchTraces[(subscription.Id, subscription.Watermark)] = trace; }
-        return new SignalBatchEvent(subscription.Id, subscription.Pending, subscription.Watermark,
-            trace is null ? System.Diagnostics.Activity.Current?.Id : $"00-{trace.TraceId}-{System.Diagnostics.ActivitySpanId.CreateRandom().ToHexString()}-01");
+        var traceParent = trace is null ? System.Diagnostics.Activity.Current?.Id : $"00-{trace.TraceId}-{System.Diagnostics.ActivitySpanId.CreateRandom().ToHexString()}-01";
+        if (trace is not null) { _batchTraces[(subscription.Id, subscription.Watermark)] = new(trace, traceParent!); }
+        return new SignalBatchEvent(subscription.Id, subscription.Pending, subscription.Watermark, traceParent);
     }
 
     private static Trace? FirstSignalTrace(string[] pending)
@@ -672,7 +694,7 @@ internal sealed class BrainRuntimeNeuron(
         if (IsRunFacts(subscription.Neuron) || Synapse(subscription.Behavior) is not { } synapse
             || !_started.Add((subscription.Id, subscription.Watermark))) { return; }
         _facts.Add(new(new BehaviorStarted(RuntimeId, synapse.Owner, subscription.Behavior, synapse.Hash, subscription.Neuron,
-            subscription.Signal, subscription.Watermark), _batchTraces.GetValueOrDefault((subscription.Id, subscription.Watermark)) ?? TraceContext.Current));
+            subscription.Signal, subscription.Watermark), _batchTraces.GetValueOrDefault((subscription.Id, subscription.Watermark))?.Trace ?? TraceContext.Current));
     }
 
     // Signals pushed out of a full buffer never reach the synapse: a run that cannot happen, counted, never silent.
@@ -683,9 +705,9 @@ internal sealed class BrainRuntimeNeuron(
             RunOutcome.Dropped, (int)Math.Min(count, int.MaxValue), 0, 0, null), null);
     }
 
-    private void Ran(BehaviorRan ran, Trace? trace)
+    private void Ran(BehaviorRan ran, BatchTrace? batch)
     {
-        trace ??= TraceContext.Current;
+        var trace = batch?.Trace ?? TraceContext.Current;
         _facts.Add(new(ran, trace));
         var counts = _runs.GetValueOrDefault(ran.Behavior);
         _runs[ran.Behavior] = ran.Outcome switch
@@ -695,16 +717,15 @@ internal sealed class BrainRuntimeNeuron(
             _ => counts,
         };
         logger.LogInformation("BehaviorRan {Behavior} {Outcome} {DurationMicroseconds}", ran.Behavior, ran.Outcome, ran.DurationMicroseconds);
-        Span(ran, trace);
+        Span(ran, batch);
     }
 
-    // The run as a span in the batch's own trace, ending now and as long as the synapse took.
-    private void Span(BehaviorRan ran, Trace? trace)
+    // The run as a span under the batch's own span, in the batch's trace, ending now and as long as the synapse
+    // took. A parent without a span id would make .NET take the current request's span as parent, from another trace.
+    private void Span(BehaviorRan ran, BatchTrace? batch)
     {
         var end = time.GetUtcNow();
-        var parent = trace is { TraceId: { Length: 32 } id } && id.All(char.IsAsciiHexDigitLower)
-            ? new ActivityContext(ActivityTraceId.CreateFromString(id), default, ActivityTraceFlags.Recorded)
-            : default;
+        var parent = batch is not null && ActivityContext.TryParse(batch.TraceParent, null, out var context) ? context : default;
         using var activity = Telemetry.StartActivity("runtime.batch", ActivityKind.Internal, parent,
             startTime: end - TimeSpan.FromMicroseconds(ran.DurationMicroseconds));
         if (activity is null) { return; }
@@ -786,57 +807,161 @@ internal sealed class BrainRuntimeNeuron(
         return new UriBuilder(wildcard) { Host = DockerHost }.Uri.ToString();
     }
 
-    private async Task WatchSourcesAsync(string? required = null)
+    // Every source is watched off the turn, on its own lane (WatchOffTurn); a turn waits only for the source of
+    // the subscription it is making, whose verdict it answers.
+    private async Task WatchSourcesAsync(Subscription? required = null)
     {
-        var previous = _watched.Values.ToArray();
-        RenewSourceWatches(dueTime: ObserverRenewal);
-        var observer = this.AsReference<INeuronObserver>();
-        foreach (var source in previous.Where(source => !_watched.ContainsValue(source)))
-        {
-            // A source that is gone (its type left the host) cannot be unwatched either; its lease simply lapses.
-            try { await source.Unwatch(observer); }
-            catch (Exception error) when (error is not OperationCanceledException)
-            { logger.LogDebug(error, "Brain runtime {Runtime} could not unwatch {Source}.", this.GetPrimaryKeyString(), source.GetGrainId()); }
-        }
-        foreach (var (key, source) in _watched) { await WatchAsync(key, source, observer, rethrow: key == required); }
+        foreach (var gone in SyncWatched()) { _ = WatchOffTurn(gone); }
+        foreach (var key in _watched.Keys.Where(key => key != required?.Neuron).ToArray()) { _ = WatchOffTurn(key); }
+        if (required is not null) { await WatchAsync(required.Neuron, _watched[required.Neuron], this.AsReference<INeuronObserver>(), required); }
     }
 
-    // One source that cannot be watched (its type left the host with an older program) must not starve
-    // every other source: it is logged and skipped, unless it is the one being subscribed right now.
-    private async Task WatchAsync(string key, INeuron source, INeuronObserver observer, bool rethrow)
+    // A source's lane: one watch of a source at a time, so a source that hangs holds only its own lane until its call
+    // times out, and at most ConcurrentWatches sources are asked at once. Nothing awaits a lane inside a turn. A lane
+    // asked again while it runs runs once more, against the state of then; a renewal only joins it.
+    private Task WatchOffTurn(string key, bool again = true)
+    {
+        if (_lanes.TryGetValue(key, out var lane))
+        {
+            if (again) { _rewatch.Add(key); }
+            return lane;
+        }
+        lane = LaneAsync(key);
+        if (!lane.IsCompleted) { _lanes[key] = lane; }
+        return lane;
+    }
+
+    private async Task LaneAsync(string key)
     {
         try
         {
-            await source.Watch(observer, Snapshot.Subscriptions.Where(s => s.Neuron == key).Select(s => s.Signal).Distinct(StringComparer.Ordinal).ToArray());
-            _unwatchable.Remove(key);
+            do
+            {
+                _rewatch.Remove(key);
+                await _watchSlots.WaitAsync();
+                try { await ReconcileAsync(key); }
+                finally { _watchSlots.Release(); }
+            }
+            while (_rewatch.Contains(key));
         }
-        catch (Exception error) when (!rethrow && error is not OperationCanceledException)
-        {
-            // Logged once per activation and source: the renewal timer retries it every period.
-            if (_unwatchable.Add(key)) { logger.LogWarning(error, "Brain runtime {Runtime} could not watch {Source}; retrying quietly.", this.GetPrimaryKeyString(), key); }
-            else { logger.LogDebug(error, "Brain runtime {Runtime} still cannot watch {Source}.", this.GetPrimaryKeyString(), key); }
-        }
+        finally { _lanes.Remove(key); }
     }
 
-    private readonly HashSet<string> _unwatchable = new(StringComparer.Ordinal);
+    // A source some subscription names is watched as each of its programs. One no subscription names any more is
+    // unwatched as a program it accepted, as it was watched; one no program watched on this activation as no
+    // program, as grain code is. A source that is gone (its type left the host) or refuses the unwatch keeps the
+    // observer only until its lease lapses.
+    private async Task ReconcileAsync(string key)
+    {
+        var observer = this.AsReference<INeuronObserver>();
+        try
+        {
+            if (_watched.TryGetValue(key, out var watched)) { await WatchAsync(key, watched, observer, required: null); return; }
+            var verdicts = _accepted.Where(verdict => verdict.Key.Source == key).ToArray();
+            foreach (var verdict in verdicts) { _accepted.Remove(verdict.Key); }
+            _unwatchable.RemoveWhere(refused => refused.Source == key);
+            await AsProgram(verdicts.Length > 0 ? verdicts[0].Value : null, () => GrainFactory.GetGrain<INeuron>(GrainId.Parse(key)).Unwatch(observer));
+        }
+        catch (Exception error)
+        { logger.LogDebug(error, "Brain runtime {Runtime} could not watch or unwatch {Source}.", RuntimeId, key); }
+    }
 
-    // One watch per distinct source across every behavior. Sources keep observers for a lease; renewing
-    // on a timer also keeps this activation alive.
-    private void RenewSourceWatches(TimeSpan dueTime)
+    private const int ConcurrentWatches = 8;
+    private readonly SemaphoreSlim _watchSlots = new(ConcurrentWatches);
+    private readonly Dictionary<string, Task> _lanes = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _rewatch = new(StringComparer.Ordinal);
+
+    // A source that refuses the program refuses the subscription: none is kept for a later turn to feed, and a
+    // source no other subscription names is let go.
+    private async Task RefuseAsync(Subscription refused)
+    {
+        await Save(Snapshot with { Subscriptions = [.. Snapshot.Subscriptions.Where(s => s.Id != refused.Id)] }, Changed());
+        _started.RemoveWhere(key => key.Subscription == refused.Id);
+        foreach (var key in _batchTraces.Keys.Where(key => key.Subscription == refused.Id).ToArray()) { _batchTraces.Remove(key); }
+        await WatchSourcesAsync();
+    }
+
+    private static bool IsRefusal(Exception error) => error is UnauthorizedAccessException or UntrustedCallerException;
+
+    // A source is watched as each program subscribed to it, stamped as that program's behaviors' calls are, so
+    // its access policy and its own guards judge a subscription as they judge a call, whichever turn renews it.
+    // What the source answers is the program's verdict on this activation: only an accepted program's
+    // subscriptions are buffered, whatever watch keeps the observer registered. One source that cannot be
+    // watched (its type left the host with an older program, or it refuses a program) must not starve every
+    // other source or program: it is logged and skipped, unless it refuses the subscription being made right
+    // now, which fails once every other program is watched.
+    private async Task WatchAsync(string key, INeuron source, INeuronObserver observer, Subscription? required)
+    {
+        var subscribed = Snapshot.Subscriptions.Where(s => s.Neuron == key).ToArray();
+        var signals = subscribed.Select(s => s.Signal).Distinct(StringComparer.Ordinal).ToArray();
+        var programs = subscribed.Select(s => Find(s.Behavior)).OfType<ProgramAssignment>().DistinctBy(p => p.Owner).ToArray();
+        foreach (var gone in _accepted.Keys.Where(verdict => verdict.Source == key && programs.All(p => p.Owner != verdict.Program)).ToArray())
+        { _accepted.Remove(gone); }
+        var requiredBy = required is not null && required.Neuron == key ? Find(required.Behavior)?.Owner : null;
+        ExceptionDispatchInfo? refusal = null;
+        foreach (var program in programs)
+        {
+            var caller = new BehaviorIdentity(program.Principal, program.Owner).Caller;
+            try
+            {
+                await AsProgram(caller, () => source.Watch(observer, signals));
+                _accepted[(key, program.Owner)] = caller;
+                _unwatchable.Remove((key, program.Owner));
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                _accepted.Remove((key, program.Owner));
+                if (program.Owner == requiredBy) { refusal = ExceptionDispatchInfo.Capture(error); }
+                // Logged once per activation, source and program: the renewal timer retries it every period.
+                else if (_unwatchable.Add((key, program.Owner))) { logger.LogWarning(error, "Brain runtime {Runtime} could not watch {Source} for {Program}; retrying quietly.", this.GetPrimaryKeyString(), key, program.Owner); }
+                else { logger.LogDebug(error, "Brain runtime {Runtime} still cannot watch {Source} for {Program}.", this.GetPrimaryKeyString(), key, program.Owner); }
+            }
+        }
+        refusal?.Throw();
+    }
+
+    // A call on a source carries the program's caller and nothing of the turn's own: no caller when the program
+    // has none. RequestContext is async-local, so the turn's caller is back once this returns.
+    private static async Task AsProgram(CallerContext? caller, Func<Task> call)
+    {
+        if (caller is not null) { CallerContextStamper.Stamp(caller); }
+        else { RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+        await call();
+    }
+
+    // A verdict holds for the caller it was given to: a program that now speaks for another principal is fed
+    // nothing until its source accepts it again.
+    private bool Accepted(Subscription subscription)
+        => Find(subscription.Behavior) is { } program && _accepted.TryGetValue((subscription.Neuron, program.Owner), out var caller)
+            && caller == new BehaviorIdentity(program.Principal, program.Owner).Caller;
+
+    // Per source and program, the caller the source last accepted a watch from on this activation (null: the
+    // program has none). Memory only: a reactivated runtime asks every source again before it buffers anything for it.
+    private readonly Dictionary<(string Source, string Program), CallerContext?> _accepted = [];
+    private readonly HashSet<(string Source, string Program)> _unwatchable = [];
+
+    // One watch per distinct source across every behavior; returns the sources no subscription names any more.
+    // Sources keep observers for a lease. The renewal timer interleaves and only starts lanes, so a renewal never
+    // holds the runtime's turn; it also keeps this activation alive.
+    private string[] SyncWatched()
     {
         var sources = Snapshot.Subscriptions.Select(s => s.Neuron).Distinct(StringComparer.Ordinal).ToArray();
-        foreach (var gone in _watched.Keys.Except(sources).ToArray()) { _watched.Remove(gone); }
+        var dropped = _watched.Keys.Except(sources, StringComparer.Ordinal).ToArray();
+        foreach (var gone in dropped) { _watched.Remove(gone); }
         foreach (var source in sources.Where(source => !_watched.ContainsKey(source)))
         { _watched[source] = GrainFactory.GetGrain<INeuron>(GrainId.Parse(source)); }
-        var observer = this.AsReference<INeuronObserver>();
-        var watched = _watched.ToArray();
-        _watchRenewal?.Dispose();
-        _watchRenewal = watched.Length == 0 ? null : this.RegisterGrainTimer(
-            async _ =>
-            {
-                foreach (var (key, source) in watched) { await WatchAsync(key, source, observer, rethrow: false); }
-            },
-            // Serialize renewal with subscription changes so an old selection cannot overwrite a new one.
-            new GrainTimerCreationOptions { DueTime = dueTime, Period = ObserverRenewal, KeepAlive = true });
+        if (_watched.Count == 0) { _watchRenewal?.Dispose(); _watchRenewal = null; }
+        else
+        {
+            _watchRenewal ??= this.RegisterGrainTimer(_ => RenewWatches(),
+                new GrainTimerCreationOptions { DueTime = ObserverRenewal, Period = ObserverRenewal, KeepAlive = true, Interleave = true });
+        }
+        return dropped;
+    }
+
+    private Task RenewWatches()
+    {
+        foreach (var key in _watched.Keys.ToArray()) { _ = WatchOffTurn(key, again: false); }
+        return Task.CompletedTask;
     }
 }

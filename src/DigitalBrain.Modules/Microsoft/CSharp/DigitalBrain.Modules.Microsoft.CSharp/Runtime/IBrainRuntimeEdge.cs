@@ -9,7 +9,14 @@ namespace DigitalBrain.Microsoft.CSharp.Runtime;
 internal sealed record SessionAuthorization([property: Id(0)] bool Active, [property: Id(1)] string Brain);
 
 [GenerateSerializer, Alias("microsoft.csharp.behavior-identity")]
-internal sealed record BehaviorIdentity([property: Id(0)] CallerContext? Principal, [property: Id(1)] string Owner);
+internal sealed record BehaviorIdentity([property: Id(0)] CallerContext? Principal, [property: Id(1)] string Owner)
+{
+    // What a behavior's calls and its subscriptions' watches carry: the program's principal re-stamped as
+    // its app behind the app proxy. A program assigned without a caller (tests, the platform) stamps none.
+    public CallerContext? Caller => Principal is { } principal
+        ? principal with { Kind = CallerKind.App, StampedBy = TrustedEdge.AppProxy, AppId = Owner }
+        : null;
+}
 
 // What the behavior neurons and the runtime edge call. Not a neuron contract: no edge resolves it, so
 // the call filter never sees it. The session-side operations each check the session id against the

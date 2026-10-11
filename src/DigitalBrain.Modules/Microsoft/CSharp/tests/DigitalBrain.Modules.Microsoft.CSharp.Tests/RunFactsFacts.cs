@@ -50,6 +50,34 @@ public sealed class RunFactsFacts
         Assert.Equal((1L, 0L, 1_500L), (view.Runs, view.Failures, view.LastDurationMicroseconds));
     }
 
+    // The run's span sits under the span the pushed batch carried, in the batch's own trace, so a trace viewer
+    // finds its parent.
+    [Fact]
+    public async Task ARunsSpanIsAChildOfItsBatchsSpan()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var spans = new System.Collections.Concurrent.ConcurrentQueue<System.Diagnostics.Activity>();
+        using var listener = new System.Diagnostics.ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "DigitalBrain.Microsoft.CSharp.Runtime",
+            Sample = (ref _) => System.Diagnostics.ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = spans.Enqueue,
+        };
+        System.Diagnostics.ActivitySource.AddActivityListener(listener);
+        await using var rig = await StartAsync(ct, "synapses/a.cs");
+        var pinger = rig.Brain.Get<IPinger>("one");
+        var subscription = await rig.Edge.Subscribed(rig.Session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+        await PingAsync(pinger, 1, First);
+        await rig.Started.NextAsync(ct: ct);
+
+        var batch = Assert.Single(await rig.Edge.PendingBatches(rig.Session));
+        await rig.Edge.AcknowledgeMany(rig.Session, [new AcknowledgeReport(subscription, 1, CpuMicroseconds: 300, WallMicroseconds: 1_500)]);
+
+        var parent = System.Diagnostics.ActivityContext.Parse(batch.TraceParent!, null);
+        Assert.Equal(First.TraceId, parent.TraceId.ToHexString());
+        Assert.Contains(spans, span => span.OperationName == "runtime.batch" && span.TraceId == parent.TraceId && span.ParentSpanId == parent.SpanId);
+    }
+
     [Fact]
     public async Task ARePushedBatchStartsOnce()
     {
