@@ -32,7 +32,7 @@ public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketpla
         { throw new InvalidOperationException($"{name} has your own edits; it no longer takes updates from {origin.Publisher}."); }
         if (origin.Source is AppSource.Shipped) { await catalog.Reload(origin.Publisher, origin.Name).WaitAsync(ct); }
         var listing = await marketplace.Read(origin.Publisher, origin.Name, ct) ?? throw Gone(origin.Source, origin.Publisher, origin.Name);
-        if (AppVersions.Compare(listing.Version, origin.Version) <= 0) { return current; }
+        if (AppVersions.Compare(listing.Version, origin.Version) <= 0 && !Unconfirmed(current.Status)) { return current; }
         var bundle = await Bundle(origin.Source, origin.Publisher, origin.Name, ct);
         return await loader.Load(scope, name, bundle, origin, ct);
     }
@@ -59,6 +59,9 @@ public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketpla
             _ => throw new NotSupportedException($"Unknown app source {source.GetType().Name}."),
         };
     }
+
+    // A deploy that failed or never answered: the held program is loaded again until it is Live.
+    internal static bool Unconfirmed(AppStatus status) => status is AppStatus.Deploying or AppStatus.Failed;
 
     private static Exception Gone(AppSource source, string publisher, string name) => source is AppSource.Shipped
         ? new InvalidOperationException($"{publisher}/{name} no longer ships.")

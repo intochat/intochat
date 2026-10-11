@@ -17,9 +17,11 @@ public sealed class FeatureLoader(IGrainFactory grains)
         span?.SetTag("feature.version", bundle.Version);
         var target = grains.GetGrain<IApp>(IApp.Key(brain, name));
         var named = bundle with { Name = name };
-        if ((await target.Read().WaitAsync(ct)).Manifest.Title.Length == 0) { await target.Import(named).WaitAsync(ct); }
-        else { await target.Replace(named).WaitAsync(ct); }
-        await target.RecordOrigin(origin with { Version = bundle.Version }).WaitAsync(ct);
-        return await target.Read().WaitAsync(ct);
+        // The origin travels with the program in one write: a deploy that fails or outlasts this
+        // call still leaves a copy that knows where it came from, and the next load finishes it.
+        var held = origin with { Version = bundle.Version };
+        return (await target.Read().WaitAsync(ct)).Manifest.Title.Length == 0
+            ? await target.Import(named, held).WaitAsync(ct)
+            : await target.Replace(named, held).WaitAsync(ct);
     }
 }

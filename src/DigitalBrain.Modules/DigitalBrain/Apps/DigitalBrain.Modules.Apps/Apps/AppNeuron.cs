@@ -307,7 +307,7 @@ internal sealed class AppNeuron(
             new(published.Files, StringComparer.Ordinal)));
     }
 
-    public async Task<AppSnapshot> Import(AppBundle bundle)
+    public async Task<AppSnapshot> Import(AppBundle bundle, AppOrigin? origin = null)
     {
         ArgumentNullException.ThrowIfNull(bundle);
         RequireBundleFor(bundle);
@@ -322,14 +322,11 @@ internal sealed class AppNeuron(
         next.Settings = bundle.Manifest.Settings.ToDictionary(setting => setting.Name, setting => setting.Default, StringComparer.Ordinal);
         next.Connections = [];
         next.Version = bundle.Version;
-        next.Status = AppStatus.Live;
-        Record(next);
-        await Persist(next);
-        await Deploy();
-        return Describe(Snapshot);
+        Adopt(next, origin);
+        return await Land(next);
     }
 
-    public async Task<AppSnapshot> Replace(AppBundle bundle)
+    public async Task<AppSnapshot> Replace(AppBundle bundle, AppOrigin? origin = null)
     {
         ArgumentNullException.ThrowIfNull(bundle);
         RequireCreated();
@@ -337,8 +334,16 @@ internal sealed class AppNeuron(
         // A retried update at the version already held, with the same program, changes nothing.
         if (bundle.Version == Snapshot.Version && bundle.Spec == Snapshot.Spec
             && bundle.Files.Count == Snapshot.Files.Count
-            && bundle.Files.All(file => Snapshot.Files.TryGetValue(file.Key, out var held) && held == file.Value))
-        { return Describe(Snapshot); }
+            && bundle.Files.All(file => Snapshot.Files.TryGetValue(file.Key, out var held) && held == file.Value)
+            && Snapshot.Status == AppStatus.Live)
+        {
+            if (origin is null || (origin with { Version = bundle.Version } == Snapshot.Origin && !Snapshot.Edited)) { return Describe(Snapshot); }
+            var attached = Snapshot.Clone();
+            Adopt(attached, origin);
+            await Persist(attached);
+            await RecordFeature();
+            return Describe(Snapshot);
+        }
         var next = Snapshot.Clone();
         next.Manifest = bundle.Manifest.Validated();
         next.Spec = bundle.Spec;
@@ -346,11 +351,37 @@ internal sealed class AppNeuron(
         foreach (var setting in bundle.Manifest.Settings)
         { if (!next.Settings.ContainsKey(setting.Name)) { next.Settings[setting.Name] = setting.Default; } }
         next.Version = bundle.Version;
-        next.Status = AppStatus.Live;
+        Adopt(next, origin);
+        // Settings, connections and the app's stored data stay; only the program is the bundle's.
+        return await Land(next);
+    }
+
+    private static void Adopt(AppState next, AppOrigin? origin)
+    {
+        if (origin is null) { return; }
+        next.Origin = origin with { Version = next.Version };
+        next.Edited = false;
+    }
+
+    // A crossing bundle is held (program, version, origin) in one write before the runtime is asked;
+    // only the runtime's answer makes it Live. Landing again is cheap: Assign is idempotent per program.
+    private async Task<AppSnapshot> Land(AppState next)
+    {
+        next.Status = AppStatus.Deploying;
         Record(next);
         await Persist(next);
-        // Settings, connections and the app's stored data stay; only the program is the bundle's.
-        await Deploy();
+        try { await Deploy(); }
+        catch (Exception failure)
+        {
+            var failed = Snapshot.Clone();
+            failed.Status = AppStatus.Failed;
+            failed.Activity = [.. failed.Activity.TakeLast(MaxActivity - 1), "deploy failed: " + failure.Message];
+            await Persist(failed);
+            throw;
+        }
+        var live = Snapshot.Clone();
+        live.Status = AppStatus.Live;
+        await Persist(live);
         return Describe(Snapshot);
     }
 

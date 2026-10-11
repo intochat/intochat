@@ -28,9 +28,9 @@ public sealed class FeatureReconcilerFacts : IDisposable
     public void Dispose() => Directory.Delete(_root, recursive: true);
 
     // A host whose writable features folder holds os/greeter, so a test can bump the catalog.
-    private Task<ITestBrain> Start() => TestBrain.Create()
+    private Task<ITestBrain> Start(FakeAppRuntime? runtime = null) => TestBrain.Create()
         .WithModule<AppsModule, AppsOptions>(options => options.Features = _root)
-        .WithFakeAppRuntime(new())
+        .WithFakeAppRuntime(runtime ?? new())
         // The test host runs as "Testing"; the features folder is writable only in development.
         .ConfigureServices(services => services.AddSingleton<IHostEnvironment>(new Development()))
         .StartAsync(Ct);
@@ -197,6 +197,73 @@ public sealed class FeatureReconcilerFacts : IDisposable
         await kernel.Read();
 
         await changes.NextAsync(change => change.Version == "2.0.0", ct);
+    }
+
+    private static readonly AppOrigin Shipped = new("os", new AppSource.Shipped(), "greeter", "1.2.0");
+
+    // The runtime outlasting the caller (Orleans' response timeout inside Assign) and the runtime
+    // refusing look the same to the app: the deploy did not confirm.
+    private static async Task<(Person Alice, IApp Copy)> InstalledWhileTheRuntimeTimesOut(ITestBrain brain, FakeAppRuntime runtime)
+    {
+        var alice = await brain.PersonAsync("alice", Ct);
+        runtime.Refuse = _ => new TimeoutException("Response did not arrive on time in 00:00:30");
+        using (alice.AsCaller())
+        { await Assert.ThrowsAsync<TimeoutException>(() => brain.Services.GetRequiredService<AppInstaller>().Install("os", "greeter", Ct)); }
+        runtime.Refuse = null;
+        return (alice, brain.Get<IApp>(IApp.Key(alice.BrainId, "greeter")));
+    }
+
+    [Fact]
+    public async Task AnInstallWhoseDeployTimesOutKeepsItsOriginAndIsNotLive()
+    {
+        var runtime = new FakeAppRuntime();
+        await using var brain = await Start(runtime);
+        var (alice, copy) = await InstalledWhileTheRuntimeTimesOut(brain, runtime);
+
+        using (alice.AsCaller())
+        {
+            var held = await copy.Read();
+            Assert.Equal(Shipped, held.Origin);
+            Assert.Equal("1.2.0", held.Version);
+            Assert.False(held.Edited);
+            Assert.Equal(AppStatus.Failed, held.Status);
+            Assert.Contains(held.Activity, line => line.StartsWith("deploy failed:", StringComparison.Ordinal));
+        }
+    }
+
+    [Fact]
+    public async Task TheNextUpdateAfterATimedOutDeployCompletesIt()
+    {
+        var runtime = new FakeAppRuntime();
+        await using var brain = await Start(runtime);
+        var (alice, copy) = await InstalledWhileTheRuntimeTimesOut(brain, runtime);
+
+        using (alice.AsCaller())
+        {
+            var updated = await brain.Services.GetRequiredService<AppInstaller>().Update("greeter", Ct);
+            Assert.Equal(AppStatus.Live, updated.Status);
+            Assert.Equal(Shipped, updated.Origin);
+        }
+        Assert.Single(runtime.Deployed);
+    }
+
+    [Fact]
+    public async Task AReconcileInstalledDefaultCarriesItsShippedOrigin()
+    {
+        var runtime = new FakeAppRuntime();
+        await using var brain = await Start(runtime);
+        var (alice, copy) = await InstalledWhileTheRuntimeTimesOut(brain, runtime);
+
+        await Reconciler(brain, alice).Reconcile(Ct);
+
+        using (alice.AsCaller())
+        {
+            var reconciled = await copy.Read();
+            Assert.Equal(AppStatus.Live, reconciled.Status);
+            Assert.Equal(Shipped, reconciled.Origin);
+            Assert.False(reconciled.Edited);
+        }
+        Assert.Single(runtime.Deployed);
     }
 
     private sealed class Development : IHostEnvironment

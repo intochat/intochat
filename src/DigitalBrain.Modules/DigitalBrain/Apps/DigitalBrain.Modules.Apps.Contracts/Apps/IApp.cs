@@ -30,10 +30,13 @@ public interface IApp : INeuron
     // A version this app still holds in its history, for development sync to prove a folder is
     // unchanged since that version; null once the version has aged out.
     [Orleans.Concurrency.ReadOnly] Task<AppBundle?> ExportVersion(string version);
-    [ResponseTimeout("00:10:00")] Task<AppSnapshot> Import(AppBundle bundle);
+    // The bundle and its origin land in one write before the runtime is asked, so a deploy that
+    // fails or outlasts the caller leaves the copy Deploying or Failed, never without its origin.
+    [ResponseTimeout("00:10:00")] Task<AppSnapshot> Import(AppBundle bundle, AppOrigin? origin = null);
     // An update: the bundle's program replaces this one in place. Settings, connections and the
-    // app's stored data stay; behaviors the bundle lacks stop.
-    [ResponseTimeout("00:10:00")] Task<AppSnapshot> Replace(AppBundle bundle);
+    // app's stored data stay; behaviors the bundle lacks stop. A
+    // copy not yet Live is deployed again even at the same version.
+    [ResponseTimeout("00:10:00")] Task<AppSnapshot> Replace(AppBundle bundle, AppOrigin? origin = null);
     // Install records where the copy came from; recording it again (after an update) also
     // clears Edited, because the program is the publisher's again.
     Task RecordOrigin(AppOrigin origin);
