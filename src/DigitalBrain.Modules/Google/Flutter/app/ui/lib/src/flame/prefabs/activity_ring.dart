@@ -58,7 +58,11 @@ final class ActivityRing extends NodeComponent {
 
   @override
   void changed() {
-    size.setAll(radius * 2);
+    // Pills centre on the circle, so the box grows by one pill to hold them whole.
+    size.setValues(
+      radius * 2 + RingItem.pillSize.x,
+      radius * 2 + RingItem.pillSize.y,
+    );
     super.changed();
     final entries = RingEntry.parse(params['items']);
     final ids = entries.map((e) => e.id).toSet();
@@ -88,18 +92,26 @@ final class ActivityRing extends NodeComponent {
     if (_items[item.entry.id] == item) _items.remove(item.entry.id);
   }
 
-  void tapped(RingItem item) => game.report(
-    this,
-    'tap',
-    position + item.position - size / 2,
-    item.entry.id,
-  );
+  void tapped(RingItem item) {
+    game.wake();
+    if (!inputs.contains('tap')) return;
+    game.report(
+      this,
+      'tap',
+      position + item.position - size / 2,
+      item.entry.id,
+    );
+  }
 
   @visibleForTesting
   void simulateTap(String id) {
     final item = _items[id];
     if (item != null && !item.leaving) tapped(item);
   }
+
+  // Only pills report; a tap between them passes through.
+  @override
+  void onTapUp(TapUpEvent event) => event.continuePropagation = true;
 
   @override
   void render(ui.Canvas canvas) {}
@@ -108,7 +120,9 @@ final class ActivityRing extends NodeComponent {
 /// One pill: eases in from the ring's centre, fades out when its item leaves.
 final class RingItem extends PositionComponent with TapCallbacks {
   RingItem(this.ring, this.entry, this.home)
-    : super(size: Vector2(96, 28), anchor: Anchor.center);
+    : super(size: pillSize.clone(), anchor: Anchor.center);
+
+  static final pillSize = Vector2(96, 28);
 
   final ActivityRing ring;
   RingEntry entry;

@@ -186,18 +186,24 @@ abstract class NodeComponent extends PositionComponent
     }
   }
 
+  /// Whether this node takes drags (and stops them propagating).
+  bool get draggable => inputs.contains('drag');
+
+  /// Whether a drag moves the node and is reported; a prefab may take drags as presentation only.
+  bool get reportsDrag => inputs.contains('drag');
+
   @override
   void onDragStart(DragStartEvent event) {
     super.onDragStart(event);
     game.wake();
-    if (!inputs.contains('drag')) event.continuePropagation = true;
+    if (!draggable) event.continuePropagation = true;
   }
 
   @override
   void onDragEnd(DragEndEvent event) {
     super.onDragEnd(event);
     game.wake();
-    if (inputs.contains('drag')) {
+    if (reportsDrag) {
       game.report(
         this,
         'drag',
@@ -210,7 +216,7 @@ abstract class NodeComponent extends PositionComponent
   @override
   void onDragUpdate(DragUpdateEvent event) {
     game.wake();
-    if (inputs.contains('drag')) position.add(event.localDelta);
+    if (reportsDrag) position.add(event.localDelta);
   }
 }
 

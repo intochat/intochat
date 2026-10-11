@@ -18,6 +18,7 @@ final class BrainPulse {
 
 /// The brain as a slowly turning sphere: neurons on a Fibonacci sphere, synapses as edges and
 /// every new activity as a pulse along its edge. Depth sets scale and alpha; a drag turns it.
+/// v1 has one layout, `sphere`: any other `layout` value falls back to it.
 final class BrainGraph extends NodeComponent {
   BrainGraph(super.node);
 
@@ -52,7 +53,7 @@ final class BrainGraph extends NodeComponent {
   String get source => params['source'] == 'static' ? 'static' : 'events';
   bool get appsOnly => params['filter'] == 'apps';
   String? get selected => params['selected'];
-  String get layout => params['layout'] == 'force' ? 'force' : 'sphere';
+  String get layout => 'sphere';
 
   @override
   void changed() {
@@ -127,7 +128,6 @@ final class BrainGraph extends NodeComponent {
     _edges = snapshot.synapses
         .where((s) => ids.contains(s.sourceId) && ids.contains(s.targetId))
         .toList(growable: false);
-    // `force` uses the sphere layout for now: a spring pass on the sphere is a later refinement.
     _points = {
       for (final (i, n) in _nodes.indexed) n.id: _fibonacci(i, _nodes.length),
     };
@@ -207,18 +207,20 @@ final class BrainGraph extends NodeComponent {
     return best;
   }
 
-  // Drag turns the sphere; it is presentation, never reported.
+  double get yaw => _yaw;
+
+  // Drag turns the sphere whatever the inputs say; it is presentation, never reported.
+  @override
+  bool get draggable => true;
+
+  @override
+  bool get reportsDrag => false;
+
   @override
   void onDragUpdate(DragUpdateEvent event) {
     game.wake();
     _yaw += event.localDelta.x * 0.01;
     _pitch = (_pitch + event.localDelta.y * 0.01).clamp(-1.4, 1.4);
-  }
-
-  @override
-  void onDragEnd(DragEndEvent event) {
-    super.onDragEnd(event);
-    game.wake();
   }
 
   static double _scale(double z) => 0.6 + (z + 1) / 2 * 0.6;
