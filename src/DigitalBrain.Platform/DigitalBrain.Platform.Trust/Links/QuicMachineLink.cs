@@ -21,12 +21,23 @@ internal sealed record LinkEnd(
     LinkOptions Options,
     Serializer Serializer,
     LinkHandler Handler,
-    TimeProvider Time)
+    TimeProvider Time,
+    Func<QuicMachineLink, ValueTask<LinkAdmission>>? Admission = null)
 {
     public static readonly List<SslApplicationProtocol> Alpn = [new("digitalbrain-link/1")];
 
     public LinkPeer? Check(X509Certificate? presented)
         => LinkCertificates.Read(presented, DeploymentId, Time) is { } peer && Admits(peer) ? peer : null;
+}
+
+// How much a link end reads from its peer before answering (fix round 1): decided before a frame is buffered, so a
+// peer the end does not know yet can neither send a large frame nor many at once.
+internal sealed record LinkAdmission(int FrameCap, int Concurrency)
+{
+    public static readonly LinkAdmission Full = new(64 * 1024 * 1024, 128);
+
+    // Enough for a registration, a provisioning or a deployment read.
+    public static readonly LinkAdmission Registration = new(4 * 1024, 2);
 }
 
 // T20-1: one QUIC connection per machine pair, one bidirectional stream per call carrying one request frame and one
@@ -37,12 +48,13 @@ internal sealed class QuicMachineLink : IMachineLink
     public const string Hello = "link.hello";
     public const long CloseCode = 0x10;
     public const long StreamCode = 0x11;
-    private const int MaxFrame = 64 * 1024 * 1024;
+    public const int MaxFrame = 64 * 1024 * 1024; // LinkAdmission.Full reads the same
 
     private readonly QuicConnection _connection;
     private readonly LinkEnd _end;
     private readonly CancellationTokenSource _closing = new();
     private readonly Task _serving;
+    private int _answering;
 
     private QuicMachineLink(QuicConnection connection, LinkPeer peer, LinkEnd end, LinkPath path)
     {
@@ -108,7 +120,7 @@ internal sealed class QuicMachineLink : IMachineLink
         {
             await using var stream = await _connection.OpenOutboundStreamAsync(QuicStreamType.Bidirectional, cancellationToken).ConfigureAwait(false);
             await stream.WriteAsync(_end.Serializer.SerializeToArray(request), completeWrites: true, cancellationToken).ConfigureAwait(false);
-            return _end.Serializer.Deserialize<LinkReply>(await ReadAll(stream, cancellationToken).ConfigureAwait(false))
+            return _end.Serializer.Deserialize<LinkReply>(await ReadAll(stream, MaxFrame, cancellationToken).ConfigureAwait(false))
                 ?? throw new InvalidDataException("A link reply frame is empty.");
         }
         catch (QuicException failed)
@@ -134,9 +146,22 @@ internal sealed class QuicMachineLink : IMachineLink
     {
         await using (stream.ConfigureAwait(false))
         {
+            LinkAdmission admission;
+            try { admission = _end.Admission is { } admit ? await admit(this).ConfigureAwait(false) : LinkAdmission.Full; }
+            catch (Exception)
+            {
+                stream.Abort(QuicAbortDirection.Both, StreamCode);
+                return;
+            }
+            if (Interlocked.Increment(ref _answering) > admission.Concurrency)
+            {
+                Interlocked.Decrement(ref _answering);
+                stream.Abort(QuicAbortDirection.Both, StreamCode);
+                return;
+            }
             try
             {
-                var request = _end.Serializer.Deserialize<LinkRequest>(await ReadAll(stream, _closing.Token).ConfigureAwait(false))
+                var request = _end.Serializer.Deserialize<LinkRequest>(await ReadAll(stream, admission.FrameCap, _closing.Token).ConfigureAwait(false))
                     ?? throw new InvalidDataException("A link request frame is empty.");
                 LinkReply reply;
                 try
@@ -148,18 +173,20 @@ internal sealed class QuicMachineLink : IMachineLink
                 { reply = LinkReplies.Failure(error); }
                 await stream.WriteAsync(_end.Serializer.SerializeToArray(reply), completeWrites: true, _closing.Token).ConfigureAwait(false);
             }
-            catch (Exception ended) when (ended is QuicException or OperationCanceledException or ObjectDisposedException or InvalidDataException) { }
+            catch (InvalidDataException) { stream.Abort(QuicAbortDirection.Both, StreamCode); }
+            catch (Exception ended) when (ended is QuicException or OperationCanceledException or ObjectDisposedException) { }
+            finally { Interlocked.Decrement(ref _answering); }
         }
     }
 
-    private static async Task<byte[]> ReadAll(QuicStream stream, CancellationToken cancellationToken)
+    private static async Task<byte[]> ReadAll(QuicStream stream, int cap, CancellationToken cancellationToken)
     {
         using var buffer = new MemoryStream();
         var chunk = new byte[16 * 1024];
         int read;
         while ((read = await stream.ReadAsync(chunk, cancellationToken).ConfigureAwait(false)) > 0)
         {
-            if (buffer.Length + read > MaxFrame) { throw new InvalidDataException("A link frame exceeds 64 MiB."); }
+            if (buffer.Length + read > cap) { throw new InvalidDataException($"A link frame exceeds {cap} bytes."); }
             buffer.Write(chunk, 0, read);
         }
         return buffer.ToArray();

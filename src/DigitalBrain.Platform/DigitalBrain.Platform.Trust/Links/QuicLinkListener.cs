@@ -16,6 +16,7 @@ internal sealed class QuicLinkListener : IAsyncDisposable
     private readonly CancellationTokenSource _stopping = new();
     private readonly Task _accepting;
     private readonly List<QuicMachineLink> _links = [];
+    private readonly Dictionary<IPAddress, int> _perAddress = [];
 
     private QuicLinkListener(QuicListener listener, LinkEnd end, Action<QuicMachineLink> accepted, LinkPath path)
     {
@@ -65,15 +66,30 @@ internal sealed class QuicLinkListener : IAsyncDisposable
             try { connection = await _listener.AcceptConnectionAsync(_stopping.Token).ConfigureAwait(false); }
             catch (Exception stopped) when (stopped is OperationCanceledException or ObjectDisposedException) { return; }
             catch (Exception) { continue; }
-            if (_end.Check(connection.RemoteCertificate) is not { } peer)
+            var address = connection.RemoteEndPoint.Address;
+            bool admitted;
+            lock (_links)
             {
+                admitted = _perAddress.GetValueOrDefault(address) < _end.Options.MaxLinksPerAddress;
+                if (admitted) { _perAddress[address] = _perAddress.GetValueOrDefault(address) + 1; }
+            }
+            if (!admitted || _end.Check(connection.RemoteCertificate) is not { } peer)
+            {
+                if (admitted) { lock (_links) { Release(address); } }
                 await connection.DisposeAsync().ConfigureAwait(false);
                 continue;
             }
             var link = QuicMachineLink.Accepted(connection, peer, _end, Path);
             lock (_links) { _links.Add(link); }
+            _ = link.Closed.ContinueWith(_ => { lock (_links) { _links.Remove(link); Release(address); } }, TaskScheduler.Default);
             _accepted(link);
         }
+    }
+
+    private void Release(IPAddress address)
+    {
+        if (_perAddress.GetValueOrDefault(address) <= 1) { _perAddress.Remove(address); }
+        else { _perAddress[address]--; }
     }
 
     public async ValueTask DisposeAsync()

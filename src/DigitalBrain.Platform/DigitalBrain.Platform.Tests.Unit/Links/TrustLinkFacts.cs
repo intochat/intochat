@@ -83,6 +83,24 @@ public sealed class TrustLinkFacts
         Assert.NotNull(await trust.Grains.GetGrain<IMachineRegistry>(stranger.MachineId).Read());
     }
 
+    // Fix round 1: before a link's machine is registered, the trust host reads at most a registration-sized frame
+    // and a couple of calls at a time; registered, the full frame size applies.
+    [Fact(Timeout = 120_000)]
+    public async Task AnUnregisteredPeerCannotBufferMoreThanTheRegistrationFrameCap()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        await using var trust = await TrustHost.StartAsync(ct);
+        await using var stranger = await RawMachine.Dial(trust, ct);
+        var large = new byte[64 * 1024];
+
+        await Assert.ThrowsAsync<LinkFailedException>(() => stranger.Send(TrustOperations.Deployment, large, ct));
+        Assert.False(string.IsNullOrEmpty(await stranger.Call<bool, string>(TrustOperations.Deployment, true, ct)));
+        await stranger.Register("stranger-account", ct);
+        var shard = RandomNumberGenerator.GetBytes(large.Length);
+        Assert.True(await stranger.Call<(string, string, byte[]), bool>(TrustOperations.ShardPut, ("seed-0", StorageProof.ContentId(shard), shard), ct));
+    }
+
     [Fact(Timeout = 120_000)]
     public async Task AKeyringWriteForAnotherAccountsBrainIsRefused()
     {
@@ -271,6 +289,9 @@ public sealed class TrustLinkFacts
             var link = await QuicMachineLink.Dial(new System.Net.IPEndPoint(System.Net.IPAddress.Parse(host), port), null, trust.TrustId, end, LinkPath.Direct, cancellationToken);
             return new RawMachine(key, link, trust);
         }
+
+        public Task<LinkReply> Send(string operation, byte[] payload, CancellationToken cancellationToken)
+            => _link.Send(new LinkRequest(operation, payload, null, null, Guid.NewGuid()), cancellationToken);
 
         public async Task<TResult> Call<TArgs, TResult>(string operation, TArgs args, CancellationToken cancellationToken)
             => Serializer.Deserialize<TResult>(LinkReplies.Payload(await _link.Send(new LinkRequest(operation, Serializer.SerializeToArray(args), null, null, Guid.NewGuid()), cancellationToken)))!;

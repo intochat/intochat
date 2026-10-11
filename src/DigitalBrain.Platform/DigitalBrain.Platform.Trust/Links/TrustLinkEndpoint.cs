@@ -79,6 +79,7 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
     public static readonly ActivitySource Source = new(SourceName);
 
     private readonly ConcurrentDictionary<string, QuicMachineLink> _links = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, bool> _registered = new(StringComparer.Ordinal);
     private QuicLinkListener? _listener;
     private Relay? _relay;
     private Rendezvous? _rendezvous;
@@ -109,7 +110,7 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
         // The trust link admits any machine whose endorsement holds, for any deployment it was made for (R90):
         // registration is checked per call, and a machine learns the deployment id over this very link.
         _certificate = new LinkCertificate(_key, deployment, time);
-        var end = new LinkEnd(() => _certificate.Current, null, _ => true, links.Value, serializer, Dispatch, time);
+        var end = new LinkEnd(() => _certificate.Current, null, _ => true, links.Value, serializer, Dispatch, time, Admit);
         _listener = await QuicLinkListener.Start(new IPEndPoint(address, options.LinkPort), end, Accepted, cancellationToken).ConfigureAwait(false);
         Log.Listening(logger, _listener.LocalEndPoint, _relay.LocalEndPoint, TrustId, deployment);
     }
@@ -139,6 +140,15 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
             Log.Refused(logger, link.RemoteMachineId, request.Operation);
             throw;
         }
+    }
+
+    // An unregistered machine's link reads only registration-sized frames, two at a time (fix round 1, T20-4).
+    private async ValueTask<LinkAdmission> Admit(QuicMachineLink link)
+    {
+        if (_registered.ContainsKey(link.RemoteMachineId)) { return LinkAdmission.Full; }
+        if (await Registry(link.RemoteMachineId).Read().ConfigureAwait(false) is null) { return LinkAdmission.Registration; }
+        _registered[link.RemoteMachineId] = true;
+        return LinkAdmission.Full;
     }
 
     private IMachineRegistry Registry(string machineId) => grains.GetGrain<IMachineRegistry>(machineId);
