@@ -91,10 +91,14 @@ internal static class HolePunch
             var buffer = new byte[2048];
             try
             {
-                while (heard is null)
+                while (Volatile.Read(ref heard) is null)
                 {
                     var received = await socket.ReceiveFromAsync(buffer, SocketFlags.None, new IPEndPoint(IPAddress.Any, 0), over.Token);
-                    if (buffer.AsSpan(0, received.ReceivedBytes).SequenceEqual(punch)) { heard = (IPEndPoint)received.RemoteEndPoint; }
+                    if (buffer.AsSpan(0, received.ReceivedBytes).SequenceEqual(punch))
+                    {
+                        var from = (IPEndPoint)received.RemoteEndPoint;
+                        Volatile.Write(ref heard, new IPEndPoint(from.Address, from.Port));
+                    }
                 }
             }
             catch (OperationCanceledException) { }
@@ -102,7 +106,7 @@ internal static class HolePunch
         try
         {
             // Keep punching a few rounds after hearing the peer, so its mapping towards us is open too.
-            while (!over.IsCancellationRequested && (heard is null || after++ < 3))
+            while (!over.IsCancellationRequested && (Volatile.Read(ref heard) is null || after++ < 3))
             {
                 foreach (var endpoint in peer)
                 {

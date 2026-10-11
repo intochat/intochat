@@ -36,11 +36,14 @@ internal sealed class Relay : IAsyncDisposable
     private readonly Task[] _receiving;
     private readonly ConcurrentDictionary<string, Slot> _slots = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<IPEndPoint, Slot> _routes = new();
+    private readonly ITimer _sweeping;
 
     private Relay(Socket socket, TimeProvider time)
     {
         (_socket, _time) = (socket, time);
         _receiving = [.. Enumerable.Range(0, Receivers).Select(_ => Task.Run(Receive))];
+        // Idle slots go even when no new slot is allocated.
+        _sweeping = time.CreateTimer(_ => Expire(), null, SlotIdle / 2, SlotIdle / 2);
     }
 
     public IPEndPoint LocalEndPoint => (IPEndPoint)_socket.LocalEndPoint!;
@@ -72,18 +75,21 @@ internal sealed class Relay : IAsyncDisposable
         return token;
     }
 
+    // Each receiver owns its address buffer: concurrent ReceiveFromAsync calls that share endpoint state can report
+    // one datagram's sender for another's, which would let a stranger take a slot's place (fix round 1).
     private async Task Receive()
     {
         var buffer = new byte[65_536];
-        EndPoint any = new IPEndPoint(_socket.AddressFamily == AddressFamily.InterNetworkV6 ? IPAddress.IPv6Any : IPAddress.Any, 0);
+        var template = new IPEndPoint(_socket.AddressFamily == AddressFamily.InterNetworkV6 ? IPAddress.IPv6Any : IPAddress.Any, 0);
+        var address = new SocketAddress(_socket.AddressFamily);
         while (!_stopping.IsCancellationRequested)
         {
-            SocketReceiveFromResult received;
-            try { received = await _socket.ReceiveFromAsync(buffer, SocketFlags.None, any, _stopping.Token).ConfigureAwait(false); }
+            int received;
+            try { received = await _socket.ReceiveFromAsync(buffer, SocketFlags.None, address, _stopping.Token).ConfigureAwait(false); }
             catch (Exception stopped) when (stopped is OperationCanceledException or ObjectDisposedException) { return; }
             catch (SocketException) { continue; }
-            var from = (IPEndPoint)received.RemoteEndPoint;
-            var datagram = buffer.AsSpan(0, received.ReceivedBytes).ToArray();
+            var from = (IPEndPoint)template.Create(address);
+            var datagram = buffer.AsSpan(0, received).ToArray();
             try { await Handle(from, datagram).ConfigureAwait(false); }
             catch (SocketException) { }
             catch (ObjectDisposedException) { return; }
@@ -97,7 +103,7 @@ internal sealed class Relay : IAsyncDisposable
             slot.Seen = _time.GetUtcNow();
             if (Tamper && datagram.Length > 0) { datagram[^1] ^= 0x01; }
             Forwarded?.Invoke(datagram);
-            await _socket.SendToAsync(datagram, SocketFlags.None, to).ConfigureAwait(false);
+            await SendTo(datagram, to).ConfigureAwait(false);
             return;
         }
         if (datagram.AsSpan().StartsWith(ReflectAsk) && datagram.Length == 4 + TokenSize)
@@ -105,7 +111,7 @@ internal sealed class Relay : IAsyncDisposable
             var answer = new List<byte>(ReflectAnswer.ToArray());
             answer.AddRange(datagram.AsSpan(4, TokenSize).ToArray());
             answer.AddRange(Encoding.ASCII.GetBytes(from.ToString()));
-            await _socket.SendToAsync(answer.ToArray(), SocketFlags.None, from).ConfigureAwait(false);
+            await SendTo(answer.ToArray(), from).ConfigureAwait(false);
             return;
         }
         if (datagram.AsSpan().StartsWith(SlotAsk) && datagram.Length == 4 + TokenSize
@@ -116,9 +122,12 @@ internal sealed class Relay : IAsyncDisposable
             var answer = new byte[4 + TokenSize];
             SlotAnswer.CopyTo(answer);
             datagram.AsSpan(4, TokenSize).CopyTo(answer.AsSpan(4));
-            await _socket.SendToAsync(answer, SocketFlags.None, from).ConfigureAwait(false);
+            await SendTo(answer, from).ConfigureAwait(false);
         }
     }
+
+    // A per-send address, never the socket's cached one, for the same reason as Receive.
+    private ValueTask<int> SendTo(byte[] datagram, IPEndPoint to) => _socket.SendToAsync(datagram, SocketFlags.None, to.Serialize(), _stopping.Token);
 
     private void Expire()
     {
@@ -135,6 +144,7 @@ internal sealed class Relay : IAsyncDisposable
     {
         if (_stopping.IsCancellationRequested) { return; }
         await _stopping.CancelAsync().ConfigureAwait(false);
+        await _sweeping.DisposeAsync().ConfigureAwait(false);
         _socket.Dispose();
         await Task.WhenAll(_receiving).ConfigureAwait(false);
         _stopping.Dispose();

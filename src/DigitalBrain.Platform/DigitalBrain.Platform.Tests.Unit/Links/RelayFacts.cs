@@ -95,6 +95,46 @@ public sealed class RelayFacts
 
         Assert.False(answered);
         Assert.Equal(0, Volatile.Read(ref leaked));
+
+        // Even with the slot's own token, a third endpoint is not joined once the slot has its two machines.
+        var token = pair.Relay.Allocate("x", "y");
+        using var first = Udp();
+        using var second = Udp();
+        using var third = Udp();
+        byte[] slotJoin = [.. Relay.SlotAsk, .. token];
+        byte[] joined = [.. Relay.SlotAnswer, .. token];
+        Assert.True(await Answers(first, slotJoin, pair.Trust.Relay, joined, ct));
+        Assert.True(await Answers(second, slotJoin, pair.Trust.Relay, joined, ct));
+        Assert.False(await Answers(third, slotJoin, pair.Trust.Relay, joined, ct));
+        await third.SendToAsync(strangers, SocketFlags.None, pair.Trust.Relay, ct);
+        Assert.False(await Answers(first, [], null, strangers, ct));
+        Assert.Equal(0, Volatile.Read(ref leaked));
+    }
+
+    private static Socket Udp()
+    {
+        var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        socket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        return socket;
+    }
+
+    // Sends `datagram` (when there is one) and reports whether `expected` arrives within half a second. Other
+    // datagrams are ignored: parallel facts' stray packets can reach a reused loopback port.
+    private static async Task<bool> Answers(Socket socket, byte[] datagram, IPEndPoint? to, byte[] expected, CancellationToken cancellationToken)
+    {
+        if (to is not null) { await socket.SendToAsync(datagram, SocketFlags.None, to, cancellationToken); }
+        using var wait = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        wait.CancelAfter(TimeSpan.FromMilliseconds(500));
+        var buffer = new byte[2048];
+        try
+        {
+            while (true)
+            {
+                var received = await socket.ReceiveFromAsync(buffer, SocketFlags.None, new IPEndPoint(IPAddress.Any, 0), wait.Token);
+                if (buffer.AsSpan(0, received.ReceivedBytes).SequenceEqual(expected)) { return true; }
+            }
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return false; }
     }
 
     // A trust host and two machines of one owner over it; B cannot be reached directly.
