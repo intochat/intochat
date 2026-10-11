@@ -51,8 +51,29 @@ public sealed class StageFacts
         await using var changes = await brain.Observe<StageChanged>(stage, ct);
         await stage.Back();
         Assert.Equal(before, (await stage.Read()).Revision);
-        var next = changes.NextAsync(ct: ct);
+        using var pending = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var next = changes.NextAsync(ct: pending.Token);
         Assert.NotSame(next, await Task.WhenAny(next, Task.Delay(TimeSpan.FromMilliseconds(300), ct)));
+        await pending.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => next);
+    }
+
+    [Fact]
+    public async Task HomeOnBareHomeSavesNothingAndPublishesNothing()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
+        var stage = brain.Get<IStage>(Key);
+        await stage.SetHome("owner/apps/ino/scenes/home");
+        var before = (await stage.Read()).Revision;
+        await using var changes = await brain.Observe<StageChanged>(stage, ct);
+        await stage.Home();
+        Assert.Equal(before, (await stage.Read()).Revision);
+        using var pending = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var next = changes.NextAsync(ct: pending.Token);
+        Assert.NotSame(next, await Task.WhenAny(next, Task.Delay(TimeSpan.FromMilliseconds(300), ct)));
+        await pending.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => next);
     }
 
     [Fact]
@@ -110,6 +131,21 @@ public sealed class StageFacts
             await Assert.ThrowsAsync<UnauthorizedAccessException>(stage.Read);
             await Assert.ThrowsAsync<UnauthorizedAccessException>(stage.Back);
         }
+    }
+
+    [Fact]
+    public async Task ANonOwnerAccountOfTheSameBrainIsRefusedTheOwnerAlias()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
+        var stage = brain.Get<IStage>("owner/stage/owner");
+        using (brain.Owner.AsCaller()) { await stage.SetHome("owner/apps/ino/scenes/home"); }
+        using (As(new CallerContext { PrincipalId = "carol", AccountId = "carol", BrainId = "owner", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp }))
+        {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(stage.Read);
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => stage.Go("owner/apps/x/scenes/1"));
+        }
+        using (brain.Owner.AsCaller()) { Assert.Single((await stage.Read()).Stack); }
     }
 
     private static Restore As(CallerContext caller)
