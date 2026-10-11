@@ -7,6 +7,9 @@ import 'package:flame/events.dart';
 import 'package:flutter/animation.dart';
 import 'package:flutter/foundation.dart';
 
+import 'prefabs/activity_ring.dart';
+import 'prefabs/brain_graph.dart';
+import 'prefabs/ino_sphere.dart';
 import 'primitive_nodes.dart';
 
 import 'scene_game.dart';
@@ -212,7 +215,7 @@ abstract class NodeComponent extends PositionComponent
 }
 
 abstract final class NodeComponents {
-  /// The component for a known primitive type; null for anything else.
+  /// The component for a known primitive or prefab type; null for anything else.
   static NodeComponent? build(SceneNode node) => switch (node.type) {
     'circle' => CircleNode(node),
     'rect' => RectNode(node),
@@ -221,6 +224,9 @@ abstract final class NodeComponents {
     'path' => PathNode(node),
     'particles' => ParticlesNode(node),
     'group' => GroupNode(node),
+    'ino_sphere' => InoSphere(node),
+    'activity_ring' => ActivityRing(node),
+    'brain_graph' => BrainGraph(node),
     _ => null,
   };
 }
