@@ -175,6 +175,49 @@ public sealed class SessionConnectionFacts
         finally { firstGate.TrySetResult(HttpStatusCode.OK); nextGate.TrySetResult(HttpStatusCode.OK); }
     }
 
+    // One report covers every batch queued for a subscription: the highest watermark, and the time and
+    // batches of all of them, so the brain records what the runs cost together.
+    [Fact]
+    public async Task CoalescedAcknowledgementsSumTheirTimeAndBatches()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var firstGate = new TaskCompletionSource<HttpStatusCode>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var received = System.Threading.Channels.Channel.CreateUnbounded<JsonArray>();
+        var count = 0;
+        var brain = new FakeBrain
+        {
+            Acknowledge = async (items, token) =>
+            {
+                var index = Interlocked.Increment(ref count);
+                received.Writer.TryWrite(items);
+                return index == 1 ? await firstGate.Task.WaitAsync(token) : HttpStatusCode.OK;
+            }
+        };
+        await using var session = await brain.OpenAsync(ct);
+        try
+        {
+            var first = session.AcknowledgeAsync("first", 1, ct);
+            await received.Reader.ReadAsync(ct);
+            var queued = new[]
+            {
+                session.AcknowledgeAsync("second", 2, ct, cpuMicroseconds: 100, wallMicroseconds: 1_000),
+                session.AcknowledgeAsync("second", 3, ct, cpuMicroseconds: 20, wallMicroseconds: 300),
+            };
+            firstGate.SetResult(HttpStatusCode.OK);
+            await first;
+
+            var report = Assert.Single(await received.Reader.ReadAsync(ct))!;
+            await Task.WhenAll(queued);
+
+            Assert.Equal("second", report["subscription"]!.GetValue<string>());
+            Assert.Equal(3, report["watermark"]!.GetValue<long>());
+            Assert.Equal(120, report["cpuMicroseconds"]!.GetValue<long>());
+            Assert.Equal(1_300, report["wallMicroseconds"]!.GetValue<long>());
+            Assert.Equal(2, report["batches"]!.GetValue<int>());
+        }
+        finally { firstGate.TrySetResult(HttpStatusCode.OK); }
+    }
+
     [Fact]
     public async Task AFailedAcknowledgementCanBeRetriedAndDisposalSettlesOutstandingWaiters()
     {

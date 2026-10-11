@@ -62,6 +62,23 @@ public abstract class Neuron : Grain, INeuron
         await Notify(stamped);
     }
 
+    // Several facts of one call become durable in one journal append before any observer sees them. Each is
+    // stamped under the trace that caused it, or the current one when it names none.
+    protected async Task PublishAsync((Signal Signal, Trace? Trace)[] signals)
+    {
+        ArgumentNullException.ThrowIfNull(signals);
+        if (signals.Length == 0) { return; }
+        var stamped = new Signal[signals.Length];
+        for (var i = 0; i < signals.Length; i++)
+        {
+            ArgumentNullException.ThrowIfNull(signals[i].Signal);
+            using var entered = signals[i].Trace is { } trace ? TraceContext.Enter(trace) : null;
+            stamped[i] = Stamp(signals[i].Signal);
+        }
+        await Journal.Append(this.GetGrainId(), stamped);
+        foreach (var signal in stamped) { await Notify(signal); }
+    }
+
     private protected ISignalJournal Journal => ServiceProvider.GetRequiredService<ISignalJournal>();
 
     private protected Signal Stamp(Signal signal) => signal with { Publisher = Id, Trace = TraceContext.Current };

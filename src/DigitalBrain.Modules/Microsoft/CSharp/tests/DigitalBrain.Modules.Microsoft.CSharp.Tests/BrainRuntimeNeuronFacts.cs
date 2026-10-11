@@ -1,11 +1,17 @@
+using System.Collections.Concurrent;
 using DigitalBrain.Client.Runtime;
 using DigitalBrain.Client.Runtime.V1;
+using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Microsoft.CSharp.Edge;
 using DigitalBrain.Microsoft.CSharp.Files;
 using DigitalBrain.Microsoft.CSharp.Runtime;
 using DigitalBrain.Microsoft.CSharp.Runtime.Signals;
 using DigitalBrain.Testing;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
@@ -84,6 +90,98 @@ public sealed class BrainRuntimeNeuronFacts
         host.Absent = false;
         await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default);
         await host.NextAsync(FakeSessionHost.IsStart, ct);
+    }
+
+    // A default app installs while the silo is still starting: its program is assigned, and the session waits
+    // for the reminder, because the silo has bound no address a sandbox could dial back yet.
+    [Fact]
+    public async Task AnAssignBeforeTheSiloListensDefersTheSessionToTheReminder()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new FakeSessionHost();
+        var server = new FakeServer();
+        var logs = new RecordingLogs();
+        await using var brain = await RuntimeBrain.Create(host)
+            .ConfigureServices(services => services.AddSingleton<IServer>(server).AddSingleton<ILoggerProvider>(logs))
+            .StartAsync(ct);
+        // A silo still starting has bound nothing yet.
+        server.Addresses.Clear();
+
+        await Programs(brain).Assign(Owner, Synapse(), []);
+
+        Assert.Equal(SessionStatus.Starting, (await Runtime(brain).Inspect(ct)).Session);
+        Assert.Contains(logs.Of<BrainRuntimeNeuron>(), entry => entry.Level == LogLevel.Information && entry.Message.Contains("waits until this silo listens", StringComparison.Ordinal));
+        Assert.DoesNotContain(logs.Of<BrainRuntimeNeuron>(), entry => entry.Level >= LogLevel.Warning);
+        server.Addresses.Add("http://127.0.0.1:5099");
+        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default);
+        var started = await host.NextAsync(FakeSessionHost.IsStart, ct);
+        Assert.Equal("http://host.docker.internal:5099/brains/acc-brain/", started.Body!["edgeUrl"]!.GetValue<string>());
+        Assert.Single(host.Requests, FakeSessionHost.IsStart);
+    }
+
+    // A silo that listens only where no sandbox can dial, with no EdgeUrl configured, never will: the program is
+    // still assigned, and the brain says what to configure.
+    [Fact]
+    public async Task AnAssignOnASiloWithoutAnHttpAddressReportsTheMissingEdgeUrl()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var host = new FakeSessionHost();
+        var logs = new RecordingLogs();
+        await using var brain = await RuntimeBrain.Create(host)
+            .ConfigureServices(services => services.AddSingleton<IServer>(new FakeServer("https://127.0.0.1:1")).AddSingleton<ILoggerProvider>(logs))
+            .StartAsync(ct);
+
+        await Programs(brain).Assign(Owner, Synapse(), []);
+
+        Assert.Equal(SessionStatus.Starting, (await Runtime(brain).Inspect(ct)).Session);
+        Assert.Contains(logs.Of<BrainRuntimeNeuron>(), entry => entry.Level == LogLevel.Error
+            && entry.Message.Contains($"Configure {CSharpDeploymentSettings.SectionName}:EdgeUrl", StringComparison.Ordinal));
+        Assert.DoesNotContain(host.Requests, FakeSessionHost.IsStart);
+    }
+
+    // A server whose addresses the fact controls. The host fills an empty list with its configured URL when it
+    // starts; a real server's list is empty until it binds, which a fact stands for by emptying it again.
+    private sealed class FakeServer : IServer
+    {
+        private readonly ServerAddressesFeature _addresses = new();
+
+        public FakeServer(params string[] addresses)
+        {
+            foreach (var address in addresses) { _addresses.Addresses.Add(address); }
+            Features.Set<IServerAddressesFeature>(_addresses);
+        }
+
+        public IFeatureCollection Features { get; } = new FeatureCollection();
+
+        public ICollection<string> Addresses => _addresses.Addresses;
+
+        public Task StartAsync<TContext>(IHttpApplication<TContext> application, CancellationToken cancellationToken) where TContext : notnull
+            => Task.CompletedTask;
+
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public void Dispose() { }
+    }
+
+    private sealed class RecordingLogs : ILoggerProvider
+    {
+        private readonly ConcurrentQueue<(string Category, LogLevel Level, string Message)> _entries = new();
+
+        public (string Category, LogLevel Level, string Message)[] Of<T>() => [.. _entries.Where(entry => entry.Category == typeof(T).FullName)];
+
+        public ILogger CreateLogger(string categoryName) => new Logger(categoryName, _entries);
+
+        public void Dispose() { }
+
+        private sealed class Logger(string category, ConcurrentQueue<(string Category, LogLevel Level, string Message)> entries) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+                => entries.Enqueue((category, logLevel, formatter(state, exception)));
+        }
     }
 
     // Local blob storage listens on the developer's loopback, which a sandbox container cannot reach.

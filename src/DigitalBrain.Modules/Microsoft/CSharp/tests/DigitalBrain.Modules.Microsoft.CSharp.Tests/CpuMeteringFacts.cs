@@ -66,16 +66,16 @@ public sealed class CpuMeteringFacts
 
     private static IBrainRuntime Runtime(ITestBrain brain) => RuntimeBrain.Runtime(brain, Acc);
 
-    private sealed record Recorded(CostKind Kind, string Item, decimal Quantity, string Unit, Funding Funding, string CostId, string? TraceId);
+    private sealed record Recorded(CostKind Kind, string Item, decimal Quantity, string Unit, Funding Funding, string CostId, string? TraceId, CostSubject? Subject);
 
     private sealed class RecordingMeter : ICostMeter
     {
         public ConcurrentQueue<Recorded> Calls { get; } = new();
 
         public ValueTask<Cost> RecordAsync(CostKind kind, string item, decimal quantity, string unit, Funding funding,
-            string costId, CancellationToken cancellationToken = default)
+            string costId, CancellationToken cancellationToken, CostSubject? subject = null)
         {
-            Calls.Enqueue(new Recorded(kind, item, quantity, unit, funding, costId, TraceContext.Current?.TraceId));
+            Calls.Enqueue(new Recorded(kind, item, quantity, unit, funding, costId, TraceContext.Current?.TraceId, subject));
             return ValueTask.FromResult(new Cost
             {
                 TraceId = TraceContext.Current?.TraceId ?? "",

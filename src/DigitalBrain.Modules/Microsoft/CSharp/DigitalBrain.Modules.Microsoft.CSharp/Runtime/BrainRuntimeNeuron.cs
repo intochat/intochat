@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -23,8 +24,9 @@ namespace DigitalBrain.Microsoft.CSharp.Runtime;
 // A brain's programs, their durable subscriptions and the one sandbox session that runs them. Every
 // change goes through the same rules: a session is wanted while anything is assigned; the host is told
 // the difference over its stream; signals buffer until the host acknowledges them. The reminder is the
-// backstop that relaunches a lost session, not the detector.
-[GrainType("microsoft.csharp.runtime")]
+// backstop that relaunches a lost session, not the detector. What the synapses' runs do becomes facts that
+// the brain's runs neuron publishes, one hand-off per turn after the turn's write.
+[GrainType(GrainTypeName)]
 internal sealed class BrainRuntimeNeuron(
     [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<BrainRuntimeState> store,
     SessionRunner runner,
@@ -41,6 +43,7 @@ internal sealed class BrainRuntimeNeuron(
     ILogger<BrainRuntimeNeuron> logger)
     : Neuron<BrainRuntimeState>(store), IBrainRuntime, IBrainRuntimeEdge, IBrainPrograms, IBrainRuntimeArrivals, IBrainRuntimeSession, IRemindable, INeuronObserver
 {
+    internal const string GrainTypeName = "microsoft.csharp.runtime";
     internal const string ReconcileReminder = "reconcile";
     // Orleans reminders fire at most once a minute.
     private static readonly TimeSpan ReconcilePeriod = TimeSpan.FromMinutes(1);
@@ -57,6 +60,13 @@ internal sealed class BrainRuntimeNeuron(
     private readonly Dictionary<string, (string Status, string? Error)> _reported = new(StringComparer.Ordinal);
     // The trace each pushed batch carried, per (subscription, watermark), so its ack prices the CPU it cost under that trace.
     private readonly Dictionary<(string Subscription, long Watermark), Trace> _batchTraces = new();
+    // Batches that reached a live stream and are not acknowledged yet, per (subscription, watermark): each started a run.
+    private readonly HashSet<(string Subscription, long Watermark)> _started = [];
+    // What each behavior's runs did since this activation. Memory only, like _reported.
+    private readonly Dictionary<string, RunCounts> _runs = new(StringComparer.Ordinal);
+    // This turn's run facts: handed to the brain's runs neuron in one call, once the turn's write succeeded.
+    private readonly List<RunFact> _facts = [];
+    private static readonly ActivitySource Telemetry = new("DigitalBrain.Microsoft.CSharp.Runtime");
     private ICostMeter? _meter;
     private IGrainTimer? _watchRenewal;
     // The tail of this activation's sandbox calls; each runs after the one before it, whatever its outcome.
@@ -67,6 +77,13 @@ internal sealed class BrainRuntimeNeuron(
 
     // The host composer may not have wired a meter yet; a brain without one simply does not price CPU.
     private ICostMeter? Meter => _meter ??= ServiceProvider.GetService<ICostMeter>();
+
+    // A subscription to any brain's runs neuron is a reaction to run facts, and its own runs publish none: a
+    // reaction to its own brain's runs would feed itself, and two brains reacting to each other's would feed each other.
+    private static bool IsRunFacts(string neuron) => GrainId.Parse(neuron).Type.ToString() == BrainRunsNeuron.GrainTypeName;
+
+    // The traces still held for pushed batches; a settled batch lets go of its trace.
+    internal int TracedBatches => _batchTraces.Count;
 
     public Task<BrainRuntimeSnapshot> Inspect(CancellationToken cancellationToken = default)
         => Task.FromResult(new BrainRuntimeSnapshot(Snapshot.Session?.Status ?? SessionStatus.None, Snapshot.Session?.Id,
@@ -80,7 +97,7 @@ internal sealed class BrainRuntimeNeuron(
 
     public async Task Hold(CancellationToken cancellationToken = default)
     {
-        var start = await PrepareSessionAsync(restart: false);
+        var start = await PrepareSessionAsync(restart: false) ?? throw NotListening();
         await _sandboxCalls;
         await runner.Ensure(start, cancellationToken);
     }
@@ -110,7 +127,7 @@ internal sealed class BrainRuntimeNeuron(
             Programs = [.. Snapshot.Programs.Where(p => p.Owner != owner), program],
             Subscriptions = [.. Snapshot.Subscriptions.Where(s => !removed.Contains(s.Behavior, StringComparer.Ordinal))],
         }, Changed());
-        foreach (var gone in removed) { _reported.Remove(gone); }
+        foreach (var gone in removed) { Forget(gone); }
         if (removed.Length > 0) { await WatchSourcesAsync(); }
         if (Snapshot.Session is null) { await EnsureSessionAsync(); }
         else
@@ -130,15 +147,31 @@ internal sealed class BrainRuntimeNeuron(
             Programs = [.. Snapshot.Programs.Where(p => p.Owner != owner)],
             Subscriptions = [.. Snapshot.Subscriptions.Where(s => !ids.Contains(s.Behavior, StringComparer.Ordinal))],
         }, Changed());
-        foreach (var id in ids) { _reported.Remove(id); }
+        foreach (var id in ids) { Forget(id); }
         await WatchSourcesAsync();
         if (Snapshot.Session is { } session) { foreach (var id in ids) { streams.TryPush(session.Id, RetireEvent.Kind, new RetireEvent(id)); } }
         if (Snapshot.Programs.Length == 0) { await EndSessionAsync(); }
     }
 
+    // What this activation remembers of a behavior that is no longer assigned, and of its batches in flight.
+    private void Forget(string behavior)
+    {
+        _reported.Remove(behavior);
+        _runs.Remove(behavior);
+        var live = Snapshot.Subscriptions.Select(s => s.Id).ToHashSet(StringComparer.Ordinal);
+        _started.RemoveWhere(key => !live.Contains(key.Subscription));
+        foreach (var key in _batchTraces.Keys.Where(key => !live.Contains(key.Subscription)).ToArray()) { _batchTraces.Remove(key); }
+    }
+
     // The behavior id's owner is a prefix; the longest matching owner wins.
     private ProgramAssignment? Find(string behavior)
         => Snapshot.Programs.Where(p => p.Behaviors.Any(b => b.Id(p.Owner) == behavior)).OrderByDescending(p => p.Owner.Length).FirstOrDefault();
+
+    // The program a behavior belongs to and its own assembly's hash; null for a behavior no longer assigned.
+    private (string Owner, string Hash)? Synapse(string behavior)
+        => Find(behavior) is { } program && program.Behaviors.FirstOrDefault(b => b.Id(program.Owner) == behavior) is { } assembly
+            ? (program.Owner, assembly.Hash)
+            : null;
 
     Task<ProgramView?> IBrainPrograms.Describe(string owner)
         => Task.FromResult(Snapshot.Programs.FirstOrDefault(p => p.Owner == owner) is { } program ? View(program) : null);
@@ -192,6 +225,7 @@ internal sealed class BrainRuntimeNeuron(
         // Watching itself would deadlock this non-reentrant grain and self-feed on every save.
         if (neuron == this.GetGrainId().ToString()) { throw new ArgumentException("A behavior cannot subscribe to its brain runtime.", nameof(neuron)); }
         ArgumentException.ThrowIfNullOrWhiteSpace(signal);
+        _facts.Clear();
         var existing = Snapshot.Subscriptions.FirstOrDefault(s => s.Behavior == behavior && s.Neuron == neuron && s.Signal == signal);
         if (existing is null)
         {
@@ -203,7 +237,8 @@ internal sealed class BrainRuntimeNeuron(
             // through the watch itself, and a duplicate is at-least-once's to bear; nothing is lost.
             await Save(Snapshot with { Subscriptions = [.. Snapshot.Subscriptions, existing] }, Changed());
             await WatchSourcesAsync(required: neuron);
-            var seeded = await SeedRetainedAsync(neuron, signal, existing.Watermark);
+            // A runs neuron retains nothing, so a reaction to run facts has no backlog to seed.
+            var seeded = IsRunFacts(neuron) ? [] : await SeedRetainedAsync(neuron, signal, existing.Watermark);
             if (seeded.Length > 0)
             {
                 var current = Snapshot.Subscriptions.First(s => s.Id == existing.Id);
@@ -222,51 +257,83 @@ internal sealed class BrainRuntimeNeuron(
             await CatchUpAsync(neuron, push: false);
             existing = Snapshot.Subscriptions.First(s => s.Id == existing.Id);
             // A reloaded behavior gets what waited while it was down without another arrival.
-            if (existing.Pending.Length > 0 && Snapshot.Session is { Status: SessionStatus.Connected })
-            { streams.TryPush(session, SignalBatchEvent.Kind, Batch(existing)); }
+            if (existing.Pending.Length > 0 && Snapshot.Session is { Status: SessionStatus.Connected }) { Push(session, existing); }
         }
+        logger.LogInformation("BehaviorSubscribed {Behavior} {Neuron} {Signal}", behavior, neuron, signal);
+        Flush();
         return existing.Id;
     }
 
-    public async Task Acknowledge(string session, string subscription, long watermark)
+    public Task Acknowledge(string session, string subscription, long watermark)
     {
         RequireSpeaking(session);
-        var found = Snapshot.Subscriptions.FirstOrDefault(s => s.Id == subscription);
-        if (found is null) { return; }
-        var trimmed = found.Acknowledge(watermark);
-        if (trimmed.Delivered == found.Delivered) { return; }
-        await Save(Snapshot with { Subscriptions = [.. Snapshot.Subscriptions.Select(s => s == found ? trimmed : s)] }, Changed());
+        return AcknowledgeAsync([new AcknowledgeReport(subscription, watermark)]);
     }
 
-    public async Task AcknowledgeMany(string session, AcknowledgeReport[] acknowledgements)
+    public Task AcknowledgeMany(string session, AcknowledgeReport[] acknowledgements)
     {
         RequireSpeaking(session);
         ArgumentNullException.ThrowIfNull(acknowledgements);
         if (acknowledgements.Length is 0 or > RuntimeProtocol.MaximumAcknowledgements
-            || acknowledgements.Any(ack => ack is null || string.IsNullOrWhiteSpace(ack.Subscription) || ack.Watermark < 0 || ack.CpuMicroseconds < 0))
+            || acknowledgements.Any(ack => ack is null || string.IsNullOrWhiteSpace(ack.Subscription) || ack.Watermark < 0
+                || ack.CpuMicroseconds < 0 || ack.WallMicroseconds < 0 || ack.Batches < 0))
         { throw new ArgumentException("An acknowledgement batch needs 1 to 256 valid subscription watermarks.", nameof(acknowledgements)); }
-        var watermarks = acknowledgements.GroupBy(ack => ack.Subscription, StringComparer.Ordinal)
-            .ToDictionary(group => group.Key, group => group.Max(ack => ack.Watermark), StringComparer.Ordinal);
-        var changed = false;
+        return AcknowledgeAsync([.. acknowledgements.GroupBy(ack => ack.Subscription, StringComparer.Ordinal)
+            .Select(group => new AcknowledgeReport(group.Key, group.Max(ack => ack.Watermark), group.Sum(ack => ack.CpuMicroseconds),
+                group.Sum(ack => ack.WallMicroseconds), group.Sum(ack => ack.Batches)))]);
+    }
+
+    // One write trims every acknowledged subscription. A report that moved Delivered is a finished run; a
+    // replayed one is nothing. Either way the batches it covers, at or below its watermark, are no longer in flight.
+    private async Task AcknowledgeAsync(AcknowledgeReport[] reports)
+    {
+        _facts.Clear();
+        var byId = reports.ToDictionary(report => report.Subscription, StringComparer.Ordinal);
+        var advanced = new List<(Subscription Before, Subscription After, AcknowledgeReport Report)>();
         var next = Snapshot.Subscriptions.Select(subscription =>
         {
-            if (!watermarks.TryGetValue(subscription.Id, out var watermark)) { return subscription; }
-            var trimmed = subscription.Acknowledge(watermark);
-            changed |= trimmed.Delivered != subscription.Delivered;
+            if (!byId.TryGetValue(subscription.Id, out var report)) { return subscription; }
+            var trimmed = subscription.Acknowledge(report.Watermark);
+            if (trimmed.Delivered != subscription.Delivered) { advanced.Add((subscription, trimmed, report)); }
             return trimmed;
         }).ToArray();
-        if (changed) { await Save(Snapshot with { Subscriptions = next }, Changed()); }
-        if (Meter is { } meter)
+        if (advanced.Count > 0) { await Save(Snapshot with { Subscriptions = next }, Changed()); }
+        var traces = reports.ToDictionary(report => report.Subscription, report => Settle(report.Subscription, report.Watermark), StringComparer.Ordinal);
+        foreach (var (before, after, report) in advanced)
         {
-            foreach (var acknowledgement in acknowledgements)
-            {
-                _batchTraces.Remove((acknowledgement.Subscription, acknowledgement.Watermark), out var batch);
-                if (acknowledgement.CpuMicroseconds <= 0) { continue; }
-                using var entered = batch is null ? null : TraceContext.Enter(batch);
-                await meter.RecordAsync(CostKind.Script, "cpu-ms", acknowledgement.CpuMicroseconds / 1000m, "ms", Funding.Local,
-                    $"{acknowledgement.Subscription}:{acknowledgement.Watermark}", CancellationToken.None);
-            }
+            if (IsRunFacts(before.Neuron) || Synapse(before.Behavior) is not { } synapse) { continue; }
+            Ran(new BehaviorRan(RuntimeId, synapse.Owner, before.Behavior, synapse.Hash, before.Neuron, before.Signal, after.Delivered,
+                RunOutcome.Succeeded, report.Batches, report.WallMicroseconds, report.CpuMicroseconds, null), traces[report.Subscription]);
         }
+        Flush();
+        if (Meter is not { } meter) { return; }
+        // A replayed ack prices nothing again. Metering observes the run: a meter that fails does not fail the ack.
+        foreach (var (before, after, report) in advanced.Where(run => run.Report.CpuMicroseconds > 0))
+        {
+            using var entered = traces[report.Subscription] is { } batch ? TraceContext.Enter(batch) : null;
+            try
+            {
+                await meter.RecordAsync(CostKind.Script, "cpu-ms", report.CpuMicroseconds / 1000m, "ms", Funding.Local,
+                    $"{report.Subscription}:{report.Watermark}", CancellationToken.None, new CostSubject(Synapse: before.Behavior, App: Find(before.Behavior)?.Owner));
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            { logger.LogWarning(error, "Brain {Brain} could not price {Behavior}'s run through {Watermark}.", Brain, before.Behavior, after.Delivered); }
+        }
+    }
+
+    // The batches of a subscription at or below an acknowledged watermark are settled: none is in flight any
+    // more. The trace of the latest of them is the run's.
+    private Trace? Settle(string subscription, long watermark)
+    {
+        Trace? latest = null;
+        var at = long.MinValue;
+        foreach (var key in _batchTraces.Keys.Where(key => key.Subscription == subscription && key.Watermark <= watermark).ToArray())
+        {
+            if (key.Watermark > at) { (at, latest) = (key.Watermark, _batchTraces[key]); }
+            _batchTraces.Remove(key);
+        }
+        _started.RemoveWhere(key => key.Subscription == subscription && key.Watermark <= watermark);
+        return latest;
     }
 
     // The status the sandbox last reported for an assigned behavior. An exit is remembered, never disarmed:
@@ -275,15 +342,41 @@ internal sealed class BrainRuntimeNeuron(
     {
         RequireSpeaking(session);
         ArgumentNullException.ThrowIfNull(status);
-        if (Find(status.Behavior) is { } program && program.Behaviors.Any(b => b.Id(program.Owner) == status.Behavior && b.Hash == status.Hash))
-        { _reported[status.Behavior] = (status.Status, status.Error); }
+        _facts.Clear();
+        if (Find(status.Behavior) is { } program && program.Behaviors.FirstOrDefault(b => b.Id(program.Owner) == status.Behavior && b.Hash == status.Hash) is { } assembly)
+        {
+            _reported[status.Behavior] = (status.Status, status.Error);
+            if (status is { Status: "Exited", ExitCode: not (null or 0) }) { Failed(program.Owner, assembly.Hash, status); }
+        }
+        Flush();
         return Task.CompletedTask;
     }
 
+    // A behavior that exited while batches were in flight failed those runs. They are no longer started, so
+    // the batch resent to the restarted behavior starts a run again.
+    private void Failed(string owner, string hash, BehaviorStatusReport status)
+    {
+        foreach (var subscription in Snapshot.Subscriptions.Where(s => s.Behavior == status.Behavior && !IsRunFacts(s.Neuron)))
+        {
+            var inFlight = _started.Where(key => key.Subscription == subscription.Id).ToArray();
+            if (inFlight.Length == 0) { continue; }
+            var watermark = inFlight.Max(key => key.Watermark);
+            _started.ExceptWith(inFlight);
+            Ran(new BehaviorRan(RuntimeId, owner, status.Behavior, hash, subscription.Neuron, subscription.Signal, watermark,
+                RunOutcome.Failed, inFlight.Length, 0, 0, status.Error), _batchTraces.GetValueOrDefault((subscription.Id, watermark)));
+        }
+    }
+
+    // The pull path: the edge streams every batch returned here, so each starts its run.
     public Task<IReadOnlyList<SignalBatchEvent>> PendingBatches(string session)
     {
         RequireSpeaking(session);
-        return Task.FromResult<IReadOnlyList<SignalBatchEvent>>([.. Snapshot.Subscriptions.Where(s => s.Pending.Length > 0).Select(Batch)]);
+        _facts.Clear();
+        var pending = Snapshot.Subscriptions.Where(s => s.Pending.Length > 0).ToArray();
+        IReadOnlyList<SignalBatchEvent> batches = [.. pending.Select(Batch)];
+        foreach (var subscription in pending) { Started(subscription); }
+        Flush();
+        return Task.FromResult(batches);
     }
 
     public async Task<IReadOnlyList<AssignmentEvent>> Assignments(string session)
@@ -302,36 +395,43 @@ internal sealed class BrainRuntimeNeuron(
 
     public async Task Arrived(Signal signal)
     {
-        if (await CatchUpAsync(signal.Publisher.Name)) { return; }
+        _facts.Clear();
+        if (await CatchUpAsync(signal.Publisher.Name)) { Flush(); return; }
         var json = JsonSerializer.Serialize(signal, signal.GetType(), RuntimeProtocol.Json);
         var name = signal.GetType().Name;
         var cap = options.Value.MaximumPending;
         var arrived = new List<Subscription>();
+        var drops = new List<(Subscription Buffered, long Count)>();
         var next = Snapshot.Subscriptions.Select(s =>
         {
             if (s.Signal != name || s.Neuron != signal.Publisher.Name) { return s; }
             var buffered = s.Arrive(json, cap);
             arrived.Add(buffered);
+            if (buffered.Dropped > s.Dropped) { drops.Add((buffered, buffered.Dropped - s.Dropped)); }
             return buffered;
         }).ToArray();
         if (arrived.Count == 0) { return; }
         await Save(Snapshot with { Subscriptions = next }, Changed());
+        foreach (var (buffered, count) in drops) { Dropped(buffered, count); }
         if (Snapshot.Session is { Status: SessionStatus.Connected } session)
         {
-            foreach (var subscription in arrived) { streams.TryPush(session.Id, SignalBatchEvent.Kind, Batch(subscription)); }
+            foreach (var subscription in arrived) { Push(session.Id, subscription); }
         }
+        Flush();
     }
 
     // On a host with a part log a live signal is a nudge: the source's log after each watermark is what is buffered,
     // so a signal the runtime never heard live arrives too and none arrives twice. False when nothing is journaled.
     public async Task CatchUp()
     {
+        _facts.Clear();
         foreach (var neuron in Snapshot.Subscriptions.Select(s => s.Neuron).Distinct(StringComparer.Ordinal).ToArray())
         {
             try { await CatchUpAsync(neuron); }
             catch (Exception error)
             { logger.LogWarning(error, "Brain {Brain} could not read {Neuron}'s part log from its watermark; live signals and the next re-subscribe retry.", Brain, neuron); }
         }
+        Flush();
     }
 
     private async Task<bool> CatchUpAsync(string neuron, bool push = true)
@@ -342,6 +442,7 @@ internal sealed class BrainRuntimeNeuron(
         if (await journal.SignalsOf(GrainId.Parse(neuron), since) is not { } read) { return false; }
         var cap = options.Value.MaximumPending;
         var arrived = new List<Subscription>();
+        var drops = new List<(Subscription Buffered, long Count)>();
         var changed = false;
         var next = Snapshot.Subscriptions.Select(s =>
         {
@@ -354,14 +455,16 @@ internal sealed class BrainRuntimeNeuron(
             var through = Math.Max(Math.Max(s.SourceSeq, read.Floor), read.Signals.Length == 0 ? 0 : read.Signals[^1].Sequence);
             buffered = buffered with { SourceSeq = through };
             if (buffered.Pending.Length != s.Pending.Length || buffered.Delivered != s.Delivered) { arrived.Add(buffered); }
+            if (buffered.Dropped > s.Dropped) { drops.Add((buffered, buffered.Dropped - s.Dropped)); }
             changed |= buffered != s;
             return buffered;
         }).ToArray();
         if (!changed) { return true; }
         await Save(Snapshot with { Subscriptions = next }, Changed());
+        foreach (var (buffered, count) in drops) { Dropped(buffered, count); }
         if (push && Snapshot.Session is { Status: SessionStatus.Connected } session)
         {
-            foreach (var subscription in arrived) { streams.TryPush(session.Id, SignalBatchEvent.Kind, Batch(subscription)); }
+            foreach (var subscription in arrived) { Push(session.Id, subscription); }
         }
         return true;
     }
@@ -399,10 +502,19 @@ internal sealed class BrainRuntimeNeuron(
     // One rule for assignment, sign-in and the reminder. A missing, refused or silent session is replaced by
     // a new one (the old token stops speaking); a live one is ensured again, refreshing its token or
     // restoring it if the host lost it. Heartbeats are the detector; nothing here probes the host.
+    // A brain created while its silo is still starting has no address a sandbox can dial yet: the program
+    // is already assigned, and the reminder registered with the session starts it once the silo listens.
+    // A silo that listens, but on no http:// address, with no EdgeUrl configured, never will: that is a
+    // misconfiguration, reported on every reminder, and the assignment still stands.
     private async Task EnsureSessionAsync(bool restart = false)
-        => OffTurn(runner.Ensure, await PrepareSessionAsync(restart), "start");
+    {
+        if (await PrepareSessionAsync(restart) is { } start) { OffTurn(runner.Ensure, start, "start"); }
+        else if (ServerAddresses() is { Count: > 0 } addresses)
+        { logger.LogError("Brain {Brain}'s sandbox session cannot start on {Addresses}: {Reason}", Brain, string.Join(", ", addresses), NotListening().Message); }
+        else { logger.LogInformation("Brain {Brain}'s sandbox session waits until this silo listens; its reminder starts it.", Brain); }
+    }
 
-    private async Task<SessionStart> PrepareSessionAsync(bool restart)
+    private async Task<SessionStart?> PrepareSessionAsync(bool restart)
     {
         var session = Snapshot.Session;
         if (restart || session is null || session.Status == SessionStatus.Refused || Silent(session))
@@ -411,7 +523,7 @@ internal sealed class BrainRuntimeNeuron(
             await Save(Snapshot with { Session = session }, Changed());
             await reminders.RegisterOrUpdateReminder(this.GetGrainId(), ReconcileReminder, ReconcilePeriod, ReconcilePeriod);
         }
-        return new SessionStart(Brain, session.Id, tokens.Issue(Brain, session.Id), EdgeUrl());
+        return EdgeUrl() is { } edge ? new SessionStart(Brain, session.Id, tokens.Issue(Brain, session.Id), edge) : null;
     }
 
     private bool Silent(SessionRecord session) => (session.LastHeartbeat ?? session.Started) < time.GetUtcNow() - SilenceLimit;
@@ -474,6 +586,76 @@ internal sealed class BrainRuntimeNeuron(
     private static Trace? FirstSignalTrace(string[] pending)
         => pending.Length == 0 ? null : JsonSerializer.Deserialize<Signal>(pending[0], RuntimeProtocol.Json)?.Trace;
 
+    private void Push(string session, Subscription subscription)
+    {
+        if (streams.TryPush(session, SignalBatchEvent.Kind, Batch(subscription))) { Started(subscription); }
+    }
+
+    // A batch on a live stream starts a run once per watermark: the same batch pushed again starts nothing.
+    private void Started(Subscription subscription)
+    {
+        if (IsRunFacts(subscription.Neuron) || Synapse(subscription.Behavior) is not { } synapse
+            || !_started.Add((subscription.Id, subscription.Watermark))) { return; }
+        _facts.Add(new(new BehaviorStarted(RuntimeId, synapse.Owner, subscription.Behavior, synapse.Hash, subscription.Neuron,
+            subscription.Signal, subscription.Watermark), _batchTraces.GetValueOrDefault((subscription.Id, subscription.Watermark)) ?? TraceContext.Current));
+    }
+
+    // Signals pushed out of a full buffer never reach the synapse: a run that cannot happen, counted, never silent.
+    private void Dropped(Subscription buffered, long count)
+    {
+        if (IsRunFacts(buffered.Neuron) || Synapse(buffered.Behavior) is not { } synapse) { return; }
+        Ran(new BehaviorRan(RuntimeId, synapse.Owner, buffered.Behavior, synapse.Hash, buffered.Neuron, buffered.Signal, buffered.Delivered,
+            RunOutcome.Dropped, (int)Math.Min(count, int.MaxValue), 0, 0, null), null);
+    }
+
+    private void Ran(BehaviorRan ran, Trace? trace)
+    {
+        trace ??= TraceContext.Current;
+        _facts.Add(new(ran, trace));
+        var counts = _runs.GetValueOrDefault(ran.Behavior);
+        _runs[ran.Behavior] = ran.Outcome switch
+        {
+            RunOutcome.Succeeded => counts with { Runs = counts.Runs + 1, LastDurationMicroseconds = ran.DurationMicroseconds },
+            RunOutcome.Failed => counts with { Runs = counts.Runs + 1, Failures = counts.Failures + 1 },
+            _ => counts,
+        };
+        logger.LogInformation("BehaviorRan {Behavior} {Outcome} {DurationMicroseconds}", ran.Behavior, ran.Outcome, ran.DurationMicroseconds);
+        Span(ran, trace);
+    }
+
+    // The run as a span in the batch's own trace, ending now and as long as the synapse took.
+    private void Span(BehaviorRan ran, Trace? trace)
+    {
+        var end = time.GetUtcNow();
+        var parent = trace is { TraceId: { Length: 32 } id } && id.All(char.IsAsciiHexDigitLower)
+            ? new ActivityContext(ActivityTraceId.CreateFromString(id), default, ActivityTraceFlags.Recorded)
+            : default;
+        using var activity = Telemetry.StartActivity("runtime.batch", ActivityKind.Internal, parent,
+            startTime: end - TimeSpan.FromMicroseconds(ran.DurationMicroseconds));
+        if (activity is null) { return; }
+        activity.SetTag("digitalbrain.behavior", ran.Behavior).SetTag("digitalbrain.owner", ran.Owner)
+            .SetTag("digitalbrain.source", ran.Source).SetTag("digitalbrain.signal", ran.SignalType)
+            .SetTag("digitalbrain.outcome", ran.Outcome.ToString()).SetTag("digitalbrain.batches", ran.Batches)
+            .SetTag("digitalbrain.watermark", ran.Watermark).SetTag("digitalbrain.cpu_us", ran.CpuMicroseconds);
+        if (ran.Outcome == RunOutcome.Failed) { activity.SetStatus(ActivityStatusCode.Error, ran.Error); }
+        activity.SetEndTime(end.UtcDateTime);
+    }
+
+    // One one-way call carries the turn's facts. Unstamped: the runtime is their author, whoever's call
+    // produced them; the caller is restored for whatever the turn still does.
+    private void Flush()
+    {
+        if (_facts.Count == 0) { return; }
+        RunFact[] facts = [.. _facts];
+        _facts.Clear();
+        var caller = RequestContext.Get(CallerContextStamper.RequestContextKey);
+        RequestContext.Remove(CallerContextStamper.RequestContextKey);
+        try { _ = GrainFactory.GetGrain<IBrainRunsRecorder>(BrainRunsKeys.For(Brain)).Record(facts); }
+        finally { if (caller is not null) { RequestContext.Set(CallerContextStamper.RequestContextKey, caller); } }
+    }
+
+    private readonly record struct RunCounts(long Runs, long Failures, long LastDurationMicroseconds);
+
     // A source that retains the signal seeds a new subscription with the backlog the synapse missed.
     // A source without retention contributes nothing: the cast fails and there is nothing to seed.
     private async Task<string[]> SeedRetainedAsync(string neuron, string signal, long since)
@@ -494,24 +676,31 @@ internal sealed class BrainRuntimeNeuron(
         {
             var id = behavior.Id(program.Owner);
             (string Status, string? Error) reported = _reported.TryGetValue(id, out var last) ? last : ("Starting", null);
+            var runs = _runs.GetValueOrDefault(id);
             return new BehaviorView(id, behavior.Hash, reported.Status, reported.Error,
-                [.. Snapshot.Subscriptions.Where(s => s.Behavior == id).Select(s => new CSharpSubscriptionView(s.Neuron, s.Signal, s.Pending.Length, s.Delivered, s.Dropped))]);
+                [.. Snapshot.Subscriptions.Where(s => s.Behavior == id).Select(s => new CSharpSubscriptionView(s.Neuron, s.Signal, s.Pending.Length, s.Delivered, s.Dropped))],
+                runs.Runs, runs.Failures, runs.LastDurationMicroseconds);
         })]);
 
     private BrainRuntimeChanged Changed() => new(RuntimeId);
 
     // The host dials the brain's own edge: configured, or this silo's HTTP address on the Docker host.
-    private string EdgeUrl()
+    private string? EdgeUrl()
     {
         var root = deployment.Value.EdgeUrl is { Length: > 0 } configured ? configured : ListeningUrl();
-        return root.TrimEnd('/') + "/brains/" + Uri.EscapeDataString(Brain) + "/";
+        return root is null ? null : root.TrimEnd('/') + "/brains/" + Uri.EscapeDataString(Brain) + "/";
     }
 
-    private string ListeningUrl()
+    private static InvalidOperationException NotListening()
+        => new($"Configure {CSharpDeploymentSettings.SectionName}:EdgeUrl; this brain listens on no HTTP address a sandbox can reach.");
+
+    // Empty while the silo has yet to bind its listeners.
+    private ICollection<string>? ServerAddresses() => ServiceProvider.GetService<IServer>()?.Features.Get<IServerAddressesFeature>()?.Addresses;
+
+    private string? ListeningUrl()
     {
-        var listening = ServiceProvider.GetService<IServer>()?.Features.Get<IServerAddressesFeature>()?.Addresses
-            .FirstOrDefault(address => address.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException($"Configure {CSharpDeploymentSettings.SectionName}:EdgeUrl; this brain listens on no HTTP address a sandbox can reach.");
+        var listening = ServerAddresses()?.FirstOrDefault(address => address.StartsWith("http://", StringComparison.OrdinalIgnoreCase));
+        if (listening is null) { return null; }
         var wildcard = listening.Replace("://+", "://localhost", StringComparison.Ordinal).Replace("://*", "://localhost", StringComparison.Ordinal)
             .Replace("[::]", "localhost", StringComparison.Ordinal).Replace("0.0.0.0", "localhost", StringComparison.Ordinal);
         return new UriBuilder(wildcard) { Host = DockerHost }.Uri.ToString();

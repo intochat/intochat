@@ -132,7 +132,7 @@ public sealed class MeteringFacts
         public ConcurrentQueue<RecordedCost> Calls { get; } = new();
 
         public ValueTask<Cost> RecordAsync(CostKind kind, string item, decimal quantity, string unit, Funding funding,
-            string costId, CancellationToken cancellationToken = default)
+            string costId, CancellationToken cancellationToken, CostSubject? subject = null)
         {
             Calls.Enqueue(new RecordedCost(kind, item, quantity, unit, funding, costId));
             return ValueTask.FromResult(new Cost

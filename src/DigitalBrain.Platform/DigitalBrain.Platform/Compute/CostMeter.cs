@@ -18,7 +18,7 @@ internal sealed class CostMeter(
     : ICostMeter
 {
     public async ValueTask<Cost> RecordAsync(CostKind kind, string item, decimal quantity, string unit, Funding funding,
-        string costId, CancellationToken cancellationToken = default)
+        string costId, CancellationToken cancellationToken, CostSubject? subject = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(item);
         ArgumentException.ThrowIfNullOrWhiteSpace(unit);
@@ -52,6 +52,9 @@ internal sealed class CostMeter(
             Quantity = quantity,
             Unit = unit,
             Micros = micros,
+            Synapse = subject?.Synapse,
+            App = subject?.App,
+            Neuron = subject?.Neuron,
             At = DateTimeOffset.UtcNow,
         };
 

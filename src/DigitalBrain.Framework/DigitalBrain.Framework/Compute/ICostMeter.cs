@@ -39,10 +39,13 @@ public interface ICircleShares : IGrainWithStringKey
     Task Configure(int percent, string[] members);
 }
 
+// What a cost was spent on, when the caller knows: the synapse that ran, its app, the neuron it served.
+public sealed record CostSubject(string? Synapse = null, string? App = null, string? Neuron = null);
+
 public interface ICostMeter
 {
     // Prices the quantity, applies funding and fee, and records it against TraceContext.Current.
     // Without a current trace the cost lands on the caller's brain under an untraced trace.
     ValueTask<Cost> RecordAsync(CostKind kind, string item, decimal quantity, string unit, Funding funding,
-        string costId, CancellationToken cancellationToken = default);
+        string costId, CancellationToken cancellationToken, CostSubject? subject = null);
 }

@@ -94,6 +94,23 @@ public sealed class CostMeterFacts
         AssertRow(await brain.Grains.GetGrain<IUsageGrain>(meter.BrainId).Group(UsageGrouping.Kind, DateTimeOffset.UtcNow.AddDays(-1), 10), "Model", 1_250, 1);
     }
 
+    [Fact]
+    public async Task ACostKnowsTheSynapseAppAndNeuronItWasSpentOn()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await MeteredBrain(1_000, ct);
+        using var meter = await brain.PersonAsync("meter", ct);
+        using var caller = meter.AsCaller();
+        var synapse = meter.Key("apps/x/synapses/a.cs");
+
+        var cost = await Meter(brain).RecordAsync(CostKind.Script, "cpu-ms", 1m, "ms", Funding.Integration, "s-1", ct,
+            new CostSubject(Synapse: synapse, App: meter.Key("apps/x"), Neuron: meter.Key("timer")));
+
+        Assert.Equal((synapse, meter.Key("apps/x"), meter.Key("timer")), (cost.Synapse, cost.App, cost.Neuron));
+        AssertRow(await brain.Grains.GetGrain<IUsageGrain>(meter.BrainId).Group(UsageGrouping.Synapse, DateTimeOffset.UtcNow.AddDays(-1), 10), synapse, 1_250, 1);
+        AssertRow(await brain.Grains.GetGrain<IUsageGrain>(meter.BrainId).Group(UsageGrouping.App, DateTimeOffset.UtcNow.AddDays(-1), 10), meter.Key("apps/x"), 1_250, 1);
+    }
+
     // The circle's owner funds a share of their balance to the brains in it; the meter is one of them.
     private sealed record Circle(ITestBrain Brain, Person Owner, Person Meter, string Key) : IAsyncDisposable
     {

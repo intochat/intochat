@@ -36,12 +36,15 @@ internal sealed class SessionSignalSubscription<T> : IAsyncDisposable where T : 
             // The behavior's reaction to these signals continues the trace that published them.
             if (batch.TraceParent is { } traceParent) { _trace.TraceParent = traceParent; }
             // The whole process's processor time while this batch was handled is this batch's CPU cost;
-            // the ack report carries it so the brain can price the synapse run against the batch's trace.
+            // the ack report carries it, and the time the run took, so the brain can price and record the
+            // synapse run against the batch's trace.
             var cpuStart = Process.GetCurrentProcess().TotalProcessorTime;
+            var wallStart = Stopwatch.GetTimestamp();
             foreach (var json in batch.Signals) { yield return JsonSerializer.Deserialize<T>(json, RuntimeProtocol.Json)!; }
             // Resuming here means the consumer asked for more: every signal of the batch was handled.
             var cpuMicros = (long)Math.Max(0, (Process.GetCurrentProcess().TotalProcessorTime - cpuStart).TotalMicroseconds);
-            await _session.AcknowledgeAsync(_id, batch.Watermark, cancellationToken, cpuMicros).ConfigureAwait(false);
+            var wallMicros = (long)Stopwatch.GetElapsedTime(wallStart).TotalMicroseconds;
+            await _session.AcknowledgeAsync(_id, batch.Watermark, cancellationToken, cpuMicros, wallMicros).ConfigureAwait(false);
             _acknowledged = batch.Watermark;
         }
     }
