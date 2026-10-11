@@ -13,20 +13,25 @@ public sealed class ContractDiscoveryFacts
     public async Task DiscoveryListsComposedModulesAndReadsTheirContractsWithoutTheRegistry()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<CSharpModule>().WithReminders()
+        await using var brain = await TestBrain.Create().WithModule<CSharpModule>()
             .StartAsync(ct);
-        var discovery = brain.SiloServices.GetRequiredService<CSharpContractDiscovery>();
+        var discovery = brain.Services.GetRequiredService<CSharpContractDiscovery>();
 
-        var index = await KernelTypeFacts.Stamped(brain, () => discovery.Read([], ct));
+        var index = await AsOwner(brain, () => discovery.Read([], ct));
         Assert.Contains(index.Modules, module => module.Id == "csharp");
         Assert.DoesNotContain(index.Modules, module => module.Id == "registry");
         Assert.Empty(index.Contracts);
 
-        var csharp = await KernelTypeFacts.Stamped(brain, () => discovery.Read(["csharp"], ct));
+        var csharp = await AsOwner(brain, () => discovery.Read(["csharp"], ct));
         Assert.Contains(csharp.Contracts, line => line.Contains(typeof(ICSharpFile).FullName!, StringComparison.Ordinal));
 
 
-        var unknown = await Assert.ThrowsAsync<ArgumentException>(() => KernelTypeFacts.Stamped(brain, () => discovery.Read(["nope"], ct)));
+        var unknown = await Assert.ThrowsAsync<ArgumentException>(() => AsOwner(brain, () => discovery.Read(["nope"], ct)));
         Assert.Contains("Installed module IDs", unknown.Message, StringComparison.Ordinal);
+    }
+
+    private static async Task<T> AsOwner<T>(ITestBrain brain, Func<Task<T>> read)
+    {
+        using (brain.Owner.AsCaller()) { return await read(); }
     }
 }

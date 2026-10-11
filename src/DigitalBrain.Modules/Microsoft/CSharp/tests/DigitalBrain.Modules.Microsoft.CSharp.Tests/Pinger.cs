@@ -1,8 +1,16 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
+
+// Composes the test's own contracts, so behaviors may call them as they call an installed module's.
+public sealed class PingerModule() : Module(new ModuleId("tests-pinger"))
+{
+    public override System.Reflection.Assembly? Contracts => typeof(IPinger).Assembly;
+    public override void Configure(ISiloBuilder silo) { }
+}
 
 [Alias("tests.csharp.pinger")]
 [Public]

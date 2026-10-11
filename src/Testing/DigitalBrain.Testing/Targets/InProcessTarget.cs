@@ -59,6 +59,8 @@ public sealed class InProcessTarget : ITestTarget
             [$"{PartsOptions.Key}:MachineDirectory"] = session.MachineDirectory,
             [OrleansStorageHosting.SiloPortKey] = session.SiloPort.ToString(CultureInfo.InvariantCulture),
             [OrleansStorageHosting.GatewayPortKey] = session.GatewayPort.ToString(CultureInfo.InvariantCulture),
+            // The AppHost's Orleans resource turns grain-call tracing on for every silo; so does the test host.
+            ["Orleans:EnableDistributedTracing"] = "true",
         });
         foreach (var module in plan.Modules) { builder.Configuration.AddInMemoryCollection(module.Settings); }
         builder.Configuration.AddInMemoryCollection(plan.Configuration);

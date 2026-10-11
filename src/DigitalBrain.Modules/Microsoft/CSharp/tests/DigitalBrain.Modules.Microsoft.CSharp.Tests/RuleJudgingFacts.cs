@@ -44,7 +44,7 @@ public sealed class RuleJudgingFacts
         var ct = TestContext.Current.CancellationToken;
         var host = new JudgingHost();
         await using var brain = await Start(host, ct);
-        var sandbox = brain.SiloServices.GetRequiredService<IScriptSandbox>();
+        var sandbox = brain.Services.GetRequiredService<IScriptSandbox>();
         var bundle = new Dictionary<string, string> { ["synapses/a.cs"] = Synapse, ["rules/shouting.cs"] = Rules };
 
         var shouted = Assert.Single(await sandbox.Judge(Brain, bundle, new AppRequested("ask", "HEY", Guid.NewGuid()), ct));
@@ -61,7 +61,7 @@ public sealed class RuleJudgingFacts
         var ct = TestContext.Current.CancellationToken;
         var host = new JudgingHost { RequireSession = true };
         await using var brain = await Start(host, ct);
-        var sandbox = brain.SiloServices.GetRequiredService<IScriptSandbox>();
+        var sandbox = brain.Services.GetRequiredService<IScriptSandbox>();
         var bundle = new Dictionary<string, string> { ["synapses/a.cs"] = Synapse, ["rules/shouting.cs"] = Rules };
 
         var spoken = Assert.Single(await sandbox.Judge(Brain, bundle, new AppRequested("ask", "hey", Guid.NewGuid()), ct));
@@ -76,7 +76,7 @@ public sealed class RuleJudgingFacts
         var ct = TestContext.Current.CancellationToken;
         var host = new JudgingHost { RequireSession = true, StartThrows = true };
         await using var brain = await Start(host, ct);
-        var sandbox = brain.SiloServices.GetRequiredService<IScriptSandbox>();
+        var sandbox = brain.Services.GetRequiredService<IScriptSandbox>();
         var bundle = new Dictionary<string, string> { ["synapses/a.cs"] = Synapse, ["rules/shouting.cs"] = Rules };
 
         var verdict = Assert.Single(await sandbox.Judge(Brain, bundle, new AppRequested("ask", "hey", Guid.NewGuid()), ct));
@@ -90,7 +90,7 @@ public sealed class RuleJudgingFacts
         var ct = TestContext.Current.CancellationToken;
         var host = new JudgingHost();
         await using var brain = await Start(host, ct);
-        var sandbox = brain.SiloServices.GetRequiredService<IScriptSandbox>();
+        var sandbox = brain.Services.GetRequiredService<IScriptSandbox>();
         var bundle = new Dictionary<string, string> { ["synapses/a.cs"] = Synapse, ["shared/text.cs"] = "static class Text { }" };
 
         Assert.Empty(await sandbox.Judge(Brain, bundle, new AppRequested("ask", "HEY", Guid.NewGuid()), ct));
@@ -102,7 +102,7 @@ public sealed class RuleJudgingFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start(new JudgingHost(), ct);
-        var sandbox = brain.SiloServices.GetRequiredService<IScriptSandbox>();
+        var sandbox = brain.Services.GetRequiredService<IScriptSandbox>();
         var bundle = new Dictionary<string, string>
         {
             ["synapses/a.cs"] = Synapse,
@@ -125,7 +125,7 @@ public sealed class RuleJudgingFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start(new JudgingHost(), ct);
-        var sandbox = brain.SiloServices.GetRequiredService<IScriptSandbox>();
+        var sandbox = brain.Services.GetRequiredService<IScriptSandbox>();
         var bundle = new Dictionary<string, string> { ["synapses/a.cs"] = Synapse, ["rules/torn.cs"] = "public sealed class Torn : ILogic<Missing> { }" };
 
         var verdict = Assert.Single(await sandbox.Judge(Brain, bundle, new AppRequested("ask", "hey", Guid.NewGuid()), ct));
@@ -159,7 +159,7 @@ public sealed class RuleJudgingFacts
 
         Assert.Contains("rule did not answer", error.Message, StringComparison.Ordinal);
         Assert.True(DateTimeOffset.UtcNow - started < TimeSpan.FromSeconds(10));
-        await app.CurrentBuildAttempt().WaitAsync(TimeSpan.FromSeconds(5), ct);
+        await app.CurrentBuildAttempt();
     }
 
     [Fact]
@@ -168,7 +168,7 @@ public sealed class RuleJudgingFacts
         var ct = TestContext.Current.CancellationToken;
         var host = new JudgingHost();
         await using var brain = await Start(host, ct);
-        var sandbox = brain.SiloServices.GetRequiredService<IScriptSandbox>();
+        var sandbox = brain.Services.GetRequiredService<IScriptSandbox>();
         var bundle = new Dictionary<string, string>
         {
             ["synapses/a.cs"] = Synapse,
@@ -198,7 +198,7 @@ public sealed class RuleJudgingFacts
         var ct = TestContext.Current.CancellationToken;
         var host = new JudgingHost();
         await using var brain = await Start(host, ct);
-        var sandbox = brain.SiloServices.GetRequiredService<IScriptSandbox>();
+        var sandbox = brain.Services.GetRequiredService<IScriptSandbox>();
         var bundle = new Dictionary<string, string>
         {
             ["synapses/a.cs"] = Synapse,
@@ -221,22 +221,12 @@ public sealed class RuleJudgingFacts
         Assert.True(Assert.Single(await sandbox.Judge(Brain, bundle, new AppRequested("ask", "b", Guid.NewGuid()), ct)).Allowed);
     }
 
-    private static Task<ModuleBrain> Start(JudgingHost host, CancellationToken ct, bool apps = false)
-    {
-        var builder = apps ? ModuleTest.Create().WithModule<AppsModule>().WithModule<CSharpModule>() : ModuleTest.Create().WithModule<CSharpModule>();
-        return builder.WithReminders().ConfigureSilo(silo =>
-        {
-            silo.Services.AddHttpClient<SessionRunner>().ConfigurePrimaryHttpMessageHandler(() => host);
-            silo.Services.AddSingleton<IBehaviorAssemblies>(host);
-            silo.Services.AddSingleton(new DigitalBrain.Framework.CompiledTypes([typeof(IPinger).Assembly, typeof(ICSharpFile).Assembly]));
-            silo.Services.PostConfigure<CSharpOptions>(options => options.RuleTimeout = TimeSpan.FromSeconds(1));
-            silo.Services.PostConfigure<CSharpDeploymentSettings>(options =>
-            {
-                options.EdgeUrl = "http://edge.test/";
-                options.SandboxUrl = FakeSessionHost.Url;
-            });
-        }).StartAsync(ct);
-    }
+    private static Task<ITestBrain> Start(JudgingHost host, CancellationToken ct, bool apps = false)
+        => RuntimeBrain.Create(host, apps)
+            .WithOptions<CSharpModule, CSharpOptions>(options => options.RuleTimeout = TimeSpan.FromSeconds(1))
+            // The host downloads assemblies from its own store: the blob storage seam.
+            .ConfigureServices(services => services.AddSingleton<IBehaviorAssemblies>(host))
+            .StartAsync(ct);
 
     // The sandbox host's session API with its real RuleJudge, and the assembly store it downloads from.
     private sealed class JudgingHost : HttpMessageHandler, IBehaviorAssemblies

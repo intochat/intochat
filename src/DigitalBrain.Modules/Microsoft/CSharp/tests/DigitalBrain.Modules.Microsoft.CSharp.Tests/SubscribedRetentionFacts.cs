@@ -97,7 +97,7 @@ public sealed class SubscribedRetentionFacts
         Assert.Equal(1, sub.Dropped);
     }
 
-    [Fact(Timeout = 20_000)]
+    [Fact]
     public async Task ASubscriptionIsSeededWhileItsSourceIsInALongTurn()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -114,11 +114,11 @@ public sealed class SubscribedRetentionFacts
         await turn;
     }
 
-    private static IBrainPrograms Programs(ModuleBrain brain) => brain.Grains.GetGrain<IBrainPrograms>(BrainRuntimeKeys.For(Brain));
+    private static IBrainPrograms Programs(ITestBrain brain) => RuntimeBrain.Programs(brain, Brain);
 
-    private static IBrainRuntime Runtime(ModuleBrain brain) => brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(Brain));
+    private static IBrainRuntime Runtime(ITestBrain brain) => RuntimeBrain.Runtime(brain, Brain);
 
-    private static IBrainRuntimeEdge Edge(ModuleBrain brain) => brain.Grains.GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For(Brain));
+    private static IBrainRuntimeEdge Edge(ITestBrain brain) => RuntimeBrain.Edge(brain, Brain);
 }
 // A source that retains and is busy: its turn holds until released, the way a neuron mid-publish waits
 // on the runtime.

@@ -9,22 +9,22 @@ namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 // from the source's log after that seq, once per entry, whether or not a live notification carried it.
 public sealed class PartLogReplayFacts
 {
-    private static string Brain => BrainScope.Create(ModuleTest.DefaultAccount, ModuleTest.DefaultAccount).Id;
+    private static string Brain => BrainScope.Create("owner", "owner").Id;
     private static string Echo => Brain + "/apps/echo";
     private static string Behavior => Echo + "/synapses/a.cs";
     private static string Source => Brain + "/apps/source/pinger";
 
-    private static async Task<(ModuleBrain Brain, string Session)> StartAsync(CancellationToken ct)
+    private static async Task<(ITestBrain Brain, string Session)> StartAsync(CancellationToken ct)
     {
         var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, partLog: true);
         await Programs(brain).Assign(Echo, new() { ["synapses/a.cs"] = RuntimeBrain.Idle }, []);
         return (brain, (await Runtime(brain).Inspect(ct)).SessionId!);
     }
 
-    private static async Task<int[]> PendingNumbers(ModuleBrain brain, string session)
+    private static async Task<int[]> PendingNumbers(ITestBrain brain, string session)
         => [.. (await Edge(brain).PendingBatches(session)).SelectMany(b => b.Signals).Select(SignalJson.Number)];
 
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task ANewSubscriptionStartsAtItsSourcesCurrentSeq()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -42,7 +42,7 @@ public sealed class PartLogReplayFacts
         Assert.Equal([2], pending);
     }
 
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task ASignalJournalledWithoutANotificationArrivesWithTheNextLiveOneOnce()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -52,7 +52,7 @@ public sealed class PartLogReplayFacts
         await pinger.Ping(1);
         await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
         await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
-        await brain.SiloServices.GetRequiredService<ISignalJournal>().Append(pinger.GetGrainId(), [new Pinged(7)]);
+        await brain.Services.GetRequiredService<ISignalJournal>().Append(pinger.GetGrainId(), [new Pinged(7)]);
 
         await pinger.Ping(8);
         await changes.NextAsync(ct: ct);
@@ -61,7 +61,7 @@ public sealed class PartLogReplayFacts
         Assert.Equal([7, 8], pending);
     }
 
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task SignalsJournalledWhileTheRuntimeSleptAreDeliveredWhenItReactivates()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -70,7 +70,7 @@ public sealed class PartLogReplayFacts
         var pinger = brain.Get<IPinger>(Source);
         await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
         await brain.DeactivateAsync(Runtime(brain), ct);
-        await brain.SiloServices.GetRequiredService<ISignalJournal>().Append(pinger.GetGrainId(), [new Pinged(5)]);
+        await brain.Services.GetRequiredService<ISignalJournal>().Append(pinger.GetGrainId(), [new Pinged(5)]);
 
         await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
         var pending = await PendingAfterResume(brain, changes, ct);
@@ -78,7 +78,7 @@ public sealed class PartLogReplayFacts
         Assert.Equal([5], pending);
     }
 
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task AReactivatedRuntimeDoesNotRedeliverWhatItBuffered()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -86,7 +86,7 @@ public sealed class PartLogReplayFacts
         await using var _ = brain;
         var pinger = brain.Get<IPinger>(Source);
         await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
-        await brain.SiloServices.GetRequiredService<ISignalJournal>().Append(pinger.GetGrainId(), [new Pinged(1)]);
+        await brain.Services.GetRequiredService<ISignalJournal>().Append(pinger.GetGrainId(), [new Pinged(1)]);
         await brain.DeactivateAsync(Runtime(brain), ct);
         await using (var first = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct)) { await PendingAfterResume(brain, first, ct); }
         await brain.DeactivateAsync(Runtime(brain), ct);
@@ -100,7 +100,7 @@ public sealed class PartLogReplayFacts
         Assert.Equal([1, 2], pending);
     }
 
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task ASourceWhosePartIsNotLeasedHereFailsTheSubscribeAsUnavailable()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -114,7 +114,7 @@ public sealed class PartLogReplayFacts
     }
 
     // Waits, change by change, until the resumed runtime's catch-up has buffered something.
-    private static async Task<int[]> PendingAfterResume(ModuleBrain brain, SignalProbe<BrainRuntimeChanged> changes, CancellationToken ct)
+    private static async Task<int[]> PendingAfterResume(ITestBrain brain, SignalProbe<BrainRuntimeChanged> changes, CancellationToken ct)
     {
         while (true)
         {
@@ -132,9 +132,9 @@ public sealed class PartLogReplayFacts
             => throw new ServiceUnavailableException($"The part of {publisher} is leased by another machine.");
     }
 
-    private static IBrainPrograms Programs(ModuleBrain brain) => brain.Grains.GetGrain<IBrainPrograms>(BrainRuntimeKeys.For(Brain));
+    private static IBrainPrograms Programs(ITestBrain brain) => RuntimeBrain.Programs(brain, Brain);
 
-    private static IBrainRuntime Runtime(ModuleBrain brain) => brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(Brain));
+    private static IBrainRuntime Runtime(ITestBrain brain) => RuntimeBrain.Runtime(brain, Brain);
 
-    private static IBrainRuntimeEdge Edge(ModuleBrain brain) => brain.Grains.GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For(Brain));
+    private static IBrainRuntimeEdge Edge(ITestBrain brain) => RuntimeBrain.Edge(brain, Brain);
 }

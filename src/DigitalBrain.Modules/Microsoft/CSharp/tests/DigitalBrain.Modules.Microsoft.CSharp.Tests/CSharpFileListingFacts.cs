@@ -6,7 +6,6 @@ using DigitalBrain.Framework.Modules;
 using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Microsoft.CSharp.Authoring;
 using DigitalBrain.Microsoft.CSharp.Catalog;
-using DigitalBrain.Testing.Module;
 using DigitalBrain.Microsoft.CSharp.Files;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -33,12 +32,13 @@ public sealed class CSharpFileListingFacts
         var ct = TestContext.Current.CancellationToken;
         using var sessions = new FakeSessionHost();
         await using var brain = await RuntimeBrain.StartAsync(sessions, ct);
-        await As(brain, "one");
-        var tools = Tools(brain, "one");
+        var one = await brain.PersonAsync("one", ct);
+        using var caller = one.AsCaller();
+        var tools = Tools(brain, one.BrainId);
 
         await tools.Write("timer", "Console.WriteLine(1);", "Timer status", "Show ticks", ct);
         await tools.Write("timer", "Console.WriteLine(2);", null, null, ct);
-        await brain.DeactivateAsync(brain.Get<ICSharpFile>(CSharpFileKeys.For("one", "timer")), ct);
+        await brain.DeactivateAsync(brain.Get<ICSharpFile>(CSharpFileKeys.For(one.BrainId, "timer")), ct);
 
         var listed = Assert.Single(await tools.List(ct));
         Assert.Equal(("timer", "Timer status", "Show ticks"), (listed.Description.Id, listed.Description.Name, listed.Description.Purpose));
@@ -51,22 +51,25 @@ public sealed class CSharpFileListingFacts
     public async Task EachBrainListsOnlyItsOwnFiles()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<CSharpModule>().StartAsync(ct);
-        await As(brain, "one");
-        await Tools(brain, "one").Write("timer", "Console.WriteLine(1);", "Timer", "", ct);
-
-        Assert.Single(await Tools(brain, "one").List(ct));
-        await As(brain, "two");
-        Assert.Empty(await Tools(brain, "two").List(ct));
+        await using var brain = await TestBrain.Create().WithModule<CSharpModule>().StartAsync(ct);
+        var one = await brain.PersonAsync("one", ct);
+        var two = await brain.PersonAsync("two", ct);
+        using (one.AsCaller())
+        {
+            await Tools(brain, one.BrainId).Write("timer", "Console.WriteLine(1);", "Timer", "", ct);
+            Assert.Single(await Tools(brain, one.BrainId).List(ct));
+        }
+        using (two.AsCaller()) { Assert.Empty(await Tools(brain, two.BrainId).List(ct)); }
     }
 
     [Fact]
     public async Task InvalidIdsOversizedDescriptionsAndAppProgramNamesAreRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<CSharpModule>().StartAsync(ct);
-        await As(brain, "one");
-        var tools = Tools(brain, "one");
+        await using var brain = await TestBrain.Create().WithModule<CSharpModule>().StartAsync(ct);
+        var one = await brain.PersonAsync("one", ct);
+        using var caller = one.AsCaller();
+        var tools = Tools(brain, one.BrainId);
 
         await Assert.ThrowsAsync<ArgumentException>(() => tools.Write("../timer", "Console.WriteLine(1);", "Name", "", ct));
         await Assert.ThrowsAsync<ArgumentException>(() => tools.Write("timer", "Console.WriteLine(1);", "Name", new string('x', 4001), ct));
@@ -74,15 +77,8 @@ public sealed class CSharpFileListingFacts
         Assert.Empty(await tools.List(ct));
     }
 
-    private static ScopedCSharpTools Tools(ModuleBrain brain, string scope)
-        => brain.SiloServices.GetRequiredService<CSharpToolService>().ForScope(scope);
-
-    private static Task As(ModuleBrain brain, string id)
-    {
-        CallerContextStamper.Stamp(new()
-        { PrincipalId = "alice", AccountId = "alice", BrainId = id, Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
-        return brain.AuthorizeCallerAsync();
-    }
+    private static ScopedCSharpTools Tools(ITestBrain brain, string scope)
+        => brain.Services.GetRequiredService<CSharpToolService>().ForScope(scope);
 
     [Fact]
     public async Task AHostWithoutTheCSharpModuleRefusesToRunFiles()

@@ -25,10 +25,9 @@ public sealed class BehaviorAssembliesFacts
     public async Task CompileStoresEveryAssemblyAndReturnsItsHash()
     {
         var ct = TestContext.Current.CancellationToken;
-        var store = new MemoryBehaviorAssemblies();
-        await using var brain = await ModuleTest.Create().WithModule<CSharpModule>()
-            .ConfigureSilo(silo => silo.Services.AddSingleton<IBehaviorAssemblies>(store)).StartAsync(ct);
-        var sandbox = brain.SiloServices.GetRequiredService<DigitalBrain.Apps.IScriptSandbox>();
+        await using var brain = await TestBrain.Create().WithModule<CSharpModule>().StartAsync(ct);
+        var store = brain.Services.GetRequiredService<IBehaviorAssemblies>();
+        var sandbox = brain.Services.GetRequiredService<DigitalBrain.Apps.IScriptSandbox>();
 
         var check = await sandbox.Compile(new Dictionary<string, string> { ["synapses/x.cs"] = "Console.WriteLine(2);\n" }, ct);
 
@@ -40,7 +39,7 @@ public sealed class BehaviorAssembliesFacts
     public async Task AHostWithoutDurableStorageKeepsAssembliesInProcess()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<CSharpModule>().StartAsync(ct);
-        Assert.IsType<MemoryBehaviorAssemblies>(brain.SiloServices.GetRequiredService<IBehaviorAssemblies>());
+        await using var brain = await TestBrain.Create().WithModule<CSharpModule>().StartAsync(ct);
+        Assert.IsType<MemoryBehaviorAssemblies>(brain.Services.GetRequiredService<IBehaviorAssemblies>());
     }
 }

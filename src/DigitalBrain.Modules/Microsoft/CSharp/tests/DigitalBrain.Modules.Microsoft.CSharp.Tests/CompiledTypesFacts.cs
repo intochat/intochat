@@ -13,9 +13,9 @@ public sealed class CompiledTypesFacts
     public async Task TheModuleAllowsTheComposedModulesContractAssembliesOnly()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<DigitalBrain.Microsoft.CSharp.CSharpModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<DigitalBrain.Microsoft.CSharp.CSharpModule>().StartAsync(ct);
 
-        var contracts = brain.SiloServices.GetRequiredService<CompiledTypes>();
+        var contracts = brain.Services.GetRequiredService<CompiledTypes>();
 
         Assert.Equal(typeof(ICSharpFile), contracts.Contract(typeof(ICSharpFile).FullName!));
         // Time's contracts are deployed beside this host, but its module is not composed here.

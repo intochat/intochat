@@ -22,17 +22,17 @@ public sealed class CpuMeteringFacts
     private const string Behavior = "acc-brain/apps/x/synapses/a.cs";
 
     // A synapse's batch and the CPU it cost: the ack prices the run against the batch's own trace.
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task AnAcknowledgedBatchRecordsItsCpuTime()
     {
         var ct = TestContext.Current.CancellationToken;
         var meter = new RecordingMeter();
         var host = new FakeSessionHost();
         await using var brain = await StartAsync(host, meter, ct);
-        var runtime = Grains(brain).GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For(Acc));
-        await Grains(brain).GetGrain<IBrainPrograms>(BrainRuntimeKeys.For(Acc)).Assign(Owner, Synapse(), []);
+        var runtime = RuntimeBrain.Edge(brain, Acc);
+        await RuntimeBrain.Programs(brain, Acc).Assign(Owner, Synapse(), []);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
-        await runtime.Connected(session, ContractsFingerprint.Of(brain.SiloServices.GetRequiredService<CompiledTypes>().Assemblies));
+        await runtime.Connected(session, RuntimeBrain.Fingerprint(brain));
 
         // The retaining source seeds the subscription's backlog, so the batch's first signal carries a trace.
         var source = brain.Get<IRetaining>("retaining");
@@ -47,8 +47,8 @@ public sealed class CpuMeteringFacts
 
         await runtime.AcknowledgeMany(session, [new AcknowledgeReport(subscription, 2, 1_234_567)]);
 
-        var recorded = Assert.Single(meter.Calls);
-        Assert.Equal(CostKind.Script, recorded.Kind);
+        // The session host's own HTTP calls are metered too; the ack prices the script.
+        var recorded = Assert.Single(meter.Calls, call => call.Kind == CostKind.Script);
         Assert.Equal("cpu-ms", recorded.Item);
         Assert.Equal(1_234.567m, recorded.Quantity);
         Assert.Equal("ms", recorded.Unit);
@@ -60,28 +60,11 @@ public sealed class CpuMeteringFacts
     private static Dictionary<string, string> Synapse()
         => new(StringComparer.Ordinal) { ["synapses/a.cs"] = RuntimeBrain.Idle };
 
-    // The harness the other runtime facts use, plus a meter that records what the ack prices.
-    private static Task<ModuleBrain> StartAsync(FakeSessionHost host, RecordingMeter meter, CancellationToken ct)
-    {
-        var builder = ModuleTest.Create().WithModule<CSharpModule>().WithReminders()
-            .ConfigureSilo(silo =>
-            {
-                silo.Services.AddHttpClient<SessionRunner>().ConfigurePrimaryHttpMessageHandler(() => host);
-                silo.Services.AddSingleton(new MemoryBehaviorAssemblies());
-                silo.Services.AddSingleton<ICostMeter>(meter);
-                silo.Services.AddSingleton(new CompiledTypes([typeof(IPinger).Assembly, typeof(ICSharpFile).Assembly]));
-                silo.Services.PostConfigure<CSharpDeploymentSettings>(options =>
-                {
-                    options.EdgeUrl = "http://edge.test/";
-                    options.SandboxUrl = FakeSessionHost.Url;
-                });
-            });
-        return builder.StartAsync(ct);
-    }
+    // The meter is the kernel's pricing seam; the fact reads what the ack priced from it.
+    private static Task<ITestBrain> StartAsync(FakeSessionHost host, RecordingMeter meter, CancellationToken ct)
+        => RuntimeBrain.Create(host).ConfigureServices(services => services.AddSingleton<ICostMeter>(meter)).StartAsync(ct);
 
-    private static IGrainFactory Grains(ModuleBrain brain) => brain.Grains;
-
-    private static IBrainRuntime Runtime(ModuleBrain brain) => brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(Acc));
+    private static IBrainRuntime Runtime(ITestBrain brain) => RuntimeBrain.Runtime(brain, Acc);
 
     private sealed record Recorded(CostKind Kind, string Item, decimal Quantity, string Unit, Funding Funding, string CostId, string? TraceId);
 

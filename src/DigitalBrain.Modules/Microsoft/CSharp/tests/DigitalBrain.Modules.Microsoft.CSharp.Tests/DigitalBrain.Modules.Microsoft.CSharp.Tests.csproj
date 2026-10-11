@@ -1,12 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <ProjectReference Include="../../../../../Testing/DigitalBrain.Testing.Module/DigitalBrain.Testing.Module.csproj" />
+    <ProjectReference Include="../../../../../Testing/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules.Microsoft.CSharp/DigitalBrain.Modules.Microsoft.CSharp.csproj" />
-    <ProjectReference Include="../../../../Time/DigitalBrain.Modules.Time/DigitalBrain.Modules.Time.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Modules.Microsoft.CSharp.Sandbox/DigitalBrain.Modules.Microsoft.CSharp.Sandbox.csproj" />
     <ProjectReference Include="../../../../DigitalBrain/Apps/DigitalBrain.Modules.Apps/DigitalBrain.Modules.Apps.csproj" />
     <ProjectReference Include="../../../../../DigitalBrain.Platform/DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
-    <ProjectReference Include="../../DigitalBrain.Modules.Microsoft.CSharp.Sandbox/DigitalBrain.Modules.Microsoft.CSharp.Sandbox.csproj" />
     <ProjectReference Include="../../../../Time/DigitalBrain.Modules.Time.Contracts/DigitalBrain.Modules.Time.Contracts.csproj" />
   </ItemGroup>
-  <ItemGroup><Using Include="DigitalBrain.Testing.Module" /></ItemGroup>
+  <ItemGroup><Using Include="DigitalBrain.Testing" /></ItemGroup>
 </Project>

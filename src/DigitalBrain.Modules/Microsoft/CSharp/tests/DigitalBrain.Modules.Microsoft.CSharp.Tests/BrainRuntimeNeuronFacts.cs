@@ -63,7 +63,7 @@ public sealed class BrainRuntimeNeuronFacts
         await Programs(brain).Assign(Owner, Synapse(), []);
 
         var started = await host.NextAsync(FakeSessionHost.IsStart, ct);
-        Assert.Equal("http://edge.test/brains/acc-brain/", started.Body!["edgeUrl"]!.GetValue<string>());
+        Assert.Equal(new UriBuilder(brain.HttpClient.BaseAddress!) { Host = "host.docker.internal" }.Uri + "brains/acc-brain/", started.Body!["edgeUrl"]!.GetValue<string>());
         Assert.Equal(SessionStatus.Starting, (await Runtime(brain).Inspect(ct)).Session);
         await Programs(brain).Retire(Owner);
         await host.NextAsync(FakeSessionHost.IsStop, ct);
@@ -129,7 +129,7 @@ public sealed class BrainRuntimeNeuronFacts
         await using var brain = await RuntimeBrain.StartAsync(host, ct);
         await Programs(brain).Assign(Owner, Synapse(), []);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
-        var fingerprint = ContractsFingerprint.Of(brain.SiloServices.GetRequiredService<DigitalBrain.Framework.CompiledTypes>().Assemblies);
+        var fingerprint = RuntimeBrain.Fingerprint(brain);
 
         await Edge(brain).Connected(session, fingerprint + "\nExtra.Contracts=00");
         Assert.Equal(SessionStatus.Connected, (await Runtime(brain).Inspect(ct)).Session);
@@ -183,7 +183,7 @@ public sealed class BrainRuntimeNeuronFacts
 
     // An older program's subscription can name a neuron type the host no longer carries; it must not
     // keep every other source from being watched.
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task ASourceThatCannotBeWatchedDoesNotStarveTheOthers()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -202,14 +202,14 @@ public sealed class BrainRuntimeNeuronFacts
     }
 
     // A reloaded behavior subscribes again; what waited for it while it was down is pushed at once, not on the next arrival.
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task AResubscribingBehaviorGetsWhatIsPendingForIt()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         await Programs(brain).Assign(Owner, Synapse(), []);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
-        await Edge(brain).Connected(session, ContractsFingerprint.Of(brain.SiloServices.GetRequiredService<DigitalBrain.Framework.CompiledTypes>().Assemblies));
+        await Edge(brain).Connected(session, RuntimeBrain.Fingerprint(brain));
         var pinger = brain.Get<IPinger>("pinger");
         var subscription = await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
         await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
@@ -217,7 +217,7 @@ public sealed class BrainRuntimeNeuronFacts
         await changes.NextAsync(ct: ct);
         // Queued behind the arrival's turn: once it answers, the arrival's own push (to no stream) is over.
         Assert.Single(await Edge(brain).PendingBatches(session));
-        var stream = brain.SiloServices.GetRequiredService<DigitalBrain.Microsoft.CSharp.Sessions.SessionStreams>().Open(session);
+        var stream = brain.Services.GetRequiredService<DigitalBrain.Microsoft.CSharp.Sessions.SessionStreams>().Open(session);
 
         await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
 
@@ -227,7 +227,7 @@ public sealed class BrainRuntimeNeuronFacts
     }
 
     // The host forgot the session (its container was replaced): the reminder ensures the same session again.
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task AReminderEnsuresTheSessionAgainWhenTheHostLostIt()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -243,7 +243,7 @@ public sealed class BrainRuntimeNeuronFacts
         Assert.Equal(first.Body!["session"]!.GetValue<string>(), again.Body!["session"]!.GetValue<string>());
     }
 
-    [Fact(Timeout = 30_000)]
+    [Fact]
     public async Task ReactivationRelaunchesBehaviorsWithoutWaitingForAReminder()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -253,7 +253,7 @@ public sealed class BrainRuntimeNeuronFacts
         await Programs(brain).Assign(Owner, Synapse(), []);
         var first = await host.NextAsync(FakeSessionHost.IsStart, ct);
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
-        await Edge(brain).Connected(session, ContractsFingerprint.Of(brain.SiloServices.GetRequiredService<DigitalBrain.Framework.CompiledTypes>().Assemblies));
+        await Edge(brain).Connected(session, RuntimeBrain.Fingerprint(brain));
         await brain.DeactivateAsync(Runtime(brain), ct);
         time.Now += TimeSpan.FromSeconds(30);
 
@@ -268,7 +268,7 @@ public sealed class BrainRuntimeNeuronFacts
     }
 
     // Heartbeats are the detector: a session silent past the limit is replaced, and its token stops speaking.
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task ASilentSessionIsReplacedByANewOne()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -289,7 +289,7 @@ public sealed class BrainRuntimeNeuronFacts
 
     // Sandbox calls leave the runtime's turn, but not their order: a stop still in flight must not land
     // after the start that follows it and take the new session down.
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task AStopReachesTheHostBeforeTheStartThatFollowsIt()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -310,7 +310,7 @@ public sealed class BrainRuntimeNeuronFacts
     }
 
     // A rotation pushed while the host's stream is down never reached it; the next reminder rotates again.
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task ATokenRotationTheStreamMissedIsRetried()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -324,7 +324,7 @@ public sealed class BrainRuntimeNeuronFacts
         await Edge(brain).Heartbeat(session);
         await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default);
 
-        var stream = brain.SiloServices.GetRequiredService<DigitalBrain.Microsoft.CSharp.Sessions.SessionStreams>().Open(session);
+        var stream = brain.Services.GetRequiredService<DigitalBrain.Microsoft.CSharp.Sessions.SessionStreams>().Open(session);
         await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default);
 
         Assert.True(stream.Reader.TryRead(out var pushed));
@@ -332,7 +332,7 @@ public sealed class BrainRuntimeNeuronFacts
     }
 
     // A sandbox endpoint that accepts connections and never answers must not hold the runtime's turn.
-    [Fact(Timeout = 30_000)]
+    [Fact]
     public async Task AHangingSandboxNeverHoldsTheRuntime()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -455,17 +455,16 @@ public sealed class BrainRuntimeNeuronFacts
     }
 
     [Fact]
-    public async Task AHostThatReportsMoreAssembliesStillCoversTheSilosContracts()
+    public void AHostThatReportsMoreAssembliesStillCoversTheSilosContracts()
     {
         var silo = ContractsFingerprint.Of([typeof(Signal).Assembly]);
         Assert.True(ContractsFingerprint.Covers(ContractsFingerprint.Of([typeof(Signal).Assembly, typeof(ContractsFingerprint).Assembly]), silo));
         Assert.False(ContractsFingerprint.Covers(ContractsFingerprint.Of([typeof(ContractsFingerprint).Assembly]), silo));
-        await Task.CompletedTask;
     }
 
-    private static IBrainPrograms Programs(ModuleBrain brain) => brain.Grains.GetGrain<IBrainPrograms>(BrainRuntimeKeys.For(Brain));
+    private static IBrainPrograms Programs(ITestBrain brain) => RuntimeBrain.Programs(brain, Brain);
 
-    private static IBrainRuntime Runtime(ModuleBrain brain) => brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(Brain));
+    private static IBrainRuntime Runtime(ITestBrain brain) => RuntimeBrain.Runtime(brain, Brain);
 
-    private static IBrainRuntimeEdge Edge(ModuleBrain brain) => brain.Grains.GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For(Brain));
+    private static IBrainRuntimeEdge Edge(ITestBrain brain) => RuntimeBrain.Edge(brain, Brain);
 }

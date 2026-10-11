@@ -17,10 +17,10 @@ public sealed class RuntimeEdgeFacts
     public async Task AcknowledgementReportsSupportBatchesAndRejectAmbiguousOrStaleRequests()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true);
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         var session = await Assigned(brain, ct);
-        var runtime = brain.Grains.GetGrain<IBrainRuntimeEdge>(BrainRuntimeKeys.For("acc-brain"));
-        var neuron = brain.Get<IBrainRuntime>(BrainRuntimeKeys.For("acc-brain"));
+        var runtime = RuntimeBrain.Edge(brain, "acc-brain");
+        var neuron = RuntimeBrain.Runtime(brain, "acc-brain");
         var pinger = brain.Get<IPinger>("acknowledged");
         var subscription = await runtime.Subscribed(session.Id, "acc-brain/csharp/a", pinger.GetGrainId().ToString(), nameof(Pinged));
         await using var changes = await brain.Observe<DigitalBrain.Microsoft.CSharp.Runtime.Signals.BrainRuntimeChanged>(neuron, ct);
@@ -56,9 +56,9 @@ public sealed class RuntimeEdgeFacts
             ActivityStopped = calls.Enqueue,
         };
         System.Diagnostics.ActivitySource.AddActivityListener(listener);
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, traced: true);
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         var session = await Assigned(brain, ct);
-        var edge = brain.SiloServices.GetRequiredService<RuntimeEdge>();
+        var edge = brain.Services.GetRequiredService<RuntimeEdge>();
         using var invocation = new System.Diagnostics.Activity("runtime invocation").Start();
 
         var result = await edge.InvokeAsync("acc-brain", session.Token,
@@ -74,7 +74,7 @@ public sealed class RuntimeEdgeFacts
     public async Task AnExpiredTokenIsRefusedOnEveryRoute()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true);
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         foreach (var (method, path) in new[] { (HttpMethod.Post, RuntimeProtocol.Invoke), (HttpMethod.Post, RuntimeProtocol.Report), (HttpMethod.Get, RuntimeProtocol.Stream) })
         {
             using var request = new HttpRequestMessage(method, "/brains/acc-brain/" + path) { Content = method == HttpMethod.Get ? null : JsonContent.Create(new { }) };
@@ -89,10 +89,10 @@ public sealed class RuntimeEdgeFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var time = new MovableTime();
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true, time: time);
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, time: time);
         var stale = await Assigned(brain, ct);
         time.Now += TimeSpan.FromMinutes(3);
-        await brain.Get<IBrainRuntime>(BrainRuntimeKeys.For("acc-brain")).Touch(ct);
+        await RuntimeBrain.Runtime(brain, "acc-brain").Touch(ct);
         var invoke = new RuntimeInvocation("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(IPinger.Double), [JsonSerializer.SerializeToElement(21)]);
 
         using var response = await brain.HttpClient.SendAsync(Authorized(HttpMethod.Post,
@@ -105,8 +105,8 @@ public sealed class RuntimeEdgeFacts
     public async Task ATokenForAnotherBrainIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true);
-        var token = brain.SiloServices.GetRequiredService<SessionTokens>().Issue("other-brain", "s1");
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        var token = brain.Services.GetRequiredService<SessionTokens>().Issue("other-brain", "s1");
 
         using var response = await brain.HttpClient.SendAsync(Authorized(HttpMethod.Post, "/brains/acc-brain/" + RuntimeProtocol.Report, token, new RuntimeReport(Heartbeat: true)), ct);
 
@@ -119,11 +119,11 @@ public sealed class RuntimeEdgeFacts
         var ct = TestContext.Current.CancellationToken;
         var host = new FakeSessionHost();
         var time = new MovableTime();
-        await using var brain = await RuntimeBrain.StartAsync(host, ct, http: true, time: time);
+        await using var brain = await RuntimeBrain.StartAsync(host, ct, time: time);
         var stale = await Assigned(brain, ct);
         // Silent past the limit: the next touch replaces the session.
         time.Now += TimeSpan.FromMinutes(3);
-        await brain.Get<IBrainRuntime>(BrainRuntimeKeys.For("acc-brain")).Touch(ct);
+        await RuntimeBrain.Runtime(brain, "acc-brain").Touch(ct);
 
         using var response = await Report(brain, stale, new RuntimeReport(Heartbeat: true), ct);
 
@@ -134,20 +134,20 @@ public sealed class RuntimeEdgeFacts
     public async Task AMismatchedContractsFingerprintIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true);
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         var session = await Assigned(brain, ct);
 
         using var response = await Report(brain, session, new RuntimeReport(Fingerprint: "DigitalBrain=stale"), ct);
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        Assert.Equal(SessionStatus.Refused, (await brain.Get<IBrainRuntime>(BrainRuntimeKeys.For("acc-brain")).Inspect(ct)).Session);
+        Assert.Equal(SessionStatus.Refused, (await RuntimeBrain.Runtime(brain, "acc-brain").Inspect(ct)).Session);
     }
 
     [Fact]
     public async Task TheStreamSendsReadyAFreshTokenThenAssignmentsAndInvokeReachesANeuron()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true);
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         var session = await Assigned(brain, ct);
         (await Report(brain, session, new RuntimeReport(Fingerprint: Fingerprint(brain)), ct)).EnsureSuccessStatusCode();
 
@@ -160,7 +160,7 @@ public sealed class RuntimeEdgeFacts
         Assert.True(await events.MoveNextAsync());
         Assert.Equal(TokenEvent.Kind, events.Current.EventType);
         var fresh = JsonSerializer.Deserialize<TokenEvent>(events.Current.Data, RuntimeProtocol.Json)!.Token;
-        Assert.Equal(session.Id, brain.SiloServices.GetRequiredService<SessionTokens>().Validate(fresh)!.Session);
+        Assert.Equal(session.Id, brain.Services.GetRequiredService<SessionTokens>().Validate(fresh)!.Session);
         Assert.True(await events.MoveNextAsync());
         Assert.Equal(AssignmentEvent.Kind, events.Current.EventType);
         Assert.Contains("acc-brain/csharp/a", events.Current.Data, StringComparison.Ordinal);
@@ -176,7 +176,7 @@ public sealed class RuntimeEdgeFacts
     public async Task AKernelGrainIsNotACallableContract()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true);
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         var session = await Assigned(brain, ct);
         var invoke = new RuntimeInvocation("acc-brain/csharp/a", typeof(DigitalBrain.Framework.Platform.Connections.IConnectionIndex).FullName!, "acc-brain", "List", []);
 
@@ -189,7 +189,7 @@ public sealed class RuntimeEdgeFacts
     public async Task ASubscribeRegistersBeforeTheFirstBatchAndAnArrivalIsPushed()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true);
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         var session = await Assigned(brain, ct);
         (await Report(brain, session, new RuntimeReport(Fingerprint: Fingerprint(brain)), ct)).EnsureSuccessStatusCode();
         using var stream = await brain.HttpClient.SendAsync(Authorized(HttpMethod.Get, "/brains/acc-brain/" + RuntimeProtocol.Stream, session.Token), HttpCompletionOption.ResponseHeadersRead, ct);
@@ -207,7 +207,7 @@ public sealed class RuntimeEdgeFacts
     }
 
     // The publish's trace rides the batch down the stream, so a behavior's reaction joins it.
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task AnArrivalCarriesTheTraceThatPublishedIt()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -217,7 +217,7 @@ public sealed class RuntimeEdgeFacts
             Sample = (ref _) => System.Diagnostics.ActivitySamplingResult.AllDataAndRecorded,
         };
         System.Diagnostics.ActivitySource.AddActivityListener(listener);
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true, traced: true);
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         var session = await Assigned(brain, ct);
         (await Report(brain, session, new RuntimeReport(Fingerprint: Fingerprint(brain)), ct)).EnsureSuccessStatusCode();
         using var stream = await brain.HttpClient.SendAsync(Authorized(HttpMethod.Get, "/brains/acc-brain/" + RuntimeProtocol.Stream, session.Token), HttpCompletionOption.ResponseHeadersRead, ct);
@@ -237,11 +237,11 @@ public sealed class RuntimeEdgeFacts
     public async Task ASecondStreamResendsAnUnacknowledgedBatch()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true);
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         var session = await Assigned(brain, ct);
         (await Report(brain, session, new RuntimeReport(Fingerprint: Fingerprint(brain)), ct)).EnsureSuccessStatusCode();
         using var subscribed = await Report(brain, session, new RuntimeReport(Subscribe: new("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(Pinged))), ct);
-        await using var changes = await brain.Observe<DigitalBrain.Microsoft.CSharp.Runtime.Signals.BrainRuntimeChanged>(brain.Get<IBrainRuntime>(BrainRuntimeKeys.For("acc-brain")), ct);
+        await using var changes = await brain.Observe<DigitalBrain.Microsoft.CSharp.Runtime.Signals.BrainRuntimeChanged>(RuntimeBrain.Runtime(brain, "acc-brain"), ct);
         await brain.Get<IPinger>("pinger").Ping(3);
         await changes.NextAsync(ct: ct);
 
@@ -255,25 +255,29 @@ public sealed class RuntimeEdgeFacts
     public async Task ABehaviorCallsNeuronsAsItsOwnerStampedAsAnApp()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true);
-        var session = await StartAsAlice(brain, Key("report"), ct);
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        var alice = await brain.PersonAsync("alice", ct);
+        string Key(string name) => RuntimeEdgeFacts.Key(alice, name);
+        var session = await StartAs(brain, alice, Key("report"), ct);
 
         Assert.Equal(42, await Invoke<int>(brain, session, Key("report"), Call(nameof(IPinger.Double), 21), ct));
-        Assert.Equal("alice App AppProxy " + Key("report"), await Invoke<string>(brain, session, Key("report"), Call(nameof(IPinger.Caller)), ct));
+        Assert.Equal(alice.PrincipalId + " App AppProxy " + Key("report"), await Invoke<string>(brain, session, Key("report"), Call(nameof(IPinger.Caller)), ct));
     }
 
     [Fact]
     public async Task ARetiredBehaviorCannotInvokeAndForgedCallsAreRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true);
-        await StartAsAlice(brain, Key("stopped"), ct);
-        var session = await StartAsAlice(brain, Key("other"), ct);
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        var alice = await brain.PersonAsync("alice", ct);
+        string Key(string name) => RuntimeEdgeFacts.Key(alice, name);
+        await StartAs(brain, alice, Key("stopped"), ct);
+        var session = await StartAs(brain, alice, Key("other"), ct);
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await Send(brain, (session.Id, session.Token[..^2] + "AA"), Key("other"), Call(nameof(IPinger.Double), 1), ct)).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await Send(brain, session, Key("other"), new("", typeof(ICSharpFile).FullName!, "pinger", "Double", [JsonSerializer.SerializeToElement(1)]), ct)).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await Send(brain, session, Key("other"), Call("Watch", 1), ct)).StatusCode);
-        await brain.Get<ICSharpFile>(Key("stopped")).Stop(ct);
+        using (alice.AsCaller()) { await brain.Get<ICSharpFile>(Key("stopped")).Stop(ct); }
         Assert.Equal(HttpStatusCode.BadRequest, (await Send(brain, session, Key("stopped"), Call(nameof(IPinger.Double), 1), ct)).StatusCode);
     }
 
@@ -281,15 +285,17 @@ public sealed class RuntimeEdgeFacts
     public async Task AKernelGrainIsRefusedEvenWithAForgedPlatformCaller()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true);
-        var session = await StartAsAlice(brain, Key("attacker"), ct);
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        var alice = await brain.PersonAsync("alice", ct);
+        string Key(string name) => RuntimeEdgeFacts.Key(alice, name);
+        var session = await StartAs(brain, alice, Key("attacker"), ct);
         var forged = JsonSerializer.SerializeToElement(new { principalId = "x", accountId = "x", brainId = "x", kind = "Platform", stampedBy = "Platform", appId = "x" });
 
         Assert.Equal(HttpStatusCode.BadRequest, (await Send(brain, session, Key("attacker"),
             new("", typeof(DigitalBrain.Framework.Platform.Integrations.IIntegration).FullName!, "integration/openai", "Release", [forged]), ct)).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await Send(brain, session, Key("attacker"),
             new("", typeof(DigitalBrain.Framework.Platform.Secrets.ISecrets).FullName!, "owner", "Resolve", [forged, forged]), ct)).StatusCode);
-        using var subscribe = await brain.HttpClient.SendAsync(Authorized(HttpMethod.Post, "/brains/" + Alice.BrainId + "/" + RuntimeProtocol.Report, session.Token,
+        using var subscribe = await brain.HttpClient.SendAsync(Authorized(HttpMethod.Post, "/brains/" + alice.BrainId + "/" + RuntimeProtocol.Report, session.Token,
             new RuntimeReport(Subscribe: new(Key("attacker"), typeof(DigitalBrain.Framework.Platform.Connections.IConnectionIndex).FullName!, "x", "Pinged"))), ct);
         Assert.Equal(HttpStatusCode.BadRequest, subscribe.StatusCode);
     }
@@ -298,8 +304,10 @@ public sealed class RuntimeEdgeFacts
     public async Task ABehaviorCanInspectItsOwnFile()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true);
-        var session = await StartAsAlice(brain, Key("inspect"), ct);
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        var alice = await brain.PersonAsync("alice", ct);
+        string Key(string name) => RuntimeEdgeFacts.Key(alice, name);
+        var session = await StartAs(brain, alice, Key("inspect"), ct);
 
         var inspected = await Invoke<JsonElement>(brain, session, Key("inspect"), new("", typeof(ICSharpFile).FullName!, Key("inspect"), nameof(ICSharpFile.Inspect), []), ct);
 
@@ -310,53 +318,44 @@ public sealed class RuntimeEdgeFacts
     public async Task ABehaviorAsksTheKernelForItsOwnBrainsInstancesOnly()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, http: true);
-        var session = await StartAsAlice(brain, Key("kernel"), ct);
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        var alice = await brain.PersonAsync("alice", ct);
+        string Key(string name) => RuntimeEdgeFacts.Key(alice, name);
+        var session = await StartAs(brain, alice, Key("kernel"), ct);
         static Instance[] Listed(JsonElement json) => json.Deserialize<Instance[]>(RuntimeProtocol.Json)!;
 
         var files = Listed(await Invoke<JsonElement>(brain, session, Key("kernel"),
-            new("", RuntimeProtocol.KernelContract, Alice.BrainId, RuntimeProtocol.KernelInstances, [Json(typeof(ICSharpFile).FullName), Json(null)]), ct));
+            new("", RuntimeProtocol.KernelContract, alice.BrainId, RuntimeProtocol.KernelInstances, [Json(typeof(ICSharpFile).FullName), Json(null)]), ct));
 
         Assert.Contains(files, instance => instance.Key == Key("kernel"));
-        Assert.All(files, instance => Assert.StartsWith(Alice.BrainId + "/", instance.Key, StringComparison.Ordinal));
+        Assert.All(files, instance => Assert.StartsWith(alice.BrainId + "/", instance.Key, StringComparison.Ordinal));
         Assert.Equal(HttpStatusCode.BadRequest, (await Send(brain, session, Key("kernel"),
-            new("", RuntimeProtocol.KernelContract, Alice.BrainId, "Retire", [Json("t"), Json("k")]), ct)).StatusCode);
+            new("", RuntimeProtocol.KernelContract, alice.BrainId, "Retire", [Json("t"), Json("k")]), ct)).StatusCode);
     }
 
     private static JsonElement Json(string? value) => JsonSerializer.SerializeToElement(value, RuntimeProtocol.Json);
 
-    private static readonly CallerContext Alice = new()
-    {
-        PrincipalId = "alice",
-        AccountId = "account-a",
-        BrainId = "workspace-a",
-        Kind = CallerKind.User,
-        StampedBy = TrustedEdge.AuthenticatedHttp,
-    };
-
-    private static string Key(string name) => CSharpFileKeys.For(Alice.BrainId, name);
+    private static string Key(Person alice, string name) => CSharpFileKeys.For(alice.BrainId, name);
 
     private static RuntimeInvocation Call(string method, params int[] arguments)
         => new("", typeof(IPinger).FullName!, "pinger", method, [.. arguments.Select(argument => JsonSerializer.SerializeToElement(argument))]);
 
-    private static async Task<(string Id, string Token)> StartAsAlice(ModuleBrain brain, string fileId, CancellationToken ct)
+    private static async Task<(string Id, string Token)> StartAs(ITestBrain brain, Person alice, string fileId, CancellationToken ct)
     {
         var file = brain.Get<ICSharpFile>(fileId);
-        CallerContextStamper.Stamp(Alice);
-        await brain.AuthorizeCallerAsync();
-        await file.Write("Console.WriteLine(1);", ct);
-        try { await file.Start(ct); }
-        finally { Orleans.Runtime.RequestContext.Clear(); }
-        return Session(brain, (await brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(Alice.BrainId)).Inspect(ct)).SessionId!);
+        using (alice.AsCaller())
+        {
+            await file.Write("Console.WriteLine(1);", ct);
+            await file.Start(ct);
+        }
+        var id = (await RuntimeBrain.Runtime(brain, alice.BrainId).Inspect(ct)).SessionId!;
+        return (id, brain.Services.GetRequiredService<SessionTokens>().Issue(alice.BrainId, id));
     }
 
-    private static (string Id, string Token) Session(ModuleBrain brain, string id)
-        => (id, brain.SiloServices.GetRequiredService<SessionTokens>().Issue(Alice.BrainId, id));
+    private static Task<HttpResponseMessage> Send(ITestBrain brain, (string Id, string Token) session, string behavior, RuntimeInvocation invocation, CancellationToken ct)
+        => brain.HttpClient.SendAsync(Authorized(HttpMethod.Post, "/brains/" + BrainKey.ScopeOf(behavior) + "/" + RuntimeProtocol.Invoke, session.Token, invocation with { Behavior = behavior }), ct);
 
-    private static Task<HttpResponseMessage> Send(ModuleBrain brain, (string Id, string Token) session, string behavior, RuntimeInvocation invocation, CancellationToken ct)
-        => brain.HttpClient.SendAsync(Authorized(HttpMethod.Post, "/brains/" + Alice.BrainId + "/" + RuntimeProtocol.Invoke, session.Token, invocation with { Behavior = behavior }), ct);
-
-    private static async Task<T> Invoke<T>(ModuleBrain brain, (string Id, string Token) session, string behavior, RuntimeInvocation invocation, CancellationToken ct)
+    private static async Task<T> Invoke<T>(ITestBrain brain, (string Id, string Token) session, string behavior, RuntimeInvocation invocation, CancellationToken ct)
     {
         using var response = await Send(brain, session, behavior, invocation, ct);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -370,13 +369,13 @@ public sealed class RuntimeEdgeFacts
         return [.. kinds];
     }
 
-    private static string Fingerprint(ModuleBrain brain) => DigitalBrain.Client.Runtime.ContractsFingerprint.Of(brain.SiloServices.GetRequiredService<DigitalBrain.Framework.CompiledTypes>().Assemblies);
+    private static string Fingerprint(ITestBrain brain) => RuntimeBrain.Fingerprint(brain);
 
-    private static async Task<(string Id, string Token)> Assigned(ModuleBrain brain, CancellationToken ct)
+    private static async Task<(string Id, string Token)> Assigned(ITestBrain brain, CancellationToken ct)
     {
-        await brain.Grains.GetGrain<IBrainPrograms>(BrainRuntimeKeys.For("acc-brain")).Assign("acc-brain/csharp/a", RuntimeBrain.One(RuntimeBrain.Idle), []);
-        var id = (await brain.Get<IBrainRuntime>(BrainRuntimeKeys.For("acc-brain")).Inspect(ct)).SessionId!;
-        return (id, brain.SiloServices.GetRequiredService<SessionTokens>().Issue("acc-brain", id));
+        await RuntimeBrain.Programs(brain, "acc-brain").Assign("acc-brain/csharp/a", RuntimeBrain.One(RuntimeBrain.Idle), []);
+        var id = (await RuntimeBrain.Runtime(brain, "acc-brain").Inspect(ct)).SessionId!;
+        return (id, brain.Services.GetRequiredService<SessionTokens>().Issue("acc-brain", id));
     }
 
     private static HttpRequestMessage Authorized(HttpMethod method, string path, string token, object? body = null)
@@ -386,6 +385,6 @@ public sealed class RuntimeEdgeFacts
         return request;
     }
 
-    private static Task<HttpResponseMessage> Report(ModuleBrain brain, (string Id, string Token) session, RuntimeReport report, CancellationToken ct)
+    private static Task<HttpResponseMessage> Report(ITestBrain brain, (string Id, string Token) session, RuntimeReport report, CancellationToken ct)
         => brain.HttpClient.SendAsync(Authorized(HttpMethod.Post, "/brains/acc-brain/" + RuntimeProtocol.Report, session.Token, report), ct);
 }

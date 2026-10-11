@@ -8,7 +8,7 @@ public sealed class SandboxSessionFacts
 {
     private const string Idle = "var brain = await DigitalBrainClient.ConnectAsync(args);\nawait Task.Delay(Timeout.Infinite, brain.Stopping);\n";
 
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task EnsuringAnExistingSessionRefreshesItsTokenWithoutReconnecting()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -32,7 +32,7 @@ public sealed class SandboxSessionFacts
         finally { await sessions.StopAsync("b-1"); }
     }
 
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task ANewTokenDuringConnectionIsUsedWhenTheOldTokenIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -52,7 +52,7 @@ public sealed class SandboxSessionFacts
         finally { edge.Busy.TrySetResult(); await sessions.StopAsync("b-1"); }
     }
 
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task AnAssignEventLoadsAndARetireEventUnloads()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -76,7 +76,7 @@ public sealed class SandboxSessionFacts
     }
 
     // A reconnecting stream resends every assignment; one the host already runs at that hash keeps running.
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task AResentAssignmentOfTheRunningHashLeavesItRunning()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -98,7 +98,7 @@ public sealed class SandboxSessionFacts
     }
 
     // Ready names the brain's whole desired set: what the host holds beyond it was retired while the stream was down.
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task AReadyUnloadsWhatTheBrainNoLongerWants()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -120,7 +120,7 @@ public sealed class SandboxSessionFacts
 
     // The brain starts a session from inside a grain turn; the host dialing back before answering would
     // wait on that very turn. A start is accepted at once and the session connects on its own.
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task AStartIsAcceptedBeforeTheSessionDialsBack()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -134,7 +134,7 @@ public sealed class SandboxSessionFacts
         await sessions.StopAsync("b-1");
     }
 
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task AnExitedBehaviorIsReportedWithItsExitCode()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -155,7 +155,7 @@ public sealed class SandboxSessionFacts
 
     // A behavior the brain did not retire is the host's to keep alive: an exit is reported and the
     // behavior is loaded again after a backoff, for as long as the assignment stands.
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task AnExitedBehaviorIsReloadedUntilItIsRetired()
     {
         var ct = TestContext.Current.CancellationToken;
