@@ -254,6 +254,7 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
         [TrustOperations.KeyGet] = Registered(async call =>
         {
             var (brainId, partId) = call.Arg<(string, string)>();
+            await RequireBrain(call, brainId);
             return await grains.GetGrain<IKeyringGrain>(brainId).Get(partId);
         }),
         [TrustOperations.KeyAdd] = Registered(async call =>
@@ -280,10 +281,19 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
         [TrustOperations.RegisteredBy] = Registered(async call => await grains.GetGrain<IPrincipal>(call.Arg<string>()).RegisteredBy()),
         [TrustOperations.RegisterPrincipal] = Registered(async call => await Writes.RegisterPrincipal(call.Signed<PrincipalRegistration>())),
         [TrustOperations.CompleteRegistration] = Registered(async call => await Writes.CompleteRegistration(call.Signed<PrincipalRegistration>())),
-        [TrustOperations.BrainsOf] = Registered(async call => await grains.GetGrain<IPrincipal>(call.Arg<string>()).Brains()),
+        [TrustOperations.BrainsOf] = Registered(async call =>
+        {
+            var principalId = call.Arg<string>();
+            var principal = grains.GetGrain<IPrincipal>(principalId);
+            // A principal's brains are read by its own account's machines or the machine that registered it (R67).
+            if (!call.Machine!.Accounts.Contains(principalId, StringComparer.Ordinal) && await principal.RegisteredBy() != call.Link.RemoteMachineId)
+            { throw new UnauthorizedAccessException($"Machine {call.Link.RemoteMachineId} is not bound to principal {principalId}."); }
+            return await principal.Brains();
+        }),
         [TrustOperations.Membership] = Registered(async call =>
         {
             var (brainScopeId, principalId) = call.Arg<(string, string)>();
+            await RequireBrain(call, brainScopeId);
             return await grains.GetGrain<IBrainAuthority>(brainScopeId).Membership(principalId);
         }),
         [TrustOperations.EnsureMember] = Registered(async call => await Writes.EnsureMember(call.Signed<Member>())),
@@ -293,7 +303,12 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
             return await grains.GetGrain<IBrainAuthority>(BrainScope.Create(request.Caller.AccountId, request.Caller.BrainId).Id).Authorize(request);
         }),
         [TrustOperations.Consume] = Registered(async call => await Writes.Consume(call.Signed<CallRequest>())),
-        [TrustOperations.ListGrants] = Registered(async call => await grains.GetGrain<IBrainAuthority>(call.Arg<string>()).ListGrants()),
+        [TrustOperations.ListGrants] = Registered(async call =>
+        {
+            var brainScopeId = call.Arg<string>();
+            await RequireBrain(call, brainScopeId);
+            return await grains.GetGrain<IBrainAuthority>(brainScopeId).ListGrants();
+        }),
         [TrustOperations.GrantAsOwner] = Registered(async call => await Writes.GrantAsOwner(call.Signed<OwnerGrant>())),
         [TrustOperations.RevokeAsOwner] = Registered(async call => { await Writes.RevokeAsOwner(call.Signed<OwnerRevoke>()); return true; }),
         [TrustOperations.RelayPort] = Registered(_ => Task.FromResult(Relay.LocalEndPoint.Port)),
@@ -310,6 +325,11 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
             return await _rendezvous!.Offer(call.Link.RemoteMachineId, peer, reflected, candidates, call.CancellationToken);
         }),
     };
+
+    // R95: a brain's wrapped keys, members and grants are read only by a machine bound to the brain's account.
+    private async Task RequireBrain(Call call, string brainScopeId)
+        => call.RequireAccount(await grains.GetGrain<IBrainAuthority>(brainScopeId).Account()
+            ?? throw new UnauthorizedAccessException($"Brain {brainScopeId} has no owner on record."));
 
     private async Task<string?> NodeOwner(string nodeId)
         => (await Directory.List()).FirstOrDefault(node => node.NodeId == nodeId)?.OwnerAccount;

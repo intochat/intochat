@@ -117,6 +117,30 @@ public sealed class TrustLinkFacts
         Assert.True(await mallory.Call<(string, string, byte[]), bool>(TrustOperations.KeyAdd, (mallorysBrain, "p", [1]), ct));
     }
 
+    // R95: wrapped keys, memberships, grants and a principal's brains are read only by a machine bound to the
+    // account they concern.
+    [Fact(Timeout = 120_000)]
+    public async Task AMachineOfAnotherAccountReadsNeitherItsWrappedKeysNorItsMembers()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        await using var trust = await TrustHost.StartAsync(ct);
+        await using var machine = await ModuleTest.Create().WithTrust(trust).StartAsync(ct);
+        Assert.True(await machine.SiloServices.GetRequiredService<IKeyringClient>().TryAdd(OwnerBrain, "kept", [1]));
+        await using var mallory = await RawMachine.Dial(trust, ct);
+        await mallory.ProvisionOwner("mallory", ct);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => mallory.Call<(string, string), byte[]?>(TrustOperations.KeyGet, (OwnerBrain, "kept"), ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => mallory.Call<(string, string), Member?>(TrustOperations.Membership, (OwnerBrain, ModuleTest.DefaultAccount), ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => mallory.Call<string, DigitalBrain.Platform.Identity.Grant[]>(TrustOperations.ListGrants, OwnerBrain, ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => mallory.Call<string, string[]>(TrustOperations.BrainsOf, ModuleTest.DefaultAccount, ct));
+        // Its own account's reads still answer.
+        var mallorysBrain = BrainScope.Create("mallory", "mallory").Id;
+        Assert.NotNull(await mallory.Call<(string, string), Member?>(TrustOperations.Membership, (mallorysBrain, "mallory"), ct));
+        Assert.NotEmpty(await mallory.Call<string, string[]>(TrustOperations.BrainsOf, "mallory", ct));
+        Assert.Equal([1], await machine.SiloServices.GetRequiredService<IKeyringClient>().Get(OwnerBrain, "kept"));
+    }
+
     [Fact(Timeout = 120_000)]
     public async Task ANodeDirectoryWriteForAnotherAccountsNodeIsRefused()
     {
