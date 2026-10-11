@@ -66,6 +66,18 @@ public sealed class EchoNeuron([PersistentState("echo", DigitalBrainNames.Cluste
     public Task Touch() => Task.CompletedTask;
 }
 
+// Which machine ran an activation handler of a counter: a stand-in runs none (R101).
+internal sealed class ActivationRecord(DigitalBrain.Platform.Sequencer.MachineIdentity machine) : IActivationHandler<CrossCounterNeuron>
+{
+    public static readonly ConcurrentBag<(string Machine, string Key)> Seen = [];
+
+    public Task Activated(CrossCounterNeuron neuron, CancellationToken cancellationToken)
+    {
+        Seen.Add((machine.MachineId, neuron.GetPrimaryKeyString()));
+        return Task.CompletedTask;
+    }
+}
+
 // What a machine's incoming calls carried: the request bytes, the RequestContext keys and the caller, per target and method.
 internal sealed class RequestCapture(Serializer serializer) : IIncomingGrainCallFilter
 {
@@ -94,8 +106,12 @@ public sealed class CrossPartCallFacts
 
     private static TestBrain Captured(TestBrain brain)
         // First of the incoming filters: it sees the RequestContext as the call arrived, before NeuronCallFilter.
-        => brain.ConfigureSilo(silo => silo.Services.Insert(0, ServiceDescriptor.Singleton<IIncomingGrainCallFilter>(provider =>
-            new RequestCapture(provider.GetRequiredService<Serializer>()))));
+        => brain.ConfigureSilo(silo =>
+        {
+            silo.Services.Insert(0, ServiceDescriptor.Singleton<IIncomingGrainCallFilter>(provider =>
+                new RequestCapture(provider.GetRequiredService<Serializer>())));
+            silo.Services.AddSingleton<IActivationHandler<CrossCounterNeuron>, ActivationRecord>();
+        });
 
     private static async Task<(TrustHost Trust, ModuleBrain One, ModuleBrain Two)> Machines(CancellationToken ct)
     {
@@ -309,6 +325,8 @@ public sealed class CrossPartCallFacts
             .StartAsync(ct);
         // Without a bootstrap credential the Secured host registers nothing at start; it serves bob's account only.
         await bob.SiloServices.GetRequiredService<MachineRegistrar>().Bind("bob");
+        await bob.SiloServices.GetRequiredService<IIdentityClient>().EnsureAccount(new Account
+        { AccountId = "bob", OwnerPrincipalId = "bob", Name = "bob", CreatedAt = DateTimeOffset.UtcNow });
         await owner.SiloServices.GetRequiredService<IIdentityClient>().EnsureMember(new Member
         { PrincipalId = "bob", AccountId = ModuleTest.DefaultAccount, BrainId = Scope, Role = MemberRole.Member, DisplayName = "Bob" });
         return bob;
@@ -395,6 +413,10 @@ public sealed class CrossPartCallFacts
                 Assert.Equal(1, CrossCounterNeuron.Adds[counter]);
                 Assert.Equal(5, await one.Grains.GetGrain<ICrossCounter>(counter).Value());
                 Assert.DoesNotContain(PartId.Of(counter), two.SiloServices.GetRequiredService<PartLogs>().Opened);
+                // The stand-in on two read no state (the part never opened there), wrote nothing and ran no activation
+                // handler (BrainActivation's Activated, DeploymentReconcile and the like are handlers too).
+                Assert.DoesNotContain((Id(two), counter), ActivationRecord.Seen);
+                Assert.Contains((Id(one), counter), ActivationRecord.Seen);
             }
             finally { await host.StopAsync(CancellationToken.None); }
         }
@@ -418,6 +440,78 @@ public sealed class CrossPartCallFacts
             await one.Grains.GetGrain<INoteRelay>(notes).Start(echo);
 
             await recorded.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
+        }
+        finally { await Stop(trust, two, one); }
+    }
+
+    // R107: a member's machine speaks only for users and apps; a forged Platform stamp for its own account is refused.
+    [Fact(Timeout = 180_000)]
+    public async Task AForgedPlatformStampFromAMemberMachineIsRefused()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        var (trust, one, two) = await Machines(ct);
+        var bob = await MemberMachine(trust, one, ct);
+        try
+        {
+            var counter = NewCounter();
+            await one.Grains.GetGrain<ICrossCounter>(counter).Add(1);
+            var target = GrainId.Create("test.cross-counter", counter);
+            var forged = new CallerContext { PrincipalId = "bob", AccountId = "bob", BrainId = Scope, Kind = CallerKind.Platform, StampedBy = TrustedEdge.Platform };
+
+            var outcome = await Send(bob, one, new ForwardedCall(target, Captured(one, $"{target}#Add"), forged, null));
+
+            var refused = Assert.IsType<UnauthorizedAccessException>(outcome.Error);
+            Assert.Contains("Platform caller", refused.Message, StringComparison.Ordinal);
+            Assert.Equal(1, CrossCounterNeuron.Adds[counter]);
+        }
+        finally { await Stop(trust, bob, two, one); }
+    }
+
+    // R107: a member's machine cannot stamp the owner's principal on its own account; its own principal still passes this gate.
+    [Fact(Timeout = 180_000)]
+    public async Task AForgedOwnerPrincipalFromAMemberMachineIsRefused()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        var (trust, one, two) = await Machines(ct);
+        var bob = await MemberMachine(trust, one, ct);
+        try
+        {
+            var counter = NewCounter();
+            await one.Grains.GetGrain<ICrossCounter>(counter).Add(1);
+            var target = GrainId.Create("test.cross-counter", counter);
+            static CallerContext As(string principal) => new() { PrincipalId = principal, AccountId = "bob", BrainId = Scope, Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp };
+
+            var forged = await Send(bob, one, new ForwardedCall(target, Captured(one, $"{target}#Add"), As(ModuleTest.DefaultAccount), null));
+            var own = await Send(bob, one, new ForwardedCall(target, Captured(one, $"{target}#Add"), As("bob"), null));
+
+            var refused = Assert.IsType<UnauthorizedAccessException>(forged.Error);
+            Assert.Contains("does not belong to account bob", refused.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("does not belong", own.Error?.Message ?? "", StringComparison.Ordinal);
+        }
+        finally { await Stop(trust, bob, two, one); }
+    }
+
+    // A forwarded call publishes as the neuron that ran it: the holder's log carries the counter as publisher.
+    [Fact(Timeout = 180_000)]
+    public async Task AForwardedCallsSignalKeepsItsNeuronAsPublisher()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        var (trust, one, two) = await Machines(ct);
+        try
+        {
+            var counter = $"{Scope}/apps/counter/s{Guid.NewGuid():N}";
+            await two.Grains.GetGrain<ISignalCounter>(counter).Change(1);
+
+            await one.Grains.GetGrain<ISignalCounter>(counter).Change(5);
+
+            var log = await two.SiloServices.GetRequiredService<PartLogs>().For(PartId.Of(counter));
+            await log.Flushed();
+            var signal = Assert.IsType<Changed>(Assert.Single(log.SignalsSince(0)[^1].Signals));
+            Assert.Equal(5, signal.Value);
+            Assert.Equal($"test.signal-counter/{counter}", signal.Publisher.Name);
         }
         finally { await Stop(trust, two, one); }
     }
