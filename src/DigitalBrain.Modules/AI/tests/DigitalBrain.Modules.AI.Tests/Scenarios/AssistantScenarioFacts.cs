@@ -21,26 +21,20 @@ namespace DigitalBrain.Modules.AI.Tests.Scenarios;
 // opening the window it names in the person's workspace.
 public sealed class AssistantScenarioFacts
 {
-    private const string Principal = "alice";
-    private const string BrainName = "brain";
-    private static readonly string Scope = BrainScope.Create(Principal, BrainName).Id;
-    private static readonly string Database = ConnectionKeys.For(Scope, "postgres", "supabase");
-    private static readonly string Visualizer = IApp.Key(Scope, "datavisualizer");
-    private static readonly string Surface = Visualizer + "/views/demo";
-    private static readonly string Conversation = IApp.Key(Scope, "assistant") + "/conversations/main";
-
     [Fact]
     public async Task WhichTablesAreInSupabaseIsAnsweredFromThePostgresConnection()
     {
         var ct = TestContext.Current.CancellationToken;
         var model = new ScriptedModel(
             Call(NeuronSurfaceTools.ContextName, []),
-            Call(NeuronSurfaceTools.CallName, new() { ["contract"] = typeof(IPostgresServer).FullName, ["key"] = Database, ["method"] = "ReadSchema", ["arguments"] = "[{}]" }));
-        await using var host = await Start(model);
-        await Connect(host);
-        StampAssistant();
+            Call(NeuronSurfaceTools.CallName, new() { ["contract"] = typeof(IPostgresServer).FullName, ["key"] = "{database}", ["method"] = "ReadSchema", ["arguments"] = "[{}]" }));
+        await using var host = await Start(model, ct);
+        var alice = await host.PersonAsync("alice", ct);
+        model.Database = Database(alice);
+        await Connect(host, alice);
 
-        var events = await Turn(host, "which tables are in Supabase?", ct);
+        List<AgentTurnEvent> events;
+        using (alice.AsApp(Assistant(alice))) { events = await Turn(host, alice, "which tables are in Supabase?", ct); }
 
         Assert.Empty(events.OfType<AgentTurnEvent.Failed>());
         var results = events.OfType<AgentTurnEvent.ToolCompleted>().ToArray();
@@ -54,70 +48,66 @@ public sealed class AssistantScenarioFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var show = JsonSerializer.Serialize(new object[] { "show", """{"title":"Demo","kind":"table","source":"sql","sql":"select * from demo"}""" }, JsonSerializerOptions.Web);
-        var open = JsonSerializer.Serialize(new[] { new OpenSurfaceWindow("open-demo", "demo", "Demo", new WindowReference("surface", Surface), 0) }, JsonSerializerOptions.Web);
         var model = new ScriptedModel(
-            Call(NeuronSurfaceTools.CallName, new() { ["contract"] = typeof(IApp).FullName, ["key"] = Visualizer, ["method"] = "Request", ["arguments"] = show }),
-            Call(NeuronSurfaceTools.CallName, new() { ["contract"] = typeof(IWorkspace).FullName, ["key"] = Scope, ["method"] = "OpenSurface", ["arguments"] = open }));
-        await using var host = await Start(model);
-        await Connect(host);
-        StampUser();
-        await host.AuthorizeCallerAsync();
-        var app = host.Get<IApp>(Visualizer);
-        await app.Create(new AppManifest("Data Visualizer", "shows data", [new("show", "show a table or chart")], [], []), "spec");
+            Call(NeuronSurfaceTools.CallName, new() { ["contract"] = typeof(IApp).FullName, ["key"] = "{visualizer}", ["method"] = "Request", ["arguments"] = show }),
+            Call(NeuronSurfaceTools.CallName, new() { ["contract"] = typeof(IWorkspace).FullName, ["key"] = "{scope}", ["method"] = "OpenSurface", ["arguments"] = "{open}" }));
+        await using var host = await Start(model, ct);
+        var alice = await host.PersonAsync("alice", ct);
+        var visualizer = IApp.Key(alice.BrainId, "datavisualizer");
+        var surface = visualizer + "/views/demo";
+        model.Visualizer = visualizer;
+        model.Scope = alice.BrainId;
+        model.Open = JsonSerializer.Serialize(new[] { new OpenSurfaceWindow("open-demo", "demo", "Demo", new WindowReference("surface", surface), 0) }, JsonSerializerOptions.Web);
+        await Connect(host, alice);
+        var app = host.Get<IApp>(visualizer);
+        using (alice.AsCaller()) { await app.Create(new AppManifest("Data Visualizer", "shows data", [new("show", "show a table or chart")], [], []), "spec"); }
         // The app's script stands in here as long as the turn runs: the request is a signal, never an answer.
-        await using var requested = await host.SubscribeAsync<AppRequested>(app, ct);
-        await using var signals = requested.ReadAllAsync(ct).GetAsyncEnumerator(ct);
-        StampAssistant();
+        await using var requested = await host.Observe<AppRequested>(app, ct);
 
-        var events = await Turn(host, "show data from Demo", ct);
+        List<AgentTurnEvent> events;
+        using (alice.AsApp(Assistant(alice))) { events = await Turn(host, alice, "show data from Demo", ct); }
 
         Assert.Empty(events.OfType<AgentTurnEvent.Failed>());
         Assert.All(events.OfType<AgentTurnEvent.ToolCompleted>(), result => Assert.DoesNotContain("isError", result.Result, StringComparison.Ordinal));
-        Assert.True(await signals.MoveNextAsync());
-        Assert.Equal("show", signals.Current.Operation);
-        Assert.Equal("""{"title":"Demo","kind":"table","source":"sql","sql":"select * from demo"}""", signals.Current.Input);
-        StampUser();
-        var window = Assert.Single((await host.Get<IWorkspace>(Scope).Read()).Windows);
-        Assert.Equal(Surface, window.Reference.NeuronId);
+        var request = await requested.NextAsync(ct: ct);
+        Assert.Equal("show", request.Operation);
+        Assert.Equal("""{"title":"Demo","kind":"table","source":"sql","sql":"select * from demo"}""", request.Input);
+        using (alice.AsCaller())
+        {
+            var window = Assert.Single((await host.Get<IWorkspace>(alice.BrainId).Read()).Windows);
+            Assert.Equal(surface, window.Reference.NeuronId);
+        }
     }
 
+    private static string Database(Person person) => ConnectionKeys.For(person.BrainId, "postgres", "supabase");
+
+    private static string Assistant(Person person) => IApp.Key(person.BrainId, "assistant");
+
     // The turn runs on the assistant app's conversation, as the app would start it.
-    private static async Task<List<AgentTurnEvent>> Turn(ModuleBrain host, string message, CancellationToken ct)
+    private static async Task<List<AgentTurnEvent>> Turn(ITestBrain host, Person person, string message, CancellationToken ct)
     {
         var events = new List<AgentTurnEvent>();
-        await foreach (var item in host.Get<IAgent>(Conversation).Run(AgentTurn.Text(message, contracts: ShippedAssistant.Contracts()), ct)) { events.Add(item); }
+        await foreach (var item in host.Get<IAgent>(Assistant(person) + "/conversations/main").Run(AgentTurn.Text(message, contracts: ShippedAssistant.Contracts()), ct)) { events.Add(item); }
         return events;
     }
 
-    private static Task<ModuleBrain> Start(IChatClient model) =>
-        ModuleTest.Create().WithExecution(new TestExecutionOptions
-        {
-            PrivateConfiguration = new Dictionary<string, string?>
-            {
-                [IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=platform;Username=reader",
-            },
-        })
+    // Every module whose contract the shipped assistant composes, so each contract is deployed.
+    private static Task<ITestBrain> Start(IChatClient model, CancellationToken ct) =>
+        TestBrain.Create()
             .WithModule<AIModule>().WithModule<AppsModule>().WithModule<DigitalBrain.Flutter.FlutterModule>()
-            .WithModule<CSharpModule>().WithModule<PostgresModule>().WithModule<DigitalBrain.Microsoft.Windows.WindowsModule>().WithReminders()
-            // No provider is provisioned, so the turn runs on the host's own chat client: the script.
-            .ConfigureSilo(silo => silo.Services
-                .AddSingleton(model)
-                .AddSingleton<IConnectionPostgresProviderFactory>(new DemoDatabase()))
-            .StartAsync(TestContext.Current.CancellationToken);
+            .WithModule<CSharpModule>().WithModule<PostgresModule>().WithModule<DigitalBrain.Microsoft.Windows.WindowsModule>()
+            .WithModule<DigitalBrain.Tools.ToolsModule>().WithModule<DigitalBrain.Mcp.McpModule>().WithModule<DigitalBrain.Microsoft.Playwright.PlaywrightModule>()
+            .WithIntegration(PostgresModule.Integration, "ConnectionString", "Host=localhost;Database=platform;Username=reader")
+            .WithChatModel(model)
+            // A person's database is reached through the provider factory: no Postgres runs here, the demo schema stands in.
+            .ConfigureServices(services => services.AddSingleton<IConnectionPostgresProviderFactory>(new DemoDatabase()))
+            .StartAsync(ct);
 
-    private static async Task Connect(ModuleBrain host)
+    private static async Task Connect(ITestBrain host, Person person)
     {
-        StampUser();
-        await host.AuthorizeCallerAsync();
-        await host.Get<IConnection>(Database).Connect("connection-string", "Host=supabase.example;Database=postgres;Username=reader");
+        using (person.AsCaller())
+        { await host.Get<IConnection>(Database(person)).Connect("connection-string", "Host=supabase.example;Database=postgres;Username=reader"); }
     }
-
-    private static void StampUser() => CallerContextStamper.Stamp(new()
-    { PrincipalId = Principal, AccountId = Principal, BrainId = BrainName, Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
-
-    // The caller as the assistant app's turn runs: the app, re-stamped at the app proxy.
-    private static void StampAssistant() => CallerContextStamper.Stamp(new()
-    { PrincipalId = Principal, AccountId = Principal, BrainId = BrainName, Kind = CallerKind.App, AppId = IApp.Key(Scope, "assistant"), StampedBy = TrustedEdge.AppProxy });
 
     private static FunctionCallContent Call(string tool, Dictionary<string, object?> arguments) => new("", tool, arguments);
 
@@ -134,13 +124,24 @@ public sealed class AssistantScenarioFacts
     // Plays the given calls in order, one per model step, then answers with the last result.
     private sealed class ScriptedModel(params FunctionCallContent[] calls) : IChatClient
     {
+        public string Database { get; set; } = "";
+        public string Visualizer { get; set; } = "";
+        public string Scope { get; set; } = "";
+        public string Open { get; set; } = "";
+
+        private Dictionary<string, object?> Bound(IDictionary<string, object?>? arguments)
+            => (arguments ?? new Dictionary<string, object?>()).ToDictionary(pair => pair.Key, pair => pair.Value is string text
+                ? text.Replace("{database}", Database, StringComparison.Ordinal).Replace("{visualizer}", Visualizer, StringComparison.Ordinal)
+                    .Replace("{scope}", Scope, StringComparison.Ordinal).Replace("{open}", Open, StringComparison.Ordinal)
+                : pair.Value);
+
         public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
         {
             var history = messages.ToList();
             var asked = history.FindLastIndex(message => message.Role == ChatRole.User);
             var made = history.Skip(asked + 1).SelectMany(message => message.Contents).OfType<FunctionCallContent>().Count();
             if (made < calls.Length)
-            { return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, [new FunctionCallContent("call-" + made, calls[made].Name, calls[made].Arguments)]))); }
+            { return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, [new FunctionCallContent("call-" + made, calls[made].Name, Bound(calls[made].Arguments))]))); }
             var last = history.SelectMany(message => message.Contents).OfType<FunctionResultContent>().Last();
             return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, JsonSerializer.Serialize(last.Result))));
         }

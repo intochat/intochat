@@ -99,6 +99,7 @@ public sealed class AgentHistoryFacts
                 : new ChatMessage(ChatRole.Assistant, "done: " + asked)));
         });
         await using var brain = await Probe.Brain(client, ct);
+        using var caller = brain.Owner.AsCaller();
         var agent = brain.Get<IAgent>(AgentFacts.Key("trimmed"));
         await agent.Configure(new() { MaxHistoryMessages = 3, Contracts = [Probe.Contract] }, 0);
         await agent.GetResponse("use the tool", ct);
@@ -124,6 +125,7 @@ public sealed class AgentHistoryFacts
                 : new ChatMessage(ChatRole.Assistant, "done: " + asked)));
         });
         await using var brain = await Probe.Brain(client, ct);
+        using var caller = brain.Owner.AsCaller();
         var agent = brain.Get<IAgent>(AgentFacts.Key("large-result"));
         await agent.Configure(new() { Contracts = [Probe.Contract] }, 0);
         await agent.GetResponse("dump everything", ct);

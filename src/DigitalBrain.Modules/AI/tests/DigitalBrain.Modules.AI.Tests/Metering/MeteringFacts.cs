@@ -106,7 +106,7 @@ public sealed class MeteringFacts
     public async Task UsageSurvivesGrainReactivation()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AIModule>().StartAsync(ct);
         var usage = brain.Get<IIntentUsage>("intent-durable");
         await usage.RecordAsync(new TokenUsageEntry(MeterKind.Chat, "OpenAI", "gpt-5.6-luna", 10, 3, 2, 5, 15, true, DateTimeOffset.UnixEpoch), ct);
 

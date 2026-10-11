@@ -1,11 +1,9 @@
 using System.Collections.Concurrent;
-using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Inference;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Chat;
 using DigitalBrain.Framework;
-using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
 
@@ -26,10 +24,10 @@ public sealed class AgentPersistenceFacts
         timeout.CancelAfter(TimeSpan.FromSeconds(30));
         var ct = timeout.Token;
         var writes = new HeldWrite(phase, fail);
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>().WithModule<FlutterModule>()
+        await using var brain = await AgentFacts.Builder(StubChatClient.Replying("reply")).WithModule<FlutterModule>()
+            // Storage faults are in-process: the agent's writes are held or failed under the kernel's wrapper.
             .ConfigureSilo(silo =>
             {
-                silo.Services.AddSingleton<IChatClient>(StubChatClient.Replying("reply"));
                 var original = silo.Services.Last(service => service.ServiceType == typeof(IGrainStorage)
                     && Equals(service.ServiceKey, DigitalBrainNames.ClusterGrainStorage));
                 silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (services, key) =>
@@ -55,8 +53,8 @@ public sealed class AgentPersistenceFacts
 
         var observed = await reading;
         var committed = writes.Commits[observed.Version];
-        Assert.Equal(committed.ActiveRun, observed.ActiveRun);
-        Assert.Equal(committed.Runs, observed.Runs);
+        Same(committed.ActiveRun, observed.ActiveRun);
+        Same(committed.Runs, observed.Runs);
         if (fail) { Assert.Empty(await transcript); }
         else { Assert.Contains((await transcript).Length, new[] { 0, 2 }); }
         await chat.Project(Projection(source, observed));
@@ -64,7 +62,7 @@ public sealed class AgentPersistenceFacts
         else { await running; }
         var terminal = await agent.Read();
         Assert.True(terminal.Version >= observed.Version);
-        if (terminal.Version == observed.Version) { Assert.Equal(terminal.Runs, observed.Runs); }
+        if (terminal.Version == observed.Version) { Same(terminal.Runs, observed.Runs); }
         Assert.Null(terminal.ActiveRun);
         Assert.Equal(fail ? AgentRunStatus.Failed : AgentRunStatus.Completed, Assert.Single(terminal.Runs).Status);
         await chat.Project(Projection(source, terminal));
@@ -73,9 +71,13 @@ public sealed class AgentPersistenceFacts
         await brain.DeactivateAsync(agent, ct);
         var restored = await agent.Read();
         Assert.Equal(terminal.Version, restored.Version);
-        Assert.Equal(terminal.Runs, restored.Runs);
+        Same(terminal.Runs, restored.Runs);
         Assert.Equal(fail ? 0 : 2, (await agent.Transcript()).Length);
     }
+
+    // Runs hold arrays, which records compare by reference: equal runs serialize alike.
+    private static void Same<T>(T expected, T actual)
+        => Assert.Equal(System.Text.Json.JsonSerializer.Serialize(expected), System.Text.Json.JsonSerializer.Serialize(actual));
 
     private static ChatProjection Projection(string source, AgentState state)
         => new(source, 0, state.Version, [.. state.Runs.Concat(state.ActiveRun is { } active ? [active] : Array.Empty<AgentRun>())

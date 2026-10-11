@@ -22,6 +22,7 @@ public sealed class InferenceFacts
         var model = new ResolvedModel(AiProvider.OpenAI, "model", null, null, "revision", LlmCapabilities.Tools, null, null);
         Assert.False(InferenceMapping.CreateOptions(model, options).AllowMultipleToolCalls);
         Assert.Throws<ArgumentException>(() => InferenceMapping.CreateOptions(model with { Provider = AiProvider.Anthropic }, options));
+        Assert.Throws<ArgumentException>(() => InferenceMapping.CreateOptions(model with { Provider = AiProvider.Host }, options));
     }
 
     [Fact]
@@ -117,11 +118,11 @@ public sealed class InferenceFacts
     public async Task GenericAndTypedNeuronsResolveAndRejectMismatchedProfiles()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithRegistrations(AiRegistrationSeeds.OpenAI()).WithModule<AIModule>()
-            .ConfigureSilo(silo => silo.Services.Configure<AIOptions>(options =>
+        await using var brain = await TestBrain.Create().WithProvider("OpenAI").WithModule<AIModule>()
+            .WithOptions<AIModule, AIOptions>(options =>
             {
                 options.ModelProfiles["custom"] = new() { Provider = "OpenAI", Model = "custom-model" };
-            })).StartAsync(ct);
+            }).StartAsync(ct);
         var generic = brain.Get<ILLM>("generic");
         var description = await generic.Describe(new("custom"));
         Assert.Equal("custom-model", description.Model);

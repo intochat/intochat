@@ -3,7 +3,6 @@ using DigitalBrain.AI.Agents.Signals;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Storage;
-using Xunit;
 
 namespace DigitalBrain.Modules.AI.Tests.Agents;
 
@@ -18,21 +17,22 @@ public sealed class AgentRecoveryFacts
         var client = StubChatClient.Replying("never");
         await using var brain = await AgentFacts.Brain(client, ct);
         var key = AgentFacts.Key("recovered");
-        var storage = brain.SiloServices.GetRequiredKeyedService<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage);
+        // The run is planted in the module's grain storage as a crashed activation left it.
+        var storage = brain.Services.GetRequiredKeyedService<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage);
         await storage.WriteStateAsync("agent", GrainId.Create("agent", key), new GrainState<AgentStorage>(new AgentStorage
         {
             ActiveRun = new AgentRun("interrupted-run", AgentRunStatus.Running, "hello", DateTimeOffset.UtcNow)
             { ToolCalls = [new AgentToolCall("call", "lookup", "{}")] },
         }));
 
-        // Subscribing wakes the agent; the run's end still reaches a caller who only has signals.
-        await using var failures = await brain.SubscribeAsync<TurnFailed>(brain.Get<IAgent>(key), ct);
-        await using var failed = failures.ReadAllAsync(ct).GetAsyncEnumerator(ct);
-        Assert.True(await failed.MoveNextAsync());
-        Assert.Equal(("interrupted-run", false), (failed.Current.RunId, failed.Current.Cancelled));
-        Assert.Contains("outcomes may be unknown", failed.Current.Error, StringComparison.Ordinal);
+        var agent = brain.Get<IAgent>(key);
+        await using var failures = await brain.Observe<TurnFailed>(agent, ct);
 
-        var state = await brain.Get<IAgent>(key).Read();
+        // The first call wakes the agent; the run's end still reaches a caller who only has signals.
+        var state = await agent.Read();
+        var failed = await failures.NextAsync(ct: ct);
+        Assert.Equal(("interrupted-run", false), (failed.RunId, failed.Cancelled));
+        Assert.Contains("outcomes may be unknown", failed.Error, StringComparison.Ordinal);
 
         Assert.Null(state.ActiveRun);
         var run = Assert.Single(state.Runs);

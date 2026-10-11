@@ -37,6 +37,9 @@ internal sealed class LoopbackServer : IDisposable
         return captured;
     }
 
+    // The next request, received and never answered: a provider that is still working on it.
+    public Task<HttpListenerContext> Hold(CancellationToken cancellationToken) => listener.GetContextAsync().WaitAsync(cancellationToken);
+
     public Task<CapturedRequest> ReplyOnce(string mediaType, string response, CancellationToken cancellationToken, HttpStatusCode status = HttpStatusCode.OK)
         => ReplyOnce(mediaType, Encoding.UTF8.GetBytes(response), cancellationToken, status);
 

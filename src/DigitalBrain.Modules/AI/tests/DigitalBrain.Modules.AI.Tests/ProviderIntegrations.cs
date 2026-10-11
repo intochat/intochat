@@ -1,4 +1,6 @@
 using DigitalBrain.AI;
+using DigitalBrain.Framework.Platform.Integrations;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Modules.AI.Tests;
 
@@ -16,4 +18,8 @@ internal static class ProviderIntegrations
         brain = brain.WithIntegration(schema, "ApiKey", apiKey);
         return endpoint is null ? brain : brain.WithIntegration(schema, "Endpoint", endpoint);
     }
+
+    // The deployment's registration of a provider: a kernel grain, not a neuron, so it is reached through the host.
+    public static IIntegration Integration(this ITestBrain brain, string id)
+        => brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IIntegration>("integration/" + id);
 }

@@ -7,7 +7,6 @@ using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Agents.Signals;
 using DigitalBrain.AI.Inference;
 using DigitalBrain.AI.Models;
-using DigitalBrain.Framework.Platform.Integrations;
 
 namespace DigitalBrain.Modules.AI.Tests.Agents;
 
@@ -21,11 +20,10 @@ public sealed class HostedAgentFacts
     [InlineData("OpenRouter")]
     public async Task RealProviderAdapterAnswersAndCommitsTheTranscriptBeforeSignal(string provider)
     {
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        deadline.CancelAfter(TimeSpan.FromMinutes(5));
-        var ct = deadline.Token;
+        var ct = TestContext.Current.CancellationToken;
         using var endpoint = new LoopbackServer();
-        await using var brain = await ModuleTest.Create().WithModule<AIModule, AIOptions>(options =>
+        var integration = provider == "OpenAI" ? AIModule.OpenAIIntegration : AIModule.OpenRouterIntegration;
+        await using var brain = await TestBrain.Create().WithModule<AIModule, AIOptions>(options =>
             {
                 options.Default.Model = "fixture";
                 options.ModelProfiles.Add("fixture", new AIModelProfileOptions
@@ -36,21 +34,14 @@ public sealed class HostedAgentFacts
                     Capabilities = LlmCapabilities.None,
                 });
             })
-            .WithExecution(new TestExecutionOptions
-            {
-                PrivateConfiguration = new Dictionary<string, string?>
-                {
-                    [IntegrationSchema.Key(provider.ToLowerInvariant(), "ApiKey")] = "test-only",
-                    [IntegrationSchema.Key(provider.ToLowerInvariant(), "Endpoint")] = endpoint.Url,
-                },
-            }).StartAsync(ct);
+            .WithIntegration(integration, "ApiKey", "test-only")
+            .WithIntegration(integration, "Endpoint", endpoint.Url)
+            .StartAsync(ct);
         var agent = brain.Get<IAgent>(AgentFacts.Key("hosted-assistant"));
-        await using var completions = await brain.SubscribeAsync<TurnCompleted>(agent, ct);
-        await using var completed = completions.ReadAllAsync(ct).GetAsyncEnumerator(ct);
+        await using var completions = await brain.Observe<TurnCompleted>(agent, ct);
         var firstRequest = ReplyWithStream(endpoint, "first answer", ct);
         var firstResponse = agent.GetResponse("first question", ct);
-        Assert.True(await completed.MoveNextAsync());
-        Assert.Equal("first answer", completed.Current.Reply);
+        Assert.Equal("first answer", (await completions.NextAsync(ct: ct)).Reply);
         Assert.Equal(2, (await agent.Transcript()).Length);
         Assert.Equal("first answer", await firstResponse);
         using (var request = JsonDocument.Parse((await firstRequest).Body))

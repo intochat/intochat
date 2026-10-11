@@ -59,8 +59,8 @@ public sealed class AiMessageCompatibilityFacts
     [Fact]
     public async Task NormalizedContentSurvivesOrleansSerialization()
     {
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>().StartAsync(TestContext.Current.CancellationToken);
-        var serializer = brain.SiloServices.GetRequiredService<Serializer<AiMessage>>();
+        await using var brain = await TestBrain.Create().WithModule<AIModule>().StartAsync(TestContext.Current.CancellationToken);
+        var serializer = brain.Services.GetRequiredService<Serializer<AiMessage>>();
         IReadOnlyList<AiContent> content = [new AiText("hello"), new AiToolResult("call-1", "{}")];
         var restored = serializer.Deserialize(serializer.SerializeToArray(new AiMessage("assistant", content)));
         Assert.NotNull(restored);
@@ -73,8 +73,8 @@ public sealed class AiMessageCompatibilityFacts
     [Fact]
     public async Task LegacyListContentWirePayloadRemainsReadable()
     {
-        await using var brain = await ModuleTest.Create().WithModule<AIModule>().StartAsync(TestContext.Current.CancellationToken);
-        var serializer = brain.SiloServices.GetRequiredService<Serializer<AiMessage>>();
+        await using var brain = await TestBrain.Create().WithModule<AIModule>().StartAsync(TestContext.Current.CancellationToken);
+        var serializer = brain.Services.GetRequiredService<Serializer<AiMessage>>();
         var legacy = new AiMessage("assistant", []);
         // The old positional record stored the caller's list without normalization. Recreate
         // that object shape so this exercises the legacy list codec under the unchanged Id(1).
