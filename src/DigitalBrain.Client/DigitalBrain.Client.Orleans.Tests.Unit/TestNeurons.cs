@@ -14,7 +14,6 @@ public interface ITestEmitter : INeuron
 {
     Task Emit(int value);
     Task EmitText(string value);
-    Task Deactivate();
 }
 [Alias("test.other-emitter")]
 public interface IOtherEmitter : INeuron { Task Emit(int value); }
@@ -23,7 +22,6 @@ public sealed class TestEmitter : Neuron, ITestEmitter
 {
     public Task Emit(int value) => PublishAsync(new Number(value));
     public Task EmitText(string value) => PublishAsync(new Text(value));
-    public Task Deactivate() { DeactivateOnIdle(); return Task.CompletedTask; }
 }
 [GrainType("other-emitter")]
 public sealed class OtherEmitter : Neuron, IOtherEmitter
@@ -31,18 +29,19 @@ public sealed class OtherEmitter : Neuron, IOtherEmitter
     public Task Emit(int value) => PublishAsync(new Number(value));
 }
 
+[GenerateSerializer]
+public sealed record Heard([property: Id(0)] int Value) : Signal;
+
 public interface ISiloBrainListener : INeuron
 {
     Task<bool> HubIsPresent();
     Task Listen(string sourceId);
-    Task<int> Last();
     Task<bool> CancelingTheTokenEndsASubscription(string sourceId);
 }
 
 [GrainType("silo-brain-listener")]
 public sealed class SiloBrainListener : Neuron, ISiloBrainListener
 {
-    private int _last;
     private ISignalSubscription<Number>? _subscription;
 
     public Task<bool> HubIsPresent() => Task.FromResult(ServiceProvider.GetService<LocalSignalHub>() is not null);
@@ -54,8 +53,6 @@ public sealed class SiloBrainListener : Neuron, ISiloBrainListener
         _subscription = await ServiceProvider.GetRequiredService<IBrainSubscriptions>().SubscribeAsync<Number>(source);
         _ = Drain();
     }
-
-    public Task<int> Last() => Task.FromResult(_last);
 
     public async Task<bool> CancelingTheTokenEndsASubscription(string sourceId)
     {
@@ -72,7 +69,7 @@ public sealed class SiloBrainListener : Neuron, ISiloBrainListener
         if (_subscription is null) { return; }
         await foreach (var number in _subscription.ReadAllAsync())
         {
-            _last = number.Value;
+            await PublishAsync(new Heard(number.Value));
         }
     }
 }

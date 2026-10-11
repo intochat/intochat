@@ -1,5 +1,4 @@
 using DigitalBrain;
-using DigitalBrain.Testing.Module;
 using Xunit;
 
 namespace DigitalBrain.Client.Orleans.Tests.Unit;
@@ -9,7 +8,7 @@ public sealed class SourceSetFacts
     private static readonly TimeSpan Wait = TimeSpan.FromSeconds(10);
 
     // Opens the set and returns once every member's subscription is registered, with the first read pending.
-    private static async Task<Watcher> Watch(ModuleBrain brain, Sources sources, CancellationToken ct)
+    private static async Task<Watcher> Watch(ITestBrain brain, Sources sources, CancellationToken ct)
     {
         var registered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var stream = SourceSet.Open<Number>(brain, sources, () => { registered.TrySetResult(); return Task.CompletedTask; }, coalesce: false, ct)
@@ -49,7 +48,7 @@ public sealed class SourceSetFacts
     // A re-selection after a registry change has no observable gate; give it time to register joiners and drop leavers.
     private static Task Reselected(CancellationToken ct) => Task.Delay(300, ct);
 
-    private static Sources Members(ModuleBrain brain, string registry, Func<int, Task>? onSelect = null)
+    private static Sources Members(ITestBrain brain, string registry, Func<int, Task>? onSelect = null)
     {
         var calls = 0;
         return Sources.Named<ITestRegistry, MembersChanged>(brain.Get<ITestRegistry>(registry), async (r, _) =>
@@ -64,7 +63,7 @@ public sealed class SourceSetFacts
     public async Task AFixedSetYieldsEachMembersSignalsWithTheMemberAsPublisher()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         await using var watch = await Watch(brain, Sources.Of(brain.Get<ITestEmitter>("set-a"), brain.Get<ITestEmitter>("set-b")), ct);
         await brain.Get<ITestEmitter>("set-a").Emit(1);
         await brain.Get<ITestEmitter>("set-b").Emit(2);
@@ -76,7 +75,7 @@ public sealed class SourceSetFacts
     public async Task ARepeatedMemberIsOneMember()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var a = brain.Get<ITestEmitter>("set-twice");
         await using var watch = await Watch(brain, Sources.Of(a, a), ct);
         await a.Emit(1);
@@ -88,7 +87,7 @@ public sealed class SourceSetFacts
     public async Task DisposingTheSetStreamMidReadDoesNotThrow()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         IDigitalBrain program = brain;
         var stream = program.On<Number>(Sources.Of(brain.Get<ITestEmitter>("set-idle")), ct).GetAsyncEnumerator(ct);
         var pending = stream.MoveNextAsync().AsTask();
@@ -101,7 +100,7 @@ public sealed class SourceSetFacts
     public async Task ARegistryChangeAddsAndRemovesMembers()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var registry = brain.Get<ITestRegistry>("reg-1");
         await registry.Set(["reg-1-a"]);
         await using var watch = await Watch(brain, Members(brain, "reg-1"), ct);
@@ -119,7 +118,7 @@ public sealed class SourceSetFacts
     public async Task ARegistryChangePublishedDuringTheFirstSelectIsFollowed()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         IDigitalBrain program = brain;
         var registry = brain.Get<ITestRegistry>("reg-5");
         await registry.Set(["reg-5-a"]);
@@ -146,7 +145,7 @@ public sealed class SourceSetFacts
     public async Task AMemberThatStaysAcrossAReselectionNeitherLosesNorRepeatsASignal()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var registry = brain.Get<ITestRegistry>("reg-2");
         await registry.Set(["reg-2-a"]);
         await using var watch = await Watch(brain, Members(brain, "reg-2"), ct);
@@ -160,7 +159,7 @@ public sealed class SourceSetFacts
     public async Task AMemberThatLeavesAndReturnsIsNotReplayed()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var registry = brain.Get<ITestRegistry>("reg-3");
         var a = brain.Get<ITestEmitter>("reg-3-a");
         await registry.Set(["reg-3-a"]);
@@ -178,7 +177,7 @@ public sealed class SourceSetFacts
     public async Task AFailingSelectEndsTheStreamAndReleasesEveryMember()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var registry = brain.Get<ITestRegistry>("reg-4");
         await registry.Set(["reg-4-a"]);
         var sources = Members(brain, "reg-4", n => n > 1 ? throw new InvalidOperationException("malformed registry") : Task.CompletedTask);

@@ -1,5 +1,4 @@
 using DigitalBrain;
-using DigitalBrain.Testing.Module;
 using Xunit;
 
 namespace DigitalBrain.Client.Orleans.Tests.Unit;
@@ -31,7 +30,7 @@ public sealed class ReactFacts
     public async Task RebuildRunsOnceBeforeAnySignalAndOncePerSignal()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var source = brain.Get<ITestEmitter>("react-1");
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var rebuilds = new Rebuilds();
@@ -49,7 +48,7 @@ public sealed class ReactFacts
     public async Task SignalsDuringARebuildCoalesceIntoOneFollowingRebuild()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var source = brain.Get<ITestEmitter>("react-2");
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -73,7 +72,7 @@ public sealed class ReactFacts
     public async Task AFailingRebuildEndsReactWithThatError()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var source = brain.Get<ITestEmitter>("react-3");
         var rebuilds = new Rebuilds(n => n == 2 ? throw new InvalidOperationException("boom") : Task.CompletedTask);
         var react = brain.React<Number>(source, rebuilds.Rebuild, ct);
