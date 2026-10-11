@@ -50,6 +50,21 @@ internal static class Repository
             .Where(path => !path.Split(System.IO.Path.DirectorySeparatorChar).Any(part => part is "obj" or "bin"))
             .Where(path => predicate is null || predicate(path));
 
+    internal static IEnumerable<Project> TestProjects()
+        => Projects.Values.Where(project => project.Name.EndsWith(".Tests", StringComparison.Ordinal) || project.Name.Contains(".Tests.", StringComparison.Ordinal));
+
+    internal static IEnumerable<string> References(string project)
+        => XDocument.Load(project).Descendants("ProjectReference")
+            .Select(reference => reference.Attribute("Include")?.Value)
+            .OfType<string>()
+            .Where(include => !include.Contains('@', StringComparison.Ordinal))
+            .Select(include => System.IO.Path.GetFileNameWithoutExtension(include.Replace('\\', '/')));
+
+    internal static IEnumerable<string> PackageReferences(string project)
+        => XDocument.Load(project).Descendants("PackageReference")
+            .Select(reference => reference.Attribute("Include")?.Value)
+            .OfType<string>();
+
     internal static string Relative(string path) => System.IO.Path.GetRelativePath(Root, path).Replace('\\', '/');
 
     // "<ProjectName>/<path inside the project directory>": stable across directory moves, so a

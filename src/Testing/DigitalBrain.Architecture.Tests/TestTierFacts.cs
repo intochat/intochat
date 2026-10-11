@@ -1,12 +1,11 @@
 using System.Text.Json;
-using System.Xml.Linq;
 using DigitalBrain.Framework.Modules;
 
 namespace DigitalBrain.Architecture.Tests;
 
 // The test-tier architecture: a module proves its mechanism in one in-process test project on
-// DigitalBrain.Testing.Module; the product proves the composition through the E2E tier on
-// DigitalBrain.Testing.E2E; a full product stack boots in a shared fixture, never per fact.
+// DigitalBrain.Testing; the product proves the composition through the Aspire tier on
+// DigitalBrain.Testing.Aspire (product helpers in DigitalBrain.OS.Testing); a full product stack boots in a shared fixture, never per fact.
 // TestTierBaseline.json records the not-yet-migrated legacy state. Every list only shrinks:
 // a new entry authorizes an architecture regression and needs the same deliberate review as
 // the persisted-state baseline.
@@ -52,7 +51,7 @@ public sealed class TestTierFacts
             {
                 // The composition tier must stay model-only: no in-process brain, no product boot.
                 var booting = References(project)
-                    .Where(reference => reference is "DigitalBrain.Testing.Module" or "DigitalBrain.Testing.E2E")
+                    .Where(reference => reference is "DigitalBrain.Testing" or "DigitalBrain.Testing.Module" or "DigitalBrain.Testing.Aspire" or "DigitalBrain.OS.Testing")
                     .ToArray();
                 if (booting.Length > 0) { offenders.Add($"{name} -> {string.Join(", ", booting)}"); }
                 continue;
@@ -64,7 +63,7 @@ public sealed class TestTierFacts
             if (!baseline.Remove(name)) { offenders.Add($"{name} -> {string.Join(", ", hosting)}"); }
         }
         Assert.True(offenders.Count == 0,
-            "Module tests host the brain in-process (DigitalBrain.Testing.Module); Aspire hosting belongs to the product tier: "
+            "Module tests host the brain in-process (DigitalBrain.Testing); Aspire hosting belongs to the product tier: "
             + string.Join("; ", offenders));
         Assert.True(baseline.Count == 0,
             "Migrated projects linger in TestTierBaseline.json LegacyAspireReferencingModuleTests; remove: " + string.Join(", ", baseline));
@@ -73,21 +72,21 @@ public sealed class TestTierFacts
     [Fact]
     public void TheEndToEndTierBelongsToTheProduct()
     {
-        string[] productScope = ["DigitalBrain.Framework.Tests.E2E", "DigitalBrain.Platform.Tests.E2E", "DigitalBrain.Aspire.Hosting.Tests.E2E", "DigitalBrain.OS.Tests.E2E", "DigitalBrain.OS.Tests.Unit"];
+        string[] productScope = ["DigitalBrain.Framework.Tests.E2E", "DigitalBrain.Platform.Tests.E2E", "DigitalBrain.Aspire.Hosting.Tests.E2E", "DigitalBrain.OS.Tests.E2E", "DigitalBrain.OS.Tests.Unit", "DigitalBrain.OS.Testing"];
         var baseline = Baseline().LegacyEndToEndReferencers.ToHashSet(StringComparer.Ordinal);
         var offenders = new List<string>();
         foreach (var project in TestProjects())
         {
-            if (!References(project).Contains("DigitalBrain.Testing.E2E", StringComparer.Ordinal)) { continue; }
+            if (!References(project).Contains("DigitalBrain.Testing.Aspire", StringComparer.Ordinal)) { continue; }
             var name = Path.GetFileNameWithoutExtension(project);
             // The harness's own folder (Testing) and the product tier may consume it.
-            if (Repository.ProjectNamed(name).Folder == Repository.ProjectNamed("DigitalBrain.Testing.E2E").Folder
+            if (Repository.ProjectNamed(name).Folder == Repository.ProjectNamed("DigitalBrain.Testing.Aspire").Folder
                 || productScope.Contains(name, StringComparer.Ordinal))
             { continue; }
             if (!baseline.Remove(name)) { offenders.Add(name); }
         }
         Assert.True(offenders.Count == 0,
-            "DigitalBrain.Testing.E2E is the product's tier (IntoChat, Kernel, Platform, Aspire hosting). A module's edge belongs in its in-process .Tests project: "
+            "DigitalBrain.Testing.Aspire is the product's tier (IntoChat, Kernel, Platform, Aspire hosting). A module's edge belongs in its in-process .Tests project: "
             + string.Join(", ", offenders));
         Assert.True(baseline.Count == 0,
             "Migrated projects linger in TestTierBaseline.json LegacyEndToEndReferencers; remove: " + string.Join(", ", baseline));
@@ -128,24 +127,17 @@ public sealed class TestTierFacts
         string[] LegacyModuleTestProjects,
         string[] LegacyEndToEndReferencers,
         string[] LegacyAspireReferencingModuleTests,
-        string[] LegacyFullStackBootFacts);
+        string[] LegacyFullStackBootFacts,
+        string[] LegacyHandStampedCallers);
 
     private static TestTierBaseline Baseline()
         => JsonSerializer.Deserialize<TestTierBaseline>(
             File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestTierBaseline.json")))!;
 
-    private static IEnumerable<string> TestProjects()
-        => Repository.Projects.Values
-            .Where(project => project.Name.EndsWith(".Tests", StringComparison.Ordinal) || project.Name.Contains(".Tests.", StringComparison.Ordinal))
-            .Select(project => project.Path);
+    private static IEnumerable<string> TestProjects() => Repository.TestProjects().Select(project => project.Path);
 
     private static IEnumerable<string> ModuleTestProjects()
         => TestProjects().Where(path => path.StartsWith(Repository.ModulesRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal));
 
-    private static IEnumerable<string> References(string project)
-        => XDocument.Load(project).Descendants("ProjectReference")
-            .Select(reference => reference.Attribute("Include")?.Value)
-            .OfType<string>()
-            .Where(include => !include.Contains('@', StringComparison.Ordinal))
-            .Select(include => Path.GetFileNameWithoutExtension(include.Replace('\\', '/')));
+    private static IEnumerable<string> References(string project) => Repository.References(project);
 }
