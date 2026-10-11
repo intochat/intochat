@@ -9,9 +9,9 @@ namespace DigitalBrain.Aspire.Hosting.Tests.Unit;
 
 public sealed class TrustClusterHostingFacts
 {
-    // R66: the dev trust host advertises loopback; machines dial its link endpoint on localhost (T20-7).
+    // R66: the dev trust host advertises loopback; machines dial its link endpoint there (T20-7).
     [Fact]
-    public async Task TheTrustSiloAdvertisesLoopbackAndMachinesReachItOnLocalhost()
+    public async Task TheTrustHostAdvertisesLoopbackAndMachinesDialItThere()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
         var brain = builder.AddDigitalBrain("memory", options: new()).WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite());
@@ -31,7 +31,7 @@ public sealed class TrustClusterHostingFacts
             endpoint.Name == name && endpoint.Port is null && endpoint.Protocol == System.Net.Sockets.ProtocolType.Udp));
         Assert.DoesNotContain(endpoints, endpoint => endpoint.Name == "gateway");
         Assert.DoesNotContain(values.Keys, key => key.EndsWith("GatewayPort", StringComparison.Ordinal));
-        Assert.Equal("localhost:{trust.bindings.link.port}", TrustClusterHosting.EndpointOf(trust).ValueExpression);
+        Assert.Equal("127.0.0.1:{trust.bindings.link.port}", TrustClusterHosting.EndpointOf(trust).ValueExpression);
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public sealed class TrustClusterHostingFacts
         Assert.All([onA, onB], values =>
         {
             Assert.Contains(DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.PairingSecretKey), values.Keys);
-            Assert.Equal("localhost:{trust.bindings.link.port}", ((ReferenceExpression)values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.EndpointKey)]).ValueExpression);
+            Assert.Equal("127.0.0.1:{trust.bindings.link.port}", ((ReferenceExpression)values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.EndpointKey)]).ValueExpression);
         });
         Assert.All(new IResource[] { a.Resource, b.Resource }, machine =>
             Assert.Contains(machine.Annotations.OfType<ResourceCommandAnnotation>(), command => command.Name == TrustClusterHosting.ReleasePartCommand));
@@ -186,10 +186,30 @@ public sealed class TrustClusterHostingFacts
 
         Assert.Equal("/machines/digitalbrain-mcp-a", values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.MachineDirectoryKey)]);
         Assert.Contains(DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.PairingSecretKey), values.Keys);
-        Assert.Equal("localhost:{trust.bindings.link.port}", ((ReferenceExpression)values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.EndpointKey)]).ValueExpression);
+        Assert.Equal("127.0.0.1:{trust.bindings.link.port}", ((ReferenceExpression)values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.EndpointKey)]).ValueExpression);
         Assert.DoesNotContain(DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.RoleKey), values.Keys);
         Assert.DoesNotContain(mcp.Resource.Annotations.OfType<EndpointAnnotation>(), endpoint => endpoint.Name == TrustClusterHosting.LinkEndpoint);
         Assert.Contains(mcp.Resource.Annotations.OfType<WaitAnnotation>(), wait => wait.Resource == trust.Resource);
+    }
+
+    // R66 for the link (fix round 1, finding 7): the trust host listens on loopback, its link and relay are plain UDP
+    // endpoints (no proxy), and machines dial the loopback address itself, never a name to resolve.
+    [Fact]
+    public async Task TheTrustLinkIsAdvertisedOnLoopback()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        var brain = builder.AddDigitalBrain("memory", options: new());
+        var trust = builder.AddExecutable("trust", "unused", ".").AsTrustCluster(brain, builder.Configuration);
+        var pairing = builder.AddParameter("machine-pairing-secret", "s3cret", secret: true);
+        var machine = builder.AddExecutable("os-a", "unused", ".").WithHttpEndpoint(name: "http")
+            .AsTrustMachine(trust, pairing, "/machines/os-a", builder.Configuration);
+
+        var (onTrust, onMachine) = (await Environment(builder, trust.Resource), await Environment(builder, machine.Resource));
+
+        Assert.Equal(TrustClusterHosting.Loopback, onTrust[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.AdvertisedAddressKey)]);
+        Assert.StartsWith(TrustClusterHosting.Loopback + ":", ((ReferenceExpression)onMachine[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.EndpointKey)]).ValueExpression, StringComparison.Ordinal);
+        Assert.All(trust.Resource.Annotations.OfType<EndpointAnnotation>().Where(endpoint => endpoint.Name is TrustClusterHosting.LinkEndpoint or TrustClusterHosting.RelayEndpoint),
+            endpoint => Assert.False(endpoint.IsProxied));
     }
 
     internal static async Task<Dictionary<string, object>> Environment(IDistributedApplicationBuilder builder, IResource resource)

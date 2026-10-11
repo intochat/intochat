@@ -53,9 +53,10 @@ public static class TrustClusterHosting
         return trust;
     }
 
-    // The address machines dial: localhost on the trust host's allocated link port.
+    // The address machines dial: the loopback address the trust host listens on (R66), with its allocated link port;
+    // an address, not a name, so no machine resolves it to another interface.
     public static ReferenceExpression EndpointOf<TTrust>(IResourceBuilder<TTrust> trust) where TTrust : IResourceWithEndpoints
-        => ReferenceExpression.Create($"localhost:{trust.GetEndpoint(LinkEndpoint).Property(EndpointProperty.Port)}");
+        => ReferenceExpression.Create($"{Loopback}:{trust.GetEndpoint(LinkEndpoint).Property(EndpointProperty.Port)}");
 
     public const string PairingSecretKey = "DigitalBrain:Platform:Parts:PairingSecret";
     public const string RoleKey = "DigitalBrain:Platform:Parts:Role";
