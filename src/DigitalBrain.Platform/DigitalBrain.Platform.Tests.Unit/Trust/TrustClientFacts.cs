@@ -48,7 +48,7 @@ public sealed class TrustClientFacts
         typeof(DigitalBrain.Platform.Sequencer.ISequencerGrain), typeof(IKeyringGrain), typeof(IStorageNodeDirectory), typeof(IStorageShard),
         typeof(IMachineRegistry), typeof(IAccountMachines), typeof(DigitalBrain.Platform.Identity.Authority.IBrainAuthority),
         typeof(DigitalBrain.Platform.Identity.Authority.IAccount), typeof(DigitalBrain.Platform.Identity.Authority.IPrincipal), typeof(DigitalBrain.Platform.Identity.Authority.IIdentityWrites),
-        typeof(IMarketplaceCatalog),
+        typeof(IMarketplaceCatalog), typeof(IStorageCredits),
     ];
 
     [Fact]

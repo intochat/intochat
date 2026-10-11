@@ -1,6 +1,11 @@
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Parts;
+using DigitalBrain.Platform.Compute;
 using DigitalBrain.Platform.Links;
+using DigitalBrain.Platform.Parts;
 using DigitalBrain.Platform.Mesh;
 using DigitalBrain.Platform.Trust;
+using DigitalBrain.Platform.Tests.Unit.Trust;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 using static DigitalBrain.Platform.Tests.Unit.Links.LinkTestbed;
@@ -10,6 +15,7 @@ namespace DigitalBrain.Platform.Tests.Unit.Mesh;
 
 // T23-11, Q21: a passed audit of a volunteer node is recorded trust-side as one storage credit for the node's owner.
 [System.Runtime.Versioning.SupportedOSPlatform("windows"), System.Runtime.Versioning.SupportedOSPlatform("linux"), System.Runtime.Versioning.SupportedOSPlatform("macos")]
+[Collection(VolunteerMachines.Name)]
 public sealed class StorageCreditFacts
 {
     private const string Segment = "sha256:5e";
@@ -142,5 +148,122 @@ public sealed class StorageCreditFacts
         Assert.Empty(await Pending(x, "bob", ct));
         await Audit(p, node, 0, true, ct);
         Assert.Empty(await Pending(x, "bob", ct));
+    }
+
+    // The pull (T23-11, R76, R113): the owner account's core holder moves its pending credits into its ledger once.
+    private static readonly string Owner = AccountSession.DefaultLogin;
+
+    // Owner's core holder H, owner's node X, and alice's machine P placed onto X.
+    private static async Task<(ITestBrain H, RawMachine P, RawMachine X, string Node)> OwnerPlaced(TrustHost trust, CancellationToken ct)
+    {
+        var h = await TestBrain.Create().WithTrust(trust).AsMachine().WithConfiguration(SecondMachineFacts.CoreHolder, "true").StartAsync(ct);
+        await h.Services.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
+        var p = await Machine(trust, "alice", ct);
+        var x = await Machine(trust, Owner, ct);
+        var node = StorageNodes.IdOf(x.MachineId);
+        await x.Call<MachineSigned<NodeRegistration>, bool>(TrustOperations.NodeRegisterSigned,
+            x.Sign(new NodeRegistration(node, x.MachineId, Owner, 1 << 30), Owner), ct);
+        Assert.Contains(node, await p.Call<(int, string[], int), string[]>(TrustOperations.NodePlace, (1, Array.Empty<string>(), 1024), ct));
+        return (h, p, x, node);
+    }
+
+    private static ILedgerGrain Ledger(ITestBrain machine) => machine.Grains.GetGrain<ILedgerGrain>(Owner);
+
+    private static Task Pull(ITestBrain machine, CancellationToken ct) => machine.Services.GetRequiredService<StorageCreditPuller>().Pass(ct);
+
+    [Fact(Timeout = 180_000)]
+    public async Task AnAuditPassCreditsOnce()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        await using var trust = await TrustHost.StartAsync(ct);
+        var (h, p, x, node) = await OwnerPlaced(trust, ct);
+        await using var _ = h;
+        await using var __ = p;
+        await using var ___ = x;
+        await Audit(p, node, 0, true, ct);
+        await Audit(p, node, 0, true, ct);
+        var puller = h.Services.GetRequiredService<StorageCreditPuller>();
+
+        puller.BeforeAcknowledge = () => throw new TimeoutException("the acknowledge was lost");
+        await Pull(h, ct);
+        puller.BeforeAcknowledge = null;
+        await Pull(h, ct);
+
+        var entry = Assert.Single(await Ledger(h).Entries(10));
+        Assert.Equal(($"audit/{node}/{Segment}/0", 1L), (entry.EntryId, entry.Micros));
+        Assert.Equal(1L, await Ledger(h).Balance());
+        Assert.True(await Ledger(h).Verify());
+        Assert.Empty(await Pending(x, Owner, ct));
+    }
+
+    [Fact(Timeout = 180_000)]
+    public async Task AFailedAuditCreditsNothing()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        await using var trust = await TrustHost.StartAsync(ct);
+        var (h, p, x, node) = await OwnerPlaced(trust, ct);
+        await using var _ = h;
+        await using var __ = p;
+        await using var ___ = x;
+        await Audit(p, node, 0, false, ct);
+
+        await Pull(h, ct);
+
+        Assert.Empty(await Ledger(h).Entries(10));
+        Assert.True(await Ledger(h).Verify());
+    }
+
+    [Fact(Timeout = 180_000)]
+    public async Task OnlyACoreHolderOfTheOwnersAccountPullsCredits()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        await using var trust = await TrustHost.StartAsync(ct);
+        var (h, p, x, node) = await OwnerPlaced(trust, ct);
+        await using var _ = h;
+        await using var __ = p;
+        await using var ___ = x;
+        await using var b = await TestBrain.Create().WithTrust(trust).AsMachine().StartAsync(ct);
+        await b.Services.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
+        Assert.DoesNotContain(b.Services.GetRequiredService<PartLogs>().Opened, part => part.IsCore);
+        await Audit(p, node, 0, true, ct);
+
+        await Pull(b, ct);
+
+        Assert.Empty(await Ledger(b).Entries(10));
+        Assert.Single(await Pending(x, Owner, ct));
+    }
+
+    [Fact(Timeout = 180_000)]
+    public async Task TheCoreHolderOfAnyOfTheAccountsBrainsPulls()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        await using var trust = await TrustHost.StartAsync(ct);
+        var (h, p, x, node) = await OwnerPlaced(trust, ct);
+        await using var _ = h;
+        await using var __ = p;
+        await using var ___ = x;
+        await using var b = await TestBrain.Create().WithTrust(trust).AsMachine().StartAsync(ct);
+        await b.Services.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
+        var second = BrainScope.Create(Owner, "second").Id;
+        await b.Services.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>().ProvisionOwner(
+            new DigitalBrain.Framework.Platform.Identity.Member { PrincipalId = Owner, AccountId = Owner, BrainId = "second", Role = DigitalBrain.Framework.Platform.Identity.MemberRole.Owner, DisplayName = Owner });
+        Assert.Equal(Owner, await b.Services.GetRequiredService<IKeyringClient>().OwnerOf(second));
+        Assert.False((await b.Services.GetRequiredService<PartLogs>().For(PartId.Core(second))).Closed);
+        await Audit(p, node, 0, true, ct);
+
+        await Pull(b, ct);
+        await Pull(h, ct);
+
+        Assert.Equal($"audit/{node}/{Segment}/0", Assert.Single(await Ledger(b).Entries(10)).EntryId);
+        Assert.Empty(await Ledger(h).Entries(10));
+        await Audit(p, node, 1, true, ct);
+        await Pull(h, ct);
+        await Pull(b, ct);
+        Assert.Equal($"audit/{node}/{Segment}/1", Assert.Single(await Ledger(h).Entries(10)).EntryId);
+        Assert.Single(await Ledger(b).Entries(10));
     }
 }

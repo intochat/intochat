@@ -45,6 +45,12 @@ public static class MachineHosting
             services.AddSingleton<Mesh.MeshAuditor>();
             services.AddHostedService(provider => provider.GetRequiredService<Mesh.MeshAuditor>());
         }
+        // T23-11/R113: the core holder of any of an account's brains pulls its storage credits into its ledger.
+        if (!services.Any(d => d.ServiceType == typeof(Compute.StorageCreditPuller)))
+        {
+            services.AddSingleton<Compute.StorageCreditPuller>();
+            services.AddHostedService(provider => provider.GetRequiredService<Compute.StorageCreditPuller>());
+        }
         // Single-host composition (no trust endpoint) holds every part itself: nothing to forward.
         if (!string.IsNullOrWhiteSpace(silo.Configuration[$"{Trust.TrustOptions.Key}:{nameof(Trust.TrustOptions.Endpoint)}"])) { silo.AddCrossPartCalls(); }
         services.AddOptions<PartsOptions>().Validate<IHostEnvironment, IServiceProvider>((parts, environment, provider) =>
