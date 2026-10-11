@@ -8,7 +8,6 @@ namespace DigitalBrain.Framework.Tests.E2E;
 // A secret must not appear in HTTP responses, traces, or logs. SecretsFacts inspects persisted state.
 public sealed class CanarySecretFacts(ReferenceBrainFixture host)
 {
-    private const string Owner = "owner";
     private const string Canary = "canary-secret-7f3a91";
 
     [Fact(Timeout = 300_000)]
@@ -18,8 +17,8 @@ public sealed class CanarySecretFacts(ReferenceBrainFixture host)
         await using var brain = await host.LeaseAsync(ct);
         var collector = host.Collector;
 
-        using var seeded = await brain.HttpClient.PostAsJsonAsync(
-            $"/secrets/{Owner}",
+        using var seeded = await brain.Owner.Http.PostAsJsonAsync(
+            $"/secrets/{brain.Owner.BrainId}",
             new { name = "me.apiKey", label = "API key", value = Canary },
             ct);
         Assert.Equal(System.Net.HttpStatusCode.OK, seeded.StatusCode);
@@ -32,7 +31,6 @@ public sealed class CanarySecretFacts(ReferenceBrainFixture host)
         Assert.DoesNotContain(collector.Snapshot(), span => TextOf(span).Contains(Canary, StringComparison.Ordinal));
         Assert.DoesNotContain(collector.LogSnapshot(), log => TextOf(log).Contains(Canary, StringComparison.Ordinal));
         Assert.Empty(collector.Errors());
-
     }
 
     [Theory(Timeout = 300_000)]
@@ -44,15 +42,15 @@ public sealed class CanarySecretFacts(ReferenceBrainFixture host)
         var collector = host.Collector;
 
         // POST /brains/{brainId}/connections/{connectionId}/connect with a ConnectInput body.
-        using var seeded = await brain.HttpClient.PostAsJsonAsync(
-            $"/brains/{Owner}/connections/conn-{source}/connect",
+        using var seeded = await brain.Owner.Http.PostAsJsonAsync(
+            $"/brains/{brain.Owner.BrainId}/connections/conn-{source}/connect",
             new { connectorId = source, authMethodId = "connection-string", value = Canary },
             ct);
         Assert.Equal(System.Net.HttpStatusCode.OK, seeded.StatusCode);
         var seedBody = await seeded.Content.ReadAsStringAsync(ct);
         Assert.DoesNotContain(Canary, seedBody, StringComparison.Ordinal);
 
-        var list = await brain.HttpClient.GetStringAsync($"/brains/{Owner}/connections", ct);
+        var list = await brain.Owner.Http.GetStringAsync($"/brains/{brain.Owner.BrainId}/connections", ct);
         Assert.DoesNotContain(Canary, list, StringComparison.Ordinal);
 
         await WaitForAsync(() => collector.Snapshot().Count > 0, ct);
@@ -74,8 +72,8 @@ public sealed class CanarySecretFacts(ReferenceBrainFixture host)
         var form = brain.Get<DigitalBrain.Flutter.Form.IForm>(workspace + "/apps/forms/intake");
         await form.Define(new("Intake", [new("password", "Password", DigitalBrain.Flutter.Form.FormFieldKind.Secret)]));
 
-        using var seeded = await brain.HttpClient.PostAsJsonAsync(
-            $"/secrets/{Owner}",
+        using var seeded = await brain.Owner.Http.PostAsJsonAsync(
+            $"/secrets/{brain.Owner.BrainId}",
             new { name = "forms.intake.password", label = "Password", value = Canary },
             ct);
         Assert.Equal(System.Net.HttpStatusCode.OK, seeded.StatusCode);
@@ -84,7 +82,7 @@ public sealed class CanarySecretFacts(ReferenceBrainFixture host)
         Assert.StartsWith("secret://", reference, StringComparison.Ordinal);
         Assert.DoesNotContain(Canary, reference, StringComparison.Ordinal);
 
-        using var evented = await brain.HttpClient.PostAsJsonAsync(
+        using var evented = await brain.Owner.Http.PostAsJsonAsync(
             $"/brains/{workspace}/apps/event",
             new { kind = "form", name = workspace + "/apps/forms/intake", action = "secret", field = "password", value = reference },
             ct);

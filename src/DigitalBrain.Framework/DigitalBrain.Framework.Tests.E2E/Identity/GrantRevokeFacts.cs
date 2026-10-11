@@ -1,7 +1,5 @@
-using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using DigitalBrain.Framework.Platform.Identity;
 
 namespace DigitalBrain.Framework.Tests.E2E.Identity;
 
@@ -16,8 +14,8 @@ public sealed class GrantRevokeFacts(ReferenceBrainFixture host)
         await using var brain = await host.LeaseAsync(ct);
         var suffix = Guid.NewGuid().ToString("N")[..8];
 
-        using var alicePerson = await Person.RegisterAsync(brain.HttpClient, "alice-" + suffix, ct);
-        using var bobPerson = await Person.RegisterAsync(brain.HttpClient, "bob-" + suffix, ct);
+        using var alicePerson = await brain.PersonAsync("alice-" + suffix, ct);
+        using var bobPerson = await brain.PersonAsync("bob-" + suffix, ct);
         var alice = alicePerson.Http;
         var bob = bobPerson.Http;
         var workspace = alicePerson.BrainId;
@@ -46,5 +44,4 @@ public sealed class GrantRevokeFacts(ReferenceBrainFixture host)
         using var emptied = await alice.GetAsync($"/brains/{workspace}/grants", ct);
         Assert.Empty(JsonSerializer.Deserialize<JsonElement[]>(await emptied.Content.ReadAsStringAsync(ct))!);
     }
-
 }
