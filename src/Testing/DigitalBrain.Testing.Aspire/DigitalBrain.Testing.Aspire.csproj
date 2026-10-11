@@ -6,7 +6,6 @@
   <ItemGroup>
     <InternalsVisibleTo Include="DigitalBrain.Testing.Tests" />
     <InternalsVisibleTo Include="DigitalBrain.Testing.Playwright" />
-    <InternalsVisibleTo Include="DigitalBrain.Platform.Tests.E2E" />
   </ItemGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
