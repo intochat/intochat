@@ -22,6 +22,8 @@ public static class TrustHosting
         if (services.Any(service => service.ServiceType == typeof(TrustRegistration))) { return silo; }
         services.AddSingleton<TrustRegistration>();
         services.TryAddSingleton(TimeProvider.System);
+        // The node directory's clock (heartbeats, T23-5), apart from the silo's so a fact can move it alone.
+        services.TryAddKeyedSingleton(MeshOptions.Key, (provider, _) => provider.GetRequiredService<TimeProvider>());
         services.AddOptions<AuthOptions>().BindConfiguration(AuthOptions.SectionName);
         services.AddOptions<MeshOptions>().BindConfiguration(MeshOptions.Key)
             .Validate(mesh => { mesh.Validate(); return true; }).ValidateOnStart();

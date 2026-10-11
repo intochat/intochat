@@ -17,13 +17,16 @@ internal interface INodeDirectoryClient
     // Where this machine may be reached directly, signed by it.
     Task Announce(MachineSigned<MachineCandidates> candidates);
 
-    Task Register(string nodeId, string ownerAccount);
+    // T23-5: this machine's own storage node, signed by it for an account it serves.
+    Task RegisterNode(MachineSigned<NodeRegistration> registration);
 
-    Task SetOnline(string nodeId, bool online);
+    Task Heartbeat(string nodeId, long usedBytes);
 
-    Task ReportAudit(string nodeId, bool passed);
+    // T23-10: what this machine's audit of a node found; the trust side records it as returned (ShardBytes clamped).
+    Task<AuditReport> ReportAudit(AuditReport report);
 
-    Task<string[]> Place(int count, string[] exclude);
+    // T23-6: never onto a node of this machine's own accounts; only nodes with room for shardBytes.
+    Task<string[]> Place(int count, string[] exclude, int shardBytes);
 
     Task<StorageNodeView[]> List();
 

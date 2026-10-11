@@ -27,8 +27,8 @@ internal static class TrustOperations
     public const string Announce = "trust.announce";
     public const string SequencerGet = "sequencer.get";
     public const string CompareAndSet = "sequencer.compare-and-set";
-    public const string NodeRegister = "node.register";
-    public const string NodeOnline = "node.online";
+    public const string NodeRegisterSigned = "node.register-signed";
+    public const string NodeHeartbeat = "node.heartbeat";
     public const string NodeAudit = "node.audit";
     public const string NodePlace = "node.place";
     public const string NodeList = "node.list";
@@ -198,32 +198,21 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
             var (hash, expected, next) = call.Arg<(string, long, HeadRecord)>();
             return await grains.GetGrain<ISequencerGrain>(hash).CompareAndSet(expected, next);
         }),
-        [TrustOperations.NodeRegister] = Registered(async call =>
+        // T23-5: signed by this link's machine (Signed), for its own node and an account it serves, never `platform`.
+        [TrustOperations.NodeRegisterSigned] = Registered(async call => { await Directory.RegisterNode(call.Signed<NodeRegistration>()); return true; }),
+        [TrustOperations.NodeHeartbeat] = Registered(async call =>
         {
-            var (nodeId, owner) = call.Arg<(string, string)>();
-            call.RequireAccount(owner);
-            if (await NodeOwner(nodeId) is { } current) { call.RequireAccount(current); }
-            await Directory.Register(nodeId, owner);
+            var (nodeId, usedBytes) = call.Arg<(string, long)>();
+            await Directory.Heartbeat(call.Link.RemoteMachineId, nodeId, usedBytes);
             return true;
         }),
-        [TrustOperations.NodeOnline] = Registered(async call =>
-        {
-            var (nodeId, online) = call.Arg<(string, bool)>();
-            call.RequireAccount(await NodeOwner(nodeId) ?? throw new KeyNotFoundException($"Node {nodeId} is not registered."));
-            await Directory.SetOnline(nodeId, online);
-            return true;
-        }),
-        [TrustOperations.NodeAudit] = Registered(async call =>
-        {
-            var (nodeId, passed) = call.Arg<(string, bool)>();
-            call.RequireAccount(await NodeOwner(nodeId) ?? throw new KeyNotFoundException($"Node {nodeId} is not registered."));
-            await Directory.ReportAudit(nodeId, passed);
-            return true;
-        }),
+        // T23-10/R112: the auditor reports, bound to its placements; the node's owner never does.
+        [TrustOperations.NodeAudit] = Registered(async call => await Directory.Report(call.Arg<AuditReport>(), call.Machine!.Accounts)),
+        // T23-6: never onto a node of an account this machine serves.
         [TrustOperations.NodePlace] = Registered(async call =>
         {
-            var (count, exclude) = call.Arg<(int, string[])>();
-            return await Directory.Place(count, exclude);
+            var (count, exclude, shardBytes) = call.Arg<(int, string[], int)>();
+            return await Directory.Place(count, exclude, shardBytes, call.Machine!.Accounts);
         }),
         [TrustOperations.NodeList] = Registered(async _ => await Directory.List()),
         [TrustOperations.ShardPut] = Registered(async call =>

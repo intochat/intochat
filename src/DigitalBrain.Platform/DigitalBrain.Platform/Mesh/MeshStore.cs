@@ -23,7 +23,7 @@ internal sealed class MeshStore(INodeDirectoryClient directory, Serializer seria
         var rs = new ReedSolomon(settings.DataShards, settings.ParityShards);
         var sealedData = SegmentSeal.Close(key, DataContext(segmentId), plaintext);
         var shards = rs.Encode(Padded(sealedData, rs.DataShards), out var shardSize);
-        var nodes = await Directory.Place(rs.TotalShards, []);
+        var nodes = await Directory.Place(rs.TotalShards, [], shardSize);
         cancellationToken.ThrowIfCancellationRequested();
 
         var locations = await Task.WhenAll(Enumerable.Range(0, rs.TotalShards).Select(i => Store(i, nodes[i], shards[i])));
@@ -53,7 +53,7 @@ internal sealed class MeshStore(INodeDirectoryClient directory, Serializer seria
             var challenge = shard.Challenges[round];
             var proof = await directory.Prove(shard.NodeId, shard.Cid, challenge.Nonce);
             var passed = proof is not null && CryptographicOperations.FixedTimeEquals(proof, challenge.Expected);
-            await Directory.ReportAudit(shard.NodeId, passed);
+            await Directory.ReportAudit(new AuditReport(shard.NodeId, reference.ManifestCid, round, passed, manifest.ShardSize));
             return new ShardAudit(shard.Index, shard.NodeId, passed, proof is null ? "shard missing" : passed ? "ok" : "wrong proof");
         }));
     }
@@ -70,7 +70,7 @@ internal sealed class MeshStore(INodeDirectoryClient directory, Serializer seria
 
         var rs = new ReedSolomon(manifest.DataShards, manifest.ParityShards);
         var full = rs.Reconstruct(shards, manifest.ShardSize);
-        var targets = bad.Length == 0 ? [] : await Directory.Place(bad.Length, [.. manifest.Shards.Select(s => s.NodeId)]);
+        var targets = bad.Length == 0 ? [] : await Directory.Place(bad.Length, [.. manifest.Shards.Select(s => s.NodeId)], manifest.ShardSize);
         var moved = bad.Select((index, i) => new ShardMove(index, manifest.Shards[index].NodeId, targets[i])).ToArray();
         var nodeOf = manifest.Shards.Select(s => s.NodeId).ToArray();
         foreach (var move in moved) { nodeOf[move.Index] = move.ToNode; }
@@ -116,7 +116,7 @@ internal sealed class MeshStore(INodeDirectoryClient directory, Serializer seria
     {
         var sealedManifest = SegmentSeal.Close(key, ManifestContext(segmentId), serializer.SerializeToArray(manifest));
         var cid = StorageProof.ContentId(sealedManifest);
-        var replicas = await Directory.Place(options.Value.ManifestReplicas, []);
+        var replicas = await Directory.Place(options.Value.ManifestReplicas, [], sealedManifest.Length);
         cancellationToken.ThrowIfCancellationRequested();
         await Task.WhenAll(replicas.Select(nodeId => directory.Put(nodeId, cid, sealedManifest)));
         return new MeshRef(segmentId, cid, replicas);

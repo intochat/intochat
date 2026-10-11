@@ -34,11 +34,13 @@ public sealed class TrustBoundaryFacts
     // Records that cross a client and are known to carry identifiers, sealed bytes or signatures only. Extending this
     // list needs a controller ruling: the identity records Account, Member and Grant (with their call records) joined
     // it by R58/R62, a machine's registration and announced candidates by Task 21's INodeDirectoryClient.Machine and
-    // Announce (T20-2, T20-6); no credential-shaped record is allowed.
+    // Announce (T20-2, T20-6), a node's signed registration and an audit report by Task 24 (T23-5, T23-10: node, machine and
+    // account ids, sizes, a manifest's content id); no credential-shaped record is allowed.
     private static readonly Type[] Records =
     [
         typeof(HeadRecord), typeof(StorageNodeView), typeof(MarketplaceRecord), typeof(MachineSigned<>),
         typeof(DigitalBrain.Platform.Mesh.RegisteredMachine), typeof(DigitalBrain.Platform.Mesh.MachineCandidates),
+        typeof(DigitalBrain.Platform.Mesh.NodeRegistration), typeof(DigitalBrain.Platform.Mesh.AuditReport),
         typeof(Account), typeof(Member), typeof(BrainProvision),
         typeof(CallRequest), typeof(CallDecision), typeof(CallerContext), typeof(Grant),
     ];

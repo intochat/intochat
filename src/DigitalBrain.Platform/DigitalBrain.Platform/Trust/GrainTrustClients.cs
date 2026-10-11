@@ -56,13 +56,14 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
         return Grains.GetGrain<IMachineRegistry>(candidates.MachineId).Announce(candidates.Call(), candidates.Payload);
     }
 
-    public Task Register(string nodeId, string ownerAccount) => Directory.Register(nodeId, ownerAccount);
+    public Task RegisterNode(MachineSigned<NodeRegistration> registration) => Directory.RegisterNode(registration);
 
-    public Task SetOnline(string nodeId, bool online) => Directory.SetOnline(nodeId, online);
+    public Task Heartbeat(string nodeId, long usedBytes) => Directory.Heartbeat(Identity.MachineId, nodeId, usedBytes);
 
-    public Task ReportAudit(string nodeId, bool passed) => Directory.ReportAudit(nodeId, passed);
+    // Stage A: the trust grains are this silo's own, so there is no link machine to bind the report to.
+    public Task<AuditReport> ReportAudit(AuditReport report) => Directory.Report(report, null);
 
-    public Task<string[]> Place(int count, string[] exclude) => Directory.Place(count, exclude);
+    public Task<string[]> Place(int count, string[] exclude, int shardBytes) => Directory.Place(count, exclude, shardBytes, []);
 
     Task<StorageNodeView[]> INodeDirectoryClient.List() => Directory.List();
 

@@ -81,7 +81,7 @@ public sealed class TrustClientFacts
         Assert.Equal([1, 2, 3], await keyring.Get("acct/brain", "acct/brain/apps/x"));
 
         var directory = services.GetRequiredService<INodeDirectoryClient>();
-        await directory.Register("node-a", "someone");
+        await brain.Grains.GetGrain<IStorageNodeDirectory>(IStorageNodeDirectory.Key).Register("node-a", "someone");
         var shard = Encoding.UTF8.GetBytes("a sealed shard of sixteen or more bytes");
         var cid = StorageProof.ContentId(shard);
         await directory.Put("node-a", cid, shard);

@@ -58,13 +58,15 @@ internal sealed class LinkTrustClients(QuicMachineTransport transport, Serialize
 
     public Task Announce(MachineCandidates candidates, string account) => Signed(TrustOperations.Announce, candidates, account);
 
-    public Task Register(string nodeId, string ownerAccount) => Call<(string, string), bool>(TrustOperations.NodeRegister, (nodeId, ownerAccount));
+    public Task RegisterNode(MachineSigned<NodeRegistration> registration)
+        => Call<MachineSigned<NodeRegistration>, bool>(TrustOperations.NodeRegisterSigned, registration);
 
-    public Task SetOnline(string nodeId, bool online) => Call<(string, bool), bool>(TrustOperations.NodeOnline, (nodeId, online));
+    public Task Heartbeat(string nodeId, long usedBytes) => Call<(string, long), bool>(TrustOperations.NodeHeartbeat, (nodeId, usedBytes));
 
-    public Task ReportAudit(string nodeId, bool passed) => Call<(string, bool), bool>(TrustOperations.NodeAudit, (nodeId, passed));
+    public Task<AuditReport> ReportAudit(AuditReport report) => Call<AuditReport, AuditReport>(TrustOperations.NodeAudit, report);
 
-    public Task<string[]> Place(int count, string[] exclude) => Call<(int, string[]), string[]>(TrustOperations.NodePlace, (count, exclude));
+    public Task<string[]> Place(int count, string[] exclude, int shardBytes)
+        => Call<(int, string[], int), string[]>(TrustOperations.NodePlace, (count, exclude, shardBytes));
 
     Task<StorageNodeView[]> INodeDirectoryClient.List() => Call<bool, StorageNodeView[]>(TrustOperations.NodeList, true);
 

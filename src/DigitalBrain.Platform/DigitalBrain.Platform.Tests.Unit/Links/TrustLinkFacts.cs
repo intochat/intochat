@@ -253,15 +253,24 @@ public sealed class TrustLinkFacts
         var ct = TestContext.Current.CancellationToken;
         await using var trust = await TrustHost.StartAsync(ct);
         await using var machine = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
+        await using var mallory = await RawMachine.Dial(trust, ct);
+        await mallory.Register("mallory", ct);
         var directory = machine.SiloServices.GetRequiredService<INodeDirectoryClient>();
-        var seed = (await directory.List()).First().NodeId;
+        var machineId = machine.SiloServices.GetRequiredService<MachineIdentity>().MachineId;
+        var seed = (await directory.List()).First(node => node.MachineId is null).NodeId;
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => directory.SetOnline(seed, false));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => directory.ReportAudit(seed, false));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => directory.Register(seed, AccountSession.DefaultLogin));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => directory.Register("mine", "mallory"));
-        await directory.Register("mine", AccountSession.DefaultLogin);
-        await directory.SetOnline("mine", false);
+        // T23-5: only signed registrations of the link's own node, for an account it serves; no seed, no heartbeat for another's node.
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => mallory.Call<MachineSigned<NodeRegistration>, bool>(TrustOperations.NodeRegisterSigned,
+            mallory.Sign(new NodeRegistration(seed, mallory.MachineId, "mallory", 1000), "mallory"), ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => mallory.Call<MachineSigned<NodeRegistration>, bool>(TrustOperations.NodeRegisterSigned,
+            mallory.Sign(new NodeRegistration(StorageNodes.IdOf(mallory.MachineId), mallory.MachineId, AccountSession.DefaultLogin, 1000), AccountSession.DefaultLogin), ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => mallory.Call<(string, long), bool>(TrustOperations.NodeHeartbeat, (seed, 0L), ct));
+        await mallory.Call<MachineSigned<NodeRegistration>, bool>(TrustOperations.NodeRegisterSigned,
+            mallory.Sign(new NodeRegistration(StorageNodes.IdOf(mallory.MachineId), mallory.MachineId, "mallory", 1000), "mallory"), ct);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => directory.Heartbeat(StorageNodes.IdOf(mallory.MachineId), 0));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => directory.ReportAudit(new AuditReport(StorageNodes.IdOf(mallory.MachineId), "sha256:00", 0, false, 16)));
+        Assert.Equal("mallory", (await directory.List()).Single(node => node.NodeId == StorageNodes.IdOf(mallory.MachineId)).OwnerAccount);
+        Assert.NotEqual(machineId, mallory.MachineId);
         Assert.True((await directory.List()).Single(node => node.NodeId == seed).Online);
     }
 
@@ -305,12 +314,14 @@ public sealed class TrustLinkFacts
         await using var machine = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
         await using var mallory = await RawMachine.Dial(trust, ct);
         await mallory.Register("mallory", ct);
-        await mallory.Call<(string, string), bool>(TrustOperations.NodeRegister, ("mallorys-node", "mallory"), ct);
+        var mallorys = StorageNodes.IdOf(mallory.MachineId);
+        await mallory.Call<MachineSigned<NodeRegistration>, bool>(TrustOperations.NodeRegisterSigned,
+            mallory.Sign(new NodeRegistration(mallorys, mallory.MachineId, "mallory", 1000), "mallory"), ct);
         byte[] shard = [.. "not for mallory's node"u8];
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => machine.SiloServices.GetRequiredService<INodeDirectoryClient>()
-            .Put("mallorys-node", StorageProof.ContentId(shard), shard));
-        Assert.Null(await trust.Grains.GetGrain<IStorageShard>(StorageShards.Key("mallorys-node", StorageProof.ContentId(shard))).Get());
+            .Put(mallorys, StorageProof.ContentId(shard), shard));
+        Assert.Null(await trust.Grains.GetGrain<IStorageShard>(StorageShards.Key(mallorys, StorageProof.ContentId(shard))).Get());
     }
 
     [Fact(Timeout = 120_000)]
@@ -421,7 +432,7 @@ public sealed class TrustLinkFacts
     }
 
     // A machine key with a bare trust link, for calls a real machine host would never make.
-    private sealed class RawMachine : IAsyncDisposable
+    internal sealed class RawMachine : IAsyncDisposable
     {
         private readonly FileMachineSigningKey _key;
         private readonly QuicMachineLink _link;
