@@ -36,7 +36,8 @@ public sealed class TrustBoundaryFacts
     // it by R58/R62, a machine's registration and announced candidates by Task 21's INodeDirectoryClient.Machine and
     // Announce (T20-2, T20-6), a node's signed registration and an audit report by Task 24 (T23-5, T23-10: node, machine and
     // account ids, sizes, a manifest's content id), a storage credit by Task 25 (T23-11: an entry id, micros, a reason naming the
-    // node), a placement by R142 (a placement id and node ids) and a brain entry by Task 27 (R125: a brain id and its kind);
+    // node), a placement by R142 (a placement id and node ids), a brain entry by Task 27 (R125: a brain id and its kind) and a
+    // circle key wrap by Task 27 (T26-5/R127: a part id, a generation, a machine id and the wrapped key, ciphertext only);
     // no credential-shaped record is allowed.
     private static readonly Type[] Records =
     [
@@ -44,7 +45,7 @@ public sealed class TrustBoundaryFacts
         typeof(DigitalBrain.Platform.Mesh.RegisteredMachine), typeof(DigitalBrain.Platform.Mesh.MachineCandidates),
         typeof(DigitalBrain.Platform.Mesh.NodeRegistration), typeof(DigitalBrain.Platform.Mesh.AuditReport),
         typeof(DigitalBrain.Platform.Mesh.StorageCredit), typeof(DigitalBrain.Platform.Mesh.Placement),
-        typeof(Account), typeof(Member), typeof(BrainProvision), typeof(BrainEntry),
+        typeof(Account), typeof(Member), typeof(BrainProvision), typeof(BrainEntry), typeof(DigitalBrain.Platform.Keys.CircleKeyWrap),
         typeof(CallRequest), typeof(CallDecision), typeof(CallerContext), typeof(Grant),
     ];
 

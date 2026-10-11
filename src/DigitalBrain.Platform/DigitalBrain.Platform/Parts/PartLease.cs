@@ -11,7 +11,7 @@ namespace DigitalBrain.Platform.Parts;
 internal sealed class PartLease
 {
     private readonly PartId _part;
-    private readonly byte[] _key;
+    private byte[] _key;
     private readonly ISequencerClient _sequencer;
     private readonly MachineIdentity _machine;
     private readonly SeenVersions _seen;
@@ -60,6 +60,9 @@ internal sealed class PartLease
 
     public async Task Commit(HeadPayload next) => await Cas(next, _options.Lease);
 
+    // T26-5: the head is sealed under a rotated key from this CAS on; a refused CAS leaves the old key in place.
+    public async Task CommitUnder(byte[] key, HeadPayload next) => await Cas(next, _options.Lease, key);
+
     public async Task Renew() => await Cas(null, _options.Lease);
 
     public async Task Release()
@@ -71,7 +74,7 @@ internal sealed class PartLease
 
     // Serialized: overlapping CASes would expect the same version and the loser would lose the lease for good.
     // A null payload keeps the current one; a lease length is measured from the moment the CAS is built.
-    private async Task Cas(HeadPayload? next, TimeSpan length)
+    private async Task Cas(HeadPayload? next, TimeSpan length, byte[]? key = null)
     {
         await _gate.WaitAsync();
         try
@@ -82,7 +85,7 @@ internal sealed class PartLease
             var record = new HeadRecord
             {
                 PartHash = Hash, Version = Version + 1, Holder = _machine.MachineId, HolderKey = _machine.PublicKey, LeaseExpiry = expiry,
-                Payload = SegmentSeal.Close(_key, Context, _serializer.SerializeToArray(next)),
+                Payload = SegmentSeal.Close(key ?? _key, Context, _serializer.SerializeToArray(next)),
             };
             record.Signature = _machine.Sign(record.SignedBytes());
             if (!await _sequencer.CompareAndSet(Hash, Version, record))
@@ -90,7 +93,7 @@ internal sealed class PartLease
                 _lost = true;
                 throw new LeaseLostException($"The sequencer refused version {Version + 1} of part {_part}.");
             }
-            (Version, Payload, _expiry) = (record.Version, next, expiry);
+            (Version, Payload, _expiry, _key) = (record.Version, next, expiry, key ?? _key);
             _seen.Saw(Hash, Version);
         }
         finally { _gate.Release(); }

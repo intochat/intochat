@@ -17,14 +17,15 @@ internal sealed class PartLog : IAsyncDisposable
 {
     private readonly PartId _part;
     public PartId Part => _part;
-    private readonly byte[] _key;
+    // Replaced only by a re-seal (T26-5), under the flush lock and the queue lock.
+    private byte[] _key;
     private readonly PartLease _lease;
     private readonly IMeshStore _mesh;
     private readonly Serializer _serializer;
     private readonly PartsOptions _options;
     private readonly TimeProvider _time;
     private readonly ILogger<PartLog> _logger;
-    private readonly PartJournal? _journal;
+    private PartJournal? _journal;
     private readonly Dictionary<(string GrainId, string StateName), StoredRecord> _records = [];
     private readonly List<LogEntry> _since = [];
     // The segments this log wrote or replayed since the snapshot: what the next snapshot replaces and discards.
@@ -461,7 +462,7 @@ internal sealed class PartLog : IAsyncDisposable
     // Caller holds the flush lock. Folds the committed state into one snapshot that replaces the chain, then
     // discards what it replaced. Journaled entries at or below SnapshotSeq were trimmed by the flush that
     // committed them; queued ones stay above it. A reopen accepts covered entries the head records as its own (R27).
-    private async Task Snapshot(bool resetAuditRound = false)
+    private async Task Snapshot(bool resetAuditRound = false, byte[]? rekey = null)
     {
         var payload = _lease.Payload;
         SnapshotRecord[] records;
@@ -482,12 +483,20 @@ internal sealed class PartLog : IAsyncDisposable
             }
         }
         var snapshot = new PartSnapshot { Seq = payload.LastSeq, Records = records, RecentSignals = recent, SignalsFrom = payload.SnapshotSeq };
-        var reference = await _mesh.Write(_key, PartSegments.SnapshotId(_part, payload.LastSeq), _serializer.SerializeToArray(snapshot));
-        await _lease.Commit(new HeadPayload
+        var replacedKey = _key;
+        var reference = await _mesh.Write(rekey ?? _key, PartSegments.SnapshotId(_part, payload.LastSeq), _serializer.SerializeToArray(snapshot));
+        var head = new HeadPayload
         {
             Head = null, Snapshot = reference, SnapshotSeq = payload.LastSeq, LastSeq = payload.LastSeq, SegmentsSinceSnapshot = 0, Writers = payload.Writers,
             AuditRound = resetAuditRound ? 0 : payload.AuditRound,
-        });
+        };
+        if (rekey is null) { await _lease.Commit(head); }
+        else
+        {
+            await _lease.CommitUnder(rekey, head);
+            // Changes journaled meanwhile are sealed again with the rest; they commit under the new key.
+            lock (_queue) { (_key, _journal) = (rekey, _journal?.Rekeyed(rekey)); }
+        }
         // Only refs of this log's own replaced chain are discarded, never one a read repaired (ruling R7): MeshStore
         // shares shards between a repaired ref and its original. Open has no repair path today.
         // Serve exactly what a reopen from this snapshot would: signals after the previous snapshot's seq.
@@ -500,9 +509,30 @@ internal sealed class PartLog : IAsyncDisposable
         _chain.Clear();
         foreach (var old in replaced)
         {
-            try { await _mesh.Discard(_key, old); }
+            try { await _mesh.Discard(replacedKey, old); }
             catch (Exception error) { _logger.LogWarning(error, "Part {Part} could not discard {Segment} after its snapshot at seq {Seq}.", _part, old.SegmentId, payload.LastSeq); }
         }
+    }
+
+    // T26-5: a rotated circle part key re-seals the part: its committed state as one snapshot and the head under the new
+    // key, and the journal with them. Nothing written after this opens under the old key; what the old key sealed stays
+    // readable to whoever holds it (R131). A failure after the snapshot was written leaves the head's key unknown, so
+    // the log closes and the next open tries this machine's keys newest first.
+    internal Task Reseal(byte[] key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        return UnderLease(async () =>
+        {
+            try { await Snapshot(rekey: key); }
+            catch (Exception error) when (error is not LeaseLostException)
+            {
+                _logger.LogWarning(error, "Part {Part} could not re-seal under its rotated key; the log is closed.", _part);
+                lock (_queue) { _closed = error; }
+                FailAll(error);
+                throw;
+            }
+            return true;
+        });
     }
 
     // T23-9: what the holder audits: the head's snapshot and the chain segments written or replayed since it.

@@ -1,6 +1,7 @@
 using DigitalBrain.Circles.Signals;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Compute;
+using DigitalBrain.Framework.Parts;
 using DigitalBrain.Framework.Platform.Identity;
 using Microsoft.Extensions.Logging;
 using Orleans.Runtime;
@@ -38,6 +39,7 @@ internal sealed record CircleMachine([property: Id(0)] string MachineId, [proper
 internal sealed class CircleNeuron(
     [PersistentState("circles.circle", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<CircleRecord> store,
     IIdentityClient identity,
+    ICirclePartKeys keys,
     ILogger<CircleNeuron> logger)
     : Neuron<CircleRecord>(store), ICircle
 {
@@ -108,6 +110,7 @@ internal sealed class CircleNeuron(
             Role = MemberRole.Member, DisplayName = caller.PrincipalId, JoinedAt = DateTimeOffset.UtcNow,
         });
         await identity.ContributeMachine(CircleBrain, machine);
+        await keys.ShareWith(CircleBrain, machine);
         var next = record.Clone();
         next.Invited = [.. next.Invited.Where(invited => invited != caller.AccountId)];
         next.Members = [.. next.Members, caller.AccountId];
@@ -123,6 +126,7 @@ internal sealed class CircleNeuron(
         var next = MemberChange();
         if (next.Machines.Any(known => known.MachineId == machineId)) { return; }
         await identity.ContributeMachine(CircleBrain, machineId);
+        await keys.ShareWith(CircleBrain, machineId);
         next.Machines = [.. next.Machines, new(machineId, caller.AccountId)];
         await CommitCore(next);
     }
@@ -144,6 +148,8 @@ internal sealed class CircleNeuron(
         }
         if (!next.Members.Contains(accountId) && !next.Invited.Contains(accountId)) { throw new InvalidOperationException($"{accountId} is not in {next.Name}."); }
         await Drop(next, accountId);
+        // T26-5: the machines that remain get new part keys; nothing written from here on opens under the old ones.
+        await keys.Rotate(CircleBrain);
         await CommitCore(next);
     }
 
@@ -161,6 +167,7 @@ internal sealed class CircleNeuron(
     private async Task Delete(CircleRecord next)
     {
         foreach (var member in next.Members.Concat(next.Invited).Where(member => member != next.Owner).Distinct().ToArray()) { await Drop(next, member); }
+        await keys.Rotate(CircleBrain);
         foreach (var machine in next.Machines) { await identity.WithdrawMachine(CircleBrain, machine.MachineId); }
         await GrainFactory.GetGrain<ICircleShares>(this.GetPrimaryKeyString()).Configure(0, []);
         await Clear(new CircleChanged(next.Name, [], [], 0, []));

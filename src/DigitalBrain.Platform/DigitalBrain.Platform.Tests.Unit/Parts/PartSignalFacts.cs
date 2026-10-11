@@ -153,7 +153,8 @@ public sealed class PartSignalFacts
             {
                 services.AddSingleton(provider => new CloudPart(new PartLogs(new DigitalBrain.Platform.Trust.TrustDeployment(provider.GetRequiredService<DigitalBrain.Platform.Trust.INodeDirectoryClient>(), Options.Create(cloud)), provider.GetRequiredService<DigitalBrain.Platform.Trust.ISequencerClient>(), provider.GetRequiredService<DigitalBrain.Platform.Trust.IKeyringClient>(),
                     provider.GetRequiredService<IMeshStore>(), provider.GetRequiredService<IPartKeys>(), SequencerFacts.Machine(), PartLeaseFacts.Seen(),
-                    provider.GetRequiredService<Serializer>(), Options.Create(cloud), time, provider.GetRequiredService<ILoggerFactory>()), part));
+                    provider.GetRequiredService<Serializer>(), Options.Create(cloud), time, provider.GetRequiredService<ILoggerFactory>(),
+                    provider.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>(), provider.GetRequiredService<DigitalBrain.Platform.Keys.CirclePartKeys>()), part));
                 services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (provider, _) =>
                 {
                     var serializer = provider.GetRequiredService<Serializer>();

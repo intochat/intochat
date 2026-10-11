@@ -103,6 +103,26 @@ internal sealed class PartJournal(string path, byte[] key, Serializer serializer
         }
     }
 
+    // T26-5: the same file, every entry it holds sealed again under a rotated key; this instance is not used after it.
+    public PartJournal Rekeyed(byte[] rotated)
+    {
+        lock (_gate)
+        {
+            var next = new PartJournal(path, rotated, serializer);
+            if (!File.Exists(path)) { return next; }
+            var entries = Scan();
+            var temp = $"{path}.rekey";
+            using (var file = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                foreach (var entry in entries) { next.WriteRecord(file, entry); }
+                file.Flush(flushToDisk: true);
+            }
+            File.Move(temp, path, overwrite: true);
+            _index = null;
+            return next;
+        }
+    }
+
     public void SetAside()
     {
         lock (_gate)

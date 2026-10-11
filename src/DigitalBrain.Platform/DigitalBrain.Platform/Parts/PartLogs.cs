@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using DigitalBrain.Framework.Mesh;
 using DigitalBrain.Framework.Parts;
+using DigitalBrain.Framework.Platform.Identity;
+using DigitalBrain.Platform.Keys;
 using DigitalBrain.Platform.Sequencer;
 using DigitalBrain.Platform.Trust;
 using Microsoft.Extensions.Logging;
@@ -12,11 +14,13 @@ namespace DigitalBrain.Platform.Parts;
 // The part logs this silo holds: one per leased part, opened on first use and reopened once closed (a lost
 // lease or an ambiguous commit). The owner account that wraps a part's key comes from the trust side, the
 // brain's authority, never from the brain neuron: the brain's own record lives in the part it would unlock.
+// A circle brain's parts open under its circle part keys instead (T26-5), and only on an own machine.
 internal sealed class PartLogs(TrustDeployment deployment, ISequencerClient sequencer, IKeyringClient keyring, IMeshStore mesh, IPartKeys keys, MachineIdentity machine, SeenVersions seen,
-    Serializer serializer, IOptions<PartsOptions> options, TimeProvider time, ILoggerFactory logging) : IAsyncDisposable
+    Serializer serializer, IOptions<PartsOptions> options, TimeProvider time, ILoggerFactory logging, IIdentityClient identity, CirclePartKeys circleKeys) : IAsyncDisposable
 {
     private readonly ConcurrentDictionary<string, Lazy<Task<PartLog>>> _logs = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, string> _owners = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, BrainKind> _kinds = new(StringComparer.Ordinal);
 
     public async Task<PartLog> For(PartId part)
     {
@@ -86,9 +90,35 @@ internal sealed class PartLogs(TrustDeployment deployment, ISequencerClient sequ
     {
         // The deployment folder first: the lease reads and writes SeenVersions inside it.
         var directory = await deployment.Resolve();
+        if (await Kind(part.BrainId) == BrainKind.Circle) { return await OpenCircle(part, directory); }
         var key = await keys.Key(part, await Owner(part.BrainId));
         var lease = await PartLease.Acquire(part, key, sequencer, machine, seen, options.Value, time, serializer);
         return await PartLog.Open(part, key, lease, mesh, serializer, options.Value, time, logging.CreateLogger<PartLog>(), CancellationToken.None, directory);
+    }
+
+    // The current key first, then the older ones this machine holds: a head another holder left sealed before a
+    // rotation opens under the key it was sealed with and is re-sealed under the current one at once.
+    private async Task<PartLog> OpenCircle(PartId part, string directory)
+    {
+        if (options.Value.Role != MachineRole.Own)
+        { throw new UnauthorizedAccessException($"Part {part} belongs to circle {part.BrainId}; only the circle's contributed own machines hold it."); }
+        var current = await circleKeys.Unwrap(part, part.BrainId);
+        byte[][] candidates = [current, .. (await circleKeys.Held(part, part.BrainId)).Where(held => !held.AsSpan().SequenceEqual(current))];
+        for (var i = 0; ; i++)
+        {
+            PartLease lease;
+            try { lease = await PartLease.Acquire(part, candidates[i], sequencer, machine, seen, options.Value, time, serializer); }
+            catch (System.Security.Cryptography.CryptographicException) when (i < candidates.Length - 1) { continue; }
+            var log = await PartLog.Open(part, candidates[i], lease, mesh, serializer, options.Value, time, logging.CreateLogger<PartLog>(), CancellationToken.None, directory);
+            if (i > 0) { await log.Reseal(current); }
+            return log;
+        }
+    }
+
+    private async Task<BrainKind> Kind(string brainId)
+    {
+        if (_kinds.TryGetValue(brainId, out var cached)) { return cached; }
+        return _kinds.GetOrAdd(brainId, await identity.KindOf(brainId));
     }
 
     private async Task<string> Owner(string brainId)

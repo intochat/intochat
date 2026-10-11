@@ -131,7 +131,11 @@ internal sealed class IdentityWritesGrain : Grain, IIdentityWrites
     {
         await For(request, request.Payload.AccountId);
         var brain = request.Payload;
-        return await GrainFactory.GetGrain<IAccount>(brain.AccountId).CreateBrain(brain.PrincipalId, brain.OperationId, brain.DisplayName, brain.Kind);
+        var provision = await GrainFactory.GetGrain<IAccount>(brain.AccountId).CreateBrain(brain.PrincipalId, brain.OperationId, brain.DisplayName, brain.Kind);
+        // T26-3: the creator's machine is the circle's first contributed machine before any of its parts opens, so the
+        // part keys it starts are wrapped to it (T26-5).
+        if (brain.Kind == BrainKind.Circle) { await GrainFactory.GetGrain<IBrainAuthority>(provision.Member.BrainId).Contribute(request.MachineId); }
+        return provision;
     }
 
     public async Task<Grant> GrantAsOwner(MachineSigned<OwnerGrant> grant)

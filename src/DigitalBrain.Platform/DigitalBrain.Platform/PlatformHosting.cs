@@ -59,6 +59,8 @@ public static class PlatformHosting
         services.TryAddSingleton<DigitalBrain.Framework.Parts.IMasterKeyCustody>(provider => new Keys.ConfiguredMasterKeyCustody(
             System.Text.Encoding.UTF8.GetBytes(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MasterKeyOptions>>().Value.MasterKey)));
         services.TryAddSingleton<DigitalBrain.Framework.Parts.IPartKeys, Keys.PartKeys>();
+        services.TryAddSingleton<Keys.CirclePartKeys>();
+        services.TryAddSingleton<DigitalBrain.Framework.Parts.ICirclePartKeys, Keys.CircleKeySharing>();
         // The machine reaches the trust grains only through these clients; Stage A hosts them in this silo.
         services.TryAddSingleton(provider => new Trust.MachineCounter(() => Path.Combine(
             provider.GetRequiredService<Trust.TrustDeployment>().Directory, "counter")));
