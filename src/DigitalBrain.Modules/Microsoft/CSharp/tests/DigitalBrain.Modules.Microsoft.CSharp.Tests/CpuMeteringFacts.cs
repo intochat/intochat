@@ -87,6 +87,33 @@ public sealed class CpuMeteringFacts
         Assert.Equal($"{subscription}:1", Assert.Single(meter.Calls, call => call.Kind == CostKind.Script).CostId);
     }
 
+    // A batch the synapse passed over ran nothing it owns: the ack settles it without a priced run.
+    [Fact]
+    public async Task ASkippedBatchIsNotPriced()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var meter = new RecordingMeter();
+        await using var brain = await StartAsync(new FakeSessionHost(), meter, ct);
+        var runtime = RuntimeBrain.Edge(brain, Acc);
+        await RuntimeBrain.Programs(brain, Acc).Assign(Owner, Synapse(), []);
+        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
+        await runtime.Connected(session, RuntimeBrain.Fingerprint(brain));
+        var source = brain.Get<IPinger>("skipped");
+        var subscription = await runtime.Subscribed(session, Behavior, source.GetGrainId().ToString(), nameof(Pinged));
+        await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
+        await source.Ping(1);
+        await changes.NextAsync(ct: ct);
+
+        await runtime.AcknowledgeMany(session, [new AcknowledgeReport(subscription, 1, 1_000, Skipped: true)]);
+        // Runs are priced one after another, so once the handled batch behind it is priced the skip would have been.
+        await source.Ping(2);
+        await changes.NextAsync(ct: ct);
+        await runtime.AcknowledgeMany(session, [new AcknowledgeReport(subscription, 2, 1_000)]);
+        await meter.ScriptPriced.Task.WaitAsync(ct);
+
+        Assert.Equal($"{subscription}:2", Assert.Single(meter.Calls, call => call.Kind == CostKind.Script).CostId);
+    }
+
     private static Dictionary<string, string> Synapse()
         => new(StringComparer.Ordinal) { ["synapses/a.cs"] = RuntimeBrain.Idle };
 
@@ -105,10 +132,13 @@ public sealed class CpuMeteringFacts
         // Once armed, a script cost is recorded and then answered only when released, as a busy ledger answers.
         public TaskCompletionSource? Hold { get; set; }
 
+        public TaskCompletionSource ScriptPriced { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public async ValueTask<Cost> RecordAsync(CostKind kind, string item, decimal quantity, string unit, Funding funding,
             string costId, CancellationToken cancellationToken, CostSubject? subject = null)
         {
             Calls.Enqueue(new Recorded(kind, item, quantity, unit, funding, costId, TraceContext.Current?.TraceId, subject));
+            if (kind == CostKind.Script) { ScriptPriced.TrySetResult(); }
             if (kind == CostKind.Script && Hold is { } hold) { await hold.Task; }
             return new Cost
             {

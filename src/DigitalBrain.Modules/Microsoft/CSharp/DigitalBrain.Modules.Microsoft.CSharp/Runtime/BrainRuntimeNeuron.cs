@@ -402,7 +402,7 @@ internal sealed class BrainRuntimeNeuron(
         Flush();
         // A replayed ack prices nothing again. Metering observes the run: it is priced after this turn, so a slow
         // ledger never holds the runtime, and a meter that fails does not fail the ack.
-        PricedRun[] priced = [.. advanced.Where(run => run.Report.CpuMicroseconds > 0).Select(run => new PricedRun(run.Report.Subscription,
+        PricedRun[] priced = [.. advanced.Where(run => !run.Report.Skipped && run.Report.CpuMicroseconds > 0).Select(run => new PricedRun(run.Report.Subscription,
             run.Report.Watermark, run.Report.CpuMicroseconds, run.Before.Behavior, Find(run.Before.Behavior)?.Owner, run.After.Delivered, traces[run.Report.Subscription]?.Trace))];
         if (priced.Length > 0 && Meter is { } meter) { _pricing = PriceAsync(_pricing, meter, priced); }
     }

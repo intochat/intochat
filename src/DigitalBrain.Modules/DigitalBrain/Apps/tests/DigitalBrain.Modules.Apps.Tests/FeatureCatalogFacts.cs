@@ -94,6 +94,18 @@ public sealed class FeatureCatalogFacts : IDisposable
         Assert.Contains("intochat/echo 2.0.0 does not compile", failure.Reason, StringComparison.Ordinal);
     }
 
+    // An installed app deploys its program files only; app.cs stays manifest and spec state. A synapse that
+    // names `App` compiles beside app.cs and fails at deploy, so boot compiles exactly what deploys.
+    [Fact]
+    public async Task TheBootGateCompilesOnlyWhatAnInstalledAppDeploys()
+    {
+        WriteEcho();
+        var catalog = Catalog(new Sandbox(success: files => !files.ContainsKey(AppFiles.DeclarationPath)));
+
+        Assert.Empty(await catalog.Failures());
+        Assert.NotNull(await catalog.Find("intochat", "echo"));
+    }
+
     [Fact]
     public async Task AFeatureWhoseSynapseIsNotOneReactionIsSkippedAndReportedEvenWithoutASandbox()
     {

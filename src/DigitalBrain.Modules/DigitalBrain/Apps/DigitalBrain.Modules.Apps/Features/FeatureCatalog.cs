@@ -145,8 +145,9 @@ public sealed class FeatureCatalog
             .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
         if (SynapseShape.Check(scripts) is { Length: > 0 } shape)
         { throw new InvalidOperationException($"{owner}/{bundle.Name} {bundle.Version} is not shaped as synapses: " + SynapseShape.Describe(shape)); }
+        // Compiled as an installed app deploys it (its program files): app.cs is manifest and spec state, not code.
+        scripts.Remove(AppFiles.DeclarationPath);
         if (scripts.Count == 0 || sandbox is null) { return; }
-        scripts[AppFiles.DeclarationPath] = AppDeclaration.Write(new(bundle.Name, bundle.Version, bundle.Manifest, bundle.Spec));
         ScriptCompilationCheck check;
         try { check = await sandbox.Compile(scripts, CancellationToken.None); }
         catch (InvalidOperationException) { return; }

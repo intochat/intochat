@@ -568,12 +568,12 @@ public sealed class FastPathFacts : IDisposable
     }
 
     [Fact]
-    public async Task ThreeSentencesWrittenToOneAppAtOnceAllEndWrittenOrRejected()
+    public async Task ThreeSentencesWrittenToOneAppAtOnceAllEndWrittenAndRun()
     {
         var ct = TestContext.Current.CancellationToken;
-        // Every deploy outlasts a call's wait, as a busy Assign does live: the three writes queue behind the app's
-        // deploy turn, and each writer's first deploy call times out while its deploy is still running.
-        var runtime = new SlowAppRuntime(TimeSpan.FromMilliseconds(600));
+        // Every deploy outlasts a call's wait, as a busy Assign does live: each writer's deploy lands only once one
+        // of its calls has timed out, however loaded the test host is, so every first call times out mid-deploy.
+        var runtime = new SlowAppRuntime(TimeSpan.Zero) { LandsAfterATimeout = true };
         await using var model = await FakeModelServer.StartAsync(ct);
         await using var brain = await StartSlow(model, runtime, ct);
         model.Script(Writer, Reply("apples.cs", Lemons), Reply("pears.cs", Lemons), Reply("plums.cs", Lemons));
@@ -589,14 +589,11 @@ public sealed class FastPathFacts : IDisposable
         { await outcomes.NextAsync(signal => signal is SynapseWritten or SynapseRejected, ct); }
         var live = await app.Read();
         Assert.Equal(3, live.Synapses!.Length);
-        // Each outcome matches the program: Written exactly when its file is in the app and in what the runtime runs.
+        // Every deploy here lands, so none may be rejected for having waited on another, and each written file is
+        // both in the app and in what the runtime runs.
         var program = runtime.Current(app.GetPrimaryKeyString()) ?? [];
-        Assert.All(live.Synapses, synapse => Assert.Contains(synapse.Status, new[] { SynapseStatus.Written, SynapseStatus.Rejected }));
-        Assert.All(live.Synapses, synapse => Assert.Equal(synapse.Status == SynapseStatus.Written,
-            synapse.Path is { } path && live.Files.ContainsKey(path) && program.ContainsKey(path)));
-        Assert.All(live.Synapses.Where(synapse => synapse.Status == SynapseStatus.Rejected), synapse => Assert.NotEmpty(synapse.Errors));
-        // Every deploy here lands, so none may be rejected for having waited on another.
         Assert.All(live.Synapses, synapse => Assert.Equal(SynapseStatus.Written, synapse.Status));
+        Assert.All(live.Synapses, synapse => Assert.True(live.Files.ContainsKey(synapse.Path!) && program.ContainsKey(synapse.Path!)));
         Assert.True(runtime.TimedOutCalls >= 3, $"{runtime.TimedOutCalls} deploy calls timed out");
     }
 
@@ -826,6 +823,10 @@ public sealed class FastPathFacts : IDisposable
         private int _timedOut;
 
         public Func<Dictionary<string, string>, bool> Never { get; set; } = _ => false;
+        // A deploy lands right after a call waiting on it times out, instead of after the delay, and the next call
+        // for the same program answers at once.
+        public bool LandsAfterATimeout { get; init; }
+        private readonly Dictionary<string, TaskCompletionSource> _callTimedOut = new(StringComparer.Ordinal);
         // Runs as a deploy starts landing, before it lands: what the app shows while its deploy runs.
         public Func<string, Task>? Landing { get; set; }
         public ConcurrentQueue<string> Retired { get; } = new();
@@ -853,6 +854,7 @@ public sealed class FastPathFacts : IDisposable
             catch (TimeoutException)
             {
                 Interlocked.Increment(ref _timedOut);
+                lock (_gate) { TimedOut(key).TrySetResult(); }
                 throw new TimeoutException($"Response did not arrive on time in {CallTimeout} for Assign.");
             }
         }
@@ -865,12 +867,21 @@ public sealed class FastPathFacts : IDisposable
                 Interlocked.Increment(ref _deploys);
                 if (Landing is { } landing) { await landing(appKey); }
                 if (Never(sources)) { await Task.Delay(Timeout.Infinite); }
+                if (LandsAfterATimeout) { Task timedOut; lock (_gate) { timedOut = TimedOut(key).Task; } await timedOut; }
                 await Task.Delay(delay);
                 lock (_gate) { _current[appKey] = sources; }
                 Landed.Enqueue(sources);
                 return sources.Keys.ToDictionary(path => path, path => "hash:" + path, StringComparer.Ordinal);
             }
-            finally { lock (_gate) { _inFlight.Remove(key); } }
+            // A deploy that lands after a timed-out call stays answerable, so the writer's next call reads it.
+            finally { if (!LandsAfterATimeout) { lock (_gate) { _inFlight.Remove(key); } } }
+        }
+
+        private TaskCompletionSource TimedOut(string key)
+        {
+            if (!_callTimedOut.TryGetValue(key, out var timedOut))
+            { _callTimedOut[key] = timedOut = new(TaskCreationOptions.RunContinuationsAsynchronously); }
+            return timedOut;
         }
 
         public Task Retire(string appKey, CancellationToken cancellationToken)
