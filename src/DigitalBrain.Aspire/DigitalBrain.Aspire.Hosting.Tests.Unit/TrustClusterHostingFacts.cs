@@ -171,18 +171,24 @@ public sealed class TrustClusterHostingFacts
         Assert.Equal((30200, 30201, 11300), (endpoints[TrustClusterHosting.LinkEndpoint], endpoints[TrustClusterHosting.RelayEndpoint], endpoints[TrustClusterHosting.SiloEndpoint]));
     }
 
-    // R86: an Orleans-client host of the deployment (the MCP) is given no trust address; it waits for the trust host.
+    // R93: each MCP is a client machine of the deployment: its own directory, the pairing secret and the trust link
+    // endpoint; it only dials, so it gets no link port of its own and no part role.
     [Fact]
-    public async Task TheMcpGetsNoTrustAddress()
+    public async Task TheMcpResourcesCarryTheirMachineDirectoryPairingAndLinkEndpoint()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
         var brain = builder.AddDigitalBrain("memory", options: new());
         var trust = builder.AddExecutable("trust", "unused", ".").AsTrustCluster(brain, builder.Configuration);
-        var mcp = builder.AddExecutable("mcp", "unused", ".").AsTrustClient(trust);
+        var pairing = builder.AddParameter("machine-pairing-secret", "s3cret", secret: true);
+        var mcp = builder.AddExecutable("digitalbrain-mcp-a", "unused", ".").AsTrustClientMachine(trust, pairing, "/machines/digitalbrain-mcp-a");
 
         var values = await Environment(builder, mcp.Resource);
 
-        Assert.DoesNotContain(values.Keys, key => key.StartsWith("DigitalBrain__Platform__Trust__", StringComparison.Ordinal));
+        Assert.Equal("/machines/digitalbrain-mcp-a", values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.MachineDirectoryKey)]);
+        Assert.Contains(DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.PairingSecretKey), values.Keys);
+        Assert.Equal("localhost:{trust.bindings.link.port}", ((ReferenceExpression)values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.EndpointKey)]).ValueExpression);
+        Assert.DoesNotContain(DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.RoleKey), values.Keys);
+        Assert.DoesNotContain(mcp.Resource.Annotations.OfType<EndpointAnnotation>(), endpoint => endpoint.Name == TrustClusterHosting.LinkEndpoint);
         Assert.Contains(mcp.Resource.Annotations.OfType<WaitAnnotation>(), wait => wait.Resource == trust.Resource);
     }
 

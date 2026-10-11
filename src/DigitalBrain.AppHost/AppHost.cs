@@ -78,8 +78,8 @@ var mcpPort = builder.Configuration.GetValue(McpPortKey, 5081);
 
 // Stage B (Task 18): the trust cluster (sequencer, node directory, keyrings, identity, ledger and the Marketplace
 // catalog) is its own host and Orleans cluster on the orleans integration's tables and blobs, under its own
-// cluster id and container; each OS silo below is a machine that reaches it only through a private gateway
-// client (H2, R34). The trust host gets no other credential (R30) and no features copy (R56).
+// cluster id and container; each OS silo below, and each MCP, is a machine that reaches it only over its QUIC
+// link (H2, T20-7, R93). The trust host gets no other credential (R30) and no features copy (R56).
 var trust = builder.AddProject<Projects.DigitalBrain_Trust>("trust").AsTrustCluster(digitalBrain, builder.Configuration);
 // One pairing secret for every OS machine of this deployment (R52): the second machine joins the owner's account.
 var pairingSecret = builder.AddParameter("machine-pairing-secret", new GenerateParameterDefault { MinLength = 32, Special = false }, secret: true, persist: true);
@@ -133,8 +133,8 @@ IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where
 IResourceBuilder<IResourceWithEndpoints> Mcp<T>(IResourceBuilder<T> mcp) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
 {
     mcp.WithReference(digitalBrain.AsClient(shareHttpIdentity: true))
-        // R70: the MCP reads memberships through the trust cluster's gateway, as the machines do.
-        .AsTrustClient(trust)
+        // R93: the MCP is a machine of the deployment that holds no part; it reads trust over its own link.
+        .AsTrustClientMachine(trust, pairingSecret, Path.Combine(workdir, "machines", mcp.Resource.Name))
         .WithHttpHealthCheck("/health", endpointName: "http");
     foreach (var silo in silos) { mcp.WaitFor(silo); }
     return builder.CreateResourceBuilder<IResourceWithEndpoints>(mcp.Resource);

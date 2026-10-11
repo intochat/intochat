@@ -2,6 +2,7 @@ using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Framework.Platform.Marketplace;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using DigitalBrain.Platform.Links;
 using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Platform.Trust;
@@ -33,6 +34,29 @@ public static class TrustClientHosting
         return services;
     }
 
-    // An Orleans-client host (the MCP, R70) reads trust state through the clients its process composes.
-    public static IServiceCollection AddTrustClientsForClientHost(this IServiceCollection services) => services.AddTrustClients(signs: false);
+    // An Orleans-client host (the MCP): with a trust Endpoint it is a client machine (R93) and reads and signs over
+    // its own link; without one (Stage A, tests) it reads the trust grains through its cluster client (R70).
+    public static IServiceCollection AddTrustClientsForClientHost(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        services.AddClientMachine();
+        services.AddOptions<TrustOptions>().BindConfiguration(TrustOptions.Key)
+            .Validate(trust => { trust.Validate(); return true; }).ValidateOnStart();
+        services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton(provider => GrainTrustClients.Reading(provider.GetRequiredService<IGrainFactory>, provider.GetRequiredService<TimeProvider>()));
+        services.TryAddSingleton<ISequencerClient>(Either<ISequencerClient>);
+        services.TryAddSingleton<INodeDirectoryClient>(Either<INodeDirectoryClient>);
+        services.TryAddSingleton<IKeyringClient>(Either<IKeyringClient>);
+        services.TryAddSingleton<IMarketplaceClient>(Either<IMarketplaceClient>);
+        services.TryAddSingleton<IIdentityClient>(Either<IIdentityClient>);
+        return services;
+    }
+
+    private static T Either<T>(IServiceProvider provider) where T : class
+    {
+        if (!string.IsNullOrWhiteSpace(provider.GetRequiredService<IOptions<TrustOptions>>().Value.Endpoint)
+            && (OperatingSystem.IsWindows() || OperatingSystem.IsLinux() || OperatingSystem.IsMacOS()))
+        { return (provider.GetRequiredService<LinkTrustClients>() as T)!; }
+        return (provider.GetRequiredService<GrainTrustClients>() as T)!;
+    }
 }

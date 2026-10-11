@@ -110,8 +110,7 @@ public static class TrustClusterHosting
             .WithEnvironment("Orleans__Endpoints__GatewayPort", machine.GetEndpoint(OrleansGatewayEndpoint).Property(EndpointProperty.Port));
     }
 
-    // A host of the deployment that starts once the trust host is up. An Orleans-client host (the MCP) is given no
-    // trust address: it has no machine identity to hold a link with (R86).
+    // A host of the deployment that starts once the trust host is up.
     public static IResourceBuilder<T> AsTrustClient<T, TTrust>(this IResourceBuilder<T> client, IResourceBuilder<TTrust> trust)
         where T : IResourceWithEnvironment, IResourceWithWaitSupport
         where TTrust : IResourceWithEndpoints
@@ -119,6 +118,21 @@ public static class TrustClusterHosting
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(trust);
         return client.WaitFor(client.ApplicationBuilder.CreateResourceBuilder<IResource>(trust.Resource));
+    }
+
+    // R93: an Orleans-client host (the MCP) is a machine that holds no part: its own directory, the deployment's
+    // pairing secret and the trust link endpoint. It only dials the trust link, so it needs no link port of its own.
+    public static IResourceBuilder<T> AsTrustClientMachine<T, TTrust>(this IResourceBuilder<T> client, IResourceBuilder<TTrust> trust,
+        IResourceBuilder<ParameterResource> pairingSecret, string machineDirectory)
+        where T : IResourceWithEnvironment, IResourceWithWaitSupport
+        where TTrust : IResourceWithEndpoints
+    {
+        ArgumentNullException.ThrowIfNull(client);
+        return client
+            .AsTrustClient(trust)
+            .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(EndpointKey), EndpointOf(trust))
+            .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(PairingSecretKey), pairingSecret)
+            .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(MachineDirectoryKey), machineDirectory);
     }
 
     public static string ContainerOf(string machine) => "grainstate-" + machine.ToLowerInvariant();
