@@ -24,9 +24,17 @@ internal sealed class DigestShardStore(StorageNodeOptions options, int maxShardB
         => await base.Get(cid) is { } held ? StorageProof.Compute(nonce, SHA256.HashData(held)) : null;
 }
 
+// Facts that run four or five machine silos at once run alone, so they do not starve the link facts' handshakes.
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class VolunteerMachines
+{
+    public const string Name = "Volunteer machines";
+}
+
 // Task 24 (T23-1…T23-9, Q25): a putter's segments spread over volunteer nodes of other accounts and the seeds; a lying,
 // digest-only, full or vanished node costs at most an erasure.
 [System.Runtime.Versioning.SupportedOSPlatform("windows"), System.Runtime.Versioning.SupportedOSPlatform("linux"), System.Runtime.Versioning.SupportedOSPlatform("macos")]
+[Collection(VolunteerMachines.Name)]
 public sealed class VolunteerMeshFacts
 {
     private static readonly byte[] Key = RandomNumberGenerator.GetBytes(32);

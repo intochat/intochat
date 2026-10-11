@@ -17,6 +17,7 @@ namespace DigitalBrain.Platform.Tests.Unit.Mesh;
 // heals a failed chain by snapshot, commits a repaired snapshot without dropping what it shares, re-issues spent
 // challenges, and keeps the round in the head.
 [System.Runtime.Versioning.SupportedOSPlatform("windows"), System.Runtime.Versioning.SupportedOSPlatform("linux"), System.Runtime.Versioning.SupportedOSPlatform("macos")]
+[Collection(VolunteerMachines.Name)]
 public sealed class MeshAuditorFacts
 {
     private static PartId Part => PartId.ForApp(BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id, "audited");
