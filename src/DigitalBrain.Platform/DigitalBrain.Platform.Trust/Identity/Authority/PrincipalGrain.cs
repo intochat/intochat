@@ -12,7 +12,7 @@ internal sealed record PrincipalState
     [Id(0)] public Member? DefaultMembership { get; init; }
     [Id(2)] public bool RegistrationComplete { get; init; }
     // The brains this principal is a member of, as their authorities announce it.
-    [Id(3)] public string[] Brains { get; init; } = [];
+    [Id(3)] public BrainEntry[] Brains { get; init; } = [];
     // The machine that registered this principal; only it completes the registration or signs it in (R67).
     [Id(4)] public string? RegisteredBy { get; init; }
 }
@@ -70,11 +70,11 @@ internal sealed class PrincipalGrain(
 
     public Task<Member?> DefaultMembership() => Task.FromResult(State.DefaultMembership);
 
-    public Task<string[]> Brains() => Task.FromResult(State.Brains);
+    public Task<BrainEntry[]> Brains() => Task.FromResult(State.Brains);
 
-    public Task Joined(string brainId)
-        => State.Brains.Contains(brainId, StringComparer.Ordinal) ? Task.CompletedTask : Persist(State with { Brains = [.. State.Brains, brainId] });
+    public Task Joined(string brainId, BrainKind kind)
+        => State.Brains.Any(known => known.Id == brainId) ? Task.CompletedTask : Persist(State with { Brains = [.. State.Brains, new BrainEntry(brainId, kind)] });
 
     public Task Left(string brainId)
-        => State.Brains.Contains(brainId, StringComparer.Ordinal) ? Persist(State with { Brains = [.. State.Brains.Where(known => known != brainId)] }) : Task.CompletedTask;
+        => State.Brains.Any(known => known.Id == brainId) ? Persist(State with { Brains = [.. State.Brains.Where(known => known.Id != brainId)] }) : Task.CompletedTask;
 }

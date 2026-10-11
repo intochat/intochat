@@ -13,9 +13,10 @@ internal sealed class CircleChatRecord
     [Id(2)] public string[] Said { get; set; } = [];
 }
 
-// One brain's copy of a circle's chat. The owner's copy numbers each line, with the brain that said it as
-// the speaker, and tells the members; a member's copy pulls the lines after the last one it holds, so a
-// missed tell loses nothing. Not reentrant: the owner never awaits a member.
+// A circle brain's chat `{circle}/chat` (T26-1): one line per Say, numbered here, its speaker the member account that
+// said it. Until the circle app split it also serves one brain's copy of a circle's chat: the owner's copy numbers
+// each line, with the brain that said it as the speaker, and tells the members; a member's copy pulls the lines after
+// the last one it holds, so a missed tell loses nothing. Not reentrant: the owner never awaits a member.
 [GrainType(CircleCallGuard.ChatType)]
 internal sealed class CircleChatNeuron(
     [PersistentState("circles.chat", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<CircleChatRecord> store,
@@ -25,11 +26,28 @@ internal sealed class CircleChatNeuron(
     private const int Kept = 500;
     private const int KeptRequests = 64;
 
+    private bool IsCore => CircleAddress.TryParse(this.GetPrimaryKeyString()[..^"/chat".Length]) is null;
+    private string CircleBrain => this.GetPrimaryKeyString()[..^"/chat".Length];
+
     private CircleAddress Address => CircleAddress.OfChat(this.GetPrimaryKeyString());
-    private ICircle Circle => GrainFactory.GetGrain<ICircle>(Address.CircleKey);
+    private ICircle Circle => GrainFactory.GetGrain<ICircle>(IsCore ? ICircle.Key(CircleBrain) : Address.CircleKey);
+
+    // A member of the circle brain, under its own account (T26-8).
+    private async Task<string> Member()
+    {
+        if (!CallerContextStamper.TryGet(out var caller) || caller.BrainId != CircleBrain || !(await Circle.Roster()).Members.Contains(caller.AccountId))
+        { throw new UnauthorizedAccessException($"The caller is not a member of circle {CircleBrain}."); }
+        return caller.AccountId;
+    }
 
     public async Task Say(string text, string? requestId = null)
     {
+        if (IsCore)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(text);
+            await Publish(await Member(), text, requestId);
+            return;
+        }
         RequireBrain();
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
         var address = Address;
@@ -57,6 +75,11 @@ internal sealed class CircleChatNeuron(
 
     public async Task<CircleLine[]> Read(long since)
     {
+        if (IsCore)
+        {
+            await Member();
+            return [.. Snapshot.Lines.Where(line => line.Sequence > since)];
+        }
         RequireBrain();
         await Sync();
         return [.. Snapshot.Lines.Where(line => line.Sequence > since)];
@@ -76,6 +99,12 @@ internal sealed class CircleChatNeuron(
     {
         var said = string.IsNullOrWhiteSpace(requestId) ? null : $"{speaker}/{requestId}";
         if (said is not null && Snapshot.Said.Contains(said, StringComparer.Ordinal)) { return Snapshot.Last; }
+        if (IsCore)
+        {
+            var spoken = new CircleLine(speaker, text, Snapshot.Last + 1);
+            await Take(spoken, said);
+            return spoken.Sequence;
+        }
         var address = Address;
         var members = (await Circle.Roster()).Members;
         var line = new CircleLine(speaker, text, Snapshot.Last + 1);
@@ -111,8 +140,9 @@ internal sealed class CircleChatNeuron(
     {
         if (line.Sequence <= Snapshot.Last) { return; }
         var lines = Snapshot.Lines.Length >= Kept ? Snapshot.Lines[1..] : Snapshot.Lines;
+        var name = IsCore ? (await Circle.Roster()).Name : Address.Name;
         await Save(new CircleChatRecord { Lines = [.. lines, line], Last = line.Sequence, Said = said is null ? Snapshot.Said : [.. Snapshot.Said.TakeLast(KeptRequests - 1), said] },
-            new CircleSpoke(Address.Name, line.Speaker, line.Text, line.Sequence));
-        await GrainFactory.GetGrain<ICircles>(ICircles.Key(Address.Brain)).Touch(Address.Name, Address.Owner, "spoke", "");
+            new CircleSpoke(name, line.Speaker, line.Text, line.Sequence));
+        if (!IsCore) { await GrainFactory.GetGrain<ICircles>(ICircles.Key(Address.Brain)).Touch(Address.Name, Address.Owner, "spoke", ""); }
     }
 }

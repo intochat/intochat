@@ -113,8 +113,8 @@ internal sealed class LinkTrustClients(QuicMachineTransport transport, Serialize
         return Signed(TrustOperations.EnsureAccount, account, account.AccountId);
     }
 
-    public Task<BrainProvision> CreateBrain(string accountId, string principalId, string operationId, string displayName)
-        => Signed<BrainRequest, BrainProvision>(TrustOperations.CreateBrain, new BrainRequest(accountId, principalId, operationId, displayName), accountId);
+    public Task<BrainProvision> CreateBrain(string accountId, string principalId, string operationId, string displayName, BrainKind kind)
+        => Signed<BrainRequest, BrainProvision>(TrustOperations.CreateBrain, new BrainRequest(accountId, principalId, operationId, displayName, kind), accountId);
 
     public async Task<BrainProvision> EnsureBrain(Member owner)
     {
@@ -142,7 +142,22 @@ internal sealed class LinkTrustClients(QuicMachineTransport transport, Serialize
     public Task<BrainProvision?> CompleteRegistration(string principalId)
         => Signed<PrincipalRegistration, BrainProvision?>(TrustOperations.CompleteRegistration, new PrincipalRegistration(principalId, ""), principalId);
 
-    public Task<string[]> BrainsOf(string principalId) => Call<string, string[]>(TrustOperations.BrainsOf, principalId);
+    public Task<BrainEntry[]> BrainsOf(string principalId) => Call<string, BrainEntry[]>(TrustOperations.BrainsOf, principalId);
+
+    public Task<BrainKind> KindOf(string brainScopeId) => Call<string, BrainKind>(TrustOperations.KindOf, brainScopeId);
+
+    public Task RemoveMember(string brainScopeId, string accountId)
+        => Signed(TrustOperations.RemoveMember, new MemberRemoval(brainScopeId, accountId), accountId);
+
+    public Task ContributeMachine(string circleBrainId, string machineId)
+        => Signed(TrustOperations.ContributeMachine, new CircleMachine(circleBrainId, machineId), signer.Machine.MachineId);
+
+    public Task WithdrawMachine(string circleBrainId, string machineId)
+        => Signed(TrustOperations.WithdrawMachine, new CircleMachine(circleBrainId, machineId), signer.Machine.MachineId);
+
+    public Task<string[]> MachinesOf(string circleBrainId) => Call<string, string[]>(TrustOperations.MachinesOf, circleBrainId);
+
+    public string? MachineId => signer.Machine.MachineId;
 
     public Task<Member?> Membership(string brainScopeId, string principalId) => Call<(string, string), Member?>(TrustOperations.Membership, (brainScopeId, principalId));
 

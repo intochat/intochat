@@ -5,7 +5,8 @@ public sealed record CircleChanged(
     [property: Id(0)] string Name,
     [property: Id(1)] string[] Members,
     [property: Id(2)] string[] SharedApps,
-    [property: Id(3)] int ComputeSharePercent) : Signal;
+    [property: Id(3)] int ComputeSharePercent,
+    [property: Id(4)] string[] Machines) : Signal;
 
 [GenerateSerializer, Alias("circles.circle-invited")]
 public sealed record CircleInvited(

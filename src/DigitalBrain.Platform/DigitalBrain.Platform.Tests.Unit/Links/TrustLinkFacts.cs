@@ -207,7 +207,7 @@ public sealed class TrustLinkFacts
         // Its own account's reads still answer.
         var mallorysBrain = BrainScope.Create("mallory", "mallory").Id;
         Assert.NotNull(await mallory.Call<(string, string), Member?>(TrustOperations.Membership, (mallorysBrain, "mallory"), ct));
-        Assert.NotEmpty(await mallory.Call<string, string[]>(TrustOperations.BrainsOf, "mallory", ct));
+        Assert.NotEmpty(await mallory.Call<string, BrainEntry[]>(TrustOperations.BrainsOf, "mallory", ct));
         Assert.Equal([1], await machine.Services.GetRequiredService<IKeyringClient>().Get(OwnerBrain, "kept"));
     }
 

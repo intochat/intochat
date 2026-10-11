@@ -12,7 +12,8 @@ public interface IIdentityClient
 
     Task EnsureAccount(Account account);
 
-    Task<BrainProvision> CreateBrain(string accountId, string principalId, string operationId, string displayName);
+    // R125: a brain is recorded with its kind; a circle brain is created for its creator's account.
+    Task<BrainProvision> CreateBrain(string accountId, string principalId, string operationId, string displayName, BrainKind kind);
 
     Task<BrainProvision> EnsureBrain(Member owner);
 
@@ -27,11 +28,28 @@ public interface IIdentityClient
 
     Task<BrainProvision?> CompleteRegistration(string principalId);
 
-    Task<string[]> BrainsOf(string principalId);
+    Task<BrainEntry[]> BrainsOf(string principalId);
+
+    Task<BrainKind> KindOf(string brainScopeId);
 
     Task<Member?> Membership(string brainScopeId, string principalId);
 
     Task<Member?> EnsureMember(Member member);
+
+    // R133: the same gate as EnsureMember, plus the brain's owner. Every membership of the account goes; the owner's
+    // account is never removed.
+    Task RemoveMember(string brainScopeId, string accountId);
+
+    // R128: a circle brain's contributed machines count as its owner machines, for that brain only. A machine is
+    // contributed when it is bound to an owner or member account of the circle.
+    Task ContributeMachine(string circleBrainId, string machineId);
+
+    Task WithdrawMachine(string circleBrainId, string machineId);
+
+    Task<string[]> MachinesOf(string circleBrainId);
+
+    // The machine this client signs as; null on a host that is not a machine.
+    string? MachineId { get; }
 
     Task<CallDecision?> Authorize(CallRequest request);
 
@@ -41,6 +59,11 @@ public interface IIdentityClient
 
     Task RevokeAsOwner(CallerContext caller, string appId, string semanticTypeId, GrantMode mode);
 }
+
+public enum BrainKind { Personal, Circle }
+
+[GenerateSerializer, Alias("identity.brain-entry")]
+public sealed record BrainEntry([property: Id(0)] string Id, [property: Id(1)] BrainKind Kind);
 
 [GenerateSerializer, Alias("identity.brain-provision")]
 public sealed record BrainProvision([property: Id(0)] Member Member, [property: Id(1)] bool NewBrain);

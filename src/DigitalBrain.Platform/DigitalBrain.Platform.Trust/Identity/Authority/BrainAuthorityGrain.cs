@@ -15,6 +15,9 @@ internal sealed record BrainAuthorityState
     [Id(3)] public Grant[] Grants { get; init; } = [];
     [Id(4)] public Invitation[] Invitations { get; init; } = [];
     [Id(6)] public bool OwnerProvisioned { get; init; }
+    [Id(7)] public BrainKind Kind { get; init; }
+    // R128: the machines members contributed to a circle brain.
+    [Id(8)] public string[] Machines { get; init; } = [];
 }
 
 // Deliberately non-reentrant: a Once grant is checked and persisted in one turn.
@@ -31,6 +34,34 @@ internal sealed class BrainAuthorityGrain(
         if (State.AccountId is null) { await Persist(State with { AccountId = accountId, BrainId = brainId }); }
     }
     public Task<string?> Account() => Task.FromResult(State.AccountId);
+    public Task<BrainKind> Kind() => Task.FromResult(State.Kind);
+    public Task<string[]> Machines() => Task.FromResult(State.Machines);
+    public Task<string[]> MemberAccounts()
+        => Task.FromResult<string[]>([.. State.Members.Values.Select(member => member.AccountId).Append(State.AccountId ?? "")
+            .Where(account => account.Length > 0).Distinct(StringComparer.Ordinal)]);
+    public async Task Classify(BrainKind kind)
+    {
+        if (State.Kind == kind) { return; }
+        if (State.OwnerProvisioned) { throw new InvalidOperationException($"Brain {this.GetPrimaryKeyString()} is a {State.Kind} brain; its kind is fixed."); }
+        await Persist(State with { Kind = kind });
+    }
+    public async Task Contribute(string machineId)
+    {
+        if (State.Kind != BrainKind.Circle) { throw new InvalidOperationException($"Brain {this.GetPrimaryKeyString()} is not a circle; it takes no contributed machine."); }
+        ArgumentException.ThrowIfNullOrWhiteSpace(machineId);
+        if (!State.Machines.Contains(machineId, StringComparer.Ordinal)) { await Persist(State with { Machines = [.. State.Machines, machineId] }); }
+    }
+    public async Task Withdraw(string machineId)
+    {
+        if (State.Machines.Contains(machineId, StringComparer.Ordinal))
+        { await Persist(State with { Machines = [.. State.Machines.Where(known => known != machineId)] }); }
+    }
+    public async Task RemoveAccount(string accountId)
+    {
+        if (accountId == State.AccountId) { throw new InvalidOperationException($"The owner of brain {this.GetPrimaryKeyString()} cannot be removed from it."); }
+        foreach (var principal in State.Members.Values.Where(member => member.AccountId == accountId).Select(member => member.PrincipalId).ToArray())
+        { await RemoveMember(principal); }
+    }
     public Task<Member?> Membership(string principalId) => Task.FromResult(State.Members.GetValueOrDefault(principalId));
     public async Task<bool> ProvisionOwner(Member owner)
     {
@@ -45,19 +76,25 @@ internal sealed class BrainAuthorityGrain(
             throw new InvalidOperationException($"Brain {owner.BrainId} already belongs to {current.PrincipalId}; {owner.PrincipalId} cannot be provisioned as its owner.");
         }
         await Persist(State with { Members = new(State.Members) { [owner.PrincipalId] = owner }, OwnerProvisioned = true });
-        await GrainFactory.GetGrain<IPrincipal>(owner.PrincipalId).Joined(owner.BrainId);
+        await GrainFactory.GetGrain<IPrincipal>(owner.PrincipalId).Joined(owner.BrainId, State.Kind);
         return true;
     }
     public async Task EnsureMember(Member member)
     {
-        await Initialize(member.AccountId, member.BrainId);
+        // T26-2: a circle's members are other accounts; their records keep their own account, which GrantRules matches.
+        if (State.Kind == BrainKind.Circle && State.AccountId is { } owner && owner != member.AccountId)
+        {
+            if (member.BrainId != State.BrainId) { throw new InvalidOperationException("Brain authority scope conflict."); }
+            if (member.Role == MemberRole.Owner) { throw new InvalidOperationException("A circle has one owner, its creator."); }
+        }
+        else { await Initialize(member.AccountId, member.BrainId); }
         if (State.Members.TryGetValue(member.PrincipalId, out var existing))
         {
             if (existing.Role != member.Role) { throw new InvalidOperationException("Membership role conflict."); }
             return;
         }
         await Persist(State with { Members = new(State.Members) { [member.PrincipalId] = member } });
-        await GrainFactory.GetGrain<IPrincipal>(member.PrincipalId).Joined(member.BrainId);
+        await GrainFactory.GetGrain<IPrincipal>(member.PrincipalId).Joined(member.BrainId, State.Kind);
     }
     public async Task RemoveMember(string principalId)
     {
@@ -90,7 +127,9 @@ internal sealed class BrainAuthorityGrain(
     private CallDecision? Decide(CallRequest request)
     {
         var caller = request.Caller;
-        if (State.AccountId != caller.AccountId || State.BrainId != caller.BrainId)
+        // T26-8: a circle's member calls under its own account, which its member record carries.
+        var circleMember = State.Kind == BrainKind.Circle && State.Members.GetValueOrDefault(caller.PrincipalId)?.AccountId == caller.AccountId;
+        if (State.AccountId != caller.AccountId && !circleMember || State.BrainId != caller.BrainId)
         { return CallDecision.Deny(CallDenial.OutsideWorkspace, "The target scope does not match this brain."); }
         return GrantRules.Evaluate(request, State.Members.GetValueOrDefault(caller.PrincipalId), State.Grants);
     }

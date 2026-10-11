@@ -26,7 +26,7 @@ internal sealed class AccountGrain(
         await Persist(State with { Account = account });
     }
     public Task<Account?> Read() => Task.FromResult(State.Account);
-    public async Task<BrainProvision> CreateBrain(string principalId, string operationId, string displayName)
+    public async Task<BrainProvision> CreateBrain(string principalId, string operationId, string displayName, BrainKind kind)
     {
         if (State.Account?.OwnerPrincipalId != principalId) { throw new UnauthorizedAccessException("Only the account owner can create a brain."); }
         ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
@@ -36,13 +36,14 @@ internal sealed class AccountGrain(
             {
                 PrincipalId = principalId,
                 AccountId = this.GetPrimaryKeyString(),
-                BrainId = "workspace-" + Guid.NewGuid().ToString("N"),
+                BrainId = (kind == BrainKind.Circle ? "circle-" : "workspace-") + Guid.NewGuid().ToString("N"),
                 DisplayName = displayName,
                 Role = MemberRole.Owner,
                 JoinedAt = clock.GetUtcNow()
             };
             await Persist(State with { BrainOperations = new(State.BrainOperations) { [operationId] = member } });
         }
+        await GrainFactory.GetGrain<IBrainAuthority>(BrainScope.Create(member.AccountId, member.BrainId).Id).Classify(kind);
         return new(member, await EnsureBrain(member));
     }
     public async Task<bool> EnsureBrain(Member owner)

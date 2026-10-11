@@ -24,8 +24,8 @@ internal sealed class IdentityDirectoryNeuron(IIdentityClient identity, Principa
         return await identity.Membership(BrainScope.Create(accountId, brainId).Id, principalId) is { } member
             && member.AccountId == accountId ? member : null;
     }
-    public Task<string[]> BrainsOfAsync(string principalId, CancellationToken cancellationToken = default)
-        => identity.BrainsOf(principalId).WaitAsync(cancellationToken);
+    public async Task<string[]> BrainsOfAsync(string principalId, CancellationToken cancellationToken = default)
+        => [.. (await identity.BrainsOf(principalId).WaitAsync(cancellationToken)).Select(brain => brain.Id)];
     public async Task<bool> CanAccessAsync(string principalId, string accountId, string brainId, CancellationToken cancellationToken = default)
         => await FindMemberAsync(principalId, accountId, brainId, cancellationToken) is not null;
     public async Task<Member> ShareBrainAsync(string accountId, string brainId, string principalId, string displayName, MemberRole role, CancellationToken cancellationToken = default)

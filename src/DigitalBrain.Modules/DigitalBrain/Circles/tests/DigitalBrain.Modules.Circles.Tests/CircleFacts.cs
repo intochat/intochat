@@ -24,11 +24,11 @@ public sealed class CircleFacts
         var (alice, bob) = (room.Alice, room.Bob);
 
         await alice.As(() => room.Circle(alice).Invite(bob.BrainId));
-        Assert.Equal(alice.BrainId, (await bob.As(() => room.Circle(bob).State())).InvitedBy);
+        Assert.Equal("", (await bob.As(() => room.Circle(bob).State())).Creator);
         var joined = await bob.As(() => room.Circle(bob).Accept());
 
         Assert.Equal([alice.BrainId, bob.BrainId], joined.Members);
-        Assert.Equal(alice.BrainId, joined.Owner);
+        Assert.Equal(alice.BrainId, joined.Creator);
         Assert.Equal([alice.BrainId, bob.BrainId], await bob.As(() => room.Circle(bob).Members()));
         var owners = await alice.As(() => room.Circle(alice).State());
         Assert.Equal([alice.BrainId, bob.BrainId], owners.Members);

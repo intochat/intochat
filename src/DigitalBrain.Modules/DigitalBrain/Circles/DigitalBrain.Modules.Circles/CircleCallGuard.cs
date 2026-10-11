@@ -16,7 +16,8 @@ internal sealed class CircleCallGuard : IIncomingGrainCallFilter
     public async Task Invoke(IIncomingGrainCallContext context)
     {
         var target = context.TargetId.Type.ToString();
-        if (target is not (CircleType or ChatType or IndexType) || !Attribute.IsDefined(context.InterfaceMethod, typeof(InternalAttribute)))
+        if (target is not (CircleType or ChatType or IndexType) || !Attribute.IsDefined(context.InterfaceMethod, typeof(InternalAttribute))
+            || IsCircleBrain(target, context.TargetId.Key.ToString()!))
         { await context.Invoke(); return; }
 
         var from = Caller(context, target) ?? throw new UnauthorizedAccessException(
@@ -24,6 +25,11 @@ internal sealed class CircleCallGuard : IIncomingGrainCallFilter
         RequestContext.Set(From, from);
         await context.Invoke();
     }
+
+    // A circle brain's own core and chat (T26-1) take no copy protocol; their [Internal] calls come from the kernel.
+    private static bool IsCircleBrain(string type, string key)
+        => type == CircleType ? CircleAddress.TryParse(key) is null
+            : type == ChatType && key.EndsWith("/chat", StringComparison.Ordinal) && CircleAddress.TryParse(key[..^"/chat".Length]) is null;
 
     private static string? Caller(IIncomingGrainCallContext context, string targetType)
     {

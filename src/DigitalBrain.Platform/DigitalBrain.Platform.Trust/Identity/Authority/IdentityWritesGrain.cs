@@ -15,6 +15,9 @@ internal interface IIdentityWrites : IGrainWithStringKey
 
     Task<bool> ProvisionOwner(MachineSigned<Member> owner);
     Task<Member?> EnsureMember(MachineSigned<Member> member);
+    Task RemoveMember(MachineSigned<MemberRemoval> removal);
+    Task ContributeMachine(MachineSigned<CircleMachine> machine);
+    Task WithdrawMachine(MachineSigned<CircleMachine> machine);
     Task EnsureAccount(MachineSigned<Account> account);
     Task<bool> EnsureBrain(MachineSigned<Member> owner);
     Task<BrainProvision> CreateBrain(MachineSigned<BrainRequest> request);
@@ -26,7 +29,14 @@ internal interface IIdentityWrites : IGrainWithStringKey
 }
 
 [GenerateSerializer, Alias("identity.brain-request")]
-internal sealed record BrainRequest([property: Id(0)] string AccountId, [property: Id(1)] string PrincipalId, [property: Id(2)] string OperationId, [property: Id(3)] string DisplayName);
+internal sealed record BrainRequest([property: Id(0)] string AccountId, [property: Id(1)] string PrincipalId, [property: Id(2)] string OperationId,
+    [property: Id(3)] string DisplayName, [property: Id(4)] BrainKind Kind);
+
+[GenerateSerializer, Alias("identity.member-removal")]
+internal sealed record MemberRemoval([property: Id(0)] string BrainScopeId, [property: Id(1)] string AccountId);
+
+[GenerateSerializer, Alias("identity.circle-machine")]
+internal sealed record CircleMachine([property: Id(0)] string BrainScopeId, [property: Id(1)] string MachineId);
 
 [GenerateSerializer, Alias("identity.owner-grant")]
 internal sealed record OwnerGrant([property: Id(0)] CallerContext Caller, [property: Id(1)] Grant Grant);
@@ -50,10 +60,59 @@ internal sealed class IdentityWritesGrain : Grain, IIdentityWrites
 
     public async Task<Member?> EnsureMember(MachineSigned<Member> member)
     {
-        await For(member, member.Payload.AccountId);
         var authority = Authority(member.Payload);
+        // R129: a circle's member is written by a machine bound to that member's account or contributed to the circle.
+        if (await authority.Kind() == BrainKind.Circle && await authority.Account() is { } owner && owner != member.Payload.AccountId)
+        {
+            var signer = await Signer(member);
+            if (!signer.Accounts.Contains(member.Payload.AccountId, StringComparer.Ordinal) && !(await authority.Machines()).Contains(signer.MachineId, StringComparer.Ordinal))
+            { throw new UnauthorizedAccessException($"Machine {signer.MachineId} serves neither account {member.Payload.AccountId} nor circle {member.Payload.BrainId}."); }
+        }
+        else { await For(member, member.Payload.AccountId); }
         await authority.EnsureMember(member.Payload);
         return await authority.Membership(member.Payload.PrincipalId);
+    }
+
+    // R133: EnsureMember's gate (a machine bound to the member's account, or contributed to the circle), plus the
+    // brain's owner's machines.
+    public async Task RemoveMember(MachineSigned<MemberRemoval> removal)
+    {
+        var (brain, account) = (removal.Payload.BrainScopeId, removal.Payload.AccountId);
+        var signer = await Signer(removal);
+        var authority = GrainFactory.GetGrain<IBrainAuthority>(brain);
+        var owner = await authority.Account() ?? throw new InvalidOperationException($"Brain {brain} has no owner on record.");
+        if (!signer.Accounts.Contains(account, StringComparer.Ordinal) && !signer.Accounts.Contains(owner, StringComparer.Ordinal)
+            && !(await authority.Machines()).Contains(signer.MachineId, StringComparer.Ordinal))
+        { throw new UnauthorizedAccessException($"Machine {signer.MachineId} may not remove account {account} from brain {brain}."); }
+        await authority.RemoveAccount(account);
+    }
+
+    // R128: the machine joins when it is bound to an owner or member account of the circle; the signer is that machine,
+    // a contributed machine, or a machine of an owner or member account.
+    public async Task ContributeMachine(MachineSigned<CircleMachine> machine)
+    {
+        var (brain, target) = (machine.Payload.BrainScopeId, machine.Payload.MachineId);
+        var signer = await Signer(machine);
+        var authority = GrainFactory.GetGrain<IBrainAuthority>(brain);
+        var accounts = await authority.MemberAccounts();
+        var contributed = await GrainFactory.GetGrain<IMachineRegistry>(target).Read()
+            ?? throw new UnauthorizedAccessException($"Machine {target} is not registered.");
+        if (!contributed.Accounts.Any(accounts.Contains))
+        { throw new UnauthorizedAccessException($"Machine {target} serves no owner or member account of circle {brain}."); }
+        if (signer.MachineId != target && !signer.Accounts.Any(accounts.Contains) && !(await authority.Machines()).Contains(signer.MachineId, StringComparer.Ordinal))
+        { throw new UnauthorizedAccessException($"Machine {signer.MachineId} may not contribute machine {target} to circle {brain}."); }
+        await authority.Contribute(target);
+    }
+
+    public async Task WithdrawMachine(MachineSigned<CircleMachine> machine)
+    {
+        var (brain, target) = (machine.Payload.BrainScopeId, machine.Payload.MachineId);
+        var signer = await Signer(machine);
+        var authority = GrainFactory.GetGrain<IBrainAuthority>(brain);
+        if (signer.MachineId != target && !(await authority.Machines()).Contains(signer.MachineId, StringComparer.Ordinal)
+            && !(await authority.Account() is { } owner && signer.Accounts.Contains(owner, StringComparer.Ordinal)))
+        { throw new UnauthorizedAccessException($"Machine {signer.MachineId} may not withdraw machine {target} from circle {brain}."); }
+        await authority.Withdraw(target);
     }
 
     public async Task EnsureAccount(MachineSigned<Account> account)
@@ -72,7 +131,7 @@ internal sealed class IdentityWritesGrain : Grain, IIdentityWrites
     {
         await For(request, request.Payload.AccountId);
         var brain = request.Payload;
-        return await GrainFactory.GetGrain<IAccount>(brain.AccountId).CreateBrain(brain.PrincipalId, brain.OperationId, brain.DisplayName);
+        return await GrainFactory.GetGrain<IAccount>(brain.AccountId).CreateBrain(brain.PrincipalId, brain.OperationId, brain.DisplayName, brain.Kind);
     }
 
     public async Task<Grant> GrantAsOwner(MachineSigned<OwnerGrant> grant)
@@ -116,6 +175,14 @@ internal sealed class IdentityWritesGrain : Grain, IIdentityWrites
     {
         if (signed.Account != account) { throw new UnauthorizedAccessException($"A call signed for {signed.Account} cannot act for {account}."); }
         await GrainFactory.GetGrain<IMachineRegistry>(signed.MachineId).Accept(signed.Call());
+    }
+
+    // The machine signed this call (signature, timestamp, counter); what it may do is the caller's check.
+    private async Task<RegisteredMachine> Signer<T>(MachineSigned<T> signed)
+    {
+        var registry = GrainFactory.GetGrain<IMachineRegistry>(signed.MachineId);
+        await registry.AcceptMachine(signed.Call());
+        return (await registry.Read())!;
     }
 
     // A registration creates its account, so the machine's signature and replay window are checked (R67). R72's

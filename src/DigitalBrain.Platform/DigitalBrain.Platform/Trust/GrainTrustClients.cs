@@ -121,8 +121,8 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
 
     public Task EnsureAccount(Account account) => Signed(account, account.AccountId, Writes.EnsureAccount);
 
-    public Task<BrainProvision> CreateBrain(string accountId, string principalId, string operationId, string displayName)
-        => Signed(new BrainRequest(accountId, principalId, operationId, displayName), accountId, Writes.CreateBrain);
+    public Task<BrainProvision> CreateBrain(string accountId, string principalId, string operationId, string displayName, BrainKind kind)
+        => Signed(new BrainRequest(accountId, principalId, operationId, displayName, kind), accountId, Writes.CreateBrain);
 
     public async Task<BrainProvision> EnsureBrain(Member owner) => new(owner, await Signed(owner, owner.AccountId, Writes.EnsureBrain));
 
@@ -145,7 +145,22 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
     public Task<BrainProvision?> CompleteRegistration(string principalId)
         => Signed(new PrincipalRegistration(principalId, ""), principalId, Writes.CompleteRegistration);
 
-    public Task<string[]> BrainsOf(string principalId) => Principal(principalId).Brains();
+    public Task<BrainEntry[]> BrainsOf(string principalId) => Principal(principalId).Brains();
+
+    public Task<BrainKind> KindOf(string brainScopeId) => Authority(brainScopeId).Kind();
+
+    public Task RemoveMember(string brainScopeId, string accountId)
+        => Signed(new MemberRemoval(brainScopeId, accountId), accountId, Writes.RemoveMember);
+
+    public Task ContributeMachine(string circleBrainId, string machineId)
+        => Signed(new CircleMachine(circleBrainId, machineId), Identity.MachineId, Writes.ContributeMachine);
+
+    public Task WithdrawMachine(string circleBrainId, string machineId)
+        => Signed(new CircleMachine(circleBrainId, machineId), Identity.MachineId, Writes.WithdrawMachine);
+
+    public Task<string[]> MachinesOf(string circleBrainId) => Authority(circleBrainId).Machines();
+
+    public string? MachineId => machine?.MachineId;
 
     public Task<Member?> Membership(string brainScopeId, string principalId) => Authority(brainScopeId).Membership(principalId);
 

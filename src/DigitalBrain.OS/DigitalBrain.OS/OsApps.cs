@@ -53,13 +53,16 @@ public static class OsAppsHosting
 
 // A new brain is born with the OS defaults: Create awaits this handler inside the owner's own
 // turn, so every default installs through the same Marketplace Install anyone uses, as the
-// owner. A present app is the person's, never replaced here.
+// owner. A present app is the person's, never replaced here. A circle brain gets none (R125): it
+// is born with its own room only.
 internal sealed class OsDefaults(
-    IGrainFactory grains, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger) : ICreationHandler
+    IGrainFactory grains, AppInstaller installer, IOptions<OsAppsOptions> options, ILogger<OsDefaults> logger,
+    DigitalBrain.Framework.Platform.Identity.IIdentityClient identity) : ICreationHandler
 {
     public async Task Created(IBrain kernel, Created created, CancellationToken cancellationToken)
     {
         var brainId = kernel.GetPrimaryKeyString();
+        if (await identity.KindOf(brainId) == DigitalBrain.Framework.Platform.Identity.BrainKind.Circle) { return; }
         foreach (var app in options.Value.Apps)
         {
             try

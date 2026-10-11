@@ -108,12 +108,12 @@ public sealed class ScopedAuthorityFacts
         await using var brain = await TestBrain.Create().StartAsync(TestContext.Current.CancellationToken);
         var member = await brain.Services.GetRequiredService<PrincipalPasswords>().Register("alice", "long-test-password", "Alice");
         var account = brain.Grains.GetGrain<IAccount>(member.AccountId);
-        var first = (await account.CreateBrain("alice", "operation-1", "First")).Member;
+        var first = (await account.CreateBrain("alice", "operation-1", "First", BrainKind.Personal)).Member;
         var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(first.AccountId, first.BrainId).Id);
         await authority.RemoveMember("alice");
-        Assert.Equal(first, (await account.CreateBrain("alice", "operation-1", "First")).Member);
+        Assert.Equal(first, (await account.CreateBrain("alice", "operation-1", "First", BrainKind.Personal)).Member);
         Assert.Null(await authority.Membership("alice"));
-        Assert.NotEqual(first.BrainId, (await account.CreateBrain("alice", "operation-2", "Second")).Member.BrainId);
+        Assert.NotEqual(first.BrainId, (await account.CreateBrain("alice", "operation-2", "Second", BrainKind.Personal)).Member.BrainId);
     }
 
 }

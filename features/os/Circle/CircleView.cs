@@ -70,20 +70,20 @@ public static class CircleView
             CircleState state;
             try { state = await Circle(brain, name).State(); }
             catch (Exception) { continue; }
-            if (state.Owner.Length == 0)
+            if (state.Creator.Length == 0)
             {
                 cards.Add(await Card(brain, "invitation/" + name, "Invitation: " + Plain(name),
-                    "Invited by " + state.InvitedBy + ". Accept it with the accept operation."));
+                    "Invited by " + name[(name.IndexOf('@') + 1)..] + ". Accept it with the accept operation."));
                 continue;
             }
             if (!state.Members.Contains(Scope(brain))) { continue; }
             var lines = await Chat(brain, name).Read(0);
             var body = (name == selected ? "Selected\n" : "") +
-                "Owner: " + state.Owner + "\n" +
+                "Owner: " + state.Creator + "\n" +
                 "Members: " + string.Join(", ", state.Members) + "\n" +
                 (state.Invited.Length == 0 ? "" : "Invited: " + string.Join(", ", state.Invited) + "\n") +
                 "Shared apps: " + (state.SharedApps.Length == 0 ? "none" : string.Join(", ", state.SharedApps)) + "\n" +
-                "Compute share: " + state.ComputeSharePercent + "% of " + state.Owner + "'s budget";
+                "Compute share: " + state.ComputeSharePercent + "% of " + state.Creator + "'s budget";
             cards.Add(await Card(brain, "circle/" + name, Plain(name), body));
             cards.Add(await Card(brain, "chat/" + name, Plain(name) + " chat",
                 lines.Length == 0 ? "No messages yet." : string.Join("\n", lines.OrderBy(line => line.Sequence).Select(line => line.Speaker + ": " + line.Text))));

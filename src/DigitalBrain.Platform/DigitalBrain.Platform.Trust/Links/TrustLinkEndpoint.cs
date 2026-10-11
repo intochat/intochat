@@ -57,6 +57,11 @@ internal static class TrustOperations
     public const string BrainsOf = "identity.brains-of";
     public const string Membership = "identity.membership";
     public const string EnsureMember = "identity.ensure-member";
+    public const string RemoveMember = "identity.remove-member";
+    public const string KindOf = "identity.kind-of";
+    public const string ContributeMachine = "identity.contribute-machine";
+    public const string WithdrawMachine = "identity.withdraw-machine";
+    public const string MachinesOf = "identity.machines-of";
     public const string Authorize = "identity.authorize";
     public const string Consume = "identity.consume";
     public const string ListGrants = "identity.list-grants";
@@ -276,8 +281,10 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
         [TrustOperations.KeyAdd] = Registered(async call =>
         {
             var (brainId, partId, wrapped) = call.Arg<(string, string, byte[])>();
-            call.RequireAccount(await grains.GetGrain<IBrainAuthority>(brainId).Account()
-                ?? throw new UnauthorizedAccessException($"Brain {brainId} has no owner on record; its keyring takes no key."));
+            var authority = grains.GetGrain<IBrainAuthority>(brainId);
+            var owner = await authority.Account() ?? throw new UnauthorizedAccessException($"Brain {brainId} has no owner on record; its keyring takes no key.");
+            // R128: a circle's contributed machines are its owner machines.
+            if (!(await authority.Machines()).Contains(call.Link.RemoteMachineId, StringComparer.Ordinal)) { call.RequireAccount(owner); }
             return await grains.GetGrain<IKeyringGrain>(brainId).TryAdd(partId, wrapped);
         }),
         [TrustOperations.OwnerOf] = Registered(async call => await grains.GetGrain<IBrainAuthority>(call.Arg<string>()).Account()),
@@ -313,6 +320,11 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
             return await grains.GetGrain<IBrainAuthority>(brainScopeId).Membership(principalId);
         }),
         [TrustOperations.EnsureMember] = Registered(async call => await Writes.EnsureMember(call.Signed<Member>())),
+        [TrustOperations.RemoveMember] = Registered(async call => { await Writes.RemoveMember(call.Signed<MemberRemoval>()); return true; }),
+        [TrustOperations.KindOf] = Registered(async call => await grains.GetGrain<IBrainAuthority>(call.Arg<string>()).Kind()),
+        [TrustOperations.ContributeMachine] = Registered(async call => { await Writes.ContributeMachine(call.Signed<CircleMachine>()); return true; }),
+        [TrustOperations.WithdrawMachine] = Registered(async call => { await Writes.WithdrawMachine(call.Signed<CircleMachine>()); return true; }),
+        [TrustOperations.MachinesOf] = Registered(async call => await grains.GetGrain<IBrainAuthority>(call.Arg<string>()).Machines()),
         [TrustOperations.Authorize] = Registered(async call =>
         {
             var request = call.Arg<CallRequest>();
@@ -343,13 +355,16 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
     };
 
     // R95/R98: a brain's wrapped keys, members and grants are read only by a machine bound to the brain's owner
-    // account, or to an account that is a member of that brain.
+    // account, or to an account that is a member of that brain; R128: or by a machine contributed to that circle.
     private async Task RequireBrain(Call call, string brainScopeId)
     {
         var authority = grains.GetGrain<IBrainAuthority>(brainScopeId);
         var owner = await authority.Account() ?? throw new UnauthorizedAccessException($"Brain {brainScopeId} has no owner on record.");
         var accounts = call.Machine?.Accounts ?? [];
         if (accounts.Contains(owner, StringComparer.Ordinal)) { return; }
+        if ((await authority.Machines()).Contains(call.Link.RemoteMachineId, StringComparer.Ordinal)) { return; }
+        var members = await authority.MemberAccounts();
+        if (accounts.Any(members.Contains)) { return; }
         foreach (var account in accounts)
         {
             if (await authority.Membership(account) is not null) { return; }

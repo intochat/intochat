@@ -63,7 +63,7 @@ internal static class IdentityEndpoints
         if (owner?.OwnerPrincipalId != principal) { return Results.StatusCode(StatusCodes.Status403Forbidden); }
         var operationId = http.Request.Headers["Idempotency-Key"].FirstOrDefault() ?? Guid.NewGuid().ToString("N");
         if (operationId.Length > 200) { return Results.BadRequest(new { error = "Idempotency-Key is too long." }); }
-        var created = await births.Born(await identity.CreateBrain(account, principal, operationId, owner.Name).WaitAsync(ct));
+        var created = await births.Born(await identity.CreateBrain(account, principal, operationId, owner.Name, BrainKind.Personal).WaitAsync(ct));
         return Results.Ok(created);
     }
 

@@ -123,7 +123,9 @@ internal sealed class ForwardedCallEndpoint(PartRoutes routes, PartLogs logs, IS
         var now = time.GetUtcNow();
         if (known.TryGetValue(brainId, out var cached) && cached.Until > now) { return cached.Standing; }
         var standing = Standing.None;
-        if (await keyring.OwnerOf(brainId) is { } owner && accounts.Contains(owner, StringComparer.Ordinal)) { standing = Standing.Owner; }
+        // R128: a machine contributed to a circle brain is an owner machine of that brain only.
+        if (await keyring.OwnerOf(brainId) is { } owner && accounts.Contains(owner, StringComparer.Ordinal)
+            || (await identity.MachinesOf(brainId)).Contains(link.RemoteMachineId, StringComparer.Ordinal)) { standing = Standing.Owner; }
         else
         {
             foreach (var account in accounts)
