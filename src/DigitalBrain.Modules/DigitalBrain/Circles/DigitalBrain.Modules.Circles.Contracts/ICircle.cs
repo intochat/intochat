@@ -25,31 +25,26 @@ public sealed record CircleState(
     [property: Id(8)] long Version);
 
 // T26-1: a circle is a brain of kind Circle; this is its core neuron `{circle}/circle`. Members are accounts, recorded
-// as trust-side memberships of the circle brain; contributed machines are the circle's own machines (R128).
-//
-// Until the circle app split (Task 27 Step 6) the same grain type also serves the older per-brain copies
-// `{brain}/circles/{name}` and their [Internal] copy protocol; those keys answer as before.
+// as trust-side memberships of the circle brain; contributed machines are the circle's own machines (R128). Invite
+// and Accept are a person's, on the /brains/{circle} route; a script is refused them (R126).
 // The alias and grain type literals must equal DigitalBrain.Framework.CircleGrainType.Name (a Circles fact asserts it).
 [Alias("circles.circle"), DefaultGrainType("circles.circle")]
 public interface ICircle : INeuron
 {
     const int MaxComputeSharePercent = 25;
 
-    // The circle core: an account id. A copy: a brain id.
     Task Invite(string accountId);
     // The caller's account must be invited; it becomes a member and contributes the caller's machine (R129).
     [Public] Task<CircleState> Accept();
     // The caller's account must be bound to the machine.
     Task Contribute(string machineId);
-    // RemoveMember, drop its machines; the creator cannot be removed, and the creator leaving deletes the circle (R129).
+    // RemoveMember, drop its machines, rotate every circle part key; the creator cannot be removed, and the creator
+    // leaving deletes the circle (R129).
     Task Remove(string accountId);
-    Task Leave(string brainId);
-    Task<string[]> Members();
     // R124/R132: installs the caller's own app into the circle brain (compile-gated Export, Origin = the sharer's app). The
     // connections named in `connectionIds` are bound as the circle's own copies; every other bound slot stays the
-    // sharer's connection, reached only through the binding recorded on it (R134). A copy takes no connections.
+    // sharer's connection, reached only through the binding recorded on it (R134).
     Task Share(string appName, string[] connectionIds);
-    Task Unshare(string appName);
     // 0 to MaxComputeSharePercent of the creator's budget; the platform's own 25% fee is fixed and not a setting.
     Task SetComputeShare(int percent);
     Task<CircleState> State();
@@ -57,32 +52,9 @@ public interface ICircle : INeuron
     // The circle brain's birth (Created) names the circle and its first machine.
     [Internal] Task Found(string name, string machineId);
 
-    // Owner copy -> invited brain's copy. Interleaves so a former member still pulling from the owner never blocks a new invitation.
-    [Internal, Orleans.Concurrency.AlwaysInterleave] Task Invited();
-    // Invited brain's copy -> owner copy; the joining brain is the kernel-stamped caller.
-    [Internal] Task<CircleState> Joined();
-    [Internal] Task Left();
-    // A member's copy asks for the owner's state; null once it is no longer a member.
-    [Internal] Task<CircleState?> StateForCaller();
-    // The owner's copy tells a member's copy to pull; losing the call costs nothing, the next pull heals.
-    [Internal, Orleans.Concurrency.OneWay] Task Changed();
-    // This copy's chat asks who is in the circle, as this copy last knew it.
-    [Internal] Task<CircleState> Roster();
-
     static bool IsValidName(string? name) => name is not null && NamePattern.IsMatch(name);
 
-    // The circle brain's core neuron.
     static string Key(string circleBrainId) => $"{circleBrainId}/circle";
-
-    // The owner's copy.
-    static string Key(string brainId, string name) => Key(brainId, name, brainId);
-
-    // A copy held by `brainId` of the circle `owner` runs; the owner's own copy has no suffix.
-    static string Key(string brainId, string name, string owner)
-    {
-        if (!IsValidName(name)) { throw new ArgumentException("A circle name is 1 to 40 of a-z, 0-9 and '-'.", nameof(name)); }
-        return brainId == owner ? $"{brainId}/circles/{name}" : $"{brainId}/circles/{name}@{owner}";
-    }
 
     private static readonly Regex NamePattern = new("^[a-z0-9-]{1,40}$", RegexOptions.CultureInvariant);
 }

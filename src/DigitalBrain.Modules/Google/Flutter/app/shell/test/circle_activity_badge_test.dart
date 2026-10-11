@@ -25,14 +25,13 @@ Widget host(
   ),
 );
 
-CircleTouched touch(
+CircleActivity touch(
   String kind, [
-  String name = 'club',
+  String circle = 'club',
   int? sequence,
   bool replay = false,
-]) => CircleTouched(
-  name: name,
-  owner: 'ann',
+]) => CircleActivity(
+  circle: circle,
   kind: kind,
   sequence: sequence,
   replay: replay,
@@ -50,8 +49,8 @@ String? shown(WidgetTester tester) {
 }
 
 void main() {
-  late StreamController<CircleTouched> live;
-  late List<StreamController<CircleTouched>> connections;
+  late StreamController<CircleActivity> live;
+  late List<StreamController<CircleActivity>> connections;
   late List<Completer<void>> pauses;
 
   CircleActivityFeed feed() {
@@ -59,7 +58,7 @@ void main() {
     pauses = [];
     return CircleActivityFeed(
       () {
-        live = StreamController<CircleTouched>();
+        live = StreamController<CircleActivity>();
         connections.add(live);
         return live.stream;
       },
@@ -71,7 +70,7 @@ void main() {
     );
   }
 
-  testWidgets('spoke and invited touches are counted, others are not', (
+  testWidgets('lines spoken in any circle are counted, changes are not', (
     tester,
   ) async {
     final f = feed();
@@ -80,11 +79,25 @@ void main() {
     expect(shown(tester), isNull);
     live
       ..add(touch('spoke'))
-      ..add(touch('invited', 'other'))
-      ..add(touch('changed'))
-      ..add(touch('left'));
+      ..add(touch('spoke', 'other'))
+      ..add(touch('changed'));
     await tester.pumpAndSettle();
     expect(shown(tester), '2');
+  });
+
+  testWidgets('each circle keeps its own high-water mark', (tester) async {
+    final f = feed();
+    addTearDown(f.dispose);
+    live
+      ..add(touch('spoke', 'club', 5, true))
+      ..add(touch('spoke', 'other', 2, true));
+    await tester.pump();
+    expect(f.count, 0);
+    live
+      ..add(touch('spoke', 'other', 3))
+      ..add(touch('spoke', 'club', 5));
+    await tester.pump();
+    expect(f.count, 1);
   });
 
   testWidgets('the count survives the badge unmounting, then Home clears it', (
@@ -135,7 +148,7 @@ void main() {
   ) async {
     final f = feed();
     addTearDown(f.dispose);
-    live.add(touch('invited', 'club', 1));
+    live.add(touch('spoke', 'club', 1));
     await tester.pump();
     expect(f.count, 1);
   });
@@ -186,7 +199,7 @@ void main() {
   ) async {
     final f = feed();
     addTearDown(f.dispose);
-    live.add(const CircleTouched.ready());
+    live.add(const CircleActivity.ready('club'));
     await live.close();
     await tester.pump();
     pauses.single.complete();
@@ -213,7 +226,7 @@ void main() {
   testWidgets('ready seeds the feed without counting anything', (tester) async {
     final f = feed();
     addTearDown(f.dispose);
-    live.add(const CircleTouched.ready());
+    live.add(const CircleActivity.ready('club'));
     await tester.pump();
     expect(f.count, 0);
     live.add(touch('spoke', 'club', 1, true));
@@ -226,7 +239,7 @@ void main() {
     (tester) async {
       final f = feed();
       addTearDown(f.dispose);
-      live.add(const CircleTouched.ready());
+      live.add(const CircleActivity.ready('club'));
       await tester.pump();
       live.addError(const SocketException('reset'));
       await tester.pump();
@@ -234,7 +247,7 @@ void main() {
       await tester.pump();
       live
         ..add(touch('spoke', 'club', 4, true))
-        ..add(const CircleTouched.ready());
+        ..add(const CircleActivity.ready('club'));
       await tester.pump();
       expect(f.count, 1);
       await live.close();
@@ -243,7 +256,7 @@ void main() {
       await tester.pump();
       live
         ..add(touch('spoke', 'club', 4, true))
-        ..add(const CircleTouched.ready());
+        ..add(const CircleActivity.ready('club'));
       await tester.pump();
       expect(f.count, 1);
     },
@@ -251,9 +264,9 @@ void main() {
 
   testWidgets('ready resets the backoff', (tester) async {
     final lengths = <Duration>[];
-    late StreamController<CircleTouched> current;
+    late StreamController<CircleActivity> current;
     final f = CircleActivityFeed(
-      () => (current = StreamController<CircleTouched>()).stream,
+      () => (current = StreamController<CircleActivity>()).stream,
       pause: (d) {
         lengths.add(d);
         return Future.value();
@@ -264,7 +277,7 @@ void main() {
     await tester.pump();
     current.addError(const SocketException('refused'));
     await tester.pump();
-    current.add(const CircleTouched.ready());
+    current.add(const CircleActivity.ready('club'));
     await tester.pump();
     current.addError(const SocketException('reset'));
     await tester.pump();
@@ -308,7 +321,7 @@ void main() {
       () {
         calls++;
         if (calls < 3) throw StateError('no client');
-        return StreamController<CircleTouched>().stream;
+        return StreamController<CircleActivity>().stream;
       },
       pause: (d) {
         lengths.add(d);
@@ -341,21 +354,36 @@ void main() {
     final f = feed();
     addTearDown(f.dispose);
     await tester.pumpWidget(host(f, reduced: true));
-    live.add(touch('invited'));
+    live.add(touch('spoke'));
     await tester.pump();
     await tester.pump();
     expect(shown(tester), '1');
   });
 
-  test('CircleTouched reads the live payload', () {
-    final touched = CircleTouched.fromJson({
-      'name': 'club',
-      'owner': 'ann',
-      'kind': 'spoke',
-    });
+  test('a CircleSpoke envelope is a spoken line of its circle', () {
+    final heard = CircleActivity.fromEnvelope(
+      'circle-1',
+      LiveEnvelope.fromJson({
+        'type': 'CircleSpoke',
+        'publisher': 'circles.chat/circle-1/chat',
+        'payload': {
+          'name': 'club',
+          'speaker': 'ann',
+          'text': 'hi',
+          'sequence': 1,
+        },
+      }),
+    );
     expect(
-      (touched.name, touched.owner, touched.kind),
-      ('club', 'ann', 'spoke'),
+      (heard.circle, heard.kind, heard.ready),
+      ('circle-1', 'spoke', false),
+    );
+    expect(
+      CircleActivity.fromEnvelope(
+        'circle-1',
+        LiveEnvelope.fromJson({'type': 'ready'}),
+      ).ready,
+      isTrue,
     );
   });
 }

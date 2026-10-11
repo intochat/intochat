@@ -165,7 +165,7 @@ public sealed class CostMeterFacts
         Assert.All(recent.EnumerateArray(), cost => Assert.Equal(1_250, cost.GetProperty("micros").GetInt64()));
     }
 
-    // The circle's owner funds a share of their balance to the brains in it; the meter is one of them.
+    // The circle's creator funds a share of their balance to the member accounts; the meter is one of them.
     private sealed record Circle(ITestBrain Brain, Person Owner, Person Meter, string Key) : IAsyncDisposable
     {
         public async ValueTask DisposeAsync()
@@ -187,7 +187,7 @@ public sealed class CostMeterFacts
         var meter = await brain.PersonAsync("meter", ct);
         var key = owner.Key("circles/c");
         await brain.Grains.GetGrain<ILedgerGrain>(owner.AccountId).Credit("top-up", 1_000, "test");
-        await brain.Grains.GetGrain<ICircleShareGrain>(key).Apply(percent, [owner.BrainId, meter.BrainId]);
+        await brain.Grains.GetGrain<ICircleShareGrain>(key).Apply(percent, [owner.AccountId, meter.AccountId]);
         return new(brain, owner, meter, key);
     }
 

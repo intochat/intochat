@@ -5,11 +5,12 @@ import 'package:flutter/material.dart';
 
 typedef Pause = Future<void> Function(Duration delay);
 
-// Counts the circle touches that need a look (someone spoke, someone invited you). It owns the live
-// subscription, so it lives above Home: it keeps counting while Home is hidden. It reconnects only when the
-// stream fails or closes, with growing pauses. Touches are told apart by retention sequence: the first
-// replay of a cold start only seeds the high-water mark; afterwards only a sequence above it is news.
-// Only the server's ready marker (or a touch) proves a connection was made: an error never seeds.
+// Counts the lines spoken in the person's circles while they were away. Each circle is a brain of its own and
+// is watched on its own live feed (R126). It owns the subscription, so it lives above Home: it keeps counting
+// while Home is hidden. It reconnects only when the stream fails or closes, with growing pauses (a reconnect
+// lists the circles again). A signal its source retains is told apart by sequence, per circle: the first replay
+// of a circle only seeds its high-water mark; afterwards only a sequence above it is news. Only a circle's ready
+// marker (or a signal) proves its feed connected: an error never seeds.
 class CircleActivityFeed extends ChangeNotifier {
   CircleActivityFeed(
     this._watch, {
@@ -20,16 +21,16 @@ class CircleActivityFeed extends ChangeNotifier {
     _connect();
   }
 
-  final Stream<CircleTouched> Function() _watch;
+  final Stream<CircleActivity> Function() _watch;
   final Pause _pause;
   final Duration firstPause, longestPause;
   int _count = 0;
   int get count => _count;
-  StreamSubscription<CircleTouched>? _subscription;
-  int? _highest;
-  // A connection that reached ready (or delivered a touch) has seeded the feed: from then on a replay is
-  // compared with the mark, not swallowed as the cold-start seed.
-  bool _seeded = false;
+  StreamSubscription<CircleActivity>? _subscription;
+  final _highest = <String, int>{};
+  // The circles whose feed reached ready (or delivered a signal): from then on a replay is compared with the
+  // mark, not swallowed as the cold-start seed.
+  final _seeded = <String>{};
   bool _disposed = false;
   Duration _next = Duration.zero;
 
@@ -37,7 +38,7 @@ class CircleActivityFeed extends ChangeNotifier {
     if (_disposed) return;
     try {
       _subscription = _watch().listen(
-        _touched,
+        _heard,
         onError: (Object _) => _reconnect(),
         onDone: _reconnect,
         cancelOnError: true,
@@ -61,20 +62,22 @@ class CircleActivityFeed extends ChangeNotifier {
     _pause(_next).then((_) => _connect());
   }
 
-  void _touched(CircleTouched touch) {
+  void _heard(CircleActivity activity) {
     _next = Duration.zero;
-    if (touch.ready) {
-      _seeded = true;
+    final circle = activity.circle;
+    if (activity.ready) {
+      _seeded.add(circle);
       return;
     }
-    final sequence = touch.sequence;
+    final sequence = activity.sequence;
     var news = true;
     if (sequence != null) {
-      news = _seeded ? sequence > (_highest ?? -1) : !touch.replay;
-      if (sequence > (_highest ?? -1)) _highest = sequence;
+      final highest = _highest[circle] ?? -1;
+      news = _seeded.contains(circle) ? sequence > highest : !activity.replay;
+      if (sequence > highest) _highest[circle] = sequence;
     }
-    _seeded = true;
-    if (!news || (touch.kind != 'spoke' && touch.kind != 'invited')) return;
+    _seeded.add(circle);
+    if (!news || activity.kind != 'spoke') return;
     _count++;
     notifyListeners();
   }

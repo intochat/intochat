@@ -444,17 +444,61 @@ final class DigitalBrainUiClient {
           .where((envelope) => !envelope.isReady)
           .map((envelope) => AppActivity.fromJson(envelope.payload));
 
-  // The circle touches, with the feed's ready marker passed through as CircleTouched.ready().
-  Stream<CircleTouched> watchCircles(String brainId) =>
-      watchLive(brainId, ['CircleTouched']).map(
-        (envelope) => envelope.isReady
-            ? const CircleTouched.ready()
-            : CircleTouched.fromJson(
-                envelope.payload,
-                sequence: envelope.sequence,
-                replay: envelope.replay,
-              ),
-      );
+  /// The brains the signed-in person is in, with their kind.
+  Future<List<BrainEntry>> listBrains() async {
+    final body = await _tableRequest('GET', '/identity/brains');
+    return (body as List)
+        .map(
+          (item) => BrainEntry.fromJson(Map<String, dynamic>.from(item as Map)),
+        )
+        .toList();
+  }
+
+  /// R126: every circle brain the person is in, each watched on its own `/live` feed, merged. The circles are
+  /// listed once per subscription; with none the stream ends, and a listener that resubscribes lists again.
+  Stream<CircleActivity> watchCircleActivity() {
+    late StreamController<CircleActivity> controller;
+    final subscriptions = <StreamSubscription<CircleActivity>>[];
+    controller = StreamController<CircleActivity>(
+      onListen: () async {
+        try {
+          final circles = (await listBrains())
+              .where((brain) => brain.isCircle)
+              .map((brain) => brain.id)
+              .toList();
+          if (circles.isEmpty) {
+            await controller.close();
+            return;
+          }
+          var open = circles.length;
+          for (final circle in circles) {
+            subscriptions.add(
+              watchLive(circle, ['CircleSpoke', 'CircleChanged'])
+                  .map(
+                    (envelope) => CircleActivity.fromEnvelope(circle, envelope),
+                  )
+                  .listen(
+                    controller.add,
+                    onError: controller.addError,
+                    onDone: () {
+                      if (--open == 0) controller.close();
+                    },
+                  ),
+            );
+          }
+        } catch (error, stack) {
+          controller.addError(error, stack);
+          await controller.close();
+        }
+      },
+      onCancel: () async {
+        for (final subscription in subscriptions) {
+          await subscription.cancel();
+        }
+      },
+    );
+    return controller.stream;
+  }
 
   Stream<Map<String, dynamic>> _serverEvents(String path, String unavailable) {
     final abort = Completer<void>();

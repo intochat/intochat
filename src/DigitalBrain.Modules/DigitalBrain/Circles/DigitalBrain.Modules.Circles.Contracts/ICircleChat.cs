@@ -9,8 +9,7 @@ public sealed record CircleLine(
     [property: Id(2)] long Sequence);
 
 // A circle's conversation, `{circle}/chat` in the circle brain: one line per Say, the speaker is the member account
-// that said it. Until the circle app split, the older per-brain copies `{brain}/circles/{name}/chat` answer as before:
-// the owner's copy numbers the lines and a member's copy pulls them.
+// that said it.
 [Alias("circles.chat"), DefaultGrainType("circles.chat")]
 public interface ICircleChat : INeuron
 {
@@ -18,11 +17,5 @@ public interface ICircleChat : INeuron
     Task Say(string text, string? requestId = null);
     Task<CircleLine[]> Read(long since);
 
-    // Member copy -> owner copy; the speaker is the kernel-stamped caller's brain.
-    [Internal] Task<long> Relay(string text, string? requestId = null);
-    [Internal] Task<CircleLine[]> Pull(long after);
-    [Internal, Orleans.Concurrency.OneWay] Task Notify();
-
-    // A circle brain id, or (older copies) a circle copy's key.
     static string Key(string circleBrainId) => $"{circleBrainId}/chat";
 }

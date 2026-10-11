@@ -32,6 +32,7 @@ internal static class IdentityEndpoints
         routes.MapPost("/identity/session/brain", SelectBrainAsync);
         routes.MapPost("/identity/logout", (Delegate)LogoutAsync);
         routes.MapPost("/identity/brains", CreateBrainAsync);
+        routes.MapGet("/identity/brains", BrainsAsync);
         var grants = BrainRoutes.Group(routes, "/grants");
         grants.MapGet("", async (string brainId, [FromServices] IIdentityClient identity, CancellationToken ct) =>
             Results.Ok(await identity.ListGrants(BrainScope.Create(CallerContextStamper.Require().AccountId, brainId).Id).WaitAsync(ct)));
@@ -65,6 +66,14 @@ internal static class IdentityEndpoints
         if (operationId.Length > 200) { return Results.BadRequest(new { error = "Idempotency-Key is too long." }); }
         var created = await births.Born(await identity.CreateBrain(account, principal, operationId, owner.Name, BrainKind.Personal).WaitAsync(ct));
         return Results.Ok(created);
+    }
+
+    // R126: the brains the signed-in principal is in, with their kind; the shell watches each circle brain's own /live.
+    private static async Task<IResult> BrainsAsync(HttpContext http, [FromServices] IIdentityClient identity, IOptions<AuthOptions> auth, CancellationToken ct)
+    {
+        if (AccountSession.ResolveCaller(http, auth.Value) is not { } caller) { return Results.Unauthorized(); }
+        var brains = await identity.BrainsOf(caller.PrincipalId).WaitAsync(ct);
+        return Results.Ok(brains.Select(brain => new BrainView(brain.Id, brain.Kind.ToString())));
     }
 
     private static async Task<IResult> SelectBrainAsync(BrainSelection input, HttpContext http, [FromServices] IIdentityClient identity, CancellationToken ct)
@@ -154,5 +163,6 @@ internal static class IdentityEndpoints
     internal sealed record BrainSelection(string AccountId, string BrainId);
     internal sealed record RegisterRequest(string PrincipalId, string? Password = null, string? DisplayName = null);
     internal sealed record RevokeGrant(string AppId, string SemanticTypeId, GrantMode Mode);
+    internal sealed record BrainView(string Id, string Kind);
     internal sealed record SessionView(string PrincipalId, string AccountId, string BrainId, string Role);
 }

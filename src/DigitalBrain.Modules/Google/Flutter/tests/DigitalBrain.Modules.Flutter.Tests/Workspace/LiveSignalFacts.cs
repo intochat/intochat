@@ -56,49 +56,77 @@ public sealed class LiveSignalFacts
         Assert.Equal(7, envelope.RootElement.GetProperty("payload").GetProperty("pulse").GetInt32());
     }
 
-    private static Task<ITestBrain> CirclesBrain(CancellationToken ct) => TestBrain.Create().WithModule<CirclesModule>().StartAsync(ct);
+    // A host whose circles are brains (T26-1): the Apps module over the features folder gives a circle brain its room.
+    private static Task<ITestBrain> CirclesBrain(CancellationToken ct) => TestBrain.Create()
+        .WithModule<DigitalBrain.Apps.AppsModule, DigitalBrain.Apps.AppsOptions>(options => options.Features = Features)
+        .WithModule<CirclesModule>()
+        .ConfigureServices(services =>
+        {
+            global::Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.RemoveAll<DigitalBrain.Apps.IAppRuntime>(services);
+            global::Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<DigitalBrain.Apps.IAppRuntime, NoRuntime>(services);
+        })
+        .StartAsync(ct);
 
-    // Alice invites Bob into her circle: the touch lands on Bob's circle index.
-    private static async Task Invite(ITestBrain brain, DigitalBrain.Testing.Person alice, DigitalBrain.Testing.Person bob)
+    private static readonly string Features = Path.Combine(Root(), "features");
+
+    private static string Root()
     {
-        using (alice.AsCaller()) { await brain.Get<ICircle>(ICircle.Key(alice.BrainId, "team")).Invite(bob.BrainId); }
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "DigitalBrain.slnx"))) { directory = directory.Parent; }
+        return directory?.FullName ?? throw new InvalidOperationException("DigitalBrain.slnx was not found.");
     }
 
-    private static LiveSignalEndpoints.LiveFeed CircleFeed => LiveSignalEndpoints.Feeds.Single(feed => feed.Type == "CircleTouched");
+    private sealed class NoRuntime : DigitalBrain.Apps.IAppRuntime
+    {
+        public Task<IReadOnlyDictionary<string, string>> Deploy(string appKey, Dictionary<string, string> sources, Dictionary<string, string> configuration, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyDictionary<string, string>>(new Dictionary<string, string>());
 
+        public Task Retire(string appKey, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    // Alice creates a circle through her factory; it is a brain of its own.
+    private static async Task<string> Circle(ITestBrain brain, DigitalBrain.Testing.Person alice)
+    {
+        using (alice.AsCaller()) { return await brain.Get<ICircleFactory>(ICircleFactory.Key(alice.BrainId)).Create("team"); }
+    }
+
+    private static LiveSignalEndpoints.LiveFeed SpokeFeed => LiveSignalEndpoints.Feeds.Single(feed => feed.Type == "CircleSpoke");
+
+    private static LiveSignalEndpoints.LiveFeed ChangedFeed => LiveSignalEndpoints.Feeds.Single(feed => feed.Type == "CircleChanged");
+
+    // R126: the shell watches each circle brain's own /live; a line said there arrives from the circle's chat.
     [Fact]
-    public async Task ACircleTouchedOnTheBrainsIndexArrivesAsAnEnvelope()
+    public async Task ALineSaidInACircleArrivesOnTheCircleBrainsLiveFeed()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await CirclesBrain(ct);
         var alice = await brain.PersonAsync("alice", ct);
-        var bob = await brain.PersonAsync("bob", ct);
-        await using var stream = LiveSignalEndpoints.Stream(brain, bob.BrainId, [CircleFeed], NullLogger.Instance, ct).GetAsyncEnumerator(ct);
+        var circle = await Circle(brain, alice);
+        await using var stream = LiveSignalEndpoints.Stream(brain, circle, [SpokeFeed], NullLogger.Instance, ct).GetAsyncEnumerator(ct);
         var next = await AfterReady(stream, ct);
-        await Invite(brain, alice, bob);
+        using (alice.AsCallerIn(circle)) { await brain.Get<ICircleChat>(ICircleChat.Key(circle)).Say("hi"); }
         Assert.True(await next.WaitAsync(TimeSpan.FromSeconds(10), ct));
         using var envelope = JsonDocument.Parse(stream.Current);
-        Assert.Equal("CircleTouched", envelope.RootElement.GetProperty("type").GetString());
-        Assert.Equal($"circles.index/{bob.BrainId}/circles", envelope.RootElement.GetProperty("publisher").GetString());
-        Assert.Equal("invited", envelope.RootElement.GetProperty("payload").GetProperty("kind").GetString());
-        Assert.Equal(1, envelope.RootElement.GetProperty("sequence").GetInt64());
-        Assert.False(envelope.RootElement.TryGetProperty("replay", out var replay) && replay.ValueKind == JsonValueKind.True);
+        Assert.Equal("CircleSpoke", envelope.RootElement.GetProperty("type").GetString());
+        Assert.Equal($"circles.chat/{circle}/chat", envelope.RootElement.GetProperty("publisher").GetString());
+        Assert.Equal(("hi", alice.AccountId), (envelope.RootElement.GetProperty("payload").GetProperty("text").GetString(),
+            envelope.RootElement.GetProperty("payload").GetProperty("speaker").GetString()));
     }
 
     [Fact]
-    public async Task ALateCircleSubscriberIsSeededFromTheIndexRetention()
+    public async Task AnInvitationChangesTheCircleOnItsLiveFeed()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await CirclesBrain(ct);
-        var alice = await brain.PersonAsync("alice", ct);
-        var bob = await brain.PersonAsync("bob", ct);
-        await Invite(brain, alice, bob);
-        await using var stream = LiveSignalEndpoints.Stream(brain, bob.BrainId, [CircleFeed], NullLogger.Instance, ct).GetAsyncEnumerator(ct);
-        using var envelope = await Next(stream, ct);
+        var (alice, bob) = (await brain.PersonAsync("alice", ct), await brain.PersonAsync("bob", ct));
+        var circle = await Circle(brain, alice);
+        await using var stream = LiveSignalEndpoints.Stream(brain, circle, [ChangedFeed], NullLogger.Instance, ct).GetAsyncEnumerator(ct);
+        var next = await AfterReady(stream, ct);
+        using (alice.AsCallerIn(circle)) { await brain.Get<ICircle>(ICircle.Key(circle)).Invite(bob.AccountId); }
+        Assert.True(await next.WaitAsync(TimeSpan.FromSeconds(10), ct));
+        using var envelope = JsonDocument.Parse(stream.Current);
+        Assert.Equal("CircleChanged", envelope.RootElement.GetProperty("type").GetString());
         Assert.Equal("team", envelope.RootElement.GetProperty("payload").GetProperty("name").GetString());
-        Assert.Equal("invited", envelope.RootElement.GetProperty("payload").GetProperty("kind").GetString());
-        Assert.Equal(1, envelope.RootElement.GetProperty("sequence").GetInt64());
-        Assert.True(envelope.RootElement.GetProperty("replay").GetBoolean());
     }
 
     [Fact]
@@ -173,15 +201,13 @@ public sealed class LiveSignalFacts
     public async Task ReadyFollowsTheReplayOfEverySelectedFeed()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await CirclesBrain(ct);
-        var alice = await brain.PersonAsync("alice", ct);
-        var bob = await brain.PersonAsync("bob", ct);
-        await Invite(brain, alice, bob);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         await brain.Get<IBeater>("beater-ready").Beat(4);
-        await using var stream = LiveSignalEndpoints.Stream(brain, bob.BrainId, [CircleFeed, Feed("beater-ready")], NullLogger.Instance, ct).GetAsyncEnumerator(ct);
+        await brain.Get<IBeater>("beater-ready-2").Beat(5);
+        await using var stream = Open(brain, [Feed("beater-ready"), Feed("beater-ready-2")], ct);
         using var first = await Next(stream, ct);
         using var second = await Next(stream, ct);
-        Assert.Equal(["Beat", "CircleTouched"], new[] { first, second }.Select(e => e.RootElement.GetProperty("type").GetString()).Order());
+        Assert.Equal([4, 5], new[] { first, second }.Select(e => e.RootElement.GetProperty("payload").GetProperty("pulse").GetInt32()).Order());
         using var ready = await Next(stream, ct);
         Assert.Equal("ready", ready.RootElement.GetProperty("type").GetString());
     }
@@ -235,8 +261,8 @@ public sealed class LiveSignalFacts
     }
 
     [Fact]
-    public void ClusterAppActivityAndCircleTouchedAreTheLiveFeeds()
-        => Assert.Equal(["DeploymentChanged", "AppActivity", "CircleTouched"], LiveSignalEndpoints.Feeds.Select(feed => feed.Type));
+    public void ClusterAppActivityAndTheCircleBrainsSignalsAreTheLiveFeeds()
+        => Assert.Equal(["DeploymentChanged", "AppActivity", "CircleChanged", "CircleSpoke"], LiveSignalEndpoints.Feeds.Select(feed => feed.Type));
 }
 
 [GenerateSerializer, Alias("test.beat")] public sealed record Beat([property: Id(0)] int Pulse) : Signal;

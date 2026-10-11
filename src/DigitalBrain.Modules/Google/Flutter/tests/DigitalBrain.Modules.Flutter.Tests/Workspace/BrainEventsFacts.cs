@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using DigitalBrain.Apps;
-using DigitalBrain.Circles;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp.Files;
@@ -30,18 +29,18 @@ public sealed class BrainEventsFacts
     public async Task ANewNeuronAppearsInTheBrainStream()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<CirclesModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
         var person = await brain.PersonAsync("growth", ct);
         using var caller = person.AsCaller();
         var scope = person.BrainId;
-        var grown = ICircle.Key(scope, "club");
+        var grown = IApp.Key(scope, "club");
         await using var stream = BrainEventsEndpoints.Snapshots(brain, scope, NullLogger.Instance, ct).GetAsyncEnumerator(ct);
 
         using var first = await Next(stream, ct);
         Assert.Equal(scope, first.RootElement.GetProperty("rootId").GetString());
         Assert.DoesNotContain(grown, Ids(first));
 
-        await brain.Get<ICircle>(grown).Invite("bob");
+        await brain.Get<IApp>(grown).Create(new AppManifest("club", "", [new("open", "")], [], []), "spec");
 
         while (true)
         {
@@ -54,13 +53,13 @@ public sealed class BrainEventsFacts
     public async Task ASynapseAppearsOnceAnAppsBehaviorSubscribesAndItsAppRuns()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<AppsModule>().WithModule<CirclesModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
         var person = await brain.PersonAsync("wiring", ct);
         using var caller = person.AsCaller();
         var scope = person.BrainId;
         var appKey = IApp.Key(scope, "watcher");
         await brain.Get<IApp>(appKey).Create(new AppManifest("watcher", "", [new("open", "")], [], []), "spec");
-        var publisher = ICircle.Key(scope, "club");
+        var publisher = IApp.Key(scope, "club");
         await using var stream = BrainEventsEndpoints.Snapshots(brain, scope, NullLogger.Instance, ct).GetAsyncEnumerator(ct);
 
         using var first = await Next(stream, ct);
@@ -68,7 +67,7 @@ public sealed class BrainEventsFacts
         Assert.Equal("Idle", Node(first, appKey).GetProperty("status").GetString());
 
         var runtime = brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(scope)).AsReference<IStubRuntime>();
-        await runtime.Run(appKey + "/synapses/club.cs", $"circles.circle/{publisher}", "CircleSpoke");
+        await runtime.Run(appKey + "/synapses/club.cs", $"apps.app2/{publisher}", "AppActivity");
 
         while (true)
         {
@@ -76,7 +75,7 @@ public sealed class BrainEventsFacts
             if (Synapses(next) is not [var synapse]) { continue; }
             Assert.Equal(publisher, synapse.GetProperty("sourceId").GetString());
             Assert.Equal(appKey, synapse.GetProperty("targetId").GetString());
-            Assert.Equal("CircleSpoke", synapse.GetProperty("signalType").GetString());
+            Assert.Equal("AppActivity", synapse.GetProperty("signalType").GetString());
             Assert.Equal("Running", Node(next, appKey).GetProperty("status").GetString());
             break;
         }
@@ -86,18 +85,18 @@ public sealed class BrainEventsFacts
     public async Task ARuntimeThatCannotBeReadKeepsTheLastSynapsesInsteadOfEmittingADegradedSnapshot()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<AppsModule>().WithModule<CirclesModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
         var person = await brain.PersonAsync("degraded", ct);
         using var caller = person.AsCaller();
         var scope = person.BrainId;
         var appKey = IApp.Key(scope, "steady");
         await brain.Get<IApp>(appKey).Create(new AppManifest("steady", "", [new("open", "")], [], []), "spec");
-        var publisher = ICircle.Key(scope, "club");
+        var publisher = IApp.Key(scope, "club");
         var runtime = brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(scope)).AsReference<IStubRuntime>();
         await runtime.Fail(false);
         await using var stream = BrainEventsEndpoints.Snapshots(brain, scope, NullLogger.Instance, ct).GetAsyncEnumerator(ct);
         using var first = await Next(stream, ct);
-        await runtime.Run(appKey + "/synapses/club.cs", $"circles.circle/{publisher}", "CircleSpoke");
+        await runtime.Run(appKey + "/synapses/club.cs", $"apps.app2/{publisher}", "AppActivity");
         while (true)
         {
             using var wired = await Next(stream, ct);
@@ -105,7 +104,7 @@ public sealed class BrainEventsFacts
         }
 
         await runtime.Fail(true);
-        await brain.Get<ICircle>(publisher).Invite("bob");
+        await brain.Get<IApp>(publisher).Create(new AppManifest("club", "", [new("open", "")], [], []), "spec");
 
         while (true)
         {
@@ -120,18 +119,18 @@ public sealed class BrainEventsFacts
     public async Task ARuntimeThatKeepsFailingPastTheTtlStreamsIdleNodesWithoutEdgesAndEdgesReturnWhenItRecoversQuietly()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<AppsModule>().WithModule<CirclesModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
         var person = await brain.PersonAsync("stale", ct);
         using var caller = person.AsCaller();
         var scope = person.BrainId;
         var appKey = IApp.Key(scope, "steady");
         await brain.Get<IApp>(appKey).Create(new AppManifest("steady", "", [new("open", "")], [], []), "spec");
-        var publisher = ICircle.Key(scope, "club");
+        var publisher = IApp.Key(scope, "club");
         var runtime = brain.Get<IBrainRuntime>(BrainRuntimeKeys.For(scope)).AsReference<IStubRuntime>();
         await runtime.Fail(false);
         await using var stream = BrainEventsEndpoints.Snapshots(brain, scope, NullLogger.Instance, ct, TimeSpan.FromSeconds(1), TimeSpan.FromMilliseconds(200)).GetAsyncEnumerator(ct);
         using var first = await Next(stream, ct);
-        await runtime.Run(appKey + "/synapses/club.cs", $"circles.circle/{publisher}", "CircleSpoke");
+        await runtime.Run(appKey + "/synapses/club.cs", $"apps.app2/{publisher}", "AppActivity");
         while (true)
         {
             using var wired = await Next(stream, ct);

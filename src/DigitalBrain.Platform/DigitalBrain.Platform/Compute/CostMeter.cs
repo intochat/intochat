@@ -67,17 +67,18 @@ internal sealed class CostMeter(
             if (trace.BudgetMicros is { } budget
                 && !await grains.GetGrain<ITraceBudgetGrain>(trace.TraceId).TrySpend(micros, budget))
             { throw new BudgetExhaustedException(trace.TraceId); }
-            if (funding.Kind == FundingKind.Circle) { payer = await DrawFromCircle(funding.CircleKey!, trace.BrainId, micros, trace.TraceId); }
+            if (funding.Kind == FundingKind.Circle) { payer = await DrawFromCircle(funding.CircleKey!, trace.PayerAccountId, micros, trace.TraceId); }
             fresh = await grains.GetGrain<ILedgerGrain>(payer).Charge(cost);
         }
         if (fresh) { await grains.GetGrain<IUsageGrain>(trace.BrainId).Add(cost, origin); }
         return cost;
     }
 
-    // A circle-funded call is paid by the circle owner, within the circle share of the owner budget.
-    private async Task<string> DrawFromCircle(string circleKey, string spenderBrain, long micros, string traceId)
+    // A circle-funded call is paid by the circle's creator, within the circle share of the creator's budget; the
+    // spender is a member account (T26-2, T26-11).
+    private async Task<string> DrawFromCircle(string circleKey, string spenderAccount, long micros, string traceId)
     {
-        return await grains.GetGrain<ICircleShareGrain>(circleKey).TryDraw(spenderBrain, micros)
+        return await grains.GetGrain<ICircleShareGrain>(circleKey).TryDraw(spenderAccount, micros)
             ?? throw new BudgetExhaustedException(traceId);
     }
 

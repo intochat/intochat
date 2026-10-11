@@ -783,7 +783,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
                     feed: _circleFeeds.putIfAbsent(
                       project.id,
                       () => CircleActivityFeed(
-                        () => client.watchCircles(project.id),
+                        () => client.watchCircleActivity(),
                       ),
                     ),
                     homeShown: _home,

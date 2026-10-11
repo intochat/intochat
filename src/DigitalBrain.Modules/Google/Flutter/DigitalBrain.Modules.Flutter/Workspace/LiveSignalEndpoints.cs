@@ -40,7 +40,9 @@ internal static class LiveSignalEndpoints
     [
         Feed<DeploymentChanged>(static (brain, brainId, _, _) => Single(brain.Get<IDeployment>(IDeployment.Key(brainId)))),
         Feed<AppActivity>(Apps),
-        Feed<CircleTouched>(static (brain, brainId, _, _) => Single(brain.Get<ICircles>(ICircles.Key(brainId)))),
+        // R126: asked of a circle brain's own /live; the shell watches each circle the person is in.
+        Feed<CircleChanged>(static (brain, brainId, _, _) => Single(brain.Get<ICircle>(ICircle.Key(brainId)))),
+        Feed<CircleSpoke>(static (brain, brainId, _, _) => Single(brain.Get<ICircleChat>(ICircleChat.Key(brainId)))),
     ];
 
     private static async IAsyncEnumerable<INeuron> Single(INeuron neuron) { await Task.CompletedTask; yield return neuron; }

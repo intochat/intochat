@@ -41,14 +41,15 @@ final class DeploymentChanged {
   final String stage, sha;
   final List<SiloState> silos;
 
-  factory DeploymentChanged.fromJson(Map<String, dynamic> json) => DeploymentChanged(
-    stage: (json['stage'] as String? ?? 'steady').toLowerCase(),
-    sha: json['sha'] as String? ?? '',
-    silos: [
-      for (final silo in json['silos'] as List? ?? const [])
-        SiloState.fromJson(Map<String, dynamic>.from(silo as Map)),
-    ],
-  );
+  factory DeploymentChanged.fromJson(Map<String, dynamic> json) =>
+      DeploymentChanged(
+        stage: (json['stage'] as String? ?? 'steady').toLowerCase(),
+        sha: json['sha'] as String? ?? '',
+        silos: [
+          for (final silo in json['silos'] as List? ?? const [])
+            SiloState.fromJson(Map<String, dynamic>.from(silo as Map)),
+        ],
+      );
 }
 
 // One event of GET /brains/{id}/live: the signal's simple type name, the neuron that published it,
@@ -95,39 +96,46 @@ final class AppActivity {
   );
 }
 
-// Mirrors the CircleTouched signal: something changed in one of the brain's circles.
-// Kind is changed, invited, spoke or left.
-final class CircleTouched {
-  const CircleTouched({
-    required this.name,
-    required this.owner,
+// A brain the signed-in person is in, as GET /identity/brains lists it: its id and its kind (Personal or Circle).
+final class BrainEntry {
+  const BrainEntry({required this.id, required this.kind});
+
+  final String id, kind;
+  bool get isCircle => kind == 'Circle';
+
+  factory BrainEntry.fromJson(Map<String, dynamic> json) => BrainEntry(
+    id: json['id'] as String? ?? '',
+    kind: json['kind'] as String? ?? 'Personal',
+  );
+}
+
+// Something that happened inside one circle brain, from that brain's own live feed: a line spoken (the
+// CircleSpoke signal) or the circle changed (CircleChanged). Ready marks one circle's feed connected.
+final class CircleActivity {
+  const CircleActivity({
+    required this.circle,
     required this.kind,
     this.sequence,
     this.replay = false,
   }) : ready = false;
 
-  // The live feed's ready marker: connected, retained replay complete. It carries no touch.
-  const CircleTouched.ready()
-    : name = '',
-      owner = '',
-      kind = '',
+  const CircleActivity.ready(this.circle)
+    : kind = '',
       sequence = null,
       replay = false,
       ready = true;
 
-  final String name, owner, kind;
+  final String circle, kind;
   final int? sequence;
   final bool replay, ready;
 
-  factory CircleTouched.fromJson(
-    Map<String, dynamic> json, {
-    int? sequence,
-    bool replay = false,
-  }) => CircleTouched(
-    name: json['name'] as String? ?? '',
-    owner: json['owner'] as String? ?? '',
-    kind: json['kind'] as String? ?? 'changed',
-    sequence: sequence,
-    replay: replay,
-  );
+  factory CircleActivity.fromEnvelope(String circle, LiveEnvelope envelope) =>
+      envelope.isReady
+      ? CircleActivity.ready(circle)
+      : CircleActivity(
+          circle: circle,
+          kind: envelope.type == 'CircleSpoke' ? 'spoke' : 'changed',
+          sequence: envelope.sequence,
+          replay: envelope.replay,
+        );
 }
