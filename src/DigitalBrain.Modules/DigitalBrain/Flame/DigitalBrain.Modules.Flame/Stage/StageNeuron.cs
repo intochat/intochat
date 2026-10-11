@@ -16,6 +16,8 @@ internal sealed class StageNeuron([PersistentState("state", DigitalBrainNames.Cl
 {
     private const string OwnerAlias = "/stage/owner";
 
+    internal static string OwnerKeyOf(string brainId) => brainId + OwnerAlias;
+
     // A synapse cannot compute a person's digest, so the brain owner's stage is also addressable as
     // {brain}/stage/owner. The owner account is the one IBrain.Create recorded for that brain.
     private async Task RequireOwner()
@@ -23,13 +25,13 @@ internal sealed class StageNeuron([PersistentState("state", DigitalBrainNames.Cl
         if (!CallerContextStamper.TryGet(out var caller) || caller.Kind == CallerKind.Platform) { return; }
         var key = this.GetPrimaryKeyString();
         if (ScopeOf(caller) == key) { return; }
-        if (key == caller.BrainId + OwnerAlias && await OwnsBrain(caller)) { return; }
+        if (key == OwnerKeyOf(caller.BrainId) && await OwnsBrain(GrainFactory, caller)) { return; }
         throw new UnauthorizedAccessException("This stage belongs to another person.");
     }
 
-    private async Task<bool> OwnsBrain(CallerContext caller)
+    internal static async Task<bool> OwnsBrain(IGrainFactory grains, CallerContext caller)
     {
-        try { return (await GrainFactory.GetGrain<IBrain>(caller.BrainId).Read()).Owner.AccountId == caller.AccountId; }
+        try { return (await grains.GetGrain<IBrain>(caller.BrainId).Read()).Owner.AccountId == caller.AccountId; }
         catch (InvalidOperationException) { return false; }
     }
 

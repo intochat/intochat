@@ -13,5 +13,5 @@ public sealed class FlameModule() : Module(new ModuleId("flame")), IHttpModule
 
     public override void Configure(ISiloBuilder silo) => ArgumentNullException.ThrowIfNull(silo);
 
-    public void Configure(IEndpointRouteBuilder endpoints) => ArgumentNullException.ThrowIfNull(endpoints);
+    public void Configure(IEndpointRouteBuilder endpoints) => FlameEndpoints.Map(endpoints);
 }
