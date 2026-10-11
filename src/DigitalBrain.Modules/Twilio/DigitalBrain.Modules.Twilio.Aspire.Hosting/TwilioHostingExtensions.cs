@@ -30,7 +30,7 @@ public static class TwilioHostingExtensions
             _accountSid ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("twilio-account-sid"))
                 .WithDescription(
                     "Account SID (starts with `AC`) from the [Twilio console](https://console.twilio.com/) home page, under Account Info. "
-                    + "Set the messaging status webhook to `<your deployment origin>/twilio/status`; this host also passes it on every send.",
+                    + "Set the messaging status webhook to `<your deployment origin>/twilio/status/{brainId}`; this host also passes it on every send.",
                     enableMarkdown: true)
                 .WithParentRelationship(module);
             _authToken ??= brain.ApplicationBuilder.AddParameter(brain.ResourceName("twilio-auth-token"), secret: true)

@@ -38,7 +38,7 @@ public static class MonnetHostingExtensions
             _webhookSecret ??= app.AddParameter(brain.ResourceName("monnet-webhook-secret"), secret: true)
                 .WithDescription(
                     "Secret Monnet signs payment notifications with (HMAC-SHA256 of the body, hex, in `X-Monnet-Signature`). "
-                    + "Register `<your deployment origin>/monnet/webhook` as the notification URL at Monnet. "
+                    + "Register `<your deployment origin>/monnet/webhook/{brainId}` (the brain whose connection receives it) as the notification URL at Monnet. "
                     + "Without this secret every notification is refused.",
                     enableMarkdown: true)
                 .WithParentRelationship(module);
