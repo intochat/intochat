@@ -2329,7 +2329,7 @@ public interface ICircle : INeuron
     Task<CircleState> Accept();                       // the caller's account must be invited; contributes the caller's machine
     Task Contribute(string machineId);                // the caller's account must be bound to the machine
     Task Remove(string accountId);                    // RemoveMember, drop its machines, rotate every circle part key
-    Task Share(string appName, string[] connectionIds); // R132: installs the caller's app into the circle brain (R124); binds the chosen connections there and records the rest as owner bindings (R134)
+    Task Share(string appName, string[] connectionIds); // added in Step 5, where it is implemented (R132, R137); installs the caller's app into the circle brain (R124); binds the chosen connections there and records the rest as owner bindings (R134)
     Task SetComputeShare(int percent);
     Task<CircleState> State();
 
@@ -2378,7 +2378,7 @@ Order (R136): every step depends only on earlier ones. Commit per step (R135).
 - [ ] **Step 1: Map.** No edits; record every site in the report.
   - C#: LSP `findReferences` on `ICircle`, `ICircleChat`, `ICircles`, `CircleAddress`, `CircleCallGuard`, `CircleTouched`, `ICircleShares.Configure`, `CircleShareGuard`, `IIdentityClient.EnsureMember`, `IIdentityClient.BrainsOf`, `IIdentityClient.CreateBrain`, `RegisterMachine` (every caller and every test fixture that registers a machine), `AppSource`, `FeatureReconciler`, and the Apps module's connection-call path (where a slot's connection is resolved for a call). `incomingCalls` on `BrainsOf`/`CreateBrain` to list their callers (identity endpoints, `BrainBirths`, the MCP context).
   - Dart (`dart language-server`, `src/DigitalBrain.Modules/Google/Flutter/app/shell`): `findReferences` on `watchCircles`, the `CircleTouched` mirror, and every caller of the circles index in `ui_client.dart`, `circle_activity_badge.dart`, `infrastructure_strip.dart` and the workspace islands.
-  - Name the existing `CircleFacts` facts that exercise the copy protocol; Step 3 deletes them.
+  - Name the existing `CircleFacts` facts that exercise the copy protocol; Step 6 deletes them.
 - [ ] **Step 2: Failing facts — agreement keys (R127).** Platform `Sequencer/MachineAgreementKeyFacts.cs`:
   - `AMachineRegistersAnAgreementKeyBesideItsSigningKey`: the trust returns both public keys, and they differ.
   - `ARegistrationWithoutAnAgreementKeyIsRefused`.
@@ -2402,16 +2402,17 @@ Order (R136): every step depends only on earlier ones. Commit per step (R135).
   - `ARemovedMemberIsRefusedOnItsNextCall`.
   - `AnAcceptWithoutAnInvitationAddsNoMember`, `TheCreatorCannotBeRemoved` and `TheCreatorLeavingDeletesTheCircle` (R129).
   - `AContributedMachineIsAnOwnerMachineOnlyForItsCircle` (R128, the gate fact; refused after `WithdrawMachine`).
+  - `OnlyAMemberMachineOrTheOwnerMayRemoveAMember` (the R133 gate fact): `RemoveMember` from a machine passing `EnsureMember`'s gate or the brain's owner succeeds; from any other machine it is refused.
 
   Run → FAIL. Then implement:
   - `BrainKind` on `CreateBrain`/`BrainsOf`, and the `FeatureReconciler`/OS-defaults skip for `Kind = Circle`.
   - `features/os/CircleRoom` (`app.cs` plus the `say`/`watch` synapses on the circle brain's own neurons; `share` comes in Step 5), installed at birth.
   - `RemoveMember` (R133 gate) and `ContributeMachine`/`WithdrawMachine`/`MachinesOf`: trust grain, link ops, clients.
   - The R98/R106/R107 gate counting `MachinesOf(brain)` for that brain only.
-  - The reshaped `CircleState`/`CircleNeuron`/`CircleChatNeuron` (`Accept`, `Contribute`, `Remove` per R129).
-  - Delete the copy protocol: the `[Internal]` methods, `CircleAddress`, `CircleCallGuard`, and the copy-protocol facts named in Step 1. `CircleShareGrain` is keyed `{circle}/circle`.
+  - The reshaped `CircleState`/`CircleNeuron`/`CircleChatNeuron` (`Accept`, `Contribute`, `Remove` per R129). `ICircle` gains no `Share` here (Step 5 adds it). `CircleShareGrain` is keyed `{circle}/circle`.
+  - The copy protocol stays until Step 6: the `[Internal]` copy methods, `ICircleChat.Relay`/`Pull`/`Notify`, `CircleAddress`, `CircleCallGuard`, `CircleTouched`, `ICircles`/`CirclesIndexNeuron` and their facts are left in place, adjusted only where the reshaped `CircleState` changes a member they read.
 
-  The `FeatureCatalog` compile-check passes; Platform, Trust, Circles and Apps suites → PASS. Commit: `Circles: a circle is a brain of kind Circle whose members are accounts and whose machines are contributed`.
+  The `FeatureCatalog` compile-check passes, because `features/os/Circle` and the Dart shell still find every type they use (any `CircleState` member they read that this step renames is updated in `features/os/Circle` here); Platform, Trust, Circles and Apps suites → PASS. Commit: `Circles: a circle is a brain of kind Circle whose members are accounts and whose machines are contributed`.
 - [ ] **Step 4: Failing facts — key sharing.** `Keys/CircleKeyFacts.cs` (`TrustHost` plus Own machines for alice, bob and carol, registered with agreement keys from Step 2; circle from Step 3):
   - `AMemberMachineUnwrapsTheKey` (fixed test).
   - `ARemovedMemberCannotReadAnythingWrittenAfterTheRotation` (fixed test).
@@ -2442,7 +2443,7 @@ Order (R136): every step depends only on earlier ones. Commit per step (R135).
   In the Architecture tests: `TheCirclesModuleLoadsThroughTheAppsFeatureLoader` (the Circles→Apps reference fact).
 
   Run → FAIL. Then implement:
-  - `ICircle.Share(appName, connectionIds)` (R132).
+  - `ICircle.Share(appName, connectionIds)` (R132), added to the interface here and implemented in `CircleNeuron` (R137).
   - `AppSource.Brain` and the `FeatureLoader` path for it.
   - The binding recorded on the circle brain's app slot.
   - The R134 check in the Apps module's connection-call gate.
@@ -2456,11 +2457,12 @@ Order (R136): every step depends only on earlier ones. Commit per step (R135).
   - `TheMembersIndexListsItsCircleBrains`: `os/Circle` from `BrainsOf`.
   - `CreatingThroughTheFactoryBirthsTheCircleBrain`.
   - `AScriptCannotAcceptOrInvite`.
-  - `OnlyAMemberMachineOrTheOwnerMayRemoveAMember` (the R133 gate fact): `RemoveMember` from a machine passing `EnsureMember`'s gate or the brain's owner succeeds; from any other machine it is refused.
+
+  The rewrite drops the copy-protocol facts named in Step 1.
 
   Run → FAIL. Then implement:
   - `ICircleFactory` + `CircleFactoryNeuron`.
-  - Delete `ICircles`/`CirclesIndexNeuron` and `CircleTouched`.
+  - Delete the copy protocol (R137): the `[Internal]` copy methods, `ICircleChat.Relay`/`Pull`/`Notify`, `CircleAddress`, `CircleCallGuard`, `ICircles`/`CirclesIndexNeuron` and `CircleTouched`, after `findReferences` shows no caller left.
   - Rewrite `features/os/Circle` (index, `create` via the factory, invite/accept only through the human route).
   - Dart: `BrainsOf` plus `/brains/{circle}/live` replace `watchCircles`/`CircleTouched` at every site Step 1 found.
 
@@ -2480,7 +2482,7 @@ Order (R136): every step depends only on earlier ones. Commit per step (R135).
 **Read under T26-3/T26-4/T26-7:** for an owner's brain the contract stands as written. A circle member's machine is refused the owner's core, and an owner's part never moves to circle machines, because shared apps live in the circle brain. For a circle brain, "own" means contributed machines.
 
 **Additive extensions (with reasons):**
-- (a) Chosen connections are bound into the circle brain, and the rest route to the owner's core (T26-7). Reason: that is what "go along" now means. `ICircle.Share` and the binding facts are implemented in Task 27 Step 4 (R132); this task keeps the credential re-seal (R130) and the live step.
+- (a) Chosen connections are bound into the circle brain, and the rest route to the owner's core (T26-7). Reason: that is what "go along" now means. `ICircle.Share` and the binding facts are implemented in Task 27 Step 5 (R132); this task keeps the credential re-seal (R130) and the live step.
 - (b) `ACircleCoreIsHeldOnlyByContributedMachines`. Reason: this is the circle-brain reading of Q11.
 - (c) The lease prefers the operator's contributed machine. Reason: this is Q17's circle reading.
 
