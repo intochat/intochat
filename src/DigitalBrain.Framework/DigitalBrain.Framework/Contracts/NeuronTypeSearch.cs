@@ -40,7 +40,9 @@ public sealed class NeuronTypeSearch(
     public async Task<IReadOnlyList<NeuronTypeHit>> Search(string query, int take = 10, CancellationToken ct = default)
         => await Search(query, await Capabilities(ct).ConfigureAwait(false), take, ct).ConfigureAwait(false);
 
-    public async Task<IReadOnlyList<NeuronTypeHit>> Search(string query, IReadOnlyList<NeuronType> entries, int take = 10, CancellationToken ct = default)
+    // queryVector is the query already embedded by the same generator, for a caller that ranks more than one corpus by it.
+    public async Task<IReadOnlyList<NeuronTypeHit>> Search(string query, IReadOnlyList<NeuronType> entries, int take = 10, CancellationToken ct = default,
+        float[]? queryVector = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
         ArgumentOutOfRangeException.ThrowIfLessThan(take, 1);
@@ -49,7 +51,7 @@ public sealed class NeuronTypeSearch(
         if (embeddings is null) { return ByWords(entries, query, take); }
         if (entries.Count == 0) { return []; }
         var vectors = await Vectors(entries, ct).ConfigureAwait(false);
-        var queryVector = (await embeddings.GenerateAsync([query], cancellationToken: ct).ConfigureAwait(false))[0].Vector.ToArray();
+        queryVector ??= (await embeddings.GenerateAsync([query], cancellationToken: ct).ConfigureAwait(false))[0].Vector.ToArray();
         if (queryVector.Length != vectors[0].Length)
         { throw new InvalidOperationException("The embedding provider returned a query vector of a different size than the type vectors."); }
         return [.. entries.Select((type, index) => new NeuronTypeHit(type, Cosine(queryVector, vectors[index])))

@@ -53,14 +53,28 @@ internal sealed class SynapseExamples(
         services.GetRequiredService<IGrainFactory>(), services.GetRequiredService<IKernel>(), services.GetRequiredService<FeatureCatalog>(),
         Embeddings(services), services.GetRequiredService<ILogger<SynapseExamples>>());
 
-    public async Task<SynapseRanking> Rank(string brain, string sentence, CancellationToken cancellationToken)
+    // The sentence embedded once, for every ranking of it; null ranks by words (no model, or the model failed).
+    public async Task<float[]?> Embed(string sentence, CancellationToken cancellationToken)
+    {
+        if (embeddings is null) { return null; }
+        try { return (await embeddings.GenerateAsync([sentence], cancellationToken: cancellationToken))[0].Vector.ToArray(); }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            log.LogWarning(error, "Synapse retrieval fell back to word ranking: the embedding model failed");
+            return null;
+        }
+    }
+
+    // query is the sentence's embedding from Embed when the caller already started it; without one Rank embeds the sentence itself.
+    public async Task<SynapseRanking> Rank(string brain, string sentence, CancellationToken cancellationToken, Task<float[]?>? query = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(brain);
         ArgumentException.ThrowIfNullOrWhiteSpace(sentence);
+        var behaviorsRead = Behaviors(brain, cancellationToken);
         var corpus = await Corpus(brain, cancellationToken);
         if (corpus.Length == 0) { return new([], null); }
-        var (scores, forkThreshold) = await Scores(corpus, sentence, cancellationToken);
-        var behaviors = await Behaviors(brain, cancellationToken);
+        var (scores, forkThreshold) = await Scores(corpus, sentence, query ?? Embed(sentence, cancellationToken), cancellationToken);
+        var behaviors = await behaviorsRead;
         BehaviorView? Behavior(SynapseExample example) => example.BehaviorId is { } id ? behaviors.GetValueOrDefault(id) : null;
         SynapseExample[] scored = [.. corpus
             .Select((example, index) => example with { Similarity = scores[index], History = RunHistory(Behavior(example)) })
@@ -103,13 +117,20 @@ internal sealed class SynapseExamples(
         List<SynapseExample> examples = [];
         HashSet<string> seen = new(StringComparer.Ordinal);
         // The brain's own copies come first: they carry run history, and a feature's identical copy adds nothing.
+        // The apps are read together; their order stays the kernel's.
+        var bundles = catalog.Bundles();
+        List<string> keys = [];
         await foreach (var instance in kernel.InstancesIn(brain, kernel.TypeOf(typeof(IApp)), cancellationToken))
         {
-            if (IApp.NameOf(brain, instance.Key) is null) { continue; }
-            var app = await grains.GetGrain<IApp>(instance.Key).Read().WaitAsync(cancellationToken);
-            Add(instance.Key, app.Manifest, app.Files, path => BehaviorIds.For(instance.Key, path));
+            if (IApp.NameOf(brain, instance.Key) is not null) { keys.Add(instance.Key); }
         }
-        foreach (var ((owner, name), bundle) in await catalog.Bundles())
+        var apps = await Task.WhenAll(keys.Select(key => grains.GetGrain<IApp>(key).Read().WaitAsync(cancellationToken)));
+        for (var i = 0; i < keys.Count; i++)
+        {
+            var key = keys[i];
+            Add(key, apps[i].Manifest, apps[i].Files, path => BehaviorIds.For(key, path));
+        }
+        foreach (var ((owner, name), bundle) in await bundles)
         { Add($"features/{owner}/{name}", bundle.Manifest, bundle.Files, _ => null); }
         return [.. examples];
 
@@ -141,13 +162,13 @@ internal sealed class SynapseExamples(
     }
 
     // Each synapse's score and the fork threshold of the scale it was scored on.
-    private async Task<(double[] Scores, double ForkThreshold)> Scores(SynapseExample[] corpus, string sentence, CancellationToken cancellationToken)
+    private async Task<(double[] Scores, double ForkThreshold)> Scores(SynapseExample[] corpus, string sentence, Task<float[]?> embedded, CancellationToken cancellationToken)
     {
         if (embeddings is null) { return (ByWords(corpus, sentence), WordForkThreshold); }
         try
         {
             var vectors = await Vectors(corpus, cancellationToken);
-            var query = (await embeddings.GenerateAsync([sentence], cancellationToken: cancellationToken))[0].Vector.ToArray();
+            if (await embedded is not { } query) { return (ByWords(corpus, sentence), WordForkThreshold); }
             return ([.. vectors.Select(vector => vector.Length == query.Length ? Cosine(query, vector) : 0)], CosineForkThreshold);
         }
         catch (Exception error) when (error is not OperationCanceledException)

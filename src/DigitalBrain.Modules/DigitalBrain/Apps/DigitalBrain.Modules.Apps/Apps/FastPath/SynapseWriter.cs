@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using DigitalBrain.AI.Inference;
+using DigitalBrain.AI.Models;
 using DigitalBrain.AI.Models.OpenRouter;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Contracts;
@@ -38,6 +40,7 @@ internal sealed class SynapseWriter(
     // A focus neuron's own line is never dropped, only clipped past this.
     private const int MaxContractLineLength = 4000;
     private const int ContractMatches = 5;
+    internal const string NoContract = "Refused, no contract: ";
 
     private string Model => options.Value.FastPathModel ?? nameof(IDeepSeekV41Flash);
 
@@ -67,11 +70,13 @@ internal sealed class SynapseWriter(
             span?.SetTag("apps.fastpath.outcome", "skipped");
             return;
         }
-        await Report(app, "working", "Writing a synapse: " + Clip(job.Sentence, 200));
+        // The person's view goes alongside the write, never ahead of it; it lands before the outcome does.
+        var working = Report(app, "working", "Writing a synapse: " + Clip(job.Sentence, 200));
         Outcome outcome;
         try { outcome = await Run(job, app, snapshot, span, cancellationToken); }
         catch (Exception error) when (error is not OperationCanceledException)
         { outcome = new([error.Message], 0, null, null); }
+        await working;
         var elapsed = (long)Stopwatch.GetElapsedTime(job.Started).TotalMilliseconds;
         await app.CompleteSynapse(job.OperationId, outcome.Errors, elapsed, outcome.Attempts, outcome.Base);
         span?.SetTag("apps.fastpath.attempts", outcome.Attempts);
@@ -96,10 +101,18 @@ internal sealed class SynapseWriter(
     private async Task<Outcome> Run(Job job, IApp app, AppSnapshot snapshot, Activity? span, CancellationToken cancellationToken)
     {
         var brain = BrainOf(job.AppKey);
+        // The sentence is embedded once for both rankings, and the examples, the focus and the matching contracts
+        // are gathered together.
+        var query = examples.Embed(job.Sentence, cancellationToken);
+        var types = kernel.Types(cancellationToken);
         // Fork-first: a close enough synapse is the base the model edits.
-        var (ranked, basis) = await examples.Rank(brain, job.Sentence, cancellationToken);
+        var ranking = examples.Rank(brain, job.Sentence, cancellationToken, query);
+        var focus = FocusOf(job, brain, types, cancellationToken);
+        var matches = MatchesOf(job.Sentence, types, query, cancellationToken);
+        await Task.WhenAll(ranking, focus, matches);
+        var (ranked, basis) = await ranking;
         span?.SetTag("apps.fastpath.examples", string.Join(",", ranked.Select(example => example.Name)));
-        var prompt = await Prompt(job, brain, snapshot, ranked, basis, cancellationToken);
+        var prompt = Prompt(job, snapshot, ranked, basis, await focus, await matches);
         var system = AgentPrompts.Synapse + (sandbox is null ? "" : "\n\n" + sandbox.AuthoringDescription);
         WrittenSynapse? written = null;
         string[] errors = [];
@@ -109,9 +122,15 @@ internal sealed class SynapseWriter(
             var request = attempts == 0 ? prompt : Repair(prompt, written, errors);
             attempts++;
             string reply;
-            try { reply = await grains.GetGrain<ICreatorModel>(0).Complete(brain, Model, system, request); }
+            try { reply = await Generate(brain, system, request, span); }
             catch (Exception error) when (error is not OperationCanceledException)
             { return new([$"The model {Model} did not answer: {error.Message}"], attempts, basis?.Name, null); }
+            // A refusal is the model saying no installed contract carries the sentence: recorded, never compiled or deployed.
+            if (Refusal(reply) is { } missing)
+            {
+                span?.SetTag("apps.fastpath.refused", missing);
+                return new([NoContract + missing], attempts, basis?.Name, null);
+            }
             (written, errors) = await Gate(reply, snapshot, cancellationToken);
             if (errors.Length == 0) { break; }
         }
@@ -121,6 +140,24 @@ internal sealed class SynapseWriter(
         catch (Exception error) when (error is InvalidOperationException or ArgumentException)
         { return new([error.Message], attempts, basis?.Name, null); }
         return new([], attempts, basis?.Name, written.Path);
+    }
+
+    // One capped model call: the fast path's reasoning effort and output cap ride on the selection, so the
+    // typed model neuron keeps its own model and only the thinking budget changes.
+    private async Task<string> Generate(string brain, string system, string prompt, Activity? span)
+    {
+        var settings = options.Value;
+        var selection = new ModelSelection(Reasoning: settings.FastPathReasoning is { Length: > 0 } reasoning ? reasoning.ToLowerInvariant() : null,
+            MaxOutputTokens: settings.FastPathMaxOutputTokens);
+        var result = await grains.GetGrain<ICreatorModel>(0).Generate(brain, Model, new InferenceRequest(
+            [new AiMessage("system", [new AiText(system)]), new AiMessage("user", [new AiText(prompt)])], selection));
+        span?.SetTag("apps.fastpath.input_tokens", result.Usage?.InputTokens);
+        span?.SetTag("apps.fastpath.output_tokens", result.Usage?.OutputTokens);
+        var text = string.Concat(result.Messages.SelectMany(message => message.Content).OfType<AiText>().Select(content => content.Text)).Trim();
+        // A reply cut at the cap is half a file: say so instead of handing the shape a broken JSON object.
+        if (string.Equals(result.FinishReason, "length", StringComparison.OrdinalIgnoreCase) && Refusal(text) is null)
+        { throw new InvalidDataException($"The reply hit the {selection.MaxOutputTokens}-token output cap."); }
+        return text;
     }
 
     // The reply's one file, held to the shape first and then to the compiler with the app's shared classes.
@@ -145,6 +182,15 @@ internal sealed class SynapseWriter(
         { return (written, [error.Message]); }
     }
 
+    // The reply's first line when it is the prompt's refusal marker, with what it says is missing.
+    internal static string? Refusal(string reply)
+    {
+        var line = reply.Replace("```", "", StringComparison.Ordinal).Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        if (line is null || !line.StartsWith(AgentPrompts.Refusal, StringComparison.OrdinalIgnoreCase)) { return null; }
+        var missing = line[AgentPrompts.Refusal.Length..].Trim();
+        return Clip(missing.Length > 0 ? missing : "the model did not say what is missing", 500);
+    }
+
     private static string? PathError(string? path) => path switch
     {
         null or "" => "The reply names no path.",
@@ -167,7 +213,14 @@ internal sealed class SynapseWriter(
         return text.AppendLine().AppendLine("Fix every error and reply with the corrected JSON object only.").ToString();
     }
 
-    private async Task<string> Prompt(Job job, string brain, AppSnapshot app, SynapseExample[] ranked, SynapseExample? basis, CancellationToken cancellationToken)
+    private async Task<(string[] Focused, string[] Contracts)> FocusOf(Job job, string brain, Task<TypeEntry[]> types, CancellationToken cancellationToken)
+        => await Focus(job, brain, await types, cancellationToken);
+
+    private async Task<string[]> MatchesOf(string sentence, Task<TypeEntry[]> types, Task<float[]?> query, CancellationToken cancellationToken)
+        => await Matches(sentence, await types, await query, cancellationToken);
+
+    private string Prompt(Job job, AppSnapshot app, SynapseExample[] ranked, SynapseExample? basis,
+        (string[] Focused, string[] Contracts) focus, string[] matching)
     {
         var manifest = app.Manifest;
         var text = new StringBuilder();
@@ -200,8 +253,7 @@ internal sealed class SynapseWriter(
             }
         }
 
-        var types = await kernel.Types(cancellationToken);
-        var (focused, focusContracts) = await Focus(job, brain, types, cancellationToken);
+        var (focused, focusContracts) = focus;
         if (focused.Length > 0)
         {
             text.AppendLine().AppendLine("What the person is looking at (neuron keys in focus):");
@@ -212,7 +264,7 @@ internal sealed class SynapseWriter(
             text.AppendLine().AppendLine("Contracts of the neurons in focus:");
             foreach (var line in focusContracts) { text.AppendLine("- " + line); }
         }
-        var matches = await Matches(job.Sentence, types, focusContracts, cancellationToken);
+        string[] matches = [.. Bounded(matching.Except(focusContracts, StringComparer.Ordinal))];
         if (matches.Length > 0)
         {
             text.AppendLine().AppendLine("Contracts that match the sentence:");
@@ -288,20 +340,21 @@ internal sealed class SynapseWriter(
     }
 
     // The kernel's neuron contracts closest to the sentence (the Builder's search_contracts), with their modules'
-    // signals. A hint beside the focus and the examples: a search that fails leaves it out.
-    private async Task<string[]> Matches(string sentence, TypeEntry[] types, string[] already, CancellationToken cancellationToken)
+    // signals, ranked by the sentence's one embedding when there is one. A hint beside the focus and the examples:
+    // a search that fails leaves it out. The prompt drops the lines the focus already shows and bounds the rest.
+    private async Task<string[]> Matches(string sentence, TypeEntry[] types, float[]? query, CancellationToken cancellationToken)
     {
         var neurons = types.Where(entry => entry.Kind == TypeKind.Neuron).ToArray();
         if (neurons.Length == 0) { return []; }
         IReadOnlyList<NeuronTypeHit> hits;
-        try { hits = await search.Search(sentence, [.. neurons.Select(NeuronType.From)], ContractMatches, cancellationToken); }
+        try { hits = await search.Search(sentence, [.. neurons.Select(NeuronType.From)], ContractMatches, cancellationToken, query); }
         catch (Exception error) when (error is not OperationCanceledException)
         {
             log.LogWarning(error, "The fast path's contract search failed; the prompt goes without matching contracts");
             return [];
         }
         TypeEntry[] entries = [.. hits.Select(hit => neurons.FirstOrDefault(entry => entry.Name == hit.Type.Contract)).OfType<TypeEntry>()];
-        return [.. Bounded(Neurons(entries).Concat(Signals(entries, types)).Except(already, StringComparer.Ordinal))];
+        return [.. Neurons(entries).Concat(Signals(entries, types)).Distinct(StringComparer.Ordinal)];
     }
 
     // The same line format as the sandbox's contract reading: each neuron, then its module's signals.

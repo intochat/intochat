@@ -49,22 +49,29 @@ internal sealed class MeteringChatClient(
     }
 
     // The unit is million tokens, the price list's unit; the cost id is the response's own identity
-    // plus the token class, so a prompt rerun prices fresh rows instead of replaying old ones.
+    // plus the token class, so a prompt rerun prices fresh rows instead of replaying old ones. The token
+    // classes are independent rows, so they go to the meter together: the response waits for one meter
+    // round trip, not one per class.
     private async Task RecordAsync(UsageDetails? usage, string? responseId, string? responseModel, string? optionModel, CancellationToken cancellationToken)
     {
         if (usage is null) { return; }
         var id = responseId is { Length: > 0 } responseIdText ? responseIdText : Guid.NewGuid().ToString("N");
         var item = responseModel ?? optionModel ?? model;
+        (string Class, long? Tokens)[] classes =
+        [
+            ("input", usage.InputTokenCount),
+            ("cached", usage.CachedInputTokenCount),
+            ("reasoning", usage.ReasoningTokenCount),
+            ("output", usage.OutputTokenCount),
+        ];
         try
         {
-            if (usage.InputTokenCount is { } input) { await RecordAsync($"{item}:input", input, $"{id}:input", cancellationToken); }
-            if (usage.CachedInputTokenCount is { } cached) { await RecordAsync($"{item}:cached", cached, $"{id}:cached", cancellationToken); }
-            if (usage.ReasoningTokenCount is { } reasoning) { await RecordAsync($"{item}:reasoning", reasoning, $"{id}:reasoning", cancellationToken); }
-            if (usage.OutputTokenCount is { } output) { await RecordAsync($"{item}:output", output, $"{id}:output", cancellationToken); }
+            await Task.WhenAll(classes.Where(entry => entry.Tokens is not null)
+                .Select(entry => RecordAsync($"{item}:{entry.Class}", entry.Tokens!.Value, $"{id}:{entry.Class}", cancellationToken))).ConfigureAwait(false);
         }
         catch { /* Metering is an observer: a ledger fault must never fail the model call. */ }
     }
 
-    private async Task RecordAsync(string item, long tokens, string costId, CancellationToken cancellationToken)
-        => await meter.RecordAsync(CostKind.Model, item, tokens / 1_000_000m, "mtok", funding, costId, cancellationToken).ConfigureAwait(false);
+    private Task RecordAsync(string item, long tokens, string costId, CancellationToken cancellationToken)
+        => meter.RecordAsync(CostKind.Model, item, tokens / 1_000_000m, "mtok", funding, costId, cancellationToken).AsTask();
 }

@@ -44,6 +44,20 @@ public sealed class MeteringFacts
     }
 
     [Fact]
+    public async Task TheTokenClassesGoToTheMeterTogetherNotOneAfterAnother()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        // Every row waits until all four are in flight: a meter fed one class after another never gets past the first.
+        var meter = new BarrierMeter(4);
+        var usage = new UsageDetails { InputTokenCount = 10, CachedInputTokenCount = 3, ReasoningTokenCount = 2, OutputTokenCount = 5 };
+        var client = new MeteringChatClient(FixedChatClient(Response(usage, "gpt-5.6-luna")), meter, Funding.Integration, "gpt-5.6-luna");
+
+        await client.GetResponseAsync([new ChatMessage(ChatRole.User, "hello")], cancellationToken: ct);
+
+        Assert.Equal(["cached", "input", "output", "reasoning"], meter.Recorded.Select(costId => costId.Split(':')[^1]).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
     public async Task StreamingUsageIsRecordedOnceFromTheFinalChunk()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -144,6 +158,23 @@ public sealed class MeteringFacts
                 Unit = unit,
                 Micros = 0,
             });
+        }
+    }
+
+    private sealed class BarrierMeter(int rows) : ICostMeter
+    {
+        private readonly TaskCompletionSource _all = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _started;
+
+        public ConcurrentQueue<string> Recorded { get; } = new();
+
+        public async ValueTask<Cost> RecordAsync(CostKind kind, string item, decimal quantity, string unit, Funding funding,
+            string costId, CancellationToken cancellationToken, CostSubject? subject = null)
+        {
+            if (Interlocked.Increment(ref _started) == rows) { _all.TrySetResult(); }
+            await _all.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
+            Recorded.Enqueue(costId);
+            return new Cost { TraceId = string.Empty, CostId = costId, Kind = kind, Item = item, Quantity = quantity, Unit = unit, Micros = 0 };
         }
     }
 

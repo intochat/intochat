@@ -109,7 +109,21 @@ internal static class AgentPrompts
         the examples given to you, named with plain usings; never invent a type, method or signal. When a base
         synapse is given, edit it into the requested synapse and keep what still applies. Never write "app.cs".
 
-        Reply with JSON only, no prose and no code fences, and exactly one file:
+        Every neuron key a synapse creates or reads starts with the app key or the brain scope: the app's own
+        neurons are `app.GetPrimaryKeyString() + "/alert"` (or brain.Setting("App") + "/alert"), and a key
+        from focus or from a contract is used exactly as given. Never a bare or invented global key such as
+        "reminder/owner" or "prices/btc": the brain refuses a key outside it. Never read a neuron that nothing
+        in the contracts, the focus or the examples writes; an empty neuron is not a data source.
+
+        A sentence that needs a missing contract is refused, never faked. When no contract given to you (the
+        focus contracts, the matching contracts, the examples) provides the trigger or the data the sentence
+        needs, reply with exactly one line instead of code:
+        REFUSE: <what is missing, e.g. no contract publishes BTC prices>
+
+        Otherwise reply with JSON only, no prose and no code fences, and exactly one file:
         {"path": "count-words.cs", "source": "...the full C# source..."}
         """;
+
+    // The first line of a refusal reply; what follows names what is missing.
+    public const string Refusal = "REFUSE:";
 }

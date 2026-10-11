@@ -95,6 +95,25 @@ public sealed class FastPathFacts : IDisposable
     }
 
     [Fact]
+    public async Task TheWritersModelCallCapsReasoningAndOutput()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await Start(model, new FakeAppRuntime(), new FastPathSandbox(), ct);
+        model.Script(Writer, Reply("lemons.cs", Lemons));
+        var app = await Created(brain, "grocer");
+        await using var written = await brain.Observe<SynapseWritten>(app, ct);
+
+        await app.WriteSynapse("when asked, answer lemons", [], Guid.NewGuid());
+
+        await written.NextAsync(ct: ct);
+        var request = Assert.Single(model.Requests(Writer));
+        Assert.Equal("none", request.GetProperty("reasoning_effort").GetString());
+        var cap = request.TryGetProperty("max_completion_tokens", out var completion) ? completion : request.GetProperty("max_tokens");
+        Assert.Equal(new AppsOptions().FastPathMaxOutputTokens, cap.GetInt32());
+    }
+
+    [Fact]
     public async Task ACompileFailureGetsOneRepairThenIsRejected()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -163,6 +182,60 @@ public sealed class FastPathFacts : IDisposable
         var entry = Assert.Single((await app.Read()).Synapses!);
         // One attempt: the adapter's own HTTP retries are not repairs.
         Assert.Equal((SynapseStatus.Rejected, 1), (entry.Status, entry.Attempts));
+    }
+
+    [Fact]
+    public async Task ARefusalIsARejectionWithItsReasonAndNothingIsCompiledOrDeployed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runtime = new FakeAppRuntime();
+        var sandbox = new FastPathSandbox();
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await Start(model, runtime, sandbox, ct);
+        model.Script(Writer, "REFUSE: no contract publishes BTC prices", Reply("btc.cs", Lemons));
+        var app = await Created(brain, "trader");
+        await using var rejected = await brain.Observe<SynapseRejected>(app, ct);
+
+        await app.WriteSynapse("when BTC drops 5 %, notify me", [], Guid.NewGuid());
+
+        var reason = Assert.Single((await rejected.NextAsync(ct: ct)).Errors);
+        Assert.Equal(SynapseWriter.NoContract + "no contract publishes BTC prices", reason);
+        var live = await app.Read();
+        var entry = Assert.Single(live.Synapses!);
+        Assert.Equal((SynapseStatus.Rejected, 1, reason), (entry.Status, entry.Attempts, Assert.Single(entry.Errors)));
+        // A refusal is final: no repair, no compile, no WriteBehavior.
+        Assert.Single(model.Requests(Writer));
+        Assert.Empty(sandbox.Compiled);
+        Assert.Empty(runtime.Deployed);
+        Assert.DoesNotContain("btc.cs", live.Files.Keys);
+    }
+
+    [Theory]
+    [InlineData("REFUSE: no price feed", "no price feed")]
+    [InlineData("```\nrefuse:   no price feed  \n```", "no price feed")]
+    [InlineData("REFUSE:", "the model did not say what is missing")]
+    [InlineData("{\"path\": \"a.cs\", \"source\": \"// REFUSE: not a refusal\"}", null)]
+    public void OnlyALeadingMarkerLineIsARefusal(string reply, string? missing)
+        => Assert.Equal(missing, SynapseWriter.Refusal(reply));
+
+    [Fact]
+    public async Task ThePromptCarriesTheKeyRuleAndTheRefusal()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await Start(model, new FakeAppRuntime(), new FastPathSandbox(), ct);
+        model.Script(Writer, Reply("lemons.cs", Lemons));
+        var app = await Created(brain, "grocer");
+        await using var written = await brain.Observe<SynapseWritten>(app, ct);
+
+        await app.WriteSynapse("when asked, answer lemons", [], Guid.NewGuid());
+
+        await written.NextAsync(ct: ct);
+        var prompt = Prompt(model);
+        Assert.Contains("Every neuron key a synapse creates or reads starts with the app key or the brain scope", prompt, StringComparison.Ordinal);
+        Assert.Contains("app.GetPrimaryKeyString() + \"/alert\"", prompt, StringComparison.Ordinal);
+        Assert.Contains("A sentence that needs a missing contract is refused, never faked", prompt, StringComparison.Ordinal);
+        Assert.Contains(AgentPrompts.Refusal + " <what is missing", prompt, StringComparison.Ordinal);
     }
 
     [Fact]
