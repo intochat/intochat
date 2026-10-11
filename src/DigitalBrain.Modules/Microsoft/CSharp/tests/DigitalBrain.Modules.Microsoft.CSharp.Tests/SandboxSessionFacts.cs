@@ -180,4 +180,56 @@ public sealed class SandboxSessionFacts
         Assert.Equal(reportsAfterRetire, edge.RecordedReports.Count);   // no reload after retire
         Assert.False(control.IsCompleted);
     }
+
+    // An update assigns a new hash while the old one waits out its crash backoff. The pending reload belongs
+    // to the replaced program: when it comes due between two crashes of the new hash it must not load the old one.
+    [Fact]
+    public async Task AReloadPendingForAReplacedHashNeverLoadsItAgain()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var edge = new FakeBrainEdge();
+        var replaced = BehaviorLoaderFacts.Compile("throw new InvalidOperationException(\"old\");\n");
+        // Crashes a little later than the old hash did, so its reload comes due after the old one's.
+        var current = BehaviorLoaderFacts.Compile("await Task.Delay(100);\nthrow new InvalidOperationException(\"new\");\n");
+        edge.Serve(replaced);
+        edge.Serve(current);
+        await using var connection = await BehaviorLoaderFacts.Open(edge, ct);
+        await using var session = new Session(connection, BehaviorLoaderFacts.Loader(edge), NullLogger.Instance, TimeSpan.FromMilliseconds(500));
+        _ = session.RunAsync(ct);
+        const string behavior = "acc-brain/apps/demo/run-on-row.cs";
+
+        edge.Push(AssignmentEvent.Kind, edge.Assignment(behavior, replaced));
+        await edge.StatusAsync(behavior, ct, status: "Exited");
+        edge.Push(AssignmentEvent.Kind, edge.Assignment(behavior, current));
+        var crashed = await edge.StatusAsync(behavior, ct, status: "Exited");
+        var reloaded = await edge.StatusAsync(behavior, ct, status: "Running");
+
+        Assert.Equal(current.Hash, crashed["hash"]!.GetValue<string>());
+        Assert.Equal(current.Hash, reloaded["hash"]!.GetValue<string>());
+    }
+
+    // Ready names the brain's whole desired set: a crashed behavior waiting out its backoff is held too,
+    // so one the brain no longer names is answered as stopped and never reloaded.
+    [Fact]
+    public async Task AReadyThatNoLongerNamesACrashedBehaviorCancelsItsReload()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var edge = new FakeBrainEdge();
+        var crashing = BehaviorLoaderFacts.Compile("throw new InvalidOperationException(\"boom\");\n");
+        edge.Serve(crashing);
+        await using var connection = await BehaviorLoaderFacts.Open(edge, ct);
+        await using var session = new Session(connection, BehaviorLoaderFacts.Loader(edge), NullLogger.Instance, TimeSpan.FromMilliseconds(100));
+        _ = session.RunAsync(ct);
+        const string behavior = "acc-brain/apps/demo/run-on-row-deleted.cs";
+
+        edge.Push(AssignmentEvent.Kind, edge.Assignment(behavior, crashing));
+        await edge.StatusAsync(behavior, ct, status: "Exited");
+        edge.Push(ReadyEvent.Kind, new ReadyEvent("s1", ["acc-brain/csharp/other"]));
+        var next = await edge.StatusAsync(behavior, ct);
+        var reportsAfterReady = edge.RecordedReports.Count;
+        await Task.Delay(300, ct);
+
+        Assert.Equal(("Stopped", crashing.Hash), (next["status"]!.GetValue<string>(), next["hash"]!.GetValue<string>()));
+        Assert.Equal(reportsAfterReady, edge.RecordedReports.Count);   // no reload after the ready
+    }
 }
