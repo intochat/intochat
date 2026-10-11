@@ -42,9 +42,11 @@ internal sealed class PartForwarder(PartRoutes routes, PartRouter router, IMachi
         var call = new ForwardedCall(context.TargetId, context.Request, CallerContextStamper.TryGet(out var caller) ? caller : null, TraceContext.Current);
         if (context.Request.GetMethod()?.GetCustomAttribute<OneWayAttribute>() is not null)
         {
+            // R103: the request is serialized now; Orleans may reset the pooled invokable once this call returns.
+            var oneWay = Request(holder, part, context, call);
             _ = Task.Run(async () =>
             {
-                try { Settle(await Forward(holder, part, context, call), part); }
+                try { Settle(await Send(holder, part, oneWay), part); }
                 catch (Exception error) { logger.LogWarning(error, "A one-way call forwarded to {Holder} for part {Part} failed.", holder, part); }
             });
             context.Result = null;
@@ -76,15 +78,29 @@ internal sealed class PartForwarder(PartRoutes routes, PartRouter router, IMachi
         return outcome.Result;
     }
 
-    private async Task<ForwardedOutcome> Forward(string holder, PartId part, IGrainCallContext context, ForwardedCall call)
+    private Task<ForwardedOutcome> Forward(string holder, PartId part, IGrainCallContext context, ForwardedCall call)
+        => Send(holder, part, Request(holder, part, context, call));
+
+    // The client activity and the serialized request, made while the call (and its invokable) is still live. The
+    // caller's ambient activity is restored; the client activity is ended by Send.
+    private (Activity? Activity, LinkRequest Request) Request(string holder, PartId part, IGrainCallContext context, ForwardedCall call)
     {
-        using var activity = PartCallFilter.Source.StartActivity($"PartCall {context.InterfaceName}.{context.MethodName}", ActivityKind.Client);
+        var ambient = Activity.Current;
+        var activity = PartCallFilter.Source.StartActivity($"PartCall {context.InterfaceName}.{context.MethodName}", ActivityKind.Client);
         activity?.SetTag(PartCallFilter.MachineTag, transport.LocalMachineId);
         activity?.SetTag(PartCallFilter.GrainTag, context.TargetId.ToString());
         activity?.SetTag(PartCallFilter.PartTag, part.Value);
         activity?.SetTag("digitalbrain.holder", holder);
-        var traced = Activity.Current;
+        var traced = activity ?? ambient;
         var request = new LinkRequest(PartCallFilter.Operation, serializer.SerializeToArray(call), traced?.Id, traced?.TraceStateString, Guid.NewGuid());
+        Activity.Current = ambient;
+        return (activity, request);
+    }
+
+    private async Task<ForwardedOutcome> Send(string holder, PartId part, (Activity? Activity, LinkRequest Request) prepared)
+    {
+        using var activity = prepared.Activity;
+        var request = prepared.Request;
         LinkReply reply;
         try
         {
@@ -130,24 +146,23 @@ internal sealed class PartIncomingCallFilter(PartForwarder forwarder) : IIncomin
     {
         // System targets and timer ticks carry no grain id of a part.
         if (context.Grain is not IGrainBase || forwarder.Routes.PartOf(context.TargetId) is not { } part) { await context.Invoke(); return; }
-        var standIn = forwarder.Router.IsStandIn(context.TargetId);
+        if (!forwarder.Router.IsStandIn(context.TargetId))
+        {
+            if (await forwarder.Router.Resolve(part) is PartRoute.Remote moved) { await forwarder.Route(part, moved.MachineId, context, context.Invoke); }
+            else { await context.Invoke(); }
+            return;
+        }
+        // A stand-in only forwards; it is deactivated after the last call it is forwarding, so interleaved calls finish.
+        forwarder.Router.Enter(context.TargetId);
         try
         {
-            if (await forwarder.Router.Resolve(part) is PartRoute.Remote holder)
-            {
-                await forwarder.Route(part, holder.MachineId, context, standIn ? () => throw Moved(part) : context.Invoke);
-                return;
-            }
-            if (standIn) { throw Moved(part); }
-            await context.Invoke();
+            if (await forwarder.Router.Resolve(part) is not PartRoute.Remote holder) { throw Moved(part); }
+            await forwarder.Route(part, holder.MachineId, context, () => throw Moved(part));
         }
         finally
         {
-            if (standIn)
-            {
-                forwarder.Router.ForgetStandIn(context.TargetId);
-                context.TargetContext.Deactivate(new DeactivationReason(DeactivationReasonCode.ApplicationRequested, $"A stand-in for part {part}."), CancellationToken.None);
-            }
+            if (forwarder.Router.Leave(context.TargetId))
+            { context.TargetContext.Deactivate(new DeactivationReason(DeactivationReasonCode.ApplicationRequested, $"A stand-in for part {part}."), CancellationToken.None); }
         }
     }
 

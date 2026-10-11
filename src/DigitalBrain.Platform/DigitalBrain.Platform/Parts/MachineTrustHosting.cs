@@ -32,6 +32,7 @@ public static class MachineTrustHosting
         if (services.Any(service => service.ServiceType == typeof(PartRouter))) { return; }
         services.TryAddSingleton<PartRoutes>();
         services.TryAddSingleton<PartRouter>();
+        services.TryAddSingleton<DigitalBrain.Framework.IStandInActivations>(provider => provider.GetRequiredService<PartRouter>());
         services.TryAddSingleton<ForwardedCallEndpoint>();
         services.TryAddSingleton<PartForwarder>();
         services.AddSingleton<IOutgoingGrainCallFilter, PartCallFilter>();

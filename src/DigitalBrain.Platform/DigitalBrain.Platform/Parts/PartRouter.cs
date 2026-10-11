@@ -19,6 +19,7 @@ internal abstract record PartRoute
 // when this machine may lease the part (R82: the core needs an Own machine), else 503. A remote resolution is
 // cached until the head's LeaseExpiry (R89) or a NotHolder reply.
 internal sealed class PartRouter(PartLogs logs, ISequencerClient sequencer, MachineIdentity machine, IOptions<PartsOptions> options, TimeProvider time)
+    : DigitalBrain.Framework.IStandInActivations
 {
     private readonly ConcurrentDictionary<string, (PartRoute.Remote Route, DateTimeOffset Until)> _remote = new(StringComparer.Ordinal);
 
@@ -54,4 +55,16 @@ internal sealed class PartRouter(PartLogs logs, ISequencerClient sequencer, Mach
     public bool IsStandIn(GrainId grain) => _standIns.ContainsKey(grain);
 
     public void ForgetStandIn(GrainId grain) => _standIns.TryRemove(grain, out _);
+
+    // Calls a stand-in is forwarding: it is deactivated after the last of them, never under one.
+    private readonly ConcurrentDictionary<GrainId, int> _inFlight = new();
+
+    public void Enter(GrainId grain) => _inFlight.AddOrUpdate(grain, 1, (_, count) => count + 1);
+
+    // True when this was the last call in flight.
+    public bool Leave(GrainId grain)
+    {
+        var left = _inFlight.AddOrUpdate(grain, 0, (_, count) => count - 1);
+        return left <= 0 && _inFlight.TryRemove(new KeyValuePair<GrainId, int>(grain, left));
+    }
 }
