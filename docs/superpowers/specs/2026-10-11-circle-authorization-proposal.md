@@ -55,6 +55,18 @@ proposal text is kept as the record of what was weighed. Rulings that settle the
 - **T26-11 — Compute share stays:** `CircleShareGrain` is keyed by the circle brain's `{circle}/circle`; it charges
   `IBrain.Owner` of the circle brain (the creator) up to the configured percent for members' calls.
 
+- **Round 1 (controller rulings R124–R131)**, recorded in the plan as T26-12 to T26-19:
+  - **R124 Share path.** Sharing loads the sharer's compile-gated app bundle into the circle brain through `FeatureLoader`, with `Origin` = the sharer's app and no Marketplace listing. It uses a direct, kernel-stamped `AppSource.Brain` used only by Share. Any member may share.
+  - **R125 Circle brains are a kind.** Circle brains carry `Kind = Circle` on the trust side and get no OS defaults, only the circle's own app.
+  - **R126 Where the Circle app runs.** `os/Circle` in each member's brain keeps the index from `BrainsOf` and creates circles through `ICircleFactory`. Invite and accept go only through the human route at `/brains/{circle}`. The circle brain's own app holds `say`, `watch` and `share`. The shell watches `/brains/{circle}/live`.
+  - **R127 Agreement keys.** Each machine registers a P-256 agreement key (TPM-held where the provider supports it). A wrap is ephemeral-static ECDH by the holder. `Contribute` wraps every existing part key to the new machine.
+  - **R128 Contributed machines.** They are recorded trust-side (`ContributeMachine`/`WithdrawMachine`) and count as owner machines for that circle brain only.
+  - **R129 Membership authority.** The circle core calls `EnsureMember` on `Accept` and `RemoveMember` on `Remove`. The creator cannot be removed; the creator leaving deletes the circle.
+  - **R130 Credential re-sealing.** The owner's machine re-seals connection credentials locally and writes them through a forwarded call. No plaintext crosses any call.
+  - **R131 No retroactive revocation.** Data written before a rotation stays readable to a removed machine that holds the old key (Q6).
+  - **T26-8 source of the stamp.** `BrainId = circle` comes from the `/brains/{circle}` route's membership filter, over HTTP and `/brains/{circle}/mcp`.
+- **T26-6 note.** The synapse list in T26-6 is superseded by R126.
+
 **What the rejected shapes would have cost:**
 - **B (grants as call rights):** `Grant` turned into a fifth concept and membership stored twice (circle + grants), with
   divergent revocation writes.
