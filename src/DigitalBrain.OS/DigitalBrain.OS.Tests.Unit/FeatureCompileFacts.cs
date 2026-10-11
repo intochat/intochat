@@ -24,12 +24,13 @@ public sealed class FeatureCompileFacts
         var compiled = 0;
         foreach (var feature in new FeatureDirectory(SolutionProjects.Features).Load())
         {
-            // Mirrors FeatureCatalog.RequireCompiles: the bundle's .cs files plus the written declaration.
+            // Mirrors what an installed app deploys (AppNeuron.Sources): its program files only. app.cs is the
+            // declaration, kept as manifest and spec state, so a synapse that names `App` compiles at boot but
+            // not in the brain's runtime.
             var bundle = feature.Bundle;
-            var scripts = bundle.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal))
+            var scripts = bundle.Files.Where(file => AppFiles.IsProgram(file.Key))
                 .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
             if (scripts.Count == 0) { continue; }
-            scripts[AppFiles.DeclarationPath] = AppDeclaration.Write(new(bundle.Name, bundle.Version, bundle.Manifest, bundle.Spec));
             var check = await sandbox.Compile(scripts, ct);
             compiled++;
             var reported = check.Errors.Select(error => $"{feature.Owner}/{bundle.Name}: {error.File}:{error.Line} {error.Id} {error.Message}").ToArray();
