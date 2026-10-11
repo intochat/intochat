@@ -195,6 +195,8 @@ internal sealed class CircleNeuron(
     {
         RequireBrain();
         if (!BrainScope.IsValidId(brainId)) { throw new ArgumentException("That is not a brain id.", nameof(brainId)); }
+        if (!await identity.BrainExists(brainId))
+        { throw new ArgumentException($"There is no brain {brainId} to invite.", nameof(brainId)); }
         var next = Owned();
         if (next.Members.Contains(brainId) || next.Invited.Contains(brainId))
         { throw new InvalidOperationException($"{brainId} is already in {Name} or invited to it."); }

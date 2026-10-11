@@ -32,6 +32,9 @@ public interface IIdentityClient
 
     Task<BrainKind> KindOf(string brainScopeId);
 
+    // A brain exists once its owner was provisioned; KindOf answers Personal for an id nobody ever created.
+    Task<bool> BrainExists(string brainScopeId);
+
     Task<Member?> Membership(string brainScopeId, string principalId);
 
     Task<Member?> EnsureMember(Member member);

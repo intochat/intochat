@@ -334,6 +334,11 @@ internal sealed class AppNeuron(
         ArgumentNullException.ThrowIfNull(bundle);
         RequireCreated();
         RequireBundleFor(bundle);
+        // A retried update at the version already held, with the same program, changes nothing.
+        if (bundle.Version == Snapshot.Version && bundle.Spec == Snapshot.Spec
+            && bundle.Files.Count == Snapshot.Files.Count
+            && bundle.Files.All(file => Snapshot.Files.TryGetValue(file.Key, out var held) && held == file.Value))
+        { return Describe(Snapshot); }
         var next = Snapshot.Clone();
         next.Manifest = bundle.Manifest.Validated();
         next.Spec = bundle.Spec;
@@ -554,7 +559,8 @@ internal sealed class AppNeuron(
     {
         var record = new AppVersionRecord(next.Version, clock.GetUtcNow(), next.Manifest!, next.Spec,
             new(next.Files, StringComparer.Ordinal));
-        next.History = [.. next.History.TakeLast(MaxHistory - 1), record];
+        // One entry per version: a version saved again replaces its entry.
+        next.History = [.. next.History.Where(held => held.Version != next.Version).TakeLast(MaxHistory - 1), record];
     }
 
     private bool Replayed(Guid operationId) => Snapshot.Receipts.Any(receipt => receipt.OperationId == operationId);
