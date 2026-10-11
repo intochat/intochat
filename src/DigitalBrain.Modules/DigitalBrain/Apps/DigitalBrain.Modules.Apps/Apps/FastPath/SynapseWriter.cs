@@ -26,6 +26,7 @@ internal sealed class SynapseWriter(
     IOptions<AppsOptions> options,
     TimeProvider clock,
     ILogger<SynapseWriter> log,
+    IEnumerable<IAppRuntime> runtimes,
     IScriptSandbox? sandbox = null)
 {
     internal static readonly ActivitySource Telemetry = new("DigitalBrain.Apps.FastPath");
@@ -41,6 +42,9 @@ internal sealed class SynapseWriter(
     private const int MaxContractLineLength = 4000;
     private const int ContractMatches = 5;
     internal const string NoContract = "Refused, no contract: ";
+    // A deploy call that times out may still land: the runtime joins a repeat of the same program to the one in
+    // flight (IAppRuntime), so the writer asks again this many times before it gives the deploy up.
+    internal const int MaxDeployCalls = 4;
 
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim> _deploys = new(StringComparer.Ordinal);
 
@@ -56,6 +60,14 @@ internal sealed class SynapseWriter(
     {
         private SemaphoreSlim? _held;
 
+        // A deploy was asked for and never answered: the runtime may hold a program the app's files do not.
+        public bool Unsettled { get; set; }
+
+        public long DeployMs { get; set; }
+
+        // What the app ran before this write staged its file: the program a rejected, unsettled deploy goes back to.
+        public AppProgram? Before { get; set; }
+
         public async Task Enter(SemaphoreSlim gate, CancellationToken cancellationToken)
         {
             await gate.WaitAsync(cancellationToken);
@@ -67,7 +79,7 @@ internal sealed class SynapseWriter(
 
     private sealed record Job(string AppKey, Guid OperationId, string Sentence, string[] Focus, long Started, DateTimeOffset RequestedAt);
 
-    private sealed record Outcome(string[] Errors, int Attempts, string? Base, string? Path);
+    private sealed record Outcome(string[] Errors, int Attempts, string? Base, string? Path, string? Hash = null);
 
     private sealed record WrittenSynapse(string? Path, string? Source);
 
@@ -109,9 +121,11 @@ internal sealed class SynapseWriter(
             span?.SetTag("apps.fastpath.attempts", outcome.Attempts);
             span?.SetTag("apps.fastpath.base", outcome.Base ?? "");
             span?.SetTag("apps.fastpath.elapsed_ms", elapsed);
+            // Runtime first, then the record: by the time the rejection is seen, the runtime is back to the files.
+            if (outcome.Errors.Length > 0 && turn.Unsettled && turn.Before is { } before) { await Reconcile(job.AppKey, before, cancellationToken); }
             try
             {
-                var completed = await app.CompleteSynapse(job.OperationId, outcome.Errors, elapsed, outcome.Attempts, outcome.Base);
+                var completed = await app.CompleteSynapse(job.OperationId, outcome.Errors, elapsed, outcome.Attempts, outcome.Base, outcome.Hash);
                 recorded = completed.Synapses?.FirstOrDefault(synapse => synapse.OperationId == job.OperationId);
             }
             catch (Exception error)
@@ -132,8 +146,8 @@ internal sealed class SynapseWriter(
         {
             span?.SetTag("apps.fastpath.outcome", "written");
             span?.SetTag("apps.fastpath.path", recorded.Path);
-            log.LogInformation("SynapseOutcome {App} {OperationId} {Outcome} {Reason} {Path} {ElapsedMs} {Attempts} {Base}",
-                job.AppKey, job.OperationId, "written", "", recorded.Path, elapsed, outcome.Attempts, outcome.Base);
+            log.LogInformation("SynapseOutcome {App} {OperationId} {Outcome} {Reason} {Path} {ElapsedMs} {DeployMs} {Attempts} {Base}",
+                job.AppKey, job.OperationId, "written", "", recorded.Path, elapsed, turn.DeployMs, outcome.Attempts, outcome.Base);
             await Report(app, "completed", $"Wrote the synapse {recorded.Path}");
         }
         else
@@ -142,8 +156,8 @@ internal sealed class SynapseWriter(
             var reason = errors.Length > 0 ? string.Join(" | ", errors) : "unknown";
             span?.SetTag("apps.fastpath.outcome", "rejected");
             span?.SetStatus(ActivityStatusCode.Error, Clip(reason, 500));
-            log.LogInformation("SynapseOutcome {App} {OperationId} {Outcome} {Reason} {ElapsedMs} {Attempts}",
-                job.AppKey, job.OperationId, "rejected", reason, elapsed, outcome.Attempts);
+            log.LogInformation("SynapseOutcome {App} {OperationId} {Outcome} {Reason} {ElapsedMs} {DeployMs} {Attempts}",
+                job.AppKey, job.OperationId, "rejected", reason, elapsed, turn.DeployMs, outcome.Attempts);
             await Report(app, "attention", "Could not write the synapse: " + Clip(errors.FirstOrDefault() ?? reason, 300));
         }
     }
@@ -185,17 +199,69 @@ internal sealed class SynapseWriter(
             if (errors.Length == 0) { break; }
         }
         if (errors.Length > 0) { return new(errors, attempts, basis?.Name, null); }
-        // The app compiles the whole program again as it assigns it: that refusal is this synapse's too.
-        // One deploy per app at a time: overlapping writes queued on the app's turn would each wait out the
-        // others' Assign and time out while their deploys still land. Write releases the turn after completion.
+        // One deploy per app at a time, held until the outcome is recorded (Write releases it). The deploy runs
+        // here, outside the app's turn: files first (StageSynapse), then the runtime, however long it takes.
         await turn.Enter(_deploys.GetOrAdd(job.AppKey, _ => new SemaphoreSlim(1, 1)), cancellationToken);
-        try { await app.WriteBehavior(written!.Path!, written.Source!, job.OperationId); }
+        AppProgram program;
+        turn.Before = await app.Program();
+        try { program = await app.StageSynapse(job.OperationId, written!.Path!, written.Source!); }
         catch (Exception error) when (error is InvalidOperationException or ArgumentException)
         { return new([error.Message], attempts, basis?.Name, null); }
-        // A timeout leaves the deploy unknown: CompleteSynapse records Written when the synapse landed after all.
-        catch (TimeoutException error)
-        { return new([$"The deploy did not answer in time: {error.Message}"], attempts, basis?.Name, null); }
-        return new([], attempts, basis?.Name, written.Path);
+        var deployed = await Deploy(job.AppKey, program, turn, cancellationToken);
+        // The runtime compiles the whole program again as it assigns it: that refusal is this synapse's too.
+        if (deployed.Error is { } refused) { return new([refused], attempts, basis?.Name, null); }
+        return new([], attempts, basis?.Name, written.Path, deployed.Hashes.GetValueOrDefault(written.Path!));
+    }
+
+    private IAppRuntime? Runtime => runtimes.FirstOrDefault();
+
+    // The whole program to the runtime, asked again while a call times out (a repeat joins the deploy in flight).
+    // Unsettled stays set when no call answered: the program may land after all, and Reconcile undoes it.
+    private async Task<(IReadOnlyDictionary<string, string> Hashes, string? Error)> Deploy(string appKey, AppProgram program, DeployTurn turn, CancellationToken cancellationToken)
+    {
+        if (Runtime is not { } runtime) { return (new Dictionary<string, string>(), null); }
+        var started = Stopwatch.GetTimestamp();
+        turn.Unsettled = true;
+        try
+        {
+            for (var call = 1; ; call++)
+            {
+                try
+                {
+                    var hashes = program.Sources.Count == 0
+                        ? new Dictionary<string, string>()
+                        : await runtime.Deploy(appKey, program.Sources, program.Configuration, cancellationToken);
+                    if (program.Sources.Count == 0) { await runtime.Retire(appKey, cancellationToken); }
+                    turn.Unsettled = false;
+                    return (hashes, null);
+                }
+                catch (Exception error) when (error is InvalidOperationException or ArgumentException)
+                {
+                    turn.Unsettled = false;
+                    return (new Dictionary<string, string>(), error.Message);
+                }
+                catch (TimeoutException error) when (call < MaxDeployCalls)
+                { log.LogInformation("SynapseDeployWaiting {App} {Call} {Reason}", appKey, call, Clip(error.Message, 300)); }
+                catch (TimeoutException error)
+                { return (new Dictionary<string, string>(), $"The deploy did not answer after {MaxDeployCalls} calls: {error.Message}"); }
+            }
+        }
+        finally { turn.DeployMs = (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds; }
+    }
+
+    // The runtime back to the program before the write, after a deploy that never answered and may still land:
+    // the later program replaces it (and the brain runtime refuses an older Assign applied after a newer one).
+    private async Task Reconcile(string appKey, AppProgram before, CancellationToken cancellationToken)
+    {
+        var settle = new DeployTurn();
+        try
+        {
+            var reconciled = await Deploy(appKey, before, settle, cancellationToken);
+            if (settle.Unsettled || reconciled.Error is not null)
+            { log.LogError("SynapseUnreconciled {App} {Reason}", appKey, reconciled.Error ?? "the runtime did not answer"); }
+        }
+        catch (Exception error)
+        { log.LogError(error, "SynapseUnreconciled {App} {Reason}", appKey, error.Message); }
     }
 
     // One capped model call: the fast path's reasoning effort and output cap ride on the selection, so the

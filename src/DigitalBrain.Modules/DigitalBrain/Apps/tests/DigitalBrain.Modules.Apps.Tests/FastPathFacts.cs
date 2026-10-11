@@ -17,7 +17,6 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
-using Orleans.Configuration;
 
 namespace DigitalBrain.Modules.Apps.Tests;
 
@@ -572,13 +571,13 @@ public sealed class FastPathFacts : IDisposable
     public async Task ThreeSentencesWrittenToOneAppAtOnceAllEndWrittenOrRejected()
     {
         var ct = TestContext.Current.CancellationToken;
-        // Every deploy outlasts a call's response timeout, as a slow Assign does live: overlapping writes queue
-        // behind each other's deploys, and each writer gives up on its WriteBehavior before the deploy lands.
-        var runtime = new SlowAppRuntime(TimeSpan.FromSeconds(3));
+        // Every deploy outlasts a call's wait, as a busy Assign does live: the three writes queue behind the app's
+        // deploy turn, and each writer's first deploy call times out while its deploy is still running.
+        var runtime = new SlowAppRuntime(TimeSpan.FromMilliseconds(600));
         await using var model = await FakeModelServer.StartAsync(ct);
         await using var brain = await StartSlow(model, runtime, ct);
         model.Script(Writer, Reply("apples.cs", Lemons), Reply("pears.cs", Lemons), Reply("plums.cs", Lemons));
-        var app = await Created(brain, "grocer");
+        var app = await Created(brain, "grocer-" + Guid.NewGuid().ToString("N"));
         await using var outcomes = await brain.Observe<Signal>(app, ct);
 
         await Task.WhenAll(
@@ -590,35 +589,66 @@ public sealed class FastPathFacts : IDisposable
         { await outcomes.NextAsync(signal => signal is SynapseWritten or SynapseRejected, ct); }
         var live = await app.Read();
         Assert.Equal(3, live.Synapses!.Length);
-        // Each outcome matches the program: Written exactly when its file is in the program the runtime last ran.
-        var program = runtime.Deployed[^1];
+        // Each outcome matches the program: Written exactly when its file is in the app and in what the runtime runs.
+        var program = runtime.Current(app.GetPrimaryKeyString()) ?? [];
         Assert.All(live.Synapses, synapse => Assert.Contains(synapse.Status, new[] { SynapseStatus.Written, SynapseStatus.Rejected }));
         Assert.All(live.Synapses, synapse => Assert.Equal(synapse.Status == SynapseStatus.Written,
             synapse.Path is { } path && live.Files.ContainsKey(path) && program.ContainsKey(path)));
         Assert.All(live.Synapses.Where(synapse => synapse.Status == SynapseStatus.Rejected), synapse => Assert.NotEmpty(synapse.Errors));
         // Every deploy here lands, so none may be rejected for having waited on another.
         Assert.All(live.Synapses, synapse => Assert.Equal(SynapseStatus.Written, synapse.Status));
+        Assert.True(runtime.TimedOutCalls >= 3, $"{runtime.TimedOutCalls} deploy calls timed out");
     }
 
     [Fact]
-    public async Task AWriteWhoseDeployOutlastsTheWritersWaitIsRecordedWritten()
+    public async Task ADeploySlowerThanTheResponseTimeoutStillEndsWrittenWithTheFilePresent()
     {
         var ct = TestContext.Current.CancellationToken;
-        var runtime = new SlowAppRuntime(TimeSpan.FromSeconds(3));
+        var runtime = new SlowAppRuntime(TimeSpan.FromMilliseconds(700));
         await using var model = await FakeModelServer.StartAsync(ct);
         await using var brain = await StartSlow(model, runtime, ct);
         model.Script(Writer, Reply("lemons.cs", Lemons));
-        var app = await Created(brain, "grocer");
+        var app = await Created(brain, "grocer-" + Guid.NewGuid().ToString("N"));
         await using var written = await brain.Observe<SynapseWritten>(app, ct);
 
         await app.WriteSynapse("when asked, answer lemons", [], Guid.NewGuid());
 
-        Assert.Equal("lemons.cs", (await written.NextAsync(ct: ct)).Path);
-        var entry = Assert.Single((await app.Read()).Synapses!);
-        Assert.Equal((SynapseStatus.Written, "lemons.cs"), (entry.Status, entry.Path));
+        var signal = await written.NextAsync(ct: ct);
+        Assert.Equal(("lemons.cs", "hash:lemons.cs"), (signal.Path, signal.Hash));
+        var live = await app.Read();
+        var entry = Assert.Single(live.Synapses!);
+        Assert.Equal((SynapseStatus.Written, "lemons.cs", "hash:lemons.cs"), (entry.Status, entry.Path, entry.Hash));
         Assert.Empty(entry.Errors);
-        // The deploy outlasted the call timeout, so the writer gave up on WriteBehavior before it answered.
-        Assert.True(entry.ElapsedMs > CallTimeout.TotalMilliseconds, $"{entry.ElapsedMs} ms");
+        Assert.Equal(Lemons, live.Files["lemons.cs"]);
+        Assert.Equal(Lemons, runtime.Current(app.GetPrimaryKeyString())?["lemons.cs"]);
+        // The first call timed out and the repeat joined the deploy in flight: one deploy, not two.
+        Assert.True(runtime.TimedOutCalls >= 1, $"{runtime.TimedOutCalls} deploy calls timed out");
+        Assert.Equal(1, runtime.Deploys);
+    }
+
+    [Fact]
+    public async Task ADeployThatNeverAnswersEndsRejectedAndTheRuntimeHoldsNoProgramForIt()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runtime = new SlowAppRuntime(TimeSpan.Zero) { Never = sources => sources.ContainsKey("stuck.cs") };
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await StartSlow(model, runtime, ct);
+        model.Script(Writer, Reply("stuck.cs", Lemons));
+        var app = await Created(brain, "grocer-" + Guid.NewGuid().ToString("N"));
+        await using var rejected = await brain.Observe<SynapseRejected>(app, ct);
+
+        await app.WriteSynapse("when asked, answer lemons", [], Guid.NewGuid());
+
+        var signal = await rejected.NextAsync(ct: ct);
+        Assert.Contains(signal.Errors, error => error.Contains("did not answer", StringComparison.Ordinal));
+        var live = await app.Read();
+        var entry = Assert.Single(live.Synapses!);
+        Assert.Equal(SynapseStatus.Rejected, entry.Status);
+        Assert.False(live.Files.ContainsKey("stuck.cs"));
+        Assert.Equal(SynapseWriter.MaxDeployCalls, runtime.TimedOutCalls);
+        // The runtime was brought back to the app's files: whatever it holds for the app has no stuck.cs.
+        Assert.False(runtime.Current(app.GetPrimaryKeyString())?.ContainsKey("stuck.cs") ?? false);
+        Assert.Contains(app.GetPrimaryKeyString(), runtime.Retired);
     }
 
     [Fact]
@@ -679,7 +709,8 @@ public sealed class FastPathFacts : IDisposable
             .ConfigureServices(services => services.AddSingleton<IScriptSandbox>(sandbox))
             .StartAsync(ct);
 
-    private static readonly TimeSpan CallTimeout = TimeSpan.FromSeconds(2);
+    private const int SynapseWriterCalls = 4;
+    private static readonly TimeSpan CallTimeout = TimeSpan.FromMilliseconds(250);
 
     private static Task<ITestBrain> StartSlow(FakeModelServer model, SlowAppRuntime runtime, CancellationToken ct)
         => TestBrain.Create()
@@ -691,24 +722,62 @@ public sealed class FastPathFacts : IDisposable
                 services.RemoveAll<IAppRuntime>();
                 services.AddSingleton<IAppRuntime>(runtime);
                 services.AddSingleton<IScriptSandbox>(new FastPathSandbox());
-                services.Configure<SiloMessagingOptions>(messaging => messaging.ResponseTimeout = CallTimeout);
             })
             .StartAsync(ct);
 
-    // Deploys after a delay longer than a call's response timeout; records each program it ran.
+    // The IAppRuntime contract with a slow Assign behind a call timeout, as the brain runtime is live: a call
+    // waits at most CallTimeout and then throws TimeoutException while the deploy goes on; the same program
+    // asked again joins the deploy in flight. A program Never matches is a deploy that never lands.
     private sealed class SlowAppRuntime(TimeSpan delay) : IAppRuntime
     {
-        public ConcurrentQueue<Dictionary<string, string>> Ran { get; } = new();
-        public Dictionary<string, string>[] Deployed => [.. Ran];
+        private readonly Lock _gate = new();
+        private readonly Dictionary<string, Task<IReadOnlyDictionary<string, string>>> _inFlight = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, Dictionary<string, string>> _current = new(StringComparer.Ordinal);
+        private int _deploys;
+        private int _timedOut;
+
+        public Func<Dictionary<string, string>, bool> Never { get; init; } = _ => false;
+        public ConcurrentQueue<string> Retired { get; } = new();
+        public int Deploys => Volatile.Read(ref _deploys);
+        public int TimedOutCalls => Volatile.Read(ref _timedOut);
+
+        public Dictionary<string, string>? Current(string appKey) { lock (_gate) { return _current.GetValueOrDefault(appKey); } }
 
         public async Task<IReadOnlyDictionary<string, string>> Deploy(string appKey, Dictionary<string, string> sources, Dictionary<string, string> configuration, CancellationToken cancellationToken)
         {
-            await Task.Delay(delay, CancellationToken.None);
-            Ran.Enqueue(new(sources, StringComparer.Ordinal));
+            var key = appKey + "\n" + string.Join("\n", sources.OrderBy(file => file.Key, StringComparer.Ordinal).Select(file => file.Key + "=" + file.Value));
+            Task<IReadOnlyDictionary<string, string>> deploy;
+            lock (_gate)
+            {
+                if (!_inFlight.TryGetValue(key, out deploy!))
+                {
+                    deploy = Land(appKey, new(sources, StringComparer.Ordinal));
+                    _inFlight[key] = deploy;
+                }
+            }
+            try { return await deploy.WaitAsync(CallTimeout, cancellationToken); }
+            catch (TimeoutException)
+            {
+                Interlocked.Increment(ref _timedOut);
+                throw new TimeoutException($"Response did not arrive on time in {CallTimeout} for Assign.");
+            }
+        }
+
+        private async Task<IReadOnlyDictionary<string, string>> Land(string appKey, Dictionary<string, string> sources)
+        {
+            Interlocked.Increment(ref _deploys);
+            if (Never(sources)) { await Task.Delay(Timeout.Infinite); }
+            await Task.Delay(delay);
+            lock (_gate) { _current[appKey] = sources; }
             return sources.Keys.ToDictionary(path => path, path => "hash:" + path, StringComparer.Ordinal);
         }
 
-        public Task Retire(string appKey, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task Retire(string appKey, CancellationToken cancellationToken)
+        {
+            lock (_gate) { _current.Remove(appKey); }
+            Retired.Enqueue(appKey);
+            return Task.CompletedTask;
+        }
     }
 
     private static async Task<IApp> Created(ITestBrain brain, string name)

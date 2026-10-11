@@ -573,6 +573,26 @@ public sealed class BrainRuntimeNeuronFacts
         Assert.Equal(newer.Hash, (await Programs(brain).Describe(Owner))!.Hash);
     }
 
+    // A caller whose Assign timed out asks again: the same program joins the one compiling, and once applied
+    // answers it, so it is compiled and stored once.
+    [Fact]
+    public async Task TheSameProgramAssignedAgainJoinsTheAssignInFlightAndIsStoredOnce()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var assemblies = new HeldAssemblies();
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, assemblies: assemblies);
+        var hold = assemblies.Hold = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var first = Programs(brain).Assign(Owner, Synapse(), []);
+        await assemblies.Entered.Task.WaitAsync(ct);
+
+        var again = Programs(brain).Assign(Owner, Synapse(), []);
+        hold.SetResult();
+
+        Assert.Equal((await first).Hash, (await again).Hash);
+        Assert.Equal((await first).Hash, (await Programs(brain).Assign(Owner, Synapse(), [])).Hash);
+        Assert.Equal(1, assemblies.Puts);
+    }
+
     // A live signal only nudges the runtime: its publisher returns while the runtime is still in a long turn,
     // and the signal is buffered once that turn ends.
     [Fact]
@@ -603,9 +623,12 @@ public sealed class BrainRuntimeNeuronFacts
     {
         public TaskCompletionSource? Hold { get; set; }
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _puts;
+        public int Puts => Volatile.Read(ref _puts);
 
         public async Task Put(DigitalBrain.Microsoft.CSharp.Catalog.CompiledBehavior behavior, CancellationToken cancellationToken)
         {
+            Interlocked.Increment(ref _puts);
             if (Hold is not { } hold) { return; }
             Entered.TrySetResult();
             await hold.Task.WaitAsync(cancellationToken);
