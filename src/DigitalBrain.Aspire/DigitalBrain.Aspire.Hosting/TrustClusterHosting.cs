@@ -22,18 +22,28 @@ public static class TrustClusterHosting
     public const string SiloEndpoint = "silo";
     public const string AdvertisedAddressKey = "DigitalBrain:Platform:Trust:AdvertisedAddress";
     public const string EndpointKey = "DigitalBrain:Platform:Trust:Endpoint";
+    public const string PinKey = "DigitalBrain:Platform:Trust:Pin";
+    public const string IdentityPathKey = "DigitalBrain:Platform:Trust:IdentityPath";
     public const string Loopback = "127.0.0.1";
 
     // R66: on one PC the trust host advertises and listens on loopback, so a machine's localhost endpoint reaches it.
     // R71: its silo port and its UDP link and relay ports are Aspire endpoints, allocated per run unless the AppHost
     // configuration fixes them (DigitalBrain:Platform:Trust:LinkPort / RelayPort / SiloPort), so two AppHosts can run
     // side by side. It opens no Orleans gateway (T20-7).
-    public static IResourceBuilder<T> AsTrustCluster<T>(this IResourceBuilder<T> trust, DigitalBrainBuilder brain, IConfiguration configuration)
+    // R96: with an identity path the AppHost owns the deployment's trust identity: it creates the trust host's key there
+    // once (or loads it), points the trust host at the same file, and pins every machine and MCP to its id.
+    public static IResourceBuilder<T> AsTrustCluster<T>(this IResourceBuilder<T> trust, DigitalBrainBuilder brain, IConfiguration configuration,
+        string? identityPath = null)
         where T : IResourceWithEnvironment, IResourceWithWaitSupport, IResourceWithEndpoints
     {
         ArgumentNullException.ThrowIfNull(trust);
         ArgumentNullException.ThrowIfNull(brain);
         ArgumentNullException.ThrowIfNull(configuration);
+        if (identityPath is { Length: > 0 })
+        {
+            trust.WithAnnotation(new TrustPinAnnotation(DigitalBrain.Framework.Parts.MachineKeyFile.IdOfFile(identityPath)))
+                .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(IdentityPathKey), identityPath);
+        }
         trust.WithEndpoint(name: LinkEndpoint, port: configuration.GetValue<int?>(LinkPortKey), scheme: "udp", isProxied: false, protocol: System.Net.Sockets.ProtocolType.Udp)
             .WithEndpoint(name: RelayEndpoint, port: configuration.GetValue<int?>(RelayPortKey), scheme: "udp", isProxied: false, protocol: System.Net.Sockets.ProtocolType.Udp)
             .WithEndpoint(name: SiloEndpoint, port: configuration.GetValue<int?>(SiloPortKey), scheme: "tcp", isProxied: false);
@@ -118,6 +128,8 @@ public static class TrustClusterHosting
     {
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(trust);
+        if (trust.Resource.Annotations.OfType<TrustPinAnnotation>().FirstOrDefault() is { } pin)
+        { client.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(PinKey), pin.TrustId); }
         return client.WaitFor(client.ApplicationBuilder.CreateResourceBuilder<IResource>(trust.Resource));
     }
 
@@ -135,6 +147,9 @@ public static class TrustClusterHosting
             .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(PairingSecretKey), pairingSecret)
             .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(MachineDirectoryKey), machineDirectory);
     }
+
+    // The trust host's id, carried on its resource for the machines that pin it (R96).
+    public sealed record TrustPinAnnotation(string TrustId) : IResourceAnnotation;
 
     public static string ContainerOf(string machine) => "grainstate-" + machine.ToLowerInvariant();
 

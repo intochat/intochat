@@ -279,6 +279,24 @@ public sealed class TrustLinkFacts
         Assert.Contains(TrustPin.PinKey, Describe(refused), StringComparison.Ordinal);
     }
 
+    // R96: with the trust host's id configured, a production machine starts.
+    [Fact(Timeout = 120_000)]
+    public async Task AProductionMachineWithAPinStarts()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        await using var trust = await TrustHost.StartAsync(ct);
+
+        await using var machine = await ModuleTest.Create().WithTrust(trust)
+            .WithConfiguration(TrustPin.PinKey, trust.TrustId)
+            .WithConfiguration($"{PartsOptions.Key}:{nameof(PartsOptions.ConfiguredCustodyAcknowledged)}", "true")
+            .ConfigureServices(services => services.Replace(ServiceDescriptor.Singleton<IHostEnvironment>(new ProductionEnvironment())))
+            .StartAsync(ct);
+
+        Assert.True(machine.SiloServices.GetRequiredService<IHostEnvironment>().IsProduction());
+        Assert.NotNull(await machine.SiloServices.GetRequiredService<IIdentityClient>().Membership(OwnerBrain, ModuleTest.DefaultAccount));
+    }
+
     [Fact(Timeout = 120_000)]
     public async Task NoMachineHostOpensAnOrleansClientToTheTrustCluster()
     {

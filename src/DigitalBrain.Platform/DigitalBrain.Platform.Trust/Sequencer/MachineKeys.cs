@@ -6,7 +6,7 @@ namespace DigitalBrain.Platform.Sequencer;
 // machine (MachineIdentity) signs.
 internal static class MachineKeys
 {
-    public static string IdOf(byte[] publicKey) => Convert.ToHexStringLower(SHA256.HashData(publicKey))[..16];
+    public static string IdOf(byte[] publicKey) => DigitalBrain.Framework.Parts.MachineKeyFile.IdOf(publicKey);
 
     public static bool Verify(byte[] publicKey, byte[] data, byte[] signature)
     {

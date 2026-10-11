@@ -212,6 +212,48 @@ public sealed class TrustClusterHostingFacts
             endpoint => Assert.False(endpoint.IsProxied));
     }
 
+    // R96: the AppHost owns the deployment's trust identity: it creates (once) or loads the trust host's key in the
+    // trust resource's directory and pins every machine and MCP to it, so a Production deployment starts.
+    [Fact]
+    public async Task EveryMachineCarriesTheTrustPin()
+    {
+        var identity = Path.Combine(Path.GetTempPath(), $"trust-{Guid.NewGuid():N}", "identity.key");
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        var brain = builder.AddDigitalBrain("memory", options: new());
+        var trust = builder.AddExecutable("trust", "unused", ".").AsTrustCluster(brain, builder.Configuration, identity);
+        var pairing = builder.AddParameter("machine-pairing-secret", "s3cret", secret: true);
+        var machine = builder.AddExecutable("os-a", "unused", ".").WithHttpEndpoint(name: "http")
+            .AsTrustMachine(trust, pairing, "/machines/os-a", builder.Configuration);
+        var mcp = builder.AddExecutable("digitalbrain-mcp-a", "unused", ".").AsTrustClientMachine(trust, pairing, "/machines/digitalbrain-mcp-a");
+
+        var onTrust = await Environment(builder, trust.Resource);
+        var pins = new[] { await Environment(builder, machine.Resource), await Environment(builder, mcp.Resource) }
+            .Select(values => values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.PinKey)]).ToArray();
+
+        Assert.Equal(identity, onTrust[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.IdentityPathKey)]);
+        Assert.All(pins, pin => Assert.Equal(pins[0], pin));
+        Assert.True(File.Exists(identity));
+    }
+
+    [Fact]
+    public async Task ThePinEqualsTheTrustHostsKeyId()
+    {
+        var identity = Path.Combine(Path.GetTempPath(), $"trust-{Guid.NewGuid():N}", "identity.key");
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        var brain = builder.AddDigitalBrain("memory", options: new());
+        var trust = builder.AddExecutable("trust", "unused", ".").AsTrustCluster(brain, builder.Configuration, identity);
+        var pairing = builder.AddParameter("machine-pairing-secret", "s3cret", secret: true);
+        var machine = builder.AddExecutable("os-a", "unused", ".").WithHttpEndpoint(name: "http")
+            .AsTrustMachine(trust, pairing, "/machines/os-a", builder.Configuration);
+
+        var pin = (await Environment(builder, machine.Resource))[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.PinKey)];
+
+        // The trust host's id, derived independently: the first 16 hex digits of SHA-256 over its key's SubjectPublicKeyInfo.
+        using var key = System.Security.Cryptography.ECDsa.Create();
+        key.ImportPkcs8PrivateKey(File.ReadAllBytes(identity), out _);
+        Assert.Equal(Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(key.ExportSubjectPublicKeyInfo()))[..16], pin);
+    }
+
     internal static async Task<Dictionary<string, object>> Environment(IDistributedApplicationBuilder builder, IResource resource)
     {
         var values = new Dictionary<string, object>();

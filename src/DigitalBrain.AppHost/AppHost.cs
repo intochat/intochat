@@ -80,7 +80,9 @@ var mcpPort = builder.Configuration.GetValue(McpPortKey, 5081);
 // catalog) is its own host and Orleans cluster on the orleans integration's tables and blobs, under its own
 // cluster id and container; each OS silo below, and each MCP, is a machine that reaches it only over its QUIC
 // link (H2, T20-7, R93). The trust host gets no other credential (R30) and no features copy (R56).
-var trust = builder.AddProject<Projects.DigitalBrain_Trust>("trust").AsTrustCluster(digitalBrain, builder.Configuration);
+// R96: the AppHost owns the trust identity (created once under the workdir) and pins every machine and MCP to it.
+var trust = builder.AddProject<Projects.DigitalBrain_Trust>("trust")
+    .AsTrustCluster(digitalBrain, builder.Configuration, Path.Combine(AspireModuleHosting.WorkdirOf(builder), "machines", "trust", "identity.key"));
 // One pairing secret for every OS machine of this deployment (R52): the second machine joins the owner's account.
 var pairingSecret = builder.AddParameter("machine-pairing-secret", new GenerateParameterDefault { MinLength = 32, Special = false }, secret: true, persist: true);
 

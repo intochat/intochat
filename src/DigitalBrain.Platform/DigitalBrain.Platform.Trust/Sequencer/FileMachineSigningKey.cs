@@ -16,17 +16,7 @@ internal sealed class FileMachineSigningKey : IMachineSigningKey, IDisposable
 
     public byte[] PublicKey { get; }
 
-    public static FileMachineSigningKey LoadOrCreate(string path)
-    {
-        var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-        if (File.Exists(path)) { key.ImportPkcs8PrivateKey(File.ReadAllBytes(path), out _); }
-        else
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllBytes(path, key.ExportPkcs8PrivateKey());
-        }
-        return new FileMachineSigningKey(key);
-    }
+    public static FileMachineSigningKey LoadOrCreate(string path) => new(MachineKeyFile.LoadOrCreate(path));
 
     public byte[] Sign(byte[] data) => _key.SignData(data, HashAlgorithmName.SHA256);
 
