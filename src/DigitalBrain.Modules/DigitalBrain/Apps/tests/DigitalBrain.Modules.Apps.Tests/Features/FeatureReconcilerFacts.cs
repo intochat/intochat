@@ -72,6 +72,26 @@ public sealed class FeatureReconcilerFacts : IDisposable
     }
 
     [Fact]
+    public async Task AnEditedShippedAppDeletedThenReinstalledIsFreshAndUnedited()
+    {
+        await using var brain = await Start();
+        var (alice, copy) = await Installed(brain);
+        using (alice.AsCaller())
+        {
+            await copy.WriteBehavior("greet.cs", "// mine\n", Guid.NewGuid());
+            Assert.True((await copy.Read()).Edited);
+            await copy.Delete();
+            Assert.Empty((await copy.Read()).Manifest.Title);
+
+            var again = await brain.Services.GetRequiredService<AppInstaller>().Install("os", "greeter", Ct);
+
+            Assert.False(again.Edited);
+            Assert.Equal("// greet\n", again.Files["greet.cs"]);
+            Assert.Equal("1.2.0", again.Origin!.Version);
+        }
+    }
+
+    [Fact]
     public async Task ReconcilingPutsAnOlderUneditedShippedAppOnTheCatalogVersion()
     {
         var ct = TestContext.Current.CancellationToken;

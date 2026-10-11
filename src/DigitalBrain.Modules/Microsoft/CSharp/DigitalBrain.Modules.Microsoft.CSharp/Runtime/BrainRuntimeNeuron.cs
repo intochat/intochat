@@ -180,7 +180,8 @@ internal sealed class BrainRuntimeNeuron(
             throw new InvalidOperationException("The program does not compile: "
                 + string.Join("; ", compiled.Errors.Select(error => $"{error.File} line {error.Line} {error.Id}: {error.Message}")));
         }
-        foreach (var behavior in compiled.Assemblies.Values) { await assemblies.Put(behavior, CancellationToken.None); }
+        foreach (var behavior in compiled.Assemblies.Values)
+        { if (!await assemblies.Exists(behavior.Hash, CancellationToken.None)) { await assemblies.Put(behavior, CancellationToken.None); } }
         BehaviorAssembly[] behaviors = [.. compiled.Assemblies.OrderBy(file => file.Key, StringComparer.Ordinal)
             .Select(file => new BehaviorAssembly(file.Key, file.Value.Hash))];
         _compiled[ticket] = new(owner, behaviors, new(settings, StringComparer.Ordinal), caller);

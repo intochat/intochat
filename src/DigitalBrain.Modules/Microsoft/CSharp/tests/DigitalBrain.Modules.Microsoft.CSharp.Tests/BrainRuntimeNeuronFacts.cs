@@ -634,7 +634,7 @@ public sealed class BrainRuntimeNeuronFacts
             await hold.Task.WaitAsync(cancellationToken);
         }
 
-        public Task<bool> Exists(string hash, CancellationToken cancellationToken) => Task.FromResult(true);
+        public Task<bool> Exists(string hash, CancellationToken cancellationToken) => Task.FromResult(false);
 
         public Task<Uri> ReadUrl(string name, TimeSpan lifetime, CancellationToken cancellationToken)
             => Task.FromResult(new Uri("memory://behaviors/" + name));

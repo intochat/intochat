@@ -46,8 +46,15 @@ internal sealed class PartGrainStorage(PartLogs logs, Serializer serializer, Par
     public async Task ClearStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
     {
         RefuseStandIn(grainId);
+        // A cleared activation reads as a fresh one, as Orleans' own providers leave it. A state type that cannot be
+        // built that way would keep the old record in memory, so it is refused before anything is written.
+        T fresh;
+        try { fresh = Activator.CreateInstance<T>(); }
+        catch (MissingMethodException error)
+        { throw new InvalidOperationException($"{typeof(T).Name} has no parameterless constructor, so {grainId} cannot be cleared to a fresh state.", error); }
         var log = await logs.For(PartId.Of(grainId.Key.ToString()!));
         await log.AppendIfCurrent(grainId.ToString(), stateName, Expected(grainState), RecordChange.Clear, [], SignalJournal.TakePending(grainId));
+        grainState.State = fresh;
         (grainState.ETag, grainState.RecordExists) = (null, false);
     }
 
