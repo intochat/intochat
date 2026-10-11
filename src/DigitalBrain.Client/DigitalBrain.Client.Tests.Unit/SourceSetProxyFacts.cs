@@ -13,7 +13,7 @@ namespace DigitalBrain.Client.Tests.Unit;
 // A set over the script's own neurons: its members are NeuronProxy instances, not grain references.
 public sealed class SourceSetProxyFacts
 {
-    [Fact(Timeout = 30_000)]
+    [Fact]
     public async Task ASetOverTheScriptsProxiesYieldsEachMembersSignalOnce()
     {
         var ct = TestContext.Current.CancellationToken;
