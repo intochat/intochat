@@ -10,7 +10,7 @@ public sealed class OsAssistantAppFacts
         var bundle = SolutionProjects.FeaturesOf("os")
             .Single(app => app.Name == "assistant");
 
-        Assert.Equal(["open", "send", "new", "voice"], bundle.Manifest.Operations.Select(operation => operation.Name));
+        Assert.Equal(["open", "send", "new", "voice", "make"], bundle.Manifest.Operations.Select(operation => operation.Name));
         Assert.Equal("icon.svg", bundle.Manifest.Icon);
         Assert.Contains("icon.svg", bundle.Files.Keys);
         Assert.Contains("Assistant.cs", bundle.Files.Keys);
