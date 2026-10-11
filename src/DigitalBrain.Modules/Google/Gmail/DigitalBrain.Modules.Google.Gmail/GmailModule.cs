@@ -17,8 +17,10 @@ public sealed class GmailModule() : Module<GmailModuleOptions>(new ModuleId("gma
 
     public const string HttpClientName = "DigitalBrain.Gmail";
 
+    public static IntegrationSchema Integration { get; } = IntegrationSchema.For("google-oauth", "Google OAuth").RequiresSecret("ClientId").RequiresSecret("ClientSecret");
+
+    // Discovery reads Integration and Integrations together, so the array holds only the other schemas.
     public static IntegrationSchema[] Integrations { get; } = [
-        IntegrationSchema.For("google-oauth", "Google OAuth").RequiresSecret("ClientId").RequiresSecret("ClientSecret"),
         IntegrationSchema.For("google-pubsub", "Google Pub/Sub push").RequiresSetting("Audience").RequiresSetting("ServiceAccountEmail"),
     ];
 
