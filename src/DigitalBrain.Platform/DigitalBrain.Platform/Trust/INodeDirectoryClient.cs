@@ -25,8 +25,9 @@ internal interface INodeDirectoryClient
     // T23-10: what this machine's audit of a node found; the trust side records it as returned (ShardBytes clamped).
     Task<AuditReport> ReportAudit(AuditReport report);
 
-    // T23-6: never onto a node of this machine's own accounts; only nodes with room for shardBytes.
-    Task<string[]> Place(int count, string[] exclude, int shardBytes);
+    // T23-6: never onto a node of this machine's own accounts; only nodes with room for shardBytes. R142: the placement
+    // id names the result in audit reports.
+    Task<Placement> Place(int count, string[] exclude, int shardBytes);
 
     Task<StorageNodeView[]> List();
 

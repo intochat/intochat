@@ -214,7 +214,7 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
         [TrustOperations.NodePlace] = Registered(async call =>
         {
             var (count, exclude, shardBytes) = call.Arg<(int, string[], int)>();
-            return await Directory.Place(count, exclude, shardBytes, call.Machine!.Accounts);
+            return await Directory.Issue(count, exclude, shardBytes, call.Machine!.Accounts);
         }),
         [TrustOperations.NodeList] = Registered(async _ => await Directory.List()),
         // T23-11/R55: an account's storage credits are read and acknowledged only by a machine bound to it.

@@ -39,6 +39,9 @@ internal interface IStorageNodeDirectory : IGrainWithStringKey
     // records the asking accounts (PlacedFor, R112/R117).
     Task<string[]> Place(int count, string[] exclude, int shardBytes, string[] askingAccounts);
 
+    // R142: Place, keeping the result under a placement id issued to the asking accounts; a report naming it earns credit.
+    Task<Placement> Issue(int count, string[] exclude, int shardBytes, string[] askingAccounts);
+
     [AlwaysInterleave]
     Task<StorageNodeView[]> List();
 }
@@ -77,7 +80,15 @@ internal sealed record AuditReport(
     [property: Id(1)] string SegmentCid,
     [property: Id(2)] int Round,
     [property: Id(3)] bool Passed,
-    [property: Id(4)] int ShardBytes);
+    [property: Id(4)] int ShardBytes,
+    [property: Id(5)] string? PlacementId = null);
+
+// R142: what Place returned, under the id the directory keeps it by.
+[GenerateSerializer, Alias("platform.mesh.placement")]
+internal sealed record Placement([property: Id(0)] string Id, [property: Id(1)] string[] Nodes);
+
+[GenerateSerializer, Alias("platform.mesh.issued-placement")]
+internal sealed record IssuedPlacement([property: Id(0)] string[] Accounts, [property: Id(1)] string[] Nodes);
 
 // T23-4: a node refuses a put beyond its offer or the putter account's share; crosses links by its type name.
 [GenerateSerializer, Alias("platform.mesh.node-full")]
@@ -89,6 +100,9 @@ internal static class StorageNodes
     public static string IdOf(string machineId) => $"node/{machineId}";
 
     public const int MaxPlacedAccounts = 64;
+
+    // R142: the newest placements kept per asking account; a report naming an older one earns no credit.
+    public const int MaxPlacementsPerAccount = 1024;
 }
 
 [GrainType("platform.mesh.directory")]
@@ -155,13 +169,17 @@ internal sealed class StorageNodeDirectoryGrain(
         {
             if (reporterAccounts.Contains(node.OwnerAccount, StringComparer.Ordinal))
             { throw new UnauthorizedAccessException($"The owner of node {report.NodeId} cannot report on it."); }
-            putter = store.State.PlacedFor.GetValueOrDefault(report.NodeId)?.LastOrDefault(account => reporterAccounts.Contains(account, StringComparer.Ordinal))
-                ?? throw new UnauthorizedAccessException($"No account of the reporting machine was placed onto node {report.NodeId}.");
+            if (!store.State.PlacedFor.TryGetValue(report.NodeId, out var placed) || !placed.Intersect(reporterAccounts, StringComparer.Ordinal).Any())
+            { throw new UnauthorizedAccessException($"No account of the reporting machine was placed onto node {report.NodeId}."); }
+            // R142: the putter is the account the named placement was issued to, and the placement holds the node.
+            if (report.PlacementId is { } placementId && store.State.Placements.TryGetValue(placementId, out var issued)
+                && issued.Nodes.Contains(report.NodeId, StringComparer.Ordinal))
+            { putter = issued.Accounts.FirstOrDefault(account => reporterAccounts.Contains(account, StringComparer.Ordinal)); }
         }
         var recorded = report with { ShardBytes = Math.Clamp(report.ShardBytes, 0, options.Value.MaxShardBytes) };
         store.State.Nodes[report.NodeId] = Reputed(node, report.Passed);
         await store.WriteStateAsync();
-        // T23-11: a pass reported by a placed putter earns the node's owner one credit within the putter's daily cap;
+        // T23-11/R142: a pass reported under a placement issued to the putter earns the node's owner one credit within the putter's daily cap;
         // seeds (the platform) earn nothing.
         if (recorded.Passed && putter is not null && node.OwnerAccount != SeedNodeRegistration.Owner)
         { await GrainFactory.GetGrain<IStorageCredits>(node.OwnerAccount).Record(recorded, putter); }
@@ -169,6 +187,9 @@ internal sealed class StorageNodeDirectoryGrain(
     }
 
     public async Task<string[]> Place(int count, string[] exclude, int shardBytes, string[] askingAccounts)
+        => (await Issue(count, exclude, shardBytes, askingAccounts)).Nodes;
+
+    public async Task<Placement> Issue(int count, string[] exclude, int shardBytes, string[] askingAccounts)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
         var askers = new HashSet<string>(askingAccounts ?? [], StringComparer.Ordinal);
@@ -196,11 +217,35 @@ internal sealed class StorageNodeDirectoryGrain(
             store.State.PlacedFor[node.NodeId] = next;
             changed = true;
         }
+        var placement = new Placement(Guid.NewGuid().ToString("N"), [.. chosen.Select(node => node.NodeId)]);
+        if (askers.Count > 0)
+        {
+            Keep(placement, [.. askers]);
+            changed = true;
+        }
         if (changed) { await store.WriteStateAsync(); }
-        return [.. chosen.Select(node => node.NodeId)];
+        return placement;
     }
 
     public Task<StorageNodeView[]> List() => Task.FromResult(Current());
+
+    // R142: each asking account keeps its newest MaxPlacementsPerAccount placements; a placement no account keeps is dropped.
+    private void Keep(Placement placement, string[] accounts)
+    {
+        var state = store.State;
+        state.Placements[placement.Id] = new IssuedPlacement(accounts, placement.Nodes);
+        foreach (var account in accounts)
+        {
+            string[] ids = [.. state.PlacementsOf.GetValueOrDefault(account) ?? [], placement.Id];
+            foreach (var evicted in ids.SkipLast(StorageNodes.MaxPlacementsPerAccount))
+            {
+                if (!state.Placements.TryGetValue(evicted, out var old)) { continue; }
+                string[] rest = [.. old.Accounts.Where(other => other != account)];
+                if (rest.Length == 0) { state.Placements.Remove(evicted); } else { state.Placements[evicted] = old with { Accounts = rest }; }
+            }
+            state.PlacementsOf[account] = [.. ids.TakeLast(StorageNodes.MaxPlacementsPerAccount)];
+        }
+    }
 
     // T23-5: a volunteer is online while its heartbeats are recent; computed at read, no timer.
     private StorageNodeView[] Current()
@@ -229,4 +274,9 @@ internal sealed class StorageNodeDirectoryState
 
     // R112/R117: per node, the accounts Place returned it to (newest last, at most MaxPlacedAccounts).
     [Id(2)] public Dictionary<string, string[]> PlacedFor { get; set; } = new(StringComparer.Ordinal);
+
+    // R142: placements issued to accounts, by placement id, and per account its kept placement ids (newest last).
+    [Id(3)] public Dictionary<string, IssuedPlacement> Placements { get; set; } = new(StringComparer.Ordinal);
+
+    [Id(4)] public Dictionary<string, string[]> PlacementsOf { get; set; } = new(StringComparer.Ordinal);
 }

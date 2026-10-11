@@ -65,8 +65,8 @@ internal sealed class LinkTrustClients(QuicMachineTransport transport, Serialize
 
     public Task<AuditReport> ReportAudit(AuditReport report) => Call<AuditReport, AuditReport>(TrustOperations.NodeAudit, report);
 
-    public Task<string[]> Place(int count, string[] exclude, int shardBytes)
-        => Call<(int, string[], int), string[]>(TrustOperations.NodePlace, (count, exclude, shardBytes));
+    public Task<Placement> Place(int count, string[] exclude, int shardBytes)
+        => Call<(int, string[], int), Placement>(TrustOperations.NodePlace, (count, exclude, shardBytes));
 
     Task<StorageNodeView[]> INodeDirectoryClient.List() => Call<bool, StorageNodeView[]>(TrustOperations.NodeList, true);
 

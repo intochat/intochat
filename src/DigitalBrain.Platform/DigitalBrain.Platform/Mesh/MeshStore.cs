@@ -27,10 +27,11 @@ internal sealed class MeshStore(INodeDirectoryClient directory, IShardClient sha
         // T23-3: a node refuses a larger shard; a segment over DataShards x MaxShardBytes is refused here.
         if (shardSize > settings.MaxShardBytes)
         { throw new InvalidOperationException($"Segment '{segmentId}' needs {shardSize}-byte shards; the mesh stores at most {settings.MaxShardBytes} bytes per shard."); }
-        var nodes = await Directory.Place(rs.TotalShards, [], shardSize);
+        var placement = await Directory.Place(rs.TotalShards, [], shardSize);
+        var nodes = placement.Nodes;
         cancellationToken.ThrowIfCancellationRequested();
 
-        var locations = await Task.WhenAll(Enumerable.Range(0, rs.TotalShards).Select(i => Store(i, nodes[i], encoded[i], nodes, cancellationToken)));
+        var locations = await Task.WhenAll(Enumerable.Range(0, rs.TotalShards).Select(i => Store(i, nodes[i], placement.Id, encoded[i], nodes, cancellationToken)));
         var manifest = new SegmentManifest
         {
             DataShards = rs.DataShards, ParityShards = rs.ParityShards, ShardSize = shardSize, SealedLength = sealedData.Length, Shards = locations,
@@ -49,13 +50,13 @@ internal sealed class MeshStore(INodeDirectoryClient directory, IShardClient sha
 
     public async Task<ShardAudit[]> Audit(byte[] key, MeshRef reference, int round, CancellationToken cancellationToken = default)
     {
-        var (results, shardSize) = await Prove(key, reference, round, cancellationToken);
-        return await Report(reference, round, shardSize, results);
+        var (results, shardSize, placements) = await Prove(key, reference, round, cancellationToken);
+        return await Report(reference, round, shardSize, results, placements);
     }
 
     // Spends challenge `round` on every shard without telling anyone (the holder reports only refs its head still
     // reaches, R7/T23-9). "challenges exhausted" is judged by the manifest's own challenges (R110).
-    internal async Task<(ShardAudit[] Results, int ShardSize)> Prove(byte[] key, MeshRef reference, int round, CancellationToken cancellationToken)
+    internal async Task<(ShardAudit[] Results, int ShardSize, string?[] Placements)> Prove(byte[] key, MeshRef reference, int round, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(round);
         var manifest = await ReadManifest(key, reference, cancellationToken);
@@ -70,16 +71,17 @@ internal sealed class MeshStore(INodeDirectoryClient directory, IShardClient sha
             var passed = proof is not null && CryptographicOperations.FixedTimeEquals(proof, challenge.Expected);
             return new ShardAudit(shard.Index, shard.NodeId, passed, proof is null ? "shard missing" : passed ? "ok" : "wrong proof");
         }));
-        return (results, manifest.ShardSize);
+        return (results, manifest.ShardSize, [.. manifest.Shards.Select(shard => shard.PlacementId)]);
     }
 
     // T23-10: the segment is named by its manifest's content id. R117/R123: a report refused because this account's
     // placement on the node was evicted becomes "placement evicted": a re-place, not a node failure.
-    internal async Task<ShardAudit[]> Report(MeshRef reference, int round, int shardSize, ShardAudit[] results)
+    // R142: each report names the placement its shard was stored under (`placements` by shard index).
+    internal async Task<ShardAudit[]> Report(MeshRef reference, int round, int shardSize, ShardAudit[] results, string?[] placements)
         => await Task.WhenAll(results.Select(async result =>
         {
             if (result.Reason is Exhausted or Offline) { return result; }
-            try { await Directory.ReportAudit(new AuditReport(result.NodeId, reference.ManifestCid, round, result.Passed, shardSize)); }
+            try { await Directory.ReportAudit(new AuditReport(result.NodeId, reference.ManifestCid, round, result.Passed, shardSize, placements.ElementAtOrDefault(result.Index))); }
             catch (UnauthorizedAccessException) { return result with { Passed = false, Reason = Evicted }; }
             return result;
         }));
@@ -107,12 +109,13 @@ internal sealed class MeshStore(INodeDirectoryClient directory, IShardClient sha
 
         var rs = new ReedSolomon(manifest.DataShards, manifest.ParityShards);
         var full = rs.Reconstruct(fetched, manifest.ShardSize);
-        var targets = bad.Length == 0 ? [] : await Directory.Place(bad.Length, [.. manifest.Shards.Select(s => s.NodeId)], manifest.ShardSize);
-        var moved = bad.Select((index, i) => new ShardMove(index, manifest.Shards[index].NodeId, targets[i])).ToArray();
+        var targets = bad.Length == 0 ? new Placement("", []) : await Directory.Place(bad.Length, [.. manifest.Shards.Select(s => s.NodeId)], manifest.ShardSize);
+        var moved = bad.Select((index, i) => new ShardMove(index, manifest.Shards[index].NodeId, targets.Nodes[i])).ToArray();
         var nodeOf = manifest.Shards.Select(s => s.NodeId).ToArray();
-        foreach (var move in moved) { nodeOf[move.Index] = move.ToNode; }
+        var placementOf = manifest.Shards.Select(s => s.PlacementId).ToArray();
+        foreach (var move in moved) { (nodeOf[move.Index], placementOf[move.Index]) = (move.ToNode, targets.Id); }
 
-        var locations = await Task.WhenAll(Enumerable.Range(0, rs.TotalShards).Select(i => Store(i, nodeOf[i], full[i], nodeOf, cancellationToken)));
+        var locations = await Task.WhenAll(Enumerable.Range(0, rs.TotalShards).Select(i => Store(i, nodeOf[i], placementOf[i], full[i], nodeOf, cancellationToken)));
         var repaired = new SegmentManifest
         {
             DataShards = manifest.DataShards, ParityShards = manifest.ParityShards, ShardSize = manifest.ShardSize,
@@ -146,29 +149,31 @@ internal sealed class MeshStore(INodeDirectoryClient directory, IShardClient sha
     }
 
     // Put is idempotent on a node, so re-storing an unmoved shard only refreshes its challenges.
-    private async Task<ShardLocation> Store(int index, string nodeId, byte[] bytes, string[] siblings, CancellationToken cancellationToken)
+    private async Task<ShardLocation> Store(int index, string nodeId, string? placementId, byte[] bytes, string[] siblings, CancellationToken cancellationToken)
     {
         var cid = StorageProof.ContentId(bytes);
-        nodeId = await Put(nodeId, cid, bytes, siblings, cancellationToken);
-        return new ShardLocation { Index = index, Cid = cid, NodeId = nodeId, Challenges = Challenges(bytes) };
+        var (stored, placement) = await Put(nodeId, cid, bytes, siblings, cancellationToken);
+        return new ShardLocation { Index = index, Cid = cid, NodeId = stored, PlacementId = placement ?? placementId, Challenges = Challenges(bytes) };
     }
 
     // T23-4/R115/R119: a full or unreachable node is a placement miss: one more node, away from the segment's other
     // holders, then the write fails.
-    private async Task<string> Put(string nodeId, string cid, byte[] bytes, string[] siblings, CancellationToken cancellationToken)
+    // Returns the node stored on and, when it was placed again, that placement's id.
+    private async Task<(string NodeId, string? PlacementId)> Put(string nodeId, string cid, byte[] bytes, string[] siblings, CancellationToken cancellationToken)
     {
         try
         {
             await shards.Put(nodeId, cid, bytes, cancellationToken);
-            return nodeId;
+            return (nodeId, null);
         }
         catch (Exception missed) when (missed is NodeFullException or ServiceUnavailableException)
         {
-            var other = (await Directory.Place(1, [nodeId, .. siblings.Where(sibling => sibling != nodeId)], bytes.Length))[0];
+            var again = await Directory.Place(1, [nodeId, .. siblings.Where(sibling => sibling != nodeId)], bytes.Length);
+            var other = again.Nodes[0];
             try { await shards.Put(other, cid, bytes, cancellationToken); }
-            catch (Exception again) when (again is NodeFullException or ServiceUnavailableException)
-            { throw new ServiceUnavailableException($"Shard {cid} found no node with room: {missed.Message}; then {again.Message}"); }
-            return other;
+            catch (Exception failed) when (failed is NodeFullException or ServiceUnavailableException)
+            { throw new ServiceUnavailableException($"Shard {cid} found no node with room: {missed.Message}; then {failed.Message}"); }
+            return (other, again.Id);
         }
     }
 
@@ -176,9 +181,9 @@ internal sealed class MeshStore(INodeDirectoryClient directory, IShardClient sha
     {
         var sealedManifest = SegmentSeal.Close(key, ManifestContext(segmentId), serializer.SerializeToArray(manifest));
         var cid = StorageProof.ContentId(sealedManifest);
-        var placed = await Directory.Place(options.Value.ManifestReplicas, [], sealedManifest.Length);
+        var placed = (await Directory.Place(options.Value.ManifestReplicas, [], sealedManifest.Length)).Nodes;
         cancellationToken.ThrowIfCancellationRequested();
-        var replicas = await Task.WhenAll(placed.Select(nodeId => Put(nodeId, cid, sealedManifest, placed, cancellationToken)));
+        var replicas = await Task.WhenAll(placed.Select(async nodeId => (await Put(nodeId, cid, sealedManifest, placed, cancellationToken)).NodeId));
         return new MeshRef(segmentId, cid, replicas);
     }
 
@@ -242,6 +247,8 @@ internal sealed class ShardLocation
     [Id(1)] public string Cid { get; set; } = "";
     [Id(2)] public string NodeId { get; set; } = "";
     [Id(3)] public ShardChallenge[] Challenges { get; set; } = [];
+    // R142: the placement the shard was stored under, named in its audit reports.
+    [Id(4)] public string? PlacementId { get; set; }
 }
 
 [GenerateSerializer, Alias("platform.mesh.shard-challenge")]

@@ -44,8 +44,8 @@ public sealed class NodeDirectoryFacts
         => machine.Call<MachineSigned<NodeRegistration>, bool>(TrustOperations.NodeRegisterSigned,
             machine.Sign(new NodeRegistration(nodeId ?? StorageNodes.IdOf(machine.MachineId), machine.MachineId, account, offered), account), ct);
 
-    private static Task<string[]> Place(RawMachine machine, int count, int shardBytes, CancellationToken ct)
-        => machine.Call<(int, string[], int), string[]>(TrustOperations.NodePlace, (count, Array.Empty<string>(), shardBytes), ct);
+    private static async Task<string[]> Place(RawMachine machine, int count, int shardBytes, CancellationToken ct)
+        => (await machine.Call<(int, string[], int), Placement>(TrustOperations.NodePlace, (count, Array.Empty<string>(), shardBytes), ct)).Nodes;
 
     private static Task<AuditReport> Report(RawMachine machine, AuditReport report, CancellationToken ct)
         => machine.Call<AuditReport, AuditReport>(TrustOperations.NodeAudit, report, ct);

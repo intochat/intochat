@@ -83,9 +83,9 @@ internal sealed partial class MeshAuditor(PartLogs logs, IMeshStore mesh, IShard
         if (snapshot is null && chain.Length == 0) { return; }
         var health = (await directory.List()).ToDictionary(node => node.NodeId, StringComparer.Ordinal);
 
-        var proved = new List<(MeshRef Reference, bool Chained, ShardAudit[] Results, int ShardSize)>();
-        foreach (var reference in chain) { var (results, size) = await Store.Prove(log.Key, reference, round, cancellationToken); proved.Add((reference, true, results, size)); }
-        if (snapshot is not null) { var (results, size) = await Store.Prove(log.Key, snapshot, round, cancellationToken); proved.Add((snapshot, false, results, size)); }
+        var proved = new List<(MeshRef Reference, bool Chained, ShardAudit[] Results, int ShardSize, string?[] Placements)>();
+        foreach (var reference in chain) { var (results, size, placements) = await Store.Prove(log.Key, reference, round, cancellationToken); proved.Add((reference, true, results, size, placements)); }
+        if (snapshot is not null) { var (results, size, placements) = await Store.Prove(log.Key, snapshot, round, cancellationToken); proved.Add((snapshot, false, results, size, placements)); }
 
         // R110/R116: spent challenges (by the manifests' own count) are re-issued by a snapshot, never reported.
         if (proved.Any(entry => entry.Results.Any(result => result.Reason == MeshStore.Exhausted)))
@@ -99,10 +99,10 @@ internal sealed partial class MeshAuditor(PartLogs logs, IMeshStore mesh, IShard
         var chainFailed = false;
         int[] evictedFromSnapshot = [];
         var snapshotFailed = false;
-        foreach (var (reference, chained, results, size) in proved)
+        foreach (var (reference, chained, results, size, placements) in proved)
         {
             // Only refs the head still reaches are reported: a snapshot that discarded one meanwhile says nothing of its nodes.
-            var (reached, reported) = await log.WhileReached(reference, () => Store.Report(reference, round, size, results));
+            var (reached, reported) = await log.WhileReached(reference, () => Store.Report(reference, round, size, results, placements));
             if (!reached) { continue; }
             var failed = reported!.Any(result => (!result.Passed && result.Reason != MeshStore.Evicted)
                 || !(health.TryGetValue(result.NodeId, out var node) && node.Usable));

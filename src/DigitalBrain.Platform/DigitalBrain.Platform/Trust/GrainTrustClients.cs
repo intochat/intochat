@@ -63,7 +63,7 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
     // Stage A: the trust grains are this silo's own, so there is no link machine to bind the report to.
     public Task<AuditReport> ReportAudit(AuditReport report) => Directory.Report(report, null);
 
-    public Task<string[]> Place(int count, string[] exclude, int shardBytes) => Directory.Place(count, exclude, shardBytes, []);
+    public Task<Placement> Place(int count, string[] exclude, int shardBytes) => Directory.Issue(count, exclude, shardBytes, []);
 
     Task<StorageNodeView[]> INodeDirectoryClient.List() => Directory.List();
 
