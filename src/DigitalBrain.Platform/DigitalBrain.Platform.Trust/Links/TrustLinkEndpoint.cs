@@ -26,6 +26,7 @@ internal static class TrustOperations
     public const string Machine = "trust.machine";
     public const string Announce = "trust.announce";
     public const string SequencerGet = "sequencer.get";
+    public const string SequencerRevoke = "sequencer.revoke";
     public const string CompareAndSet = "sequencer.compare-and-set";
     public const string NodeRegisterSigned = "node.register-signed";
     public const string NodeHeartbeat = "node.heartbeat";
@@ -209,6 +210,18 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
         {
             var (hash, expected, next) = call.Arg<(string, long, HeadRecord)>();
             return await grains.GetGrain<ISequencerGrain>(hash).CompareAndSet(expected, next);
+        }),
+        // R153: a contributed machine of the circle revokes a lease on one of its parts, held by a machine no longer contributed.
+        [TrustOperations.SequencerRevoke] = Registered(async call =>
+        {
+            var (brainId, partId, machineId) = call.Arg<(string, string, string)>();
+            await RequireContributed(call, brainId);
+            if (!partId.StartsWith(brainId + "/", StringComparison.Ordinal))
+            { throw new UnauthorizedAccessException($"Part {partId} is not a part of circle {brainId}."); }
+            if ((await grains.GetGrain<IBrainAuthority>(brainId).Machines()).Contains(machineId, StringComparer.Ordinal))
+            { throw new UnauthorizedAccessException($"Machine {machineId} is still contributed to circle {brainId}; its leases stand."); }
+            await grains.GetGrain<ISequencerGrain>(HeadRecord.HashOf(partId)).Revoke(machineId);
+            return true;
         }),
         // T23-5: signed by this link's machine (Signed), for its own node and an account it serves, never `platform`.
         [TrustOperations.NodeRegisterSigned] = Registered(async call => { await Directory.RegisterNode(call.Signed<NodeRegistration>()); return true; }),

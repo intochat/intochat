@@ -8,4 +8,7 @@ internal interface ISequencerClient
     Task<HeadRecord?> Get(string partHash);
 
     Task<bool> CompareAndSet(string partHash, long expectedVersion, HeadRecord next);
+
+    // R153: ends a withdrawn machine's lease on a circle part; honoured only from a machine contributed to that circle.
+    Task Revoke(string circleBrainId, string partId, string machineId);
 }

@@ -8,5 +8,8 @@ public interface ICirclePartKeys
 {
     Task ShareWith(string circleBrainId, string machineId, CancellationToken cancellationToken = default);
 
+    // R153: every circle-part lease a withdrawn machine holds ends now, before the rotation.
+    Task RevokeLeases(string circleBrainId, string machineId, CancellationToken cancellationToken = default);
+
     Task Rotate(string circleBrainId, CancellationToken cancellationToken = default);
 }

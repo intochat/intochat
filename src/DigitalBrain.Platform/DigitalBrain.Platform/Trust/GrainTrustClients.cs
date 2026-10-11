@@ -40,6 +40,8 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
     public Task<bool> CompareAndSet(string partHash, long expectedVersion, HeadRecord next)
         => Grains.GetGrain<ISequencerGrain>(partHash).CompareAndSet(expectedVersion, next);
 
+    public Task Revoke(string circleBrainId, string partId, string machineId) => Grains.GetGrain<ISequencerGrain>(HeadRecord.HashOf(partId)).Revoke(machineId);
+
     // Node directory
     private IStorageNodeDirectory Directory => Grains.GetGrain<IStorageNodeDirectory>(IStorageNodeDirectory.Key);
 

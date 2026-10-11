@@ -1,6 +1,5 @@
 using System.Buffers.Binary;
 using System.Security.Cryptography;
-using DigitalBrain.Framework;
 using DigitalBrain.Framework.Parts;
 using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Platform.Keys;
@@ -57,6 +56,28 @@ public sealed class CircleKeyFacts
         await circle.A.Logs.Release(core);
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => circle.B.Logs.For(core));
         Assert.Equal([2], (await circle.A.Logs.For(core)).Read(grain, "notes")!.Record);
+    }
+
+    // R153: the lease is revoked at the sequencer, so the removed machine's next write fails without waiting for expiry.
+    [Fact(Timeout = 180_000)]
+    public async Task ARemovedMembersMachineLosesItsCircleLeaseAtOnce()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var circle = await Circle.Start(ct);
+        var room = PartId.ForApp(circle.Id, Room);
+        var grain = $"room/{circle.Id}/apps/{Room}/lines";
+        await circle.Join(circle.B, "bob");
+        var held = await circle.B.Logs.For(room);
+        await held.Append(grain, "lines", RecordChange.Write, [1], []);
+        await held.Flushed();
+
+        await circle.Remove(circle.B, "bob");
+
+        try { await held.Append(grain, "lines", RecordChange.Write, [2], []); } catch (LeaseLostException) { }
+        await held.Flushed();
+        Assert.True(held.Closed);
+        await Assert.ThrowsAsync<LeaseLostException>(() => held.Append(grain, "lines", RecordChange.Write, [3], []));
+        Assert.Equal([1], (await circle.A.Logs.For(room)).Read(grain, "lines")!.Record);
     }
 
     [Fact(Timeout = 180_000)]
@@ -215,6 +236,7 @@ public sealed class CircleKeyFacts
         {
             await A.Identity.RemoveMember(Id, account);
             await A.Identity.WithdrawMachine(Id, machine.Machine.MachineId);
+            await A.Sharing.RevokeLeases(Id, machine.Machine.MachineId);
             await A.Sharing.Rotate(Id);
         }
 

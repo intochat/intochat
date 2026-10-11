@@ -10,7 +10,7 @@ namespace DigitalBrain.Platform.Keys;
 // a removal rotates every part key to the machines that remain, then re-seals each part this machine can hold. A part
 // another machine holds keeps its old key until its next open here or there, which re-seals it (PartLogs). A host with
 // no part log holds no circle key and does nothing.
-internal sealed partial class CircleKeySharing(CirclePartKeys keys, IKeyringClient keyring, IIdentityClient identity, ILogger<CircleKeySharing> logger,
+internal sealed partial class CircleKeySharing(CirclePartKeys keys, IKeyringClient keyring, ISequencerClient sequencer, IIdentityClient identity, ILogger<CircleKeySharing> logger,
     PartLogs? logs = null) : ICirclePartKeys
 {
     public async Task ShareWith(string circleBrainId, string machineId, CancellationToken cancellationToken = default)
@@ -18,6 +18,16 @@ internal sealed partial class CircleKeySharing(CirclePartKeys keys, IKeyringClie
         if (logs is null) { return; }
         foreach (var part in await keyring.CircleParts(circleBrainId))
         { await keys.WrapTo(PartId.Of(part), circleBrainId, machineId, cancellationToken); }
+    }
+
+    public async Task RevokeLeases(string circleBrainId, string machineId, CancellationToken cancellationToken = default)
+    {
+        if (logs is null) { return; }
+        foreach (var part in await keyring.CircleParts(circleBrainId))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await sequencer.Revoke(circleBrainId, part, machineId);
+        }
     }
 
     public async Task Rotate(string circleBrainId, CancellationToken cancellationToken = default)

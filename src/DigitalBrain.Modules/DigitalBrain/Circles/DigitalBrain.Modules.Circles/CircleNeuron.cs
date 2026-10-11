@@ -157,7 +157,10 @@ internal sealed class CircleNeuron(
     {
         if (next.Members.Contains(accountId)) { await identity.RemoveMember(CircleBrain, accountId); }
         foreach (var machine in next.Machines.Where(known => known.AccountId == accountId))
-        { await identity.WithdrawMachine(CircleBrain, machine.MachineId); }
+        {
+            await identity.WithdrawMachine(CircleBrain, machine.MachineId);
+            await keys.RevokeLeases(CircleBrain, machine.MachineId);
+        }
         next.Members = [.. next.Members.Where(member => member != accountId)];
         next.Invited = [.. next.Invited.Where(invited => invited != accountId)];
         next.Machines = [.. next.Machines.Where(known => known.AccountId != accountId)];
