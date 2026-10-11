@@ -62,9 +62,10 @@ public sealed class ScriptAccountFacts
         await using var brain = await ModuleTest.Create().WithModule<PostgresKindModule>().StartAsync(ct);
         var accounts = brain.Get<IConnectionRequests>("brain-1");
 
-        var kind = Assert.Single(await accounts.ListKinds());
-        Assert.Equal("postgres", kind.Id);
-        Assert.Equal("Postgres", kind.DisplayName);
+        // The host always composes the orleans module, so its connector kind is listed beside the module's.
+        var kinds = await accounts.ListKinds();
+        Assert.Equal(["orleans", "postgres"], kinds.Select(k => k.Id).Order(StringComparer.Ordinal));
+        Assert.Equal("Postgres", kinds.Single(k => k.Id == "postgres").DisplayName);
         var account = await accounts.Request("postgres");
         Assert.Equal("postgres", account.Kind);
         Assert.False(string.IsNullOrWhiteSpace(account.Id));

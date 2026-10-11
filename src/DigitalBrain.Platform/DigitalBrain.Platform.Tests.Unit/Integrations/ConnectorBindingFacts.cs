@@ -89,17 +89,19 @@ public sealed class ConnectorBindingFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await ModuleTest.Create().WithModule<ExampleModule>().StartAsync(ct);
         var catalog = brain.SiloServices.GetRequiredService<ConnectorCatalog>();
-        Assert.Empty(await catalog.ListAsync(ct));
+        // The host always composes the orleans module: its connector is the one offered before provisioning.
+        async Task<string[]> Offered() => [.. (await catalog.ListAsync(ct)).Select(entry => entry.Id).Order(StringComparer.Ordinal)];
+        Assert.Equal(["orleans"], await Offered());
         var grain = brain.Grains.GetGrain<IIntegration>("integration/example");
         await grain.Configure(new ConfigureIntegration { Values = new() { ["Endpoint"] = "test-endpoint", ["ApiKey"] = "test-secret" } });
-        Assert.Equal("example", Assert.Single(await catalog.ListAsync(ct)).Id);
+        Assert.Equal(["example", "orleans"], await Offered());
         var handle = brain.SiloServices.GetRequiredService<IModuleIntegrations<ExampleModule>>().Get("example");
         var release = await handle.ReleaseAsync(ct);
         Assert.Equal(IntegrationStatus.Ready, release.Snapshot.Status);
         Assert.Equal("test-secret", release.Values["ApiKey"]);
         Assert.DoesNotContain("test-secret", release.ToString());
         Assert.Equal(IntegrationStatus.Partial, (await grain.Clear("ApiKey")).Status);
-        Assert.Empty(await catalog.ListAsync(ct));
+        Assert.Equal(["orleans"], await Offered());
         await Assert.ThrowsAsync<InvalidOperationException>(() => handle.ReadSecretAsync("ApiKey", ct));
     }
 

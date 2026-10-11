@@ -313,7 +313,8 @@ public sealed class RegistrationFacts
         var entries = await IntegrationCatalog.ListAsync(
             brain.SiloServices.GetRequiredService<IReadOnlyList<IntegrationSchema>>(), brain.Grains, ct);
 
-        Assert.Equal(["anthropic", "google", "openai"], entries.Select(entry => entry.Id).Order().ToArray());
+        // The host always composes the orleans module, so its integration is catalogued too.
+        Assert.Equal(["anthropic", "google", "openai", "orleans"], entries.Select(entry => entry.Id).Order().ToArray());
         Assert.Equal("Partial", entries.Single(entry => entry.Id == "google").Status);
         Assert.Equal(["ClientSecret", "RedirectPath"], entries.Single(entry => entry.Id == "google").MissingFields);
         Assert.Equal("Ready", entries.Single(entry => entry.Id == "openai").Status);
