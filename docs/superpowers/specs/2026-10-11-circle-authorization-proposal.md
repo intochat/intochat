@@ -65,6 +65,10 @@ proposal text is kept as the record of what was weighed. Rulings that settle the
   - **R130 Credential re-sealing.** The owner's machine re-seals connection credentials locally and writes them through a forwarded call. No plaintext crosses any call.
   - **R131 No retroactive revocation.** Data written before a rotation stays readable to a removed machine that holds the old key (Q6).
   - **T26-8 source of the stamp.** `BrainId = circle` comes from the `/brains/{circle}` route's membership filter, over HTTP and `/brains/{circle}/mcp`.
+- **Round 2 (R132–R134):**
+  - **R132.** `ICircle.Share(appName, connectionIds)` is declared and implemented in Task 27; Task 28 keeps the credential re-seal and the live step.
+  - **R133.** `RemoveMember` has one gate: the same as `EnsureMember`, plus the brain's owner.
+  - **R134 (T26-9 extended).** A shared app's call to a connection left with the sharer is cross-brain by design. It is allowed only through the binding the sharer recorded at Share on the circle brain's app slot; every other cross-brain connection call stays refused.
 - **T26-6 note.** The synapse list in T26-6 is superseded by R126.
 
 **What the rejected shapes would have cost:**
