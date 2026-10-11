@@ -466,6 +466,9 @@ internal sealed class AppNeuron(
         if (index < 0 || Snapshot.Synapses[index].Status != SynapseStatus.Requested) { return Describe(Snapshot); }
         var entry = Snapshot.Synapses[index];
         string[] refused = [.. errors ?? []];
+        // The program is the truth: a request whose synapse WriteBehavior deployed is Written, even when the
+        // writer gave up waiting (a timeout) before the deploy answered.
+        if (entry.Path is { } deployed && Snapshot.Files.ContainsKey(deployed)) { refused = []; }
         if (refused.Length == 0 && entry.Path is null) { refused = ["The writer reported a synapse it never wrote."]; }
         var next = Snapshot.Clone();
         next.Synapses[index] = entry with

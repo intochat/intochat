@@ -566,6 +566,75 @@ public sealed class FastPathFacts : IDisposable
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => app.CompleteSynapse(Guid.NewGuid(), [], 1, 1));
     }
 
+    [Fact]
+    public async Task ThreeSentencesWrittenToOneAppAtOnceAllEndWrittenOrRejected()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runtime = new FakeAppRuntime();
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await Start(model, runtime, new FastPathSandbox(), ct);
+        model.Script(Writer, Reply("apples.cs", Lemons), Reply("pears.cs", Lemons), Reply("plums.cs", Lemons));
+        var app = await Created(brain, "grocer");
+        await using var written = await brain.Observe<SynapseWritten>(app, ct);
+
+        await Task.WhenAll(
+            app.WriteSynapse("when asked, answer apples", [], Guid.NewGuid()),
+            app.WriteSynapse("when asked, answer pears", [], Guid.NewGuid()),
+            app.WriteSynapse("when asked, answer plums", [], Guid.NewGuid()));
+
+        string[] paths = [(await written.NextAsync(ct: ct)).Path, (await written.NextAsync(ct: ct)).Path, (await written.NextAsync(ct: ct)).Path];
+        Assert.Equal(["apples.cs", "pears.cs", "plums.cs"], paths.Order(StringComparer.Ordinal));
+        var live = await app.Read();
+        Assert.Equal(3, live.Synapses!.Length);
+        Assert.All(live.Synapses, synapse => Assert.Equal(SynapseStatus.Written, synapse.Status));
+        Assert.All(live.Synapses, synapse => Assert.True(live.Files.ContainsKey(synapse.Path!)));
+    }
+
+    [Fact]
+    public async Task ADeployThatCompletesAfterItsRequestTimedOutIsRecordedWritten()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var compiling = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sandbox = new FastPathSandbox { Hold = (compiling, release.Task) };
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await Start(model, new FakeAppRuntime(), sandbox, ct);
+        model.Script(Writer, Reply("lemons.cs", Lemons));
+        var app = await Created(brain, "grocer");
+        var operation = Guid.NewGuid();
+        await app.WriteSynapse("when asked, answer lemons", [], operation);
+        await compiling.Task.WaitAsync(ct);
+
+        // The deploy lands, then the writer's report that it timed out waiting for it arrives.
+        await app.WriteBehavior("lemons.cs", Lemons, operation);
+        await app.CompleteSynapse(operation, ["The deploy did not answer in time: timed out"], 1, 1);
+        release.SetResult();
+
+        var entry = Assert.Single((await app.Read()).Synapses!);
+        Assert.Equal((SynapseStatus.Written, "lemons.cs", "hash:lemons.cs"), (entry.Status, entry.Path, entry.Hash));
+        Assert.Empty(entry.Errors);
+    }
+
+    [Fact]
+    public async Task AWriteWhoseJobThrowsIsRecordedRejectedWithTheReason()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new FastPathSandbox { Result = _ => throw new NotSupportedException("the compiler fell over") };
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await Start(model, new FakeAppRuntime(), sandbox, ct);
+        model.Script(Writer, Reply("lemons.cs", Lemons));
+        var app = await Created(brain, "grocer");
+        await using var rejected = await brain.Observe<SynapseRejected>(app, ct);
+
+        await app.WriteSynapse("when asked, answer lemons", [], Guid.NewGuid());
+
+        var signal = await rejected.NextAsync(ct: ct);
+        Assert.Contains(signal.Errors, error => error.Contains("the compiler fell over", StringComparison.Ordinal));
+        var entry = Assert.Single((await app.Read()).Synapses!);
+        Assert.Equal(SynapseStatus.Rejected, entry.Status);
+        Assert.Contains(entry.Errors, error => error.Contains("NotSupportedException: the compiler fell over", StringComparison.Ordinal));
+    }
+
     private static Task<ITestBrain> Start(FakeModelServer model, FakeAppRuntime runtime, FastPathSandbox sandbox, CancellationToken ct, string? features = null)
         => TestBrain.Create()
             .WithModule<AIModule>()
@@ -668,10 +737,14 @@ public sealed class FastPathFacts : IDisposable
             return Task.FromResult(Contracts);
         }
 
-        public Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
+        // Holds the first compile until the fact releases it, signalling once it is reached.
+        public (TaskCompletionSource Reached, Task Released)? Hold { get; init; }
+
+        public async Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
         {
             Compiled.Enqueue(new Dictionary<string, string>(files, StringComparer.Ordinal));
-            return Task.FromResult(Result(files));
+            if (Hold is { } hold) { hold.Reached.TrySetResult(); await hold.Released; }
+            return Result(files);
         }
 
         public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
