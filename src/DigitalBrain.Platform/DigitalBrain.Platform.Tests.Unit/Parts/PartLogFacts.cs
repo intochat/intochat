@@ -71,6 +71,51 @@ public sealed class PartLogFacts
         Assert.Equal(2, stored.ETagSeq);
     }
 
+    // The live owner part replayed a segment holding a null entry and failed every activation in it: replay skips a
+    // missing entry and reads a missing signal list as empty.
+    [Fact(Timeout = 60_000)]
+    public async Task ASegmentWithAMissingEntryAndMissingSignalsStillReplays()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await StartAsync(ct);
+        var part = PartId.ForApp("home", "gaps");
+        var key = RandomNumberGenerator.GetBytes(32);
+        using var machine = SequencerFacts.Machine();
+        var options = Cloud();
+        var mesh = new GappedMesh(brain.Services.GetRequiredService<IMeshStore>(), brain.Services.GetRequiredService<Serializer>());
+
+        await using (var log = await OpenAsync(brain, part, key, machine, options, TimeProvider.System, ct, mesh))
+        {
+            await log.Append("g1", "s", RecordChange.Write, [1], []);
+            await log.Append("g1", "s", RecordChange.Write, [2], []);
+        }
+        await using var reopened = await OpenAsync(brain, part, key, machine, options, TimeProvider.System, ct, mesh);
+
+        Assert.Equal([2], reopened.Read("g1", "s")!.Record);
+        Assert.Empty(reopened.SignalsSince(0));
+    }
+
+    // Every segment it stores carries a null entry and entries without a signal list, as older segments may.
+    private sealed class GappedMesh(IMeshStore inner, Serializer serializer) : IMeshStore
+    {
+        public Task<MeshRef> Write(byte[] key, string segmentId, byte[] plaintext, CancellationToken cancellationToken = default)
+        {
+            if (segmentId.Contains("/snapshot/", StringComparison.Ordinal)) { return inner.Write(key, segmentId, plaintext, cancellationToken); }
+            var segment = serializer.Deserialize<LogSegment>(plaintext)!;
+            foreach (var entry in segment.Entries) { entry.Signals = null!; }
+            segment.Entries = [null!, .. segment.Entries];
+            return inner.Write(key, segmentId, serializer.SerializeToArray(segment), cancellationToken);
+        }
+
+        public Task<byte[]> Read(byte[] key, MeshRef reference, CancellationToken cancellationToken = default) => inner.Read(key, reference, cancellationToken);
+
+        public Task<ShardAudit[]> Audit(byte[] key, MeshRef reference, int round, CancellationToken cancellationToken = default) => inner.Audit(key, reference, round, cancellationToken);
+
+        public Task<MeshRepair> Repair(byte[] key, MeshRef reference, bool reissue = false, CancellationToken cancellationToken = default) => inner.Repair(key, reference, reissue, cancellationToken);
+
+        public Task Discard(byte[] key, MeshRef reference, CancellationToken cancellationToken = default) => inner.Discard(key, reference, cancellationToken);
+    }
+
     [Fact(Timeout = 60_000)]
     public async Task TwoWritersExpectingTheSameVersionCannotBothAppend()
     {
