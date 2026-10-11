@@ -1,9 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <ProjectReference Include="../../Testing/DigitalBrain.Testing.Module/DigitalBrain.Testing.Module.csproj" />
+    <ProjectReference Include="../../Testing/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
     <ProjectReference Include="../DigitalBrain.OS/DigitalBrain.OS.csproj" />
     <ProjectReference Include="../DigitalBrain.OS.Testing/DigitalBrain.OS.Testing.csproj" />
     <Using Include="DigitalBrain.OS.Testing" />
+    <Using Remove="DigitalBrain.Testing.Module" />
     <ProjectReference Include="../../DigitalBrain.AppHost/DigitalBrain.AppHost.csproj" IsAspireProjectResource="false" Aliases="AppHost" />
   </ItemGroup>
 </Project>

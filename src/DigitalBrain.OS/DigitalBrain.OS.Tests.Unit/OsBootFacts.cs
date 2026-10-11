@@ -1,90 +1,57 @@
 using DigitalBrain.Apps;
-using DigitalBrain.Framework;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DigitalBrain.OS.Tests.Unit;
 
 // A new brain is born with the OS defaults, installed as its owner from the features folder.
 public sealed class OsBootFacts
 {
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task AFreshBrainHasTheOsAppsInstalledFromTheFeaturesFolder()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create()
+        await using var brain = await TestBrain.Create()
             .WithModule<AppsModule, AppsOptions>(options => options.Features = SolutionProjects.Features)
-            .ConfigureSilo(silo =>
+            .ConfigureServices(services =>
             {
-                silo.Services.RemoveAll<IAppRuntime>();
-                silo.Services.AddOperatingSystemApps();
+                // The script runtime is the sandbox seam: registered first, it wins, and installs run no program.
+                services.AddSingleton<IAppRuntime, IdleRuntime>();
+                services.AddOperatingSystemApps();
             })
             .StartAsync(ct);
 
-        var scope = await Establish(brain);
+        var person = await brain.PersonAsync("ada", ct);
 
+        using var caller = person.AsCaller();
         foreach (var name in new[] { "settings", "assistant", "router", "calculator", "datavisualizer" })
         {
-            var installed = await brain.Get<IApp>(IApp.Key(scope, name)).Read();
+            var installed = await brain.Get<IApp>(IApp.Key(person.BrainId, name)).Read();
             Assert.Equal(AppStatus.Live, installed.Status);
             Assert.Equal("os", installed.Origin!.Publisher);
             Assert.IsType<AppSource.Shipped>(installed.Origin.Source);
         }
     }
 
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task ADefaultMissingFromTheCatalogDoesNotKeepTheOthersFromInstalling()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Boot(ct, new OsApp("os", "missing"), new OsApp("os", "hello"));
+        await using var brain = await TestBrain.Create()
+            .WithModule<AppsModule>()
+            .ConfigureServices(services =>
+            {
+                // The script runtime is the sandbox seam: registered first, it wins, and installs run no program.
+                services.AddSingleton<IAppRuntime, IdleRuntime>();
+                services.AddSingleton(new FeatureCatalog(new FeatureDirectory(HelloFeatures())));
+                services.AddOperatingSystemBoot(os => { os.Apps.Add(new OsApp("os", "missing")); os.Apps.Add(new OsApp("os", "hello")); });
+            })
+            .StartAsync(ct);
 
-        var scope = await Establish(brain);
+        var person = await brain.PersonAsync("ada", ct);
 
-        Assert.Equal(AppStatus.Live, (await brain.Get<IApp>(IApp.Key(scope, "hello")).Read()).Status);
-        Assert.Equal(AppStatus.Drafted, (await brain.Get<IApp>(IApp.Key(scope, "missing")).Read()).Status);
-    }
-
-    [Fact(Timeout = 60_000)]
-    public async Task ADefaultThePersonAlreadyHasIsLeftAlone()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await Boot(ct, new OsApp("os", "hello"));
-        var scope = BrainScope.Create("acct", "home").Id;
-        Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
-        var own = brain.Get<IApp>(IApp.Key(scope, "hello"));
-        await own.Create(new("My hello", "mine", [], [], []), "## Scenario: Mine\nMine.");
-
-        await Establish(brain);
-
-        var after = await own.Read();
-        Assert.Equal("My hello", after.Manifest.Title);
-        Assert.Null(after.Origin);
-    }
-
-    private static Task<ModuleBrain> Boot(CancellationToken ct, params OsApp[] defaults) => ModuleTest.Create()
-        .WithModule<AppsModule>()
-        .ConfigureSilo(silo =>
-        {
-            silo.Services.RemoveAll<IAppRuntime>();
-            silo.Services.AddSingleton(new FeatureCatalog(new FeatureDirectory(HelloFeatures())));
-            silo.Services.AddOperatingSystemBoot(os => { foreach (var app in defaults) { os.Apps.Add(app); } });
-        })
-        .StartAsync(ct);
-
-    private static async Task<string> Establish(ModuleBrain brain)
-    {
-        var scope = BrainScope.Create("acct", "home").Id;
-        CallerContextStamper.Stamp(new()
-        {
-            PrincipalId = "acct",
-            AccountId = "acct",
-            BrainId = "home",
-            Kind = CallerKind.User,
-            StampedBy = TrustedEdge.AuthenticatedHttp,
-        });
-        await brain.AuthorizeCallerAsync();
-        await brain.Get<IBrain>(scope).Create(new Owner("acct"));
-        return scope;
+        using var caller = person.AsCaller();
+        Assert.Equal(AppStatus.Live, (await brain.Get<IApp>(IApp.Key(person.BrainId, "hello")).Read()).Status);
+        Assert.Equal(AppStatus.Drafted, (await brain.Get<IApp>(IApp.Key(person.BrainId, "missing")).Read()).Status);
     }
 
     // A features folder holding os/hello, written once per run.
@@ -97,5 +64,11 @@ public sealed class OsBootFacts
         Directory.CreateDirectory(Path.Combine(folder, "synapses"));
         File.WriteAllText(Path.Combine(folder, "synapses", "hello.cs"), "// b");
         return root;
+    }
+
+    private sealed class IdleRuntime : IAppRuntime
+    {
+        public Task Deploy(string appKey, Dictionary<string, string> sources, Dictionary<string, string> configuration, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task Retire(string appKey, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

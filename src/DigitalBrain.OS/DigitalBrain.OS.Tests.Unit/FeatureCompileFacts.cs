@@ -9,16 +9,16 @@ namespace DigitalBrain.OS.Tests.Unit;
 // folder to that gate with the real C# sandbox, so a script that does not compile fails here.
 public sealed class FeatureCompileFacts
 {
-    [Fact(Timeout = 240_000)]
+    [Fact]
     public async Task EveryFeatureScriptCompilesInTheRealSandbox()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create()
+        await using var brain = await TestBrain.Create()
             .WithModule<AppsModule, AppsOptions>(options => options.Features = SolutionProjects.Features)
             .WithModule<CSharpModule>()
             .WithReminders()
             .StartAsync(ct);
-        var sandbox = brain.SiloServices.GetRequiredService<IScriptSandbox>();
+        var sandbox = brain.Services.GetRequiredService<IScriptSandbox>();
         Assert.True(sandbox.CanRun);
 
         var errors = new List<string>();

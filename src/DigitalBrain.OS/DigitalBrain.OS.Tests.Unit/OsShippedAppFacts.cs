@@ -1,5 +1,4 @@
 using DigitalBrain.Apps;
-using DigitalBrain.Microsoft.CSharp.Catalog;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -7,7 +6,6 @@ namespace DigitalBrain.OS.Tests.Unit;
 
 public sealed class OsShippedAppFacts
 {
-
     [Fact]
     public void TheOperatingSystemShipsSettings()
     {
@@ -22,17 +20,6 @@ public sealed class OsShippedAppFacts
         using var provider = services.BuildServiceProvider();
         var options = provider.GetRequiredService<IOptions<OsAppsOptions>>().Value;
         Assert.Equal(["os/settings", "os/assistant", "os/router", "os/calculator", "os/datavisualizer", "os/selfimprove", "intochat/customer-researcher"], options.Apps.Select(app => app.Publisher + "/" + app.Name));
-    }
-
-    [Fact]
-    public void EveryOsProgramCompilesAgainstCurrentContracts()
-    {
-        foreach (var app in SolutionProjects.FeaturesOf("os"))
-        {
-            var sources = new Dictionary<string, string>(app.Files.Where(file => AppFiles.IsProgram(file.Key)));
-            var result = new CSharpScriptCheck().Compile(sources);
-            Assert.True(result.Success, $"{app.Name}: {string.Join("; ", result.Errors.Select(error => $"{error.File}:{error.Line} {error.Message}"))}");
-        }
     }
 
     [Fact]
