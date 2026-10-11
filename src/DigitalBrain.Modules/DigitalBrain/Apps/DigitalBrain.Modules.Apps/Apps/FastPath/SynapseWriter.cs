@@ -52,6 +52,19 @@ internal sealed class SynapseWriter(
         queue.Enqueue($"synapse {appKey}", (_, cancellationToken) => Write(job, cancellationToken));
     }
 
+    private sealed class DeployTurn
+    {
+        private SemaphoreSlim? _held;
+
+        public async Task Enter(SemaphoreSlim gate, CancellationToken cancellationToken)
+        {
+            await gate.WaitAsync(cancellationToken);
+            _held = gate;
+        }
+
+        public void Exit() => Interlocked.Exchange(ref _held, null)?.Release();
+    }
+
     private sealed record Job(string AppKey, Guid OperationId, string Sentence, string[] Focus, long Started, DateTimeOffset RequestedAt);
 
     private sealed record Outcome(string[] Errors, int Attempts, string? Base, string? Path);
@@ -68,45 +81,52 @@ internal sealed class SynapseWriter(
         // The job owns the request's completion: every path below, a throw or a cancellation included, ends in
         // CompleteSynapse, so no request stays Requested while its job is gone.
         Outcome outcome;
-        Task working = Task.CompletedTask;
+        var turn = new DeployTurn();
+        AppSynapse? recorded;
+        long elapsed;
         try
         {
-            var snapshot = await app.Read();
-            // A request that is no longer waiting was answered already (a replay, or a job that ran twice): no model call.
-            if (snapshot.Synapses?.FirstOrDefault(synapse => synapse.OperationId == job.OperationId) is not { Status: SynapseStatus.Requested })
+            try
             {
-                span?.SetTag("apps.fastpath.outcome", "skipped");
-                log.LogInformation("SynapseOutcome {App} {OperationId} {Outcome} {Reason}", job.AppKey, job.OperationId, "skipped", "the request was already answered");
+                var snapshot = await app.Read();
+                // A request that is no longer waiting was answered already (a replay, or a job that ran twice): no model call.
+                if (snapshot.Synapses?.FirstOrDefault(synapse => synapse.OperationId == job.OperationId) is not { Status: SynapseStatus.Requested })
+                {
+                    span?.SetTag("apps.fastpath.outcome", "skipped");
+                    log.LogInformation("SynapseOutcome {App} {OperationId} {Outcome} {Reason}", job.AppKey, job.OperationId, "skipped", "the request was already answered");
+                    return;
+                }
+                // The person's view goes alongside the write, never ahead of it; it lands before the outcome does.
+                var working = Report(app, "working", "Writing a synapse: " + Clip(job.Sentence, 200));
+                outcome = await Run(job, app, snapshot, turn, span, cancellationToken);
+                await working;
+            }
+            catch (OperationCanceledException)
+            { outcome = new(["The write was cancelled before it finished."], 0, null, null); }
+            catch (Exception error)
+            { outcome = new([$"The write failed: {error.GetType().Name}: {error.Message}"], 0, null, null); }
+            elapsed = (long)Stopwatch.GetElapsedTime(job.Started).TotalMilliseconds;
+            span?.SetTag("apps.fastpath.attempts", outcome.Attempts);
+            span?.SetTag("apps.fastpath.base", outcome.Base ?? "");
+            span?.SetTag("apps.fastpath.elapsed_ms", elapsed);
+            try
+            {
+                var completed = await app.CompleteSynapse(job.OperationId, outcome.Errors, elapsed, outcome.Attempts, outcome.Base);
+                recorded = completed.Synapses?.FirstOrDefault(synapse => synapse.OperationId == job.OperationId);
+            }
+            catch (Exception error)
+            {
+                // The completion message may still land after its caller gave up; nothing else can record it.
+                span?.SetTag("apps.fastpath.outcome", "unrecorded");
+                span?.SetStatus(ActivityStatusCode.Error, Clip(error.Message, 500));
+                log.LogError(error, "SynapseOutcome {App} {OperationId} {Outcome} {Reason}", job.AppKey, job.OperationId, "unrecorded",
+                    outcome.Errors.Length == 0 ? "written, but the completion could not be recorded" : Clip(outcome.Errors[0], 500));
                 return;
             }
-            // The person's view goes alongside the write, never ahead of it; it lands before the outcome does.
-            working = Report(app, "working", "Writing a synapse: " + Clip(job.Sentence, 200));
-            outcome = await Run(job, app, snapshot, span, cancellationToken);
         }
-        catch (OperationCanceledException)
-        { outcome = new(["The write was cancelled before it finished."], 0, null, null); }
-        catch (Exception error)
-        { outcome = new([$"The write failed: {error.GetType().Name}: {error.Message}"], 0, null, null); }
-        await working;
-        var elapsed = (long)Stopwatch.GetElapsedTime(job.Started).TotalMilliseconds;
-        span?.SetTag("apps.fastpath.attempts", outcome.Attempts);
-        span?.SetTag("apps.fastpath.base", outcome.Base ?? "");
-        span?.SetTag("apps.fastpath.elapsed_ms", elapsed);
-        AppSynapse? recorded;
-        try
-        {
-            var completed = await app.CompleteSynapse(job.OperationId, outcome.Errors, elapsed, outcome.Attempts, outcome.Base);
-            recorded = completed.Synapses?.FirstOrDefault(synapse => synapse.OperationId == job.OperationId);
-        }
-        catch (Exception error)
-        {
-            // The completion message may still land after its caller gave up; nothing else can record it.
-            span?.SetTag("apps.fastpath.outcome", "unrecorded");
-            span?.SetStatus(ActivityStatusCode.Error, Clip(error.Message, 500));
-            log.LogError(error, "SynapseOutcome {App} {OperationId} {Outcome} {Reason}", job.AppKey, job.OperationId, "unrecorded",
-                outcome.Errors.Length == 0 ? "written, but the completion could not be recorded" : Clip(outcome.Errors[0], 500));
-            return;
-        }
+        // The app's deploy turn ends once the outcome is recorded: the next write's deploy queues behind this
+        // completion, never ahead of it, so the completion is not left waiting out another Assign.
+        finally { turn.Exit(); }
         // The app's record decides the outcome: a deploy that landed after this job gave up on it is Written.
         if (recorded is { Status: SynapseStatus.Written })
         {
@@ -128,7 +148,7 @@ internal sealed class SynapseWriter(
         }
     }
 
-    private async Task<Outcome> Run(Job job, IApp app, AppSnapshot snapshot, Activity? span, CancellationToken cancellationToken)
+    private async Task<Outcome> Run(Job job, IApp app, AppSnapshot snapshot, DeployTurn turn, Activity? span, CancellationToken cancellationToken)
     {
         var brain = BrainOf(job.AppKey);
         // The sentence is embedded once for both rankings, and the examples, the focus and the matching contracts
@@ -167,16 +187,14 @@ internal sealed class SynapseWriter(
         if (errors.Length > 0) { return new(errors, attempts, basis?.Name, null); }
         // The app compiles the whole program again as it assigns it: that refusal is this synapse's too.
         // One deploy per app at a time: overlapping writes queued on the app's turn would each wait out the
-        // others' Assign and time out while their deploys still land.
-        var gate = _deploys.GetOrAdd(job.AppKey, _ => new SemaphoreSlim(1, 1));
-        await gate.WaitAsync(cancellationToken);
+        // others' Assign and time out while their deploys still land. Write releases the turn after completion.
+        await turn.Enter(_deploys.GetOrAdd(job.AppKey, _ => new SemaphoreSlim(1, 1)), cancellationToken);
         try { await app.WriteBehavior(written!.Path!, written.Source!, job.OperationId); }
         catch (Exception error) when (error is InvalidOperationException or ArgumentException)
         { return new([error.Message], attempts, basis?.Name, null); }
         // A timeout leaves the deploy unknown: CompleteSynapse records Written when the synapse landed after all.
         catch (TimeoutException error)
         { return new([$"The deploy did not answer in time: {error.Message}"], attempts, basis?.Name, null); }
-        finally { gate.Release(); }
         return new([], attempts, basis?.Name, written.Path);
     }
 

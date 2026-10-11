@@ -15,7 +15,9 @@ using DigitalBrain.Testing;
 using DigitalBrain.Testing.Model;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Orleans.Configuration;
 
 namespace DigitalBrain.Modules.Apps.Tests;
 
@@ -570,24 +572,53 @@ public sealed class FastPathFacts : IDisposable
     public async Task ThreeSentencesWrittenToOneAppAtOnceAllEndWrittenOrRejected()
     {
         var ct = TestContext.Current.CancellationToken;
-        var runtime = new FakeAppRuntime();
+        // Every deploy outlasts a call's response timeout, as a slow Assign does live: overlapping writes queue
+        // behind each other's deploys, and each writer gives up on its WriteBehavior before the deploy lands.
+        var runtime = new SlowAppRuntime(TimeSpan.FromSeconds(3));
         await using var model = await FakeModelServer.StartAsync(ct);
-        await using var brain = await Start(model, runtime, new FastPathSandbox(), ct);
+        await using var brain = await StartSlow(model, runtime, ct);
         model.Script(Writer, Reply("apples.cs", Lemons), Reply("pears.cs", Lemons), Reply("plums.cs", Lemons));
         var app = await Created(brain, "grocer");
-        await using var written = await brain.Observe<SynapseWritten>(app, ct);
+        await using var outcomes = await brain.Observe<Signal>(app, ct);
 
         await Task.WhenAll(
             app.WriteSynapse("when asked, answer apples", [], Guid.NewGuid()),
             app.WriteSynapse("when asked, answer pears", [], Guid.NewGuid()),
             app.WriteSynapse("when asked, answer plums", [], Guid.NewGuid()));
 
-        string[] paths = [(await written.NextAsync(ct: ct)).Path, (await written.NextAsync(ct: ct)).Path, (await written.NextAsync(ct: ct)).Path];
-        Assert.Equal(["apples.cs", "pears.cs", "plums.cs"], paths.Order(StringComparer.Ordinal));
+        for (var landed = 0; landed < 3; landed++)
+        { await outcomes.NextAsync(signal => signal is SynapseWritten or SynapseRejected, ct); }
         var live = await app.Read();
         Assert.Equal(3, live.Synapses!.Length);
+        // Each outcome matches the program: Written exactly when its file is in the program the runtime last ran.
+        var program = runtime.Deployed[^1];
+        Assert.All(live.Synapses, synapse => Assert.Contains(synapse.Status, new[] { SynapseStatus.Written, SynapseStatus.Rejected }));
+        Assert.All(live.Synapses, synapse => Assert.Equal(synapse.Status == SynapseStatus.Written,
+            synapse.Path is { } path && live.Files.ContainsKey(path) && program.ContainsKey(path)));
+        Assert.All(live.Synapses.Where(synapse => synapse.Status == SynapseStatus.Rejected), synapse => Assert.NotEmpty(synapse.Errors));
+        // Every deploy here lands, so none may be rejected for having waited on another.
         Assert.All(live.Synapses, synapse => Assert.Equal(SynapseStatus.Written, synapse.Status));
-        Assert.All(live.Synapses, synapse => Assert.True(live.Files.ContainsKey(synapse.Path!)));
+    }
+
+    [Fact]
+    public async Task AWriteWhoseDeployOutlastsTheWritersWaitIsRecordedWritten()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runtime = new SlowAppRuntime(TimeSpan.FromSeconds(3));
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await StartSlow(model, runtime, ct);
+        model.Script(Writer, Reply("lemons.cs", Lemons));
+        var app = await Created(brain, "grocer");
+        await using var written = await brain.Observe<SynapseWritten>(app, ct);
+
+        await app.WriteSynapse("when asked, answer lemons", [], Guid.NewGuid());
+
+        Assert.Equal("lemons.cs", (await written.NextAsync(ct: ct)).Path);
+        var entry = Assert.Single((await app.Read()).Synapses!);
+        Assert.Equal((SynapseStatus.Written, "lemons.cs"), (entry.Status, entry.Path));
+        Assert.Empty(entry.Errors);
+        // The deploy outlasted the call timeout, so the writer gave up on WriteBehavior before it answered.
+        Assert.True(entry.ElapsedMs > CallTimeout.TotalMilliseconds, $"{entry.ElapsedMs} ms");
     }
 
     [Fact]
@@ -647,6 +678,38 @@ public sealed class FastPathFacts : IDisposable
             .WithFakeAppRuntime(runtime)
             .ConfigureServices(services => services.AddSingleton<IScriptSandbox>(sandbox))
             .StartAsync(ct);
+
+    private static readonly TimeSpan CallTimeout = TimeSpan.FromSeconds(2);
+
+    private static Task<ITestBrain> StartSlow(FakeModelServer model, SlowAppRuntime runtime, CancellationToken ct)
+        => TestBrain.Create()
+            .WithModule<AIModule>()
+            .WithModule<AppsModule, AppsOptions>(apps => apps.FastPathModel = nameof(IGpt56Luna))
+            .WithFakeModel(model)
+            .ConfigureServices(services =>
+            {
+                services.RemoveAll<IAppRuntime>();
+                services.AddSingleton<IAppRuntime>(runtime);
+                services.AddSingleton<IScriptSandbox>(new FastPathSandbox());
+                services.Configure<SiloMessagingOptions>(messaging => messaging.ResponseTimeout = CallTimeout);
+            })
+            .StartAsync(ct);
+
+    // Deploys after a delay longer than a call's response timeout; records each program it ran.
+    private sealed class SlowAppRuntime(TimeSpan delay) : IAppRuntime
+    {
+        public ConcurrentQueue<Dictionary<string, string>> Ran { get; } = new();
+        public Dictionary<string, string>[] Deployed => [.. Ran];
+
+        public async Task<IReadOnlyDictionary<string, string>> Deploy(string appKey, Dictionary<string, string> sources, Dictionary<string, string> configuration, CancellationToken cancellationToken)
+        {
+            await Task.Delay(delay, CancellationToken.None);
+            Ran.Enqueue(new(sources, StringComparer.Ordinal));
+            return sources.Keys.ToDictionary(path => path, path => "hash:" + path, StringComparer.Ordinal);
+        }
+
+        public Task Retire(string appKey, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
 
     private static async Task<IApp> Created(ITestBrain brain, string name)
     {
