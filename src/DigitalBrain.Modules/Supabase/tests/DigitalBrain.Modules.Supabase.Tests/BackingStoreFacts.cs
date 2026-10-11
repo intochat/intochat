@@ -11,7 +11,6 @@ public sealed class BackingStoreFacts
     [Fact]
     public async Task InfrastructureHealthUsesTheDeploymentHandleWithoutAUserConnection()
     {
-        Orleans.Runtime.RequestContext.Clear();
         var credentials = new MissingInfrastructure("Host=127.0.0.1;Port=1;Database=deployment_store;Username=reader;Timeout=1");
         await using var backing = new SupabaseBackingStore(credentials, Options.Create(new SupabaseModuleOptions { UseBackingStore = true }));
         var health = new SupabaseHealthCheck(backing, Options.Create(new SupabaseModuleOptions { UseBackingStore = true }));
@@ -27,7 +26,6 @@ public sealed class BackingStoreFacts
     [Fact]
     public async Task BackingStorePingUsesItsDeploymentCredentialWithoutAUserStamp()
     {
-        Orleans.Runtime.RequestContext.Clear();
         var credentials = new MissingInfrastructure();
         await using var backing = new SupabaseBackingStore(credentials, Options.Create(new SupabaseModuleOptions { UseBackingStore = true }));
         var ct = TestContext.Current.CancellationToken;
@@ -39,10 +37,10 @@ public sealed class BackingStoreFacts
     public async Task UserOnlyModuleStartsAndHealthDoesNotRequireDeploymentCredentials()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<SupabaseModule>().StartAsync(ct);
-        var options = brain.SiloServices.GetRequiredService<IOptions<SupabaseModuleOptions>>();
+        await using var brain = await TestBrain.Create().WithModule<SupabaseModule>().StartAsync(ct);
+        var options = brain.Services.GetRequiredService<IOptions<SupabaseModuleOptions>>();
         Assert.False(options.Value.UseBackingStore);
-        var check = new SupabaseHealthCheck(brain.SiloServices.GetRequiredService<ISupabaseBackingStore>(), options);
+        var check = new SupabaseHealthCheck(brain.Services.GetRequiredService<ISupabaseBackingStore>(), options);
         Assert.Equal(HealthStatus.Healthy, (await check.CheckHealthAsync(new HealthCheckContext(), ct)).Status);
         Assert.Null(typeof(SupabaseModule).GetProperty("Connector"));
     }
@@ -53,7 +51,7 @@ public sealed class BackingStoreFacts
         var ct = TestContext.Current.CancellationToken;
         var error = await Assert.ThrowsAnyAsync<Exception>(async () =>
         {
-            await using var brain = await ModuleTest.Create()
+            await using var brain = await TestBrain.Create()
                 .WithModule<SupabaseModule, SupabaseModuleOptions>(options => options.UseBackingStore = true).StartAsync(ct);
         });
         Assert.Contains("Supabase backing integration is unavailable", error.ToString(), StringComparison.Ordinal);
