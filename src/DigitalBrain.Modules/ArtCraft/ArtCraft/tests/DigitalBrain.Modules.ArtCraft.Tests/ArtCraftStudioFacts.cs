@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using DigitalBrain.Framework;
 using DigitalBrain.Mcp;
 using DigitalBrain.Tools;
 using Microsoft.AspNetCore.Builder;
@@ -13,19 +12,17 @@ namespace DigitalBrain.ArtCraft.Tests;
 
 public sealed class ArtCraftStudioFacts
 {
-    private const string Brain = "artcraft-facts";
-
     [Fact]
     public async Task OpeningConnectsTheAppsMcpServerAndNamesItsPage()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var server = await FakeCraft.StartAsync(ct);
         await using var brain = await Start(server.Url, ct);
-        Stamp();
+        using var caller = brain.Owner.AsCaller();
 
-        var session = await brain.Get<IArtCraftStudio>(Brain + "/artcraft").Open("photocraft", ct);
+        var session = await brain.Get<IArtCraftStudio>(brain.Owner.Key("artcraft")).Open("photocraft", ct);
 
-        Assert.Equal((Brain + "/mcp/photocraft", "http://localhost:18110/"), (session.McpKey, session.WebUrl));
+        Assert.Equal((brain.Owner.Key("mcp/photocraft"), "http://localhost:18110/"), (session.McpKey, session.WebUrl));
         Assert.True((await brain.Get<IMcpServer>(session.McpKey).Read()).Connected);
         Assert.Equal("command_list", Assert.Single((await brain.Get<IMcpServer>(session.McpKey).Tools(ct)).Tools).Name);
     }
@@ -36,8 +33,8 @@ public sealed class ArtCraftStudioFacts
         var ct = TestContext.Current.CancellationToken;
         await using var server = await FakeCraft.StartAsync(ct);
         await using var brain = await Start(server.Url, ct);
-        Stamp();
-        var studio = brain.Get<IArtCraftStudio>(Brain + "/artcraft");
+        using var caller = brain.Owner.AsCaller();
+        var studio = brain.Get<IArtCraftStudio>(brain.Owner.Key("artcraft"));
         var first = await studio.Open("photocraft", ct);
         var refreshed = (await brain.Get<IMcpServer>(first.McpKey).Read()).RefreshedAt;
 
@@ -51,22 +48,19 @@ public sealed class ArtCraftStudioFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start("http://localhost:1/mcp", ct);
-        Stamp();
+        using var caller = brain.Owner.AsCaller();
 
-        await Assert.ThrowsAsync<ArgumentException>(() => brain.Get<IArtCraftStudio>(Brain + "/artcraft").Open("paintcraft", ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => brain.Get<IArtCraftStudio>(brain.Owner.Key("artcraft")).Open("paintcraft", ct));
     }
 
-    private static Task<ModuleBrain> Start(string mcp, CancellationToken ct)
-        => ModuleTest.Create()
+    private static Task<ITestBrain> Start(string mcp, CancellationToken ct)
+        => TestBrain.Create()
             .WithModule<ArtCraftModule, ArtCraftModuleOptions>(options =>
             {
                 options.WithHostedApps();
                 options.PhotoCraftMcp = mcp;
             })
             .WithModule<McpModule>().WithModule<ToolsModule>().StartAsync(ct);
-
-    private static void Stamp() => CallerContextStamper.Stamp(new()
-    { PrincipalId = "owner", AccountId = "owner", BrainId = Brain, Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
 
     [McpServerToolType]
     public sealed class CraftTools
