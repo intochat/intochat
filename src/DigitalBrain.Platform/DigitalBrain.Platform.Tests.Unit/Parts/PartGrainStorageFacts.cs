@@ -7,13 +7,14 @@ using Orleans.Storage;
 
 namespace DigitalBrain.Platform.Tests.Unit.Parts;
 
-public interface IPartCounter : INeuron { Task<int> Increment(); Task<int> Read(); }
+public interface IPartCounter : INeuron { Task<int> Increment(); Task<int> Read(); Task Clear(); }
 
 [GrainType("test.part-counter")]
 public sealed class PartCounterNeuron([PersistentState("counter", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<PartCounterState> state) : Neuron, IPartCounter
 {
     public async Task<int> Increment() { state.State.Value++; await state.WriteStateAsync(); return state.State.Value; }
     public Task<int> Read() => Task.FromResult(state.State.Value);
+    public Task Clear() => state.ClearStateAsync();
 }
 
 [GenerateSerializer, Alias("test.part-counter-state")]
@@ -34,6 +35,21 @@ public sealed class PartGrainStorageFacts
     private static string Counter => $"{Scope}/apps/counter/c1";
 
     private static IGrainStorage Storage(ITestBrain brain, string name) => brain.Services.GetRequiredKeyedService<IGrainStorage>(name);
+
+    [Fact(Timeout = 120_000)]
+    public async Task AClearedNeuronReadsAsFreshInTheSameActivationAndAfterARestart()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().AsMachine().StartAsync(ct);
+        var counter = brain.Get<IPartCounter>(Counter);
+        await counter.Increment();
+
+        await counter.Clear();
+
+        Assert.Equal(0, await counter.Read());
+        await brain.RestartAsync(ct);
+        Assert.Equal(0, await brain.Get<IPartCounter>(Counter).Read());
+    }
 
     [Fact(Timeout = 120_000)]
     public async Task ANeuronKeepsItsStateInItsPartAcrossASiloRestart()

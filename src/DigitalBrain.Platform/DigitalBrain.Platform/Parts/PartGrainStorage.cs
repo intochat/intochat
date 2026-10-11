@@ -48,6 +48,9 @@ internal sealed class PartGrainStorage(PartLogs logs, Serializer serializer, Par
         RefuseStandIn(grainId);
         var log = await logs.For(PartId.Of(grainId.Key.ToString()!));
         await log.AppendIfCurrent(grainId.ToString(), stateName, Expected(grainState), RecordChange.Clear, [], SignalJournal.TakePending(grainId));
+        // A cleared activation reads as a fresh one, as Orleans' own providers leave it; a record type without a
+        // parameterless constructor keeps its instance, as ReadStateAsync does for a missing record.
+        if (typeof(T).IsValueType || typeof(T).GetConstructor(Type.EmptyTypes) is not null) { grainState.State = Activator.CreateInstance<T>(); }
         (grainState.ETag, grainState.RecordExists) = (null, false);
     }
 
