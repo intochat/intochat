@@ -58,11 +58,12 @@ DigitalBrain.Modules.X.Contracts/       neuron interfaces + signals; references 
 DigitalBrain.Modules.X/                 XModule : Module / Module<XOptions>, neurons, connector, endpoints
 DigitalBrain.Modules.X.Aspire.Hosting/  XModuleHosting : ModuleHosting<XModule>   (if it needs infrastructure)
 DigitalBrain.Modules.X.Deployment/      XDeployment : ModuleDeployment<XModule>   (if it deploys)
-tests/DigitalBrain.Modules.X.Tests/     facts over real grains via DigitalBrain.Testing.Module
+tests/DigitalBrain.Modules.X.Tests/     facts over real grains via DigitalBrain.Testing
 ```
 
-Tests use the shared harness, never a hand-rolled host: `ModuleTest.Create().WithModule<XModule>()`
-(`src/Testing/DigitalBrain.Testing.Module`); hosting facts use `DigitalBrain.Aspire.Testing`.
+Tests use the shared harness, never a hand-rolled host: `TestBrain.Create().WithModule<XModule>()`
+(`src/Testing/DigitalBrain.Testing`, the same `AddDigitalBrainServer` recipe the OS boots); hosting facts use
+`DigitalBrain.Aspire.Testing`; E2E picks the Aspire target (`DigitalBrain.Testing.Aspire`, `DigitalBrain.OS.Testing`).
 Ring boundaries and config-key ownership are enforced by `src/Testing/DigitalBrain.Architecture.Tests`.
 
 ## Connectors, integrations, configuration
@@ -169,7 +170,7 @@ prove the feature works.
 4. **Confirm in telemetry** with the Aspire MCP: `list_traces` should show the spans you expect,
    `list_structured_logs` the log lines you expect, and `list_trace_structured_logs` lets you follow
    one trace end to end. If the telemetry doesn't match what you expected, the change isn't done.
-5. **Regression net.** Run the unit and E2E suites of every project you touched.
+5. **Regression net.** Run the unit and E2E suites of every project you touched (the same facts run on `TestBrain`'s InProcess or Aspire target).
 
 When something fails, fix the readiness or design problem. Never raise a timeout or add polling to
 make a check pass.
@@ -180,7 +181,7 @@ make a check pass.
   say, and keep them true (a stale comment is a bug).
 - Warnings are errors, nullable is on, package versions are central (`Directory.Packages.props`).
 - Tests are facts with sentence-shaped names and `TestContext.Current.CancellationToken`. Use real
-  grains over mocks: `ModuleTest.Create().WithModule<…>()`, `FakeSandbox`, `RecordingCSharpFile`,
+  grains over mocks: `TestBrain.Create().WithModule<…>()`, `FakeSandbox`, `RecordingCSharpFile`,
   scripted LLMs.
 
 ## Hazards

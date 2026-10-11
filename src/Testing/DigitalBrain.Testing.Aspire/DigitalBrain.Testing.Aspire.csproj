@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
+    <PackageTags>testing;orleans;aspire;digitalbrain</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <Description>The Aspire target behind ITestBrain: a test boots the consumer's AppHost and drives the brain over HTTP and an Orleans client.</Description>
   </PropertyGroup>
   <ItemGroup>
@@ -17,4 +19,5 @@
     <ProjectReference Include="../DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
     <ProjectReference Include="../../DigitalBrain.Aspire/DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" />
   </ItemGroup>
+  <ItemGroup><None Include="README.md" Pack="true" PackagePath="" /></ItemGroup>
 </Project>

@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
+    <PackageTags>testing;orleans;aspire;digitalbrain</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <Description>One harness for every DigitalBrain test: the TestBrain builder, targets that run the product recipe, signal probes, behavior runs, bounded waits and a fake model endpoint.</Description>
   </PropertyGroup>
   <ItemGroup><InternalsVisibleTo Include="DigitalBrain.Testing.Aspire" /></ItemGroup>
@@ -12,4 +14,5 @@
     <ProjectReference Include="../../DigitalBrain.Aspire/DigitalBrain.Aspire.Server/DigitalBrain.Aspire.Server.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules/Microsoft/Orleans/DigitalBrain.Modules.Microsoft.Orleans/DigitalBrain.Modules.Microsoft.Orleans.csproj" />
   </ItemGroup>
+  <ItemGroup><None Include="README.md" Pack="true" PackagePath="" /></ItemGroup>
 </Project>
