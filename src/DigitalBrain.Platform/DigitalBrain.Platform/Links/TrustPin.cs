@@ -11,7 +11,7 @@ internal sealed class TrustPinMismatchException(string message) : Exception(mess
 // first one seen, kept in {MachineDirectory}/trust.pin. Production requires a configured pin.
 internal sealed class TrustPin(IOptions<TrustOptions> trust, IOptions<PartsOptions> parts)
 {
-    public const string PinKey = TrustOptions.Key + ":" + nameof(TrustOptions.Pin);
+    public const string PinKey = DigitalBrain.Framework.DigitalBrainNames.TrustPinConfigurationKey;
 
     private readonly Lock _gate = new();
 

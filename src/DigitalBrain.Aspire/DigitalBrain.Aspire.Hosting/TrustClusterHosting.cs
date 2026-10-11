@@ -22,7 +22,7 @@ public static class TrustClusterHosting
     public const string SiloEndpoint = "silo";
     public const string AdvertisedAddressKey = "DigitalBrain:Platform:Trust:AdvertisedAddress";
     public const string EndpointKey = "DigitalBrain:Platform:Trust:Endpoint";
-    public const string PinKey = "DigitalBrain:Platform:Trust:Pin";
+    public const string PinKey = DigitalBrain.Framework.DigitalBrainNames.TrustPinConfigurationKey;
     public const string IdentityPathKey = "DigitalBrain:Platform:Trust:IdentityPath";
     public const string Loopback = "127.0.0.1";
 

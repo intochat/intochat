@@ -7,17 +7,22 @@ namespace DigitalBrain.Framework.Parts;
 // on every machine (R96).
 public static class MachineKeyFile
 {
-    // PKCS#8, created on first use.
+    // PKCS#8, created on first use. Creation is atomic: a key written to a temporary file is moved into place only if
+    // none exists, so two processes racing (the AppHost and the trust host) both end up with the one that won.
     public static ECDsa LoadOrCreate(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-        if (File.Exists(path)) { key.ImportPkcs8PrivateKey(File.ReadAllBytes(path), out _); }
-        else
+        if (!File.Exists(path))
         {
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
-            File.WriteAllBytes(path, key.ExportPkcs8PrivateKey());
+            var temp = $"{path}.{Guid.NewGuid():N}.tmp";
+            using (var created = ECDsa.Create(ECCurve.NamedCurves.nistP256)) { File.WriteAllBytes(temp, created.ExportPkcs8PrivateKey()); }
+            try { File.Move(temp, path, overwrite: false); }
+            catch (IOException) when (File.Exists(path)) { }
+            finally { File.Delete(temp); }
         }
+        var key = ECDsa.Create();
+        key.ImportPkcs8PrivateKey(File.ReadAllBytes(path), out _);
         return key;
     }
 

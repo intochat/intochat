@@ -15,6 +15,8 @@ public static class DigitalBrainNames
     public const string MasterKeyEnvironmentVariable = "DigitalBrain__MasterKey";
     // PartsOptions.Custody's key, here so a per-OS module reads it without the Platform ring.
     public const string CustodyConfigurationKey = "DigitalBrain:Platform:Parts:Custody";
+    // TrustOptions.Pin's key, here so the Aspire ring sets it without the Platform ring (R96).
+    public const string TrustPinConfigurationKey = "DigitalBrain:Platform:Trust:Pin";
     // The link certificate extension holding a machine key's endorsement (T20-2, R85): an arc under 2.25 (ITU-T X.667,
     // no registration) from UUID f274567e-24e5-4ea4-8a71-ea207b00a3f3, cut to its high 64 bits because Windows
     // CryptoAPI refuses an OID component wider than 64 bits (a certificate carrying the full 128-bit arc cannot be made).

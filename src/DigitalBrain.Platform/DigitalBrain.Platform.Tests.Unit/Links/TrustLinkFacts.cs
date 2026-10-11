@@ -387,6 +387,11 @@ public sealed class TrustLinkFacts
         Assert.NotNull(await machine.SiloServices.GetRequiredService<IIdentityClient>().Membership(OwnerBrain, ModuleTest.DefaultAccount));
     }
 
+    // The pin's key, shared with the Aspire ring through DigitalBrainNames, is TrustOptions.Pin's.
+    [Fact]
+    public void ThePinKeyIsTheTrustOptionsPin()
+        => Assert.Equal($"{TrustOptions.Key}:{nameof(TrustOptions.Pin)}", TrustPin.PinKey);
+
     [Fact(Timeout = 120_000)]
     public async Task NoMachineHostOpensAnOrleansClientToTheTrustCluster()
     {
