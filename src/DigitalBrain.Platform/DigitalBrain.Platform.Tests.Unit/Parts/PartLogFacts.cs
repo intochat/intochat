@@ -362,6 +362,27 @@ public sealed class PartLogFacts
     }
 
     [Fact(Timeout = 60_000)]
+    public async Task AChangeLargerThanAnyCommitCarriesIsRefusedBeforeItReachesTheJournal()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await StartAsync(ct);
+        var part = PartId.ForApp("home", "notes");
+        var key = RandomNumberGenerator.GetBytes(32);
+        using var machine = SequencerFacts.Machine();
+        var options = Own();
+        options.MaxChangeBytes = 1_000;
+        await using var log = await OpenAsync(brain, part, key, machine, options, TimeProvider.System, ct);
+
+        await Assert.ThrowsAsync<ChangeTooLargeException>(() => log.Append("big", "s", RecordChange.Write, new byte[2_000], []));
+        await log.Append("small", "s", RecordChange.Write, [1], []);
+        await log.Flushed();
+
+        Assert.Null(log.Read("big", "s"));
+        Assert.Equal([1], log.Read("small", "s")!.Record);
+        Assert.Equal(0, new FileInfo(JournalPath(options, part)).Length);
+    }
+
+    [Fact(Timeout = 60_000)]
     public async Task AnAmbiguousCommitFailureClosesANonOwnLog()
     {
         var ct = TestContext.Current.CancellationToken;

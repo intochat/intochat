@@ -32,7 +32,7 @@ internal sealed class PartJournal(string path, byte[] key, Serializer serializer
         lock (_gate)
         {
             EnsureDirectory();
-            if (_index is null && File.Exists(path)) { Scan(); }
+            if (Stale()) { Scan(); }
             using var file = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read);
             var start = file.Length;
             try
@@ -68,7 +68,7 @@ internal sealed class PartJournal(string path, byte[] key, Serializer serializer
         lock (_gate)
         {
             if (!File.Exists(path)) { return; }
-            if (_index is null) { Scan(); }
+            if (Stale()) { Scan(); }
             var index = _index!;
             var first = index.FindIndex(e => e.Seq > seq);
             if (first == 0) { return; }
@@ -112,6 +112,10 @@ internal sealed class PartJournal(string path, byte[] key, Serializer serializer
             _end = 0;
         }
     }
+
+    // Caller holds the gate. The index is this instance's view: a file that another writer (another instance on the
+    // same path) changed since then is scanned again, so a trim never copies only up to an old end.
+    private bool Stale() => _index is null || (File.Exists(path) ? new FileInfo(path).Length : 0) != _end;
 
     private void EnsureDirectory() => Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
 

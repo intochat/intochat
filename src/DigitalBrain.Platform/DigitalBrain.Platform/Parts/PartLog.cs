@@ -8,6 +8,8 @@ namespace DigitalBrain.Platform.Parts;
 
 internal sealed record StoredRecord(byte[] Record, long ETagSeq);
 
+internal sealed class ChangeTooLargeException(string message) : InvalidOperationException(message);
+
 // One part's log on the machine that holds its lease (Q18, Q26). Changes are group-committed as sealed mesh
 // segments chained by Prev, and a change is durable only once a head the sequencer accepted names its segment.
 // An own machine journals first and acknowledges from the journal, so it keeps writing through an outage.
@@ -147,6 +149,13 @@ internal sealed class PartLog : IAsyncDisposable
                     current?.ToString(System.Globalization.CultureInfo.InvariantCulture), expected?.ToString(System.Globalization.CultureInfo.InvariantCulture)));
             }
             var entry = new LogEntry { Seq = _nextSeq, GrainId = grainId, StateName = stateName, Change = change, Record = record, Signals = signals };
+            if (SizeOf(entry) > _options.MaxChangeBytes)
+            {
+                _logger.LogError("Part {Part} refused a {Bytes}-byte change to {GrainId}/{StateName}: no commit carries more than {Max} bytes.",
+                    _part, SizeOf(entry), grainId, stateName, _options.MaxChangeBytes);
+                return Task.FromException<long>(new ChangeTooLargeException(
+                    $"A change of {SizeOf(entry)} bytes to {grainId}/{stateName} exceeds the {_options.MaxChangeBytes}-byte limit of part {_part}."));
+            }
             if (_journal is not null)
             {
                 try { _journal.Append(entry); }

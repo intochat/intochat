@@ -95,4 +95,42 @@ public sealed class PartJournalFacts
         new PartJournal(path, key, serializer).TrimThrough(4);
         Assert.Equal(0, new FileInfo(path).Length);
     }
+
+    [Fact(Timeout = 60_000)]
+    public async Task ATrimKeepsEntriesAnotherInstanceAppendedAfterThisOneIndexedTheFile()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var serializer = brain.Services.GetRequiredService<Serializer>();
+        var key = RandomNumberGenerator.GetBytes(32);
+        var path = Path.Combine(Path.GetTempPath(), $"journal-{Guid.NewGuid():N}.log");
+        var journal = new PartJournal(path, key, serializer);
+        foreach (var seq in new long[] { 1, 2 }) { journal.Append(new LogEntry { Seq = seq, GrainId = "g", StateName = "s", Record = [], Signals = [] }); }
+
+        new PartJournal(path, key, serializer).Append(new LogEntry { Seq = 3, GrainId = "g", StateName = "s", Record = [3], Signals = [] });
+        journal.TrimThrough(1);
+
+        Assert.Equal([2L, 3L], new PartJournal(path, key, serializer).Read().Select(e => e.Seq));
+    }
+
+    [Fact(Timeout = 60_000)]
+    public async Task ATornTailFoundOnReopeningKeepsTheEarlierEntriesAndAcceptsNewAppends()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var serializer = brain.Services.GetRequiredService<Serializer>();
+        var key = RandomNumberGenerator.GetBytes(32);
+        var path = Path.Combine(Path.GetTempPath(), $"journal-{Guid.NewGuid():N}.log");
+        var journal = new PartJournal(path, key, serializer);
+        foreach (var seq in new long[] { 1, 2 }) { journal.Append(new LogEntry { Seq = seq, GrainId = "g", StateName = "s", Record = [], Signals = [] }); }
+        // The crash came mid-append: a length promising 1000 bytes, then only three of them.
+        using (var file = new FileStream(path, FileMode.Append)) { file.Write([0xE8, 0x03, 0, 0, 1, 2, 3]); }
+
+        var reopened = new PartJournal(path, key, serializer);
+        var before = reopened.Read();
+        reopened.Append(new LogEntry { Seq = 3, GrainId = "g", StateName = "s", Record = [3], Signals = [] });
+
+        Assert.Equal([1L, 2L], before.Select(e => e.Seq));
+        Assert.Equal([1L, 2L, 3L], new PartJournal(path, key, serializer).Read().Select(e => e.Seq));
+    }
 }

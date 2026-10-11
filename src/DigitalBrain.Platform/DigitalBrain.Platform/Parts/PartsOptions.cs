@@ -27,6 +27,10 @@ public sealed class PartsOptions
 
     public int BatchBytes { get; set; } = 262_144;
 
+    // The largest single change a part log accepts: a batch always carries at least one change, so a change no commit
+    // can carry would be retried forever while the journal grows behind it.
+    public int MaxChangeBytes { get; set; } = 16 * 1024 * 1024;
+
     public TimeSpan BatchDelay { get; set; } = TimeSpan.FromMilliseconds(25);
 
     public int SnapshotEvery { get; set; } = 64;
@@ -59,7 +63,7 @@ public sealed class PartsOptions
         if (string.IsNullOrWhiteSpace(MachineDirectory)) { throw new InvalidOperationException("Parts needs a MachineDirectory."); }
         if (OwnLease <= TimeSpan.Zero || ShortLease <= TimeSpan.Zero || RenewBefore <= TimeSpan.Zero || BatchDelay <= TimeSpan.Zero)
         { throw new InvalidOperationException("Parts needs positive leases, renewal margin and batch delay."); }
-        if (BatchBytes < 1 || SnapshotEvery < 1) { throw new InvalidOperationException("Parts needs positive BatchBytes and SnapshotEvery."); }
+        if (BatchBytes < 1 || SnapshotEvery < 1 || MaxChangeBytes < 1) { throw new InvalidOperationException("Parts needs positive BatchBytes, MaxChangeBytes and SnapshotEvery."); }
         if (RenewBefore >= ShortLease) { throw new InvalidOperationException("Parts needs RenewBefore shorter than ShortLease."); }
     }
 }
