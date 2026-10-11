@@ -1,8 +1,7 @@
 using DigitalBrain.Apps;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Postgres.Tables;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
+using DigitalBrain.Testing;
 
 namespace DigitalBrain.Modules.Apps.Tests.Runtimes;
 
@@ -44,9 +43,9 @@ public sealed class TablesSlotFacts
         Assert.Null(await Slot(brain).BoundConnection(new("other-brain", app)));
     }
 
-    private static ITablesSlot Slot(ModuleBrain brain) => new AppTablesSlot(brain.SiloServices);
+    private static ITablesSlot Slot(ITestBrain brain) => new AppTablesSlot(brain.Services);
 
-    private static async Task<string> App(ModuleBrain brain, string name, AppSlot? slot, Dictionary<string, string> connections)
+    private static async Task<string> App(ITestBrain brain, string name, AppSlot? slot, Dictionary<string, string> connections)
     {
         var key = IApp.Key(Brain, name);
         var app = brain.Get<IApp>(key);
@@ -55,12 +54,7 @@ public sealed class TablesSlotFacts
         return key;
     }
 
-    private static Task<ModuleBrain> Start()
-        => ModuleTest.Create().WithModule<AppsModule>()
-            .ConfigureSilo(silo =>
-            {
-                silo.Services.RemoveAll<IAppRuntime>();
-                silo.Services.AddSingleton<IAppRuntime>(new FakeAppRuntime());
-            })
+    private static Task<ITestBrain> Start()
+        => TestBrain.Create().WithModule<AppsModule>().WithFakeAppRuntime(new())
             .StartAsync(TestContext.Current.CancellationToken);
 }

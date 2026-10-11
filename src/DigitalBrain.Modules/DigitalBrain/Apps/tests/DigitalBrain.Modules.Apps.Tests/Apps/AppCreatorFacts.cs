@@ -2,9 +2,8 @@ using DigitalBrain.AI;
 using DigitalBrain.AI.Models.OpenAI;
 using DigitalBrain.Apps;
 using DigitalBrain.Apps.Signals;
-using DigitalBrain.Modules.Apps.Tests;
 using DigitalBrain.Testing.Model;
-using DigitalBrain.Testing.Module;
+using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Apps.Tests.Apps;
@@ -35,8 +34,8 @@ public sealed class AppCreatorFacts
         await using var model = await FakeModelServer.StartAsync(ct);
         await using var brain = await StartAsync(model, ct);
         model.Script(Author, Authored(Spec));
-        var creator = brain.SiloServices.GetRequiredService<Creator>();
-        var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
+        var creator = brain.Services.GetRequiredService<Creator>();
+        var digitalBrain = brain.Services.GetRequiredService<IDigitalBrain>();
 
         var created = await creator.Author(digitalBrain, Brain, null, "An app that shouts back.", ct);
 
@@ -53,8 +52,8 @@ public sealed class AppCreatorFacts
         await using var model = await FakeModelServer.StartAsync(ct);
         await using var brain = await StartAsync(model, ct);
         model.Script(Author, Authored(Spec), Authored(Spec + "\n\n## Scenario: It whispers\nQuietly."));
-        var creator = brain.SiloServices.GetRequiredService<Creator>();
-        var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
+        var creator = brain.Services.GetRequiredService<Creator>();
+        var digitalBrain = brain.Services.GetRequiredService<IDigitalBrain>();
         await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
 
         var revised = await creator.Author(digitalBrain, Brain, "shouter", "Also whisper.", ct);
@@ -71,20 +70,16 @@ public sealed class AppCreatorFacts
         await using var brain = await StartAsync(model, ct);
         model.Script(Author, Authored(Spec));
         model.Script(Builder, Built("// proof v1", "Shout in capitals."));
-        var creator = brain.SiloServices.GetRequiredService<Creator>();
-        var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
+        var creator = brain.Services.GetRequiredService<Creator>();
+        var digitalBrain = brain.Services.GetRequiredService<IDigitalBrain>();
         await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
-        await using var changes = await brain.SubscribeAsync<AppChanged>(app, ct);
+        await using var changes = await brain.Observe<AppChanged>(app, ct);
 
         var building = await creator.Implement(digitalBrain, IApp.Key(Brain, "shouter"), null);
         Assert.Equal(AppStatus.Building, building.Status);
 
-        await foreach (var change in changes.ReadAllAsync(ct))
-        {
-            if (change.Status == AppStatus.Live) { break; }
-            Assert.NotEqual(AppStatus.Failed, change.Status);
-        }
+        Assert.Equal(AppStatus.Live, (await changes.NextAsync(change => change.Status is AppStatus.Live or AppStatus.Failed, ct)).Status);
         var live = await app.Read();
         Assert.Equal("// proof v1", live.Files["synapses/shout.cs"]);
         Assert.Equal("Shout in capitals.", live.Files["prompts/system.md"]);
@@ -100,15 +95,15 @@ public sealed class AppCreatorFacts
         model.Script(Author, Authored(Spec));
         // An empty builder script: the model answers 500.
         model.Script(Builder);
-        var creator = brain.SiloServices.GetRequiredService<Creator>();
-        var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
+        var creator = brain.Services.GetRequiredService<Creator>();
+        var digitalBrain = brain.Services.GetRequiredService<IDigitalBrain>();
         await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
-        await using var changes = await brain.SubscribeAsync<AppChanged>(app, ct);
+        await using var changes = await brain.Observe<AppChanged>(app, ct);
 
         await creator.Implement(digitalBrain, IApp.Key(Brain, "shouter"), null);
 
-        await foreach (var change in changes.ReadAllAsync(ct)) { if (change.Status == AppStatus.Failed) { break; } }
+        await changes.NextAsync(change => change.Status == AppStatus.Failed, ct);
         var failed = await app.Read();
         Assert.Equal(AppStatus.Failed, failed.Status);
     }
@@ -124,22 +119,17 @@ public sealed class AppCreatorFacts
         {
             files = new Dictionary<string, string> { ["synapses/shout.cs"] = "// t", [AppFiles.DeclarationPath] = "// not yours" },
         }));
-        var creator = brain.SiloServices.GetRequiredService<Creator>();
-        var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
+        var creator = brain.Services.GetRequiredService<Creator>();
+        var digitalBrain = brain.Services.GetRequiredService<IDigitalBrain>();
         await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
-        await using var activity = await brain.SubscribeAsync<AppActivity>(app, ct);
+        await using var activity = await brain.Observe<AppActivity>(app, ct);
 
         await creator.Implement(digitalBrain, IApp.Key(Brain, "shouter"), null);
 
-        var states = new List<string>();
-        await foreach (var signal in activity.ReadAllAsync(ct))
-        {
-            states.Add(signal.State);
-            if (signal.State is "completed" or "attention") { Assert.Contains(AppFiles.DeclarationPath, signal.Detail, StringComparison.Ordinal); break; }
-        }
-        Assert.Equal("attention", states[^1]);
-        Assert.DoesNotContain("completed", states);
+        var outcome = await activity.NextAsync(signal => signal.State is "completed" or "attention", ct);
+        Assert.Equal("attention", outcome.State);
+        Assert.Contains(AppFiles.DeclarationPath, outcome.Detail, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -155,15 +145,15 @@ public sealed class AppCreatorFacts
             settings = new[] { new { name = "Model", description = "Who answers.", @default = "IGemma4" } },
             files = new Dictionary<string, string> { ["synapses/shout.cs"] = "// t" },
         }));
-        var creator = brain.SiloServices.GetRequiredService<Creator>();
-        var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
+        var creator = brain.Services.GetRequiredService<Creator>();
+        var digitalBrain = brain.Services.GetRequiredService<IDigitalBrain>();
         await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
-        await using var changes = await brain.SubscribeAsync<AppChanged>(app, ct);
+        await using var changes = await brain.Observe<AppChanged>(app, ct);
 
         await creator.Implement(digitalBrain, IApp.Key(Brain, "shouter"), null);
 
-        await foreach (var change in changes.ReadAllAsync(ct)) { if (change.Status == AppStatus.Live) { break; } }
+        await changes.NextAsync(change => change.Status == AppStatus.Live, ct);
         var live = await app.Read();
         Assert.Contains(live.Manifest.Operations, operation => operation.Name == "ask");
         Assert.Equal("IGemma4", live.Settings["Model"]);
@@ -181,15 +171,15 @@ public sealed class AppCreatorFacts
             operations = new[] { new { name = "shout", description = "Shout." } },
             files = new Dictionary<string, string> { ["synapses/shout.cs"] = "// t" },
         }));
-        var creator = brain.SiloServices.GetRequiredService<Creator>();
-        var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
+        var creator = brain.Services.GetRequiredService<Creator>();
+        var digitalBrain = brain.Services.GetRequiredService<IDigitalBrain>();
         await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
-        await using var changes = await brain.SubscribeAsync<AppChanged>(app, ct);
+        await using var changes = await brain.Observe<AppChanged>(app, ct);
 
         await creator.Implement(digitalBrain, IApp.Key(Brain, "shouter"), null);
 
-        await foreach (var change in changes.ReadAllAsync(ct)) { if (change.Status == AppStatus.Live) { break; } }
+        await changes.NextAsync(change => change.Status == AppStatus.Live, ct);
         var live = await app.Read();
         Assert.Contains(live.Manifest.Settings, setting => setting.Name == "Volume");
         Assert.Contains(live.Manifest.Operations, operation => operation.Name == "shout");
@@ -205,15 +195,15 @@ public sealed class AppCreatorFacts
         model.Script(Builder,
             FakeReply.Tool("check_csharp", """{"files":{"synapses/shout.cs":"var answer = 1;\nConsole.WriteLine(answer);"}}"""),
             Built("// proof v1", "Shout in capitals."));
-        var creator = brain.SiloServices.GetRequiredService<Creator>();
-        var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
+        var creator = brain.Services.GetRequiredService<Creator>();
+        var digitalBrain = brain.Services.GetRequiredService<IDigitalBrain>();
         await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
-        await using var changes = await brain.SubscribeAsync<AppChanged>(app, ct);
+        await using var changes = await brain.Observe<AppChanged>(app, ct);
 
         await creator.Implement(digitalBrain, IApp.Key(Brain, "shouter"), null);
 
-        await foreach (var change in changes.ReadAllAsync(ct)) { if (change.Status == AppStatus.Live) { break; } }
+        await changes.NextAsync(change => change.Status == AppStatus.Live, ct);
         Assert.Equal("// proof v1", (await app.Read()).Files["synapses/shout.cs"]);
     }
 
@@ -223,39 +213,27 @@ public sealed class AppCreatorFacts
         var ct = TestContext.Current.CancellationToken;
         var sandbox = new GatedSandbox();
         await using var model = await FakeModelServer.StartAsync(ct);
-        await using var brain = await ModuleTest.Create()
-            .WithModule<AIModule>()
-            .WithModule<AppsModule>()
-            .WithFakeModel(model)
-            .WithOptions<AppsModule, AppsOptions>(apps => { apps.AuthorModel = nameof(IGpt56Luna); apps.BuilderModel = nameof(IGpt56Sol); })
-            .ConfigureSilo(silo =>
-            {
-                silo.Services.AddSingleton<IScriptSandbox>(sandbox);
-                silo.Services.PostConfigure<AppsOptions>(options => options.BuildFreshForSeconds = 0);
-            })
-            .StartAsync(ct);
+        await using var brain = await StartAsync(model, ct, sandbox, buildFreshForSeconds: 0);
         model.Script(Author, Authored(Spec));
         model.Script(Builder,
             FakeReply.Tool("check_csharp", """{"files":{"synapses/shout.cs":"var answer = 1;"}}"""),
             Built("// stale", "Shout."));
-        var creator = brain.SiloServices.GetRequiredService<Creator>();
-        var digitalBrain = brain.SiloServices.GetRequiredService<IDigitalBrain>();
+        var creator = brain.Services.GetRequiredService<Creator>();
+        var digitalBrain = brain.Services.GetRequiredService<IDigitalBrain>();
         await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
-        await using var activity = await brain.SubscribeAsync<AppActivity>(app, ct);
+        await using var activity = await brain.Observe<AppActivity>(app, ct);
         await creator.Implement(digitalBrain, IApp.Key(Brain, "shouter"), null);
         await sandbox.Entered.Task.WaitAsync(ct);
 
         await app.BeginBuild(null);
         sandbox.Release.SetResult();
 
-        var states = new List<string>();
+        // An absence has no signal to wait for: the stale worker gets a bounded window to report.
         using var window = CancellationTokenSource.CreateLinkedTokenSource(ct);
         window.CancelAfter(TimeSpan.FromSeconds(3));
-        try { await foreach (var signal in activity.ReadAllAsync(window.Token)) { states.Add(signal.State); } }
+        try { await activity.NextAsync(signal => signal.State is "completed" or "attention", window.Token); Assert.Fail("A stale worker reported its outcome."); }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested) { }
-        Assert.DoesNotContain("completed", states);
-        Assert.DoesNotContain("attention", states);
     }
 
     [Fact]
@@ -298,20 +276,19 @@ public sealed class AppCreatorFacts
         files = new Dictionary<string, string> { ["synapses/shout.cs"] = behaviorMarker, ["prompts/system.md"] = systemPrompt },
     });
 
-    private static Task<ModuleBrain> StartAsync(FakeModelServer model, CancellationToken ct) => ModuleTest.Create()
-        .WithModule<AIModule>()
-        .WithModule<AppsModule>()
-        .WithFakeModel(model)
-        .WithOptions<AppsModule, AppsOptions>(apps =>
-        {
-            apps.AuthorModel = nameof(IGpt56Luna);
-            apps.BuilderModel = nameof(IGpt56Sol);
-        })
-        .ConfigureSilo(silo =>
-        {
-            silo.Services.AddSingleton<IScriptSandbox>(new CreatorSandbox());
-        })
-        .StartAsync(ct);
+    private static Task<ITestBrain> StartAsync(FakeModelServer model, CancellationToken ct, IScriptSandbox? sandbox = null, int buildFreshForSeconds = 900)
+        => TestBrain.Create()
+            .WithModule<AIModule>()
+            .WithModule<AppsModule, AppsOptions>(apps =>
+            {
+                apps.AuthorModel = nameof(IGpt56Luna);
+                apps.BuilderModel = nameof(IGpt56Sol);
+                apps.BuildFreshForSeconds = buildFreshForSeconds;
+            })
+            .WithFakeModel(model)
+            // The Builder's check_csharp tool compiles through the sandbox; the fake answers for the compiler.
+            .ConfigureServices(services => services.AddSingleton(sandbox ?? new CreatorSandbox()))
+            .StartAsync(ct);
 
     private sealed class GatedSandbox : IScriptSandbox
     {

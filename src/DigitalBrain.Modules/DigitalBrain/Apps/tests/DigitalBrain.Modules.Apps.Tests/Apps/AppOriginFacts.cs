@@ -1,5 +1,5 @@
 using DigitalBrain.Modules.Apps.Tests.Runtimes;
-using DigitalBrain.Testing.Module;
+using DigitalBrain.Testing;
 
 namespace DigitalBrain.Apps.Tests.Apps;
 
@@ -11,10 +11,10 @@ public sealed class AppOriginFacts
     private static AppManifest Manifest() =>
         new("Echo", "echoes", [new("ask", "ask it")], [new("Text", "what to say", "hi")], [], Icon: "icon.svg");
 
-    private static Task<ModuleBrain> Start() =>
-        ModuleTest.Create().WithModule<AppsModule>().WithFakeAppRuntime(new()).StartAsync(TestContext.Current.CancellationToken);
+    private static Task<ITestBrain> Start() =>
+        TestBrain.Create().WithModule<AppsModule>().WithFakeAppRuntime(new()).StartAsync(TestContext.Current.CancellationToken);
 
-    private static async Task<IApp> Installed(ModuleBrain brain, string key)
+    private static async Task<IApp> Installed(ITestBrain brain, string key)
     {
         var app = brain.Get<IApp>(key);
         await app.Import(new("echo", "1.0.0", Manifest(), "## Scenario: Echoes\nIt echoes.",

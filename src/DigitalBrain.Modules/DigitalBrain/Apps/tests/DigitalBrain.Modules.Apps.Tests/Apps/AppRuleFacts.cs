@@ -1,7 +1,6 @@
 using DigitalBrain.Apps.Signals;
-using DigitalBrain.Modules.Apps.Tests;
 using DigitalBrain.Modules.Apps.Tests.Runtimes;
-using DigitalBrain.Testing.Module;
+using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Apps.Tests.Apps;
@@ -16,27 +15,23 @@ public sealed class AppRuleFacts
     public async Task ARejectingRulePublishesAppRejectedAndNoAppRequested()
     {
         var ct = TestContext.Current.CancellationToken;
-        var sandbox = new JudgingSandbox(signal => Verdict.Reject("too late") with { Rule = "Curfew" });
+        var sandbox = new JudgingSandbox(signal => signal is AppRequested { Input: "now" } ? Verdict.Reject("too late") with { Rule = "Curfew" } : Verdict.Allow());
         await using var brain = await Start(sandbox, ct);
         var app = await App(brain, "curfew", new() { ["synapses/answer.cs"] = "// s", ["rules/curfew.cs"] = "// r" });
-        await using var requested = await brain.SubscribeAsync<AppRequested>(app, ct);
-        await using var rejected = await brain.SubscribeAsync<AppRejected>(app, ct);
-        await using var activity = await brain.SubscribeAsync<AppActivity>(app, ct);
-        using var silence = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        silence.CancelAfter(TimeSpan.FromMilliseconds(300));
-        await using var requests = requested.ReadAllAsync(silence.Token).GetAsyncEnumerator(silence.Token);
-        await using var rejections = rejected.ReadAllAsync(ct).GetAsyncEnumerator(ct);
-        await using var activities = activity.ReadAllAsync(ct).GetAsyncEnumerator(ct);
+        await using var requested = await brain.Observe<AppRequested>(app, ct);
+        await using var rejected = await brain.Observe<AppRejected>(app, ct);
+        await using var activity = await brain.Observe<AppActivity>(app, ct);
 
         var error = await Assert.ThrowsAsync<ArgumentException>(() => app.Request("ask", "now"));
 
         Assert.Contains("too late", error.Message, StringComparison.Ordinal);
-        Assert.True(await rejections.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct));
-        Assert.Equal(("ask", "Curfew", "too late"), (rejections.Current.Operation, rejections.Current.Rule, rejections.Current.Reason));
-        Assert.True(await activities.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct));
-        Assert.Equal("attention", activities.Current.State);
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => requests.MoveNextAsync().AsTask());
+        var rejection = await rejected.NextAsync(ct: ct);
+        Assert.Equal(("ask", "Curfew", "too late"), (rejection.Operation, rejection.Rule, rejection.Reason));
+        Assert.Equal("attention", (await activity.NextAsync(ct: ct)).State);
         Assert.IsType<AppRequested>(Assert.Single(sandbox.Judged));
+        // The next allowed request is the first AppRequested: the rejected one was never published.
+        var later = await app.Request("ask", "later");
+        Assert.Equal(later, (await requested.NextAsync(ct: ct)).RequestId);
     }
 
     [Fact]
@@ -46,13 +41,11 @@ public sealed class AppRuleFacts
         var sandbox = new JudgingSandbox(_ => Verdict.Allow() with { Rule = "Open" });
         await using var brain = await Start(sandbox, ct);
         var app = await App(brain, "open", new() { ["synapses/answer.cs"] = "// s", ["rules/open.cs"] = "// r" });
-        await using var requested = await brain.SubscribeAsync<AppRequested>(app, ct);
-        await using var signals = requested.ReadAllAsync(ct).GetAsyncEnumerator(ct);
+        await using var requested = await brain.Observe<AppRequested>(app, ct);
 
         var id = await app.Request("ask", "now");
 
-        Assert.True(await signals.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct));
-        Assert.Equal(id, signals.Current.RequestId);
+        Assert.Equal(id, (await requested.NextAsync(ct: ct)).RequestId);
     }
 
     [Fact]
@@ -72,7 +65,7 @@ public sealed class AppRuleFacts
     public async Task WithoutASandboxAProgramThatDeclaresARuleIsRejected()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().WithFakeAppRuntime(new()).StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().WithFakeAppRuntime(new()).StartAsync(ct);
         var app = await App(brain, "unjudged", new()
         {
             ["synapses/answer.cs"] = "Console.WriteLine(1);",
@@ -88,7 +81,7 @@ public sealed class AppRuleFacts
     public async Task WithoutASandboxAProgramWithoutRulesPasses()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().WithFakeAppRuntime(new()).StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().WithFakeAppRuntime(new()).StartAsync(ct);
         var app = await App(brain, "plain", new() { ["synapses/answer.cs"] = "Console.WriteLine(1);", ["shared/text.cs"] = "static class Text { }" });
 
         Assert.NotEqual(Guid.Empty, await app.Request("ask", "now"));
@@ -104,12 +97,13 @@ public sealed class AppRuleFacts
 
     private static AppManifest Manifest() => new("Rules", "judged", [new("ask", "ask it")], [], []);
 
-    private static Task<ModuleBrain> Start(JudgingSandbox sandbox, CancellationToken ct)
-        => ModuleTest.Create().WithModule<AppsModule>().WithFakeAppRuntime(new())
-            .ConfigureSilo(silo => silo.Services.AddSingleton<IScriptSandbox>(sandbox))
+    private static Task<ITestBrain> Start(JudgingSandbox sandbox, CancellationToken ct)
+        => TestBrain.Create().WithModule<AppsModule>().WithFakeAppRuntime(new())
+            // Rules are judged in the script sandbox; the fake hands back the fact's verdict.
+            .ConfigureServices(services => services.AddSingleton<IScriptSandbox>(sandbox))
             .StartAsync(ct);
 
-    private static async Task<IApp> App(ModuleBrain brain, string name, Dictionary<string, string> files)
+    private static async Task<IApp> App(ITestBrain brain, string name, Dictionary<string, string> files)
     {
         var app = brain.Get<IApp>(IApp.Key(Brain, name));
         await app.Create(Manifest(), "spec");

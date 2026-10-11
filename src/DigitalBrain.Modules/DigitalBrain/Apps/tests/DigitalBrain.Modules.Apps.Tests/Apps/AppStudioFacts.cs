@@ -1,9 +1,8 @@
 using DigitalBrain.AI;
 using DigitalBrain.AI.Models.OpenAI;
 using DigitalBrain.Apps;
-using DigitalBrain.Framework;
 using DigitalBrain.Testing.Model;
-using DigitalBrain.Testing.Module;
+using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Modules.Apps.Tests.Apps;
@@ -12,9 +11,6 @@ namespace DigitalBrain.Modules.Apps.Tests.Apps;
 // answers it Live, so a router can route "build a calculator" to a single method.
 public sealed class AppStudioFacts
 {
-    private const string Principal = "acct";
-    private const string BrainName = "home";
-    private static readonly string Scope = BrainScope.Create(Principal, BrainName).Id;
     private const string Author = "gpt-5.6-luna";
     private const string Builder = "gpt-5.6-sol";
 
@@ -26,10 +22,10 @@ public sealed class AppStudioFacts
         await using var brain = await StartAsync(model, ct);
         model.Script(Author, Authored());
         model.Script(Builder, Built());
-        Stamp();
-        await brain.AuthorizeCallerAsync();
+        var alice = await brain.PersonAsync("alice", ct);
 
-        var built = await brain.Get<IAppStudio>(Scope).Build("a calculator with a keypad", ct);
+        using var _ = alice.AsCaller();
+        var built = await brain.Get<IAppStudio>(alice.BrainId).Build("a calculator with a keypad", ct);
 
         Assert.Equal(AppStatus.Live, built.Status);
         Assert.Equal("Calculator", built.Manifest.Title);
@@ -51,7 +47,7 @@ public sealed class AppStudioFacts
         files = new Dictionary<string, string> { ["synapses/calculator.cs"] = "// keypad" },
     });
 
-    private static Task<ModuleBrain> StartAsync(FakeModelServer model, CancellationToken ct) => ModuleTest.Create()
+    private static Task<ITestBrain> StartAsync(FakeModelServer model, CancellationToken ct) => TestBrain.Create()
         .WithModule<AIModule>()
         .WithModule<AppsModule>()
         .WithFakeModel(model)
@@ -60,11 +56,9 @@ public sealed class AppStudioFacts
             apps.AuthorModel = nameof(IGpt56Luna);
             apps.BuilderModel = nameof(IGpt56Sol);
         })
-        .ConfigureSilo(silo => silo.Services.AddSingleton<IScriptSandbox>(new CreatorSandbox()))
+        // The Builder's output is compile-checked by the sandbox; the fake accepts it.
+        .ConfigureServices(services => services.AddSingleton<IScriptSandbox>(new CreatorSandbox()))
         .StartAsync(ct);
-
-    private static void Stamp() => CallerContextStamper.Stamp(new()
-    { PrincipalId = Principal, AccountId = Principal, BrainId = BrainName, Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
 
     private sealed class CreatorSandbox : IScriptSandbox
     {

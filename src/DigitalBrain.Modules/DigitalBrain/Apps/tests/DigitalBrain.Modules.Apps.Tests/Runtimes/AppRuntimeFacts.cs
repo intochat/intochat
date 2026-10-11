@@ -1,5 +1,5 @@
 using DigitalBrain.Apps;
-using DigitalBrain.Testing.Module;
+using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -22,19 +22,19 @@ internal sealed class FakeAppRuntime : IAppRuntime
 
     public Task Retire(string appKey, CancellationToken cancellationToken) { Retired.Add(appKey); return Task.CompletedTask; }
 
-    public static Task<ModuleBrain> Start(FakeAppRuntime runtime, CancellationToken ct)
-        => ModuleTest.Create().WithModule<AppsModule>().WithFakeAppRuntime(runtime).StartAsync(ct);
+    public static Task<ITestBrain> Start(FakeAppRuntime runtime, CancellationToken ct)
+        => TestBrain.Create().WithModule<AppsModule>().WithFakeAppRuntime(runtime).StartAsync(ct);
 }
 
 internal static class AppRuntimeHosting
 {
-    // A host that composes the Apps without a csharp module has no brain runtime to deploy into, so a
-    // recording runtime stands in for the real one; the app's deploy path is exercised either way.
+    // The app runtime is the script sandbox's seam: without a csharp module there is no sandbox to deploy
+    // into, so a recording runtime stands in for it; the app's deploy path is exercised either way.
     public static TestBrain WithFakeAppRuntime(this TestBrain builder, FakeAppRuntime runtime)
-        => builder.ConfigureSilo(silo =>
+        => builder.ConfigureServices(services =>
         {
-            silo.Services.RemoveAll<IAppRuntime>();
-            silo.Services.AddSingleton<IAppRuntime>(runtime);
+            services.RemoveAll<IAppRuntime>();
+            services.AddSingleton<IAppRuntime>(runtime);
         });
 }
 

@@ -1,7 +1,6 @@
 using DigitalBrain.Apps;
-using DigitalBrain.Testing.Module;
+using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DigitalBrain.Modules.Apps.Tests.Runtimes;
 
@@ -61,17 +60,14 @@ public sealed class StorageHookFacts
         Assert.False(snapshot.Settings.ContainsKey("Text"));
     }
 
-    private static Task<ModuleBrain> StartWith(RecordingHook hook)
+    private static Task<ITestBrain> StartWith(RecordingHook hook)
         => Start(hook, new FakeAppRuntime());
 
-    private static Task<ModuleBrain> Start(RecordingHook hook, FakeAppRuntime runtime)
-        => ModuleTest.Create().WithModule<AppsModule>()
-            .ConfigureSilo(silo =>
-            {
-                silo.Services.RemoveAll<IAppRuntime>();
-                silo.Services.AddSingleton<IAppRuntime>(runtime);
-                silo.Services.AddSingleton<IAppStorageHook>(hook);
-            })
+    private static Task<ITestBrain> Start(RecordingHook hook, FakeAppRuntime runtime)
+        => TestBrain.Create().WithModule<AppsModule>()
+            .WithFakeAppRuntime(runtime)
+            // A storage hook is what a tables module plugs in; the recording one stands in for Postgres's.
+            .ConfigureServices(services => services.AddSingleton<IAppStorageHook>(hook))
             .StartAsync(TestContext.Current.CancellationToken);
 
     [Fact]

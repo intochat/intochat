@@ -1,6 +1,8 @@
-using DigitalBrain.Modules.Apps.Tests;
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
 using DigitalBrain.Modules.Apps.Tests.Runtimes;
-using DigitalBrain.Testing.Module;
+using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Apps.Tests.Apps;
@@ -10,40 +12,49 @@ namespace DigitalBrain.Apps.Tests.Apps;
 public sealed class AppPublishFacts
 {
     private const string Spec = "## Scenario: Echoes\nIt echoes.\n\n## Scenario: Quiet\nEmpty stays empty.";
+    private static readonly CancellationToken Ct = TestContext.Current.CancellationToken;
 
     private static AppManifest Manifest() =>
         new("Echo", "echoes", [new("ask", "ask it")], [new("Text", "what to say", "hi")], [], Icon: "icon.svg");
 
-    private static Task<ModuleBrain> Start() =>
-        ModuleTest.Create().WithModule<AppsModule>().WithFakeAppRuntime(new()).StartAsync(TestContext.Current.CancellationToken);
-
-    private static async Task<IApp> LiveApp(ModuleBrain brain, string publisher, string name = "echo")
+    private static Task<ITestBrain> Start(IScriptSandbox? sandbox = null)
     {
-        Caller.Clear();
-        await AppOwner.Own(brain, publisher);
-        var app = brain.Get<IApp>(IApp.Key(AppOwner.Scope(publisher), name));
-        await app.Create(Manifest(), Spec);
-        await app.BeginBuild(null);
-        await app.CompleteBuild(await app.CurrentBuildAttempt(),
-            new() { ["synapses/echo.cs"] = "// b", ["icon.svg"] = "<svg/>" }, null);
+        var builder = TestBrain.Create().WithModule<AppsModule>().WithFakeAppRuntime(new());
+        // The compile gate is the sandbox's verdict; a refusing fake stands in for the C# compiler.
+        if (sandbox is not null) { builder.ConfigureServices(services => services.AddSingleton(sandbox)); }
+        return builder.StartAsync(Ct);
+    }
+
+    private static async Task<IApp> LiveApp(ITestBrain brain, Person publisher, string name = "echo", Dictionary<string, string>? files = null)
+    {
+        var app = brain.Get<IApp>(IApp.Key(publisher.BrainId, name));
+        using (publisher.AsCaller())
+        {
+            await app.Create(Manifest(), Spec);
+            await app.BeginBuild(null);
+            await app.CompleteBuild(await app.CurrentBuildAttempt(), files ?? new() { ["synapses/echo.cs"] = "// b", ["icon.svg"] = "<svg/>" }, null);
+        }
         return app;
     }
 
-    private static IMarketplace Marketplace(ModuleBrain brain) => brain.Get<IMarketplace>(IMarketplace.Key);
+    private static async Task<AppSnapshot> Publish(Person publisher, IApp app)
+    {
+        using (publisher.AsCaller()) { return await app.Publish(); }
+    }
+
+    private static IMarketplace Marketplace(ITestBrain brain) => brain.Get<IMarketplace>(IMarketplace.Key);
 
     [Fact]
     public async Task PublishingListsTheVersionAndItsIcon()
     {
         await using var brain = await Start();
-        var app = await LiveApp(brain, "intochat");
-        AppOwner.Stamp("intochat");
-        var published = await app.Publish();
-        Caller.Clear();
+        var intochat = await brain.PersonAsync("intochat", Ct);
+        var published = await Publish(intochat, await LiveApp(brain, intochat));
 
         Assert.Equal(published.Version, published.PublishedVersion);
         // Records holding arrays compare the array by reference, so the facts compare fields.
         var listing = Assert.Single(await Marketplace(brain).List());
-        Assert.Equal(("intochat", new AppSource.Brain("account-intochat", "intochat"), "echo", "Echo", "echoes", published.Version, "icon.svg"),
+        Assert.Equal(("intochat", new AppSource.Brain(intochat.AccountId, intochat.BrainId), "echo", "Echo", "echoes", published.Version, "icon.svg"),
             (listing.Publisher, listing.Source, listing.Name, listing.Title,
              listing.Description, listing.Version, listing.Icon));
         Assert.Equal(published.Version, (await Marketplace(brain).Read("intochat", "echo"))!.Version);
@@ -53,10 +64,10 @@ public sealed class AppPublishFacts
     public async Task ThePublishedBundleStaysTheReleasedVersionWhileThePublisherKeepsEditing()
     {
         await using var brain = await Start();
-        var app = await LiveApp(brain, "intochat");
-        AppOwner.Stamp("intochat");
-        var released = (await app.Publish()).Version;
-        Caller.Clear();
+        var intochat = await brain.PersonAsync("intochat", Ct);
+        var app = await LiveApp(brain, intochat);
+        var released = (await Publish(intochat, app)).Version;
+        using var _ = intochat.AsCaller();
         await app.WriteFile("notes.md", "work in progress", Guid.NewGuid());
 
         var bundle = await app.ExportPublished();
@@ -69,14 +80,12 @@ public sealed class AppPublishFacts
     public async Task RepublishingAnEditReplacesTheListing()
     {
         await using var brain = await Start();
-        var app = await LiveApp(brain, "intochat");
-        AppOwner.Stamp("intochat");
+        var intochat = await brain.PersonAsync("intochat", Ct);
+        var app = await LiveApp(brain, intochat);
+        using var _ = intochat.AsCaller();
         await app.Publish();
-        Caller.Clear();
         await app.SaveManifest(Manifest() with { Description = "echoes louder" }, Guid.NewGuid());
-        AppOwner.Stamp("intochat");
         var republished = await app.Publish();
-        Caller.Clear();
 
         var listing = Assert.Single(await Marketplace(brain).List());
         Assert.Equal(republished.Version, listing.Version);
@@ -87,10 +96,10 @@ public sealed class AppPublishFacts
     public async Task DeletingAPublishedAppRemovesItsListing()
     {
         await using var brain = await Start();
-        var app = await LiveApp(brain, "intochat");
-        AppOwner.Stamp("intochat");
+        var intochat = await brain.PersonAsync("intochat", Ct);
+        var app = await LiveApp(brain, intochat);
+        using var _ = intochat.AsCaller();
         await app.Publish();
-        Caller.Clear();
         await app.Delete();
         Assert.Null(await Marketplace(brain).Read("intochat", "echo"));
     }
@@ -99,7 +108,9 @@ public sealed class AppPublishFacts
     public async Task ExportingPublishedBeforeAnyPublishIsRefused()
     {
         await using var brain = await Start();
-        var app = await LiveApp(brain, "intochat");
+        var intochat = await brain.PersonAsync("intochat", Ct);
+        var app = await LiveApp(brain, intochat);
+        using var _ = intochat.AsCaller();
         await Assert.ThrowsAsync<InvalidOperationException>(app.ExportPublished);
     }
 
@@ -107,7 +118,7 @@ public sealed class AppPublishFacts
     public async Task PublishingWithoutASignedInPublisherIsRefused()
     {
         await using var brain = await Start();
-        var app = await LiveApp(brain, "intochat");
+        var app = await LiveApp(brain, await brain.PersonAsync("intochat", Ct));
         await Assert.ThrowsAsync<InvalidOperationException>(app.Publish);
     }
 
@@ -115,10 +126,9 @@ public sealed class AppPublishFacts
     public async Task OnlyTheBrainThatOwnsAnAppCanPublishIt()
     {
         await using var brain = await Start();
-        var app = await LiveApp(brain, "intochat");
-        AppOwner.Stamp("mallory");
-        await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(app.Publish);
-        Caller.Clear();
+        var app = await LiveApp(brain, await brain.PersonAsync("intochat", Ct));
+        var mallory = await brain.PersonAsync("mallory", Ct);
+        await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => Publish(mallory, app));
         Assert.Empty(await Marketplace(brain).List());
     }
 
@@ -126,12 +136,11 @@ public sealed class AppPublishFacts
     public async Task TheMarketplaceRefusesWritesFromAnythingButTheOwningApp()
     {
         await using var brain = await Start();
-        var app = await LiveApp(brain, "intochat");
-        AppOwner.Stamp("intochat");
-        await app.Publish();
-        Caller.Clear();
+        var intochat = await brain.PersonAsync("intochat", Ct);
+        await Publish(intochat, await LiveApp(brain, intochat));
 
-        var forged = new MarketplaceListing("intochat", new AppSource.Brain("account-intochat", "intochat"), "echo", "Echo", "forged", "9.9.9", null);
+        using var _ = intochat.AsCaller();
+        var forged = new MarketplaceListing("intochat", new AppSource.Brain(intochat.AccountId, intochat.BrainId), "echo", "Echo", "forged", "9.9.9", null);
         await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => Marketplace(brain).Upsert(forged));
         await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => Marketplace(brain).Remove("intochat", "echo"));
         Assert.Equal("echoes", (await Marketplace(brain).Read("intochat", "echo"))!.Description);
@@ -141,13 +150,12 @@ public sealed class AppPublishFacts
     public async Task AnySignedInBrainCanReadTheMarketplace()
     {
         await using var brain = await Start();
-        var app = await LiveApp(brain, "intochat");
-        AppOwner.Stamp("intochat");
-        await app.Publish();
-        Caller.As("alice");
+        var intochat = await brain.PersonAsync("intochat", Ct);
+        await Publish(intochat, await LiveApp(brain, intochat));
+        var alice = await brain.PersonAsync("alice", Ct);
+        using var _ = alice.AsCaller();
         Assert.Single(await Marketplace(brain).List());
         Assert.NotNull(await Marketplace(brain).Read("intochat", "echo"));
-        Caller.Clear();
     }
 
     // One person, two brains, one app name: the listing stays with the brain that published it
@@ -156,28 +164,22 @@ public sealed class AppPublishFacts
     public async Task ASiblingBrainCannotTakeOverAListingAndTheOwnerCanStillDelete()
     {
         await using var brain = await Start();
-        var first = await LiveApp(brain, "intochat");
-        AppOwner.Stamp("intochat");
-        await first.Publish();
-        Caller.Clear();
-        var siblingScope = DigitalBrain.Framework.BrainScope.Create("account-intochat", "second").Id;
-        var sibling = brain.Get<IApp>(IApp.Key(siblingScope, "echo"));
+        var intochat = await brain.PersonAsync("intochat", Ct);
+        var first = await LiveApp(brain, intochat);
+        await Publish(intochat, first);
+        using var born = await intochat.Http.PostAsync("/identity/brains", null, Ct);
+        born.EnsureSuccessStatusCode();
+        var second = (await born.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("brainId").GetString()!;
+        var sibling = brain.Get<IApp>(IApp.Key(second, "echo"));
         await sibling.Create(Manifest(), Spec);
         await sibling.BeginBuild(null);
         await sibling.CompleteBuild(await sibling.CurrentBuildAttempt(), new() { ["synapses/echo.cs"] = "// b" }, null);
-        DigitalBrain.Framework.CallerContextStamper.Stamp(new DigitalBrain.Framework.CallerContext
-        {
-            PrincipalId = "intochat",
-            AccountId = "account-intochat",
-            BrainId = "second",
-            Kind = DigitalBrain.Framework.CallerKind.Platform,
-            StampedBy = DigitalBrain.Framework.TrustedEdge.Platform,
-        });
 
-        await Assert.ThrowsAsync<InvalidOperationException>(sibling.Publish);
-        Caller.Clear();
+        using var refused = await intochat.Http.PostAsync($"/brains/{second}/apps/echo/publish", null, Ct);
 
-        Assert.Equal("intochat", ((AppSource.Brain)(await Marketplace(brain).Read("intochat", "echo"))!.Source).BrainId);
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Equal(intochat.BrainId, ((AppSource.Brain)(await Marketplace(brain).Read("intochat", "echo"))!.Source).BrainId);
+        using var _ = intochat.AsCaller();
         await first.Delete();
         Assert.Null(await Marketplace(brain).Read("intochat", "echo"));
     }
@@ -185,15 +187,11 @@ public sealed class AppPublishFacts
     [Fact]
     public async Task PublishingABundleWhoseScriptDoesNotCompileIsRefusedWithTheDiagnostics()
     {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
-            .WithFakeAppRuntime(new())
-            .ConfigureSilo(silo => silo.Services.AddSingleton<IScriptSandbox>(new RefusingSandbox(("synapses/echo.cs", 2, "Cannot implicitly convert type 'string' to 'int'"))))
-            .StartAsync(ct);
-        var app = await LiveApp(brain, "intochat");
-        AppOwner.Stamp("intochat");
+        await using var brain = await Start(new RefusingSandbox(("synapses/echo.cs", 2, "Cannot implicitly convert type 'string' to 'int'")));
+        var intochat = await brain.PersonAsync("intochat", Ct);
+        var app = await LiveApp(brain, intochat);
+        using var _ = intochat.AsCaller();
         var error = await Assert.ThrowsAsync<InvalidOperationException>(app.Publish);
-        Caller.Clear();
         Assert.Contains("synapses/echo.cs:2", error.Message, StringComparison.Ordinal);
         Assert.Contains("Cannot implicitly convert", error.Message, StringComparison.Ordinal);
         Assert.Empty(await Marketplace(brain).List());
@@ -204,30 +202,18 @@ public sealed class AppPublishFacts
     public async Task PublishingWithoutASandboxComposedSkipsTheCompileGate()
     {
         await using var brain = await Start();
-        var app = await LiveApp(brain, "intochat");
-        AppOwner.Stamp("intochat");
-        var published = await app.Publish();
-        Caller.Clear();
+        var intochat = await brain.PersonAsync("intochat", Ct);
+        var published = await Publish(intochat, await LiveApp(brain, intochat));
         Assert.Equal(published.Version, published.PublishedVersion);
     }
 
     [Fact]
     public async Task PublishingAnAppWithNoScriptsNeedsNoCompiler()
     {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
-            .WithFakeAppRuntime(new())
-            .ConfigureSilo(silo => silo.Services.AddSingleton<IScriptSandbox>(new RefusingSandbox(("any.cs", 1, "would refuse"))))
-            .StartAsync(ct);
-        Caller.Clear();
-        await AppOwner.Own(brain, "intochat");
-        var app = brain.Get<IApp>(IApp.Key(AppOwner.Scope("intochat"), "prose"));
-        await app.Create(Manifest(), Spec);
-        await app.BeginBuild(null);
-        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["notes.md"] = "no code" }, null);
-        AppOwner.Stamp("intochat");
-        var published = await app.Publish();
-        Caller.Clear();
+        await using var brain = await Start(new RefusingSandbox(("any.cs", 1, "would refuse")));
+        var intochat = await brain.PersonAsync("intochat", Ct);
+        var app = await LiveApp(brain, intochat, "prose", new() { ["notes.md"] = "no code" });
+        var published = await Publish(intochat, app);
         Assert.Equal(published.Version, published.PublishedVersion);
     }
 

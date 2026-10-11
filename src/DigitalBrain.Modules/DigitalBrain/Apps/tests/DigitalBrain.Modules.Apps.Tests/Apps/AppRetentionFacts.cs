@@ -1,4 +1,5 @@
 using DigitalBrain.Apps.Signals;
+using DigitalBrain.Testing;
 
 namespace DigitalBrain.Apps.Tests.Apps;
 
@@ -8,7 +9,7 @@ public sealed class AppRetentionFacts
 {
     private const string Brain = "app-retention-facts";
 
-    private static async Task<(IApp App, IRetainsSignals Retains)> CreatedAppAsync(ModuleBrain brain, string name)
+    private static async Task<(IApp App, IRetainsSignals Retains)> CreatedAppAsync(ITestBrain brain, string name)
     {
         var app = brain.Get<IApp>(IApp.Key(Brain, name));
         await app.Create(new AppManifest(name, "", [new("open", "")], [], []), "spec");
@@ -19,7 +20,7 @@ public sealed class AppRetentionFacts
     public async Task ARequestIsRetainedInPublishOrderWithIncreasingSequences()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
         var (app, retains) = await CreatedAppAsync(brain, "echo");
 
         var first = await app.Request("open", "one");
@@ -36,7 +37,7 @@ public sealed class AppRetentionFacts
     public async Task RetainedFiltersToSignalsNewerThanSince()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
         var (app, retains) = await CreatedAppAsync(brain, "filter");
         await app.Request("open", "one");
         await app.Request("open", "two");
@@ -52,7 +53,7 @@ public sealed class AppRetentionFacts
     public async Task ARetainingNeuronReturnsNothingForSignalsItDoesNotRetain()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
         var (app, retains) = await CreatedAppAsync(brain, "shy");
         await app.Request("open", "one");
 
@@ -63,7 +64,7 @@ public sealed class AppRetentionFacts
     public async Task The65thRequestEvictsTheOldestRetainedOne()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
         var (app, retains) = await CreatedAppAsync(brain, "bounded");
         var first = await app.Request("open", "0");
         for (var i = 1; i < 65; i++) { await app.Request("open", i.ToString()); }
@@ -79,7 +80,7 @@ public sealed class AppRetentionFacts
     public async Task OnlyTheLastActivityIsRetainedSoALateListenerStartsCurrent()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
         var (app, retains) = await CreatedAppAsync(brain, "lively");
         await app.Progress("working", "Reading your mail");
         await app.Progress("completed", "Done");
@@ -96,7 +97,7 @@ public sealed class AppRetentionFacts
     public async Task AReactivatedAppWithARetainedWorkingActivitySeedsAttention()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
         var (app, retains) = await CreatedAppAsync(brain, "crashed");
         await app.Progress("working", "Reading your mail");
 
@@ -115,7 +116,7 @@ public sealed class AppRetentionFacts
     public async Task AReactivatedAppKeepsARetainedActivityThatIsNotATurnInProgress(string state)
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
         var (app, retains) = await CreatedAppAsync(brain, "calm-" + state);
         await app.Progress(state, "steady");
 

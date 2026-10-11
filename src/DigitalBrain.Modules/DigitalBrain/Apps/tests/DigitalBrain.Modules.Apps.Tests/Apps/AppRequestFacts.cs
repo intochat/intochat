@@ -1,4 +1,5 @@
 using DigitalBrain.Apps.Signals;
+using DigitalBrain.Testing;
 
 namespace DigitalBrain.Apps.Tests.Apps;
 
@@ -12,17 +13,16 @@ public sealed class AppRequestFacts
     public async Task ARequestPublishesAppRequestedWithAFreshId()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "echo"));
         await app.Create(new AppManifest("Echo", "echoes", [new("open", "")], [], []), "spec");
-        await using var requested = await brain.SubscribeAsync<AppRequested>(app, ct);
-        await using var signals = requested.ReadAllAsync(ct).GetAsyncEnumerator(ct);
+        await using var requested = await brain.Observe<AppRequested>(app, ct);
 
         var id = await app.Request("open", "docked");
 
-        Assert.True(await signals.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct));
-        Assert.Equal(id, signals.Current.RequestId);
-        Assert.Equal(("open", "docked"), (signals.Current.Operation, signals.Current.Input));
+        var signal = await requested.NextAsync(ct: ct);
+        Assert.Equal(id, signal.RequestId);
+        Assert.Equal(("open", "docked"), (signal.Operation, signal.Input));
         Assert.NotEqual(Guid.Empty, id);
     }
 
@@ -30,25 +30,24 @@ public sealed class AppRequestFacts
     public async Task ARequestForAnUndeclaredOperationIsRefusedAndPublishesNothing()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "strict"));
         await app.Create(new AppManifest("Strict", "", [new("open", "")], [], []), "spec");
-        await using var requested = await brain.SubscribeAsync<AppRequested>(app, ct);
-        using var silence = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        silence.CancelAfter(TimeSpan.FromMilliseconds(200));
-        await using var signals = requested.ReadAllAsync(silence.Token).GetAsyncEnumerator(silence.Token);
+        await using var requested = await brain.Observe<AppRequested>(app, ct);
 
         var error = await Assert.ThrowsAsync<ArgumentException>(() => app.Request("missing", ""));
 
         Assert.Contains("open", error.Message, StringComparison.Ordinal);
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => signals.MoveNextAsync().AsTask());
+        // The next request is the first one published: the refused one never was.
+        var next = await app.Request("open", "after");
+        Assert.Equal(next, (await requested.NextAsync(ct: ct)).RequestId);
     }
 
     [Fact]
     public async Task AnOversizedInputIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "big"));
         await app.Create(new AppManifest("Big", "", [new("open", "")], [], []), "spec");
         await Assert.ThrowsAsync<ArgumentException>(() => app.Request("open", new string('x', 64 * 1024 + 1)));

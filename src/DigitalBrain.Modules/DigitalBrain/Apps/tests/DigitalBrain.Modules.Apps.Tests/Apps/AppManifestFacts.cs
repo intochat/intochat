@@ -1,3 +1,5 @@
+using DigitalBrain.Testing;
+
 namespace DigitalBrain.Apps.Tests.Apps;
 
 // The dock renders a manifest's toolbar; a manifest names only what its app can answer.
@@ -41,7 +43,7 @@ public sealed class AppManifestFacts
     public async Task AnAppRefusesAManifestWhoseToolbarNamesAnUnknownOperation()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
         var app = brain.Get<IApp>(IApp.Key("manifest-facts", "player"));
         await app.Create(Manifest(new AppToolbarEntry("play", Icon: "play", Label: "Play")), "spec");
 

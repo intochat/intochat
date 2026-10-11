@@ -1,6 +1,6 @@
 using DigitalBrain.Modules.Apps.Tests;
 using DigitalBrain.Modules.Apps.Tests.Runtimes;
-using DigitalBrain.Testing.Module;
+using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
@@ -24,30 +24,31 @@ public sealed class SaveToSourceFacts : IDisposable
 
     public void Dispose() => Directory.Delete(_root, recursive: true);
 
-    private Task<ModuleBrain> Start(string environment) => ModuleTest.Create().WithModule<AppsModule>()
+    private Task<ITestBrain> Start(string environment) => TestBrain.Create()
+        .WithModule<AppsModule, AppsOptions>(options => options.Features = _root)
         .WithFakeAppRuntime(new())
-        .ConfigureSilo(silo =>
-        {
-            silo.Services.AddSingleton(new FeatureCatalog(new FeatureDirectory(_root, writable: true)));
-            silo.Services.AddSingleton<IHostEnvironment>(new Environment(environment));
-        })
+        // The test host runs as "Testing"; save-to-source and a writable features folder are development-only.
+        .ConfigureServices(services => services.AddSingleton<IHostEnvironment>(new Environment(environment)))
         .StartAsync(Ct);
 
-    private static async Task<IApp> InstalledAndEdited(ModuleBrain brain)
+    private static async Task<(Person Alice, IApp Copy)> InstalledAndEdited(ITestBrain brain)
     {
-        AppOwner.Stamp("alice");
-        await brain.SiloServices.GetRequiredService<AppInstaller>().Install("intochat", "greeter", Ct);
-        Caller.Clear();
-        var copy = brain.Get<IApp>(IApp.Key(AppOwner.Scope("alice"), "greeter"));
-        await copy.WriteBehavior("greet.cs", "// greet warmly\n", Guid.NewGuid());
-        return copy;
+        var alice = await brain.PersonAsync("alice", Ct);
+        var copy = brain.Get<IApp>(IApp.Key(alice.BrainId, "greeter"));
+        using (alice.AsCaller())
+        {
+            await brain.Services.GetRequiredService<AppInstaller>().Install("intochat", "greeter", Ct);
+            await copy.WriteBehavior("greet.cs", "// greet warmly\n", Guid.NewGuid());
+        }
+        return (alice, copy);
     }
 
     [Fact]
     public async Task SaveToSourceWritesTheFolderBumpsTheVersionAndReattachesTheCopy()
     {
         await using var brain = await Start(Environments.Development);
-        var copy = await InstalledAndEdited(brain);
+        var (alice, copy) = await InstalledAndEdited(brain);
+        using var _ = alice.AsCaller();
         Assert.True((await copy.Read()).Edited);
 
         var saved = await copy.SaveToSource();
@@ -57,16 +58,17 @@ public sealed class SaveToSourceFacts : IDisposable
         Assert.Equal("1.2.2", saved.Version);
         Assert.Equal(new AppOrigin("intochat", new AppSource.Shipped(), "greeter", "1.2.2"), saved.Origin);
         Assert.False(saved.Edited);
-        var listing = Assert.Single(await brain.SiloServices.GetRequiredService<FeatureCatalog>().Listings());
+        var listing = Assert.Single(await brain.Services.GetRequiredService<FeatureCatalog>().Listings());
         Assert.Equal("1.2.2", listing.Version);
-        Assert.Equal("// greet warmly\n", (await brain.SiloServices.GetRequiredService<FeatureCatalog>().Find("intochat", "greeter"))!.Files["greet.cs"]);
+        Assert.Equal("// greet warmly\n", (await brain.Services.GetRequiredService<FeatureCatalog>().Find("intochat", "greeter"))!.Files["greet.cs"]);
     }
 
     [Fact]
     public async Task SaveToSourceIsRefusedOutsideDevelopment()
     {
         await using var brain = await Start(Environments.Production);
-        var copy = await InstalledAndEdited(brain);
+        var (alice, copy) = await InstalledAndEdited(brain);
+        using var _ = alice.AsCaller();
 
         await Assert.ThrowsAsync<InvalidOperationException>(copy.SaveToSource);
         Assert.Equal("// greet\n", File.ReadAllText(Path.Combine(_root, "intochat", "Greeter", "greet.cs")));
@@ -77,7 +79,9 @@ public sealed class SaveToSourceFacts : IDisposable
     public async Task SaveToSourceIsRefusedForAnAppThatCameFromABrain()
     {
         await using var brain = await Start(Environments.Development);
-        var app = brain.Get<IApp>(IApp.Key(AppOwner.Scope("alice"), "greeter"));
+        var alice = await brain.PersonAsync("alice", Ct);
+        using var _ = alice.AsCaller();
+        var app = brain.Get<IApp>(IApp.Key(alice.BrainId, "greeter"));
         await app.Create(new("Greeter", "Greets.", [], [], []), "## Scenario: Greets\nIt greets.");
         await app.RecordOrigin(new AppOrigin("bob", new AppSource.Brain("account-bob", "bob"), "greeter", "1.0.0"));
 

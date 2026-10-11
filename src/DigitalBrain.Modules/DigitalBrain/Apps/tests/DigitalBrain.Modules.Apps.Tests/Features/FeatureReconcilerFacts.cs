@@ -2,7 +2,9 @@ using DigitalBrain;
 using DigitalBrain.Apps.Signals;
 using DigitalBrain.Modules.Apps.Tests;
 using DigitalBrain.Modules.Apps.Tests.Runtimes;
-using DigitalBrain.Testing.Module;
+using DigitalBrain.Testing;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Apps.Tests.Features;
@@ -25,23 +27,24 @@ public sealed class FeatureReconcilerFacts : IDisposable
     public void Dispose() => Directory.Delete(_root, recursive: true);
 
     // A host whose writable features folder holds os/greeter, so a test can bump the catalog.
-    private Task<ModuleBrain> Start() => ModuleTest.Create().WithModule<AppsModule>()
+    private Task<ITestBrain> Start() => TestBrain.Create()
+        .WithModule<AppsModule, AppsOptions>(options => options.Features = _root)
         .WithFakeAppRuntime(new())
-        .ConfigureSilo(silo => silo.Services.AddSingleton(new FeatureCatalog(new FeatureDirectory(_root, writable: true))))
+        // The test host runs as "Testing"; the features folder is writable only in development.
+        .ConfigureServices(services => services.AddSingleton<IHostEnvironment>(new Development()))
         .StartAsync(Ct);
 
-    private static async Task<IApp> Installed(ModuleBrain brain)
+    private static async Task<(Person Alice, IApp Copy)> Installed(ITestBrain brain)
     {
-        AppOwner.Stamp("alice");
-        await brain.SiloServices.GetRequiredService<AppInstaller>().Install("os", "greeter", Ct);
-        Caller.Clear();
-        return brain.Get<IApp>(IApp.Key(AppOwner.Scope("alice"), "greeter"));
+        var alice = await brain.PersonAsync("alice", Ct);
+        using (alice.AsCaller()) { await brain.Services.GetRequiredService<AppInstaller>().Install("os", "greeter", Ct); }
+        return (alice, brain.Get<IApp>(IApp.Key(alice.BrainId, "greeter")));
     }
 
     // Writes a newer bundle back to the folder and reloads the catalog, so the catalog outruns the copy.
-    private static async Task ShipNewerVersion(ModuleBrain brain, string version = "2.0.0")
+    private static async Task ShipNewerVersion(ITestBrain brain, string version = "2.0.0")
     {
-        var catalog = brain.SiloServices.GetRequiredService<FeatureCatalog>();
+        var catalog = brain.Services.GetRequiredService<FeatureCatalog>();
         var current = (await catalog.Find("os", "greeter"))!;
         await catalog.SaveToSource("os", current with
         {
@@ -50,18 +53,18 @@ public sealed class FeatureReconcilerFacts : IDisposable
         });
     }
 
-    private static IFeatureReconciler Reconciler(ModuleBrain brain)
-        => brain.Get<IFeatureReconciler>(IFeatureReconciler.Key(AppOwner.Scope("alice")));
+    private static IFeatureReconciler Reconciler(ITestBrain brain, Person person)
+        => brain.Get<IFeatureReconciler>(IFeatureReconciler.Key(person.BrainId));
 
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task ReconcilingPutsAnOlderUneditedShippedAppOnTheCatalogVersion()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start();
-        var copy = await Installed(brain);
+        var (alice, copy) = await Installed(brain);
         await ShipNewerVersion(brain);
 
-        await Reconciler(brain).Reconcile(ct);
+        await Reconciler(brain, alice).Reconcile(ct);
 
         var after = await copy.Read();
         Assert.Equal("2.0.0", after.Version);
@@ -71,16 +74,16 @@ public sealed class FeatureReconcilerFacts : IDisposable
         Assert.False(after.Edited);
     }
 
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task ReconcilingLeavesAnEditedCopyAlone()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start();
-        var copy = await Installed(brain);
-        await copy.WriteFile("notes.md", "mine now", Guid.NewGuid());
+        var (alice, copy) = await Installed(brain);
+        using (alice.AsCaller()) { await copy.WriteFile("notes.md", "mine now", Guid.NewGuid()); }
         await ShipNewerVersion(brain);
 
-        await Reconciler(brain).Reconcile(ct);
+        await Reconciler(brain, alice).Reconcile(ct);
 
         var after = await copy.Read();
         Assert.True(after.Edited);
@@ -89,55 +92,62 @@ public sealed class FeatureReconcilerFacts : IDisposable
         Assert.Equal("1.2.0", after.Origin!.Version);
     }
 
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task ReconcilingLeavesAThirdPartyOriginAlone()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start();
-        var app = brain.Get<IApp>(IApp.Key(AppOwner.Scope("alice"), "from-bob"));
+        var alice = await brain.PersonAsync("alice", ct);
+        var app = brain.Get<IApp>(IApp.Key(alice.BrainId, "from-bob"));
         await app.Create(new AppManifest("FromBob", "bob's", [new("ask", "ask")], [], []), "## Scenario: Answers\nIt answers.");
         await app.RecordOrigin(new AppOrigin("bob", new AppSource.Brain("account-bob", "bob"), "from-bob", "1.0.0"));
         await ShipNewerVersion(brain);
         var before = (await app.Read()).Version;
 
-        await Reconciler(brain).Reconcile(ct);
+        await Reconciler(brain, alice).Reconcile(ct);
 
         var after = await app.Read();
         Assert.Equal(before, after.Version);
         Assert.IsType<AppSource.Brain>(after.Origin!.Source);
     }
 
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task ReconcilingPublishesAppReconciledNamingTheVersions()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start();
-        var copy = await Installed(brain);
+        var (alice, _) = await Installed(brain);
         await ShipNewerVersion(brain);
-        var reconciler = Reconciler(brain);
-        await using var reconciled = await brain.SubscribeAsync<AppReconciled>(reconciler, ct);
-        await using var signals = reconciled.ReadAllAsync(ct).GetAsyncEnumerator(ct);
+        var reconciler = Reconciler(brain, alice);
+        await using var reconciled = await brain.Observe<AppReconciled>(reconciler, ct);
 
         await reconciler.Reconcile(ct);
 
-        Assert.True(await signals.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct));
-        Assert.Equal(("greeter", "1.2.0", "2.0.0"), (signals.Current.Name, signals.Current.From, signals.Current.To));
+        var signal = await reconciled.NextAsync(ct: ct);
+        Assert.Equal(("greeter", "1.2.0", "2.0.0"), (signal.Name, signal.From, signal.To));
     }
 
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task EveryBrainActivationReconcilesTheBrain()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start();
-        var kernel = brain.Get<IBrain>(AppOwner.Scope("alice"));
-        await kernel.Create(new Owner("account-alice"));
-        var copy = await Installed(brain);
+        var (alice, copy) = await Installed(brain);
+        var kernel = brain.Get<IBrain>(alice.BrainId);
         await ShipNewerVersion(brain);
+        await using var changes = await brain.Observe<AppChanged>(copy, ct);
 
         await brain.DeactivateAsync(kernel, ct);
         await kernel.Read();
 
-        while ((await copy.Read()).Version != "2.0.0") { await Task.Delay(50, ct); }
-        Assert.Equal("2.0.0", (await copy.Read()).Version);
+        await changes.NextAsync(change => change.Version == "2.0.0", ct);
+    }
+
+    private sealed class Development : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = Environments.Development;
+        public string ApplicationName { get; set; } = "tests";
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
 }

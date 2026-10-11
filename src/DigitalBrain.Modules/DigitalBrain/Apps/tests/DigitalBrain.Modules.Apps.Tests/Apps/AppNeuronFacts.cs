@@ -1,7 +1,7 @@
 using DigitalBrain.Apps.Signals;
 using DigitalBrain.Modules.Apps.Tests.Runtimes;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
+using DigitalBrain.Testing;
 
 namespace DigitalBrain.Apps.Tests.Apps;
 
@@ -12,12 +12,9 @@ public sealed class AppNeuronFacts
     private static AppManifest Manifest(string title = "Echo") =>
         new(title, "echoes", [new("ask", "ask it")], [new("Text", "what to say", "hi")], []);
 
-    private static Task<ModuleBrain> Start()
-        => Start(new FakeAppRuntime());
-
-    private static Task<ModuleBrain> Start(FakeAppRuntime runtime)
-        => ModuleTest.Create().WithModule<AppsModule>()
-            .ConfigureSilo(silo => { silo.Services.RemoveAll<IAppRuntime>(); silo.Services.AddSingleton<IAppRuntime>(runtime); })
+    private static Task<ITestBrain> Start(FakeAppRuntime? runtime = null, int buildFreshForSeconds = 900)
+        => TestBrain.Create().WithModule<AppsModule, AppsOptions>(options => options.BuildFreshForSeconds = buildFreshForSeconds)
+            .WithFakeAppRuntime(runtime ?? new())
             .StartAsync(TestContext.Current.CancellationToken);
 
     [Fact]
@@ -26,14 +23,13 @@ public sealed class AppNeuronFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start();
         var app = brain.Get<IApp>(IApp.Key(Brain, "echo"));
-        await using var changes = await brain.SubscribeAsync<AppChanged>(app, ct);
+        await using var changes = await brain.Observe<AppChanged>(app, ct);
         var created = await app.Create(Manifest(), "## Scenario: Echoes\nIt echoes.");
         Assert.Equal("0.1.0", created.Version);
         Assert.Equal(AppStatus.Drafted, created.Status);
         Assert.Equal("echo", created.Name);
-        await using var stream = changes.ReadAllAsync(ct).GetAsyncEnumerator(ct);
-        Assert.True(await stream.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct));
-        Assert.Equal(("echo", "0.1.0", AppStatus.Drafted), (stream.Current.Name, stream.Current.Version, stream.Current.Status));
+        var changed = await changes.NextAsync(ct: ct);
+        Assert.Equal(("echo", "0.1.0", AppStatus.Drafted), (changed.Name, changed.Version, changed.Status));
     }
 
     [Fact]
@@ -88,9 +84,7 @@ public sealed class AppNeuronFacts
     public async Task AStaleBuildingAppReArmsAndTheOldWorkersCompleteBuildIsIgnored()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
-            .ConfigureSilo(silo => silo.Services.PostConfigure<AppsOptions>(options => options.BuildFreshForSeconds = 0))
-            .StartAsync(ct);
+        await using var brain = await Start(buildFreshForSeconds: 0);
         var app = brain.Get<IApp>(IApp.Key(Brain, "stale"));
         await app.Create(Manifest(), "spec");
         await app.BeginBuild(null);
@@ -173,20 +167,17 @@ public sealed class AppNeuronFacts
         var app = brain.Get<IApp>(IApp.Key(Brain, "quiet"));
         await app.Create(Manifest(), "spec");
         await app.BeginBuild(null);
-        await using var changes = await brain.SubscribeAsync<AppChanged>(app, ct);
-        await using var activity = await brain.SubscribeAsync<AppActivity>(app, ct);
+        var building = (await app.Read()).Version;
+        await using var changes = await brain.Observe<AppChanged>(app, ct);
         await app.Progress("working", "round 1");
         await app.Progress("working", "round 1");
         await app.Progress("reading", "round 2");
+        // A file write is the next change after the progress ones: everything before it is what progress announced.
+        await app.WriteFile("notes.md", "sentinel", Guid.NewGuid());
 
-        await using var seen = activity.ReadAllAsync(ct).GetAsyncEnumerator(ct);
-        for (var i = 0; i < 3; i++) { Assert.True(await seen.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct)); }
-        var count = 0;
-        using var window = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        window.CancelAfter(TimeSpan.FromSeconds(1));
-        try { await foreach (var _ in changes.ReadAllAsync(window.Token)) { count++; } }
-        catch (OperationCanceledException) when (window.IsCancellationRequested && !ct.IsCancellationRequested) { }
-        Assert.Equal(2, count);
+        var announced = 0;
+        while ((await changes.NextAsync(ct: ct)).Version == building) { announced++; }
+        Assert.Equal(2, announced);
     }
 
     [Fact]
@@ -196,11 +187,10 @@ public sealed class AppNeuronFacts
         await using var brain = await Start();
         var app = brain.Get<IApp>(IApp.Key(Brain, "activity"));
         await app.Create(Manifest(), "spec");
-        await using var activity = await brain.SubscribeAsync<AppActivity>(app, ct);
+        await using var activity = await brain.Observe<AppActivity>(app, ct);
         await app.Progress("listening", "Heard you");
-        await using var stream = activity.ReadAllAsync(ct).GetAsyncEnumerator(ct);
-        Assert.True(await stream.MoveNextAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10), ct));
-        Assert.Equal(("activity", "listening", "Heard you"), (stream.Current.App, stream.Current.State, stream.Current.Detail));
+        var heard = await activity.NextAsync(ct: ct);
+        Assert.Equal(("activity", "listening", "Heard you"), (heard.App, heard.State, heard.Detail));
         Assert.DoesNotContain("Heard you", (await app.Read()).Activity);
     }
 
@@ -244,9 +234,7 @@ public sealed class AppNeuronFacts
     [Fact]
     public async Task AStaleWorkersManifestIsIgnoredWithItsFiles()
     {
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
-            .ConfigureSilo(silo => silo.Services.PostConfigure<AppsOptions>(options => options.BuildFreshForSeconds = 0))
-            .StartAsync(TestContext.Current.CancellationToken);
+        await using var brain = await Start(buildFreshForSeconds: 0);
         var app = brain.Get<IApp>(IApp.Key(Brain, "stale-manifest"));
         await app.Create(Manifest(), "spec");
         await app.BeginBuild(null);
@@ -277,12 +265,9 @@ public sealed class AppNeuronFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var moment = new DateTimeOffset(2026, 10, 5, 12, 0, 0, TimeSpan.Zero);
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>()
-            .ConfigureSilo(silo =>
-            {
-                silo.Services.RemoveAll<TimeProvider>();
-                silo.Services.AddSingleton<TimeProvider>(new FixedClock(moment));
-            })
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().WithFakeAppRuntime(new())
+            // The version history stamps the host clock; a fixed one makes the stamp exact.
+            .ConfigureServices(services => services.AddSingleton<TimeProvider>(new FixedClock(moment)))
             .StartAsync(ct);
         var app = brain.Get<IApp>(IApp.Key(Brain, "clocked"));
         var created = await app.Create(Manifest(), "spec");
