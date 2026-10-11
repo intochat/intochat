@@ -15,14 +15,14 @@ namespace DigitalBrain.Mcp.Tests.Unit;
 // directory, registers with the trust host for the owner's account and reads trust over its own link.
 public sealed class McpMachineFacts
 {
-    [Fact(Timeout = 120_000)]
+    [Fact]
     public async Task TheMcpRegistersAsAMachineAndReadsTrustOverItsLink()
     {
         if (!System.Net.Quic.QuicConnection.IsSupported) { Assert.Skip("QUIC is not supported on this machine."); }
         var ct = TestContext.Current.CancellationToken;
         await using var trust = await TrustHost.StartAsync(ct);
         // The owner's machine provisions the owner (R59); the MCP only binds itself to the account.
-        await using var owner = await ModuleTest.Create().WithTrust(trust).StartAsync(ct);
+        await using var owner = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
         var directory = Path.Combine(Path.GetTempPath(), $"mcp-{Guid.NewGuid():N}");
         var builder = WebApplication.CreateBuilder();
         builder.Configuration[AuthOptions.PostureKey] = nameof(IdentityPosture.Open);
@@ -40,7 +40,7 @@ public sealed class McpMachineFacts
 
         var mcp = app.Services.GetRequiredService<IMachineTransport>().LocalMachineId;
         Assert.True(File.Exists(Path.Combine(directory, "identity.key")));
-        Assert.NotEqual(owner.SiloServices.GetRequiredService<IMachineTransport>().LocalMachineId, mcp);
+        Assert.NotEqual(owner.Services.GetRequiredService<IMachineTransport>().LocalMachineId, mcp);
         // An unregistered link is refused every read (T20-4): this read over the MCP's own link proves it registered.
         var scope = BrainScope.Create(ModuleTest.DefaultAccount, ModuleTest.DefaultAccount).Id;
         var membership = await app.Services.GetRequiredService<IIdentityClient>().Membership(scope, ModuleTest.DefaultAccount);

@@ -9,9 +9,11 @@ public sealed class NeuronTypeSearchFacts
     [Fact]
     public async Task WithoutSourcesTheCapabilitiesAreTheKernelNeuronTypes()
     {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var kernel = Deployed.Kernel();
-        Stamp("any-brain");
-        var read = await new NeuronTypeSearch(kernel, [], null).Capabilities(TestContext.Current.CancellationToken);
+        using var caller = brain.Owner.AsCaller();
+        var read = await new NeuronTypeSearch(kernel, [], null).Capabilities(ct);
         Assert.Equal(Neurons(kernel), read.Select(type => type.Id).ToArray());
         Assert.Contains(read, type => type.Contract == "DigitalBrain.Time.Timers.ITimer" && type.Id == "timer");
     }
@@ -20,22 +22,29 @@ public sealed class NeuronTypeSearchFacts
     public async Task ASourcesEntriesFollowTheKernelTypesForItsBrain()
     {
         var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        using var bob = await brain.PersonAsync("bob", ct);
+        var one = BrainScope.Create(brain.Owner.AccountId, brain.Owner.BrainId).Id;
         var kernel = Deployed.Kernel();
-        var search = new NeuronTypeSearch(kernel, [new OneBrainSource()], null);
-        Stamp("one");
-        var one = await search.Capabilities(ct);
-        Assert.Contains(one, type => type.Id == "tool:one/mcp/x/list" && type.Key == "one/mcp/x" && type.Tool == "command_list");
-        Assert.Equal([.. Neurons(kernel), "tool:one/mcp/x/list"], [.. one.Select(type => type.Id)]);
-        Stamp("two");
-        Assert.Equal(Neurons(kernel), (await search.Capabilities(ct)).Select(type => type.Id).ToArray());
+        var search = new NeuronTypeSearch(kernel, [new OneBrainSource(one)], null);
+        using (brain.Owner.AsCaller())
+        {
+            var read = await search.Capabilities(ct);
+            Assert.Contains(read, type => type.Id == $"tool:{one}/mcp/x/list" && type.Key == $"{one}/mcp/x" && type.Tool == "command_list");
+            Assert.Equal([.. Neurons(kernel), $"tool:{one}/mcp/x/list"], [.. read.Select(type => type.Id)]);
+        }
+        using (bob.AsCaller())
+        { Assert.Equal(Neurons(kernel), (await search.Capabilities(ct)).Select(type => type.Id).ToArray()); }
     }
 
     [Fact]
     public async Task AFailingSourceLeavesTheKernelTypesSearchable()
     {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var kernel = Deployed.Kernel();
-        Stamp("one");
-        var read = await new NeuronTypeSearch(kernel, [new FailingSource()], null).Capabilities(TestContext.Current.CancellationToken);
+        using var caller = brain.Owner.AsCaller();
+        var read = await new NeuronTypeSearch(kernel, [new FailingSource()], null).Capabilities(ct);
         Assert.Equal(Neurons(kernel), read.Select(type => type.Id).ToArray());
     }
 
@@ -67,18 +76,15 @@ public sealed class NeuronTypeSearchFacts
 
     private static string[] Neurons(FixedKernel kernel) => [.. kernel.Entries.Where(type => type.Kind == TypeKind.Neuron).Select(type => type.Alias)];
 
-    private static void Stamp(string brain) => CallerContextStamper.Stamp(new()
-    { PrincipalId = "owner", AccountId = "owner", BrainId = brain, Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
-
     private static NeuronType Tool(string name)
         => new($"tool:k/{name}", "tools", $"Tool {name}", $"does {name}", [$"run {name}"], "DigitalBrain.Tools.IToolSource", "k", name);
 
-    private sealed class OneBrainSource : IRuntimeCapabilitySource
+    private sealed class OneBrainSource(string one) : IRuntimeCapabilitySource
     {
         public Task<IReadOnlyList<NeuronType>> Read(string brainId, CancellationToken ct)
-            => Task.FromResult<IReadOnlyList<NeuronType>>(brainId == "one"
-                ? [new("tool:one/mcp/x/list", "tools", "List", "list engine commands",
-                    ["Task<ToolResult> Run(\"command_list\", arguments)"], "DigitalBrain.Tools.IToolSource", "one/mcp/x", "command_list")]
+            => Task.FromResult<IReadOnlyList<NeuronType>>(brainId == one
+                ? [new($"tool:{one}/mcp/x/list", "tools", "List", "list engine commands",
+                    ["Task<ToolResult> Run(\"command_list\", arguments)"], "DigitalBrain.Tools.IToolSource", $"{one}/mcp/x", "command_list")]
                 : []);
     }
 

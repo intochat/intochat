@@ -17,7 +17,7 @@ public sealed class NeuronSurfaceFacts
     public async Task ABadArgumentCountSaysSo()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
         await using var app = await Host(brain);
         using var client = Client(app);
 
@@ -37,7 +37,7 @@ public sealed class NeuronSurfaceFacts
     public async Task AGrainExceptionMessageReachesTheCaller()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
         await using var app = await Host(brain);
         using var client = Client(app);
 
@@ -57,7 +57,7 @@ public sealed class NeuronSurfaceFacts
     public async Task AnAppCreatedThroughMcpIsListedAsAnInstanceOfTheCallersBrain()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
         await using var app = await Host(brain);
         using var client = Client(app);
         var (context, _) = await Tool(client, "neurons_context", new { }, ct);
@@ -87,7 +87,7 @@ public sealed class NeuronSurfaceFacts
     public async Task SearchThroughMcpAsksTheSilosKernel()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
         await using var app = await Host(brain);
         using var client = Client(app);
 
@@ -144,15 +144,15 @@ public sealed class NeuronSurfaceFacts
     public async Task ARestrictedSearchRanksOnlyWhatTheAppComposes()
     {
         var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var kernel = Deployed.Kernel();
         var surface = await new NeuronSurface(new UnreachableBrain(), kernel, new NeuronTypeSearch(kernel, [new CrowdedSource()], null))
             .Restrict([typeof(IMcpServer).FullName!], ct);
-        CallerContextStamper.Stamp(new()
-        { PrincipalId = "owner", AccountId = "owner", BrainId = "crowded", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
+        using var caller = brain.Owner.AsCaller();
 
         var hits = await surface.Search("render image preview", ct);
 
-        Assert.Equal("tool:crowded/mcp/photocraft/render_preview", Assert.Single(hits).Type.Id);
+        Assert.Equal($"tool:{BrainScope.CurrentId()}/mcp/photocraft/render_preview", Assert.Single(hits).Type.Id);
     }
 
     // Sixty entries the app does not compose match the query better than its one tool.
@@ -169,12 +169,12 @@ public sealed class NeuronSurfaceFacts
         => new(new UnreachableBrain(), Deployed.Kernel(), null!);
 
     // A real MCP edge over a real brain, open posture so every request acts as the owner.
-    private static async Task<WebApplication> Host(ModuleBrain brain)
+    private static async Task<WebApplication> Host(ITestBrain brain)
     {
         var builder = WebApplication.CreateBuilder();
         builder.Configuration[AuthOptions.PostureKey] = "Open";
         builder.Services.AddSingleton<IDigitalBrain>(brain);
-        builder.Services.AddSingleton(brain.Grains);
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<IGrainFactory>());
         builder.Services.AddDigitalBrainMcp();
         var app = builder.Build();
         app.Urls.Add("http://127.0.0.1:0");
