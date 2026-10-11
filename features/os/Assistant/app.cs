@@ -135,6 +135,17 @@ An operation failure settles that invocation with an understandable error and do
 commands. A transcript exceeding the app response limit directs the caller to read the full
 conversation in the assistant; it never truncates or deletes durable history. If a command loop
 cannot settle an error, its failure reaches the runtime supervisor so pending work can recover.
+
+## Scenario: "make" makes the focused thing do what the sentence says
+
+Invoking "make" with JSON `{"focus": ["<brain>/apps/calculator/window"], "sentence": "…"}` writes one
+synapse into the calculator through its fast path (`IApp.WriteSynapse`, operation id = the request id)
+and ends; the outcome is the calculator's synapse record under that id. The first focus key that is an
+installed app of this brain, or a neuron under one (`{brain}/apps/{name}/…`), names the target; the
+assistant never writes into itself. With no such key (or plain text, a sentence with no focus) the
+synapse goes into the brain's "scratch" app, created the first time it is needed. Focus is whatever the
+caller passes: the shell passes the keys of the windows it shows. A malformed input says so on the
+status line and writes nothing.
 */
 
 using DigitalBrain.Apps;
@@ -142,7 +153,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "assistant";
-    public const string Version = "1.8.1";
+    public const string Version = "1.9.0";
 
     public static readonly AppManifest Manifest = new(
         Title: "Assistant",
@@ -153,6 +164,7 @@ static class App
             new("send", "Start a turn in the current conversation with this message; the transcript neuron shows the answer."),
             new("new", "Start a new conversation; the conversation neuron holds its id."),
             new("voice", "Begin a voice message from the dock; the composer neuron captures and transcribes it."),
+            new("make", "JSON {\"focus\": [neuron keys], \"sentence\": \"…\"}: the focused app, or the scratch app when no focus key is an app, gets one synapse doing what the sentence says through its fast path; the outcome is that app's synapse record under this request id."),
         ],
         Settings:
         [
