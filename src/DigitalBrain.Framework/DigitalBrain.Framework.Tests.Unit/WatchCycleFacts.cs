@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using DigitalBrain;
 using DigitalBrain.Framework;
 using Orleans;
@@ -13,7 +14,7 @@ public sealed class WatchCycleFacts
     public async Task ASubscriberMayWatchASourceWhoseTurnIsWaitingOnIt()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
 
         await brain.Get<ICycleSource>("source").Deploy("subscriber").WaitAsync(TimeSpan.FromSeconds(15), ct);
     }
@@ -53,15 +54,15 @@ public sealed class WatchDuringNotifyFacts
     public async Task ANewWatcherDuringANotificationLeavesThePublishIntact()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var source = brain.Get<IChattySource>("chatty");
-        await brain.Grains.GetGrain<IRelayObserver>("relay").Attach("chatty");
+        await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IRelayObserver>("relay").Attach("chatty");
 
         await source.Say().WaitAsync(TimeSpan.FromSeconds(15), ct);
         await source.Say().WaitAsync(TimeSpan.FromSeconds(15), ct);
 
-        Assert.Equal(2, await brain.Grains.GetGrain<IRelayObserver>("relay").Heard());
-        Assert.Equal(1, await brain.Grains.GetGrain<IRelayObserver>("late").Heard());
+        Assert.Equal(2, await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IRelayObserver>("relay").Heard());
+        Assert.Equal(1, await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IRelayObserver>("late").Heard());
     }
 }
 

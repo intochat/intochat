@@ -8,21 +8,21 @@ public sealed class SignalDeliveryContextFacts
     public async Task KernelDeliveryPreservesProvenanceAndMetadataWithoutImpersonatingThePublisher(bool fail)
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var source = brain.Get<IDeliverySource>("source");
         var observer = brain.Get<IDeliveryObserver>("subscriber/observer");
         await source.Watch(observer);
-        var caller = Stamp();
-        try
+        var publisher = await brain.PersonAsync("publisher", ct);
+        using (publisher.AsCaller())
         {
-            await brain.AuthorizeCallerAsync();
+            var caller = CallerContextStamper.Require();
             RequestContext.Set("delivery-test", "retained");
             Assert.True(await source.Emit(fail));
             Assert.Equal(caller, CallerContextStamper.Require());
             // Delivery does not exempt ordinary calls, even immediately afterwards.
             await Assert.ThrowsAsync<UnauthorizedAccessException>(observer.Read);
+            RequestContext.Remove("delivery-test");
         }
-        finally { RequestContext.Clear(); }
         var received = await observer.Read();
         Assert.NotNull(received);
         Assert.False(received.CallerPresent);
@@ -36,31 +36,21 @@ public sealed class SignalDeliveryContextFacts
     public async Task ClientAndMismatchedPublisherCallbacksDoNotReceiveInternalAuthority(bool throughGrain)
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var source = brain.Get<IDeliverySource>("source");
         var observer = brain.Get<IDeliveryObserver>("subscriber/observer");
-        var caller = Stamp();
-        try
+        var publisher = await brain.PersonAsync("publisher", ct);
+        using (publisher.AsCaller())
         {
-            await brain.AuthorizeCallerAsync();
+            var caller = CallerContextStamper.Require();
             var forged = new DeliverySignal(false) { Publisher = new(throughGrain ? "test-delivery-source/other" : source.GetGrainId().ToString()) };
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => throughGrain
                 ? source.Forward(observer, forged)
                 : observer.OnSignalAsync(forged));
             Assert.Equal(caller, CallerContextStamper.Require());
         }
-        finally { RequestContext.Clear(); }
         Assert.Null(await observer.Read());
     }
-
-    private static CallerContext Stamp() => CallerContextStamper.Stamp(new()
-    {
-        PrincipalId = "publisher-owner",
-        AccountId = "publisher-account",
-        BrainId = "publisher",
-        Kind = CallerKind.User,
-        StampedBy = TrustedEdge.AuthenticatedHttp,
-    });
 }
 
 [GenerateSerializer] public sealed record DeliverySignal([property: Id(0)] bool Fail) : Signal;

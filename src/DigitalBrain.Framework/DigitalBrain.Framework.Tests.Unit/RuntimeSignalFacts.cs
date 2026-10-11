@@ -8,8 +8,8 @@ public sealed class RuntimeSignalFacts
     public async Task SiloSubscriptionsReceiveOrdinaryNeuronSignalsAndFilterByType()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
-        using var signals = brain.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<Number>();
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        using var signals = brain.Services.GetRequiredService<LocalSignalHub>().Subscribe<Number>();
         await brain.Get<ITestEmitter>("one").EmitText("ignored");
         await brain.Get<ITestEmitter>("one").Emit(1);
         await brain.Get<ITestEmitter>("two").Emit(2);

@@ -8,7 +8,7 @@ public sealed class TraceFacts
     public async Task APublishedSignalCarriesTheCurrentTrace()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var source = brain.Get<ITraceSource>("source");
         var observer = brain.Get<ITraceObserver>("subscriber/observer");
         await source.Watch(observer);
@@ -25,7 +25,7 @@ public sealed class TraceFacts
     public async Task AUserSetTraceIsOverwrittenAtPublish()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var source = brain.Get<ITraceSource>("source");
         var observer = brain.Get<ITraceObserver>("subscriber/observer");
         await source.Watch(observer);
@@ -40,19 +40,19 @@ public sealed class TraceFacts
     public async Task KernelDeliveryKeepsTheTraceWhileStrippingTheCaller()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var source = brain.Get<ITraceSource>("source");
         var observer = brain.Get<ITraceObserver>("subscriber/observer");
         await source.Watch(observer);
-        var caller = Stamp();
-        var trace = TraceContext.Current!;
-        try
+        var publisher = await brain.PersonAsync("publisher", ct);
+        Trace trace;
+        using (publisher.AsCaller())
         {
-            await brain.AuthorizeCallerAsync();
+            var caller = CallerContextStamper.Require();
+            trace = TraceContext.Current!;
             await source.Emit();
             Assert.Equal(caller, CallerContextStamper.Require());
         }
-        finally { RequestContext.Clear(); }
         var seen = await observer.Read();
         Assert.False(seen!.CallerPresent);
         Assert.Equal(trace.TraceId, seen.DeliveryTraceId);
@@ -63,7 +63,7 @@ public sealed class TraceFacts
     public async Task AReactionInAnotherBrainKeepsTheOriginalPayer()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var source = brain.Get<ITraceSource>("publisher/button");
         var observer = brain.Get<ITraceObserver>("reacting/subscriber");
         await source.Watch(observer);
@@ -76,15 +76,6 @@ public sealed class TraceFacts
         Assert.Equal("brain-1", seen.DeliveryBrain);
         Assert.Equal(trace.TraceId, seen.DeliveryTraceId);
     }
-
-    private static CallerContext Stamp() => CallerContextStamper.Stamp(new()
-    {
-        PrincipalId = "publisher-owner",
-        AccountId = "acct-1",
-        BrainId = "brain-1",
-        Kind = CallerKind.User,
-        StampedBy = TrustedEdge.AuthenticatedHttp,
-    });
 }
 
 [GenerateSerializer] public sealed record TraceSignal : Signal;

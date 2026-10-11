@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-
 namespace DigitalBrain.Framework.Tests.Unit.Kernel;
 
 [GenerateSerializer]
@@ -33,108 +32,114 @@ public sealed class KernelFacts
     public async Task AFirstWriteRegistersTheNeuronOnceAndTheBrainAnnouncesIt()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var host = await ModuleTest.Create().StartAsync(ct);
-        using var created = host.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<InstanceCreated>();
-        await As(host, "alice", "a");
-        var ledger = host.Get<ILedger>("a/ledger/1");
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var alice = await brain.PersonAsync("alice", ct);
+        using var caller = alice.AsCaller();
+        await using var created = await brain.Observe<InstanceCreated>(brain.Get<IBrain>(alice.BrainId), ct);
+        var ledger = brain.Get<ILedger>(alice.Key("ledger/1"));
 
         await ledger.Set(1);
         await ledger.Set(2);
 
-        var instance = Assert.Single(await Instances(host, "test-ledger", ct));
-        Assert.Equal(("test-ledger", "a/ledger/1", "alice"), (instance.Type, instance.Key, instance.Creator));
-        // The caller's authorization writes the brain's own access record first; that is an instance too.
-        var signal = await created.Reader.ReadAsync(ct);
-        while (signal.Type != "test-ledger") { signal = await created.Reader.ReadAsync(ct); }
-        Assert.Equal(("test-ledger", "a/ledger/1"), (signal.Type, signal.Key));
-        Assert.Equal("brain/a", signal.Publisher.Name);
+        var instance = Assert.Single(await Instances(brain, "test-ledger", ct));
+        Assert.Equal(("test-ledger", alice.Key("ledger/1"), alice.PrincipalId), (instance.Type, instance.Key, instance.Creator));
+        var signal = await created.NextAsync(signal => signal.Type == "test-ledger", ct);
+        Assert.Equal(alice.Key("ledger/1"), signal.Key);
+        Assert.Equal("brain/" + alice.BrainId, signal.Publisher.Name);
     }
 
     [Fact]
     public async Task AGrainThatIsNotANeuronOrHasNoStateNeverRegisters()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var host = await ModuleTest.Create().StartAsync(ct);
-        await As(host, "alice", "a");
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var alice = await brain.PersonAsync("alice", ct);
+        using var caller = alice.AsCaller();
 
-        await host.Grains.GetGrain<IPlainGrain>("a/plain").Set(1);
-        await host.Get<ITestEmitter>("a/emitter").Emit(1);
+        await brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IPlainGrain>(alice.Key("plain")).Set(1);
+        await brain.Get<ITestEmitter>(alice.Key("emitter")).Emit(1);
 
-        Assert.DoesNotContain(await Instances(host, null, ct), instance => instance.Type is "test-plain" or "test-emitter");
+        Assert.DoesNotContain(await Instances(brain, null, ct), instance => instance.Type is "test-plain" or "test-emitter");
     }
 
     [Fact]
     public async Task ABareBrainKeyIsTheBrainItselfAndNeverRegisters()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var host = await ModuleTest.Create().StartAsync(ct);
-        await As(host, "alice", "a");
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var alice = await brain.PersonAsync("alice", ct);
+        using var caller = alice.AsCaller();
 
-        await host.Get<ILedger>("a").Set(1);
+        await brain.Get<ILedger>(alice.BrainId).Set(1);
 
-        Assert.Empty(await Instances(host, "test-ledger", ct));
+        Assert.Empty(await Instances(brain, "test-ledger", ct));
     }
 
     [Fact]
     public async Task ClearingStateRetiresTheInstanceAndAnnouncesIt()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var host = await ModuleTest.Create().StartAsync(ct);
-        using var retired = host.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<InstanceRetired>();
-        await As(host, "alice", "a");
-        var ledger = host.Get<ILedger>("a/ledger/1");
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var alice = await brain.PersonAsync("alice", ct);
+        using var caller = alice.AsCaller();
+        await using var retired = await brain.Observe<InstanceRetired>(brain.Get<IBrain>(alice.BrainId), ct);
+        var ledger = brain.Get<ILedger>(alice.Key("ledger/1"));
         await ledger.Set(1);
 
         await ledger.Clear();
 
-        Assert.Empty(await Instances(host, "test-ledger", ct));
-        Assert.Equal("a/ledger/1", (await retired.Reader.ReadAsync(ct)).Key);
+        Assert.Empty(await Instances(brain, "test-ledger", ct));
+        Assert.Equal(alice.Key("ledger/1"), (await retired.NextAsync(ct: ct)).Key);
     }
 
     [Fact]
     public async Task RetireDropsTheEntryOnlyInTheCallersBrain()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var host = await ModuleTest.Create().StartAsync(ct);
-        await As(host, "alice", "a");
-        await host.Get<ILedger>("a/ledger/1").Set(1);
-        var kernel = new Framework.Kernel(host.Grains);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var alice = await brain.PersonAsync("alice", ct);
+        var bob = await brain.PersonAsync("bob", ct);
+        using var caller = alice.AsCaller();
+        await brain.Get<ILedger>(alice.Key("ledger/1")).Set(1);
+        var kernel = new Framework.Kernel(brain.Services.GetRequiredService<IGrainFactory>());
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => kernel.Retire("test-ledger", "b/ledger/1", ct));
-        await kernel.Retire("test-ledger", "a/ledger/1", ct);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => kernel.Retire("test-ledger", bob.Key("ledger/1"), ct));
+        await kernel.Retire("test-ledger", alice.Key("ledger/1"), ct);
 
-        Assert.Empty(await Instances(host, "test-ledger", ct));
+        Assert.Empty(await Instances(brain, "test-ledger", ct));
     }
 
     [Fact]
     public async Task ABrainCannotListAnotherBrainsInstances()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var host = await ModuleTest.Create().StartAsync(ct);
-        await As(host, "bob", "b");
-        await host.Get<ILedger>("b/ledger/1").Set(1);
-        await As(host, "alice", "a");
-        await host.Get<ILedger>("a/ledger/1").Set(1);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var alice = await brain.PersonAsync("alice", ct);
+        var bob = await brain.PersonAsync("bob", ct);
+        using (bob.AsCaller()) { await brain.Get<ILedger>(bob.Key("ledger/1")).Set(1); }
+        using var caller = alice.AsCaller();
+        await brain.Get<ILedger>(alice.Key("ledger/1")).Set(1);
 
-        Assert.All(await Instances(host, null, ct), instance => Assert.True(BrainKey.BelongsTo(instance.Key, "a"), instance.Key));
-        Assert.Contains(await Instances(host, null, ct), instance => instance.Key == "a/ledger/1");
-        var running = await new Framework.Kernel(host.Grains).Running(ct);
-        Assert.Contains(running, instance => instance.Key == "a/ledger/1");
-        Assert.DoesNotContain(running, instance => instance.Key == "b/ledger/1");
+        Assert.All(await Instances(brain, null, ct), instance => Assert.True(BrainKey.BelongsTo(instance.Key, alice.BrainId), instance.Key));
+        Assert.Contains(await Instances(brain, null, ct), instance => instance.Key == alice.Key("ledger/1"));
+        var running = await new Framework.Kernel(brain.Services.GetRequiredService<IGrainFactory>()).Running(ct);
+        Assert.Contains(running, instance => instance.Key == alice.Key("ledger/1"));
+        Assert.DoesNotContain(running, instance => instance.Key == bob.Key("ledger/1"));
     }
 
     [Fact]
     public async Task InstancesOfAContractResolveItsGrainType()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var host = await ModuleTest.Create().StartAsync(ct);
-        await As(host, "alice", "a");
-        await host.Get<ILedger>("a/ledger/1").Set(1);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var alice = await brain.PersonAsync("alice", ct);
+        using var caller = alice.AsCaller();
+        await brain.Get<ILedger>(alice.Key("ledger/1")).Set(1);
 
         List<Instance> listed = [];
-        await foreach (var instance in new Framework.Kernel(host.Grains).Instances<ILedger>(ct)) { listed.Add(instance); }
+        await foreach (var instance in new Framework.Kernel(brain.Services.GetRequiredService<IGrainFactory>()).Instances<ILedger>(ct)) { listed.Add(instance); }
 
-        Assert.Equal("a/ledger/1", Assert.Single(listed).Key);
+        Assert.Equal(alice.Key("ledger/1"), Assert.Single(listed).Key);
     }
 
     [Fact]
@@ -147,18 +152,10 @@ public sealed class KernelFacts
         Assert.False(typeof(INeuron).IsAssignableFrom(typeof(IInstanceTypes)));
     }
 
-    // Not async: the stamp is an AsyncLocal and must stay with the calling fact.
-    private static Task As(ModuleBrain host, string principal, string brain)
-    {
-        CallerContextStamper.Stamp(new()
-        { PrincipalId = principal, AccountId = principal, BrainId = brain, Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
-        return host.AuthorizeCallerAsync();
-    }
-
-    private static async Task<List<Instance>> Instances(ModuleBrain host, string? type, CancellationToken ct)
+    private static async Task<List<Instance>> Instances(ITestBrain brain, string? type, CancellationToken ct)
     {
         List<Instance> listed = [];
-        await foreach (var instance in new Framework.Kernel(host.Grains).Instances(type, ct)) { listed.Add(instance); }
+        await foreach (var instance in new Framework.Kernel(brain.Services.GetRequiredService<IGrainFactory>()).Instances(type, ct)) { listed.Add(instance); }
         return listed;
     }
 }

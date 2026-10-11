@@ -5,48 +5,62 @@ namespace DigitalBrain.Framework.Tests.Unit.Brain;
 public sealed class BrainFacts
 {
     [Fact]
-    public async Task CreateIsIdempotent()
+    public async Task ABrainKeepsItsBirthAcrossEveryLaterRequest()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var host = await ModuleTest.Create().StartAsync(ct);
-        var kernel = host.Get<IBrain>(BrainScope.Create("acct", "personal").Id);
-        await kernel.Create(new Owner("acct"));
-        var first = await kernel.Read();
-        await kernel.Create(new Owner("acct"));
-        var second = await kernel.Read();
-        Assert.Equal("acct", first.Owner.AccountId);
-        Assert.Equal(first.CreatedAt, second.CreatedAt);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var alice = await brain.PersonAsync("alice", ct);
+        var self = brain.Get<IBrain>(alice.BrainId);
+        State born;
+        using (alice.AsCaller()) { born = await self.Read(); }
+
+        // Every allowed request to a brain asks for its creation again.
+        using var again = await alice.Http.GetAsync($"/brains/{alice.BrainId}/connections", ct);
+        again.EnsureSuccessStatusCode();
+
+        using var caller = alice.AsCaller();
+        var later = await self.Read();
+        Assert.Equal(alice.AccountId, born.Owner.AccountId);
+        Assert.Equal(born.CreatedAt, later.CreatedAt);
     }
 
     // Activated arrives during the grain's own activation, before any per-activation watch can
     // re-attach, so these facts listen where the operating system does: the silo's signal hub.
     [Fact]
-    public async Task ACreatedBrainPublishesActivatedOnBirthAndOnEveryLaterWake()
+    public async Task ABornBrainPublishesActivatedOnBirthAndOnEveryLaterWake()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var host = await ModuleTest.Create().StartAsync(ct);
-        using var activations = host.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<Activated>();
-        var scope = BrainScope.Create("acct", "waking").Id;
-        var kernel = host.Get<IBrain>(scope);
-        await kernel.Create(new Owner("acct"));
-        var born = await activations.Reader.ReadAsync(ct);
-        Assert.Equal("acct", born.Owner.AccountId);
-        Assert.EndsWith("/" + scope, born.Publisher.Name, StringComparison.Ordinal);
-        await host.DeactivateAsync(kernel, ct);
-        await kernel.Read();
-        Assert.EndsWith("/" + scope, (await activations.Reader.ReadAsync(ct)).Publisher.Name, StringComparison.Ordinal);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        using var activations = brain.Services.GetRequiredService<LocalSignalHub>().Subscribe<Activated>();
+        var alice = await brain.PersonAsync("alice", ct);
+        var born = await NextFor(activations, alice.BrainId, ct);
+        Assert.Equal(alice.AccountId, born.Owner.AccountId);
+
+        var self = brain.Get<IBrain>(alice.BrainId);
+        await brain.DeactivateAsync(self, ct);
+        using (alice.AsCaller()) { await self.Read(); }
+
+        await NextFor(activations, alice.BrainId, ct);
     }
 
     [Fact]
-    public async Task AnUncreatedBrainStaysSilentOnActivation()
+    public async Task AnUnbornBrainStaysSilentOnActivation()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var host = await ModuleTest.Create().StartAsync(ct);
-        using var activations = host.SiloServices.GetRequiredService<LocalSignalHub>().Subscribe<Activated>();
-        await Assert.ThrowsAsync<InvalidOperationException>(() => host.Get<IBrain>(BrainScope.Create("acct", "silent").Id).Read());
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        using var activations = brain.Services.GetRequiredService<LocalSignalHub>().Subscribe<Activated>();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => brain.Get<IBrain>(BrainScope.Create("acct", "silent").Id).Read());
         using var quiet = CancellationTokenSource.CreateLinkedTokenSource(ct);
         quiet.CancelAfter(TimeSpan.FromSeconds(1));
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            async () => await activations.Reader.ReadAsync(quiet.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await NextFor(activations, "silent", quiet.Token));
+    }
+
+    private static async Task<Activated> NextFor(LocalSignalHub.Subscription<Activated> activations, string brainId, CancellationToken ct)
+    {
+        while (true)
+        {
+            var activated = await activations.Reader.ReadAsync(ct);
+            if (activated.Publisher.Name.EndsWith("/" + brainId, StringComparison.Ordinal)) { return activated; }
+        }
     }
 }

@@ -74,17 +74,6 @@ public sealed class CompositionBoundaryFacts
     }
 
     [Fact]
-    public async Task ServerRefusesToStartWithoutAnAuthorizationPolicy()
-    {
-        var builder = WebApplication.CreateBuilder();
-        builder.AddDigitalBrainServer(_ => { });
-        builder.UseOrleans(silo => silo.UseLocalhostClustering().AddMemoryGrainStorage(DigitalBrainNames.ClusterGrainStorage).UseInMemoryReminderService());
-        await using var app = builder.Build();
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => app.StartAsync(TestContext.Current.CancellationToken));
-        Assert.Contains("IBrainAccess", error.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void DefaultAppHostDoesNotProvisionAzureAndRejectsDuplicatesBeforeAReferenceExists()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });

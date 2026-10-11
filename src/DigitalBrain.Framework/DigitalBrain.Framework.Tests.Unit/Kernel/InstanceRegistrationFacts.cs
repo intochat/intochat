@@ -9,11 +9,11 @@ public sealed class InstanceRegistrationFacts
     public async Task DecoratingTwiceWrapsTheClusterStorageOnce()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var host = await ModuleTest.Create()
+        await using var host = await TestBrain.Create()
             .ConfigureSilo(silo => { silo.AddKernelRegistration(); silo.AddKernelRegistration(); })
             .StartAsync(ct);
 
-        var storage = Assert.IsType<InstanceRegistration>(host.SiloServices.GetRequiredKeyedService<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage));
+        var storage = Assert.IsType<InstanceRegistration>(host.Services.GetRequiredKeyedService<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage));
 
         Assert.IsNotType<InstanceRegistration>(storage.Inner);
     }

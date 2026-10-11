@@ -82,7 +82,7 @@ public sealed class PersistenceFacts
     public async Task ExistsIsFalseUntilTheFirstSaveAndSurvivesReactivation()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var probe = brain.Get<IProbe>("fresh");
         Assert.False(await probe.Saved());
         await probe.Set(2);
@@ -95,7 +95,7 @@ public sealed class PersistenceFacts
     public async Task DeactivationKeepsStateAndDoesNotReplaySignals()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var counter = brain.Get<ICounter>("saved");
         await counter.SetWithoutPublishing(23);
         await brain.DeactivateAsync(counter, ct);

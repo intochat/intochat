@@ -1,4 +1,3 @@
-
 namespace DigitalBrain.Framework.Tests.Unit.Enforcement;
 
 // A neuron keyed by the brain id itself (the workspace, the app index) belongs to that brain
@@ -9,21 +8,12 @@ public sealed class BrainKeyedNeuronFacts
     public async Task ANeuronKeyedByTheCallersBrainIsReachableAndAnotherBrainsIsNot()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var host = await ModuleTest.Create().StartAsync(ct);
-        CallerContextStamper.Stamp(new CallerContext
-        {
-            PrincipalId = "owner",
-            AccountId = "owner",
-            BrainId = "one",
-            Kind = CallerKind.User,
-            StampedBy = TrustedEdge.AuthenticatedHttp,
-        });
-        try
-        {
-            await host.AuthorizeCallerAsync();
-            await host.Get<ITestEmitter>("one").Emit(1);
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => host.Get<ITestEmitter>("two").Emit(2));
-        }
-        finally { Orleans.Runtime.RequestContext.Clear(); }
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var alice = await brain.PersonAsync("alice", ct);
+        var bob = await brain.PersonAsync("bob", ct);
+        using var caller = alice.AsCaller();
+
+        await brain.Get<ITestEmitter>(alice.BrainId).Emit(1);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => brain.Get<ITestEmitter>(bob.BrainId).Emit(2));
     }
 }
