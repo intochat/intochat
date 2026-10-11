@@ -8,10 +8,18 @@ namespace DigitalBrain.Platform.Parts;
 
 // The cluster grain storage on a machine (Q27): every neuron record is an entry in its part's log, and the
 // ETag is the seq of the entry that last wrote it.
-internal sealed class PartGrainStorage(PartLogs logs, Serializer serializer) : IGrainStorage
+// R101: on a machine of a trust cluster, a grain activated here (through the gateway) for a part held by another
+// machine reads nothing: it is a stand-in that only forwards its calls (PartIncomingCallFilter).
+internal sealed class PartGrainStorage(PartLogs logs, Serializer serializer, PartRouter? router = null) : IGrainStorage
 {
     public async Task ReadStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
     {
+        if (router is not null && await router.Resolve(PartId.Of(grainId.Key.ToString()!)) is PartRoute.Remote)
+        {
+            router.MarkStandIn(grainId);
+            (grainState.ETag, grainState.RecordExists) = (null, false);
+            return;
+        }
         var log = await logs.For(PartId.Of(grainId.Key.ToString()!));
         if (log.Read(grainId.ToString(), stateName) is { } stored)
         {

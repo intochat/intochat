@@ -1,6 +1,8 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using DigitalBrain.Framework;
+using DigitalBrain.Framework.Compute;
 using DigitalBrain.Framework.Links;
 using DigitalBrain.Framework.Parts;
 using DigitalBrain.Framework.Platform.Identity;
@@ -9,39 +11,75 @@ using DigitalBrain.Platform.Sequencer;
 using DigitalBrain.Platform.Trust;
 using Microsoft.Extensions.Options;
 using Orleans.CodeGeneration;
+using Orleans.Metadata;
 using Orleans.Serialization;
 
 namespace DigitalBrain.Platform.Parts;
 
-// The holder's side of a forwarded call (T20-12). Before anything executes: the link's machine must serve the
-// brain's owner or a member account, and the forwarded caller's account (R55/R95/R98); this machine must hold the
-// part's live lease on the head (R87), opening the part when the lease is ours; with the sequencer unreachable an
-// Own machine trusts its local lease (it journals, Q26) and a Cloud machine answers 503 (R89). Otherwise NotHolder.
-// The call is re-invoked on the local grain reference (R83) under the forwarded RequestContext, the caller
-// re-stamped as forwarded by the link's machine, inside a server activity parented on the forwarded traceparent.
+// The holder's side of a forwarded call (T20-12, R100). Before anything executes:
+// - a stamped caller is trusted, for this brain, of an account the link's machine serves (R55); an unstamped call
+//   (kernel and storage work) is admitted only from the brain owner's machines;
+// - the link's machine serves the brain's owner or a member account (R95/R98); a member's machine reaches INeuron
+//   contracts only — kernel and other cluster-storage grains have no policy of their own, so only the owner's machines
+//   reach them;
+// - this machine holds the part's live lease on the head (R87), opening the part when the lease is ours; with the
+//   sequencer unreachable an Own machine trusts its local lease (it journals, Q26), a Cloud machine answers 503 (R89).
+// The RequestContext is rebuilt from the caller stamp (re-stamped as forwarded by the link's machine) and the Trace,
+// nothing else; the call runs inside a server activity parented on the forwarded traceparent, on the local grain
+// reference (R83). Cancellation does not cross machines (Stage B): forwarded tokens become CancellationToken.None.
 [System.Runtime.Versioning.SupportedOSPlatform("windows"), System.Runtime.Versioning.SupportedOSPlatform("linux"), System.Runtime.Versioning.SupportedOSPlatform("macos")]
 internal sealed class ForwardedCallEndpoint(PartRoutes routes, PartLogs logs, ISequencerClient sequencer, INodeDirectoryClient directory,
     IKeyringClient keyring, IIdentityClient identity, MachineIdentity machine, IGrainFactory grains, IGrainReferenceRuntime runtime,
-    Serializer serializer, IOptions<PartsOptions> options, TimeProvider time)
+    GrainClassMap classes, Serializer serializer, IOptions<PartsOptions> options, TimeProvider time)
 {
+    private static readonly TimeSpan Remembered = TimeSpan.FromSeconds(30);
+
     private readonly ConditionalWeakTable<QuicMachineLink, Task<string[]>> _accounts = [];
+    private readonly ConditionalWeakTable<QuicMachineLink, ConcurrentDictionary<string, (Standing Standing, DateTimeOffset Until)>> _standing = [];
+
+    private enum Standing { None, Member, Owner }
 
     public async Task<LinkReply> Answer(QuicMachineLink link, LinkRequest request, CancellationToken _)
     {
-        var call = serializer.Deserialize<ForwardedCall>(request.Payload) ?? throw new InvalidDataException("An empty forwarded call.");
-        ForwardedOutcome outcome;
-        try { outcome = new(await Run(link, request, call), null); }
-        catch (Exception error) { outcome = new(null, error); }
-        return new LinkReply(serializer.SerializeToArray(outcome), null, null);
+        byte[] payload;
+        try
+        {
+            var call = serializer.Deserialize<ForwardedCall>(request.Payload) ?? throw new InvalidDataException("An empty forwarded call.");
+            payload = serializer.SerializeToArray(new ForwardedOutcome(await Run(link, request, call), null));
+        }
+        catch (Exception error)
+        {
+            // R104: an outcome that cannot be serialized (or a failure to read the call) still answers.
+            try { payload = serializer.SerializeToArray(new ForwardedOutcome(null, error)); }
+            catch (Exception) { payload = serializer.SerializeToArray(new ForwardedOutcome(null, new InvalidOperationException($"{error.GetType().FullName}: {error.Message}"))); }
+        }
+        return new LinkReply(payload, null, null);
     }
 
     private async Task<object?> Run(QuicMachineLink link, LinkRequest request, ForwardedCall call)
     {
         var part = routes.PartOf(call.Target) ?? throw new ArgumentException($"{call.Target} belongs to no part; it is never forwarded.");
+        // The machine's own kernel and storage work is unstamped, as on the holder itself; only the owner's machines may
+        // forward it (R100). A stamped caller must be trusted, for this brain, and of an account the machine serves.
+        var caller = call.Caller;
+        if (caller is not null && !(CallerContextStamper.IsTrusted(caller) && caller.BrainId == part.BrainId))
+        { throw new UnauthorizedAccessException($"A call forwarded by machine {link.RemoteMachineId} carries no trusted caller stamp for brain {part.BrainId}."); }
         var accounts = await _accounts.GetValue(link, peer => Accounts(peer.RemoteMachineId));
-        await Admit(link.RemoteMachineId, accounts, part, call);
+        if (caller is not null && !accounts.Contains(caller.AccountId, StringComparer.Ordinal))
+        { throw new UnauthorizedAccessException($"A call forwarded by machine {link.RemoteMachineId} for account {caller.AccountId} is refused: the machine does not serve that account."); }
+        var standing = await StandingOf(link, accounts, part.BrainId);
+        if (standing == Standing.None)
+        { throw new UnauthorizedAccessException($"A call forwarded by machine {link.RemoteMachineId} into brain {part.BrainId} is refused: the machine serves neither its owner nor a member."); }
+        if (standing != Standing.Owner && caller is null)
+        { throw new UnauthorizedAccessException($"An unstamped call forwarded by machine {link.RemoteMachineId} is refused: only the owner's machines forward kernel work."); }
+        if (standing != Standing.Owner && !IsNeuronContract(call))
+        { throw new UnauthorizedAccessException($"A call forwarded by machine {link.RemoteMachineId} to {call.Target.Type} is refused: only the owner's machines reach grains that are not neuron contracts."); }
         await RequireHolder(part);
 
+        for (var index = 0; index < call.Request.GetArgumentCount(); index++)
+        {
+            if (call.Request.GetArgument(index) is CancellationToken) { call.Request.SetArgument(index, CancellationToken.None); }
+        }
         var parent = ActivityContext.TryParse(request.TraceParent, request.TraceState, out var forwarded) ? forwarded : default;
         using var activity = PartCallFilter.Source.StartActivity($"ForwardedCall {call.Request.GetInterfaceName()}.{call.Request.GetMethodName()}", ActivityKind.Server, parent);
         activity?.SetTag(PartCallFilter.MachineTag, machine.MachineId);
@@ -50,9 +88,8 @@ internal sealed class ForwardedCallEndpoint(PartRoutes routes, PartLogs logs, IS
         activity?.SetTag("digitalbrain.forwarded-by", link.RemoteMachineId);
 
         RequestContext.Clear();
-        foreach (var (key, value) in call.Context) { RequestContext.Set(key, value); }
-        if (call.Context.TryGetValue(CallerContextStamper.RequestContextKey, out var stamped) && stamped is CallerContext caller)
-        { RequestContext.Set(CallerContextStamper.RequestContextKey, caller with { ForwardedBy = link.RemoteMachineId }); }
+        if (caller is not null) { RequestContext.Set(CallerContextStamper.RequestContextKey, caller with { ForwardedBy = link.RemoteMachineId }); }
+        if (call.Trace is { } trace) { RequestContext.Set(TraceContext.RequestContextKey, trace); }
         try
         {
             var reference = (GrainReference)grains.GetGrain(call.Target);
@@ -61,22 +98,30 @@ internal sealed class ForwardedCallEndpoint(PartRoutes routes, PartLogs logs, IS
         finally { RequestContext.Clear(); }
     }
 
+    private bool IsNeuronContract(ForwardedCall call)
+        => call.Request.GetInterfaceType() is { } contract && typeof(INeuron).IsAssignableFrom(contract)
+            && classes.TryGetGrainClass(call.Target.Type, out var grainClass) && typeof(INeuron).IsAssignableFrom(grainClass);
+
     private async Task<string[]> Accounts(string machineId)
         => (await directory.Machine(machineId))?.Accounts
             ?? throw new UnauthorizedAccessException($"Machine {machineId} is not registered; its forwarded calls are refused.");
 
-    private async Task Admit(string machineId, string[] accounts, PartId part, ForwardedCall call)
+    private async Task<Standing> StandingOf(QuicMachineLink link, string[] accounts, string brainId)
     {
-        if (call.Context.TryGetValue(CallerContextStamper.RequestContextKey, out var stamped) && stamped is CallerContext caller
-            && !accounts.Contains(caller.AccountId, StringComparer.Ordinal))
-        { throw new UnauthorizedAccessException($"A call forwarded by machine {machineId} for account {caller.AccountId} is refused: the machine does not serve that account."); }
-        var owner = await keyring.OwnerOf(part.BrainId);
-        if (owner is not null && accounts.Contains(owner, StringComparer.Ordinal)) { return; }
-        foreach (var account in accounts)
+        var known = _standing.GetValue(link, _ => new(StringComparer.Ordinal));
+        var now = time.GetUtcNow();
+        if (known.TryGetValue(brainId, out var cached) && cached.Until > now) { return cached.Standing; }
+        var standing = Standing.None;
+        if (await keyring.OwnerOf(brainId) is { } owner && accounts.Contains(owner, StringComparer.Ordinal)) { standing = Standing.Owner; }
+        else
         {
-            if (await identity.Membership(part.BrainId, account) is not null) { return; }
+            foreach (var account in accounts)
+            {
+                if (await identity.Membership(brainId, account) is not null) { standing = Standing.Member; break; }
+            }
         }
-        throw new UnauthorizedAccessException($"A call forwarded by machine {machineId} into brain {part.BrainId} is refused: the machine serves neither its owner nor a member.");
+        known[brainId] = (standing, now + Remembered);
+        return standing;
     }
 
     private async Task RequireHolder(PartId part)

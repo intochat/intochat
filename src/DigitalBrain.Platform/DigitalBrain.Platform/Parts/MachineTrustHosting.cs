@@ -33,7 +33,9 @@ public static class MachineTrustHosting
         services.TryAddSingleton<PartRoutes>();
         services.TryAddSingleton<PartRouter>();
         services.TryAddSingleton<ForwardedCallEndpoint>();
+        services.TryAddSingleton<PartForwarder>();
         services.AddSingleton<IOutgoingGrainCallFilter, PartCallFilter>();
+        services.AddSingleton<IIncomingGrainCallFilter, PartIncomingCallFilter>();
         silo.AddStartupTask((provider, _) =>
         {
             var endpoint = provider.GetRequiredService<ForwardedCallEndpoint>();

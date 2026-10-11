@@ -45,4 +45,13 @@ internal sealed class PartRouter(PartLogs logs, ISequencerClient sequencer, Mach
     }
 
     public void Forget(PartId part) => _remote.TryRemove(part.Value, out _);
+
+    // R101: activations made here for a part held elsewhere (no state read); they only forward, then go.
+    private readonly ConcurrentDictionary<GrainId, bool> _standIns = new();
+
+    public void MarkStandIn(GrainId grain) => _standIns[grain] = true;
+
+    public bool IsStandIn(GrainId grain) => _standIns.ContainsKey(grain);
+
+    public void ForgetStandIn(GrainId grain) => _standIns.TryRemove(grain, out _);
 }
