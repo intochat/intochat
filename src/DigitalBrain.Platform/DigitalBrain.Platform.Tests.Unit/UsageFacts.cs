@@ -113,6 +113,20 @@ public sealed class UsageFacts
         AssertRow(await usage.Group(UsageGrouping.App, now.AddDays(-1), 10), "mail", total, total);
     }
 
+    [Fact]
+    public async Task AUsageWriteAfterTenThousandChargesPersistsABoundedPayload()
+    {
+        var store = new ScriptedUsageStore();
+        var usage = new UsageGrain(store);
+        var now = DateTimeOffset.UtcNow;
+
+        for (var i = 0; i < 10_000; i++) { await usage.Add(Cost("tr-1", $"c-{i}", 2, "mail", "on-inbound", "gmail/inbox", now), "gmail/edge"); }
+
+        Assert.Equal(UsageGrain.RecentLimit, store.State.Recent.Length);
+        Assert.True(store.State.Daily.Length <= 5);
+        AssertRow(await usage.Group(UsageGrouping.App, now.AddDays(-1), 10), "mail", 20_000, 10_000);
+    }
+
     // Costs reach usage one-way; a read sent after them is answered after them once the grain is active.
     private static async Task<IUsageGrain> ActiveUsage(ITestBrain brain)
     {

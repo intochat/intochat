@@ -88,6 +88,34 @@ public sealed class LedgerFacts
     }
 
     [Fact]
+    public async Task AChargeWriteAfterTenThousandChargesPersistsABoundedPayload()
+    {
+        var store = new ScriptedLedgerStore();
+        var ledger = new LedgerGrain(store);
+
+        for (var i = 0; i < 10_000; i++) { await ledger.Charge(Cost("tr-1", $"c-{i}", 3L)); }
+
+        Assert.Equal(LedgerGrain.EntryWindow, store.State.Entries.Length);
+        Assert.True(store.State.RecentKeys.Length <= 1_000);
+        Assert.True(System.Text.Json.JsonSerializer.Serialize(store.State).Length < 400_000);
+    }
+
+    [Fact]
+    public async Task TotalsSurviveTheHistoryBeingBounded()
+    {
+        var store = new ScriptedLedgerStore();
+        var ledger = new LedgerGrain(store);
+        await ledger.Credit("grant-1", 50_000L, "grant");
+
+        for (var i = 0; i < 2_000; i++) { await ledger.Charge(Cost("tr-1", $"c-{i}", 3L)); }
+
+        Assert.Equal(50_000L - 6_000L, await ledger.Balance());
+        Assert.True(await ledger.Verify());
+        Assert.Equal("c-1999", (await ledger.Entries(1))[0].EntryId.Split('/')[1]);
+        Assert.False(await ledger.Charge(Cost("tr-1", "c-1999", 3L)));
+    }
+
+    [Fact]
     public async Task ARewrittenEntryFailsVerification()
     {
         var store = new ScriptedLedgerStore();
