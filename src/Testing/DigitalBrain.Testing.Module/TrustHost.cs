@@ -41,7 +41,9 @@ public sealed class TrustHost : IAsyncDisposable
 
     public IGrainFactory Grains => _host.Services.GetRequiredService<IGrainFactory>();
 
-    public static async Task<TrustHost> StartAsync(CancellationToken cancellationToken = default)
+    // Every machine of a fact dials from 127.0.0.1, so the per-address new-account limit (R99) is raised unless a
+    // fact asks for the production one.
+    public static async Task<TrustHost> StartAsync(CancellationToken cancellationToken = default, int registrationsPerAddressPerMinute = 1000)
     {
         var siloPort = FreePort();
         var id = $"trust-{Guid.NewGuid():N}";
@@ -50,6 +52,8 @@ public sealed class TrustHost : IAsyncDisposable
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             [AuthOptions.PostureKey] = nameof(IdentityPosture.Open),
+            [$"{DigitalBrain.Framework.Links.LinkOptions.Key}:{nameof(DigitalBrain.Framework.Links.LinkOptions.RegistrationsPerAddressPerMinute)}"] =
+                registrationsPerAddressPerMinute.ToString(System.Globalization.CultureInfo.InvariantCulture),
             [$"{MeshOptions.Key}:{nameof(MeshOptions.SeedNodes)}"] = "8",
             [$"{DigitalBrain.Platform.Trust.TrustOptions.Key}:{nameof(DigitalBrain.Platform.Trust.TrustOptions.IdentityPath)}"] = Path.Combine(Path.GetTempPath(), id, "identity.key"),
             [$"{DigitalBrain.Platform.Trust.TrustOptions.Key}:{nameof(DigitalBrain.Platform.Trust.TrustOptions.AdvertisedAddress)}"] = "127.0.0.1",

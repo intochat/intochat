@@ -17,6 +17,10 @@ public sealed class LinkOptions
     // How many links a listener holds from one IP address at once (a NAT may front several machines).
     public int MaxLinksPerAddress { get; set; } = 32;
 
+    // R99: how many new accounts one source address may bind on the trust host per minute (registration is open in
+    // Stage B; this bounds what a stranger gets past the pre-registration frame cap).
+    public int RegistrationsPerAddressPerMinute { get; set; } = 1;
+
     // The local UDP port the machine's trust link binds; 0 = allocated.
     public int Port { get; set; }
 
@@ -28,5 +32,6 @@ public sealed class LinkOptions
         { throw new InvalidOperationException("Links need positive PunchFor and DirectWithin."); }
         if (Port is < 0 or > 65535) { throw new InvalidOperationException("Links Port must be 0..65535."); }
         if (MaxLinksPerAddress < 1) { throw new InvalidOperationException("Links MaxLinksPerAddress must be positive."); }
+        if (RegistrationsPerAddressPerMinute < 1) { throw new InvalidOperationException("Links RegistrationsPerAddressPerMinute must be positive."); }
     }
 }

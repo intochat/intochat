@@ -116,6 +116,42 @@ public sealed class TrustLinkFacts
         Assert.Null(await machine.SiloServices.GetRequiredService<IIdentityClient>().RegisteredBy("eve"));
     }
 
+    // R99: registration stays open in Stage B, but one source address binds at most one new account a minute.
+    [Fact(Timeout = 120_000)]
+    public async Task ASecondNewAccountRegistrationFromTheSameAddressWithinAMinuteIsRefused()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        await using var trust = await TrustHost.StartAsync(ct, registrationsPerAddressPerMinute: 1);
+        await using var first = await RawMachine.Dial(trust, ct);
+        await using var second = await RawMachine.Dial(trust, ct);
+
+        await first.Register("first-account", ct);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => second.Register("second-account", ct));
+        // Joining an account that already exists is not a new account.
+        await second.Register("first-account", ct);
+    }
+
+    // R99: what the trust host remembers of a link's registration goes with the link.
+    [Fact(Timeout = 120_000)]
+    public async Task AClosedLinkIsForgottenByTheRegistry()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        await using var trust = await TrustHost.StartAsync(ct);
+        var endpoint = trust.Services.GetRequiredService<TrustLinkEndpoint>();
+        var machine = await RawMachine.Dial(trust, ct);
+        await machine.Register("forgotten", ct);
+        await machine.Call<bool, int>(TrustOperations.RelayPort, true, ct);
+        Assert.True(endpoint.Remembers(machine.MachineId));
+        var served = endpoint.LinkOf(machine.MachineId)!;
+
+        await machine.DisposeAsync();
+        await served.Closed.WaitAsync(TimeSpan.FromSeconds(10), ct);
+
+        Assert.False(endpoint.Remembers(machine.MachineId));
+    }
+
     [Fact(Timeout = 120_000)]
     public async Task AKeyringWriteForAnotherAccountsBrainIsRefused()
     {

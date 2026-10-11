@@ -38,6 +38,8 @@ internal sealed class SeedShardGrain(
     [PersistentState("mesh-shard", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<SeedShardState> store)
     : Grain, IStorageShard
 {
+    public const int MaxClaims = 16;
+
     private string Cid => this.GetPrimaryKeyString()[(this.GetPrimaryKeyString().IndexOf('/', StringComparison.Ordinal) + 1)..];
 
     public async Task Put(byte[] bytes, string? putter)
@@ -46,7 +48,21 @@ internal sealed class SeedShardGrain(
         if (StorageProof.ContentId(bytes) != Cid) { throw new InvalidDataException($"Shard bytes do not match content id '{Cid}'."); }
         if (store.State.Bytes is not null && (putter is null || store.State.Putters.Contains(putter, StringComparer.Ordinal))) { return; }
         store.State.Bytes ??= bytes;
-        if (putter is not null) { store.State.Putters = [.. store.State.Putters, putter]; }
+        if (putter is not null)
+        {
+            // R99: at most MaxClaims; the oldest claim of a machine no longer registered makes room, else the put is refused.
+            if (store.State.Putters.Length >= MaxClaims)
+            {
+                string? unbound = null;
+                foreach (var claim in store.State.Putters)
+                {
+                    if (await GrainFactory.GetGrain<IMachineRegistry>(claim).Read() is null) { unbound = claim; break; }
+                }
+                if (unbound is null) { throw new InvalidOperationException($"Shard {Cid} already has {MaxClaims} claims."); }
+                store.State.Putters = [.. store.State.Putters.Where(claim => claim != unbound)];
+            }
+            store.State.Putters = [.. store.State.Putters, putter];
+        }
         await store.WriteStateAsync();
     }
 

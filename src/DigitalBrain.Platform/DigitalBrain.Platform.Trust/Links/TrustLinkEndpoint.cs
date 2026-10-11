@@ -80,6 +80,7 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
 
     private readonly ConcurrentDictionary<string, QuicMachineLink> _links = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, bool> _registered = new(StringComparer.Ordinal);
+    private readonly Dictionary<IPAddress, Queue<DateTimeOffset>> _newAccounts = [];
     private QuicLinkListener? _listener;
     private Relay? _relay;
     private Rendezvous? _rendezvous;
@@ -94,6 +95,11 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
     public string TrustId => _key is { } key ? MachineKeys.IdOf(key.PublicKey) : throw new InvalidOperationException("The trust link endpoint has not started.");
 
     internal Relay Relay => _relay ?? throw new InvalidOperationException("The trust relay has not started.");
+
+    // Facts only: whether a machine's registration is remembered, and the link it is served on.
+    internal bool Remembers(string machineId) => _registered.ContainsKey(machineId);
+
+    internal QuicMachineLink? LinkOf(string machineId) => _links.GetValueOrDefault(machineId);
 
     public void Participate(ISiloLifecycle lifecycle) =>
         lifecycle.Subscribe(nameof(TrustLinkEndpoint), ServiceLifecycleStage.Active, Start, Stop);
@@ -119,7 +125,11 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
     {
         _links.AddOrUpdate(link.RemoteMachineId, link, (_, old) => { old.DisposeAsync().AsTask().Ignore(); return link; });
         Log.Linked(logger, link.RemoteMachineId, link.RemoteEndPoint);
-        _ = link.Closed.ContinueWith(_ => _links.TryRemove(new(link.RemoteMachineId, link)), TaskScheduler.Default);
+        // R99: what this host remembers of a link's registration goes with the link (runs before later awaiters).
+        _ = link.Closed.ContinueWith(closed =>
+        {
+            if (_links.TryRemove(new(link.RemoteMachineId, link))) { _registered.TryRemove(link.RemoteMachineId, out _); }
+        }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
     private async Task<LinkReply> Dispatch(QuicMachineLink link, LinkRequest request, CancellationToken cancellationToken)
@@ -170,6 +180,7 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
             // A link registers only its own key: the one that endorsed its certificate.
             if (machineId != call.Link.RemoteMachineId || !publicKey.AsSpan().SequenceEqual(call.Link.Peer.PublicKey))
             { throw new UnauthorizedAccessException($"Machine {call.Link.RemoteMachineId} may register only itself."); }
+            if ((await grains.GetGrain<IAccountMachines>(account).Machines()).Length == 0) { CountNewAccount(call.Link.RemoteEndPoint.Address, account); }
             await Registry(machineId).Register(publicKey, account, pairing, signature);
             return true;
         }),
@@ -339,6 +350,20 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
             if (await authority.Membership(account) is not null) { return; }
         }
         throw new UnauthorizedAccessException($"Machine {call.Link.RemoteMachineId} serves no owner or member account of brain {brainScopeId}.");
+    }
+
+    // R99: one source address binds at most RegistrationsPerAddressPerMinute new accounts a minute.
+    private void CountNewAccount(IPAddress address, string account)
+    {
+        var now = time.GetUtcNow();
+        lock (_newAccounts)
+        {
+            if (!_newAccounts.TryGetValue(address, out var recent)) { _newAccounts[address] = recent = new Queue<DateTimeOffset>(); }
+            while (recent.Count > 0 && now - recent.Peek() >= TimeSpan.FromMinutes(1)) { recent.Dequeue(); }
+            if (recent.Count >= links.Value.RegistrationsPerAddressPerMinute)
+            { throw new UnauthorizedAccessException($"Address {address} registered a new account within the last minute; account {account} is refused for now."); }
+            recent.Enqueue(now);
+        }
     }
 
     private async Task<string?> NodeOwner(string nodeId)

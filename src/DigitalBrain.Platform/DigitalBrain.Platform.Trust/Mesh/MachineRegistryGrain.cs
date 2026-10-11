@@ -29,6 +29,9 @@ internal interface IMachineRegistry : IGrainWithStringKey
 internal interface IAccountMachines : IGrainWithStringKey
 {
     Task Bind(string machineId, byte[] pairingSecretHash);
+
+    [Orleans.Concurrency.AlwaysInterleave]
+    Task<string[]> Machines();
 }
 
 [GrainType("platform.mesh.machine")]
@@ -97,6 +100,8 @@ internal sealed class AccountMachinesGrain(
     [PersistentState("account-machines", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<AccountMachinesState> store)
     : Grain, IAccountMachines
 {
+    public Task<string[]> Machines() => Task.FromResult<string[]>([.. store.State.Machines]);
+
     public async Task Bind(string machineId, byte[] pairingSecretHash)
     {
         if (store.State.Machines.Contains(machineId, StringComparer.Ordinal)) { return; }
