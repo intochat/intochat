@@ -6,6 +6,7 @@ using DigitalBrain.Platform.Parts;
 using DigitalBrain.Platform.Sequencer;
 using DigitalBrain.Platform.Tests.Unit.Sequencer;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using Orleans.Serialization;
@@ -28,12 +29,12 @@ public sealed class PartLogFacts
     }
 
     internal static async Task<PartLog> OpenAsync(ITestBrain brain, PartId part, byte[] key, MachineIdentity machine, PartsOptions options, TimeProvider time,
-        CancellationToken ct, IMeshStore? mesh = null)
+        CancellationToken ct, IMeshStore? mesh = null, ILogger<PartLog>? logger = null)
     {
         var serializer = brain.Services.GetRequiredService<Serializer>();
         var lease = await PartLease.Acquire(part, key, PartLeaseFacts.Sequencer(brain), machine, PartLeaseFacts.Seen(), options, time, serializer);
         return await PartLog.Open(part, key, lease, mesh ?? brain.Services.GetRequiredService<IMeshStore>(), serializer, options, time,
-            NullLogger<PartLog>.Instance, ct);
+            logger ?? NullLogger<PartLog>.Instance, ct);
     }
 
     private static PartsOptions Cloud(TimeSpan? batchDelay = null) => new()
@@ -89,10 +90,25 @@ public sealed class PartLogFacts
             await log.Append("g1", "s", RecordChange.Write, [1], []);
             await log.Append("g1", "s", RecordChange.Write, [2], []);
         }
-        await using var reopened = await OpenAsync(brain, part, key, machine, options, TimeProvider.System, ct, mesh);
+        var logger = new WarningLog();
+        await using var reopened = await OpenAsync(brain, part, key, machine, options, TimeProvider.System, ct, mesh, logger);
 
         Assert.Equal([2], reopened.Read("g1", "s")!.Record);
         Assert.Empty(reopened.SignalsSince(0));
+        Assert.Contains(logger.Warnings, warning => warning.Contains("skipped 1 missing entries", StringComparison.Ordinal));
+        Assert.Contains(logger.Warnings, warning => warning.Contains("without a record or signal list", StringComparison.Ordinal));
+    }
+
+    private sealed class WarningLog : ILogger<PartLog>
+    {
+        public System.Collections.Concurrent.ConcurrentQueue<string> Warnings { get; } = new();
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        { if (logLevel == LogLevel.Warning) { Warnings.Enqueue(formatter(state, exception)); } }
     }
 
     // Every segment it stores carries a null entry and entries without a signal list, as older segments may.
