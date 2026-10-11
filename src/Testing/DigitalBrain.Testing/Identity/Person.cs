@@ -44,7 +44,8 @@ public sealed class Person : IDisposable
         });
 
     // One of this person's installed apps, as the app proxy re-stamps a script's calls: the app key is its AppId.
-    public IDisposable AsApp(string appId)
+    // With a conversation, the call is the app's model reading on that conversation's behalf.
+    public IDisposable AsApp(string appId, string? conversationId = null)
         => Enter(new CallerContext
         {
             PrincipalId = PrincipalId,
@@ -52,6 +53,7 @@ public sealed class Person : IDisposable
             BrainId = BrainId,
             Kind = CallerKind.App,
             AppId = appId,
+            ConversationId = conversationId,
             StampedBy = TrustedEdge.AppProxy,
         });
 

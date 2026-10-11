@@ -124,7 +124,7 @@ public sealed class PrimitiveBindingFacts
 }
 
 [GenerateSerializer, Alias("test.ui-event-handled")]
-public sealed record UiEventHandled([property: Id(0)] int Count) : Signal;
+public sealed record UiEventHandled([property: Id(0)] int Count, [property: Id(1)] string Type) : Signal;
 
 [Alias("test.primitive-handler"), Orleans.Metadata.DefaultGrainType("test.primitive-handler")]
 public interface IPrimitiveTestHandler : IUiEventHandler, INeuron
@@ -144,7 +144,7 @@ public sealed class PrimitiveTestHandler : Neuron, IPrimitiveTestHandler
         _events.Add(signal);
         if (_projection is not null && signal is TextFieldChanged changed)
         { await GrainFactory.GetGrain<ITextField>(_projection).SetValue("projected: " + changed.Value); }
-        await PublishAsync(new UiEventHandled(_events.Count));
+        await PublishAsync(new UiEventHandled(_events.Count, signal.GetType().Name));
     }
     public Task<IReadOnlyList<Signal>> Events() => Task.FromResult<IReadOnlyList<Signal>>(_events.ToArray());
 }

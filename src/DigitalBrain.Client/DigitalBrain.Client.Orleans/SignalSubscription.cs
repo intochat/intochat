@@ -122,7 +122,8 @@ internal sealed class SignalSubscription<T>(IClusterClient cluster, INeuron sour
 
     private Task CleanupAsync()
     {
-        lock (_gate) { return _cleanup ??= CleanupCoreAsync(); }
+        // Cleanup runs off the gate: disposing the lifetime waits for a running cancellation callback, which takes the gate.
+        lock (_gate) { return _cleanup ??= Task.Run(CleanupCoreAsync); }
     }
 
     private async Task CleanupCoreAsync()

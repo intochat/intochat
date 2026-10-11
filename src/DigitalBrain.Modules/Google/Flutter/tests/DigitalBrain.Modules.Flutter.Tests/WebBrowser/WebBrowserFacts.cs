@@ -32,6 +32,7 @@ public sealed class WebBrowserFacts
         var connector = Connector(brain, "research/browser");
         var handler = brain.Get<IPrimitiveTestHandler>("browser-handler");
         await brain.Get<IUiBinding>("research/browser").Bind(handler);
+        await using var handled = await brain.Observe<UiEventHandled>(handler, TestContext.Current.CancellationToken);
         await using var connected = await brain.Observe<BrowserConnected>(browser, ct);
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => connector.Connect(80, Session));
         await Assert.ThrowsAsync<ArgumentException>(() => connector.Connect(12345, "invalid"));
@@ -45,7 +46,7 @@ public sealed class WebBrowserFacts
         Assert.Equal("research/browser", signal.Name);
         Assert.Equal(Session, signal.SessionId);
         Assert.False(string.IsNullOrEmpty(signal.Publisher.Name));
-        Assert.Equal(new BrowserConnected("research/browser", Session), Assert.Single(await Lifecycle(handler)));
+        Assert.Equal(new BrowserConnected("research/browser", Session), Assert.Single(await Lifecycle(handler, handled, nameof(BrowserConnected))));
     }
 
     [Fact]
@@ -75,6 +76,7 @@ public sealed class WebBrowserFacts
         var connector = Connector(brain, "research/browser");
         var handler = brain.Get<IPrimitiveTestHandler>("handler");
         await brain.Get<IUiBinding>("research/browser").Bind(handler);
+        await using var handled = await brain.Observe<UiEventHandled>(handler, TestContext.Current.CancellationToken);
         await connector.Connect(12345, Session);
         var page = Assert.Single(provider.Pages);
         page.FailDispose = true;
@@ -82,11 +84,11 @@ public sealed class WebBrowserFacts
         await Assert.ThrowsAsync<InvalidOperationException>(() => connector.Disconnect(Session));
 
         Assert.Equal(BrowserConnection.Attached, (await browser.Read()).Connection);
-        Assert.IsType<BrowserConnected>(Assert.Single(await Lifecycle(handler)));
+        Assert.IsType<BrowserConnected>(Assert.Single(await Lifecycle(handler, handled, nameof(BrowserConnected))));
         page.FailDispose = false;
         await connector.Disconnect(Session);
         Assert.Equal(BrowserConnection.Waiting, (await browser.Read()).Connection);
-        Assert.Single((await Lifecycle(handler)).OfType<BrowserDisconnected>());
+        Assert.Single((await Lifecycle(handler, handled, nameof(BrowserDisconnected))).OfType<BrowserDisconnected>());
     }
 
     [Fact]
@@ -100,6 +102,7 @@ public sealed class WebBrowserFacts
         var connector = Connector(brain, "research/browser");
         var handler = brain.Get<IPrimitiveTestHandler>("handler");
         await brain.Get<IUiBinding>("research/browser").Bind(handler);
+        await using var handled = await brain.Observe<UiEventHandled>(handler, TestContext.Current.CancellationToken);
         await connector.Connect(12345, Session);
         var page = Assert.Single(provider.Pages);
         page.PendingDispose = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -108,7 +111,7 @@ public sealed class WebBrowserFacts
         try
         {
             Assert.Equal(BrowserConnection.Attached, (await browser.Read()).Connection);
-            Assert.IsType<BrowserConnected>(Assert.Single(await Lifecycle(handler)));
+            Assert.IsType<BrowserConnected>(Assert.Single(await Lifecycle(handler, handled, nameof(BrowserConnected))));
             var repeatedDisconnect = connector.Disconnect(Session);
             await browser.Read();
             Assert.False(repeatedDisconnect.IsCompleted);
@@ -134,6 +137,7 @@ public sealed class WebBrowserFacts
         await browser.Configure("research/driver");
         var handler = brain.Get<IPrimitiveTestHandler>("handler");
         await brain.Get<IUiBinding>("research/browser").Bind(handler);
+        await using var handled = await brain.Observe<UiEventHandled>(handler, TestContext.Current.CancellationToken);
         await Connector(brain, "research/browser").Connect(12345, Session);
         await brain.Get<IText>("research/status").Set("Researching...");
 
@@ -141,7 +145,7 @@ public sealed class WebBrowserFacts
 
         Assert.True(Assert.Single(provider.Pages).Disposed);
         Assert.Equal("Researching...", (await brain.Get<IText>("research/status").Read()).Markdown);
-        Assert.IsType<BrowserConnected>(Assert.Single(await Lifecycle(handler)));
+        Assert.IsType<BrowserConnected>(Assert.Single(await Lifecycle(handler, handled, nameof(BrowserConnected))));
     }
 
     [Fact]
@@ -154,13 +158,14 @@ public sealed class WebBrowserFacts
         await browser.Configure("research/driver");
         var handler = brain.Get<IPrimitiveTestHandler>("handler");
         await brain.Get<IUiBinding>("research/browser").Bind(handler);
+        await using var handled = await brain.Observe<UiEventHandled>(handler, TestContext.Current.CancellationToken);
         await Connector(brain, "research/browser").Connect(12345, Session);
         Assert.Single(provider.Pages).FailDispose = true;
 
         await brain.DeactivateAsync(browser, ct);
 
         Assert.Equal(BrowserConnection.Waiting, (await browser.Read()).Connection);
-        Assert.IsType<BrowserConnected>(Assert.Single(await Lifecycle(handler)));
+        Assert.IsType<BrowserConnected>(Assert.Single(await Lifecycle(handler, handled, nameof(BrowserConnected))));
         await browser.Read();
     }
 
@@ -174,12 +179,13 @@ public sealed class WebBrowserFacts
         var handler = brain.Get<IPrimitiveTestHandler>("handler");
         await browser.Configure("research/driver");
         await brain.Get<IUiBinding>("research/browser").Bind(handler);
+        await using var handled = await brain.Observe<UiEventHandled>(handler, TestContext.Current.CancellationToken);
         await connector.Connect(12345, Session);
         await browser.Configure("research/driver");
         await brain.Get<IUiBinding>("research/browser").Bind(handler);
         await connector.Connect(12345, Session);
         Assert.Single(provider.Attachments);
-        Assert.Single(await Lifecycle(handler));
+        Assert.Single(await Lifecycle(handler, handled, nameof(BrowserConnected)));
         Assert.Equal(BrowserConnection.Attached, (await browser.Read()).Connection);
         await Assert.ThrowsAsync<InvalidOperationException>(() => browser.Configure("other/driver"));
     }
@@ -331,12 +337,15 @@ public sealed class WebBrowserFacts
         var connector = Connector(brain, "research/browser");
         var handler = brain.Get<IPrimitiveTestHandler>("unavailable-handler");
         await brain.Get<IUiBinding>("research/browser").Bind(handler);
+        await using var handled = await brain.Observe<UiEventHandled>(handler, TestContext.Current.CancellationToken);
         const string reason = "The WebView2 environment could not be started.";
         await connector.Unavailable(reason);
         var view = await browser.Read();
         Assert.Equal(BrowserConnection.Unavailable, view.Connection);
         Assert.Equal(reason, view.Error);
         Assert.Empty(view.ActualUrl);
+        // The binding dispatches to the handler asynchronously: wait for the handler to record it.
+        await PrimitiveBindingFacts.WaitFor(handled, 1, TestContext.Current.CancellationToken);
         Assert.Contains(await handler.Events(), signal => signal is BrowserObservationChanged);
         await connector.Unavailable(new string('x', 300));
         Assert.Equal(200, (await browser.Read()).Error.Length);
@@ -417,4 +426,11 @@ public sealed class WebBrowserFacts
     // Observation changes re-render the shell; these facts are about the session lifecycle.
     private static async Task<Signal[]> Lifecycle(IPrimitiveTestHandler handler)
         => [.. (await handler.Events()).Where(signal => signal is not BrowserObservationChanged)];
+
+    // The binding dispatches to the handler asynchronously: wait until it has recorded the expected lifecycle signal.
+    private static async Task<Signal[]> Lifecycle(IPrimitiveTestHandler handler, SignalProbe<UiEventHandled> handled, string expected)
+    {
+        while ((await handled.NextAsync(ct: TestContext.Current.CancellationToken)).Type != expected) { }
+        return await Lifecycle(handler);
+    }
 }
