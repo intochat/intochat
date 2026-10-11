@@ -75,6 +75,9 @@ Stage A is specified to the step. Stages B and C are specified to interfaces, te
 | `src/DigitalBrain.Platform/DigitalBrain.Platform.Trust/Links/*` | link certificates endorsed by machine keys, QUIC link and listener, trust link endpoint, relay, rendezvous (Task 21) |
 | `src/DigitalBrain.Platform/DigitalBrain.Platform/Links/*` | machine transport, hole punch, trust clients over the link, trust pin (Task 21; replaces `Trust/TrustGatewayClient.cs`) |
 | `src/DigitalBrain.Platform/DigitalBrain.Platform/Parts/PartRoutes.cs`, `PartRouter.cs`, `PartCallFilter.cs`, `ForwardedCallEndpoint.cs` | cross-part calls routed to the holder (Task 22) |
+| `src/DigitalBrain.Platform/DigitalBrain.Platform/Mesh/IShardClient.cs`, `NodeWire.cs`, `ShardStore.cs`, `StorageNodeEndpoint.cs`, `StorageNodeService.cs`, `StorageNodeOptions.cs`, `MeshAuditor.cs` | volunteer storage node over the link, shards addressed per node, the holder's audits and repairs (Task 24, T23-1…T23-9) |
+| `src/DigitalBrain.Platform/DigitalBrain.Platform.Trust/Mesh/StorageNodeDirectoryGrain.cs`, `MeshOptions.cs` | signed node registration, heartbeats, room- and owner-aware placement, audit reports from the auditor (Task 24, T23-4…T23-6, T23-10) |
+| `src/DigitalBrain.Platform/DigitalBrain.Platform.Trust/Mesh/StorageCreditGrain.cs`, `StorageCreditOptions.cs`; `src/DigitalBrain.Platform/DigitalBrain.Platform/Compute/StorageCreditPuller.cs`, `Compute/LedgerGrain.cs` | storage credits recorded trust-side, pulled into the owner's ledger once (Task 25, T23-11) |
 
 ---
 
@@ -2080,13 +2083,157 @@ internal sealed class PartCallFilter(PartRoutes routes, PartRouter router, IMach
 ### Task 23 (gate): node protocol
 - Write step-level tasks for 24–25: put/get/prove/drop message shapes, quotas, signed registration.
 
+**Measured** (2026-10-11, HEAD 29e07242d, the same Windows 11 Pro PC as Task 20, Release; a throwaway fact `Links/Task23ShardWireMeasure.cs` in `DigitalBrain.Platform.Tests.Unit` on Task 21's `LinkTestbed` — two registered `FileMachineSigningKey`s, `QuicLinkListener` + `QuicMachineLink.Dial`, the `echo` operation — run with `dotnet test --project src/DigitalBrain.Platform/DigitalBrain.Platform.Tests.Unit -c Release -- --filter-class "*Task23ShardWireMeasure*"`, then deleted). One `LinkRequest` frame carrying the shard and a `LinkReply` echoing it (each row is an upper bound for a put plus a get of that size), 3 warm-ups then 20 calls on one link:
+
+| Shard bytes on the wire | Round trip, median | p90 |
+|---|---|---|
+| 16 B (R5 minimum) | 0.185 ms | 0.286 ms |
+| 4 KiB | 0.204 ms | 0.313 ms |
+| 64 KiB | 0.706 ms | 0.789 ms |
+| 256 KiB | 2.19 ms | 2.56 ms |
+| 1 MiB | 8.68 ms | 9.66 ms |
+| 4 MiB | 32.1 ms | 52.6 ms |
+| 16 MiB | 124.8 ms | 141.8 ms |
+
+**What the numbers show.** On loopback the cost is linear, ~120 MiB/s per stream through the Orleans serializer and one buffered frame (`QuicMachineLink.ReadAll` buffers a whole frame before answering), so a 1 MiB shard costs ~4 ms each way; the link never limits a shard, WAN bandwidth will. The registered-link frame cap (`LinkAdmission.Full`, 64 MiB = `QuicMachineLink.MaxFrame`) is far above what the default code produces: with `DataShards = 8` a 1 MiB segment makes 128 KiB shards. A frame is buffered whole on both ends, so the shard cap is a memory bound, not a speed bound.
+
+**Rulings (bind Tasks 24–25):**
+- **T23-1 — a volunteer node is a machine service, one per machine, node id `node/{machineId}`.** Any machine (Own or Cloud) with `DigitalBrain:Platform:StorageNode:OfferedBytes > 0` runs `StorageNodeService`: shards are files under `StorageNodeOptions.Directory` (default `{PartsOptions.MachineDirectory}/node`), named by the cid's hex, with a sidecar of putter claims — never Orleans grain storage and never the part log (a node holds other accounts' ciphertext, not this machine's state; R23: one silo per machine, so one writer). The node holds no credentials (R42) and no key: it sees ciphertext and content ids only (Q23). Reason: deriving the node id from the machine id (itself derived from the registered key, T20-2) makes "which link serves this node" a pure function the node cannot lie about.
+- **T23-2 — the wire.** Four operations on the machine↔machine link (T20-1: one stream per call), payloads `[GenerateSerializer]` records: `node.shard.put` `ShardPut(Cid, Bytes)` → `true`; `node.shard.get` `ShardGet(Cid)` → `byte[]?`; `node.shard.prove` `ShardProve(Cid, Nonce)` → `byte[]?`; `node.shard.drop` `ShardDrop(Cid)` → `true`. The content id is `StorageProof.ContentId` (`sha256:` + hex of the ciphertext). **No shard index, segment id or manifest ref crosses**: index and manifest live inside the sealed manifest (Q23), the node needs only the cid to store, serve and prove, and sending them would hand a node the shape of a brain's log. The putter is the link's authenticated machine id (T20-2 check 5), never a field. Refusals cross as `LinkReply.ErrorType`: `InvalidDataException` (bytes do not hash to the cid), `NodeFullException` (T23-4), `UnauthorizedAccessException` (drop by another account). Seeds keep their trust-link operations (`shard.*`, T20-8) unchanged.
+- **T23-3 — shard cap 16 MiB.** `MeshOptions.MaxShardBytes = 16 MiB` (measured 125 ms round trip on loopback; a quarter of the 64 MiB frame cap, so a frame plus its serializer copy stays well under it). `MeshStore.Write` refuses a segment whose shard would exceed it (`InvalidOperationException`; a segment is at most `DataShards × 16 MiB` = 128 MiB by default) and a node refuses a larger put. Snapshot chunking beyond that is not in this plan (concern in the report).
+- **T23-4 — quotas live on the node; the directory places by room.** The owner offers `OfferedBytes` (signed, T23-5). The node counts its stored bytes and its bytes per putter **account** (the accounts of the putting machine's registration, `INodeDirectoryClient.Machine`, R55) and refuses a put beyond `OfferedBytes` or beyond `MaxBytesPerAccount` (default a quarter of the offer, so one account cannot fill a node) with `NodeFullException`; a repeated put of a held shard is never refused (idempotent, as `SeedShardGrain`). The directory cannot see machine↔machine puts, so it records what the node reports: `OfferedBytes` (signed registration) and `UsedBytes` (heartbeats); `Place(count, exclude, shardBytes)` skips nodes with `OfferedBytes − UsedBytes < shardBytes`. A `NodeFullException` at write time is a placement miss: `MeshStore` asks `Place` once more for that shard excluding the node, then fails the write (`ServiceUnavailableException`). Claims per cid stay capped at 16 (R99). Only the node's own machine changes its registration (T23-5).
+- **T23-5 — signed registration and heartbeats.** `INodeDirectoryClient.RegisterNode(MachineSigned<NodeRegistration>)`, `NodeRegistration(NodeId, MachineId, OwnerAccount, OfferedBytes)`; `TrustLinkEndpoint` honours it only when the signer is the link machine (T20-8), `MachineId` is the link machine and `NodeId == node/{MachineId}`, `OwnerAccount` is among the machine's bindings (R52/R55) and is not `platform` (R97). Re-registration changes the offer (and the owner, still within the machine's bindings). Heartbeat: `node.heartbeat (nodeId, usedBytes)` from the node's own machine every `StorageNodeOptions.HeartbeatEvery` (60 s); the directory stores `LastSeen` and computes `Online = LastSeen > now − MeshOptions.OfflineAfter` (3 min) when it answers `List`/`Place` — no grain timer. Seeds have no machine id and stay online while the trust host runs. The unsigned `node.register`/`node.online` link operations are removed (`Register`/`SetOnline` stay trust-internal for seeds and facts; LSP `findReferences` first).
+- **T23-6 — placement: volunteers first, one per owner, seeds fill, never the putter's own nodes.** `Place` excludes every node owned by an account of the asking machine (the trust endpoint knows the link machine's accounts; durability then always spans owners, and self-dealt credits are impossible), takes usable volunteers one per owner (shuffled), then seeds (owner `platform` counts as one owner in the first pass, Q25), then fills the rest from both. With no volunteer online every shard lands on seeds (today's behaviour, Q19). Reason: Q25 — spreading starts with the first volunteer; seeds stay the floor so a small network never fails a write.
+- **T23-7 — node-side checks carry R69/T20-8 to volunteers.** `StorageNodeEndpoint` serves only registered machines (the link already refuses others, T20-4). Put from any registered machine, recording the putting machine id as a claim (R99: 16 claims, oldest unbound evicted); drop only by a machine bound to the same account as a claimant, dropping that account's claims only — the bytes go with the last claim. Get and prove from any registered machine (ciphertext only). A node that ignores these rules only loses availability of its own shards, which audit detects.
+- **T23-8 — proofs reuse `StorageProof` unchanged.** `Compute(nonce, shard) = SHA-256(len(nonce) ‖ nonce ‖ shard)` over the whole shard, 16 fresh random nonces per shard whose expected answers sit only in the sealed manifest. A node cannot precompute because it never sees a nonce before its round and each round's nonce is used once; hashing the whole shard costs milliseconds at ≤ 16 MiB, so challenged byte ranges add nothing but range bookkeeping in the manifest. A node keeping only a digest of the shard cannot answer.
+- **T23-9 — the part holder audits and repairs; the trust side never does.** Only the machine holding a part's lease has the key that opens a manifest and its expected answers (Q23: audits run in the caller's silo; R60: machine-side). `MeshAuditor` runs on the holder: every `MeshOptions.AuditEvery` (6 h) per open part (`PartLogs`) it audits the refs the head reaches (snapshot + chain), the next unused round each time, and repairs when a shard fails or sits on an unusable node (offline by heartbeat, or reputation below `Healthy`). The lease is the segment's ownership (R7): **a failed chain segment is healed by an early `Snapshot()`** — chain segments link by `Prev` inside immutable sealed segments, so a repaired ref cannot be spliced in; the snapshot replaces the chain and discards it, as Task 15 does — and **a failed snapshot ref is repaired** (`IMeshStore.Repair`), the new ref committed in a head CAS under the lease, and its predecessor **not** discarded (R7: the repaired manifest shares unmoved shards); only the old manifest replicas and the moved shards' old copies are dropped, after the CAS. A read that meets a lying node already survives (a shard that does not hash to its cid is an erasure, `MeshStore.Fetch`); the auditor reports it failed. Parts nobody leases are audited when next leased (concern: dormant parts decay unaudited).
+- **T23-10 — audit reports come from the auditor, never the node owner.** Today `node.audit` requires the link to be the node owner's (`TrustLinkEndpoint`, `NodeAudit`), so a putter cannot report on nodes it audits (and `MeshStore.Audit` over the link fails for seeds). Task 24 replaces it with `node.audit AuditReport(NodeId, SegmentCid, Round, Passed, ShardBytes)` from any registered machine **except** one bound to the node's owner account. `SegmentCid` is the manifest cid — a content id, no names cross (Q23).
+- **T23-11 — credits are recorded trust-side and pulled into the owner's machine-side ledger (R60, Q21).** The trust side records each passed report once per entry id `audit/{node}/{segment}/{round}` in `StorageCreditGrain` (keyed by the node owner's account, `platform` storage): `max(1, MicrosPerGiBPass × ShardBytes / GiB)`; a failed report, and any report on a seed node (owner `platform`, which earns nothing), records nothing; passes are capped per (putter account, node) per UTC day (`MaxPassesPerPutterPerNodePerDay`, 64) so a colluding putter cannot mint without bound. The ledger stays machine-side (R60): the owner account's **core holder** (the machine that has `{brain}/core` of the account's brain open; R76) runs `StorageCreditPuller` on its renewal cadence: `PendingCredits(account)` (bound machines only, R55) → `ILedgerGrain(account).Credit(entryId, micros, reason)` each → `AcknowledgeCredits(account, entryIds)`. `LedgerGrain.Credit` becomes idempotent by entry id (today it appends on every call), so a crash between credit and acknowledge credits once. Reason: the trust side is the only party that sees every report; the balance already lives in the machine-side ledger; pull-and-acknowledge keeps one writer and needs no trust→machine push. Credits only (Q21); the trust side never charges.
+
+**Carried from Stage B:** R60 — the ledger stays machine-side; T23-11 puts storage credits on the owner's core holder by pull. R69/R99 — T20-8's seed-shard rules carry to volunteers node-side (T23-7), the 16-claim cap included; `node.audit`'s owner-only check is replaced (T23-10). R23 — one silo per machine, so a node's shard files have one writer and the node id is per machine (T23-1). The a03573386 restart window (R106: a crash-restart inside ~10 s is blocked once) — a node inside it is unreachable; its shards are erasures, reads survive, heartbeats resume, and no repair runs unless `OfflineAfter` passes. R97 — no node is registered for `platform` over a link.
+
 ### Task 24: Volunteer storage node
+
+**Contract (fixed):**
 - **Produces:** a storage service on any machine answering put/get/prove/drop over its link; `MeshStore` addresses shards through `IShardClient` (seed grain or remote link); registration in the directory signed by the machine identity, owner = the machine's account.
 - **Tests:** `ALyingNodeServesOtherBytesAndTheReadSurvives` (the tamper fact plan 1 deferred); a node that answers proofs without data fails audit; an offline node's shards are repaired onto other owners; placement now spreads across distinct owners when they exist (Q25).
 
+**Files:**
+- Create in `src/DigitalBrain.Platform/DigitalBrain.Platform/Mesh/`: `IShardClient.cs` (+ `ShardClient`), `NodeWire.cs` (`ShardPut`, `ShardGet`, `ShardProve`, `ShardDrop`, `NodeOperations`, `NodeFullException`), `ShardStore.cs` (files, claims, quotas; T23-4/T23-7), `StorageNodeEndpoint.cs` (link handler), `StorageNodeService.cs` (signed registration at start, heartbeats), `StorageNodeOptions.cs`, `MeshAuditor.cs` (T23-9)
+- Modify: `Mesh/MeshStore.cs` (`IShardClient`, `MaxShardBytes`, placement retry, `AuditReport`); `src/DigitalBrain.Platform/DigitalBrain.Platform.Trust/Mesh/StorageNodeDirectoryGrain.cs` (`NodeRegistration`, `AuditReport`, view fields, `Place` with room and owner exclusion, `Heartbeat`), `Mesh/MeshOptions.cs` (`MaxShardBytes`, `OfflineAfter`, `AuditEvery`), `Links/TrustLinkEndpoint.cs` (`node.register-signed`, `node.heartbeat`, `node.audit` per T23-10, `node.place` excludes the caller's accounts; `node.register`/`node.online` removed); `src/DigitalBrain.Platform/DigitalBrain.Platform/Trust/INodeDirectoryClient.cs`, `Trust/GrainTrustClients.cs`, `Links/LinkTrustClients.cs`, `Links/QuicMachineTransport.cs` (dispatch `node.shard.*` to `StorageNodeEndpoint`), `Links/LinkHosting.cs`, `Parts/PartLog.cs` (`HealBySnapshot`, `CommitRepairedSnapshot`), `Parts/MachineHosting.cs`, `PlatformHosting.cs`; `src/DigitalBrain.AppHost/AppHost.cs`; `src/Testing/DigitalBrain.Architecture.Tests/ConfigurationKeyOwners.json`
+- Test: `src/DigitalBrain.Platform/DigitalBrain.Platform.Tests.Unit/Mesh/NodeDirectoryFacts.cs`, `Mesh/StorageNodeFacts.cs`, `Mesh/VolunteerMeshFacts.cs`, `Mesh/MeshAuditorFacts.cs`; modify `Mesh/PlacementFacts.cs`, `Mesh/AuditRepairFacts.cs`, `Links/TrustLinkFacts.cs` (`ANodeDirectoryWriteForAnotherAccountsNodeIsRefused` moves to the signed registration)
+
+**Interfaces:**
+
+```csharp
+namespace DigitalBrain.Platform.Mesh;   // internal
+
+internal interface IShardClient            // seed → its trust-link shard calls; volunteer → IMachineTransport.Connect(view.MachineId)
+{
+    Task Put(string nodeId, string cid, byte[] bytes, CancellationToken cancellationToken);      // NodeFullException, InvalidDataException
+    Task<byte[]?> Get(string nodeId, string cid, CancellationToken cancellationToken);           // null when absent or unreachable
+    Task<byte[]?> Prove(string nodeId, string cid, byte[] nonce, CancellationToken cancellationToken);
+    Task Drop(string nodeId, string cid, CancellationToken cancellationToken);
+}
+
+internal static class NodeOperations
+{
+    public const string Put = "node.shard.put", Get = "node.shard.get", Prove = "node.shard.prove", Drop = "node.shard.drop";
+    public static string NodeIdOf(string machineId) => $"node/{machineId}";
+}
+
+[GenerateSerializer, Alias("platform.mesh.node.put")]   internal sealed record ShardPut([property: Id(0)] string Cid, [property: Id(1)] byte[] Bytes);
+[GenerateSerializer, Alias("platform.mesh.node.get")]   internal sealed record ShardGet([property: Id(0)] string Cid);
+[GenerateSerializer, Alias("platform.mesh.node.prove")] internal sealed record ShardProve([property: Id(0)] string Cid, [property: Id(1)] byte[] Nonce);
+[GenerateSerializer, Alias("platform.mesh.node.drop")]  internal sealed record ShardDrop([property: Id(0)] string Cid);
+[GenerateSerializer, Alias("platform.mesh.node-full")]  internal sealed class NodeFullException(string message) : Exception(message);
+
+[GenerateSerializer, Alias("platform.mesh.node-registration")]
+internal sealed record NodeRegistration([property: Id(0)] string NodeId, [property: Id(1)] string MachineId,
+    [property: Id(2)] string OwnerAccount, [property: Id(3)] long OfferedBytes);
+
+[GenerateSerializer, Alias("platform.mesh.audit-report")]
+internal sealed record AuditReport([property: Id(0)] string NodeId, [property: Id(1)] string SegmentCid,
+    [property: Id(2)] int Round, [property: Id(3)] bool Passed, [property: Id(4)] int ShardBytes);
+
+// StorageNodeView gains (Ids 4–7): string? MachineId (null for seeds), long OfferedBytes, long UsedBytes, DateTimeOffset LastSeen;
+// Online is computed at read (T23-5).
+
+internal sealed class ShardStore(StorageNodeOptions options)   // one per machine (R23)
+{
+    public Task Put(string cid, byte[] bytes, string putterMachine, string[] putterAccounts);   // T23-4/T23-7
+    public Task<byte[]?> Get(string cid);
+    public Task<byte[]?> Prove(string cid, byte[] nonce);
+    public Task Drop(string cid, string callerMachine, string[] callerAccounts);                 // that account's claims; bytes go with the last
+    public long UsedBytes { get; }
+}
+
+public sealed class StorageNodeOptions     // DigitalBrain:Platform:StorageNode
+{
+    public long OfferedBytes { get; set; }                      // 0 = this machine is not a node
+    public long MaxBytesPerAccount { get; set; }                // 0 = OfferedBytes / 4
+    public string? Directory { get; set; }                      // null = {Parts:MachineDirectory}/node
+    public TimeSpan HeartbeatEvery { get; set; } = TimeSpan.FromSeconds(60);
+}
+// MeshOptions gains: int MaxShardBytes = 16 MiB; TimeSpan OfflineAfter = 3 min; TimeSpan AuditEvery = 6 h.
+// INodeDirectoryClient: RegisterNode(MachineSigned<NodeRegistration>), Heartbeat(string nodeId, long usedBytes),
+//   ReportAudit(AuditReport), Place(int count, string[] exclude, int shardBytes); Register/SetOnline leave the client (trust-internal).
+```
+
+- [ ] **Step 1: Failing facts — the directory.** `NodeDirectoryFacts` (a `TrustHost`, machines registered through `LinkTestbed`/`WithTrust`): `ANodeRegistersSignedByItsMachineWithItsAccountAsOwner`, `ANodeRegistrationSignedByAnotherMachineIsRefused`, `ANodeRegistrationForAnAccountTheMachineDoesNotServeIsRefused`, `ANodeCannotBeRegisteredForTheAccountPlatform` (R97), `ANodeThatMissesHeartbeatsIsOffline` (`FakeTimeProvider` past `OfflineAfter`), `PlacementSkipsANodeWithoutRoomForTheShard`, `PlacementNeverPicksANodeOfThePuttersAccount`, `PlacementFallsBackToSeedsWhenNoVolunteerIsOnline`, `AnAuditIsReportedByTheAuditorNotTheOwner`, `AnOwnerCannotReportOnItsOwnNode` (T23-10); in `PlacementFacts`: `PlacementSpreadsAcrossDistinctOwnersWhenTheyExist` (fixed test, Q25: three volunteer owners and 24 seeds, `Place(24, …)` → each volunteer owner exactly once, the rest seeds). Run `dotnet test --project src/DigitalBrain.Platform/DigitalBrain.Platform.Tests.Unit -- --filter-class "*NodeDirectoryFacts*"` → FAIL.
+- [ ] **Step 2: Implement** `NodeRegistration`, `AuditReport`, the view fields, `Heartbeat`, `Place` with room/owner exclusion and volunteer-first order (T23-6), `ReportAudit(AuditReport)`; the link operations in `TrustLinkEndpoint` (signer == link machine, `NodeId == node/{link machine}`, owner ∈ bindings, not `platform`; `node.place` passes the link machine's accounts as excluded owners); LSP `findReferences` on `Register`/`SetOnline`/`ReportAudit`/`Place` first and move every caller; `INodeDirectoryClient`, `GrainTrustClients`, `LinkTrustClients`. `NodeDirectoryFacts`, `PlacementFacts`, `TrustLinkFacts` → PASS. Commit: `Mesh: a volunteer node registers signed by its machine, and placement spreads across owners before seeds`.
+- [ ] **Step 3: Failing facts — the node.** `StorageNodeFacts` (two machines on a loopback link through `LinkTestbed`, the node end dispatching to `StorageNodeEndpoint` over a temp `ShardStore`): `ANodeStoresAShardOnlyUnderItsContentId`, `ARepeatedPutOfAHeldShardIsNeverRefused`, `ANodeRefusesAShardBeyondItsOffer` (`NodeFullException` crosses as `LinkReply.ErrorType`), `ANodeRefusesAnAccountBeyondItsShare`, `ANodeRefusesAShardLargerThanTheCap`, `AShardIsDroppedOnlyByItsPuttersAccount`, `ANodeKeepsItsShardsAcrossARestart` (a new `ShardStore` over the same directory), `ANodeSeesOnlyCiphertextAndContentIds` (reflection: the four request records carry no index, segment id or ref). Run `... -- --filter-class "*StorageNodeFacts*"` → FAIL.
+- [ ] **Step 4: Implement** `NodeWire`, `ShardStore` (write `{cid-hex}.tmp` then move; claims sidecar; quotas), `StorageNodeEndpoint`, the `node.shard.*` dispatch in `QuicMachineTransport`'s incoming handler, `StorageNodeService` (`RegisterNode` signed with `IMachineSigningKey` at start, `Heartbeat` every `HeartbeatEvery`), `StorageNodeOptions` + `Validate` + `ConfigurationKeyOwners.json`. Facts → PASS. Commit: `Mesh: any machine can serve put, get, prove and drop for ciphertext shards over its link`.
+- [ ] **Step 5: Failing facts — the mesh over volunteers.** `VolunteerMeshFacts` (a `TrustHost` with 24 seeds; machines P (putter, account alice), X (bob), Y (carol), Z (dave) each offering storage, linked through Task 21's transport as in `CrossPartCallFacts`): `ASegmentIsWrittenAcrossVolunteersAndSeedsAndReadBack` (the manifest holds shards on X, Y and Z, never on a node of alice), `ALyingNodeServesOtherBytesAndTheReadSurvives` (fixed test: X's `ShardStore` returns random bytes of the same length on every get → `Read` returns the plaintext and `Audit` reports X failed), `ANodeThatAnswersProofsWithoutDataFailsAudit` (fixed test: Y keeps only `SHA-256(shard)` and answers `StorageProof.Compute(nonce, digest)` → `ShardAudit.Passed == false` and Y's reputation falls), `AnOfflineNodesShardsAreRepairedOntoOtherOwners` (fixed test: Z stops heartbeating, time passes `OfflineAfter`, `Repair` moves Z's shards onto nodes whose owners hold no other shard of the segment while enough owners exist; `Read` succeeds), `AFullNodeIsReplacedAtPlacement` (X offers less than one shard → the write lands elsewhere), `ASegmentLargerThanTheShardCapIsRefused`. Run `... -- --filter-class "*VolunteerMeshFacts*"` → FAIL.
+- [ ] **Step 6: Implement** `IShardClient`/`ShardClient` (node views from `List`, cached for one operation; seeds through the trust client's shard calls, volunteers through `IMachineTransport.Connect(view.MachineId)`; an unreachable volunteer → `null` on get/prove, rethrow on put), `MeshStore` on `IShardClient` (LSP `findReferences` on every `directory.Put/Get/Prove/Discard` site; `MaxShardBytes`; one placement retry on `NodeFullException`; `Audit` sends `AuditReport` with the manifest cid). Hosts without a transport (Stage A hosts, `ModuleTest`) route only to seeds. Mesh, Links, Parts facts → PASS. Commit: `Mesh: segments are stored across volunteer nodes of distinct owners, and a lying node costs only an erasure`.
+- [ ] **Step 7: Failing facts — the auditor.** `MeshAuditorFacts` (machines as in Step 5, P holding an app part): `TheHolderAuditsItsPartsSegmentsOnSchedule` (`FakeTimeProvider` past `AuditEvery` → one `AuditReport` per shard of the head's refs, the round advancing), `AFailedChainSegmentIsHealedBySnapshot` (a chain shard on a lying node → a new snapshot committed, the old chain discarded), `ARepairedSnapshotIsCommittedAndItsSharedShardsAreKept` (R7: the snapshot's shard on offline Z moves; the head names the new ref; unmoved shards are still on their nodes), `ANonHolderNeverAudits`. Run → FAIL.
+- [ ] **Step 8: Implement** `MeshAuditor` (hosted; per `PartLogs` opened part; one round per part in flight), `PartLog.HealBySnapshot()` and `PartLog.CommitRepairedSnapshot(MeshRef)` under the lease (CAS; on `LeaseLostException` commit nothing and drop only the new manifest replicas), registration in `MachineHosting` (auditor on every part-log machine; node service when `OfferedBytes > 0`). LSP diagnostics clean; Platform, Architecture (6 known) → PASS; kill runs over 5 minutes. Commit: `Mesh: the part holder audits its segments and heals them without discarding a repaired ref`.
+- [ ] **Step 9: AppHost and live.** `OperatingSystem-b` gets `DigitalBrain:Platform:StorageNode:OfferedBytes=1073741824`. A and B serve the same owner account, so T23-6 excludes B's node from A's writes — the live check is registration, heartbeats and that exclusion. Build the AppHost (a copy-lock is not a compile error). Controller live run: `aspire run --isolated`; `list_resources` all Healthy; `list_structured_logs` on `trust` show B's signed node registration and heartbeats; a `neurons_call` mutation through A's MCP, then `list_traces` show `node.place` and seed `shard.put` spans on `trust` and no `node.shard.put` from A to B. Record in the ledger. Commit: `AppHost: the cloud machine offers volunteer storage`.
+- [ ] **Step 10: Regression net.** Platform, Trust, Architecture (6 known), Apps, Mcp, Aspire.Hosting, OS unit suites. Commit only the files above, by explicit path.
+
 ### Task 25: Credits for storage
+
+**Contract (fixed):**
 - **Produces:** audit passes credited to the node owner through the ledger (`ILedgerGrain.Credit`, entry id `audit/{node}/{segment}/{round}`, so a replayed audit credits once), credits only (Q21).
 - **Tests:** an audit pass credits once; a failed audit credits nothing.
+
+**Files:**
+- Create: `src/DigitalBrain.Platform/DigitalBrain.Platform.Trust/Mesh/StorageCreditGrain.cs` (`IStorageCredits`, state), `Mesh/StorageCreditOptions.cs`; `src/DigitalBrain.Platform/DigitalBrain.Platform/Compute/StorageCreditPuller.cs`
+- Modify: `src/DigitalBrain.Platform/DigitalBrain.Platform/Compute/ILedgerGrain.cs`, `Compute/LedgerGrain.cs` (`Credit` idempotent by entry id, returns `bool`); `Platform.Trust/Links/TrustLinkEndpoint.cs` (`node.audit` records credits; `credits.pending`, `credits.acknowledge`); `Platform/Trust/INodeDirectoryClient.cs`, `Trust/GrainTrustClients.cs`, `Links/LinkTrustClients.cs`; `Parts/MachineHosting.cs`; `src/Testing/DigitalBrain.Architecture.Tests/ConfigurationKeyOwners.json`
+- Test: `src/DigitalBrain.Platform/DigitalBrain.Platform.Tests.Unit/LedgerFacts.cs`, `Mesh/StorageCreditFacts.cs`
+
+**Interfaces:**
+
+```csharp
+namespace DigitalBrain.Platform.Mesh;   // internal, Platform.Trust
+
+internal interface IStorageCredits : IGrainWithStringKey   // key: the node owner's account
+{
+    Task<bool> Record(AuditReport report, string putterAccount);   // false when failed, replayed or over the daily cap
+    [AlwaysInterleave] Task<StorageCredit[]> Pending();
+    Task Acknowledge(string[] entryIds);
+}
+
+[GenerateSerializer, Alias("platform.mesh.storage-credit")]
+internal sealed record StorageCredit([property: Id(0)] string EntryId, [property: Id(1)] long Micros, [property: Id(2)] string Reason);
+// EntryId = $"audit/{report.NodeId}/{report.SegmentCid}/{report.Round}"; Micros = max(1, MicrosPerGiBPass * ShardBytes / 2^30)
+
+public sealed class StorageCreditOptions   // DigitalBrain:Platform:StorageCredits (trust host)
+{
+    public long MicrosPerGiBPass { get; set; } = 1_000;
+    public int MaxPassesPerPutterPerNodePerDay { get; set; } = 64;
+}
+// ILedgerGrain.Credit(string entryId, long micros, string reason) → Task<bool> (false when entryId was already credited).
+// INodeDirectoryClient gains: Task<StorageCredit[]> PendingCredits(string account); Task AcknowledgeCredits(string account, string[] entryIds);
+```
+
+- [ ] **Step 1: Failing fact — the ledger.** `LedgerFacts.ACreditWithTheSameEntryIdIsAppliedOnce` (two `Credit("audit/n/s/0", 5, …)` → balance 5, one entry, `Verify()` true, the second returns false). Run `dotnet test --project src/DigitalBrain.Platform/DigitalBrain.Platform.Tests.Unit -- --filter-class "*LedgerFacts*"` → FAIL. Implement: `Credit` checks and pushes `RecentKeys` as `Charge` does (LSP `findReferences` on `ILedgerGrain.Credit`; every caller takes the `bool`). → PASS. Commit: `Compute: a ledger credit is applied once per entry id`.
+- [ ] **Step 2: Failing facts — trust-side credits.** `StorageCreditFacts` (a `TrustHost`; machine P of alice audits node X of bob over the link): `AnAuditPassRecordsOneCreditForTheNodesOwner` (one pending credit under bob, entry id `audit/node/{X}/{segmentCid}/0`), `AReplayedAuditPassRecordsNothing`, `AFailedAuditRecordsNothing`, `PassesBeyondTheDailyCapPerPutterAreNotCredited` (`FakeTimeProvider`; the cap resets the next UTC day), `PendingCreditsAreReadOnlyByAMachineBoundToTheOwner` (R55: alice's machine → `UnauthorizedAccessException`), `AcknowledgedCreditsAreNotPendingAgain`. Run `... -- --filter-class "*StorageCreditFacts*"` → FAIL.
+- [ ] **Step 3: Implement** `StorageCreditGrain` (concrete arrays: pending credits, a rolling window of recorded entry ids, per-(putter, node, day) counters pruned on day change), `StorageCreditOptions` + `Validate`, `node.audit` → `ReportAudit` then, when passed, `IStorageCredits(nodeOwner).Record(report, putter account)`; `credits.pending`/`credits.acknowledge` gated on the owner binding; the client methods. → PASS. Commit: `Mesh: a passed audit records one storage credit for the node's owner`.
+- [ ] **Step 4: Failing facts — the pull.** In `StorageCreditFacts`, with a machine of bob holding bob's core: `AnAuditPassCreditsOnce` (fixed test: the same passed `AuditReport` reported twice and the puller run twice, once with the acknowledge failing → bob's ledger holds exactly one entry `audit/{node}/{segment}/{round}` with its micros), `AFailedAuditCreditsNothing` (fixed test: bob's ledger stays empty, `Verify()` true), `OnlyTheCoreHolderOfTheOwnersAccountPullsCredits` (a second Own machine of bob that does not hold the core pulls nothing). Run → FAIL.
+- [ ] **Step 5: Implement** `StorageCreditPuller` (hosted on part-log machines; on each lease-renewal tick, for each account whose `{brain}/core` this machine has open in `PartLogs`: `PendingCredits` → `ILedgerGrain(account).Credit` each → `AcknowledgeCredits`), registration in `MachineHosting`, `ConfigurationKeyOwners.json`. LSP diagnostics clean; Platform, Trust, Architecture (6 known) → PASS. Commit: `Compute: the owner's core holder pulls storage credits into its ledger once`.
+- [ ] **Step 6: Live (controller).** With Task 24's AppHost and `DigitalBrain:Platform:Mesh:AuditEvery` lowered for the run through AppHost configuration (not code): `list_structured_logs` on `trust` show passed `node.audit` reports from A for seed nodes and no credit recorded for them (T23-11: seeds earn nothing); a credit pulled into a ledger needs a node of a second account, which the single-account AppHost does not have, so the pull is proven by `StorageCreditFacts` and recorded as such. Record in the ledger.
+- [ ] **Step 7: Regression net.** Platform, Trust, Architecture (6 known), Apps, Mcp, Aspire.Hosting, OS unit suites. Commit only the files above, by explicit path.
 
 ## Plan 8 — Circles (Tasks 26–28)
 
