@@ -18,6 +18,7 @@ class SceneView extends StatefulWidget {
     this.client,
     this.state,
     this.refresh,
+    this.watchBrain,
   });
 
   final String sceneKey;
@@ -25,12 +26,17 @@ class SceneView extends StatefulWidget {
   final SceneState? state;
   final Stream<void>? refresh;
 
+  /// The brain-events stream for `brain_graph` nodes with `source=events`.
+  final WatchBrain? watchBrain;
+
   @override
   State<SceneView> createState() => _SceneViewState();
 }
 
 class _SceneViewState extends State<SceneView> {
-  late final SceneGame _game = SceneGame()..onInput = _report;
+  late final SceneGame _game = SceneGame()
+    ..onInput = _report
+    ..watchBrain = widget.watchBrain;
   StreamSubscription<void>? _refresh;
   Object? _error;
   int? _revision;
@@ -45,8 +51,24 @@ class _SceneViewState extends State<SceneView> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final animations = !MediaQuery.disableAnimationsOf(context);
+    if (_game.animations != animations) {
+      _game
+        ..animations = animations
+        ..host();
+    }
+  }
+
+  @override
   void didUpdateWidget(SceneView old) {
     super.didUpdateWidget(old);
+    if (old.watchBrain != widget.watchBrain) {
+      _game
+        ..watchBrain = widget.watchBrain
+        ..host();
+    }
     final state = widget.state;
     if (state != null && !identical(state, old.state)) _show(state);
     if (old.refresh != widget.refresh) _listen();
@@ -107,7 +129,8 @@ class _SceneViewState extends State<SceneView> {
   Widget build(BuildContext context) => Stack(
     fit: StackFit.expand,
     children: [
-      GameWidget<SceneGame>(game: _game),
+      // Scenes take no keys; an autofocused GameWidget would swallow the host's shortcuts.
+      GameWidget<SceneGame>(game: _game, autofocus: false),
       if (_error != null)
         Align(
           alignment: Alignment.bottomCenter,

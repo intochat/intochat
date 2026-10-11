@@ -6,7 +6,8 @@ import 'models/scene_models.dart';
 import 'ui_client.dart';
 
 /// The brain's Flame routes under `/brains/{brain}/ui/`: scenes and the person's stage.
-final class SceneClient {
+// Not final, so the shell's tests can stand in a fake.
+class SceneClient {
   SceneClient(this._http, this._base, this.workspace);
   final http.Client _http;
   final Uri _base;

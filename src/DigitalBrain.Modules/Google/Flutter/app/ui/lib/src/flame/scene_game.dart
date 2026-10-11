@@ -7,6 +7,8 @@ import 'package:flutter/painting.dart';
 
 import 'node_components.dart';
 import 'placeholder_node.dart';
+import 'prefabs/brain_graph.dart';
+import 'prefabs/ino_sphere.dart';
 import 'primitive_nodes.dart';
 
 typedef SceneInputHandler = void Function(
@@ -24,6 +26,12 @@ final class SceneGame extends FlameGame {
 
   final _byId = <String, NodeComponent>{};
   SceneInputHandler? onInput;
+
+  /// The host's brain-events stream, handed to every `brain_graph` node with `source=events`.
+  WatchBrain? watchBrain;
+
+  /// False under reduced motion: prefabs snap to their targets and stay still.
+  bool animations = true;
   SceneState? _state;
   Color _background = const Color(0xFF0B0F14);
 
@@ -85,6 +93,22 @@ final class SceneGame extends FlameGame {
       ..zoom = camera.zoom
       ..position = Vector2(camera.x, camera.y);
     _background = sceneColor(state.definition.background) ?? _background;
+    host();
+  }
+
+  /// Hands [watchBrain] and [animations] to the prefabs that need them.
+  void host() {
+    for (final component in _byId.values) {
+      switch (component) {
+        case BrainGraph graph:
+          graph.animations = animations;
+          if (graph.watch != watchBrain) graph.watch = watchBrain;
+        case InoSphere sphere:
+          sphere.animations = animations;
+        default:
+      }
+    }
+    wake();
   }
 
   int _idleFrames = 0;

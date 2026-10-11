@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 
 import '../connections/connect_window.dart';
 import '../connections/connectors_menu.dart';
+import '../stage/stage_controller.dart';
+import '../stage/stage_view.dart';
 import 'workspace_store.dart';
 import 'neuron_workspace_persistence.dart';
 import 'workspace_remote_controller.dart';
@@ -73,6 +75,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   final _sourcesSynced = <String>{};
   final _circleFeeds = <String, CircleActivityFeed>{};
   final _computeRefresh = ValueNotifier<int>(0);
+  final _stages = <String, StageController>{};
 
   void _connectWorkspaces() {
     final client = widget.programmingClient;
@@ -345,6 +348,9 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   @override
   void dispose() {
     _computeRefresh.dispose();
+    for (final stage in _stages.values) {
+      stage.dispose();
+    }
     for (final feed in _circleFeeds.values) {
       feed.dispose();
     }
@@ -712,8 +718,50 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   }
 
   // Home stands in for the desktop until something opens; the Home island brings it back.
-  Widget _main(BuildContext context) =>
-      _home ? _homeScreen(context) : _work(context);
+  Widget _main(BuildContext context) {
+    final desktop = _home ? _homeScreen(context) : _work(context);
+    final client = widget.programmingClient;
+    if (client == null) return desktop;
+    final brain = store.currentProject.id;
+    final stage = _stages.putIfAbsent(brain, () {
+      final controller = StageController(
+        client: client.scenes(brain),
+        live: (types) => client.watchLive(brain, types),
+      );
+      unawaited(controller.refresh());
+      return controller;
+    });
+    // The stage has no home until one is set, so the desktop stays the root without the Ino app.
+    return StageHost(
+      key: ValueKey('stage-$brain'),
+      controller: stage,
+      desktop: desktop,
+      client: stage.client!,
+      ui: client,
+      workspace: brain,
+      watchScene: _sceneWatches.putIfAbsent(
+        brain,
+        () =>
+            (sceneKey) => client
+                .watchLive(brain, const ['SceneChanged', 'SceneEntered'])
+                .where(
+                  (envelope) =>
+                      !envelope.isReady &&
+                      (envelope.payload['name'] ?? envelope.payload['Name']) ==
+                          sceneKey,
+                )
+                .map((_) {}),
+      ),
+      watchBrain: _brainWatches.putIfAbsent(
+        brain,
+        () =>
+            () => client.watchBrain(brainId: brain),
+      ),
+    );
+  }
+
+  final _brainWatches = <String, WatchBrain>{};
+  final _sceneWatches = <String, Stream<void> Function(String)>{};
 
   Widget _homeScreen(BuildContext context) {
     final client = widget.programmingClient;
