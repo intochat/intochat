@@ -60,6 +60,9 @@
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Circles/DigitalBrain.Modules.Circles/DigitalBrain.Modules.Circles.csproj" />
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Circles/tests/DigitalBrain.Modules.Circles.Tests/DigitalBrain.Modules.Circles.Tests.csproj" />
   </Folder>
+  <Folder Name="/Modules/DigitalBrain/Flame/">
+    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Flame/DigitalBrain.Modules.Flame.Contracts/DigitalBrain.Modules.Flame.Contracts.csproj" />
+  </Folder>
   <Folder Name="/Modules/DigitalBrain/Tools/">
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Tools/DigitalBrain.Modules.Tools.Contracts/DigitalBrain.Modules.Tools.Contracts.csproj" />
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Tools/DigitalBrain.Modules.Tools/DigitalBrain.Modules.Tools.csproj" />
