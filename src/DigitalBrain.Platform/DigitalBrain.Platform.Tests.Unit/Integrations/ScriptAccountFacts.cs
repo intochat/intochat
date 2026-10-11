@@ -19,12 +19,11 @@ public sealed class ScriptAccountFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<ExampleConnectionModule>().StartAsync(ct);
-        var caller = new CallerContext { PrincipalId = "alice", AccountId = "alice", BrainId = "home", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp };
-        CallerContextStamper.Stamp(caller);
-        await brain.AuthorizeCallerAsync();
-        var scope = BrainScope.Create("alice", "home").Id;
+        using var alice = await brain.PersonAsync("alice", ct);
+        using var bob = await brain.PersonAsync("bob", ct);
+        var scope = alice.BrainId;
         var key = ConnectionKeys.For(scope, "example", "database");
-        try
+        using (alice.AsCaller())
         {
             await brain.Get<IConnection>(key).Connect("api-key", "private-credential");
             var accounts = brain.Get<IConnectionRequests>(scope);
@@ -36,20 +35,13 @@ public sealed class ScriptAccountFacts
             await brain.Get<IConnection>(key).Connect("api-key", "expired");
             await brain.Get<IConnection>(key).Probe();
             Assert.Equal("expired", Assert.Single(await accounts.ListConnections()).Status);
-            CallerContextStamper.Stamp(new CallerContext
-            {
-                PrincipalId = "bob",
-                AccountId = "bob",
-                BrainId = "other",
-                Kind = CallerKind.User,
-                StampedBy = TrustedEdge.AuthenticatedHttp,
-            });
-            await brain.AuthorizeCallerAsync();
-            var surface = new NeuronSurface(brain, new Kernel(brain.Grains), brain.SiloServices.GetRequiredService<NeuronTypeSearch>());
+        }
+        using (bob.AsCaller())
+        {
+            var surface = new NeuronSurface(brain, new Kernel(brain.Grains), brain.Services.GetRequiredService<NeuronTypeSearch>());
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => surface.Call(
                 typeof(IConnectionRequests).FullName!, scope, nameof(IConnectionRequests.ListConnections), "[]", ct));
         }
-        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
         Assert.Empty(await brain.Get<IConnectionRequests>("brain-two").ListConnections());
     }
 

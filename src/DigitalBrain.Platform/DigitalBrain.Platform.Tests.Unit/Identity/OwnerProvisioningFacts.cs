@@ -18,7 +18,8 @@ public sealed class OwnerProvisioningFacts
         var ct = TestContext.Current.CancellationToken;
         var handler = new AppCallerAtBirth();
         await using var brain = await TestBrain.Create()
-            .ConfigureSilo(silo => silo.Services.AddSingleton<ICreationHandler>(services => handler.Using(services.GetRequiredService<IGrainFactory>())))
+            // The OS's own seam at brain birth (it installs default apps there): the handler stands in for it.
+            .ConfigureServices(services => services.AddSingleton<ICreationHandler>(provider => handler.Using(provider.GetRequiredService<IGrainFactory>())))
             .StartAsync(ct);
         var directory = brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory);
         foreach (var person in new[] { "alice", "bob", "carol" })

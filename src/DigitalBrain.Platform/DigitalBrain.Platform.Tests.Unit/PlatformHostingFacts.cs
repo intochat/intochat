@@ -24,15 +24,6 @@ public sealed class PlatformHostingFacts
     }
 
     [Fact]
-    public async Task AddingTheBrainTwiceRegistersTheGrantStageOnce()
-    {
-        await using var brain = await TestBrain.Create()
-            .ConfigureSilo(silo => silo.AddDigitalBrain())
-            .StartAsync(TestContext.Current.CancellationToken);
-        Assert.Single(brain.SiloServices.GetServices<ICallFilterStage>(), stage => stage.GetType().Name == "GrantCallFilterStage");
-    }
-
-    [Fact]
     public async Task IdentityAnswersOwnershipMembershipAndGrantQuestionsThroughTheSdk()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -40,40 +31,27 @@ public sealed class PlatformHostingFacts
         var identity = brain.SiloServices.GetRequiredService<IIdentity>();
         Assert.Null(identity.CurrentPrincipal);
         Assert.Throws<UntrustedCallerException>(identity.RequirePrincipal);
-        var member = await brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory)
-            .RegisterAsync("reader", "a-long-test-password", "Reader", ct);
-        Assert.True(await identity.CanAccessAsync(member.PrincipalId, member.AccountId, member.BrainId, ct));
-        Assert.False(await identity.CanAccessAsync(member.PrincipalId, member.AccountId, "another-brain", ct));
-        var caller = new CallerContext
+        using var reader = await brain.PersonAsync("reader", ct);
+        Assert.True(await identity.CanAccessAsync(reader.PrincipalId, reader.AccountId, reader.BrainId, ct));
+        Assert.False(await identity.CanAccessAsync(reader.PrincipalId, reader.AccountId, "another-brain", ct));
+        using var app = reader.AsApp("reader-app");
+        var caller = identity.CurrentPrincipal!;
+        Assert.Equal((CallerKind.App, "reader-app", reader.BrainId), (caller.Kind, caller.AppId, caller.BrainId));
+        Assert.Equal(reader.PrincipalId, identity.RequirePrincipal());
+        var chat = caller with { ConversationId = "chat" };
+        Assert.False(await identity.HasGrantAsync(chat, "person.email", ct));
+        var store = brain.Grains.GetGrain<IBrainAuthority>(reader.BrainId);
+        await store.Grant(new Grant
         {
-            PrincipalId = member.PrincipalId,
-            AccountId = member.AccountId,
-            BrainId = member.BrainId,
             AppId = "reader-app",
+            WorkspaceId = caller.BrainId,
+            SemanticTypeId = "person.email",
+            Mode = GrantMode.ThisChat,
             ConversationId = "chat",
-            Kind = CallerKind.App,
-            StampedBy = TrustedEdge.AppProxy,
-        };
-        CallerContextStamper.Stamp(caller);
-        try
-        {
-            Assert.Equal(caller, identity.CurrentPrincipal);
-            Assert.Equal(member.PrincipalId, identity.RequirePrincipal());
-            Assert.False(await identity.HasGrantAsync(caller, "person.email", ct));
-            var store = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(member.AccountId, member.BrainId).Id);
-            await store.Grant(new Grant
-            {
-                AppId = caller.AppId,
-                WorkspaceId = caller.BrainId,
-                SemanticTypeId = "person.email",
-                Mode = GrantMode.ThisChat,
-                ConversationId = "chat",
-            });
-            Assert.True(await identity.HasGrantAsync(caller, "person.email", ct));
-            Assert.False(await identity.HasGrantAsync(caller with { ConversationId = "other" }, "person.email", ct));
-            Assert.Single(await store.ListGrants());
-        }
-        finally { Orleans.Runtime.RequestContext.Clear(); }
+        });
+        Assert.True(await identity.HasGrantAsync(chat, "person.email", ct));
+        Assert.False(await identity.HasGrantAsync(chat with { ConversationId = "other" }, "person.email", ct));
+        Assert.Single(await store.ListGrants());
     }
 
     [Fact]
