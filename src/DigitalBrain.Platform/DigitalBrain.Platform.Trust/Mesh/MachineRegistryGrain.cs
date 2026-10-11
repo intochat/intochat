@@ -16,10 +16,6 @@ internal interface IMachineRegistry : IGrainWithStringKey
     // A signed call that acts for no bound account yet (a registration): signature, timestamp and counter only.
     Task AcceptMachine(SignedCall call);
 
-    // R67: a machine that registers usernames is bound to an account with a pairing secret. R72: the gate checks
-    // only that the hash is non-empty; every machine has one (configured or generated), so it is no deployment check.
-    Task RequirePaired();
-
     // What a peer or the trust link checks a machine against (T20-2 check 5): null until it registered.
     [Orleans.Concurrency.AlwaysInterleave]
     Task<RegisteredMachine?> Read();
@@ -58,7 +54,6 @@ internal sealed class MachineRegistryGrain(
         await GrainFactory.GetGrain<IAccountMachines>(account).Bind(MachineId, pairingSecretHash);
         store.State.PublicKey = publicKey;
         store.State.Accounts = [.. store.State.Accounts.Append(account).Distinct(StringComparer.Ordinal)];
-        store.State.Paired |= pairingSecretHash.Length > 0;
         await store.WriteStateAsync();
     }
 
@@ -82,10 +77,6 @@ internal sealed class MachineRegistryGrain(
         await AcceptMachine(call);
         return call.Account;
     }
-
-    public Task RequirePaired() => store.State.Paired
-        ? Task.CompletedTask
-        : throw new UnauthorizedAccessException($"Machine {MachineId} is not paired with this deployment; it cannot register usernames.");
 
     public async Task AcceptMachine(SignedCall call)
     {
@@ -124,7 +115,6 @@ internal sealed class MachineRegistryState
     [Id(0)] public byte[]? PublicKey { get; set; }
     [Id(1)] public string[] Accounts { get; set; } = [];
     [Id(2)] public long LastCounter { get; set; }
-    [Id(3)] public bool Paired { get; set; }
     [Id(4)] public MachineCandidates? Candidates { get; set; }
 }
 

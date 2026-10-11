@@ -115,11 +115,8 @@ internal sealed class IdentityWritesGrain : Grain, IIdentityWrites
         await GrainFactory.GetGrain<IMachineRegistry>(signed.MachineId).Accept(signed.Call());
     }
 
-    // A registration creates its account, so the machine's signature, replay window and pairing are checked (R67).
+    // A registration creates its account, so the machine's signature and replay window are checked (R67). R72's
+    // pairing gate is gone: only a registered machine's link reaches this write (T20-4, T20-8).
     private async Task Paired<T>(MachineSigned<T> signed)
-    {
-        var machine = GrainFactory.GetGrain<IMachineRegistry>(signed.MachineId);
-        await machine.AcceptMachine(signed.Call());
-        await machine.RequirePaired();
-    }
+        => await GrainFactory.GetGrain<IMachineRegistry>(signed.MachineId).AcceptMachine(signed.Call());
 }
