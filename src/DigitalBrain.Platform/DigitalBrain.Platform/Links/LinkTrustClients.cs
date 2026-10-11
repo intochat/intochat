@@ -157,6 +157,8 @@ internal sealed class LinkTrustClients(QuicMachineTransport transport, Serialize
 
     public Task<BrainKind> KindOf(string brainScopeId) => Call<string, BrainKind>(TrustOperations.KindOf, brainScopeId);
 
+    public Task<bool> BrainExists(string brainScopeId) => Call<string, bool>(TrustOperations.BrainExists, brainScopeId);
+
     public Task RemoveMember(string brainScopeId, string accountId)
         => Signed(TrustOperations.RemoveMember, new MemberRemoval(brainScopeId, accountId), accountId);
 

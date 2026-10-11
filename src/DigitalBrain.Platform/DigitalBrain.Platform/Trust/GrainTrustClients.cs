@@ -158,6 +158,8 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
 
     public Task<BrainKind> KindOf(string brainScopeId) => Authority(brainScopeId).Kind();
 
+    public async Task<bool> BrainExists(string brainScopeId) => await Authority(brainScopeId).Account() is not null;
+
     public Task RemoveMember(string brainScopeId, string accountId)
         => Signed(new MemberRemoval(brainScopeId, accountId), accountId, Writes.RemoveMember);
 

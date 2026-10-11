@@ -158,6 +158,20 @@ public sealed class CircleFacts
     }
 
     [Fact]
+    public async Task AnInvitationToABrainThatDoesNotExistIsRefusedAndNotRecorded()
+    {
+        await using var room = await Start(TestContext.Current.CancellationToken);
+        var owners = room.Circle(room.Alice);
+        using var caller = room.Alice.AsCaller();
+
+        var refused = await Assert.ThrowsAsync<ArgumentException>(() => owners.Invite("ghost-brain"));
+
+        Assert.Contains("no brain ghost-brain", refused.Message);
+        await owners.Invite(room.Bob.BrainId);
+        Assert.Equal([room.Bob.BrainId], (await owners.State()).Invited);
+    }
+
+    [Fact]
     public async Task ARefusedInvitationLeavesTheOwnersRecordAsItWasAndPublishesNothingTwice()
     {
         await using var room = await Start(TestContext.Current.CancellationToken);

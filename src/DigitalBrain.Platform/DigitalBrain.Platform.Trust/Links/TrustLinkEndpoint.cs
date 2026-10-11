@@ -63,6 +63,7 @@ internal static class TrustOperations
     public const string EnsureMember = "identity.ensure-member";
     public const string RemoveMember = "identity.remove-member";
     public const string KindOf = "identity.kind-of";
+    public const string BrainExists = "identity.brain-exists";
     public const string ContributeMachine = "identity.contribute-machine";
     public const string WithdrawMachine = "identity.withdraw-machine";
     public const string MachinesOf = "identity.machines-of";
@@ -351,6 +352,7 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
         [TrustOperations.EnsureMember] = Registered(async call => await Writes.EnsureMember(call.Signed<Member>())),
         [TrustOperations.RemoveMember] = Registered(async call => { await Writes.RemoveMember(call.Signed<MemberRemoval>()); return true; }),
         [TrustOperations.KindOf] = Registered(async call => await grains.GetGrain<IBrainAuthority>(call.Arg<string>()).Kind()),
+        [TrustOperations.BrainExists] = Registered(async call => await grains.GetGrain<IBrainAuthority>(call.Arg<string>()).Account() is not null),
         [TrustOperations.ContributeMachine] = Registered(async call => { await Writes.ContributeMachine(call.Signed<CircleMachine>()); return true; }),
         [TrustOperations.WithdrawMachine] = Registered(async call => { await Writes.WithdrawMachine(call.Signed<CircleMachine>()); return true; }),
         [TrustOperations.MachinesOf] = Registered(async call => await grains.GetGrain<IBrainAuthority>(call.Arg<string>()).Machines()),

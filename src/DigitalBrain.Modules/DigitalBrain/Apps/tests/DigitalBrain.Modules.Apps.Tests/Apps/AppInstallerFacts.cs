@@ -159,6 +159,24 @@ public sealed class AppInstallerFacts
     }
 
     [Fact]
+    public async Task AnUpdateRetriedAtTheSameVersionAddsNoSecondHistoryEntry()
+    {
+        await using var brain = await Start();
+        var (intochat, source) = await Published(brain);
+        var alice = await brain.PersonAsync("alice", Ct);
+        using var _ = alice.AsCaller();
+        await Installer(brain).Install("intochat", "echo", Ct);
+        var next = await PublishNewVersion(intochat, source);
+        var updated = await Installer(brain).Update("echo", Ct);
+
+        var retried = await Mine(brain, alice).Replace((await source.ExportPublished()) with { Name = "echo" });
+
+        Assert.Equal(next, updated.Version);
+        Assert.Equal(updated.Versions.Length, retried.Versions.Length);
+        Assert.Single(retried.Versions, entry => entry.Version == next);
+    }
+
+    [Fact]
     public async Task UpdatingAnAppThatWasNotInstalledIsRefused()
     {
         await using var brain = await Start();

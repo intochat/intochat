@@ -58,6 +58,20 @@ public sealed class FeatureReconcilerFacts : IDisposable
         => brain.Get<IFeatureReconciler>(IFeatureReconciler.Key(person.BrainId));
 
     [Fact]
+    public async Task ADeletedFeatureAppCanBeReinstalledAndIsAttachedToItsOrigin()
+    {
+        await using var brain = await Start();
+        var (alice, copy) = await Installed(brain);
+        using (alice.AsCaller())
+        {
+            await copy.Delete();
+            var again = await brain.Services.GetRequiredService<AppInstaller>().Install("os", "greeter", Ct);
+            Assert.Equal(new AppOrigin("os", new AppSource.Shipped(), "greeter", "1.2.0"), again.Origin);
+            Assert.False(again.Edited);
+        }
+    }
+
+    [Fact]
     public async Task ReconcilingPutsAnOlderUneditedShippedAppOnTheCatalogVersion()
     {
         var ct = TestContext.Current.CancellationToken;

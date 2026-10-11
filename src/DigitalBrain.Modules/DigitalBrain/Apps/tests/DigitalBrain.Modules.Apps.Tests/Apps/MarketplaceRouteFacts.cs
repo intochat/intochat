@@ -80,6 +80,38 @@ public sealed class MarketplaceRouteFacts
         Assert.False(update.GetProperty("edited").GetBoolean());
     }
 
+    [Fact]
+    public async Task ADeletedAppCanBeReinstalledFromTheMarketplaceAndIsAttachedToItsOrigin()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().WithFakeAppRuntime(new()).StartAsync(ct);
+        var intochat = await brain.PersonAsync("intochat", ct);
+        var alice = await brain.PersonAsync("alice", ct);
+        var source = brain.Get<IApp>(IApp.Key(intochat.BrainId, "echo"));
+        using (intochat.AsCaller())
+        {
+            await source.Create(new("Echo", "echoes", [new("ask", "ask it")], [], []), Spec);
+            await source.BeginBuild(null);
+            await source.CompleteBuild(await source.CurrentBuildAttempt(), new() { ["synapses/echo.cs"] = "// v1" }, null);
+        }
+        using var published = await intochat.Http.PostAsync($"/brains/{intochat.BrainId}/apps/echo/publish", null, ct);
+        Assert.True(published.IsSuccessStatusCode);
+        var aliceApps = $"/brains/{alice.BrainId}/apps";
+        var install = $"/brains/{alice.BrainId}/marketplace/intochat/echo/install";
+        using var first = await alice.Http.PostAsync(install, null, ct);
+        Assert.True(first.IsSuccessStatusCode);
+
+        using var deleted = await alice.Http.DeleteAsync($"{aliceApps}/echo", ct);
+        Assert.Equal(HttpStatusCode.OK, deleted.StatusCode);
+        using var gone = await alice.Http.GetAsync($"{aliceApps}/echo", ct);
+        Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
+        using var again = await alice.Http.PostAsync(install, null, ct);
+
+        var reinstalled = await Json(again, ct);
+        Assert.Equal("intochat", reinstalled.GetProperty("origin").GetProperty("publisher").GetString());
+        Assert.False(reinstalled.GetProperty("edited").GetBoolean());
+    }
+
     private static async Task<JsonElement> Json(HttpResponseMessage response, CancellationToken ct)
     {
         var body = await response.Content.ReadAsStringAsync(ct);

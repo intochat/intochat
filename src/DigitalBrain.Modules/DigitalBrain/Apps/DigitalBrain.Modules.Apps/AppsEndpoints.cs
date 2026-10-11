@@ -60,8 +60,13 @@ internal static class AppsEndpoints
             return Results.Ok(View(await creator.Author(brain, BrainScope.CurrentId(), null, request.Text, ct)));
         }));
 
-        apps.MapGet("/{name}", (string name, IDigitalBrain brain, CancellationToken ct)
-            => Respond(async () => Results.Ok(View(await App(brain, name).Read().WaitAsync(ct)))));
+        apps.MapGet("/{name}", (string name, IDigitalBrain brain, CancellationToken ct) => Respond(async () =>
+        {
+            var snapshot = await App(brain, name).Read().WaitAsync(ct);
+            return snapshot.Manifest.Title.Length == 0
+                ? throw new KeyNotFoundException($"No app named {name} exists in this brain.")
+                : Results.Ok(View(snapshot));
+        }));
 
         apps.MapPost("/{name}/author", (string name, TextRequest request, [FromServices] Creator creator, IDigitalBrain brain, CancellationToken ct) => Respond(async () =>
         {
