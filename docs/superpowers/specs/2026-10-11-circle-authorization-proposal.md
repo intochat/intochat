@@ -69,6 +69,7 @@ proposal text is kept as the record of what was weighed. Rulings that settle the
   - **R132.** `ICircle.Share(appName, connectionIds)` is declared and implemented in Task 27; Task 28 keeps the credential re-seal and the live step.
   - **R133.** `RemoveMember` has one gate: the same as `EnsureMember`, plus the brain's owner.
   - **R134 (T26-9 extended).** A shared app's call to a connection left with the sharer is cross-brain by design. It is allowed only through the binding the sharer recorded at Share on the circle brain's app slot; every other cross-brain connection call stays refused.
+- **Round 3 (R136).** The circle's own app installed at birth is `features/os/CircleRoom` (T26-13 aligned to R126). R134 is enforced in the Apps module's connection-call gate.
 - **T26-6 note.** The synapse list in T26-6 is superseded by R126.
 
 **What the rejected shapes would have cost:**

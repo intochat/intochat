@@ -2270,7 +2270,7 @@ open item 5 is settled. Q11, Q14 and Q17 are read for circle brains as below. Ru
 - **T26-10** Mesh placement (R123, Task 24) for circle parts: the members' volunteer nodes count as distinct owners, and the placement exclusion is the holder machine's account only.
 - **T26-11** Compute share stays: `CircleShareGrain` is keyed by `{circle}/circle` and charges the circle brain's `IBrain.Owner`.
 - **T26-12 (R124) Share path.** Sharing loads the sharer's app bundle (`IApp` Export, compile-gated) into the circle brain through `FeatureLoader`, with `Origin` = the sharer's app. It creates no Marketplace listing. `AppSource.Brain` gains a direct, kernel-stamped brain-to-brain source used only by Share. Any member may share; the circle core records `SharedApps`. The Circles module takes a named dependency on the Apps module's `FeatureLoader`.
-- **T26-13 (R125) Circle brains are a kind.** Circle brains are recorded trust-side with `Kind = Circle`. `FeatureReconciler`/OS defaults install no OS default into a circle brain. At creation a circle brain gets exactly the circle's own app (the `ICircle` core neuron and `ICircleChat`).
+- **T26-13 (R125) Circle brains are a kind.** Circle brains are recorded trust-side with `Kind = Circle`. `FeatureReconciler`/OS defaults install no OS default into a circle brain. At creation a circle brain gets exactly the circle's own app, `features/os/CircleRoom` (R126), which acts on the circle's `ICircle` core neuron and `ICircleChat`.
 - **T26-14 (R126) Where the Circle app runs.**
   - (a) In each member's brain, `os/Circle` keeps the circles index, read from `BrainsOf(principal)` filtered by `Kind = Circle` (no `ICircles` neuron). `create` goes through a Circles-module neuron `ICircleFactory` in the member's brain, which calls `IIdentityClient.CreateBrain` and `BrainBirths`. `invite` and `accept` go only through the member's human route (shell/MCP at `/brains/{circle}`), never from scripts.
   - (b) In the circle brain, the circle's own app holds the `say`, `watch` and `share` synapses on the circle's own neurons, so there is no cross-brain subscription.
@@ -2300,7 +2300,7 @@ open item 5 is settled. Q11, Q14 and Q17 are read for circle brains as below. Ru
 
 **Files:**
 - Modify: `src/DigitalBrain.Modules/DigitalBrain/Circles/DigitalBrain.Modules.Circles.Contracts/ICircle.cs` (`CircleState` reshaped: `Members` = account ids, `Machines`, `Invited` accounts, `Schedules`; `Key(circleBrainId)`; `[Internal]` copy methods removed), `ICircleChat.cs` (`Key(circleBrainId)`; `Relay`/`Pull`/`Notify` removed), `Signals/CircleSignals.cs` (`CircleChanged` gains `Machines`; `CircleTouched` removed), `DigitalBrain.Modules.Circles/CircleNeuron.cs`, `CircleChatNeuron.cs`, `CirclesModule.cs` (no guard); `src/DigitalBrain.Framework/DigitalBrain.Framework/Platform/Identity/IIdentityClient.cs` (+`RemoveMember`), its trust grain and link/grain clients in `src/DigitalBrain.Platform/DigitalBrain.Platform.Trust/` and `src/DigitalBrain.Platform/DigitalBrain.Platform/Trust/`, `Links/LinkTrustClients.cs`; `src/DigitalBrain.Platform/DigitalBrain.Platform/Keys/` (keyring: per-machine wraps, rotation), `Parts/PartLog.cs` (re-snapshot under a rotated key), `Compute/CircleShareGrain.cs` (key `{circle}/circle`); `features/os/Circle/*` (synapses per T26-6)
-- Modify (R124–R128): `IIdentityClient` (+`ContributeMachine`, `WithdrawMachine`; `CreateBrain` takes `BrainKind`; `BrainsOf` returns the kind) and the trust brain-authority grain (circle machines count as owner machines for that brain in the R98/R106/R107 checks); `Links/TrustLinkEndpoint.cs`; the machine registration (`RegisterMachine(…, agreementKey)`) in `Sequencer/MachineIdentity.cs` and `Trust/MachineRegistrar.cs`; `src/DigitalBrain.Framework/DigitalBrain.Framework/Parts/IMachineSigningKey.cs` (+`IMachineAgreementKey`); `src/DigitalBrain.Modules/Microsoft/Windows/DigitalBrain.Modules.Microsoft.Windows/TpmAgreementKey.cs` (new); the Apps module's `AppSource.Brain` and `FeatureLoader` (direct brain source), `FeatureReconciler` (skip `Kind = Circle`); `DigitalBrain.Modules.Circles.csproj` (references the Apps module); `features/os/Circle/*` (the index from `BrainsOf`, `create` via `ICircleFactory`), `features/os/CircleRoom/*` (new: the circle brain's own app with `say`/`watch`/`share`); Dart in `src/DigitalBrain.Modules/Google/Flutter/app/shell`: `ui_client.dart`, `circle_activity_badge.dart`, `infrastructure_strip.dart` and the workspace islands that call `watchCircles` (BrainsOf plus `/brains/{circle}/live`), updated in the same change
+- Modify (R124–R128): `IIdentityClient` (+`ContributeMachine`, `WithdrawMachine`; `CreateBrain` takes `BrainKind`; `BrainsOf` returns the kind) and the trust brain-authority grain (circle machines count as owner machines for that brain in the R98/R106/R107 checks); `Links/TrustLinkEndpoint.cs`; the machine registration (`RegisterMachine(…, agreementKey)`) in `Sequencer/MachineIdentity.cs` and `Trust/MachineRegistrar.cs`; `src/DigitalBrain.Framework/DigitalBrain.Framework/Parts/IMachineSigningKey.cs` (+`IMachineAgreementKey`); `src/DigitalBrain.Modules/Microsoft/Windows/DigitalBrain.Modules.Microsoft.Windows/TpmAgreementKey.cs` (new); the Apps module's `AppSource.Brain` and `FeatureLoader` (direct brain source), the Apps module's connection-call gate (R134: a cross-brain connection call is admitted only through a binding recorded at Share), `FeatureReconciler` (skip `Kind = Circle`); `DigitalBrain.Modules.Circles.csproj` (references the Apps module); `features/os/Circle/*` (the index from `BrainsOf`, `create` via `ICircleFactory`), `features/os/CircleRoom/*` (new: the circle brain's own app with `say`/`watch`/`share`); Dart in `src/DigitalBrain.Modules/Google/Flutter/app/shell`: `ui_client.dart`, `circle_activity_badge.dart`, `infrastructure_strip.dart` and the workspace islands that call `watchCircles` (BrainsOf plus `/brains/{circle}/live`), updated in the same change
 - Create: `DigitalBrain.Modules.Circles/CircleFactoryNeuron.cs` (`ICircleFactory` in Contracts)
 - Delete: `CircleAddress.cs`, `CircleCallGuard.cs`, `CirclesIndexNeuron.cs`, `ICircles.cs` (after `findReferences` shows no other caller)
 - Create: `src/DigitalBrain.Platform/DigitalBrain.Platform/Keys/CirclePartKeys.cs`
@@ -2373,87 +2373,103 @@ internal sealed class CirclePartKeys(IKeyringClient keyring, IMachineAgreementKe
 }
 ```
 
-- [ ] **Step 1: Map.** No edits in this step; record every site in the report.
-  - C#, LSP `findReferences` on: `ICircle`, `ICircleChat`, `ICircles`, `CircleAddress`, `CircleCallGuard`, `CircleTouched`, `ICircleShares.Configure`, `CircleShareGuard`, `IIdentityClient.EnsureMember`, `IIdentityClient.BrainsOf`, `IIdentityClient.CreateBrain`, `RegisterMachine`, `AppSource`, `FeatureReconciler`.
-  - Use `incomingCalls` on `BrainsOf`/`CreateBrain` to list their callers (identity endpoints, `BrainBirths`, the MCP context).
-  - Dart, `dart language-server` `findReferences` in `src/DigitalBrain.Modules/Google/Flutter/app/shell` on: `watchCircles`, the `CircleTouched` mirror, and every caller of the circles index in `ui_client.dart`, `circle_activity_badge.dart`, `infrastructure_strip.dart` and the workspace islands.
-- [ ] **Step 2: Failing facts — a circle is a brain; its machines and members on the trust side.** In `CircleBrainFacts` (two accounts, alice and bob):
-  - `CreatingACircleBirthsABrainOwnedByItsCreator`: `IBrain.Read().Owner` = alice; `{circle}/circle` lists alice as member and her machine.
-  - `AnAcceptedInvitationMakesTheAccountAMemberOfTheCircleBrain`: `IIdentityClient.Membership(circle, bob)` is non-null.
-  - `AMemberCallsANeuronInTheCircleBrain`: bob's call goes through the real `/brains/{circle}` stamper (the route's membership filter), not a hand-made stamp, and is admitted.
-  - `AStrangerIsRefusedByTheCircleBrain`.
-  - `ARemovedMemberIsRefusedOnItsNextCall`.
-  - `AnAcceptWithoutAnInvitationAddsNoMember` (R129).
-  - `TheCreatorCannotBeRemoved` (R129).
-  - `TheCreatorLeavingDeletesTheCircle` (R129).
-  - `ACircleBrainGetsNoOsDefaults` (R125): only `ICircle`/`ICircleChat` and the circle's own app exist; `BrainsOf(bob)` lists the circle with `Kind = Circle`.
-  - `AContributedMachineIsAnOwnerMachineOnlyForItsCircle` (R128, the gate fact): bob's contributed machine passes R98/R106/R107 for the circle brain and is refused alice's personal brain. After `WithdrawMachine` it is refused the circle brain too.
+Order (R136): every step depends only on earlier ones. Commit per step (R135).
 
-  Run `dotnet test --project src/DigitalBrain.Platform/DigitalBrain.Platform.Tests.Unit -- --filter-class "*CircleBrainFacts*"` → FAIL. Then implement:
-  - `BrainKind` on `CreateBrain`, stored trust-side and returned by `BrainsOf`; `FeatureReconciler`/OS defaults skip `Kind = Circle`; the circle's own app is installed at birth.
-  - `RemoveMember`: trust grain; link op `identity.remove-member`; both clients. Its gate is R133's sentence.
-  - `ContributeMachine`, `WithdrawMachine` and `MachinesOf`: trust grain, link ops, clients.
-  - The brain-authority gate (R98/R106/R107) also counts `MachinesOf(brain)` as owner machines for that brain only.
-  - The reshaped `CircleNeuron`: `Accept` calls `EnsureMember` + `ContributeMachine`; `Remove` calls `RemoveMember` + `WithdrawMachine` (R129).
-  - Creation via `CreateBrain(Kind = Circle)` + `BrainBirths`.
-
-  → PASS. Commit: `Circles: a circle is a brain whose members are accounts and whose machines are contributed`.
-- [ ] **Step 3: Failing facts — agreement keys (R127).** In `src/DigitalBrain.Platform/DigitalBrain.Platform.Tests.Unit/Sequencer/MachineAgreementKeyFacts.cs`:
-  - `AMachineRegistersAnAgreementKeyBesideItsSigningKey`: the trust returns both public keys for the machine, and they differ.
+- [ ] **Step 1: Map.** No edits; record every site in the report.
+  - C#: LSP `findReferences` on `ICircle`, `ICircleChat`, `ICircles`, `CircleAddress`, `CircleCallGuard`, `CircleTouched`, `ICircleShares.Configure`, `CircleShareGuard`, `IIdentityClient.EnsureMember`, `IIdentityClient.BrainsOf`, `IIdentityClient.CreateBrain`, `RegisterMachine` (every caller and every test fixture that registers a machine), `AppSource`, `FeatureReconciler`, and the Apps module's connection-call path (where a slot's connection is resolved for a call). `incomingCalls` on `BrainsOf`/`CreateBrain` to list their callers (identity endpoints, `BrainBirths`, the MCP context).
+  - Dart (`dart language-server`, `src/DigitalBrain.Modules/Google/Flutter/app/shell`): `findReferences` on `watchCircles`, the `CircleTouched` mirror, and every caller of the circles index in `ui_client.dart`, `circle_activity_badge.dart`, `infrastructure_strip.dart` and the workspace islands.
+  - Name the existing `CircleFacts` facts that exercise the copy protocol; Step 3 deletes them.
+- [ ] **Step 2: Failing facts — agreement keys (R127).** Platform `Sequencer/MachineAgreementKeyFacts.cs`:
+  - `AMachineRegistersAnAgreementKeyBesideItsSigningKey`: the trust returns both public keys, and they differ.
   - `ARegistrationWithoutAnAgreementKeyIsRefused`.
 
-  In the Windows module tests:
-  - `TheTpmAgreementKeyDerivesTheSameSecretAsItsPeer`: live-gated on TPM availability, compiled always.
+  Windows module facts:
+  - `TheTpmAgreementKeyDerivesTheSameSecretAsItsPeer`: live-gated on TPM, compiled always.
   - `TheSoftwareAgreementKeyIsUsedWhenTheProviderHasNoEcdh`.
 
-  Run → FAIL. Implement `IMachineAgreementKey` (Framework), the software key, `TpmAgreementKey` (Windows module), and `RegisterMachine(…, agreementKey)` in `MachineIdentity`/`MachineRegistrar`, the trust grain and the link op. → PASS. Commit: `Sequencer: every machine registers an agreement key beside its signing key`.
-- [ ] **Step 4: Failing facts — sharing into the circle brain (R124, R132, R134).** In `CircleFacts` and `SharedConnectionFacts`:
-  - `SharingAnAppInstallsItIntoTheCircleBrain`: `ICircle.Share(app, [])` → `{circle}/apps/{app}` exists, its `Origin` is the sharer's app, and no Marketplace listing was created.
+  Run → FAIL. Then implement:
+  - `IMachineAgreementKey` (Framework), the software key, and `TpmAgreementKey` (Windows module).
+  - `RegisterMachine(…, agreementKey)` in `MachineIdentity`/`MachineRegistrar`, the trust grain and the link op.
+  - Every `RegisterMachine` caller and test fixture from Step 1 (`TrustHost`, the machine fixtures in `MachineHandoverFacts`/`CrossPartCallFacts`/the Mesh facts, `DigitalBrain.Testing`), updated in this step.
+
+  Platform, Trust, Windows, Testing and Architecture (6 known) suites → PASS. Commit: `Sequencer: every machine registers an agreement key beside its signing key`.
+- [ ] **Step 3: Failing facts — a circle is a brain of kind Circle, with its own app.** `Parts/CircleBrainFacts.cs` (accounts alice and bob; the circle is created in the facts through `IIdentityClient.CreateBrain(Kind = Circle)` + `BrainBirths`, because the factory comes in Step 6):
+  - `CreatingACircleBirthsABrainOwnedByItsCreator`.
+  - `ACircleBrainGetsNoOsDefaults` (R125): only `features/os/CircleRoom` is installed (T26-13), with `ICircle`/`ICircleChat`; `BrainsOf(alice)` lists the circle with `Kind = Circle`.
+  - `AnAcceptedInvitationMakesTheAccountAMemberOfTheCircleBrain`.
+  - `AMemberCallsANeuronInTheCircleBrain`: through the real `/brains/{circle}` stamper.
+  - `AStrangerIsRefusedByTheCircleBrain`.
+  - `ARemovedMemberIsRefusedOnItsNextCall`.
+  - `AnAcceptWithoutAnInvitationAddsNoMember`, `TheCreatorCannotBeRemoved` and `TheCreatorLeavingDeletesTheCircle` (R129).
+  - `AContributedMachineIsAnOwnerMachineOnlyForItsCircle` (R128, the gate fact; refused after `WithdrawMachine`).
+
+  Run → FAIL. Then implement:
+  - `BrainKind` on `CreateBrain`/`BrainsOf`, and the `FeatureReconciler`/OS-defaults skip for `Kind = Circle`.
+  - `features/os/CircleRoom` (`app.cs` plus the `say`/`watch` synapses on the circle brain's own neurons; `share` comes in Step 5), installed at birth.
+  - `RemoveMember` (R133 gate) and `ContributeMachine`/`WithdrawMachine`/`MachinesOf`: trust grain, link ops, clients.
+  - The R98/R106/R107 gate counting `MachinesOf(brain)` for that brain only.
+  - The reshaped `CircleState`/`CircleNeuron`/`CircleChatNeuron` (`Accept`, `Contribute`, `Remove` per R129).
+  - Delete the copy protocol: the `[Internal]` methods, `CircleAddress`, `CircleCallGuard`, and the copy-protocol facts named in Step 1. `CircleShareGrain` is keyed `{circle}/circle`.
+
+  The `FeatureCatalog` compile-check passes; Platform, Trust, Circles and Apps suites → PASS. Commit: `Circles: a circle is a brain of kind Circle whose members are accounts and whose machines are contributed`.
+- [ ] **Step 4: Failing facts — key sharing.** `Keys/CircleKeyFacts.cs` (`TrustHost` plus Own machines for alice, bob and carol, registered with agreement keys from Step 2; circle from Step 3):
+  - `AMemberMachineUnwrapsTheKey` (fixed test).
+  - `ARemovedMemberCannotReadAnythingWrittenAfterTheRotation` (fixed test).
+  - `AWrapIsBoundToItsCircleAndPart`.
+  - `ACloudMachineIsRefusedEveryCirclePart`.
+  - `AContributedMachineReceivesEveryExistingPartKey` (R127).
+  - `AWrapIsEphemeralStaticToTheAgreementKey` (R127).
+  - `DataWrittenBeforeTheRotationStaysReadableToTheRemovedMachine` (R131).
+
+  The facts use the circle brain's core and the `CircleRoom` app part, so no Share is needed. Run → FAIL. Then implement:
+  - `CirclePartKeys` over `IMachineAgreementKey`.
+  - Keyring storage of per-machine wraps (concrete arrays).
+  - The `PartLog` re-snapshot under the rotated key.
+  - `Contribute` wraps every existing part key; `Remove` runs `RemoveMember` → `WithdrawMachine` → revoke leases → rotate → re-snapshot.
+
+  → PASS. Commit: `Keys: a circle's part keys are wrapped to each member machine's agreement key and rotate on removal`.
+- [ ] **Step 5: Failing facts — Share, the slot binding and the R134 gate.** Add these to `CircleFacts`; Step 6 carries them into its one rewrite:
+  - `SharingAnAppInstallsItIntoTheCircleBrain` (R124): `Origin` is the sharer's app; no Marketplace listing.
   - `AnyMemberMayShare`.
   - `ABundleThatDoesNotCompileIsNotShared`.
-  - `TheCirclesModuleLoadsThroughTheAppsFeatureLoader` (the csproj fact, in `src/Testing/DigitalBrain.Architecture.Tests`): `DigitalBrain.Modules.Circles` references `DigitalBrain.Modules.Apps`, and nothing else in Apps is referenced by Circles' contracts.
-  - `AChosenConnectionIsBoundIntoTheCircleBrain`: `connection/{circle}/{connector}/{id}` exists, sealed under the circle core's key, and a member machine opens it.
-  - `AConnectionLeftBehindRoutesToTheOwnersCore`: the shared app's call goes through the binding recorded at Share and is forwarded to alice's core holder (R134).
+
+  In `SharedConnectionFacts`:
+  - `AChosenConnectionIsRecordedOnTheCircleAppSlot`: `connection/{circle}/{connector}/{id}` exists and the slot names it. Sealing under the circle key and a member machine opening it are Task 28 Step 1 (R130).
+  - `AConnectionLeftBehindRoutesToTheOwnersCore`: through the recorded binding, forwarded to alice's core holder.
   - `AConnectionLeftBehindIs503WhileTheOwnerIsOffline`.
   - `AnUnrecordedCrossBrainConnectionCallIsRefused` (R134).
 
-  Run → FAIL. Then implement:
-  - `ICircle.Share(appName, connectionIds)`.
-  - `AppSource.Brain` (direct, kernel-stamped, used only by Share) and the `FeatureLoader` path for it.
-  - The slot binding recorded on the circle brain's app slot.
-  - The Circles→Apps project reference.
+  In the Architecture tests: `TheCirclesModuleLoadsThroughTheAppsFeatureLoader` (the Circles→Apps reference fact).
 
-  → PASS. Commit: `Circles: sharing installs the sharer's app into the circle brain with the chosen connections`.
-- [ ] **Step 5: Failing facts — the Circle app split (R126).** Rewrite `CircleFacts`:
+  Run → FAIL. Then implement:
+  - `ICircle.Share(appName, connectionIds)` (R132).
+  - `AppSource.Brain` and the `FeatureLoader` path for it.
+  - The binding recorded on the circle brain's app slot.
+  - The R134 check in the Apps module's connection-call gate.
+  - The Circles→Apps project reference.
+  - The `share` synapse in `features/os/CircleRoom`.
+
+  Circles, Apps, Platform and Architecture (6 known) suites → PASS. Commit: `Circles: sharing installs the sharer's app into the circle brain and a connection left behind is reached only through its recorded binding`.
+- [ ] **Step 6: Failing facts — the Circle app split (R126).** Rewrite `CircleFacts` once, keeping Step 5's Share facts, with:
   - `SayingInACircleIsOneLineEveryMemberReads`.
-  - `TheComputeShareChargesTheCircleCreator`: `CircleShareGrain` is keyed `{circle}/circle`.
-  - `TheMembersIndexListsItsCircleBrains`: `os/Circle` in bob's brain rebuilds from `BrainsOf`.
-  - `CreatingThroughTheFactoryBirthsTheCircleBrain`: `ICircleFactory.Create`.
-  - `AScriptCannotAcceptOrInvite`: only the human route can.
+  - `TheComputeShareChargesTheCircleCreator`.
+  - `TheMembersIndexListsItsCircleBrains`: `os/Circle` from `BrainsOf`.
+  - `CreatingThroughTheFactoryBirthsTheCircleBrain`.
+  - `AScriptCannotAcceptOrInvite`.
+  - `OnlyAMemberMachineOrTheOwnerMayRemoveAMember` (the R133 gate fact): `RemoveMember` from a machine passing `EnsureMember`'s gate or the brain's owner succeeds; from any other machine it is refused.
 
   Run → FAIL. Then implement:
   - `ICircleFactory` + `CircleFactoryNeuron`.
-  - Delete the copy-protocol files (Step 1 list).
-  - Rewrite `features/os/Circle` (index from `BrainsOf`, `create` via the factory).
-  - Create `features/os/CircleRoom` (the circle brain's own app: `say`, `watch`, `share`).
-  - Dart: replace `watchCircles`/`CircleTouched` with `BrainsOf` plus `/brains/{circle}/live` in every site Step 1 found.
+  - Delete `ICircles`/`CirclesIndexNeuron` and `CircleTouched`.
+  - Rewrite `features/os/Circle` (index, `create` via the factory, invite/accept only through the human route).
+  - Dart: `BrainsOf` plus `/brains/{circle}/live` replace `watchCircles`/`CircleTouched` at every site Step 1 found.
 
-  The `FeatureCatalog` compile-check passes; LSP diagnostics clean (C# and Dart); `flutter analyze` and `flutter test` in the shell pass; Circles, Apps and Platform suites → PASS. Commit: `Circles: the circle brain is the shared state; members index their circles and the shell watches each circle's live feed`.
-- [ ] **Step 6: Failing facts — key sharing.** `CircleKeyFacts` (a `TrustHost` plus three Own machines for alice, bob and carol, as in `MachineHandoverFacts`):
-  - `AMemberMachineUnwrapsTheKey` (fixed test): bob's machine unwraps the key of `{circle}/apps/notes` and leases the part.
-  - `ARemovedMemberCannotReadAnythingWrittenAfterTheRotation` (fixed test): carol is removed, which rotates and re-snapshots. Carol's machine keeps its old segments and old key and still fails to open every segment after the rotation's head; alice's and bob's machines read them.
-  - `AWrapIsBoundToItsCircleAndPart`: a wrap for part X under circle C does not unwrap as part Y or under circle D.
-  - `ACloudMachineIsRefusedEveryCirclePart` (T26-8).
-  - `AContributedMachineReceivesEveryExistingPartKey` (R127): after `Contribute`, the new machine unwraps the keys of parts that existed before it joined.
-  - `AWrapIsEphemeralStaticToTheAgreementKey` (R127): the wrap opens only with the target's agreement key, never with its signing key; two wraps carry different ephemeral keys.
-  - `DataWrittenBeforeTheRotationStaysReadableToTheRemovedMachine` (R131): documents Q6's limit.
-
-  Run → FAIL. Implement `CirclePartKeys` over `IMachineAgreementKey`, keyring storage of per-machine wraps (concrete arrays), and the `PartLog` re-snapshot under the rotated key. `Remove` runs in this order: `RemoveMember` → `WithdrawMachine` → revoke leases held by the removed machines → rotate → re-snapshot. → PASS. Commit: `Keys: a circle's part keys are wrapped to each member machine's agreement key and rotate on removal`.
+  LSP diagnostics clean (C# and Dart); `flutter analyze` and `flutter test`; Circles and Apps suites → PASS. Commit: `Circles: members index their circle brains and the shell watches each circle's live feed`.
 - [ ] **Step 7: Live (controller).** Run the AppHost with machine A (alice) and the trust. Through A's `digitalbrain-mcp`, run the Circle app's `create friends`.
-  - `neurons_context`, then `neurons_get {circle}/circle`, shows alice as member and machine A.
-  - `list_traces` shows the `CreateBrain` call on `trust` and A's lease of the circle core.
-  - A second account needs a second Own machine bound to it. If the AppHost has none, membership and rotation are proven by `CircleKeyFacts`, and the ledger records that.
-- [ ] **Step 8: Regression net.** Circles, Apps, Platform, Trust, Windows module, Architecture (6 known), Mcp and OS unit suites; `flutter analyze` and `flutter test`. Commit only the files above, by explicit path.
+  - `neurons_context`, then `neurons_get {circle}/circle`, shows alice as member and machine A; only `CircleRoom` is installed in the circle brain.
+  - `list_traces` shows `CreateBrain` on `trust` and A's lease of the circle core.
+  - Multi-member behaviour needs a second account's Own machine. If the AppHost has none, `CircleKeyFacts`/`CircleBrainFacts` prove it, and the ledger records that.
+- [ ] **Step 8: Regression net.** Circles, Apps, Platform, Trust, Windows module, Testing, Architecture (6 known), Mcp and OS unit suites; `flutter analyze` and `flutter test`. Commit only the files above, by explicit path.
 
 ### Task 28: Shared connections and lease preference
 
@@ -2487,6 +2503,7 @@ internal sealed class LeasePreference(ISequencerClient sequencer, MachineIdentit
 ```
 
 - [ ] **Step 1: Failing facts — credential re-seal (R130).** In `SharedConnectionFacts`:
+  - `AChosenConnectionIsSealedUnderTheCircleKeyAndOpensOnAMemberMachine` (moved from Task 27 Step 5, which only records the binding).
   - `ReSealingSendsNoPlaintextOverAnyCall`: a recording grain-call filter on both machines sees only the sealed credential.
   - `ARemovedMemberCannotOpenACredentialSealedAfterTheRotation`.
 
