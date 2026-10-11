@@ -48,6 +48,7 @@ public static class BrainView
         var selected = card == NoSelection ? "" : card;
         await ComposeScene(brain, selected);
         if (selected.Length == 0) { await Selected(brain).Set(NoSelection, "Tap a point on the sphere."); }
+        if ((await Runs(brain).Read()).Markdown.Length == 0) { await Runs(brain).Set("No runs seen yet."); }
         var column = brain.Get<ILayout>(app + "/panel");
         await column.Set(new("column", [new(UIVocabulary.CardType, app + "/cards/selected"), new(UIVocabulary.TextType, app + "/runs")]), (await column.Read()).Revision);
         var surface = brain.Get<ISurface>(SurfaceKey(brain));
@@ -62,10 +63,13 @@ public static class BrainView
         return json.Length == 0 ? [] : JsonSerializer.Deserialize<Run[]>(json) ?? [];
     }
 
+    public static bool Under(string behavior, string selected)
+        => behavior == selected || behavior.StartsWith(selected + "/", StringComparison.Ordinal);
+
     // The panel's run list: the last 10 runs of behaviors under the selected key, newest first.
     public static Task ShowRuns(DigitalBrainConnection brain, string selected, IEnumerable<Run> recent)
     {
-        var lines = recent.Where(run => run.Behavior.StartsWith(selected, StringComparison.Ordinal)).Reverse().Take(10)
+        var lines = recent.Where(run => Under(run.Behavior, selected)).Reverse().Take(10)
             .Select(run => $"- {run.File} · {run.Outcome} · {run.DurationMicroseconds / 1000.0:0.#} ms · {run.Trace}").ToArray();
         return Runs(brain).Set(lines.Length == 0 ? "No runs seen yet." : string.Join("\n", lines));
     }
