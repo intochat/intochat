@@ -208,8 +208,11 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
         [TrustOperations.SequencerGet] = Registered(async call => await grains.GetGrain<ISequencerGrain>(call.Arg<string>()).Get()),
         [TrustOperations.CompareAndSet] = Registered(async call =>
         {
-            var (hash, expected, next) = call.Arg<(string, long, HeadRecord)>();
-            return await grains.GetGrain<ISequencerGrain>(hash).CompareAndSet(expected, next);
+            // R154: the machine names the part it writes and writes only as itself.
+            var (hash, expected, next, partId) = call.Arg<(string, long, HeadRecord, string)>();
+            ArgumentException.ThrowIfNullOrWhiteSpace(partId);
+            if (next.Holder != call.Link.RemoteMachineId) { throw new UnauthorizedAccessException($"Machine {call.Link.RemoteMachineId} writes heads only as itself."); }
+            return await grains.GetGrain<ISequencerGrain>(hash).CompareAndSet(expected, next, partId);
         }),
         // R153: a contributed machine of the circle revokes a lease on one of its parts, held by a machine no longer contributed.
         [TrustOperations.SequencerRevoke] = Registered(async call =>

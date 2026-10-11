@@ -80,6 +80,31 @@ public sealed class CircleKeyFacts
         Assert.Equal([1], (await circle.A.Logs.For(room)).Read(grain, "lines")!.Record);
     }
 
+    // R154: once its lease is gone, a withdrawn machine cannot take a circle part back: the trust side accepts a circle
+    // part's head only from a machine contributed to the circle.
+    [Fact(Timeout = 180_000)]
+    public async Task AWithdrawnMachineCannotTakeACirclePartAfterItsLeaseExpired()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var circle = await Circle.Start(ct);
+        var room = PartId.ForApp(circle.Id, Room);
+        await circle.Join(circle.B, "bob");
+        await (await circle.B.Logs.For(room)).Append($"room/{circle.Id}/apps/{Room}/lines", "lines", RecordChange.Write, [1], []);
+        await circle.B.Logs.Release(room);
+
+        await circle.Remove(circle.B, "bob");
+        await circle.A.Logs.Release(room);
+
+        var sequencer = circle.B.Services.GetRequiredService<ISequencerClient>();
+        var hash = HeadRecord.HashOf(room.Value);
+        var head = (await sequencer.Get(hash))!;
+        Assert.True(head.LeaseExpiry <= DateTimeOffset.UtcNow);
+        var taken = Sequencer.SequencerFacts.Record(circle.B.Machine, hash, head.Version + 1, TimeSpan.FromMinutes(1));
+        Assert.False(await sequencer.CompareAndSet(hash, head.Version, taken, room.Value));
+        await Assert.ThrowsAnyAsync<Exception>(() => circle.B.Logs.For(room));
+        Assert.Equal(head.Version, (await sequencer.Get(hash))!.Version);
+    }
+
     [Fact(Timeout = 180_000)]
     public async Task AWrapIsBoundToItsCircleAndPart()
     {

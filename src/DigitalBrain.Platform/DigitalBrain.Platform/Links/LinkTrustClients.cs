@@ -44,8 +44,8 @@ internal sealed class LinkTrustClients(QuicMachineTransport transport, Serialize
     // Sequencer
     public Task<HeadRecord?> Get(string partHash) => Call<string, HeadRecord?>(TrustOperations.SequencerGet, partHash);
 
-    public Task<bool> CompareAndSet(string partHash, long expectedVersion, HeadRecord next)
-        => Call<(string, long, HeadRecord), bool>(TrustOperations.CompareAndSet, (partHash, expectedVersion, next));
+    public Task<bool> CompareAndSet(string partHash, long expectedVersion, HeadRecord next, string partId)
+        => Call<(string, long, HeadRecord, string), bool>(TrustOperations.CompareAndSet, (partHash, expectedVersion, next, partId));
 
     public Task Revoke(string circleBrainId, string partId, string machineId)
         => Call<(string, string, string), bool>(TrustOperations.SequencerRevoke, (circleBrainId, partId, machineId));

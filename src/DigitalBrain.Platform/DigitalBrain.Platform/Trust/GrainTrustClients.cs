@@ -37,8 +37,8 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
     // Sequencer
     public Task<HeadRecord?> Get(string partHash) => Grains.GetGrain<ISequencerGrain>(partHash).Get();
 
-    public Task<bool> CompareAndSet(string partHash, long expectedVersion, HeadRecord next)
-        => Grains.GetGrain<ISequencerGrain>(partHash).CompareAndSet(expectedVersion, next);
+    public Task<bool> CompareAndSet(string partHash, long expectedVersion, HeadRecord next, string partId)
+        => Grains.GetGrain<ISequencerGrain>(partHash).CompareAndSet(expectedVersion, next, partId);
 
     public Task Revoke(string circleBrainId, string partId, string machineId) => Grains.GetGrain<ISequencerGrain>(HeadRecord.HashOf(partId)).Revoke(machineId);
 

@@ -31,14 +31,16 @@ public sealed class TrustLinkFacts
         var ct = TestContext.Current.CancellationToken;
         await using var trust = await TrustHost.StartAsync(ct);
         await using var machine = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
-        using var signer = SequencerFacts.Machine();
         var services = machine.Services;
+        // R154: a machine writes heads only as itself, naming the part.
+        var signer = services.GetRequiredService<MachineIdentity>();
+        var linked = HeadRecord.HashOf("p-link");
 
         var sequencer = services.GetRequiredService<ISequencerClient>();
         Assert.IsType<LinkTrustClients>(sequencer);
-        Assert.True(await sequencer.CompareAndSet("p-link", 0, SequencerFacts.Record(signer, "p-link", 1, TimeSpan.FromMinutes(1))));
-        Assert.Equal(1, (await sequencer.Get("p-link"))!.Version);
-        Assert.Equal(1, (await trust.Grains.GetGrain<ISequencerGrain>("p-link").Get())!.Version);
+        Assert.True(await sequencer.CompareAndSet(linked, 0, SequencerFacts.Record(signer, linked, 1, TimeSpan.FromMinutes(1)), "p-link"));
+        Assert.Equal(1, (await sequencer.Get(linked))!.Version);
+        Assert.Equal(1, (await trust.Grains.GetGrain<ISequencerGrain>(linked).Get())!.Version);
 
         var keyring = services.GetRequiredService<IKeyringClient>();
         Assert.Equal(AccountSession.DefaultLogin, await keyring.OwnerOf(OwnerBrain));
@@ -70,8 +72,8 @@ public sealed class TrustLinkFacts
         await using var stranger = await RawMachine.Dial(trust, ct);
         using var signer = SequencerFacts.Machine();
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => stranger.Call<(string, long, HeadRecord), bool>(TrustOperations.CompareAndSet,
-            ("p-stranger", 0, SequencerFacts.Record(signer, "p-stranger", 1, TimeSpan.FromMinutes(1))), ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => stranger.Call<(string, long, HeadRecord, string), bool>(TrustOperations.CompareAndSet,
+            (HeadRecord.HashOf("p-stranger"), 0, SequencerFacts.Record(signer, HeadRecord.HashOf("p-stranger"), 1, TimeSpan.FromMinutes(1)), "p-stranger"), ct));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => stranger.Call<(string, string, byte[]), bool>(TrustOperations.KeyAdd, (OwnerBrain, "x", [1]), ct));
         byte[] shard = [9];
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => stranger.Call<(string, string, byte[]), bool>(TrustOperations.ShardPut,

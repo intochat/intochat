@@ -88,7 +88,7 @@ internal sealed class PartLease
                 Payload = SegmentSeal.Close(key ?? _key, Context, _serializer.SerializeToArray(next)),
             };
             record.Signature = _machine.Sign(record.SignedBytes());
-            if (!await _sequencer.CompareAndSet(Hash, Version, record))
+            if (!await _sequencer.CompareAndSet(Hash, Version, record, _part.Value))
             {
                 _lost = true;
                 throw new LeaseLostException($"The sequencer refused version {Version + 1} of part {_part}.");

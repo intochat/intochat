@@ -7,7 +7,9 @@ internal interface ISequencerGrain : IGrainWithStringKey
 {
     Task<HeadRecord?> Get();
 
-    Task<bool> CompareAndSet(long expectedVersion, HeadRecord next);
+    // R154: a machine names the part (its PartId value, whose hash is this grain's key); once named, a head of a circle
+    // brain's part is accepted only from a machine currently contributed to that circle.
+    Task<bool> CompareAndSet(long expectedVersion, HeadRecord next, string? partId = null);
 
     // R153: the holder's lease ends now when it is `machineId`; its next CAS is refused, so a withdrawn circle machine
     // cannot write until expiry. The head reads as expired, so another machine takes the part at once.
@@ -35,9 +37,11 @@ internal sealed class SequencerGrain(
         await store.WriteStateAsync();
     }
 
-    public async Task<bool> CompareAndSet(long expectedVersion, HeadRecord next)
+    public async Task<bool> CompareAndSet(long expectedVersion, HeadRecord next, string? partId = null)
     {
         ArgumentNullException.ThrowIfNull(next);
+        if (partId is not null && HeadRecord.HashOf(partId) != this.GetPrimaryKeyString()) { return false; }
+        if (!await MayHold(partId ?? store.State.PartId, next.Holder)) { return false; }
         var current = store.State.Head;
         if ((current?.Version ?? 0) != expectedVersion || next.Version != expectedVersion + 1) { return false; }
         if (next.PartHash != this.GetPrimaryKeyString()) { return false; }
@@ -48,8 +52,18 @@ internal sealed class SequencerGrain(
         if (current is not null && !revoked && current.LeaseExpiry > time.GetUtcNow() && !current.HolderKey.AsSpan().SequenceEqual(next.HolderKey)) { return false; }
         store.State.Head = next;
         store.State.Revoked = null;
+        store.State.PartId ??= partId;
         await store.WriteStateAsync();
         return true;
+    }
+
+    private async Task<bool> MayHold(string? partId, string machineId)
+    {
+        var slash = partId?.IndexOf('/', StringComparison.Ordinal) ?? -1;
+        if (partId is null || slash <= 0) { return true; }
+        var authority = GrainFactory.GetGrain<Identity.Authority.IBrainAuthority>(partId[..slash]);
+        return await authority.Kind() != DigitalBrain.Framework.Platform.Identity.BrainKind.Circle
+            || (await authority.Machines()).Contains(machineId, StringComparer.Ordinal);
     }
 }
 
@@ -58,4 +72,5 @@ internal sealed class SequencerState
 {
     [Id(0)] public HeadRecord? Head { get; set; }
     [Id(1)] public string? Revoked { get; set; }
+    [Id(2)] public string? PartId { get; set; }
 }

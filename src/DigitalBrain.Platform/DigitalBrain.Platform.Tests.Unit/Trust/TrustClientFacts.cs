@@ -73,8 +73,9 @@ public sealed class TrustClientFacts
         using var machine = SequencerFacts.Machine();
 
         var sequencer = services.GetRequiredService<ISequencerClient>();
-        Assert.True(await sequencer.CompareAndSet("p1", 0, SequencerFacts.Record(machine, "p1", 1, TimeSpan.FromMinutes(1))));
-        Assert.Equal(1, (await sequencer.Get("p1"))!.Version);
+        var hash = HeadRecord.HashOf("p1");
+        Assert.True(await sequencer.CompareAndSet(hash, 0, SequencerFacts.Record(machine, hash, 1, TimeSpan.FromMinutes(1)), "p1"));
+        Assert.Equal(1, (await sequencer.Get(hash))!.Version);
 
         var keyring = services.GetRequiredService<IKeyringClient>();
         Assert.True(await keyring.TryAdd("acct/brain", "acct/brain/apps/x", [1, 2, 3]));
