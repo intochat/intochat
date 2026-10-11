@@ -37,6 +37,8 @@ internal sealed class ForwardedCallEndpoint(PartRoutes routes, PartLogs logs, IS
     private readonly ConditionalWeakTable<QuicMachineLink, Task<string[]>> _accounts = [];
     private readonly ConditionalWeakTable<QuicMachineLink, ConcurrentDictionary<string, (Standing Standing, DateTimeOffset Until)>> _standing = [];
 
+    private readonly ConditionalWeakTable<QuicMachineLink, ConcurrentDictionary<string, (bool Belongs, DateTimeOffset Until)>> _principals = [];
+
     private enum Standing { None, Member, Owner }
 
     public async Task<LinkReply> Answer(QuicMachineLink link, LinkRequest request, CancellationToken _)
@@ -70,6 +72,15 @@ internal sealed class ForwardedCallEndpoint(PartRoutes routes, PartLogs logs, IS
         var standing = await StandingOf(link, accounts, part.BrainId);
         if (standing == Standing.None)
         { throw new UnauthorizedAccessException($"A call forwarded by machine {link.RemoteMachineId} into brain {part.BrainId} is refused: the machine serves neither its owner nor a member."); }
+        // R107: a non-owner machine speaks only for its users and apps, and only for a principal that belongs to the
+        // stamp's account; Platform and Scheduler stamps, or another account's principal, are forgeries from there.
+        if (standing != Standing.Owner && caller is not null)
+        {
+            if (caller.Kind is not (CallerKind.User or CallerKind.App))
+            { throw new UnauthorizedAccessException($"A {caller.Kind} caller forwarded by machine {link.RemoteMachineId} is refused: only the owner's machines forward platform or scheduler calls."); }
+            if (!await BelongsTo(link, caller.PrincipalId, caller.AccountId))
+            { throw new UnauthorizedAccessException($"A call forwarded by machine {link.RemoteMachineId} is refused: principal {caller.PrincipalId} does not belong to account {caller.AccountId}."); }
+        }
         if (standing != Standing.Owner && caller is null)
         { throw new UnauthorizedAccessException($"An unstamped call forwarded by machine {link.RemoteMachineId} is refused: only the owner's machines forward kernel work."); }
         if (standing != Standing.Owner && !IsNeuronContract(call))
@@ -122,6 +133,18 @@ internal sealed class ForwardedCallEndpoint(PartRoutes routes, PartLogs logs, IS
         }
         known[brainId] = (standing, now + Remembered);
         return standing;
+    }
+
+    // R107: per the identity directory the principal is the account's owning principal; cached like the standing.
+    private async Task<bool> BelongsTo(QuicMachineLink link, string principal, string account)
+    {
+        var known = _principals.GetValue(link, _ => new(StringComparer.Ordinal));
+        var key = account + "\n" + principal;
+        var now = time.GetUtcNow();
+        if (known.TryGetValue(key, out var cached) && cached.Until > now) { return cached.Belongs; }
+        var belongs = await identity.ReadAccount(account) is { } record && record.OwnerPrincipalId == principal;
+        known[key] = (belongs, now + Remembered);
+        return belongs;
     }
 
     private async Task RequireHolder(PartId part)
