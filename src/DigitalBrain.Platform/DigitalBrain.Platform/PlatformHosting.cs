@@ -38,6 +38,9 @@ public static class PlatformHosting
         services.AddOptions<Compute.FeeOptions>().BindConfiguration(Compute.FeeOptions.Key);
         services.AddOptions<Mesh.MeshOptions>().BindConfiguration(Mesh.MeshOptions.Key)
             .Validate(mesh => { mesh.Validate(); return true; }).ValidateOnStart();
+        // Seeds through the trust client; volunteers over this machine's links when it has them (T23-1).
+        services.TryAddSingleton<Mesh.IShardClient>(provider => new Mesh.ShardClient(provider.GetRequiredService<INodeDirectoryClient>(),
+            provider.GetRequiredService<Orleans.Serialization.Serializer>(), provider.GetService<DigitalBrain.Framework.Links.IMachineTransport>()));
         services.TryAddSingleton<DigitalBrain.Framework.Mesh.IMeshStore, Mesh.MeshStore>();
         services.AddOptions<Parts.PartsOptions>().BindConfiguration(Parts.PartsOptions.Key)
             .Validate(parts => { parts.Validate(); return true; }).ValidateOnStart();

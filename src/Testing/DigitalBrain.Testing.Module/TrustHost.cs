@@ -42,8 +42,9 @@ public sealed class TrustHost : IAsyncDisposable
     public IGrainFactory Grains => _host.Services.GetRequiredService<IGrainFactory>();
 
     // Every machine of a fact dials from 127.0.0.1, so the per-address new-account limit (R99) is raised unless a
-    // fact asks for the production one.
-    public static async Task<TrustHost> StartAsync(CancellationToken cancellationToken = default, int registrationsPerAddressPerMinute = 1000)
+    // fact asks for the production one. `configure` runs after the trust silo's own registrations (a fact's clock, say).
+    public static async Task<TrustHost> StartAsync(CancellationToken cancellationToken = default, int registrationsPerAddressPerMinute = 1000,
+        Action<ISiloBuilder>? configure = null)
     {
         var siloPort = FreePort();
         var id = $"trust-{Guid.NewGuid():N}";
@@ -63,6 +64,7 @@ public sealed class TrustHost : IAsyncDisposable
             silo.UseLocalhostClustering(siloPort, gatewayPort: 0, serviceId: id, clusterId: id);
             silo.AddMemoryGrainStorage(DigitalBrainNames.PlatformGrainStorage);
             silo.AddTrustCluster().AddTrustBoundary().AddTrustLinks();
+            configure?.Invoke(silo);
         });
         var host = builder.Build();
         try
