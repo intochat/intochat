@@ -47,8 +47,9 @@ public sealed class PartGrainStorageFacts
         await counter.Clear();
 
         Assert.Equal(0, await counter.Read());
+        Assert.Equal(1, await counter.Increment());
         await brain.RestartAsync(ct);
-        Assert.Equal(0, await brain.Get<IPartCounter>(Counter).Read());
+        Assert.Equal(1, await brain.Get<IPartCounter>(Counter).Read());
     }
 
     [Fact(Timeout = 120_000)]
