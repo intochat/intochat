@@ -36,6 +36,8 @@ public static class MachineHosting
         services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (provider, _) =>
             ActivatorUtilities.CreateInstance<PartGrainStorage>(provider));
         silo.TryAddKernelRegistration();
+        // Single-host composition (no trust endpoint) holds every part itself: nothing to forward.
+        if (!string.IsNullOrWhiteSpace(silo.Configuration[$"{Trust.TrustOptions.Key}:{nameof(Trust.TrustOptions.Endpoint)}"])) { silo.AddCrossPartCalls(); }
         services.AddOptions<PartsOptions>().Validate<IHostEnvironment, IServiceProvider>((parts, environment, provider) =>
         {
             ValidateCustody(parts, environment, provider);

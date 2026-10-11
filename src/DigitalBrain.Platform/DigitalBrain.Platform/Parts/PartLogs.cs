@@ -53,6 +53,11 @@ internal sealed class PartLogs(TrustDeployment deployment, ISequencerClient sequ
         [.. _logs.Values.Where(opening => opening.IsValueCreated && opening.Value.IsCompletedSuccessfully && !opening.Value.Result.Closed)
             .Select(opening => opening.Value.Result.Part)];
 
+    // R89: whether this silo's own lease on the part is still live, without opening it or asking the sequencer: what an
+    // Own holder trusts while the trust side is unreachable.
+    public bool HoldsLocally(PartId part) =>
+        _logs.TryGetValue(part.Value, out var opening) && opening.IsValueCreated && opening.Value.IsCompletedSuccessfully && opening.Value.Result.LeaseLive;
+
     // Hands the part back: its activations here are deactivated so none serves state another machine may change,
     // the log flushes, and the lease is released so another machine can take it. A part this silo does not hold
     // is a no-op.

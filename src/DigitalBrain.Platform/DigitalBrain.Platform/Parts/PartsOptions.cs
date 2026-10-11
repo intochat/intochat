@@ -34,8 +34,8 @@ public sealed class PartsOptions
     // Shared by every machine of one deployment (R52): a second machine joins an account only with it.
     public string? PairingSecret { get; set; }
 
-    // R76: the own machine that takes the owner's core at boot (Stage B: the primary the fronts and MCPs route to).
-    // Another own machine never races for it; the core moves only by an explicit release on its holder.
+    // R76/T20-11: boot acquisition only — the own machine that takes the owner's core at boot. Another own machine
+    // never races for it at boot; its calls into the core (kernel grains included) are forwarded to the core's holder.
     public bool CoreHolder { get; set; }
 
     // R35/R78: Tpm (the Windows module) is the production default for a single-machine owner, and an own machine in

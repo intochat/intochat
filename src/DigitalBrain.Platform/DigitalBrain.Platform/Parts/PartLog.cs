@@ -62,6 +62,8 @@ internal sealed class PartLog : IAsyncDisposable
         get { lock (_queue) { return _closed is not null || _disposed; } }
     }
 
+    public bool LeaseLive => !Closed && !_lease.Expired;
+
     public static async Task<PartLog> Open(PartId part, byte[] key, PartLease lease, IMeshStore mesh, Serializer serializer, PartsOptions options,
         TimeProvider time, ILogger<PartLog> logger, CancellationToken ct, string? deploymentDirectory = null)
     {

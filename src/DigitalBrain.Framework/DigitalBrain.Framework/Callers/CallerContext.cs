@@ -28,4 +28,6 @@ public sealed record CallerContext
     [Id(4)] public required TrustedEdge StampedBy { get; init; }
     [Id(5)] public string? AppId { get; init; }
     [Id(6)] public string? ConversationId { get; init; }
+    // Set by the holder of a part when the call arrived forwarded from another machine of the trust deployment (Task 22).
+    [Id(7)] public string? ForwardedBy { get; init; }
 }
