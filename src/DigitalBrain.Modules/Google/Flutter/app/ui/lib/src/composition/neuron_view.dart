@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
+import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../voice_input/ui_voice_input.dart';
@@ -12,6 +13,7 @@ import '../chat/ui_chat_transcript.dart';
 import '../chat/ui_composer.dart';
 import '../components/browser/ui_web_browser.dart';
 import '../components/chart/ui_chart.dart';
+import '../flame/scene_view.dart';
 import '../models/ui_part.dart';
 import 'renderer_registry.dart';
 import 'ui_collection_view.dart';
@@ -68,6 +70,7 @@ class NeuronView extends StatefulWidget {
     this.events,
     this.refreshEvery = const Duration(seconds: 2),
     this.watch,
+    this.scenes,
   });
   final String kind, name;
   final NeuronLoader load;
@@ -85,6 +88,9 @@ class NeuronView extends StatefulWidget {
   /// The node's change events. With a watch the view never polls: it reads once on mount and
   /// once per event. Without one it falls back to [refreshEvery].
   final Stream<void> Function(String kind, String name)? watch;
+
+  /// Reads `scene` children over the brain's Flame routes; without it a scene draws from [load].
+  final SceneClient? scenes;
   @override
   State<NeuronView> createState() => _NeuronViewState();
 }
@@ -157,7 +163,14 @@ class _NeuronViewState extends State<NeuronView> {
     }
   }
 
+  // One watch stream per view, so a rebuild does not resubscribe the scene.
+  Stream<void>? _sceneWatch;
+
+  bool get _scenesReadThemselves =>
+      widget.kind == 'scene' && widget.scenes != null;
+
   Future<void> _reload() async {
+    if (_scenesReadThemselves) return;
     if (_events.pending > 0) return;
     if (_loading) {
       _reloadAgain = true;
@@ -265,6 +278,7 @@ class _NeuronViewState extends State<NeuronView> {
     events: _events,
     refreshEvery: widget.refreshEvery,
     watch: widget.watch,
+    scenes: widget.scenes,
     ancestors: {...widget.ancestors, '${widget.kind}:${widget.name}'},
     revision: widget.revision,
     enabled: widget.enabled,
@@ -285,6 +299,13 @@ class _NeuronViewState extends State<NeuronView> {
     final identity = '${widget.kind}:${widget.name}';
     if (widget.ancestors.contains(identity) || widget.ancestors.length >= 16) {
       return const Center(child: Text('This component cannot be displayed.'));
+    }
+    if (_scenesReadThemselves) {
+      return SceneView(
+        sceneKey: widget.name,
+        client: widget.scenes,
+        refresh: _sceneWatch ??= widget.watch?.call(widget.kind, widget.name),
+      );
     }
     if (_data == null) {
       return WindowStateView(
@@ -639,6 +660,11 @@ class _NeuronViewState extends State<NeuronView> {
         );
       case 'chart':
         return UiChart(part: UiChartPart.fromMetadata(definition));
+      case 'scene':
+        return SceneView(
+          sceneKey: widget.name,
+          state: SceneState.fromJson({'name': widget.name, ...data}),
+        );
       case 'card':
         return Padding(
           padding: const EdgeInsets.all(8),

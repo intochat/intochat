@@ -21,6 +21,7 @@ import 'models/model_catalog.dart';
 import 'models/grant_summary.dart';
 import 'neuron_channel.dart';
 import 'node_contracts.dart';
+import 'scene_client.dart';
 import 'models/session_capabilities.dart';
 import 'models/table_models.dart';
 import 'models/workspace_models.dart';
@@ -726,6 +727,10 @@ final class DigitalBrainUiClient {
       jsonDecode(response.body) as Map<String, dynamic>,
     );
   }
+
+  /// The brain's scenes and stage over this client's authenticated session.
+  SceneClient scenes(String workspace) =>
+      SceneClient(_http, baseUri, workspace);
 
   Future<http.Response> _request(
     String method,

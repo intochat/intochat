@@ -43,6 +43,7 @@ final class RendererRegistry {
     'video',
     'webbrowser',
     'chart',
+    'scene',
     'graph',
     'table',
     'calendar',
@@ -64,6 +65,7 @@ final class RendererRegistry {
   /// Kinds `NeuronView` draws itself. Everything else in [uiKinds] uses the fallback.
   static const Set<String> dedicatedUiKinds = {
     'chart',
+    'scene',
     'table',
     'webbrowser',
     'surface',

@@ -30,6 +30,7 @@ const neuronDescriptions = <String, String>{
   'video': 'Video content and playback state.',
   'webbrowser': 'A web page or browser surface.',
   'chart': 'A visual summary of numeric data.',
+  'scene': 'A declarative Flame scene: nodes, state machines and tweens.',
   'graph': 'Connected nodes and relationships.',
   'table': 'Structured records arranged in columns and rows.',
   'calendar': 'Dates and scheduled items.',
@@ -164,6 +165,27 @@ Map<String, dynamic> neuronExample(String kind) => switch (kind) {
       ['A Field Guide', '210'],
       ['The Creative Act', '432'],
     ],
+  },
+  'scene' => {
+    'nodes': [
+      {
+        'id': 'sun',
+        'type': 'circle',
+        'transform': {'x': 0, 'y': 0},
+        'style': '#F5B941',
+        'parameters': {'radius': '32'},
+      },
+      {
+        'id': 'caption',
+        'type': 'text',
+        'transform': {'x': 0, 'y': 52},
+        'style': '#E6EDF3',
+        'parameters': {'text': 'Hello, scene'},
+      },
+    ],
+    'machines': [],
+    'camera': {'x': 0, 'y': 0, 'zoom': 1},
+    'background': '#0B0F14',
   },
   'chart' => {
     'title': 'Pages read',
