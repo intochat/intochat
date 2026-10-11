@@ -318,6 +318,71 @@ public sealed class PartLogFacts
     }
 
     [Fact(Timeout = 60_000)]
+    public async Task AnOwnLogShrinksItsJournalFileOnceTheHeadAcceptsItsChanges()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await StartAsync(ct);
+        var part = PartId.ForApp("home", "notes");
+        var key = RandomNumberGenerator.GetBytes(32);
+        using var machine = SequencerFacts.Machine();
+        var options = Own();
+        await using var log = await OpenAsync(brain, part, key, machine, options, TimeProvider.System, ct);
+
+        for (var i = 0; i < 10; i++) { await log.Append($"g{i}", "s", RecordChange.Write, new byte[200], []); }
+        await log.Flushed();
+
+        Assert.Equal(0, new FileInfo(JournalPath(options, part)).Length);
+    }
+
+    [Fact(Timeout = 60_000)]
+    public async Task ABacklogLargerThanOneCommitCanCarryCommitsInBatchesAndTheJournalIsTrimmed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await StartAsync(ct);
+        var part = PartId.ForApp("home", "notes");
+        var key = RandomNumberGenerator.GetBytes(32);
+        using var machine = SequencerFacts.Machine();
+        var options = Own();
+        options.BatchBytes = 2_000;
+        var mesh = new UnreachableMesh(brain.Services.GetRequiredService<IMeshStore>());
+
+        await using (var log = await OpenAsync(brain, part, key, machine, options, TimeProvider.System, ct, mesh))
+        {
+            mesh.Offline = true;
+            for (var i = 0; i < 30; i++) { await log.Append($"g{i}", "s", RecordChange.Write, new byte[500], []); }
+            // The whole backlog in one segment would be refused on every retry and the journal would only grow.
+            mesh.MaxSegmentBytes = 8_000;
+            mesh.Offline = false;
+            await log.Flushed();
+            Assert.Equal(0, new FileInfo(JournalPath(options, part)).Length);
+        }
+        await using var reopened = await OpenAsync(brain, part, key, machine, options, TimeProvider.System, ct);
+
+        Assert.All(Enumerable.Range(0, 30), i => Assert.NotNull(reopened.Read($"g{i}", "s")));
+    }
+
+    [Fact(Timeout = 60_000)]
+    public async Task AChangeLargerThanAnyCommitCarriesIsRefusedBeforeItReachesTheJournal()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await StartAsync(ct);
+        var part = PartId.ForApp("home", "notes");
+        var key = RandomNumberGenerator.GetBytes(32);
+        using var machine = SequencerFacts.Machine();
+        var options = Own();
+        options.MaxChangeBytes = 1_000;
+        await using var log = await OpenAsync(brain, part, key, machine, options, TimeProvider.System, ct);
+
+        await Assert.ThrowsAsync<ChangeTooLargeException>(() => log.Append("big", "s", RecordChange.Write, new byte[2_000], []));
+        await log.Append("small", "s", RecordChange.Write, [1], []);
+        await log.Flushed();
+
+        Assert.Null(log.Read("big", "s"));
+        Assert.Equal([1], log.Read("small", "s")!.Record);
+        Assert.Equal(0, new FileInfo(JournalPath(options, part)).Length);
+    }
+
+    [Fact(Timeout = 60_000)]
     public async Task AnAmbiguousCommitFailureClosesANonOwnLog()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -369,6 +434,9 @@ public sealed class PartLogFacts
         // The segment lands but the caller never hears back: whether the head moved is unknown to it.
         public volatile bool FailAfterWrite;
 
+        // A segment larger than this is refused, as a commit too big to carry would be.
+        public int MaxSegmentBytes = int.MaxValue;
+
         private void Check()
         {
             if (Offline) { throw new ServiceUnavailableException("The platform is unreachable."); }
@@ -377,6 +445,7 @@ public sealed class PartLogFacts
         public Task<MeshRef> Write(byte[] key, string segmentId, byte[] plaintext, CancellationToken cancellationToken = default)
         {
             Check();
+            if (plaintext.Length > MaxSegmentBytes) { throw new ServiceUnavailableException($"A {plaintext.Length}-byte segment is too large."); }
             if (!FailAfterWrite) { return inner.Write(key, segmentId, plaintext, cancellationToken); }
             return WriteThenTimeOut(key, segmentId, plaintext, cancellationToken);
         }
