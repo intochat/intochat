@@ -258,7 +258,7 @@ public sealed class MeshAuditorFacts
         Assert.Equal(1.0, (await directory.List()).Single(node => node.NodeId == target).Reputation);
     }
 
-    // A snapshot that lands between reading the head's refs and proving them discards those refs: the pass reports
+    // A snapshot that lands between proving the head's refs and reporting them discards those refs: the pass reports
     // nothing about them and heals nothing.
     [Fact(Timeout = 180_000)]
     public async Task ASnapshotLandingMidPassReportsNothing()
@@ -284,6 +284,8 @@ public sealed class MeshAuditorFacts
         Assert.NotNull(landed);
         Assert.Equal(0, reports.From(p));
         Assert.Equal(landed, (await log.Reached()).Snapshot!.ManifestCid);
+        // The pass ran to its end (not swallowed by a failed prove): the round advanced once.
+        Assert.Equal(1, log.Head.AuditRound);
         Assert.All(await trust.Grains.GetGrain<IStorageNodeDirectory>(IStorageNodeDirectory.Key).List(), node => Assert.Equal(1.0, node.Reputation));
     }
 

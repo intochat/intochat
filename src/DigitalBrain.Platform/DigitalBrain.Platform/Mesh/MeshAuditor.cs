@@ -71,7 +71,7 @@ internal sealed partial class MeshAuditor(PartLogs logs, IMeshStore mesh, IShard
         }
     }
 
-    // Facts only: runs between reading the head's refs and proving them (a snapshot landing mid-pass).
+    // Facts only: runs between proving the head's refs and reporting them (a snapshot landing mid-pass).
     internal Func<PartLog, Task>? AfterReached { get; set; }
 
     private MeshStore Store => mesh as MeshStore ?? throw new InvalidOperationException("The auditor needs the platform's MeshStore.");
@@ -81,7 +81,6 @@ internal sealed partial class MeshAuditor(PartLogs logs, IMeshStore mesh, IShard
         var round = log.Head.AuditRound;
         var (snapshot, chain) = await log.Reached();
         if (snapshot is null && chain.Length == 0) { return; }
-        if (AfterReached is { } hook) { await hook(log); }
         var health = (await directory.List()).ToDictionary(node => node.NodeId, StringComparer.Ordinal);
 
         var proved = new List<(MeshRef Reference, bool Chained, ShardAudit[] Results, int ShardSize)>();
@@ -96,6 +95,7 @@ internal sealed partial class MeshAuditor(PartLogs logs, IMeshStore mesh, IShard
             return;
         }
 
+        if (AfterReached is { } hook) { await hook(log); }
         var chainFailed = false;
         int[] evictedFromSnapshot = [];
         var snapshotFailed = false;
