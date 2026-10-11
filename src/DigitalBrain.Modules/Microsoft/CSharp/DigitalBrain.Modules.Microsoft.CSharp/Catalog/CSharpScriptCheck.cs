@@ -37,15 +37,23 @@ public sealed class CSharpScriptCheck
 
     private static readonly CSharpParseOptions Parse = new(LanguageVersion.Preview);
     private static readonly Lazy<MetadataReference[]> References = new(LoadReferences);
+    private static readonly Lazy<string> ReferenceFingerprint = new(() => Hash(string.Join('\u0001', References.Value
+        .Select(reference => reference.Display + "\u0000" + (reference is PortableExecutableReference { FilePath: { } path } ? new FileInfo(path).Length + ":" + File.GetLastWriteTimeUtc(path).Ticks : "")))));
     // Deterministic so one source always yields one hash: no PDB path, no timestamps.
     private static readonly CSharpCompilationOptions Options = new(OutputKind.ConsoleApplication, deterministic: true, nullableContextOptions: NullableContextOptions.Enable);
     private static readonly EmitOptions Emit = new(debugInformationFormat: DebugInformationFormat.PortablePdb);
 
     private const int CacheCapacity = 1024;
-    // Keyed by the synapse's path and source plus every shared file; the references are fixed for the process, so
-    // that is the whole input of an emit. Only clean emits are kept.
-    private readonly ConcurrentDictionary<string, CompiledBehavior> _emitted = new(StringComparer.Ordinal);
+    // Process-wide, keyed by the reference fingerprint, the synapse's path and source plus every shared file:
+    // the whole input of an emit. Only clean emits are kept.
+    private static readonly ConcurrentDictionary<string, CompiledBehavior> Emitted = new(StringComparer.Ordinal);
     private long _emits;
+    private readonly string _references;
+
+    public CSharpScriptCheck() : this(ReferenceFingerprint.Value) { }
+
+    // The fingerprint of the contract set the emits compile against; part of every cache key.
+    public CSharpScriptCheck(string referencesFingerprint) => _references = referencesFingerprint;
 
     public long Emits => Interlocked.Read(ref _emits);
 
@@ -66,12 +74,12 @@ public sealed class CSharpScriptCheck
             return CSharpSyntaxTree.ParseText(SourceText.From(library.Value, Encoding.UTF8), Parse, library.Key);
         }).Append(CSharpSyntaxTree.ParseText(SourceText.From(GlobalUsings, Encoding.UTF8), Parse, "GlobalUsings.cs")).ToArray();
         var reportedLibraryErrors = false;
-        var libraryKey = Hash(string.Join('\u0001', libraries.Select(library => library.Key + "\u0000" + library.Value)));
+        var libraryKey = Hash(_references + '\u0002' + string.Join('\u0001', libraries.Select(library => library.Key + "\u0000" + library.Value)));
         foreach (var (path, source) in programs)
         {
             ArgumentNullException.ThrowIfNull(source, path);
             var key = Hash(libraryKey + "\u0001" + path + "\u0000" + source);
-            if (_emitted.TryGetValue(key, out var known)) { assemblies[path] = known; continue; }
+            if (Emitted.TryGetValue(key, out var known)) { assemblies[path] = known; continue; }
             var trees = shared.Prepend(CSharpSyntaxTree.ParseText(SourceText.From(source, Encoding.UTF8), Parse, path)).ToArray();
             var compilation = CSharpCompilation.Create("behavior", trees, References.Value, Options);
             using var assembly = new MemoryStream();
@@ -91,8 +99,8 @@ public sealed class CSharpScriptCheck
                 var bytes = assembly.ToArray();
                 var behavior = new CompiledBehavior(bytes, symbols.ToArray(), Convert.ToHexStringLower(SHA256.HashData(bytes)));
                 assemblies[path] = behavior;
-                if (_emitted.Count >= CacheCapacity) { _emitted.Clear(); }
-                _emitted[key] = behavior;
+                if (Emitted.Count >= CacheCapacity) { Emitted.Clear(); }
+                Emitted[key] = behavior;
             }
         }
         return new(errors.Count == 0, errors, errors.Count == 0 ? assemblies : new Dictionary<string, CompiledBehavior>());

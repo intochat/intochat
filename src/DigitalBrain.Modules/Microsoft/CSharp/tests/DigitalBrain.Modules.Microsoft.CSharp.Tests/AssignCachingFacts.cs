@@ -1,4 +1,7 @@
 using System.Collections.Concurrent;
+using Azure;
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 using DigitalBrain.Microsoft.CSharp.Assemblies;
 using DigitalBrain.Microsoft.CSharp.Catalog;
 using DigitalBrain.Microsoft.CSharp.Runtime;
@@ -21,6 +24,7 @@ public sealed class AssignCachingFacts
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         var programs = RuntimeBrain.Programs(brain, Brain);
         var compiler = brain.Services.GetRequiredService<CSharpScriptCheck>();
+        var two = RuntimeBrain.Idle + "// two " + Guid.NewGuid() + "\n";
         var first = await programs.Assign(Owner, Program(RuntimeBrain.Idle + "// one\n"), []);
         var before = compiler.Emits;
 
@@ -40,6 +44,7 @@ public sealed class AssignCachingFacts
         var store = new RecordingAssemblies();
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, assemblies: store);
         var programs = RuntimeBrain.Programs(brain, Brain);
+        var two = RuntimeBrain.Idle + "// two " + Guid.NewGuid() + "\n";
         await programs.Assign(Owner, Program(RuntimeBrain.Idle + "// one\n"), []);
         var uploaded = store.Puts.Count;
 
@@ -47,6 +52,65 @@ public sealed class AssignCachingFacts
 
         Assert.Equal(uploaded + 1, store.Puts.Count);
         Assert.Equal(store.Puts.Count, store.Puts.Distinct().Count());
+    }
+
+    [Fact]
+    public async Task ChecksWithDifferentReferenceFingerprintsDoNotShareACompiledSynapse()
+    {
+        var files = new Dictionary<string, string> { ["a.cs"] = "Console.WriteLine(1);// " + Guid.NewGuid() + "\n" };
+        var one = new CSharpScriptCheck("references-one");
+        var sameAsOne = new CSharpScriptCheck("references-one");
+        var other = new CSharpScriptCheck("references-two");
+
+        one.Compile(files);
+        sameAsOne.Compile(files);
+        other.Compile(files);
+
+        Assert.Equal(1, one.Emits);
+        Assert.Equal(0, sameAsOne.Emits);
+        Assert.Equal(1, other.Emits);
+    }
+
+    [Fact]
+    public async Task AnAssemblyBlobWithoutItsSymbolsIsUploadedAgain()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var blobs = new FakeBlobs();
+        var store = new BlobBehaviorAssemblies(blobs);
+        var behavior = new CSharpScriptCheck().Compile(new Dictionary<string, string> { ["a.cs"] = "Console.WriteLine(1);// " + Guid.NewGuid() + "\n" }).Assemblies["a.cs"];
+        blobs.Stored.Add(behavior.Hash);
+
+        Assert.False(await store.Exists(behavior.Hash, ct));
+        await store.Put(behavior, ct);
+
+        Assert.True(await store.Exists(behavior.Hash, ct));
+        Assert.Equal([behavior.Hash, behavior.Hash + ".pdb"], blobs.Uploads);
+    }
+
+    private sealed class FakeBlobs : BlobServiceClient
+    {
+        public HashSet<string> Stored { get; } = [];
+        public List<string> Uploads { get; } = [];
+        public override BlobContainerClient GetBlobContainerClient(string blobContainerName) => new FakeContainer(this);
+    }
+
+    private sealed class FakeContainer(FakeBlobs blobs) : BlobContainerClient
+    {
+        public override Task<Response<BlobContainerInfo>> CreateIfNotExistsAsync(PublicAccessType publicAccessType = PublicAccessType.None, IDictionary<string, string>? metadata = null, BlobContainerEncryptionScopeOptions? encryptionScopeOptions = null, CancellationToken cancellationToken = default)
+            => Task.FromResult<Response<BlobContainerInfo>>(null!);
+        public override BlobClient GetBlobClient(string blobName) => new FakeBlob(blobs, blobName);
+    }
+
+    private sealed class FakeBlob(FakeBlobs blobs, string name) : BlobClient
+    {
+        public override Task<Response<bool>> ExistsAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(Response.FromValue(blobs.Stored.Contains(name), null!));
+        public override Task<Response<BlobContentInfo>> UploadAsync(BinaryData content, bool overwrite = false, CancellationToken cancellationToken = default)
+        {
+            blobs.Stored.Add(name);
+            blobs.Uploads.Add(name);
+            return Task.FromResult<Response<BlobContentInfo>>(null!);
+        }
     }
 
     private sealed class RecordingAssemblies : IBehaviorAssemblies

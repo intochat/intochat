@@ -15,13 +15,13 @@ internal sealed class BlobBehaviorAssemblies(BlobServiceClient storage) : IBehav
     {
         ArgumentNullException.ThrowIfNull(behavior);
         await _container.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
-        // Symbols first: Exists answers for the assembly, so its blob only appears once the pair is complete.
-        await _container.GetBlobClient(behavior.Hash + ".pdb").UploadAsync(new BinaryData(behavior.Symbols), overwrite: true, cancellationToken);
         await _container.GetBlobClient(behavior.Hash).UploadAsync(new BinaryData(behavior.Assembly), overwrite: true, cancellationToken);
+        // Written last: the symbols blob existing means the pair is complete, even for an assembly an older writer left alone.
+        await _container.GetBlobClient(behavior.Hash + ".pdb").UploadAsync(new BinaryData(behavior.Symbols), overwrite: true, cancellationToken);
     }
 
     public async Task<bool> Exists(string hash, CancellationToken cancellationToken)
-        => await _container.GetBlobClient(hash).ExistsAsync(cancellationToken);
+        => await _container.GetBlobClient(hash + ".pdb").ExistsAsync(cancellationToken);
 
     public async Task<Uri> ReadUrl(string name, TimeSpan lifetime, CancellationToken cancellationToken)
     {
