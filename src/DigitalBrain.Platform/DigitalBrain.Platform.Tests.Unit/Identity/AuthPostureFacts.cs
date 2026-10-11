@@ -61,15 +61,11 @@ public sealed class AuthPostureFacts
     public async Task Registering_the_reserved_bootstrap_username_conflicts()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithExecution(new DigitalBrain.Testing.TestExecutionOptions
-        {
-            PrivateConfiguration = new Dictionary<string, string?>
-            {
-                [AuthOptions.PostureKey] = "Secured",
-                [AuthOptions.Key(nameof(AuthOptions.Username))] = "ops",
-                [AuthOptions.Key(nameof(AuthOptions.Password))] = "a-long-operator-password",
-            },
-        }).StartAsync(ct);
+        await using var brain = await TestBrain.Create()
+            .WithConfiguration(AuthOptions.PostureKey, "Secured")
+            .WithConfiguration(AuthOptions.Key(nameof(AuthOptions.Username)), "ops")
+            .WithConfiguration(AuthOptions.Key(nameof(AuthOptions.Password)), "a-long-operator-password")
+            .StartAsync(ct);
         var builder = WebApplication.CreateBuilder();
         builder.Configuration[AuthOptions.PostureKey] = "Secured";
         builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Username))] = "ops";

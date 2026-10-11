@@ -48,7 +48,7 @@ public sealed class AuditRepairFacts
     public async Task SpentChallengesAreReissuedWithoutMovingShards()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (brain, store, _) = await MeshStoreFacts.StartAsync(8, ct, options => options.ChallengesPerShard = 1);
+        var (brain, store, _) = await MeshStoreFacts.StartAsync(8, ct, challengesPerShard: 1);
         await using var _ = brain;
         var reference = await store.Write(Key, "part/log/1", [1, 2, 3], ct);
         Assert.All(await store.Audit(Key, reference, 0, ct), r => Assert.True(r.Passed, r.Reason));

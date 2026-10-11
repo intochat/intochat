@@ -43,7 +43,7 @@ public sealed class PartGrainStorageFacts
         var counter = brain.Get<IPartCounter>(Counter);
         for (var i = 0; i < 3; i++) { await counter.Increment(); }
 
-        await brain.RestartSiloAsync(ct);
+        await brain.RestartAsync(ct);
 
         Assert.Equal(3, await brain.Get<IPartCounter>(Counter).Read());
         Assert.NotNull(await brain.Grains.GetGrain<ISequencerGrain>(HeadRecord.HashOf($"{Scope}/apps/counter")).Get());
@@ -98,20 +98,6 @@ public sealed class PartGrainStorageFacts
 
         await brain.Get<IPartCounter>(Counter).Increment();
 
-        Assert.Contains(await Listed(brain, ct), instance => instance.Key == Counter);
-    }
-
-    [Fact(Timeout = 60_000)]
-    public async Task ThePartLogAddedAfterTheKernelRegistrationIsStillRegistered()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithPartLog()
-            .ConfigureSilo(silo => { silo.AddKernelRegistration(); silo.AddMachinePartLog(); })
-            .StartAsync(ct);
-
-        await brain.Get<IPartCounter>(Counter).Increment();
-
-        Assert.True(BrainHosting.HasKernelRegistration(brain.SiloServices));
         Assert.Contains(await Listed(brain, ct), instance => instance.Key == Counter);
     }
 

@@ -11,16 +11,14 @@ public sealed class MeshStoreFacts
     private static readonly byte[] Key = RandomNumberGenerator.GetBytes(32);
 
     internal static async Task<(ITestBrain Brain, IMeshStore Store, IStorageNodeDirectory Directory)> StartAsync(
-        int owners, CancellationToken ct, Action<MeshOptions>? configure = null)
+        int owners, CancellationToken ct, int? challengesPerShard = null, int dataShards = 4, int parityShards = 2)
     {
-        var brain = await TestBrain.Create()
-            .ConfigureSilo(silo => silo.Services.Configure<MeshOptions>(options =>
-            {
-                options.DataShards = 4;
-                options.ParityShards = 2;
-                configure?.Invoke(options);
-            }))
-            .StartAsync(ct);
+        var builder = TestBrain.Create()
+            .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.DataShards)}", dataShards.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.ParityShards)}", parityShards.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        if (challengesPerShard is { } challenges)
+        { builder = builder.WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.ChallengesPerShard)}", challenges.ToString(System.Globalization.CultureInfo.InvariantCulture)); }
+        var brain = await builder.StartAsync(ct);
         var directory = brain.Grains.GetGrain<IStorageNodeDirectory>(IStorageNodeDirectory.Key);
         for (var i = 0; i < owners; i++) { await directory.Register($"n{i}", $"owner{i}"); }
         return (brain, brain.SiloServices.GetRequiredService<IMeshStore>(), directory);
@@ -140,7 +138,7 @@ public sealed class MeshStoreFacts
     public async Task TwoSegmentsOfTheSameShortDataShareNoShard()
     {
         var ct = TestContext.Current.CancellationToken;
-        var (brain, store, _) = await StartAsync(41, ct, options => { options.DataShards = 40; options.ParityShards = 1; });
+        var (brain, store, _) = await StartAsync(41, ct, dataShards: 40, parityShards: 1);
         await using var _ = brain;
 
         var a = await Manifest(brain, Key, await store.Write(Key, "part/log/1", [7], ct));

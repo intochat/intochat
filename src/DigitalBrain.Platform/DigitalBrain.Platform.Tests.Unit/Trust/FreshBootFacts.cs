@@ -14,7 +14,7 @@ public sealed class FreshBootFacts
         var handler = new Recording();
         await using var trust = await TrustHost.StartAsync(ct);
         await using var machine = await TestBrain.Create().WithTrust(trust).WithPartLog().WithConfiguration(SecondMachineFacts.CoreHolder, "true")
-            .ConfigureSilo(silo => silo.Services.AddSingleton<ICreationHandler>(handler))
+            .ConfigureServices(services => services.AddSingleton<ICreationHandler>(handler))
             .StartAsync(ct);
 
         await machine.SiloServices.GetRequiredService<DigitalBrain.Platform.Trust.OwnerBirth>().Born.WaitAsync(ct);
@@ -30,7 +30,7 @@ public sealed class FreshBootFacts
         var ct = TestContext.Current.CancellationToken;
         var gate = new Gate();
         await using var machine = await TestBrain.Create()
-            .ConfigureSilo(silo => silo.Services.AddSingleton<ICreationHandler>(gate))
+            .ConfigureServices(services => services.AddSingleton<ICreationHandler>(gate))
             .StartAsync(ct);
 
         await gate.Entered.Task.WaitAsync(ct);
@@ -47,7 +47,7 @@ public sealed class FreshBootFacts
         var ct = TestContext.Current.CancellationToken;
         var handler = new Recording();
         await using var machine = await TestBrain.Create()
-            .ConfigureSilo(silo => silo.Services.AddSingleton<ICreationHandler>(handler))
+            .ConfigureServices(services => services.AddSingleton<ICreationHandler>(handler))
             .StartAsync(ct);
 
         await machine.SiloServices.GetRequiredService<DigitalBrain.Platform.Trust.OwnerBirth>().Born.WaitAsync(ct);

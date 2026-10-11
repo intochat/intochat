@@ -41,7 +41,7 @@ public sealed class PartLeaseFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        await using var brain = await TestBrain.Create().ConfigureSilo(silo => silo.Services.AddSingleton<TimeProvider>(time)).StartAsync(ct);
+        await using var brain = await TestBrain.Create().ConfigureServices(services => services.AddSingleton<TimeProvider>(time)).StartAsync(ct);
         var serializer = brain.SiloServices.GetRequiredService<Serializer>();
         var part = PartId.ForApp("home", "notes");
         var key = RandomNumberGenerator.GetBytes(32);

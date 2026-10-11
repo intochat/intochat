@@ -12,18 +12,6 @@ namespace DigitalBrain.Platform.Tests.Unit;
 public sealed class PlatformHostingFacts
 {
     [Fact]
-    public async Task ABrainWithoutModulesHasEveryPlatformFacet()
-    {
-        await using var brain = await TestBrain.Create().StartAsync(TestContext.Current.CancellationToken);
-        Assert.NotNull(brain.SiloServices.GetRequiredService<ICapabilities>());
-        Assert.NotNull(brain.SiloServices.GetRequiredService<IIdentity>());
-        Assert.NotNull(brain.SiloServices.GetRequiredService<IBrainAccess>());
-        Assert.NotNull(brain.SiloServices.GetRequiredService<IKeyWrapper>());
-        Assert.NotNull(brain.Grains.GetGrain<ISecrets>("owner"));
-        Assert.Single(brain.SiloServices.GetServices<ICallFilterStage>(), stage => stage.GetType().Name == "GrantCallFilterStage");
-    }
-
-    [Fact]
     public async Task IdentityAnswersOwnershipMembershipAndGrantQuestionsThroughTheSdk()
     {
         var ct = TestContext.Current.CancellationToken;

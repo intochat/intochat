@@ -344,15 +344,14 @@ public sealed class CrossPartCallFacts
         {
             var counter = NewCounter();
             await two.Grains.GetGrain<ICrossCounter>(counter).Touch();
-            var owner = AccountSession.DefaultLogin;
-            RequestContext.Set(CallerContextStamper.RequestContextKey, new CallerContext
+            var owner = one.Owner.PrincipalId;
+            using (one.Owner.AsCaller())
             {
-                PrincipalId = owner, AccountId = owner, BrainId = Scope, Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp,
-            });
-            RequestContext.Set("digitalbrain.trusted-module-call", true);
-            RequestContext.Set("test.forged", "forged");
-            try { await one.Grains.GetGrain<ICrossCounter>(counter).Value(); }
-            finally { RequestContext.Clear(); }
+                RequestContext.Set("digitalbrain.trusted-module-call", true);
+                RequestContext.Set("test.forged", "forged");
+                try { await one.Grains.GetGrain<ICrossCounter>(counter).Value(); }
+                finally { RequestContext.Remove("digitalbrain.trusted-module-call"); RequestContext.Remove("test.forged"); }
+            }
 
             var (keys, caller) = RequestCapture.Contexts[$"{GrainId.Create("test.cross-counter", counter)}#Value"];
             Assert.DoesNotContain("test.forged", keys);

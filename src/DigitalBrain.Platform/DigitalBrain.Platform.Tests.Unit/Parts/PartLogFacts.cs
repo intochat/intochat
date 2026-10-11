@@ -16,13 +16,12 @@ public sealed class PartLogFacts
 {
     internal static async Task<ITestBrain> StartAsync(CancellationToken ct, TimeProvider? time = null)
     {
-        var brain = await TestBrain.Create()
-            .ConfigureSilo(silo =>
-            {
-                silo.Services.Configure<MeshOptions>(options => { options.DataShards = 4; options.ParityShards = 2; });
-                if (time is not null) { silo.Services.AddSingleton(time); }
-            })
-            .StartAsync(ct);
+        var builder = TestBrain.Create()
+            .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.DataShards)}", "4")
+            .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.ParityShards)}", "2");
+        // The lease clock: a fact moves time past a lease without waiting for it.
+        if (time is not null) { builder = builder.ConfigureServices(services => services.AddSingleton(time)); }
+        var brain = await builder.StartAsync(ct);
         var directory = brain.Grains.GetGrain<IStorageNodeDirectory>(IStorageNodeDirectory.Key);
         for (var i = 0; i < 8; i++) { await directory.Register($"n{i}", "platform"); }
         return brain;

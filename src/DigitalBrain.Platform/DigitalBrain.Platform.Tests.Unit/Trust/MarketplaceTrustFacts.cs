@@ -33,14 +33,14 @@ public sealed class MarketplaceTrustFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        await brain.OwnBrainAsync("alice", "home");
-        await brain.OwnBrainAsync("mallory", "mallory-home");
-        var marketplace = brain.SiloServices.GetRequiredService<IMarketplaceClient>();
-        await marketplace.Upsert("alice", new MarketplaceRecord("alice", "alice", "home", "echo", "Echo", "", "1.0.0", null));
+        using var alice = await brain.PersonAsync("alice", ct);
+        using var mallory = await brain.PersonAsync("mallory", ct);
+        var marketplace = brain.Services.GetRequiredService<IMarketplaceClient>();
+        await marketplace.Upsert(alice.AccountId, new MarketplaceRecord("alice", alice.AccountId, alice.BrainId, "echo", "Echo", "", "1.0.0", null));
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => marketplace.Remove("mallory", "alice", "echo"));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => marketplace.Remove(mallory.AccountId, "alice", "echo"));
         Assert.NotNull(await marketplace.Read("alice", "echo"));
-        await marketplace.Remove("alice", "alice", "echo");
+        await marketplace.Remove(alice.AccountId, "alice", "echo");
         Assert.Null(await marketplace.Read("alice", "echo"));
     }
 }

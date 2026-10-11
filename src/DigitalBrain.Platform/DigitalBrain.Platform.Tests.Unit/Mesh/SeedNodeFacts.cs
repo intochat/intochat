@@ -7,7 +7,7 @@ public sealed class SeedNodeFacts
 {
     private static Task<ITestBrain> StartAsync(int seedNodes, CancellationToken ct) =>
         TestBrain.Create()
-            .ConfigureSilo(silo => silo.Services.Configure<MeshOptions>(mesh => mesh.SeedNodes = seedNodes))
+            .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.SeedNodes)}", seedNodes.ToString(System.Globalization.CultureInfo.InvariantCulture))
             .StartAsync(ct);
 
     [Fact(Timeout = 60_000)]

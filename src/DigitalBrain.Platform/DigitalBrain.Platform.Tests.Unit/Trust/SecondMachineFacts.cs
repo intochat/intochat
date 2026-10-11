@@ -26,7 +26,7 @@ public sealed class SecondMachineFacts
         Assert.Contains(PartId.Core(scope), a.SiloServices.GetRequiredService<PartLogs>().Opened);
 
         await using var b = await TestBrain.Create().WithTrust(trust).WithPartLog()
-            .ConfigureSilo(silo => silo.Services.AddSingleton<ILoggerProvider>(errors))
+            .ConfigureServices(services => services.AddSingleton<ILoggerProvider>(errors))
             .StartAsync(ct);
         var birth = b.SiloServices.GetRequiredService<OwnerBirth>();
         await birth.Born.WaitAsync(ct);
@@ -66,7 +66,7 @@ public sealed class SecondMachineFacts
         var errors = new ErrorLog();
         await using var trust = await TrustHost.StartAsync(ct);
         await using var a = await TestBrain.Create().WithTrust(trust).WithPartLog().WithConfiguration(CoreHolder, "true")
-            .ConfigureSilo(silo => silo.Services.AddSingleton<ILoggerProvider>(errors))
+            .ConfigureServices(services => services.AddSingleton<ILoggerProvider>(errors))
             .StartAsync(ct);
         await a.SiloServices.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
         var scope = BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;

@@ -57,11 +57,12 @@ public sealed class NeuronsWatchFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start(ct);
+        await brain.Get<IPulse>("owner/pulse-live").Pulse(1);
         using var call = NeuronsCallFacts.Client(brain).Watch(Watch("owner/pulse-live", nameof(Pulsed)), cancellationToken: ct);
-        var next = call.ResponseStream.MoveNext(ct);
-        await Task.Delay(300, ct); // the subscription registers before the pulse
+        // The retained pulse arrives first: the watch is subscribed before the live one is sent.
+        Assert.True(await call.ResponseStream.MoveNext(ct).WaitAsync(TimeSpan.FromSeconds(10), ct));
         await brain.Get<IPulse>("owner/pulse-live").Pulse(7);
-        Assert.True(await next.WaitAsync(TimeSpan.FromSeconds(10), ct));
+        Assert.True(await call.ResponseStream.MoveNext(ct).WaitAsync(TimeSpan.FromSeconds(10), ct));
         var envelope = call.ResponseStream.Current;
         Assert.Equal("owner/pulse-live", envelope.Source);
         Assert.Equal(nameof(Pulsed), envelope.Type);
@@ -112,7 +113,6 @@ public sealed class NeuronsWatchFacts
         using var disconnect = CancellationTokenSource.CreateLinkedTokenSource(ct);
         using var call = NeuronsCallFacts.Client(brain).Watch(Watch("owner/pulse-gone", nameof(Pulsed)), cancellationToken: disconnect.Token);
         var next = call.ResponseStream.MoveNext(disconnect.Token);
-        await Task.Delay(300, ct);
         await disconnect.CancelAsync();
         await Assert.ThrowsAnyAsync<Exception>(() => next.WaitAsync(TimeSpan.FromSeconds(10), ct));
     }

@@ -50,20 +50,20 @@ public sealed class IdentitySigningFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        await brain.OwnBrainAsync("alice", "alice-home");
+        using var alice = await brain.PersonAsync("alice", ct);
         using var machine = SequencerFacts.Machine();
-        await TrustClientFacts.Register(brain.SiloServices.GetRequiredService<INodeDirectoryClient>(), machine, "mallory", []);
+        await TrustClientFacts.Register(brain.Services.GetRequiredService<INodeDirectoryClient>(), machine, "mallory", []);
         var mallory = GrainTrustClients.WithScratchCounter(brain.Grains, machine);
-        var intruder = Owner("alice", "alice-home") with { PrincipalId = "mallory", Role = MemberRole.Member };
+        var intruder = Owner(alice.AccountId, alice.BrainId) with { PrincipalId = "mallory", Role = MemberRole.Member };
         var caller = new CallerContext
         {
-            PrincipalId = "alice", AccountId = "alice", BrainId = "alice-home", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp,
+            PrincipalId = alice.PrincipalId, AccountId = alice.AccountId, BrainId = alice.BrainId, Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp,
         };
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => mallory.EnsureMember(intruder));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => mallory.ProvisionOwner(Owner("alice", "alice-other")));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => mallory.ProvisionOwner(Owner(alice.AccountId, "alice-other")));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => mallory.GrantAsOwner(caller,
-            new DigitalBrain.Platform.Identity.Grant { AppId = "spy", SemanticTypeId = "person.birthDate", Mode = DigitalBrain.Platform.Identity.GrantMode.Always, WorkspaceId = "alice-home" }));
-        Assert.Null(await brain.SiloServices.GetRequiredService<IIdentityClient>().Membership(BrainScope.Create("alice", "alice-home").Id, "mallory"));
+            new DigitalBrain.Platform.Identity.Grant { AppId = "spy", SemanticTypeId = "person.birthDate", Mode = DigitalBrain.Platform.Identity.GrantMode.Always, WorkspaceId = alice.BrainId }));
+        Assert.Null(await brain.Services.GetRequiredService<IIdentityClient>().Membership(alice.BrainId, "mallory"));
     }
 }
