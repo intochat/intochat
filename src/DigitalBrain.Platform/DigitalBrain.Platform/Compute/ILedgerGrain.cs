@@ -9,7 +9,7 @@ internal interface ILedgerGrain : IGrainWithStringKey
 {
     Task<long> Balance();
     Task<bool> Charge(Cost cost);
-    Task Credit(string entryId, long micros, string reason);
+    Task<bool> Credit(string entryId, long micros, string reason);
     Task<LedgerEntry[]> Entries(int take);
     Task<bool> Verify();
 }

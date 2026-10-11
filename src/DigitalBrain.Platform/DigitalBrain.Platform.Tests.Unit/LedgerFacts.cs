@@ -43,6 +43,21 @@ public sealed class LedgerFacts
     }
 
     [Fact]
+    public async Task ACreditWithTheSameEntryIdIsAppliedOnce()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().StartAsync(ct);
+        var ledger = brain.Grains.GetGrain<ILedgerGrain>(Account);
+
+        Assert.True(await ledger.Credit("audit/n/s/0", 5L, "storage audit"));
+        Assert.False(await ledger.Credit("audit/n/s/0", 5L, "storage audit"));
+
+        Assert.Equal(5L, await ledger.Balance());
+        Assert.Single(await ledger.Entries(10));
+        Assert.True(await ledger.Verify());
+    }
+
+    [Fact]
     public async Task ARewrittenEntryFailsVerification()
     {
         var store = new ScriptedLedgerStore();

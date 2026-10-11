@@ -7,7 +7,7 @@ using DigitalBrain.Framework.Compute;
 namespace DigitalBrain.Platform.Compute;
 
 // Per account. A charge appends a negative entry and is idempotent over (TraceId, CostId); a
-// credit appends a positive entry. Every entry carries the hash of the chain up to it, so a
+// credit appends a positive entry and is idempotent over its entry id. Every entry carries the hash of the chain up to it, so a
 // rewritten entry is caught by Verify. Balance always equals the sum of the entries.
 [GrainType("ledger")]
 internal sealed class LedgerGrain(
@@ -30,12 +30,15 @@ internal sealed class LedgerGrain(
         return true;
     }
 
-    public async Task Credit(string entryId, long micros, string reason)
+    public async Task<bool> Credit(string entryId, long micros, string reason)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(entryId);
+        if (store.State.RecentKeys.Any(key => string.Equals(key, entryId, StringComparison.Ordinal))) { return false; }
         Append(entryId, micros, reason ?? "", DateTimeOffset.UtcNow);
         store.State.Balance += micros;
+        store.State.RecentKeys = PushKey(store.State.RecentKeys, entryId);
         await store.WriteStateAsync();
+        return true;
     }
 
     public Task<LedgerEntry[]> Entries(int take)
