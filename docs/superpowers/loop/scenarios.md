@@ -1,6 +1,6 @@
 | App | Scenario | Result |
 |---|---|---|
-| assistant | Opening the assistant composes its surface | refuted |
+| assistant | Opening the assistant composes its surface | passed (run 2, spec reworded 1.9.2) |
 | assistant | Opening docked composes the surface without a window (rewritten: the old text expected a r | passed |
 | assistant | The dock is the assistant's toolbar | passed |
 | assistant | The dock's mic begins a voice message (new scenario; before this, no synapse handled the " | passed |
@@ -10,7 +10,7 @@
 | assistant | A failed turn says so and the next message still works | passed |
 | assistant | A confident route answers without the language model | passed |
 | assistant | A route back into the assistant is answered by the model (new) | passed |
-| assistant | A route to an app the message does not name is answered by the model (new) | refuted |
+| assistant | A route to an app the message does not name is answered by the model (new) | passed (run 2, 2/4 runs hit the branch) |
 | assistant | An app operation that needs input is answered by the model (new) | passed |
 | assistant | An unsure route runs the agent turn with Jev's hints | passed |
 | assistant | Jev being unavailable never blocks a message | passed |
@@ -72,8 +72,8 @@
 | photocraft | Changes made with PhotoCraft's tools reach the preview (new scenario, added with tool-ran. | passed |
 | router | Opening the console shows the prompt | passed |
 | router | Send asks | passed |
-| router | A request is routed and carried out | refuted |
-| router | A timer is shown as a window | refuted |
+| router | A request is routed and carried out | passed (run 2, 4/4 live) |
+| router | A timer is shown as a window | passed (run 2, live) |
 | router | An unclear request is refused | passed |
 | selfimprove | Opening shows the list | passed |
 | selfimprove | A malformed change set is refused (new scenario added to the spec) | passed |
@@ -93,4 +93,5 @@
 | word-count | Extra spaces do not count as words | passed |
 | word-count | One word is singular | passed |
 
-blocked: 25, passed: 63, refuted: 4
+| memory | reindex / open / run counts / recall (run 2: recall.cs ran from shipped code, word-ranked; reindex blocked by ledger 37 storage retired after delete+reinstall) | passed (recall, open, runs); failed (reindex, ledger 37) |
+blocked: 25, passed: 67, refuted: 0 (run 2: router ×2 and assistant ×2 passed live)
