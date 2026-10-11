@@ -18,9 +18,12 @@ internal abstract record PartRoute
 // T20-10: where a call for a part runs. Open here → here; else the head's live holder; no live holder → here only
 // when this machine may lease the part (R82: the core needs an Own machine), else 503. A remote resolution is
 // cached until the head's LeaseExpiry (R89) or a NotHolder reply.
-internal sealed class PartRouter(PartLogs logs, ISequencerClient sequencer, MachineIdentity machine, IOptions<PartsOptions> options, TimeProvider time)
+internal sealed class PartRouter(PartLogs logs, ISequencerClient sequencer, MachineIdentity machine, IOptions<PartsOptions> options, TimeProvider time,
+    IKeyringClient? keyring = null, INodeDirectoryClient? directory = null, DigitalBrain.Framework.Platform.Identity.IIdentityClient? identity = null)
     : DigitalBrain.Framework.IStandInActivations
 {
+    private readonly ConcurrentDictionary<string, bool> _mayHoldCore = new(StringComparer.Ordinal);
+
     private readonly ConcurrentDictionary<string, (PartRoute.Remote Route, DateTimeOffset Until)> _remote = new(StringComparer.Ordinal);
 
     public async Task<PartRoute> Resolve(PartId part)
@@ -42,7 +45,23 @@ internal sealed class PartRouter(PartLogs logs, ISequencerClient sequencer, Mach
         }
         if (part.IsCore && options.Value.Role != MachineRole.Own)
         { throw new ServiceUnavailableException($"Part {part} has no live holder, and this {options.Value.Role} machine may not hold the core."); }
+        if (part.IsCore && !await MayHoldCore(part.BrainId))
+        { throw new ServiceUnavailableException($"Part {part} has no live holder, and this machine serves neither the brain's owner nor is it contributed to it."); }
         return PartRoute.Here;
+    }
+
+    // R73/R128: the core is held by the owner's machines, or by a machine contributed to a circle brain.
+    private async Task<bool> MayHoldCore(string brainId)
+    {
+        if (keyring is null || directory is null || identity is null) { return true; }
+        if (_mayHoldCore.TryGetValue(brainId, out var known)) { return known; }
+        var owner = await keyring.OwnerOf(brainId);
+        var accounts = (await directory.Machine(machine.MachineId))?.Accounts ?? [];
+        var may = owner is null || accounts.Contains(owner, StringComparer.Ordinal)
+            || (await identity.MachinesOf(brainId)).Contains(machine.MachineId, StringComparer.Ordinal);
+        // Only a yes is kept: a machine bound to the account later may hold the core from then on.
+        if (may) { _mayHoldCore[brainId] = true; }
+        return may;
     }
 
     public void Forget(PartId part) => _remote.TryRemove(part.Value, out _);

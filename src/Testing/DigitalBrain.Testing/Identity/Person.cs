@@ -33,24 +33,30 @@ public sealed class Person : IDisposable
     public string Key(string suffix) => $"{BrainId}/{suffix}";
 
     // A fresh trace paid by this person's account, as the edge begins one per request; both are restored on dispose.
-    public IDisposable AsCaller()
+    public IDisposable AsCaller() => AsCallerIn(BrainId);
+
+    // The person inside another brain they are a member of (a circle brain), as the /brains/{brain} route stamps them.
+    public IDisposable AsCallerIn(string brainId)
         => Enter(new CallerContext
         {
             PrincipalId = PrincipalId,
             AccountId = AccountId,
-            BrainId = BrainId,
+            BrainId = brainId,
             Kind = CallerKind.User,
             StampedBy = TrustedEdge.AuthenticatedHttp,
         });
 
     // One of this person's installed apps, as the app proxy re-stamps a script's calls: the app key is its AppId.
     // With a conversation, the call is the app's model reading on that conversation's behalf.
-    public IDisposable AsApp(string appId, string? conversationId = null)
+    public IDisposable AsApp(string appId, string? conversationId = null) => AsAppIn(BrainId, appId, conversationId);
+
+    // An app installed in another brain the person is a member of, running for them.
+    public IDisposable AsAppIn(string brainId, string appId, string? conversationId = null)
         => Enter(new CallerContext
         {
             PrincipalId = PrincipalId,
             AccountId = AccountId,
-            BrainId = BrainId,
+            BrainId = brainId,
             Kind = CallerKind.App,
             AppId = appId,
             ConversationId = conversationId,

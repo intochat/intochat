@@ -5,7 +5,9 @@ namespace DigitalBrain.Framework;
 // then lets each registered stage decide. Stages are ordered increments: grants now, allowances
 // and limits later, then the broker gateway. The first non-null decision wins; an abstaining
 // pipeline allows.
-public sealed class CallFilter(IEnumerable<ICallFilterStage> stages) : ICallFilter
+// R134/R146: a cross-brain call is denied before any stage, except an app's use of another brain's connection through
+// a binding recorded when the app was shared there.
+public sealed class CallFilter(IEnumerable<ICallFilterStage> stages, IConnectionBindings? bindings = null) : ICallFilter
 {
     private readonly IReadOnlyList<ICallFilterStage> _stages = [.. stages.OrderBy(stage => stage.Order)];
 
@@ -28,8 +30,9 @@ public sealed class CallFilter(IEnumerable<ICallFilterStage> stages) : ICallFilt
             return CallDecision.Deny(CallDenial.UntrustedCaller, "The principal does not match the trusted edge stamp.");
         }
 
+        var callerScope = BrainScope.Create(caller.AccountId, caller.BrainId).Id;
         if (request.EnforceTarget && caller.Kind != CallerKind.Platform && !request.PublicOperation
-            && request.TargetScope != BrainScope.Create(caller.AccountId, caller.BrainId).Id)
+            && request.TargetScope != callerScope && !await BoundConnection(request, callerScope, cancellationToken).ConfigureAwait(false))
         {
             return CallDecision.Deny(CallDenial.OutsideWorkspace, "The target operation is not available in the selected brain.");
         }
@@ -44,5 +47,18 @@ public sealed class CallFilter(IEnumerable<ICallFilterStage> stages) : ICallFilt
         }
 
         return CallDecision.Allow();
+    }
+
+    // An app behavior calling a connection key of another brain; the connection's own rules still refuse management.
+    private async ValueTask<bool> BoundConnection(CallRequest request, string callerScope, CancellationToken cancellationToken)
+    {
+        if (bindings is null || request.Caller.Kind != CallerKind.App || request.Caller.AppId is not { Length: > 0 } app) { return false; }
+        var slash = request.TargetNeuron.IndexOf('/', StringComparison.Ordinal);
+        var key = slash < 0 ? "" : request.TargetNeuron[(slash + 1)..];
+        if (!Platform.Connections.ConnectionKeys.Is(key)) { return false; }
+        string brain;
+        try { brain = Platform.Connections.ConnectionKeys.Parse(key).BrainId; }
+        catch (ArgumentException) { return false; }
+        return brain != callerScope && await bindings.IsBound(callerScope, app, key, cancellationToken).ConfigureAwait(false);
     }
 }

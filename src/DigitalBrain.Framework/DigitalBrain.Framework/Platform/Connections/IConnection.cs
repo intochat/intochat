@@ -23,6 +23,15 @@ public interface IConnection : INeuron
     Task<ConnectionView> Connect(string authMethodId, string value);
     Task<ConnectionView> Probe();
     Task Disconnect();
+
+    // R147: a circle brain's copy of a shared connection: its definition, no credential, not connected (Task 28 seals one).
+    [Internal] Task<ConnectionView> Adopt(string authMethodId, string? account);
+
+    // R146: the owner's connection records an app of another brain it is shared into; that record is what the call
+    // gate admits the app's use operations by (IConnectionBindings).
+    [Internal] Task ShareInto(string brainId, string app);
+
+    [Internal, AlwaysInterleave] Task<bool> IsSharedInto(string brainId, string app);
 }
 
 // Not a neuron: reached only by the Platform OAuth callback, which stamps the owner recorded at login start.

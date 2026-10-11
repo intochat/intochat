@@ -211,9 +211,9 @@ public sealed class CircleFacts
         var (alice, bob) = (room.Alice, room.Bob);
         await room.Joined(bob);
 
-        await alice.As(() => room.Circle(alice).Share("notes"));
+        await alice.As(() => room.Circle(alice).Share("notes", []));
         Assert.Equal(["notes"], (await bob.As(() => room.Circle(bob).State())).SharedApps);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => bob.As(() => room.Circle(bob).Share("diary")));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => bob.As(() => room.Circle(bob).Share("diary", [])));
         await Assert.ThrowsAsync<InvalidOperationException>(() => bob.As(() => room.Circle(bob).Invite(room.Carol.BrainId)));
         await alice.As(() => room.Circle(alice).Unshare("notes"));
         Assert.Empty((await bob.As(() => room.Circle(bob).State())).SharedApps);
@@ -301,7 +301,7 @@ public sealed class CircleFacts
 
         using (room.Carol.AsCaller())
         {
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => room.Circle(alice).Share("notes"));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => room.Circle(alice).Share("notes", []));
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => room.Circle(bob).State());
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => room.Circle(bob).Leave(bob.BrainId));
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => room.Chat(bob).Say("as bob"));
@@ -362,6 +362,59 @@ public sealed class CircleFacts
         // The owner has nothing to share yet, so any priced call is over the circle's share.
         await Assert.ThrowsAsync<BudgetExhaustedException>(() => room.Bob.As(() =>
             meter.RecordAsync(CostKind.Model, "gpt-5.1:input", 1m, "mtok", Funding.Circle(room.Team), "c-1", ct).AsTask()));
+    }
+
+    // R124: sharing installs the sharer's own app into the circle brain through the feature loader, Origin = the
+    // sharer's app, and lists nothing in the Marketplace.
+    [Fact(Timeout = 120_000)]
+    public async Task SharingAnAppInstallsItIntoTheCircleBrain()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await CircleBrainRooms.Start(ct);
+        var alice = await brain.PersonAsync("alice", ct);
+        await CircleBrainRooms.Own(brain, alice, "notes");
+        var circle = await CircleBrainRooms.Create(brain, alice);
+
+        await alice.In(circle, () => CircleBrainRooms.Circle(brain, circle).Share("notes", []));
+
+        var shared = await alice.In(circle, () => brain.Get<DigitalBrain.Apps.IApp>(DigitalBrain.Apps.IApp.Key(circle, "notes")).Read());
+        Assert.Equal("notes", shared.Manifest.Title);
+        Assert.Equal(new DigitalBrain.Apps.AppOrigin(alice.AccountId, new DigitalBrain.Apps.AppSource.Brain(alice.AccountId, alice.BrainId), "notes", "1.0.0"), shared.Origin);
+        Assert.Contains("notes", (await alice.In(circle, () => CircleBrainRooms.Circle(brain, circle).State())).SharedApps);
+        Assert.Null(await alice.In(circle, () => brain.Get<DigitalBrain.Apps.IMarketplace>(DigitalBrain.Apps.IMarketplace.Key).Read(alice.PrincipalId, "notes")));
+    }
+
+    [Fact(Timeout = 120_000)]
+    public async Task AnyMemberMayShare()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await CircleBrainRooms.Start(ct);
+        var (alice, bob) = (await brain.PersonAsync("alice", ct), await brain.PersonAsync("bob", ct));
+        await CircleBrainRooms.Own(brain, bob, "diary");
+        var circle = await CircleBrainRooms.Create(brain, alice);
+        await CircleBrainRooms.Join(brain, circle, alice, bob);
+
+        await bob.In(circle, () => CircleBrainRooms.Circle(brain, circle).Share("diary", []));
+
+        var shared = await alice.In(circle, () => brain.Get<DigitalBrain.Apps.IApp>(DigitalBrain.Apps.IApp.Key(circle, "diary")).Read());
+        Assert.Equal((bob.AccountId, "diary"), (shared.Origin?.Publisher, shared.Manifest.Title));
+    }
+
+    [Fact(Timeout = 120_000)]
+    public async Task ABundleThatDoesNotCompileIsNotShared()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await CircleBrainRooms.Start(ct, host => host.ConfigureServices(services =>
+            services.AddSingleton<DigitalBrain.Apps.IScriptSandbox, CircleBrainRooms.MarkerSandbox>()));
+        var alice = await brain.PersonAsync("alice", ct);
+        await CircleBrainRooms.Own(brain, alice, "broken", files: new() { ["go.cs"] = CircleBrainRooms.NotCompiling });
+        var circle = await CircleBrainRooms.Create(brain, alice);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => alice.In(circle, () => CircleBrainRooms.Circle(brain, circle).Share("broken", [])));
+
+        var app = await alice.In(circle, () => brain.Get<DigitalBrain.Apps.IApp>(DigitalBrain.Apps.IApp.Key(circle, "broken")).Read());
+        Assert.Equal("", app.Manifest.Title);
+        Assert.DoesNotContain("broken", (await alice.In(circle, () => CircleBrainRooms.Circle(brain, circle).State())).SharedApps);
     }
 
     private sealed record Room(ITestBrain Brain, Person Alice, Person Bob, Person Carol, Person Dave) : IAsyncDisposable

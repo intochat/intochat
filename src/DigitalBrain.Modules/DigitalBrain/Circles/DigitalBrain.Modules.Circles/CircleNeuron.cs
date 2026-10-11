@@ -2,6 +2,7 @@ using DigitalBrain.Circles.Signals;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Compute;
 using DigitalBrain.Framework.Parts;
+using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Identity;
 using Microsoft.Extensions.Logging;
 using Orleans.Runtime;
@@ -40,7 +41,8 @@ internal sealed class CircleNeuron(
     [PersistentState("circles.circle", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<CircleRecord> store,
     IIdentityClient identity,
     ICirclePartKeys keys,
-    ILogger<CircleNeuron> logger)
+    ILogger<CircleNeuron> logger,
+    DigitalBrain.Apps.FeatureLoader? loader = null)
     : Neuron<CircleRecord>(store), ICircle
 {
     private const string CoreSuffix = "/circle";
@@ -285,15 +287,78 @@ internal sealed class CircleNeuron(
 
     public Task Changed() => Follow();
 
-    public async Task Share(string appName)
+    public async Task Share(string appName, string[] connectionIds)
     {
-        if (IsCore) { throw new InvalidOperationException("Sharing into a circle brain is not available yet."); }
+        if (IsCore) { await ShareIntoCircle(appName, connectionIds ?? []); return; }
         RequireBrain();
         ArgumentException.ThrowIfNullOrWhiteSpace(appName);
         var next = Owned();
         if (next.SharedApps.Contains(appName)) { return; }
         next.SharedApps = [.. next.SharedApps, appName];
         await Commit(next, [], tell: true);
+    }
+
+    private async Task ShareIntoCircle(string appName, string[] connectionIds)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(appName);
+        var next = MemberChange();
+        var caller = Caller();
+        if (loader is null) { throw new InvalidOperationException($"Sharing into {next.Name} needs the Apps module."); }
+        var source = await SharerBrain(caller, appName);
+        // The sharer acts in its own brain: the same principal and account, stamped for that brain (R124, R148).
+        var app = GrainFactory.GetGrain<DigitalBrain.Apps.IApp>(DigitalBrain.Apps.IApp.Key(source, appName));
+        var shared = await AsSharer(caller, source, app.Read);
+        var bundle = await AsSharer(caller, source, app.Export);
+        await loader.Load(CircleBrain, appName, bundle,
+            new DigitalBrain.Apps.AppOrigin(caller.AccountId, new DigitalBrain.Apps.AppSource.Brain(caller.AccountId, source), appName, bundle.Version), CancellationToken.None);
+        var circleApp = DigitalBrain.Apps.IApp.Key(CircleBrain, appName);
+        var slots = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var slot in shared.Manifest.Slots)
+        {
+            if (!shared.Connections.TryGetValue(slot.Name, out var id) || id.Length == 0) { continue; }
+            var owned = ConnectionKeys.For(source, slot.Connector, id);
+            if (connectionIds.Contains(id, StringComparer.Ordinal))
+            {
+                // R147: the circle's own copy holds the definition; Task 28 seals its credential under the circle key.
+                var view = await AsSharer(caller, source, () => GrainFactory.GetConnection(owned).Read());
+                var copy = ConnectionKeys.For(CircleBrain, slot.Connector, id);
+                await GrainFactory.GetConnection(copy).Adopt(view.AuthMethodId, view.Account);
+                slots[slot.Name] = copy;
+            }
+            else
+            {
+                await AsSharer(caller, source, async () => { await GrainFactory.GetConnection(owned).ShareInto(CircleBrain, circleApp); return true; });
+                slots[slot.Name] = owned;
+            }
+        }
+        if (slots.Count > 0) { await GrainFactory.GetGrain<DigitalBrain.Apps.IApp>(circleApp).Configure([], slots); }
+        if (!next.SharedApps.Contains(appName)) { next.SharedApps = [.. next.SharedApps, appName]; }
+        await CommitCore(next);
+    }
+
+    // R148: the sharer's personal brain that has the app; none or several is refused.
+    private async Task<string> SharerBrain(CallerContext caller, string appName)
+    {
+        List<string> holding = [];
+        foreach (var brain in (await identity.BrainsOf(caller.PrincipalId)).Where(entry => entry.Kind == BrainKind.Personal))
+        {
+            var installed = await AsSharer(caller, brain.Id, async () =>
+                (await GrainFactory.GetGrain<DigitalBrain.Apps.IApp>(DigitalBrain.Apps.IApp.Key(brain.Id, appName)).Read()).Manifest.Title.Length > 0);
+            if (installed) { holding.Add(brain.Id); }
+        }
+        return holding.Count switch
+        {
+            1 => holding[0],
+            0 => throw new InvalidOperationException($"{caller.AccountId} has no app named {appName} to share."),
+            _ => throw new InvalidOperationException($"{caller.AccountId} has {appName} in several brains ({string.Join(", ", holding)}); share it from one."),
+        };
+    }
+
+    private static async Task<T> AsSharer<T>(CallerContext caller, string brainId, Func<Task<T>> call)
+    {
+        CallerContextStamper.Stamp(caller with { BrainId = brainId });
+        try { return await call(); }
+        finally { CallerContextStamper.Stamp(caller); }
     }
 
     public async Task Unshare(string appName)

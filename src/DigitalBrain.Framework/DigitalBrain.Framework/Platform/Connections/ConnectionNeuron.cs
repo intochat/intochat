@@ -116,6 +116,30 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
         await NotifyCatalog();
     }
 
+    public async Task<ConnectionView> Adopt(string authMethodId, string? account)
+    {
+        RequireAuthMethod(authMethodId);
+        if (Snapshot.Status != ConnectionStatus.Disconnected || Snapshot.Secrets.Length > 0) { return View(); }
+        Snapshot.AuthMethodId = authMethodId;
+        Snapshot.Account = account;
+        await Transition(ConnectionStatus.Disconnected, "Shared into this brain; its credential is not sealed here yet.", notifyCatalog: false);
+        await Track();
+        await NotifyCatalog();
+        return View();
+    }
+
+    public async Task ShareInto(string brainId, string app)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(brainId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(app);
+        var entry = $"{brainId}/{app}";
+        if (Snapshot.SharedInto.Contains(entry, StringComparer.Ordinal)) { return; }
+        Snapshot.SharedInto = [.. Snapshot.SharedInto, entry];
+        await SaveQuietly(Snapshot);
+    }
+
+    public Task<bool> IsSharedInto(string brainId, string app) => Task.FromResult(Snapshot.SharedInto.Contains($"{brainId}/{app}", StringComparer.Ordinal));
+
     // Opens the credential for one call; refreshes first when the access token is about to expire.
     protected async Task<T> UseCredentialAsync<T>(Func<Credential, CancellationToken, Task<T>> call, CancellationToken ct)
     {

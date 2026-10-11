@@ -23,6 +23,7 @@ public static class BrainHosting
         silo.Services.TryAddSingleton(provider => new CompiledTypes(provider.GetRequiredService<ModuleInventory>()));
         silo.Services.TryAddSingleton(NeuronTypeSearch.Create);
         silo.Services.TryAddSingleton(TimeProvider.System);
+        silo.Services.TryAddSingleton<IConnectionBindings, NoConnectionBindings>();
         silo.Services.TryAddSingleton<ICallFilter, CallFilter>();
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IIncomingGrainCallFilter, NeuronCallFilter>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IOutgoingGrainCallFilter, TraceOutgoingFilter>());

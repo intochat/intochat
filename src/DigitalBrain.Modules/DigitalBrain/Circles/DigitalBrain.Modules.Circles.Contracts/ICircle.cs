@@ -45,7 +45,10 @@ public interface ICircle : INeuron
     Task Remove(string accountId);
     Task Leave(string brainId);
     Task<string[]> Members();
-    Task Share(string appName);
+    // R124/R132: installs the caller's own app into the circle brain (compile-gated Export, Origin = the sharer's app). The
+    // connections named in `connectionIds` are bound as the circle's own copies; every other bound slot stays the
+    // sharer's connection, reached only through the binding recorded on it (R134). A copy takes no connections.
+    Task Share(string appName, string[] connectionIds);
     Task Unshare(string appName);
     // 0 to MaxComputeSharePercent of the creator's budget; the platform's own 25% fee is fixed and not a setting.
     Task SetComputeShare(int percent);
