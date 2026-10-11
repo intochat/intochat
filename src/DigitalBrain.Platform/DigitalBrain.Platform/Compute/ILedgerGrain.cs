@@ -2,8 +2,8 @@ using DigitalBrain.Framework.Compute;
 
 namespace DigitalBrain.Platform.Compute;
 
-// The account's billing ledger: the single durable writer of the balance, an append-only
-// hash-chained entry list, and rolling windows of idempotency keys (charges, credits). A plain grain, not a
+// The account's billing ledger: the single durable writer of the balance, a hash-chained window of the
+// latest entries anchored on what it dropped, and rolling windows of idempotency keys (charges, credits). A plain grain, not a
 // neuron, so no script can address it.
 internal interface ILedgerGrain : IGrainWithStringKey
 {

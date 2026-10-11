@@ -18,7 +18,10 @@ internal sealed class LedgerGrain(
     [PersistentState("ledger", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<LedgerState> store)
     : Grain, ILedgerGrain
 {
-    private const int IdempotencyWindow = 10_000;
+    // A charge is retried within moments, so a short window dedups it; credits are rare and keep a long one.
+    private const int ChargeWindow = 1_000;
+    private const int CreditWindow = 10_000;
+    internal const int EntryWindow = 500;
     private CoalescedWrites? _writes;
 
     private CoalescedWrites Writes => _writes ??= new(store.WriteStateAsync);
@@ -32,7 +35,7 @@ internal sealed class LedgerGrain(
         if (store.State.RecentKeys.Any(key => string.Equals(key, entryId, StringComparison.Ordinal))) { return false; }
         Append(entryId, -cost.Micros, $"{cost.Kind} {cost.Item}", cost.At);
         store.State.Balance -= cost.Micros;
-        store.State.RecentKeys = PushKey(store.State.RecentKeys, entryId);
+        store.State.RecentKeys = PushKey(store.State.RecentKeys, entryId, ChargeWindow);
         await Writes.Save();
         return true;
     }
@@ -43,7 +46,7 @@ internal sealed class LedgerGrain(
         if (store.State.CreditKeys.Any(key => string.Equals(key, entryId, StringComparison.Ordinal))) { return false; }
         Append(entryId, micros, reason ?? "", DateTimeOffset.UtcNow);
         store.State.Balance += micros;
-        store.State.CreditKeys = PushKey(store.State.CreditKeys, entryId);
+        store.State.CreditKeys = PushKey(store.State.CreditKeys, entryId, CreditWindow);
         await Writes.Save();
         return true;
     }
@@ -57,8 +60,8 @@ internal sealed class LedgerGrain(
     // Recomputes the hash chain and the balance over the stored entries.
     public Task<bool> Verify()
     {
-        var expected = "";
-        var sum = 0L;
+        var expected = store.State.AnchorHash;
+        var sum = store.State.AnchorBalance;
         foreach (var entry in store.State.Entries)
         {
             if (!string.Equals(entry.PrevHash, expected, StringComparison.Ordinal)) { return Task.FromResult(false); }
@@ -71,9 +74,17 @@ internal sealed class LedgerGrain(
 
     private void Append(string entryId, long micros, string reason, DateTimeOffset at)
     {
-        var prevHash = store.State.Entries.Length == 0 ? "" : store.State.Entries[^1].Hash;
-        store.State.Entries = [.. store.State.Entries,
+        var prevHash = store.State.Entries.Length == 0 ? store.State.AnchorHash : store.State.Entries[^1].Hash;
+        LedgerEntry[] next = [.. store.State.Entries,
             new LedgerEntry(entryId, micros, reason, at, prevHash, Digest(ChainText(prevHash, entryId, micros, reason, at)))];
+        if (next.Length > EntryWindow)
+        {
+            var dropped = next[..^EntryWindow];
+            store.State.AnchorHash = dropped[^1].Hash;
+            store.State.AnchorBalance += dropped.Sum(entry => entry.Micros);
+            next = next[^EntryWindow..];
+        }
+        store.State.Entries = next;
     }
 
     // SHA-256 hex of "{PrevHash}|{EntryId}|{Micros}|{Reason}|{At:O}".
@@ -84,9 +95,9 @@ internal sealed class LedgerGrain(
         return $"{prevHash}|{entryId}|{micros}|{reason}|{stamp}";
     }
 
-    private static string[] PushKey(string[] keys, string key)
+    private static string[] PushKey(string[] keys, string key, int window)
     {
         string[] next = [.. keys, key];
-        return next.Length > IdempotencyWindow ? next[^IdempotencyWindow..] : next;
+        return next.Length > window ? next[^window..] : next;
     }
 }
