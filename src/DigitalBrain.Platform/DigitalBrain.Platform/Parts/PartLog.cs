@@ -480,6 +480,20 @@ internal sealed class PartLog : IAsyncDisposable
         finally { _flushing.Release(); }
     }
 
+    // Runs `act` only while the head still reaches `reference` (its snapshot, or a chain segment of it), holding off any
+    // snapshot that would discard it meanwhile: the holder reports an audit only for refs it still keeps (R7, T23-9).
+    internal async Task<(bool Reached, T? Result)> WhileReached<T>(MeshRef reference, Func<Task<T>> act)
+    {
+        ArgumentNullException.ThrowIfNull(reference);
+        await _flushing.WaitAsync();
+        try
+        {
+            var reached = _lease.Payload.Snapshot?.ManifestCid == reference.ManifestCid || _chain.Any(chained => chained.ManifestCid == reference.ManifestCid);
+            return reached ? (true, await act()) : (false, default);
+        }
+        finally { _flushing.Release(); }
+    }
+
     // R111: one CAS per audit pass of the part; the next holder continues from the committed round.
     internal Task<int> AdvanceAuditRound() => UnderLease(async () =>
     {

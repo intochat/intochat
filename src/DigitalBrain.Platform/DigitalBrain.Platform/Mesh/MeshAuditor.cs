@@ -16,9 +16,6 @@ namespace DigitalBrain.Platform.Mesh;
 internal sealed partial class MeshAuditor(PartLogs logs, IMeshStore mesh, IShardClient shards, INodeDirectoryClient directory, IOptions<MeshOptions> options,
     [FromKeyedServices(MeshOptions.Key)] TimeProvider time, ILogger<MeshAuditor> logger) : IHostedService, IAsyncDisposable
 {
-    // R117: a report refused because this account's placement on the node was evicted; a miss, not a node failure.
-    private const string Evicted = "placement evicted";
-
     private readonly CancellationTokenSource _stop = new();
     private readonly Lock _gate = new();
     private TaskCompletionSource _pass = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -74,26 +71,48 @@ internal sealed partial class MeshAuditor(PartLogs logs, IMeshStore mesh, IShard
         }
     }
 
+    // Facts only: runs between reading the head's refs and proving them (a snapshot landing mid-pass).
+    internal Func<PartLog, Task>? AfterReached { get; set; }
+
+    private MeshStore Store => mesh as MeshStore ?? throw new InvalidOperationException("The auditor needs the platform's MeshStore.");
+
     private async Task Audit(PartLog log, CancellationToken cancellationToken)
     {
         var round = log.Head.AuditRound;
-        if (round >= options.Value.ChallengesPerShard)
+        var (snapshot, chain) = await log.Reached();
+        if (snapshot is null && chain.Length == 0) { return; }
+        if (AfterReached is { } hook) { await hook(log); }
+        var health = (await directory.List()).ToDictionary(node => node.NodeId, StringComparer.Ordinal);
+
+        var proved = new List<(MeshRef Reference, bool Chained, ShardAudit[] Results, int ShardSize)>();
+        foreach (var reference in chain) { var (results, size) = await Store.Prove(log.Key, reference, round, cancellationToken); proved.Add((reference, true, results, size)); }
+        if (snapshot is not null) { var (results, size) = await Store.Prove(log.Key, snapshot, round, cancellationToken); proved.Add((snapshot, false, results, size)); }
+
+        // R110/R116: spent challenges (by the manifests' own count) are re-issued by a snapshot, never reported.
+        if (proved.Any(entry => entry.Results.Any(result => result.Reason == MeshStore.Exhausted)))
         {
             await log.HealBySnapshot(resetAuditRound: true);
             Log.Reissued(logger, log.Part.Value, round);
             return;
         }
-        var (snapshot, chain) = await log.Reached();
-        if (snapshot is null && chain.Length == 0) { return; }
-        var health = (await directory.List()).ToDictionary(node => node.NodeId, StringComparer.Ordinal);
-        bool Failed(ShardAudit[] results) => results.Any(result => (!result.Passed && result.Reason != Evicted)
-            || !(health.TryGetValue(result.NodeId, out var node) && node.Usable));
 
         var chainFailed = false;
-        foreach (var reference in chain) { chainFailed |= Failed(await mesh.Audit(log.Key, reference, round, cancellationToken)); }
-        var snapshotFailed = snapshot is not null && Failed(await mesh.Audit(log.Key, snapshot, round, cancellationToken));
+        int[] evictedFromSnapshot = [];
+        var snapshotFailed = false;
+        foreach (var (reference, chained, results, size) in proved)
+        {
+            // Only refs the head still reaches are reported: a snapshot that discarded one meanwhile says nothing of its nodes.
+            var (reached, reported) = await log.WhileReached(reference, () => Store.Report(reference, round, size, results));
+            if (!reached) { continue; }
+            var failed = reported!.Any(result => (!result.Passed && result.Reason != MeshStore.Evicted)
+                || !(health.TryGetValue(result.NodeId, out var node) && node.Usable));
+            // R123: an evicted placement is re-placed without blaming the node.
+            var evicted = reported!.Where(result => result.Reason == MeshStore.Evicted).Select(result => result.Index).ToArray();
+            if (chained) { chainFailed |= failed || evicted.Length > 0; }
+            else { (snapshotFailed, evictedFromSnapshot) = (failed || evicted.Length > 0, evicted); }
+        }
         await log.AdvanceAuditRound();
-        Log.Audited(logger, log.Part.Value, round, chain.Length + (snapshot is null ? 0 : 1));
+        Log.Audited(logger, log.Part.Value, round, proved.Count);
 
         if (chainFailed)
         {
@@ -101,12 +120,13 @@ internal sealed partial class MeshAuditor(PartLogs logs, IMeshStore mesh, IShard
             Log.Healed(logger, log.Part.Value);
             return;
         }
-        if (snapshotFailed) { await RepairSnapshot(log, snapshot!, cancellationToken); }
+        if (snapshotFailed && (await log.Reached()).Snapshot is { } current && current.ManifestCid == snapshot!.ManifestCid)
+        { await RepairSnapshot(log, snapshot, evictedFromSnapshot, cancellationToken); }
     }
 
-    private async Task RepairSnapshot(PartLog log, MeshRef snapshot, CancellationToken cancellationToken)
+    private async Task RepairSnapshot(PartLog log, MeshRef snapshot, int[] replace, CancellationToken cancellationToken)
     {
-        var repair = await mesh.Repair(log.Key, snapshot, cancellationToken: cancellationToken);
+        var repair = await Store.Repair(log.Key, snapshot, replace, reissue: false, cancellationToken);
         if (repair.Reference.ManifestCid == snapshot.ManifestCid) { return; }
         bool committed;
         try { committed = await log.CommitRepairedSnapshot(snapshot, repair.Reference); }
@@ -121,8 +141,8 @@ internal sealed partial class MeshAuditor(PartLogs logs, IMeshStore mesh, IShard
         // R7: unmoved shards now belong to the repaired ref too; only the old manifest's replicas and the moved shards'
         // old copies are dropped, after the CAS.
         await Drop(snapshot.ManifestNodes.Except(repair.Reference.ManifestNodes, StringComparer.Ordinal), snapshot.ManifestCid, cancellationToken);
-        if (repair.Moved.Length == 0 || mesh is not MeshStore store) { return; }
-        var cids = await store.ShardCids(log.Key, repair.Reference, cancellationToken);
+        if (repair.Moved.Length == 0) { return; }
+        var cids = await Store.ShardCids(log.Key, repair.Reference, cancellationToken);
         foreach (var move in repair.Moved) { await Drop([move.FromNode], cids[move.Index], cancellationToken); }
     }
 

@@ -223,11 +223,68 @@ public sealed class MeshAuditorFacts
         await Pass(p, clock);
 
         Assert.Equal(audited, reports.From(p));
+        Assert.All(await trust.Grains.GetGrain<IStorageNodeDirectory>(IStorageNodeDirectory.Key).List(), node => Assert.Equal(1.0, node.Reputation));
         Assert.Equal(0, log.Head.AuditRound);
         var (reissued, chain) = await log.Reached();
         Assert.Empty(chain);
         Assert.NotEqual(before?.ManifestCid, reissued!.ManifestCid);
         Assert.All(await p.Services.GetRequiredService<IMeshStore>().Audit(log.Key, reissued, 0, ct), result => Assert.True(result.Passed, result.Reason));
+    }
+
+    // R117/R123: once 64 other accounts were placed onto a node, this holder's report on it is refused; the next pass
+    // moves the shard without blaming the node.
+    [Fact(Timeout = 180_000)]
+    public async Task AnEvictedPlacementIsMovedOnTheNextPass()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        await using var trust = await TrustHost.StartAsync(ct);
+        await using var p = await Holder(trust, clock, ct);
+        var log = await Write(p, [1]);
+        await log.HealBySnapshot();
+        var (old, _) = await log.Reached();
+        var oldManifest = await VolunteerMeshFacts.Manifest(p, log.Key, old!, ct);
+        var target = oldManifest.Shards[0].NodeId;
+        var directory = trust.Grains.GetGrain<IStorageNodeDirectory>(IStorageNodeDirectory.Key);
+        string[] others = [.. (await directory.List()).Select(node => node.NodeId).Where(node => node != target)];
+        for (var n = 0; n <= StorageNodes.MaxPlacedAccounts; n++) { Assert.Equal([target], await directory.Place(1, others, 16, [$"account-{n}"])); }
+
+        await Pass(p, clock);
+
+        var (repaired, _) = await log.Reached();
+        Assert.NotEqual(old!.ManifestCid, repaired!.ManifestCid);
+        Assert.NotEqual(target, (await VolunteerMeshFacts.Manifest(p, log.Key, repaired, ct)).Shards[0].NodeId);
+        Assert.Equal(1.0, (await directory.List()).Single(node => node.NodeId == target).Reputation);
+    }
+
+    // A snapshot that lands between reading the head's refs and proving them discards those refs: the pass reports
+    // nothing about them and heals nothing.
+    [Fact(Timeout = 180_000)]
+    public async Task ASnapshotLandingMidPassReportsNothing()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        using var reports = new Reports();
+        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        await using var trust = await TrustHost.StartAsync(ct);
+        await using var p = await Holder(trust, clock, ct);
+        var log = await Write(p, [1], [2]);
+        var auditor = p.Services.GetRequiredService<MeshAuditor>();
+        string? landed = null;
+        auditor.AfterReached = async held =>
+        {
+            auditor.AfterReached = null;
+            await held.HealBySnapshot();
+            landed = (await held.Reached()).Snapshot!.ManifestCid;
+        };
+
+        await Pass(p, clock);
+
+        Assert.NotNull(landed);
+        Assert.Equal(0, reports.From(p));
+        Assert.Equal(landed, (await log.Reached()).Snapshot!.ManifestCid);
+        Assert.All(await trust.Grains.GetGrain<IStorageNodeDirectory>(IStorageNodeDirectory.Key).List(), node => Assert.Equal(1.0, node.Reputation));
     }
 
     [Fact(Timeout = 180_000)]

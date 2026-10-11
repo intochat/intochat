@@ -49,32 +49,59 @@ internal sealed class MeshStore(INodeDirectoryClient directory, IShardClient sha
 
     public async Task<ShardAudit[]> Audit(byte[] key, MeshRef reference, int round, CancellationToken cancellationToken = default)
     {
+        var (results, shardSize) = await Prove(key, reference, round, cancellationToken);
+        return await Report(reference, round, shardSize, results);
+    }
+
+    // Spends challenge `round` on every shard without telling anyone (the holder reports only refs its head still
+    // reaches, R7/T23-9). "challenges exhausted" is judged by the manifest's own challenges (R110).
+    internal async Task<(ShardAudit[] Results, int ShardSize)> Prove(byte[] key, MeshRef reference, int round, CancellationToken cancellationToken)
+    {
         ArgumentOutOfRangeException.ThrowIfNegative(round);
         var manifest = await ReadManifest(key, reference, cancellationToken);
         var health = await Health();
-        return await Task.WhenAll(manifest.Shards.Select(async shard =>
+        var results = await Task.WhenAll(manifest.Shards.Select(async shard =>
         {
-            if (round >= shard.Challenges.Length) { return new ShardAudit(shard.Index, shard.NodeId, false, "challenges exhausted"); }
+            if (round >= shard.Challenges.Length) { return new ShardAudit(shard.Index, shard.NodeId, false, Exhausted); }
             // A node the directory knows is offline is not asked and not reported; repair moves its shard (T23-9).
-            if (!(health.TryGetValue(shard.NodeId, out var node) && node.Online)) { return new ShardAudit(shard.Index, shard.NodeId, false, "node offline"); }
+            if (!(health.TryGetValue(shard.NodeId, out var node) && node.Online)) { return new ShardAudit(shard.Index, shard.NodeId, false, Offline); }
             var challenge = shard.Challenges[round];
             var proof = await shards.Prove(shard.NodeId, shard.Cid, challenge.Nonce, cancellationToken);
             var passed = proof is not null && CryptographicOperations.FixedTimeEquals(proof, challenge.Expected);
-            // T23-10: the segment is named by its manifest's content id. R117: a report refused because this account's
-            // placement on the node was evicted is a miss; the next repair re-places the shard.
-            try { await Directory.ReportAudit(new AuditReport(shard.NodeId, reference.ManifestCid, round, passed, manifest.ShardSize)); }
-            catch (UnauthorizedAccessException) { return new ShardAudit(shard.Index, shard.NodeId, false, "placement evicted"); }
             return new ShardAudit(shard.Index, shard.NodeId, passed, proof is null ? "shard missing" : passed ? "ok" : "wrong proof");
         }));
+        return (results, manifest.ShardSize);
     }
 
-    public async Task<MeshRepair> Repair(byte[] key, MeshRef reference, bool reissue = false, CancellationToken cancellationToken = default)
+    // T23-10: the segment is named by its manifest's content id. R117/R123: a report refused because this account's
+    // placement on the node was evicted becomes "placement evicted": a re-place, not a node failure.
+    internal async Task<ShardAudit[]> Report(MeshRef reference, int round, int shardSize, ShardAudit[] results)
+        => await Task.WhenAll(results.Select(async result =>
+        {
+            if (result.Reason is Exhausted or Offline) { return result; }
+            try { await Directory.ReportAudit(new AuditReport(result.NodeId, reference.ManifestCid, round, result.Passed, shardSize)); }
+            catch (UnauthorizedAccessException) { return result with { Passed = false, Reason = Evicted }; }
+            return result;
+        }));
+
+    internal const string Exhausted = "challenges exhausted";
+
+    internal const string Offline = "node offline";
+
+    internal const string Evicted = "placement evicted";
+
+    public Task<MeshRepair> Repair(byte[] key, MeshRef reference, bool reissue = false, CancellationToken cancellationToken = default)
+        => Repair(key, reference, [], reissue, cancellationToken);
+
+    // `replace`: indices to move although their node is healthy (an evicted placement, R123).
+    internal async Task<MeshRepair> Repair(byte[] key, MeshRef reference, int[] replace, bool reissue, CancellationToken cancellationToken)
     {
         var manifest = await ReadManifest(key, reference, cancellationToken);
         var health = await Health();
         var (fetched, unreadable) = await Fetch(manifest, health, cancellationToken);
         var bad = unreadable
             .Concat(manifest.Shards.Where(s => !health.TryGetValue(s.NodeId, out var node) || !node.Usable).Select(s => s.Index))
+            .Concat(replace)
             .Distinct().Order().ToArray();
         if (bad.Length == 0 && !reissue) { return new MeshRepair(reference, []); }
 
