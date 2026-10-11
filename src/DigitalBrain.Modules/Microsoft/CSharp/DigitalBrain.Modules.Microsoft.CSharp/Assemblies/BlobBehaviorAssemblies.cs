@@ -15,8 +15,9 @@ internal sealed class BlobBehaviorAssemblies(BlobServiceClient storage) : IBehav
     {
         ArgumentNullException.ThrowIfNull(behavior);
         await _container.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
-        await _container.GetBlobClient(behavior.Hash).UploadAsync(new BinaryData(behavior.Assembly), overwrite: true, cancellationToken);
+        // Symbols first: Exists answers for the assembly, so its blob only appears once the pair is complete.
         await _container.GetBlobClient(behavior.Hash + ".pdb").UploadAsync(new BinaryData(behavior.Symbols), overwrite: true, cancellationToken);
+        await _container.GetBlobClient(behavior.Hash).UploadAsync(new BinaryData(behavior.Assembly), overwrite: true, cancellationToken);
     }
 
     public async Task<bool> Exists(string hash, CancellationToken cancellationToken)
