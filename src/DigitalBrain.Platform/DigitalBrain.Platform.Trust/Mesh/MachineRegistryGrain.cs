@@ -19,6 +19,10 @@ internal interface IMachineRegistry : IGrainWithStringKey
     // R67: a machine that registers usernames is bound to an account with a pairing secret. R72: the gate checks
     // only that the hash is non-empty; every machine has one (configured or generated), so it is no deployment check.
     Task RequirePaired();
+
+    // What a peer or the trust link checks a machine against (T20-2 check 5): null until it registered.
+    [Orleans.Concurrency.AlwaysInterleave]
+    Task<RegisteredMachine?> Read();
 }
 
 // One account's machines (R52): the first machine to bind it stores the pairing secret's hash; a later machine
@@ -54,6 +58,10 @@ internal sealed class MachineRegistryGrain(
         store.State.Paired |= pairingSecretHash.Length > 0;
         await store.WriteStateAsync();
     }
+
+    public Task<RegisteredMachine?> Read() => Task.FromResult(store.State.PublicKey is { } key
+        ? new RegisteredMachine(MachineId, key, [.. store.State.Accounts], store.State.Candidates)
+        : null);
 
     public async Task<string> Accept(SignedCall call)
     {
@@ -106,7 +114,20 @@ internal sealed class MachineRegistryState
     [Id(1)] public string[] Accounts { get; set; } = [];
     [Id(2)] public long LastCounter { get; set; }
     [Id(3)] public bool Paired { get; set; }
+    [Id(4)] public MachineCandidates? Candidates { get; set; }
 }
+
+// Where a machine may be reached directly (T20-6): host:port strings, announced signed by the machine.
+[GenerateSerializer, Alias("platform.mesh.machine-candidates")]
+internal sealed record MachineCandidates([property: Id(0)] string[] Endpoints, [property: Id(1)] DateTimeOffset At);
+
+// A machine as the trust side knows it: its key, the accounts it serves (R55) and its announced candidates.
+[GenerateSerializer, Alias("platform.mesh.registered-machine")]
+internal sealed record RegisteredMachine(
+    [property: Id(0)] string MachineId,
+    [property: Id(1)] byte[] PublicKey,
+    [property: Id(2)] string[] Accounts,
+    [property: Id(3)] MachineCandidates? Candidates);
 
 [GenerateSerializer, Alias("platform.mesh.account-machines-state")]
 internal sealed class AccountMachinesState
