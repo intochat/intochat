@@ -208,35 +208,48 @@ public sealed class AspireModuleHosting : ModuleHosting<DigitalBrain.Microsoft.A
     private const string FrontSuffix = "-front";
     public static string FrontsVariable => DigitalBrainConfiguration.EnvironmentName(AspireModule.Integration.Key(AspireModule.FrontsField));
 
+    // The callback only gathers references: the values (parameters, connection strings of resources not yet
+    // allocated) resolve when the orchestrator starts the resource, never while the environment is built.
     private sealed class CandidateSecrets : DigitalBrainModuleProjection
     {
         public override void Apply<TResource>(IResourceBuilder<TResource> builder)
-            => ResourceBuilderExtensions.WithEnvironment(builder, async context =>
+            => ResourceBuilderExtensions.WithEnvironment(builder, context =>
             {
                 if (!context.ExecutionContext.IsRunMode) { return; }
                 var prefixes = ModelIntegrations.Select(id => DigitalBrainConfiguration.EnvironmentName(IntegrationSchema.SectionName, id) + "__").ToArray();
-                var model = new Dictionary<string, string>(StringComparer.Ordinal);
-                foreach (var (name, value) in context.EnvironmentVariables.ToArray())
+                var model = context.EnvironmentVariables
+                    .Where(variable => prefixes.Any(prefix => variable.Key.StartsWith(prefix, StringComparison.Ordinal)))
+                    .ToArray();
+                context.EnvironmentVariables[CandidateModelVariable] = new ModelJson(model);
+                if (context.EnvironmentVariables.TryGetValue(GrainStateConnection, out var grainState))
                 {
-                    if (prefixes.Any(prefix => name.StartsWith(prefix, StringComparison.Ordinal)) && await Resolve(value, context.CancellationToken) is { Length: > 0 } resolved)
-                    { model[name] = resolved; }
-                }
-                context.EnvironmentVariables[CandidateModelVariable] = JsonSerializer.Serialize(model);
-                if (context.EnvironmentVariables.TryGetValue(GrainStateConnection, out var grainState) && await Resolve(grainState, context.CancellationToken) is { Length: > 0 } connection)
-                {
-                    context.EnvironmentVariables[LiveGrainStateVariable] = connection;
+                    context.EnvironmentVariables[LiveGrainStateVariable] = grainState;
                 }
             });
 
         // One storage source: the orleans integration the silo itself reads.
         private static readonly string GrainStateConnection = DigitalBrainConfiguration.IntegrationEnvironmentName("orleans", "GrainState");
 
-        private static async Task<string?> Resolve(object value, CancellationToken ct) => value switch
+        // The model Integrations' resolved values as one JSON object, resolved with the resource's other values.
+        private sealed class ModelJson(KeyValuePair<string, object>[] variables) : IValueProvider
         {
-            string text => text,
-            IValueProvider provider => await provider.GetValueAsync(ct),
-            _ => value.ToString(),
-        };
+            public async ValueTask<string?> GetValueAsync(CancellationToken cancellationToken = default)
+            {
+                var model = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var (name, value) in variables)
+                {
+                    if (await Resolve(value, cancellationToken) is { Length: > 0 } resolved) { model[name] = resolved; }
+                }
+                return JsonSerializer.Serialize(model);
+            }
+
+            private static async Task<string?> Resolve(object value, CancellationToken ct) => value switch
+            {
+                string text => text,
+                IValueProvider provider => await provider.GetValueAsync(ct),
+                _ => value.ToString(),
+            };
+        }
     }
 
     private sealed class Variable(string name, string value) : DigitalBrainModuleProjection

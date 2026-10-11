@@ -68,7 +68,7 @@ public sealed class LiveBuildHostingFacts : IDisposable
 
         var environment = await AspireCompositionTest.EnvironmentOf(builder, silo.Resource, TestContext.Current.CancellationToken);
 
-        var model = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>((string)environment[AspireModuleHosting.CandidateModelVariable])!;
+        var model = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>((await ((IValueProvider)environment[AspireModuleHosting.CandidateModelVariable]).GetValueAsync(TestContext.Current.CancellationToken))!)!;
         Assert.Equal(new Dictionary<string, string> { [AspireModuleHosting.IntegrationVariable("openrouter", "ApiKey")] = "model-key" }, model);
     }
 
