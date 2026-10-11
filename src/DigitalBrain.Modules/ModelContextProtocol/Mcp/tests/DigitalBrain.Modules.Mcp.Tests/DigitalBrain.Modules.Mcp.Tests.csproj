@@ -2,9 +2,8 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
-    <ProjectReference Include="../../../../../Testing/DigitalBrain.Testing.Module/DigitalBrain.Testing.Module.csproj" />
+    <ProjectReference Include="../../../../../Testing/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules.Mcp/DigitalBrain.Modules.Mcp.csproj" />
     <ProjectReference Include="../../../../DigitalBrain/Tools/DigitalBrain.Modules.Tools/DigitalBrain.Modules.Tools.csproj" />
   </ItemGroup>
-  <ItemGroup><Using Include="DigitalBrain.Testing.Module" /></ItemGroup>
 </Project>

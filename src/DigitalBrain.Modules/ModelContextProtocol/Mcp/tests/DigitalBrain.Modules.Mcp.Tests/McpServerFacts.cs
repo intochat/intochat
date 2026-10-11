@@ -1,5 +1,5 @@
 using System.ComponentModel;
-using DigitalBrain.Framework;
+using DigitalBrain.Testing;
 using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Tools;
 using Microsoft.AspNetCore.Builder;
@@ -14,8 +14,7 @@ namespace DigitalBrain.Mcp.Tests;
 
 public sealed class McpServerFacts
 {
-    private const string Brain = "mcp-server-facts";
-    private const string Key = Brain + "/mcp/fake";
+    private const string Server = "mcp/fake";
 
     [Fact]
     public async Task ConnectingListsTheServersToolsAndSearchFindsThemLive()
@@ -23,16 +22,16 @@ public sealed class McpServerFacts
         var ct = TestContext.Current.CancellationToken;
         await using var server = await FakeServer.StartAsync(ct);
         await using var brain = await Start(ct);
-        Stamp();
+        using var caller = brain.Owner.AsCaller();
 
-        var state = await brain.Get<IMcpServer>(Key).Connect(new("Fake", server.Url), ct);
+        var state = await brain.Get<IMcpServer>(brain.Owner.Key(Server)).Connect(new("Fake", server.Url), ct);
 
         Assert.True(state.Connected);
         Assert.Equal(["echo", "next", "pixel"], state.Tools.Select(tool => tool.Name).Order());
         Assert.Contains("\"text\"", state.Tools.Single(tool => tool.Name == "echo").InputSchema, StringComparison.Ordinal);
-        var capabilities = await Capabilities(brain).Read(Brain, ct);
+        var capabilities = await Capabilities(brain).Read(brain.Owner.BrainId, ct);
         Assert.Equal(["echo", "next", "pixel"], capabilities.Select(entry => entry.Tool).Order());
-        Assert.All(capabilities, entry => Assert.Equal((Key, typeof(IMcpServer).FullName), (entry.Key, entry.Contract)));
+        Assert.All(capabilities, entry => Assert.Equal((brain.Owner.Key(Server), typeof(IMcpServer).FullName), (entry.Key, entry.Contract)));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => Capabilities(brain).Read("another-brain", ct));
     }
 
@@ -42,8 +41,8 @@ public sealed class McpServerFacts
         var ct = TestContext.Current.CancellationToken;
         await using var server = await FakeServer.StartAsync(ct);
         await using var brain = await Start(ct);
-        Stamp();
-        var mcp = brain.Get<IMcpServer>(Key);
+        using var caller = brain.Owner.AsCaller();
+        var mcp = brain.Get<IMcpServer>(brain.Owner.Key(Server));
         await mcp.Connect(new("Fake", server.Url), ct);
 
         var result = await mcp.Run("echo", """{"text":"hello"}""", ct);
@@ -58,8 +57,8 @@ public sealed class McpServerFacts
         var ct = TestContext.Current.CancellationToken;
         await using var server = await FakeServer.StartAsync(ct);
         await using var brain = await Start(ct);
-        Stamp();
-        var mcp = brain.Get<IMcpServer>(Key);
+        using var caller = brain.Owner.AsCaller();
+        var mcp = brain.Get<IMcpServer>(brain.Owner.Key(Server));
         await mcp.Connect(new("Fake", server.Url), ct);
 
         await mcp.Run("next", "{}", ct);
@@ -74,8 +73,8 @@ public sealed class McpServerFacts
         var ct = TestContext.Current.CancellationToken;
         await using var server = await FakeServer.StartAsync(ct);
         await using var brain = await Start(ct);
-        Stamp();
-        var mcp = brain.Get<IMcpServer>(Key);
+        using var caller = brain.Owner.AsCaller();
+        var mcp = brain.Get<IMcpServer>(brain.Owner.Key(Server));
         await mcp.Connect(new("Fake", server.Url), ct);
 
         var result = await mcp.Run("pixel", "{}", ct);
@@ -90,9 +89,9 @@ public sealed class McpServerFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start(ct);
-        Stamp();
+        using var caller = brain.Owner.AsCaller();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => brain.Get<IMcpServer>(Key).Run("echo", "{}", ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => brain.Get<IMcpServer>(brain.Owner.Key(Server)).Run("echo", "{}", ct));
     }
 
     [Fact]
@@ -100,15 +99,15 @@ public sealed class McpServerFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start(ct);
-        Stamp();
-        var mcp = brain.Get<IMcpServer>(Key);
+        using var caller = brain.Owner.AsCaller();
+        var mcp = brain.Get<IMcpServer>(brain.Owner.Key(Server));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => mcp.Connect(new("Gone", "http://127.0.0.1:1/mcp"), ct));
 
         var state = await mcp.Read();
         Assert.False(state.Connected);
         Assert.NotNull(state.Error);
-        Assert.Empty(await Capabilities(brain).Read(Brain, ct));
+        Assert.Empty(await Capabilities(brain).Read(brain.Owner.BrainId, ct));
     }
 
     [Fact]
@@ -117,24 +116,21 @@ public sealed class McpServerFacts
         var ct = TestContext.Current.CancellationToken;
         await using var server = await FakeServer.StartAsync(ct);
         await using var brain = await Start(ct);
-        Stamp();
-        var mcp = brain.Get<IMcpServer>(Key);
+        using var caller = brain.Owner.AsCaller();
+        var mcp = brain.Get<IMcpServer>(brain.Owner.Key(Server));
         await mcp.Connect(new("Fake", server.Url), ct);
 
         await mcp.Disconnect(ct);
 
         Assert.False((await mcp.Read()).Connected);
-        Assert.Empty(await Capabilities(brain).Read(Brain, ct));
+        Assert.Empty(await Capabilities(brain).Read(brain.Owner.BrainId, ct));
     }
 
-    private static IRuntimeCapabilitySource Capabilities(ModuleBrain brain)
+    private static IRuntimeCapabilitySource Capabilities(ITestBrain brain)
         => brain.SiloServices.GetServices<IRuntimeCapabilitySource>().OfType<ToolCapabilitySource>().Single();
 
-    private static Task<ModuleBrain> Start(CancellationToken ct)
-        => ModuleTest.Create().WithModule<McpModule>().WithModule<ToolsModule>().StartAsync(ct);
-
-    private static void Stamp() => CallerContextStamper.Stamp(new()
-    { PrincipalId = "owner", AccountId = "owner", BrainId = Brain, Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
+    private static Task<ITestBrain> Start(CancellationToken ct)
+        => TestBrain.Create().WithModule<McpModule>().WithModule<ToolsModule>().StartAsync(ct);
 
     [McpServerToolType]
     public sealed class FakeTools
