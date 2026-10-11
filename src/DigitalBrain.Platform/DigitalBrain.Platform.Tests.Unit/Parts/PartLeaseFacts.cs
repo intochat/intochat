@@ -12,7 +12,7 @@ namespace DigitalBrain.Platform.Tests.Unit.Parts;
 public sealed class PartLeaseFacts
 {
     internal static DigitalBrain.Platform.Trust.ISequencerClient Sequencer(ITestBrain brain) =>
-        brain.SiloServices.GetRequiredService<DigitalBrain.Platform.Trust.ISequencerClient>();
+        brain.Services.GetRequiredService<DigitalBrain.Platform.Trust.ISequencerClient>();
 
     internal static SeenVersions Seen() => new(Path.Combine(Path.GetTempPath(), $"seen-{Guid.NewGuid():N}.json"));
 
@@ -23,7 +23,7 @@ public sealed class PartLeaseFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        var serializer = brain.SiloServices.GetRequiredService<Serializer>();
+        var serializer = brain.Services.GetRequiredService<Serializer>();
         var part = PartId.ForApp("home", "notes");
         var key = RandomNumberGenerator.GetBytes(32);
         using var alice = SequencerFacts.Machine();
@@ -42,7 +42,7 @@ public sealed class PartLeaseFacts
         var ct = TestContext.Current.CancellationToken;
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
         await using var brain = await TestBrain.Create().ConfigureServices(services => services.AddSingleton<TimeProvider>(time)).StartAsync(ct);
-        var serializer = brain.SiloServices.GetRequiredService<Serializer>();
+        var serializer = brain.Services.GetRequiredService<Serializer>();
         var part = PartId.ForApp("home", "notes");
         var key = RandomNumberGenerator.GetBytes(32);
         using var alice = SequencerFacts.Machine();
@@ -65,7 +65,7 @@ public sealed class PartLeaseFacts
         var part = PartId.ForApp("home", "notes");
         using var alice = SequencerFacts.Machine();
         var lease = await PartLease.Acquire(part, RandomNumberGenerator.GetBytes(32), PartLeaseFacts.Sequencer(brain), alice, Seen(), new PartsOptions(), TimeProvider.System,
-            brain.SiloServices.GetRequiredService<Serializer>());
+            brain.Services.GetRequiredService<Serializer>());
         var start = lease.Version;
 
         var calls = Enumerable.Range(0, 10).SelectMany(i => new[] { lease.Commit(new HeadPayload { LastSeq = i }), lease.Renew() });
@@ -83,7 +83,7 @@ public sealed class PartLeaseFacts
         using var cloud = SequencerFacts.Machine();
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => PartLease.Acquire(PartId.Core("home"), RandomNumberGenerator.GetBytes(32),
-            PartLeaseFacts.Sequencer(brain), cloud, Seen(), new PartsOptions { Role = MachineRole.Cloud }, TimeProvider.System, brain.SiloServices.GetRequiredService<Serializer>()));
+            PartLeaseFacts.Sequencer(brain), cloud, Seen(), new PartsOptions { Role = MachineRole.Cloud }, TimeProvider.System, brain.Services.GetRequiredService<Serializer>()));
     }
 
     [Fact(Timeout = 60_000)]
@@ -99,6 +99,6 @@ public sealed class PartLeaseFacts
             .CompareAndSet(0, SequencerFacts.Record(alice, HeadRecord.HashOf(part.Value), 1, TimeSpan.FromSeconds(-1)));
 
         await Assert.ThrowsAsync<RollbackDetectedException>(() => PartLease.Acquire(part, RandomNumberGenerator.GetBytes(32), PartLeaseFacts.Sequencer(brain), alice, seen,
-            new PartsOptions(), TimeProvider.System, brain.SiloServices.GetRequiredService<Serializer>()));
+            new PartsOptions(), TimeProvider.System, brain.Services.GetRequiredService<Serializer>()));
     }
 }

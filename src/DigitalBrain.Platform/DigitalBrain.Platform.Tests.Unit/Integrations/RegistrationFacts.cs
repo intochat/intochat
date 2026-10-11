@@ -196,7 +196,7 @@ public sealed class RegistrationFacts
         await google.Configure(Values(("ClientSecret", OtherCanary)));
         var seeder = new IntegrationSeeder(
             new ConfigurationBuilder().AddInMemoryCollection(seeded).Build(),
-            brain.SiloServices.GetRequiredService<IReadOnlyList<IntegrationSchema>>(),
+            brain.Services.GetRequiredService<IReadOnlyList<IntegrationSchema>>(),
             brain.Grains,
             NullLogger<IntegrationSeeder>.Instance);
         await seeder.SeedAsync(ct);
@@ -311,7 +311,7 @@ public sealed class RegistrationFacts
         await Registration(brain, "openai").Configure(Values(("ApiKey", Canary)));
 
         var entries = await IntegrationCatalog.ListAsync(
-            brain.SiloServices.GetRequiredService<IReadOnlyList<IntegrationSchema>>(), brain.Grains, ct);
+            brain.Services.GetRequiredService<IReadOnlyList<IntegrationSchema>>(), brain.Grains, ct);
 
         // The host always composes the orleans module, so its integration is catalogued too.
         Assert.Equal(["anthropic", "google", "openai", "orleans"], entries.Select(entry => entry.Id).Order().ToArray());
@@ -479,7 +479,7 @@ public sealed class RegistrationFacts
     private static Task SeedAsync(ITestBrain brain, IReadOnlyDictionary<string, string?> configuration, CancellationToken cancellationToken)
         => new IntegrationSeeder(
             new ConfigurationBuilder().AddInMemoryCollection(configuration).Build(),
-            brain.SiloServices.GetRequiredService<IReadOnlyList<IntegrationSchema>>(),
+            brain.Services.GetRequiredService<IReadOnlyList<IntegrationSchema>>(),
             brain.Grains,
             NullLogger<IntegrationSeeder>.Instance).SeedAsync(cancellationToken);
 

@@ -163,7 +163,6 @@
     <Project Path="src/Testing/DigitalBrain.Testing.Aspire/DigitalBrain.Testing.Aspire.csproj" />
     <Project Path="src/Testing/DigitalBrain.Testing.Playwright/DigitalBrain.Testing.Playwright.csproj" />
     <Project Path="src/Testing/DigitalBrain.Testing.Tests/DigitalBrain.Testing.Tests.csproj" />
-    <Project Path="src/Testing/DigitalBrain.Testing.Module/DigitalBrain.Testing.Module.csproj" />
     <Project Path="src/Testing/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
   </Folder>
   <Folder Name="/OS/">

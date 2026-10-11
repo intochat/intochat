@@ -65,7 +65,7 @@ public sealed class InProcessTarget : ITestTarget
         foreach (var module in plan.Modules) { builder.Configuration.AddInMemoryCollection(module.Settings); }
         builder.Configuration.AddInMemoryCollection(plan.Configuration);
         // A part-log machine with no separate trust cluster is its owner's core holder, so the product births the
-        // owner brain at boot as it does on the AppHost's primary machine. Deleted with WithPartLog in Task 20.
+        // owner brain at boot as it does on the AppHost's primary machine.
         if (!string.IsNullOrWhiteSpace(Setting(plan, $"{PartsOptions.Key}:{nameof(PartsOptions.Role)}"))
             && string.IsNullOrWhiteSpace(Setting(plan, $"{TrustOptions.Key}:{nameof(TrustOptions.Endpoint)}"))
             && Setting(plan, $"{PartsOptions.Key}:CoreHolder") is null)
@@ -78,17 +78,15 @@ public sealed class InProcessTarget : ITestTarget
         {
             server.AddModule<OrleansModule>();
             foreach (var module in plan.Modules.Where(module => module.Module is not OrleansModule)) { server.AddModule(module.Module); }
-            if (plan.Services is { } services) { server.ConfigureServices(services); }
         });
-        if (plan.Silo is { } configureSilo)
+        if (plan.Services is { } services)
         {
+            // After the server's and Orleans' registrations, so a fact replaces or decorates theirs; the kernel wraps the
+            // cluster storage after it, so a storage the fact replaced or decorated is wrapped once, outermost.
             builder.UseOrleans(silo =>
             {
-                // The shimmed actions see the cluster storage as the old module tier did, before the kernel wraps it.
-                var wrapped = silo.TryRemoveKernelRegistration();
-                if (!wrapped && silo.Services.Any(d => d.ServiceType == typeof(Orleans.Storage.IGrainStorage) && Equals(d.ServiceKey, DigitalBrainNames.ClusterGrainStorage)))
-                { throw new InvalidOperationException("The cluster storage is registered but not wrapped by the kernel, so the shimmed ConfigureSilo cannot see it as the module tier did."); }
-                configureSilo(silo);
+                silo.TryRemoveKernelRegistration();
+                services(silo.Services);
                 silo.TryAddKernelRegistration();
             });
         }

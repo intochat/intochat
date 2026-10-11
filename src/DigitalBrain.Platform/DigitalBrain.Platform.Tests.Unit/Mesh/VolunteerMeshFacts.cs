@@ -54,26 +54,26 @@ public sealed class VolunteerMeshFacts
             .WithConfiguration($"{StorageNodeOptions.Key}:{nameof(StorageNodeOptions.MaxBytesPerAccount)}", perAccount.ToString(System.Globalization.CultureInfo.InvariantCulture));
         if (store is not null)
         {
-            builder = builder.ConfigureSilo(silo => silo.Services.AddSingleton(provider => store(
+            builder = builder.ConfigureServices(services => services.AddSingleton(provider => store(
                 provider.GetRequiredService<IOptions<StorageNodeOptions>>().Value, provider.GetRequiredService<IOptions<MeshOptions>>().Value.MaxShardBytes)));
         }
         var machine = await builder.StartAsync(ct);
         // A Secured host without a bootstrap credential binds nothing at start; this one serves `account` only.
-        await machine.SiloServices.GetRequiredService<MachineRegistrar>().Bind(account);
-        await machine.SiloServices.GetRequiredService<StorageNodeService>().Register();
+        await machine.Services.GetRequiredService<MachineRegistrar>().Bind(account);
+        await machine.Services.GetRequiredService<StorageNodeService>().Register();
         return machine;
     }
 
-    internal static string NodeOf(ITestBrain machine) => machine.SiloServices.GetRequiredService<StorageNodeService>().NodeId;
+    internal static string NodeOf(ITestBrain machine) => machine.Services.GetRequiredService<StorageNodeService>().NodeId;
 
     internal static async Task<SegmentManifest> Manifest(ITestBrain putter, byte[] key, MeshRef reference, CancellationToken ct)
     {
-        var shards = putter.SiloServices.GetRequiredService<IShardClient>();
+        var shards = putter.Services.GetRequiredService<IShardClient>();
         foreach (var node in reference.ManifestNodes)
         {
             if (await shards.Get(node, reference.ManifestCid, ct) is not { } bytes || StorageProof.ContentId(bytes) != reference.ManifestCid) { continue; }
             var plain = SegmentSeal.Open(key, $"mesh-manifest|{reference.SegmentId}", bytes);
-            return putter.SiloServices.GetRequiredService<Serializer>().Deserialize<SegmentManifest>(plain)!;
+            return putter.Services.GetRequiredService<Serializer>().Deserialize<SegmentManifest>(plain)!;
         }
         throw new InvalidOperationException("No manifest replica is readable.");
     }
@@ -96,10 +96,10 @@ public sealed class VolunteerMeshFacts
             // A node of the putter's own account: placement never picks it (T23-6).
             w = await Coded(TestBrain.Create().WithTrust(trust))
                 .WithConfiguration($"{StorageNodeOptions.Key}:{nameof(StorageNodeOptions.OfferedBytes)}", "1048576").StartAsync(ct);
-            await w.SiloServices.GetRequiredService<StorageNodeService>().Register();
+            await w.Services.GetRequiredService<StorageNodeService>().Register();
             (x, y, z) = (await NodeMachine(trust, "bob", ct), await NodeMachine(trust, "carol", ct), await NodeMachine(trust, "dave", ct));
             var data = RandomNumberGenerator.GetBytes(3000);
-            var store = p.SiloServices.GetRequiredService<IMeshStore>();
+            var store = p.Services.GetRequiredService<IMeshStore>();
 
             var reference = await store.Write(Key, "part/log/1", data, ct);
 
@@ -108,7 +108,7 @@ public sealed class VolunteerMeshFacts
             Assert.DoesNotContain(NodeOf(w), nodes);
             Assert.DoesNotContain(NodeOf(w), reference.ManifestNodes);
             Assert.Equal(data, await store.Read(Key, reference, ct));
-            Assert.True(await x.SiloServices.GetRequiredService<ShardStore>().Get(
+            Assert.True(await x.Services.GetRequiredService<ShardStore>().Get(
                 (await Manifest(p, Key, reference, ct)).Shards.Single(shard => shard.NodeId == NodeOf(x)).Cid) is not null);
         }
         finally { await Stop(z, y, x, w, p, trust); }
@@ -127,7 +127,7 @@ public sealed class VolunteerMeshFacts
             x = await NodeMachine(trust, "bob", ct, (options, cap) => new LyingShardStore(options, cap));
             (y, z) = (await NodeMachine(trust, "carol", ct), await NodeMachine(trust, "dave", ct));
             var data = RandomNumberGenerator.GetBytes(3000);
-            var store = p.SiloServices.GetRequiredService<IMeshStore>();
+            var store = p.Services.GetRequiredService<IMeshStore>();
             var reference = await store.Write(Key, "part/log/1", data, ct);
             var manifest = await Manifest(p, Key, reference, ct);
             Assert.Contains(manifest.Shards, shard => shard.NodeId == NodeOf(x));
@@ -153,7 +153,7 @@ public sealed class VolunteerMeshFacts
             p = await Coded(TestBrain.Create().WithTrust(trust)).StartAsync(ct);
             y = await NodeMachine(trust, "carol", ct, (options, cap) => new DigestShardStore(options, cap));
             (x, z) = (await NodeMachine(trust, "bob", ct), await NodeMachine(trust, "dave", ct));
-            var store = p.SiloServices.GetRequiredService<IMeshStore>();
+            var store = p.Services.GetRequiredService<IMeshStore>();
             var reference = await store.Write(Key, "part/log/1", RandomNumberGenerator.GetBytes(3000), ct);
 
             var audit = await store.Audit(Key, reference, 0, ct);
@@ -179,7 +179,7 @@ public sealed class VolunteerMeshFacts
             p = await Coded(TestBrain.Create().WithTrust(trust)).StartAsync(ct);
             (x, y, z) = (await NodeMachine(trust, "bob", ct), await NodeMachine(trust, "carol", ct), await NodeMachine(trust, "dave", ct));
             var data = RandomNumberGenerator.GetBytes(3000);
-            var store = p.SiloServices.GetRequiredService<IMeshStore>();
+            var store = p.Services.GetRequiredService<IMeshStore>();
             var reference = await store.Write(Key, "part/log/1", data, ct);
             var lost = (await Manifest(p, Key, reference, ct)).Shards.Single(shard => shard.NodeId == NodeOf(z));
             // A new owner joins after the write: the only owner holding no shard of the segment.
@@ -190,7 +190,7 @@ public sealed class VolunteerMeshFacts
             await z.DisposeAsync();
             z = null;
             time.Advance(new MeshOptions().OfflineAfter + TimeSpan.FromSeconds(1));
-            foreach (var beating in (ITestBrain[])[x, y, v]) { await beating.SiloServices.GetRequiredService<StorageNodeService>().Heartbeat(); }
+            foreach (var beating in (ITestBrain[])[x, y, v]) { await beating.Services.GetRequiredService<StorageNodeService>().Heartbeat(); }
             Assert.False((await trust.Grains.GetGrain<IStorageNodeDirectory>(IStorageNodeDirectory.Key).List()).Single(node => node.NodeId == zs).Online);
 
             var repair = await store.Repair(Key, reference, cancellationToken: ct);
@@ -216,14 +216,14 @@ public sealed class VolunteerMeshFacts
             x = await NodeMachine(trust, "bob", ct, perAccount: 16);
             (y, z) = (await NodeMachine(trust, "carol", ct), await NodeMachine(trust, "dave", ct));
             var data = RandomNumberGenerator.GetBytes(3000);
-            var store = p.SiloServices.GetRequiredService<IMeshStore>();
+            var store = p.Services.GetRequiredService<IMeshStore>();
 
             var reference = await store.Write(Key, "part/log/1", data, ct);
 
             var manifest = await Manifest(p, Key, reference, ct);
             Assert.DoesNotContain(manifest.Shards, shard => shard.NodeId == NodeOf(x));
             Assert.DoesNotContain(NodeOf(x), reference.ManifestNodes);
-            Assert.Equal(0, x.SiloServices.GetRequiredService<ShardStore>().UsedBytes);
+            Assert.Equal(0, x.Services.GetRequiredService<ShardStore>().UsedBytes);
             Assert.Equal(data, await store.Read(Key, reference, ct));
         }
         finally { await Stop(z, y, x, p, trust); }
@@ -233,9 +233,9 @@ public sealed class VolunteerMeshFacts
     public async Task ASegmentLargerThanTheShardCapIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithPartLog()
+        await using var brain = await TestBrain.Create().AsMachine()
             .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.MaxShardBytes)}", "1024").StartAsync(ct);
-        var store = brain.SiloServices.GetRequiredService<IMeshStore>();
+        var store = brain.Services.GetRequiredService<IMeshStore>();
 
         await store.Write(Key, "part/log/1", RandomNumberGenerator.GetBytes(4 * 1024 - 64), ct);
         await Assert.ThrowsAsync<InvalidOperationException>(() => store.Write(Key, "part/log/2", RandomNumberGenerator.GetBytes(5 * 1024), ct));

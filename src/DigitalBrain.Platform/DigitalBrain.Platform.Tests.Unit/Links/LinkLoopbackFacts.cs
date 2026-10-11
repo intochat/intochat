@@ -29,16 +29,16 @@ public sealed class LinkLoopbackFacts
         };
         ActivitySource.AddActivityListener(listener);
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var a = await TestBrain.Create().WithTrust(trust).WithPartLog().StartAsync(ct);
-        await using var b = await TestBrain.Create().WithTrust(trust).WithPartLog().StartAsync(ct);
-        var (idA, idB) = (a.SiloServices.GetRequiredService<IMachineTransport>().LocalMachineId, b.SiloServices.GetRequiredService<IMachineTransport>().LocalMachineId);
+        await using var a = await TestBrain.Create().WithTrust(trust).AsMachine().StartAsync(ct);
+        await using var b = await TestBrain.Create().WithTrust(trust).AsMachine().StartAsync(ct);
+        var (idA, idB) = (a.Services.GetRequiredService<IMachineTransport>().LocalMachineId, b.Services.GetRequiredService<IMachineTransport>().LocalMachineId);
         var part = PartId.ForApp(BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id, "counter");
         var grain = $"counter/{part.Value}/c1";
 
-        var logsA = a.SiloServices.GetRequiredService<PartLogs>();
+        var logsA = a.Services.GetRequiredService<PartLogs>();
         await (await logsA.For(part)).Append(grain, "counter", RecordChange.Write, [3], []);
         await logsA.Release(part);
-        var logsB = b.SiloServices.GetRequiredService<PartLogs>();
+        var logsB = b.Services.GetRequiredService<PartLogs>();
         Assert.Equal([3], (await logsB.For(part)).Read(grain, "counter")!.Record);
         await (await logsB.For(part)).Append(grain, "counter", RecordChange.Write, [4], []);
         await logsB.Release(part);

@@ -106,21 +106,21 @@ public sealed class CrossPartCallFacts
 
     private static TestBrain Captured(TestBrain brain)
         // First of the incoming filters: it sees the RequestContext as the call arrived, before NeuronCallFilter.
-        => brain.ConfigureSilo(silo =>
+        => brain.ConfigureServices(services =>
         {
-            silo.Services.Insert(0, ServiceDescriptor.Singleton<IIncomingGrainCallFilter>(provider =>
+            services.Insert(0, ServiceDescriptor.Singleton<IIncomingGrainCallFilter>(provider =>
                 new RequestCapture(provider.GetRequiredService<Serializer>())));
-            silo.Services.AddSingleton<IActivationHandler<CrossCounterNeuron>, ActivationRecord>();
+            services.AddSingleton<IActivationHandler<CrossCounterNeuron>, ActivationRecord>();
         });
 
     private static async Task<(TrustHost Trust, ITestBrain One, ITestBrain Two)> Machines(CancellationToken ct)
     {
         var trust = await TrustHost.StartAsync(ct);
-        var one = await Captured(TestBrain.Create().WithTrust(trust).WithPartLog()
+        var one = await Captured(TestBrain.Create().WithTrust(trust).AsMachine()
             .WithConfiguration($"{PartsOptions.Key}:{nameof(PartsOptions.CoreHolder)}", "true")).StartAsync(ct);
-        await one.SiloServices.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
-        var two = await Captured(TestBrain.Create().WithTrust(trust).WithPartLog()).StartAsync(ct);
-        await two.SiloServices.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
+        await one.Services.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
+        var two = await Captured(TestBrain.Create().WithTrust(trust).AsMachine()).StartAsync(ct);
+        await two.Services.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
         return (trust, one, two);
     }
 
@@ -130,7 +130,7 @@ public sealed class CrossPartCallFacts
         await trust.DisposeAsync();
     }
 
-    private static string Id(ITestBrain machine) => machine.SiloServices.GetRequiredService<IMachineTransport>().LocalMachineId;
+    private static string Id(ITestBrain machine) => machine.Services.GetRequiredService<IMachineTransport>().LocalMachineId;
 
     private static ActivityListener Listen(ConcurrentBag<Activity> seen)
     {
@@ -147,14 +147,14 @@ public sealed class CrossPartCallFacts
     // A raw grain-call over from's link to `to`, bypassing from's filter.
     private static async Task<ForwardedOutcome> Send(ITestBrain from, ITestBrain to, ForwardedCall call)
     {
-        var serializer = from.SiloServices.GetRequiredService<Serializer>();
-        var link = await from.SiloServices.GetRequiredService<IMachineTransport>().Connect(Id(to), CancellationToken.None);
+        var serializer = from.Services.GetRequiredService<Serializer>();
+        var link = await from.Services.GetRequiredService<IMachineTransport>().Connect(Id(to), CancellationToken.None);
         var reply = await link.Send(new LinkRequest(PartCallFilter.Operation, serializer.SerializeToArray(call), null, null, Guid.NewGuid()), CancellationToken.None);
         return serializer.Deserialize<ForwardedOutcome>(reply.Payload!)!;
     }
 
     private static IInvokable Captured(ITestBrain on, string key)
-        => on.SiloServices.GetRequiredService<Serializer>().Deserialize<IInvokable>(RequestCapture.Requests[key])!;
+        => on.Services.GetRequiredService<Serializer>().Deserialize<IInvokable>(RequestCapture.Requests[key])!;
 
     [Fact(Timeout = 180_000)]
     public async Task ANeuronOnOneMachineCallsANeuronOfAPartHeldByAnother()
@@ -173,8 +173,8 @@ public sealed class CrossPartCallFacts
 
             Assert.Equal(1, await two.Grains.GetGrain<ICrossCounter>(counter).Value());
             Assert.Equal(1, CrossCounterNeuron.Adds[counter]);
-            Assert.DoesNotContain(PartId.Of(counter), one.SiloServices.GetRequiredService<PartLogs>().Opened);
-            Assert.Contains(PartId.Of(counter), two.SiloServices.GetRequiredService<PartLogs>().Opened);
+            Assert.DoesNotContain(PartId.Of(counter), one.Services.GetRequiredService<PartLogs>().Opened);
+            Assert.Contains(PartId.Of(counter), two.Services.GetRequiredService<PartLogs>().Opened);
         }
         finally { await Stop(trust, two, one); }
     }
@@ -186,12 +186,12 @@ public sealed class CrossPartCallFacts
         SkipWithoutQuic();
         var ct = TestContext.Current.CancellationToken;
         var trust = await TrustHost.StartAsync(ct);
-        var cloud = await TestBrain.Create().WithTrust(trust).WithPartLog()
+        var cloud = await TestBrain.Create().WithTrust(trust).AsMachine()
             .WithConfiguration($"{PartsOptions.Key}:{nameof(PartsOptions.Role)}", nameof(MachineRole.Cloud)).StartAsync(ct);
         try
         {
             await Assert.ThrowsAsync<ServiceUnavailableException>(() => cloud.Grains.GetGrain<IBrain>(Scope).Read());
-            Assert.DoesNotContain(PartId.Core(Scope), cloud.SiloServices.GetRequiredService<PartLogs>().Opened);
+            Assert.DoesNotContain(PartId.Core(Scope), cloud.Services.GetRequiredService<PartLogs>().Opened);
         }
         finally { await Stop(trust, cloud); }
     }
@@ -233,11 +233,11 @@ public sealed class CrossPartCallFacts
             // Resolved and cached on machine one: two holds the counter.
             Assert.Equal(0, await one.Grains.GetGrain<ICrossCounter>(counter).Value());
 
-            await two.SiloServices.GetRequiredService<PartActivations>().Release(PartId.Of(counter));
+            await two.Services.GetRequiredService<PartActivations>().Release(PartId.Of(counter));
 
             Assert.Equal(1, await one.Grains.GetGrain<ICrossCounter>(counter).Add(1));
             Assert.Equal(1, CrossCounterNeuron.Adds[counter]);
-            Assert.Contains(PartId.Of(counter), one.SiloServices.GetRequiredService<PartLogs>().Opened);
+            Assert.Contains(PartId.Of(counter), one.Services.GetRequiredService<PartLogs>().Opened);
         }
         finally { await Stop(trust, two, one); }
     }
@@ -285,7 +285,7 @@ public sealed class CrossPartCallFacts
 
             Assert.Equal(3, await two.Grains.GetGrain<ICrossCounter>(counter).Add(3));
 
-            Assert.DoesNotContain(PartId.Core(Scope), two.SiloServices.GetRequiredService<PartLogs>().Opened);
+            Assert.DoesNotContain(PartId.Core(Scope), two.Services.GetRequiredService<PartLogs>().Opened);
             Assert.Contains(seen, activity => activity.Kind == ActivityKind.Server
                 && activity.GetTagItem(PartCallFilter.MachineTag) as string == Id(one)
                 && (activity.GetTagItem(PartCallFilter.GrainTag) as string ?? "").StartsWith("kernel.instances/", StringComparison.Ordinal));
@@ -320,14 +320,14 @@ public sealed class CrossPartCallFacts
     // A Secured host bound to account bob, a member of the owner's brain: a member's machine.
     private static async Task<ITestBrain> MemberMachine(TrustHost trust, ITestBrain owner, CancellationToken ct)
     {
-        var bob = await TestBrain.Create().WithTrust(trust).WithPartLog()
+        var bob = await TestBrain.Create().WithTrust(trust).AsMachine()
             .WithConfiguration(AuthOptions.PostureKey, nameof(IdentityPosture.Secured))
             .StartAsync(ct);
         // Without a bootstrap credential the Secured host registers nothing at start; it serves bob's account only.
-        await bob.SiloServices.GetRequiredService<MachineRegistrar>().Bind("bob");
-        await bob.SiloServices.GetRequiredService<IIdentityClient>().EnsureAccount(new Account
+        await bob.Services.GetRequiredService<MachineRegistrar>().Bind("bob");
+        await bob.Services.GetRequiredService<IIdentityClient>().EnsureAccount(new Account
         { AccountId = "bob", OwnerPrincipalId = "bob", Name = "bob", CreatedAt = DateTimeOffset.UtcNow });
-        await owner.SiloServices.GetRequiredService<IIdentityClient>().EnsureMember(new Member
+        await owner.Services.GetRequiredService<IIdentityClient>().EnsureMember(new Member
         { PrincipalId = "bob", AccountId = AccountSession.DefaultLogin, BrainId = Scope, Role = MemberRole.Member, DisplayName = "Bob" });
         return bob;
     }
@@ -397,8 +397,8 @@ public sealed class CrossPartCallFacts
         {
             var counter = NewCounter();
             await one.Grains.GetGrain<ICrossCounter>(counter).Touch();
-            var cluster = two.SiloServices.GetRequiredService<global::Microsoft.Extensions.Options.IOptions<Orleans.Configuration.ClusterOptions>>().Value;
-            var gateway = two.SiloServices.GetRequiredService<ILocalSiloDetails>().GatewayAddress.Endpoint.Port;
+            var cluster = two.Services.GetRequiredService<global::Microsoft.Extensions.Options.IOptions<Orleans.Configuration.ClusterOptions>>().Value;
+            var gateway = two.Services.GetRequiredService<ILocalSiloDetails>().GatewayAddress.Endpoint.Port;
             var builder = global::Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder(new global::Microsoft.Extensions.Hosting.HostApplicationBuilderSettings { DisableDefaults = true });
             builder.UseOrleansClient(client => client.UseLocalhostClustering(gateway, cluster.ServiceId, cluster.ClusterId));
             using var host = builder.Build();
@@ -411,7 +411,7 @@ public sealed class CrossPartCallFacts
 
                 Assert.Equal(1, CrossCounterNeuron.Adds[counter]);
                 Assert.Equal(5, await one.Grains.GetGrain<ICrossCounter>(counter).Value());
-                Assert.DoesNotContain(PartId.Of(counter), two.SiloServices.GetRequiredService<PartLogs>().Opened);
+                Assert.DoesNotContain(PartId.Of(counter), two.Services.GetRequiredService<PartLogs>().Opened);
                 // The stand-in on two read no state (the part never opened there), wrote nothing and ran no activation
                 // handler (BrainActivation's Activated, DeploymentReconcile and the like are handlers too).
                 Assert.DoesNotContain((Id(two), counter), ActivationRecord.Seen);
@@ -506,7 +506,7 @@ public sealed class CrossPartCallFacts
 
             await one.Grains.GetGrain<ISignalCounter>(counter).Change(5);
 
-            var log = await two.SiloServices.GetRequiredService<PartLogs>().For(PartId.Of(counter));
+            var log = await two.Services.GetRequiredService<PartLogs>().For(PartId.Of(counter));
             await log.Flushed();
             var signal = Assert.IsType<Changed>(Assert.Single(log.SignalsSince(0)[^1].Signals));
             Assert.Equal(5, signal.Value);

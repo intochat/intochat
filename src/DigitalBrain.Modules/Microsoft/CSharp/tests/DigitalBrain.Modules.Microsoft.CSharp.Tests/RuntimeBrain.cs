@@ -4,6 +4,8 @@ using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Microsoft.CSharp.Assemblies;
 using DigitalBrain.Microsoft.CSharp.Runtime;
 using DigitalBrain.Microsoft.CSharp.Sessions;
+using DigitalBrain.Platform.Mesh;
+using DigitalBrain.Platform.Parts;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
@@ -37,7 +39,15 @@ internal static class RuntimeBrain
         if (time is not null) { builder = builder.ConfigureServices(services => services.AddSingleton(time)); }
         if (assemblies is not null) { builder = builder.ConfigureServices(services => services.AddSingleton(assemblies)); }
         if (journal is not null) { builder = builder.ConfigureServices(services => services.AddSingleton(journal)); }
-        if (partLog) { builder = builder.WithPartLog(); }
+        // The owner's machine: cluster storage on the part log over an in-process mesh of 8 platform-owned nodes.
+        if (partLog)
+        {
+            builder = builder.WithConfiguration($"{PartsOptions.Key}:{nameof(PartsOptions.Role)}", nameof(MachineRole.Own))
+                .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.SeedNodes)}", "8")
+                .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.DataShards)}", "4")
+                .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.ParityShards)}", "2")
+                .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.ManifestReplicas)}", "2");
+        }
         return builder.StartAsync(ct);
     }
 

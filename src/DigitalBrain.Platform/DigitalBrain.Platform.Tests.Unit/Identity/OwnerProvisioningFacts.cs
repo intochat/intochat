@@ -33,7 +33,7 @@ public sealed class OwnerProvisioningFacts
         }
         // The handler reached every brain's authority while the brain was being born: the three people's and the
         // owner brain the machine bears at boot (R59).
-        await brain.SiloServices.GetRequiredService<DigitalBrain.Platform.Trust.OwnerBirth>().Born.WaitAsync(ct);
+        await brain.Services.GetRequiredService<DigitalBrain.Platform.Trust.OwnerBirth>().Born.WaitAsync(ct);
         Assert.Equal(4, handler.Decisions.Count);
     }
 
@@ -60,7 +60,7 @@ public sealed class OwnerProvisioningFacts
         await using var brain = await TestBrain.Create().StartAsync(ct);
         var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(AccountSession.DefaultLogin, "dev").Id);
         // R68: the machine's grant policy provisions the synthetic owner through the signed path; Authorize never does.
-        var decision = await brain.SiloServices.GetRequiredService<DigitalBrain.Platform.Identity.Grants.IGrantPolicySource>()
+        var decision = await brain.Services.GetRequiredService<DigitalBrain.Platform.Identity.Grants.IGrantPolicySource>()
             .AuthorizeAsync(AppCallerAtBirth.Request(AccountSession.DefaultLogin, "dev"), ct);
         Assert.True(decision is null || decision.Allowed);
         Assert.Null(await authority.Membership("os"));

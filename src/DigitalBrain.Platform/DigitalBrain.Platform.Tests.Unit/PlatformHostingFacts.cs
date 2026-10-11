@@ -16,7 +16,7 @@ public sealed class PlatformHostingFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        var identity = brain.SiloServices.GetRequiredService<IIdentity>();
+        var identity = brain.Services.GetRequiredService<IIdentity>();
         Assert.Null(identity.CurrentPrincipal);
         Assert.Throws<UntrustedCallerException>(identity.RequirePrincipal);
         using var reader = await brain.PersonAsync("reader", ct);
@@ -59,7 +59,7 @@ public sealed class PlatformHostingFacts
         var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("owner", "owner").Id);
         await authority.Initialize("owner", "owner");
         var request = new CallRequest { Caller = caller, TargetNeuron = "person", Operation = "Read", SemanticTypeIds = ["person.email"] };
-        var filter = brain.SiloServices.GetRequiredService<ICallFilter>();
+        var filter = brain.Services.GetRequiredService<ICallFilter>();
         Assert.Equal(CallDenial.MissingGrant, (await filter.AuthorizeAsync(request, ct)).Denial);
         await authority.Grant(new Grant
         {

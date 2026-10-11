@@ -164,8 +164,8 @@ public sealed class RelayFacts
             var pair = new MachinePair
             {
                 Trust = trust,
-                A = a.SiloServices.GetRequiredService<QuicMachineTransport>(),
-                B = b.SiloServices.GetRequiredService<QuicMachineTransport>(),
+                A = a.Services.GetRequiredService<QuicMachineTransport>(),
+                B = b.Services.GetRequiredService<QuicMachineTransport>(),
             };
             pair._owned.AddRange([b, a, trust]);
             pair.B.DirectBlocked = true;

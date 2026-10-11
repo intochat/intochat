@@ -69,7 +69,7 @@ public sealed class TrustClientFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        var services = brain.SiloServices;
+        var services = brain.Services;
         using var machine = SequencerFacts.Machine();
 
         var sequencer = services.GetRequiredService<ISequencerClient>();
@@ -88,12 +88,12 @@ public sealed class TrustClientFacts
         Assert.Equal(shard, await directory.Get("node-a", cid));
         Assert.Contains(await directory.List(), node => node.NodeId == "node-a");
 
-        await brain.OwnBrainAsync(AccountSession.DefaultLogin, "home");
+        var owner = brain.Owner;
         var marketplace = services.GetRequiredService<IMarketplaceClient>();
-        var listing = new MarketplaceRecord("owner", AccountSession.DefaultLogin, "home", "echo", "Echo", "echoes", "1.0.0", null);
-        await marketplace.Upsert(AccountSession.DefaultLogin, listing);
-        Assert.Equal(listing, await marketplace.Read("owner", "echo"));
-        await marketplace.Remove(AccountSession.DefaultLogin, "owner", "echo");
+        var listing = new MarketplaceRecord(owner.PrincipalId, owner.AccountId, owner.BrainId, "echo", "Echo", "echoes", "1.0.0", null);
+        await marketplace.Upsert(owner.AccountId, listing);
+        Assert.Equal(listing, await marketplace.Read(owner.PrincipalId, "echo"));
+        await marketplace.Remove(owner.AccountId, owner.PrincipalId, "echo");
         Assert.Empty(await marketplace.List());
     }
 
@@ -102,7 +102,7 @@ public sealed class TrustClientFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        var directory = brain.SiloServices.GetRequiredService<INodeDirectoryClient>();
+        var directory = brain.Services.GetRequiredService<INodeDirectoryClient>();
         using var machine = SequencerFacts.Machine();
         using var other = SequencerFacts.Machine();
 
@@ -117,7 +117,7 @@ public sealed class TrustClientFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        var directory = brain.SiloServices.GetRequiredService<INodeDirectoryClient>();
+        var directory = brain.Services.GetRequiredService<INodeDirectoryClient>();
         using var first = SequencerFacts.Machine();
         using var second = SequencerFacts.Machine();
         var pairing = SHA256.HashData(Encoding.UTF8.GetBytes("deployment-secret"));
@@ -136,7 +136,7 @@ public sealed class TrustClientFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        var directory = brain.SiloServices.GetRequiredService<INodeDirectoryClient>();
+        var directory = brain.Services.GetRequiredService<INodeDirectoryClient>();
         using var first = SequencerFacts.Machine();
         using var second = SequencerFacts.Machine();
         using var third = SequencerFacts.Machine();
@@ -152,7 +152,7 @@ public sealed class TrustClientFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
         using var machine = SequencerFacts.Machine();
-        await Register(brain.SiloServices.GetRequiredService<INodeDirectoryClient>(), machine, "mallory", []);
+        await Register(brain.Services.GetRequiredService<INodeDirectoryClient>(), machine, "mallory", []);
         await Owned(brain, "alice", "home");
         var clients = GrainTrustClients.WithScratchCounter(brain.Grains, machine);
 
@@ -167,7 +167,7 @@ public sealed class TrustClientFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
         using var machine = SequencerFacts.Machine();
-        await Register(brain.SiloServices.GetRequiredService<INodeDirectoryClient>(), machine, "alice", []);
+        await Register(brain.Services.GetRequiredService<INodeDirectoryClient>(), machine, "alice", []);
         await Owned(brain, "alice", "home");
         var catalog = brain.Grains.GetGrain<IMarketplaceCatalog>(IMarketplaceCatalog.Key);
         var listing = new MarketplaceRecord("alice", "alice", "home", "echo", "Echo", "", "1.0.0", null);

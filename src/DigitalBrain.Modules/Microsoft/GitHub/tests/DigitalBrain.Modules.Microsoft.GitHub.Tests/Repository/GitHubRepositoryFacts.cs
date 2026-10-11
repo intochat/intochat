@@ -19,11 +19,11 @@ public sealed class GitHubRepositoryFacts
         .WithIntegration(GitHubModule.Integration, "AppId", "7")
         .WithIntegration(GitHubModule.Integration, "PrivateKeyPem", "unused")
         .WithIntegration(GitHubModule.Integration, "WebhookSecret", WebhookSecret)
-        .ConfigureSilo(silo =>
+        .ConfigureServices(services =>
         {
-            silo.Services.AddSingleton<IGitHubRepositorySource>(source ?? new FakeGitHubRepositorySource());
-            silo.Services.AddSingleton<IGitHubUserAccess>(new FakeUserAccess());
-            silo.Services.AddSingleton<IGitHubInstallationVerifier>(verifier ?? new FakeInstallationVerifier());
+            services.AddSingleton<IGitHubRepositorySource>(source ?? new FakeGitHubRepositorySource());
+            services.AddSingleton<IGitHubUserAccess>(new FakeUserAccess());
+            services.AddSingleton<IGitHubInstallationVerifier>(verifier ?? new FakeInstallationVerifier());
         })
         .StartAsync(ct);
 

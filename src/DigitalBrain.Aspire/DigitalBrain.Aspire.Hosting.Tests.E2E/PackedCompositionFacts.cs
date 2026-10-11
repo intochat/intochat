@@ -26,7 +26,6 @@ public sealed class PackedCompositionFacts
             "DigitalBrain.Testing",
             "DigitalBrain.Testing.Aspire",
             "DigitalBrain.Testing.Playwright",
-            "DigitalBrain.Testing.Module",
             // The harness no longer drags modules in; one contracts package proves module
             // contracts stay consumable from the feed on their own.
             "DigitalBrain.Modules.AI.Contracts",
@@ -105,7 +104,7 @@ public sealed class PackedCompositionFacts
         {
             ("DigitalBrain.Modules.AI.Contracts", "_ = typeof(DigitalBrain.AI.Models.ILLM);"),
             ("DigitalBrain.Client", "_ = typeof(DigitalBrain.Client.DigitalBrainClient);"),
-            ("DigitalBrain.Testing.Module", "await using var brain = await DigitalBrain.Testing.Module.ModuleTest.Create().StartAsync();"),
+            ("DigitalBrain.Testing", "await using var brain = await DigitalBrain.Testing.TestBrain.Create().StartAsync();"),
             ("DigitalBrain.Aspire.Server", "var builder = global::Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder(); DigitalBrain.Aspire.Server.ServerHostingExtensions.AddDigitalBrainServer(builder, _ => { });"),
         })
         {

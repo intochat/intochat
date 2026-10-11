@@ -153,7 +153,7 @@ public sealed class TimerFacts
         var ct = TestContext.Current.CancellationToken;
         var control = new ControlledTimers();
         await using var brain = await TestBrain.Create().WithModule<TimeModule>()
-            .ConfigureSilo(silo => silo.UseControlledTimers(control)).ConfigureServices(services => services.UseFastCollection())
+            .ConfigureServices(services => services.UseControlledTimers(control)).ConfigureServices(services => services.UseFastCollection())
             .StartAsync(ct);
         var timer = brain.Get<ITimer>("long-delay");
         await timer.Start(TimeSpan.FromDays(1));
@@ -183,6 +183,6 @@ public sealed class TimerFacts
 
     private static Task<ITestBrain> StartAsync(CancellationToken ct, ControlledTimers timers)
         => TestBrain.Create().WithModule<TimeModule>()
-            .ConfigureSilo(silo => silo.UseControlledTimers(timers))
+            .ConfigureServices(services => services.UseControlledTimers(timers))
             .StartAsync(ct);
 }

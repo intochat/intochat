@@ -26,13 +26,13 @@ public sealed class MachineRestartFacts
             SuspectTimes = [],
         });
 
-        await using var machine = await TestBrain.Create().WithPartLog()
-            .ConfigureSilo(silo => silo.Services.AddSingleton<IMembershipTable>(table))
+        await using var machine = await TestBrain.Create().AsMachine()
+            .ConfigureServices(services => services.AddSingleton<IMembershipTable>(table))
             .StartAsync(ct);
 
-        var membership = machine.SiloServices.GetRequiredService<IOptions<ClusterMembershipOptions>>().Value;
+        var membership = machine.Services.GetRequiredService<IOptions<ClusterMembershipOptions>>().Value;
         Assert.Equal(SingleSiloCluster.HeartbeatEvery, membership.IAmAliveTablePublishTimeout);
-        Assert.Same(table, machine.SiloServices.GetRequiredService<IMembershipTable>());
+        Assert.Same(table, machine.Services.GetRequiredService<IMembershipTable>());
     }
 }
 

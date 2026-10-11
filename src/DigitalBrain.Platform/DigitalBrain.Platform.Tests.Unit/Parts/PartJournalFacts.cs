@@ -12,7 +12,7 @@ public sealed class PartJournalFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        var serializer = brain.SiloServices.GetRequiredService<Serializer>();
+        var serializer = brain.Services.GetRequiredService<Serializer>();
         var key = RandomNumberGenerator.GetBytes(32);
         var path = Path.Combine(Path.GetTempPath(), $"journal-{Guid.NewGuid():N}.log");
         var journal = new PartJournal(path, key, serializer);
@@ -31,7 +31,7 @@ public sealed class PartJournalFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        var journal = new PartJournal(Path.Combine(Path.GetTempPath(), $"journal-{Guid.NewGuid():N}.log"), RandomNumberGenerator.GetBytes(32), brain.SiloServices.GetRequiredService<Serializer>());
+        var journal = new PartJournal(Path.Combine(Path.GetTempPath(), $"journal-{Guid.NewGuid():N}.log"), RandomNumberGenerator.GetBytes(32), brain.Services.GetRequiredService<Serializer>());
         foreach (var seq in new long[] { 1, 2, 3 }) { journal.Append(new LogEntry { Seq = seq, GrainId = "g", StateName = "s", Record = [], Signals = [] }); }
 
         journal.TrimThrough(2);
@@ -44,7 +44,7 @@ public sealed class PartJournalFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        var serializer = brain.SiloServices.GetRequiredService<Serializer>();
+        var serializer = brain.Services.GetRequiredService<Serializer>();
         var key = RandomNumberGenerator.GetBytes(32);
         var path = Path.Combine(Path.GetTempPath(), $"journal-{Guid.NewGuid():N}.log");
         var journal = new PartJournal(path, key, serializer) { Interrupt = () => throw new IOException("The disk went away mid-record.") };

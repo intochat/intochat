@@ -16,7 +16,7 @@ public sealed class MachinePartEndpointFacts
     public async Task TheOwnerReleasesAPartAndReadsItsRecordsAndOthersAreRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<PulseModule>().WithPartLog().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<PulseModule>().AsMachine().StartAsync(ct);
         var owner = brain.Owner;
         var key = owner.Key("apps/counter/c1");
         var part = PartId.Of(key);

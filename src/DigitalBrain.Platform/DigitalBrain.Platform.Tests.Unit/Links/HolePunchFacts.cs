@@ -25,7 +25,7 @@ public sealed class HolePunchFacts
         await using var trust = await TrustHost.StartAsync(ct);
         await using var a = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
         await using var b = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
-        var (ta, tb) = (a.SiloServices.GetRequiredService<QuicMachineTransport>(), b.SiloServices.GetRequiredService<QuicMachineTransport>());
+        var (ta, tb) = (a.Services.GetRequiredService<QuicMachineTransport>(), b.Services.GetRequiredService<QuicMachineTransport>());
         tb.Handle("echo", Echo);
         ta.Handle("echo", Echo);
 
@@ -57,9 +57,9 @@ public sealed class HolePunchFacts
             .WithConfiguration($"{DigitalBrain.Platform.Trust.TrustOptions.Key}:{nameof(DigitalBrain.Platform.Trust.TrustOptions.Endpoint)}", endpoint)
             .WithConfiguration($"{PartsOptions.Key}:{nameof(PartsOptions.MachineDirectory)}", Path.Combine(Path.GetTempPath(), "digitalbrain-field", role))
             .StartAsync(ct);
-        var transport = machine.SiloServices.GetRequiredService<QuicMachineTransport>();
+        var transport = machine.Services.GetRequiredService<QuicMachineTransport>();
         transport.Handle("echo", Echo);
-        var directory = machine.SiloServices.GetRequiredService<IOptions<PartsOptions>>().Value.MachineDirectory;
+        var directory = machine.Services.GetRequiredService<IOptions<PartsOptions>>().Value.MachineDirectory;
         // Each side writes its machine id to {MachineDirectory}/machine-id on a first run; the operator hands it to the
         // other side as DIGITALBRAIN_FIELD_PEER_MACHINE and runs both again.
         var peer = Environment.GetEnvironmentVariable(FieldPeerMachine);

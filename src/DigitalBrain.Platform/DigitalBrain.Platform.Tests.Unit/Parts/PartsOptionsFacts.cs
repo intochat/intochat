@@ -20,7 +20,7 @@ public sealed class PartsOptionsFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        Assert.NotEmpty(brain.SiloServices.GetRequiredService<MachineIdentity>().MachineId);
-        Assert.NotNull(brain.SiloServices.GetRequiredService<SeenVersions>());
+        Assert.NotEmpty(brain.Services.GetRequiredService<MachineIdentity>().MachineId);
+        Assert.NotNull(brain.Services.GetRequiredService<SeenVersions>());
     }
 }

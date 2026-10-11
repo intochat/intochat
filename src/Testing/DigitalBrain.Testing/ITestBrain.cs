@@ -20,9 +20,6 @@ public interface ITestBrain : IDigitalBrain, IBrainSubscriptions, IAsyncDisposab
     // Neuron references and services taken before the restart belong to the stopped host: take them again after it.
     Task RestartAsync(CancellationToken cancellationToken = default);
 
-    // Deleted in Task 20: the module tier's name for Services during the sweep.
-    IServiceProvider SiloServices => Services;
-
     // Registers an account through the brain's HTTP edge; the brain owns its cookie client.
     Task<Person> PersonAsync(string name, CancellationToken cancellationToken = default);
 

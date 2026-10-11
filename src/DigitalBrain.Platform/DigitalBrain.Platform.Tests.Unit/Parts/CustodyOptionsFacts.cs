@@ -21,7 +21,7 @@ public sealed class CustodyOptionsFacts
         var ct = TestContext.Current.CancellationToken;
         var refused = await Assert.ThrowsAnyAsync<Exception>(async () =>
         {
-            await using var brain = await TestBrain.Create().WithPartLog()
+            await using var brain = await TestBrain.Create().AsMachine()
                 .WithConfiguration(CustodyKey, nameof(MasterKeyCustodyKind.Configured))
                 .ConfigureServices(services => services.Replace(ServiceDescriptor.Singleton<IHostEnvironment>(new ProductionEnvironment())))
                 .StartAsync(ct);
@@ -36,7 +36,7 @@ public sealed class CustodyOptionsFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var log = new WarningLog();
-        await using var brain = await TestBrain.Create().WithPartLog()
+        await using var brain = await TestBrain.Create().AsMachine()
             .WithConfiguration(CustodyKey, nameof(MasterKeyCustodyKind.Configured))
             .WithConfiguration($"{PartsOptions.Key}:{nameof(PartsOptions.ConfiguredCustodyAcknowledged)}", "true")
             .ConfigureServices(services =>
@@ -45,7 +45,7 @@ public sealed class CustodyOptionsFacts
                 services.AddSingleton<ILoggerProvider>(log);
             })
             .StartAsync(ct);
-        Assert.True(brain.SiloServices.GetRequiredService<IHostEnvironment>().IsProduction());
+        Assert.True(brain.Services.GetRequiredService<IHostEnvironment>().IsProduction());
         Assert.Contains(log.Lines, line => line.Contains("the custody root is a configured secret, not hardware", StringComparison.Ordinal));
     }
 
@@ -54,13 +54,13 @@ public sealed class CustodyOptionsFacts
     public async Task AProductionCloudMachineStartsWithConfiguredCustody()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithPartLog()
+        await using var brain = await TestBrain.Create().AsMachine()
             .WithConfiguration($"{PartsOptions.Key}:{nameof(PartsOptions.Role)}", nameof(MachineRole.Cloud))
             .WithConfiguration(CustodyKey, nameof(MasterKeyCustodyKind.Configured))
             .ConfigureServices(services => services.Replace(ServiceDescriptor.Singleton<IHostEnvironment>(new ProductionEnvironment())))
             .StartAsync(ct);
-        Assert.True(brain.SiloServices.GetRequiredService<IHostEnvironment>().IsProduction());
-        Assert.Equal(MachineRole.Cloud, brain.SiloServices.GetRequiredService<global::Microsoft.Extensions.Options.IOptions<PartsOptions>>().Value.Role);
+        Assert.True(brain.Services.GetRequiredService<IHostEnvironment>().IsProduction());
+        Assert.Equal(MachineRole.Cloud, brain.Services.GetRequiredService<global::Microsoft.Extensions.Options.IOptions<PartsOptions>>().Value.Role);
     }
 
     [Fact(Timeout = 120_000)]
@@ -69,7 +69,7 @@ public sealed class CustodyOptionsFacts
         var ct = TestContext.Current.CancellationToken;
         var refused = await Assert.ThrowsAnyAsync<Exception>(async () =>
         {
-            await using var brain = await TestBrain.Create().WithPartLog()
+            await using var brain = await TestBrain.Create().AsMachine()
                 .WithConfiguration(CustodyKey, nameof(MasterKeyCustodyKind.Tpm))
                 .StartAsync(ct);
         });

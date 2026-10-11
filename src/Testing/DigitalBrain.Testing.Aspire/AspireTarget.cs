@@ -13,7 +13,7 @@ public sealed class AspireTarget<TAppHost>(BrowserLocation? browser = null) : IT
         ArgumentNullException.ThrowIfNull(plan);
         if (plan.Modules.Count > 0) { throw new NotSupportedException("The AppHost owns composition; use WithOptions/WithIntegration on an Aspire target."); }
         if (plan.Services is not null) { throw new NotSupportedException("ConfigureServices is in-process only; put a fake behind WithIntegration."); }
-        if (plan.Client is not null || plan.Silo is not null) { throw new NotSupportedException("ConfigureSilo and ConfigureClient reach the in-process host only."); }
+        if (plan.Client is not null) { throw new NotSupportedException("An Aspire brain's client belongs to the AppHost."); }
         var integration = IntegrationSchema.SectionName + ":";
         if (plan.Execution.HostConfiguration.Keys.FirstOrDefault(key => key.StartsWith(integration, StringComparison.OrdinalIgnoreCase)) is { } leaked)
         { throw new ArgumentException($"Host configuration reaches the AppHost's command line; set '{leaked}' with WithIntegration so it travels in the private file."); }

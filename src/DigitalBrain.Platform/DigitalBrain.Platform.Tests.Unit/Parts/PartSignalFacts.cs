@@ -76,7 +76,7 @@ public sealed class PartSignalFacts
 
     private static async Task<LogEntry> LastEntry(ITestBrain brain)
     {
-        var log = await brain.SiloServices.GetRequiredService<PartLogs>().For(PartId.Of(Counter));
+        var log = await brain.Services.GetRequiredService<PartLogs>().For(PartId.Of(Counter));
         await log.Flushed();
         return log.SignalsSince(0)[^1];
     }
@@ -85,7 +85,7 @@ public sealed class PartSignalFacts
     public async Task AStateChangeAndItsSignalAreOneEntry()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithPartLog().StartAsync(ct);
+        await using var brain = await TestBrain.Create().AsMachine().StartAsync(ct);
 
         await brain.Get<ISignalCounter>(Counter).Change(5);
 
@@ -98,7 +98,7 @@ public sealed class PartSignalFacts
     public async Task ASignalWithoutAStateChangeIsItsOwnEntry()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithPartLog().StartAsync(ct);
+        await using var brain = await TestBrain.Create().AsMachine().StartAsync(ct);
         var counter = brain.Get<ISignalCounter>(Counter);
         await counter.Change(1);
 
@@ -115,13 +115,13 @@ public sealed class PartSignalFacts
     public async Task AFailedStateWriteNeverPublishesItsSignal()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithPartLog().StartAsync(ct);
+        await using var brain = await TestBrain.Create().AsMachine().StartAsync(ct);
         var counter = brain.Get<ISignalCounter>(Counter);
         await counter.Change(1);
         await using var probe = await brain.Observe<Changed>(counter, ct);
-        var log = await brain.SiloServices.GetRequiredService<PartLogs>().For(PartId.Of(Counter));
+        var log = await brain.Services.GetRequiredService<PartLogs>().For(PartId.Of(Counter));
         await log.Append(counter.GetGrainId().ToString(), "counter", RecordChange.Write,
-            brain.SiloServices.GetRequiredService<Serializer>().SerializeToArray(new PartCounterState { Value = 9 }), []);
+            brain.Services.GetRequiredService<Serializer>().SerializeToArray(new PartCounterState { Value = 9 }), []);
 
         var error = await Assert.ThrowsAnyAsync<Exception>(() => counter.Change(2));
         await counter.Ping();
@@ -148,20 +148,20 @@ public sealed class PartSignalFacts
             Role = MachineRole.Cloud, BatchBytes = 1,
             MachineDirectory = Path.Combine(Path.GetTempPath(), $"cloud-machine-{Guid.NewGuid():N}"),
         };
-        await using var brain = await TestBrain.Create().WithPartLog()
-            .ConfigureSilo(silo =>
+        await using var brain = await TestBrain.Create().AsMachine()
+            .ConfigureServices(services =>
             {
-                silo.Services.AddSingleton(provider => new CloudPart(new PartLogs(new DigitalBrain.Platform.Trust.TrustDeployment(provider.GetRequiredService<DigitalBrain.Platform.Trust.INodeDirectoryClient>(), Options.Create(cloud)), provider.GetRequiredService<DigitalBrain.Platform.Trust.ISequencerClient>(), provider.GetRequiredService<DigitalBrain.Platform.Trust.IKeyringClient>(),
+                services.AddSingleton(provider => new CloudPart(new PartLogs(new DigitalBrain.Platform.Trust.TrustDeployment(provider.GetRequiredService<DigitalBrain.Platform.Trust.INodeDirectoryClient>(), Options.Create(cloud)), provider.GetRequiredService<DigitalBrain.Platform.Trust.ISequencerClient>(), provider.GetRequiredService<DigitalBrain.Platform.Trust.IKeyringClient>(),
                     provider.GetRequiredService<IMeshStore>(), provider.GetRequiredService<IPartKeys>(), SequencerFacts.Machine(), PartLeaseFacts.Seen(),
                     provider.GetRequiredService<Serializer>(), Options.Create(cloud), time, provider.GetRequiredService<ILoggerFactory>()), part));
-                silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (provider, _) =>
+                services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (provider, _) =>
                 {
                     var serializer = provider.GetRequiredService<Serializer>();
                     var dedicated = provider.GetRequiredService<CloudPart>();
                     return new CloudPartStorage(dedicated, new PartGrainStorage(provider.GetRequiredService<PartLogs>(), serializer),
                         new PartGrainStorage(dedicated.Logs, serializer));
                 });
-                silo.Services.AddSingleton<ISignalJournal>(provider =>
+                services.AddSingleton<ISignalJournal>(provider =>
                 {
                     var dedicated = provider.GetRequiredService<CloudPart>();
                     return new CloudPartJournal(dedicated, new PartSignalJournal(provider.GetRequiredService<PartLogs>()), new PartSignalJournal(dedicated.Logs));
@@ -171,10 +171,10 @@ public sealed class PartSignalFacts
         var counter = brain.Get<ISignalCounter>(Counter);
         await counter.Change(1);
         await using var probe = await brain.SubscribeAsync<Signal>(counter, ct);
-        var key = await brain.SiloServices.GetRequiredService<IPartKeys>().Key(part, AccountSession.DefaultLogin, ct);
+        var key = await brain.Services.GetRequiredService<IPartKeys>().Key(part, AccountSession.DefaultLogin, ct);
         using var rival = SequencerFacts.Machine();
         var taken = await PartLease.Acquire(part, key, PartLeaseFacts.Sequencer(brain), rival, PartLeaseFacts.Seen(), new PartsOptions { Role = MachineRole.Cloud }, TimeProvider.System,
-            brain.SiloServices.GetRequiredService<Serializer>());
+            brain.Services.GetRequiredService<Serializer>());
 
         var error = await Assert.ThrowsAnyAsync<Exception>(() => counter.Change(2));
         await taken.Release();
@@ -185,7 +185,7 @@ public sealed class PartSignalFacts
         await using var next = probe.ReadAllAsync(ct).GetAsyncEnumerator(ct);
         Assert.True(await next.MoveNextAsync());
         Assert.IsType<Pinged>(next.Current);
-        var log = await brain.SiloServices.GetRequiredService<CloudPart>().Logs.For(part);
+        var log = await brain.Services.GetRequiredService<CloudPart>().Logs.For(part);
         await log.Flushed();
         Assert.DoesNotContain(log.SignalsSince(0), entry => entry.Signals.OfType<Changed>().Any(c => c.Value == 2));
     }
@@ -208,11 +208,11 @@ public sealed class PartSignalFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create()
-            .ConfigureSilo(silo =>
+            .ConfigureServices(services =>
             {
-                var memory = silo.Services.Last(d => d.ServiceType == typeof(IGrainStorage) && Equals(d.ServiceKey, DigitalBrainNames.ClusterGrainStorage));
-                silo.Services.Remove(memory);
-                silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (provider, key) =>
+                var memory = services.Last(d => d.ServiceType == typeof(IGrainStorage) && Equals(d.ServiceKey, DigitalBrainNames.ClusterGrainStorage));
+                services.Remove(memory);
+                services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (provider, key) =>
                     new SignalProbeStorage((IGrainStorage)memory.KeyedImplementationFactory!(provider, key)));
             })
             .StartAsync(ct);

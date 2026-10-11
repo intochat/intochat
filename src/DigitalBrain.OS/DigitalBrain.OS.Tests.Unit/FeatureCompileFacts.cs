@@ -16,7 +16,6 @@ public sealed class FeatureCompileFacts
         await using var brain = await TestBrain.Create()
             .WithModule<AppsModule, AppsOptions>(options => options.Features = SolutionProjects.Features)
             .WithModule<CSharpModule>()
-            .WithReminders()
             .StartAsync(ct);
         var sandbox = brain.Services.GetRequiredService<IScriptSandbox>();
         Assert.True(sandbox.CanRun);

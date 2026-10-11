@@ -206,10 +206,10 @@ public sealed class AgentTurnStartFacts
 
     // Storage faults are in-process: the agent's writes are held or failed under the kernel's wrapper.
     private static Task<ITestBrain> Brain(StubChatClient client, AgentWrites writes, CancellationToken ct)
-        => AgentFacts.Builder(client).ConfigureSilo(silo =>
+        => AgentFacts.Builder(client).ConfigureServices(services =>
         {
-            var original = silo.Services.Last(service => service.ServiceType == typeof(IGrainStorage) && Equals(service.ServiceKey, DigitalBrainNames.ClusterGrainStorage));
-            silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (services, key) =>
+            var original = services.Last(service => service.ServiceType == typeof(IGrainStorage) && Equals(service.ServiceKey, DigitalBrainNames.ClusterGrainStorage));
+            services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (services, key) =>
                 new AgentWriteStorage((IGrainStorage)original.KeyedImplementationFactory!(services, key), writes));
         }).StartAsync(ct);
 

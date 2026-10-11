@@ -30,9 +30,9 @@ public sealed class PartLogFacts
     internal static async Task<PartLog> OpenAsync(ITestBrain brain, PartId part, byte[] key, MachineIdentity machine, PartsOptions options, TimeProvider time,
         CancellationToken ct, IMeshStore? mesh = null)
     {
-        var serializer = brain.SiloServices.GetRequiredService<Serializer>();
+        var serializer = brain.Services.GetRequiredService<Serializer>();
         var lease = await PartLease.Acquire(part, key, PartLeaseFacts.Sequencer(brain), machine, PartLeaseFacts.Seen(), options, time, serializer);
-        return await PartLog.Open(part, key, lease, mesh ?? brain.SiloServices.GetRequiredService<IMeshStore>(), serializer, options, time,
+        return await PartLog.Open(part, key, lease, mesh ?? brain.Services.GetRequiredService<IMeshStore>(), serializer, options, time,
             NullLogger<PartLog>.Instance, ct);
     }
 
@@ -96,10 +96,10 @@ public sealed class PartLogFacts
         var part = PartId.ForApp("home", "notes");
         var key = RandomNumberGenerator.GetBytes(32);
         using var machine = SequencerFacts.Machine();
-        var serializer = brain.SiloServices.GetRequiredService<Serializer>();
+        var serializer = brain.Services.GetRequiredService<Serializer>();
         var options = Cloud(TimeSpan.FromMilliseconds(50));
         var lease = await PartLease.Acquire(part, key, PartLeaseFacts.Sequencer(brain), machine, PartLeaseFacts.Seen(), options, TimeProvider.System, serializer);
-        await using var log = await PartLog.Open(part, key, lease, brain.SiloServices.GetRequiredService<IMeshStore>(), serializer, options,
+        await using var log = await PartLog.Open(part, key, lease, brain.Services.GetRequiredService<IMeshStore>(), serializer, options,
             TimeProvider.System, NullLogger<PartLog>.Instance, ct);
 
         var seqs = await Task.WhenAll(Enumerable.Range(0, 20).Select(i => log.Append($"g{i}", "s", RecordChange.Write, [(byte)i], [])));
@@ -117,8 +117,8 @@ public sealed class PartLogFacts
         var part = PartId.ForApp("home", "notes");
         var key = RandomNumberGenerator.GetBytes(32);
         using var machine = SequencerFacts.Machine();
-        var serializer = brain.SiloServices.GetRequiredService<Serializer>();
-        var mesh = brain.SiloServices.GetRequiredService<IMeshStore>();
+        var serializer = brain.Services.GetRequiredService<Serializer>();
+        var mesh = brain.Services.GetRequiredService<IMeshStore>();
         var options = Cloud();
         var lease = await PartLease.Acquire(part, key, PartLeaseFacts.Sequencer(brain), machine, PartLeaseFacts.Seen(), options, TimeProvider.System, serializer);
         await using (var log = await PartLog.Open(part, key, lease, mesh, serializer, options, TimeProvider.System, NullLogger<PartLog>.Instance, ct))
@@ -148,7 +148,7 @@ public sealed class PartLogFacts
         var key = RandomNumberGenerator.GetBytes(32);
         using var machine = SequencerFacts.Machine();
         var options = Own();
-        var mesh = new UnreachableMesh(brain.SiloServices.GetRequiredService<IMeshStore>());
+        var mesh = new UnreachableMesh(brain.Services.GetRequiredService<IMeshStore>());
 
         await using (var log = await OpenAsync(brain, part, key, machine, options, TimeProvider.System, ct, mesh))
         {
@@ -179,7 +179,7 @@ public sealed class PartLogFacts
         using var alice = SequencerFacts.Machine();
         using var bob = SequencerFacts.Machine();
         var aliceOptions = Own();
-        var mesh = new UnreachableMesh(brain.SiloServices.GetRequiredService<IMeshStore>());
+        var mesh = new UnreachableMesh(brain.Services.GetRequiredService<IMeshStore>());
         await using (var a = await OpenAsync(brain, part, key, alice, aliceOptions, time, ct, mesh))
         {
             mesh.Offline = true;
@@ -239,7 +239,7 @@ public sealed class PartLogFacts
         using var alice = SequencerFacts.Machine();
         using var bob = SequencerFacts.Machine();
         var aliceOptions = Own();
-        var mesh = new UnreachableMesh(brain.SiloServices.GetRequiredService<IMeshStore>());
+        var mesh = new UnreachableMesh(brain.Services.GetRequiredService<IMeshStore>());
         await using (var a = await OpenAsync(brain, part, key, alice, aliceOptions, time, ct, mesh))
         {
             mesh.Offline = true;
@@ -247,7 +247,7 @@ public sealed class PartLogFacts
         }
 
         time.Advance(aliceOptions.OwnLease + TimeSpan.FromMinutes(1));
-        var b = await PartLease.Acquire(part, key, PartLeaseFacts.Sequencer(brain), bob, PartLeaseFacts.Seen(), Own(), time, brain.SiloServices.GetRequiredService<Serializer>());
+        var b = await PartLease.Acquire(part, key, PartLeaseFacts.Sequencer(brain), bob, PartLeaseFacts.Seen(), Own(), time, brain.Services.GetRequiredService<Serializer>());
         await b.Commit(new HeadPayload { SnapshotSeq = 1, LastSeq = 1 });
         await b.Release();
 
@@ -266,8 +266,8 @@ public sealed class PartLogFacts
         using var alice = SequencerFacts.Machine();
         using var bob = SequencerFacts.Machine();
         var aliceOptions = Own();
-        var serializer = brain.SiloServices.GetRequiredService<Serializer>();
-        var mesh = new UnreachableMesh(brain.SiloServices.GetRequiredService<IMeshStore>());
+        var serializer = brain.Services.GetRequiredService<Serializer>();
+        var mesh = new UnreachableMesh(brain.Services.GetRequiredService<IMeshStore>());
         await using (var a = await OpenAsync(brain, part, key, alice, aliceOptions, time, ct, mesh))
         {
             mesh.Offline = true;
@@ -302,7 +302,7 @@ public sealed class PartLogFacts
         using var alice = SequencerFacts.Machine();
         var options = Own();
         options.SnapshotEvery = 1;
-        var serializer = brain.SiloServices.GetRequiredService<Serializer>();
+        var serializer = brain.Services.GetRequiredService<Serializer>();
         await using (var a = await OpenAsync(brain, part, key, alice, options, TimeProvider.System, ct))
         {
             await a.Append("g1", "s", RecordChange.Write, [1], []);
@@ -325,7 +325,7 @@ public sealed class PartLogFacts
         var part = PartId.ForApp("home", "notes");
         var key = RandomNumberGenerator.GetBytes(32);
         using var machine = SequencerFacts.Machine();
-        var mesh = new UnreachableMesh(brain.SiloServices.GetRequiredService<IMeshStore>()) { FailAfterWrite = true };
+        var mesh = new UnreachableMesh(brain.Services.GetRequiredService<IMeshStore>()) { FailAfterWrite = true };
         await using var log = await OpenAsync(brain, part, key, machine, Cloud(), TimeProvider.System, ct, mesh);
 
         var write = log.Append("g1", "s", RecordChange.Write, [1], []);
@@ -347,7 +347,7 @@ public sealed class PartLogFacts
         using var alice = SequencerFacts.Machine();
         using var bob = SequencerFacts.Machine();
         var options = Own();
-        var mesh = new UnreachableMesh(brain.SiloServices.GetRequiredService<IMeshStore>());
+        var mesh = new UnreachableMesh(brain.Services.GetRequiredService<IMeshStore>());
         await using (var a = await OpenAsync(brain, part, key, alice, options, TimeProvider.System, ct, mesh))
         {
             await a.Append("g1", "s", RecordChange.Write, [1], []);

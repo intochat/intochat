@@ -16,13 +16,13 @@ public sealed class SignalsReadFacts
     public async Task TheJournalReadsBackTheBrainsSignalsInOrderAndPagesFromACursor()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithPartLog().StartAsync(ct);
+        await using var brain = await TestBrain.Create().AsMachine().StartAsync(ct);
         var counter = brain.Get<ISignalCounter>(Counter);
         await counter.Change(1);
         await counter.Ping();
         await counter.Change(2);
-        await (await brain.SiloServices.GetRequiredService<PartLogs>().For(PartId.Of(Counter))).Flushed();
-        var journal = brain.SiloServices.GetRequiredService<ISignalJournal>();
+        await (await brain.Services.GetRequiredService<PartLogs>().For(PartId.Of(Counter))).Flushed();
+        var journal = brain.Services.GetRequiredService<ISignalJournal>();
 
         var all = await SignalsEndpoints.Read(journal, Scope, 0, 100);
         var counterSignals = all.Signals.Where(s => s.Publisher.Contains("counter")).ToArray();
@@ -40,9 +40,9 @@ public sealed class SignalsReadFacts
     public async Task AReadPastTheEndIsAnEmptyPageAtTheSameCursor()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithPartLog().StartAsync(ct);
+        await using var brain = await TestBrain.Create().AsMachine().StartAsync(ct);
         await brain.Get<ISignalCounter>(Counter).Change(1);
-        var journal = brain.SiloServices.GetRequiredService<ISignalJournal>();
+        var journal = brain.Services.GetRequiredService<ISignalJournal>();
 
         var page = await SignalsEndpoints.Read(journal, Scope, 99, 10);
 
@@ -55,7 +55,7 @@ public sealed class SignalsReadFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        var journal = brain.SiloServices.GetRequiredService<ISignalJournal>();
+        var journal = brain.Services.GetRequiredService<ISignalJournal>();
 
         var page = await SignalsEndpoints.Read(journal, Scope, 7, 10);
 

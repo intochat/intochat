@@ -1,5 +1,6 @@
 using DigitalBrain.Apps;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DigitalBrain.OS.Tests.Unit;
 
@@ -14,7 +15,8 @@ public sealed class OsBootFacts
             .WithModule<AppsModule, AppsOptions>(options => options.Features = SolutionProjects.Features)
             .ConfigureServices(services =>
             {
-                // The script runtime is the sandbox seam: registered first, it wins, and installs run no program.
+                // The script runtime is the sandbox seam: the idle one replaces the module's, so installs run no program.
+                services.RemoveAll<IAppRuntime>();
                 services.AddSingleton<IAppRuntime, IdleRuntime>();
                 services.AddOperatingSystemApps();
             })
@@ -40,7 +42,8 @@ public sealed class OsBootFacts
             .WithModule<AppsModule>()
             .ConfigureServices(services =>
             {
-                // The script runtime is the sandbox seam: registered first, it wins, and installs run no program.
+                // The script runtime is the sandbox seam: the idle one replaces the module's, so installs run no program.
+                services.RemoveAll<IAppRuntime>();
                 services.AddSingleton<IAppRuntime, IdleRuntime>();
                 services.AddSingleton(new FeatureCatalog(new FeatureDirectory(HelloFeatures())));
                 services.AddOperatingSystemBoot(os => { os.Apps.Add(new OsApp("os", "missing")); os.Apps.Add(new OsApp("os", "hello")); });

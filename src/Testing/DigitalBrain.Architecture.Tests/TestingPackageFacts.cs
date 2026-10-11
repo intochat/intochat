@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Xml.Linq;
 
 namespace DigitalBrain.Architecture.Tests;
@@ -36,19 +35,22 @@ public sealed class TestingPackageFacts
     {
         // Concatenated so this file never matches its own rule.
         var stamp = "CallerContextStamper" + ".Stamp(";
-        var harness = Repository.ProjectNamed("DigitalBrain.Testing").Folder;
-        var baseline = JsonSerializer.Deserialize<StampBaseline>(
-            File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestTierBaseline.json")))!
-            .LegacyHandStampedCallers.ToHashSet(StringComparer.Ordinal);
-        var offenders = new List<string>();
-        foreach (var project in Repository.TestProjects().Where(project => project.Folder != harness))
+        // Facts about the stamp itself: the mechanism under test, not a way to become a caller.
+        var allowed = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            if (!Repository.SourceFiles(project.Directory, "*.cs").Any(file => File.ReadAllText(file).Contains(stamp, StringComparison.Ordinal))) { continue; }
-            if (!baseline.Remove(project.Name)) { offenders.Add(project.Name); }
-        }
-        Assert.True(offenders.Count == 0, "Use Person.AsCaller(): " + string.Join(", ", offenders));
-        Assert.True(baseline.Count == 0,
-            "Swept projects linger in TestTierBaseline.json LegacyHandStampedCallers; remove: " + string.Join(", ", baseline));
+            ["EnforcementFacts.cs"] = "the kernel's enforcement of a stamped caller, which a Person cannot forge",
+        };
+        var harness = Repository.ProjectNamed("DigitalBrain.Testing").Folder;
+        var stamping = Repository.TestProjects()
+            .Where(project => project.Folder != harness)
+            .SelectMany(project => Repository.SourceFiles(project.Directory, "*.cs")
+                .Where(file => File.ReadAllText(file).Contains(stamp, StringComparison.Ordinal))
+                .Select(file => (Project: project.Name, File: Path.GetFileName(file))))
+            .ToArray();
+        var offenders = stamping.Where(found => !allowed.ContainsKey(found.File)).Select(found => $"{found.Project}/{found.File}").ToArray();
+        Assert.True(offenders.Length == 0, "Use Person.AsCaller(): " + string.Join(", ", offenders));
+        var stale = allowed.Keys.Where(file => !stamping.Any(found => found.File == file)).ToArray();
+        Assert.True(stale.Length == 0, "Allowed stamp files no longer stamp; remove: " + string.Join(", ", stale));
     }
 
     [Fact]
@@ -70,6 +72,4 @@ public sealed class TestingPackageFacts
             .ToArray();
         Assert.True(offenders.Length == 0, "Orleans' Azure storage belongs to the orleans module: " + string.Join("; ", offenders));
     }
-
-    private sealed record StampBaseline(string[] LegacyHandStampedCallers);
 }

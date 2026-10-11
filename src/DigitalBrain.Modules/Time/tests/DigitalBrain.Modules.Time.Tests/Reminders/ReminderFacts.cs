@@ -129,6 +129,6 @@ public sealed class ReminderFacts
 
     private static Task<ITestBrain> StartAsync(CancellationToken ct, ReminderControl reminders)
         => TestBrain.Create().WithModule<TimeModule>()
-            .ConfigureSilo(silo => silo.UseReminderControl(reminders))
+            .ConfigureServices(services => services.UseReminderControl(reminders))
             .StartAsync(ct);
 }

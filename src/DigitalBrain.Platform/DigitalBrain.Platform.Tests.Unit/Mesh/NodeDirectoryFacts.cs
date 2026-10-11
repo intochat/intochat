@@ -122,7 +122,7 @@ public sealed class NodeDirectoryFacts
         var ct = TestContext.Current.CancellationToken;
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
         await using var brain = await TestBrain.Create()
-            .ConfigureSilo(silo => silo.Services.AddKeyedSingleton<TimeProvider>(MeshOptions.Key, time)).StartAsync(ct);
+            .ConfigureServices(services => services.AddKeyedSingleton<TimeProvider>(MeshOptions.Key, time)).StartAsync(ct);
         var directory = brain.Grains.GetGrain<IStorageNodeDirectory>(IStorageNodeDirectory.Key);
         var node = await Volunteers.Register(brain.Grains, "bob", 1000);
         var offlineAfter = new MeshOptions().OfflineAfter;
@@ -177,7 +177,7 @@ public sealed class NodeDirectoryFacts
         var ct = TestContext.Current.CancellationToken;
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
         await using var brain = await TestBrain.Create()
-            .ConfigureSilo(silo => silo.Services.AddKeyedSingleton<TimeProvider>(MeshOptions.Key, time)).StartAsync(ct);
+            .ConfigureServices(services => services.AddKeyedSingleton<TimeProvider>(MeshOptions.Key, time)).StartAsync(ct);
         var directory = brain.Grains.GetGrain<IStorageNodeDirectory>(IStorageNodeDirectory.Key);
         for (var n = 0; n < 8; n++) { await directory.Register($"seed-{n}", SeedNodeRegistration.Owner); }
         await Volunteers.Register(brain.Grains, "bob", 1000);

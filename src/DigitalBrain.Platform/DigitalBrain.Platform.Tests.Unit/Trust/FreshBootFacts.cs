@@ -13,11 +13,11 @@ public sealed class FreshBootFacts
         var ct = TestContext.Current.CancellationToken;
         var handler = new Recording();
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var machine = await TestBrain.Create().WithTrust(trust).WithPartLog().WithConfiguration(SecondMachineFacts.CoreHolder, "true")
+        await using var machine = await TestBrain.Create().WithTrust(trust).AsMachine().WithConfiguration(SecondMachineFacts.CoreHolder, "true")
             .ConfigureServices(services => services.AddSingleton<ICreationHandler>(handler))
             .StartAsync(ct);
 
-        await machine.SiloServices.GetRequiredService<DigitalBrain.Platform.Trust.OwnerBirth>().Born.WaitAsync(ct);
+        await machine.Services.GetRequiredService<DigitalBrain.Platform.Trust.OwnerBirth>().Born.WaitAsync(ct);
         var created = Assert.Single(handler.Brains);
         Assert.Equal(BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id, created);
     }
@@ -34,9 +34,9 @@ public sealed class FreshBootFacts
             .StartAsync(ct);
 
         await gate.Entered.Task.WaitAsync(ct);
-        Assert.False(machine.SiloServices.GetRequiredService<DigitalBrain.Platform.Trust.OwnerBirth>().Born.IsCompleted);
+        Assert.False(machine.Services.GetRequiredService<DigitalBrain.Platform.Trust.OwnerBirth>().Born.IsCompleted);
         gate.Release.SetResult();
-        await machine.SiloServices.GetRequiredService<DigitalBrain.Platform.Trust.OwnerBirth>().Born.WaitAsync(ct);
+        await machine.Services.GetRequiredService<DigitalBrain.Platform.Trust.OwnerBirth>().Born.WaitAsync(ct);
     }
 
     // Round 4: the boot-time birth stamps no caller of its own, so the creation handlers (the OS defaults' installs,
@@ -50,7 +50,7 @@ public sealed class FreshBootFacts
             .ConfigureServices(services => services.AddSingleton<ICreationHandler>(handler))
             .StartAsync(ct);
 
-        await machine.SiloServices.GetRequiredService<DigitalBrain.Platform.Trust.OwnerBirth>().Born.WaitAsync(ct);
+        await machine.Services.GetRequiredService<DigitalBrain.Platform.Trust.OwnerBirth>().Born.WaitAsync(ct);
         Assert.Equal([AccountSession.DefaultLogin], handler.Callers);
     }
 

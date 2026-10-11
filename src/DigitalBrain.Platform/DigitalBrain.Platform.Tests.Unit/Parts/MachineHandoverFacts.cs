@@ -14,16 +14,16 @@ public sealed class MachineHandoverFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var a = await TestBrain.Create().WithTrust(trust).WithPartLog().StartAsync(ct);
-        await using var b = await TestBrain.Create().WithTrust(trust).WithPartLog().StartAsync(ct);
+        await using var a = await TestBrain.Create().WithTrust(trust).AsMachine().StartAsync(ct);
+        await using var b = await TestBrain.Create().WithTrust(trust).AsMachine().StartAsync(ct);
         var scope = BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;
         await a.Grains.GetGrain<IBrain>(scope).Create(new Owner(AccountSession.DefaultLogin));
 
         var key = $"{scope}/apps/counter/c1";
         var part = PartId.Of(key);
         var grain = $"counter/{key}";
-        var aLogs = a.SiloServices.GetRequiredService<PartLogs>();
-        var bLogs = b.SiloServices.GetRequiredService<PartLogs>();
+        var aLogs = a.Services.GetRequiredService<PartLogs>();
+        var bLogs = b.Services.GetRequiredService<PartLogs>();
 
         await (await aLogs.For(part)).Append(grain, "counter", RecordChange.Write, [3], []);
         await aLogs.Release(part);

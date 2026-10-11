@@ -67,9 +67,9 @@ public sealed class DefaultBrainFacts
         builder.Configuration[AuthOptions.PostureKey] = posture;
         builder.Services.AddSingleton<IDigitalBrain>(brain);
         builder.Services.AddSingleton<Orleans.IGrainFactory>(brain.Grains);
-        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>());
-        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Platform.Identity.PrincipalPasswords>());
-        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Platform.Identity.BrainBirths>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Platform.Identity.PrincipalPasswords>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Platform.Identity.BrainBirths>());
         builder.Services.AddIdentity();
         var app = builder.Build();
         app.Urls.Add("http://127.0.0.1:0");

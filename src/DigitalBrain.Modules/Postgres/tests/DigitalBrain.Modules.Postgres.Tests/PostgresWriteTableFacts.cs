@@ -86,11 +86,11 @@ public sealed class PostgresWriteTableFacts
         var race = new RetirementRace();
         await using var brain = await Builder("Host=localhost;Database=sample;Username=reader", services => services.AddSingleton<ITableStore>(new MemoryTables()))
             // Storage-fault injection: the race holds RequireOpen open and reports when retirement is persisted.
-            // ConfigureSilo, because the cluster storage must be replaced before the kernel wraps it.
-            .ConfigureSilo(silo =>
+            // The replaced cluster storage is wrapped by the kernel after ConfigureServices.
+            .ConfigureServices(services =>
             {
-                silo.Services.AddSingleton<IIncomingGrainCallFilter>(race);
-                silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, race);
+                services.AddSingleton<IIncomingGrainCallFilter>(race);
+                services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, race);
             }).StartAsync(ct);
         using var app = brain.Owner.AsApp("app");
         var table = brain.Get<ITable>("race");

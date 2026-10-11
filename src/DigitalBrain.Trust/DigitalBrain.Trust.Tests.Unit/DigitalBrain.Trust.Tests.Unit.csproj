@@ -3,6 +3,6 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Orleans.Sdk" />
     <ProjectReference Include="../DigitalBrain.Trust/DigitalBrain.Trust.csproj" />
-    <ProjectReference Include="../../Testing/DigitalBrain.Testing.Module/DigitalBrain.Testing.Module.csproj" />
+    <ProjectReference Include="../../Testing/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
   </ItemGroup>
 </Project>

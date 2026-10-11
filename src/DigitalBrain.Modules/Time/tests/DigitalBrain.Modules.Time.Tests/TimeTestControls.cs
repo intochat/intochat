@@ -1,7 +1,6 @@
 global using ITimer = DigitalBrain.Time.Timers.ITimer;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Configuration;
-using Orleans.Hosting;
 using Orleans.Runtime;
 using Orleans.Timers;
 
@@ -10,10 +9,9 @@ namespace DigitalBrain.Modules.Time.Tests;
 internal static class TimeTestControls
 {
     // Rule 4 seam: the clock and timer delivery have no integration boundary, so the test owns them in-process.
-    // These decorate Orleans' own registries, so they run on the silo builder, after Orleans registered them.
-    public static void UseControlledTimers(this ISiloBuilder silo, ControlledTimers timers)
+    // These decorate Orleans' own registries; a test's ConfigureServices runs after Orleans registered them.
+    public static void UseControlledTimers(this IServiceCollection services, ControlledTimers timers)
     {
-        var services = silo.Services;
         Decorate<ITimerRegistry>(services, inner => new ControlledTimerRegistry(inner, timers));
         services.AddSingleton<TimeProvider>(timers);
     }
@@ -27,9 +25,8 @@ internal static class TimeTestControls
         });
 
     // Rule 4 seam: reminder-storage fault injection and an accelerated period (a test setting, never a production default).
-    public static void UseReminderControl(this ISiloBuilder silo, ReminderControl reminders)
+    public static void UseReminderControl(this IServiceCollection services, ReminderControl reminders)
     {
-        var services = silo.Services;
         services.Configure<ReminderOptions>(options => options.MinimumReminderPeriod = TimeSpan.FromMilliseconds(100));
         Decorate<IReminderRegistry>(services, inner => new FaultingReminders(inner, reminders));
         services.AddSingleton<IIncomingGrainCallFilter>(services =>

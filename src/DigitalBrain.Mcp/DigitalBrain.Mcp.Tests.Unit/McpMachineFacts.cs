@@ -1,8 +1,10 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Links;
 using DigitalBrain.Framework.Platform.Identity;
+using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Configuration;
 using DigitalBrain.Platform.Parts;
+using DigitalBrain.Platform.Tests.Unit;
 using DigitalBrain.Platform.Trust;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,8 +44,8 @@ public sealed class McpMachineFacts
         Assert.True(File.Exists(Path.Combine(directory, "identity.key")));
         Assert.NotEqual(owner.Services.GetRequiredService<IMachineTransport>().LocalMachineId, mcp);
         // An unregistered link is refused every read (T20-4): this read over the MCP's own link proves it registered.
-        var scope = BrainScope.Create(ModuleTest.DefaultAccount, ModuleTest.DefaultAccount).Id;
-        var membership = await app.Services.GetRequiredService<IIdentityClient>().Membership(scope, ModuleTest.DefaultAccount);
+        var scope = BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;
+        var membership = await app.Services.GetRequiredService<IIdentityClient>().Membership(scope, AccountSession.DefaultLogin);
         Assert.Equal(MemberRole.Owner, membership?.Role);
         Assert.Equal("LinkTrustClients", app.Services.GetRequiredService<IIdentityClient>().GetType().Name);
     }

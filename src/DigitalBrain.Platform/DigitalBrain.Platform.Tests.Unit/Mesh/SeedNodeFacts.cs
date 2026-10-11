@@ -28,7 +28,7 @@ public sealed class SeedNodeFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await StartAsync(3, ct);
 
-        await ActivatorUtilities.CreateInstance<SeedNodeRegistration>(brain.SiloServices).Execute(ct);
+        await ActivatorUtilities.CreateInstance<SeedNodeRegistration>(brain.Services).Execute(ct);
 
         Assert.Equal(3, (await brain.Grains.GetGrain<IStorageNodeDirectory>(IStorageNodeDirectory.Key).List()).Length);
     }

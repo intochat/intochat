@@ -19,12 +19,12 @@ public sealed class PublisherSignalsFacts
     public async Task APublishersSignalsAreReadAfterASeqWithTheirEntrySeq()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithPartLog().StartAsync(ct);
+        await using var brain = await TestBrain.Create().AsMachine().StartAsync(ct);
         var counter = brain.Get<ISignalCounter>(Counter);
         await counter.Change(1);
         await counter.Ping();
         await counter.Change(2);
-        var journal = brain.SiloServices.GetRequiredService<ISignalJournal>();
+        var journal = brain.Services.GetRequiredService<ISignalJournal>();
 
         var all = (await journal.SignalsOf(counter.GetGrainId(), 0))!;
         var after = (await journal.SignalsOf(counter.GetGrainId(), all.Signals[0].Sequence))!;
@@ -40,16 +40,16 @@ public sealed class PublisherSignalsFacts
     public async Task APartHeldByAnotherMachineIsUnavailable()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithPartLog().StartAsync(ct);
+        await using var brain = await TestBrain.Create().AsMachine().StartAsync(ct);
         var held = $"{Scope}/apps/held/s1";
         var part = PartId.Of(held);
-        var key = await brain.SiloServices.GetRequiredService<IPartKeys>().Key(part, AccountSession.DefaultLogin, ct);
+        var key = await brain.Services.GetRequiredService<IPartKeys>().Key(part, AccountSession.DefaultLogin, ct);
         using var rival = SequencerFacts.Machine();
         var taken = await PartLease.Acquire(part, key, PartLeaseFacts.Sequencer(brain), rival, PartLeaseFacts.Seen(), new PartsOptions { Role = MachineRole.Cloud },
-            TimeProvider.System, brain.SiloServices.GetRequiredService<Serializer>());
+            TimeProvider.System, brain.Services.GetRequiredService<Serializer>());
 
         await Assert.ThrowsAsync<ServiceUnavailableException>(() =>
-            brain.SiloServices.GetRequiredService<ISignalJournal>().SignalsOf(GrainId.Create("test.signal-counter", held), 0));
+            brain.Services.GetRequiredService<ISignalJournal>().SignalsOf(GrainId.Create("test.signal-counter", held), 0));
         await taken.Release();
     }
 
@@ -84,6 +84,6 @@ public sealed class PublisherSignalsFacts
         var counter = brain.Get<ISignalCounter>(Counter);
         await counter.Change(1);
 
-        Assert.Null(await brain.SiloServices.GetRequiredService<ISignalJournal>().SignalsOf(counter.GetGrainId(), 0));
+        Assert.Null(await brain.Services.GetRequiredService<ISignalJournal>().SignalsOf(counter.GetGrainId(), 0));
     }
 }

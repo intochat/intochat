@@ -5,7 +5,6 @@
     <ProjectReference Include="../DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
     <ProjectReference Include="../DigitalBrain.Testing.Aspire/DigitalBrain.Testing.Aspire.csproj" />
     <ProjectReference Include="../DigitalBrain.Testing.Playwright/DigitalBrain.Testing.Playwright.csproj" />
-    <ProjectReference Include="../DigitalBrain.Testing.Module/DigitalBrain.Testing.Module.csproj" />
     <None Update="Identity/LegacyState/*.orleans" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

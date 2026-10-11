@@ -6,11 +6,8 @@
     <PackageReference Include="Grpc.Net.Client" />
     <PackageReference Include="Grpc.Net.Client.Web" />
     <ProjectReference Include="../../Testing/DigitalBrain.Testing/DigitalBrain.Testing.csproj" />
-    <!-- TrustHost and the platform-grain access (Grains) live here until Task 20 moves them. -->
-    <ProjectReference Include="../../Testing/DigitalBrain.Testing.Module/DigitalBrain.Testing.Module.csproj" />
     <ProjectReference Include="../DigitalBrain.Platform/DigitalBrain.Platform.csproj" />
     <Using Include="DigitalBrain.Testing" />
-    <Using Include="DigitalBrain.Testing.Module" />
     <Using Include="DigitalBrain.Platform.Identity" />
   </ItemGroup>
 </Project>

@@ -10,7 +10,7 @@ public sealed class InstanceRegistrationFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var host = await TestBrain.Create()
-            .ConfigureSilo(silo => { silo.AddKernelRegistration(); silo.AddKernelRegistration(); })
+            .ConfigureServices(services => { InstanceRegistration.TryDecorate(services); InstanceRegistration.TryDecorate(services); })
             .StartAsync(ct);
 
         var storage = Assert.IsType<InstanceRegistration>(host.Services.GetRequiredKeyedService<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage));

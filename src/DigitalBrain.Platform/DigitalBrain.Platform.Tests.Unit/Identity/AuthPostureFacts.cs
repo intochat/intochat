@@ -72,9 +72,9 @@ public sealed class AuthPostureFacts
         builder.Configuration[AuthOptions.Key(nameof(AuthOptions.Password))] = "a-long-operator-password";
         builder.Services.AddSingleton<IDigitalBrain>(brain);
         builder.Services.AddSingleton<Orleans.IGrainFactory>(brain.Grains);
-        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>());
-        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Platform.Identity.PrincipalPasswords>());
-        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Platform.Identity.BrainBirths>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Platform.Identity.PrincipalPasswords>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Platform.Identity.BrainBirths>());
         builder.Services.AddIdentity();
         await using var app = builder.Build();
         app.Urls.Add("http://127.0.0.1:0");

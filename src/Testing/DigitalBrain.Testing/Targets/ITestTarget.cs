@@ -10,6 +10,4 @@ public interface ITestTarget
 }
 
 public sealed record TestBrainPlan(IReadOnlyList<ModuleDefinition> Modules, IReadOnlyDictionary<string, string?> Configuration,
-    Action<IServiceCollection>? Services, TestExecutionOptions Execution, Action<IClientBuilder>? Client,
-    // Sweep-period ConfigureSilo/ConfigureClient: run on the composed silo, after the server's registrations (deleted in Task 20).
-    Action<Orleans.Hosting.ISiloBuilder>? Silo = null);
+    Action<IServiceCollection>? Services, TestExecutionOptions Execution, Action<IClientBuilder>? Client);

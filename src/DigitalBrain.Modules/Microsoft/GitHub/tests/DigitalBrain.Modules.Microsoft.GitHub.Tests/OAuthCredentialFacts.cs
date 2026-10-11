@@ -31,7 +31,7 @@ public sealed class OAuthCredentialFacts
             .WithIntegration(GitHubModule.Integration, "PrivateKeyPem", "test-key-not-used-by-webhooks")
             .WithIntegration(GitHubModule.Integration, "WebhookSecret", original)
             .StartAsync(ct);
-        var ingress = brain.SiloServices.GetRequiredService<GitHubWebhookIngress>();
+        var ingress = brain.Services.GetRequiredService<GitHubWebhookIngress>();
         var body = Encoding.UTF8.GetBytes("{\"hook\":{\"app_id\":7}}");
         Assert.Equal(GitHubWebhookAcceptance.Accepted, await ingress.HandleAsync(body, Headers(body, original), ct));
         await Grains(brain).GetGrain<IIntegration>("integration/github").Configure(new() { Values = { ["WebhookSecret"] = rotated } });

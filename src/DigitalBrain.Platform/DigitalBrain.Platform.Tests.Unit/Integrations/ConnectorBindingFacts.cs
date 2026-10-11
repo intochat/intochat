@@ -19,7 +19,7 @@ public sealed class ConnectorBindingFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<InfrastructureModule>().StartAsync(ct);
-        var bindings = brain.SiloServices.GetRequiredService<IModuleIntegrations<InfrastructureModule>>();
+        var bindings = brain.Services.GetRequiredService<IModuleIntegrations<InfrastructureModule>>();
         Assert.Equal("infrastructure", bindings.Get("infrastructure").IntegrationId);
         Assert.Equal("additional", bindings.Get("additional").IntegrationId);
         Assert.Throws<UnauthorizedAccessException>(() => bindings.Get("other"));
@@ -88,14 +88,14 @@ public sealed class ConnectorBindingFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<ExampleModule>().StartAsync(ct);
-        var catalog = brain.SiloServices.GetRequiredService<ConnectorCatalog>();
+        var catalog = brain.Services.GetRequiredService<ConnectorCatalog>();
         // The host always composes the orleans module: its connector is the one offered before provisioning.
         async Task<string[]> Offered() => [.. (await catalog.ListAsync(ct)).Select(entry => entry.Id).Order(StringComparer.Ordinal)];
         Assert.Equal(["orleans"], await Offered());
         var grain = brain.Grains.GetGrain<IIntegration>("integration/example");
         await grain.Configure(new ConfigureIntegration { Values = new() { ["Endpoint"] = "test-endpoint", ["ApiKey"] = "test-secret" } });
         Assert.Equal(["example", "orleans"], await Offered());
-        var handle = brain.SiloServices.GetRequiredService<IModuleIntegrations<ExampleModule>>().Get("example");
+        var handle = brain.Services.GetRequiredService<IModuleIntegrations<ExampleModule>>().Get("example");
         var release = await handle.ReleaseAsync(ct);
         Assert.Equal(IntegrationStatus.Ready, release.Snapshot.Status);
         Assert.Equal("test-secret", release.Values["ApiKey"]);

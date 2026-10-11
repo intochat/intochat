@@ -18,7 +18,7 @@ public sealed class PostgresIsolationFacts
         await using var brain = await TestBrain.Create().WithModule<PostgresModule>()
             .WithIntegration(PostgresModule.Integration, "ConnectionString", "Host=localhost;Database=sample;Username=reader")
             .StartAsync(ct);
-        var placements = brain.SiloServices.GetRequiredService<ITablePlacements>();
+        var placements = brain.Services.GetRequiredService<ITablePlacements>();
         Assert.Equal(TablePlacement.Shared, await placements.Resolve(new TableOwner("brain-1", "behavior-x"), ct));
     }
 

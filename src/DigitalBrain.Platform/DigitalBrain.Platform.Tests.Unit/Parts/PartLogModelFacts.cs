@@ -12,7 +12,7 @@ public sealed class PartLogModelFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        var serializer = brain.SiloServices.GetRequiredService<Serializer>();
+        var serializer = brain.Services.GetRequiredService<Serializer>();
         var segment = new LogSegment
         {
             FirstSeq = 5, Prev = new MeshRef("p/log/1", "sha256:aa", ["n0"]),
@@ -31,7 +31,7 @@ public sealed class PartLogModelFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        var serializer = brain.SiloServices.GetRequiredService<Serializer>();
+        var serializer = brain.Services.GetRequiredService<Serializer>();
         var head = new HeadPayload { Snapshot = new MeshRef("p/snapshot/9", "sha256:bb", ["n1"]), SnapshotSeq = 9, LastSeq = 12, SegmentsSinceSnapshot = 2 };
         var snapshot = new PartSnapshot { Seq = 9, Records = [new SnapshotRecord { GrainId = "g", StateName = "s", Record = [2], ETagSeq = 7 }] };
 

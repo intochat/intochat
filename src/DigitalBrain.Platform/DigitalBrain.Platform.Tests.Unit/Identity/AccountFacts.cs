@@ -14,13 +14,13 @@ public sealed class AccountFacts
         var directory = brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory);
         var owner = await directory.RegisterAsync("alice", "correct-password", "Alice", ct);
         var http = new global::Microsoft.AspNetCore.Http.DefaultHttpContext();
-        var anonymous = await IdentityEndpoints.CreateBrainAsync(http, brain.SiloServices.GetRequiredService<IIdentityClient>(), brain.SiloServices.GetRequiredService<BrainBirths>(), ct);
+        var anonymous = await IdentityEndpoints.CreateBrainAsync(http, brain.Services.GetRequiredService<IIdentityClient>(), brain.Services.GetRequiredService<BrainBirths>(), ct);
         Assert.Equal(401, ((global::Microsoft.AspNetCore.Http.IStatusCodeHttpResult)anonymous).StatusCode);
         http.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity([
             new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, owner.PrincipalId),
             new System.Security.Claims.Claim("intochat.account", owner.AccountId),
         ], "test"));
-        var result = await IdentityEndpoints.CreateBrainAsync(http, brain.SiloServices.GetRequiredService<IIdentityClient>(), brain.SiloServices.GetRequiredService<BrainBirths>(), ct);
+        var result = await IdentityEndpoints.CreateBrainAsync(http, brain.Services.GetRequiredService<IIdentityClient>(), brain.Services.GetRequiredService<BrainBirths>(), ct);
         var workspace = Assert.IsType<Member>(((global::Microsoft.AspNetCore.Http.IValueHttpResult)result).Value);
         Assert.Equal(owner.AccountId, workspace.AccountId);
         Assert.NotEqual(owner.BrainId, workspace.BrainId);
@@ -30,7 +30,7 @@ public sealed class AccountFacts
             new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, "bob"),
             new System.Security.Claims.Claim("intochat.account", owner.AccountId),
         ], "test"));
-        var outsider = await IdentityEndpoints.CreateBrainAsync(http, brain.SiloServices.GetRequiredService<IIdentityClient>(), brain.SiloServices.GetRequiredService<BrainBirths>(), ct);
+        var outsider = await IdentityEndpoints.CreateBrainAsync(http, brain.Services.GetRequiredService<IIdentityClient>(), brain.Services.GetRequiredService<BrainBirths>(), ct);
         Assert.Equal(403, ((global::Microsoft.AspNetCore.Http.IStatusCodeHttpResult)outsider).StatusCode);
     }
 

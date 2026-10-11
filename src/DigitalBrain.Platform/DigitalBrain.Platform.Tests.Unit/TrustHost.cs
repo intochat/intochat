@@ -6,7 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-namespace DigitalBrain.Testing.Module;
+namespace DigitalBrain.Platform.Tests.Unit;
 
 // A trust cluster of its own (H2) for facts that run machines against it: one silo with only the trust grains,
 // memory platform storage and 8 seed nodes; each machine provisions its own default owner at boot (R59). Machines join it through

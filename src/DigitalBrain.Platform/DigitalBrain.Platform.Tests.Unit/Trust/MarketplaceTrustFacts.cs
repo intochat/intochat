@@ -13,7 +13,7 @@ public sealed class MarketplaceTrustFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
         using var machine = SequencerFacts.Machine();
-        await TrustClientFacts.Register(brain.SiloServices.GetRequiredService<INodeDirectoryClient>(), machine, "mallory", []);
+        await TrustClientFacts.Register(brain.Services.GetRequiredService<INodeDirectoryClient>(), machine, "mallory", []);
         await TrustClientFacts.Owned(brain, "alice", "home");
         var clients = GrainTrustClients.WithScratchCounter(brain.Grains, machine);
 

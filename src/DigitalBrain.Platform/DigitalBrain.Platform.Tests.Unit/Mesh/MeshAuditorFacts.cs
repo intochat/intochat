@@ -45,7 +45,7 @@ public sealed class MeshAuditorFacts
             ActivitySource.AddActivityListener(_listener);
         }
 
-        public int From(ITestBrain machine) => _machines.Count(id => id == machine.SiloServices.GetRequiredService<IMachineTransport>().LocalMachineId);
+        public int From(ITestBrain machine) => _machines.Count(id => id == machine.Services.GetRequiredService<IMachineTransport>().LocalMachineId);
 
         public void Dispose() => _listener.Dispose();
     }
@@ -53,14 +53,14 @@ public sealed class MeshAuditorFacts
     // A machine of the owner's account holding parts on the part log, its auditor on `clock`; not the core holder, so the
     // parts it holds are the ones a fact opens.
     private static Task<ITestBrain> Holder(TrustHost trust, FakeTimeProvider clock, CancellationToken ct, int challenges = 16)
-        => TestBrain.Create().WithTrust(trust).WithPartLog()
+        => TestBrain.Create().WithTrust(trust).AsMachine()
             .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.ChallengesPerShard)}", challenges.ToString(System.Globalization.CultureInfo.InvariantCulture))
-            .ConfigureSilo(silo => silo.Services.AddKeyedSingleton<TimeProvider>(MeshOptions.Key, clock))
+            .ConfigureServices(services => services.AddKeyedSingleton<TimeProvider>(MeshOptions.Key, clock))
             .StartAsync(ct);
 
     private static async Task<PartLog> Write(ITestBrain holder, params byte[][] records)
     {
-        var log = await holder.SiloServices.GetRequiredService<PartLogs>().For(Part);
+        var log = await holder.Services.GetRequiredService<PartLogs>().For(Part);
         foreach (var record in records) { await log.Append($"counter/{Part.Value}/c1", "counter", RecordChange.Write, record, []); }
         await log.Flushed();
         return log;
@@ -68,7 +68,7 @@ public sealed class MeshAuditorFacts
 
     private static async Task Pass(ITestBrain holder, FakeTimeProvider clock)
     {
-        var pass = holder.SiloServices.GetRequiredService<MeshAuditor>().NextPass();
+        var pass = holder.Services.GetRequiredService<MeshAuditor>().NextPass();
         clock.Advance(AuditEvery);
         await pass;
     }
@@ -122,7 +122,7 @@ public sealed class MeshAuditorFacts
             var log = await Write(p, [1], [2]);
             var (before, chain) = await log.Reached();
             Assert.NotEmpty(chain);
-            var mesh = p.SiloServices.GetRequiredService<IMeshStore>();
+            var mesh = p.Services.GetRequiredService<IMeshStore>();
             Assert.Contains((await VolunteerMeshFacts.Manifest(p, log.Key, chain[^1], ct)).Shards, shard => shard.NodeId == VolunteerMeshFacts.NodeOf(x));
 
             await Pass(p, clock);
@@ -156,7 +156,7 @@ public sealed class MeshAuditorFacts
             var log = await Write(p, [1]);
             await log.HealBySnapshot();
             var (old, _) = await log.Reached();
-            var shards = p.SiloServices.GetRequiredService<IShardClient>();
+            var shards = p.Services.GetRequiredService<IShardClient>();
             var oldManifest = await VolunteerMeshFacts.Manifest(p, log.Key, old!, ct);
             var zs = VolunteerMeshFacts.NodeOf(z);
             var lost = Assert.Single(oldManifest.Shards, shard => shard.NodeId == zs);
@@ -164,7 +164,7 @@ public sealed class MeshAuditorFacts
             await z.DisposeAsync();
             z = null;
             directoryClock.Advance(new MeshOptions().OfflineAfter + TimeSpan.FromSeconds(1));
-            foreach (var beating in (ITestBrain[])[x, y, v]) { await beating.SiloServices.GetRequiredService<StorageNodeService>().Heartbeat(); }
+            foreach (var beating in (ITestBrain[])[x, y, v]) { await beating.Services.GetRequiredService<StorageNodeService>().Heartbeat(); }
 
             await Pass(p, clock);
 
@@ -178,8 +178,8 @@ public sealed class MeshAuditorFacts
                 Assert.NotNull(await shards.Get(shard.NodeId, shard.Cid, ct));
             }
             foreach (var node in old.ManifestNodes.Except(repaired.ManifestNodes)) { Assert.Null(await shards.Get(node, old.ManifestCid, ct)); }
-            Assert.Equal([1], p.SiloServices.GetRequiredService<Orleans.Serialization.Serializer>()
-                .Deserialize<PartSnapshot>(await p.SiloServices.GetRequiredService<IMeshStore>().Read(log.Key, repaired, ct))!.Records.Single().Record);
+            Assert.Equal([1], p.Services.GetRequiredService<Orleans.Serialization.Serializer>()
+                .Deserialize<PartSnapshot>(await p.Services.GetRequiredService<IMeshStore>().Read(log.Key, repaired, ct))!.Records.Single().Record);
             Assert.Equal(1, log.Head.AuditRound);
         }
         finally { await Stop(p, v, z, y, x, trust); }
@@ -196,7 +196,7 @@ public sealed class MeshAuditorFacts
         await using var p = await Holder(trust, clock, ct);
         await using var q = await Holder(trust, other, ct);
         var log = await Write(p, [1]);
-        await Assert.ThrowsAsync<ServiceUnavailableException>(() => q.SiloServices.GetRequiredService<PartLogs>().For(Part));
+        await Assert.ThrowsAsync<ServiceUnavailableException>(() => q.Services.GetRequiredService<PartLogs>().For(Part));
 
         await Pass(q, other);
 
@@ -227,7 +227,7 @@ public sealed class MeshAuditorFacts
         var (reissued, chain) = await log.Reached();
         Assert.Empty(chain);
         Assert.NotEqual(before?.ManifestCid, reissued!.ManifestCid);
-        Assert.All(await p.SiloServices.GetRequiredService<IMeshStore>().Audit(log.Key, reissued, 0, ct), result => Assert.True(result.Passed, result.Reason));
+        Assert.All(await p.Services.GetRequiredService<IMeshStore>().Audit(log.Key, reissued, 0, ct), result => Assert.True(result.Passed, result.Reason));
     }
 
     [Fact(Timeout = 180_000)]
@@ -242,9 +242,9 @@ public sealed class MeshAuditorFacts
         await using var q = await Holder(trust, other, ct);
         await Write(p, [1]);
         await Pass(p, clock);
-        await p.SiloServices.GetRequiredService<PartLogs>().Release(Part);
+        await p.Services.GetRequiredService<PartLogs>().Release(Part);
 
-        var log = await q.SiloServices.GetRequiredService<PartLogs>().For(Part);
+        var log = await q.Services.GetRequiredService<PartLogs>().For(Part);
         Assert.Equal(1, log.Head.AuditRound);
         await Pass(q, other);
 

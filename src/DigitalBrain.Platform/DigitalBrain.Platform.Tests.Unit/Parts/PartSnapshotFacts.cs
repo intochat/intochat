@@ -21,9 +21,9 @@ public sealed class PartSnapshotFacts
     internal static async Task<(PartLog Log, PartLease Lease)> OpenAsync(ITestBrain brain, PartId part, byte[] key, MachineIdentity machine, PartsOptions options,
         CancellationToken ct)
     {
-        var serializer = brain.SiloServices.GetRequiredService<Serializer>();
+        var serializer = brain.Services.GetRequiredService<Serializer>();
         var lease = await PartLease.Acquire(part, key, PartLeaseFacts.Sequencer(brain), machine, PartLeaseFacts.Seen(), options, TimeProvider.System, serializer);
-        var log = await PartLog.Open(part, key, lease, brain.SiloServices.GetRequiredService<IMeshStore>(), serializer, options, TimeProvider.System,
+        var log = await PartLog.Open(part, key, lease, brain.Services.GetRequiredService<IMeshStore>(), serializer, options, TimeProvider.System,
             NullLogger<PartLog>.Instance, ct);
         return (log, lease);
     }
@@ -65,8 +65,8 @@ public sealed class PartSnapshotFacts
         var part = PartId.ForApp("home", "notes");
         var key = RandomNumberGenerator.GetBytes(32);
         using var machine = SequencerFacts.Machine();
-        var mesh = brain.SiloServices.GetRequiredService<IMeshStore>();
-        var serializer = brain.SiloServices.GetRequiredService<Serializer>();
+        var mesh = brain.Services.GetRequiredService<IMeshStore>();
+        var serializer = brain.Services.GetRequiredService<Serializer>();
         var (log, lease) = await OpenAsync(brain, part, key, machine, Options(snapshotEvery: 3), ct);
         await using var _ = log;
 
@@ -92,7 +92,7 @@ public sealed class PartSnapshotFacts
         var part = PartId.ForApp("home", "notes");
         var key = RandomNumberGenerator.GetBytes(32);
         using var machine = SequencerFacts.Machine();
-        var mesh = brain.SiloServices.GetRequiredService<IMeshStore>();
+        var mesh = brain.Services.GetRequiredService<IMeshStore>();
         var (log, lease) = await OpenAsync(brain, part, key, machine, Options(), ct);
         await using var _ = log;
 
@@ -160,10 +160,10 @@ public sealed class PartSnapshotFacts
         var part = PartId.ForApp("home", "notes");
         var key = RandomNumberGenerator.GetBytes(32);
         using var machine = SequencerFacts.Machine();
-        var serializer = brain.SiloServices.GetRequiredService<Serializer>();
+        var serializer = brain.Services.GetRequiredService<Serializer>();
         var options = Options(snapshotEvery: 1);
         options.Role = MachineRole.Own;
-        var mesh = new HeldMesh(brain.SiloServices.GetRequiredService<IMeshStore>());
+        var mesh = new HeldMesh(brain.Services.GetRequiredService<IMeshStore>());
         var lease = await PartLease.Acquire(part, key, PartLeaseFacts.Sequencer(brain), machine, PartLeaseFacts.Seen(), options, TimeProvider.System, serializer);
         await using var log = await PartLog.Open(part, key, lease, mesh, serializer, options, TimeProvider.System, NullLogger<PartLog>.Instance, ct);
 

@@ -18,10 +18,10 @@ public sealed class FreshMachineFacts
         var scope = BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;
         Assert.Null(await trust.Grains.GetGrain<DigitalBrain.Platform.Identity.Authority.IBrainAuthority>(scope).Account());
 
-        await using var machine = await TestBrain.Create().WithTrust(trust).WithPartLog().StartAsync(ct);
+        await using var machine = await TestBrain.Create().WithTrust(trust).AsMachine().StartAsync(ct);
 
-        Assert.Equal(AccountSession.DefaultLogin, await machine.SiloServices.GetRequiredService<IKeyringClient>().OwnerOf(scope));
-        var core = await machine.SiloServices.GetRequiredService<PartLogs>().For(PartId.Core(scope));
+        Assert.Equal(AccountSession.DefaultLogin, await machine.Services.GetRequiredService<IKeyringClient>().OwnerOf(scope));
+        var core = await machine.Services.GetRequiredService<PartLogs>().For(PartId.Core(scope));
         Assert.False(core.Closed);
     }
 }

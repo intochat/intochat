@@ -1,6 +1,8 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Parts;
 using DigitalBrain.Microsoft.Windows;
+using DigitalBrain.Platform.Mesh;
+using DigitalBrain.Platform.Parts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -33,7 +35,11 @@ public sealed class TpmRestartFacts
         var prefix = $"digitalbrain-test-{Guid.NewGuid():N}-";
         try
         {
-            await using var brain = await TestBrain.Create().WithPartLog()
+            await using var brain = await TestBrain.Create().WithConfiguration($"{PartsOptions.Key}:{nameof(PartsOptions.Role)}", nameof(MachineRole.Own))
+                .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.SeedNodes)}", "8")
+                .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.DataShards)}", "4")
+                .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.ParityShards)}", "2")
+                .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.ManifestReplicas)}", "2")
                 .WithConfiguration(DigitalBrainNames.CustodyConfigurationKey, nameof(MasterKeyCustodyKind.Tpm))
                 .WithModule<WindowsModule>()
                 // The module's TPM custody and signing key under test-only names, registered after the module's own.

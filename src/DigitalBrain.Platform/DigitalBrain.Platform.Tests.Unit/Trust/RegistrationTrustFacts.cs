@@ -16,13 +16,13 @@ public sealed class RegistrationTrustFacts
         await using var trust = await TrustHost.StartAsync(ct);
         await using var a = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
         await using var b = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
-        await a.SiloServices.GetRequiredService<PrincipalPasswords>().Register("bob", "bobs-long-password", "Bob");
+        await a.Services.GetRequiredService<PrincipalPasswords>().Register("bob", "bobs-long-password", "Bob");
 
-        var onB = b.SiloServices.GetRequiredService<PrincipalPasswords>();
+        var onB = b.Services.GetRequiredService<PrincipalPasswords>();
         await Assert.ThrowsAsync<InvalidOperationException>(() => onB.Register("bob", "attackers-password", "Bob"));
         Assert.Null(await onB.Authenticate("bob", "attackers-password"));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => b.SiloServices.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>().CompleteRegistration("bob"));
-        Assert.NotNull(await a.SiloServices.GetRequiredService<PrincipalPasswords>().Authenticate("bob", "bobs-long-password"));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => b.Services.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>().CompleteRegistration("bob"));
+        Assert.NotNull(await a.Services.GetRequiredService<PrincipalPasswords>().Authenticate("bob", "bobs-long-password"));
     }
 
     [Fact(Timeout = 120_000)]
@@ -32,9 +32,9 @@ public sealed class RegistrationTrustFacts
         await using var trust = await TrustHost.StartAsync(ct);
         await using var a = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
         await using var b = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
-        await a.SiloServices.GetRequiredService<PrincipalPasswords>().Register("bob", "bobs-long-password", "Bob");
+        await a.Services.GetRequiredService<PrincipalPasswords>().Register("bob", "bobs-long-password", "Bob");
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => b.SiloServices.GetRequiredService<PrincipalPasswords>().Register("bob", "attackers-password", "Bob"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => b.Services.GetRequiredService<PrincipalPasswords>().Register("bob", "attackers-password", "Bob"));
 
         Assert.Null(await b.Grains.GetGrain<IPrincipalCredential>("bob").Hash());
     }

@@ -21,7 +21,7 @@ public sealed class MeshStoreFacts
         var brain = await builder.StartAsync(ct);
         var directory = brain.Grains.GetGrain<IStorageNodeDirectory>(IStorageNodeDirectory.Key);
         for (var i = 0; i < owners; i++) { await directory.Register($"n{i}", $"owner{i}"); }
-        return (brain, brain.SiloServices.GetRequiredService<IMeshStore>(), directory);
+        return (brain, brain.Services.GetRequiredService<IMeshStore>(), directory);
     }
 
     internal static IStorageShard Shard(ITestBrain brain, string nodeId, string cid) =>
@@ -31,7 +31,7 @@ public sealed class MeshStoreFacts
     {
         var bytes = await Shard(brain, reference.ManifestNodes[0], reference.ManifestCid).Get();
         var plain = SegmentSeal.Open(key, $"mesh-manifest|{reference.SegmentId}", bytes!);
-        return brain.SiloServices.GetRequiredService<Orleans.Serialization.Serializer>().Deserialize<SegmentManifest>(plain)!;
+        return brain.Services.GetRequiredService<Orleans.Serialization.Serializer>().Deserialize<SegmentManifest>(plain)!;
     }
 
     [Fact(Timeout = 60_000)]

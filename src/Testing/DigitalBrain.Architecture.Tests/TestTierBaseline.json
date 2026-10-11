@@ -2,27 +2,5 @@
   "LegacyModuleTestProjects": [],
   "LegacyEndToEndReferencers": [],
   "LegacyAspireReferencingModuleTests": [],
-  "LegacyFullStackBootFacts": [],
-  "LegacyHandStampedCallers": [
-    "DigitalBrain.Framework.Tests.Unit",
-    "DigitalBrain.Mcp.Tests.Unit",
-    "DigitalBrain.Modules.AI.Tests",
-    "DigitalBrain.Modules.ArtCraft.Tests",
-    "DigitalBrain.Modules.ClickHouse.Tests",
-    "DigitalBrain.Modules.Apps.Tests",
-    "DigitalBrain.Modules.Circles.Tests",
-    "DigitalBrain.Modules.Flutter.Tests",
-    "DigitalBrain.Modules.Google.Gmail.Tests",
-    "DigitalBrain.Modules.Microsoft.Aspire.Tests",
-    "DigitalBrain.Modules.Microsoft.CSharp.Tests",
-    "DigitalBrain.Modules.Microsoft.GitHub.Tests",
-    "DigitalBrain.Modules.Microsoft.Playwright.Tests",
-    "DigitalBrain.Modules.Microsoft.Windows.Tests",
-    "DigitalBrain.Modules.Mcp.Tests",
-    "DigitalBrain.Modules.Postgres.Tests",
-    "DigitalBrain.Modules.Salesforce.Tests",
-    "DigitalBrain.OS.Tests.E2E",
-    "DigitalBrain.OS.Tests.Unit",
-    "DigitalBrain.Platform.Tests.Unit"
-  ]
+  "LegacyFullStackBootFacts": []
 }

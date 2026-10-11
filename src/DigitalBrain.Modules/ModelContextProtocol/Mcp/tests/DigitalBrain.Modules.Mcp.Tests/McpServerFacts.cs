@@ -127,7 +127,7 @@ public sealed class McpServerFacts
     }
 
     private static IRuntimeCapabilitySource Capabilities(ITestBrain brain)
-        => brain.SiloServices.GetServices<IRuntimeCapabilitySource>().OfType<ToolCapabilitySource>().Single();
+        => brain.Services.GetServices<IRuntimeCapabilitySource>().OfType<ToolCapabilitySource>().Single();
 
     private static Task<ITestBrain> Start(CancellationToken ct)
         => TestBrain.Create().WithModule<McpModule>().WithModule<ToolsModule>().StartAsync(ct);

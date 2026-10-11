@@ -27,10 +27,10 @@ public sealed class IdentityHostingFacts
         builder.Configuration[AuthOptions.PostureKey] = "Secured";
         builder.Services.AddSingleton<IDigitalBrain>(brain);
         builder.Services.AddSingleton<Orleans.IGrainFactory>(brain.Grains);
-        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>());
-        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Platform.Identity.PrincipalPasswords>());
-        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Platform.Identity.BrainBirths>());
-        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Framework.IBrainAccess>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Platform.Identity.PrincipalPasswords>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Platform.Identity.BrainBirths>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Framework.IBrainAccess>());
         builder.Services.AddIdentity();
         await using var app = builder.Build();
         app.Urls.Add("http://127.0.0.1:0");
@@ -135,9 +135,9 @@ public sealed class IdentityHostingFacts
         builder.Configuration[KernelCors.AllowedOriginConfigurationKey] = "http://localhost:27880";
         builder.Services.AddSingleton<IDigitalBrain>(brain);
         builder.Services.AddSingleton<Orleans.IGrainFactory>(brain.Grains);
-        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>());
-        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Platform.Identity.PrincipalPasswords>());
-        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Platform.Identity.BrainBirths>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Platform.Identity.PrincipalPasswords>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Platform.Identity.BrainBirths>());
         builder.Services.AddIdentity();
         builder.Services.Configure<IdentityHostOptions>(options => options.CookieName = "another-host.session");
         await using var app = builder.Build();

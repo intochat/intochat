@@ -3,12 +3,8 @@ using DigitalBrain.Framework;
 using DigitalBrain.Framework.Modules;
 using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Testing.Model;
-using DigitalBrain.Platform.Mesh;
-using DigitalBrain.Platform.Parts;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
-using Orleans.Hosting;
 using ModuleContract = DigitalBrain.Framework.Modules.Module;
 
 namespace DigitalBrain.Testing;
@@ -18,7 +14,6 @@ public sealed class TestBrain
     private readonly BrainCompositionBuilder _composition = new();
     private readonly Dictionary<string, string?> _configuration = new(StringComparer.OrdinalIgnoreCase);
     private Action<IServiceCollection>? _services;
-    private Action<ISiloBuilder>? _silo;
     private TestExecutionOptions _execution = new();
     private ITestTarget _target = new InProcessTarget();
     private bool _started;
@@ -82,7 +77,8 @@ public sealed class TestBrain
         return this;
     }
 
-    // In-process escape hatch for seams that have no integration boundary (time, sandbox, flaky storage).
+    // In-process escape hatch for seams that have no integration boundary (time, sandbox, flaky storage). It runs after the
+    // server's and Orleans' registrations, so it replaces or decorates theirs; the kernel wraps the cluster storage after it.
     public TestBrain ConfigureServices(Action<IServiceCollection> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
@@ -120,13 +116,6 @@ public sealed class TestBrain
         return this;
     }
 
-    // In-process brains always run memory reminders; deleted once callers stop asking (Task 20).
-    public TestBrain WithReminders()
-    {
-        EnsureMutable();
-        return this;
-    }
-
     // Short leases and renewals so subscription expiry and reactivation show up within a test's timeout.
     public TestBrain WithFastSubscriptions(int bufferCapacity = 256)
         => ConfigureServices(services =>
@@ -140,44 +129,6 @@ public sealed class TestBrain
             });
         });
 
-    // Sweep-period shims over the one host (deleted in Task 20).
-    // HTTP is always on: every in-process brain serves its edge.
-    public TestBrain WithHttpEdge()
-    {
-        EnsureMutable();
-        return this;
-    }
-
-    // The brain runs as the owner's machine: cluster storage on the part log over an in-process mesh of 8
-    // platform-owned nodes (4+2, 2 manifest replicas), the default brain provisioned at start.
-    public TestBrain WithPartLog()
-        => WithConfiguration($"{PartsOptions.Key}:{nameof(PartsOptions.Role)}", nameof(MachineRole.Own))
-            .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.SeedNodes)}", "8")
-            .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.DataShards)}", "4")
-            .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.ParityShards)}", "2")
-            .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.ManifestReplicas)}", "2");
-
-    // The silo and the client share the host's composed silo, configured after the server's own registrations.
-    public TestBrain ConfigureSilo(Action<ISiloBuilder> configure)
-    {
-        ArgumentNullException.ThrowIfNull(configure);
-        EnsureMutable();
-        _silo += configure;
-        return this;
-    }
-
-    public TestBrain ConfigureClient(Action<IClientBuilder> configure)
-    {
-        ArgumentNullException.ThrowIfNull(configure);
-        return ConfigureSilo(silo => configure(new ClientOverSilo(silo)));
-    }
-
-    private sealed class ClientOverSilo(ISiloBuilder silo) : IClientBuilder
-    {
-        public IServiceCollection Services => silo.Services;
-        public IConfiguration Configuration => silo.Configuration;
-    }
-
     public TestBrain On(ITestTarget target)
     {
         ArgumentNullException.ThrowIfNull(target);
@@ -190,8 +141,6 @@ public sealed class TestBrain
     {
         EnsureMutable();
         _started = true;
-        if (_silo is not null && _target is not InProcessTarget)
-        { throw new NotSupportedException("ConfigureSilo and ConfigureClient reach the in-process host only."); }
         Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
         _execution.Validate();
         var composition = _composition.Build();
@@ -199,7 +148,7 @@ public sealed class TestBrain
         foreach (var (key, value) in _configuration) { configuration[key] = value; }
         foreach (var (key, value) in composition.OptionOverrides) { configuration[key] = value; }
         var services = composition.RequiresLocalServices ? composition.ConfigureLocalServices + _services : _services;
-        var plan = new TestBrainPlan(composition.Modules, configuration, services, _execution, Client: null, Silo: _silo);
+        var plan = new TestBrainPlan(composition.Modules, configuration, services, _execution, Client: null);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(_execution.StartupTimeout);
         return await _target.StartAsync(plan, deadline.Token).ConfigureAwait(false);

@@ -26,11 +26,11 @@ public sealed class AgentPersistenceFacts
         var writes = new HeldWrite(phase, fail);
         await using var brain = await AgentFacts.Builder(StubChatClient.Replying("reply")).WithModule<FlutterModule>()
             // Storage faults are in-process: the agent's writes are held or failed under the kernel's wrapper.
-            .ConfigureSilo(silo =>
+            .ConfigureServices(services =>
             {
-                var original = silo.Services.Last(service => service.ServiceType == typeof(IGrainStorage)
+                var original = services.Last(service => service.ServiceType == typeof(IGrainStorage)
                     && Equals(service.ServiceKey, DigitalBrainNames.ClusterGrainStorage));
-                silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (services, key) =>
+                services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (services, key) =>
                     new GatedStorage((IGrainStorage)original.KeyedImplementationFactory!(services, key), writes));
             }).StartAsync(ct);
         var source = AgentFacts.Key("committed");

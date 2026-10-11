@@ -51,7 +51,7 @@ public sealed class TestTierFacts
             {
                 // The composition tier must stay model-only: no in-process brain, no product boot.
                 var booting = References(project)
-                    .Where(reference => reference is "DigitalBrain.Testing" or "DigitalBrain.Testing.Module" or "DigitalBrain.Testing.Aspire" or "DigitalBrain.OS.Testing")
+                    .Where(reference => reference is "DigitalBrain.Testing" or "DigitalBrain.Testing.Aspire" or "DigitalBrain.OS.Testing")
                     .ToArray();
                 if (booting.Length > 0) { offenders.Add($"{name} -> {string.Join(", ", booting)}"); }
                 continue;
@@ -127,8 +127,7 @@ public sealed class TestTierFacts
         string[] LegacyModuleTestProjects,
         string[] LegacyEndToEndReferencers,
         string[] LegacyAspireReferencingModuleTests,
-        string[] LegacyFullStackBootFacts,
-        string[] LegacyHandStampedCallers);
+        string[] LegacyFullStackBootFacts);
 
     private static TestTierBaseline Baseline()
         => JsonSerializer.Deserialize<TestTierBaseline>(

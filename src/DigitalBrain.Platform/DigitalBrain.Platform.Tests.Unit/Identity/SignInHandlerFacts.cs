@@ -49,10 +49,10 @@ public sealed class SignInHandlerFacts
         builder.Configuration[AuthOptions.PostureKey] = "Secured";
         builder.Services.AddSingleton<IDigitalBrain>(brain);
         builder.Services.AddSingleton<Orleans.IGrainFactory>(brain.Grains);
-        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>());
-        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Platform.Identity.PrincipalPasswords>());
-        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<DigitalBrain.Platform.Identity.BrainBirths>());
-        builder.Services.AddSingleton(brain.SiloServices.GetRequiredService<IBrainAccess>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Platform.Identity.PrincipalPasswords>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<DigitalBrain.Platform.Identity.BrainBirths>());
+        builder.Services.AddSingleton(brain.Services.GetRequiredService<IBrainAccess>());
         builder.Services.AddSingleton(handler);
         builder.Services.AddIdentity();
         var app = builder.Build();

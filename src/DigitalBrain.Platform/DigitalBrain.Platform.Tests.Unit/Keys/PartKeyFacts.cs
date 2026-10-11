@@ -11,7 +11,7 @@ public sealed class PartKeyFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        var keys = brain.SiloServices.GetRequiredService<IPartKeys>();
+        var keys = brain.Services.GetRequiredService<IPartKeys>();
         var part = PartId.Core("home");
 
         var first = await keys.Key(part, "alice", ct);
@@ -28,7 +28,7 @@ public sealed class PartKeyFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        var keys = brain.SiloServices.GetRequiredService<IPartKeys>();
+        var keys = brain.Services.GetRequiredService<IPartKeys>();
 
         Assert.NotEqual(await keys.Key(PartId.Core("home"), "alice", ct), await keys.Key(PartId.ForApp("home", "filmcraft"), "alice", ct));
     }

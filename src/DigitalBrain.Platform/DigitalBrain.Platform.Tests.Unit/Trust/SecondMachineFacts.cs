@@ -20,15 +20,15 @@ public sealed class SecondMachineFacts
         var ct = TestContext.Current.CancellationToken;
         var errors = new ErrorLog();
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var a = await TestBrain.Create().WithTrust(trust).WithPartLog().WithConfiguration(CoreHolder, "true").StartAsync(ct);
-        await a.SiloServices.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
+        await using var a = await TestBrain.Create().WithTrust(trust).AsMachine().WithConfiguration(CoreHolder, "true").StartAsync(ct);
+        await a.Services.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
         var scope = BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;
-        Assert.Contains(PartId.Core(scope), a.SiloServices.GetRequiredService<PartLogs>().Opened);
+        Assert.Contains(PartId.Core(scope), a.Services.GetRequiredService<PartLogs>().Opened);
 
-        await using var b = await TestBrain.Create().WithTrust(trust).WithPartLog()
+        await using var b = await TestBrain.Create().WithTrust(trust).AsMachine()
             .ConfigureServices(services => services.AddSingleton<ILoggerProvider>(errors))
             .StartAsync(ct);
-        var birth = b.SiloServices.GetRequiredService<OwnerBirth>();
+        var birth = b.Services.GetRequiredService<OwnerBirth>();
         await birth.Born.WaitAsync(ct);
         // The live race: the trust side named B the new brain's machine while A already held the core.
         var owner = AccountSession.DefaultLogin;
@@ -36,7 +36,7 @@ public sealed class SecondMachineFacts
         await birth.Execute(ct);
         await birth.Born.WaitAsync(ct);
 
-        Assert.DoesNotContain(PartId.Core(scope), b.SiloServices.GetRequiredService<PartLogs>().Opened);
+        Assert.DoesNotContain(PartId.Core(scope), b.Services.GetRequiredService<PartLogs>().Opened);
         Assert.Empty(errors.Lines);
     }
 
@@ -47,15 +47,15 @@ public sealed class SecondMachineFacts
         var ct = TestContext.Current.CancellationToken;
         var core = PartId.Core(BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id);
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var b = await TestBrain.Create().WithTrust(trust).WithPartLog().StartAsync(ct);
-        await b.SiloServices.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
-        Assert.DoesNotContain(core, b.SiloServices.GetRequiredService<PartLogs>().Opened);
+        await using var b = await TestBrain.Create().WithTrust(trust).AsMachine().StartAsync(ct);
+        await b.Services.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
+        Assert.DoesNotContain(core, b.Services.GetRequiredService<PartLogs>().Opened);
 
-        await using var a = await TestBrain.Create().WithTrust(trust).WithPartLog().WithConfiguration(CoreHolder, "true").StartAsync(ct);
-        await a.SiloServices.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
+        await using var a = await TestBrain.Create().WithTrust(trust).AsMachine().WithConfiguration(CoreHolder, "true").StartAsync(ct);
+        await a.Services.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
 
-        Assert.Contains(core, a.SiloServices.GetRequiredService<PartLogs>().Opened);
-        Assert.DoesNotContain(core, b.SiloServices.GetRequiredService<PartLogs>().Opened);
+        Assert.Contains(core, a.Services.GetRequiredService<PartLogs>().Opened);
+        Assert.DoesNotContain(core, b.Services.GetRequiredService<PartLogs>().Opened);
     }
 
     // R77: the holder's boot birth and every later read of its core go through one PartLogs under one identity.
@@ -65,14 +65,14 @@ public sealed class SecondMachineFacts
         var ct = TestContext.Current.CancellationToken;
         var errors = new ErrorLog();
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var a = await TestBrain.Create().WithTrust(trust).WithPartLog().WithConfiguration(CoreHolder, "true")
+        await using var a = await TestBrain.Create().WithTrust(trust).AsMachine().WithConfiguration(CoreHolder, "true")
             .ConfigureServices(services => services.AddSingleton<ILoggerProvider>(errors))
             .StartAsync(ct);
-        await a.SiloServices.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
+        await a.Services.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
         var scope = BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;
 
         await a.Grains.GetGrain<IBrain>(scope).Read();
-        var core = await a.SiloServices.GetRequiredService<PartLogs>().For(PartId.Core(scope));
+        var core = await a.Services.GetRequiredService<PartLogs>().For(PartId.Core(scope));
 
         Assert.False(core.Closed);
         Assert.DoesNotContain(errors.Lines, line => line.Contains("held by machine", StringComparison.Ordinal));
@@ -83,15 +83,15 @@ public sealed class SecondMachineFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var a = await TestBrain.Create().WithTrust(trust).WithPartLog().WithConfiguration(CoreHolder, "true").StartAsync(ct);
-        await a.SiloServices.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
+        await using var a = await TestBrain.Create().WithTrust(trust).AsMachine().WithConfiguration(CoreHolder, "true").StartAsync(ct);
+        await a.Services.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
         var core = PartId.Core(BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id);
-        var machine = a.SiloServices.GetRequiredService<DigitalBrain.Platform.Sequencer.MachineIdentity>();
-        var directory = a.SiloServices.GetRequiredService<global::Microsoft.Extensions.Options.IOptions<PartsOptions>>().Value.MachineDirectory;
-        var deployment = await a.SiloServices.GetRequiredService<TrustDeployment>().Resolve();
+        var machine = a.Services.GetRequiredService<DigitalBrain.Platform.Sequencer.MachineIdentity>();
+        var directory = a.Services.GetRequiredService<global::Microsoft.Extensions.Options.IOptions<PartsOptions>>().Value.MachineDirectory;
+        var deployment = await a.Services.GetRequiredService<TrustDeployment>().Resolve();
 
         using var root = DigitalBrain.Platform.Sequencer.MachineIdentity.LoadOrCreate(Path.Combine(directory, "identity.key"));
-        var head = await a.SiloServices.GetRequiredService<ISequencerClient>().Get(DigitalBrain.Platform.Sequencer.HeadRecord.HashOf(core.Value));
+        var head = await a.Services.GetRequiredService<ISequencerClient>().Get(DigitalBrain.Platform.Sequencer.HeadRecord.HashOf(core.Value));
 
         Assert.Equal(root.MachineId, machine.MachineId);
         Assert.Equal(machine.MachineId, head!.Holder);
@@ -103,10 +103,10 @@ public sealed class SecondMachineFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var a = await TestBrain.Create().WithTrust(trust).WithPartLog().StartAsync(ct);
-        await using var b = await TestBrain.Create().WithTrust(trust).WithPartLog().StartAsync(ct);
-        var aKeys = a.SiloServices.GetRequiredService<IPartKeys>();
-        var bKeys = b.SiloServices.GetRequiredService<IPartKeys>();
+        await using var a = await TestBrain.Create().WithTrust(trust).AsMachine().StartAsync(ct);
+        await using var b = await TestBrain.Create().WithTrust(trust).AsMachine().StartAsync(ct);
+        var aKeys = a.Services.GetRequiredService<IPartKeys>();
+        var bKeys = b.Services.GetRequiredService<IPartKeys>();
         var part = PartId.ForApp(BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id, "race");
 
         var keys = await Task.WhenAll(Enumerable.Range(0, 16).Select(i => (i % 2 == 0 ? aKeys : bKeys).Key(part, AccountSession.DefaultLogin, ct)));
@@ -119,16 +119,16 @@ public sealed class SecondMachineFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var a = await TestBrain.Create().WithTrust(trust).WithPartLog().StartAsync(ct);
-        await using var b = await TestBrain.Create().WithTrust(trust).WithPartLog()
+        await using var a = await TestBrain.Create().WithTrust(trust).AsMachine().StartAsync(ct);
+        await using var b = await TestBrain.Create().WithTrust(trust).AsMachine()
             .WithConfiguration(DigitalBrainNames.MasterKeyConfigurationKey, Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)))
             .StartAsync(ct);
         var part = PartId.ForApp(BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id, "custody");
-        var aLogs = a.SiloServices.GetRequiredService<PartLogs>();
+        var aLogs = a.Services.GetRequiredService<PartLogs>();
         await (await aLogs.For(part)).Append($"counter/{part.Value}/c1", "counter", RecordChange.Write, [1], []);
         await aLogs.Release(part);
 
-        var refused = await Assert.ThrowsAsync<ServiceUnavailableException>(() => b.SiloServices.GetRequiredService<PartLogs>().For(part));
+        var refused = await Assert.ThrowsAsync<ServiceUnavailableException>(() => b.Services.GetRequiredService<PartLogs>().For(part));
         Assert.Contains("not unwrappable on this machine", refused.Message, StringComparison.Ordinal);
     }
 

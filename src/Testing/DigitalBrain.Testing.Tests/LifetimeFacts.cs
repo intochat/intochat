@@ -1,4 +1,3 @@
-using DigitalBrain.Testing.Module;
 using Xunit;
 
 namespace DigitalBrain.Testing.Tests;
@@ -36,7 +35,7 @@ public sealed class LifetimeFacts
     public async Task UnitBuilderPreservesExecutionBudgetsAndStartsOnlyOnce()
     {
         var execution = new TestExecutionOptions { AssertionTimeout = TimeSpan.FromMilliseconds(120), CleanupTimeout = TimeSpan.FromSeconds(20) };
-        var builder = ModuleTest.Create().WithExecution(execution);
+        var builder = TestBrain.Create().WithExecution(execution);
         await using var brain = await builder.StartAsync(TestContext.Current.CancellationToken);
         Assert.Equal(execution, ((ITrackedBrain)brain).Execution);
         await Assert.ThrowsAsync<InvalidOperationException>(() => builder.StartAsync(TestContext.Current.CancellationToken));
