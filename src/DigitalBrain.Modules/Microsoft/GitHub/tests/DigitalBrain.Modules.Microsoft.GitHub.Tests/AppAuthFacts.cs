@@ -7,7 +7,6 @@ using DigitalBrain.Framework.Platform.Secrets;
 using DigitalBrain.Microsoft.GitHub;
 using DigitalBrain.Platform.Secrets;
 using DigitalBrain.Testing;
-using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -90,19 +89,16 @@ public sealed class AppAuthFacts
         await Assert.ThrowsAsync<GitHubUnavailableException>(() => tokens.GetTokenAsync(Repository(7), refresh: true, ct));
     }
 
-    private static Task<ModuleBrain> Start(string? privateKeyPem, string? appId, CancellationToken cancellationToken)
+    private static Task<ITestBrain> Start(string? privateKeyPem, string? appId, CancellationToken cancellationToken)
     {
-        var seeds = new Dictionary<string, string?>();
-        if (privateKeyPem is not null)
+        var brain = TestBrain.Create().WithModule<GitHubModule>();
+        if (privateKeyPem is not null && appId is not null)
         {
-            seeds[IntegrationSchema.Key("github", "PrivateKeyPem")] = privateKeyPem;
-            seeds[IntegrationSchema.Key("github", "AppId")] = appId;
+            brain.WithIntegration(GitHubModule.Integration, "PrivateKeyPem", privateKeyPem)
+                .WithIntegration(GitHubModule.Integration, "AppId", appId);
         }
 
-        return ModuleTest.Create()
-            .WithExecution(new TestExecutionOptions { PrivateConfiguration = seeds })
-            .WithModule<GitHubModule>()
-            .StartAsync(cancellationToken);
+        return brain.StartAsync(cancellationToken);
     }
 
     private static GitHubRepository Repository(long appId)
