@@ -49,7 +49,7 @@ public sealed class IdentitySigningFacts
     public async Task AnIdentityWriteFromAMachineNotBoundToTheAccountIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         await brain.OwnBrainAsync("alice", "alice-home");
         using var machine = SequencerFacts.Machine();
         await TrustClientFacts.Register(brain.SiloServices.GetRequiredService<INodeDirectoryClient>(), machine, "mallory", []);

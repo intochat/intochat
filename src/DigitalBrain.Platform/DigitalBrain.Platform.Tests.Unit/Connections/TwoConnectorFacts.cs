@@ -3,8 +3,6 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Connections;
-using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Testing.Module;
 
 namespace DigitalBrain.Platform.Tests.Unit.Connections;
 
@@ -13,32 +11,26 @@ namespace DigitalBrain.Platform.Tests.Unit.Connections;
 public sealed class TwoConnectorFacts : IAsyncLifetime
 {
     private TokenEndpointStub _stub = null!;
-    private ModuleBrain _brain = null!;
+    private ITestBrain _brain = null!;
 
     public async ValueTask InitializeAsync()
     {
         var ct = TestContext.Current.CancellationToken;
         _stub = await TokenEndpointStub.StartAsync(ct);
-        _brain = await ModuleTest.Create().WithModule<ExampleConnectionModule>().WithModule<SampleConnectionModule>().WithModule<UnservedConnectorModule>()
-            .WithExecution(new()
-            {
-                PrivateConfiguration = new Dictionary<string, string?>
-                {
-                    [IntegrationSchema.Key("example-oauth", "ClientId")] = "client-id",
-                    [IntegrationSchema.Key("example-oauth", "ClientSecret")] = "client-secret",
-                    [IntegrationSchema.Key("sample-oauth", "ClientId")] = "sample-client-id",
-                    [IntegrationSchema.Key("sample-oauth", "ClientSecret")] = "sample-client-secret",
-                    ["DigitalBrain:Connections:PublicOrigin"] = _stub.Origin.AbsoluteUri,
-                    ["DigitalBrain:Connections:TokenEndpoints:example"] = _stub.TokenEndpoint.AbsoluteUri,
-                    ["DigitalBrain:Connections:TokenEndpoints:sample"] = _stub.TokenEndpoint.AbsoluteUri,
-                },
-            })
-            .WithHttpEdge().StartAsync(ct);
+        _brain = await TestBrain.Create().WithModule<ExampleConnectionModule>().WithModule<SampleConnectionModule>().WithModule<UnservedConnectorModule>()
+            .WithIntegration(ExampleConnectionModule.Integration, "ClientId", "client-id")
+            .WithIntegration(ExampleConnectionModule.Integration, "ClientSecret", "client-secret")
+            .WithIntegration(SampleConnectionModule.Integration, "ClientId", "sample-client-id")
+            .WithIntegration(SampleConnectionModule.Integration, "ClientSecret", "sample-client-secret")
+            .WithConfiguration("DigitalBrain:Connections:PublicOrigin", _stub.Origin.AbsoluteUri)
+            .WithConfiguration("DigitalBrain:Connections:TokenEndpoints:example", _stub.TokenEndpoint.AbsoluteUri)
+            .WithConfiguration("DigitalBrain:Connections:TokenEndpoints:sample", _stub.TokenEndpoint.AbsoluteUri)
+            .StartAsync(ct);
     }
 
     public async ValueTask DisposeAsync() { await _brain.DisposeAsync(); await _stub.DisposeAsync(); }
 
-    private static string Key(string connector, string connection) => ConnectionKeys.For(BrainScope.Create("owner", "owner").Id, connector, connection);
+    private string Key(string connector, string connection) => ConnectionKeys.For(_brain.Owner.BrainId, connector, connection);
 
     [Fact]
     public async Task EachConnectorsConnectionsResolveThroughTheRoutesAndTheCallback()
@@ -70,13 +62,11 @@ public sealed class TwoConnectorFacts : IAsyncLifetime
         using var probe = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/pasted-sample/probe", new { }, ct);
         Assert.Equal("sample", (await probe.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("detail").GetString());
 
-        CallerContextStamper.Stamp(new() { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
-        try
+        using (_brain.Owner.AsCaller())
         {
             Assert.Equal("sample", (await _brain.Get<IConnection>(Key("sample", "login-sample")).Read()).ConnectorId);
             Assert.Equal("example", (await _brain.Get<IConnection>(Key("example", "login-example")).Read()).ConnectorId);
         }
-        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
 
         foreach (var connection in new[] { "pasted-example", "pasted-sample", "login-example", "login-sample" })
         {
@@ -101,9 +91,7 @@ public sealed class TwoConnectorFacts : IAsyncLifetime
 
         using var probe = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/shared/probe", new { }, ct);
         Assert.Equal("example", (await probe.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("connectorId").GetString());
-        CallerContextStamper.Stamp(new() { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
-        try { Assert.Equal(ConnectionStatus.Disconnected, (await _brain.Get<IConnection>(Key("sample", "shared")).Read()).Status); }
-        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+        using (_brain.Owner.AsCaller()) { Assert.Equal(ConnectionStatus.Disconnected, (await _brain.Get<IConnection>(Key("sample", "shared")).Read()).Status); }
 
         using var disconnect = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/shared/disconnect", new { }, ct);
         Assert.Equal(HttpStatusCode.OK, disconnect.StatusCode);
@@ -137,7 +125,7 @@ public sealed class TwoConnectorFacts : IAsyncLifetime
     public async Task TheConnectionListSkipsAKeyWhoseConnectorIsNoLongerComposed()
     {
         var ct = TestContext.Current.CancellationToken;
-        await _brain.Grains.GetGrain<IConnectionIndex>(BrainScope.Create("owner", "owner").Id).Track(Key("retired", "orphan"));
+        await _brain.Grains.GetGrain<IConnectionIndex>(_brain.Owner.BrainId).Track(Key("retired", "orphan"));
         using var connect = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/kept/connect", new { connectorId = "example", authMethodId = "api-key", value = "hunter2" }, ct);
         Assert.Equal(HttpStatusCode.OK, connect.StatusCode);
 
@@ -161,10 +149,8 @@ public sealed class TwoConnectorFacts : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, callback.StatusCode);
         Assert.DoesNotContain("fake-code", await callback.Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
 
-        Assert.Equal([Key("sample", "work")], await _brain.Grains.GetGrain<IConnectionIndex>(BrainScope.Create("owner", "owner").Id).List());
-        CallerContextStamper.Stamp(new() { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
-        try { Assert.Equal(ConnectionStatus.Disconnected, (await _brain.Get<IConnection>(Key("example", "work")).Read()).Status); }
-        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+        Assert.Equal([Key("sample", "work")], await _brain.Grains.GetGrain<IConnectionIndex>(_brain.Owner.BrainId).List());
+        using (_brain.Owner.AsCaller()) { Assert.Equal(ConnectionStatus.Disconnected, (await _brain.Get<IConnection>(Key("example", "work")).Read()).Status); }
         using var probe = await _brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/work/probe", new { }, ct);
         Assert.Equal(HttpStatusCode.OK, probe.StatusCode);
     }

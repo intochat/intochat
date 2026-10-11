@@ -1,6 +1,5 @@
 using DigitalBrain.Platform.Neurons;
 using DigitalBrain.Platform.Neurons.Proto;
-using DigitalBrain.Testing.Module;
 using DigitalBrain.Testing.Neurons;
 using Grpc.Core;
 
@@ -20,7 +19,7 @@ public sealed class NeuronsLimitsFacts
     public async Task AWatchNamingMoreThanTheCapIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<PulseModule>().WithHttpEdge().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<PulseModule>().StartAsync(ct);
         var request = new WatchRequest { BrainId = "owner" };
         for (var i = 0; i <= NeuronsService.MaximumWatches; i++)
         {

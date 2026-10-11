@@ -29,10 +29,10 @@ public sealed class LinkLoopbackFacts
         };
         ActivitySource.AddActivityListener(listener);
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var a = await ModuleTest.Create().WithTrust(trust).WithPartLog().StartAsync(ct);
-        await using var b = await ModuleTest.Create().WithTrust(trust).WithPartLog().StartAsync(ct);
+        await using var a = await TestBrain.Create().WithTrust(trust).WithPartLog().StartAsync(ct);
+        await using var b = await TestBrain.Create().WithTrust(trust).WithPartLog().StartAsync(ct);
         var (idA, idB) = (a.SiloServices.GetRequiredService<IMachineTransport>().LocalMachineId, b.SiloServices.GetRequiredService<IMachineTransport>().LocalMachineId);
-        var part = PartId.ForApp(BrainScope.Create(ModuleTest.DefaultAccount, ModuleTest.DefaultAccount).Id, "counter");
+        var part = PartId.ForApp(BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id, "counter");
         var grain = $"counter/{part.Value}/c1";
 
         var logsA = a.SiloServices.GetRequiredService<PartLogs>();

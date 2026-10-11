@@ -29,17 +29,17 @@ public sealed class OutsideCounterGrain([PersistentState("counter", DigitalBrain
 
 public sealed class PartGrainStorageFacts
 {
-    private static string Scope => BrainScope.Create(ModuleTest.DefaultAccount, ModuleTest.DefaultAccount).Id;
+    private static string Scope => BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;
 
     private static string Counter => $"{Scope}/apps/counter/c1";
 
-    private static IGrainStorage Storage(ModuleBrain brain, string name) => brain.SiloServices.GetRequiredKeyedService<IGrainStorage>(name);
+    private static IGrainStorage Storage(ITestBrain brain, string name) => brain.SiloServices.GetRequiredKeyedService<IGrainStorage>(name);
 
     [Fact(Timeout = 120_000)]
     public async Task ANeuronKeepsItsStateInItsPartAcrossASiloRestart()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithPartLog().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithPartLog().StartAsync(ct);
         var counter = brain.Get<IPartCounter>(Counter);
         for (var i = 0; i < 3; i++) { await counter.Increment(); }
 
@@ -53,7 +53,7 @@ public sealed class PartGrainStorageFacts
     public async Task NoNeuronStateReachesPlatformStorage()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithPartLog().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithPartLog().StartAsync(ct);
         var counter = brain.Get<IPartCounter>(Counter);
         await counter.Increment();
 
@@ -67,7 +67,7 @@ public sealed class PartGrainStorageFacts
     public async Task AStaleETagIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithPartLog().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithPartLog().StartAsync(ct);
         var counter = brain.Get<IPartCounter>(Counter);
         await counter.Increment();
         await counter.Increment();
@@ -83,7 +83,7 @@ public sealed class PartGrainStorageFacts
     public async Task AKeyOutsideEveryBrainIsRefusedOnAMachine()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithPartLog().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithPartLog().StartAsync(ct);
 
         var error = await Assert.ThrowsAnyAsync<Exception>(() => brain.Grains.GetGrain<IOutsideCounter>("@platform/x").Increment());
 
@@ -94,7 +94,7 @@ public sealed class PartGrainStorageFacts
     public async Task TheKernelRegistersANeuronWrittenToItsPartLog()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithPartLog().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithPartLog().StartAsync(ct);
 
         await brain.Get<IPartCounter>(Counter).Increment();
 
@@ -105,7 +105,7 @@ public sealed class PartGrainStorageFacts
     public async Task ThePartLogAddedAfterTheKernelRegistrationIsStillRegistered()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithPartLog()
+        await using var brain = await TestBrain.Create().WithPartLog()
             .ConfigureSilo(silo => { silo.AddKernelRegistration(); silo.AddMachinePartLog(); })
             .StartAsync(ct);
 
@@ -115,7 +115,7 @@ public sealed class PartGrainStorageFacts
         Assert.Contains(await Listed(brain, ct), instance => instance.Key == Counter);
     }
 
-    private static async Task<List<Instance>> Listed(ModuleBrain brain, CancellationToken ct)
+    private static async Task<List<Instance>> Listed(ITestBrain brain, CancellationToken ct)
     {
         List<Instance> listed = [];
         await foreach (var instance in new Framework.Kernel(brain.Grains).InstancesIn(Scope, null, ct)) { listed.Add(instance); }

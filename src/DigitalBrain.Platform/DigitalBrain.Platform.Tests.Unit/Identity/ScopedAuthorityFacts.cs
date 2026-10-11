@@ -13,7 +13,7 @@ public sealed class ScopedAuthorityFacts
     [Fact]
     public async Task RegistrationResumesAfterProvisioningFailsWithoutAllocatingAnotherAccount()
     {
-        await using var brain = await ModuleTest.Create().ConfigureSilo(silo =>
+        await using var brain = await TestBrain.Create().ConfigureSilo(silo =>
             silo.Services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.PlatformGrainStorage,
                 (services, _) => new FailOnceStorage(new OrleansGrainStorageSerializer(services.GetRequiredService<Serializer>()))))
             .StartAsync(TestContext.Current.CancellationToken);
@@ -54,7 +54,7 @@ public sealed class ScopedAuthorityFacts
     [Fact]
     public async Task RevokedOwnerCannotMutateGrantsWithAnOldSession()
     {
-        await using var brain = await ModuleTest.Create().StartAsync(TestContext.Current.CancellationToken);
+        await using var brain = await TestBrain.Create().StartAsync(TestContext.Current.CancellationToken);
         var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account", "brain").Id);
         await authority.EnsureMember(new Member { PrincipalId = "alice", AccountId = "account", BrainId = "brain", DisplayName = "Alice", Role = MemberRole.Owner });
         var caller = new DigitalBrain.Framework.CallerContext
@@ -75,7 +75,7 @@ public sealed class ScopedAuthorityFacts
     [Fact]
     public async Task BasicBootstrapOwnsOnlyItsExplicitDefaultScope()
     {
-        await using var brain = await ModuleTest.Create().ConfigureSilo(silo =>
+        await using var brain = await TestBrain.Create().ConfigureSilo(silo =>
             silo.Services.Configure<DigitalBrain.Platform.Identity.Configuration.AuthOptions>(options =>
             {
                 options.Posture = DigitalBrain.Platform.Identity.Configuration.IdentityPosture.Secured;
@@ -92,7 +92,7 @@ public sealed class ScopedAuthorityFacts
     public async Task ABrainIdBelongsToOneAccountAndAnotherCannotClaimOrReachIt()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("first", "shared-name").Id);
         await authority.EnsureMember(new Member { PrincipalId = "alice", AccountId = "first", BrainId = "shared-name", DisplayName = "Alice", Role = MemberRole.Owner });
 
@@ -105,7 +105,7 @@ public sealed class ScopedAuthorityFacts
     [Fact]
     public async Task RetryingBrainCreationKeepsItsIdAndDoesNotRestoreRevokedMembership()
     {
-        await using var brain = await ModuleTest.Create().StartAsync(TestContext.Current.CancellationToken);
+        await using var brain = await TestBrain.Create().StartAsync(TestContext.Current.CancellationToken);
         var member = await brain.SiloServices.GetRequiredService<PrincipalPasswords>().Register("alice", "long-test-password", "Alice");
         var account = brain.Grains.GetGrain<IAccount>(member.AccountId);
         var first = (await account.CreateBrain("alice", "operation-1", "First")).Member;

@@ -4,7 +4,6 @@ using System.Text.Json;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Integrations;
-using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -13,28 +12,22 @@ namespace DigitalBrain.Platform.Tests.Unit.Connections;
 public sealed class OAuthFlowFacts : IAsyncLifetime
 {
     private TokenEndpointStub _stub = null!;
-    private ModuleBrain _brain = null!;
+    private ITestBrain _brain = null!;
 
     public async ValueTask InitializeAsync()
     {
         _stub = await TokenEndpointStub.StartAsync(CancellationToken.None);
-        _brain = await ModuleTest.Create().WithModule<ExampleConnectionModule>()
-            .WithExecution(new()
-            {
-                PrivateConfiguration = new Dictionary<string, string?>
-                {
-                    [IntegrationSchema.Key("example-oauth", "ClientId")] = "client-id",
-                    [IntegrationSchema.Key("example-oauth", "ClientSecret")] = "client-secret",
-                    ["DigitalBrain:Connections:PublicOrigin"] = _stub.Origin.AbsoluteUri,
-                    ["DigitalBrain:Connections:TokenEndpoints:example"] = _stub.TokenEndpoint.AbsoluteUri,
-                },
-            })
-            .WithHttpEdge().StartAsync();
+        _brain = await TestBrain.Create().WithModule<ExampleConnectionModule>()
+            .WithIntegration(ExampleConnectionModule.Integration, "ClientId", "client-id")
+            .WithIntegration(ExampleConnectionModule.Integration, "ClientSecret", "client-secret")
+            .WithConfiguration("DigitalBrain:Connections:PublicOrigin", _stub.Origin.AbsoluteUri)
+            .WithConfiguration("DigitalBrain:Connections:TokenEndpoints:example", _stub.TokenEndpoint.AbsoluteUri)
+            .StartAsync();
     }
 
     public async ValueTask DisposeAsync() { await _brain.DisposeAsync(); await _stub.DisposeAsync(); }
 
-    private static string Key => ConnectionKeys.For(BrainScope.Create("owner", "owner").Id, "example", "one");
+    private string Key => ConnectionKeys.For(_brain.Owner.BrainId, "example", "one");
 
     private async Task<Uri> StartLogin()
     {
@@ -55,18 +48,17 @@ public sealed class OAuthFlowFacts : IAsyncLifetime
         Assert.Equal(new Uri(_stub.Origin, "connections/oauth/example/callback").AbsoluteUri, query["redirect_uri"]);
         using var callback = await _brain.HttpClient.GetAsync($"/connections/oauth/example/callback?code=fake-code&state={query["state"]}", ct);
         Assert.Equal(HttpStatusCode.OK, callback.StatusCode);
-        Assert.Equal("fake-code", TokenEndpointStub.LastForm!["code"]);
-        Assert.Equal("client-secret", TokenEndpointStub.LastForm["client_secret"]);
-        Assert.False(string.IsNullOrEmpty(TokenEndpointStub.LastForm["code_verifier"]));
-        CallerContextStamper.Stamp(new() { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
-        try
+        var form = Assert.Single(_stub.Forms);
+        Assert.Equal("fake-code", form["code"]);
+        Assert.Equal("client-secret", form["client_secret"]);
+        Assert.False(string.IsNullOrEmpty(form["code_verifier"]));
+        using (_brain.Owner.AsCaller())
         {
             var view = await _brain.Get<IConnection>(Key).Read();
             Assert.Equal(ConnectionStatus.Connected, view.Status);
             Assert.Equal("oauth", view.AuthMethodId);
             Assert.NotNull(view.ExpiresAt);
         }
-        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
     }
 
     [Fact]
@@ -105,12 +97,10 @@ public sealed class OAuthFlowFacts : IAsyncLifetime
         var ct = TestContext.Current.CancellationToken;
         var url = await StartLogin();
         var state = System.Web.HttpUtility.ParseQueryString(url.Query)["state"];
-        await _brain.RestartSiloAsync(ct);
+        await _brain.RestartAsync(ct);
         using var callback = await _brain.HttpClient.GetAsync($"/connections/oauth/example/callback?code=fake-code&state={state}", ct);
         Assert.Equal(HttpStatusCode.BadRequest, callback.StatusCode);
-        CallerContextStamper.Stamp(new() { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
-        try { Assert.Equal(ConnectionStatus.Disconnected, (await _brain.Get<IConnection>(Key).Read()).Status); }
-        finally { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+        using (_brain.Owner.AsCaller()) { Assert.Equal(ConnectionStatus.Disconnected, (await _brain.Get<IConnection>(Key).Read()).Status); }
     }
 
     [Fact]

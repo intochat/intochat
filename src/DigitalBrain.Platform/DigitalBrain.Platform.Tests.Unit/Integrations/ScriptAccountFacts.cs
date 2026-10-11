@@ -7,10 +7,8 @@ using DigitalBrain.Integrations;
 using DigitalBrain.Framework.Surface;
 using DigitalBrain.Framework.Contracts;
 using Microsoft.Extensions.DependencyInjection;
-using DigitalBrain.Testing.Module;
 using DigitalBrain.Platform.Tests.Unit.Connections;
 using Orleans.Hosting;
-using Xunit;
 
 namespace DigitalBrain.Platform.Tests.Unit.Integrations;
 
@@ -20,7 +18,7 @@ public sealed class ScriptAccountFacts
     public async Task DiscoveryReturnsOnlyTheBrainsConnectionsWithoutCredentials()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<ExampleConnectionModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<ExampleConnectionModule>().StartAsync(ct);
         var caller = new CallerContext { PrincipalId = "alice", AccountId = "alice", BrainId = "home", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp };
         CallerContextStamper.Stamp(caller);
         await brain.AuthorizeCallerAsync();
@@ -59,7 +57,7 @@ public sealed class ScriptAccountFacts
     public async Task RequestingAKnownKindReturnsAnOpaqueRefAndAnUnknownKindIsRejected()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<PostgresKindModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<PostgresKindModule>().StartAsync(ct);
         var accounts = brain.Get<IConnectionRequests>("brain-1");
 
         // The host always composes the orleans module, so its connector kind is listed beside the module's.

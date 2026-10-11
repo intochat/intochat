@@ -100,7 +100,7 @@ internal sealed class RequestCapture(Serializer serializer) : IIncomingGrainCall
 [System.Runtime.Versioning.SupportedOSPlatform("windows"), System.Runtime.Versioning.SupportedOSPlatform("linux"), System.Runtime.Versioning.SupportedOSPlatform("macos")]
 public sealed class CrossPartCallFacts
 {
-    private static string Scope => BrainScope.Create(ModuleTest.DefaultAccount, ModuleTest.DefaultAccount).Id;
+    private static string Scope => BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;
 
     private static string NewCounter() => $"{Scope}/apps/counter/c{Guid.NewGuid():N}";
 
@@ -113,24 +113,24 @@ public sealed class CrossPartCallFacts
             silo.Services.AddSingleton<IActivationHandler<CrossCounterNeuron>, ActivationRecord>();
         });
 
-    private static async Task<(TrustHost Trust, ModuleBrain One, ModuleBrain Two)> Machines(CancellationToken ct)
+    private static async Task<(TrustHost Trust, ITestBrain One, ITestBrain Two)> Machines(CancellationToken ct)
     {
         var trust = await TrustHost.StartAsync(ct);
-        var one = await Captured(ModuleTest.Create().WithTrust(trust).WithPartLog()
+        var one = await Captured(TestBrain.Create().WithTrust(trust).WithPartLog()
             .WithConfiguration($"{PartsOptions.Key}:{nameof(PartsOptions.CoreHolder)}", "true")).StartAsync(ct);
         await one.SiloServices.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
-        var two = await Captured(ModuleTest.Create().WithTrust(trust).WithPartLog()).StartAsync(ct);
+        var two = await Captured(TestBrain.Create().WithTrust(trust).WithPartLog()).StartAsync(ct);
         await two.SiloServices.GetRequiredService<OwnerBirth>().Born.WaitAsync(ct);
         return (trust, one, two);
     }
 
-    private static async Task Stop(TrustHost trust, params ModuleBrain[] machines)
+    private static async Task Stop(TrustHost trust, params ITestBrain[] machines)
     {
         foreach (var machine in machines) { await machine.DisposeAsync(); }
         await trust.DisposeAsync();
     }
 
-    private static string Id(ModuleBrain machine) => machine.SiloServices.GetRequiredService<IMachineTransport>().LocalMachineId;
+    private static string Id(ITestBrain machine) => machine.SiloServices.GetRequiredService<IMachineTransport>().LocalMachineId;
 
     private static ActivityListener Listen(ConcurrentBag<Activity> seen)
     {
@@ -145,7 +145,7 @@ public sealed class CrossPartCallFacts
     }
 
     // A raw grain-call over from's link to `to`, bypassing from's filter.
-    private static async Task<ForwardedOutcome> Send(ModuleBrain from, ModuleBrain to, ForwardedCall call)
+    private static async Task<ForwardedOutcome> Send(ITestBrain from, ITestBrain to, ForwardedCall call)
     {
         var serializer = from.SiloServices.GetRequiredService<Serializer>();
         var link = await from.SiloServices.GetRequiredService<IMachineTransport>().Connect(Id(to), CancellationToken.None);
@@ -153,7 +153,7 @@ public sealed class CrossPartCallFacts
         return serializer.Deserialize<ForwardedOutcome>(reply.Payload!)!;
     }
 
-    private static IInvokable Captured(ModuleBrain on, string key)
+    private static IInvokable Captured(ITestBrain on, string key)
         => on.SiloServices.GetRequiredService<Serializer>().Deserialize<IInvokable>(RequestCapture.Requests[key])!;
 
     [Fact(Timeout = 180_000)]
@@ -186,7 +186,7 @@ public sealed class CrossPartCallFacts
         SkipWithoutQuic();
         var ct = TestContext.Current.CancellationToken;
         var trust = await TrustHost.StartAsync(ct);
-        var cloud = await ModuleTest.Create().WithTrust(trust).WithPartLog()
+        var cloud = await TestBrain.Create().WithTrust(trust).WithPartLog()
             .WithConfiguration($"{PartsOptions.Key}:{nameof(PartsOptions.Role)}", nameof(MachineRole.Cloud)).StartAsync(ct);
         try
         {
@@ -318,9 +318,9 @@ public sealed class CrossPartCallFacts
     }
 
     // A Secured host bound to account bob, a member of the owner's brain: a member's machine.
-    private static async Task<ModuleBrain> MemberMachine(TrustHost trust, ModuleBrain owner, CancellationToken ct)
+    private static async Task<ITestBrain> MemberMachine(TrustHost trust, ITestBrain owner, CancellationToken ct)
     {
-        var bob = await ModuleTest.Create().WithTrust(trust).WithPartLog()
+        var bob = await TestBrain.Create().WithTrust(trust).WithPartLog()
             .WithConfiguration(AuthOptions.PostureKey, nameof(IdentityPosture.Secured))
             .StartAsync(ct);
         // Without a bootstrap credential the Secured host registers nothing at start; it serves bob's account only.
@@ -328,7 +328,7 @@ public sealed class CrossPartCallFacts
         await bob.SiloServices.GetRequiredService<IIdentityClient>().EnsureAccount(new Account
         { AccountId = "bob", OwnerPrincipalId = "bob", Name = "bob", CreatedAt = DateTimeOffset.UtcNow });
         await owner.SiloServices.GetRequiredService<IIdentityClient>().EnsureMember(new Member
-        { PrincipalId = "bob", AccountId = ModuleTest.DefaultAccount, BrainId = Scope, Role = MemberRole.Member, DisplayName = "Bob" });
+        { PrincipalId = "bob", AccountId = AccountSession.DefaultLogin, BrainId = Scope, Role = MemberRole.Member, DisplayName = "Bob" });
         return bob;
     }
 
@@ -344,7 +344,7 @@ public sealed class CrossPartCallFacts
         {
             var counter = NewCounter();
             await two.Grains.GetGrain<ICrossCounter>(counter).Touch();
-            var owner = ModuleTest.DefaultAccount;
+            var owner = AccountSession.DefaultLogin;
             RequestContext.Set(CallerContextStamper.RequestContextKey, new CallerContext
             {
                 PrincipalId = owner, AccountId = owner, BrainId = Scope, Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp,
@@ -483,7 +483,7 @@ public sealed class CrossPartCallFacts
             var target = GrainId.Create("test.cross-counter", counter);
             static CallerContext As(string principal) => new() { PrincipalId = principal, AccountId = "bob", BrainId = Scope, Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp };
 
-            var forged = await Send(bob, one, new ForwardedCall(target, Captured(one, $"{target}#Add"), As(ModuleTest.DefaultAccount), null));
+            var forged = await Send(bob, one, new ForwardedCall(target, Captured(one, $"{target}#Add"), As(AccountSession.DefaultLogin), null));
             var own = await Send(bob, one, new ForwardedCall(target, Captured(one, $"{target}#Add"), As("bob"), null));
 
             var refused = Assert.IsType<UnauthorizedAccessException>(forged.Error);

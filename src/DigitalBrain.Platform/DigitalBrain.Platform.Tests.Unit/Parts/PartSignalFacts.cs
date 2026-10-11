@@ -70,11 +70,11 @@ internal sealed class CloudPartJournal(CloudPart cloud, ISignalJournal own, ISig
 
 public sealed class PartSignalFacts
 {
-    private static string Scope => BrainScope.Create(ModuleTest.DefaultAccount, ModuleTest.DefaultAccount).Id;
+    private static string Scope => BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;
 
     private static string Counter => $"{Scope}/apps/counter/s1";
 
-    private static async Task<LogEntry> LastEntry(ModuleBrain brain)
+    private static async Task<LogEntry> LastEntry(ITestBrain brain)
     {
         var log = await brain.SiloServices.GetRequiredService<PartLogs>().For(PartId.Of(Counter));
         await log.Flushed();
@@ -85,7 +85,7 @@ public sealed class PartSignalFacts
     public async Task AStateChangeAndItsSignalAreOneEntry()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithPartLog().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithPartLog().StartAsync(ct);
 
         await brain.Get<ISignalCounter>(Counter).Change(5);
 
@@ -98,7 +98,7 @@ public sealed class PartSignalFacts
     public async Task ASignalWithoutAStateChangeIsItsOwnEntry()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithPartLog().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithPartLog().StartAsync(ct);
         var counter = brain.Get<ISignalCounter>(Counter);
         await counter.Change(1);
 
@@ -115,7 +115,7 @@ public sealed class PartSignalFacts
     public async Task AFailedStateWriteNeverPublishesItsSignal()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithPartLog().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithPartLog().StartAsync(ct);
         var counter = brain.Get<ISignalCounter>(Counter);
         await counter.Change(1);
         await using var probe = await brain.Observe<Changed>(counter, ct);
@@ -148,7 +148,7 @@ public sealed class PartSignalFacts
             Role = MachineRole.Cloud, BatchBytes = 1,
             MachineDirectory = Path.Combine(Path.GetTempPath(), $"cloud-machine-{Guid.NewGuid():N}"),
         };
-        await using var brain = await ModuleTest.Create().WithPartLog()
+        await using var brain = await TestBrain.Create().WithPartLog()
             .ConfigureSilo(silo =>
             {
                 silo.Services.AddSingleton(provider => new CloudPart(new PartLogs(new DigitalBrain.Platform.Trust.TrustDeployment(provider.GetRequiredService<DigitalBrain.Platform.Trust.INodeDirectoryClient>(), Options.Create(cloud)), provider.GetRequiredService<DigitalBrain.Platform.Trust.ISequencerClient>(), provider.GetRequiredService<DigitalBrain.Platform.Trust.IKeyringClient>(),
@@ -171,7 +171,7 @@ public sealed class PartSignalFacts
         var counter = brain.Get<ISignalCounter>(Counter);
         await counter.Change(1);
         await using var probe = await brain.SubscribeAsync<Signal>(counter, ct);
-        var key = await brain.SiloServices.GetRequiredService<IPartKeys>().Key(part, ModuleTest.DefaultAccount, ct);
+        var key = await brain.SiloServices.GetRequiredService<IPartKeys>().Key(part, AccountSession.DefaultLogin, ct);
         using var rival = SequencerFacts.Machine();
         var taken = await PartLease.Acquire(part, key, PartLeaseFacts.Sequencer(brain), rival, PartLeaseFacts.Seen(), new PartsOptions { Role = MachineRole.Cloud }, TimeProvider.System,
             brain.SiloServices.GetRequiredService<Serializer>());
@@ -194,7 +194,7 @@ public sealed class PartSignalFacts
     public async Task PlainHostsStillPublishAsBefore()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var counter = brain.Get<ISignalCounter>(Counter);
         await using var probe = await brain.Observe<Changed>(counter, ct);
 
@@ -207,7 +207,7 @@ public sealed class PartSignalFacts
     public async Task TheStorageWriteOfASaveSeesItsSignalsPending()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create()
+        await using var brain = await TestBrain.Create()
             .ConfigureSilo(silo =>
             {
                 var memory = silo.Services.Last(d => d.ServiceType == typeof(IGrainStorage) && Equals(d.ServiceKey, DigitalBrainNames.ClusterGrainStorage));

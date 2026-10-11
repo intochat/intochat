@@ -11,7 +11,7 @@ public sealed class PartJournalFacts
     public async Task EntriesSurviveReopeningAndATornTailIsIgnored()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var serializer = brain.SiloServices.GetRequiredService<Serializer>();
         var key = RandomNumberGenerator.GetBytes(32);
         var path = Path.Combine(Path.GetTempPath(), $"journal-{Guid.NewGuid():N}.log");
@@ -30,7 +30,7 @@ public sealed class PartJournalFacts
     public async Task TrimmingDropsCommittedEntries()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var journal = new PartJournal(Path.Combine(Path.GetTempPath(), $"journal-{Guid.NewGuid():N}.log"), RandomNumberGenerator.GetBytes(32), brain.SiloServices.GetRequiredService<Serializer>());
         foreach (var seq in new long[] { 1, 2, 3 }) { journal.Append(new LogEntry { Seq = seq, GrainId = "g", StateName = "s", Record = [], Signals = [] }); }
 
@@ -43,7 +43,7 @@ public sealed class PartJournalFacts
     public async Task AnAppendThatFailsMidwayLeavesNoBytesBehindTheNextOne()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var serializer = brain.SiloServices.GetRequiredService<Serializer>();
         var key = RandomNumberGenerator.GetBytes(32);
         var path = Path.Combine(Path.GetTempPath(), $"journal-{Guid.NewGuid():N}.log");

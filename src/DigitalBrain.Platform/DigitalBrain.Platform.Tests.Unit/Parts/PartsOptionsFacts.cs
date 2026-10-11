@@ -19,7 +19,7 @@ public sealed class PartsOptionsFacts
     public async Task EverySiloHasAMachineIdentityAndRollbackMemory()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         Assert.NotEmpty(brain.SiloServices.GetRequiredService<MachineIdentity>().MachineId);
         Assert.NotNull(brain.SiloServices.GetRequiredService<SeenVersions>());
     }

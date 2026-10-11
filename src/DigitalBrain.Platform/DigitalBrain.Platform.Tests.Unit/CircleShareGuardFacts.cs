@@ -1,5 +1,4 @@
 using DigitalBrain.Framework.Compute;
-using DigitalBrain.Testing.Module;
 
 namespace DigitalBrain.Platform.Tests.Unit;
 
@@ -9,7 +8,7 @@ public sealed class CircleShareGuardFacts
     public async Task AGrainOfAnotherTypeWithTheCircleKeyCannotStateTheShare()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             brain.Grains.GetGrain<IShareProbe>("owner-brain/circles/c").StateTheShare());

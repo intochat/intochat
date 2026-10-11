@@ -12,7 +12,7 @@ public sealed class PartRoutesFacts
     public async Task NeuronsAreRoutedAndMachineLocalGrainsAreNot()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithPartLog().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithPartLog().StartAsync(ct);
         var routes = ActivatorUtilities.CreateInstance<PartRoutes>(brain.SiloServices);
 
         Assert.True(routes.IsPartLogged(GrainType.Create("test.signal-counter")));
@@ -24,12 +24,12 @@ public sealed class PartRoutesFacts
     public async Task TheCoresKernelGrainsBelongToTheCorePart()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithPartLog().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithPartLog().StartAsync(ct);
         var routes = ActivatorUtilities.CreateInstance<PartRoutes>(brain.SiloServices);
-        var scope = BrainScope.Create(ModuleTest.DefaultAccount, ModuleTest.DefaultAccount).Id;
+        var scope = BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;
 
         Assert.Equal(PartId.Core(scope), routes.PartOf(GrainId.Create("kernel.instances", $"{scope}/test.signal-counter")));
         Assert.Equal(PartId.ForApp(scope, "counter"), routes.PartOf(GrainId.Create("test.signal-counter", $"{scope}/apps/counter/c1")));
-        Assert.Null(routes.PartOf(GrainId.Create("vault", ModuleTest.DefaultAccount)));
+        Assert.Null(routes.PartOf(GrainId.Create("vault", AccountSession.DefaultLogin)));
     }
 }

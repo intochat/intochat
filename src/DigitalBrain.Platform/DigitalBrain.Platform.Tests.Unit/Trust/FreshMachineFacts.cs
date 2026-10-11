@@ -15,12 +15,12 @@ public sealed class FreshMachineFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var trust = await TrustHost.StartAsync(ct);
-        var scope = BrainScope.Create(ModuleTest.DefaultAccount, ModuleTest.DefaultAccount).Id;
+        var scope = BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;
         Assert.Null(await trust.Grains.GetGrain<DigitalBrain.Platform.Identity.Authority.IBrainAuthority>(scope).Account());
 
-        await using var machine = await ModuleTest.Create().WithTrust(trust).WithPartLog().StartAsync(ct);
+        await using var machine = await TestBrain.Create().WithTrust(trust).WithPartLog().StartAsync(ct);
 
-        Assert.Equal(ModuleTest.DefaultAccount, await machine.SiloServices.GetRequiredService<IKeyringClient>().OwnerOf(scope));
+        Assert.Equal(AccountSession.DefaultLogin, await machine.SiloServices.GetRequiredService<IKeyringClient>().OwnerOf(scope));
         var core = await machine.SiloServices.GetRequiredService<PartLogs>().For(PartId.Core(scope));
         Assert.False(core.Closed);
     }

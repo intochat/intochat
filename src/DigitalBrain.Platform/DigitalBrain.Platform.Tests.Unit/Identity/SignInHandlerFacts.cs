@@ -15,7 +15,7 @@ public sealed class SignInHandlerFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var recording = new RecordingHandler();
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         await using var app = await StartAsync(brain, recording, ct);
         using var client = new HttpClient(new HttpClientHandler { CookieContainer = new() }) { BaseAddress = new(app.Urls.Single()) };
         await brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory).RegisterAsync("ada", "correct-password", "Ada", ct);
@@ -32,7 +32,7 @@ public sealed class SignInHandlerFacts
     public async Task AFailingSignInHandlerNeverFailsSignIn()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         await using var app = await StartAsync(brain, new FailingHandler(), ct);
         using var client = new HttpClient(new HttpClientHandler { CookieContainer = new() }) { BaseAddress = new(app.Urls.Single()) };
         await brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory).RegisterAsync("bea", "correct-password", "Bea", ct);
@@ -42,7 +42,7 @@ public sealed class SignInHandlerFacts
         login.EnsureSuccessStatusCode();
     }
 
-    private static async Task<WebApplication> StartAsync(ModuleBrain brain, ISignInHandler handler, CancellationToken ct)
+    private static async Task<WebApplication> StartAsync(ITestBrain brain, ISignInHandler handler, CancellationToken ct)
     {
         var builder = WebApplication.CreateBuilder();
         DigitalBrain.Testing.TestLogging.Apply(builder.Configuration);

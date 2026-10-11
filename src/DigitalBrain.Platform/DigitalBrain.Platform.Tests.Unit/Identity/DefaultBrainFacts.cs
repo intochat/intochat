@@ -60,9 +60,9 @@ public sealed class DefaultBrainFacts
     public void TheDefaultBrainResolvesFromTheClaimAndElseTheOwnerBrain(string accountId, string? claimBrain, string expected)
         => Assert.Equal(expected, AccountSession.DefaultBrain(accountId, claimBrain));
 
-    private static async Task<(WebApplication App, ModuleBrain Brain)> Start(string posture, CancellationToken ct)
+    private static async Task<(WebApplication App, ITestBrain Brain)> Start(string posture, CancellationToken ct)
     {
-        var brain = await ModuleTest.Create().StartAsync(ct);
+        var brain = await TestBrain.Create().StartAsync(ct);
         var builder = WebApplication.CreateBuilder();
         builder.Configuration[AuthOptions.PostureKey] = posture;
         builder.Services.AddSingleton<IDigitalBrain>(brain);

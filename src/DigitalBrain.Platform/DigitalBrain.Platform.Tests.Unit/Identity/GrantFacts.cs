@@ -112,7 +112,7 @@ public sealed class GrantFacts
     public async Task RevokingAOnceGrantEmptiesTheAuthorityAndTheNextReadLooksMissing()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
         await authority.Initialize("account-1", "ws-1");
         await authority.Grant(Grant(GrantMode.Once, "person.birthDate", "app-1", "ws-1"));
@@ -131,7 +131,7 @@ public sealed class GrantFacts
     public async Task ConcurrentCallsCannotSpendTheSameOnceGrant()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
         await authority.Initialize("account-1", "ws-1");
         await authority.Grant(Grant(GrantMode.Once, "person.birthDate", "app-1", "ws-1"));
@@ -146,7 +146,7 @@ public sealed class GrantFacts
     public async Task AnAuthorizeReadNeverConsumesAGrant()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
         await authority.Initialize("account-1", "ws-1");
         await authority.Grant(Grant(GrantMode.Once, "person.birthDate", "app-1", "ws-1"));
@@ -160,7 +160,7 @@ public sealed class GrantFacts
     public async Task TheAuthorityGrantsRevokesAndRelists()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
         await authority.Initialize("account-1", "ws-1");
         await authority.Grant(Grant(GrantMode.Always, "person.birthDate", "app-1", "ws-1"));
@@ -173,7 +173,7 @@ public sealed class GrantFacts
     public async Task RevokingOneModeKeepsTheOthersAndARevokedValueLooksEmpty()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account-1", "ws-1").Id);
         await authority.Initialize("account-1", "ws-1");
         await authority.Grant(Grant(GrantMode.Always, "person.birthDate", "app-1", "ws-1"));

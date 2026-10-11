@@ -10,7 +10,7 @@ public sealed class PartKeyFacts
     public async Task APartKeyIsCreatedOnceAndStoredOnlyWrapped()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var keys = brain.SiloServices.GetRequiredService<IPartKeys>();
         var part = PartId.Core("home");
 
@@ -27,7 +27,7 @@ public sealed class PartKeyFacts
     public async Task EachPartHasItsOwnKey()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var keys = brain.SiloServices.GetRequiredService<IPartKeys>();
 
         Assert.NotEqual(await keys.Key(PartId.Core("home"), "alice", ct), await keys.Key(PartId.ForApp("home", "filmcraft"), "alice", ct));

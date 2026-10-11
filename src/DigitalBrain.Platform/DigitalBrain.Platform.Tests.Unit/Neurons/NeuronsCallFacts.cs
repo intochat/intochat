@@ -1,6 +1,5 @@
 using System.Text.Json;
 using DigitalBrain.Platform.Neurons.Proto;
-using DigitalBrain.Testing.Module;
 using Google.Protobuf;
 using Grpc.Core;
 using Grpc.Net.Client;
@@ -11,7 +10,7 @@ namespace DigitalBrain.Platform.Tests.Unit.Neurons;
 public sealed class NeuronsCallFacts
 {
     // gRPC-Web over the edge's HTTP/1.1 Kestrel, exactly what the web shell does.
-    internal static DigitalBrain.Platform.Neurons.Proto.Neurons.NeuronsClient Client(ModuleBrain brain)
+    internal static DigitalBrain.Platform.Neurons.Proto.Neurons.NeuronsClient Client(ITestBrain brain)
         => new(GrpcChannel.ForAddress(brain.HttpClient.BaseAddress!, new GrpcChannelOptions
         {
             HttpHandler = new GrpcWebHandler(GrpcWebMode.GrpcWeb, new HttpClientHandler()),
@@ -28,7 +27,7 @@ public sealed class NeuronsCallFacts
     public async Task ACallRunsAContractMethodAndAnswersItsResultAsJson()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithHttpEdge().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var reply = await Client(brain).CallAsync(Read("owner"), cancellationToken: ct);
         using var json = JsonDocument.Parse(reply.Result.ToStringUtf8());
         Assert.Equal(JsonValueKind.Object, json.RootElement.ValueKind);
@@ -38,7 +37,7 @@ public sealed class NeuronsCallFacts
     public async Task BadArgumentsAreAnInvalidArgument()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithHttpEdge().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var error = await Assert.ThrowsAsync<RpcException>(() => Client(brain).CallAsync(Read("owner", "not json"), cancellationToken: ct).ResponseAsync);
         Assert.Equal(StatusCode.InvalidArgument, error.StatusCode);
         Assert.Contains("JSON array", error.Status.Detail);
@@ -48,7 +47,7 @@ public sealed class NeuronsCallFacts
     public async Task AnInvalidBrainIdIsAnInvalidArgument()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithHttpEdge().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var error = await Assert.ThrowsAsync<RpcException>(() => Client(brain).CallAsync(Read("a/b"), cancellationToken: ct).ResponseAsync);
         Assert.Equal(StatusCode.InvalidArgument, error.StatusCode);
     }

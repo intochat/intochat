@@ -14,8 +14,8 @@ public sealed class RegistrationTrustFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var a = await ModuleTest.Create().WithTrust(trust).StartAsync(ct);
-        await using var b = await ModuleTest.Create().WithTrust(trust).StartAsync(ct);
+        await using var a = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
+        await using var b = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
         await a.SiloServices.GetRequiredService<PrincipalPasswords>().Register("bob", "bobs-long-password", "Bob");
 
         var onB = b.SiloServices.GetRequiredService<PrincipalPasswords>();
@@ -30,8 +30,8 @@ public sealed class RegistrationTrustFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var a = await ModuleTest.Create().WithTrust(trust).StartAsync(ct);
-        await using var b = await ModuleTest.Create().WithTrust(trust).StartAsync(ct);
+        await using var a = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
+        await using var b = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
         await a.SiloServices.GetRequiredService<PrincipalPasswords>().Register("bob", "bobs-long-password", "Bob");
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => b.SiloServices.GetRequiredService<PrincipalPasswords>().Register("bob", "attackers-password", "Bob"));

@@ -18,7 +18,7 @@ public sealed class ConnectorBindingFacts
     public async Task InfrastructureOnlyModulesCanAcquireTheirOwnSchemas()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<InfrastructureModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<InfrastructureModule>().StartAsync(ct);
         var bindings = brain.SiloServices.GetRequiredService<IModuleIntegrations<InfrastructureModule>>();
         Assert.Equal("infrastructure", bindings.Get("infrastructure").IntegrationId);
         Assert.Equal("additional", bindings.Get("additional").IntegrationId);
@@ -29,7 +29,7 @@ public sealed class ConnectorBindingFacts
     public async Task CatalogAndTheConnectRouteFollowAvailabilityAndWarnOnlyOnTransitions()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<ExampleConnectionModule>().WithHttpEdge().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<ExampleConnectionModule>().StartAsync(ct);
         Task<HttpResponseMessage> Connect() => brain.HttpClient.PostAsJsonAsync("/brains/owner/connections/one/connect",
             new { connectorId = "example", authMethodId = "api-key", value = "secret-value-7d1" }, ct);
         var logger = new CatalogLogger();
@@ -87,7 +87,7 @@ public sealed class ConnectorBindingFacts
     public async Task MissingIntegrationHidesConnectorAndProvisioningMakesItAvailable()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<ExampleModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<ExampleModule>().StartAsync(ct);
         var catalog = brain.SiloServices.GetRequiredService<ConnectorCatalog>();
         // The host always composes the orleans module: its connector is the one offered before provisioning.
         async Task<string[]> Offered() => [.. (await catalog.ListAsync(ct)).Select(entry => entry.Id).Order(StringComparer.Ordinal)];

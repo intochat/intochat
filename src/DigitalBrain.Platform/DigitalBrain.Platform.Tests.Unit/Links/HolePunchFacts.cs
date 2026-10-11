@@ -23,8 +23,8 @@ public sealed class HolePunchFacts
         SkipWithoutQuic();
         var ct = TestContext.Current.CancellationToken;
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var a = await ModuleTest.Create().WithTrust(trust).StartAsync(ct);
-        await using var b = await ModuleTest.Create().WithTrust(trust).StartAsync(ct);
+        await using var a = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
+        await using var b = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
         var (ta, tb) = (a.SiloServices.GetRequiredService<QuicMachineTransport>(), b.SiloServices.GetRequiredService<QuicMachineTransport>());
         tb.Handle("echo", Echo);
         ta.Handle("echo", Echo);
@@ -53,7 +53,7 @@ public sealed class HolePunchFacts
         { Assert.Skip("needs two networks"); return; }
         SkipWithoutQuic();
         var ct = TestContext.Current.CancellationToken;
-        await using var machine = await ModuleTest.Create()
+        await using var machine = await TestBrain.Create()
             .WithConfiguration($"{DigitalBrain.Platform.Trust.TrustOptions.Key}:{nameof(DigitalBrain.Platform.Trust.TrustOptions.Endpoint)}", endpoint)
             .WithConfiguration($"{PartsOptions.Key}:{nameof(PartsOptions.MachineDirectory)}", Path.Combine(Path.GetTempPath(), "digitalbrain-field", role))
             .StartAsync(ct);

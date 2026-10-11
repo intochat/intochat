@@ -4,9 +4,9 @@ namespace DigitalBrain.Platform.Tests.Unit.Mesh;
 
 public sealed class PlacementFacts
 {
-    private static async Task<(ModuleBrain Brain, IStorageNodeDirectory Directory)> StartAsync(CancellationToken ct)
+    private static async Task<(ITestBrain Brain, IStorageNodeDirectory Directory)> StartAsync(CancellationToken ct)
     {
-        var brain = await ModuleTest.Create().StartAsync(ct);
+        var brain = await TestBrain.Create().StartAsync(ct);
         return (brain, brain.Grains.GetGrain<IStorageNodeDirectory>(IStorageNodeDirectory.Key));
     }
 

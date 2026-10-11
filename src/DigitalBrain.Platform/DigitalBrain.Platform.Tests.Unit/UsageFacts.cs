@@ -11,7 +11,7 @@ public sealed class UsageFacts
     public async Task UsageGroupsByAppSynapseNeuronAndOrigin()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var usage = brain.Grains.GetGrain<IUsageGrain>(BrainId);
 
         await usage.Add(Cost("tr-1", "c-1", 1_000, "mail", "on-inbound", "gmail/inbox", DateTimeOffset.UtcNow), "gmail/edge");
@@ -28,7 +28,7 @@ public sealed class UsageFacts
     public async Task TheMostExpensiveComesFirst()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var usage = brain.Grains.GetGrain<IUsageGrain>(BrainId);
 
         await usage.Add(Cost("tr-1", "c-1", 2_000, "mail", "on-inbound", "gmail/inbox", DateTimeOffset.UtcNow), "origin/cheap");
@@ -46,7 +46,7 @@ public sealed class UsageFacts
     public async Task RowsSinceExcludeOlderDays()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var usage = brain.Grains.GetGrain<IUsageGrain>(BrainId);
         var now = DateTimeOffset.UtcNow;
 
@@ -61,7 +61,7 @@ public sealed class UsageFacts
     public async Task UsageSurvivesReactivation()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var usage = brain.Grains.GetGrain<IUsageGrain>(BrainId);
         var now = DateTimeOffset.UtcNow;
 

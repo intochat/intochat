@@ -11,7 +11,7 @@ public sealed class LedgerFacts
     public async Task ChargingTheSameCostTwiceChargesOnce()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var ledger = brain.Grains.GetGrain<ILedgerGrain>(Account);
 
         Assert.True(await ledger.Charge(Cost("tr-1", "c-1", 1_000L)));
@@ -28,7 +28,7 @@ public sealed class LedgerFacts
     public async Task CreditThenChargeLeavesTheDifference()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var ledger = brain.Grains.GetGrain<ILedgerGrain>(Account);
 
         await ledger.Credit("grant-1", 5_000L, "monthly grant");
@@ -59,7 +59,7 @@ public sealed class LedgerFacts
     public async Task BalanceSurvivesReactivation()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var ledger = brain.Grains.GetGrain<ILedgerGrain>(Account);
         await ledger.Credit("grant-1", 5_000L, "monthly grant");
         await ledger.Charge(Cost("tr-1", "c-1", 1_000L));

@@ -58,7 +58,7 @@ public sealed class SecretsFacts
     public async Task UserCannotResolveThroughGrain()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var secrets = brain.Grains.GetGrain<ISecrets>(Owner);
         var reference = await secrets.Set(UserCaller(), "api.key", "API key", Canary, ct);
 

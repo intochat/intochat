@@ -11,7 +11,7 @@ namespace DigitalBrain.Platform.Tests.Unit.Parts;
 // A durable subscription's watermark is a part-log seq: the journal reads one publisher's signals after it.
 public sealed class PublisherSignalsFacts
 {
-    private static string Scope => BrainScope.Create(ModuleTest.DefaultAccount, ModuleTest.DefaultAccount).Id;
+    private static string Scope => BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;
 
     private static string Counter => $"{Scope}/apps/counter/s1";
 
@@ -19,7 +19,7 @@ public sealed class PublisherSignalsFacts
     public async Task APublishersSignalsAreReadAfterASeqWithTheirEntrySeq()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithPartLog().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithPartLog().StartAsync(ct);
         var counter = brain.Get<ISignalCounter>(Counter);
         await counter.Change(1);
         await counter.Ping();
@@ -40,10 +40,10 @@ public sealed class PublisherSignalsFacts
     public async Task APartHeldByAnotherMachineIsUnavailable()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithPartLog().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithPartLog().StartAsync(ct);
         var held = $"{Scope}/apps/held/s1";
         var part = PartId.Of(held);
-        var key = await brain.SiloServices.GetRequiredService<IPartKeys>().Key(part, ModuleTest.DefaultAccount, ct);
+        var key = await brain.SiloServices.GetRequiredService<IPartKeys>().Key(part, AccountSession.DefaultLogin, ct);
         using var rival = SequencerFacts.Machine();
         var taken = await PartLease.Acquire(part, key, PartLeaseFacts.Sequencer(brain), rival, PartLeaseFacts.Seen(), new PartsOptions { Role = MachineRole.Cloud },
             TimeProvider.System, brain.SiloServices.GetRequiredService<Serializer>());
@@ -80,7 +80,7 @@ public sealed class PublisherSignalsFacts
     public async Task PlainHostsHaveNothingToReplay()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var counter = brain.Get<ISignalCounter>(Counter);
         await counter.Change(1);
 

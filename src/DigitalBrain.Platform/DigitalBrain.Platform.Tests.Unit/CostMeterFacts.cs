@@ -1,7 +1,6 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Compute;
 using DigitalBrain.Platform.Compute;
-using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Hosting;
 using Orleans.Runtime;
@@ -95,9 +94,9 @@ public sealed class CostMeterFacts
 
     private const string CircleKey = "owner-brain/circles/c";
 
-    private static async Task<ModuleBrain> CircleBrain(long price, int percent, TimeProvider? clock, CancellationToken ct)
+    private static async Task<ITestBrain> CircleBrain(long price, int percent, TimeProvider? clock, CancellationToken ct)
     {
-        var brain = await ModuleTest.Create()
+        var brain = await TestBrain.Create()
             .ConfigureSilo(silo =>
             {
                 silo.Services.AddSingleton<IPriceList>(new FixedPriceList(price));
@@ -185,12 +184,12 @@ public sealed class CostMeterFacts
         Assert.Equal(1_000, await brain.Grains.GetGrain<ILedgerGrain>("acct-owner").Balance());
     }
 
-    private static Task<ModuleBrain> MeteredBrain(long? pricePerUnit, CancellationToken ct)
-        => ModuleTest.Create()
+    private static Task<ITestBrain> MeteredBrain(long? pricePerUnit, CancellationToken ct)
+        => TestBrain.Create()
             .ConfigureSilo(silo => silo.Services.AddSingleton<IPriceList>(new FixedPriceList(pricePerUnit)))
             .StartAsync(ct);
 
-    private static ICostMeter Meter(ModuleBrain brain) => brain.SiloServices.GetRequiredService<ICostMeter>();
+    private static ICostMeter Meter(ITestBrain brain) => brain.SiloServices.GetRequiredService<ICostMeter>();
 
     private static void StampCaller() => CallerContextStamper.Stamp(new CallerContext
     {

@@ -9,7 +9,7 @@ public sealed class BrainEstablishmentFacts
     public async Task RegisteringAMemberCreatesTheirBrain()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var directory = brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory);
         var member = await directory.RegisterAsync("alice", "correct-password", "Alice", ct);
         var state = await brain.Get<IBrain>(BrainScope.Create(member.AccountId, member.BrainId).Id).Read();

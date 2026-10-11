@@ -11,7 +11,7 @@ public sealed class PartLogModelFacts
     public async Task AnEntryCarriesItsRecordAndItsSignalsTogether()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var serializer = brain.SiloServices.GetRequiredService<Serializer>();
         var segment = new LogSegment
         {
@@ -30,7 +30,7 @@ public sealed class PartLogModelFacts
     public async Task AHeadPayloadAndASnapshotRoundTrip()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var serializer = brain.SiloServices.GetRequiredService<Serializer>();
         var head = new HeadPayload { Snapshot = new MeshRef("p/snapshot/9", "sha256:bb", ["n1"]), SnapshotSeq = 9, LastSeq = 12, SegmentsSinceSnapshot = 2 };
         var snapshot = new PartSnapshot { Seq = 9, Records = [new SnapshotRecord { GrainId = "g", StateName = "s", Record = [2], ETagSeq = 7 }] };

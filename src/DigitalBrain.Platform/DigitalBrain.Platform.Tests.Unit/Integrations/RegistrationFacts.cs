@@ -471,16 +471,16 @@ public sealed class RegistrationFacts
         Assert.Throws<ArgumentException>(() => IntegrationSchema.For("Bad:Id", "X"));
     }
 
-    private static Task<ModuleBrain> StartAsync(CancellationToken cancellationToken, IReadOnlyDictionary<string, string?>? configuration = null)
-        => ModuleTest.Create()
+    private static Task<ITestBrain> StartAsync(CancellationToken cancellationToken, IReadOnlyDictionary<string, string?>? configuration = null)
+        => TestBrain.Create()
             .WithExecution(new TestExecutionOptions { PrivateConfiguration = configuration ?? new Dictionary<string, string?>() })
             .WithModule<FakeGoogleModule>()
             .WithModule<FakeAiModule>()
             .StartAsync(cancellationToken);
 
-    private static IIntegration Registration(ModuleBrain brain, string id) => brain.Grains.GetGrain<IIntegration>($"integration/{id}");
+    private static IIntegration Registration(ITestBrain brain, string id) => brain.Grains.GetGrain<IIntegration>($"integration/{id}");
 
-    private static Task SeedAsync(ModuleBrain brain, IReadOnlyDictionary<string, string?> configuration, CancellationToken cancellationToken)
+    private static Task SeedAsync(ITestBrain brain, IReadOnlyDictionary<string, string?> configuration, CancellationToken cancellationToken)
         => new IntegrationSeeder(
             new ConfigurationBuilder().AddInMemoryCollection(configuration).Build(),
             brain.SiloServices.GetRequiredService<IReadOnlyList<IntegrationSchema>>(),

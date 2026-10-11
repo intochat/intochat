@@ -10,10 +10,10 @@ public sealed class MeshStoreFacts
 {
     private static readonly byte[] Key = RandomNumberGenerator.GetBytes(32);
 
-    internal static async Task<(ModuleBrain Brain, IMeshStore Store, IStorageNodeDirectory Directory)> StartAsync(
+    internal static async Task<(ITestBrain Brain, IMeshStore Store, IStorageNodeDirectory Directory)> StartAsync(
         int owners, CancellationToken ct, Action<MeshOptions>? configure = null)
     {
-        var brain = await ModuleTest.Create()
+        var brain = await TestBrain.Create()
             .ConfigureSilo(silo => silo.Services.Configure<MeshOptions>(options =>
             {
                 options.DataShards = 4;
@@ -26,10 +26,10 @@ public sealed class MeshStoreFacts
         return (brain, brain.SiloServices.GetRequiredService<IMeshStore>(), directory);
     }
 
-    internal static IStorageShard Shard(ModuleBrain brain, string nodeId, string cid) =>
+    internal static IStorageShard Shard(ITestBrain brain, string nodeId, string cid) =>
         brain.Grains.GetGrain<IStorageShard>(StorageShards.Key(nodeId, cid));
 
-    internal static async Task<SegmentManifest> Manifest(ModuleBrain brain, byte[] key, MeshRef reference)
+    internal static async Task<SegmentManifest> Manifest(ITestBrain brain, byte[] key, MeshRef reference)
     {
         var bytes = await Shard(brain, reference.ManifestNodes[0], reference.ManifestCid).Get();
         var plain = SegmentSeal.Open(key, $"mesh-manifest|{reference.SegmentId}", bytes!);

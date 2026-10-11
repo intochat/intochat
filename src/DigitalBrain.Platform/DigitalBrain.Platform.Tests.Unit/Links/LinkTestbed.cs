@@ -27,7 +27,7 @@ internal static class LinkTestbed
 
     public static FileMachineSigningKey Key() => FileMachineSigningKey.LoadOrCreate(Path.Combine(Path.GetTempPath(), $"link-{Guid.NewGuid():N}", "identity.key"));
 
-    public static async Task Register(TrustHost trust, FileMachineSigningKey key, string account = ModuleTest.DefaultAccount)
+    public static async Task Register(TrustHost trust, FileMachineSigningKey key, string account = AccountSession.DefaultLogin)
     {
         var id = MachineKeys.IdOf(key.PublicKey);
         var pairing = MachineRegistrar.HashOf(trust.PairingSecret);

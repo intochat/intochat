@@ -154,7 +154,7 @@ public sealed class RelayFacts
         {
             var trust = await TrustHost.StartAsync(cancellationToken);
             var idle = idleTimeout ?? TimeSpan.FromSeconds(15);
-            TestBrain Machine() => ModuleTest.Create().WithTrust(trust)
+            TestBrain Machine() => TestBrain.Create().WithTrust(trust)
                 .WithConfiguration($"{LinkOptions.Key}:{nameof(LinkOptions.DirectWithin)}", "00:00:01")
                 .WithConfiguration($"{LinkOptions.Key}:{nameof(LinkOptions.PunchFor)}", "00:00:00.300")
                 .WithConfiguration($"{LinkOptions.Key}:{nameof(LinkOptions.IdleTimeout)}", idle.ToString("c"))

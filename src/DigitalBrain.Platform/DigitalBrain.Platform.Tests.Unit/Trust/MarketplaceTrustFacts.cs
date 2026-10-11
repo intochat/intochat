@@ -11,7 +11,7 @@ public sealed class MarketplaceTrustFacts
     public async Task AMarketplaceWriteWhoseAccountIsNotThePublishersBrainOwnerIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         using var machine = SequencerFacts.Machine();
         await TrustClientFacts.Register(brain.SiloServices.GetRequiredService<INodeDirectoryClient>(), machine, "mallory", []);
         await TrustClientFacts.Owned(brain, "alice", "home");
@@ -32,7 +32,7 @@ public sealed class MarketplaceTrustFacts
     public async Task ARemovalChecksTheStoredListingsOwner()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         await brain.OwnBrainAsync("alice", "home");
         await brain.OwnBrainAsync("mallory", "mallory-home");
         var marketplace = brain.SiloServices.GetRequiredService<IMarketplaceClient>();

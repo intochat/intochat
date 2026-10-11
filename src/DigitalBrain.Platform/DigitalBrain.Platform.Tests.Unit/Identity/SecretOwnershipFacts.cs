@@ -14,7 +14,7 @@ public sealed class SecretOwnershipFacts
     public async Task AnotherOwnersSecretIsForbiddenWhateverThePathSays()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddGrpc(); // the platform maps the Neurons channel beside its routes
         builder.Services.AddSingleton(brain.Grains);

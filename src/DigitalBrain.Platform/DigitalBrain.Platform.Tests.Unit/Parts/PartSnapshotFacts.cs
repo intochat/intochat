@@ -18,7 +18,7 @@ public sealed class PartSnapshotFacts
         MachineDirectory = Path.Combine(Path.GetTempPath(), $"machine-{Guid.NewGuid():N}"),
     };
 
-    internal static async Task<(PartLog Log, PartLease Lease)> OpenAsync(ModuleBrain brain, PartId part, byte[] key, MachineIdentity machine, PartsOptions options,
+    internal static async Task<(PartLog Log, PartLease Lease)> OpenAsync(ITestBrain brain, PartId part, byte[] key, MachineIdentity machine, PartsOptions options,
         CancellationToken ct)
     {
         var serializer = brain.SiloServices.GetRequiredService<Serializer>();

@@ -1,6 +1,5 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Connections;
-using DigitalBrain.Testing.Module;
 
 namespace DigitalBrain.Platform.Tests.Unit.Connections;
 
@@ -10,7 +9,7 @@ public sealed class ConnectionIndexFacts
     public async Task TheIndexListsOnlyItsOwnBrainsKeysOnceEach()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var mine = brain.Grains.GetGrain<IConnectionIndex>("alice-home");
         var theirs = brain.Grains.GetGrain<IConnectionIndex>("bob-home");
         await mine.Track(ConnectionKeys.For("alice-home", "example", "one"));
@@ -26,7 +25,7 @@ public sealed class ConnectionIndexFacts
     public async Task TheIndexRefusesAKeyFromAnotherBrain()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         await Assert.ThrowsAsync<ArgumentException>(() => brain.Grains.GetGrain<IConnectionIndex>("alice-home").Track(ConnectionKeys.For("bob-home", "example", "one")));
     }
 }

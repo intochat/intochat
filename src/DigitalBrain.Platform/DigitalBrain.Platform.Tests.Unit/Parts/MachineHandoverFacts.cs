@@ -14,10 +14,10 @@ public sealed class MachineHandoverFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var a = await ModuleTest.Create().WithTrust(trust).WithPartLog().StartAsync(ct);
-        await using var b = await ModuleTest.Create().WithTrust(trust).WithPartLog().StartAsync(ct);
-        var scope = BrainScope.Create(ModuleTest.DefaultAccount, ModuleTest.DefaultAccount).Id;
-        await a.Grains.GetGrain<IBrain>(scope).Create(new Owner(ModuleTest.DefaultAccount));
+        await using var a = await TestBrain.Create().WithTrust(trust).WithPartLog().StartAsync(ct);
+        await using var b = await TestBrain.Create().WithTrust(trust).WithPartLog().StartAsync(ct);
+        var scope = BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;
+        await a.Grains.GetGrain<IBrain>(scope).Create(new Owner(AccountSession.DefaultLogin));
 
         var key = $"{scope}/apps/counter/c1";
         var part = PartId.Of(key);

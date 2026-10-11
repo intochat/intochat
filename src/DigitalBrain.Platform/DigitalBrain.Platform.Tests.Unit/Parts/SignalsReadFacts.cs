@@ -8,7 +8,7 @@ namespace DigitalBrain.Platform.Tests.Unit.Parts;
 
 public sealed class SignalsReadFacts
 {
-    private static string Scope => BrainScope.Create(ModuleTest.DefaultAccount, ModuleTest.DefaultAccount).Id;
+    private static string Scope => BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;
 
     private static string Counter => $"{Scope}/apps/counter/s1";
 
@@ -16,7 +16,7 @@ public sealed class SignalsReadFacts
     public async Task TheJournalReadsBackTheBrainsSignalsInOrderAndPagesFromACursor()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithPartLog().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithPartLog().StartAsync(ct);
         var counter = brain.Get<ISignalCounter>(Counter);
         await counter.Change(1);
         await counter.Ping();
@@ -40,7 +40,7 @@ public sealed class SignalsReadFacts
     public async Task AReadPastTheEndIsAnEmptyPageAtTheSameCursor()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithPartLog().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithPartLog().StartAsync(ct);
         await brain.Get<ISignalCounter>(Counter).Change(1);
         var journal = brain.SiloServices.GetRequiredService<ISignalJournal>();
 
@@ -54,7 +54,7 @@ public sealed class SignalsReadFacts
     public async Task APlainHostReturnsAnEmptyPageWithNextEqualToSince()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var journal = brain.SiloServices.GetRequiredService<ISignalJournal>();
 
         var page = await SignalsEndpoints.Read(journal, Scope, 7, 10);

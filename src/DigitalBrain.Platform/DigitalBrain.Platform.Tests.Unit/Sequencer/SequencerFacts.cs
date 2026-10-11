@@ -21,7 +21,7 @@ public sealed class SequencerFacts
     public async Task VersionsAdvanceOnlyByCompareAndSet()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         using var machine = Machine();
         var sequencer = brain.Grains.GetGrain<ISequencerGrain>("p1");
 
@@ -35,7 +35,7 @@ public sealed class SequencerFacts
     public async Task AForgedOrTamperedRecordIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         using var machine = Machine();
         var sequencer = brain.Grains.GetGrain<ISequencerGrain>("p1");
         var record = Record(machine, "p1", 1, TimeSpan.FromMinutes(1), [1]);
@@ -49,7 +49,7 @@ public sealed class SequencerFacts
     public async Task AnotherMachineCannotTakeALiveLeaseButCanTakeAnExpiredOne()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         using var alice = Machine();
         using var bob = Machine();
         var live = brain.Grains.GetGrain<ISequencerGrain>("live");
@@ -65,7 +65,7 @@ public sealed class SequencerFacts
     public async Task ADifferentKeyCannotTakeALiveLeaseUnderTheSameHolderName()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         using var alice = Machine();
         using var mallory = Machine();
         var sequencer = brain.Grains.GetGrain<ISequencerGrain>("p1");
@@ -85,7 +85,7 @@ public sealed class SequencerFacts
     public async Task ARecordWithAGarbageHolderKeyIsRefusedAndNothingIsStored()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var sequencer = brain.Grains.GetGrain<ISequencerGrain>("p1");
         var record = new HeadRecord { PartHash = "p1", Version = 1, Holder = "x", HolderKey = [1, 2, 3], Signature = [4] };
 

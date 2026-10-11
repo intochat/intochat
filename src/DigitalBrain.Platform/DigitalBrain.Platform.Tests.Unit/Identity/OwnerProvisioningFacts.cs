@@ -17,7 +17,7 @@ public sealed class OwnerProvisioningFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var handler = new AppCallerAtBirth();
-        await using var brain = await ModuleTest.Create()
+        await using var brain = await TestBrain.Create()
             .ConfigureSilo(silo => silo.Services.AddSingleton<ICreationHandler>(services => handler.Using(services.GetRequiredService<IGrainFactory>())))
             .StartAsync(ct);
         var directory = brain.Grains.GetGrain<IIdentityDirectory>(IdentityGrains.Directory);
@@ -40,7 +40,7 @@ public sealed class OwnerProvisioningFacts
     public async Task AnAppCallerReachingAnUnprovisionedAuthorityIsDeniedAndNotCrowned()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account", "brain").Id);
         var decision = await authority.Authorize(AppCallerAtBirth.Request("account", "brain"));
         Assert.NotNull(decision);
@@ -56,7 +56,7 @@ public sealed class OwnerProvisioningFacts
     public async Task AnAppCallerInTheSyntheticOwnersBrainFindsTheSyntheticOwnerOnRecord()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create(AccountSession.DefaultLogin, "dev").Id);
         // R68: the machine's grant policy provisions the synthetic owner through the signed path; Authorize never does.
         var decision = await brain.SiloServices.GetRequiredService<DigitalBrain.Platform.Identity.Grants.IGrantPolicySource>()
@@ -70,7 +70,7 @@ public sealed class OwnerProvisioningFacts
     public async Task ASecondOwnerIsRefusedLoudly()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var authority = brain.Grains.GetGrain<IBrainAuthority>(BrainScope.Create("account", "brain").Id);
         var alice = new Member { PrincipalId = "alice", AccountId = "account", BrainId = "brain", DisplayName = "Alice", Role = MemberRole.Owner };
         await authority.ProvisionOwner(alice);

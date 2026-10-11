@@ -1,6 +1,5 @@
 using System.Text.Json;
 using DigitalBrain.Platform.Neurons.Proto;
-using DigitalBrain.Testing.Module;
 using DigitalBrain.Testing.Neurons;
 using Grpc.Core;
 
@@ -8,7 +7,7 @@ namespace DigitalBrain.Platform.Tests.Unit.Neurons;
 
 public sealed class NeuronsWatchFacts
 {
-    private static Task<ModuleBrain> Start(CancellationToken ct) => ModuleTest.Create().WithModule<PulseModule>().WithHttpEdge().StartAsync(ct);
+    private static Task<ITestBrain> Start(CancellationToken ct) => TestBrain.Create().WithModule<PulseModule>().StartAsync(ct);
 
     private static CallRequest Call(string key) => new()
     {

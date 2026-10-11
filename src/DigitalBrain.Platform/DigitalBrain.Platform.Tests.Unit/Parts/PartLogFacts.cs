@@ -14,9 +14,9 @@ namespace DigitalBrain.Platform.Tests.Unit.Parts;
 
 public sealed class PartLogFacts
 {
-    internal static async Task<ModuleBrain> StartAsync(CancellationToken ct, TimeProvider? time = null)
+    internal static async Task<ITestBrain> StartAsync(CancellationToken ct, TimeProvider? time = null)
     {
-        var brain = await ModuleTest.Create()
+        var brain = await TestBrain.Create()
             .ConfigureSilo(silo =>
             {
                 silo.Services.Configure<MeshOptions>(options => { options.DataShards = 4; options.ParityShards = 2; });
@@ -28,7 +28,7 @@ public sealed class PartLogFacts
         return brain;
     }
 
-    internal static async Task<PartLog> OpenAsync(ModuleBrain brain, PartId part, byte[] key, MachineIdentity machine, PartsOptions options, TimeProvider time,
+    internal static async Task<PartLog> OpenAsync(ITestBrain brain, PartId part, byte[] key, MachineIdentity machine, PartsOptions options, TimeProvider time,
         CancellationToken ct, IMeshStore? mesh = null)
     {
         var serializer = brain.SiloServices.GetRequiredService<Serializer>();

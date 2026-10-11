@@ -68,7 +68,7 @@ public sealed class TrustClientFacts
     public async Task TheGrainClientsRoundTripAHeadAWrappedKeyAShardAndAListing()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var services = brain.SiloServices;
         using var machine = SequencerFacts.Machine();
 
@@ -88,12 +88,12 @@ public sealed class TrustClientFacts
         Assert.Equal(shard, await directory.Get("node-a", cid));
         Assert.Contains(await directory.List(), node => node.NodeId == "node-a");
 
-        await brain.OwnBrainAsync(ModuleTest.DefaultAccount, "home");
+        await brain.OwnBrainAsync(AccountSession.DefaultLogin, "home");
         var marketplace = services.GetRequiredService<IMarketplaceClient>();
-        var listing = new MarketplaceRecord("owner", ModuleTest.DefaultAccount, "home", "echo", "Echo", "echoes", "1.0.0", null);
-        await marketplace.Upsert(ModuleTest.DefaultAccount, listing);
+        var listing = new MarketplaceRecord("owner", AccountSession.DefaultLogin, "home", "echo", "Echo", "echoes", "1.0.0", null);
+        await marketplace.Upsert(AccountSession.DefaultLogin, listing);
         Assert.Equal(listing, await marketplace.Read("owner", "echo"));
-        await marketplace.Remove(ModuleTest.DefaultAccount, "owner", "echo");
+        await marketplace.Remove(AccountSession.DefaultLogin, "owner", "echo");
         Assert.Empty(await marketplace.List());
     }
 
@@ -101,7 +101,7 @@ public sealed class TrustClientFacts
     public async Task AMachineRegistersItsKeyOnceAndADifferentKeyIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var directory = brain.SiloServices.GetRequiredService<INodeDirectoryClient>();
         using var machine = SequencerFacts.Machine();
         using var other = SequencerFacts.Machine();
@@ -116,7 +116,7 @@ public sealed class TrustClientFacts
     public async Task ASecondMachineWithTheSamePairingSecretJoinsTheAccount()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var directory = brain.SiloServices.GetRequiredService<INodeDirectoryClient>();
         using var first = SequencerFacts.Machine();
         using var second = SequencerFacts.Machine();
@@ -135,7 +135,7 @@ public sealed class TrustClientFacts
     public async Task ASecondMachineWithoutThePairingSecretIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var directory = brain.SiloServices.GetRequiredService<INodeDirectoryClient>();
         using var first = SequencerFacts.Machine();
         using var second = SequencerFacts.Machine();
@@ -150,7 +150,7 @@ public sealed class TrustClientFacts
     public async Task ASignedPayloadForAnotherAccountIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         using var machine = SequencerFacts.Machine();
         await Register(brain.SiloServices.GetRequiredService<INodeDirectoryClient>(), machine, "mallory", []);
         await Owned(brain, "alice", "home");
@@ -165,7 +165,7 @@ public sealed class TrustClientFacts
     public async Task AReplayedSignedPayloadIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         using var machine = SequencerFacts.Machine();
         await Register(brain.SiloServices.GetRequiredService<INodeDirectoryClient>(), machine, "alice", []);
         await Owned(brain, "alice", "home");
@@ -181,7 +181,7 @@ public sealed class TrustClientFacts
     }
 
     // The brain's owner on record at the trust side, without binding the test host's own machine to the account.
-    internal static Task Owned(ModuleBrain brain, string account, string brainId)
+    internal static Task Owned(ITestBrain brain, string account, string brainId)
         => brain.Grains.GetGrain<DigitalBrain.Platform.Identity.Authority.IBrainAuthority>(DigitalBrain.Framework.BrainScope.Create(account, brainId).Id).ProvisionOwner(new()
         {
             PrincipalId = account, AccountId = account, BrainId = brainId,

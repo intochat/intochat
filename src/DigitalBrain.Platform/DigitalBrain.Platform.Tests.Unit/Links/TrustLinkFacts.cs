@@ -22,7 +22,7 @@ namespace DigitalBrain.Platform.Tests.Unit.Links;
 [System.Runtime.Versioning.SupportedOSPlatform("windows"), System.Runtime.Versioning.SupportedOSPlatform("linux"), System.Runtime.Versioning.SupportedOSPlatform("macos")]
 public sealed class TrustLinkFacts
 {
-    private static string OwnerBrain => BrainScope.Create(ModuleTest.DefaultAccount, ModuleTest.DefaultAccount).Id;
+    private static string OwnerBrain => BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id;
 
     [Fact(Timeout = 120_000)]
     public async Task TheFiveTrustClientsAndTheShardsRoundTripOverTheLink()
@@ -30,7 +30,7 @@ public sealed class TrustLinkFacts
         SkipWithoutQuic();
         var ct = TestContext.Current.CancellationToken;
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var machine = await ModuleTest.Create().WithTrust(trust).StartAsync(ct);
+        await using var machine = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
         using var signer = SequencerFacts.Machine();
         var services = machine.SiloServices;
 
@@ -41,7 +41,7 @@ public sealed class TrustLinkFacts
         Assert.Equal(1, (await trust.Grains.GetGrain<ISequencerGrain>("p-link").Get())!.Version);
 
         var keyring = services.GetRequiredService<IKeyringClient>();
-        Assert.Equal(ModuleTest.DefaultAccount, await keyring.OwnerOf(OwnerBrain));
+        Assert.Equal(AccountSession.DefaultLogin, await keyring.OwnerOf(OwnerBrain));
         Assert.True(await keyring.TryAdd(OwnerBrain, "link-part", [1, 2, 3]));
         Assert.Equal([1, 2, 3], await keyring.Get(OwnerBrain, "link-part"));
 
@@ -58,7 +58,7 @@ public sealed class TrustLinkFacts
         Assert.NotNull(await directory.Machine(services.GetRequiredService<MachineIdentity>().MachineId));
 
         Assert.NotNull(await services.GetRequiredService<IMarketplaceClient>().List());
-        Assert.NotNull(await services.GetRequiredService<IIdentityClient>().Membership(OwnerBrain, ModuleTest.DefaultAccount));
+        Assert.NotNull(await services.GetRequiredService<IIdentityClient>().Membership(OwnerBrain, AccountSession.DefaultLogin));
     }
 
     [Fact(Timeout = 120_000)]
@@ -112,7 +112,7 @@ public sealed class TrustLinkFacts
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => stranger.Call<MachineSigned<DigitalBrain.Platform.Identity.Authority.PrincipalRegistration>, BrainProvision>(
             TrustOperations.RegisterPrincipal, stranger.Sign(new DigitalBrain.Platform.Identity.Authority.PrincipalRegistration("eve", "Eve"), "eve"), ct));
-        await using var machine = await ModuleTest.Create().WithTrust(trust).StartAsync(ct);
+        await using var machine = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
         Assert.Null(await machine.SiloServices.GetRequiredService<IIdentityClient>().RegisteredBy("eve"));
     }
 
@@ -177,7 +177,7 @@ public sealed class TrustLinkFacts
         SkipWithoutQuic();
         var ct = TestContext.Current.CancellationToken;
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var machine = await ModuleTest.Create().WithTrust(trust).StartAsync(ct);
+        await using var machine = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
         await using var mallory = await RawMachine.Dial(trust, ct);
         await mallory.ProvisionOwner("mallory", ct);
         var mallorysBrain = BrainScope.Create("mallory", "mallory").Id;
@@ -195,15 +195,15 @@ public sealed class TrustLinkFacts
         SkipWithoutQuic();
         var ct = TestContext.Current.CancellationToken;
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var machine = await ModuleTest.Create().WithTrust(trust).StartAsync(ct);
+        await using var machine = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
         Assert.True(await machine.SiloServices.GetRequiredService<IKeyringClient>().TryAdd(OwnerBrain, "kept", [1]));
         await using var mallory = await RawMachine.Dial(trust, ct);
         await mallory.ProvisionOwner("mallory", ct);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => mallory.Call<(string, string), byte[]?>(TrustOperations.KeyGet, (OwnerBrain, "kept"), ct));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => mallory.Call<(string, string), Member?>(TrustOperations.Membership, (OwnerBrain, ModuleTest.DefaultAccount), ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => mallory.Call<(string, string), Member?>(TrustOperations.Membership, (OwnerBrain, AccountSession.DefaultLogin), ct));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => mallory.Call<string, DigitalBrain.Platform.Identity.Grant[]>(TrustOperations.ListGrants, OwnerBrain, ct));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => mallory.Call<string, string[]>(TrustOperations.BrainsOf, ModuleTest.DefaultAccount, ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => mallory.Call<string, string[]>(TrustOperations.BrainsOf, AccountSession.DefaultLogin, ct));
         // Its own account's reads still answer.
         var mallorysBrain = BrainScope.Create("mallory", "mallory").Id;
         Assert.NotNull(await mallory.Call<(string, string), Member?>(TrustOperations.Membership, (mallorysBrain, "mallory"), ct));
@@ -218,10 +218,10 @@ public sealed class TrustLinkFacts
         SkipWithoutQuic();
         var ct = TestContext.Current.CancellationToken;
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var owner = await ModuleTest.Create().WithTrust(trust).StartAsync(ct);
+        await using var owner = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
         Assert.True(await owner.SiloServices.GetRequiredService<IKeyringClient>().TryAdd(OwnerBrain, "shared", [7]));
         await owner.SiloServices.GetRequiredService<IIdentityClient>().EnsureMember(new Member
-        { PrincipalId = "bob", AccountId = ModuleTest.DefaultAccount, BrainId = ModuleTest.DefaultAccount, Role = MemberRole.Member, DisplayName = "Bob" });
+        { PrincipalId = "bob", AccountId = AccountSession.DefaultLogin, BrainId = AccountSession.DefaultLogin, Role = MemberRole.Member, DisplayName = "Bob" });
         await using var bob = await RawMachine.Dial(trust, ct);
         await bob.Register("bob", ct);
 
@@ -235,10 +235,10 @@ public sealed class TrustLinkFacts
         SkipWithoutQuic();
         var ct = TestContext.Current.CancellationToken;
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var owner = await ModuleTest.Create().WithTrust(trust).StartAsync(ct);
+        await using var owner = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
         Assert.True(await owner.SiloServices.GetRequiredService<IKeyringClient>().TryAdd(OwnerBrain, "shared", [7]));
         await owner.SiloServices.GetRequiredService<IIdentityClient>().EnsureMember(new Member
-        { PrincipalId = "bob", AccountId = ModuleTest.DefaultAccount, BrainId = ModuleTest.DefaultAccount, Role = MemberRole.Member, DisplayName = "Bob" });
+        { PrincipalId = "bob", AccountId = AccountSession.DefaultLogin, BrainId = AccountSession.DefaultLogin, Role = MemberRole.Member, DisplayName = "Bob" });
         await using var eve = await RawMachine.Dial(trust, ct);
         await eve.Register("eve", ct);
 
@@ -252,15 +252,15 @@ public sealed class TrustLinkFacts
         SkipWithoutQuic();
         var ct = TestContext.Current.CancellationToken;
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var machine = await ModuleTest.Create().WithTrust(trust).StartAsync(ct);
+        await using var machine = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
         var directory = machine.SiloServices.GetRequiredService<INodeDirectoryClient>();
         var seed = (await directory.List()).First().NodeId;
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => directory.SetOnline(seed, false));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => directory.ReportAudit(seed, false));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => directory.Register(seed, ModuleTest.DefaultAccount));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => directory.Register(seed, AccountSession.DefaultLogin));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => directory.Register("mine", "mallory"));
-        await directory.Register("mine", ModuleTest.DefaultAccount);
+        await directory.Register("mine", AccountSession.DefaultLogin);
         await directory.SetOnline("mine", false);
         Assert.True((await directory.List()).Single(node => node.NodeId == seed).Online);
     }
@@ -271,7 +271,7 @@ public sealed class TrustLinkFacts
         SkipWithoutQuic();
         var ct = TestContext.Current.CancellationToken;
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var machine = await ModuleTest.Create().WithTrust(trust).StartAsync(ct);
+        await using var machine = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
         await using var mallory = await RawMachine.Dial(trust, ct);
         await mallory.Register("mallory", ct);
         var directory = machine.SiloServices.GetRequiredService<INodeDirectoryClient>();
@@ -302,7 +302,7 @@ public sealed class TrustLinkFacts
         SkipWithoutQuic();
         var ct = TestContext.Current.CancellationToken;
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var machine = await ModuleTest.Create().WithTrust(trust).StartAsync(ct);
+        await using var machine = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
         await using var mallory = await RawMachine.Dial(trust, ct);
         await mallory.Register("mallory", ct);
         await mallory.Call<(string, string), bool>(TrustOperations.NodeRegister, ("mallorys-node", "mallory"), ct);
@@ -326,7 +326,7 @@ public sealed class TrustLinkFacts
 
         var refused = await Assert.ThrowsAnyAsync<Exception>(async () =>
         {
-            await using var machine = await ModuleTest.Create().WithTrust(trust)
+            await using var machine = await TestBrain.Create().WithTrust(trust)
                 .WithConfiguration($"{PartsOptions.Key}:{nameof(PartsOptions.MachineDirectory)}", directory).StartAsync(ct);
         });
 
@@ -360,7 +360,7 @@ public sealed class TrustLinkFacts
 
         var refused = await Assert.ThrowsAnyAsync<Exception>(async () =>
         {
-            await using var machine = await ModuleTest.Create().WithTrust(trust)
+            await using var machine = await TestBrain.Create().WithTrust(trust)
                 .WithConfiguration($"{PartsOptions.Key}:{nameof(PartsOptions.Role)}", nameof(MachineRole.Cloud))
                 .ConfigureServices(services => services.Replace(ServiceDescriptor.Singleton<IHostEnvironment>(new ProductionEnvironment())))
                 .StartAsync(ct);
@@ -377,14 +377,14 @@ public sealed class TrustLinkFacts
         var ct = TestContext.Current.CancellationToken;
         await using var trust = await TrustHost.StartAsync(ct);
 
-        await using var machine = await ModuleTest.Create().WithTrust(trust)
+        await using var machine = await TestBrain.Create().WithTrust(trust)
             .WithConfiguration(TrustPin.PinKey, trust.TrustId)
             .WithConfiguration($"{PartsOptions.Key}:{nameof(PartsOptions.ConfiguredCustodyAcknowledged)}", "true")
             .ConfigureServices(services => services.Replace(ServiceDescriptor.Singleton<IHostEnvironment>(new ProductionEnvironment())))
             .StartAsync(ct);
 
         Assert.True(machine.SiloServices.GetRequiredService<IHostEnvironment>().IsProduction());
-        Assert.NotNull(await machine.SiloServices.GetRequiredService<IIdentityClient>().Membership(OwnerBrain, ModuleTest.DefaultAccount));
+        Assert.NotNull(await machine.SiloServices.GetRequiredService<IIdentityClient>().Membership(OwnerBrain, AccountSession.DefaultLogin));
     }
 
     // The pin's key, shared with the Aspire ring through DigitalBrainNames, is TrustOptions.Pin's.
@@ -398,7 +398,7 @@ public sealed class TrustLinkFacts
         SkipWithoutQuic();
         var ct = TestContext.Current.CancellationToken;
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var machine = await ModuleTest.Create().WithTrust(trust).StartAsync(ct);
+        await using var machine = await TestBrain.Create().WithTrust(trust).StartAsync(ct);
 
         // The trust clients ride the link, and no Platform type holds a private host (the Orleans client host R34 had).
         Assert.IsType<LinkTrustClients>(machine.SiloServices.GetRequiredService<IIdentityClient>());
@@ -450,7 +450,7 @@ public sealed class TrustLinkFacts
 
         public async Task Register(string account, CancellationToken cancellationToken)
         {
-            var pairing = MachineRegistrar.HashOf(account == ModuleTest.DefaultAccount ? _trust.PairingSecret : account + "-pairing");
+            var pairing = MachineRegistrar.HashOf(account == AccountSession.DefaultLogin ? _trust.PairingSecret : account + "-pairing");
             await Call<(string, byte[], string, byte[], byte[]), bool>(TrustOperations.RegisterMachine,
                 (MachineId, _key.PublicKey, account, pairing, _key.Sign(Signing.Registration(MachineId, _key.PublicKey, account, pairing))), cancellationToken);
         }

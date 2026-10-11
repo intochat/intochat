@@ -14,7 +14,7 @@ public sealed class PlatformHostingFacts
     [Fact]
     public async Task ABrainWithoutModulesHasEveryPlatformFacet()
     {
-        await using var brain = await ModuleTest.Create().StartAsync(TestContext.Current.CancellationToken);
+        await using var brain = await TestBrain.Create().StartAsync(TestContext.Current.CancellationToken);
         Assert.NotNull(brain.SiloServices.GetRequiredService<ICapabilities>());
         Assert.NotNull(brain.SiloServices.GetRequiredService<IIdentity>());
         Assert.NotNull(brain.SiloServices.GetRequiredService<IBrainAccess>());
@@ -26,7 +26,7 @@ public sealed class PlatformHostingFacts
     [Fact]
     public async Task AddingTheBrainTwiceRegistersTheGrantStageOnce()
     {
-        await using var brain = await ModuleTest.Create()
+        await using var brain = await TestBrain.Create()
             .ConfigureSilo(silo => silo.AddDigitalBrain())
             .StartAsync(TestContext.Current.CancellationToken);
         Assert.Single(brain.SiloServices.GetServices<ICallFilterStage>(), stage => stage.GetType().Name == "GrantCallFilterStage");
@@ -36,7 +36,7 @@ public sealed class PlatformHostingFacts
     public async Task IdentityAnswersOwnershipMembershipAndGrantQuestionsThroughTheSdk()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var identity = brain.SiloServices.GetRequiredService<IIdentity>();
         Assert.Null(identity.CurrentPrincipal);
         Assert.Throws<UntrustedCallerException>(identity.RequirePrincipal);
@@ -80,7 +80,7 @@ public sealed class PlatformHostingFacts
     public async Task ABrainWithoutModulesRequiresAGrantBeforeAnAppCanRead()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var caller = new CallerContext
         {
             PrincipalId = "owner",

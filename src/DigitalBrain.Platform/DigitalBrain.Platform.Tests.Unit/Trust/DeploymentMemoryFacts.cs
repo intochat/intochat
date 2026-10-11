@@ -19,10 +19,10 @@ public sealed class DeploymentMemoryFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var machineDirectory = Path.Combine(Path.GetTempPath(), $"machine-{Guid.NewGuid():N}");
-        var part = PartId.ForApp(BrainScope.Create(ModuleTest.DefaultAccount, ModuleTest.DefaultAccount).Id, "counter");
+        var part = PartId.ForApp(BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id, "counter");
         var grain = $"counter/{part.Value}/c1";
         await using (var first = await TrustHost.StartAsync(ct))
-        await using (var machine = await ModuleTest.Create().WithTrust(first).WithPartLog().WithConfiguration(Directory, machineDirectory).StartAsync(ct))
+        await using (var machine = await TestBrain.Create().WithTrust(first).WithPartLog().WithConfiguration(Directory, machineDirectory).StartAsync(ct))
         {
             var logs = machine.SiloServices.GetRequiredService<PartLogs>();
             for (var round = 0; round < 3; round++)
@@ -34,7 +34,7 @@ public sealed class DeploymentMemoryFacts
 
         await using var second = await TrustHost.StartAsync(ct);
         // A new deployment is a new trust host: the operator pins it, since the machine never switches silently (T20-3).
-        await using var again = await ModuleTest.Create().WithTrust(second).WithPartLog().WithConfiguration(Directory, machineDirectory)
+        await using var again = await TestBrain.Create().WithTrust(second).WithPartLog().WithConfiguration(Directory, machineDirectory)
             .WithConfiguration(DigitalBrain.Platform.Links.TrustPin.PinKey, second.TrustId).StartAsync(ct);
         var fresh = again.SiloServices.GetRequiredService<PartLogs>();
         await (await fresh.For(part)).Append(grain, "counter", RecordChange.Write, [9], []);
@@ -48,10 +48,10 @@ public sealed class DeploymentMemoryFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var machineDirectory = Path.Combine(Path.GetTempPath(), $"machine-{Guid.NewGuid():N}");
-        var part = PartId.ForApp(BrainScope.Create(ModuleTest.DefaultAccount, ModuleTest.DefaultAccount).Id, "counter");
+        var part = PartId.ForApp(BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id, "counter");
         await using var trust = await TrustHost.StartAsync(ct);
         string deployment;
-        await using (var machine = await ModuleTest.Create().WithTrust(trust).WithPartLog().WithConfiguration(Directory, machineDirectory).StartAsync(ct))
+        await using (var machine = await TestBrain.Create().WithTrust(trust).WithPartLog().WithConfiguration(Directory, machineDirectory).StartAsync(ct))
         {
             deployment = await machine.SiloServices.GetRequiredService<INodeDirectoryClient>().DeploymentId();
             var logs = machine.SiloServices.GetRequiredService<PartLogs>();
@@ -64,7 +64,7 @@ public sealed class DeploymentMemoryFacts
         versions[HeadRecord.HashOf(part.Value)] = 1_000;
         await File.WriteAllTextAsync(seen, JsonSerializer.Serialize(versions), ct);
 
-        await using var again = await ModuleTest.Create().WithTrust(trust).WithPartLog().WithConfiguration(Directory, machineDirectory).StartAsync(ct);
+        await using var again = await TestBrain.Create().WithTrust(trust).WithPartLog().WithConfiguration(Directory, machineDirectory).StartAsync(ct);
 
         await Assert.ThrowsAsync<RollbackDetectedException>(() => again.SiloServices.GetRequiredService<PartLogs>().For(part));
     }

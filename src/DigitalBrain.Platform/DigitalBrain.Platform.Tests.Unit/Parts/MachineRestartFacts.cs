@@ -26,7 +26,7 @@ public sealed class MachineRestartFacts
             SuspectTimes = [],
         });
 
-        await using var machine = await ModuleTest.Create().WithPartLog()
+        await using var machine = await TestBrain.Create().WithPartLog()
             .ConfigureSilo(silo => silo.Services.AddSingleton<IMembershipTable>(table))
             .StartAsync(ct);
 

@@ -13,13 +13,13 @@ public sealed class FreshBootFacts
         var ct = TestContext.Current.CancellationToken;
         var handler = new Recording();
         await using var trust = await TrustHost.StartAsync(ct);
-        await using var machine = await ModuleTest.Create().WithTrust(trust).WithPartLog().WithConfiguration(SecondMachineFacts.CoreHolder, "true")
+        await using var machine = await TestBrain.Create().WithTrust(trust).WithPartLog().WithConfiguration(SecondMachineFacts.CoreHolder, "true")
             .ConfigureSilo(silo => silo.Services.AddSingleton<ICreationHandler>(handler))
             .StartAsync(ct);
 
         await machine.SiloServices.GetRequiredService<DigitalBrain.Platform.Trust.OwnerBirth>().Born.WaitAsync(ct);
         var created = Assert.Single(handler.Brains);
-        Assert.Equal(BrainScope.Create(ModuleTest.DefaultAccount, ModuleTest.DefaultAccount).Id, created);
+        Assert.Equal(BrainScope.Create(AccountSession.DefaultLogin, AccountSession.DefaultLogin).Id, created);
     }
 
     // Round 3 (f): the owner brain's creation handlers run after the silo is up, so a slow one (the OS defaults
@@ -29,7 +29,7 @@ public sealed class FreshBootFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var gate = new Gate();
-        await using var machine = await ModuleTest.Create()
+        await using var machine = await TestBrain.Create()
             .ConfigureSilo(silo => silo.Services.AddSingleton<ICreationHandler>(gate))
             .StartAsync(ct);
 
@@ -46,12 +46,12 @@ public sealed class FreshBootFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var handler = new Recording();
-        await using var machine = await ModuleTest.Create()
+        await using var machine = await TestBrain.Create()
             .ConfigureSilo(silo => silo.Services.AddSingleton<ICreationHandler>(handler))
             .StartAsync(ct);
 
         await machine.SiloServices.GetRequiredService<DigitalBrain.Platform.Trust.OwnerBirth>().Born.WaitAsync(ct);
-        Assert.Equal([ModuleTest.DefaultAccount], handler.Callers);
+        Assert.Equal([AccountSession.DefaultLogin], handler.Callers);
     }
 
     private sealed class Gate : ICreationHandler

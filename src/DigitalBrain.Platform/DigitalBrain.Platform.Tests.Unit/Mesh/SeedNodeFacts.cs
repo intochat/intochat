@@ -5,8 +5,8 @@ namespace DigitalBrain.Platform.Tests.Unit.Mesh;
 
 public sealed class SeedNodeFacts
 {
-    private static Task<ModuleBrain> StartAsync(int seedNodes, CancellationToken ct) =>
-        ModuleTest.Create()
+    private static Task<ITestBrain> StartAsync(int seedNodes, CancellationToken ct) =>
+        TestBrain.Create()
             .ConfigureSilo(silo => silo.Services.Configure<MeshOptions>(mesh => mesh.SeedNodes = seedNodes))
             .StartAsync(ct);
 
@@ -37,7 +37,7 @@ public sealed class SeedNodeFacts
     public async Task NoSeedNodesByDefault()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
 
         Assert.Empty(await brain.Grains.GetGrain<IStorageNodeDirectory>(IStorageNodeDirectory.Key).List());
     }
