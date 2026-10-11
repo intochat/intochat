@@ -131,6 +131,50 @@ public sealed class PostgresWriteTableFacts
     }
 
     [Fact]
+    public async Task AnAppDeletedAndReinstalledCanDefineItsTablesAgain()
+    {
+        await using var brain = await Start(new MemoryTables());
+        var table = brain.Get<ITable>("memories");
+        var owner = brain.Get<IPostgresLifecycleTestApp>("reinstall");
+        using var app = brain.Owner.AsApp("app");
+        await table.Define(Definition);
+        await owner.Uninstall("app");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => table.Define(Definition));
+
+        await owner.Reinstall("app");
+        await table.Define(Definition);
+        await table.Upsert(Key(), Values("new"));
+        Assert.Single(await table.Page());
+    }
+
+    [Fact]
+    public async Task DeleteStillDropsTheOldAppsTables()
+    {
+        var provider = new MemoryTables();
+        await using var brain = await Start(provider);
+        var table = brain.Get<ITable>("memories");
+        var owner = brain.Get<IPostgresLifecycleTestApp>("redelete");
+        using var app = brain.Owner.AsApp("app");
+        await table.Define(Definition);
+        await table.Upsert(Key(), Values("old"));
+        await owner.Uninstall("app");
+
+        await owner.Reinstall("app");
+        await table.Define(Definition);
+        Assert.Empty(await table.Page());
+        await owner.Uninstall("app");
+        Assert.Equal(2, provider.Drops.Count);
+    }
+
+    [Fact]
+    public async Task AppsCannotReopenRetiredStorage()
+    {
+        await using var brain = await Start(new MemoryTables());
+        using var app = brain.Owner.AsApp("app");
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(Index(brain, "app").Reopen);
+    }
+
+    [Fact]
     public async Task EveryOperationOfAPlatformTableRunsAtItsPinnedSharedPlacement()
     {
         var provider = new MemoryTables();
@@ -472,6 +516,7 @@ public sealed class PostgresWriteTableFacts
 public interface IPostgresLifecycleTestApp : DigitalBrain.INeuron
 {
     Task Uninstall(string appId);
+    Task Reinstall(string appId);
 }
 
 [GrainType(DigitalBrain.Framework.AppGrainType.Name)]
@@ -479,4 +524,7 @@ public sealed class PostgresLifecycleTestApp : DigitalBrain.Framework.Neuron, IP
 {
     public Task Uninstall(string appId)
         => GrainFactory.GetGrain<ITableIndex>(new TableOwner(BrainScope.CurrentId(), appId).Key).Retire();
+
+    public Task Reinstall(string appId)
+        => GrainFactory.GetGrain<ITableIndex>(new TableOwner(BrainScope.CurrentId(), appId).Key).Reopen();
 }

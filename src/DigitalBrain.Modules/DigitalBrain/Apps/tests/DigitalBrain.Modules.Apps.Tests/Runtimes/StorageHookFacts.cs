@@ -16,6 +16,14 @@ public sealed class StorageHookFacts
             return Task.CompletedTask;
         }
 
+        public List<string> Created { get; } = [];
+
+        public Task OnCreated(string brainId, string appKey, CancellationToken cancellationToken)
+        {
+            Created.Add(appKey);
+            return Task.CompletedTask;
+        }
+
         public List<string> Rebinds { get; } = [];
         public bool Refuse { get; set; }
 
@@ -89,6 +97,25 @@ public sealed class StorageHookFacts
 
         var retired = Assert.Single(hook.Retired);
         Assert.Equal(key, retired.AppKey);
+    }
+
+    [Fact]
+    public async Task AnAppDeletedAndReinstalledReopensItsStorageButAnUpdateDoesNot()
+    {
+        var hook = new RecordingHook();
+        await using var brain = await Start(hook, new FakeAppRuntime());
+        var key = IApp.Key("hook-facts", "again");
+        var app = brain.Get<IApp>(key);
+        var manifest = new AppManifest("Again", "again", [], [], []);
+        await app.Import(new("again", "1.0.0", manifest, "spec", new() { ["notes.md"] = "// t" }));
+        await app.Replace(new("again", "1.1.0", manifest, "spec", new() { ["notes.md"] = "// t2" }));
+        Assert.Equal([key], hook.Created);
+
+        await app.Delete();
+        await app.Import(new("again", "1.1.0", manifest, "spec", new() { ["notes.md"] = "// t2" }));
+
+        Assert.Equal([key], hook.Retired.Select(retired => retired.AppKey));
+        Assert.Equal([key, key], hook.Created);
     }
 
     [Fact]
