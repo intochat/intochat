@@ -101,6 +101,21 @@ public sealed class TrustLinkFacts
         Assert.True(await stranger.Call<(string, string, byte[]), bool>(TrustOperations.ShardPut, ("seed-0", StorageProof.ContentId(shard), shard), ct));
     }
 
+    // T20-8 replaces R72's pairing gate: a machine whose link is registration-only cannot claim a username.
+    [Fact(Timeout = 120_000)]
+    public async Task AnUnregisteredMachinesLinkCannotRegisterAUsername()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        await using var trust = await TrustHost.StartAsync(ct);
+        await using var stranger = await RawMachine.Dial(trust, ct);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => stranger.Call<MachineSigned<DigitalBrain.Platform.Identity.Authority.PrincipalRegistration>, BrainProvision>(
+            TrustOperations.RegisterPrincipal, stranger.Sign(new DigitalBrain.Platform.Identity.Authority.PrincipalRegistration("eve", "Eve"), "eve"), ct));
+        await using var machine = await ModuleTest.Create().WithTrust(trust).StartAsync(ct);
+        Assert.Null(await machine.SiloServices.GetRequiredService<IIdentityClient>().RegisteredBy("eve"));
+    }
+
     [Fact(Timeout = 120_000)]
     public async Task AKeyringWriteForAnotherAccountsBrainIsRefused()
     {

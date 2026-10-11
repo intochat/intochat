@@ -38,19 +38,4 @@ public sealed class RegistrationTrustFacts
 
         Assert.Null(await b.Grains.GetGrain<IPrincipalCredential>("bob").Hash());
     }
-
-    [Fact(Timeout = 60_000)]
-    // R72: every real machine carries a pairing hash (configured or its own); this drives the trust gate directly with a
-    // machine registered without one.
-    public async Task AMachineWithoutAPairingHashCannotRegisterAUsername()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
-        using var machine = SequencerFacts.Machine();
-        await TrustClientFacts.Register(brain.SiloServices.GetRequiredService<INodeDirectoryClient>(), machine, "mallory", []);
-        var unpaired = GrainTrustClients.WithScratchCounter(brain.Grains, machine);
-
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => unpaired.RegisterPrincipal("eve", "Eve"));
-        Assert.Null(await brain.SiloServices.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>().RegisteredBy("eve"));
-    }
 }
