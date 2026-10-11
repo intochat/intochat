@@ -23,12 +23,20 @@ internal sealed class LoopbackServer : IDisposable
 
     public string Url { get; }
 
-    public async Task<CapturedRequest> ReplyOnce(string mediaType, byte[] response, CancellationToken cancellationToken, HttpStatusCode status = HttpStatusCode.OK)
+    public Task<CapturedRequest> ReplyOnce(string mediaType, byte[] response, CancellationToken cancellationToken, HttpStatusCode status = HttpStatusCode.OK)
+        => Reply(mediaType, _ => response, cancellationToken, status);
+
+    // The next request, answered from its body: a provider whose answer depends on what it was asked.
+    public Task<CapturedRequest> ReplyOnce(string mediaType, Func<string, string> respond, CancellationToken cancellationToken)
+        => Reply(mediaType, body => Encoding.UTF8.GetBytes(respond(body)), cancellationToken, HttpStatusCode.OK);
+
+    private async Task<CapturedRequest> Reply(string mediaType, Func<string, byte[]> respond, CancellationToken cancellationToken, HttpStatusCode status)
     {
         var context = await listener.GetContextAsync().WaitAsync(cancellationToken);
         using var reader = new StreamReader(context.Request.InputStream);
         var captured = new CapturedRequest(context.Request.HttpMethod, context.Request.Url?.AbsolutePath,
             await reader.ReadToEndAsync(cancellationToken), context.Request.Headers["Authorization"]);
+        var response = respond(captured.Body);
         context.Response.StatusCode = (int)status;
         context.Response.ContentType = mediaType;
         context.Response.ContentLength64 = response.Length;

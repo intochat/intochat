@@ -91,7 +91,7 @@ internal sealed class GroupChatNeuron(
         var conversation = new StringBuilder().AppendLine($"Question: {question}");
         foreach (var turn in transcript) { conversation.AppendLine($"{turn.Speaker}: {turn.Text}"); }
         conversation.AppendLine().AppendLine(instruction);
-        var text = await ModelAddress.Complete(GrainFactory, participant.Model, system, conversation.ToString());
+        var text = await ModelAddress.Complete(GrainFactory, BrainKey.BrainOf(ChatId), participant.Model, system, conversation.ToString());
         return text.Length > 0 ? text : throw new InvalidOperationException($"{participant.Name} returned an empty turn.");
     }
 }

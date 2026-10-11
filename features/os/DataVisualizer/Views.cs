@@ -52,8 +52,11 @@ public static class Views
         var children = new List<UiChildRef>();
         foreach (var column in view.Filters)
         {
-            await brain.Get<ITextField>($"{appKey}/views/{view.FilterGroup ?? view.Id}/filter/{column}")
-                .Configure(CultureInfo.InvariantCulture.TextInfo.ToTitleCase(column.Replace('_', ' ')), "text");
+            // Configuring announces a change to every view sharing the field, so a configured field is left alone.
+            var field = brain.Get<ITextField>($"{appKey}/views/{view.FilterGroup ?? view.Id}/filter/{column}");
+            var label = CultureInfo.InvariantCulture.TextInfo.ToTitleCase(column.Replace('_', ' '));
+            var configured = await field.Read();
+            if (configured.Label != label || configured.Kind != "text") { await field.Configure(label, "text"); }
             children.Add(new("textfield", $"{appKey}/views/{view.FilterGroup ?? view.Id}/filter/{column}"));
         }
         children.Add(new("card", $"{root}/status"));
@@ -65,7 +68,12 @@ public static class Views
         var surface = brain.Get<ISurface>($"{root}/surface");
         var state = await surface.Read();
         if (state.Definition.Title != view.Title || state.Definition.Children.Length != 1) { await surface.Set(new(view.Title, [new("layout", $"{root}/layout")]), state.Revision); }
-        if (view.RefreshSeconds > 0) { await brain.Get<IReminder>($"{root}/refresh").Start(TimeSpan.FromSeconds(view.RefreshSeconds), TimeSpan.FromSeconds(view.RefreshSeconds)); }
+    }
+
+    // A registered view with an interval owns a durable reminder; run-on-tick turns its ticks into refreshes.
+    public static async Task Schedule(DigitalBrainConnection brain, string appKey, View view)
+    {
+        if (view.RefreshSeconds > 0) { await brain.Get<IReminder>($"{appKey}/views/{view.Id}/refresh").Start(TimeSpan.FromSeconds(view.RefreshSeconds), TimeSpan.FromSeconds(view.RefreshSeconds)); }
     }
 
     public static async Task ComposeHome(DigitalBrainConnection brain, string appKey, View[] views)
@@ -81,8 +89,53 @@ public static class Views
     }
 
     public static Task OpenWindowAsync(DigitalBrainConnection brain, string appKey, CancellationToken ct)
-        => brain.Get<IWorkspace>(brain.Setting("Brain")!).EnsureOpenAsync(appKey + "/window", "Data Visualizer",
-            WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, appKey + "/surface")), ct);
+        => EnsureWindowAsync(brain, appKey + "/window", "Data Visualizer", appKey + "/surface", ct);
+
+    // Each view has its own window over its surface; opening is idempotent, so a replayed show opens it once.
+    public static Task OpenViewWindowAsync(DigitalBrainConnection brain, string appKey, View view, CancellationToken ct)
+        => EnsureWindowAsync(brain, $"{appKey}/views/{view.Id}/window", view.Title, $"{appKey}/views/{view.Id}/surface", ct);
+
+    public static Task CloseViewWindowAsync(DigitalBrainConnection brain, string appKey, string id, CancellationToken ct)
+    {
+        var window = $"{appKey}/views/{id}/window";
+        return ChangeWorkspaceAsync(brain, state => state.Windows.Any(item => item.IsOpen && item.Id == window)
+            ? workspace => workspace.Close(window, state.Revision) : null, ct);
+    }
+
+    private static Task EnsureWindowAsync(DigitalBrainConnection brain, string window, string title, string surface, CancellationToken ct)
+    {
+        var reference = WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, surface));
+        // One operation id for every attempt: a refused attempt is never logged, and an applied one answers its retry from the log.
+        var operation = Guid.NewGuid().ToString();
+        return ChangeWorkspaceAsync(brain, state => state.Windows.Any(item => item.Id == window && item.IsOpen && item.Reference == reference)
+            ? null : workspace => workspace.OpenSurface(new(operation, window, title, reference, state.Revision)), ct);
+    }
+
+    // The workspace is shared and revisioned, so a window change can lose a race with any other caller. Through
+    // the script client that conflict arrives as a plain refusal, never as WorkspaceRevisionConflictException, so
+    // WorkspaceWindows' retry cannot match it here. Each attempt reads the current revision; a refusal is retried
+    // only while the workspace has moved past the revision the attempt sent, and any other refusal surfaces.
+    private const int WorkspaceAttempts = 8;
+
+    private static async Task ChangeWorkspaceAsync(DigitalBrainConnection brain, Func<WorkspaceState, Func<IWorkspace, Task>?> plan, CancellationToken ct)
+    {
+        var workspace = brain.Get<IWorkspace>(brain.Setting("Brain")!);
+        for (var attempt = 1; ; attempt++)
+        {
+            ct.ThrowIfCancellationRequested();
+            var state = await workspace.Read();
+            if (plan(state) is not { } change) { return; }
+            try
+            {
+                await change(workspace);
+                return;
+            }
+            catch (InvalidOperationException) when (attempt < WorkspaceAttempts)
+            {
+                if ((await workspace.Read()).Revision == state.Revision) { throw; }
+            }
+        }
+    }
 
     private static bool Same(UiChildRef[] left, UiChildRef[] right) => left.Length == right.Length && left.Zip(right).All(pair => pair.First == pair.Second);
 }

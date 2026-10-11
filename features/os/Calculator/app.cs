@@ -4,6 +4,10 @@
 A keypad that evaluates arithmetic. Opening it composes a display and a grid of buttons and opens
 the window. Each button click updates the expression; "=" evaluates it. The buttons are edge neurons
 whose clicks reach this app's behavior, so the keypad is part of the brain like any other surface.
+The keypad neuron holds the expression and the clicks already applied, so a click delivered twice is
+pressed once; the display mirrors the expression. The dock's Clear presses the "C" key, so every
+change goes through the keypad in click order. A result that is not a number (dividing by zero, a
+malformed expression) shows "Error", and the next digit starts a new expression.
 
 ## Scenario: Opening the calculator shows the keypad
 
@@ -21,6 +25,10 @@ Clicking 2, +, 3, * then 4 and then "=" shows "14".
 
 Clicking "C" shows an empty display.
 
+## Scenario: Dividing by zero shows Error
+
+Clicking 7, ÷, 0 then "=" shows "Error"; clicking 8 next shows "8".
+
 ## Scenario: Clear from the dock empties the display
 
 The toolbar's Clear button posts "clear"; the display neuron becomes empty whatever it held.
@@ -28,6 +36,10 @@ The toolbar's Clear button posts "clear"; the display neuron becomes empty whate
 ## Scenario: Add answers a sum
 
 Invoking "add" with "2+3" sets the sum neuron to "5".
+
+## Scenario: Add answers Error for what is not a sum
+
+Invoking "add" with "two+three" sets the sum neuron to "Error"; invoking "add" with "4+4" next sets it to "8".
 */
 
 using DigitalBrain.Apps;
@@ -35,7 +47,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "calculator";
-    public const string Version = "1.2.0";
+    public const string Version = "1.2.2";
 
     public static readonly AppManifest Manifest = new(
         Title: "Calculator",
@@ -44,7 +56,7 @@ static class App
         [
             new("open", "Open the calculator keypad."),
             new("clear", "Empty the display."),
-            new("add", "Add two numbers written as \"a+b\"; the sum is the sum neuron."),
+            new("add", "Add numbers written as \"a+b\"; the sum is the sum neuron, \"Error\" when the input is not a sum."),
         ],
         Settings: [],
         Slots: [],

@@ -13,8 +13,6 @@ using DigitalBrain.Flutter.Workspace;
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
-var keys = new[] { "7", "8", "9", "/", "4", "5", "6", "*", "1", "2", "3", "-", "C", "0", "=", "+" };
-var labels = new[] { "7", "8", "9", "÷", "4", "5", "6", "×", "1", "2", "3", "−", "C", "0", "=", "+" };
 await foreach (var request in brain.On(app, "open", brain.Stopping))
 {
     await Compose();
@@ -29,8 +27,8 @@ string Name(string part) => appKey + "/" + part;
 
 async Task Compose()
 {
-    for (var index = 0; index < keys.Length; index++)
-    { await brain.Get<IButton>(Name("key-" + index)).Set(labels[index], keys[index]); }
+    for (var index = 0; index < Keypad.Keys.Length; index++)
+    { await brain.Get<IButton>(Name("key-" + index)).Set(Keypad.Labels[index], Keypad.Keys[index]); }
     var children = new List<UiChildRef> { new(UIVocabulary.TextType, Name("display")) };
     var extents = new List<double> { 96 };
     for (var row = 0; row < 4; row++)

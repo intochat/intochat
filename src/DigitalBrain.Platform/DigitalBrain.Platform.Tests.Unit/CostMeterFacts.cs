@@ -1,8 +1,13 @@
+using System.Collections.Concurrent;
+using System.Net.Http.Json;
+using System.Text.Json;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Compute;
 using DigitalBrain.Platform.Compute;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Runtime;
+using Orleans.Serialization;
+using Orleans.Storage;
 
 namespace DigitalBrain.Platform.Tests.Unit;
 
@@ -44,6 +49,7 @@ public sealed class CostMeterFacts
         using var meter = await brain.PersonAsync("meter", ct);
         using var trace = TraceContext.Enter(TraceContext.Begin(meter.AccountId, meter.BrainId, new NeuronId(meter.Key("edge")), budgetMicros: 1_000));
         var costs = Meter(brain);
+        var usage = await ActiveUsage(brain, meter.BrainId);
 
         var first = await costs.RecordAsync(CostKind.Model, "gpt-5.1:input", 1m, "mtok", Funding.Integration, "c-1", ct);
         var second = await costs.RecordAsync(CostKind.Model, "gpt-5.1:input", 1m, "mtok", Funding.Integration, "c-2", ct);
@@ -54,7 +60,7 @@ public sealed class CostMeterFacts
             costs.RecordAsync(CostKind.Model, "gpt-5.1:input", 1m, "mtok", Funding.Integration, "c-3", ct).AsTask());
 
         Assert.Equal(-1_000, await brain.Grains.GetGrain<ILedgerGrain>(meter.AccountId).Balance());
-        Assert.Equal(2, Assert.Single(await brain.Grains.GetGrain<IUsageGrain>(meter.BrainId).Group(UsageGrouping.Origin, DateTimeOffset.UtcNow.AddDays(-1), 10)).Count);
+        Assert.Equal(2, Assert.Single(await usage.Group(UsageGrouping.Origin, DateTimeOffset.UtcNow.AddDays(-1), 10)).Count);
     }
 
     [Fact]
@@ -63,6 +69,7 @@ public sealed class CostMeterFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await MeteredBrain(1_000, ct);
         using var meter = await brain.PersonAsync("meter", ct);
+        var usage = await ActiveUsage(brain, meter.BrainId);
         // Person.AsCaller opens a trace as the edge does; a caller without one is only expressible as a bare stamp.
         RequestContext.Set(CallerContextStamper.RequestContextKey, new CallerContext
         {
@@ -77,7 +84,7 @@ public sealed class CostMeterFacts
 
         Assert.Equal(1_250, cost.Micros);
         Assert.Equal(-1_250, await brain.Grains.GetGrain<ILedgerGrain>(meter.AccountId).Balance());
-        AssertRow(await brain.Grains.GetGrain<IUsageGrain>(meter.BrainId).Group(UsageGrouping.Origin, DateTimeOffset.UtcNow.AddDays(-1), 10), "untraced", 1_250, 1);
+        AssertRow(await usage.Group(UsageGrouping.Origin, DateTimeOffset.UtcNow.AddDays(-1), 10), "untraced", 1_250, 1);
     }
 
     [Fact]
@@ -87,11 +94,12 @@ public sealed class CostMeterFacts
         await using var brain = await MeteredBrain(1_000, ct);
         using var meter = await brain.PersonAsync("meter", ct);
         using var caller = meter.AsCaller();
+        var usage = await ActiveUsage(brain, meter.BrainId);
 
         await Meter(brain).RecordAsync(CostKind.Model, "gpt-5.1:input", 1m, "mtok", Funding.Integration, "c-1", ct);
 
-        AssertRow(await brain.Grains.GetGrain<IUsageGrain>(meter.BrainId).Group(UsageGrouping.Origin, DateTimeOffset.UtcNow.AddDays(-1), 10), meter.Key("edge"), 1_250, 1);
-        AssertRow(await brain.Grains.GetGrain<IUsageGrain>(meter.BrainId).Group(UsageGrouping.Kind, DateTimeOffset.UtcNow.AddDays(-1), 10), "Model", 1_250, 1);
+        AssertRow(await usage.Group(UsageGrouping.Origin, DateTimeOffset.UtcNow.AddDays(-1), 10), meter.Key("edge"), 1_250, 1);
+        AssertRow(await usage.Group(UsageGrouping.Kind, DateTimeOffset.UtcNow.AddDays(-1), 10), "Model", 1_250, 1);
     }
 
     [Fact]
@@ -102,13 +110,59 @@ public sealed class CostMeterFacts
         using var meter = await brain.PersonAsync("meter", ct);
         using var caller = meter.AsCaller();
         var synapse = meter.Key("apps/x/synapses/a.cs");
+        var usage = await ActiveUsage(brain, meter.BrainId);
 
         var cost = await Meter(brain).RecordAsync(CostKind.Script, "cpu-ms", 1m, "ms", Funding.Integration, "s-1", ct,
             new CostSubject(Synapse: synapse, App: meter.Key("apps/x"), Neuron: meter.Key("timer")));
 
         Assert.Equal((synapse, meter.Key("apps/x"), meter.Key("timer")), (cost.Synapse, cost.App, cost.Neuron));
-        AssertRow(await brain.Grains.GetGrain<IUsageGrain>(meter.BrainId).Group(UsageGrouping.Synapse, DateTimeOffset.UtcNow.AddDays(-1), 10), synapse, 1_250, 1);
-        AssertRow(await brain.Grains.GetGrain<IUsageGrain>(meter.BrainId).Group(UsageGrouping.App, DateTimeOffset.UtcNow.AddDays(-1), 10), meter.Key("apps/x"), 1_250, 1);
+        AssertRow(await usage.Group(UsageGrouping.Synapse, DateTimeOffset.UtcNow.AddDays(-1), 10), synapse, 1_250, 1);
+        AssertRow(await usage.Group(UsageGrouping.App, DateTimeOffset.UtcNow.AddDays(-1), 10), meter.Key("apps/x"), 1_250, 1);
+    }
+
+    // A metered call never waits on the brain's usage: costs arriving while its write is out share the next one, so
+    // a burst costs at most two usage writes, and once they land the totals and the recent ring hold every cost.
+    [Fact(Timeout = 60_000)]
+    public async Task ABurstOfCostsCostsAtMostTwoUsageWrites()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var storage = new HeldUsageWrites();
+        await using var brain = await TestBrain.Create()
+            .ConfigureServices(services => services
+                .AddSingleton<IPriceList>(new FixedPriceList(1_000))
+                .AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.PlatformGrainStorage, (provider, _) => storage.Over(provider.GetRequiredService<Serializer>())))
+            .StartAsync(ct);
+        using var meter = await brain.PersonAsync("meter", ct);
+        using var caller = meter.AsCaller();
+        var usage = await ActiveUsage(brain, meter.BrainId);
+        const int burst = 50;
+
+        storage.HoldNextUsageWrite();
+        for (var i = 0; i < burst; i++)
+        { await Meter(brain).RecordAsync(CostKind.Model, "gpt-5.1:input", 1m, "mtok", Funding.Integration, $"c-{i}", ct); }
+        Assert.Equal(burst, (await usage.Recent(burst)).Length);
+        storage.Release();
+        await brain.DeactivateAsync(usage, ct);
+
+        Assert.InRange(storage.UsageWrites, 1, 2);
+        AssertRow(await usage.Group(UsageGrouping.Kind, DateTimeOffset.UtcNow.AddDays(-1), 10), "Model", burst * 1_250L, burst);
+        Assert.Equal([.. Enumerable.Range(0, burst).Reverse().Select(i => $"c-{i}")], (await usage.Recent(burst)).Select(cost => cost.CostId));
+    }
+
+    [Fact]
+    public async Task TheRecentEndpointServesTheLatestCostsNewestFirst()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await MeteredBrain(1_000, ct);
+        using var meter = await brain.PersonAsync("meter", ct);
+        using var caller = meter.AsCaller();
+        await ActiveUsage(brain, meter.BrainId);
+
+        for (var i = 0; i < 3; i++) { await Meter(brain).RecordAsync(CostKind.Model, "gpt-5.1:input", 1m, "mtok", Funding.Integration, $"c-{i}", ct); }
+
+        var recent = await meter.Http.GetFromJsonAsync<JsonElement>($"/brains/{meter.BrainId}/compute/recent?take=2", ct);
+        Assert.Equal(["c-2", "c-1"], recent.EnumerateArray().Select(cost => cost.GetProperty("costId").GetString()));
+        Assert.All(recent.EnumerateArray(), cost => Assert.Equal(1_250, cost.GetProperty("micros").GetInt64()));
     }
 
     // The circle's owner funds a share of their balance to the brains in it; the meter is one of them.
@@ -220,6 +274,14 @@ public sealed class CostMeterFacts
 
     private static ICostMeter Meter(ITestBrain brain) => brain.Services.GetRequiredService<ICostMeter>();
 
+    // Costs reach usage one-way; a read sent after them is answered after them once the grain is active.
+    private static async Task<IUsageGrain> ActiveUsage(ITestBrain brain, string brainId)
+    {
+        var usage = brain.Grains.GetGrain<IUsageGrain>(brainId);
+        await usage.Recent(0);
+        return usage;
+    }
+
     private static void AssertRow(CostRow[] rows, string key, long micros, long count)
     {
         var row = Assert.Single(rows);
@@ -237,5 +299,53 @@ public sealed class CostMeterFacts
     private sealed class FixedPriceList(long? microsPerUnit) : IPriceList
     {
         public long? MicrosPerUnit(CostKind kind, string item) => microsPerUnit;
+    }
+
+    // Platform grain storage that counts the usage grain's writes once asked to and holds the first of them out.
+    // A write stores the state as it was when the write started, as a blob upload does.
+    private sealed class HeldUsageWrites : IGrainStorage
+    {
+        private const string UsageState = "usage";
+        private readonly ConcurrentDictionary<(string, GrainId), byte[]> _records = new();
+        private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private Serializer? _serializer;
+        private int _usageWrites = -1;
+
+        public int UsageWrites => Volatile.Read(ref _usageWrites);
+
+        public HeldUsageWrites Over(Serializer serializer)
+        {
+            _serializer = serializer;
+            return this;
+        }
+
+        public void HoldNextUsageWrite() => Volatile.Write(ref _usageWrites, 0);
+
+        public void Release() => _release.TrySetResult();
+
+        public Task ReadStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
+        {
+            if (_records.TryGetValue((stateName, grainId), out var stored))
+            {
+                grainState.State = _serializer!.Deserialize<T>(stored);
+                (grainState.ETag, grainState.RecordExists) = ("stored", true);
+            }
+            return Task.CompletedTask;
+        }
+
+        public async Task WriteStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
+        {
+            var bytes = _serializer!.SerializeToArray(grainState.State);
+            if (stateName == UsageState && Volatile.Read(ref _usageWrites) >= 0 && Interlocked.Increment(ref _usageWrites) == 1) { await _release.Task; }
+            _records[(stateName, grainId)] = bytes;
+            (grainState.ETag, grainState.RecordExists) = ("stored", true);
+        }
+
+        public Task ClearStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
+        {
+            _records.TryRemove((stateName, grainId), out _);
+            (grainState.ETag, grainState.RecordExists) = (null, false);
+            return Task.CompletedTask;
+        }
     }
 }

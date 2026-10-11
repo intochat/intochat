@@ -59,6 +59,7 @@ internal sealed class CostMeter(
         };
 
         // A redelivered cost is charged once (the ledger dedups on TraceId/CostId); only a fresh charge counts as usage.
+        // The budget and the charge hold the call; the usage record is one-way and never does.
         var fresh = true;
         if (micros > 0)
         {

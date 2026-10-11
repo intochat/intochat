@@ -1,20 +1,28 @@
 using System.Globalization;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Compute;
+using Orleans.Concurrency;
 
 namespace DigitalBrain.Platform.Compute;
 
 // Per brain. Every cost lands in the Recent ring buffer and rolls into one daily bucket per
-// grouping, so Group aggregates buckets instead of scanning the ring.
+// grouping, so Group aggregates buckets instead of scanning the ring. Every metered call of the brain
+// lands here, so costs come in bursts: reentrant, each Add applies its cost at once and shares the write
+// that is out (CoalescedWrites), and the reads answer from memory without waiting behind a write.
 [GrainType("usage")]
+[Reentrant]
 internal sealed class UsageGrain(
     [PersistentState("usage", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<UsageState> store)
     : Grain, IUsageGrain
 {
-    private const int RecentLimit = 5_000;
+    // The ring holds what GET /compute/recent serves at most; the totals come from the daily buckets.
+    internal const int RecentLimit = ComputeEndpoints.MaximumTake;
     private const int DailyRetentionDays = 90;
+    private CoalescedWrites? _writes;
 
-    public async Task Add(Cost cost, string origin)
+    private CoalescedWrites Writes => _writes ??= new(store.WriteStateAsync);
+
+    public Task Add(Cost cost, string origin)
     {
         ArgumentNullException.ThrowIfNull(cost);
         ArgumentException.ThrowIfNullOrWhiteSpace(origin);
@@ -26,7 +34,7 @@ internal sealed class UsageGrain(
             Upsert(day, by, KeyFor(cost, by, origin), cost.Micros);
         }
         Prune();
-        await store.WriteStateAsync();
+        return Writes.Save();
     }
 
     public Task<CostRow[]> Group(UsageGrouping by, DateTimeOffset since, int take)

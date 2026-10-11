@@ -73,7 +73,8 @@ internal static class CircleBrains
 
     private sealed class NoRuntime : IAppRuntime
     {
-        public Task Deploy(string appKey, Dictionary<string, string> sources, Dictionary<string, string> configuration, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<IReadOnlyDictionary<string, string>> Deploy(string appKey, Dictionary<string, string> sources, Dictionary<string, string> configuration, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyDictionary<string, string>>(new Dictionary<string, string>());
 
         public Task Retire(string appKey, CancellationToken cancellationToken) => Task.CompletedTask;
     }

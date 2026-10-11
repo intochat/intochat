@@ -21,4 +21,5 @@ public sealed record AppSnapshot(
     [property: Id(9)] AppVersionSummary[] Versions,
     [property: Id(10)] string? PublishedVersion = null,
     [property: Id(11)] AppOrigin? Origin = null,
-    [property: Id(12)] bool Edited = false);
+    [property: Id(12)] bool Edited = false,
+    [property: Id(13)] AppSynapse[]? Synapses = null);

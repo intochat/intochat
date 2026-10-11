@@ -53,6 +53,23 @@ Metrics: **sentence → running synapse < 10 s** (primary) and **fork rate insid
 16. **Learning is retrieval only for now.** Forks, edit diffs, compile failures and removals are signals,
     used as few-shot examples within what the caller can see. Fine-tuning is deferred until the data exists.
 
+## Posts, scenes, MVP (Q18–Q25)
+
+18. **A post is an app.** It renders as UiPart: a tree of palette components bound to the app neuron's state,
+    with its buttons as edge neurons. This closes the "renderable palette / UiPart" front.
+19. **A scene is a neuron.** Entities, bodies and state machines are scene state. Flame is the shell-side
+    renderer and physics engine (60 fps locally). Meaningful events (`Collided`, `StateEntered`) come back as
+    signals. The 3D brain view is a scene whose state is the brain graph.
+20. **State machines are declared in the scene neuron.** Flame animates the transitions, and synapses react
+    to `StateEntered`.
+21. **Flame comes after the feed** (step 6), and the brain view comes before games.
+22. **The MVP demo:** "when X, do Y" becomes a running synapse in under 10 s. Second: the Engineer writes a
+    module, which goes through SelfImprove (candidate → verified → promoted).
+23. **The name stays Synapse** with `brain.On<T>`. "Policy" already means authorization in this codebase.
+24. **The MVP Engineer covers synapses and modules.** The Shell Builder is deferred.
+25. **`IDeepSeekV41Flash`** for the fast path and router. A stronger model is used only for module builds.
+    Time per synapse is recorded in K1 run facts.
+
 ## Build order (17)
 
 1. K1 run facts

@@ -11,7 +11,7 @@ internal sealed record CreditInput(long Micros);
 // What the shell's Compute panel reads: the caller's balance and the brain's spend grouped one way.
 internal static class ComputeEndpoints
 {
-    private const int MaximumTake = 500;
+    internal const int MaximumTake = 500;
 
     internal static void MapCompute(this IEndpointRouteBuilder endpoints)
     {

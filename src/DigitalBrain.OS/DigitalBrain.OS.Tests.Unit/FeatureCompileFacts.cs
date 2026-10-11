@@ -40,4 +40,21 @@ public sealed class FeatureCompileFacts
         Assert.True(compiled > 0, "no feature bundle with .cs files was found under " + SolutionProjects.Features);
         Assert.True(errors.Count == 0, string.Join("\n", errors));
     }
+
+    // L0 over the features folder: every shipped synapse is exactly one top-level reaction, the gate boot holds them to.
+    [Fact]
+    public void TheShippedFeaturesHaveTheShape()
+    {
+        var errors = new List<string>();
+        var synapses = 0;
+        foreach (var feature in new FeatureDirectory(SolutionProjects.Features).Load())
+        {
+            var bundle = feature.Bundle;
+            synapses += bundle.Files.Count(file => AppFiles.IsProgram(file.Key) && !SynapseShape.IsShared(file.Value));
+            errors.AddRange(SynapseShape.Check(bundle.Files).Select(error => $"{feature.Owner}/{bundle.Name}: {error.File}:{error.Line} {error.Id} {error.Message}"));
+        }
+
+        Assert.True(synapses > 0, "no synapse was found under " + SolutionProjects.Features);
+        Assert.True(errors.Count == 0, string.Join("\n", errors));
+    }
 }

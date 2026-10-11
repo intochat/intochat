@@ -126,11 +126,17 @@ public sealed class AppNeuronFacts
         await app.Create(Manifest(), "spec");
         await app.BeginBuild(null);
 
-        var failed = await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["synapses/bad.cs"] = "int x = \"no\";" }, null);
+        const string Bad = """
+            await using var brain = await DigitalBrainClient.ConnectAsync(args);
+            await foreach (var request in brain.On<DigitalBrain.Apps.Signals.AppRequested>(brain.Get<DigitalBrain.Apps.IApp>(brain.Setting("App")!), brain.Stopping))
+            { int x = "no"; }
+            """;
+
+        var failed = await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["synapses/bad.cs"] = Bad }, null);
 
         Assert.Equal(AppStatus.Failed, failed.Status);
         Assert.Contains(failed.Activity, line => line.Contains("CS0029", StringComparison.Ordinal));
-        Assert.Equal("int x = \"no\";", failed.Files["synapses/bad.cs"]);
+        Assert.Equal(Bad, failed.Files["synapses/bad.cs"]);
     }
 
     [Fact]

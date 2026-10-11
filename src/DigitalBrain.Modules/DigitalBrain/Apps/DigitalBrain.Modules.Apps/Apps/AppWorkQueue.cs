@@ -13,7 +13,8 @@ internal sealed class AppWorkQueue(IServiceScopeFactory scopes, ILogger<AppWorkQ
 
     private async Task Run(string job, Func<IServiceProvider, CancellationToken, Task> work)
     {
-        await Task.Yield();
+        // Off the caller's scheduler: a job an app neuron enqueues must not run its model calls on the grain's.
+        await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
         using var scope = scopes.CreateScope();
         try { await work(scope.ServiceProvider, CancellationToken.None); }
         catch (Exception error) { log.LogError(error, "App background job {Job} failed", job); }

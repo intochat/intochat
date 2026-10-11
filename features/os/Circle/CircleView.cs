@@ -33,6 +33,24 @@ public static class CircleView
 
     public static Task Status(DigitalBrainConnection brain, string message) => brain.Get<IText>(Key(brain) + "/status").Set(message);
 
+    // A refusal arrives as "The brain refused Contract.Method (422): reason"; the status line shows the reason's first line.
+    public static Task Fail(DigitalBrainConnection brain, Exception error)
+    {
+        var message = error.Message;
+        var reason = message.IndexOf("): ", StringComparison.Ordinal);
+        if (message.StartsWith("The brain refused ", StringComparison.Ordinal) && reason > 0) { message = message[(reason + 3)..]; }
+        var end = message.IndexOfAny(['\r', '\n']);
+        return Status(brain, end < 0 ? message : message[..end]);
+    }
+
+    // One of this brain's installed apps, by name.
+    public static async Task<bool> HasApp(DigitalBrainConnection brain, string name)
+    {
+        await foreach (var instance in brain.Kernel.Instances<IApp>(brain.Stopping))
+        { if (IApp.NameOf(Scope(brain), instance.Key) == name) { return true; } }
+        return false;
+    }
+
     // "name rest": the first word names a circle when it is one; otherwise the whole input goes to the selected circle.
     public static async Task<CircleInput> Split(DigitalBrainConnection brain, string input)
     {

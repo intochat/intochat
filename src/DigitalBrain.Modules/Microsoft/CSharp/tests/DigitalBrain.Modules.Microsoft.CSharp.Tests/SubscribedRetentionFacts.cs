@@ -3,6 +3,7 @@ using DigitalBrain.Apps;
 using DigitalBrain.Apps.Signals;
 using DigitalBrain.Microsoft.CSharp.Runtime;
 using DigitalBrain.Microsoft.CSharp.Runtime.Signals;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Modules.Microsoft.CSharp.Tests;
 
@@ -49,6 +50,26 @@ public sealed class SubscribedRetentionFacts
         await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
 
         Assert.Empty(await Edge(brain).PendingBatches(session));
+    }
+
+    // Whether a source retains is its grain type's to say, from the cluster's manifest: a source that does not is
+    // never asked, rather than answering a failed cast across the cluster for every subscription to it.
+    [Fact]
+    public async Task OnlyASourceThatRetainsIsAskedForABacklog()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var asked = new RetentionCalls();
+        await using var brain = await RuntimeBrain.Create(new FakeSessionHost())
+            .ConfigureServices(services => services.AddSingleton<IOutgoingGrainCallFilter>(asked)).StartAsync(ct);
+        await Programs(brain).Assign(Echo, new() { ["synapses/a.cs"] = RuntimeBrain.Idle }, []);
+        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
+        var pinger = brain.Get<IPinger>("silent");
+        var retainer = brain.Get<ISlowRetainer>("asked");
+
+        await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+        await Edge(brain).Subscribed(session, Behavior, retainer.GetGrainId().ToString(), nameof(Pinged));
+
+        Assert.Equal([retainer.GetGrainId().ToString()], asked.Targets);
     }
 
     [Fact]
@@ -112,6 +133,20 @@ public sealed class SubscribedRetentionFacts
 
         SlowRetainer.Release.SetResult();
         await turn;
+    }
+
+    // Every backlog request the brain's grains send, by target.
+    private sealed class RetentionCalls : IOutgoingGrainCallFilter
+    {
+        private readonly System.Collections.Concurrent.ConcurrentQueue<string> _targets = new();
+
+        public string[] Targets => [.. _targets];
+
+        public Task Invoke(IOutgoingGrainCallContext context)
+        {
+            if (context.InterfaceMethod?.DeclaringType == typeof(IRetainsSignals)) { _targets.Enqueue(context.TargetId.ToString()); }
+            return context.Invoke();
+        }
     }
 
     private static IBrainPrograms Programs(ITestBrain brain) => RuntimeBrain.Programs(brain, Brain);

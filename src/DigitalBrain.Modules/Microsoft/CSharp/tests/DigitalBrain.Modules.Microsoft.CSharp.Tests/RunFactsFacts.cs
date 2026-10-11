@@ -93,6 +93,31 @@ public sealed class RunFactsFacts
         Assert.Equal(1, (await rig.Started.NextAsync(ct: ct)).Watermark);
     }
 
+    // A behavior rewritten at its path is new code: the record its old code earned is not its own.
+    [Fact]
+    public async Task OnlyARewrittenBehaviorStartsItsRunRecordAgain()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var rig = await StartAsync(ct, "synapses/a.cs", "synapses/b.cs");
+        var pinger = rig.Brain.Get<IPinger>("one");
+        var subscription = await rig.Edge.Subscribed(rig.Session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+        await PingAsync(pinger, 1, First);
+        await rig.Started.NextAsync(ct: ct);
+        await rig.Edge.AcknowledgeMany(rig.Session, [new AcknowledgeReport(subscription, 1, WallMicroseconds: 50)]);
+        await rig.Ran.NextAsync(ct: ct);
+        var programs = RuntimeBrain.Programs(rig.Brain, Acc);
+        const string Rewritten = "await using var brain = await DigitalBrainClient.ConnectAsync(args);\nConsole.WriteLine(\"rewritten\");\nawait Task.Delay(Timeout.Infinite, brain.Stopping);\n";
+
+        await programs.Assign(Owner, new(StringComparer.Ordinal) { ["synapses/a.cs"] = RuntimeBrain.Idle, ["synapses/b.cs"] = Rewritten }, []);
+        var kept = (await rig.Runtime.Inspect(ct)).Behaviors.Single(view => view.Id == Behavior);
+        await programs.Assign(Owner, new(StringComparer.Ordinal) { ["synapses/a.cs"] = Rewritten, ["synapses/b.cs"] = Rewritten }, []);
+        var rewritten = (await rig.Runtime.Inspect(ct)).Behaviors.Single(view => view.Id == Behavior);
+
+        Assert.Equal((1L, 0L, 50L), (kept.Runs, kept.Failures, kept.LastDurationMicroseconds));
+        Assert.NotEqual(kept.Hash, rewritten.Hash);
+        Assert.Equal((0L, 0L, 0L), (rewritten.Runs, rewritten.Failures, rewritten.LastDurationMicroseconds));
+    }
+
     [Fact]
     public async Task CoalescedAcksSumTheirTimeAndClearEveryTrace()
     {

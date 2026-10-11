@@ -113,6 +113,29 @@ public sealed class PartLogReplayFacts
             Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged)));
     }
 
+    // A nudge the runtime heard but could not act on (its arrival expired in the queue or its log read failed) is
+    // read from the source's log by the next reminder, not left until the source publishes again.
+    [Fact]
+    public async Task ANudgeThatWasNotReadIsDeliveredByTheNextReminderWithoutAnotherPublish()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var journal = new ReadOnceFailingJournal();
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, journal: journal);
+        await Programs(brain).Assign(Echo, new() { ["synapses/a.cs"] = RuntimeBrain.Idle }, []);
+        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
+        var pinger = brain.Get<IPinger>(Source);
+        await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+        var failed = journal.FailNextReadOf(pinger.GetGrainId());
+
+        await pinger.Ping(1);
+        await failed.WaitAsync(ct);
+        Assert.Empty(await PendingNumbers(brain, session));
+        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default);
+
+        var pending = await PendingNumbers(brain, session);
+        Assert.Equal([1], pending);
+    }
+
     // Waits, change by change, until the resumed runtime's catch-up has buffered something.
     private static async Task<int[]> PendingAfterResume(ITestBrain brain, SignalProbe<BrainRuntimeChanged> changes, CancellationToken ct)
     {
@@ -130,6 +153,44 @@ public sealed class PartLogReplayFacts
         public Task<JournaledSignal[]> ReadSince(string brainId, long since, int limit) => Task.FromResult<JournaledSignal[]>([]);
         public Task<PartSignals?> SignalsOf(GrainId publisher, long since)
             => throw new ServiceUnavailableException($"The part of {publisher} is leased by another machine.");
+    }
+
+    // A part log in memory, one seq per publisher, whose next read of an armed publisher fails once.
+    private sealed class ReadOnceFailingJournal : ISignalJournal
+    {
+        private readonly Dictionary<GrainId, List<Signal>> _logs = [];
+        private (GrainId Publisher, TaskCompletionSource Failed)? _armed;
+
+        public Task FailNextReadOf(GrainId publisher)
+        {
+            var failed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (_logs) { _armed = (publisher, failed); }
+            return failed.Task;
+        }
+
+        public Task Append(GrainId publisher, Signal[] signals)
+        {
+            lock (_logs) { (_logs.TryGetValue(publisher, out var log) ? log : _logs[publisher] = []).AddRange(signals); }
+            return Task.CompletedTask;
+        }
+
+        public Task<JournaledSignal[]> ReadSince(string brainId, long since, int limit) => Task.FromResult<JournaledSignal[]>([]);
+
+        public Task<PartSignals?> SignalsOf(GrainId publisher, long since)
+        {
+            lock (_logs)
+            {
+                if (_armed is { } armed && armed.Publisher == publisher)
+                {
+                    _armed = null;
+                    armed.Failed.SetResult();
+                    throw new ServiceUnavailableException($"The part of {publisher} could not be read.");
+                }
+                var log = _logs.TryGetValue(publisher, out var signals) ? signals : [];
+                JournaledSignal[] after = [.. log.Select((signal, index) => new JournaledSignal(index + 1, signal)).Where(entry => entry.Sequence > since)];
+                return Task.FromResult<PartSignals?>(new PartSignals(0, log.Count, after));
+            }
+        }
     }
 
     private static IBrainPrograms Programs(ITestBrain brain) => RuntimeBrain.Programs(brain, Brain);

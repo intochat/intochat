@@ -3,22 +3,32 @@ using DigitalBrain.Apps;
 
 // The assistant tool path: "send" by request. The composer path lives in submissions.cs.
 // Jev first: the request is asked of the router and this reaction ends; routed.cs answers it.
+// A replayed request is skipped, so Jev is asked once per message.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var app = brain.Get<IApp>(Assistant.Key(brain));
+var router = brain.Get<IRouter>(Assistant.Scope(brain));
+var ledger = await RequestLedger.LoadAsync(brain, "send");
 await foreach (var request in brain.On(app, "send", brain.Stopping))
 {
-    if (request.Input.Length is < 1 or > 32000) { continue; }
+    if (ledger.Handled(request.RequestId)) { continue; }
+    // Jev keeps the requests it was asked: one it already holds was sent before this ledger saw it.
+    if (await router.Pending(request.RequestId, brain.Stopping) is not null) { await ledger.Record(request.RequestId); continue; }
+    if (string.IsNullOrWhiteSpace(request.Input) || request.Input.Length > 32000) { await ledger.Record(request.RequestId); continue; }
     await app.Progress("listening", "Heard you");
     if (request.Input.Length > Assistant.MaxRoutedChars)
     {
-        await Assistant.AskModel(brain, await app.Read(), request.Input, "", request.RequestId);
-        continue;
+        await Assistant.Status(brain, "A long message goes straight to the model");
+        await Assistant.Answer(brain, await app.Read(), request.Input, "", request.RequestId);
     }
-    try { await brain.Get<IRouter>(Assistant.Scope(brain)).Ask(new RouteRequest(request.RequestId, request.Input), brain.Stopping); }
-    catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
+    else
     {
-        await Assistant.Status(brain, "Jev unavailable; asking the model. " + error.Message[..Math.Min(error.Message.Length, 200)]);
-        await app.Progress("attention", "Jev unavailable; asking the model");
-        await Assistant.AskModel(brain, await app.Read(), request.Input, "", request.RequestId);
+        try { await router.Ask(new RouteRequest(request.RequestId, request.Input), brain.Stopping); }
+        catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
+        {
+            await Assistant.Status(brain, "Jev unavailable; asking the model. " + Assistant.Clip(error.Message));
+            await app.Progress("attention", "Jev unavailable; asking the model");
+            await Assistant.Answer(brain, await app.Read(), request.Input, "", request.RequestId);
+        }
     }
+    await ledger.Record(request.RequestId);
 }

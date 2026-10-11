@@ -14,6 +14,9 @@ using DigitalBrain.Flutter.Workspace;
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
+var status = brain.Get<IText>(appKey + "/status");
+// The last failure an open showed in the status, so a later successful open can take it back.
+var failure = brain.Get<IText>(appKey + "/open-failure");
 
 await foreach (var request in brain.On(app, "open", brain.Stopping))
 {
@@ -27,9 +30,18 @@ await foreach (var request in brain.On(app, "open", brain.Stopping))
                 .EnsureOpenAsync(appKey + "/window", "Customer Researcher",
                     WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, appKey + "/surface")), brain.Stopping);
         }
+        if ((await failure.Read()).Markdown is { Length: > 0 } shown)
+        {
+            if ((await status.Read()).Markdown == shown) { await status.Set(""); }
+            await failure.Set("");
+        }
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-    { await brain.Get<IText>(appKey + "/status").Set(error.Message); }
+    {
+        var message = error.Message[..Math.Min(error.Message.Length, 500)];
+        await failure.Set(message);
+        await status.Set(message);
+    }
 }
 
 async Task ComposeAsync()
@@ -45,19 +57,10 @@ async Task ComposeAsync()
         [Ref(UIVocabulary.ButtonType, "research"), Ref(UIVocabulary.ButtonType, "stop")]), (await toolbar.Read()).Revision);
 
     await brain.Get<IWebBrowser>(Name("browser")).Configure(Name("browser"));
-    var missingStorage = string.IsNullOrWhiteSpace((await app.Read()).Connections.GetValueOrDefault("tables"));
-    await brain.Get<IText>(Name("configuration")).Set(missingStorage
-        ? "Database connection required. Bind a Postgres connection to this app's tables slot in app configuration, then reopen and retry."
-        : "");
-    var children = new List<UiChildRef>();
-    var extents = new List<double>();
-    if (missingStorage) { children.Add(Ref(UIVocabulary.TextType, "configuration")); extents.Add(88); }
-    children.AddRange([Ref(UIVocabulary.TextFieldType, "company"), Ref(UIVocabulary.LayoutType, "toolbar"), Ref(UIVocabulary.TextType, "status"), Ref(UIVocabulary.LayoutType, "research-activity"), Ref(UIVocabulary.WebBrowserType, "browser")]);
-    extents.AddRange([60, 40, 64, 0, 0]);
+    // The activity list scrolls on its own; the browser stays mounted below it while research runs.
+    UiChildRef[] children = [Ref(UIVocabulary.TextFieldType, "company"), Ref(UIVocabulary.LayoutType, "toolbar"), Ref(UIVocabulary.TextType, "status"), Ref(UIVocabulary.LayoutType, "research-activity"), Ref(UIVocabulary.WebBrowserType, "browser")];
     var main = brain.Get<ILayout>(Name("main"));
-    await main.Set(new LayoutDefinition("column",
-        children.ToArray(),
-        Extents: extents.ToArray()), (await main.Read()).Revision);
+    await main.Set(new LayoutDefinition("column", children, Extents: [60, 40, 64, 0, 0]), (await main.Read()).Revision);
 
     var surface = brain.Get<ISurface>(Name("surface"));
     await surface.Set(new SurfaceDefinition("Customer Researcher", [Ref(UIVocabulary.LayoutType, "main")]), (await surface.Read()).Revision);

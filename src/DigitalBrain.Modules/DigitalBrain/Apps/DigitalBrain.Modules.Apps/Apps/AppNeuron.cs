@@ -21,6 +21,10 @@ internal sealed class AppNeuron(
     private const int MaxPayloadLength = 64 * 1024;
     private const int MaxReceipts = 64;
     private const int RetainedCapacity = 64;
+    private const int MaxSynapses = 64;
+    private const int MaxSentenceLength = 4000;
+    internal const int MaxFocus = 16;
+    internal const int MaxFocusKeyLength = 512;
 
     public Task<AppSnapshot> Read() => Task.FromResult(Describe(Snapshot));
 
@@ -90,8 +94,16 @@ internal sealed class AppNeuron(
         Receipt(next, operationId);
         // The whole program goes to the runtime before anything is persisted: a write the
         // compiler refuses leaves the app's files exactly as they were.
+        IReadOnlyDictionary<string, string>? hashes = null;
         if (Runtime is { } runtime)
-        { await runtime.Deploy(this.GetPrimaryKeyString(), Sources(next), Configuration(next), CancellationToken.None); }
+        {
+            var sources = Sources(next);
+            RequireShape(sources);
+            hashes = await runtime.Deploy(this.GetPrimaryKeyString(), sources, Configuration(next), CancellationToken.None);
+        }
+        // A fast-path write names its deployed synapse on the request; CompleteSynapse lands the outcome.
+        var requested = Array.FindIndex(next.Synapses, synapse => synapse.OperationId == operationId && synapse.Status == SynapseStatus.Requested);
+        if (requested >= 0) { next.Synapses[requested] = next.Synapses[requested] with { Path = path, Hash = hashes?.GetValueOrDefault(path) }; }
         await Persist(next);
         return Describe(Snapshot);
     }
@@ -429,6 +441,48 @@ internal sealed class AppNeuron(
         return id;
     }
 
+    public async Task<AppSnapshot> WriteSynapse(string sentence, string[] focus, Guid operationId)
+    {
+        RequireCreated();
+        ArgumentException.ThrowIfNullOrWhiteSpace(sentence);
+        if (sentence.Length > MaxSentenceLength) { throw new ArgumentException($"Say the synapse in at most {MaxSentenceLength} characters."); }
+        string[] keys = [.. (focus ?? []).Where(key => !string.IsNullOrWhiteSpace(key)).Distinct(StringComparer.Ordinal)];
+        if (keys.Length > MaxFocus) { throw new ArgumentException($"Focus on at most {MaxFocus} neurons."); }
+        if (keys.Any(key => key.Length > MaxFocusKeyLength)) { throw new ArgumentException($"A focus key is at most {MaxFocusKeyLength} characters."); }
+        if (Replayed(operationId) || Snapshot.Synapses.Any(synapse => synapse.OperationId == operationId)) { return Describe(Snapshot); }
+        if (ServiceProvider.GetService<IScriptSandbox>()?.CanRun != true) { throw new InvalidOperationException(AppAuthoringPolicy.SandboxMissing); }
+        var next = Snapshot.Clone();
+        next.Synapses = [.. next.Synapses.TakeLast(MaxSynapses - 1),
+            new AppSynapse(operationId, sentence.Trim(), keys, SynapseStatus.Requested, clock.GetUtcNow(), [])];
+        await Persist(next);
+        // The writer runs on the work queue, outside this turn, and calls back as an outside caller.
+        ServiceProvider.GetRequiredService<SynapseWriter>().Enqueue(this.GetPrimaryKeyString(), operationId, sentence.Trim(), keys);
+        return Describe(Snapshot);
+    }
+
+    public async Task<AppSnapshot> CompleteSynapse(Guid operationId, string[] errors, long elapsedMs, int attempts, string? baseSynapse = null)
+    {
+        var index = Array.FindIndex(Snapshot.Synapses, synapse => synapse.OperationId == operationId);
+        if (index < 0 || Snapshot.Synapses[index].Status != SynapseStatus.Requested) { return Describe(Snapshot); }
+        var entry = Snapshot.Synapses[index];
+        string[] refused = [.. errors ?? []];
+        if (refused.Length == 0 && entry.Path is null) { refused = ["The writer reported a synapse it never wrote."]; }
+        var next = Snapshot.Clone();
+        next.Synapses[index] = entry with
+        {
+            Status = refused.Length == 0 ? SynapseStatus.Written : SynapseStatus.Rejected,
+            Errors = refused,
+            ElapsedMs = elapsedMs,
+            Attempts = attempts,
+            Base = baseSynapse,
+        };
+        Signal outcome = refused.Length == 0
+            ? new SynapseWritten(entry.Path!, entry.Hash ?? "", elapsedMs, attempts)
+            : new SynapseRejected(entry.Sentence, refused);
+        await Save(next, new AppChanged(Name(), next.Version, next.Status), outcome);
+        return Describe(Snapshot);
+    }
+
     // The bundle's rules judge the would-be request before it is published; the first rejection wins.
     // The sandbox picks the rules out of the program's shared classes; no program means no rules. Rules
     // fail closed: a program that declares one is rejected when no sandbox can run it.
@@ -462,7 +516,15 @@ internal sealed class AppNeuron(
         if (Runtime is not { } runtime) { return; }
         var sources = Sources(Snapshot);
         if (sources.Count == 0) { await runtime.Retire(this.GetPrimaryKeyString(), CancellationToken.None); return; }
+        RequireShape(sources);
         await runtime.Deploy(this.GetPrimaryKeyString(), sources, Configuration(Snapshot), CancellationToken.None);
+    }
+
+    // The shape gate in front of the runtime's compile gate: every synapse is one reaction.
+    private static void RequireShape(IReadOnlyDictionary<string, string> sources)
+    {
+        if (SynapseShape.Check(sources) is { Length: > 0 } errors)
+        { throw new InvalidOperationException("The program is not shaped as synapses: " + SynapseShape.Describe(errors)); }
     }
 
     // Every program assignment lands in the kernel as this brain's feature, whatever its source:
@@ -516,6 +578,9 @@ internal sealed class AppNeuron(
         var scripts = Snapshot.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal))
             .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
         if (scripts.Count == 0) { return; }
+        // The shape is syntax, so it is checked even where no compiler is.
+        if (SynapseShape.Check(scripts) is { Length: > 0 } shape)
+        { throw new InvalidOperationException($"Version {Snapshot.Version} is not shaped as synapses: " + SynapseShape.Describe(shape)); }
         // The declaration compiles with the program it describes.
         scripts[AppFiles.DeclarationPath] = AppDeclaration.Write(new(Name(), Snapshot.Version, Snapshot.Manifest!, Snapshot.Spec));
         var sandbox = ServiceProvider.GetService<IScriptSandbox>();
@@ -566,7 +631,8 @@ internal sealed class AppNeuron(
         [.. state.History.Select(record => new AppVersionSummary(record.Version, record.SavedAt))],
         state.PublishedVersion,
         state.Origin,
-        state.Edited);
+        state.Edited,
+        [.. state.Synapses]);
 }
 
 internal sealed class AppActivation : IActivationHandler<AppNeuron>

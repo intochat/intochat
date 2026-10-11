@@ -13,15 +13,16 @@ await foreach (var request in brain.On(app, "browse", brain.Stopping))
 {
     try
     {
-        var all = await Machine.Entries(brain, request.Input);
+        // Without a PC there is nothing to browse, not even a parent entry.
+        var connected = await Machine.Connection(brain) is not null;
+        var all = connected ? await Machine.Entries(brain, request.Input) : [];
         var shown = all.Take(Machine.MaxEntries).ToArray();
         var items = shown.Select(path => new CollectionItem(path, path[(path.LastIndexOfAny(['\\', '/']) + 1)..] is { Length: > 0 } name ? name : path, request.Input.Length == 0 ? "folder" : "entry")).ToList();
-        if (request.Input.Length > 0) { items.Insert(0, new("up:" + await Machine.Up(brain, request.Input), "..", "folder")); }
-        var connected = await Machine.Connection(brain) is not null;
+        if (connected && request.Input.Length > 0) { items.Insert(0, new("up:" + await Machine.Up(brain, request.Input), "..", "folder")); }
         await brain.Get<IText>(appKey + "/location").Set(request.Input.Length == 0 ? "Allowed folders" : request.Input);
         await brain.Get<IText>(appKey + "/content").Set(all.Length > shown.Length
             ? "Showing " + shown.Length + " of " + all.Length
-            : !connected ? "No Windows PC is connected. Connect one and allow a folder." : all.Length == 0 ? "This folder is empty." : "");
+            : !connected ? Machine.NotConnected : all.Length == 0 ? "This folder is empty." : "");
         await listing.Set(new CollectionDefinition([.. items], FileMode: true, SelectionEnabled: false), (await listing.Read()).Revision);
     }
     catch (Exception) when (!brain.Stopping.IsCancellationRequested)

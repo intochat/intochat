@@ -5,7 +5,8 @@ namespace DigitalBrain.AI.Routing;
 
 // The chosen contract (full type name) and method, with the router's confidence in that choice.
 // An app route names the app and operation instead of a contract fill path; Dispatch then posts
-// IApp.Request with the state as input and no language model runs.
+// IApp.Request and no language model runs, when the operation's input needs no filling ("open", a
+// toolbar button's "").
 [GenerateSerializer, Alias("ai.route-result")]
 public sealed record RouteResult(
     [property: Id(0)] string Contract,

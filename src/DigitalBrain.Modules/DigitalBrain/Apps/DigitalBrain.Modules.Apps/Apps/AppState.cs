@@ -29,6 +29,8 @@ public sealed class AppState
     [Id(24)] public long RequestSequence { get; set; }
     [Id(25)] public RetainedSignal[] ActivityRetention { get; set; } = [];
     [Id(26)] public long ActivitySequence { get; set; }
+    // The fast path's requests and their outcomes, newest last.
+    [Id(27)] public AppSynapse[] Synapses { get; set; } = [];
 
     public AppState Clone() => new()
     {
@@ -55,6 +57,7 @@ public sealed class AppState
         RequestSequence = RequestSequence,
         ActivityRetention = [.. ActivityRetention],
         ActivitySequence = ActivitySequence,
+        Synapses = [.. Synapses],
     };
 }
 

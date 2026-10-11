@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using DigitalBrain.Client.Runtime;
 using DigitalBrain.Client.Runtime.V1;
+using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp;
 using DigitalBrain.Microsoft.CSharp.Edge;
 using DigitalBrain.Microsoft.CSharp.Files;
@@ -495,12 +496,125 @@ public sealed class BrainRuntimeNeuronFacts
         await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
         await source.Ping(1); await changes.NextAsync(ct: ct);
 
-        var view = await Programs(brain).Assign("acc-brain/apps/demo", new() { ["synapses/a.cs"] = RuntimeBrain.Idle + "// v2\n" }, []);
+        var view = await Programs(brain).Assign("acc-brain/apps/demo", new() { ["synapses/a.cs"] = RuntimeBrain.Idle }, []);
 
         Assert.Equal(["acc-brain/apps/demo/synapses/a.cs"], view.Behaviors.Select(b => b.Id));
         var pending = Assert.Single(await Edge(brain).PendingBatches(session));
         Assert.Equal(kept, pending.Subscription);
         Assert.Single(pending.Signals);
+    }
+
+    // A synapse whose code changed is a new reaction: what the old assembly subscribed to is dropped, and the
+    // new one declares its own. Otherwise a source the new code no longer reads fills a buffer nobody acknowledges.
+    [Fact]
+    public async Task AChangedSynapseDropsTheOldAssemblysSubscriptions()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        var before = await Programs(brain).Assign(Owner, Synapse(), []);
+        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
+        var pinger = brain.Get<IPinger>("changed");
+        await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+        await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
+        await pinger.Ping(1); await changes.NextAsync(ct: ct);
+
+        var after = await Programs(brain).Assign(Owner, Synapse(RuntimeBrain.Idle + "// v2\n"), []);
+
+        Assert.NotEqual(before.Behaviors.Single().Hash, after.Behaviors.Single().Hash);
+        Assert.Empty(after.Behaviors.Single().Subscriptions);
+        Assert.Empty(await Edge(brain).PendingBatches(session));
+    }
+
+    // Compiling and storing a program takes seconds of CPU and I/O, both before the program takes the runtime's
+    // turn; the runtime's other calls go on meanwhile: the edge resolving a script's identity, the shell
+    // inspecting, the host's heartbeat. The fact holds the store, the step after the compile.
+    [Fact]
+    public async Task AProgramStillBeingStoredDoesNotHoldTheRestOfTheRuntime()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var assemblies = new HeldAssemblies();
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, assemblies: assemblies);
+        await Programs(brain).Assign(Owner, Synapse(), []);
+        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
+        assemblies.Hold = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var assigning = Programs(brain).Assign("acc-brain/apps/other", Synapse(), []);
+        await assemblies.Entered.Task.WaitAsync(ct);
+
+        try
+        {
+            var within = brain.Execution.AssertionTimeout;
+            Assert.NotNull(await Edge(brain).Identity(session, Behavior).WaitAsync(within, ct));
+            Assert.Single((await Runtime(brain).Inspect(ct).WaitAsync(within, ct)).Behaviors);
+            await Edge(brain).Heartbeat(session).WaitAsync(within, ct);
+        }
+        finally { assemblies.Hold.TrySetResult(); }
+
+        Assert.Single((await assigning).Behaviors);
+        Assert.Equal(2, (await Runtime(brain).Inspect(ct)).Behaviors.Count);
+    }
+
+    // Two programs of one owner compile side by side; the one assigned last wins even when the older one finishes
+    // compiling after it, and the older one says it was not applied.
+    [Fact]
+    public async Task AnAssignOvertakenWhileItCompiledIsNotApplied()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var assemblies = new HeldAssemblies();
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, assemblies: assemblies);
+        var hold = assemblies.Hold = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var older = Programs(brain).Assign(Owner, Synapse(RuntimeBrain.Idle + "// older\n"), []);
+        await assemblies.Entered.Task.WaitAsync(ct);
+        assemblies.Hold = null;
+
+        var newer = await Programs(brain).Assign(Owner, Synapse(RuntimeBrain.Idle + "// newer\n"), []);
+        hold.SetResult();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => older);
+        Assert.Equal(newer.Hash, (await Programs(brain).Describe(Owner))!.Hash);
+    }
+
+    // A live signal only nudges the runtime: its publisher returns while the runtime is still in a long turn,
+    // and the signal is buffered once that turn ends.
+    [Fact]
+    public async Task APublisherDoesNotWaitOutTheRuntimesTurn()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
+        await Programs(brain).Assign(Owner, Synapse(), []);
+        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
+        var pinger = brain.Get<IPinger>("nudging");
+        var subscription = await Edge(brain).Subscribed(session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+        await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
+        // Seeding a subscription from this source holds the runtime's turn until the source answers.
+        var held = brain.Get<IHeldRetainer>("held");
+        var seeding = Edge(brain).Subscribed(session, Behavior, held.GetGrainId().ToString(), nameof(Pinged));
+        await HeldRetainer.Asked.Task.WaitAsync(ct);
+
+        try { await pinger.Ping(1).WaitAsync(brain.Execution.AssertionTimeout, ct); }
+        finally { HeldRetainer.Release.TrySetResult(); }
+
+        await seeding;
+        while (!(await Edge(brain).PendingBatches(session)).Any(batch => batch.Subscription == subscription)) { await changes.NextAsync(ct: ct); }
+        Assert.Equal(1, SignalJson.Number(Assert.Single((await Edge(brain).PendingBatches(session)).Single(batch => batch.Subscription == subscription).Signals)));
+    }
+
+    // Stores assemblies, and holds every store once a fact arms it, so the fact sees what goes on meanwhile.
+    private sealed class HeldAssemblies : DigitalBrain.Microsoft.CSharp.Assemblies.IBehaviorAssemblies
+    {
+        public TaskCompletionSource? Hold { get; set; }
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task Put(DigitalBrain.Microsoft.CSharp.Catalog.CompiledBehavior behavior, CancellationToken cancellationToken)
+        {
+            if (Hold is not { } hold) { return; }
+            Entered.TrySetResult();
+            await hold.Task.WaitAsync(cancellationToken);
+        }
+
+        public Task<bool> Exists(string hash, CancellationToken cancellationToken) => Task.FromResult(true);
+
+        public Task<Uri> ReadUrl(string name, TimeSpan lifetime, CancellationToken cancellationToken)
+            => Task.FromResult(new Uri("memory://behaviors/" + name));
     }
 
     [Fact]
@@ -565,4 +679,22 @@ public sealed class BrainRuntimeNeuronFacts
     private static IBrainRuntime Runtime(ITestBrain brain) => RuntimeBrain.Runtime(brain, Brain);
 
     private static IBrainRuntimeEdge Edge(ITestBrain brain) => RuntimeBrain.Edge(brain, Brain);
+}
+
+// A retaining source whose backlog read holds until released: the runtime seeding a subscription from it
+// stays in that turn meanwhile.
+[Alias("tests.csharp.held-retainer")]
+public interface IHeldRetainer : IRetainsSignals;
+
+public sealed class HeldRetainer : Neuron, IHeldRetainer
+{
+    public static TaskCompletionSource Asked { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public static TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public async Task<RetainedSignal[]> Retained(string signal, long since)
+    {
+        Asked.TrySetResult();
+        await Release.Task;
+        return [];
+    }
 }

@@ -3,7 +3,8 @@
 
 The loop a developer runs by hand, as an app: a change set becomes a candidate, the candidate runs as a
 sibling cluster, the current brain verifies it over MCP, and a verified candidate is promoted. The
-candidates list shows every candidate and its stage; it is the surface the shell shows.
+candidates list shows every candidate, newest first, with its stage; it follows every stage change and is
+the surface the shell shows.
 
 ## Scenario: A request proposes and starts a candidate
 
@@ -28,6 +29,12 @@ worktree path; nothing is retried.
 A candidate that fails before it is healthy (or is discarded) ends every reaction's wait on it: the next
 proposed candidate is verified and promoted as usual.
 
+## Scenario: A malformed change set is refused
+
+Invoking "request" with input that is not a complete change set (not JSON, or missing its branch, summary,
+files or plan, or a plan whose budget is not a time span) proposes nothing: the report neuron says
+"Request refused:" with the reason, the last neuron holds no sha, and the next request is handled as usual.
+
 ## Scenario: Opening shows the list
 
 Invoking "open" composes a surface with the candidates list and the report, and opens a "Self-improve" window.
@@ -38,7 +45,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "selfimprove";
-    public const string Version = "2.0.1";
+    public const string Version = "2.0.5";
 
     public static readonly AppManifest Manifest = new(
         Title: "Self-improve",

@@ -45,7 +45,7 @@ internal sealed class Creator(
             var prompt = existing is not null && existing.Status != AppStatus.Drafted || existing?.Spec is { Length: > 0 }
                 ? $"Revise this app.\n\nCurrent specification:\n{existing!.Spec}\n\nTheir change request:\n{request.Trim()}"
                 : $"Write the specification for this app.\n\nWhat the person wants:\n{request.Trim()}";
-            var authored = await Authored(prompt, cancellationToken);
+            var authored = await Authored(brainId, prompt, cancellationToken);
             var manifest = new AppManifest(authored.Title, authored.Description,
                 authored.Operations ?? [], authored.Settings ?? [], authored.Slots ?? []);
             var app = brain.Get<IApp>(IApp.Key(brainId, name ?? authored.Name));
@@ -101,7 +101,7 @@ internal sealed class Creator(
                 foreach (var (path, source) in snapshot.Files) { task.AppendLine($"--- {path} ---").AppendLine(source); }
             }
             await app.Progress("working", $"Building {snapshot.Manifest.Title}");
-            var built = Parse<BuiltApp>(await BuilderConversation(app, task.ToString(), cancellationToken));
+            var built = Parse<BuiltApp>(await BuilderConversation(BrainKey.BrainOf(appKey), app, task.ToString(), cancellationToken));
             var files = new Dictionary<string, string>(built.Files ?? new Dictionary<string, string>(), StringComparer.Ordinal);
             if (files.Count == 0)
             {
@@ -137,14 +137,14 @@ internal sealed class Creator(
         if (await app.CurrentBuildAttempt() == attempt) { await app.Progress(state, detail); }
     }
 
-    private async Task<AuthoredApp> Authored(string prompt, CancellationToken cancellationToken)
+    private async Task<AuthoredApp> Authored(string brainId, string prompt, CancellationToken cancellationToken)
     {
         for (var retry = 0; ; retry++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                return Parse<AuthoredApp>(await grains.GetGrain<ICreatorModel>(0).Complete(AuthorModel, AgentPrompts.Author, prompt));
+                return Parse<AuthoredApp>(await grains.GetGrain<ICreatorModel>(0).Complete(brainId, AuthorModel, AgentPrompts.Author, prompt));
             }
             catch (Exception error) when (error is JsonException or InvalidDataException or ArgumentException && retry < MaxAuthorRetries)
             {
@@ -155,7 +155,7 @@ internal sealed class Creator(
 
     // The Builder works with tools: it searches the contract catalog, reads details and
     // compile-checks its C# before answering. Each round lands on the app's activity feed.
-    private async Task<string> BuilderConversation(IApp app, string task, CancellationToken cancellationToken)
+    private async Task<string> BuilderConversation(string brainId, IApp app, string task, CancellationToken cancellationToken)
     {
         var messages = new List<AiMessage>
         {
@@ -165,7 +165,7 @@ internal sealed class Creator(
         for (var round = 0; round < MaxBuilderRounds; round++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var result = await grains.GetGrain<ICreatorModel>(0).Generate(BuilderModel, new InferenceRequest(messages, Tools: BuilderTools.Definitions));
+            var result = await grains.GetGrain<ICreatorModel>(0).Generate(brainId, BuilderModel, new InferenceRequest(messages, Tools: BuilderTools.Definitions));
             messages.AddRange(result.Messages);
             var calls = result.Messages.SelectMany(message => message.Content).OfType<AiToolCall>().ToArray();
             if (calls.Length == 0)
@@ -196,7 +196,7 @@ internal sealed class Creator(
                 BuilderTools.ReadContracts => JsonSerializer.Serialize(
                     await Require(csharp).ReadContracts(Parse<BuilderTools.ReadArguments>(call.ArgumentsJson).Modules ?? [], cancellationToken), Json),
                 BuilderTools.CheckCSharp => JsonSerializer.Serialize(
-                    await Require(csharp).Compile(Parse<BuilderTools.CheckArguments>(call.ArgumentsJson).Files ?? new Dictionary<string, string>(), cancellationToken), Json),
+                    await Checked(Parse<BuilderTools.CheckArguments>(call.ArgumentsJson).Files ?? new Dictionary<string, string>(), cancellationToken), Json),
                 _ => throw new ArgumentException($"Unknown tool '{call.Name}'."),
             };
         }
@@ -210,6 +210,14 @@ internal sealed class Creator(
             => service ?? throw new InvalidOperationException(AppAuthoringPolicy.SandboxMissing);
     }
 
+    // check_csharp answers what the app gates will: the compile errors plus every synapse that is not one reaction.
+    private async Task<ScriptCompilationCheck> Checked(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
+    {
+        var compiled = await (csharp ?? throw new InvalidOperationException(AppAuthoringPolicy.SandboxMissing)).Compile(files, cancellationToken);
+        var shape = SynapseShape.Check(files);
+        return shape.Length == 0 ? compiled : compiled with { Success = false, Errors = [.. compiled.Errors, .. shape] };
+    }
+
     private static void ValidateName(string name)
     {
         if (string.IsNullOrWhiteSpace(name) || name.Any(c => !char.IsAsciiLetterLower(c) && !char.IsAsciiDigit(c) && c != '-'))
@@ -217,7 +225,7 @@ internal sealed class Creator(
     }
 
     // Models sometimes wrap the JSON in a code fence or add prose around it; read the first complete object.
-    private static T Parse<T>(string reply)
+    internal static T Parse<T>(string reply)
     {
         var start = reply.IndexOf('{', StringComparison.Ordinal);
         if (start < 0) { throw new InvalidDataException("The reply contains no JSON object."); }

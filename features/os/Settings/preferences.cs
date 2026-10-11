@@ -69,16 +69,24 @@ async Task Save(string input)
     var chosen = submitted.Theme.Trim().ToLowerInvariant();
     if (submitted.DisplayName.Length > 120 || chosen is not ("system" or "light" or "dark"))
     { throw new PreferenceConflictException("Use a name of at most 120 characters and a theme of system, light or dark."); }
-    if (await Current() != submitted.Baseline)
+    var saved = new PreferenceState(submitted.DisplayName, chosen,
+        submitted.Baseline.NameVersion + (submitted.DisplayName != submitted.Baseline.DisplayName ? 1 : 0),
+        submitted.Baseline.ThemeVersion + (chosen != submitted.Baseline.Theme ? 1 : 0));
+    var stored = await Current();
+    // Delivery is at-least-once: a redelivered save finds its own result stored and is not a conflict.
+    if (stored == saved)
+    {
+        await baseline.Set(JsonSerializer.Serialize(saved));
+        await status.Set("Preferences saved.");
+        return;
+    }
+    if (stored != submitted.Baseline)
     { throw new PreferenceConflictException("Preferences changed elsewhere. Reload preferences before saving your changes."); }
     // Write only edited fields, so a name-only save never rewrites the stored theme.
     if (submitted.DisplayName != submitted.Baseline.DisplayName && !await name.TrySetValue(submitted.DisplayName, submitted.Baseline.NameVersion))
     { throw new PreferenceConflictException("The stored name changed. Reload preferences before retrying."); }
     if (chosen != submitted.Baseline.Theme && !await theme.TrySetValue(chosen, submitted.Baseline.ThemeVersion))
     { throw new PreferenceConflictException("The stored theme changed. Your name may have been saved. Reload preferences to inspect stored values."); }
-    var saved = new PreferenceState(submitted.DisplayName, chosen,
-        submitted.Baseline.NameVersion + (submitted.DisplayName != submitted.Baseline.DisplayName ? 1 : 0),
-        submitted.Baseline.ThemeVersion + (chosen != submitted.Baseline.Theme ? 1 : 0));
     // Never adopt an external update as the baseline for a draft that still shows the old value.
     if (await Current() != saved)
     { throw new PreferenceConflictException("Preferences changed while saving. Some changes may have saved. Reload preferences to inspect stored values."); }

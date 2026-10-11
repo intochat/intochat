@@ -6,8 +6,13 @@ namespace DigitalBrain.Apps;
 // Runs a csharp app as one program of its brain's runtime. The app key's brain scope names the runtime.
 internal sealed class CSharpAppRuntime(IGrainFactory grains) : IAppRuntime
 {
-    public async Task Deploy(string appKey, Dictionary<string, string> sources, Dictionary<string, string> configuration, CancellationToken cancellationToken)
-        => await Programs(appKey).Assign(appKey, sources, configuration).WaitAsync(cancellationToken);
+    public async Task<IReadOnlyDictionary<string, string>> Deploy(string appKey, Dictionary<string, string> sources, Dictionary<string, string> configuration, CancellationToken cancellationToken)
+    {
+        var program = await Programs(appKey).Assign(appKey, sources, configuration).WaitAsync(cancellationToken);
+        var prefix = appKey + "/";
+        return program.Behaviors.Where(behavior => behavior.Id.StartsWith(prefix, StringComparison.Ordinal))
+            .ToDictionary(behavior => behavior.Id[prefix.Length..], behavior => behavior.Hash, StringComparer.Ordinal);
+    }
 
     public async Task Retire(string appKey, CancellationToken cancellationToken)
         => await Programs(appKey).Retire(appKey).WaitAsync(cancellationToken);

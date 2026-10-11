@@ -34,6 +34,11 @@ Invoking "say" in a circle adds the line to the transcript of every member brain
 ## Scenario: The slider sets the compute share
 
 Releasing the slider at 10 sets the selected circle's share to 10 percent; the surface shows it next to the fixed line "Platform share: 25%".
+
+## Scenario: Sharing an app lists it on the circle
+
+Invoking "share" with "friends calculator" lists calculator under the circle's shared apps; naming an app this
+brain does not have is refused on the status line and shares nothing.
 */
 
 using DigitalBrain.Apps;
@@ -41,7 +46,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "circle";
-    public const string Version = "1.0.0";
+    public const string Version = "1.0.2";
 
     public static readonly AppManifest Manifest = new(
         Title: "Circle",

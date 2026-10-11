@@ -27,6 +27,11 @@ Invoking "read" with a file path shows the file's text; a `.cs` file is shown in
 
 Reading `...\settings\open.cs` shows the installed `settings` app's version, status and recent activity above the source;
 in any other folder only the source is shown.
+
+## Scenario: Without a PC the surface says so
+
+With no `windows` connection, "open" still composes the surface and opens the window; "browse" lists nothing (no ".."
+entry) and "read" shows no text, and both say "No Windows PC is connected. Connect one and allow a folder."
 */
 
 using DigitalBrain.Apps;
@@ -34,7 +39,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "files";
-    public const string Version = "1.0.0";
+    public const string Version = "1.0.2";
 
     public static readonly AppManifest Manifest = new(
         Title: "Files",

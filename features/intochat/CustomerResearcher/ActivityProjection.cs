@@ -1,24 +1,23 @@
-using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json;
-using System.Threading.Tasks;
-using DigitalBrain.Client;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Card;
 using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Tabs;
-using DigitalBrain.Flutter.Text;
 
-// The activity projection reads the durable queue neuron: every pending company as Queued or
-// Running, and the most recent outcomes. It is rebuilt whole from that state on every change.
+// The activity projection derives the queue from its durable facts: every open company as Queued or
+// Running, and the most recent outcomes. Each rebuild computes the whole view from those facts; card keys
+// are request ids, so a rebuild never duplicates a card. The queue neuron is written last and records what
+// was projected, so a rebuild writes only the cards and layout that differ from it.
 public static class Activity
 {
     static readonly JsonSerializerOptions json = new(JsonSerializerDefaults.Web);
 
+    sealed record Card(string Id, string Title, string Body);
+
     public static async Task Project(DigitalBrainConnection brain, string key)
     {
-        // A stale revision means another synapse's rebuild just wrote newer derived state; a rebuild
-        // reads authoritative state, so rerunning it from scratch is correct.
+        // A stale revision means a layout was written meanwhile; a rebuild reads authoritative state,
+        // so rerunning it from scratch is correct.
         for (var attempt = 1; ; attempt++)
         {
             try { await Rebuild(brain, key); return; }
@@ -28,36 +27,25 @@ public static class Activity
 
     static async Task Rebuild(DigitalBrainConnection brain, string key)
     {
-        var queue = brain.Get<IText>(key + "/queue");
-        var active = brain.Get<IText>(key + "/active-research");
+        var records = ResearchState.Derive(
+            await ResearchState.ReadRequests(ResearchState.Requests(brain, key)),
+            await ResearchState.ReadCancellations(ResearchState.Cancellations(brain, key)),
+            await ResearchState.ReadOutcomes(ResearchState.Outcomes(brain, key)),
+            (await ResearchState.Active(brain, key).Read()).Markdown);
+        var queue = ResearchState.Queue(brain, key);
+        var projected = (await queue.Read()).Markdown;
+        var cards = View(records);
+        var before = View(Parse(projected)).ToDictionary(card => card.Id);
+        foreach (var card in cards.Where(card => before.GetValueOrDefault(card.Id) != card))
+        { await brain.Get<ICard>(Name(key, card.Id)).Set(card.Title, card.Body); }
+
+        var children = cards.Select(card => new UiChildRef(UIVocabulary.CardType, Name(key, card.Id))).ToArray();
         var layout = brain.Get<ILayout>(key + "/research-activity");
-        var text = (await queue.Read()).Markdown;
-        var records = text.Length == 0 ? [] : JsonSerializer.Deserialize<QueuedResearch[]>(text, json) ?? [];
-        var activeId = (await active.Read()).Markdown;
-        var pending = records.Where(item => item.Status is "pending" or "running").ToArray();
-        var recent = records.Where(item => item.Status is not ("pending" or "running")).Reverse().Take(20).ToArray();
-        var children = new List<UiChildRef>();
-        await Add("summary", "Research activity", records.Length == 0
-            ? "No research yet. Enter a company above and choose Research."
-            : $"{pending.Length} pending · {recent.Length} recent outcomes. Saved company records remain available.");
-        foreach (var item in pending.Concat(recent))
+        if (children.Length <= 128)
         {
-            var state = item.Status == "running" ? "Running"
-                : item.Status == "pending" ? (item.Id == activeId ? "Running" : "Queued")
-                : item.Status == "failed" ? "Failed"
-                : item.Status == "stopped" || item.Outcome?.StartsWith("Stopped", StringComparison.Ordinal) == true ? "Stopped"
-                : "Completed";
-            var detail = item.Status is "pending" or "running"
-                ? (state == "Running" ? "Research is in progress in the browser below." : "Waiting for earlier research.")
-                : item.Outcome ?? "Finished.";
-            if (item.Status == "failed" || state == "Stopped")
-            { detail += "\nEnter this company above and choose Research to retry."; }
-            var title = string.IsNullOrWhiteSpace(item.Query) ? "Missing company name" : item.Query.Trim();
-            await Add(item.Id, title, state + "\n" + detail);
-        }
-        if (children.Count <= 128)
-        {
-            await layout.Set(new("list", children.ToArray()), (await layout.Read()).Revision);
+            var current = await layout.Read();
+            if (current.Definition is not { Mode: "list" } shown || !shown.Children.SequenceEqual(children))
+            { await layout.Set(new("list", children), current.Revision); }
         }
         else
         {
@@ -78,13 +66,45 @@ public static class Activity
             await layout.Set(new("column", [children[0], new(UIVocabulary.TabsType, tabsKey)], Extents: [80, 0]),
                 (await layout.Read()).Revision);
         }
+        var next = JsonSerializer.Serialize(records, json);
+        if (next != projected) { await queue.Set(next); }
+    }
 
-        async Task Add(string id, string title, string body)
+    static string Name(string key, string id) => key + "/research-activity/" + id;
+
+    static QueuedResearch[] Parse(string markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown)) { return []; }
+        try { return JsonSerializer.Deserialize<QueuedResearch[]>(markdown, json) ?? []; }
+        catch (JsonException) { return []; } // an older shape is simply not a projection to compare with
+    }
+
+    static Card[] View(QueuedResearch[] records)
+    {
+        var pending = records.Where(item => item.Status is "pending" or "running").ToArray();
+        var recent = records.Where(item => item.Status is not ("pending" or "running")).Reverse().Take(20).ToArray();
+        var summary = new Card("summary", "Research activity", records.Length == 0
+            ? "No research yet. Enter a company above and choose Research."
+            : $"{pending.Length} pending · {recent.Length} recent outcomes. Saved company records remain available.");
+        return [summary, .. pending.Concat(recent).Select(item =>
         {
-            var name = key + "/research-activity/" + id;
-            await brain.Get<ICard>(name).Set(title, body);
-            children.Add(new(UIVocabulary.CardType, name));
-        }
+            var state = item.Status switch
+            {
+                "running" => "Running",
+                "pending" => "Queued",
+                "failed" => "Failed",
+                "stopped" => "Stopped",
+                _ => "Completed",
+            };
+            var detail = state switch
+            {
+                "Running" => "Research is in progress in the browser below.",
+                "Queued" => "Waiting for earlier research.",
+                _ => item.Outcome ?? "Finished.",
+            };
+            if (state is "Failed" or "Stopped") { detail += "\nEnter this company above and choose Research to retry."; }
+            var title = string.IsNullOrWhiteSpace(item.Query) ? "Missing company name" : item.Query.Trim();
+            return new Card(item.Id, title, state + "\n" + detail);
+        })];
     }
 }
-

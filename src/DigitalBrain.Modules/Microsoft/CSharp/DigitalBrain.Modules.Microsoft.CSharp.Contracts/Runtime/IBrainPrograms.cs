@@ -9,9 +9,12 @@ namespace DigitalBrain.Microsoft.CSharp.Runtime;
 [Alias("microsoft.csharp.programs"), DefaultGrainType("microsoft.csharp.runtime")]
 public interface IBrainPrograms : IGrainWithStringKey
 {
-    Task<ProgramView> Assign(string owner, Dictionary<string, string> sources, Dictionary<string, string> settings);
+    // Interleaved: compiling and storing touch none of the runtime's state, so its other calls go on meanwhile;
+    // the compiled program is applied in a turn of its own.
+    [AlwaysInterleave] Task<ProgramView> Assign(string owner, Dictionary<string, string> sources, Dictionary<string, string> settings);
     Task Retire(string owner);
-    [ReadOnly] Task<ProgramView?> Describe(string owner);
+    // A pure read: it never waits for a turn in progress.
+    [AlwaysInterleave] Task<ProgramView?> Describe(string owner);
 }
 
 [GenerateSerializer, Alias("microsoft.csharp.program-view")]

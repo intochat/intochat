@@ -137,11 +137,14 @@ public sealed class FeatureCatalog
         return new(bundles, [.. failures]);
     }
 
-    // The same gate AppNeuron.Publish applies; a host without a sandbox cannot check and does not.
+    // The same gate AppNeuron.Publish applies: the synapse shape always (it is syntax), the compile only
+    // where a sandbox can check.
     private static async Task RequireCompiles(string owner, AppBundle bundle, IScriptSandbox? sandbox)
     {
         var scripts = bundle.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal))
             .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
+        if (SynapseShape.Check(scripts) is { Length: > 0 } shape)
+        { throw new InvalidOperationException($"{owner}/{bundle.Name} {bundle.Version} is not shaped as synapses: " + SynapseShape.Describe(shape)); }
         if (scripts.Count == 0 || sandbox is null) { return; }
         scripts[AppFiles.DeclarationPath] = AppDeclaration.Write(new(bundle.Name, bundle.Version, bundle.Manifest, bundle.Spec));
         ScriptCompilationCheck check;

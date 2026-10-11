@@ -57,6 +57,36 @@ public sealed class CpuMeteringFacts
         Assert.Equal(trace.TraceId, recorded.TraceId);
     }
 
+    // Pricing observes a run: a ledger that is slow to answer must not hold the acknowledgement, or every other
+    // call of the brain's runtime waits behind it.
+    [Fact]
+    public async Task ASlowMeterDoesNotHoldTheAcknowledgement()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var meter = new RecordingMeter();
+        await using var brain = await StartAsync(new FakeSessionHost(), meter, ct);
+        var runtime = RuntimeBrain.Edge(brain, Acc);
+        await RuntimeBrain.Programs(brain, Acc).Assign(Owner, Synapse(), []);
+        var session = (await Runtime(brain).Inspect(ct)).SessionId!;
+        await runtime.Connected(session, RuntimeBrain.Fingerprint(brain));
+        var source = brain.Get<IPinger>("metered");
+        var subscription = await runtime.Subscribed(session, Behavior, source.GetGrainId().ToString(), nameof(Pinged));
+        await using var changes = await brain.Observe<BrainRuntimeChanged>(Runtime(brain), ct);
+        await source.Ping(1);
+        await changes.NextAsync(ct: ct);
+        meter.Hold = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        try
+        {
+            var within = brain.Execution.AssertionTimeout;
+            await runtime.AcknowledgeMany(session, [new AcknowledgeReport(subscription, 1, 1_000)]).WaitAsync(within, ct);
+            Assert.Empty(await runtime.PendingBatches(session).WaitAsync(within, ct));
+        }
+        finally { meter.Hold.TrySetResult(); }
+
+        Assert.Equal($"{subscription}:1", Assert.Single(meter.Calls, call => call.Kind == CostKind.Script).CostId);
+    }
+
     private static Dictionary<string, string> Synapse()
         => new(StringComparer.Ordinal) { ["synapses/a.cs"] = RuntimeBrain.Idle };
 
@@ -72,11 +102,15 @@ public sealed class CpuMeteringFacts
     {
         public ConcurrentQueue<Recorded> Calls { get; } = new();
 
-        public ValueTask<Cost> RecordAsync(CostKind kind, string item, decimal quantity, string unit, Funding funding,
+        // Once armed, a script cost is recorded and then answered only when released, as a busy ledger answers.
+        public TaskCompletionSource? Hold { get; set; }
+
+        public async ValueTask<Cost> RecordAsync(CostKind kind, string item, decimal quantity, string unit, Funding funding,
             string costId, CancellationToken cancellationToken, CostSubject? subject = null)
         {
             Calls.Enqueue(new Recorded(kind, item, quantity, unit, funding, costId, TraceContext.Current?.TraceId, subject));
-            return ValueTask.FromResult(new Cost
+            if (kind == CostKind.Script && Hold is { } hold) { await hold.Task; }
+            return new Cost
             {
                 TraceId = TraceContext.Current?.TraceId ?? "",
                 CostId = costId,
@@ -85,7 +119,7 @@ public sealed class CpuMeteringFacts
                 Quantity = quantity,
                 Unit = unit,
                 Micros = 0,
-            });
+            };
         }
     }
 }

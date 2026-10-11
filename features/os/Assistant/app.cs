@@ -4,33 +4,53 @@
 The brain's conversational assistant. A message runs one agent turn through the brain's agent
 runner with the assistant's system prompt and tools (capability discovery, neuron inventory,
 forms and views). The transcript shows each message, the tools the turn used and the answer.
-Conversations are durable; "new" starts another one. Opening docked answers the same surface for
-the shell's side panel without opening a window.
+Conversations are durable; "new" starts another one. Opening docked composes the same surface for
+the shell's working area without opening a window.
 
 Before a message reaches the language model, Jev (the router) reads it against the contract catalog.
 Sending asks the router and ends; the router answers with a `Routed` signal carrying the request id,
 and a second reaction carries the answer out, so a slow model never holds a message. A message
-longer than 2000 characters skips Jev and goes straight to the model.
-A route the router is at least `RouteGate` (default 0.8) sure of, and that names an app operation
-(the route carries the app and operation) or a pure read, is carried out
-directly through the router; the status line shows the route and its outcome, and no language model
-turn runs. Any other route runs the agent turn as usual, with the likely capabilities appended to
-the system prompt. Either way the `Routed` signal shows which path answered.
+longer than 2000 characters skips Jev and goes straight to the model, and the status line says so.
+The surface's composer is the other way in: its submission starts the turn in the selected
+conversation directly (no Jev), is settled once the turn starts, and clears the status line.
+A route the router is at least `RouteGate` (default 0.8) sure of, and that opens an app or is a pure
+read, is carried out directly: the app's "open" is requested (the route Jev decided, never decided
+again), a pure read goes through the router. The status line shows the route and its outcome, and no
+language model turn runs. Jev is often confident about the wrong app, so a route to any operation of
+an app the message does not name (by its name or its title) is never carried out: the status line says
+the message does not name the app, and the model answers the message itself with Jev's guess only as a
+weak hint. Any other operation of a named app needs its input filled from the message (Jev would post
+the whole message, so "add 17+25 with the calculator" would reach "add" as that sentence), so the
+model answers with the route as a hint: it posts the request with the input the operation expects and
+reads the app's answer neuron. A route that names the assistant's own
+operations is never carried out: a message sent to the assistant is the model's to answer, so it
+never loops back into "send" or reopens the window. Any other route runs the agent turn as usual, with
+the likely capabilities appended to the system prompt. Either way the `Routed` signal shows which path answered. A turn that
+cannot start (a response is already running, the Model setting names an unavailable model) says so
+on the status line and later messages still work; a message that arrives while a response is
+running is put into the composer's draft when the draft is empty, so sending it again is one click.
 
 ## Scenario: Opening the assistant composes its surface
 
 Invoking "open" answers a window titled "Assistant" whose surface holds the transcript, the draft
 field and the send and new-conversation buttons.
 
-## Scenario: Opening docked answers the surface without a window
+## Scenario: Opening docked composes the surface without a window
 
-Invoking "open" with "docked" answers id "assistant-docked", the same surface and docked true.
+Invoking "open" with "docked" composes the same surface for the shell's working area and leaves the
+assistant window as it was: a closed window stays closed.
 
 ## Scenario: The dock is the assistant's toolbar
 
 The manifest's toolbar is a text field for "send" and a mic button for "voice". Submitting the
 field posts "send" with the text; the transcript shows the answer. The shell renders this toolbar
 as its assistant island; nothing in the shell is assistant-specific beyond the cat it draws beside it.
+
+## Scenario: The dock's mic begins a voice message
+
+Invoking "voice" composes the surface and begins a voice capture on the composer under the request
+id (its voice status is "recording"). Audio the composer captures for it is transcribed into the
+draft; a failed transcription leaves the draft unchanged and says so.
 
 ## Scenario: A message is answered in the transcript
 
@@ -54,14 +74,35 @@ message is answered normally in the same conversation.
 
 ## Scenario: A confident route answers without the language model
 
-Sending "open calculator" while Jev routes it to `IApp.Request` with confidence above `RouteGate`
-dispatches the request through the router: the calculator window opens, the status line names the
-route and its confidence, and no turn is added to the transcript.
+Sending "open calculator" while Jev routes it to calculator.open with confidence above `RouteGate`
+requests the calculator's "open": the calculator window opens, the status line names the route and
+its confidence, and no turn is added to the transcript.
+
+## Scenario: An app operation that needs input is answered by the model
+
+Sending "Use the calculator to add 17+25 and tell me the sum" while Jev routes it to calculator.add
+posts nothing directly: the status line says the model fills the input, and the model requests
+"add" with "17+25", reads the calculator's sum neuron and answers 42 in the transcript.
+
+## Scenario: A route back into the assistant is answered by the model
+
+Sending "hello" while Jev routes it to one of the assistant's own operations (for example
+assistant.open) carries nothing out: the status line says Jev pointed back at the assistant and the
+model answers in the transcript.
+
+## Scenario: A route to an app the message does not name is answered by the model
+
+Sending "Use your tools to look up which apps are installed" while Jev routes it to another app's
+operation (for example router.ask) posts nothing to that app: the status line names the suggested
+route and says the message does not name the app, and the model answers in the transcript, its
+steps showing the tools it used.
 
 ## Scenario: An unsure route runs the agent turn with Jev's hints
 
 Sending a message Jev routes with confidence below `RouteGate` runs the agent turn; the turn's
 system prompt ends with the likely capabilities Jev named, and the status line says Jev was unsure.
+A message for which Jev finds no capability at all runs the agent turn without hints, and the
+status line says Jev was unsure because nothing fits (never that Jev was unavailable).
 
 ## Scenario: Jev being unavailable never blocks a message
 
@@ -85,6 +126,10 @@ Restart always reconstructs from neurons; no cache owns conversation state.
 Invocation handlers select their operation names before reading pending work. Surface composition
 handles open; conversation commands handle send, transcript and new. Both recover their own pending
 operations on startup and still check durable state before handling a matching live notification.
+Delivery is at-least-once and a fresh subscription is seeded with the app's retained requests, so every
+request synapse keeps the ids it has handled in a ledger text of its own (`handled/{synapse}`) and skips
+a replayed id: an old "open" never reopens a window the person closed, an old "new" never reselects its
+conversation, an old "voice" never begins a finished capture again, and Jev is asked once per message.
 
 An operation failure settles that invocation with an understandable error and does not stop later
 commands. A transcript exceeding the app response limit directs the caller to read the full
@@ -97,7 +142,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "assistant";
-    public const string Version = "1.7.1";
+    public const string Version = "1.8.1";
 
     public static readonly AppManifest Manifest = new(
         Title: "Assistant",

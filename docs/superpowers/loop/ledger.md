@@ -1,0 +1,109 @@
+# Forking-loop ledger
+
+The dev loop's record: wishes, defects, gate wishes and hourly progress. Orchestrator-owned.
+Plan: `docs/superpowers/plans/2026-10-11-forking-loop-mvp.md`. Spec: `docs/superpowers/specs/2026-10-11-forking-loop-design.md`.
+
+## Gates
+
+The user pre-decided G1–G11 at kickoff (2026-10-11 06:30, "don't ask me for any approval"): each gate takes
+its **recommended default** from the plan's gate table. G7 (cross-brain memory) and G9 (live cross-app
+indexing) are open design fronts, so their recommended default is "not built". G8: the fast path's retrieval
+lives in the Apps module and ranks by embedding similarity plus run history (user hint: "picks the best
+synapse based on history"). G11: focus comes from the caller.
+
+New gates found during the run are listed under **Open gates** and are not built.
+
+## Decisions taken under "recommended" (details of approved gates)
+
+| Gate | Decision |
+|------|----------|
+| G1 | `{brain}/runs` (`IBrainRuns`, no read methods for the MVP); one one-way call per ack/push; journaled through one new protected multi-signal Framework API (G1a: each fact keeps its own batch trace). |
+| G2 | `WriteSynapse` dedupes through `AppState.Synapses[]` and writes no receipt; `CompleteSynapse` is `[Internal]` and records success and rejection; `IAppRuntime.Deploy` returns the program so `SynapseWritten.Hash` joins run facts. |
+| G3 | Reuse the existing `IEmbeddingModel : INeuron` (AI.Contracts/Media): no new embedding contract. |
+| G4 | `IVectorIndex` in AI.Contracts/Embeddings, `VectorIndexNeuron` in the AI module, keyed `{brain}/memory/{name}`. |
+| G8 | Fast-path retrieval in the Apps module: embeddings (default generator) + word fallback, boosted by run history; corpus = this brain's apps + `./features`. Fork-first above a match threshold. |
+| G10 | `FileWritten(Path, Length)` from `IFileSystem.Write` only. |
+| L0 | `SynapseShape` is a static syntax check in the Apps module (no contract change). `CustomerResearcher/research.cs` (two loops under `Task.WhenAny`) is rewritten into one-reaction synapses, because CLAUDE.md already ratifies "a synapse is one reaction". SelfImprove `failed/healthy/verified.cs` nest an inner `await foreach` (allowed as an inner loop). |
+| 0.16 | Memory's unbound `tables` slot falls back to the per-brain database policy (no connection needed). |
+| G12 | Features hot reload: `POST /apps/{name}/update` and install re-read the feature from disk (committed 384c8cffa; it is what the plan's redeploy rule assumed). |
+
+## Open gates (new; not built — for the user)
+
+| Id | Gate | Blocks |
+|----|------|--------|
+| P1 | **Privacy scope contract** (decision 13): no privacy flag exists in code (federation spec Q7 says per app). Where does it live, which option names the private-scope local model, and does retrieval embedding follow it (dev default embedder is cloud OpenAI)? | Fast path's model-by-scope step and `APrivateScopeWithoutALocalModelIsRejected`; private-scope retrieval (G16). |
+| G13 | May the loop create a second local test account/brain on the Open-posture localhost? | Circle "invitation" and "spoken anywhere" scenarios, CircleRoom membership. |
+| G14 | May the loop create a `windows` connection to this PC? | All four Files scenarios; M3 volumes on this machine. |
+| G15 | SelfImprove request/verify/promote start candidate clusters and restart live resources (`aspire resource restart`), which conflicts with "restarts only between verification windows". | SelfImprove scenarios except open. |
+| G16 | Embedding model under privacy scope for G8 retrieval (default is cloud `ITextEmbedding3Small`). | Private-scope retrieval. |
+| NG-1 | Draft candidate identity after Submit: plan B keys drafts by draft id, current code keys candidates by commit sha (`DeploymentNeuron.Reconcile`, `Orphans`, `LiveBuildFile`). | Task 6 (candidate drafting), Demo 2. |
+| NG-2 | No contract can create or edit new/non-C# files in a draft worktree (`IRoslyn` edits only existing documents). A new module needs csproj/slnx/Mcp.csproj edits. | Task 8 (Module Builder), Demo 2. |
+| NG-3 | `IRoslyn` has no lifecycle call (Close); a whole-repo MSBuildWorkspace is held in a live silo. | Task 7. |
+| NG-4 | Live-build mode: the AppHost is source-booted, so a promotion restarts silos on the old source while the candidate is marked Promoted. | Demo 2. |
+| NG-5 | `refs/digitalbrain/live` (5b6d6ac) was advanced by another session's `.digitalbrain/worktrees/a3` and is not an ancestor of os-runtime; every promotion from this checkout fails at Commit. Resetting it affects that session. | Demo 2. |
+| K1b | Feature map K1 remainder "Features gain program hash + behaviors" (kernel `Feature` record) is not in any task. Drop or schedule? | — |
+| SUB | Subscriptions skip access policy (RuntimeEdge stamps no caller on subscribe), so a script in brain B could subscribe to `{brainA}/runs`. Part of the open front "cross-app subscription scopes". | Run-fact privacy across brains. |
+| G6b | A personal brain's own machines: `IIdentityClient.MachinesOf` lists only circle-contributed machines; no API lists an account's bound devices. | "Storage across my devices" (persona 4). |
+| G5b | Per-machine volumes need a neuron pinned to each machine (WindowsFacts is answerable only by that machine's silo with a windows connection). | M3. |
+| UI1 | Only `chart` has a Flutter renderer; Tree/Graph/Map/Progress show "Not supported yet". | M3 device → volume tree. |
+| G10b | External file changes (outside `IFileSystem.Write`) produce no signal without a watcher on the machine's silo. | "notes folder" wish. |
+| T20-9b → **R144** | **Ruled 10:45 by the brain-as-data owner session ("Brain as data implementation (Task 14)"): option (b).** A machine that receives a reminder tick for a neuron whose part it does not hold drops it (no journal entry, no signal, a debug log with part + holder). One reminder table per brain stays (R61, R107). Also: `PartActivations.Release` deactivates the stateless activations tied to the part (e.g. TimerNeuron), not only `log.GrainIds`. Facts: "A tick for a part held by another machine is dropped", "After a release the new holder fires the next tick". The wt/reminder candidate (option c) is not merged. | wave 2b builder |
+
+## Entries
+
+| # | When | Kind | Source | What | Status |
+|---|------|------|--------|------|--------|
+| 1 | 08:33 | defect | orchestrator | Three empty files committed at the repo root (`DigitalBrain.Modules.Microsoft.Playwright.Tests.csproj`, `PageToolsFacts.cs`, `PlaywrightNeuronFacts.cs`) made `dotnet run digitalbrain.cs` load a broken csproj (MSB4025). | fixed b7bc1824b |
+| 2 | 08:36 | defect | live boot | Every MCP call failed: `identity.principal.v2/owner` could not deserialize (`UnsupportedWireTypeException`) because 5d649969a changed `PrincipalState.Brains` from `string[]` to `BrainEntry[]` under the same `[Id(3)]`. A breaking authored-state reshape with no migrations (policy: breaking changes restart), so this AppHost's dev storage volume was wiped once. Not a derived-state wipe. | resolved (one-off wipe) |
+| 3 | 08:40 | defect | live boot | On a fresh store `BrainRuntimeNeuron.ListeningUrl()` threw out of `Assign` because the brain was created before the silo listened; OS default `settings` logged "did not install" and no session started until the reconcile reminder. Fix: the session waits for the reminder instead of failing Assign. | in K1 builder (wt/k1) |
+| 4 | 08:50 | defect | orchestrator | `FeatureCatalog` cached ./features at boot; `POST /apps/{name}/update` never saw edits on disk (the plan's redeploy rule assumed it did). | fixed 384c8cffa (seen live) |
+| 5 | 08:45 | defect | live | `GET /shell/state` 500: the shell state key `shell-{digest}` lay outside every brain, so the part log had no owning account (since the OS silo became a Role=Own machine, 2026-10-10). Fix: key `{brain}/shell/{digest}`. | built (wt/shell), merged in main, awaiting restart + live check |
+| 6 | 08:47 | defect | live restart | `OperatingSystem-a` exited at boot: first QUIC dial to `trust` failed "unreachable host" in `TrustDeployment.Load` at BecomeActive; MCP waited on it. Manual start succeeded. | in boot debugger (wt/boot) |
+| 7 | 09:40 | defect | sweep: calculator, datavisualizer, selfimprove | **`BrainRuntimeNeuron` (`{brain}/runtime`) is a serialization hotspot**: `IBrainRuntimeEdge.Identity` timed out at 30 s (NonReentrancyQueueSize=14), an `IButton.Click` span took 13 s waiting on `INeuronObserver`, app requests took 7–30 s, and a signal whose live nudge times out is not delivered until the source publishes again; `SubscriptionGap` warnings on calculator keys. | wave 2 (after K1 merges, same file) |
+| 8 | 09:40 | defect | sweep: datavisualizer | `Signal.Publisher.Name` is null in scripts: `NeuronId` (readonly record struct, get-only `Name`, no `[JsonConstructor]`) does not round-trip through the client's `JsonSerializerOptions.Web`. Synapses matching on publisher crashed (NRE). | wave 2 |
+| 9 | 09:40 | defect | sweep: selfimprove | Two subscriptions from one behavior to the same (neuron, signal type) share one subscription id and one SingleReader channel; the second reader cancels the first (`OperationCanceledException`). Hits `Sources.Named`. | wave 2 |
+| 10 | 09:40 | defect | sweep: datavisualizer | A behavior's subscribe to its own app table is refused (401 "A trusted brain and app caller is required"): the runtime's subscribe/Watch is not stamped with the behavior's caller (same root as gate SUB). `run-on-row*.cs` crash-loop. | wave 2 |
+| 11 | 09:40 | defect | sweep: datavisualizer | Reminder ticks fail to journal when the reminder fires on a silo that does not hold the app's part (`ServiceUnavailableException: Part … is held by machine …`). | wave 2 |
+| 12 | 09:40 | defect | sweep: datavisualizer | After an update the sandbox keeps reloading the replaced behavior's old hash (crash-loop interleaved with the new hash): a failed behavior is not retired on replace. | wave 2 |
+| 13 | 09:40 | defect | sweep: settings | Installed `settings` has `origin = null` (it half-installed in the boot race, entry 3), so `/update` answers 409; the driver's fix went in through `WriteBehavior` (Edited). | after restart: delete + reinstall settings from the folder |
+| 14 | 09:40 | defect | sweep: photocraft | `RouterNeuron.Best` trusts `SystemOneAnswer.Choice.Value` even when its probabilities contradict it, and throws "The System One model did not choose a capability" when the app tier answers "something else" although the second tier holds a match. | wave 2 |
+| 15 | 09:40 | defect | sweep: photocraft | Every agent run warns "Agent usage flush failed": `IIntentUsageSink` is not registered in the OS. | wave 2 |
+| 16 | 09:40 | defect | sweep: circleroom | `FeatureReconciler` returns early for circle brains, so a circle's shipped room never reaches the folder's version. | wave 2 |
+| 17 | 09:40 | defect (minor) | sweep | `GET /apps/{name}` answers 200 with a blank draft for an app that is not installed; `CircleNeuron.InviteCopy` only checks brain-id syntax; an update retried at the same version appended a duplicate versions entry. | backlog |
+| 18 | 09:40 | wish → gate | sweep: circleroom, circle | Birth a circle brain from the OS (HTTP/neuron over `IIdentityClient.CreateBrain(…, Circle)`); the requester's identity on `AppRequested`; a manifest brain-kind scope (circle-only apps). | gate (new contracts) |
+| 19 | 09:40 | wish → gate | sweep: calculator | An app-private key/value state neuron needing no connection (calculator's dedup ledger lives in an `IText`). | gate (new contract) |
+| 20 | 09:40 | wish → gate | sweep: files, settings, datavisualizer | A loopback/fake `windows` connection over a fixture folder; a credential-free way to emit `ConnectionsChanged`; a postgres connection for DataVisualizer `db`. | gate G14 |
+| 21 | 09:40 | wish → gate | sweep: filmcraft, photocraft | A headless page driver when no shell is attached; Flutter renderer for `image`; the page tool ranked over the headless MCP tool. | gate (UI / open front) |
+| 22 | 09:40 | wish → gate | sweep: selfimprove | `CandidateSnapshot` carries the worktree path; `ICandidates.Propose` takes an idempotency key. | gate (with G15) |
+| 23 | 09:45 | defect (toolchain) | orchestrator | `csharp-ls` 0.28 runs on .NET 10: MSBuildLocator registers only SDK 10.0.401 while `global.json` pins 11.0.100-rc.1, so every workspace/document query is empty (also with `DOTNET_ROLL_FORWARD=Major`). Builders map with codegraph + text cross-check, and use warnings-as-errors builds as diagnostics. Needs a language server built for .NET 11 (newer csharp-ls or roslyn-ls). | open (user's toolchain) |
+| 24 | 10:45 | defect (peer) | restart | The SV session's 9 new Aspire parameters were in user secrets as `Parameters:intochat-*`, but the AppHost resolves `Parameters:Modules-*`: every OS resource waited on ValueMissing. Placeholders set under the `Modules-*` names. | resolved |
+| 25 | 11:05 | defect (peer) | restart | SV modules (Monnet, Twilio) activated index grains keyed by raw provider ids (`monnet.merchant-index/{merchantId}`, `twilio.account-index/{sid}`) from silo startup tasks: keys outside every brain → "has no owning account" → both OS silos exited at boot. Fixed by the SV session (deployment auth method, brain-scoped webhooks, no index grains). Latent same shape: `IGmailMailboxIndex` (raw email). | fixed by peer (11:15) |
+| 26 | 11:17 | defect | orchestrator using the fast path | First live fast-path request ("when the calculator sum text changes, write the sum doubled…") was recorded Rejected in 2.5 s: "The model IDeepSeekV41Flash did not answer: Brain default has no owning account yet". `ModelAddress.Resolve` keys every model neuron `default`; `LlmNeuronBase` journals InferenceStarted/Completed into that key's part, which no brain owns on an owner machine. Affects the fast path, the Creator, GroupChat and scripts using `ILLM` "default". The fast path itself worked end to end: request recorded, job ran off-turn, rejection recorded in app state. | builder (wt/modelkey) |
+| 27 | 11:16 | defect | orchestrator | `DELETE /brains/owner/apps/settings` answered 200, but a following `POST …/marketplace/os/settings/install` is refused "You already have an app named settings": delete does not clear the manifest, so an app cannot be reinstalled (the repair path for entry 13). | backlog |
+| 28 | 11:30 | defect | verify:k1 skeptics (2/3 refuted) | `BehaviorRan`/`BehaviorSubscribed` Information logs never reach telemetry: ServiceDefaults sets the minimum level to Warning and the OS had no rule raising `DigitalBrain.Microsoft.CSharp.Runtime`. The fast-path metric reads "Running" from that log. Fix: OS `appsettings.json` `Logging:LogLevel:DigitalBrain.Microsoft.CSharp.Runtime = Information`. | fixed in main, live at next restart |
+| 29 | 11:30 | defect (design) | verify:k1 skeptic | A synapse on the operation overload `brain.On(app, "op")` receives every `AppRequested` of its app and skips other operations client-side, but each skip is acked and counted as a Succeeded run, so run counts (and the fast path's history ranking) are inflated for multi-operation apps. Needs server-side operation filtering on the subscription or a "skipped" ack. | gate (subscription contract) |
+| 30 | 11:30 | defect | verify:fastpath skeptic + rtA | `UsageGrain` (`usage/{brain}`) rewrites a 5,000-entry Recent ring on every `Add`; every metered cost queues there (0.1–5 s per Add). A fast-path request spent 20 s in node.place / ILedger.Charge / IUsageGrain.Add before reaching the model. | builder (wt/usagegrain) |
+
+## Progress
+
+### 09:50 (1 h 20 m in)
+
+**Done and verified live:** OS boots clean on fresh storage (all resources Healthy); `dotnet run digitalbrain.cs` fixed (b7bc1824b); features hot reload through `/update` (384c8cffa, seen live refusing a broken bundle and later deploying the sweep's fixes). Task 0 preflight answered (plan updated). App sweep, first pass (drivers + 3 skeptics each, ≥2 refutes sends back): word-count 3/3 passed; calculator 8/8; photocraft 7/7; settings 6/6 (+1 blocked G14); datavisualizer 8/10 (2 blocked); circle 4 passed / 2 blocked G13; files 1 passed / 4 blocked G14; selfimprove 2 passed / 5 blocked G15; filmcraft 2 passed / 1 blocked (needs a rendering shell); circleroom 1 blocked G13. No scenario has been refuted by 2+ skeptics so far.
+
+**Built, awaiting the next restart + live verification:** shell state key inside the brain (entry 5), trust QUIC listener health check (entry 6), `IVectorIndex` + `FileWritten` (G4, G10), Memory M1. K1 run facts and the fast path are in review/build.
+
+**Open:** the runtime throughput defect (entry 7) is the top OS-health item for wave 2, together with entries 8–16. Demo 2 (Tasks 6–9) is blocked by NG-1…NG-5. Gates waiting on the user: P1, G13–G16, NG-1…NG-5, K1b, SUB, G5b, G6b, UI1, G10b and the wish-gates 18–22.
+
+### 11:40 (3 h 10 m in)
+
+**Committed (verified live unless marked):** b7bc1824b root csproj; 384c8cffa features hot reload; fa89634fa shell state inside the brain; 94f15f30c trust QUIC health check (boot crash); 3b9f45a10 IVectorIndex (G4); f916aed49 sandbox stale reload; 3bab7d710 FileWritten (G10, *not seen live: G14*); 586a257a0 circle reconcile (*not seen live: G13*).
+
+**Merged in the main tree, verified live, commit pending a buildable order:** agent streaming coalescing (3 ok), agent usage-sink removal (3 ok), NeuronId JSON (ok so far), router Best/"something else" (pending).
+
+**Back to the build queue (2+ refutations):** K1 run facts (the Information run-fact logs were filtered by ServiceDefaults; fixed by an OS logging rule, re-verify after restart; counts, spans, cost subjects and the runs recorder all verified live); fast path (model calls keyed `default` outside every brain → model-key fix built; 20 s metering latency → UsageGrain fix building); Memory M1 (IsSynapse self-match; M2 in progress); R144 (part-logged grains' ticks are forwarded on the outgoing path; builder resumed).
+
+**Built, in the next restart batch:** runtime throughput rework (rtA), shared subscription readers (rtB), router follow-ups (rtD), fast-path run history (rtE), model keys inside the brain. rtC (stamped subscribe) is being rebased onto rtA.
+
+**Sweep repairs:** Assistant, Router and CustomerResearcher repairs still running (skeptic refutations). Wave 3 (Engineer app, Memory M2) building/driving live.
+
+**Peers:** the SV-integrations session's wiring rides the OS (fixed its out-of-brain keys after it crashed boot twice); the brain-as-data owner ruled R144.

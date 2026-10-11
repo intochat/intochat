@@ -1,5 +1,7 @@
 using DigitalBrain.AI;
+using DigitalBrain.AI.Models;
 using DigitalBrain.AI.Models.OpenAI;
+using DigitalBrain.AI.Models.Signals;
 using DigitalBrain.Apps;
 using DigitalBrain.Apps.Signals;
 using DigitalBrain.Testing.Model;
@@ -43,6 +45,21 @@ public sealed class AppCreatorFacts
         Assert.Equal("Shouter", created.Manifest.Title);
         Assert.Equal(AppStatus.Drafted, created.Status);
         Assert.Contains("## Scenario: It shouts", created.Spec, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheAuthorsModelCallLandsInTheBrainOfTheApp()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await StartAsync(model, ct);
+        model.Script(Author, Authored(Spec));
+        var creator = brain.Services.GetRequiredService<Creator>();
+        await using var started = await brain.Observe<InferenceStarted>(brain.Get<IGpt56Luna>(ModelAddress.Key(Brain)), ct);
+
+        await creator.Author(brain.Services.GetRequiredService<IDigitalBrain>(), Brain, null, "An app that shouts back.", ct);
+
+        Assert.Equal($"{Brain}/models", (await started.NextAsync(ct: ct)).NeuronId);
     }
 
     [Fact]
@@ -193,7 +210,7 @@ public sealed class AppCreatorFacts
         await using var brain = await StartAsync(model, ct);
         model.Script(Author, Authored(Spec));
         model.Script(Builder,
-            FakeReply.Tool("check_csharp", """{"files":{"synapses/shout.cs":"var answer = 1;\nConsole.WriteLine(answer);"}}"""),
+            FakeReply.Tool("check_csharp", """{"files":{"shout.cs":"await using var brain = await DigitalBrainClient.ConnectAsync(args);\nawait foreach (var request in brain.On(brain.Get<DigitalBrain.Apps.IApp>(brain.Setting(\"App\")!), \"ask\", brain.Stopping)) { Console.WriteLine(request.Input); }"}}"""),
             Built("// proof v1", "Shout in capitals."));
         var creator = brain.Services.GetRequiredService<Creator>();
         var digitalBrain = brain.Services.GetRequiredService<IDigitalBrain>();
@@ -208,6 +225,29 @@ public sealed class AppCreatorFacts
     }
 
     [Fact]
+    public async Task TheBuildersCheckReportsASynapseThatIsNotOneReaction()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await StartAsync(model, ct);
+        model.Script(Author, Authored(Spec));
+        model.Script(Builder,
+            FakeReply.Tool("check_csharp", """{"files":{"shout.cs":"await using var brain = await DigitalBrainClient.ConnectAsync(args);\nvar app = brain.Get<DigitalBrain.Apps.IApp>(brain.Setting(\"App\")!);\nawait foreach (var a in brain.On(app, \"ask\", brain.Stopping)) { }\nawait foreach (var b in brain.On(app, \"ask\", brain.Stopping)) { }"}}"""),
+            Built("// proof v1", "Shout in capitals."));
+        var creator = brain.Services.GetRequiredService<Creator>();
+        var digitalBrain = brain.Services.GetRequiredService<IDigitalBrain>();
+        await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
+        var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
+        await using var changes = await brain.Observe<AppChanged>(app, ct);
+
+        await creator.Implement(digitalBrain, IApp.Key(Brain, "shouter"), null);
+
+        await changes.NextAsync(change => change.Status == AppStatus.Live, ct);
+        // The compiler accepted the file; the check still answers the shape the gates will refuse.
+        Assert.Contains(SynapseShape.SecondReaction, model.Requests(Builder)[1].ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AStaleWorkersOutcomePublishesNoActivity()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -216,7 +256,7 @@ public sealed class AppCreatorFacts
         await using var brain = await StartAsync(model, ct, sandbox, buildFreshForSeconds: 0);
         model.Script(Author, Authored(Spec));
         model.Script(Builder,
-            FakeReply.Tool("check_csharp", """{"files":{"synapses/shout.cs":"var answer = 1;"}}"""),
+            FakeReply.Tool("check_csharp", """{"files":{"shout.cs":"await using var brain = await DigitalBrainClient.ConnectAsync(args);\nawait foreach (var request in brain.On(brain.Get<DigitalBrain.Apps.IApp>(brain.Setting(\"App\")!), \"ask\", brain.Stopping)) { }"}}"""),
             Built("// stale", "Shout."));
         var creator = brain.Services.GetRequiredService<Creator>();
         var digitalBrain = brain.Services.GetRequiredService<IDigitalBrain>();

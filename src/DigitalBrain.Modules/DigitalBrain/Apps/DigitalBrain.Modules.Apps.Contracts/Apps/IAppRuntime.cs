@@ -5,6 +5,7 @@ namespace DigitalBrain.Apps;
 public interface IAppRuntime
 {
     // Compiles and runs the whole program; throws when it does not compile, leaving the previous program running.
-    Task Deploy(string appKey, Dictionary<string, string> sources, Dictionary<string, string> configuration, CancellationToken cancellationToken);
+    // Answers each synapse's assembly hash by path: the hash its run facts carry.
+    Task<IReadOnlyDictionary<string, string>> Deploy(string appKey, Dictionary<string, string> sources, Dictionary<string, string> configuration, CancellationToken cancellationToken);
     Task Retire(string appKey, CancellationToken cancellationToken);
 }

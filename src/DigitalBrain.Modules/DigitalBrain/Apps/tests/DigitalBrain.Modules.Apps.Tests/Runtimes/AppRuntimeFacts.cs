@@ -13,11 +13,12 @@ internal sealed class FakeAppRuntime : IAppRuntime
     public List<string> Retired { get; } = [];
     public Func<Dictionary<string, string>, Exception?>? Refuse { get; set; }
 
-    public Task Deploy(string appKey, Dictionary<string, string> sources, Dictionary<string, string> configuration, CancellationToken cancellationToken)
+    // Each deployed file's hash is "hash:{path}", so a fact can tell which file a hash names.
+    public Task<IReadOnlyDictionary<string, string>> Deploy(string appKey, Dictionary<string, string> sources, Dictionary<string, string> configuration, CancellationToken cancellationToken)
     {
         if (Refuse?.Invoke(sources) is { } error) { throw error; }
         Deployed.Add((appKey, new(sources, StringComparer.Ordinal), new(configuration, StringComparer.Ordinal)));
-        return Task.CompletedTask;
+        return Task.FromResult<IReadOnlyDictionary<string, string>>(sources.Keys.ToDictionary(path => path, path => "hash:" + path, StringComparer.Ordinal));
     }
 
     public Task Retire(string appKey, CancellationToken cancellationToken) { Retired.Add(appKey); return Task.CompletedTask; }
@@ -87,7 +88,9 @@ public sealed class AppRuntimeFacts
         await app.Create(new("Strict", "", [], [], []), "spec");
         await app.WriteBehavior("synapses/good.cs", "// ok", Guid.NewGuid());
 
-        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => app.WriteBehavior("synapses/bad.cs", "int x = \"no\";", Guid.NewGuid()));
+        // One reaction, so it passes the shape and reaches the runtime's compiler, which refuses it.
+        const string bad = "await foreach (var request in brain.On(app, \"ask\", brain.Stopping)) { int x = \"no\"; }";
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => app.WriteBehavior("synapses/bad.cs", bad, Guid.NewGuid()));
 
         Assert.Contains("CS0029", error.Message, StringComparison.Ordinal);
         Assert.Equal(["synapses/good.cs"], (await app.Read()).Files.Keys);

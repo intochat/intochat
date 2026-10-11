@@ -106,7 +106,8 @@ public sealed class AssistantGateFacts
             .WithModule<DigitalBrain.Tools.ToolsModule>().WithModule<DigitalBrain.Mcp.McpModule>().WithModule<DigitalBrain.Microsoft.Playwright.PlaywrightModule>();
 
     // Scripted Jev: the app tier picks the calculator's operation, the capability question picks
-    // `contractId`, the method question picks `method`.
+    // `contractId`, the method question picks `method`. The pick stays the most probable option at any
+    // confidence, as a consistent System One answers; the router reads the distribution, not the Value.
     private static string Choose(JsonElement request, string contractId, string method, double confidence)
     {
         var answers = new Dictionary<string, object>(StringComparer.Ordinal);
@@ -116,7 +117,8 @@ public sealed class AssistantGateFacts
             var pick = question.Name.StartsWith("app_", StringComparison.Ordinal)
                 ? (options.Contains("calculator.open", StringComparer.Ordinal) ? "calculator.open" : options[0])
                 : options.Contains(contractId) ? contractId : options.Contains(method) ? method : options[0];
-            var probabilities = options.ToDictionary(option => option, option => option == pick ? confidence : (options.Length > 1 ? (1 - confidence) / (options.Length - 1) : 0.0));
+            var probabilities = options.ToDictionary(option => option, option => option == pick ? confidence
+                : (options.Length > 1 ? Math.Min(confidence / 2, (1 - confidence) / (options.Length - 1)) : 0.0));
             answers[question.Name] = new { type = "choice", choice = pick, probabilities, confidence };
         }
         return JsonSerializer.Serialize(new { model = "fake-jev", answers });

@@ -9,7 +9,7 @@ public sealed record RouteRequest(
     [property: Id(2)] string[]? Allowed = null);
 
 // The router's record of one asked request: Routing until it is decided, then Routed with its
-// result or Failed with the error.
+// result (no result, and the reason in Error, when nothing fits) or Failed with the error.
 [GenerateSerializer, Alias("ai.pending-route")]
 public sealed record PendingRoute(
     [property: Id(0)] Guid Id,

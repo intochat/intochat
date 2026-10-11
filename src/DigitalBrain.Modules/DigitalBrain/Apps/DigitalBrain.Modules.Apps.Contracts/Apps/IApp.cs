@@ -43,6 +43,13 @@ public interface IApp : INeuron
     [ResponseTimeout("00:10:00")] Task Delete();
     // Publishes AppRequested for a synapse to react to. Nothing waits for it: the answer is neuron state.
     Task<Guid> Request(string operation, string input);
+    // The fast path: one sentence becomes one synapse of this app, written against the contracts of the focus
+    // neurons (keys of what the person is looking at). Records the request in Synapses and returns at once;
+    // the outcome lands there too, with SynapseWritten or SynapseRejected. A replayed operation id does nothing.
+    Task<AppSnapshot> WriteSynapse(string sentence, string[] focus, Guid operationId);
+    // The fast-path writer's outcome for a requested synapse, success and rejection alike: no errors after its
+    // WriteBehavior means written. Module code only; no edge caller writes an outcome.
+    [Internal] Task<AppSnapshot> CompleteSynapse(Guid operationId, string[] errors, long elapsedMs, int attempts, string? baseSynapse = null);
 
     static string Key(string brainId, string name) => $"{brainId}/apps/{name}";
 

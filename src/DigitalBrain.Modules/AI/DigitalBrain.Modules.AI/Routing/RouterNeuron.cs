@@ -27,6 +27,8 @@ internal sealed class RouterNeuron(
     private const int MaxSteps = 8;
     private const int MaxRequestChars = 2000;
     private const double Gate = 0.5;
+    private const string NotClear = "The request was not clear enough to route.";
+    private const string NeedsInput = "The operation needs input filled from the request, so it was not carried out directly.";
     private static readonly HashSet<string> NotCallable = ["Watch", "Unwatch"];
     private string Key => this.GetPrimaryKeyString();
     private string Scope => BrainKey.ScopeOf(Key) ?? Key;
@@ -54,8 +56,11 @@ internal sealed class RouterNeuron(
         try
         {
             var result = await Decide(asked.State, asked.Allowed, request => http.Ask(request, CancellationToken.None), CancellationToken.None);
-            settled = asked with { Status = "Routed", Result = result };
-            routed = new Routed(id, result.Contract, result.Method, result.Confidence);
+            // No route fits: the request is decided with no result (a result is a route, and its hint names it)
+            // and the reason, so a reader never shows an empty route as a likely capability.
+            (settled, routed) = result.Contract.Length > 0
+                ? (asked with { Status = "Routed", Result = result }, new Routed(id, result.Contract, result.Method, result.Confidence))
+                : (asked with { Status = "Routed", Error = NotClear }, new Routed(id, "", "", 0, NotClear));
         }
         catch (Exception error)
         {
@@ -72,15 +77,15 @@ internal sealed class RouterNeuron(
         ArgumentException.ThrowIfNullOrWhiteSpace(state);
         var systemone = ServiceProvider.GetRequiredService<IGrainFactory>().GetGrain<ISystemOne>(Scope);
         var result = await Decide(state, allowed, request => systemone.Ask(request, ct), ct);
-        await Remember(state, result.Contract, result.Method);
+        if (result.Contract.Length > 0) { await Remember(state, result.Contract, result.Method); }
         return result;
     }
 
     private async Task<RouteResult> Decide(string state, string[]? allowed, Func<SystemOneRequest, Task<SystemOneResult>> ask, CancellationToken ct)
     {
-        if (await AppTier(state, ask) is { } app) { return app; }
+        if (AppsAllowed(allowed) && await AppTier(state, ask) is { } app) { return app; }
         var types = await Menu(allowed, ct);
-        if (types.Length == 0) { throw new InvalidOperationException("No contracts are available to route over."); }
+        if (types.Length == 0) { return Unclear(); }
 
         var moment = AwareOfState(state);
         var criteria = types.ToDictionary(type => type.Id, type => (string?)Trim(type.Description), StringComparer.Ordinal);
@@ -90,8 +95,10 @@ internal sealed class RouterNeuron(
         { contractQuestions["capability_" + index] = new SystemOneQuestion.Choice("Which capability can carry out this request?", chunks[index]); }
         var contractAnswer = await ask(new SystemOneRequest(moment, contractQuestions));
 
-        var (chosenId, confidence, probabilities) = Best(contractAnswer);
-        var chosen = types.Single(type => type.Id == chosenId);
+        if (Best(contractAnswer, criteria.Keys) is not { } pick) { return Unclear(); }
+        var (chosenId, confidence, probabilities) = pick;
+        // An id outside the menu is the same unclear answer as no pick at all.
+        if (types.FirstOrDefault(type => type.Id == chosenId) is not { } chosen) { return Unclear(); }
         if (chosen.Key is not null)
         {
             return new RouteResult(chosen.Contract, "Run", confidence, probabilities, chosen.Key, chosen.Tool);
@@ -104,16 +111,18 @@ internal sealed class RouterNeuron(
 
         var methodAnswer = await ask(new SystemOneRequest(moment,
             new() { ["method"] = new SystemOneQuestion.Choice("Which method carries out this request?", methods.ToDictionary(name => name, _ => (string?)null, StringComparer.Ordinal)) }));
-        var method = methodAnswer.Answers["method"] is SystemOneAnswer.Choice { Value.Length: > 0 } picked ? picked.Value : methods[0];
+        var method = Best(methodAnswer, methods)?.Id ?? methods[0];
         return new RouteResult(chosen.Contract, method, confidence, probabilities);
     }
 
-    // The first of two tiers: the brain's installed apps' operations. A "something else" answer falls
-    // through to the second tier. An app route carries the app and operation, so Dispatch has
-    // no contract to fill: it posts IApp.Request with the state as input, no language model runs.
+    // The first of two tiers: the brain's installed apps' operations, except the asking app's own (a request an
+    // app sends is its own to answer, so the assistant's "hello" never routes back to assistant.open). A
+    // "something else" answer, or one naming no offered operation, falls through to the second tier. An app
+    // route carries the app and operation, so Dispatch has no contract to fill and no language model runs.
     private async Task<RouteResult?> AppTier(string state, Func<SystemOneRequest, Task<SystemOneResult>> ask)
     {
         var factory = ServiceProvider.GetRequiredService<IGrainFactory>();
+        var asker = Asker();
         var criteria = new Dictionary<string, string?>(StringComparer.Ordinal);
         List<string> names = [];
         // A host without the Apps module has no app tier.
@@ -121,7 +130,7 @@ internal sealed class RouterNeuron(
         {
             var kernel = ServiceProvider.GetRequiredService<IKernel>();
             await foreach (var instance in kernel.InstancesIn(Scope, kernel.TypeOf(typeof(IApp))))
-            { if (IApp.NameOf(Scope, instance.Key) is { } app) { names.Add(app); } }
+            { if (IApp.NameOf(Scope, instance.Key) is { } app && app != asker) { names.Add(app); } }
         }
         catch (Exception error) when (error is not OperationCanceledException) { return null; }
         foreach (var name in names)
@@ -140,8 +149,8 @@ internal sealed class RouterNeuron(
         for (var index = 0; index < chunks.Length; index++)
         { questions["app_" + index] = new SystemOneQuestion.Choice("Which installed app operation can carry out this request?", chunks[index]); }
         var answer = await ask(new SystemOneRequest(moment, questions));
-        var (chosen, confidence, probabilities) = Best(answer);
-        if (chosen == "something else") { return null; }
+        if (Best(answer, criteria.Keys) is not { } pick || pick.Id == "something else") { return null; }
+        var (chosen, confidence, probabilities) = pick;
         var split = chosen.IndexOf('.');
         if (split <= 0 || split >= chosen.Length - 1) { return null; }
         return new RouteResult(typeof(IApp).FullName!, nameof(IApp.Request), confidence, probabilities,
@@ -149,23 +158,35 @@ internal sealed class RouterNeuron(
     }
 
     // The second tier's menu: the runtime tools this brain's sources registered (each a concrete instance
-    // with its Key) and the contracts the caller named. The deployed catalog as a whole is never the menu.
+    // with its Key) and the contracts the caller named. The deployed catalog as a whole is never the menu,
+    // and an app is reached only through its operations (the first tier), never by a raw IApp call.
     private async Task<NeuronType[]> Menu(string[]? allowed, CancellationToken ct)
         => [.. (await Capabilities().Capabilities(ct))
             .Where(type => type.Key is not null || (allowed?.Contains(type.Contract, StringComparer.Ordinal) ?? false))
-            .Where(type => allowed is null || allowed.Contains(type.Contract, StringComparer.Ordinal))];
+            .Where(type => allowed is null || allowed.Contains(type.Contract, StringComparer.Ordinal))
+            .Where(type => type.Contract != typeof(IApp).FullName)];
+
+    // The app tier is IApp's place on the menu: it runs when the caller names no contracts, or names IApp.
+    private static bool AppsAllowed(string[]? allowed) => allowed is null || allowed.Contains(typeof(IApp).FullName!, StringComparer.Ordinal);
+
+    // The asking app, from the kernel-stamped caller (an app's behaviors call as their app's key).
+    private string? Asker() => CallerContextStamper.TryGet(out var caller) && caller.AppId is { } app ? IApp.NameOf(Scope, app) : null;
 
     public async Task<RouteOutcome> Dispatch(string state, string[]? allowed, CancellationToken ct)
     {
-        var route = await Route(state, allowed, ct);
+        ArgumentException.ThrowIfNullOrWhiteSpace(state);
+        var route = Decided(state, allowed) ?? await Route(state, allowed, ct);
         if (route.Confidence < Gate || route.Method.Length == 0)
-        { return new RouteOutcome(route, false, Error: "The request was not clear enough to route."); }
+        { return new RouteOutcome(route, false, Error: NotClear); }
         if (route.App is not null)
         {
             var appKey = IApp.Key(Scope, route.App);
+            var app = ServiceProvider.GetRequiredService<IGrainFactory>().GetGrain<IApp>(appKey);
             try
             {
-                var requestId = await ServiceProvider.GetRequiredService<IGrainFactory>().GetGrain<IApp>(appKey).Request(route.Operation!, state);
+                // An operation whose input has to be filled from the request is the agent turn's, with the route as its hint.
+                if (await DirectInput(app, route.Operation!) is not { } input) { return new RouteOutcome(route, false, appKey, Error: NeedsInput); }
+                var requestId = await app.Request(route.Operation!, input);
                 return new RouteOutcome(route, true, appKey, null, requestId.ToString());
             }
             catch (Exception error) when (error is not OperationCanceledException)
@@ -179,6 +200,33 @@ internal sealed class RouterNeuron(
         }
         catch (Exception error) when (error is not OperationCanceledException)
         { return new RouteOutcome(route, false, key, arguments, Error: error.Message); }
+    }
+
+    // The route this router already decided for the same request (IRouter.Ask), when this caller may carry it
+    // out: Dispatch carries out the route the caller was shown instead of deciding again. Only the latest ask
+    // of the request counts; one still routing, or decided with no route, is decided again.
+    private RouteResult? Decided(string state, string[]? allowed)
+    {
+        var request = Clip(state);
+        return Snapshot.Asked.LastOrDefault(item => item.State == request) is { Status: "Routed", Result: { } route }
+            && Offers(route, allowed) && (route.App is null || route.App != Asker()) ? route : null;
+    }
+
+    // Whether a route is on the menu the caller's allowed list builds: an app route through the app tier, a
+    // runtime tool unless the list leaves its contract out, any other contract only when the list names it.
+    private static bool Offers(RouteResult route, string[]? allowed)
+        => route.App is not null ? AppsAllowed(allowed)
+            : route.Key is not null ? allowed is null || allowed.Contains(route.Contract, StringComparer.Ordinal)
+            : allowed?.Contains(route.Contract, StringComparer.Ordinal) ?? false;
+
+    // An app operation's input when no language model has to fill it: "open" takes "" (what the shell posts to
+    // open an app), and so does an operation on a toolbar button (AppToolbarEntry). Any other input is filled
+    // from the request.
+    private static async Task<string?> DirectInput(IApp app, string operation)
+    {
+        if (operation == "open") { return ""; }
+        var toolbar = (await app.Read()).Manifest.Toolbar ?? [];
+        return toolbar.Any(entry => entry.Operation == operation && entry.Kind == AppToolbarKinds.Button) ? "" : null;
     }
 
     // The assistant: achieve a goal across several actions. Each step Jev picks the next capability
@@ -201,7 +249,8 @@ internal sealed class RouterNeuron(
             criteria["finish"] = "The goal is complete, or cannot be taken further. Choose this to stop.";
             var stepAnswer = await systemone.Ask(new SystemOneRequest(moment,
                 new() { ["next"] = new SystemOneQuestion.Choice("What should be done next to achieve the goal?", criteria) }), ct);
-            var (chosenId, confidence, _) = Best(stepAnswer);
+            if (Best(stepAnswer, criteria.Keys) is not { } pick) { break; }
+            var (chosenId, confidence, _) = pick;
             if (chosenId == "finish" || confidence < Gate || !byId.TryGetValue(chosenId, out var chosen)) { break; }
             string method;
             if (chosen.Key is not null)
@@ -214,7 +263,7 @@ internal sealed class RouterNeuron(
                 if (methods.Length == 0) { break; }
                 var methodAnswer = await systemone.Ask(new SystemOneRequest(moment,
                     new() { ["method"] = new SystemOneQuestion.Choice("Which method carries out this step?", methods.ToDictionary(name => name, _ => (string?)null, StringComparer.Ordinal)) }), ct);
-                method = methodAnswer.Answers["method"] is SystemOneAnswer.Choice { Value.Length: > 0 } picked ? picked.Value : methods[0];
+                method = Best(methodAnswer, methods)?.Id ?? methods[0];
             }
             try
             {
@@ -243,18 +292,12 @@ internal sealed class RouterNeuron(
         return builder.ToString();
     }
 
-    // The same memory, plus everything already done for the current goal, so each step is decided
-    // against the observations the earlier steps produced.
-    private string AwareOfState(string goal, IReadOnlyList<GoalStep> steps)
+    // Everything already done for the current goal, so each step is decided against the observations the
+    // earlier steps produced. The router's memory of earlier requests stays out: a goal asked again would
+    // read as already done, and its run would end with no step.
+    private static string AwareOfState(string goal, IReadOnlyList<GoalStep> steps)
     {
         var builder = new StringBuilder();
-        var recent = Snapshot.Recent;
-        if (recent.Length > 0)
-        {
-            builder.AppendLine("Earlier requests and what they routed to:");
-            foreach (var record in recent) { builder.AppendLine($"- \"{Clip(record.Request)}\" -> {record.Contract}.{record.Method}"); }
-            builder.AppendLine();
-        }
         if (steps.Count > 0)
         {
             builder.AppendLine("What you have done so far for this goal:");
@@ -322,19 +365,30 @@ internal sealed class RouterNeuron(
         return type?.Shape.FirstOrDefault(method => MethodName(method) == route.Method) ?? route.Method;
     }
 
-    private static (string Id, double Confidence, Dictionary<string, double> Probabilities) Best(SystemOneResult result)
+    // The offered option the answers' own distributions rank highest, with that option's probability as its
+    // confidence. A System One answer's Value and Confidence can contradict its distribution or name an option
+    // that was never offered (seen live from the local adapter), so the Value only breaks a tie; an answer
+    // with no distribution keeps its Value and Confidence. Null when no answer names an offered option.
+    private static Pick? Best(SystemOneResult result, ICollection<string> offered)
     {
-        SystemOneAnswer.Choice? best = null;
-        var bestProbability = -1.0;
+        Pick? best = null;
         foreach (var answer in result.Answers.Values)
         {
             if (answer is not SystemOneAnswer.Choice choice) { continue; }
-            choice.Probabilities.TryGetValue(choice.Value, out var probability);
-            if (probability > bestProbability) { bestProbability = probability; best = choice; }
+            var ranked = choice.Probabilities.Where(pair => offered.Contains(pair.Key)).ToDictionary(StringComparer.Ordinal);
+            if (choice.Probabilities.Count == 0 && offered.Contains(choice.Value)) { ranked[choice.Value] = choice.Confidence; }
+            if (ranked.Count == 0) { continue; }
+            var top = ranked.OrderByDescending(pair => pair.Value).ThenByDescending(pair => pair.Key == choice.Value).First();
+            if (best is null || top.Value > best.Confidence) { best = new Pick(top.Key, top.Value, ranked); }
         }
-        if (best is null || best.Value.Length == 0) { throw new InvalidOperationException("The System One model did not choose a capability."); }
-        return (best.Value, best.Confidence, best.Probabilities);
+        return best;
     }
+
+    private sealed record Pick(string Id, double Confidence, Dictionary<string, double> Probabilities);
+
+    // No offered option fits: Dispatch refuses it, an asked route is answered with no result, and the assistant
+    // hands the request to the agent turn.
+    private static RouteResult Unclear() => new("", "", 0, new());
 
     private static IEnumerable<Dictionary<string, string?>> Chunk(Dictionary<string, string?> all)
     {

@@ -3,18 +3,25 @@ using System.Security.Cryptography;
 using System.Text;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Compute;
+using Orleans.Concurrency;
 
 namespace DigitalBrain.Platform.Compute;
 
 // Per account. A charge appends a negative entry and is idempotent over (TraceId, CostId); a
 // credit appends a positive entry and is idempotent over its entry id. Every entry carries the hash of the chain up to it, so a
 // rewritten entry is caught by Verify. Balance always equals the sum of the entries.
+// Every priced call of the account's brains charges here: reentrant, each change is applied at once and shares the
+// write that is out (CoalescedWrites), and returns once a write carrying it has landed.
 [GrainType("ledger")]
+[Reentrant]
 internal sealed class LedgerGrain(
     [PersistentState("ledger", DigitalBrainNames.PlatformGrainStorage)] IPersistentState<LedgerState> store)
     : Grain, ILedgerGrain
 {
     private const int IdempotencyWindow = 10_000;
+    private CoalescedWrites? _writes;
+
+    private CoalescedWrites Writes => _writes ??= new(store.WriteStateAsync);
 
     public Task<long> Balance() => Task.FromResult(store.State.Balance);
 
@@ -26,7 +33,7 @@ internal sealed class LedgerGrain(
         Append(entryId, -cost.Micros, $"{cost.Kind} {cost.Item}", cost.At);
         store.State.Balance -= cost.Micros;
         store.State.RecentKeys = PushKey(store.State.RecentKeys, entryId);
-        await store.WriteStateAsync();
+        await Writes.Save();
         return true;
     }
 
@@ -37,7 +44,7 @@ internal sealed class LedgerGrain(
         Append(entryId, micros, reason ?? "", DateTimeOffset.UtcNow);
         store.State.Balance += micros;
         store.State.CreditKeys = PushKey(store.State.CreditKeys, entryId);
-        await store.WriteStateAsync();
+        await Writes.Save();
         return true;
     }
 

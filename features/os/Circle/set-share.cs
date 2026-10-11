@@ -15,9 +15,10 @@ await foreach (var request in brain.On(app, "set-share", brain.Stopping))
         if (!double.TryParse(rest, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) || !double.IsFinite(value))
         { throw new ArgumentException("The compute share is a number from 0 to " + ICircle.MaxComputeSharePercent + "."); }
         var percent = (int)Math.Round(value);
-        await CircleView.Circle(brain, name).SetComputeShare(Math.Clamp(percent, 0, ICircle.MaxComputeSharePercent));
-        await CircleView.Status(brain, "");
+        var share = Math.Clamp(percent, 0, ICircle.MaxComputeSharePercent);
+        await CircleView.Circle(brain, name).SetComputeShare(share);
+        await CircleView.Status(brain, share == percent ? "" : "A circle shares 0 to " + ICircle.MaxComputeSharePercent + "% of your compute; " + CircleView.Plain(name) + " now shares " + share + "%.");
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-    { await CircleView.Status(brain, error.Message); }
+    { await CircleView.Fail(brain, error); }
 }

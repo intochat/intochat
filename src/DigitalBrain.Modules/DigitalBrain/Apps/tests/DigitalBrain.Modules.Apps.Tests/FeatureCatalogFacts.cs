@@ -29,6 +29,9 @@ public sealed class FeatureCatalogFacts : IDisposable
 
     private FeatureCatalog Catalog(IScriptSandbox? sandbox = null) => new(new FeatureDirectory(_root), sandbox);
 
+    // One reaction, so it passes the shape and reaches the compiler, which refuses it.
+    private const string Uncompilable = "await foreach (var request in brain.On(app, \"ask\", brain.Stopping)) { this is not C#; }\n";
+
     [Fact]
     public async Task TheCatalogListsEveryOwnersFeaturesAsShipped()
     {
@@ -78,7 +81,7 @@ public sealed class FeatureCatalogFacts : IDisposable
     [Fact]
     public async Task ABundleThatDoesNotCompileIsSkippedAndReportedWhileTheOthersLoad()
     {
-        WriteEcho("this is not C#");
+        WriteEcho(Uncompilable);
         WriteGreeter("os");
         WriteGreeter("intochat", "Hello");
         var catalog = Catalog(new Sandbox(success: files => !files.Values.Any(source => source.Contains("not C#", StringComparison.Ordinal))));
@@ -89,6 +92,20 @@ public sealed class FeatureCatalogFacts : IDisposable
         var failure = Assert.Single(await catalog.Failures());
         Assert.Equal(("intochat", "echo", "2.0.0"), (failure.Owner, failure.Name, failure.Version));
         Assert.Contains("intochat/echo 2.0.0 does not compile", failure.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AFeatureWhoseSynapseIsNotOneReactionIsSkippedAndReportedEvenWithoutASandbox()
+    {
+        WriteEcho("await using var brain = await DigitalBrainClient.ConnectAsync(args);\nawait Task.Delay(Timeout.Infinite, brain.Stopping);\n");
+        WriteGreeter("os");
+        var catalog = Catalog();
+
+        Assert.Equal([("os", "greeter")], (await catalog.Listings()).Select(listing => (listing.Publisher, listing.Name)));
+        var failure = Assert.Single(await catalog.Failures());
+        Assert.Equal(("intochat", "echo"), (failure.Owner, failure.Name));
+        Assert.Contains("intochat/echo 2.0.0 is not shaped as synapses", failure.Reason, StringComparison.Ordinal);
+        Assert.Contains("echo.cs:1", failure.Reason, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -116,7 +133,7 @@ public sealed class FeatureCatalogFacts : IDisposable
         var catalog = Catalog(new Sandbox(success: files => !files.Values.Any(source => source.Contains("not C#", StringComparison.Ordinal))));
         Assert.NotNull(await catalog.Find("intochat", "echo"));
 
-        WriteEcho("this is not C#");
+        WriteEcho(Uncompilable);
         var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => catalog.Reload("intochat", "echo"));
 
         Assert.Contains("intochat/echo 2.0.0 does not compile", refused.Message, StringComparison.Ordinal);

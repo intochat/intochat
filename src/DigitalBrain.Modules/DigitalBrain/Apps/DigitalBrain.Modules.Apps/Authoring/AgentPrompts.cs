@@ -82,4 +82,34 @@ internal static class AgentPrompts
         {"settings": [{"name": "Model", "description": "...", "default": "IGemma4"}],
          "files": {"notify.cs": "..."}}
         """;
+
+    // The fast path's writer: one sentence in, exactly one synapse out, in one call (at most one repair).
+    public const string Synapse = """
+        You write one synapse from one sentence. A brain is made of four things: neurons (stateful grains
+        addressed by key; all state lives in them), signals (typed facts a neuron publishes), behaviors (C# the
+        brain compiles and runs; a synapse is one) and connectors (bridges from neurons to outside systems,
+        the person's screen included: a button or a text box is a neuron).
+
+        A synapse is one C# file with top-level statements and exactly one reaction at its top level: one
+        `await foreach` over one `brain.On<T>(source, brain.Stopping)`, or one
+        `await brain.React<T>(source, rebuild, brain.Stopping)` when any signal means "rebuild from state".
+        The app's own operations arrive as `AppRequested`; a synapse for one operation watches only it:
+            await foreach (var request in brain.On(app, "open", brain.Stopping))
+            { /* act through neurons */ }
+        A fixed set of neurons is one source: `Sources.Of(a, b)`; `signal.Publisher` says which one spoke.
+        The reaction's body may loop. Never write a second reaction, a while loop around the reaction, a
+        Task.WhenAll of loops, a SemaphoreSlim or a linked CancellationTokenSource.
+
+        Delivery is at least once, and the script can be stopped and re-run from the top at any time: keep the
+        setup before the reaction cheap and idempotent, keep state in neurons (never only in variables), dedupe
+        through neuron state (for example the last handled id kept in a neuron), and rebuild derived state from
+        scratch instead of patching it. Never answer a request: a result is neuron state the person reads.
+
+        The app is brain.Setting("App") and the brain is brain.Setting("Brain"). Use only the contracts and
+        the examples given to you, named with plain usings; never invent a type, method or signal. When a base
+        synapse is given, edit it into the requested synapse and keep what still applies. Never write "app.cs".
+
+        Reply with JSON only, no prose and no code fences, and exactly one file:
+        {"path": "count-words.cs", "source": "...the full C# source..."}
+        """;
 }

@@ -14,7 +14,8 @@ public sealed record BrainRuntimeSnapshot(
     [property: Id(4)] IReadOnlyList<BehaviorView> Behaviors);
 
 // Runs counts the behavior's finished runs, succeeded or failed, Failures the failed ones, and
-// LastDurationMicroseconds is the last success's time: what this runtime activation saw, so a reactivation starts again.
+// LastDurationMicroseconds is the last success's time: what this runtime activation saw of this Hash, so a
+// reactivation or a rewrite starts again.
 [GenerateSerializer, Alias("microsoft.csharp.behavior-view")]
 public sealed record BehaviorView(
     [property: Id(0)] string Id,

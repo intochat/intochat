@@ -2,21 +2,14 @@ using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Models;
 using DigitalBrain.Apps;
 using DigitalBrain.Client;
-using DigitalBrain.Integrations;
-using DigitalBrain.Microsoft.Windows;
 using DigitalBrain.Flutter.Chat;
-using DigitalBrain.Flutter.Form;
-using DigitalBrain.Flutter.Workspace;
-using DigitalBrain.Microsoft.CSharp.Files;
-using DigitalBrain.Postgres;
 
+// The composer path: each pending submission starts a turn in its conversation under the submission id
+// and is settled, so a redelivered submission never runs twice. It speaks the same contracts as "send".
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var composer = brain.Get<IComposer>(appKey + "/composer");
-string[] contracts = [typeof(IConnectionRequests).FullName!, typeof(IPostgresServer).FullName!, typeof(IApp).FullName!,
-    typeof(IWorkspace).FullName!, typeof(IForm).FullName!, typeof(ICSharpFile).FullName!,
-    typeof(IWindows).FullName!, typeof(IConsole).FullName!, typeof(IFileSystem).FullName!];
 
 await brain.React<ComposerSubmitted>(composer, _ => Reconcile(), brain.Stopping);
 
@@ -46,8 +39,10 @@ async Task Reconcile()
                 var snapshot = await app.Read();
                 var choice = snapshot.Settings.GetValueOrDefault("Model", "");
                 var model = choice.Length > 0 ? await brain.Get<IModelCatalog>("default").Select(choice) : null;
-                await agent.Start(AgentTurn.Text(request.Text, instructions: snapshot.Files.GetValueOrDefault("prompts/system.md", ""), contracts: contracts)
+                await agent.Start(AgentTurn.Text(request.Text, instructions: snapshot.Files.GetValueOrDefault("prompts/system.md", ""), contracts: Assistant.Contracts)
                     with { RunId = runId, Model = model });
+                // The composer asks the model directly; an earlier route's status no longer applies.
+                await Assistant.Status(brain, "");
             }
             await composer.Settle(request.Id);
         }

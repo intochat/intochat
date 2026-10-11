@@ -21,6 +21,43 @@ of surface composition, preference persistence and connection discovery.
 Connection status and membership changes publish a credential-free catalog invalidation signal.
 Settings observes it and pending-authorization requests, then invokes the same serialized refresh
 operation used by the button. Repeated delivery rebuilds stable card keys without duplicates.
+
+## Scenario: Opening Settings shows the connections surface
+
+Invoking "open" labels the Refresh connections button, composes the main column with that button
+above the connections list, opens a "Settings" window and publishes the preferences neuron.
+Invoking "open" with "docked" composes the surface without opening the window.
+
+## Scenario: Read publishes the stored preferences
+
+Invoking "read" sets the preferences neuron to {"displayName", "theme"} from the stored values, with
+a theme of system, light or dark.
+
+## Scenario: Refresh lists connections and app bindings without duplicates
+
+Invoking "refresh-connections" sets the connections layout to a list of cards: the intro, one card
+per connection (or "No connections yet"), "App connections" with one card per installed app, and
+"Available connector types" with one card per connector kind. Card bodies never carry credentials.
+Invoking it again yields the same card keys, each once.
+
+## Scenario: The Refresh connections button rebuilds the list
+
+Clicking the Refresh connections button posts "refresh-connections": the connections layout's
+revision advances and its card keys stay the same.
+
+## Scenario: Reload then save stores the preferences
+
+Invoking "reload-preferences" copies the stored name and theme into the drafts and the baseline and
+reports "Stored preferences loaded.". Invoking "save-preferences" with DisplayName, Theme and that
+Baseline stores the edited fields and reports "Preferences saved."; "read" then publishes them.
+Delivering that same save again (at-least-once) still reports "Preferences saved.".
+
+## Scenario: A stale or invalid save is rejected
+
+Invoking "save-preferences" with a Baseline older than the stored values reports "Preferences
+changed elsewhere. Reload preferences before saving your changes." and a theme other than system,
+light or dark reports the validation message; the stored preferences stay unchanged. Invoking
+"reconcile-preferences" while the draft holds unsaved edits keeps the draft.
 */
 
 using DigitalBrain.Apps;
@@ -28,7 +65,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "settings";
-    public const string Version = "1.1.6";
+    public const string Version = "1.1.7";
 
     public static readonly AppManifest Manifest = new(
         Title: "Settings",

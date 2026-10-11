@@ -54,7 +54,9 @@ public abstract class LlmNeuronBase(InferenceService inference, Type? marker = n
     {
         if (selection is not null) { return selection; }
         var key = this.GetPrimaryKeyString();
-        return key == "default" || (marker is not null && !inference.HasProfile(key)) ? null : new(key);
+        // A brain's model key, like "default", names no profile: the deployment default (or the marker's model).
+        var unnamed = key == "default" || BrainKey.ScopeOf(key) is { } brain && key == ModelAddress.Key(brain);
+        return unnamed || (marker is not null && !inference.HasProfile(key)) ? null : new(key);
     }
 }
 

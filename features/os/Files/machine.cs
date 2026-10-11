@@ -8,6 +8,8 @@ static class Machine
 {
     public const int MaxEntries = 40;
 
+    public const string NotConnected = "No Windows PC is connected. Connect one and allow a folder.";
+
     static string Scope(DigitalBrainConnection brain)
     {
         var appKey = brain.Setting("App")!;
@@ -54,7 +56,7 @@ static class Machine
 
     public static async Task<string> Text(DigitalBrainConnection brain, string path)
     {
-        if (await Connection(brain) is not { } connection) { return ""; }
+        if (await Connection(brain) is not { } connection) { return NotConnected; }
         var text = await brain.Get<IFileSystem>(WindowsKeys.Files(connection)).Read(path);
         if (!path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)) { return text; }
         return await OwnerState(brain, path) + "```csharp\n" + text + "\n```";

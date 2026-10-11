@@ -16,5 +16,5 @@ await foreach (var request in brain.On(app, "say", brain.Stopping))
         await CircleView.Status(brain, "");
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-    { await CircleView.Status(brain, error.Message); }
+    { await CircleView.Fail(brain, error); }
 }

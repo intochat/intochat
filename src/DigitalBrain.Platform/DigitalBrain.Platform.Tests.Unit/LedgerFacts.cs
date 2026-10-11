@@ -70,6 +70,23 @@ public sealed class LedgerFacts
         Assert.Equal(5L - 10_001L, await ledger.Balance());
     }
 
+    // Every metered call of an account charges this one grain: charges arriving while a write is out share the next one.
+    [Fact]
+    public async Task ABurstOfChargesCostsAtMostTwoWrites()
+    {
+        var store = new ScriptedLedgerStore { Held = new TaskCompletionSource() };
+        var ledger = new LedgerGrain(store);
+
+        var charges = Enumerable.Range(0, 50).Select(i => ledger.Charge(Cost("tr-1", $"c-{i}", 1L))).ToArray();
+        store.Held.SetResult();
+
+        Assert.All(await Task.WhenAll(charges), Assert.True);
+        Assert.InRange(store.Writes, 1, 2);
+        Assert.Equal(-50L, await ledger.Balance());
+        Assert.Equal(50, (await ledger.Entries(100)).Length);
+        Assert.True(await ledger.Verify());
+    }
+
     [Fact]
     public async Task ARewrittenEntryFailsVerification()
     {
@@ -115,8 +132,11 @@ public sealed class LedgerFacts
         public LedgerState State { get; set; } = new();
         public string Etag => string.Empty;
         public bool RecordExists => true;
+        // The first write stays out until this completes.
+        public TaskCompletionSource? Held { get; init; }
+        public int Writes { get; private set; }
         public Task ClearStateAsync() => Task.CompletedTask;
         public Task ReadStateAsync() => Task.CompletedTask;
-        public Task WriteStateAsync() => Task.CompletedTask;
+        public Task WriteStateAsync() => ++Writes == 1 && Held is { } held ? held.Task : Task.CompletedTask;
     }
 }

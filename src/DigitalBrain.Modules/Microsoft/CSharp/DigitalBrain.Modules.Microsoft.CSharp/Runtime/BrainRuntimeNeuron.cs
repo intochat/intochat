@@ -17,6 +17,9 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Orleans.Concurrency;
+using Orleans.Metadata;
+using Orleans.Serialization.Invocation;
 using Orleans.Timers;
 
 namespace DigitalBrain.Microsoft.CSharp.Runtime;
@@ -26,7 +29,11 @@ namespace DigitalBrain.Microsoft.CSharp.Runtime;
 // the difference over its stream; signals buffer until the host acknowledges them. The reminder is the
 // backstop that relaunches a lost session, not the detector. What the synapses' runs do becomes facts that
 // the brain's runs neuron publishes, one hand-off per turn after the turn's write.
+// Every script call and every live signal of the brain passes through here, so a turn holds only state
+// changes: the pure reads interleave (their contracts say so), a live signal is a nudge noted without a
+// turn, compiling happens before an Assign takes its turn, and pricing a run happens after the ack's.
 [GrainType(GrainTypeName)]
+[MayInterleave(nameof(IsNudge))]
 internal sealed class BrainRuntimeNeuron(
     [PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<BrainRuntimeState> store,
     SessionRunner runner,
@@ -41,7 +48,7 @@ internal sealed class BrainRuntimeNeuron(
     IOptions<CSharpOptions> options,
     IOptions<CSharpDeploymentSettings> deployment,
     ILogger<BrainRuntimeNeuron> logger)
-    : Neuron<BrainRuntimeState>(store), IBrainRuntime, IBrainRuntimeEdge, IBrainPrograms, IBrainRuntimeArrivals, IBrainRuntimeSession, IRemindable, INeuronObserver
+    : Neuron<BrainRuntimeState>(store), IBrainRuntime, IBrainRuntimeEdge, IBrainPrograms, IBrainProgramChanges, IBrainRuntimeArrivals, IBrainRuntimeSession, IRemindable, INeuronObserver
 {
     internal const string GrainTypeName = "microsoft.csharp.runtime";
     internal const string ReconcileReminder = "reconcile";
@@ -71,6 +78,17 @@ internal sealed class BrainRuntimeNeuron(
     private IGrainTimer? _watchRenewal;
     // The tail of this activation's sandbox calls; each runs after the one before it, whatever its outcome.
     private Task _sandboxCalls = Task.CompletedTask;
+    // The tail of this activation's pricing of acknowledged runs, priced one after another off the acks' turns.
+    private Task _pricing = Task.CompletedTask;
+    // Sources a live signal nudged about that no read of their log has covered since: a nudge whose arrival
+    // expired in the queue or failed is read by the next reminder, not left until the source publishes again.
+    private readonly HashSet<string> _nudged = new(StringComparer.Ordinal);
+    // Programs compiled and stored while the runtime went on, each waiting for its turn, by ticket.
+    private readonly Dictionary<long, CompiledProgram> _compiled = [];
+    // Per owner, the ticket of its program's last change (an Assign applied, or a Retire): an Assign that started
+    // before that change and finished compiling after it is not applied.
+    private readonly Dictionary<string, long> _changed = new(StringComparer.Ordinal);
+    private long _tickets;
 
     private string RuntimeId => this.GetPrimaryKeyString();
     private string Brain => RuntimeId[..RuntimeId.LastIndexOf('/')];
@@ -84,6 +102,11 @@ internal sealed class BrainRuntimeNeuron(
 
     // The traces still held for pushed batches; a settled batch lets go of its trace.
     internal int TracedBatches => _batchTraces.Count;
+
+    // A live signal from a watched source is only a nudge, noted without waiting for a turn, so its publisher
+    // never waits on this runtime. Orleans lets anything interleave with a request this predicate admits while
+    // that request runs, so it admits only OnSignalAsync, which completes synchronously.
+    public static bool IsNudge(IInvokable request) => request.GetInterfaceType() == typeof(INeuronObserver);
 
     public Task<BrainRuntimeSnapshot> Inspect(CancellationToken cancellationToken = default)
         => Task.FromResult(new BrainRuntimeSnapshot(Snapshot.Session?.Status ?? SessionStatus.None, Snapshot.Session?.Id,
@@ -102,33 +125,53 @@ internal sealed class BrainRuntimeNeuron(
         await runner.Ensure(start, cancellationToken);
     }
 
+    // Interleaved (its contract says so): compiling is seconds of CPU, off this runtime's scheduler, and storing
+    // the assemblies is I/O; neither touches the runtime's state. The compiled program then takes a turn of its own.
     public async Task<ProgramView> Assign(string owner, Dictionary<string, string> sources, Dictionary<string, string> settings)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(settings);
-        var compiled = compiler.Compile(sources);
+        var ticket = ++_tickets;
+        var caller = CallerContextStamper.TryGet(out var stamped) ? stamped : null;
+        var compiled = await Task.Run(() => compiler.Compile(sources));
         if (!compiled.Success)
         {
             throw new InvalidOperationException("The program does not compile: "
                 + string.Join("; ", compiled.Errors.Select(error => $"{error.File} line {error.Line} {error.Id}: {error.Message}")));
         }
         foreach (var behavior in compiled.Assemblies.Values) { await assemblies.Put(behavior, CancellationToken.None); }
-        var behaviors = compiled.Assemblies.OrderBy(file => file.Key, StringComparer.Ordinal)
-            .Select(file => new BehaviorAssembly(file.Key, file.Value.Hash)).ToArray();
+        BehaviorAssembly[] behaviors = [.. compiled.Assemblies.OrderBy(file => file.Key, StringComparer.Ordinal)
+            .Select(file => new BehaviorAssembly(file.Key, file.Value.Hash))];
+        _compiled[ticket] = new(owner, behaviors, new(settings, StringComparer.Ordinal), caller);
+        // This request holds no turn, so the call to itself waits only for the turn in progress, never for this one.
+        try { return await this.AsReference<IBrainProgramChanges>().Apply(ticket); }
+        finally { _compiled.Remove(ticket); }
+    }
+
+    // A synapse that is gone, or whose assembly changed, is not the synapse its subscriptions were declared by:
+    // they go with it, and a changed synapse's new assembly declares its own when it runs.
+    public async Task<ProgramView> Apply(long ticket)
+    {
+        if (!_compiled.TryGetValue(ticket, out var compiled))
+        { throw new InvalidOperationException("No program this runtime compiled waits under that ticket."); }
+        var owner = compiled.Owner;
+        if (_changed.GetValueOrDefault(owner) > ticket)
+        { throw new InvalidOperationException($"The program of {owner} changed again while this one compiled; it was not applied."); }
+        _changed[owner] = ticket;
+        var behaviors = compiled.Behaviors;
         var hash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", behaviors.Select(b => b.Path + ":" + b.Hash)))));
-        var principal = CallerContextStamper.TryGet(out var caller) ? caller
-            : Snapshot.Programs.FirstOrDefault(p => p.Owner == owner)?.Principal;
-        var program = new ProgramAssignment(owner, hash, new(settings, StringComparer.Ordinal), principal, behaviors);
         var previous = Snapshot.Programs.FirstOrDefault(p => p.Owner == owner);
-        var removed = previous?.Behaviors.Select(b => b.Id(owner)).Except(behaviors.Select(b => b.Id(owner)), StringComparer.Ordinal).ToArray() ?? [];
+        var program = new ProgramAssignment(owner, hash, compiled.Settings, compiled.Caller ?? previous?.Principal, behaviors);
+        var replaced = previous?.Behaviors.Except(behaviors).Select(b => b.Id(owner)).ToArray() ?? [];
+        var removed = replaced.Except(behaviors.Select(b => b.Id(owner)), StringComparer.Ordinal).ToArray();
         await Save(Snapshot with
         {
             Programs = [.. Snapshot.Programs.Where(p => p.Owner != owner), program],
-            Subscriptions = [.. Snapshot.Subscriptions.Where(s => !removed.Contains(s.Behavior, StringComparer.Ordinal))],
+            Subscriptions = [.. Snapshot.Subscriptions.Where(s => !replaced.Contains(s.Behavior, StringComparer.Ordinal))],
         }, Changed());
-        foreach (var gone in removed) { Forget(gone); }
-        if (removed.Length > 0) { await WatchSourcesAsync(); }
+        foreach (var gone in replaced) { Forget(gone); }
+        if (replaced.Length > 0) { await WatchSourcesAsync(); }
         if (Snapshot.Session is null) { await EnsureSessionAsync(); }
         else
         {
@@ -138,8 +181,12 @@ internal sealed class BrainRuntimeNeuron(
         return View(program);
     }
 
+    private sealed record CompiledProgram(string Owner, BehaviorAssembly[] Behaviors, Dictionary<string, string> Settings, CallerContext? Caller);
+
     public async Task Retire(string owner)
     {
+        // The owner's latest change: an Assign still compiling from before it is not applied after it.
+        _changed[owner] = ++_tickets;
         if (Snapshot.Programs.FirstOrDefault(p => p.Owner == owner) is not { } program) { return; }
         var ids = program.Behaviors.Select(b => b.Id(owner)).ToArray();
         await Save(Snapshot with
@@ -237,8 +284,7 @@ internal sealed class BrainRuntimeNeuron(
             // through the watch itself, and a duplicate is at-least-once's to bear; nothing is lost.
             await Save(Snapshot with { Subscriptions = [.. Snapshot.Subscriptions, existing] }, Changed());
             await WatchSourcesAsync(required: neuron);
-            // A runs neuron retains nothing, so a reaction to run facts has no backlog to seed.
-            var seeded = IsRunFacts(neuron) ? [] : await SeedRetainedAsync(neuron, signal, existing.Watermark);
+            var seeded = await SeedRetainedAsync(neuron, signal, existing.Watermark);
             if (seeded.Length > 0)
             {
                 var current = Snapshot.Subscriptions.First(s => s.Id == existing.Id);
@@ -306,18 +352,29 @@ internal sealed class BrainRuntimeNeuron(
                 RunOutcome.Succeeded, report.Batches, report.WallMicroseconds, report.CpuMicroseconds, null), traces[report.Subscription]);
         }
         Flush();
-        if (Meter is not { } meter) { return; }
-        // A replayed ack prices nothing again. Metering observes the run: a meter that fails does not fail the ack.
-        foreach (var (before, after, report) in advanced.Where(run => run.Report.CpuMicroseconds > 0))
+        // A replayed ack prices nothing again. Metering observes the run: it is priced after this turn, so a slow
+        // ledger never holds the runtime, and a meter that fails does not fail the ack.
+        PricedRun[] priced = [.. advanced.Where(run => run.Report.CpuMicroseconds > 0).Select(run => new PricedRun(run.Report.Subscription,
+            run.Report.Watermark, run.Report.CpuMicroseconds, run.Before.Behavior, Find(run.Before.Behavior)?.Owner, run.After.Delivered, traces[run.Report.Subscription]))];
+        if (priced.Length > 0 && Meter is { } meter) { _pricing = PriceAsync(_pricing, meter, priced); }
+    }
+
+    private sealed record PricedRun(string Subscription, long Watermark, long CpuMicroseconds, string Behavior, string? App, long Delivered, Trace? Trace);
+
+    // Runs on this activation's scheduler between turns and reads nothing of the runtime's state.
+    private async Task PriceAsync(Task previous, ICostMeter meter, PricedRun[] runs)
+    {
+        await previous;
+        foreach (var run in runs)
         {
-            using var entered = traces[report.Subscription] is { } batch ? TraceContext.Enter(batch) : null;
+            using var entered = run.Trace is { } batch ? TraceContext.Enter(batch) : null;
             try
             {
-                await meter.RecordAsync(CostKind.Script, "cpu-ms", report.CpuMicroseconds / 1000m, "ms", Funding.Local,
-                    $"{report.Subscription}:{report.Watermark}", CancellationToken.None, new CostSubject(Synapse: before.Behavior, App: Find(before.Behavior)?.Owner));
+                await meter.RecordAsync(CostKind.Script, "cpu-ms", run.CpuMicroseconds / 1000m, "ms", Funding.Local,
+                    $"{run.Subscription}:{run.Watermark}", CancellationToken.None, new CostSubject(Synapse: run.Behavior, App: run.App));
             }
-            catch (Exception error) when (error is not OperationCanceledException)
-            { logger.LogWarning(error, "Brain {Brain} could not price {Behavior}'s run through {Watermark}.", Brain, before.Behavior, after.Delivered); }
+            catch (Exception error)
+            { logger.LogWarning(error, "Brain {Brain} could not price {Behavior}'s run through {Watermark}.", Brain, run.Behavior, run.Delivered); }
         }
     }
 
@@ -388,15 +445,25 @@ internal sealed class BrainRuntimeNeuron(
         return assigned;
     }
 
+    // Interleaved (IsNudge): notes the source and leaves the reading to an arrival in a turn of its own.
     Task INeuronObserver.OnSignalAsync(Signal signal)
-        => Snapshot.Subscriptions.Any(s => s.Signal == signal.GetType().Name && s.Neuron == signal.Publisher.Name)
-            ? this.AsReference<IBrainRuntimeArrivals>().Arrived(signal)
-            : Task.CompletedTask;
+    {
+        var source = signal.Publisher.Name;
+        if (!Snapshot.Subscriptions.Any(s => s.Signal == signal.GetType().Name && s.Neuron == source)) { return Task.CompletedTask; }
+        _nudged.Add(source);
+        return this.AsReference<IBrainRuntimeArrivals>().Arrived(signal);
+    }
 
     public async Task Arrived(Signal signal)
     {
         _facts.Clear();
-        if (await CatchUpAsync(signal.Publisher.Name)) { Flush(); return; }
+        var source = signal.Publisher.Name;
+        // Read now: a nudge that comes while the read is in flight marks the source again, a failed read keeps it marked.
+        _nudged.Remove(source);
+        bool journaled;
+        try { journaled = await CatchUpAsync(source); }
+        catch { _nudged.Add(source); throw; }
+        if (journaled) { Flush(); return; }
         var json = JsonSerializer.Serialize(signal, signal.GetType(), RuntimeProtocol.Json);
         var name = signal.GetType().Name;
         var cap = options.Value.MaximumPending;
@@ -420,20 +487,27 @@ internal sealed class BrainRuntimeNeuron(
         Flush();
     }
 
-    // On a host with a part log a live signal is a nudge: the source's log after each watermark is what is buffered,
-    // so a signal the runtime never heard live arrives too and none arrives twice. False when nothing is journaled.
-    public async Task CatchUp()
+    public Task CatchUp() => CatchUpSourcesAsync([.. Snapshot.Subscriptions.Select(s => s.Neuron).Distinct(StringComparer.Ordinal)]);
+
+    // A source whose log cannot be read now stays nudged, so the next reminder reads it again.
+    private async Task CatchUpSourcesAsync(string[] sources)
     {
         _facts.Clear();
-        foreach (var neuron in Snapshot.Subscriptions.Select(s => s.Neuron).Distinct(StringComparer.Ordinal).ToArray())
+        foreach (var neuron in sources)
         {
+            _nudged.Remove(neuron);
             try { await CatchUpAsync(neuron); }
             catch (Exception error)
-            { logger.LogWarning(error, "Brain {Brain} could not read {Neuron}'s part log from its watermark; live signals and the next re-subscribe retry.", Brain, neuron); }
+            {
+                _nudged.Add(neuron);
+                logger.LogWarning(error, "Brain {Brain} could not read {Neuron}'s part log from its watermark; its next reminder retries.", Brain, neuron);
+            }
         }
         Flush();
     }
 
+    // On a host with a part log a live signal is a nudge: the source's log after each watermark is what is buffered,
+    // so a signal the runtime never heard live arrives too and none arrives twice. False when nothing is journaled.
     private async Task<bool> CatchUpAsync(string neuron, bool push = true)
     {
         var matching = Snapshot.Subscriptions.Where(s => s.Neuron == neuron).ToArray();
@@ -474,6 +548,7 @@ internal sealed class BrainRuntimeNeuron(
         if (reminderName != ReconcileReminder) { return; }
         if (Snapshot.Programs.Length == 0) { await EndSessionAsync(); return; }
         if (_watched.Count == 0 && Snapshot.Subscriptions.Length > 0) { await WatchSourcesAsync(); }
+        if (_nudged.Count > 0) { await CatchUpSourcesAsync([.. _nudged]); }
         var before = Snapshot.Session?.Id;
         await EnsureSessionAsync();
         if (Snapshot.Session is not { } session || session.Id != before) { return; }
@@ -656,19 +731,24 @@ internal sealed class BrainRuntimeNeuron(
 
     private readonly record struct RunCounts(long Runs, long Failures, long LastDurationMicroseconds);
 
-    // A source that retains the signal seeds a new subscription with the backlog the synapse missed.
-    // A source without retention contributes nothing: the cast fails and there is nothing to seed.
+    // A source that retains the signal seeds a new subscription with the backlog the synapse missed. Any other
+    // source, a runs neuron among them, contributes nothing and is not asked.
     private async Task<string[]> SeedRetainedAsync(string neuron, string signal, long since)
     {
-        try
-        {
-            var retained = await GrainFactory.GetGrain<IRetainsSignals>(GrainId.Parse(neuron)).Retained(signal, since);
-            return [.. retained.Select(item => JsonSerializer.Serialize(item.Signal, item.Signal.GetType(), RuntimeProtocol.Json))];
-        }
-        catch (InvalidCastException)
-        {
-            return [];
-        }
+        var source = GrainId.Parse(neuron);
+        if (!Retains(source)) { return []; }
+        var retained = await GrainFactory.GetGrain<IRetainsSignals>(source).Retained(signal, since);
+        return [.. retained.Select(item => JsonSerializer.Serialize(item.Signal, item.Signal.GetType(), RuntimeProtocol.Json))];
+    }
+
+    // Whether the source's grain type implements IRetainsSignals is the cluster manifest's to say; asking a
+    // source that does not would cross the cluster only to fail a cast.
+    private bool Retains(GrainId source)
+    {
+        var retains = ServiceProvider.GetRequiredService<GrainInterfaceTypeResolver>().GetGrainInterfaceType(typeof(IRetainsSignals)).ToString();
+        return ServiceProvider.GetRequiredService<GrainPropertiesResolver>().TryGetGrainProperties(source.Type, out var grain)
+            && grain.Properties.Any(property => property.Key.StartsWith(WellKnownGrainTypeProperties.ImplementedInterfacePrefix, StringComparison.Ordinal)
+                && property.Value == retains);
     }
 
     private ProgramView View(ProgramAssignment program)

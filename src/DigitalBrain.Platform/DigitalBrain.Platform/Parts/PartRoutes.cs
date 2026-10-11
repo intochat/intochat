@@ -22,9 +22,11 @@ internal sealed class PartRoutes
     public bool IsPartLogged(GrainType type) => _logged.Contains(type);
 
     // The part a routed grain belongs to; null for a grain that is not part-logged or keyed outside every brain.
-    public PartId? PartOf(GrainId grain)
+    public PartId? PartOf(GrainId grain) => IsPartLogged(grain.Type) ? KeyedPart(grain) : null;
+
+    // The part a grain's key names, routed or not; null for a key outside every brain.
+    public static PartId? KeyedPart(GrainId grain)
     {
-        if (!IsPartLogged(grain.Type)) { return null; }
         var key = grain.Key.ToString();
         try { return key is null ? null : PartId.Of(key); }
         catch (ArgumentException) { return null; }

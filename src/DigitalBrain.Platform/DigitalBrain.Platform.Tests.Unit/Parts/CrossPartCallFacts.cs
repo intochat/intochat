@@ -66,6 +66,57 @@ public sealed class EchoNeuron([PersistentState("echo", DigitalBrainNames.Cluste
     public Task Touch() => Task.CompletedTask;
 }
 
+public interface IChime : INeuron { Task Ring(); }
+
+// No state of its own, like the Time module's timer and reminder: only its activation and its signals tie it to its part.
+[GrainType("test.chime")]
+internal sealed class ChimeNeuron(DigitalBrain.Platform.Sequencer.MachineIdentity machine) : Neuron, IChime, IRemindable
+{
+    public static readonly ConcurrentBag<(string Machine, string Key)> Ticks = [];
+    public static readonly ConcurrentDictionary<string, TaskCompletionSource> Deactivated = new(StringComparer.Ordinal);
+
+    public Task Ring()
+    {
+        // Kept alive as the timer keeps itself: only an explicit deactivation ends it.
+        DelayDeactivation(Timeout.InfiniteTimeSpan);
+        return PublishAsync(new Pinged());
+    }
+
+    public Task ReceiveReminder(string reminderName, TickStatus status)
+    {
+        Ticks.Add((machine.MachineId, this.GetPrimaryKeyString()));
+        return PublishAsync(new Pinged());
+    }
+
+    public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+    {
+        Deactivated.GetOrAdd(this.GetPrimaryKeyString(), _ => new(TaskCreationOptions.RunContinuationsAsynchronously)).TrySetResult();
+        return base.OnDeactivateAsync(reason, cancellationToken);
+    }
+}
+
+public interface IBell : INeuron { Task<int> Rung(); Task Touch(); }
+
+// A part-logged neuron with a reminder, as the C# runtime's reconcile: its calls are routed to its part's holder.
+[GrainType("test.bell")]
+internal sealed class BellNeuron(
+    [PersistentState("bell", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<PartCounterState> state,
+    DigitalBrain.Platform.Sequencer.MachineIdentity machine)
+    : Neuron<PartCounterState>(state), IBell, IRemindable
+{
+    public static readonly ConcurrentBag<(string Machine, string Key)> Ticks = [];
+
+    public Task<int> Rung() => Task.FromResult(Snapshot.Value);
+
+    public Task Touch() => Task.CompletedTask;
+
+    public async Task ReceiveReminder(string reminderName, TickStatus status)
+    {
+        Ticks.Add((machine.MachineId, this.GetPrimaryKeyString()));
+        await SaveQuietly(new PartCounterState { Value = Snapshot.Value + 1 });
+    }
+}
+
 // Which machine ran an activation handler of a counter: a stand-in runs none (R101).
 internal sealed class ActivationRecord(DigitalBrain.Platform.Sequencer.MachineIdentity machine) : IActivationHandler<CrossCounterNeuron>
 {
@@ -511,6 +562,124 @@ public sealed class CrossPartCallFacts
             var signal = Assert.IsType<Changed>(Assert.Single(log.SignalsSince(0)[^1].Signals));
             Assert.Equal(5, signal.Value);
             Assert.Equal($"test.signal-counter/{counter}", signal.Publisher.Name);
+        }
+        finally { await Stop(trust, two, one); }
+    }
+
+    private static string NewChime() => $"{Scope}/apps/chime/c{Guid.NewGuid():N}";
+
+    // What a machine's reminder service sends when a reminder comes due there: every machine of the deployment reads
+    // the same reminder table, so the tick comes due on each of them (R144).
+    private static Task Tick(ITestBrain machine, string chime) => Tick<IChime>(machine, chime);
+
+    private static Task Tick<T>(ITestBrain machine, string key) where T : INeuron
+        => machine.Grains.GetGrain<T>(key).AsReference<IRemindable>().ReceiveReminder("tick", default);
+
+    // The chime's signal entries in its part's log, read on the machine that holds the part.
+    private static async Task<int> Journaled(ITestBrain holder, string chime)
+    {
+        var log = await holder.Services.GetRequiredService<PartLogs>().For(PartId.Of(chime));
+        await log.Flushed();
+        return log.SignalsOf($"test.chime/{chime}", 0).Entries.Length;
+    }
+
+    private static string[] TickedOn(string chime) => [.. ChimeNeuron.Ticks.Where(tick => tick.Key == chime).Select(tick => tick.Machine)];
+
+    // R144: a machine acts on a part only while it holds it; a tick for another machine's part never runs here, so it
+    // journals nothing and publishes nothing, while the holder's own tick runs.
+    [Fact(Timeout = 180_000)]
+    public async Task ATickForAPartHeldByAnotherMachineIsDropped()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        var (trust, one, two) = await Machines(ct);
+        try
+        {
+            var chime = NewChime();
+            await one.Grains.GetGrain<IChime>(chime).Ring();
+
+            await Tick(two, chime);
+            await Tick(one, chime);
+
+            Assert.Equal([Id(one)], TickedOn(chime));
+            Assert.DoesNotContain(PartId.Of(chime), two.Services.GetRequiredService<PartLogs>().Opened);
+            Assert.Equal(2, await Journaled(one, chime));
+        }
+        finally { await Stop(trust, two, one); }
+    }
+
+    // R144: who acts on a tick is read from the part's head, so a machine that dropped ticks while another held the part
+    // takes it with the first tick after the release, and the releasing machine then drops its own.
+    [Fact(Timeout = 180_000)]
+    public async Task AfterAReleaseTheNewHolderFiresTheNextTick()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        var (trust, one, two) = await Machines(ct);
+        try
+        {
+            var chime = NewChime();
+            await one.Grains.GetGrain<IChime>(chime).Ring();
+            await Tick(two, chime);
+
+            await one.Services.GetRequiredService<PartActivations>().Release(PartId.Of(chime));
+            await Tick(two, chime);
+            await Tick(one, chime);
+
+            Assert.Equal([Id(two)], TickedOn(chime));
+            Assert.DoesNotContain(PartId.Of(chime), one.Services.GetRequiredService<PartLogs>().Opened);
+            Assert.Contains(PartId.Of(chime), two.Services.GetRequiredService<PartLogs>().Opened);
+            Assert.Equal(2, await Journaled(two, chime));
+        }
+        finally { await Stop(trust, two, one); }
+    }
+
+    // R144: the reminder service delivers a tick as an outgoing call, and a part-logged neuron's calls are routed to its
+    // part's holder, whose own reminder service fires the same tick. The non-holder drops it before routing: the holder
+    // runs it once, and nothing crosses the machines' link.
+    [Fact(Timeout = 180_000)]
+    public async Task ATickForAPartLoggedNeuronOnANonHolderIsDroppedNotForwarded()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        var seen = new ConcurrentBag<Activity>();
+        using var listener = Listen(seen);
+        var (trust, one, two) = await Machines(ct);
+        try
+        {
+            var bell = $"{Scope}/apps/bell/b{Guid.NewGuid():N}";
+            await one.Grains.GetGrain<IBell>(bell).Touch();
+
+            await Tick<IBell>(two, bell);
+            await Tick<IBell>(one, bell);
+
+            Assert.Equal([Id(one)], BellNeuron.Ticks.Where(tick => tick.Key == bell).Select(tick => tick.Machine));
+            Assert.Equal(1, await one.Grains.GetGrain<IBell>(bell).Rung());
+            Assert.DoesNotContain(PartId.Of(bell), two.Services.GetRequiredService<PartLogs>().Opened);
+            Assert.DoesNotContain(seen, activity => activity.Kind == ActivityKind.Client
+                && activity.GetTagItem(PartCallFilter.GrainTag) as string == $"test.bell/{bell}");
+        }
+        finally { await Stop(trust, two, one); }
+    }
+
+    // A neuron with no state writes no record, so only its activation ties it to its part: a release deactivates it too,
+    // even one that keeps itself alive, so it cannot act on the part once another machine may take it.
+    [Fact(Timeout = 180_000)]
+    public async Task AReleaseDeactivatesAStatelessNeuronOfThePart()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        var (trust, one, two) = await Machines(ct);
+        try
+        {
+            var chime = NewChime();
+            var deactivated = ChimeNeuron.Deactivated.GetOrAdd(chime, _ => new(TaskCreationOptions.RunContinuationsAsynchronously));
+            await two.Grains.GetGrain<IChime>(chime).Ring();
+
+            await two.Services.GetRequiredService<PartActivations>().Release(PartId.Of(chime));
+
+            await deactivated.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
+            Assert.DoesNotContain(PartId.Of(chime), two.Services.GetRequiredService<PartLogs>().Opened);
         }
         finally { await Stop(trust, two, one); }
     }
