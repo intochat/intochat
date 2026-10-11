@@ -51,9 +51,12 @@ internal sealed class MeshStore(INodeDirectoryClient directory, IShardClient sha
     {
         ArgumentOutOfRangeException.ThrowIfNegative(round);
         var manifest = await ReadManifest(key, reference, cancellationToken);
+        var health = await Health();
         return await Task.WhenAll(manifest.Shards.Select(async shard =>
         {
             if (round >= shard.Challenges.Length) { return new ShardAudit(shard.Index, shard.NodeId, false, "challenges exhausted"); }
+            // A node the directory knows is offline is not asked and not reported; repair moves its shard (T23-9).
+            if (!(health.TryGetValue(shard.NodeId, out var node) && node.Online)) { return new ShardAudit(shard.Index, shard.NodeId, false, "node offline"); }
             var challenge = shard.Challenges[round];
             var proof = await shards.Prove(shard.NodeId, shard.Cid, challenge.Nonce, cancellationToken);
             var passed = proof is not null && CryptographicOperations.FixedTimeEquals(proof, challenge.Expected);
@@ -90,6 +93,10 @@ internal sealed class MeshStore(INodeDirectoryClient directory, IShardClient sha
         };
         return new MeshRepair(await WriteManifest(key, reference.SegmentId, repaired, cancellationToken), moved);
     }
+
+    // A ref's shard content ids by index: what the auditor drops from a moved shard's old node (T23-9).
+    internal async Task<string[]> ShardCids(byte[] key, MeshRef reference, CancellationToken cancellationToken)
+        => [.. (await ReadManifest(key, reference, cancellationToken)).Shards.Select(shard => shard.Cid)];
 
     // Padding is never read (Join stops at SealedLength); random bytes keep every segment's shards unique. A shard is
     // at least MinShardSize bytes, since one-byte shards of different segments would collide by chance.

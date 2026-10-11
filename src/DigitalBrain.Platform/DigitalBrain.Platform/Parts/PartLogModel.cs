@@ -82,6 +82,10 @@ public sealed class HeadPayload
     // history only if a range of its own covers that seq (ruling R27). A range is added only when the holder changes.
     [Id(5)] public SeqWriter[] Writers { get; set; } = [];
 
+    // R111/R116: the next audit round for every ref this head reaches, committed with the lease so a new holder continues
+    // it. Every rewrite carries it forward; only an exhaustion snapshot (all refs new) resets it to 0.
+    [Id(6)] public int AuditRound { get; set; }
+
     public HeadPayload CommittedBy(string machineId, long firstSeq, long lastSeq)
     {
         var writers = Writers;
@@ -94,6 +98,7 @@ public sealed class HeadPayload
         return new HeadPayload
         {
             Head = Head, Snapshot = Snapshot, SnapshotSeq = SnapshotSeq, LastSeq = LastSeq, SegmentsSinceSnapshot = SegmentsSinceSnapshot, Writers = writers,
+            AuditRound = AuditRound,
         };
     }
 

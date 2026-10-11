@@ -64,6 +64,11 @@ internal sealed class PartLog : IAsyncDisposable
 
     public bool LeaseLive => !Closed && !_lease.Expired;
 
+    // The holder's own audit (T23-9) opens manifests with the part key; it never leaves this machine.
+    internal byte[] Key => _key;
+
+    internal HeadPayload Head => _lease.Payload;
+
     public static async Task<PartLog> Open(PartId part, byte[] key, PartLease lease, IMeshStore mesh, Serializer serializer, PartsOptions options,
         TimeProvider time, ILogger<PartLog> logger, CancellationToken ct, string? deploymentDirectory = null)
     {
@@ -363,6 +368,7 @@ internal sealed class PartLog : IAsyncDisposable
                 {
                     Head = reference, Snapshot = payload.Snapshot, SnapshotSeq = payload.SnapshotSeq,
                     LastSeq = batch[^1].Entry.Seq, SegmentsSinceSnapshot = payload.SegmentsSinceSnapshot + 1, Writers = payload.Writers,
+                    AuditRound = payload.AuditRound,
                 }.CommittedBy(_lease.MachineId, batch[0].Entry.Seq, batch[^1].Entry.Seq));
                 _chain.Add(reference);
                 if (_journal is null) { foreach (var pending in batch) { Apply(pending.Entry); } }
@@ -422,7 +428,7 @@ internal sealed class PartLog : IAsyncDisposable
     // Caller holds the flush lock. Folds the committed state into one snapshot that replaces the chain, then
     // discards what it replaced. Journaled entries at or below SnapshotSeq were trimmed by the flush that
     // committed them; queued ones stay above it. A reopen accepts covered entries the head records as its own (R27).
-    private async Task Snapshot()
+    private async Task Snapshot(bool resetAuditRound = false)
     {
         var payload = _lease.Payload;
         SnapshotRecord[] records;
@@ -444,7 +450,11 @@ internal sealed class PartLog : IAsyncDisposable
         }
         var snapshot = new PartSnapshot { Seq = payload.LastSeq, Records = records, RecentSignals = recent, SignalsFrom = payload.SnapshotSeq };
         var reference = await _mesh.Write(_key, PartSegments.SnapshotId(_part, payload.LastSeq), _serializer.SerializeToArray(snapshot));
-        await _lease.Commit(new HeadPayload { Head = null, Snapshot = reference, SnapshotSeq = payload.LastSeq, LastSeq = payload.LastSeq, SegmentsSinceSnapshot = 0, Writers = payload.Writers });
+        await _lease.Commit(new HeadPayload
+        {
+            Head = null, Snapshot = reference, SnapshotSeq = payload.LastSeq, LastSeq = payload.LastSeq, SegmentsSinceSnapshot = 0, Writers = payload.Writers,
+            AuditRound = resetAuditRound ? 0 : payload.AuditRound,
+        });
         // Only refs of this log's own replaced chain are discarded, never one a read repaired (ruling R7): MeshStore
         // shares shards between a repaired ref and its original. Open has no repair path today.
         // Serve exactly what a reopen from this snapshot would: signals after the previous snapshot's seq.
@@ -460,6 +470,69 @@ internal sealed class PartLog : IAsyncDisposable
             try { await _mesh.Discard(_key, old); }
             catch (Exception error) { _logger.LogWarning(error, "Part {Part} could not discard {Segment} after its snapshot at seq {Seq}.", _part, old.SegmentId, payload.LastSeq); }
         }
+    }
+
+    // T23-9: what the holder audits: the head's snapshot and the chain segments written or replayed since it.
+    internal async Task<(MeshRef? Snapshot, MeshRef[] Chain)> Reached()
+    {
+        await _flushing.WaitAsync();
+        try { return (_lease.Payload.Snapshot, [.. _chain]); }
+        finally { _flushing.Release(); }
+    }
+
+    // R111: one CAS per audit pass of the part; the next holder continues from the committed round.
+    internal Task<int> AdvanceAuditRound() => UnderLease(async () =>
+    {
+        var payload = _lease.Payload;
+        await _lease.Commit(Copy(payload, payload.Snapshot, payload.AuditRound + 1));
+        return payload.AuditRound + 1;
+    });
+
+    // T23-9: a failed chain segment cannot be repaired in place (segments link by Prev inside sealed bytes), so an
+    // early snapshot replaces the chain and discards it. R110/R116: on challenge exhaustion the snapshot is the
+    // re-issue: every ref the head reaches is then new, so the round restarts at 0.
+    internal Task HealBySnapshot(bool resetAuditRound = false) => UnderLease(async () =>
+    {
+        await Snapshot(resetAuditRound);
+        return true;
+    });
+
+    // T23-9/R7: a repaired snapshot ref replaces the head's one in a CAS under the lease; the old ref is not discarded
+    // (the repaired manifest shares its unmoved shards). False when the head no longer names `expected`.
+    internal Task<bool> CommitRepairedSnapshot(MeshRef expected, MeshRef repaired) => UnderLease(async () =>
+    {
+        var payload = _lease.Payload;
+        if (payload.Snapshot?.ManifestCid != expected.ManifestCid) { return false; }
+        await _lease.Commit(Copy(payload, repaired, payload.AuditRound));
+        return true;
+    });
+
+    private static HeadPayload Copy(HeadPayload payload, MeshRef? snapshot, int auditRound) => new()
+    {
+        Head = payload.Head, Snapshot = snapshot, SnapshotSeq = payload.SnapshotSeq, LastSeq = payload.LastSeq,
+        SegmentsSinceSnapshot = payload.SegmentsSinceSnapshot, Writers = payload.Writers, AuditRound = auditRound,
+    };
+
+    // Serialized with flushes and snapshots; a lost lease closes the log exactly as a failed batch commit does.
+    private async Task<T> UnderLease<T>(Func<Task<T>> change)
+    {
+        await _flushing.WaitAsync();
+        try
+        {
+            lock (_queue)
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                if (_closed is not null) { throw new LeaseLostException($"The log of part {_part} is closed: {_closed.Message}"); }
+            }
+            return await change();
+        }
+        catch (LeaseLostException lost) when (!Closed)
+        {
+            lock (_queue) { _closed = lost; }
+            FailAll(lost);
+            throw;
+        }
+        finally { _flushing.Release(); }
     }
 
     // Seqs restart right after what the head accepted, so the next batch continues it without a gap.

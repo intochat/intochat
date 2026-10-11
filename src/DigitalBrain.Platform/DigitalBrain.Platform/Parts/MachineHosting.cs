@@ -38,6 +38,13 @@ public static class MachineHosting
         services.AddKeyedSingleton<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage, (provider, _) =>
             ActivatorUtilities.CreateInstance<PartGrainStorage>(provider));
         silo.TryAddKernelRegistration();
+        // T23-9: the holder of a part audits and repairs its segments; the auditor's clock is the mesh's (a fact moves it).
+        services.TryAddKeyedSingleton(Mesh.MeshOptions.Key, (provider, _) => provider.GetRequiredService<TimeProvider>());
+        if (!services.Any(d => d.ServiceType == typeof(Mesh.MeshAuditor)))
+        {
+            services.AddSingleton<Mesh.MeshAuditor>();
+            services.AddHostedService(provider => provider.GetRequiredService<Mesh.MeshAuditor>());
+        }
         // Single-host composition (no trust endpoint) holds every part itself: nothing to forward.
         if (!string.IsNullOrWhiteSpace(silo.Configuration[$"{Trust.TrustOptions.Key}:{nameof(Trust.TrustOptions.Endpoint)}"])) { silo.AddCrossPartCalls(); }
         services.AddOptions<PartsOptions>().Validate<IHostEnvironment, IServiceProvider>((parts, environment, provider) =>
