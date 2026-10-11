@@ -593,6 +593,31 @@ public sealed class BrainRuntimeNeuronFacts
         Assert.Equal(1, assemblies.Puts);
     }
 
+    // The fast path's revert: a write whose Assign never answered (asked twice, joined) is given up and the app
+    // asks for its previous program again. That program is current, so it answers at once, and the stuck Assign
+    // that lands afterwards is refused by ticket: the runtime keeps the previous program.
+    [Fact]
+    public async Task AStuckAssignThatLandsAfterTheRevertToTheCurrentProgramIsRefused()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var assemblies = new HeldAssemblies();
+        await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, assemblies: assemblies);
+        var previous = await Programs(brain).Assign(Owner, Synapse(), []);
+        var hold = assemblies.Hold = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stuck = Programs(brain).Assign(Owner, Synapse(RuntimeBrain.Idle + "// stuck\n"), []);
+        await assemblies.Entered.Task.WaitAsync(ct);
+        var askedAgain = Programs(brain).Assign(Owner, Synapse(RuntimeBrain.Idle + "// stuck\n"), []);
+        assemblies.Hold = null;
+
+        var reverted = await Programs(brain).Assign(Owner, Synapse(), []);
+        hold.SetResult();
+
+        Assert.Equal(previous.Hash, reverted.Hash);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => stuck);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => askedAgain);
+        Assert.Equal(previous.Hash, (await Programs(brain).Describe(Owner))!.Hash);
+    }
+
     // A live signal only nudges the runtime: its publisher returns while the runtime is still in a long turn,
     // and the signal is buffered once that turn ends.
     [Fact]

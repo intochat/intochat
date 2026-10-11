@@ -65,8 +65,6 @@ internal sealed class SynapseWriter(
 
         public long DeployMs { get; set; }
 
-        // What the app ran before this write staged its file: the program a rejected, unsettled deploy goes back to.
-        public AppProgram? Before { get; set; }
 
         public async Task Enter(SemaphoreSlim gate, CancellationToken cancellationToken)
         {
@@ -79,7 +77,7 @@ internal sealed class SynapseWriter(
 
     private sealed record Job(string AppKey, Guid OperationId, string Sentence, string[] Focus, long Started, DateTimeOffset RequestedAt);
 
-    private sealed record Outcome(string[] Errors, int Attempts, string? Base, string? Path, string? Hash = null);
+    private sealed record Outcome(string[] Errors, int Attempts, string? Base, string? Path, string? Hash = null, Dictionary<string, string>? Deployed = null);
 
     private sealed record WrittenSynapse(string? Path, string? Source);
 
@@ -90,6 +88,7 @@ internal sealed class SynapseWriter(
         span?.SetTag("apps.app", job.AppKey);
         span?.SetTag("apps.fastpath.operation", job.OperationId.ToString());
         var app = grains.GetGrain<IApp>(job.AppKey);
+        var deploys = grains.GetGrain<IAppDeploy>(job.AppKey);
         // The job owns the request's completion: every path below, a throw or a cancellation included, ends in
         // CompleteSynapse, so no request stays Requested while its job is gone.
         Outcome outcome;
@@ -110,7 +109,7 @@ internal sealed class SynapseWriter(
                 }
                 // The person's view goes alongside the write, never ahead of it; it lands before the outcome does.
                 var working = Report(app, "working", "Writing a synapse: " + Clip(job.Sentence, 200));
-                outcome = await Run(job, app, snapshot, turn, span, cancellationToken);
+                outcome = await Run(job, deploys, snapshot, turn, span, cancellationToken);
                 await working;
             }
             catch (OperationCanceledException)
@@ -121,12 +120,21 @@ internal sealed class SynapseWriter(
             span?.SetTag("apps.fastpath.attempts", outcome.Attempts);
             span?.SetTag("apps.fastpath.base", outcome.Base ?? "");
             span?.SetTag("apps.fastpath.elapsed_ms", elapsed);
-            // Runtime first, then the record: by the time the rejection is seen, the runtime is back to the files.
-            if (outcome.Errors.Length > 0 && turn.Unsettled && turn.Before is { } before) { await Reconcile(job.AppKey, before, cancellationToken); }
+            // Runtime first, then the record: a deploy that never answered may still land, so the runtime is put back
+            // to the app's files (which never held the staged synapse) before the rejection is recorded. When that
+            // goes unanswered too, the runtime's state is unknown and the request says so: Unsettled, source kept.
+            var unsettled = outcome.Errors.Length > 0 && turn.Unsettled && !await Reconcile(job.AppKey, deploys, cancellationToken);
             try
             {
-                var completed = await app.CompleteSynapse(job.OperationId, outcome.Errors, elapsed, outcome.Attempts, outcome.Base, outcome.Hash);
+                var completed = unsettled
+                    ? await deploys.Unsettle(job.OperationId, "Unsettled: runtime state unknown. " + outcome.Errors[0], elapsed, outcome.Attempts, outcome.Base)
+                    : await app.CompleteSynapse(job.OperationId, outcome.Errors, elapsed, outcome.Attempts, outcome.Base, outcome.Hash);
                 recorded = completed.Synapses?.FirstOrDefault(synapse => synapse.OperationId == job.OperationId);
+                // An edit through another path while this deploy ran (the Creator, settings) is in the app's files but
+                // not in the program this write deployed: the runtime catches up with the files as they are now.
+                if (recorded is { Status: SynapseStatus.Written } && outcome.Deployed is { } deployed
+                    && !Same(deployed, completed.Files.Where(file => AppFiles.IsProgram(file.Key)).ToDictionary(StringComparer.Ordinal)))
+                { await Reconcile(job.AppKey, deploys, cancellationToken); }
             }
             catch (Exception error)
             {
@@ -141,8 +149,15 @@ internal sealed class SynapseWriter(
         // The app's deploy turn ends once the outcome is recorded: the next write's deploy queues behind this
         // completion, never ahead of it, so the completion is not left waiting out another Assign.
         finally { turn.Exit(); }
-        // The app's record decides the outcome: a deploy that landed after this job gave up on it is Written.
-        if (recorded is { Status: SynapseStatus.Written })
+        if (recorded is { Status: SynapseStatus.Unsettled })
+        {
+            span?.SetTag("apps.fastpath.outcome", "unsettled");
+            span?.SetStatus(ActivityStatusCode.Error, Clip(recorded.Errors[0], 500));
+            log.LogError("SynapseOutcome {App} {OperationId} {Outcome} {Reason} {ElapsedMs} {DeployMs} {Attempts}",
+                job.AppKey, job.OperationId, "unsettled", recorded.Errors[0], elapsed, turn.DeployMs, outcome.Attempts);
+            await Report(app, "attention", "The synapse's deploy never answered; what runs is unknown: " + Clip(recorded.Errors[0], 300));
+        }
+        else if (recorded is { Status: SynapseStatus.Written })
         {
             span?.SetTag("apps.fastpath.outcome", "written");
             span?.SetTag("apps.fastpath.path", recorded.Path);
@@ -162,7 +177,7 @@ internal sealed class SynapseWriter(
         }
     }
 
-    private async Task<Outcome> Run(Job job, IApp app, AppSnapshot snapshot, DeployTurn turn, Activity? span, CancellationToken cancellationToken)
+    private async Task<Outcome> Run(Job job, IAppDeploy deploys, AppSnapshot snapshot, DeployTurn turn, Activity? span, CancellationToken cancellationToken)
     {
         var brain = BrainOf(job.AppKey);
         // The sentence is embedded once for both rankings, and the examples, the focus and the matching contracts
@@ -200,28 +215,32 @@ internal sealed class SynapseWriter(
         }
         if (errors.Length > 0) { return new(errors, attempts, basis?.Name, null); }
         // One deploy per app at a time, held until the outcome is recorded (Write releases it). The deploy runs
-        // here, outside the app's turn: files first (StageSynapse), then the runtime, however long it takes.
+        // here, outside the app's turn: the source is staged on its request (Stage), then the runtime, however long it takes.
         await turn.Enter(_deploys.GetOrAdd(job.AppKey, _ => new SemaphoreSlim(1, 1)), cancellationToken);
-        AppProgram program;
-        turn.Before = await app.Program();
-        try { program = await app.StageSynapse(job.OperationId, written!.Path!, written.Source!); }
+        StagedProgram program;
+        try { program = await deploys.Stage(job.OperationId, written!.Path!, written.Source!); }
         catch (Exception error) when (error is InvalidOperationException or ArgumentException)
         { return new([error.Message], attempts, basis?.Name, null); }
         var deployed = await Deploy(job.AppKey, program, turn, cancellationToken);
         // The runtime compiles the whole program again as it assigns it: that refusal is this synapse's too.
         if (deployed.Error is { } refused) { return new([refused], attempts, basis?.Name, null); }
-        return new([], attempts, basis?.Name, written.Path, deployed.Hashes.GetValueOrDefault(written.Path!));
+        return new([], attempts, basis?.Name, written.Path, deployed.Hashes.GetValueOrDefault(written.Path!), program.Sources);
     }
 
     private IAppRuntime? Runtime => runtimes.FirstOrDefault();
 
     // The whole program to the runtime, asked again while a call times out (a repeat joins the deploy in flight).
     // Unsettled stays set when no call answered: the program may land after all, and Reconcile undoes it.
-    private async Task<(IReadOnlyDictionary<string, string> Hashes, string? Error)> Deploy(string appKey, AppProgram program, DeployTurn turn, CancellationToken cancellationToken)
+    private async Task<(IReadOnlyDictionary<string, string> Hashes, string? Error)> Deploy(string appKey, StagedProgram program, DeployTurn turn, CancellationToken cancellationToken)
     {
         if (Runtime is not { } runtime) { return (new Dictionary<string, string>(), null); }
         var started = Stopwatch.GetTimestamp();
         turn.Unsettled = true;
+        // The program runs as the app's principal, as it did when the app neuron deployed it, never as whoever
+        // this background job happened to inherit.
+        var inherited = RequestContext.Get(CallerContextStamper.RequestContextKey);
+        if (program.Principal is { } principal) { RequestContext.Set(CallerContextStamper.RequestContextKey, principal); }
+        else { RequestContext.Remove(CallerContextStamper.RequestContextKey); }
         try
         {
             for (var call = 1; ; call++)
@@ -246,22 +265,35 @@ internal sealed class SynapseWriter(
                 { return (new Dictionary<string, string>(), $"The deploy did not answer after {MaxDeployCalls} calls: {error.Message}"); }
             }
         }
-        finally { turn.DeployMs = (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds; }
+        finally
+        {
+            turn.DeployMs = (long)Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            if (inherited is null) { RequestContext.Remove(CallerContextStamper.RequestContextKey); }
+            else { RequestContext.Set(CallerContextStamper.RequestContextKey, inherited); }
+        }
     }
 
-    // The runtime back to the program before the write, after a deploy that never answered and may still land:
-    // the later program replaces it (and the brain runtime refuses an older Assign applied after a newer one).
-    private async Task Reconcile(string appKey, AppProgram before, CancellationToken cancellationToken)
+    private static bool Same(Dictionary<string, string> left, Dictionary<string, string> right)
+        => left.Count == right.Count && left.All(file => right.TryGetValue(file.Key, out var source) && source == file.Value);
+
+    // The runtime to the app's files as they are now (a staged synapse is never among them): after a deploy that
+    // never answered and may still land, the later program replaces it, and the brain runtime refuses the older
+    // Assign by ticket. False when this goes unanswered too.
+    private async Task<bool> Reconcile(string appKey, IAppDeploy deploys, CancellationToken cancellationToken)
     {
         var settle = new DeployTurn();
         try
         {
-            var reconciled = await Deploy(appKey, before, settle, cancellationToken);
-            if (settle.Unsettled || reconciled.Error is not null)
-            { log.LogError("SynapseUnreconciled {App} {Reason}", appKey, reconciled.Error ?? "the runtime did not answer"); }
+            var reconciled = await Deploy(appKey, await deploys.Program(), settle, cancellationToken);
+            if (reconciled.Error is null && !settle.Unsettled) { return true; }
+            log.LogError("SynapseUnreconciled {App} {Reason}", appKey, reconciled.Error ?? "the runtime did not answer");
+            return false;
         }
         catch (Exception error)
-        { log.LogError(error, "SynapseUnreconciled {App} {Reason}", appKey, error.Message); }
+        {
+            log.LogError(error, "SynapseUnreconciled {App} {Reason}", appKey, error.Message);
+            return false;
+        }
     }
 
     // One capped model call: the fast path's reasoning effort and output cap ride on the selection, so the

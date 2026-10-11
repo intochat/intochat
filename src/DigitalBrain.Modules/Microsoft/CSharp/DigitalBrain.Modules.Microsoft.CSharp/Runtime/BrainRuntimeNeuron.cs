@@ -144,7 +144,12 @@ internal sealed class BrainRuntimeNeuron(
         if (_assigning.TryGetValue(request, out var running)) { return running; }
         if (_applied.TryGetValue(owner, out var applied) && applied.Request == request
             && Snapshot.Programs.FirstOrDefault(p => p.Owner == owner)?.Hash == applied.View.Hash)
-        { return Task.FromResult(applied.View); }
+        {
+            // Asked again, the current program is the owner's latest change: an older Assign still compiling
+            // (one whose caller gave up and reverted to this) is not applied after it.
+            _changed[owner] = ++_tickets;
+            return Task.FromResult(applied.View);
+        }
         var assigning = AssignOnce(owner, request, sources, settings);
         if (!assigning.IsCompleted) { _assigning[request] = assigning; }
         return assigning;
