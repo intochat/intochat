@@ -18,7 +18,7 @@ public sealed class TrustHostFacts
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             [$"{Platform.Trust.TrustOptions.Key}:{nameof(Platform.Trust.TrustOptions.SiloPort)}"] = Free().ToString(System.Globalization.CultureInfo.InvariantCulture),
-            [$"{Platform.Trust.TrustOptions.Key}:{nameof(Platform.Trust.TrustOptions.GatewayPort)}"] = Free().ToString(System.Globalization.CultureInfo.InvariantCulture),
+            [$"{Platform.Trust.TrustOptions.Key}:{nameof(Platform.Trust.TrustOptions.IdentityPath)}"] = Path.Combine(Path.GetTempPath(), $"trust-{Guid.NewGuid():N}", "identity.key"),
             [$"{Platform.Trust.TrustOptions.Key}:{nameof(Platform.Trust.TrustOptions.AdvertisedAddress)}"] = "127.0.0.1",
         });
         builder.UseOrleans(silo => Program.Configure(silo, builder.Configuration));

@@ -10,8 +10,8 @@ using DigitalBrain.Platform.Sequencer;
 
 namespace DigitalBrain.Platform.Trust;
 
-// The machine's only way to the trust grains (Stage A: direct grain calls on the given factory; with a gateway, the
-// private trust client's). Calls that act for an account are signed by this machine (R37).
+// The machine's way to trust grains its own silo hosts (Stage A, tests: no Trust:Endpoint); a machine of a separate
+// trust cluster uses LinkTrustClients instead (T20-7). Calls that act for an account are signed by this machine (R37).
 internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIdentity? machine, TimeProvider time, MachineCounter? counter)
     : ISequencerClient, INodeDirectoryClient, IKeyringClient, IMarketplaceClient, IIdentityClient
 {
@@ -21,16 +21,15 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
     // A host that is not a machine (the MCP): it reads trust state and signs nothing (R70).
     internal static GrainTrustClients Reading(Func<IGrainFactory> grains, TimeProvider time) => new(grains, null, time, null);
 
-    private MachineIdentity Machine => machine ?? throw new InvalidOperationException("This host is not a machine; it signs no trust call.");
+    private readonly TrustSigner _signer = new(machine, time, counter);
+
+    private MachineIdentity Identity => _signer.Machine;
 
     // Facts only: a throwaway counter file per instance, which a production machine must never have (R65).
     internal static GrainTrustClients WithScratchCounter(IGrainFactory grains, MachineIdentity machine) =>
         new(grains, machine, TimeProvider.System, new MachineCounter(Path.Combine(Path.GetTempPath(), $"counter-{Guid.NewGuid():N}")));
 
-    // Resolved per call: a gateway's client exists only once the silo has initialized it.
     private IGrainFactory Grains => factory();
-
-    private readonly SemaphoreSlim _signing = new(1, 1);
 
     // The deployment's pairing secret, hashed (R52): what a ProvisionOwner binds this machine to the account with.
     public byte[] PairingSecretHash { get; init; } = [];
@@ -49,6 +48,14 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
 
     public Task<string> DeploymentId() => Directory.DeploymentId();
 
+    public Task<RegisteredMachine?> Machine(string machineId) => Grains.GetGrain<IMachineRegistry>(machineId).Read();
+
+    public Task Announce(MachineSigned<MachineCandidates> candidates)
+    {
+        ArgumentNullException.ThrowIfNull(candidates);
+        return Grains.GetGrain<IMachineRegistry>(candidates.MachineId).Announce(candidates.Call(), candidates.Payload);
+    }
+
     public Task Register(string nodeId, string ownerAccount) => Directory.Register(nodeId, ownerAccount);
 
     public Task SetOnline(string nodeId, bool online) => Directory.SetOnline(nodeId, online);
@@ -59,7 +66,7 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
 
     Task<StorageNodeView[]> INodeDirectoryClient.List() => Directory.List();
 
-    public Task Put(string nodeId, string cid, byte[] sealedShard) => Shard(nodeId, cid).Put(sealedShard);
+    public Task Put(string nodeId, string cid, byte[] sealedShard) => Shard(nodeId, cid).Put(sealedShard, machine?.MachineId);
 
     public Task<byte[]?> Get(string nodeId, string cid) => Shard(nodeId, cid).Get();
 
@@ -92,23 +99,9 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
     public Task Remove(string account, string publisher, string name)
         => Signed(new MarketplaceRemoval(publisher, name), account, Catalog.Remove);
 
-    private async Task Signed<T>(T payload, string account, Func<MachineSigned<T>, Task> send)
-        => await Signed<T, bool>(payload, account, async signed => { await send(signed); return true; });
+    private Task Signed<T>(T payload, string account, Func<MachineSigned<T>, Task> send) => _signer.Signed(payload, account, send);
 
-    // Signed calls go one at a time so the trust side sees this machine's counter strictly rising.
-    private async Task<TResult> Signed<T, TResult>(T payload, string account, Func<MachineSigned<T>, Task<TResult>> send)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(account);
-        await _signing.WaitAsync();
-        try
-        {
-            var now = time.GetUtcNow();
-            var sequence = (counter ?? throw new InvalidOperationException("This host is not a machine; it signs no trust call.")).Next();
-            var signature = Machine.Sign(MachineSigned<T>.SignedBytes(payload, account, Machine.MachineId, now, sequence));
-            return await send(new MachineSigned<T>(payload, account, Machine.MachineId, now, sequence, signature));
-        }
-        finally { _signing.Release(); }
-    }
+    private Task<TResult> Signed<T, TResult>(T payload, string account, Func<MachineSigned<T>, Task<TResult>> send) => _signer.Signed(payload, account, send);
 
     // Identity
     private IAccount Account(string accountId) => Grains.GetGrain<IAccount>(accountId);
@@ -133,8 +126,7 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
     public async Task<BrainProvision> ProvisionOwner(Member owner)
     {
         ArgumentNullException.ThrowIfNull(owner);
-        await RegisterMachine(Machine.MachineId, Machine.PublicKey, owner.AccountId, PairingSecretHash,
-            Machine.Sign(Signing.Registration(Machine.MachineId, Machine.PublicKey, owner.AccountId, PairingSecretHash)));
+        await RegisterMachine(Identity.MachineId, Identity.PublicKey, owner.AccountId, PairingSecretHash, _signer.Registration(owner.AccountId, PairingSecretHash));
         return new(owner, await Signed(owner, owner.AccountId, Writes.ProvisionOwner));
     }
 

@@ -12,8 +12,8 @@ using Orleans.Storage;
 
 namespace DigitalBrain.Trust;
 
-// The trust cluster's host (H2): its own Orleans cluster, `platform` storage only, and the trust grains. Machines
-// reach it through their private gateway client; nothing here can address a neuron.
+// The trust cluster's host (H2): its own Orleans cluster (no gateway), `platform` storage only, the trust grains,
+// and the link endpoint and relay machines reach it through (T20-7); nothing here can address a neuron.
 public static class Program
 {
     public static async Task Main(string[] args)
@@ -35,13 +35,13 @@ public static class Program
         var grainState = configuration[IntegrationSchema.Key("orleans", "GrainState")];
         if (string.IsNullOrWhiteSpace(clustering) || string.IsNullOrWhiteSpace(grainState))
         {
-            silo.UseLocalhostClustering(trust.SiloPort, trust.GatewayPort, serviceId: trust.ServiceId, clusterId: trust.ClusterId);
+            silo.UseLocalhostClustering(trust.SiloPort, gatewayPort: 0, serviceId: trust.ServiceId, clusterId: trust.ClusterId);
             silo.AddMemoryGrainStorage(DigitalBrainNames.PlatformGrainStorage);
         }
         else
         {
             silo.Configure<ClusterOptions>(options => (options.ClusterId, options.ServiceId) = (trust.ClusterId, trust.ServiceId));
-            silo.ConfigureEndpoints(trust.SiloPort, trust.GatewayPort);
+            silo.ConfigureEndpoints(trust.SiloPort, gatewayPort: 0);
             silo.UseAzureStorageClustering(options => options.TableServiceClient = new TableServiceClient(clustering));
             silo.AddAzureBlobGrainStorage(DigitalBrainNames.PlatformGrainStorage, options =>
             {
@@ -52,7 +52,7 @@ public static class Program
             silo.Services.AddKeyedSingleton<IGrainStorageSerializer>(DigitalBrainNames.PlatformGrainStorage, static (services, _) =>
                 new OrleansGrainStorageSerializer(services.GetRequiredService<Orleans.Serialization.Serializer>()));
         }
-        // A dev trust host on one PC advertises loopback so machines reach its gateway at localhost (R66).
+        // A dev trust host on one PC advertises and listens on loopback (R66), its link endpoint and relay too.
         if (trust.AdvertisedAddress is { } advertised)
         {
             var address = System.Net.IPAddress.Parse(advertised);
@@ -60,9 +60,8 @@ public static class Program
             {
                 options.AdvertisedIPAddress = address;
                 options.SiloListeningEndpoint = new System.Net.IPEndPoint(address, trust.SiloPort);
-                options.GatewayListeningEndpoint = new System.Net.IPEndPoint(address, trust.GatewayPort);
             });
         }
-        return silo.AddTrustCluster().AddTrustBoundary();
+        return silo.AddTrustCluster().AddTrustBoundary().AddTrustLinks();
     }
 }

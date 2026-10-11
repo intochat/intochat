@@ -21,7 +21,7 @@ public sealed class RegistrationTrustFacts
         var onB = b.SiloServices.GetRequiredService<PrincipalPasswords>();
         await Assert.ThrowsAsync<InvalidOperationException>(() => onB.Register("bob", "attackers-password", "Bob"));
         Assert.Null(await onB.Authenticate("bob", "attackers-password"));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => b.SiloServices.GetRequiredService<GrainTrustClients>().CompleteRegistration("bob"));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => b.SiloServices.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>().CompleteRegistration("bob"));
         Assert.NotNull(await a.SiloServices.GetRequiredService<PrincipalPasswords>().Authenticate("bob", "bobs-long-password"));
     }
 

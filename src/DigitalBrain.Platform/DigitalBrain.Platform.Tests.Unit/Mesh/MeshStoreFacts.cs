@@ -81,7 +81,7 @@ public sealed class MeshStoreFacts
         // Seed nodes cannot hold bytes under the wrong cid; a lying remote node is plan 7's fact (Fetch already
         // treats a cid mismatch as an erasure).
         await Shard(brain, victim.NodeId, victim.Cid).Drop();
-        await Assert.ThrowsAsync<InvalidDataException>(() => Shard(brain, victim.NodeId, victim.Cid).Put([9, 9, 9]));
+        await Assert.ThrowsAsync<InvalidDataException>(() => Shard(brain, victim.NodeId, victim.Cid).Put([9, 9, 9], null));
 
         Assert.Equal(data, await store.Read(Key, reference, ct));
     }

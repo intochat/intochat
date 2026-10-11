@@ -23,6 +23,9 @@ internal interface IMachineRegistry : IGrainWithStringKey
     // What a peer or the trust link checks a machine against (T20-2 check 5): null until it registered.
     [Orleans.Concurrency.AlwaysInterleave]
     Task<RegisteredMachine?> Read();
+
+    // Where the machine says it can be reached (T20-6), signed by it (counter and timestamp as any signed call).
+    Task Announce(SignedCall call, MachineCandidates candidates);
 }
 
 // One account's machines (R52): the first machine to bind it stores the pairing secret's hash; a later machine
@@ -62,6 +65,14 @@ internal sealed class MachineRegistryGrain(
     public Task<RegisteredMachine?> Read() => Task.FromResult(store.State.PublicKey is { } key
         ? new RegisteredMachine(MachineId, key, [.. store.State.Accounts], store.State.Candidates)
         : null);
+
+    public async Task Announce(SignedCall call, MachineCandidates candidates)
+    {
+        ArgumentNullException.ThrowIfNull(candidates);
+        await AcceptMachine(call);
+        store.State.Candidates = candidates;
+        await store.WriteStateAsync();
+    }
 
     public async Task<string> Accept(SignedCall call)
     {

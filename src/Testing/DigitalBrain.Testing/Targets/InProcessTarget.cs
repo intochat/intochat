@@ -65,7 +65,7 @@ public sealed class InProcessTarget : ITestTarget
         // A part-log machine with no separate trust cluster is its owner's core holder, so the product births the
         // owner brain at boot as it does on the AppHost's primary machine. Deleted with WithPartLog in Task 20.
         if (!string.IsNullOrWhiteSpace(Setting(plan, $"{PartsOptions.Key}:{nameof(PartsOptions.Role)}"))
-            && string.IsNullOrWhiteSpace(Setting(plan, $"{TrustOptions.Key}:{nameof(TrustOptions.Gateway)}"))
+            && string.IsNullOrWhiteSpace(Setting(plan, $"{TrustOptions.Key}:{nameof(TrustOptions.Endpoint)}"))
             && Setting(plan, $"{PartsOptions.Key}:CoreHolder") is null)
         { builder.Configuration[$"{PartsOptions.Key}:CoreHolder"] = "true"; }
         // Before the orleans module configures: its TryAddSingleton keeps this instance.

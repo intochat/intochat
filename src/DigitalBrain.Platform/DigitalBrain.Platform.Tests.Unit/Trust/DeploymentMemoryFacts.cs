@@ -33,7 +33,9 @@ public sealed class DeploymentMemoryFacts
         }
 
         await using var second = await TrustHost.StartAsync(ct);
-        await using var again = await ModuleTest.Create().WithTrust(second).WithPartLog().WithConfiguration(Directory, machineDirectory).StartAsync(ct);
+        // A new deployment is a new trust host: the operator pins it, since the machine never switches silently (T20-3).
+        await using var again = await ModuleTest.Create().WithTrust(second).WithPartLog().WithConfiguration(Directory, machineDirectory)
+            .WithConfiguration(DigitalBrain.Platform.Links.TrustPin.PinKey, second.TrustId).StartAsync(ct);
         var fresh = again.SiloServices.GetRequiredService<PartLogs>();
         await (await fresh.For(part)).Append(grain, "counter", RecordChange.Write, [9], []);
         await fresh.Release(part);

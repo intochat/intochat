@@ -33,10 +33,12 @@ public sealed class TrustBoundaryFacts
 
     // Records that cross a client and are known to carry identifiers, sealed bytes or signatures only. Extending this
     // list needs a controller ruling: the identity records Account, Member and Grant (with their call records) joined
-    // it by R58/R62; no credential-shaped record is allowed.
+    // it by R58/R62, a machine's registration and announced candidates by Task 21's INodeDirectoryClient.Machine and
+    // Announce (T20-2, T20-6); no credential-shaped record is allowed.
     private static readonly Type[] Records =
     [
         typeof(HeadRecord), typeof(StorageNodeView), typeof(MarketplaceRecord), typeof(MachineSigned<>),
+        typeof(DigitalBrain.Platform.Mesh.RegisteredMachine), typeof(DigitalBrain.Platform.Mesh.MachineCandidates),
         typeof(Account), typeof(Member), typeof(BrainProvision),
         typeof(CallRequest), typeof(CallDecision), typeof(CallerContext), typeof(Grant),
     ];
@@ -62,7 +64,9 @@ public sealed class TrustBoundaryFacts
             .Where(type => type.GetCustomAttributes(typeof(GenerateSerializerAttribute), inherit: false).Length > 0)
             .SelectMany(type => type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Select(property => (type, property)))
             .Where(site => Plaintext.Any(word => site.property.Name.Contains(word, StringComparison.OrdinalIgnoreCase))
-                && !(site.type == typeof(AccountMachinesState) && site.property.Name == nameof(AccountMachinesState.PairingSecretHash)))
+                && !(site.type == typeof(AccountMachinesState) && site.property.Name == nameof(AccountMachinesState.PairingSecretHash))
+                // A relay slot's token is a 60-second forwarding capability held in the relay's memory, never persisted (T20-5).
+                && !(site.type == typeof(DigitalBrain.Platform.Links.RelaySlot) || site.type == typeof(DigitalBrain.Platform.Links.RelayOffer)))
             .Select(site => $"{site.type.Name}.{site.property.Name}")
             .ToArray();
 

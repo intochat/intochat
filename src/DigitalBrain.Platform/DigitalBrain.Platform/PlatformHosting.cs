@@ -8,6 +8,7 @@ using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Directory;
 using DigitalBrain.Platform.Identity.Grants;
 using DigitalBrain.Platform.Integrations;
+using DigitalBrain.Platform.Links;
 using DigitalBrain.Platform.Secrets;
 using DigitalBrain.Platform.Trust;
 using DigitalBrain.Platform.Workshop;
@@ -54,17 +55,18 @@ public static class PlatformHosting
         // The machine reaches the trust grains only through these clients; Stage A hosts them in this silo.
         services.TryAddSingleton(provider => new Trust.MachineCounter(() => Path.Combine(
             provider.GetRequiredService<Trust.TrustDeployment>().Directory, "counter")));
-        // With a gateway the trust grains live in a separate cluster reached through a private client (R34);
-        // without one (Stage A, tests) they share this silo. A client host composes the same clients (R70).
-        services.AddTrustClients(signs: true);
-        if (string.IsNullOrWhiteSpace(silo.Configuration[$"{Trust.TrustOptions.Key}:{nameof(Trust.TrustOptions.Gateway)}"])) { silo.AddTrustCluster(); }
+        // With an Endpoint the trust grains live in a separate cluster reached over this machine's trust link (T20-7);
+        // without one (Stage A, tests) they share this silo.
+        if (string.IsNullOrWhiteSpace(silo.Configuration[$"{Trust.TrustOptions.Key}:{nameof(Trust.TrustOptions.Endpoint)}"]))
+        { silo.AddTrustCluster(); }
         else
         {
-            services.AddSingleton<ILifecycleParticipant<ISiloLifecycle>>(provider => provider.GetRequiredService<Trust.TrustGatewayClient>());
+            silo.AddMachineLinks();
             // The trust grain classes ride in this process's assemblies; this silo never hosts them.
             silo.Configure<Orleans.Configuration.GrainTypeOptions>(options =>
                 options.Classes.RemoveWhere(type => type.Assembly == typeof(TrustHosting).Assembly));
         }
+        services.AddTrustClients(signs: true);
         services.TryAddSingleton<Trust.MachineRegistrar>();
         services.TryAddSingleton<BrainBirths>();
         services.TryAddSingleton<PrincipalPasswords>();

@@ -8,7 +8,11 @@ namespace DigitalBrain.Platform.Mesh;
 // the transport (plan 7); unreachable segments are reclaimed by reachability from log heads, never by refcounts.
 internal interface IStorageShard : IGrainWithStringKey
 {
-    Task Put(byte[] bytes);
+    // The putter is the machine that stored the shard (T20-8): only a machine of the same account may discard it.
+    Task Put(byte[] bytes, string? putter);
+
+    [AlwaysInterleave]
+    Task<string?> Putter();
 
     [AlwaysInterleave]
     Task<byte[]?> Get();
@@ -32,14 +36,17 @@ internal sealed class SeedShardGrain(
 {
     private string Cid => this.GetPrimaryKeyString()[(this.GetPrimaryKeyString().IndexOf('/', StringComparison.Ordinal) + 1)..];
 
-    public async Task Put(byte[] bytes)
+    public async Task Put(byte[] bytes, string? putter)
     {
         ArgumentNullException.ThrowIfNull(bytes);
         if (StorageProof.ContentId(bytes) != Cid) { throw new InvalidDataException($"Shard bytes do not match content id '{Cid}'."); }
         if (store.State.Bytes is not null) { return; }
         store.State.Bytes = bytes;
+        store.State.Putter = putter;
         await store.WriteStateAsync();
     }
+
+    public Task<string?> Putter() => Task.FromResult(store.State.Putter);
 
     public Task<byte[]?> Get() => Task.FromResult(store.State.Bytes);
 
@@ -57,4 +64,5 @@ internal sealed class SeedShardGrain(
 internal sealed class SeedShardState
 {
     [Id(0)] public byte[]? Bytes { get; set; }
+    [Id(1)] public string? Putter { get; set; }
 }
