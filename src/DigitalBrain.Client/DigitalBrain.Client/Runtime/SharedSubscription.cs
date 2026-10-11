@@ -20,8 +20,9 @@ internal sealed class SharedSubscription(SessionConnection session, string id)
     // What readers spent on batches the brain has not been told about; the report that advances carries it.
     private long _cpuMicroseconds;
     private long _wallMicroseconds;
-    // Whether a reader handled a signal the brain has not been told about; none did makes the report a skip.
-    private bool _handled;
+    // The batches, by watermark, some reader handled and the brain has not been told about. A report covers the
+    // batches at or below its watermark; it is a skip when no reader handled any of them.
+    private readonly HashSet<long> _handled = [];
 
     public Reader Join()
     {
@@ -63,7 +64,7 @@ internal sealed class SharedSubscription(SessionConnection session, string id)
             reader.Acknowledged = Math.Max(reader.Acknowledged, watermark);
             _cpuMicroseconds += cpuMicroseconds;
             _wallMicroseconds += wallMicroseconds;
-            _handled |= !skipped;
+            if (!skipped) { _handled.Add(watermark); }
             report = Advance();
         }
         return report is { } advanced ? SendAsync(advanced, cancellationToken) : Task.CompletedTask;
@@ -83,6 +84,7 @@ internal sealed class SharedSubscription(SessionConnection session, string id)
             if (_readers.Count == 0)
             {
                 _unacknowledged.Clear();
+                _handled.Clear();
                 _queued = _reported = _confirmed;
                 return;
             }
@@ -98,9 +100,8 @@ internal sealed class SharedSubscription(SessionConnection session, string id)
         if (watermark <= _reported) { return null; }
         var batches = _unacknowledged.RemoveAll(batch => batch.Watermark <= watermark);
         _reported = watermark;
-        var report = new Report(watermark, _cpuMicroseconds, _wallMicroseconds, batches, !_handled);
+        var report = new Report(watermark, _cpuMicroseconds, _wallMicroseconds, batches, _handled.RemoveWhere(handled => handled <= watermark) == 0);
         _cpuMicroseconds = _wallMicroseconds = 0;
-        _handled = false;
         return report;
     }
 
