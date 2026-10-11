@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>Aspire AppHost integration for the DigitalBrain RiskSeal module.</Description>
+    <RootNamespace>DigitalBrain.Modules.RiskSeal.Aspire.Hosting</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../DigitalBrain.Modules.RiskSeal.Contracts/DigitalBrain.Modules.RiskSeal.Contracts.csproj" />
+    <ProjectReference Include="../DigitalBrain.Modules.RiskSeal/DigitalBrain.Modules.RiskSeal.csproj" />
+    <ProjectReference Include="../../../DigitalBrain.Aspire/DigitalBrain.Aspire.Hosting/DigitalBrain.Aspire.Hosting.csproj" />
+  </ItemGroup>
+</Project>

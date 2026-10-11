@@ -22,6 +22,10 @@
     <ProjectReference Include="../DigitalBrain.Modules/Supabase/DigitalBrain.Modules.Supabase.Aspire.Hosting/DigitalBrain.Modules.Supabase.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../DigitalBrain.Modules/Google/Gmail/DigitalBrain.Modules.Google.Gmail.Aspire.Hosting/DigitalBrain.Modules.Google.Gmail.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../DigitalBrain.Modules/Salesforce/DigitalBrain.Modules.Salesforce.Aspire.Hosting/DigitalBrain.Modules.Salesforce.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="../DigitalBrain.Modules/Monnet/DigitalBrain.Modules.Monnet.Aspire.Hosting/DigitalBrain.Modules.Monnet.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="../DigitalBrain.Modules/Equifax/DigitalBrain.Modules.Equifax.Aspire.Hosting/DigitalBrain.Modules.Equifax.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="../DigitalBrain.Modules/RiskSeal/DigitalBrain.Modules.RiskSeal.Aspire.Hosting/DigitalBrain.Modules.RiskSeal.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
+    <ProjectReference Include="../DigitalBrain.Modules/Twilio/DigitalBrain.Modules.Twilio.Aspire.Hosting/DigitalBrain.Modules.Twilio.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../DigitalBrain.Modules/Microsoft/GitHub/DigitalBrain.Modules.Microsoft.GitHub.Aspire.Hosting/DigitalBrain.Modules.Microsoft.GitHub.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../DigitalBrain.Modules/Microsoft/Aspire/DigitalBrain.Modules.Microsoft.Aspire.Aspire.Hosting/DigitalBrain.Modules.Microsoft.Aspire.Aspire.Hosting.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="../DigitalBrain.Modules/Microsoft/CSharp/DigitalBrain.Modules.Microsoft.CSharp.Aspire.Hosting/DigitalBrain.Modules.Microsoft.CSharp.Aspire.Hosting.csproj" IsAspireProjectResource="false" />

@@ -25,6 +25,10 @@ using DigitalBrain.Qdrant;
 using DigitalBrain.Qdrant.Aspire.Hosting;
 using DigitalBrain.Salesforce;
 using DigitalBrain.Salesforce.Aspire.Hosting;
+using DigitalBrain.Monnet.Aspire.Hosting;
+using DigitalBrain.Equifax.Aspire.Hosting;
+using DigitalBrain.RiskSeal.Aspire.Hosting;
+using DigitalBrain.Twilio.Aspire.Hosting;
 using DigitalBrain.Supabase;
 using DigitalBrain.Supabase.Aspire.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -59,6 +63,11 @@ var digitalBrain = builder.AddDigitalBrain("Modules", DigitalBrainHostingOptions
     .WithHosting<PostgresModuleHosting, PostgresModuleOptions>(database => database.WithPostgres(options => options.DatabaseName = "digitalbrain"))
     .WithHosting<GmailModuleHosting, GmailModuleOptions>(gmail => gmail.WithGmail())
     .WithHosting<SalesforceModuleHosting, SalesforceModuleOptions>(salesforce => salesforce.WithHostedMcp())
+    // SV integration spikes (docs/superpowers/specs/2026-10-11-sv-integrations-design.md): each asks for its sandbox credentials.
+    .WithHosting<MonnetModuleHosting>()
+    .WithHosting<EquifaxModuleHosting>()
+    .WithHosting<RiskSealModuleHosting>()
+    .WithHosting<TwilioModuleHosting>()
     .WithHosting<GitHubModuleHosting>();
 if (shellEnabled) { digitalBrain = digitalBrain.WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp()); }
 digitalBrain = digitalBrain

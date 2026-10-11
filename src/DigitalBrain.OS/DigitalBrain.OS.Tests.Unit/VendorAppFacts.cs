@@ -9,7 +9,7 @@ public sealed class VendorAppFacts
 
     [Fact]
     public void EveryFirstPartyAppShips()
-        => Assert.Equal(["customer-researcher", "word-count"], SolutionProjects.FeaturesOf("intochat").Select(app => app.Name).Order());
+        => Assert.Equal(["customer-researcher", "sv-loans", "word-count"], SolutionProjects.FeaturesOf("intochat").Select(app => app.Name).Order());
 
     [Fact]
     public void EveryShippedProgramCompilesAgainstCurrentContracts()
@@ -32,7 +32,7 @@ public sealed class VendorAppFacts
     public void TheResearcherPackageUsesOnlyPlatformContracts()
     {
         var researcher = SolutionProjects.FeaturesOf("intochat").Single(app => app.Name == "customer-researcher");
-        Assert.Equal(["activity-active.cs", "activity-queue.cs", "activity.cs", "controls.cs", "open.cs", "research.cs", "stop-click.cs"],
+        Assert.Equal(["controls.cs", "open.cs", "projection.cs", "queue.cs", "result.cs", "worker.cs"],
             researcher.Files.Where(file => AppFiles.IsProgram(file.Key) && !CSharpScriptCheck.IsShared(file.Value)).Select(file => file.Key).Order(StringComparer.Ordinal));
         var sources = researcher.Files.Where(file => AppFiles.IsProgram(file.Key)).Select(file => file.Value);
         Assert.All(sources, source =>
