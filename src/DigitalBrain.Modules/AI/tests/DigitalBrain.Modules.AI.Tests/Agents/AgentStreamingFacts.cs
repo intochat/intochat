@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Agents.Signals;
@@ -56,6 +57,78 @@ public sealed class AgentStreamingFacts
         Assert.Equal("partial", Assert.Single(state.Runs).Reply);
         Assert.True(state.Version > streamingVersion);
         Assert.Empty(await agent.Transcript());
+    }
+
+    // Each stored progress step is a write of the whole agent and a journal entry, so a reply must
+    // not cost one per chunk: progress is stored at most once per interval and always at the end.
+    [Fact]
+    public async Task AFiveHundredChunkStreamStoresAndAnnouncesItsProgressABoundedNumberOfTimes()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        string[] chunks = [.. Enumerable.Range(0, 500).Select(i => $"w{i} ")];
+        await using var brain = await AgentFacts.Brain(StubChatClient.StreamingOnly((_, _, _) => Chunks(chunks)), ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("story"));
+        await using var signals = await brain.Observe<Signal>(agent, ct);
+        var before = (await agent.Read()).Version;
+        var clock = Stopwatch.StartNew();
+        var runId = await agent.Start(AgentTurn.Text("write a story"));
+        var seen = await AgentTurnStartFacts.UntilEnd(signals, runId, ct);
+        var intervals = (int)(clock.Elapsed / AgentNeuron.ProgressInterval);
+        var reply = string.Concat(chunks);
+        Assert.Equal(reply, Assert.IsType<TurnCompleted>(seen[^1]).Reply);
+        var text = seen.OfType<TurnProgressed>().Where(step => step.Kind == "text").ToArray();
+        // In sequence, the text steps are the reply: coalescing loses no character.
+        Assert.Equal(reply, string.Concat(text.Select(step => step.Text)));
+        Assert.Equal(text.Select(step => step.Sequence).Order(), text.Select(step => step.Sequence));
+        // The first words at once, one step per elapsed interval, the rest at completion.
+        Assert.InRange(text.Length, 2, intervals + 2);
+        var state = await agent.Read();
+        // Admission, model selection, the first words, one write per elapsed interval, completion.
+        Assert.InRange(state.Version - before, 4, intervals + 4);
+        Assert.Equal(reply, Assert.Single(state.Runs).Reply);
+    }
+
+    // A consumer projects progress by re-reading the agent (the Assistant transcript does). Text that
+    // arrived before the provider stalled is stored and announced within an interval, not at the next chunk.
+    [Fact]
+    public async Task TextThatArrivedBeforeTheProviderStalledIsReadableBeforeTheTurnEnds()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var brain = await AgentFacts.Brain(StubChatClient.StreamingOnly((_, _, token) => Stalling(resume.Task, token)), ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("stalled"));
+        await using var signals = await brain.Observe<Signal>(agent, ct);
+        var runId = await agent.Start(AgentTurn.Text("tell me a story"));
+        try
+        {
+            var shown = "";
+            while (shown != "Once upon a time")
+            {
+                shown += ((TurnProgressed)await signals.NextAsync(signal => signal is TurnProgressed { Kind: "text" } step && step.RunId == runId, ct)).Text;
+            }
+            var midway = await agent.Read();
+            Assert.Equal(("Once upon a time", AgentRunStatus.Running), (midway.ActiveRun?.Reply, midway.ActiveRun?.Status));
+        }
+        // A stalled provider left waiting would hold the host open past the failure.
+        finally { resume.TrySetResult(); }
+        var completed = (TurnCompleted)await signals.NextAsync(signal => signal is TurnCompleted done && done.RunId == runId, ct);
+        Assert.Equal("Once upon a time, the end.", completed.Reply);
+        Assert.Equal("Once upon a time, the end.", Assert.Single((await agent.Read()).Runs).Reply);
+    }
+
+    private static async IAsyncEnumerable<ChatResponseUpdate> Chunks(string[] chunks)
+    {
+        foreach (var chunk in chunks) { yield return new(ChatRole.Assistant, chunk); }
+        await Task.CompletedTask;
+    }
+
+    private static async IAsyncEnumerable<ChatResponseUpdate> Stalling(Task resume, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        yield return new(ChatRole.Assistant, "Once ");
+        yield return new(ChatRole.Assistant, "upon ");
+        yield return new(ChatRole.Assistant, "a time");
+        await resume.WaitAsync(cancellationToken);
+        yield return new(ChatRole.Assistant, ", the end.");
     }
 
     private sealed class BurstProvider

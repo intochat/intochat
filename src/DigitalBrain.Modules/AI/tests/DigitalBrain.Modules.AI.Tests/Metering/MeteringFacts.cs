@@ -4,7 +4,6 @@ using DigitalBrain;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Metering;
 using DigitalBrain.Framework.Compute;
-using DigitalBrain.Framework.Metering;
 using Microsoft.Extensions.AI;
 using Xunit;
 

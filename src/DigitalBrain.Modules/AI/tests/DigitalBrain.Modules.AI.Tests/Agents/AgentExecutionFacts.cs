@@ -1,9 +1,10 @@
+using System.Collections.Concurrent;
 using DigitalBrain.AI;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.AI.Models;
-using DigitalBrain.Framework.Metering;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Modules.AI.Tests.Agents;
 
@@ -26,33 +27,44 @@ public sealed class AgentExecutionFacts
         Assert.Single(model.Requests);
     }
 
+    // Model usage is priced per provider call by the kernel's cost meter, so a run has nothing left
+    // to flush when it ends: a completed run warns about nothing.
     [Fact]
-    public async Task MeteringStorageFailureDoesNotInvalidateASuccessfulExecution()
+    public async Task ACompletedRunLogsNoWarning()
     {
         var ct = TestContext.Current.CancellationToken;
-        var sink = new FailingUsageSink();
-        // The usage sink is in-process storage: a failing one stands in for a storage fault.
-        await using var brain = await AgentFacts.Builder(StubChatClient.Replying("kept answer"))
-            .ConfigureServices(services => services.AddSingleton<IIntentUsageSink>(sink)).StartAsync(ct);
-        var agent = brain.Get<IAgent>(AgentFacts.Key("metering-failure"));
+        var warnings = new WarningLog();
+        await using var brain = await AgentFacts.Builder(StubChatClient.Replying("quiet answer"))
+            .ConfigureServices(services => services.AddLogging(logging => logging.AddProvider(warnings))).StartAsync(ct);
+        var agent = brain.Get<IAgent>(AgentFacts.Key("quiet"));
+
         var events = await AgentFacts.Collect(agent, AgentTurn.Text("question"), ct);
-        Assert.Equal(1, sink.FlushCalls);
-        Assert.Equal("kept answer", Assert.Single(events.OfType<AgentTurnEvent.Text>()).Content);
+
         Assert.Single(events.OfType<AgentTurnEvent.Finished>());
-        Assert.Empty(events.OfType<AgentTurnEvent.Failed>());
         Assert.Equal(AgentRunStatus.Completed, Assert.Single((await agent.Read()).Runs).Status);
+        Assert.Empty(warnings.From(typeof(AgentNeuron).FullName!));
     }
 
-    private sealed class FailingUsageSink : IIntentUsageSink
+    private sealed class WarningLog : ILoggerProvider
     {
-        private int _flushCalls;
-        public int FlushCalls => _flushCalls;
-        public Task RecordAsync(string intentId, IIntentUsageEntry entry, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
-        public Task FlushAsync(IntentUsageBatch intent, CancellationToken cancellationToken = default)
+        private readonly ConcurrentQueue<(string Category, string Text)> _warnings = new();
+
+        public string[] From(string category) => [.. _warnings.Where(warning => warning.Category == category).Select(warning => warning.Text)];
+
+        public ILogger CreateLogger(string categoryName) => new Sink(categoryName, _warnings);
+
+        public void Dispose() { }
+
+        private sealed class Sink(string category, ConcurrentQueue<(string, string)> warnings) : ILogger
         {
-            Interlocked.Increment(ref _flushCalls);
-            throw new IOException("Usage storage unavailable");
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
+
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+            {
+                if (IsEnabled(logLevel)) { warnings.Enqueue((category, $"{formatter(state, exception)} {exception?.Message}")); }
+            }
         }
     }
 

@@ -5,7 +5,6 @@ using DigitalBrain.AI.Agents.Signals;
 using DigitalBrain.AI.Inference;
 using DigitalBrain.AI.Models;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Metering;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -34,6 +33,10 @@ internal sealed class AgentNeuron(
     // table queries) would otherwise grow every turn until the provider refuses the context.
     internal const int MaxHistoryCharacters = 120_000;
     internal const int MaxStoredToolResultCharacters = 4_000;
+    // Every stored progress step writes the whole agent record and journals a signal, so streamed
+    // text is stored and announced at most once per interval; the first words go at once, and a
+    // turn's end, a tool step or a stalled provider take the rest.
+    internal static readonly TimeSpan ProgressInterval = TimeSpan.FromMilliseconds(250);
     private CancellationTokenSource? _active;
     private string? _cancelBeforeDrive;
     private bool _mutating;
@@ -47,6 +50,7 @@ internal sealed class AgentNeuron(
     // The brain the access check sees is the tools' and the meter's.
     private string Scope => BrainKey.ScopeOf(Key) ?? Key;
     private ILogger Logger => ServiceProvider.GetRequiredService<ILogger<AgentNeuron>>();
+    private TimeProvider Clock => ServiceProvider.GetRequiredService<TimeProvider>();
 
     // A run the previous activation left open is interrupted: external tool outcomes may be unknown.
     internal async Task Resume()
@@ -199,12 +203,37 @@ internal sealed class AgentNeuron(
         _active = lifetime;
         if (_cancelBeforeDrive == runId) { lifetime.Cancel(); }
         _cancelBeforeDrive = null;
-        using var intent = IntentContext.Create(turn.Intent ?? runId, Scope);
         var completed = false;
         var yielding = false;
         var text = new StringBuilder();
+        // How much of the text is announced, and when the run was last stored with its text.
+        var shown = 0;
+        var stored = 0L;
         var sequence = 0;
         AgentTurnEvent.Failed? failure = null;
+
+        // The run as streamed so far, including text not yet stored.
+        AgentRun Streamed() => text.Length > 0 ? run with { Reply = text.ToString() } : run;
+
+        // Announces the text not yet announced; the caller stored it first, so the step carries that version.
+        async Task Announce(bool persisted = true)
+        {
+            if (shown < text.Length)
+            {
+                var part = text.ToString(shown, text.Length - shown);
+                shown = text.Length;
+                await Notify(new TurnProgressed(Key, runId, "text", part, null, null, ++sequence), persisted);
+            }
+            stored = Clock.GetTimestamp();
+        }
+
+        async Task Store()
+        {
+            run = Streamed();
+            await Persist(State with { ActiveRun = run });
+            await Announce();
+        }
+
         try
         {
             // Start already stored this run; only a Run admits it here.
@@ -219,25 +248,40 @@ internal sealed class AgentNeuron(
             {
                 while (true)
                 {
-                    bool moved;
-                    using (intent.Enter()) { moved = await loop.MoveNextAsync(); }
-                    if (!moved) { break; }
+                    var step = loop.MoveNextAsync();
+                    if (!step.IsCompleted && shown < text.Length)
+                    {
+                        // Text held back by the interval is stored once the provider stalls, so what
+                        // arrived is never hidden for longer than an interval.
+                        var next = step.AsTask();
+                        using var stalled = new CancellationTokenSource();
+                        var due = ProgressInterval - Clock.GetElapsedTime(stored);
+                        if (await Task.WhenAny(next, Task.Delay(due > TimeSpan.Zero ? due : TimeSpan.Zero, Clock, stalled.Token)) != next)
+                        {
+                            // The step is still running, so this write must not end the turn: the next
+                            // store retries it, and that one fails the turn as any write does.
+                            try { await Store(); }
+                            catch (Exception error) { Logger.LogWarning(error, "Agent run {RunId} could not store its streamed text yet.", runId); }
+                        }
+                        await stalled.CancelAsync();
+                        step = new(next);
+                    }
+                    if (!await step) { break; }
                     var current = loop.Current;
                     switch (current)
                     {
                         case AgentTurnEvent.ModelSelected selected:
                             run = run with { Model = selected.Model };
-                            await Persist(State with { ActiveRun = run });
+                            await Store();
                             break;
                         case AgentTurnEvent.Text delta:
                             text.Append(delta.Content);
-                            run = run with { Reply = text.ToString() };
-                            await Persist(State with { ActiveRun = run });
-                            await Notify(new TurnProgressed(Key, runId, "text", delta.Content, null, null, ++sequence));
+                            // The first words are stored at once, later ones at most once per interval.
+                            if (shown == 0 || Clock.GetElapsedTime(stored) >= ProgressInterval) { await Store(); }
                             break;
                         case AgentTurnEvent.ToolStarted tool:
                             run = run with { ToolCalls = [.. run.ToolCalls, new AgentToolCall(tool.CallId, tool.Name, tool.Arguments)] };
-                            await Persist(State with { ActiveRun = run });
+                            await Store();
                             await Notify(new TurnProgressed(Key, runId, "tool-call", null, tool.Name, tool.Arguments, ++sequence));
                             break;
                         case AgentTurnEvent.ToolCompleted tool:
@@ -247,13 +291,13 @@ internal sealed class AgentNeuron(
                                 ToolCalls = Settle(run.ToolCalls, tool.CallId,
                                 call => call with { Result = tool.Result, Code = refusal?.Code, Error = refusal?.Message })
                             };
-                            await Persist(State with { ActiveRun = run });
+                            await Store();
                             await Notify(new TurnProgressed(Key, runId, "tool-result", refusal?.Message, tool.Name, tool.Result, ++sequence));
                             if (Card(tool.Result) is { } card) { await Notify(new TurnProgressed(Key, runId, "card", null, tool.Name, card, ++sequence)); }
                             break;
                         case AgentTurnEvent.ToolFailed tool:
                             run = run with { ToolCalls = Settle(run.ToolCalls, tool.CallId, call => call with { Code = tool.Code, Error = tool.Message }) };
-                            await Persist(State with { ActiveRun = run });
+                            await Store();
                             await Notify(new TurnProgressed(Key, runId, "tool-result", tool.Message, tool.Name,
                                 JsonSerializer.Serialize(new { isError = true, code = tool.Code, message = tool.Message }), ++sequence));
                             break;
@@ -262,6 +306,7 @@ internal sealed class AgentNeuron(
                             var transcript = Bound([.. State.Transcript, input, .. done.Messages.Select(Compacted)], definition.MaxHistoryMessages, MaxHistoryCharacters, State.Summary);
                             await Persist(State with { Transcript = transcript.Messages, Summary = transcript.Summary, ActiveRun = null, Runs = Keep(State.Runs, run) });
                             completed = true;
+                            await Announce();
                             if (done.Usage is not null) { await Notify(new TurnProgressed(Key, runId, "receipt", null, null, JsonSerializer.Serialize(done.Usage), ++sequence)); }
                             break;
                         case AgentTurnEvent.Failed failed:
@@ -275,7 +320,7 @@ internal sealed class AgentNeuron(
                     yielding = false;
                 }
             }
-            finally { using (intent.Enter()) { await loop.DisposeAsync(); } }
+            finally { await loop.DisposeAsync(); }
         }
         finally
         {
@@ -290,20 +335,16 @@ internal sealed class AgentNeuron(
                     var cancelled = !expired && (failure is not null ? failure.Cancelled : yielding || lifetime.IsCancellationRequested);
                     var error = expired ? timedOut
                         : failure?.Message ?? (yielding ? "The response stream was abandoned." : "Execution failed before committing its result.");
-                    run = Close(run, cancelled ? AgentRunStatus.Cancelled : AgentRunStatus.Failed, error, cancelled ? "tool_cancelled" : "tool_interrupted");
+                    run = Close(Streamed(), cancelled ? AgentRunStatus.Cancelled : AgentRunStatus.Failed, error, cancelled ? "tool_cancelled" : "tool_interrupted");
                     // The end is announced whether or not it could be stored: a Start caller must never wait forever.
                     var persisted = true;
                     try { await Persist(State with { ActiveRun = null, Runs = Keep(State.Runs, run) }); }
                     catch (Exception persist) { persisted = false; Abandon(persist, runId); }
+                    await Announce(persisted);
                     await Notify(new TurnFailed(Key, runId, error, cancelled), persisted);
                 }
             }
-            finally
-            {
-                _active = null;
-                try { await ServiceProvider.GetRequiredService<IIntentUsageSink>().FlushAsync(intent.Snapshot(), CancellationToken.None); }
-                catch (Exception error) { Logger.LogWarning(error, "Agent usage flush failed for run {RunId}", runId); }
-            }
+            finally { _active = null; }
         }
     }
 

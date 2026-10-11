@@ -7,7 +7,6 @@ using DigitalBrain.Aspire.Server;
 using DigitalBrain.Client.Runtime.V1;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Configuration;
-using DigitalBrain.Framework.Metering;
 using DigitalBrain.Framework.Modules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
@@ -94,33 +93,6 @@ public sealed class CompositionBoundaryFacts
         Assert.Equal("{\"behavior\":\"behavior\",\"contract\":\"contract\",\"key\":\"key\",\"method\":\"method\",\"arguments\":[42]}", JsonSerializer.Serialize(invocation, RuntimeProtocol.Json));
     }
 
-    [Fact]
-    public async Task ConcurrentUsageIsCollectedAndSnapshotsAreDetached()
-    {
-        using var context = IntentContext.Begin("intent");
-        await Task.WhenAll(Enumerable.Range(0, 100).Select(_ => Task.Run(() =>
-        {
-            Assert.Same(context, IntentContext.Current);
-            context.AddUsage(new Entry());
-        }, TestContext.Current.CancellationToken)));
-        var snapshot = context.Snapshot();
-        context.AddUsage(new Entry());
-        Assert.Equal(100, snapshot.Usage.Length);
-        Assert.Equal(101, context.Usage.Length);
-    }
-
-    [Fact]
-    public void IntentScopesEnforceNestingAndRestoreTheirParent()
-    {
-        using var outer = IntentContext.Begin("outer");
-        var inner = IntentContext.Begin("inner");
-        Assert.Throws<InvalidOperationException>(outer.Dispose);
-        inner.Dispose();
-        Assert.Same(outer, IntentContext.Current);
-        inner.Dispose();
-    }
-
-    private sealed record Entry : IIntentUsageEntry;
     private sealed class AModule() : Module(new ModuleId("a"))
     {
         public int SiloConfigurations { get; private set; }

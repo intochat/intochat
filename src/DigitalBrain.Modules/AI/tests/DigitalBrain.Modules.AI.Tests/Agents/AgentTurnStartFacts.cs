@@ -253,7 +253,7 @@ public sealed class AgentTurnStartFacts
     }
 
     // Every signal of the run, from its start to its completion or failure.
-    private static async Task<List<Signal>> UntilEnd(SignalProbe<Signal> signals, string runId, CancellationToken ct)
+    internal static async Task<List<Signal>> UntilEnd(SignalProbe<Signal> signals, string runId, CancellationToken ct)
     {
         var seen = new List<Signal>();
         while (true)
