@@ -93,5 +93,5 @@
 | word-count | Extra spaces do not count as words | passed |
 | word-count | One word is singular | passed |
 
-| memory | reindex / open / run counts / recall (run 2: recall.cs ran from shipped code, word-ranked; reindex blocked by ledger 37 storage retired after delete+reinstall) | passed (recall, open, runs); failed (reindex, ledger 37) |
+| memory | reindex / open / run counts / recall (run 2: recall.cs ran from shipped code; reindex works again after Task T: 107 synapses, 148 vectors) | passed |
 blocked: 25, passed: 67, refuted: 0 (run 2: router ×2 and assistant ×2 passed live)
