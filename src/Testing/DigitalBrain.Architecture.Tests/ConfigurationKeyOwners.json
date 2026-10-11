@@ -8,6 +8,7 @@
   "DigitalBrain.Framework.Tests.Unit/ModuleIdFacts.cs",
   "DigitalBrain.Framework/Configuration/DigitalBrainConfiguration.cs",
   "DigitalBrain.Framework/Configuration/ModuleSettingsValidation.cs",
+  "DigitalBrain.Framework/Links/LinkOptions.cs",
   "DigitalBrain.Framework/Platform/Identity/AuthOptions.cs",
   "DigitalBrain.Framework/Platform/Identity/IdentityHostOptions.cs",
   "DigitalBrain.Framework/Platform/Identity/KernelCorsOptions.cs",
