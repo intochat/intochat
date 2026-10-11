@@ -54,6 +54,7 @@ internal sealed class MachineRegistryGrain(
         if (store.State.PublicKey is { } known && !known.AsSpan().SequenceEqual(publicKey))
         { throw new UnauthorizedAccessException($"Machine {MachineId} is registered with another key."); }
         if (store.State.PublicKey is not null && store.State.Accounts.Contains(account, StringComparer.Ordinal)) { return; }
+        Reserved.Refuse(account);
         await GrainFactory.GetGrain<IAccountMachines>(account).Bind(MachineId, pairingSecretHash);
         store.State.PublicKey = publicKey;
         store.State.Accounts = [.. store.State.Accounts.Append(account).Distinct(StringComparer.Ordinal)];
@@ -92,6 +93,16 @@ internal sealed class MachineRegistryGrain(
         { throw new UnauthorizedAccessException($"The signed call from machine {MachineId} replays counter {call.Counter}."); }
         store.State.LastCounter = call.Counter;
         await store.WriteStateAsync();
+    }
+}
+
+// R97: the account that owns the platform's seed nodes; no machine binds it and no principal takes its name.
+internal static class Reserved
+{
+    public static void Refuse(string accountOrPrincipal)
+    {
+        if (string.Equals(accountOrPrincipal, SeedNodeRegistration.Owner, StringComparison.OrdinalIgnoreCase))
+        { throw new UnauthorizedAccessException($"The account '{SeedNodeRegistration.Owner}' is reserved."); }
     }
 }
 

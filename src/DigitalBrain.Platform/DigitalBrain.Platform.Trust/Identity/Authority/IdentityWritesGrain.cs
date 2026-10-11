@@ -42,6 +42,8 @@ internal sealed class IdentityWritesGrain : Grain, IIdentityWrites
 {
     public async Task<bool> ProvisionOwner(MachineSigned<Member> owner)
     {
+        Mesh.Reserved.Refuse(owner.Payload.PrincipalId);
+        Mesh.Reserved.Refuse(owner.Payload.AccountId);
         await For(owner, owner.Payload.AccountId);
         return await Authority(owner.Payload).ProvisionOwner(owner.Payload);
     }
@@ -89,6 +91,7 @@ internal sealed class IdentityWritesGrain : Grain, IIdentityWrites
 
     public async Task<BrainProvision> RegisterPrincipal(MachineSigned<PrincipalRegistration> registration)
     {
+        Mesh.Reserved.Refuse(registration.Payload.PrincipalId);
         await Paired(registration);
         return await GrainFactory.GetGrain<IPrincipal>(registration.Payload.PrincipalId).Register(registration.Payload.DisplayName, registration.MachineId);
     }

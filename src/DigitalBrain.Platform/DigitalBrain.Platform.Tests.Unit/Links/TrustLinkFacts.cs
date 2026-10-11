@@ -152,6 +152,25 @@ public sealed class TrustLinkFacts
         Assert.False(endpoint.Remembers(machine.MachineId));
     }
 
+    // R97: the account `platform` owns the seed nodes; no machine and no principal can claim it.
+    [Fact(Timeout = 120_000)]
+    public async Task TheAccountPlatformCannotBeClaimedOverTheLink()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        await using var trust = await TrustHost.StartAsync(ct);
+        await using var mallory = await RawMachine.Dial(trust, ct);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => mallory.Register(SeedNodeRegistration.Owner, ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => mallory.ProvisionOwner(SeedNodeRegistration.Owner, ct));
+        await mallory.Register("mallory", ct);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => mallory.Call<MachineSigned<Member>, bool>(TrustOperations.ProvisionOwner,
+            mallory.Sign(new Member { PrincipalId = SeedNodeRegistration.Owner, AccountId = "mallory", BrainId = "mallory", Role = MemberRole.Owner, DisplayName = "p" }, "mallory"), ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => mallory.Call<MachineSigned<DigitalBrain.Platform.Identity.Authority.PrincipalRegistration>, BrainProvision>(
+            TrustOperations.RegisterPrincipal, mallory.Sign(new DigitalBrain.Platform.Identity.Authority.PrincipalRegistration(SeedNodeRegistration.Owner, "p"), SeedNodeRegistration.Owner), ct));
+        Assert.DoesNotContain(SeedNodeRegistration.Owner, (await trust.Grains.GetGrain<IMachineRegistry>(mallory.MachineId).Read())!.Accounts);
+    }
+
     [Fact(Timeout = 120_000)]
     public async Task AKeyringWriteForAnotherAccountsBrainIsRefused()
     {
