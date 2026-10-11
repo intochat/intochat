@@ -32,8 +32,9 @@ running is put into the composer's draft when the draft is empty, so sending it 
 
 ## Scenario: Opening the assistant composes its surface
 
-Invoking "open" answers a window titled "Assistant" whose surface holds the transcript, the draft
-field and the send and new-conversation buttons.
+Invoking "open" opens the workspace window "{brain}/apps/assistant/window", titled "Assistant", on
+the surface "{brain}/apps/assistant/surface": a header row (the status text and the "New conversation"
+button), the transcript chat and the composer, which is the draft field and its send.
 
 ## Scenario: Opening docked composes the surface without a window
 
@@ -153,7 +154,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "assistant";
-    public const string Version = "1.9.1";
+    public const string Version = "1.9.2";
 
     public static readonly AppManifest Manifest = new(
         Title: "Assistant",
