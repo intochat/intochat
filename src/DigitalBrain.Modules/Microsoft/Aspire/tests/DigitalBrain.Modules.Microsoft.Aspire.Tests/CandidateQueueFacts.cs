@@ -8,8 +8,8 @@ public sealed class CandidateQueueFacts
         var ct = TestContext.Current.CancellationToken;
         var host = new FakeCandidateHost { Healthy = false };
         await using var brain = await CandidateFacts.StartAsync(host, new FakeClusterHost(), new FakeVerifier(), ct);
-        var index = brain.Get<ICandidates>(ICandidates.Key("owner"));
-        var second = brain.Get<ICandidate>(ICandidate.Key("owner", "sha0002"));
+        var index = brain.Get<ICandidates>(ICandidates.Key(brain.Owner.BrainId));
+        var second = brain.Get<ICandidate>(ICandidate.Key(brain.Owner.BrainId, "sha0002"));
         await using var secondStarted = await brain.Observe<CandidateStarted>(second, ct);
 
         var first = await index.Propose(new("b", "one", [], CandidateFacts.Plan));
@@ -29,7 +29,7 @@ public sealed class CandidateQueueFacts
         var cluster = new FakeClusterHost { Current = "live123" };
         await using var brain = await CandidateFacts.StartAsync(host, cluster, new FakeVerifier(), ct);
 
-        await brain.Get<ICandidates>(ICandidates.Key("owner")).Propose(new("b", "one", [], CandidateFacts.Plan));
+        await brain.Get<ICandidates>(ICandidates.Key(brain.Owner.BrainId)).Propose(new("b", "one", [], CandidateFacts.Plan));
 
         Assert.Equal("live123", host.PreparedFrom);
     }

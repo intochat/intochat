@@ -8,12 +8,14 @@ public sealed class DeploymentRollFacts
         var ct = TestContext.Current.CancellationToken;
         var cluster = new FakeClusterHost { Self = "silo-0" };
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        var grain = brain.Get<IDeployment>(IDeployment.Key(brain.Owner.BrainId));
 
         var rolling = await grain.Roll("sha0001");
         await cluster.SelfRestarted.Task.WaitAsync(ct);
-        await brain.DeactivateAsync(grain, ct);
         await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
+        await brain.DeactivateAsync(grain, ct);
+        // The next activation (the reminder's, in a cluster) finishes the handover.
+        await grain.Read();
         var steady = await changes.NextAsync(change => change.Stage == nameof(DeploymentStage.Steady), ct);
 
         Assert.Equal(DeploymentStage.Rolling, rolling.Stage);
@@ -31,13 +33,14 @@ public sealed class DeploymentRollFacts
         var ct = TestContext.Current.CancellationToken;
         var cluster = new FakeClusterHost { Self = "silo-0" };
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        var grain = brain.Get<IDeployment>(IDeployment.Key(brain.Owner.BrainId));
         await grain.Roll("sha0001");
         await cluster.SelfRestarted.Task.WaitAsync(ct);
 
         cluster.Self = "silo-1";
-        await brain.DeactivateAsync(grain, ct);
         await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
+        await brain.DeactivateAsync(grain, ct);
+        await grain.Read();
         await changes.NextAsync(change => change.Stage == nameof(DeploymentStage.Steady), ct);
 
         Assert.Equal("silo-0@sha0001", cluster.Waited[^1]);
@@ -49,7 +52,7 @@ public sealed class DeploymentRollFacts
         var ct = TestContext.Current.CancellationToken;
         var cluster = new FakeClusterHost { Self = "silo-0", InterruptAt = "silo-1" };
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        var grain = brain.Get<IDeployment>(IDeployment.Key(brain.Owner.BrainId));
         await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
 
         await grain.Roll("sha0001");
@@ -74,7 +77,7 @@ public sealed class DeploymentRollFacts
         var cluster = new FakeClusterHost { Self = "silo-0" };
         cluster.NeverHealthy.Add(never);
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        var grain = brain.Get<IDeployment>(IDeployment.Key(brain.Owner.BrainId));
         await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
 
         await grain.Roll("sha0001");
@@ -96,7 +99,7 @@ public sealed class DeploymentRollFacts
         var ct = TestContext.Current.CancellationToken;
         var cluster = new FakeClusterHost();
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        var grain = brain.Get<IDeployment>(IDeployment.Key(brain.Owner.BrainId));
         await grain.Restart("sha0001");
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => grain.Roll("sha0002"));
@@ -110,7 +113,7 @@ public sealed class DeploymentRollFacts
         var cluster = new FakeClusterHost { Self = "silo-0" };
         var gate = cluster.RestartGates["mcp-b"] = new RestartGate();
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        var grain = brain.Get<IDeployment>(IDeployment.Key(brain.Owner.BrainId));
         await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
 
         await grain.Roll("sha0001");
@@ -137,7 +140,7 @@ public sealed class DeploymentRollFacts
         var cluster = new FakeClusterHost { Self = "silo-0" };
         var gate = cluster.RestartGates["mcp-b"] = new RestartGate();
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        var grain = brain.Get<IDeployment>(IDeployment.Key(brain.Owner.BrainId));
 
         await grain.Roll("sha0001");
         await gate.Reached.Task.WaitAsync(ct);
@@ -146,8 +149,10 @@ public sealed class DeploymentRollFacts
         gate.Open.SetResult();
         await deactivated;
         await cluster.SelfRestarted.Task.WaitAsync(ct);
-        await brain.DeactivateAsync(grain, ct);
         await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
+        await brain.DeactivateAsync(grain, ct);
+        // The next activation (the reminder's, in a cluster) finishes the handover.
+        await grain.Read();
         var steady = await changes.NextAsync(change => change.Stage == nameof(DeploymentStage.Steady), ct);
 
         Assert.Equal("sha0001", steady.Sha);
@@ -165,7 +170,7 @@ public sealed class DeploymentRollFacts
         var cluster = new FakeClusterHost { Self = "silo-0" };
         var gate = cluster.RestartGates["mcp-b"] = new RestartGate();
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        var grain = brain.Get<IDeployment>(IDeployment.Key(brain.Owner.BrainId));
         await grain.Roll("sha0001");
         await gate.Reached.Task.WaitAsync(ct);
 
@@ -183,7 +188,7 @@ public sealed class DeploymentRollFacts
         var ct = TestContext.Current.CancellationToken;
         var cluster = new FakeClusterHost { Self = "silo-0" };
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        var grain = brain.Get<IDeployment>(IDeployment.Key(brain.Owner.BrainId));
 
         await grain.Roll("sha0001");
         await cluster.SelfRestarted.Task.WaitAsync(ct);
@@ -199,7 +204,7 @@ public sealed class DeploymentRollFacts
         var cluster = new FakeClusterHost { Self = "silo-0" };
         cluster.NoPeer.Add("silo-1@sha0001");
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        var grain = brain.Get<IDeployment>(IDeployment.Key(brain.Owner.BrainId));
         await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
 
         await grain.Roll("sha0001");
@@ -217,7 +222,7 @@ public sealed class DeploymentRollFacts
         var ct = TestContext.Current.CancellationToken;
         var cluster = new FakeClusterHost { Current = "base000", Self = null };
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        var grain = brain.Get<IDeployment>(IDeployment.Key(brain.Owner.BrainId));
         await grain.Read();
 
         var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => grain.Roll("sha0001"));
@@ -236,7 +241,7 @@ public sealed class DeploymentRollFacts
         // Going back, the front can route nothing but the instance about to restart.
         cluster.NoPeer.Add("mcp-b@base000");
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        var grain = brain.Get<IDeployment>(IDeployment.Key(brain.Owner.BrainId));
         await using var changes = await brain.Observe<DeploymentChanged>(grain, ct);
 
         await grain.Roll("sha0001");

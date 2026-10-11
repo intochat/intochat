@@ -8,7 +8,7 @@ public sealed class DeploymentFacts
         var ct = TestContext.Current.CancellationToken;
         var cluster = new FakeClusterHost();
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        var grain = brain.Get<IDeployment>(IDeployment.Key(brain.Owner.BrainId));
 
         await grain.Restart("sha0001");
 
@@ -25,7 +25,7 @@ public sealed class DeploymentFacts
         var ct = TestContext.Current.CancellationToken;
         var cluster = new FakeClusterHost();
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        var grain = brain.Get<IDeployment>(IDeployment.Key(brain.Owner.BrainId));
         await grain.Restart("sha0001");
 
         await brain.DeactivateAsync(grain, ct);
@@ -43,7 +43,7 @@ public sealed class DeploymentFacts
         var ct = TestContext.Current.CancellationToken;
         var cluster = new FakeClusterHost();
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        var grain = brain.Get<IDeployment>(IDeployment.Key(brain.Owner.BrainId));
         await grain.Restart("sha0001");
         cluster.Current = "sha0002";
 
@@ -60,7 +60,7 @@ public sealed class DeploymentFacts
         var ct = TestContext.Current.CancellationToken;
         var cluster = new FakeClusterHost();
         await using var brain = await CandidateFacts.StartAsync(new FakeCandidateHost(), cluster, new FakeVerifier(), ct);
-        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        var grain = brain.Get<IDeployment>(IDeployment.Key(brain.Owner.BrainId));
 
         await grain.Restart("sha0001");
         await grain.Restart("sha0001");
@@ -74,8 +74,8 @@ public sealed class DeploymentFacts
         var ct = TestContext.Current.CancellationToken;
         var host = new FakeCandidateHost { Orphaned = ["candidate-dead"] };
         await using var brain = await CandidateFacts.StartAsync(host, new FakeClusterHost(), new FakeVerifier(), ct);
-        var sha = await brain.Get<ICandidates>(ICandidates.Key("owner")).Propose(new("b", "one", [], CandidateFacts.Plan));
-        var grain = brain.Get<IDeployment>(IDeployment.Key("owner"));
+        var sha = await brain.Get<ICandidates>(ICandidates.Key(brain.Owner.BrainId)).Propose(new("b", "one", [], CandidateFacts.Plan));
+        var grain = brain.Get<IDeployment>(IDeployment.Key(brain.Owner.BrainId));
 
         await brain.DeactivateAsync(grain, ct);
         await grain.Read();
@@ -91,7 +91,7 @@ public sealed class DeploymentFacts
         var host = new FakeCandidateHost { FailAt = "orphans" };
         await using var brain = await CandidateFacts.StartAsync(host, new FakeClusterHost(), new FakeVerifier(), ct);
 
-        var read = await brain.Get<IDeployment>(IDeployment.Key("owner")).Read();
+        var read = await brain.Get<IDeployment>(IDeployment.Key(brain.Owner.BrainId)).Read();
 
         Assert.Equal(DeploymentStage.Steady, read.Stage);
         Assert.Contains("orphans", host.Calls);

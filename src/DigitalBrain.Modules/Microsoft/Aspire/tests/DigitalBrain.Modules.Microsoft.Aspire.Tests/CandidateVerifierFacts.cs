@@ -1,5 +1,3 @@
-using DigitalBrain.Framework;
-using DigitalBrain.Framework.Contracts;
 using DigitalBrain.Mcp;
 using DigitalBrain.Tools;
 using DigitalBrain.Microsoft.Aspire.Deployment;
@@ -10,24 +8,29 @@ namespace DigitalBrain.Microsoft.Aspire.Tests;
 
 public sealed class CandidateVerifierFacts
 {
-    private const string BrainId = "verifier-facts";
     private const string Sha = "sha0001";
     private const string ReadKey = "neurons_call DigitalBrain.Apps.IApp owner/apps/calculator Read";
     private static readonly NeuronExpectation Read = new("DigitalBrain.Apps.IApp", "owner/apps/calculator", "Read", "[]", "calculator");
 
-    private static async Task<(ModuleBrain Brain, FakeClusterHost Cluster)> StartAsync(CancellationToken ct)
+    // The aspire CLI is a process-level seam; the candidate's MCP is the scripted server on loopback.
+    private static async Task<(ITestBrain Brain, FakeClusterHost Cluster)> StartAsync(CancellationToken ct)
     {
         var cluster = new FakeClusterHost();
-        var brain = await ModuleTest.Create().WithModule<AspireModule>().WithModule<McpModule>().WithModule<ToolsModule>()
-            .ConfigureSilo(silo => silo.Services.AddSingleton<IClusterHost>(cluster))
+        var brain = await TestBrain.Create().WithModule<AspireModule>().WithModule<McpModule>().WithModule<ToolsModule>()
+            .ConfigureServices(services => services.AddSingleton<IClusterHost>(cluster))
             .StartAsync(ct);
-        CallerContextStamper.Stamp(new()
-        { PrincipalId = "owner", AccountId = "owner", BrainId = BrainId, Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
         return (brain, cluster);
     }
 
-    private static Task<VerificationReport> Verify(ModuleBrain brain, ScriptedMcpServer server, VerificationPlan plan, CancellationToken ct)
-        => brain.SiloServices.GetRequiredService<ICandidateVerifier>().Verify(BrainId, Sha, new(server.Endpoint, "http://ui"), plan, ct);
+    // The service the module runs, read from the host and driven as the owner, as the candidate neuron drives it.
+    private static async Task<VerificationReport> Verify(ITestBrain brain, string endpoint, VerificationPlan plan, CancellationToken ct)
+    {
+        using var caller = brain.Owner.AsCaller();
+        return await brain.Services.GetRequiredService<ICandidateVerifier>().Verify(brain.Owner.BrainId, Sha, new(endpoint, "http://ui"), plan, ct);
+    }
+
+    private static Task<VerificationReport> Verify(ITestBrain brain, ScriptedMcpServer server, VerificationPlan plan, CancellationToken ct)
+        => Verify(brain, server.Endpoint, plan, ct);
 
     [Fact]
     public async Task ACandidateAnsweringForAnotherBrainFailsTheContextCheck()
@@ -57,7 +60,7 @@ public sealed class CandidateVerifierFacts
         var report = await Verify(brain, server, new([], [], TimeSpan.FromMinutes(1)), ct);
 
         Assert.True(report.Passed);
-        Assert.Equal([$"neurons_call DigitalBrain.Apps.IFeatureReconciler {BrainId}/apps-reconciler Reconcile", "neurons_list DigitalBrain.Apps.IApp"], server.Calls.Skip(1));
+        Assert.Equal([$"neurons_call DigitalBrain.Apps.IFeatureReconciler {brain.Owner.BrainId}/apps-reconciler Reconcile", "neurons_list DigitalBrain.Apps.IApp"], server.Calls.Skip(1));
     }
 
     [Fact]
@@ -114,8 +117,7 @@ public sealed class CandidateVerifierFacts
         var (brain, _) = await StartAsync(ct);
         await using var _ = brain;
 
-        var report = await brain.SiloServices.GetRequiredService<ICandidateVerifier>()
-            .Verify(BrainId, Sha, new("http://127.0.0.1:1", "http://ui"), new([], [], TimeSpan.FromMinutes(1)), ct);
+        var report = await Verify(brain, "http://127.0.0.1:1", new([], [], TimeSpan.FromMinutes(1)), ct);
 
         Assert.Equal("connect", report.FirstFailure);
         Assert.Single(report.Checks);

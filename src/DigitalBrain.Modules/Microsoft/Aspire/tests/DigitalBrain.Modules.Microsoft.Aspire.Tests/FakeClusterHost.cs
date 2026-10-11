@@ -44,24 +44,6 @@ internal sealed class FakeClusterHost : IClusterHost
     public List<string> Waited { get; } = [];
     public TaskCompletionSource<string> Interrupted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    // The membership the orleans cluster neuron reports (FakeMembership); when null, the silo-* instances running the current build.
-    public SiloView[]? Reported { get; set; }
-
-    // Released on each read of the silos.
-    public SemaphoreSlim SiloRead { get; } = new(0);
-
-    // When set, reading the membership fails.
-    public bool SilosFail { get; set; }
-
-    public Task<SiloView[]> Silos()
-    {
-        SiloRead.Release();
-        return SilosFail ? Task.FromException<SiloView[]>(new InvalidOperationException("membership unreadable")) : SilosNow();
-    }
-
-    private Task<SiloView[]> SilosNow() =>
-        Reported is { } reported ? Task.FromResult(reported) : Task.FromResult<SiloView[]>([.. InstanceNames.Where(name => name.StartsWith("silo-", StringComparison.Ordinal)).Select(name => new SiloView(name, name, "Active", null, Current))]);
-
     public Task<string[]> Instances(CancellationToken ct) => Task.FromResult(InstanceNames);
 
     public async Task RestartInstance(string name, CancellationToken ct)
