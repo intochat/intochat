@@ -222,6 +222,7 @@ internal static class LinkReplies
             "System.IO.InvalidDataException" => new InvalidDataException(message),
             "System.Collections.Generic.KeyNotFoundException" => new KeyNotFoundException(message),
             _ when type == typeof(ServiceUnavailableException).FullName => new ServiceUnavailableException(message),
+            _ when type == typeof(DigitalBrain.Platform.Mesh.NodeFullException).FullName => new DigitalBrain.Platform.Mesh.NodeFullException(message),
             _ => new InvalidOperationException($"{type}: {message}"),
         };
     }

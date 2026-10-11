@@ -19,6 +19,7 @@
   "DigitalBrain.Platform.Tests.Unit/Connections/TwoConnectorFacts.cs",
   "DigitalBrain.ServiceDefaults/Configuration/ServiceTelemetryOptions.cs",
   "DigitalBrain.Platform/Compute/FeeOptions.cs",
+  "DigitalBrain.Platform/Mesh/StorageNodeOptions.cs",
   "DigitalBrain.Platform.Trust/Mesh/MeshOptions.cs",
   "DigitalBrain.Platform.Trust/Trust/TrustOptions.cs",
   "DigitalBrain.Platform/Parts/PartsOptions.cs",

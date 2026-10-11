@@ -9,6 +9,7 @@ using DigitalBrain.Platform.Identity.Directory;
 using DigitalBrain.Platform.Identity.Grants;
 using DigitalBrain.Platform.Integrations;
 using DigitalBrain.Platform.Links;
+using DigitalBrain.Platform.Mesh;
 using DigitalBrain.Platform.Secrets;
 using DigitalBrain.Platform.Trust;
 using DigitalBrain.Platform.Workshop;
@@ -62,6 +63,8 @@ public static class PlatformHosting
         else
         {
             silo.AddMachineLinks();
+            // T23-1: a machine that offers storage answers node.shard.* on its machine links.
+            silo.AddStorageNodeWhenOffered();
             // The trust grain classes ride in this process's assemblies; this silo never hosts them.
             silo.Configure<Orleans.Configuration.GrainTypeOptions>(options =>
                 options.Classes.RemoveWhere(type => type.Assembly == typeof(TrustHosting).Assembly));
