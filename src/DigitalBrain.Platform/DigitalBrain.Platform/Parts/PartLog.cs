@@ -376,6 +376,9 @@ internal sealed class PartLog : IAsyncDisposable
                 }
                 // Changes queued while this batch committed start the next batch; no later append schedules it.
                 if (drained is null) { ScheduleFlush(_options.BatchDelay); }
+                // Q26: the first commit after failed attempts is what an operator watches for once the trust side is back.
+                if (_backoff > TimeSpan.FromSeconds(1))
+                { _logger.LogInformation("Part {Part} committed its journaled changes through seq {Seq} at head version {Version}.", _part, batch[^1].Entry.Seq, _lease.Version); }
                 _backoff = TimeSpan.FromSeconds(1);
                 // The batch is durable once the head accepted it; a stale journal is trimmed by the next flush or open.
                 try { _journal?.TrimThrough(batch[^1].Entry.Seq); }
