@@ -83,6 +83,11 @@ New gates found during the run are listed under **Open gates** and are not built
 | 28 | 11:30 | defect | verify:k1 skeptics (2/3 refuted) | `BehaviorRan`/`BehaviorSubscribed` Information logs never reach telemetry: ServiceDefaults sets the minimum level to Warning and the OS had no rule raising `DigitalBrain.Microsoft.CSharp.Runtime`. The fast-path metric reads "Running" from that log. Fix: OS `appsettings.json` `Logging:LogLevel:DigitalBrain.Microsoft.CSharp.Runtime = Information`. | fixed in main, live at next restart |
 | 29 | 11:30 | defect (design) | verify:k1 skeptic | A synapse on the operation overload `brain.On(app, "op")` receives every `AppRequested` of its app and skips other operations client-side, but each skip is acked and counted as a Succeeded run, so run counts (and the fast path's history ranking) are inflated for multi-operation apps. Needs server-side operation filtering on the subscription or a "skipped" ack. | gate (subscription contract) |
 | 30 | 11:30 | defect | verify:fastpath skeptic + rtA | `UsageGrain` (`usage/{brain}`) rewrites a 5,000-entry Recent ring on every `Add`; every metered cost queues there (0.1–5 s per Add). A fast-path request spent 20 s in node.place / ILedger.Charge / IUsageGrain.Add before reaching the model. | builder (wt/usagegrain) |
+| 31 | 12:05 | wish (fast path) | customer round 1: trader | "when BTC drops 5 %, notify me" was **faked** instead of refused: notify.cs polls an IText nothing writes and starts an `IReminder` on key `reminder/owner/apps/assistant` (outside the brain, 401), crash-looping; it also detached the Assistant from its origin (rolled back to 1.7.10 content; still Edited). Fix: the writer must refuse when no installed contract supplies the trigger/data, and the prompt must state the brain-scoped key rule. | builder (wt/fpspeed) |
+| 32 | 12:05 | wish (fast path) | customer round 1: notes, calculator, word nerd, forker | Sentences are written correctly but slowly under load: 33 s idle (30.8 s of it model reasoning: 4,875 reasoning vs 326 visible tokens), 86–635 s under concurrent load (metering queue, `Assign` timeouts, serialized model neuron per brain). Fork-first fired for the notes variant (base count-words.cs) but not for "copy my friend's word-count synapse" (base null). | builder (wt/fpspeed): reasoning cap, one metering record, parallel prep |
+| 33 | 12:05 | defect | profiler | `LlmNeuronBase` is a non-reentrant neuron: every model call of a brain queues on `ai.llm.<model>/{brain}/models` through generation and metering (40–100 s queues under load). Interleaving `ILLM.Generate` is a contract attribute change. | gate-ish (contract attribute) |
+| 34 | 12:05 | defect | profiler | `IBrainPrograms.Assign` recompiles every synapse of the app per write and uploads each assembly with 3 blob calls even when the content-addressed blob exists. | backlog (compile cache) |
+| 35 | 14:50 | **defect (critical)** | verify-last skeptics | The owner brain's local part journal on OperatingSystem-a grew to 3,044,057,730 bytes during the run and was never trimmed (`PartJournal.TrimThrough` should drop entries once an accepted head covers them), and `PartJournal.ReadAll` uses `File.ReadAllBytes`, which fails above 2 GB: after the 14:46 restart every owner-brain activation failed ('The file is too long'), `/apps` 500, every fast-path request rejected. Recovered at 15:02 by moving the file aside (kept as `….log.oversized-20261011150237`, reversible); the part recovered from its last accepted head. Needs the brain-as-data owner: streaming read + why heads stopped covering the journal (placement flushes slow under load?). | open (brain-as-data owner) |
 
 ## Progress
 
@@ -107,3 +112,39 @@ New gates found during the run are listed under **Open gates** and are not built
 **Sweep repairs:** Assistant, Router and CustomerResearcher repairs still running (skeptic refutations). Wave 3 (Engineer app, Memory M2) building/driving live.
 
 **Peers:** the SV-integrations session's wiring rides the OS (fixed its out-of-brain keys after it crashed boot twice); the brain-as-data owner ruled R144.
+
+### Customer round 1 (12:05, Task 12 Step 2)
+
+| Persona | Sentence | Outcome |
+|---|---|---|
+| 1 notes writer | count lines of a dropped file into my notes lines text | written (fork of count-words.cs), runs correctly ("3 lines"), **unmet on time**: 246 s |
+| 2 trader | when BTC drops 5 %, notify me | **unmet: faked** instead of refused (ledger 31) |
+| 3 student | Memory reindex/recall | not run (agent hit the API session limit) |
+| 4 circle admin | storage across my devices | not run (session limit); gate G5/G6 anyway |
+| 5 forker | copy my friend's word-count synapse | blocked: no fork lineage (S1) and no friend brain; a fresh write ran correctly ("4 words") |
+| 6 calculator power user | sum above 100 → big, else small | **met** (alert.cs; "big" then "small"), but 220 s to Written |
+| 7 word nerd | input reversed word by word into my mirror text | unmet on time (231 s) |
+
+Triage did not run (session limit); the wishes above were triaged by the orchestrator.
+
+### 14:35 (6 h 05 m in)
+
+A usage limit stopped every agent at ~12:10; the run resumed at 14:32. The user committed the whole tree at 14:21 ("refactoring", 0ec2a323d), which carries every merged item not committed separately (fast path, runtime rework rtA, shared readers rtB, router rtD, run history rtE, model keys, usage grain, R144 rework, Memory M1/M2 partial, Engineer, the sweep's features edits). The OS was restarted on that HEAD for a final verification. Still building: the watch-renewal stall + rtC stamped subscribe (wt/rtC2) and the fast-path speed/refusal (wt/fpspeed).
+
+### Final verification of HEAD (14:35–14:50, 3 skeptics per item)
+
+| Item | Verdict | Evidence |
+|---|---|---|
+| R144 reminder drop (outgoing + incoming) | **3/3 confirmed** | OS-b drops every tick for a part OS-a holds before forwarding; OS-a runs its own reconcile once per minute |
+| Usage/ledger coalescing | **2/3 confirmed** | client Add 0 ms, one write per burst, ring 500, no pricing timeouts; the storage write itself is still 1–6 s (ledger history unbounded) |
+| Shared readers (rtB) + router follow-ups (rtD) | 1/1 confirmed (2 cut by the restart) | two readers of one (neuron, signal) both get batches; the asking app is not offered its own operations; Dispatch carries out the decided route |
+| Engineer app | works live | ask classified in 2.2 s → fast path wrote length.cs (fork of digits.cs) in 7.2 s, ask-to-live 9.5 s; a missing app is Refused, a module request Blocked (NG-1..5) |
+| Fast path | refuted (3/3) | single writes 6.8–8.7 s (fork-first, 1 attempt, 466 reasoning tokens), but concurrent writes hit Assign timeouts during the runtime stall and the rejection left no outcome tag; SynapseWritten log filtered |
+| Runtime rework (rtA) | refuted (3/3) | warm round trips p50 45–61 ms, but the watch-renewal timer still held the runtime for 15–64 s under sustained load |
+| Memory | refuted (2/2) | reindex/open/runs work on HEAD; recall runs a copy detached by persona fast-path writes (Edited), so HEAD's recall.cs never ran |
+
+**Self-improvement round (built after customer round 1, merged 14:47, OS restarted):** honest REFUSE rejections + brain-scoped key rule in the fast-path prompt; reasoning capped (none, 2000 tokens); metering records sent together; embed once + parallel prep; Apps logs at Information; runtime watch renewal in per-source lanes off the turn (fact: a hanging source holds nothing); runtime.batch span parented to its batch; behaviors' watches stamped with the program's caller (rtC). Unit: Apps 210/210, AI 194/194, CSharp 179/180 (load-sensitive RuleJudging fact), OS 34/34.
+
+### 15:05 — end of run (6 h 35 m)
+
+After the journal was moved aside: the honest refusal was seen live ('Refused, no contract: no contract publishes BTC prices or price-change signals'), a sentence was Written in 27.9 s just after the restart, and earlier in the run single writes reached 6.8–8.7 s. Committed: c0cf9b019 (fast-path refusal + speed), 4958cadea (runtime renewal lanes, span parent, stamped watches; not yet seen live under load), 593dc4caa (OS facts). The scenario table is `docs/superpowers/loop/scenarios.md` (63 passed live, 25 blocked on gates, 4 refuted and awaiting repair; Engineer works live; Memory's installed copy is detached). Open gates and defects are above; the next run should start with ledger 35 (journal trim), ledger 29 (skipped requests counted as runs) and the fast path's concurrent-write telemetry gap.
