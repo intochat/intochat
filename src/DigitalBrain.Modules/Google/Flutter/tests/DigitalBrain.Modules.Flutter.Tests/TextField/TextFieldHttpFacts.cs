@@ -13,17 +13,19 @@ public sealed class TextFieldHttpFacts(FlutterHostFixture host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var ws = host.Workspace();
-        var field = brain.Get<ITextField>(UiScope.Key(BrainScope.Create("owner", ws).Id, "name"));
+        using var person = await host.PersonAsync(ct);
+        var ws = person.BrainId;
+        using var caller = person.AsCaller();
+        var field = brain.Get<ITextField>(UiScope.Key(ws, "name"));
         await field.Configure("Name", "secret");
 
-        using var set = await brain.HttpClient.PostAsJsonAsync($"/brains/{ws}/ui/textfields/name/value", new { value = "Ada" }, ct);
+        using var set = await person.Http.PostAsJsonAsync($"/brains/{ws}/ui/textfields/name/value", new { value = "Ada" }, ct);
         Assert.Equal(HttpStatusCode.Accepted, set.StatusCode);
         Assert.Equal("Ada", (await field.Read()).Value);
 
-        using var removed = await brain.HttpClient.GetAsync($"/brains/{ws}/ui/textfields/name", ct);
+        using var removed = await person.Http.GetAsync($"/brains/{ws}/ui/textfields/name", ct);
         Assert.Equal(HttpStatusCode.NotFound, removed.StatusCode);
-        using var unscoped = await brain.HttpClient.GetAsync("/ui/textfields/name", ct);
+        using var unscoped = await person.Http.GetAsync("/ui/textfields/name", ct);
         Assert.Equal(HttpStatusCode.NotFound, unscoped.StatusCode);
     }
 }

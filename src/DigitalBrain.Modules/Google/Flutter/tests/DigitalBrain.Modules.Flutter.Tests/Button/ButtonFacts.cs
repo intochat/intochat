@@ -1,7 +1,6 @@
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Button;
 using DigitalBrain.Flutter.Button.Signals;
-using DigitalBrain.Testing.Module;
 using Xunit;
 
 namespace DigitalBrain.Modules.Flutter.Tests.Button;
@@ -12,7 +11,7 @@ public sealed class ButtonFacts
     public async Task ClickPublishesAction()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>()
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
         var button = brain.Get<IButton>("go");
         await using var clicks = await brain.Observe<ButtonClicked>(button, ct);

@@ -9,7 +9,7 @@ public sealed class ComposerFacts
     public async Task UncertainSubmissionRetainsItsIdentityAndRetryWakesTheBehavior()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var composer = brain.Get<IComposer>("owner/a/apps/chat/composer");
         await composer.Configure("a", 1);
         await composer.Edit("a", "retry safely");
@@ -29,7 +29,7 @@ public sealed class ComposerFacts
     public async Task RetryingCapturedAudioRestoresTheWakeupWithoutReplacingAudio()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var composer = brain.Get<IComposer>("owner/a/apps/chat/composer");
         await composer.Configure("a", 1);
         var id = Guid.NewGuid();
@@ -45,7 +45,7 @@ public sealed class ComposerFacts
     public async Task SubmissionCapturesOneDraftAndAcknowledgementPreservesNewerEdits()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var composer = brain.Get<IComposer>("owner/a/apps/chat/composer");
         await composer.Configure("conversation-a", 1);
         await composer.Edit("conversation-a", "first draft");
@@ -66,7 +66,7 @@ public sealed class ComposerFacts
     public async Task RefusalPreservesInputAndSuccessfulAcknowledgementClearsOnlyItsDraft()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var composer = brain.Get<IComposer>("owner/a/apps/chat/composer");
         await composer.Configure("a", 1);
         await composer.Edit("a", " \n ");
@@ -92,7 +92,7 @@ public sealed class ComposerFacts
     public async Task LateOrFailedTranscriptionCannotOverwriteProtectedInput(string change)
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var composer = brain.Get<IComposer>("owner/a/apps/chat/composer");
         await composer.Configure("a", 1);
         await composer.Edit("a", "existing draft");
@@ -115,7 +115,7 @@ public sealed class ComposerFacts
     public async Task VoiceProducesAnEditableDraftWithoutSubmittingAndRecomposePreservesIt()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var composer = brain.Get<IComposer>("owner/a/apps/chat/composer");
         await composer.Configure("a", 1);
         var capture = Guid.NewGuid();

@@ -1,6 +1,5 @@
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.TextField;
-using DigitalBrain.Testing.Module;
 using Xunit;
 
 namespace DigitalBrain.Modules.Flutter.Tests.TextField;
@@ -11,7 +10,7 @@ public sealed class TextFieldFacts
     public async Task ConditionalProjectionPreservesAnEditArrivingAfterTheRead()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var field = brain.Get<ITextField>("draft");
         await field.SetValue("original");
         var before = await field.Read();
@@ -29,7 +28,7 @@ public sealed class TextFieldFacts
     public async Task CompetingConditionalWritersCannotBothReplaceTheSameVersion()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var field = brain.Get<ITextField>("preference");
         var before = await field.Read();
         var results = await Task.WhenAll(field.TrySetValue("first", before.Version), field.TrySetValue("second", before.Version));
@@ -41,7 +40,7 @@ public sealed class TextFieldFacts
     public async Task ConfigureAndSetValue()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>()
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
         var field = brain.Get<ITextField>("name");
         await field.Configure("Name", "text");

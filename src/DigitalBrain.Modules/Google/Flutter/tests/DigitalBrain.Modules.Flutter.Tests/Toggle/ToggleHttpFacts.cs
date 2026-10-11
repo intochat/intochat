@@ -13,9 +13,11 @@ public sealed class ToggleHttpFacts(FlutterHostFixture host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var ws = host.Workspace();
-        await brain.Get<IToggle>(UiScope.Key(BrainScope.Create("owner", ws).Id, "dark")).Set("Dark", true);
-        var state = await brain.HttpClient.GetFromJsonAsync<ToggleState>($"/brains/{ws}/ui/toggles/dark", new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, ct);
+        using var person = await host.PersonAsync(ct);
+        var ws = person.BrainId;
+        using var caller = person.AsCaller();
+        await brain.Get<IToggle>(UiScope.Key(ws, "dark")).Set("Dark", true);
+        var state = await person.Http.GetFromJsonAsync<ToggleState>($"/brains/{ws}/ui/toggles/dark", new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, ct);
         Assert.True(state!.On);
     }
 }

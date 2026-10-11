@@ -1,36 +1,26 @@
 using DigitalBrain.Flutter;
-using DigitalBrain.Framework;
 
 namespace DigitalBrain.Modules.Flutter.Tests;
 
-// One in-process brain with the Flutter module's HTTP edge. Facts isolate in their own
-// workspace: a fresh brain name per fact, with the caller the authenticated edge would stamp
-// for it, so routes, neuron keys and signals all land in that fact's scope.
+// One brain with the Flutter module shared by the HTTP facts for speed; each fact registers its own person,
+// so routes, neuron keys and signals land in that person's brain.
 public sealed class FlutterHostFixture : IAsyncLifetime
 {
-    private ModuleBrain? _brain;
+    private ITestBrain? _brain;
 
-    public ModuleBrain Brain => _brain ?? throw new InvalidOperationException("The Flutter host has not started yet.");
+    public ITestBrain Brain => _brain ?? throw new InvalidOperationException("The Flutter host has not started yet.");
 
     public async ValueTask InitializeAsync()
-        => _brain = await ModuleTest.Create()
+        => _brain = await TestBrain.Create()
             .WithModule<FlutterModule, FlutterModuleOptions>(flutter => flutter.BackendOnly())
-            .WithHttpEdge()
-            .StartAsync();
+            .StartAsync(TestContext.Current.CancellationToken);
 
     public async ValueTask DisposeAsync()
     {
         if (_brain is not null) { await _brain.DisposeAsync(); }
     }
 
-    // A fresh workspace name per fact. The fact's own neuron calls run unstamped — the trusted
-    // internal path, the same standing silo-side setup has — while its HTTP requests are stamped
-    // by the edge itself (Open posture, brain taken from the route).
-    public string Workspace()
-    {
-        Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey);
-        return "ws-" + Guid.NewGuid().ToString("N")[..12];
-    }
+    public Task<DigitalBrain.Testing.Person> PersonAsync(CancellationToken ct) => Brain.PersonAsync("p" + Guid.NewGuid().ToString("N")[..12], ct);
 }
 
 [CollectionDefinition(Name)]

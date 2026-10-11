@@ -6,15 +6,14 @@ namespace DigitalBrain.Modules.Flutter.Tests;
 
 public sealed class ShellPersistenceHttpFacts
 {
-    [Fact(Timeout = 240_000)]
+    [Fact]
     public async Task HttpClientsShareDurableStateAndRejectStaleWrites()
     {
         var ct = TestContext.Current.CancellationToken;
         // Shell state is host-global, and the fact asserts revision zero on an untouched
         // host, so it boots its own in-process brain instead of leasing the shared one.
-        await using var brain = await DigitalBrain.Testing.Module.ModuleTest.Create()
+        await using var brain = await TestBrain.Create()
             .WithModule<DigitalBrain.Flutter.FlutterModule, DigitalBrain.Flutter.FlutterModuleOptions>(flutter => flutter.BackendOnly())
-            .WithHttpEdge()
             .StartAsync(ct);
         var http = brain.HttpClient;
         var empty = await http.GetFromJsonAsync<JsonObject>("/shell/state", ct);

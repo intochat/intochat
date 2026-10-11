@@ -12,10 +12,14 @@ namespace DigitalBrain.Modules.Flutter.Tests.WebBrowser;
 public sealed class WebBrowserFacts
 {
     private const string Session = "0123456789abcdef0123456789abcdef";
-    private static Task<ModuleBrain> Start(Provider provider) => ModuleTest.Create().WithModule<FlutterModule>()
+    private static Task<ITestBrain> Start(Provider provider) => TestBrain.Create().WithModule<FlutterModule>()
         .WithModule<PlaywrightModule>()
-        .ConfigureSilo(silo => silo.Services.AddSingleton<IBrowserSessionProvider>(provider))
+        // The shell's CDP page session: the debugging port lives on the user's device, so the fake stands in for the attachment.
+        .ConfigureServices(services => services.AddSingleton<IBrowserSessionProvider>(provider))
         .StartAsync(TestContext.Current.CancellationToken);
+
+    // The shell's edge reaches the browser grain through its connector interface, which is not a neuron contract.
+    private static IWebBrowserConnector Connector(ITestBrain brain, string name) => brain.Get<IWebBrowser>(name).AsReference<IWebBrowserConnector>();
 
     [Fact]
     public async Task Connecting_the_shell_attaches_the_declared_driver_and_publishes_ready_without_a_port()
@@ -25,7 +29,7 @@ public sealed class WebBrowserFacts
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
         await browser.Configure("research/driver");
-        var connector = brain.Grains.GetGrain<IWebBrowserConnector>("research/browser");
+        var connector = Connector(brain, "research/browser");
         var handler = brain.Get<IPrimitiveTestHandler>("browser-handler");
         await brain.Get<IUiBinding>("research/browser").Bind(handler);
         await using var connected = await brain.Observe<BrowserConnected>(browser, ct);
@@ -51,7 +55,7 @@ public sealed class WebBrowserFacts
         var provider = new Provider();
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
-        var connector = brain.Grains.GetGrain<IWebBrowserConnector>("research/browser");
+        var connector = Connector(brain, "research/browser");
         await using var disconnected = await brain.Observe<BrowserDisconnected>(browser, ct);
         await connector.Connect(12345, Session);
         await connector.Disconnect(Session);
@@ -68,7 +72,7 @@ public sealed class WebBrowserFacts
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
         await browser.Configure("research/driver");
-        var connector = brain.Grains.GetGrain<IWebBrowserConnector>("research/browser");
+        var connector = Connector(brain, "research/browser");
         var handler = brain.Get<IPrimitiveTestHandler>("handler");
         await brain.Get<IUiBinding>("research/browser").Bind(handler);
         await connector.Connect(12345, Session);
@@ -93,7 +97,7 @@ public sealed class WebBrowserFacts
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
         await browser.Configure("research/driver");
-        var connector = brain.Grains.GetGrain<IWebBrowserConnector>("research/browser");
+        var connector = Connector(brain, "research/browser");
         var handler = brain.Get<IPrimitiveTestHandler>("handler");
         await brain.Get<IUiBinding>("research/browser").Bind(handler);
         await connector.Connect(12345, Session);
@@ -130,7 +134,7 @@ public sealed class WebBrowserFacts
         await browser.Configure("research/driver");
         var handler = brain.Get<IPrimitiveTestHandler>("handler");
         await brain.Get<IUiBinding>("research/browser").Bind(handler);
-        await brain.Grains.GetGrain<IWebBrowserConnector>("research/browser").Connect(12345, Session);
+        await Connector(brain, "research/browser").Connect(12345, Session);
         await brain.Get<IText>("research/status").Set("Researching...");
 
         await brain.DeactivateAsync(browser, ct);
@@ -150,7 +154,7 @@ public sealed class WebBrowserFacts
         await browser.Configure("research/driver");
         var handler = brain.Get<IPrimitiveTestHandler>("handler");
         await brain.Get<IUiBinding>("research/browser").Bind(handler);
-        await brain.Grains.GetGrain<IWebBrowserConnector>("research/browser").Connect(12345, Session);
+        await Connector(brain, "research/browser").Connect(12345, Session);
         Assert.Single(provider.Pages).FailDispose = true;
 
         await brain.DeactivateAsync(browser, ct);
@@ -166,7 +170,7 @@ public sealed class WebBrowserFacts
         var provider = new Provider();
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
-        var connector = brain.Grains.GetGrain<IWebBrowserConnector>("research/browser");
+        var connector = Connector(brain, "research/browser");
         var handler = brain.Get<IPrimitiveTestHandler>("handler");
         await browser.Configure("research/driver");
         await brain.Get<IUiBinding>("research/browser").Bind(handler);
@@ -187,8 +191,8 @@ public sealed class WebBrowserFacts
         await using var brain = await Start(provider);
         await brain.Get<IWebBrowser>("workspace/first/browser").Configure("workspace/first/driver");
         await brain.Get<IWebBrowser>("workspace/second/browser").Configure("workspace/second/driver");
-        var first = brain.Grains.GetGrain<IWebBrowserConnector>("workspace/first/browser");
-        var second = brain.Grains.GetGrain<IWebBrowserConnector>("workspace/second/browser");
+        var first = Connector(brain, "workspace/first/browser");
+        var second = Connector(brain, "workspace/second/browser");
         var secondSession = new string('b', 32);
         await first.Connect(12345, Session);
         await second.Connect(12345, secondSession);
@@ -204,7 +208,7 @@ public sealed class WebBrowserFacts
     {
         var provider = new Provider();
         await using var brain = await Start(provider);
-        var connector = brain.Grains.GetGrain<IWebBrowserConnector>("research/browser");
+        var connector = Connector(brain, "research/browser");
         await connector.Connect(12345, Session);
         await connector.Connect(12345, new string('b', 32));
         await connector.Disconnect(Session);
@@ -221,7 +225,7 @@ public sealed class WebBrowserFacts
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
         await browser.Configure("research/driver");
-        var connector = brain.Grains.GetGrain<IWebBrowserConnector>("research/browser");
+        var connector = Connector(brain, "research/browser");
         await connector.Connect(12345, Session);
         await brain.DeactivateAsync(browser, ct);
         Assert.False((await brain.Get<IPlaywright>("research/driver").Read()).Connected);
@@ -242,18 +246,17 @@ public sealed class WebBrowserFacts
         var provider = new Provider { Pending = new(TaskCreationOptions.RunContinuationsAsynchronously) };
         await using var brain = await Start(provider);
         await brain.Get<IWebBrowser>("research/browser").Configure("research/driver");
-        var connector = brain.Grains.GetGrain<IWebBrowserConnector>("research/browser");
+        var connector = Connector(brain, "research/browser");
         var connect = connector.Connect(12345, Session);
         await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(10), ct);
+        await using var unavailable = await brain.Observe<BrowserUnavailable>(brain.Get<IPlaywright>("research/driver"), ct);
         var disconnect = connector.Disconnect(Session);
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(TimeSpan.FromSeconds(10));
-        while ((await brain.Get<IPlaywright>("research/driver").Read()).SessionId is not null)
-        { await Task.Delay(20, timeout.Token); }
+        Assert.Equal(Session, (await unavailable.NextAsync(ct: ct)).SessionId);
+        Assert.Null((await brain.Get<IPlaywright>("research/driver").Read()).SessionId);
         var page = new Page();
         provider.Pending.SetResult(page);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => connect);
-        await disconnect.WaitAsync(timeout.Token);
+        await disconnect.WaitAsync(ct);
         Assert.True(page.Disposed);
         Assert.False((await brain.Get<IPlaywright>("research/driver").Read()).Connected);
         Assert.Equal(BrowserConnection.Waiting, (await brain.Get<IWebBrowser>("research/browser").Read()).Connection);
@@ -266,7 +269,7 @@ public sealed class WebBrowserFacts
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
         await browser.Configure("research/driver");
-        var connector = brain.Grains.GetGrain<IWebBrowserConnector>("research/browser");
+        var connector = Connector(brain, "research/browser");
         await Assert.ThrowsAsync<InvalidOperationException>(() => connector.Connect(12345, Session));
         var failed = await browser.Read();
         Assert.Equal(BrowserConnection.Unavailable, failed.Connection);
@@ -292,7 +295,7 @@ public sealed class WebBrowserFacts
     public async Task Navigating_publishes_the_uri()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var browser = brain.Get<IWebBrowser>("docs");
         await using var nav = await brain.Observe<BrowserNavigated>(browser, ct);
         await browser.Navigate("https://learn.microsoft.com/winui", "WinUI");
@@ -308,7 +311,7 @@ public sealed class WebBrowserFacts
         var browser = brain.Get<IWebBrowser>("film/browser");
         await browser.Configure("film/browser");
         await browser.Navigate("http://localhost:18111/", "FilmCraft");
-        await brain.Grains.GetGrain<IWebBrowserConnector>("film/browser").Connect(12345, Session);
+        await Connector(brain, "film/browser").Connect(12345, Session);
         var page = Assert.Single(provider.Pages);
         Assert.Equal(["http://localhost:18111/"], page.Navigations);
         var attached = await browser.Read();
@@ -325,7 +328,7 @@ public sealed class WebBrowserFacts
         var provider = new Provider();
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("research/browser");
-        var connector = brain.Grains.GetGrain<IWebBrowserConnector>("research/browser");
+        var connector = Connector(brain, "research/browser");
         var handler = brain.Get<IPrimitiveTestHandler>("unavailable-handler");
         await brain.Get<IUiBinding>("research/browser").Bind(handler);
         const string reason = "The WebView2 environment could not be started.";
@@ -346,7 +349,7 @@ public sealed class WebBrowserFacts
         await using var brain = await Start(provider);
         var browser = brain.Get<IWebBrowser>("film/browser");
         await browser.Configure("film/browser");
-        await brain.Grains.GetGrain<IWebBrowserConnector>("film/browser").Connect(12345, Session);
+        await Connector(brain, "film/browser").Connect(12345, Session);
         var page = Assert.Single(provider.Pages);
         page.FailNavigate = true;
         await browser.Navigate("http://localhost:18110/");

@@ -18,11 +18,13 @@ public sealed class WebBrowserHttpFacts(FlutterHostFixture host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var ws = host.Workspace();
-        using var navigate = await brain.HttpClient.PostAsJsonAsync($"/brains/{ws}/ui/browsers/docs/navigate",
+        using var person = await host.PersonAsync(ct);
+        var ws = person.BrainId;
+        using var caller = person.AsCaller();
+        using var navigate = await person.Http.PostAsJsonAsync($"/brains/{ws}/ui/browsers/docs/navigate",
             new { uri = "https://learn.microsoft.com/", title = "Docs" }, ct);
         Assert.Equal(HttpStatusCode.Accepted, navigate.StatusCode);
-        var state = await brain.HttpClient.GetFromJsonAsync<WebBrowserView>($"/brains/{ws}/ui/browsers/docs", Json, ct);
+        var state = await person.Http.GetFromJsonAsync<WebBrowserView>($"/brains/{ws}/ui/browsers/docs", Json, ct);
         Assert.Equal("https://learn.microsoft.com/", state!.Uri);
         Assert.Equal("Docs", state.Title);
         Assert.Equal(BrowserConnection.Waiting, state.Connection);

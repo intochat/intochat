@@ -11,7 +11,9 @@ public sealed class WorkspaceWindowHttpFacts(FlutterHostFixture host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var ws = host.Workspace();
+        using var person = await host.PersonAsync(ct);
+        var ws = person.BrainId;
+        using var caller = person.AsCaller();
         var workspace = brain.Get<IWorkspace>(ws);
         var ids = new[] { "apps/chart/window", "apps%2Fchart%2Fwindow" };
         foreach (var id in ids)
@@ -25,14 +27,14 @@ public sealed class WorkspaceWindowHttpFacts(FlutterHostFixture host)
         {
             var before = await workspace.Read();
             var path = $"/brains/{ws}/windows/{Uri.EscapeDataString(id)}";
-            using var close = await brain.HttpClient.PostAsJsonAsync(path + "/close",
+            using var close = await person.Http.PostAsJsonAsync(path + "/close",
                 new { windowId = id, expectedRevision = before.Revision }, ct);
             Assert.Equal(HttpStatusCode.OK, close.StatusCode);
             var closed = await workspace.Read();
             Assert.False(closed.Windows.Single(w => w.Id == id).IsOpen);
             Assert.True(closed.Windows.Single(w => w.Id != id).IsOpen);
 
-            using var reopen = await brain.HttpClient.PostAsJsonAsync(path + "/reopen",
+            using var reopen = await person.Http.PostAsJsonAsync(path + "/reopen",
                 new { windowId = id, operationId = Guid.NewGuid().ToString(), expectedRevision = closed.Revision }, ct);
             Assert.Equal(HttpStatusCode.OK, reopen.StatusCode);
             Assert.All((await workspace.Read()).Windows, w => Assert.True(w.IsOpen));

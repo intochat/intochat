@@ -13,8 +13,10 @@ public sealed class FormHttpFacts(FlutterHostFixture host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var ws = host.Workspace();
-        var form = brain.Get<IForm>(UiScope.Key(BrainScope.Create("owner", ws).Id, "intake"));
+        using var person = await host.PersonAsync(ct);
+        var ws = person.BrainId;
+        using var caller = person.AsCaller();
+        var form = brain.Get<IForm>(UiScope.Key(ws, "intake"));
         var defined = await form.Define(new("Customer intake",
         [
             new("name", "Name", FormFieldKind.PlainText, true),
@@ -22,7 +24,7 @@ public sealed class FormHttpFacts(FlutterHostFixture host)
         ]));
         await form.Submit(new([new("name", "Ada"), new("birthDate", "1815-12-10")], defined.Revision));
 
-        var state = await brain.HttpClient.GetFromJsonAsync<FormState>($"/brains/{ws}/ui/forms/intake",
+        var state = await person.Http.GetFromJsonAsync<FormState>($"/brains/{ws}/ui/forms/intake",
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, ct);
 
         Assert.NotNull(state);

@@ -1,7 +1,6 @@
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Chart;
 using DigitalBrain.Flutter.Chart.Signals;
-using DigitalBrain.Testing.Module;
 using Xunit;
 
 namespace DigitalBrain.Modules.Flutter.Tests.Chart;
@@ -12,7 +11,7 @@ public sealed class ChartFacts
     public async Task RenderPublishesChangedAndReadMatches()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>()
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
         var chart = brain.Get<IChart>("btc");
         await using var frames = await brain.Observe<ChartChanged>(chart, ct);
@@ -30,7 +29,7 @@ public sealed class ChartFacts
     public async Task AppendIsIdempotentOnEventId()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>()
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
         var chart = brain.Get<IChart>("series");
         await chart.Render("S", "bar", []);

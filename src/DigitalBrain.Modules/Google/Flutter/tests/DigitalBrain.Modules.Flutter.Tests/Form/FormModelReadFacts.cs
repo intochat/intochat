@@ -14,7 +14,7 @@ public sealed class FormModelReadFacts
     public async Task TheModelReadsAFormsShapeButNeverItsValues()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         StampApp(conversation: null);
         var form = brain.Get<IForm>(FormKey);
         await form.Define(new("Intake", [new("name", "Name", FormFieldKind.PlainText, Required: true), new("token", "Token", FormFieldKind.Secret)]));

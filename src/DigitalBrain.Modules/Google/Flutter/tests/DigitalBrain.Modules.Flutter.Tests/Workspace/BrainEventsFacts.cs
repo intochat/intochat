@@ -7,7 +7,6 @@ using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp.Files;
 using DigitalBrain.Microsoft.CSharp.Runtime;
 using DigitalBrain.Microsoft.CSharp.Runtime.Signals;
-using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.Logging.Abstractions;
 using Orleans.Metadata;
 
@@ -27,26 +26,14 @@ public sealed class BrainEventsFacts
     private static JsonElement[] Synapses(JsonDocument snapshot)
         => [.. snapshot.RootElement.GetProperty("synapses").EnumerateArray()];
 
-    private static string Stamp(string brainName)
-    {
-        CallerContextStamper.Stamp(new CallerContext
-        {
-            PrincipalId = "owner",
-            AccountId = "owner",
-            BrainId = brainName,
-            Kind = CallerKind.User,
-            StampedBy = TrustedEdge.AuthenticatedHttp,
-        });
-        return BrainScope.CurrentId();
-    }
-
     [Fact]
     public async Task ANewNeuronAppearsInTheBrainStream()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<CirclesModule>().StartAsync(ct);
-        var scope = Stamp("growth");
-        await brain.Self.Create(new Owner("owner"));
+        await using var brain = await TestBrain.Create().WithModule<CirclesModule>().StartAsync(ct);
+        var person = await brain.PersonAsync("growth", ct);
+        using var caller = person.AsCaller();
+        var scope = person.BrainId;
         var grown = ICircle.Key(scope, "club");
         await using var stream = BrainEventsEndpoints.Snapshots(brain, scope, NullLogger.Instance, ct).GetAsyncEnumerator(ct);
 
@@ -67,9 +54,10 @@ public sealed class BrainEventsFacts
     public async Task ASynapseAppearsOnceAnAppsBehaviorSubscribesAndItsAppRuns()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().WithModule<CirclesModule>().StartAsync(ct);
-        var scope = Stamp("wiring");
-        await brain.Self.Create(new Owner("owner"));
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().WithModule<CirclesModule>().StartAsync(ct);
+        var person = await brain.PersonAsync("wiring", ct);
+        using var caller = person.AsCaller();
+        var scope = person.BrainId;
         var appKey = IApp.Key(scope, "watcher");
         await brain.Get<IApp>(appKey).Create(new AppManifest("watcher", "", [new("open", "")], [], []), "spec");
         var publisher = ICircle.Key(scope, "club");
@@ -98,9 +86,10 @@ public sealed class BrainEventsFacts
     public async Task ARuntimeThatCannotBeReadKeepsTheLastSynapsesInsteadOfEmittingADegradedSnapshot()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().WithModule<CirclesModule>().StartAsync(ct);
-        var scope = Stamp("degraded");
-        await brain.Self.Create(new Owner("owner"));
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().WithModule<CirclesModule>().StartAsync(ct);
+        var person = await brain.PersonAsync("degraded", ct);
+        using var caller = person.AsCaller();
+        var scope = person.BrainId;
         var appKey = IApp.Key(scope, "steady");
         await brain.Get<IApp>(appKey).Create(new AppManifest("steady", "", [new("open", "")], [], []), "spec");
         var publisher = ICircle.Key(scope, "club");
@@ -131,9 +120,10 @@ public sealed class BrainEventsFacts
     public async Task ARuntimeThatKeepsFailingPastTheTtlStreamsIdleNodesWithoutEdgesAndEdgesReturnWhenItRecoversQuietly()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().WithModule<CirclesModule>().StartAsync(ct);
-        var scope = Stamp("stale");
-        await brain.Self.Create(new Owner("owner"));
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().WithModule<CirclesModule>().StartAsync(ct);
+        var person = await brain.PersonAsync("stale", ct);
+        using var caller = person.AsCaller();
+        var scope = person.BrainId;
         var appKey = IApp.Key(scope, "steady");
         await brain.Get<IApp>(appKey).Create(new AppManifest("steady", "", [new("open", "")], [], []), "spec");
         var publisher = ICircle.Key(scope, "club");
@@ -174,9 +164,10 @@ public sealed class BrainEventsFacts
     public async Task ABrainWithNoRuntimeStreamsItsNeuronsAndNoSynapses()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<AppsModule>().StartAsync(ct);
-        var scope = Stamp("alone");
-        await brain.Self.Create(new Owner("owner"));
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().StartAsync(ct);
+        var person = await brain.PersonAsync("alone", ct);
+        using var caller = person.AsCaller();
+        var scope = person.BrainId;
         var appKey = IApp.Key(scope, "alone");
         await brain.Get<IApp>(appKey).Create(new AppManifest("alone", "", [new("open", "")], [], []), "spec");
         await using var stream = BrainEventsEndpoints.Snapshots(brain, scope, NullLogger.Instance, ct).GetAsyncEnumerator(ct);

@@ -13,9 +13,11 @@ public sealed class CalendarHttpFacts(FlutterHostFixture host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var ws = host.Workspace();
-        await brain.Get<ICalendar>(UiScope.Key(BrainScope.Create("owner", ws).Id, "cal")).Set("day", ["2026-09-20"]);
-        var state = await brain.HttpClient.GetFromJsonAsync<CalendarState>($"/brains/{ws}/ui/calendars/cal", new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, ct);
+        using var person = await host.PersonAsync(ct);
+        var ws = person.BrainId;
+        using var caller = person.AsCaller();
+        await brain.Get<ICalendar>(UiScope.Key(ws, "cal")).Set("day", ["2026-09-20"]);
+        var state = await person.Http.GetFromJsonAsync<CalendarState>($"/brains/{ws}/ui/calendars/cal", new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, ct);
         Assert.Equal("day", state!.Mode);
     }
 }

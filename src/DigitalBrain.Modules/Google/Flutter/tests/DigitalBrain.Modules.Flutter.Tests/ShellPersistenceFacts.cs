@@ -1,6 +1,5 @@
 using System.Text.Json.Nodes;
 using DigitalBrain.Flutter.Workspace;
-using DigitalBrain.Testing.Module;
 
 namespace DigitalBrain.Modules.Flutter.Tests;
 
@@ -52,7 +51,7 @@ public sealed class ShellPersistenceFacts
     public async Task RevisionConflictsAndOperationRetriesDoNotReplaceNewerState()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().StartAsync(ct);
+        await using var brain = await TestBrain.Create().StartAsync(ct);
         var state = brain.Get<IShellState>(ShellPersistenceEndpoints.Scope("account", "alice"));
         var other = brain.Get<IShellState>(ShellPersistenceEndpoints.Scope("account", "bob"));
         Assert.Null((await state.Read()).Json);

@@ -12,24 +12,26 @@ public sealed class ComposerHttpFacts(FlutterHostFixture host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var ws = host.Workspace();
-        var name = BrainScope.Create("owner", ws).Id + "/apps/test/composer";
+        using var person = await host.PersonAsync(ct);
+        var ws = person.BrainId;
+        using var caller = person.AsCaller();
+        var name = ws + "/apps/test/composer";
         var composer = brain.Get<IComposer>(name);
         await composer.Configure("conversation", 1);
-        using var edit = await brain.HttpClient.PostAsJsonAsync($"/brains/{ws}/apps/event",
+        using var edit = await person.Http.PostAsJsonAsync($"/brains/{ws}/apps/event",
             new { kind = "composer", name, action = "edit", context = "conversation", value = "HTTP draft" }, ct);
         Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
         var id = Guid.NewGuid();
-        using var submit = await brain.HttpClient.PostAsJsonAsync($"/brains/{ws}/apps/event",
+        using var submit = await person.Http.PostAsJsonAsync($"/brains/{ws}/apps/event",
             new { kind = "composer", name, action = "submit", context = "conversation", value = "HTTP draft", operationId = id }, ct);
         Assert.Equal(HttpStatusCode.OK, submit.StatusCode);
         Assert.Equal(id, Assert.Single((await composer.Read()).Submissions).Id);
         var capture = Guid.NewGuid();
         await composer.BeginVoice(capture, "conversation");
-        using var audio = await brain.HttpClient.PostAsJsonAsync($"/brains/{ws}/apps/event",
+        using var audio = await person.Http.PostAsJsonAsync($"/brains/{ws}/apps/event",
             new { kind = "composer", name, action = "voice-audio", operationId = capture, value = "AQID", mimeType = "audio/wav" }, ct);
         Assert.Equal(HttpStatusCode.OK, audio.StatusCode);
-        var snapshot = await brain.HttpClient.GetStringAsync($"/brains/{ws}/apps/node?kind=composer&name={Uri.EscapeDataString(name)}", ct);
+        var snapshot = await person.Http.GetStringAsync($"/brains/{ws}/apps/node?kind=composer&name={Uri.EscapeDataString(name)}", ct);
         Assert.Contains("transcribing", snapshot);
         Assert.DoesNotContain("AQID", snapshot);
         Assert.DoesNotContain("bytes", snapshot);

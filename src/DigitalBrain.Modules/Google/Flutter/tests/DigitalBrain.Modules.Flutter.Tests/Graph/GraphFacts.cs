@@ -1,6 +1,5 @@
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Graph;
-using DigitalBrain.Testing.Module;
 using Xunit;
 
 namespace DigitalBrain.Modules.Flutter.Tests.Graph;
@@ -11,7 +10,7 @@ public sealed class GraphFacts
     public async Task RenderWritesTitleNodesAndEdges()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>()
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>()
             .StartAsync(ct);
         await brain.Get<IGraph>("net").Render("N", [new GraphNode("a", "A")], [new GraphEdge("a", "a")]);
         var state = await brain.Get<IGraph>("net").Read();

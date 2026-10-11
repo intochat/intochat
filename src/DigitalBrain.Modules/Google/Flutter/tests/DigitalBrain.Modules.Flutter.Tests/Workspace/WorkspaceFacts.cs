@@ -2,7 +2,6 @@ using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Flutter.Workspace.Signals;
-using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace DigitalBrain.Modules.Flutter.Tests.Workspace;
@@ -13,18 +12,7 @@ public sealed class WorkspaceFacts
     public async Task TheHostCanNameTheFirstRunAssistant()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>()
-            .ConfigureSilo(silo => silo.Services.Configure<FlutterModuleOptions>(options => options.AssistantTitle = "Example assistant"))
-            .StartAsync(ct);
-        var firstRun = (await brain.Get<IWorkspace>("owner/a").Read()).FirstRun;
-        Assert.Equal("Example assistant", Assert.IsType<FirstRunState>(firstRun).AssistantTitle);
-    }
-
-    [Fact]
-    public async Task ModuleOptionsReachTheSiloThroughConfiguration()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create()
+        await using var brain = await TestBrain.Create()
             .WithModule<FlutterModule, FlutterModuleOptions>(options => options.AssistantTitle = "IntoChat")
             .StartAsync(ct);
         var firstRun = (await brain.Get<IWorkspace>("owner/a").Read()).FirstRun;
@@ -35,7 +23,7 @@ public sealed class WorkspaceFacts
     public async Task WindowReferenceIsOneTypedNeuronReference()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var surface = new UiChildRef("surface", "owner/a/apps/files/surface");
         var workspace = brain.Get<IWorkspace>("owner/a");
         await workspace.OpenSurface(new("app-op", "app-files", "Files", WindowReference.For(surface), 0));
@@ -52,7 +40,7 @@ public sealed class WorkspaceFacts
     public async Task FirstRunOffersTheAssistantAndPromptsMatchingConnectedSources()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var workspace = brain.Get<IWorkspace>("owner/a");
         var fresh = await workspace.Read();
         var firstRun = Assert.IsType<FirstRunState>(fresh.FirstRun);
@@ -72,7 +60,7 @@ public sealed class WorkspaceFacts
     public async Task SurfaceWindowsCoexistWithLegacyTablesAndKeepReplaySemantics()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var workspace = brain.Get<IWorkspace>("owner/a");
         await workspace.Open(new("table-op", "table", "Table", WindowReference.Table("legacy-table"), 0));
         var request = new OpenSurfaceWindow("app-op", "app-files", "Files", new WindowReference("surface", "owner/a/apps/files/surface"), 1);
@@ -90,7 +78,7 @@ public sealed class WorkspaceFacts
     public async Task ReplayAfterCloseNeverReopensAWindowAndSurvivesReactivation()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var workspace = brain.Get<IWorkspace>("owner/a");
         var request = new OpenWindow("run/call", "view", "Active leads", WindowReference.Table("table"), 0);
         await workspace.Open(request);
@@ -110,7 +98,7 @@ public sealed class WorkspaceFacts
     public async Task OperationRevisionIsStableAfterCloseAndReplay()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var workspace = brain.Get<IWorkspace>("owner/a");
         var request = new OpenWindow("run/call", "view", "Active leads", WindowReference.Table("table"), 0);
         var opened = await workspace.Open(request);
@@ -132,7 +120,7 @@ public sealed class WorkspaceFacts
     public async Task MismatchedOperationIdsFail()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var workspace = brain.Get<IWorkspace>("owner/a");
         await workspace.Open(new OpenWindow("run/call", "view", "Active leads", WindowReference.Table("table"), 0));
         // Reusing the operation id for a different window, title or view is a conflict.
@@ -146,7 +134,7 @@ public sealed class WorkspaceFacts
     public async Task StaleCommandsAndConflictingOperationReuseLeaveStateUntouched()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var workspace = brain.Get<IWorkspace>("owner/a");
         var request = new OpenWindow("run/call", "view", "Active leads", WindowReference.Table("table"), 0);
         await workspace.Open(request);
@@ -160,7 +148,7 @@ public sealed class WorkspaceFacts
     public async Task SuccessfulMutationPublishesItsPersistedRevision()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var workspace = brain.Get<IWorkspace>("owner/a");
         await using var changes = await brain.Observe<WorkspaceChanged>(workspace, ct);
         var result = await workspace.Open(new("operation", "window", "Leads", WindowReference.Table("table"), 0));
@@ -174,7 +162,7 @@ public sealed class WorkspaceFacts
     public async Task RevisionConflictCarriesTheCurrentRevisionForOptimisticRetry()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var workspace = brain.Get<IWorkspace>("owner/a");
         await workspace.Open(new("operation", "window", "Leads", WindowReference.Table("table"), 0));
         var conflict = await Assert.ThrowsAsync<WorkspaceRevisionConflictException>(() => workspace.Close("window", 0));
@@ -188,7 +176,7 @@ public sealed class WorkspaceFacts
     public async Task InvalidIdentifiersDoNotCreateState(string operation, string window, string title)
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<FlutterModule>().StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
         var workspace = brain.Get<IWorkspace>("owner/a");
         await Assert.ThrowsAsync<ArgumentException>(() => workspace.Open(new(operation, window, title, WindowReference.Table("table"), 0)));
         await Assert.ThrowsAsync<ArgumentException>(() => workspace.Open(new(new string('x', 257), "window", "Title", WindowReference.Table("table"), 0)));
