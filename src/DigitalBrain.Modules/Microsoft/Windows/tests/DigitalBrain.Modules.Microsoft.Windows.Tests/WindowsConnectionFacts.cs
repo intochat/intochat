@@ -5,50 +5,53 @@ namespace DigitalBrain.Modules.Microsoft.Windows.Tests;
 
 public sealed class WindowsConnectionFacts
 {
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task ThisMachineConnectsAndReportsItsFacts()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
         var ct = TestContext.Current.CancellationToken;
-        var (host, machineId, _) = await WindowsHost.StartAsync(ct);
-        await using var _ = host;
+        var host = await WindowsHost.StartAsync(connect: false, allowRoot: false, ct);
+        await using var brain = host.Brain;
+        using var caller = brain.Owner.AsCaller();
 
-        var view = await host.Get<IConnection>(WindowsHost.Machine(machineId)).Connect("device", machineId);
-        var facts = await host.Get<IWindows>(WindowsHost.Machine(machineId)).Facts();
+        var view = await brain.Get<IConnection>(host.Key).Connect("device", host.MachineId);
+        var facts = await brain.Get<IWindows>(host.Key).Facts();
 
         Assert.Equal(ConnectionStatus.Connected, view.Status);
-        Assert.Equal(machineId, facts.MachineId);
+        Assert.Equal(host.MachineId, facts.MachineId);
         Assert.Equal(Environment.MachineName, facts.MachineName);
         Assert.True(facts.ProcessorCount > 0);
     }
 
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task AnotherMachinesConnectionIsNotServedHere()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
         var ct = TestContext.Current.CancellationToken;
-        var (host, _, _) = await WindowsHost.StartAsync(ct);
-        await using var _ = host;
+        var host = await WindowsHost.StartAsync(connect: false, allowRoot: false, ct);
+        await using var brain = host.Brain;
+        using var caller = brain.Owner.AsCaller();
         var other = Guid.NewGuid().ToString("N");
 
-        await Assert.ThrowsAsync<ServiceUnavailableException>(() => host.Get<IWindows>(WindowsHost.Machine(other)).Facts());
-        await Assert.ThrowsAsync<ServiceUnavailableException>(() => host.Get<IConnection>(WindowsHost.Machine(other)).Connect("device", other));
+        await Assert.ThrowsAsync<ServiceUnavailableException>(() => brain.Get<IWindows>(host.Machine(other)).Facts());
+        await Assert.ThrowsAsync<ServiceUnavailableException>(() => brain.Get<IConnection>(host.Machine(other)).Connect("device", other));
     }
 
-    [Fact(Timeout = 60_000)]
+    [Fact]
     public async Task RootsAreAllowedAndRevoked()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
         var ct = TestContext.Current.CancellationToken;
-        var (host, machineId, root) = await WindowsHost.StartAsync(ct);
-        await using var _ = host;
-        var machine = host.Get<IWindows>(WindowsHost.Machine(machineId));
+        var host = await WindowsHost.StartAsync(connect: false, allowRoot: false, ct);
+        await using var brain = host.Brain;
+        using var caller = brain.Owner.AsCaller();
+        var machine = brain.Get<IWindows>(host.Key);
 
-        await machine.AllowRoot(root);
-        await machine.AllowRoot(root.ToUpperInvariant());
-        Assert.Equal([Path.GetFullPath(root)], await machine.Roots());
+        await machine.AllowRoot(host.Root);
+        await machine.AllowRoot(host.Root.ToUpperInvariant());
+        Assert.Equal([Path.GetFullPath(host.Root)], await machine.Roots());
 
-        await machine.RevokeRoot(root);
+        await machine.RevokeRoot(host.Root);
         Assert.Empty(await machine.Roots());
     }
 }

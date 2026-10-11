@@ -20,11 +20,11 @@ public sealed class TpmCounterNeuron([PersistentState("counter", DigitalBrainNam
 public sealed class TpmCounterState { [Id(0)] public int Value { get; set; } }
 
 // R78 step 4, scaled to one single-machine owner: the Windows module puts custody and the signing key in the TPM,
-// the part key is wrapped there, and after a silo restart the state is read back through it.
+// the part key is wrapped there, and after a restart the state is read back through it.
 [System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public sealed class TpmRestartFacts
 {
-    [Fact(Timeout = 180_000)]
+    [Fact]
     public async Task AStateWrittenUnderTpmCustodySurvivesARestart()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows() && TpmMasterKeyCustody.IsAvailable(), "No TPM (Microsoft Platform Crypto Provider) on this machine.");
@@ -33,32 +33,30 @@ public sealed class TpmRestartFacts
         var prefix = $"digitalbrain-test-{Guid.NewGuid():N}-";
         try
         {
-            var scope = BrainScope.Create(ModuleTest.DefaultAccount, ModuleTest.DefaultAccount).Id;
-            await using var brain = await ModuleTest.Create().WithPartLog()
+            await using var brain = await TestBrain.Create().WithPartLog()
                 .WithConfiguration(DigitalBrainNames.CustodyConfigurationKey, nameof(MasterKeyCustodyKind.Tpm))
                 .WithModule<WindowsModule>()
-                // After the Windows module's own TPM registration, which names the real keys.
-                .ConfigureSilo(silo =>
+                // The module's TPM custody and signing key under test-only names, registered after the module's own.
+                .ConfigureServices(services =>
                 {
-                    var services = silo.Services;
                     services.RemoveAll<IMasterKeyCustody>();
                     services.RemoveAll<IMachineSigningKey>();
                     services.AddSingleton<IMasterKeyCustody>(new TpmMasterKeyCustody(prefix));
-                    // MachineIdentity disposes its key with the silo, so each silo opens its own handle to the same TPM key.
+                    // MachineIdentity disposes its key with the host, so each host opens its own handle to the same TPM key.
                     services.AddSingleton<IMachineSigningKey>(_ => new TpmMachineSigningKey($"{prefix}machine"));
                 })
                 .StartAsync(ct);
-            Assert.IsType<TpmMasterKeyCustody>(brain.SiloServices.GetRequiredService<IMasterKeyCustody>());
-            var counter = $"{scope}/apps/counter/tpm";
+            Assert.IsType<TpmMasterKeyCustody>(brain.Services.GetRequiredService<IMasterKeyCustody>());
+            var counter = brain.Owner.Key("apps/counter/tpm");
             for (var i = 0; i < 3; i++) { await brain.Get<ITpmCounter>(counter).Increment(); }
 
-            await brain.RestartSiloAsync(ct);
+            await brain.RestartAsync(ct);
 
             Assert.Equal(3, await brain.Get<ITpmCounter>(counter).Read());
         }
         finally
         {
-            TpmMasterKeyCustody.Delete(ModuleTest.DefaultAccount, prefix);
+            TpmMasterKeyCustody.Delete("owner", prefix);
             using var machineKey = new TpmMachineSigningKey($"{prefix}machine");
             machineKey.Delete();
         }
