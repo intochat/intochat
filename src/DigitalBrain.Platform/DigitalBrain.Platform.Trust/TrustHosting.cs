@@ -27,6 +27,8 @@ public static class TrustHosting
         services.AddOptions<AuthOptions>().BindConfiguration(AuthOptions.SectionName);
         services.AddOptions<MeshOptions>().BindConfiguration(MeshOptions.Key)
             .Validate(mesh => { mesh.Validate(); return true; }).ValidateOnStart();
+        services.AddOptions<StorageCreditOptions>().BindConfiguration(StorageCreditOptions.Key)
+            .Validate(credits => { credits.Validate(); return true; }).ValidateOnStart();
         silo.AddStartupTask<SeedNodeRegistration>();
         return silo;
     }

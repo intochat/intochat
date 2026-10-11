@@ -30,6 +30,11 @@ internal interface INodeDirectoryClient
 
     Task<StorageNodeView[]> List();
 
+    // T23-11/R55: the storage credits an account this machine serves has earned and not yet pulled into its ledger.
+    Task<StorageCredit[]> PendingCredits(string account);
+
+    Task AcknowledgeCredits(string account, string[] entryIds);
+
     Task Put(string nodeId, string cid, byte[] sealedShard);
 
     Task<byte[]?> Get(string nodeId, string cid);

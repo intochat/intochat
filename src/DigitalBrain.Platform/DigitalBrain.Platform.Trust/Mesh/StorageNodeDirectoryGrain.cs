@@ -150,16 +150,21 @@ internal sealed class StorageNodeDirectoryGrain(
     {
         ArgumentNullException.ThrowIfNull(report);
         if (!store.State.Nodes.TryGetValue(report.NodeId, out var node)) { throw new KeyNotFoundException($"Storage node '{report.NodeId}' is not registered."); }
+        string? putter = null;
         if (reporterAccounts is not null)
         {
             if (reporterAccounts.Contains(node.OwnerAccount, StringComparer.Ordinal))
             { throw new UnauthorizedAccessException($"The owner of node {report.NodeId} cannot report on it."); }
-            if (!store.State.PlacedFor.TryGetValue(report.NodeId, out var placed) || !placed.Intersect(reporterAccounts, StringComparer.Ordinal).Any())
-            { throw new UnauthorizedAccessException($"No account of the reporting machine was placed onto node {report.NodeId}."); }
+            putter = store.State.PlacedFor.GetValueOrDefault(report.NodeId)?.LastOrDefault(account => reporterAccounts.Contains(account, StringComparer.Ordinal))
+                ?? throw new UnauthorizedAccessException($"No account of the reporting machine was placed onto node {report.NodeId}.");
         }
         var recorded = report with { ShardBytes = Math.Clamp(report.ShardBytes, 0, options.Value.MaxShardBytes) };
         store.State.Nodes[report.NodeId] = Reputed(node, report.Passed);
         await store.WriteStateAsync();
+        // T23-11: a pass reported by a placed putter earns the node's owner one credit within the putter's daily cap;
+        // seeds (the platform) earn nothing.
+        if (recorded.Passed && putter is not null && node.OwnerAccount != SeedNodeRegistration.Owner)
+        { await GrainFactory.GetGrain<IStorageCredits>(node.OwnerAccount).Record(recorded, putter); }
         return recorded;
     }
 

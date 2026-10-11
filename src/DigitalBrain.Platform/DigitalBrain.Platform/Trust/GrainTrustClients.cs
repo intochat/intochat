@@ -67,6 +67,10 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
 
     Task<StorageNodeView[]> INodeDirectoryClient.List() => Directory.List();
 
+    public Task<StorageCredit[]> PendingCredits(string account) => Grains.GetGrain<IStorageCredits>(account).Pending();
+
+    public Task AcknowledgeCredits(string account, string[] entryIds) => Grains.GetGrain<IStorageCredits>(account).Acknowledge(entryIds);
+
     public Task Put(string nodeId, string cid, byte[] sealedShard) => Shard(nodeId, cid).Put(sealedShard, machine?.MachineId);
 
     public Task<byte[]?> Get(string nodeId, string cid) => Shard(nodeId, cid).Get();

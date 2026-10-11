@@ -70,6 +70,11 @@ internal sealed class LinkTrustClients(QuicMachineTransport transport, Serialize
 
     Task<StorageNodeView[]> INodeDirectoryClient.List() => Call<bool, StorageNodeView[]>(TrustOperations.NodeList, true);
 
+    public Task<StorageCredit[]> PendingCredits(string account) => Call<string, StorageCredit[]>(TrustOperations.CreditsPending, account);
+
+    public Task AcknowledgeCredits(string account, string[] entryIds)
+        => Call<(string, string[]), bool>(TrustOperations.CreditsAcknowledge, (account, entryIds));
+
     public Task Put(string nodeId, string cid, byte[] sealedShard) => Call<(string, string, byte[]), bool>(TrustOperations.ShardPut, (nodeId, cid, sealedShard));
 
     public Task<byte[]?> Get(string nodeId, string cid) => Call<(string, string), byte[]?>(TrustOperations.ShardGet, (nodeId, cid));

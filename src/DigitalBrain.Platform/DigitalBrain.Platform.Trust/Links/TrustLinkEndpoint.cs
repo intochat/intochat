@@ -32,6 +32,8 @@ internal static class TrustOperations
     public const string NodeAudit = "node.audit";
     public const string NodePlace = "node.place";
     public const string NodeList = "node.list";
+    public const string CreditsPending = "credits.pending";
+    public const string CreditsAcknowledge = "credits.acknowledge";
     public const string ShardPut = "shard.put";
     public const string ShardGet = "shard.get";
     public const string ShardProve = "shard.prove";
@@ -215,6 +217,20 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
             return await Directory.Place(count, exclude, shardBytes, call.Machine!.Accounts);
         }),
         [TrustOperations.NodeList] = Registered(async _ => await Directory.List()),
+        // T23-11/R55: an account's storage credits are read and acknowledged only by a machine bound to it.
+        [TrustOperations.CreditsPending] = Registered(async call =>
+        {
+            var account = call.Arg<string>();
+            call.RequireAccount(account);
+            return await grains.GetGrain<IStorageCredits>(account).Pending();
+        }),
+        [TrustOperations.CreditsAcknowledge] = Registered(async call =>
+        {
+            var (account, entryIds) = call.Arg<(string, string[])>();
+            call.RequireAccount(account);
+            await grains.GetGrain<IStorageCredits>(account).Acknowledge(entryIds);
+            return true;
+        }),
         [TrustOperations.ShardPut] = Registered(async call =>
         {
             var (nodeId, cid, sealedShard) = call.Arg<(string, string, byte[])>();
