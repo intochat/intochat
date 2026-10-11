@@ -31,8 +31,9 @@ internal static class LinkTestbed
     {
         var id = MachineKeys.IdOf(key.PublicKey);
         var pairing = MachineRegistrar.HashOf(trust.PairingSecret);
-        await trust.Grains.GetGrain<IMachineRegistry>(id).Register(key.PublicKey, account, pairing,
-            key.Sign(Signing.Registration(id, key.PublicKey, account, pairing)));
+        var agreement = Sequencer.SequencerFacts.Agreement();
+        await trust.Grains.GetGrain<IMachineRegistry>(id).Register(key.PublicKey, agreement, account, pairing,
+            key.Sign(Signing.Registration(id, key.PublicKey, agreement, account, pairing)));
     }
 
     public static Task<string> Deployment(TrustHost trust) => trust.Grains.GetGrain<IStorageNodeDirectory>(IStorageNodeDirectory.Key).DeploymentId();

@@ -8,6 +8,19 @@ internal static class MachineKeys
 {
     public static string IdOf(byte[] publicKey) => DigitalBrain.Framework.Parts.MachineKeyFile.IdOf(publicKey);
 
+    // R127: a P-256 SubjectPublicKeyInfo usable for ECDH.
+    public static bool IsAgreementKey(byte[] publicKey)
+    {
+        if (publicKey is not { Length: > 0 }) { return false; }
+        try
+        {
+            using var key = ECDiffieHellman.Create();
+            key.ImportSubjectPublicKeyInfo(publicKey, out _);
+            return key.KeySize == 256 && key.ExportParameters(false).Curve.Oid.Value == ECCurve.NamedCurves.nistP256.Oid.Value;
+        }
+        catch (CryptographicException) { return false; }
+    }
+
     public static bool Verify(byte[] publicKey, byte[] data, byte[] signature)
     {
         try

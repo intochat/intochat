@@ -47,7 +47,10 @@ public static class PlatformHosting
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<DigitalBrain.Framework.Parts.IMachineSigningKey>(provider => Sequencer.FileMachineSigningKey.LoadOrCreate(Path.Combine(
             provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<Parts.PartsOptions>>().Value.MachineDirectory, "identity.key")));
-        services.TryAddSingleton(provider => new Sequencer.MachineIdentity(provider.GetRequiredService<DigitalBrain.Framework.Parts.IMachineSigningKey>()));
+        services.TryAddSingleton<DigitalBrain.Framework.Parts.IMachineAgreementKey>(provider => DigitalBrain.Framework.Parts.SoftwareMachineAgreementKey.LoadOrCreate(Path.Combine(
+            provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<Parts.PartsOptions>>().Value.MachineDirectory, "agreement.key")));
+        services.TryAddSingleton(provider => new Sequencer.MachineIdentity(provider.GetRequiredService<DigitalBrain.Framework.Parts.IMachineSigningKey>(),
+            provider.GetRequiredService<DigitalBrain.Framework.Parts.IMachineAgreementKey>()));
         // R75: the identity key is the machine's; what it remembers of a trust deployment lives in that deployment's folder.
         services.TryAddSingleton<Trust.TrustDeployment>();
         services.TryAddSingleton(provider => new Sequencer.SeenVersions(() => Path.Combine(

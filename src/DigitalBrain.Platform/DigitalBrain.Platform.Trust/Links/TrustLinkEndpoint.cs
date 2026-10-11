@@ -178,12 +178,12 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
         [TrustOperations.Deployment] = Open(async _ => await Directory.DeploymentId()),
         [TrustOperations.RegisterMachine] = Open(async call =>
         {
-            var (machineId, publicKey, account, pairing, signature) = call.Arg<(string, byte[], string, byte[], byte[])>();
+            var (machineId, publicKey, agreementKey, account, pairing, signature) = call.Arg<(string, byte[], byte[], string, byte[], byte[])>();
             // A link registers only its own key: the one that endorsed its certificate.
             if (machineId != call.Link.RemoteMachineId || !publicKey.AsSpan().SequenceEqual(call.Link.Peer.PublicKey))
             { throw new UnauthorizedAccessException($"Machine {call.Link.RemoteMachineId} may register only itself."); }
             if ((await grains.GetGrain<IAccountMachines>(account).Machines()).Length == 0) { CountNewAccount(call.Link.RemoteEndPoint.Address, account); }
-            await Registry(machineId).Register(publicKey, account, pairing, signature);
+            await Registry(machineId).Register(publicKey, agreementKey, account, pairing, signature);
             return true;
         }),
         [TrustOperations.ProvisionOwner] = Open(async call => await Writes.ProvisionOwner(call.Signed<Member>())),

@@ -10,3 +10,15 @@ public interface IMachineSigningKey
     // ECDSA over SHA-256, IEEE P1363 format.
     byte[] Sign(byte[] data);
 }
+
+// R127: this machine's P-256 key-agreement key, registered beside its signing key. A circle part key is wrapped to
+// it by ephemeral-static ECDH; the software default keeps it in a file, the Windows module in the TPM where the
+// provider does ECDH.
+public interface IMachineAgreementKey
+{
+    // SubjectPublicKeyInfo of the P-256 key.
+    byte[] PublicKey { get; }
+
+    // SHA-256 of the ECDH shared secret with the peer's SubjectPublicKeyInfo (what CNG and OpenSSL both derive).
+    byte[] DeriveShared(byte[] ephemeralPublicKey);
+}

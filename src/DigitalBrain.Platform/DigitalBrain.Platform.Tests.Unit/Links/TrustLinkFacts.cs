@@ -435,6 +435,7 @@ public sealed class TrustLinkFacts
     internal sealed class RawMachine : IAsyncDisposable
     {
         private readonly FileMachineSigningKey _key;
+        private readonly byte[] _agreement = Sequencer.SequencerFacts.Agreement();
         private readonly QuicMachineLink _link;
         private readonly TrustHost _trust;
         private long _counter;
@@ -462,8 +463,8 @@ public sealed class TrustLinkFacts
         public async Task Register(string account, CancellationToken cancellationToken)
         {
             var pairing = MachineRegistrar.HashOf(account == AccountSession.DefaultLogin ? _trust.PairingSecret : account + "-pairing");
-            await Call<(string, byte[], string, byte[], byte[]), bool>(TrustOperations.RegisterMachine,
-                (MachineId, _key.PublicKey, account, pairing, _key.Sign(Signing.Registration(MachineId, _key.PublicKey, account, pairing))), cancellationToken);
+            await Call<(string, byte[], byte[], string, byte[], byte[]), bool>(TrustOperations.RegisterMachine,
+                (MachineId, _key.PublicKey, _agreement, account, pairing, _key.Sign(Signing.Registration(MachineId, _key.PublicKey, _agreement, account, pairing))), cancellationToken);
         }
 
         public async Task ProvisionOwner(string account, CancellationToken cancellationToken)

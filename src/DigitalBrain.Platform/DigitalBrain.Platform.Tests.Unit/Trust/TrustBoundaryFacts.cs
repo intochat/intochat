@@ -48,9 +48,9 @@ public sealed class TrustBoundaryFacts
     ];
 
     // Byte arrays that may cross, by parameter or member name: wrapped keys, sealed shards and heads, public keys,
-    // signatures, proof nonces and the pairing secret's hash (R52).
+    // signatures, proof nonces, the pairing secret's hash (R52) and a machine's public agreement key (R127).
     private static readonly string[] Bytes =
-        ["wrapped", "sealedShard", "publicKey", "selfSignature", "nonce", "pairingSecretHash", "HolderKey", "Payload", "Signature"];
+        ["wrapped", "sealedShard", "publicKey", "agreementKey", "selfSignature", "nonce", "pairingSecretHash", "HolderKey", "Payload", "Signature"];
 
     // What a returned byte array is: a shard as stored, a storage proof, a wrapped part key.
     private static readonly Dictionary<string, string> Returns = new(StringComparer.Ordinal)

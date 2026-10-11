@@ -8,7 +8,8 @@ namespace DigitalBrain.Platform.Mesh;
 // use, the accounts it serves (R55), and the last counter of a signed call it made (replay).
 internal interface IMachineRegistry : IGrainWithStringKey
 {
-    Task Register(byte[] publicKey, string account, byte[] pairingSecretHash, byte[] selfSignature);
+    // R127: a registration carries the machine's P-256 agreement key; one without it is refused.
+    Task Register(byte[] publicKey, byte[] agreementKey, string account, byte[] pairingSecretHash, byte[] selfSignature);
 
     // The account a signed call acts for, once the signature, binding, timestamp and counter hold.
     Task<string> Accept(SignedCall call);
@@ -43,26 +44,32 @@ internal sealed class MachineRegistryGrain(
 
     private string MachineId => this.GetPrimaryKeyString();
 
-    public async Task Register(byte[] publicKey, string account, byte[] pairingSecretHash, byte[] selfSignature)
+    public async Task Register(byte[] publicKey, byte[] agreementKey, string account, byte[] pairingSecretHash, byte[] selfSignature)
     {
         ArgumentNullException.ThrowIfNull(publicKey);
+        ArgumentNullException.ThrowIfNull(agreementKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(account);
         ArgumentNullException.ThrowIfNull(pairingSecretHash);
         if (MachineKeys.IdOf(publicKey) != MachineId
-            || !MachineKeys.Verify(publicKey, Signing.Registration(MachineId, publicKey, account, pairingSecretHash), selfSignature))
+            || !MachineKeys.Verify(publicKey, Signing.Registration(MachineId, publicKey, agreementKey, account, pairingSecretHash), selfSignature))
         { throw new UnauthorizedAccessException($"Machine {MachineId} did not sign its registration."); }
+        if (!MachineKeys.IsAgreementKey(agreementKey) || agreementKey.AsSpan().SequenceEqual(publicKey))
+        { throw new UnauthorizedAccessException($"Machine {MachineId} registers no P-256 agreement key of its own."); }
         if (store.State.PublicKey is { } known && !known.AsSpan().SequenceEqual(publicKey))
         { throw new UnauthorizedAccessException($"Machine {MachineId} is registered with another key."); }
+        if (store.State.AgreementKey is { } agreed && !agreed.AsSpan().SequenceEqual(agreementKey))
+        { throw new UnauthorizedAccessException($"Machine {MachineId} is registered with another agreement key."); }
         if (store.State.PublicKey is not null && store.State.Accounts.Contains(account, StringComparer.Ordinal)) { return; }
         Reserved.Refuse(account);
         await GrainFactory.GetGrain<IAccountMachines>(account).Bind(MachineId, pairingSecretHash);
         store.State.PublicKey = publicKey;
+        store.State.AgreementKey = agreementKey;
         store.State.Accounts = [.. store.State.Accounts.Append(account).Distinct(StringComparer.Ordinal)];
         await store.WriteStateAsync();
     }
 
     public Task<RegisteredMachine?> Read() => Task.FromResult(store.State.PublicKey is { } key
-        ? new RegisteredMachine(MachineId, key, [.. store.State.Accounts], store.State.Candidates)
+        ? new RegisteredMachine(MachineId, key, [.. store.State.Accounts], store.State.Candidates, store.State.AgreementKey ?? [])
         : null);
 
     public async Task Announce(SignedCall call, MachineCandidates candidates)
@@ -132,19 +139,22 @@ internal sealed class MachineRegistryState
     [Id(1)] public string[] Accounts { get; set; } = [];
     [Id(2)] public long LastCounter { get; set; }
     [Id(4)] public MachineCandidates? Candidates { get; set; }
+    [Id(5)] public byte[]? AgreementKey { get; set; }
 }
 
 // Where a machine may be reached directly (T20-6): host:port strings, announced signed by the machine.
 [GenerateSerializer, Alias("platform.mesh.machine-candidates")]
 internal sealed record MachineCandidates([property: Id(0)] string[] Endpoints, [property: Id(1)] DateTimeOffset At);
 
-// A machine as the trust side knows it: its key, the accounts it serves (R55) and its announced candidates.
+// A machine as the trust side knows it: its key, the accounts it serves (R55), its announced candidates and its
+// agreement key (R127).
 [GenerateSerializer, Alias("platform.mesh.registered-machine")]
 internal sealed record RegisteredMachine(
     [property: Id(0)] string MachineId,
     [property: Id(1)] byte[] PublicKey,
     [property: Id(2)] string[] Accounts,
-    [property: Id(3)] MachineCandidates? Candidates);
+    [property: Id(3)] MachineCandidates? Candidates,
+    [property: Id(4)] byte[] AgreementKey);
 
 [GenerateSerializer, Alias("platform.mesh.account-machines-state")]
 internal sealed class AccountMachinesState

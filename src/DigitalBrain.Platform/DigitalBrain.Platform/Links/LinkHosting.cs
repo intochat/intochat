@@ -70,7 +70,10 @@ public static class LinkHosting
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<DigitalBrain.Framework.Parts.IMachineSigningKey>(provider => Sequencer.FileMachineSigningKey.LoadOrCreate(Path.Combine(
             provider.GetRequiredService<IOptions<Parts.PartsOptions>>().Value.MachineDirectory, "identity.key")));
-        services.TryAddSingleton(provider => new Sequencer.MachineIdentity(provider.GetRequiredService<DigitalBrain.Framework.Parts.IMachineSigningKey>()));
+        services.TryAddSingleton<DigitalBrain.Framework.Parts.IMachineAgreementKey>(provider => DigitalBrain.Framework.Parts.SoftwareMachineAgreementKey.LoadOrCreate(Path.Combine(
+            provider.GetRequiredService<IOptions<Parts.PartsOptions>>().Value.MachineDirectory, "agreement.key")));
+        services.TryAddSingleton(provider => new Sequencer.MachineIdentity(provider.GetRequiredService<DigitalBrain.Framework.Parts.IMachineSigningKey>(),
+            provider.GetRequiredService<DigitalBrain.Framework.Parts.IMachineAgreementKey>()));
         services.TryAddSingleton<TrustDeployment>();
         services.TryAddSingleton(provider => new MachineCounter(() => Path.Combine(provider.GetRequiredService<TrustDeployment>().Directory, "counter")));
         services.TryAddSingleton<MachineRegistrar>();

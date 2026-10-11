@@ -43,8 +43,8 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
     // Node directory
     private IStorageNodeDirectory Directory => Grains.GetGrain<IStorageNodeDirectory>(IStorageNodeDirectory.Key);
 
-    public Task RegisterMachine(string machineId, byte[] publicKey, string account, byte[] pairingSecretHash, byte[] selfSignature)
-        => Grains.GetGrain<IMachineRegistry>(machineId).Register(publicKey, account, pairingSecretHash, selfSignature);
+    public Task RegisterMachine(string machineId, byte[] publicKey, byte[] agreementKey, string account, byte[] pairingSecretHash, byte[] selfSignature)
+        => Grains.GetGrain<IMachineRegistry>(machineId).Register(publicKey, agreementKey, account, pairingSecretHash, selfSignature);
 
     public Task<string> DeploymentId() => Directory.DeploymentId();
 
@@ -131,7 +131,7 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
     public async Task<BrainProvision> ProvisionOwner(Member owner)
     {
         ArgumentNullException.ThrowIfNull(owner);
-        await RegisterMachine(Identity.MachineId, Identity.PublicKey, owner.AccountId, PairingSecretHash, _signer.Registration(owner.AccountId, PairingSecretHash));
+        await RegisterMachine(Identity.MachineId, Identity.PublicKey, Identity.AgreementKey, owner.AccountId, PairingSecretHash, _signer.Registration(owner.AccountId, PairingSecretHash));
         return new(owner, await Signed(owner, owner.AccountId, Writes.ProvisionOwner));
     }
 

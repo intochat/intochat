@@ -4,6 +4,13 @@ namespace DigitalBrain.Platform.Tests.Unit.Sequencer;
 
 public sealed class SequencerFacts
 {
+    // R127: a machine's agreement key, for a fixture that registers a bare signing key and derives nothing with it.
+    internal static byte[] Agreement()
+    {
+        using var key = System.Security.Cryptography.ECDiffieHellman.Create(System.Security.Cryptography.ECCurve.NamedCurves.nistP256);
+        return key.ExportSubjectPublicKeyInfo();
+    }
+
     internal static MachineIdentity Machine() => MachineIdentity.LoadOrCreate(Path.Combine(Path.GetTempPath(), $"m-{Guid.NewGuid():N}.key"));
 
     internal static HeadRecord Record(MachineIdentity machine, string partHash, long version, TimeSpan lease, byte[]? payload = null)

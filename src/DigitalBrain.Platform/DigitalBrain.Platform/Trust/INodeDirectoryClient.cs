@@ -8,8 +8,9 @@ internal interface INodeDirectoryClient
     // deployment (seen versions, journals, the signed-call counter) under it.
     Task<string> DeploymentId();
 
-    // R41/R52/R55: binds this machine's key, and through it the machine, to one account it serves.
-    Task RegisterMachine(string machineId, byte[] publicKey, string account, byte[] pairingSecretHash, byte[] selfSignature);
+    // R41/R52/R55: binds this machine's key, and through it the machine, to one account it serves; R127: with its
+    // agreement key.
+    Task RegisterMachine(string machineId, byte[] publicKey, byte[] agreementKey, string account, byte[] pairingSecretHash, byte[] selfSignature);
 
     // A machine as the trust side knows it (T20-2 check 5, T20-6): its key, accounts and announced candidates.
     Task<RegisteredMachine?> Machine(string machineId);

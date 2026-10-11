@@ -49,8 +49,9 @@ internal sealed class LinkTrustClients(QuicMachineTransport transport, Serialize
     // Node directory
     public Task<string> DeploymentId() => Call<bool, string>(TrustOperations.Deployment, true);
 
-    public Task RegisterMachine(string machineId, byte[] publicKey, string account, byte[] pairingSecretHash, byte[] selfSignature)
-        => Call<(string, byte[], string, byte[], byte[]), bool>(TrustOperations.RegisterMachine, (machineId, publicKey, account, pairingSecretHash, selfSignature));
+    public Task RegisterMachine(string machineId, byte[] publicKey, byte[] agreementKey, string account, byte[] pairingSecretHash, byte[] selfSignature)
+        => Call<(string, byte[], byte[], string, byte[], byte[]), bool>(TrustOperations.RegisterMachine,
+            (machineId, publicKey, agreementKey, account, pairingSecretHash, selfSignature));
 
     public Task<RegisteredMachine?> Machine(string machineId) => Call<string, RegisteredMachine?>(TrustOperations.Machine, machineId);
 
@@ -127,7 +128,7 @@ internal sealed class LinkTrustClients(QuicMachineTransport transport, Serialize
     {
         ArgumentNullException.ThrowIfNull(owner);
         var machine = signer.Machine;
-        await RegisterMachine(machine.MachineId, machine.PublicKey, owner.AccountId, PairingSecretHash, signer.Registration(owner.AccountId, PairingSecretHash));
+        await RegisterMachine(machine.MachineId, machine.PublicKey, machine.AgreementKey, owner.AccountId, PairingSecretHash, signer.Registration(owner.AccountId, PairingSecretHash));
         return new(owner, await Signed<Member, bool>(TrustOperations.ProvisionOwner, owner, owner.AccountId));
     }
 

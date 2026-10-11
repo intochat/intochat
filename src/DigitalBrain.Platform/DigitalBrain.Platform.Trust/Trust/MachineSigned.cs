@@ -60,13 +60,15 @@ internal static class Signing
         Field(buffer, number);
     }
 
-    // What a machine signs to register: its id, its key, the account and the pairing secret's hash (R52).
-    public static byte[] Registration(string machineId, byte[] publicKey, string account, byte[] pairingSecretHash)
+    // What a machine signs to register: its id, its signing and agreement keys (R127), the account and the pairing
+    // secret's hash (R52).
+    public static byte[] Registration(string machineId, byte[] publicKey, byte[] agreementKey, string account, byte[] pairingSecretHash)
     {
         using var buffer = new MemoryStream();
         Field(buffer, Encoding.UTF8.GetBytes("machine-registration"));
         Field(buffer, Encoding.UTF8.GetBytes(machineId));
         Field(buffer, publicKey);
+        Field(buffer, agreementKey);
         Field(buffer, Encoding.UTF8.GetBytes(account));
         Field(buffer, pairingSecretHash);
         return buffer.ToArray();

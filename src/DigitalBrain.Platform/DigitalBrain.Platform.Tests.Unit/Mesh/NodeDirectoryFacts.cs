@@ -28,7 +28,9 @@ internal static class Volunteers
         var key = FileMachineSigningKey.LoadOrCreate(Path.Combine(Path.GetTempPath(), $"volunteer-{Guid.NewGuid():N}", "identity.key"));
         var id = MachineKeys.IdOf(key.PublicKey);
         var pairing = MachineRegistrar.HashOf(account + "-pairing");
-        await grains.GetGrain<IMachineRegistry>(id).Register(key.PublicKey, account, pairing, key.Sign(Signing.Registration(id, key.PublicKey, account, pairing)));
+        var agreement = Sequencer.SequencerFacts.Agreement();
+        await grains.GetGrain<IMachineRegistry>(id).Register(key.PublicKey, agreement, account, pairing,
+            key.Sign(Signing.Registration(id, key.PublicKey, agreement, account, pairing)));
         await grains.GetGrain<IStorageNodeDirectory>(IStorageNodeDirectory.Key)
             .RegisterNode(Sign(key, new NodeRegistration(StorageNodes.IdOf(id), id, account, offered), account));
         return StorageNodes.IdOf(id);

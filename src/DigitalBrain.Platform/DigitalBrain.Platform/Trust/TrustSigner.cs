@@ -30,5 +30,5 @@ internal sealed class TrustSigner(MachineIdentity? machine, TimeProvider time, M
 
     // R52: what the machine signs to bind itself to an account.
     public byte[] Registration(string account, byte[] pairingSecretHash)
-        => Machine.Sign(Signing.Registration(Machine.MachineId, Machine.PublicKey, account, pairingSecretHash));
+        => Machine.Sign(Signing.Registration(Machine.MachineId, Machine.PublicKey, Machine.AgreementKey, account, pairingSecretHash));
 }

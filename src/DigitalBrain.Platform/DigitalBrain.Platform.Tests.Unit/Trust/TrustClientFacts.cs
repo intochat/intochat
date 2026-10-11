@@ -108,8 +108,8 @@ public sealed class TrustClientFacts
 
         await Register(directory, machine, "alice", []);
         await Register(directory, machine, "alice", []);
-        var forged = other.Sign(Signing.Registration(machine.MachineId, other.PublicKey, "alice", []));
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => directory.RegisterMachine(machine.MachineId, other.PublicKey, "alice", [], forged));
+        var forged = other.Sign(Signing.Registration(machine.MachineId, other.PublicKey, other.AgreementKey, "alice", []));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => directory.RegisterMachine(machine.MachineId, other.PublicKey, other.AgreementKey, "alice", [], forged));
     }
 
     [Fact(Timeout = 60_000)]
@@ -192,6 +192,6 @@ public sealed class TrustClientFacts
         => new(payload, account, machine.MachineId, at, counter, machine.Sign(MachineSigned<T>.SignedBytes(payload, account, machine.MachineId, at, counter)));
 
     internal static Task Register(INodeDirectoryClient directory, MachineIdentity machine, string account, byte[] pairing)
-        => directory.RegisterMachine(machine.MachineId, machine.PublicKey, account, pairing,
-            machine.Sign(Signing.Registration(machine.MachineId, machine.PublicKey, account, pairing)));
+        => directory.RegisterMachine(machine.MachineId, machine.PublicKey, machine.AgreementKey, account, pairing,
+            machine.Sign(Signing.Registration(machine.MachineId, machine.PublicKey, machine.AgreementKey, account, pairing)));
 }
