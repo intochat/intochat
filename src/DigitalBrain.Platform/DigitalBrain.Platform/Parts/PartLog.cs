@@ -158,7 +158,6 @@ internal sealed class PartLog : IAsyncDisposable
                     current?.ToString(System.Globalization.CultureInfo.InvariantCulture), expected?.ToString(System.Globalization.CultureInfo.InvariantCulture)));
             }
             var entry = new LogEntry { Seq = _nextSeq, GrainId = grainId, StateName = stateName, Change = change, Record = record, Signals = signals };
-            Measure(entry);
             if (SizeOf(entry) > _options.MaxChangeBytes)
             {
                 _logger.LogError("Part {Part} refused a {Bytes}-byte change to {GrainId}/{StateName}: no commit carries more than {Max} bytes.",
@@ -303,7 +302,6 @@ internal sealed class PartLog : IAsyncDisposable
             {
                 RememberCommitted(entry);
                 Apply(entry);
-                Measure(entry);
                 Enqueue(new Pending(entry, new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously)));
             }
             _nextSeq = lastSeq + 1 + rest.Length;
@@ -364,18 +362,9 @@ internal sealed class PartLog : IAsyncDisposable
         return first;
     }
 
-    // Sizes live beside the entries, never on LogEntry: a field there changes its codec and older segments stop reading.
-    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<LogEntry, System.Runtime.CompilerServices.StrongBox<long>> _sizes = new();
-
-    private long SizeOf(LogEntry entry) => _sizes.TryGetValue(entry, out var size) ? size.Value : Measure(entry);
-
-    // The record plus the serialized signals, with a fixed allowance for the entry's own fields.
-    private long Measure(LogEntry entry)
-    {
-        var bytes = 64L + (entry.Record?.Length ?? 0) + (entry.Signals is not { Length: > 0 } signals ? 0 : _serializer.SerializeToArray(signals).Length);
-        _sizes.AddOrUpdate(entry, new System.Runtime.CompilerServices.StrongBox<long>(bytes));
-        return bytes;
-    }
+    // An estimate, deliberately free: it runs for every queued change and every change a recovered journal re-queues,
+    // so it never serializes. Signal payloads count at a fixed 64 bytes each.
+    private static long SizeOf(LogEntry entry) => (entry.Record?.Length ?? 0) + 64L * (1 + (entry.Signals?.Length ?? 0));
 
     // Entries read back from the mesh: a missing entry is skipped and a missing record or signal list reads as empty,
     // so a segment an earlier build wrote never fails the part's replay (and with it every activation in the part).
