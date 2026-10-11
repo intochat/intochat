@@ -2,6 +2,6 @@ using DigitalBrain.AI.Models;
 
 namespace DigitalBrain.AI.Embeddings;
 
-// Marker root for embedding model markers; embeddings are resolved as keyed
-// IEmbeddingGenerator services, not neurons.
+// Marker root for embedding model markers, each resolved as a keyed IEmbeddingGenerator service.
+// Scripts embed through the IEmbeddingModel neuron (the deployment default) and rank with IVectorIndex.
 public interface IEmbedding : IAiMarker;
