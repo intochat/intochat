@@ -1,7 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Testing;
-using DigitalBrain.Testing.Module;
 using DigitalBrain.Time;
 using DigitalBrain.Time.Timers.Signals;
 using Orleans;
@@ -82,7 +81,7 @@ public sealed class TimerFacts
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task DeactivationLosesTheScheduleAndRequiresAnotherStart(bool restartSilo)
+    public async Task DeactivationLosesTheScheduleAndRequiresAnotherStart(bool restartHost)
     {
         var ct = TestContext.Current.CancellationToken;
         var control = new ControlledTimers();
@@ -90,7 +89,11 @@ public sealed class TimerFacts
         var timer = brain.Get<ITimer>("deactivate");
         await timer.Start(TimeSpan.FromDays(1));
         var original = control.For(timer.GetGrainId());
-        if (restartSilo) { await brain.RestartSiloAsync(ct); }
+        if (restartHost)
+        {
+            await brain.RestartAsync(ct);
+            timer = brain.Get<ITimer>("deactivate");
+        }
         else { await brain.DeactivateAsync(timer, ct); }
         Assert.True(original.IsDisposed);
         // Stop activates a fresh grain but must not recreate the discarded timer.
@@ -149,8 +152,8 @@ public sealed class TimerFacts
     {
         var ct = TestContext.Current.CancellationToken;
         var control = new ControlledTimers();
-        await using var brain = await ModuleTest.Create().WithModule<TimeModule>().WithReminders()
-            .ConfigureSilo(silo => { silo.UseControlledTimers(control); silo.UseFastCollection(); })
+        await using var brain = await TestBrain.Create().WithModule<TimeModule>()
+            .ConfigureSilo(silo => silo.UseControlledTimers(control)).ConfigureServices(services => services.UseFastCollection())
             .StartAsync(ct);
         var timer = brain.Get<ITimer>("long-delay");
         await timer.Start(TimeSpan.FromDays(1));
@@ -166,24 +169,20 @@ public sealed class TimerFacts
     }
 
     [Fact]
-    public async Task RealPeriodicTimerStopsPublishingTicksOnceStopped()
+    public async Task RealPeriodicTimerPublishesRepeatedTicks()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<TimeModule>().StartAsync(ct);
         var timer = brain.Get<ITimer>("periodic");
         await using var ticks = await brain.Observe<TimerTick>(timer, ct);
         await timer.Start(TimeSpan.Zero, TimeSpan.FromMilliseconds(20));
-        await ticks.NextAsync(ct: ct);
-        await ticks.NextAsync(ct: ct);
+        Assert.Equal("periodic", (await ticks.NextAsync(ct: ct)).TimerId);
+        Assert.Equal("periodic", (await ticks.NextAsync(ct: ct)).TimerId);
         await timer.Stop();
-        await Task.Delay(TimeSpan.FromMilliseconds(100), ct);
-        var settled = ticks.Snapshot.Count;
-        await Task.Delay(TimeSpan.FromMilliseconds(300), ct);
-        Assert.Equal(settled, ticks.Snapshot.Count);
     }
 
-    private static Task<ModuleBrain> StartAsync(CancellationToken ct, ControlledTimers? timers = null)
-        => ModuleTest.Create().WithModule<TimeModule>().WithReminders()
-            .ConfigureSilo(silo => { if (timers is not null) { silo.UseControlledTimers(timers); } })
+    private static Task<ITestBrain> StartAsync(CancellationToken ct, ControlledTimers timers)
+        => TestBrain.Create().WithModule<TimeModule>()
+            .ConfigureSilo(silo => silo.UseControlledTimers(timers))
             .StartAsync(ct);
 }

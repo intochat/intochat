@@ -1,5 +1,4 @@
 using DigitalBrain.Testing;
-using DigitalBrain.Testing.Module;
 using DigitalBrain.Time;
 using DigitalBrain.Time.Timers.Signals;
 using Xunit;
@@ -12,8 +11,7 @@ public sealed class TimerBehaviorFacts
     public async Task BehaviorSubscribesBeforeTheTriggerAndOnlyReportsItsTimer()
     {
         var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<TimeModule>().WithReminders()
-            .StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<TimeModule>().StartAsync(ct);
         var timer = brain.Get<ITimer>("behavior");
         var other = brain.Get<ITimer>("other");
         var result = new TaskCompletionSource<TimerTick>(TaskCreationOptions.RunContinuationsAsynchronously);

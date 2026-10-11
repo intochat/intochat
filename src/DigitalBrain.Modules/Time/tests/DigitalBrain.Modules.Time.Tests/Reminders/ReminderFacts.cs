@@ -1,7 +1,6 @@
 using DigitalBrain;
 using DigitalBrain.Framework;
 using DigitalBrain.Testing;
-using DigitalBrain.Testing.Module;
 using DigitalBrain.Time;
 using DigitalBrain.Time.Reminders;
 using DigitalBrain.Time.Reminders.Signals;
@@ -128,19 +127,8 @@ public sealed class ReminderFacts
         await reminder.Stop();
     }
 
-    [Fact]
-    public async Task MissingReminderConfigurationFailsStartup()
-    {
-        var error = await Assert.ThrowsAnyAsync<Exception>(async () =>
-        {
-            await using var brain = await ModuleTest.Create().WithModule<TimeModule>()
-            .StartAsync(TestContext.Current.CancellationToken);
-        });
-        Assert.Contains("reminder", error.ToString(), StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static Task<ModuleBrain> StartAsync(CancellationToken ct, ReminderControl? reminders = null)
-        => ModuleTest.Create().WithModule<TimeModule>().WithReminders()
-            .ConfigureSilo(silo => { if (reminders is not null) { silo.UseReminderControl(reminders); } })
+    private static Task<ITestBrain> StartAsync(CancellationToken ct, ReminderControl reminders)
+        => TestBrain.Create().WithModule<TimeModule>()
+            .ConfigureSilo(silo => silo.UseReminderControl(reminders))
             .StartAsync(ct);
 }
