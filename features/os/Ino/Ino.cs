@@ -42,6 +42,7 @@ public static class Ino
             new("thinking", "act", "acting"), new("acting", "act", "acting"), new("acting", "speak", "speaking"), new("thinking", "speak", "speaking"),
             new("speaking", "rest", "idle"), new("thinking", "rest", "idle"), new("acting", "rest", "idle"), new("listening", "rest", "idle"),
             new("thinking", "fail", "error"), new("acting", "fail", "error"), new("error", "rest", "idle"),
+            new("listening", "fail", "error"), new("listening", "speak", "speaking"), new("error", "think", "thinking"), new("error", "listen", "listening"),
         ]);
 
     public static SceneDefinition WelcomeScene() => new([Sphere(1.4)], [Presence()], new SceneCamera(), "#070A0F");
@@ -57,8 +58,30 @@ public static class Ino
     {
         var welcome = brain.Get<IScene>(WelcomeKey(brain));
         await welcome.Set(WelcomeScene(), (await welcome.Read()).Revision);
+        await ComposeHome(brain, itemsJson);
+    }
+
+    public static async Task ComposeHome(DigitalBrainConnection brain, string itemsJson)
+    {
         var home = Home(brain);
         await home.Set(HomeScene(itemsJson), (await home.Read()).Revision);
+    }
+
+    // Rests only while the presence is still in the state the caller left it in, so a newer event is not undone.
+    public static async Task RestFrom(DigitalBrainConnection brain, string state)
+    {
+        try { if ((await Home(brain).Read()).Current.GetValueOrDefault("presence") != state) { return; } }
+        catch (Exception) when (!brain.Stopping.IsCancellationRequested) { return; }
+        await Fire(brain, "rest");
+    }
+
+    // The assistant's own rule for a message naming an app (Names in features/os/Assistant/routed.cs), copied:
+    // Ino docks only what the assistant would open.
+    public static bool Names(string message, string name, string title)
+    {
+        static string Plain(string text) => text.Replace('-', ' ').Replace('_', ' ').Trim();
+        return message.Contains(Plain(name), StringComparison.OrdinalIgnoreCase) || message.Contains(name, StringComparison.OrdinalIgnoreCase)
+            || (Plain(title).Length > 0 && message.Contains(Plain(title), StringComparison.OrdinalIgnoreCase));
     }
 
     // Fire never throws into a synapse loop: a presence event that finds no transition is a no-op by contract,

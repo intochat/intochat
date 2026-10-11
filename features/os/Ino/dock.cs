@@ -3,7 +3,7 @@ using DigitalBrain.AI.Routing.Signals;
 using DigitalBrain.Apps;
 using DigitalBrain.Client;
 
-// When a route names another app, that app's surface docks beside Ino. The router's pending request holds
+// When a direct route opens an app the message names (the assistant's own gates), that app's surface docks beside Ino. The router's pending request holds
 // the route Jev decided; routes back into the assistant or into Ino itself stay on the home scene.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var scope = Ino.Scope(brain);
@@ -12,9 +12,10 @@ await foreach (var routed in brain.On<Routed>(router, brain.Stopping))
 {
     try
     {
-        if (await router.Pending(routed.Id, brain.Stopping) is not { Result.App: { } name }) { continue; }
+        if (await router.Pending(routed.Id, brain.Stopping) is not { Result: { App: { } name, IsDirect: true, Operation: "open" } } asked) { continue; }
         var target = IApp.Key(scope, name);
         if (target == Ino.Key(brain) || target == Ino.AssistantKey(brain)) { continue; }
+        if (!Ino.Names(asked.State, name, (await brain.Get<IApp>(target).Read()).Manifest.Title)) { continue; }
         await Ino.Stage(brain).Go(Ino.HomeKey(brain), target + "/surface");
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)

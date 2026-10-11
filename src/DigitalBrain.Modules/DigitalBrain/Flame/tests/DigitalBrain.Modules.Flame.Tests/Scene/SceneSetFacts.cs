@@ -26,6 +26,20 @@ public sealed class SceneSetFacts
     }
 
     [Fact]
+    public async Task ARecomposeKeepsAMachinesCurrentStateWhenItStillExists()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
+        var scene = brain.Get<IScene>(Key);
+        await scene.Set(Scenes.Ino(), 0);
+        await scene.Fire("think");
+        await scene.Set(Scenes.Ino(), 1);
+        Assert.Equal("thinking", (await scene.Read()).Current["presence"]);
+        await scene.Set(new([Scenes.Node("sphere")], [Scenes.Machine("presence", "idle", ["idle"])], new()), 2);
+        Assert.Equal("idle", (await scene.Read()).Current["presence"]);
+    }
+
+    [Fact]
     public async Task AStaleRevisionIsRefused()
     {
         var ct = TestContext.Current.CancellationToken;

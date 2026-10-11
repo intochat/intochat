@@ -7,5 +7,5 @@ await foreach (var failed in brain.On<TurnFailed>(Ino.Conversation(brain), brain
 {
     await Ino.Fire(brain, "fail");
     await Task.Delay(TimeSpan.FromSeconds(3), brain.Stopping);
-    await Ino.Fire(brain, "rest");
+    await Ino.RestFrom(brain, "error");
 }

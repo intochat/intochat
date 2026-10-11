@@ -21,9 +21,13 @@ internal sealed class SceneNeuron([PersistentState("state", DigitalBrainNames.Cl
             Name = name,
             Revision = Snapshot.Revision + 1,
             Definition = definition,
-            Current = definition.Machines.ToDictionary(m => m.Id, m => m.Initial, StringComparer.Ordinal),
+            Current = definition.Machines.ToDictionary(m => m.Id, Keep, StringComparer.Ordinal),
         };
         return Save(next, new SceneChanged(next.Name, next.Revision));
+
+        // A recompose keeps a machine where it is while the new definition still has that state; otherwise it starts over.
+        string Keep(StateMachine machine)
+            => Snapshot.Current.TryGetValue(machine.Id, out var current) && machine.States.Any(state => state.Name == current) ? current : machine.Initial;
     }
 
     public async Task Fire(string eventName, string? nodeId = null)
