@@ -158,7 +158,7 @@ internal sealed class PartLog : IAsyncDisposable
                     current?.ToString(System.Globalization.CultureInfo.InvariantCulture), expected?.ToString(System.Globalization.CultureInfo.InvariantCulture)));
             }
             var entry = new LogEntry { Seq = _nextSeq, GrainId = grainId, StateName = stateName, Change = change, Record = record, Signals = signals };
-            entry.Bytes = Measure(entry);
+            Measure(entry);
             if (SizeOf(entry) > _options.MaxChangeBytes)
             {
                 _logger.LogError("Part {Part} refused a {Bytes}-byte change to {GrainId}/{StateName}: no commit carries more than {Max} bytes.",
@@ -243,7 +243,7 @@ internal sealed class PartLog : IAsyncDisposable
         {
             var snapshot = _serializer.Deserialize<PartSnapshot>(await _mesh.Read(_key, snapshotRef, ct))!;
             foreach (var record in snapshot.Records) { _records[(record.GrainId, record.StateName)] = new StoredRecord(record.Record, record.ETagSeq); }
-            _since.AddRange(snapshot.RecentSignals);
+            _since.AddRange(Readable(snapshot.RecentSignals, $"snapshot {snapshotRef} at seq {snapshot.Seq}"));
             _signalsFloor = snapshot.SignalsFrom;
         }
         var segments = new List<(MeshRef Ref, LogSegment Segment)>();
@@ -258,7 +258,7 @@ internal sealed class PartLog : IAsyncDisposable
         foreach (var (reference, segment) in segments)
         {
             _chain.Add(reference);
-            foreach (var entry in segment.Entries.Where(e => e.Seq > payload.SnapshotSeq && e.Seq <= payload.LastSeq))
+            foreach (var entry in Readable(segment.Entries, $"segment {reference} from seq {segment.FirstSeq}").Where(e => e.Seq > payload.SnapshotSeq && e.Seq <= payload.LastSeq))
             {
                 Apply(entry);
                 _replayed[entry.Seq] = entry;
@@ -303,7 +303,7 @@ internal sealed class PartLog : IAsyncDisposable
             {
                 RememberCommitted(entry);
                 Apply(entry);
-                entry.Bytes = Measure(entry);
+                Measure(entry);
                 Enqueue(new Pending(entry, new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously)));
             }
             _nextSeq = lastSeq + 1 + rest.Length;
@@ -364,11 +364,44 @@ internal sealed class PartLog : IAsyncDisposable
         return first;
     }
 
-    private static long SizeOf(LogEntry entry) => entry.Bytes;
+    // Sizes live beside the entries, never on LogEntry: a field there changes its codec and older segments stop reading.
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<LogEntry, System.Runtime.CompilerServices.StrongBox<long>> _sizes = new();
+
+    private long SizeOf(LogEntry entry) => _sizes.TryGetValue(entry, out var size) ? size.Value : Measure(entry);
 
     // The record plus the serialized signals, with a fixed allowance for the entry's own fields.
-    private long Measure(LogEntry entry) =>
-        64L + entry.Record.Length + (entry.Signals.Length == 0 ? 0 : _serializer.SerializeToArray(entry.Signals).Length);
+    private long Measure(LogEntry entry)
+    {
+        var bytes = 64L + (entry.Record?.Length ?? 0) + (entry.Signals is not { Length: > 0 } signals ? 0 : _serializer.SerializeToArray(signals).Length);
+        _sizes.AddOrUpdate(entry, new System.Runtime.CompilerServices.StrongBox<long>(bytes));
+        return bytes;
+    }
+
+    // Entries read back from the mesh: a missing entry is skipped and a missing record or signal list reads as empty,
+    // so a segment an earlier build wrote never fails the part's replay (and with it every activation in the part).
+    private LogEntry[] Readable(LogEntry?[]? entries, string source)
+    {
+        var readable = new List<LogEntry>();
+        int missing = 0, patched = 0;
+        foreach (var entry in entries ?? [])
+        {
+            if (entry is null) { missing++; continue; }
+            if (entry.Signals is null || entry.Record is null) { patched++; }
+            entry.Signals ??= [];
+            entry.Record ??= [];
+            entry.GrainId ??= "";
+            entry.StateName ??= "";
+            readable.Add(entry);
+        }
+        if (missing > 0)
+        {
+            _logger.LogWarning("Part {Part} skipped {Missing} missing entries of {Source} (seq {First}..{Last} read); their changes are lost.",
+                _part, missing, source, readable.FirstOrDefault()?.Seq, readable.LastOrDefault()?.Seq);
+        }
+        if (patched > 0)
+        { _logger.LogWarning("Part {Part} read {Patched} entries of {Source} without a record or signal list; they replay as empty.", _part, patched, source); }
+        return [.. readable];
+    }
 
     // Caller holds the queue lock. At most BatchBytes of the queue (at least one change): a backlog an outage or a
     // slow commit built up commits in bounded segments, so it cannot outgrow what one commit carries and keep the

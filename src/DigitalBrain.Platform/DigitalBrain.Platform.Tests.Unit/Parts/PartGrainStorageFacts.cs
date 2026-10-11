@@ -116,6 +116,29 @@ public sealed class PartGrainStorageFacts
         }
     }
 
+    // Segments already in the mesh were written by earlier builds: a segment in today's LogEntry shape must read
+    // back whole. A member added to LogEntry (even one marked not serialized) changed its codec, and the live
+    // owner part replayed null entries.
+    private const string WrittenSegment = "20001D21000321001D4103674103730105410701020321E0E0E0C101E0";
+
+    [Fact(Timeout = 60_000)]
+    public async Task ASegmentWrittenByTheEarlierBuildReadsBackWhole()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().AsMachine().StartAsync(ct);
+        var serializer = brain.Services.GetRequiredService<Orleans.Serialization.Serializer>();
+        var segment = new LogSegment
+        {
+            FirstSeq = 7,
+            Entries = [new LogEntry { Seq = 7, GrainId = "g", StateName = "s", Change = RecordChange.Write, Record = [1, 2, 3], Signals = [] }],
+        };
+
+        Assert.Equal(WrittenSegment, Convert.ToHexString(serializer.SerializeToArray(segment)));
+        var read = serializer.Deserialize<LogSegment>(Convert.FromHexString(WrittenSegment));
+        var entry = Assert.Single(read!.Entries);
+        Assert.Equal((7L, "g", "s", 3), (entry.Seq, entry.GrainId, entry.StateName, entry.Record.Length));
+    }
+
     [Fact(Timeout = 60_000)]
     public async Task AKeyOutsideEveryBrainIsRefusedOnAMachine()
     {
