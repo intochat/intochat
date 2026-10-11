@@ -90,6 +90,9 @@ internal sealed class BrainRuntimeNeuron(
     // before that change and finished compiling after it is not applied.
     private readonly Dictionary<string, long> _changed = new(StringComparer.Ordinal);
     private long _tickets;
+    // Assign requests in flight and the last one applied per owner, by RequestKey: a repeat joins or answers them.
+    private readonly Dictionary<string, Task<ProgramView>> _assigning = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (string Request, ProgramView View)> _applied = new(StringComparer.Ordinal);
 
     private string RuntimeId => this.GetPrimaryKeyString();
     private string Brain => RuntimeId[..RuntimeId.LastIndexOf('/')];
@@ -128,11 +131,52 @@ internal sealed class BrainRuntimeNeuron(
 
     // Interleaved (its contract says so): compiling is seconds of CPU, off this runtime's scheduler, and storing
     // the assemblies is I/O; neither touches the runtime's state. The compiled program then takes a turn of its own.
-    public async Task<ProgramView> Assign(string owner, Dictionary<string, string> sources, Dictionary<string, string> settings)
+    // Idempotent by request: the same owner, sources and settings asked again while that program compiles joins
+    // it, and asked again once it is applied (and still current) answers it, so a caller whose call timed out asks
+    // again instead of compiling the program twice.
+    public Task<ProgramView> Assign(string owner, Dictionary<string, string> sources, Dictionary<string, string> settings)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(settings);
+        // The caller is part of the request: the same program assigned by another principal is applied again.
+        var request = RequestKey(owner, sources, settings, CallerContextStamper.TryGet(out var caller) ? caller : null);
+        if (_assigning.TryGetValue(request, out var running)) { return running; }
+        if (_applied.TryGetValue(owner, out var applied) && applied.Request == request
+            && Snapshot.Programs.FirstOrDefault(p => p.Owner == owner)?.Hash == applied.View.Hash)
+        {
+            // Asked again, the current program is the owner's latest change: an older Assign still compiling
+            // (one whose caller gave up and reverted to this) is not applied after it.
+            _changed[owner] = ++_tickets;
+            return Task.FromResult(applied.View);
+        }
+        var assigning = AssignOnce(owner, request, sources, settings);
+        if (!assigning.IsCompleted) { _assigning[request] = assigning; }
+        return assigning;
+    }
+
+    private static string RequestKey(string owner, Dictionary<string, string> sources, Dictionary<string, string> settings, CallerContext? caller)
+    {
+        var text = new StringBuilder(owner).Append('\0').Append(caller?.ToString()).Append('\0');
+        foreach (var (path, source) in sources.OrderBy(file => file.Key, StringComparer.Ordinal)) { text.Append(path).Append('\0').Append(source).Append('\0'); }
+        text.Append('\u0001');
+        foreach (var (name, value) in settings.OrderBy(setting => setting.Key, StringComparer.Ordinal)) { text.Append(name).Append('\0').Append(value).Append('\0'); }
+        return owner + "\n" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text.ToString())));
+    }
+
+    private async Task<ProgramView> AssignOnce(string owner, string request, Dictionary<string, string> sources, Dictionary<string, string> settings)
+    {
+        try
+        {
+            var view = await Compiled(owner, sources, settings);
+            _applied[owner] = (request, view);
+            return view;
+        }
+        finally { _assigning.Remove(request); }
+    }
+
+    private async Task<ProgramView> Compiled(string owner, Dictionary<string, string> sources, Dictionary<string, string> settings)
+    {
         var ticket = ++_tickets;
         var caller = CallerContextStamper.TryGet(out var stamped) ? stamped : null;
         var compiled = await Task.Run(() => compiler.Compile(sources));

@@ -14,7 +14,7 @@ internal sealed class AppNeuron(
     [PersistentState("app2", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<AppState> store,
     TimeProvider clock, IOptions<AppsOptions> options,
     IEnumerable<IAppRuntime> runtimes, IEnumerable<IAppStorageHook> storageHooks)
-    : Neuron<AppState>(store), IApp, IRetainsSignals
+    : Neuron<AppState>(store), IApp, IAppDeploy, IRetainsSignals
 {
     private const int MaxHistory = 20;
     private const int MaxActivity = 50;
@@ -465,17 +465,59 @@ internal sealed class AppNeuron(
         return Describe(Snapshot);
     }
 
-    public async Task<AppSnapshot> CompleteSynapse(Guid operationId, string[] errors, long elapsedMs, int attempts, string? baseSynapse = null)
+    public async Task<StagedProgram> Stage(Guid operationId, string path, string source)
+    {
+        RequireCreated();
+        ArgumentException.ThrowIfNullOrWhiteSpace(source);
+        if (path == AppFiles.DeclarationPath) { throw new ArgumentException($"{AppFiles.DeclarationPath} is the app's declaration: change it through SaveManifest and SaveSpec."); }
+        if (!AppFiles.IsProgram(path)) { throw new ArgumentException("A program file is a .cs file: a synapse (top-level statements) or a shared class."); }
+        var index = Array.FindIndex(Snapshot.Synapses, synapse => synapse.OperationId == operationId);
+        if (index < 0 || Snapshot.Synapses[index].Status != SynapseStatus.Requested)
+        { throw new InvalidOperationException("No requested synapse waits under that operation id."); }
+        var sources = Sources(Snapshot);
+        sources[path] = source;
+        RequireShape(sources);
+        var entry = Snapshot.Synapses[index];
+        if (entry.Path != path || entry.Source != source)
+        {
+            var next = Snapshot.Clone();
+            next.Synapses[index] = entry with { Path = path, Source = source };
+            await Persist(next);
+        }
+        return new(sources, Configuration(Snapshot), Snapshot.Principal);
+    }
+
+    public Task<StagedProgram> Program() => Task.FromResult(new StagedProgram(Sources(Snapshot), Configuration(Snapshot), Snapshot.Principal));
+
+    public async Task<AppSnapshot> Unsettle(Guid operationId, string reason, long elapsedMs, int attempts, string? baseSynapse)
+    {
+        var index = Array.FindIndex(Snapshot.Synapses, synapse => synapse.OperationId == operationId);
+        if (index < 0 || Snapshot.Synapses[index].Status != SynapseStatus.Requested) { return Describe(Snapshot); }
+        var entry = Snapshot.Synapses[index];
+        var next = Snapshot.Clone();
+        next.Synapses[index] = entry with { Status = SynapseStatus.Unsettled, Errors = [reason], ElapsedMs = elapsedMs, Attempts = attempts, Base = baseSynapse };
+        await Save(next, new AppChanged(Name(), next.Version, next.Status), new SynapseRejected(entry.Sentence, [reason]));
+        return Describe(Snapshot);
+    }
+
+    public async Task<AppSnapshot> CompleteSynapse(Guid operationId, string[] errors, long elapsedMs, int attempts, string? baseSynapse = null, string? hash = null)
     {
         var index = Array.FindIndex(Snapshot.Synapses, synapse => synapse.OperationId == operationId);
         if (index < 0 || Snapshot.Synapses[index].Status != SynapseStatus.Requested) { return Describe(Snapshot); }
         var entry = Snapshot.Synapses[index];
         string[] refused = [.. errors ?? []];
-        // The program is the truth: a request whose synapse WriteBehavior deployed is Written, even when the
-        // writer gave up waiting (a timeout) before the deploy answered.
-        if (entry.Path is { } deployed && Snapshot.Files.ContainsKey(deployed)) { refused = []; }
+        // A synapse WriteBehavior deployed (nothing staged) is Written, even when its caller gave up waiting on it.
+        if (entry.Source is null && entry.Path is { } deployed && Snapshot.Files.ContainsKey(deployed)) { refused = []; }
         if (refused.Length == 0 && entry.Path is null) { refused = ["The writer reported a synapse it never wrote."]; }
         var next = Snapshot.Clone();
+        // A staged synapse the runtime now runs joins the app's files.
+        if (refused.Length == 0 && entry.Source is { } staged)
+        {
+            next.Edited = true;
+            next.Files[entry.Path!] = staged;
+            next.Version = Bump(next.Version, minor: false);
+            Record(next);
+        }
         next.Synapses[index] = entry with
         {
             Status = refused.Length == 0 ? SynapseStatus.Written : SynapseStatus.Rejected,
@@ -483,9 +525,11 @@ internal sealed class AppNeuron(
             ElapsedMs = elapsedMs,
             Attempts = attempts,
             Base = baseSynapse,
+            Hash = hash ?? entry.Hash,
+            Source = null,
         };
         Signal outcome = refused.Length == 0
-            ? new SynapseWritten(entry.Path!, entry.Hash ?? "", elapsedMs, attempts)
+            ? new SynapseWritten(entry.Path!, hash ?? entry.Hash ?? "", elapsedMs, attempts)
             : new SynapseRejected(entry.Sentence, refused);
         await Save(next, new AppChanged(Name(), next.Version, next.Status), outcome);
         return Describe(Snapshot);

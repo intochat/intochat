@@ -47,9 +47,9 @@ public interface IApp : INeuron
     // neurons (keys of what the person is looking at). Records the request in Synapses and returns at once;
     // the outcome lands there too, with SynapseWritten or SynapseRejected. A replayed operation id does nothing.
     Task<AppSnapshot> WriteSynapse(string sentence, string[] focus, Guid operationId);
-    // The fast-path writer's outcome for a requested synapse, success and rejection alike: no errors after its
-    // WriteBehavior means written. Module code only; no edge caller writes an outcome.
-    [Internal] Task<AppSnapshot> CompleteSynapse(Guid operationId, string[] errors, long elapsedMs, int attempts, string? baseSynapse = null);
+    // The fast-path writer's outcome for a requested synapse, success and rejection alike: no errors means
+    // written, and its staged source joins the app's files. Module code only; no edge caller writes an outcome.
+    [Internal] Task<AppSnapshot> CompleteSynapse(Guid operationId, string[] errors, long elapsedMs, int attempts, string? baseSynapse = null, string? hash = null);
 
     static string Key(string brainId, string name) => $"{brainId}/apps/{name}";
 
