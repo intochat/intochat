@@ -19,6 +19,12 @@
     <ProjectReference Include="../../DigitalBrain.Modules/ModelContextProtocol/Mcp/DigitalBrain.Modules.Mcp.Contracts/DigitalBrain.Modules.Mcp.Contracts.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules/ArtCraft/ArtCraft/DigitalBrain.Modules.ArtCraft.Contracts/DigitalBrain.Modules.ArtCraft.Contracts.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules/Microsoft/Aspire/DigitalBrain.Modules.Microsoft.Aspire.Contracts/DigitalBrain.Modules.Microsoft.Aspire.Contracts.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Modules/Microsoft/Orleans/DigitalBrain.Modules.Microsoft.Orleans.Contracts/DigitalBrain.Modules.Microsoft.Orleans.Contracts.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Modules/ClickHouse/DigitalBrain.Modules.ClickHouse.Contracts/DigitalBrain.Modules.ClickHouse.Contracts.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Modules/Google/Gmail/DigitalBrain.Modules.Google.Gmail.Contracts/DigitalBrain.Modules.Google.Gmail.Contracts.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Modules/Microsoft/GitHub/DigitalBrain.Modules.Microsoft.GitHub.Contracts/DigitalBrain.Modules.Microsoft.GitHub.Contracts.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Modules/Qdrant/DigitalBrain.Modules.Qdrant.Contracts/DigitalBrain.Modules.Qdrant.Contracts.csproj" />
+    <ProjectReference Include="../../DigitalBrain.Modules/Salesforce/DigitalBrain.Modules.Salesforce.Contracts/DigitalBrain.Modules.Salesforce.Contracts.csproj" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
     <PackageReference Include="Aspire.Azure.Storage.Blobs" />
   </ItemGroup>
