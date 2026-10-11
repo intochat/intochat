@@ -64,7 +64,7 @@ internal sealed class SharedSubscription(SessionConnection session, string id)
             reader.Acknowledged = Math.Max(reader.Acknowledged, watermark);
             _cpuMicroseconds += cpuMicroseconds;
             _wallMicroseconds += wallMicroseconds;
-            if (!skipped) { _handled.Add(watermark); }
+            if (!skipped && watermark > _reported) { _handled.Add(watermark); }
             report = Advance();
         }
         return report is { } advanced ? SendAsync(advanced, cancellationToken) : Task.CompletedTask;

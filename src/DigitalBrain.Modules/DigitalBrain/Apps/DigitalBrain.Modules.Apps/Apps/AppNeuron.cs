@@ -525,8 +525,10 @@ internal sealed class AppNeuron(
         return new(sources, Configuration(Snapshot), Snapshot.Principal);
     }
 
+    // A deleted app has no files, so a writer that outlived it deploys an empty program, which retires the runtime.
     public Task<StagedProgram> Program() => Task.FromResult(new StagedProgram(Sources(Snapshot), Configuration(Snapshot), Snapshot.Principal));
 
+    // A deleted app holds no requests, so a late Unsettle answers its empty snapshot and writes nothing.
     public async Task<AppSnapshot> Unsettle(Guid operationId, string reason, long elapsedMs, int attempts, string? baseSynapse)
     {
         var index = Array.FindIndex(Snapshot.Synapses, synapse => synapse.OperationId == operationId);

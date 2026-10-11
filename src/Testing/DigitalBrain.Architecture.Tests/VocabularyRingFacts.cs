@@ -33,6 +33,20 @@ public sealed class VocabularyRingFacts
         Assert.True(offenders.Length == 0, "Types outside the vocabulary rule:\n" + string.Join("\n", offenders));
     }
 
+    // Every assembly that sees the vocabulary's internals is a consumer the ring cannot be audited without;
+    // adding one is a design decision, made here.
+    private static readonly string[] InternalsConsumers =
+        ["DigitalBrain.Client", "DigitalBrain.Client.Orleans.Tests.Unit", "DigitalBrain.Client.Tests.Unit", "DigitalBrain.Modules.Apps.Contracts"];
+
+    [Fact]
+    public void OnlyTheAllowedAssembliesSeeTheVocabularysInternals()
+    {
+        var granted = Vocabulary.GetCustomAttributes<System.Runtime.CompilerServices.InternalsVisibleToAttribute>()
+            .Select(attribute => attribute.AssemblyName).Order(StringComparer.Ordinal).ToArray();
+
+        Assert.Equal(InternalsConsumers, granted);
+    }
+
     [Fact]
     public void VocabularyTypesLiveOnlyInTheVocabularyNamespaces()
     {

@@ -158,6 +158,7 @@ internal sealed class PartLog : IAsyncDisposable
                     current?.ToString(System.Globalization.CultureInfo.InvariantCulture), expected?.ToString(System.Globalization.CultureInfo.InvariantCulture)));
             }
             var entry = new LogEntry { Seq = _nextSeq, GrainId = grainId, StateName = stateName, Change = change, Record = record, Signals = signals };
+            entry.Bytes = Measure(entry);
             if (SizeOf(entry) > _options.MaxChangeBytes)
             {
                 _logger.LogError("Part {Part} refused a {Bytes}-byte change to {GrainId}/{StateName}: no commit carries more than {Max} bytes.",
@@ -302,6 +303,7 @@ internal sealed class PartLog : IAsyncDisposable
             {
                 RememberCommitted(entry);
                 Apply(entry);
+                entry.Bytes = Measure(entry);
                 Enqueue(new Pending(entry, new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously)));
             }
             _nextSeq = lastSeq + 1 + rest.Length;
@@ -362,7 +364,11 @@ internal sealed class PartLog : IAsyncDisposable
         return first;
     }
 
-    private static long SizeOf(LogEntry entry) => entry.Record.Length + 64L * (1 + entry.Signals.Length);
+    private static long SizeOf(LogEntry entry) => entry.Bytes;
+
+    // The record plus the serialized signals, with a fixed allowance for the entry's own fields.
+    private long Measure(LogEntry entry) =>
+        64L + entry.Record.Length + (entry.Signals.Length == 0 ? 0 : _serializer.SerializeToArray(entry.Signals).Length);
 
     // Caller holds the queue lock. At most BatchBytes of the queue (at least one change): a backlog an outage or a
     // slow commit built up commits in bounded segments, so it cannot outgrow what one commit carries and keep the

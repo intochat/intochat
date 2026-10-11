@@ -239,7 +239,7 @@ internal sealed class SynapseWriter(
         // The program runs as the app's principal, as it did when the app neuron deployed it, never as whoever
         // this background job happened to inherit.
         var inherited = RequestContext.Get(CallerContextStamper.RequestContextKey);
-        if (program.Principal is { } principal) { RequestContext.Set(CallerContextStamper.RequestContextKey, principal); }
+        if (program.Principal is { } principal) { CallerContextStamper.Stamp(principal); }
         else { RequestContext.Remove(CallerContextStamper.RequestContextKey); }
         try
         {

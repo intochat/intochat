@@ -248,7 +248,7 @@ public sealed class FeatureReconcilerFacts : IDisposable
     }
 
     [Fact]
-    public async Task AReconcileInstalledDefaultCarriesItsShippedOrigin()
+    public async Task AReconcileRecoversADefaultWhoseInstallTimedOut()
     {
         var runtime = new FakeAppRuntime();
         await using var brain = await Start(runtime);

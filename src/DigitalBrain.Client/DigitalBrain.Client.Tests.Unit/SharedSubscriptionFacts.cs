@@ -132,6 +132,29 @@ public sealed class SharedSubscriptionFacts
         GC.KeepAlive((aheadWaits, behindWaits));
     }
 
+    // A handled ack for a batch an earlier report already covered arrives late: it must not make the next
+    // report, whose batches no reader handled, read as a run.
+    [Fact]
+    public async Task ALateHandledAckForAReportedBatchDoesNotTurnALaterSkipIntoARun()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = new SharedBrain("");
+        await using var session = await brain.OpenAsync(ct);
+        var subscription = new SharedSubscription(session, "sub-late");
+        var reader = subscription.Join();
+        subscription.Arrive(new SignalBatchEvent("sub-late", ["{}", "{}"], 2));
+        await reader.AcknowledgeAsync(2, 0, 0, skipped: true, ct);
+        var first = await brain.Acknowledged.Reader.ReadAsync(ct);
+
+        await reader.AcknowledgeAsync(1, 0, 0, skipped: false, ct);
+        subscription.Arrive(new SignalBatchEvent("sub-late", ["{}"], 3));
+        await reader.AcknowledgeAsync(3, 0, 0, skipped: true, ct);
+        var second = await brain.Acknowledged.Reader.ReadAsync(ct);
+
+        Assert.Equal((2L, true), (first["watermark"]!.GetValue<long>(), first["skipped"]!.GetValue<bool>()));
+        Assert.Equal((3L, true), (second["watermark"]!.GetValue<long>(), second["skipped"]!.GetValue<bool>()));
+    }
+
     private static string Requested(string subscription, long watermark, string operation)
         => $"event: {SignalBatchEvent.Kind}\ndata: {JsonSerializer.Serialize(new SignalBatchEvent(subscription, [JsonSerializer.Serialize(new AppRequested(operation, "", Guid.NewGuid()), RuntimeProtocol.Json)], watermark, null), RuntimeProtocol.Json)}\n\n";
 

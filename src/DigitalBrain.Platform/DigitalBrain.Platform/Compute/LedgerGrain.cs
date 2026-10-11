@@ -7,9 +7,10 @@ using Orleans.Concurrency;
 
 namespace DigitalBrain.Platform.Compute;
 
-// Per account. A charge appends a negative entry and is idempotent over (TraceId, CostId); a
-// credit appends a positive entry and is idempotent over its entry id. Every entry carries the hash of the chain up to it, so a
-// rewritten entry is caught by Verify. Balance always equals the sum of the entries.
+// Per account. A charge adds a negative entry and is idempotent over (TraceId, CostId); a credit adds a positive
+// entry and is idempotent over its entry id. The ledger keeps a bounded window of the last EntryWindow entries;
+// older ones fold into an anchor (their chain hash and balance). Every kept entry carries the hash of the chain up
+// to it, so a rewritten entry is caught by Verify, and Balance equals the anchor's balance plus the kept entries.
 // Every priced call of the account's brains charges here: reentrant, each change is applied at once and shares the
 // write that is out (CoalescedWrites), and returns once a write carrying it has landed.
 [GrainType("ledger")]

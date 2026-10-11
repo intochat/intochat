@@ -32,6 +32,27 @@ public sealed class AppNeuronFacts
         Assert.Equal(("echo", "0.1.0", AppStatus.Drafted), (changed.Name, changed.Version, changed.Status));
     }
 
+    // A writer whose app was deleted mid-deploy reconciles the runtime to an empty program, which retires it,
+    // and an Unsettle that lands afterwards changes nothing: neither recreates the app.
+    [Fact]
+    public async Task ADeletedAppAnswersItsWriterAnEmptyProgramAndIgnoresAnUnsettle()
+    {
+        await using var brain = await Start();
+        var key = IApp.Key(Brain, "deleted");
+        var app = brain.Get<IApp>(key);
+        await app.Create(Manifest(), "spec");
+        await app.WriteBehavior("synapses/echo.cs", "// echo", Guid.NewGuid());
+        await app.Delete();
+        var deploy = brain.Services.GetRequiredService<IGrainFactory>().GetGrain<IAppDeploy>(key);
+
+        var program = await deploy.Program();
+        var unsettled = await deploy.Unsettle(Guid.NewGuid(), "late", 1, 1, null);
+
+        Assert.Empty(program.Sources);
+        Assert.Empty(unsettled.Synapses ?? []);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => app.SaveSpec("again", Guid.NewGuid()));
+    }
+
     [Fact]
     public async Task CreatingAnAppTwiceIsRefused()
     {
