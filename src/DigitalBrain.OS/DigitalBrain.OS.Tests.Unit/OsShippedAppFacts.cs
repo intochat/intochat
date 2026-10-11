@@ -13,6 +13,14 @@ public sealed class OsShippedAppFacts
     }
 
     [Fact]
+    public void TheAssistantOffersMakeForTheFocusedThing()
+    {
+        var assistant = Assert.Single(SolutionProjects.FeaturesOf("os"), app => app.Name == "assistant");
+        Assert.Contains(assistant.Manifest.Operations, operation => operation.Name == "make" && operation.Description.Contains("focus", StringComparison.Ordinal));
+        Assert.True(assistant.Files.ContainsKey("make.cs"));
+    }
+
+    [Fact]
     public void AddOperatingSystemAppsNamesItsOwnManifestAndADeploymentOnlyAdds()
     {
         var services = new ServiceCollection();
