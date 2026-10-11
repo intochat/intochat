@@ -39,3 +39,5 @@ Scan clean apart from F2.
 - Task 3: complete (commits 8157daed7..b1e746145, review clean after 1 fix round).
 - Task 4 review (opus): spec ✅, quality Needs fixes. Important: the F2 alias fact refuses only across brains; the account branch of `OwnsBrain` (same brain, non-owner account) has no fact. Note: `ScopeOf` follows the shell's real rule `{brain}/stage/{sha256hex(account + "\0" + principal)}` (full 64 hex) — the brief's `"\n"` and `[..32]` were wrong; Task 5 and the Dart client use the real rule. Owner seam: `IBrain.Read().Owner.AccountId`; a never-created brain admits nobody by alias.
 - Task 4: fix round 1/5 dispatched (resume implementer; FIX_BASE f93ae98a0). Minors deferred: `Read` sets `Snapshot.Name` without saving; no fact for `Home` on bare Home publishing nothing; the no-op fact leaves a pending `NextAsync` uncancelled.
+- Task 4: fix round 1/5 (1 addressed + 2 minors done, 0 open; commit 1ad8fb2d5; sonnet re-review clean).
+- Task 4: complete (commits c81330acf..1ad8fb2d5, review clean after 1 fix round). Deferred minor: `Read` sets `Snapshot.Name` without saving (brief-prescribed pattern shared with every UI neuron).
