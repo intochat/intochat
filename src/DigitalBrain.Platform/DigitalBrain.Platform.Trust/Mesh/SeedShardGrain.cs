@@ -8,11 +8,15 @@ namespace DigitalBrain.Platform.Mesh;
 // the transport (plan 7); unreachable segments are reclaimed by reachability from log heads, never by refcounts.
 internal interface IStorageShard : IGrainWithStringKey
 {
-    // The putter is the machine that stored the shard (T20-8): only a machine of the same account may discard it.
+    // Every machine that put the shard holds a claim on it (T20-8); a repeated put of the same bytes adds a claim,
+    // so a cid cannot be squatted by putting it first.
     Task Put(byte[] bytes, string? putter);
 
     [AlwaysInterleave]
-    Task<string?> Putter();
+    Task<string[]> Putters();
+
+    // Drops these machines' claims; the bytes go with the last claim.
+    Task Forget(string[] putters);
 
     [AlwaysInterleave]
     Task<byte[]?> Get();
@@ -40,13 +44,22 @@ internal sealed class SeedShardGrain(
     {
         ArgumentNullException.ThrowIfNull(bytes);
         if (StorageProof.ContentId(bytes) != Cid) { throw new InvalidDataException($"Shard bytes do not match content id '{Cid}'."); }
-        if (store.State.Bytes is not null) { return; }
-        store.State.Bytes = bytes;
-        store.State.Putter = putter;
+        if (store.State.Bytes is not null && (putter is null || store.State.Putters.Contains(putter, StringComparer.Ordinal))) { return; }
+        store.State.Bytes ??= bytes;
+        if (putter is not null) { store.State.Putters = [.. store.State.Putters, putter]; }
         await store.WriteStateAsync();
     }
 
-    public Task<string?> Putter() => Task.FromResult(store.State.Putter);
+    public Task<string[]> Putters() => Task.FromResult<string[]>([.. store.State.Putters]);
+
+    public async Task Forget(string[] putters)
+    {
+        ArgumentNullException.ThrowIfNull(putters);
+        if (store.State.Bytes is null) { return; }
+        store.State.Putters = [.. store.State.Putters.Except(putters, StringComparer.Ordinal)];
+        if (store.State.Putters.Length == 0) { await store.ClearStateAsync(); }
+        else { await store.WriteStateAsync(); }
+    }
 
     public Task<byte[]?> Get() => Task.FromResult(store.State.Bytes);
 
@@ -64,5 +77,5 @@ internal sealed class SeedShardGrain(
 internal sealed class SeedShardState
 {
     [Id(0)] public byte[]? Bytes { get; set; }
-    [Id(1)] public string? Putter { get; set; }
+    [Id(1)] public string[] Putters { get; set; } = [];
 }

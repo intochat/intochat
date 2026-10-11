@@ -208,6 +208,9 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
         [TrustOperations.ShardPut] = Registered(async call =>
         {
             var (nodeId, cid, sealedShard) = call.Arg<(string, string, byte[])>();
+            // The platform's seed nodes store for every machine; any other node only for its owner's machines.
+            var owner = await NodeOwner(nodeId) ?? throw new KeyNotFoundException($"Node {nodeId} is not registered.");
+            if (owner != SeedNodeRegistration.Owner) { call.RequireAccount(owner); }
             await Shard(nodeId, cid).Put(sealedShard, call.Link.RemoteMachineId);
             return true;
         }),
@@ -225,13 +228,17 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
         {
             var (nodeId, cid) = call.Arg<(string, string)>();
             var shard = Shard(nodeId, cid);
-            if (await shard.Putter() is { } putter && putter != call.Link.RemoteMachineId)
+            // A machine drops the claims of its own account's machines only, never another account's.
+            var putters = await shard.Putters();
+            var ours = new List<string>();
+            foreach (var putter in putters)
             {
-                var putterAccounts = (await Registry(putter).Read())?.Accounts ?? [];
-                if (!putterAccounts.Any(call.Machine!.Accounts.Contains))
-                { throw new UnauthorizedAccessException($"Machine {call.Link.RemoteMachineId} serves no account of the machine that put shard {cid}."); }
+                if (putter == call.Link.RemoteMachineId || ((await Registry(putter).Read())?.Accounts ?? []).Any(call.Machine!.Accounts.Contains))
+                { ours.Add(putter); }
             }
-            await shard.Drop();
+            if (putters.Length > 0 && ours.Count == 0)
+            { throw new UnauthorizedAccessException($"Machine {call.Link.RemoteMachineId} serves no account of a machine that put shard {cid}."); }
+            await shard.Forget([.. ours]);
             return true;
         }),
         [TrustOperations.KeyGet] = Registered(async call =>

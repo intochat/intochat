@@ -52,7 +52,7 @@ public sealed class TrustLinkFacts
         await directory.Put(node, cid, shard);
         Assert.Equal(shard, await directory.Get(node, cid));
         Assert.Equal(StorageProof.Compute([7], shard), await directory.Prove(node, cid, [7]));
-        Assert.Equal(services.GetRequiredService<MachineIdentity>().MachineId, await trust.Grains.GetGrain<IStorageShard>(StorageShards.Key(node, cid)).Putter());
+        Assert.Equal([services.GetRequiredService<MachineIdentity>().MachineId], await trust.Grains.GetGrain<IStorageShard>(StorageShards.Key(node, cid)).Putters());
         await directory.Discard(node, cid);
         Assert.Null(await directory.Get(node, cid));
         Assert.NotNull(await directory.Machine(services.GetRequiredService<MachineIdentity>().MachineId));
@@ -135,8 +135,35 @@ public sealed class TrustLinkFacts
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => mallory.Call<(string, string), bool>(TrustOperations.ShardDiscard, (node, cid), ct));
         Assert.Equal(shard, await directory.Get(node, cid));
+        // A machine of another account that puts the same bytes first only adds its own claim: its discard drops
+        // that claim, never the owner's (fix round 1: no squatting a cid).
+        byte[] squatted = [.. "squatted first"u8];
+        var squattedCid = StorageProof.ContentId(squatted);
+        await mallory.Call<(string, string, byte[]), bool>(TrustOperations.ShardPut, (node, squattedCid, squatted), ct);
+        await directory.Put(node, squattedCid, squatted);
+        await mallory.Call<(string, string), bool>(TrustOperations.ShardDiscard, (node, squattedCid), ct);
+        Assert.Equal(squatted, await directory.Get(node, squattedCid));
         await directory.Discard(node, cid);
         Assert.Null(await directory.Get(node, cid));
+        await directory.Discard(node, squattedCid);
+        Assert.Null(await directory.Get(node, squattedCid));
+    }
+
+    [Fact(Timeout = 120_000)]
+    public async Task AShardPutToAnotherAccountsNodeIsRefused()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        await using var trust = await TrustHost.StartAsync(ct);
+        await using var machine = await ModuleTest.Create().WithTrust(trust).StartAsync(ct);
+        await using var mallory = await RawMachine.Dial(trust, ct);
+        await mallory.Register("mallory", ct);
+        await mallory.Call<(string, string), bool>(TrustOperations.NodeRegister, ("mallorys-node", "mallory"), ct);
+        byte[] shard = [.. "not for mallory's node"u8];
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => machine.SiloServices.GetRequiredService<INodeDirectoryClient>()
+            .Put("mallorys-node", StorageProof.ContentId(shard), shard));
+        Assert.Null(await trust.Grains.GetGrain<IStorageShard>(StorageShards.Key("mallorys-node", StorageProof.ContentId(shard))).Get());
     }
 
     [Fact(Timeout = 120_000)]
