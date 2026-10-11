@@ -78,6 +78,8 @@ Stage A is specified to the step. Stages B and C are specified to interfaces, te
 | `src/DigitalBrain.Platform/DigitalBrain.Platform/Mesh/IShardClient.cs`, `NodeWire.cs`, `ShardStore.cs`, `StorageNodeEndpoint.cs`, `StorageNodeService.cs`, `StorageNodeOptions.cs`, `MeshAuditor.cs` | volunteer storage node over the link, shards addressed per node, the holder's audits and repairs (Task 24, T23-1…T23-9) |
 | `src/DigitalBrain.Platform/DigitalBrain.Platform.Trust/Mesh/StorageNodeDirectoryGrain.cs`, `MeshOptions.cs` | signed node registration, heartbeats, room- and owner-aware placement, audit reports from the auditor (Task 24, T23-4…T23-6, T23-10) |
 | `src/DigitalBrain.Platform/DigitalBrain.Platform.Trust/Mesh/StorageCreditGrain.cs`, `StorageCreditOptions.cs`; `src/DigitalBrain.Platform/DigitalBrain.Platform/Compute/StorageCreditPuller.cs`, `Compute/LedgerGrain.cs` | storage credits recorded trust-side, pulled into the owner's ledger once (Task 25, T23-11) |
+| `src/DigitalBrain.Modules/DigitalBrain/Circles/*`, `features/os/Circle/*` | a circle is a brain: `ICircle` its core neuron, copies deleted, sharing installs into it (Task 27, T26-1…T26-6); shared connections (Task 28, T26-7) |
+| `src/DigitalBrain.Platform/DigitalBrain.Platform/Keys/CirclePartKeys.cs`, `Parts/LeasePreference.cs` | circle part keys wrapped per contributed machine and rotated on removal (Task 27); Q17 lease preference among contributed machines (Task 28) |
 
 ---
 
@@ -2251,15 +2253,168 @@ public sealed class StorageCreditOptions   // DigitalBrain:Platform:StorageCredi
 ## Plan 8 — Circles (Tasks 26–28)
 
 ### Task 26 (gate): circle authorization
-- Spec open item 5 is an open design front: propose and wait for the user, no code.
+
+**Decided 2026-10-11 (user, ledger R120): a circle is its own brain**, which is shape A of
+`docs/superpowers/specs/2026-10-11-circle-authorization-proposal.md` (its "Decision" section is the record). Spec
+open item 5 is settled. Q11, Q14 and Q17 are read for circle brains as below. Rulings:
+
+- **T26-1** A circle is a brain. It is created through `IIdentityClient.CreateBrain` for the creator's account (`IBrain.Owner` = the creator, who pays its compute) and born on the creator's machine by `BrainBirths`. `ICircle` is its core neuron `{circle}/circle` (members, contributed machines, schedules). It has its own core part and its own part keys.
+- **T26-2** Members are accounts, recorded as trust-side memberships of the circle brain (`EnsureMember`, plus an additive `RemoveMember`). There is no circle account and no pairing secret: R98 already admits machines bound to a member account, and member machines stay bound only to their own accounts.
+- **T26-3** Q11: a circle brain's own machines are the members' contributed own machines, and only they hold its core. Cloud machines hold no circle part. R76: the creator's machine is the circle core's designated holder at creation; handover is explicit release/acquire.
+- **T26-4** Q17: lease preference for a circle part is the current operator's contributed machine first, then any contributed machine. The lease returns to a contributed machine of an online member at the next quiet moment.
+- **T26-5** Q6: the circle's part keys are wrapped to each contributed machine (ECDH P-256 + HKDF, context `circle|{circle}|{part}`), not under one custody root (R74 is per owner). Removing a member rotates every circle part key and re-snapshots.
+- **T26-6** Sharing an app = installing it into the circle brain (the `FeatureLoader` path). The owner/member copies of `ICircle`/`ICircleChat`, `CircleCallGuard`, `CircleAddress` and the per-brain `ICircles` index are deleted. The Circle app's synapses act on the circle brain: `create` creates the circle brain; `invite` calls `ICircle.Invite(account)`; `accept` calls `ICircle.Accept()` as the invited account's human (adds the membership, contributes the caller's machine); `say` calls the circle brain's `ICircleChat.Say`; `share` installs into the circle brain; `set-share` calls `SetComputeShare`; `watch` subscribes `brain.On<CircleChanged>` on each circle's `ICircle`.
+- **T26-7** Q14: the chosen connections are bound into the circle brain as `connection/{circle}/{connector}/{id}`, sealed under the circle core's part key. The others stay the owner's, and calls to them route to the owner's core (Task 22; 503 while the owner is offline).
+- **T26-8** Authorization adds nothing. The path is: stamp `BrainId = circle` → trust membership → machine gate (R98/R107) → `NeuronCallFilter` target scope. Removal = `RemoveMember` + rotation. Every circle part is private to its members (R82's per-app Private mark lands as "circle parts are private").
+- **T26-9** Open fronts are untouched. A member's other apps may not call the circle brain in this release; only the member's human (shell/MCP) and the circle brain's own apps act there. Renderable palette and run-token are untouched.
+- **T26-10** Mesh placement (R123, Task 24) for circle parts: the members' volunteer nodes count as distinct owners, and the placement exclusion is the holder machine's account only.
+- **T26-11** Compute share stays: `CircleShareGrain` is keyed by `{circle}/circle` and charges the circle brain's `IBrain.Owner`.
+
+**Carried from Stage B/C:** R82 private parts → every part of a circle brain is private to its members (Cloud refused by `PartLease.Acquire`). R74 one custody root per owner → a circle's part keys are wrapped per contributed machine instead (R78: this is the multi-machine key-sharing path TPM custody waited for). R76 designated core holder → the creator's machine for a new circle. R98/R107 → admit member machines unchanged. R123/Task 24 placement → T26-10. Task 22 forwarding → owner-bound connections (T26-7).
 
 ### Task 27: Circle neuron and key sharing
+
+**Contract (fixed):**
 - **Produces:** `ICircle` neuron (members, contributed machines, schedules); sharing a part wraps its key to each member machine with ECDH P-256 + HKDF (context `circle|{circle}|{part}`) in the keyring; revoking rotates the part key and re-snapshots under it.
 - **Tests:** a member machine unwraps the key; a removed member cannot read anything written after the rotation.
 
+**Additive extensions (with reasons):**
+- (a) A circle is created as a brain with its own core and account memberships. Reason: this is the precondition for "the circle's parts" under T26-1/T26-2.
+- (b) `IIdentityClient.RemoveMember`. Reason: removal needs a trust-side write, and none exists.
+- (c) "Sharing a part" = installing an app into the circle brain (T26-6). Reason: Install is the only way an app crosses brains, so "the part" is any circle-brain part.
+- (d) The owner/member copy neurons and their guard are deleted (T26-6). Reason: the circle brain is the shared state.
+- (e) A removed member's machine is refused at the gate on its next call (T26-8). Reason: the fixed key test cannot show the authorization half alone.
+
+**Files:**
+- Modify: `src/DigitalBrain.Modules/DigitalBrain/Circles/DigitalBrain.Modules.Circles.Contracts/ICircle.cs` (`CircleState` reshaped: `Members` = account ids, `Machines`, `Invited` accounts, `Schedules`; `Key(circleBrainId)`; `[Internal]` copy methods removed), `ICircleChat.cs` (`Key(circleBrainId)`; `Relay`/`Pull`/`Notify` removed), `Signals/CircleSignals.cs` (`CircleChanged` gains `Machines`; `CircleTouched` removed), `DigitalBrain.Modules.Circles/CircleNeuron.cs`, `CircleChatNeuron.cs`, `CirclesModule.cs` (no guard); `src/DigitalBrain.Framework/DigitalBrain.Framework/Platform/Identity/IIdentityClient.cs` (+`RemoveMember`), its trust grain and link/grain clients in `src/DigitalBrain.Platform/DigitalBrain.Platform.Trust/` and `src/DigitalBrain.Platform/DigitalBrain.Platform/Trust/`, `Links/LinkTrustClients.cs`; `src/DigitalBrain.Platform/DigitalBrain.Platform/Keys/` (keyring: per-machine wraps, rotation), `Parts/PartLog.cs` (re-snapshot under a rotated key), `Compute/CircleShareGrain.cs` (key `{circle}/circle`); `features/os/Circle/*` (synapses per T26-6)
+- Delete: `CircleAddress.cs`, `CircleCallGuard.cs`, `CirclesIndexNeuron.cs`, `ICircles.cs` (after `findReferences` shows no other caller)
+- Create: `src/DigitalBrain.Platform/DigitalBrain.Platform/Keys/CirclePartKeys.cs`
+- Test: `src/DigitalBrain.Modules/DigitalBrain/Circles/tests/DigitalBrain.Modules.Circles.Tests/CircleFacts.cs` (rewritten), `src/DigitalBrain.Platform/DigitalBrain.Platform.Tests.Unit/Keys/CircleKeyFacts.cs`, `Parts/CircleBrainFacts.cs`
+
+**Interfaces:**
+
+```csharp
+namespace DigitalBrain.Circles;
+
+[GenerateSerializer, Alias("circles.state")]
+public sealed record CircleState(
+    [property: Id(0)] string Name,
+    [property: Id(1)] string Creator,                 // account id; pays the circle's compute
+    [property: Id(2)] string[] Members,               // account ids
+    [property: Id(3)] string[] Machines,              // contributed machine ids
+    [property: Id(4)] string[] Invited,               // account ids
+    [property: Id(5)] string[] SharedApps,
+    [property: Id(6)] int ComputeSharePercent,
+    [property: Id(7)] CircleSchedule[] Schedules,
+    [property: Id(8)] long Version);
+
+public interface ICircle : INeuron
+{
+    Task Invite(string accountId);
+    Task<CircleState> Accept();                       // the caller's account must be invited; contributes the caller's machine
+    Task Contribute(string machineId);                // the caller's account must be bound to the machine
+    Task Remove(string accountId);                    // RemoveMember, drop its machines, rotate every circle part key
+    Task SetComputeShare(int percent);
+    Task<CircleState> State();
+
+    static string Key(string circleBrainId) => $"{circleBrainId}/circle";
+}
+```
+
+```csharp
+namespace DigitalBrain.Platform.Keys;   // internal
+
+internal sealed class CirclePartKeys(IKeyringClient keyring, IMachineSigningKey machine)
+{
+    public Task WrapTo(PartId part, string circleBrainId, string machineId, CancellationToken cancellationToken);    // HKDF info "circle|{circle}|{part}"
+    public Task<PartKey> Unwrap(PartId part, string circleBrainId, CancellationToken cancellationToken);             // this machine's wrap only
+    public Task Rotate(PartId part, string circleBrainId, string[] machineIds, CancellationToken cancellationToken);  // new key, wrapped to the remaining machines
+}
+```
+
+- [ ] **Step 1: Map.** Run LSP `findReferences` on `ICircle`, `ICircleChat`, `ICircles`, `CircleAddress`, `CircleCallGuard`, `CircleTouched`, `ICircleShares.Configure`, `CircleShareGuard` and `IIdentityClient.EnsureMember`. Record every site (Circles module, `Compute/CircleShareGrain.cs`, `features/os/Circle`) in the report. No edits.
+- [ ] **Step 2: Failing facts — a circle is a brain.** `CircleBrainFacts` (two accounts, alice and bob):
+  - `CreatingACircleBirthsABrainOwnedByItsCreator`: `IBrain.Read().Owner` = alice; `{circle}/circle` lists alice as member and her machine.
+  - `AnAcceptedInvitationMakesTheAccountAMemberOfTheCircleBrain`: `IIdentityClient.Membership(circle, bob)` is non-null.
+  - `AMemberCallsANeuronInTheCircleBrain`: bob's stamp `BrainId = circle` is admitted.
+  - `AStrangerIsRefusedByTheCircleBrain`.
+  - `ARemovedMemberIsRefusedOnItsNextCall`.
+
+  Run `dotnet test --project src/DigitalBrain.Platform/DigitalBrain.Platform.Tests.Unit -- --filter-class "*CircleBrainFacts*"` → FAIL. Implement `RemoveMember` (trust grain; link op `identity.remove-member`, gated like `EnsureMember`; both clients), the reshaped `CircleNeuron`, and creation via `CreateBrain` + `BrainBirths` → PASS. Commit: `Circles: a circle is a brain whose members are accounts`.
+- [ ] **Step 3: Failing facts — copies gone, app rewired.** Rewrite `CircleFacts`:
+  - `SayingInACircleIsOneLineEveryMemberReads`.
+  - `TheComputeShareChargesTheCircleCreator`: `CircleShareGrain` is keyed `{circle}/circle`.
+  - `SharingAnAppInstallsItIntoTheCircleBrain`: `{circle}/apps/{app}` exists, and its `Origin` is the owner's app.
+
+  Run → FAIL. Delete the copy-protocol files (Step 1 list) and rewrite the `features/os/Circle` synapses (T26-6); the `FeatureCatalog` compile-check passes. LSP diagnostics clean; Circles, Apps and Platform suites → PASS. Commit: `Circles: the circle brain is the shared state and sharing installs into it`.
+- [ ] **Step 4: Failing facts — key sharing.** `CircleKeyFacts` (a `TrustHost` plus three Own machines for alice, bob and carol, as in `MachineHandoverFacts`):
+  - `AMemberMachineUnwrapsTheKey` (fixed test): bob's machine unwraps the key of `{circle}/apps/notes` and leases the part.
+  - `ARemovedMemberCannotReadAnythingWrittenAfterTheRotation` (fixed test): carol is removed, which rotates and re-snapshots. Carol's machine keeps its old segments and old key and still fails to open every segment after the rotation's head; alice's and bob's machines read them.
+  - `AWrapIsBoundToItsCircleAndPart`: a wrap for part X under circle C does not unwrap as part Y or under circle D.
+  - `ACloudMachineIsRefusedEveryCirclePart` (T26-8).
+
+  Run → FAIL. Implement `CirclePartKeys`, keyring storage of per-machine wraps (concrete arrays), and the `PartLog` re-snapshot under the rotated key. `Remove` runs in this order: `RemoveMember` → revoke leases held by the removed machines → rotate → re-snapshot. → PASS. Commit: `Keys: a circle's part keys are wrapped to each member machine and rotate on removal`.
+- [ ] **Step 5: Live (controller).** Run the AppHost with machine A (alice) and the trust. Through A's `digitalbrain-mcp`, run the Circle app's `create friends`. `neurons_context`, then `neurons_get {circle}/circle`, shows alice as member and machine A. `list_traces` shows the `CreateBrain` call on `trust` and A's lease of the circle core. A second account needs a second Own machine bound to it; if the AppHost has none, membership and rotation are proven by `CircleKeyFacts`, and the ledger records that.
+- [ ] **Step 6: Regression net.** Circles, Apps, Platform, Trust, Architecture (6 known), Mcp and OS unit suites. Commit only the files above, by explicit path.
+
 ### Task 28: Shared connections and lease preference
+
+**Contract (fixed):**
 - **Produces:** sharing asks which bound connections go along (Q14); lease preference own → circle, returning to an own machine at the next quiet moment (Q17); the core never leaves own machines (Q11).
 - **Tests:** a circle machine is refused the core; with the owner back online the lease returns after the part goes quiet.
+
+**Read under T26-3/T26-4/T26-7:** for an owner's brain the contract stands as written. A circle member's machine is refused the owner's core, and an owner's part never moves to circle machines, because shared apps live in the circle brain. For a circle brain, "own" means contributed machines.
+
+**Additive extensions (with reasons):**
+- (a) Chosen connections are bound into the circle brain, and the rest route to the owner's core (T26-7). Reason: that is what "go along" now means.
+- (b) `ACircleCoreIsHeldOnlyByContributedMachines`. Reason: this is the circle-brain reading of Q11.
+- (c) The lease prefers the operator's contributed machine. Reason: this is Q17's circle reading.
+
+**Files:**
+- Modify: `src/DigitalBrain.Modules/DigitalBrain/Circles/DigitalBrain.Modules.Circles.Contracts/ICircle.cs` (`Share(string app, string[] connections)`), `CircleNeuron.cs`; the slot-binding path in the Apps module (`FeatureLoader` binds a slot to the circle's connection or the owner's); `src/DigitalBrain.Platform/DigitalBrain.Platform/Parts/PartLease.cs` (who may acquire a circle part), `Parts/MachineHosting.cs`; `features/os/Circle/share.cs`
+- Create: `src/DigitalBrain.Platform/DigitalBrain.Platform/Parts/LeasePreference.cs`
+- Test: `src/DigitalBrain.Platform/DigitalBrain.Platform.Tests.Unit/Parts/LeasePreferenceFacts.cs`, `src/DigitalBrain.Modules/DigitalBrain/Circles/tests/DigitalBrain.Modules.Circles.Tests/SharedConnectionFacts.cs`
+
+**Interfaces:**
+
+```csharp
+public interface ICircle : INeuron
+{
+    Task Share(string appName, string[] connectionIds);   // installs into the circle brain; binds the chosen connections there
+}
+```
+
+```csharp
+namespace DigitalBrain.Platform.Parts;   // internal
+
+internal sealed class LeasePreference(ISequencerClient sequencer, MachineIdentity machine, PartsOptions options, TimeProvider time)
+{
+    public Task<bool> MayHold(PartId part, string brainId);                       // own brain: bound to its owner; circle brain: in ICircle.Machines; Cloud: never a private part
+    public Task<string?> Preferred(PartId part, string brainId, string? operatorAccount);
+    public Task ReturnWhenQuiet(PartId part, CancellationToken cancellationToken); // releases after QuietFor with no writes when Preferred is online and is not this machine
+}
+```
+
+- [ ] **Step 1: Failing facts — connections.** `SharedConnectionFacts`:
+  - `AChosenConnectionIsBoundIntoTheCircleBrain`: `connection/{circle}/{connector}/{id}` exists, sealed under the circle core's key, and a member machine opens it.
+  - `AConnectionLeftBehindRoutesToTheOwnersCore`: the shared app's call to it is forwarded to alice's core holder.
+  - `AConnectionLeftBehindIs503WhileTheOwnerIsOffline`.
+
+  Run → FAIL. Implement `Share(app, connections)` and the slot binding → PASS. Commit: `Circles: sharing binds the chosen connections into the circle brain`.
+- [ ] **Step 2: Failing facts — lease preference.** `LeasePreferenceFacts` (Own machines for alice and bob, plus a Cloud machine):
+  - `ACircleMachineIsRefusedTheCore` (fixed test): bob's machine is refused alice's `{alice}/core`.
+  - `ACircleCoreIsHeldOnlyByContributedMachines`: the Cloud machine and a non-contributed machine are refused `{circle}/core`.
+  - `TheLeaseReturnsAfterThePartGoesQuiet` (fixed test): with alice offline, bob's machine leases `{circle}/apps/notes`. When alice is back online and operating, bob releases after `QuietFor` with no writes, alice's machine acquires, and no write is lost.
+  - `ABusyPartDoesNotMove`.
+
+  Run → FAIL. Implement `LeasePreference`, the `PartLease` checks and the quiet-return on the renewal tick. LSP diagnostics clean; Platform, Circles and Architecture (6 known) → PASS. Commit: `Parts: circle parts lease on contributed machines and return to the operator's when quiet`.
+- [ ] **Step 3: Live (controller).** In the AppHost, `share` an app with a connection through A's MCP, then check:
+  - `neurons_get connection/{circle}/…` shows it exists.
+  - B (Cloud) `neurons_get` on `{circle}/circle` is forwarded to A, and B's `list_structured_logs` show B never leased it.
+  - After `release-part {circle}/core` on A, B's call returns 503.
+
+  Record the results in the ledger.
+- [ ] **Step 4: Regression net.** Platform, Trust, Circles, Apps, Architecture (6 known), Mcp, Aspire.Hosting and OS unit suites. Commit only the files above, by explicit path.
 
 ## Plan 9 — Cloud and public compute (Tasks 29–30)
 
