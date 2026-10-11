@@ -14,6 +14,8 @@ public sealed class AssignCachingFacts
     private const string Brain = "acc-brain";
     private const string Owner = "acc-brain/apps/x";
 
+    private static string Unique(string name) => RuntimeBrain.Idle + "// " + name + " " + Guid.NewGuid() + "\n";
+
     private static Dictionary<string, string> Program(string second)
         => new(StringComparer.Ordinal) { ["synapses/a.cs"] = RuntimeBrain.Idle, ["synapses/b.cs"] = second };
 
@@ -24,15 +26,16 @@ public sealed class AssignCachingFacts
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct);
         var programs = RuntimeBrain.Programs(brain, Brain);
         var compiler = brain.Services.GetRequiredService<CSharpScriptCheck>();
-        var two = RuntimeBrain.Idle + "// two " + Guid.NewGuid() + "\n";
-        var first = await programs.Assign(Owner, Program(RuntimeBrain.Idle + "// one\n"), []);
+        var one = Unique("one");
+        var two = Unique("two");
+        var first = await programs.Assign(Owner, Program(one), []);
         var before = compiler.Emits;
 
-        var second = await programs.Assign(Owner, Program(RuntimeBrain.Idle + "// two\n"), []);
+        var second = await programs.Assign(Owner, Program(two), []);
 
         Assert.Equal(1, compiler.Emits - before);
         Assert.NotEqual(first.Hash, second.Hash);
-        var same = await programs.Assign(Owner, Program(RuntimeBrain.Idle + "// two\n"), []);
+        var same = await programs.Assign(Owner, Program(two), []);
         Assert.Equal(1, compiler.Emits - before);
         Assert.Equal(second.Hash, same.Hash);
     }
@@ -44,11 +47,12 @@ public sealed class AssignCachingFacts
         var store = new RecordingAssemblies();
         await using var brain = await RuntimeBrain.StartAsync(new FakeSessionHost(), ct, assemblies: store);
         var programs = RuntimeBrain.Programs(brain, Brain);
-        var two = RuntimeBrain.Idle + "// two " + Guid.NewGuid() + "\n";
-        await programs.Assign(Owner, Program(RuntimeBrain.Idle + "// one\n"), []);
+        var one = Unique("one");
+        var two = Unique("two");
+        await programs.Assign(Owner, Program(one), []);
         var uploaded = store.Puts.Count;
 
-        await programs.Assign(Owner, Program(RuntimeBrain.Idle + "// two\n"), []);
+        await programs.Assign(Owner, Program(two), []);
 
         Assert.Equal(uploaded + 1, store.Puts.Count);
         Assert.Equal(store.Puts.Count, store.Puts.Distinct().Count());
