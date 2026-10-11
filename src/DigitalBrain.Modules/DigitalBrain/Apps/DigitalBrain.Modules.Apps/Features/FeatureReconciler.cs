@@ -34,7 +34,7 @@ internal sealed class FeatureReconciler(
             { logger.LogWarning(error, "The features folder could not serve {Owner}/{Name}.", origin.Publisher, origin.Name); continue; }
             if (bundle is null)
             { logger.LogWarning("{Brain}/{App} came from {Owner}/{Name}, which the features folder does not carry; it stays at {Version}.", brainId, name, origin.Publisher, origin.Name, origin.Version); continue; }
-            if (AppVersions.Compare(bundle.Version, origin.Version) <= 0) { continue; }
+            if (AppVersions.Compare(bundle.Version, origin.Version) <= 0 && !AppInstaller.Unconfirmed(snapshot.Status)) { continue; }
             try { await loader.Load(brainId, name, bundle, origin, ct); }
             catch (Exception error) when (error is not OperationCanceledException)
             { logger.LogWarning(error, "Reconciling {Brain}/{App} to {Version} failed.", brainId, name, bundle.Version); continue; }

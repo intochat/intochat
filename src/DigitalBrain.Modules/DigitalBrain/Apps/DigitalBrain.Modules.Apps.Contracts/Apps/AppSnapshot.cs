@@ -1,6 +1,7 @@
 namespace DigitalBrain.Apps;
 
-public enum AppStatus { Drafted, Building, Live, Failed }
+// Deploying: the program and its origin are held, the runtime has not confirmed it yet.
+public enum AppStatus { Drafted, Building, Live, Failed, Deploying }
 
 [GenerateSerializer, Alias("apps.version")]
 public sealed record AppVersionSummary(
