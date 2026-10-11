@@ -110,6 +110,9 @@ var machineB = AspireModuleHosting.OnDynamicPorts(builder.AddProject<Projects.Di
 Silo(machineB);
 // R77: after the brain reference, whose cluster id and ports would otherwise join B to A's cluster.
 machineB.AsSeparateCluster().AsCloudMachine();
+// Task 24 (T23-1): B offers 1 GiB as a volunteer storage node. A and B serve the same owner account, so placement never
+// puts A's shards on B (T23-6): live, B shows a signed registration and heartbeats on trust, and A writes to seeds only.
+machineB.WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName("DigitalBrain:Platform:StorageNode:OfferedBytes"), "1073741824");
 // The shell reaches the kernel through the front, so a roll restarting one silo never drops it.
 digitalBrain.WithShellFront(builder.CreateResourceBuilder<IResourceWithEndpoints>(osFront.Resource));
 
