@@ -4,7 +4,8 @@ namespace DigitalBrain.Microsoft.CSharp.Runtime.Signals;
 
 // A synapse finished with what was delivered up to Watermark: Batches batches acknowledged together
 // (Succeeded), an exit while they were in flight (Failed, with Error), or Batches signals dropped past the
-// buffer cap (Dropped, no duration). Published by the brain's runs neuron under the batch's trace.
+// buffer cap (Dropped, no duration), or batches the synapse passed over unhandled (Skipped: another operation
+// of its app; not counted as a run). Published by the brain's runs neuron under the batch's trace.
 [GenerateSerializer, Alias("microsoft.csharp.behavior-ran")]
 public sealed record BehaviorRan(
     [property: Id(0)] string RuntimeId, [property: Id(1)] string Owner, [property: Id(2)] string Behavior,

@@ -5,6 +5,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Channels;
+using DigitalBrain.Apps;
+using DigitalBrain.Apps.Signals;
 using DigitalBrain.Client.Runtime;
 using DigitalBrain.Client.Runtime.V1;
 using static DigitalBrain.Client.Tests.Unit.SessionConnectionFacts;
@@ -44,6 +46,94 @@ public sealed class SharedSubscriptionFacts
         Assert.Equal((2, 2), (first.Current.Value, second.Current.Value));
         Assert.Equal(2, brain.Subscribed.Count(key => key == "source"));
     }
+
+    // A filter that passes over every signal of a batch (an app operation's synapse seeing another operation)
+    // acknowledges it as skipped; a batch it hands on is a run.
+    [Fact]
+    public async Task ABatchEverySignalOfWhichWasPassedOverIsAcknowledgedAsSkipped()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = new SharedBrain(Batch("sub-source", 1, 1));
+        await using var session = await brain.OpenAsync(ct);
+        await using var connection = await Connect(session, ct);
+        await using var reader = connection.On<Changed>(connection.Get<ISource>("source"), ct).GetAsyncEnumerator(ct);
+
+        Assert.True(await reader.MoveNextAsync());
+        SignalDeliveries.Skip(reader.Current);
+        var hasTwo = reader.MoveNextAsync().AsTask();
+        var skipped = await brain.Acknowledged.Reader.ReadAsync(ct);
+        await brain.PushAsync(Batch("sub-source", 2, 1, 2), ct);
+        Assert.True(await hasTwo);
+        var hasThree = reader.MoveNextAsync().AsTask();
+        var handled = await brain.Acknowledged.Reader.ReadAsync(ct);
+
+        Assert.Equal((1L, true), (skipped["watermark"]!.GetValue<long>(), skipped["skipped"]!.GetValue<bool>()));
+        Assert.Equal((2L, false), (handled["watermark"]!.GetValue<long>(), handled["skipped"]!.GetValue<bool>()));
+        GC.KeepAlive(hasThree);
+    }
+
+    // The real seam: a synapse on one operation of its app reads every AppRequested of the app, and the request
+    // for the other operation is acknowledged as skipped while its own is acknowledged as handled.
+    [Fact]
+    public async Task ARequestForAnotherOperationReadThroughTheOperationFilterIsAcknowledgedAsSkipped()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = new SharedBrain(Requested("sub-acc-brain/apps/x", 1, "close") + Requested("sub-acc-brain/apps/x", 2, "open"));
+        await using var session = await brain.OpenAsync(ct);
+        await using var connection = await Connect(session, ct);
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var reader = connection.On(connection.Get<IApp>("acc-brain/apps/x"), "open", stop.Token).GetAsyncEnumerator(stop.Token);
+
+        var first = await reader.MoveNextAsync();
+        var operation = reader.Current.Operation;
+        var skipped = await brain.Acknowledged.Reader.ReadAsync(ct);
+        var next = reader.MoveNextAsync().AsTask();
+        var handled = await brain.Acknowledged.Reader.ReadAsync(ct);
+        await stop.CancelAsync();
+        await Record.ExceptionAsync(() => next);
+        await reader.DisposeAsync();
+
+        Assert.Equal((true, "open"), (first, operation));
+        Assert.Equal((1L, true), (skipped["watermark"]!.GetValue<long>(), skipped["skipped"]!.GetValue<bool>()));
+        Assert.Equal((2L, false), (handled["watermark"]!.GetValue<long>(), handled["skipped"]!.GetValue<bool>()));
+    }
+
+    // Two readers, one behind: the batch the ahead reader handled is not reported as skipped because the
+    // behind reader's report lands later, and a skipped batch is not reported as handled because of a later one.
+    [Fact]
+    public async Task EachReportSaysWhetherItsOwnBatchesWereHandled()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = new SharedBrain(Batch("sub-source", 1, 1));
+        await using var session = await brain.OpenAsync(ct);
+        await using var connection = await Connect(session, ct);
+        var behindSubscribed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var ahead = connection.On<Changed>(connection.Get<ISource>("source"), ct).GetAsyncEnumerator(ct);
+        await using var behind = connection.On<Changed>(connection.Get<ISource>("source"), Subscribed(behindSubscribed), ct).GetAsyncEnumerator(ct);
+
+        Assert.True(await ahead.MoveNextAsync());
+        SignalDeliveries.Skip(ahead.Current);
+        var behindHasOne = behind.MoveNextAsync().AsTask();
+        await behindSubscribed.Task.WaitAsync(ct);
+        var aheadHasTwo = ahead.MoveNextAsync().AsTask();
+        Assert.True(await behindHasOne);
+        SignalDeliveries.Skip(behind.Current);
+        await brain.PushAsync(Batch("sub-source", 2, 1, 2), ct);
+        Assert.True(await aheadHasTwo);
+        // The ahead reader handles batch 2 before the behind reader has moved past batch 1.
+        var aheadWaits = ahead.MoveNextAsync().AsTask();
+        Assert.True(await behind.MoveNextAsync());
+        var first = await brain.Acknowledged.Reader.ReadAsync(ct);
+        var behindWaits = behind.MoveNextAsync().AsTask();
+        var second = await brain.Acknowledged.Reader.ReadAsync(ct);
+
+        Assert.Equal((1L, true), (first["watermark"]!.GetValue<long>(), first["skipped"]!.GetValue<bool>()));
+        Assert.Equal((2L, false), (second["watermark"]!.GetValue<long>(), second["skipped"]!.GetValue<bool>()));
+        GC.KeepAlive((aheadWaits, behindWaits));
+    }
+
+    private static string Requested(string subscription, long watermark, string operation)
+        => $"event: {SignalBatchEvent.Kind}\ndata: {JsonSerializer.Serialize(new SignalBatchEvent(subscription, [JsonSerializer.Serialize(new AppRequested(operation, "", Guid.NewGuid()), RuntimeProtocol.Json)], watermark, null), RuntimeProtocol.Json)}\n\n";
 
     [Fact]
     public async Task TheWatermarkAdvancesOnlyOnceEveryReaderHasAcknowledged()

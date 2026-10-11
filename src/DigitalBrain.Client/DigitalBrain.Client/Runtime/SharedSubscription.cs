@@ -20,6 +20,9 @@ internal sealed class SharedSubscription(SessionConnection session, string id)
     // What readers spent on batches the brain has not been told about; the report that advances carries it.
     private long _cpuMicroseconds;
     private long _wallMicroseconds;
+    // The batches, by watermark, some reader handled and the brain has not been told about. A report covers the
+    // batches at or below its watermark; it is a skip when no reader handled any of them.
+    private readonly HashSet<long> _handled = [];
 
     public Reader Join()
     {
@@ -51,7 +54,7 @@ internal sealed class SharedSubscription(SessionConnection session, string id)
         lock (_gate) { foreach (var reader in _readers) { reader.Queue.Writer.TryComplete(); } }
     }
 
-    private Task AcknowledgeAsync(Reader reader, long watermark, long cpuMicroseconds, long wallMicroseconds, CancellationToken cancellationToken)
+    private Task AcknowledgeAsync(Reader reader, long watermark, long cpuMicroseconds, long wallMicroseconds, bool skipped, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         Report? report;
@@ -61,6 +64,7 @@ internal sealed class SharedSubscription(SessionConnection session, string id)
             reader.Acknowledged = Math.Max(reader.Acknowledged, watermark);
             _cpuMicroseconds += cpuMicroseconds;
             _wallMicroseconds += wallMicroseconds;
+            if (!skipped) { _handled.Add(watermark); }
             report = Advance();
         }
         return report is { } advanced ? SendAsync(advanced, cancellationToken) : Task.CompletedTask;
@@ -80,6 +84,7 @@ internal sealed class SharedSubscription(SessionConnection session, string id)
             if (_readers.Count == 0)
             {
                 _unacknowledged.Clear();
+                _handled.Clear();
                 _queued = _reported = _confirmed;
                 return;
             }
@@ -95,14 +100,14 @@ internal sealed class SharedSubscription(SessionConnection session, string id)
         if (watermark <= _reported) { return null; }
         var batches = _unacknowledged.RemoveAll(batch => batch.Watermark <= watermark);
         _reported = watermark;
-        var report = new Report(watermark, _cpuMicroseconds, _wallMicroseconds, batches);
+        var report = new Report(watermark, _cpuMicroseconds, _wallMicroseconds, batches, _handled.RemoveWhere(handled => handled <= watermark) == 0);
         _cpuMicroseconds = _wallMicroseconds = 0;
         return report;
     }
 
     private async Task SendAsync(Report report, CancellationToken cancellationToken)
     {
-        await session.AcknowledgeAsync(id, report.Watermark, cancellationToken, report.CpuMicroseconds, report.WallMicroseconds, report.Batches).ConfigureAwait(false);
+        await session.AcknowledgeAsync(id, report.Watermark, cancellationToken, report.CpuMicroseconds, report.WallMicroseconds, report.Batches, report.Skipped).ConfigureAwait(false);
         lock (_gate) { _confirmed = Math.Max(_confirmed, report.Watermark); }
     }
 
@@ -112,7 +117,7 @@ internal sealed class SharedSubscription(SessionConnection session, string id)
         catch (Exception) { /* the brain resends what it still holds; a later acknowledgement covers it */ }
     }
 
-    private readonly record struct Report(long Watermark, long CpuMicroseconds, long WallMicroseconds, int Batches);
+    private readonly record struct Report(long Watermark, long CpuMicroseconds, long WallMicroseconds, int Batches, bool Skipped);
 
     // One brain.On<T> enumeration's view of the shared subscription; Acknowledged is guarded by the gate.
     public sealed class Reader
@@ -131,8 +136,8 @@ internal sealed class SharedSubscription(SessionConnection session, string id)
 
         public ChannelReader<SignalBatchEvent> Batches => Queue.Reader;
 
-        public Task AcknowledgeAsync(long watermark, long cpuMicroseconds, long wallMicroseconds, CancellationToken cancellationToken)
-            => _subscription.AcknowledgeAsync(this, watermark, cpuMicroseconds, wallMicroseconds, cancellationToken);
+        public Task AcknowledgeAsync(long watermark, long cpuMicroseconds, long wallMicroseconds, bool skipped, CancellationToken cancellationToken)
+            => _subscription.AcknowledgeAsync(this, watermark, cpuMicroseconds, wallMicroseconds, skipped, cancellationToken);
 
         public void Leave() => _subscription.Leave(this);
     }

@@ -40,9 +40,10 @@ public sealed record RuntimeReport(
 public sealed record SubscribeReport([property: Id(0)] string Behavior, [property: Id(1)] string Contract, [property: Id(2)] string Key, [property: Id(3)] string Signal);
 [GenerateSerializer, Alias("microsoft.csharp.runtime.acknowledge-report")]
 // CpuMicroseconds is the whole sandbox process's processor time spent while the synapse handled the acknowledged
-// batches, WallMicroseconds the time it took, Batches how many batches this report acknowledges at once.
+// batches, WallMicroseconds the time it took, Batches how many batches this report acknowledges at once, Skipped
+// that the synapse passed over every signal of them (another operation of its app): delivered, but not a run.
 public sealed record AcknowledgeReport([property: Id(0)] string Subscription, [property: Id(1)] long Watermark, [property: Id(2)] long CpuMicroseconds = 0,
-    [property: Id(3)] long WallMicroseconds = 0, [property: Id(4)] int Batches = 1);
+    [property: Id(3)] long WallMicroseconds = 0, [property: Id(4)] int Batches = 1, [property: Id(5)] bool Skipped = false);
 [GenerateSerializer, Alias("microsoft.csharp.runtime.behavior-status-report")]
 public sealed record BehaviorStatusReport([property: Id(0)] string Behavior, [property: Id(1)] string Hash, [property: Id(2)] string Status, [property: Id(3)] int? ExitCode, [property: Id(4)] string? Error);
 [GenerateSerializer, Alias("microsoft.csharp.runtime.logs-report")]
