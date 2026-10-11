@@ -8,6 +8,12 @@ namespace DigitalBrain.Platform.Parts;
 
 internal sealed record StoredRecord(byte[] Record, long ETagSeq);
 
+// A snapshot that failed before its head commit: the head is unchanged, so nothing about the log is ambiguous.
+internal sealed class SnapshotNotWrittenException(PartId part, int bytes, Exception inner) : Exception($"Part {part}'s {bytes}-byte snapshot was not written: {inner.Message}", inner)
+{
+    public int Bytes => bytes;
+}
+
 internal sealed class ChangeTooLargeException(string message) : InvalidOperationException(message);
 
 // One part's log on the machine that holds its lease (Q18, Q26). Changes are group-committed as sealed mesh
@@ -41,6 +47,8 @@ internal sealed class PartLog : IAsyncDisposable
     private TaskCompletionSource _drained = Completed();
     private Task _renewing = Task.CompletedTask;
     private TimeSpan _backoff = TimeSpan.FromSeconds(1);
+    private TimeSpan _snapshotBackoff = TimeSpan.FromMinutes(1);
+    private DateTimeOffset _snapshotNotBefore = DateTimeOffset.MinValue;
     private long _queuedBytes;
     private long _nextSeq;
     private long _applied;
@@ -427,7 +435,21 @@ internal sealed class PartLog : IAsyncDisposable
                 // the durable batch and is then handled below exactly like a failed batch commit (ruling R12).
                 try
                 {
-                    if (_lease.Payload.SegmentsSinceSnapshot >= _options.SnapshotEvery) { await Snapshot(); }
+                    if (_lease.Payload.SegmentsSinceSnapshot >= _options.SnapshotEvery && _time.GetUtcNow() >= _snapshotNotBefore)
+                    {
+                        await Snapshot();
+                        _snapshotBackoff = TimeSpan.FromMinutes(1);
+                    }
+                }
+                // The snapshot never reached the mesh, so the head is exactly what the batch committed: the log keeps
+                // committing batches at full speed and tries the snapshot again later. Treating it as a failed commit
+                // put every batch behind the commit backoff, and the journal grew with the writes it could not flush.
+                catch (SnapshotNotWrittenException notWritten)
+                {
+                    _logger.LogWarning(notWritten.InnerException, "Part {Part} could not write its {Bytes}-byte snapshot at seq {Seq} ({Reason}); the chain keeps growing and the snapshot is retried after {Delay}.",
+                        _part, notWritten.Bytes, _lease.Payload.LastSeq, notWritten.InnerException?.Message, _snapshotBackoff);
+                    _snapshotNotBefore = _time.GetUtcNow() + _snapshotBackoff;
+                    _snapshotBackoff = TimeSpan.FromTicks(Math.Min(_snapshotBackoff.Ticks * 2, TimeSpan.FromMinutes(30).Ticks));
                 }
                 finally
                 {
@@ -484,7 +506,10 @@ internal sealed class PartLog : IAsyncDisposable
         }
         var snapshot = new PartSnapshot { Seq = payload.LastSeq, Records = records, RecentSignals = recent, SignalsFrom = payload.SnapshotSeq };
         var replacedKey = _key;
-        var reference = await _mesh.Write(rekey ?? _key, PartSegments.SnapshotId(_part, payload.LastSeq), _serializer.SerializeToArray(snapshot));
+        MeshRef reference;
+        var plaintext = _serializer.SerializeToArray(snapshot);
+        try { reference = await _mesh.Write(rekey ?? _key, PartSegments.SnapshotId(_part, payload.LastSeq), plaintext); }
+        catch (Exception error) when (error is not OperationCanceledException) { throw new SnapshotNotWrittenException(_part, plaintext.Length, error); }
         var head = new HeadPayload
         {
             Head = null, Snapshot = reference, SnapshotSeq = payload.LastSeq, LastSeq = payload.LastSeq, SegmentsSinceSnapshot = 0, Writers = payload.Writers,

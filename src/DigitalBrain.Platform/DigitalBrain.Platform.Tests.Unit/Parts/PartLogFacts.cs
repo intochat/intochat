@@ -383,6 +383,70 @@ public sealed class PartLogFacts
     }
 
     [Fact(Timeout = 60_000)]
+    public async Task AnOwnLogWhoseSnapshotTheMeshRefusesKeepsCommittingAndTrimmingItsJournal()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await StartAsync(ct);
+        var part = PartId.ForApp("home", "notes");
+        var key = RandomNumberGenerator.GetBytes(32);
+        using var machine = SequencerFacts.Machine();
+        var options = Own();
+        options.SnapshotEvery = 1;
+        options.BatchBytes = 1;
+        // Only the clock the log waits on is frozen: a batch held behind a commit backoff would never run.
+        var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var mesh = new UnreachableMesh(brain.Services.GetRequiredService<IMeshStore>()) { RefuseSnapshots = true };
+        await using var log = await OpenAsync(brain, part, key, machine, options, time, ct, mesh);
+
+        for (var i = 0; i < 5; i++) { await log.Append($"g{i}", "s", RecordChange.Write, new byte[100], []); }
+        await log.Flushed();
+
+        // Each attempt serialises, seals and encodes the whole part under the flush lock: retrying it on every batch
+        // throttled the owner's core to one small batch per attempt while its journal grew.
+        Assert.Equal(1, mesh.SnapshotAttempts);
+        Assert.Equal(5, log.Head.LastSeq);
+        Assert.Equal(0, new FileInfo(JournalPath(options, part)).Length);
+    }
+
+    [Fact(Timeout = 60_000)]
+    public async Task ARefusedSnapshotWaitsOutItsDelayAndTheDelayDoublesOnEachRefusal()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await StartAsync(ct);
+        var part = PartId.ForApp("home", "notes");
+        var key = RandomNumberGenerator.GetBytes(32);
+        using var machine = SequencerFacts.Machine();
+        var options = Own();
+        options.SnapshotEvery = 1;
+        options.BatchBytes = 1;
+        var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var mesh = new UnreachableMesh(brain.Services.GetRequiredService<IMeshStore>()) { RefuseSnapshots = true };
+        await using var log = await OpenAsync(brain, part, key, machine, options, time, ct, mesh);
+        var n = 0;
+        async Task Batch()
+        {
+            await log.Append($"g{n++}", "s", RecordChange.Write, [1], []);
+            await log.Flushed();
+        }
+
+        await Batch();
+        Assert.Equal(1, mesh.SnapshotAttempts);
+        // Before the 1-minute delay: no attempt, and the batch does not reset the delay.
+        await Batch();
+        Assert.Equal(1, mesh.SnapshotAttempts);
+        time.Advance(TimeSpan.FromSeconds(61));
+        await Batch();
+        Assert.Equal(2, mesh.SnapshotAttempts);
+        // Refused again: the delay is now 2 minutes, so 61 seconds later it still waits.
+        time.Advance(TimeSpan.FromSeconds(61));
+        await Batch();
+        Assert.Equal(2, mesh.SnapshotAttempts);
+        time.Advance(TimeSpan.FromSeconds(60));
+        await Batch();
+        Assert.Equal(3, mesh.SnapshotAttempts);
+    }
+
+    [Fact(Timeout = 60_000)]
     public async Task AnAmbiguousCommitFailureClosesANonOwnLog()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -437,6 +501,11 @@ public sealed class PartLogFacts
         // A segment larger than this is refused, as a commit too big to carry would be.
         public int MaxSegmentBytes = int.MaxValue;
 
+        // Snapshots are refused, as one too large for the mesh's shards is.
+        public volatile bool RefuseSnapshots;
+
+        public int SnapshotAttempts;
+
         private void Check()
         {
             if (Offline) { throw new ServiceUnavailableException("The platform is unreachable."); }
@@ -445,6 +514,8 @@ public sealed class PartLogFacts
         public Task<MeshRef> Write(byte[] key, string segmentId, byte[] plaintext, CancellationToken cancellationToken = default)
         {
             Check();
+            if (segmentId.Contains("/snapshot/", StringComparison.Ordinal)) { Interlocked.Increment(ref SnapshotAttempts); }
+            if (RefuseSnapshots && segmentId.Contains("/snapshot/", StringComparison.Ordinal)) { throw new InvalidOperationException($"Segment '{segmentId}' is too large for the mesh's shards."); }
             if (plaintext.Length > MaxSegmentBytes) { throw new ServiceUnavailableException($"A {plaintext.Length}-byte segment is too large."); }
             if (!FailAfterWrite) { return inner.Write(key, segmentId, plaintext, cancellationToken); }
             return WriteThenTimeOut(key, segmentId, plaintext, cancellationToken);
