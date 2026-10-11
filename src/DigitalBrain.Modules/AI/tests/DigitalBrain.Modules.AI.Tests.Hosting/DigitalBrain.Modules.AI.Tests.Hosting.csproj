@@ -3,7 +3,10 @@
   <PropertyGroup>
     <RuntimeIdentifiers Condition="$([MSBuild]::IsOSPlatform('Windows'))">win-x64</RuntimeIdentifiers>
   </PropertyGroup>
-  <ItemGroup><Using Remove="DigitalBrain.Testing" /></ItemGroup>
+  <ItemGroup>
+    <Using Remove="DigitalBrain.Testing" />
+    <Using Remove="DigitalBrain.Testing.ITestBrain" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../DigitalBrain.Modules.AI.Aspire.Hosting/DigitalBrain.Modules.AI.Aspire.Hosting.csproj" />
     <ProjectReference Include="../../DigitalBrain.Modules.AI/DigitalBrain.Modules.AI.csproj" />
