@@ -12,14 +12,17 @@ internal sealed class SceneNeuron([PersistentState("state", DigitalBrainNames.Cl
 {
     public Task Set(SceneDefinition definition, long expectedRevision)
     {
-        SceneAccess.RequireWriter(this.GetPrimaryKeyString());
+        var name = this.GetPrimaryKeyString();
+        SceneAccess.RequireWriter(name);
         SceneValidation.Check(definition);
-        var next = Snapshot;
-        if (next.Revision != expectedRevision) { throw new InvalidOperationException($"Scene changed (revision {next.Revision}); read it and set again."); }
-        next.Name = this.GetPrimaryKeyString();
-        next.Revision++;
-        next.Definition = definition;
-        next.Current = definition.Machines.ToDictionary(m => m.Id, m => m.Initial, StringComparer.Ordinal);
+        if (Snapshot.Revision != expectedRevision) { throw new InvalidOperationException($"Scene changed (revision {Snapshot.Revision}); read it and set again."); }
+        var next = new SceneState
+        {
+            Name = name,
+            Revision = Snapshot.Revision + 1,
+            Definition = definition,
+            Current = definition.Machines.ToDictionary(m => m.Id, m => m.Initial, StringComparer.Ordinal),
+        };
         return Save(next, new SceneChanged(next.Name, next.Revision));
     }
 
@@ -28,19 +31,19 @@ internal sealed class SceneNeuron([PersistentState("state", DigitalBrainNames.Cl
         ArgumentException.ThrowIfNullOrWhiteSpace(eventName);
         var name = this.GetPrimaryKeyString();
         SceneAccess.RequireReporter(name);
-        var next = Snapshot;
+        // Snapshot is the live stored state: the move is built on a new state so a failed save leaves it unmoved.
+        var current = new Dictionary<string, string>(Snapshot.Current, StringComparer.Ordinal);
         var moved = new List<SceneEntered>();
-        foreach (var machine in next.Definition.Machines)
+        foreach (var machine in Snapshot.Definition.Machines)
         {
-            var current = next.Current[machine.Id];
-            var transition = machine.Transitions.FirstOrDefault(t => t.From == current && t.Event == eventName);
+            var from = current[machine.Id];
+            var transition = machine.Transitions.FirstOrDefault(t => t.From == from && t.Event == eventName);
             if (transition is null) { continue; }
-            next.Current[machine.Id] = transition.To;
+            current[machine.Id] = transition.To;
             moved.Add(new SceneEntered(name, machine.Id, transition.To));
         }
         if (moved.Count == 0) { return; }
-        next.Name = name;
-        await Save(next, moved[0]);
+        await Save(new SceneState { Name = name, Revision = Snapshot.Revision, Definition = Snapshot.Definition, Current = current }, moved[0]);
         foreach (var signal in moved.Skip(1)) { await PublishAsync(signal); }
     }
 
