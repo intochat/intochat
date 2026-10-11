@@ -57,7 +57,7 @@ internal sealed partial class StorageCreditPuller(PartLogs logs, IKeyringClient 
             {
                 try { if (await keyring.OwnerOf(core) is { } account) { accounts.Add(account); } }
                 catch (Exception error) when (error is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
-                { Log.PullFailed(logger, error, core); }
+                { Log.OwnerUnknown(logger, error, core); }
             }
             foreach (var account in accounts)
             {
@@ -86,7 +86,10 @@ internal sealed partial class StorageCreditPuller(PartLogs logs, IKeyringClient 
         [LoggerMessage(Level = LogLevel.Information, Message = "Pulled {Pending} storage credits for account {Account}; {Credited} were new to its ledger.")]
         public static partial void Pulled(ILogger logger, int pending, int credited, string account);
 
-        [LoggerMessage(Level = LogLevel.Warning, Message = "Storage credits for {Subject} could not be pulled this pass.")]
-        public static partial void PullFailed(ILogger logger, Exception error, string subject);
+        [LoggerMessage(Level = LogLevel.Warning, Message = "Storage credits for account {Account} could not be pulled this pass.")]
+        public static partial void PullFailed(ILogger logger, Exception error, string account);
+
+        [LoggerMessage(Level = LogLevel.Warning, Message = "The owner of brain {Brain} could not be read; its storage credits wait for the next pass.")]
+        public static partial void OwnerUnknown(ILogger logger, Exception error, string brain);
     }
 }

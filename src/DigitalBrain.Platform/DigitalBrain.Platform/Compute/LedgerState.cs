@@ -6,4 +6,7 @@ internal sealed class LedgerState
     [Id(0)] public long Balance { get; set; }
     [Id(1)] public LedgerEntry[] Entries { get; set; } = [];
     [Id(2)] public string[] RecentKeys { get; set; } = [];
+
+    // R141: credit entry ids in their own window, so charge volume cannot evict them.
+    [Id(3)] public string[] CreditKeys { get; set; } = [];
 }

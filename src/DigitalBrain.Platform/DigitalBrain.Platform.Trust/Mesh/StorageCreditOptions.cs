@@ -11,7 +11,7 @@ public sealed class StorageCreditOptions
 
     public void Validate()
     {
-        if (MicrosPerGiBPass < 0) { throw new InvalidOperationException("Storage credits need a non-negative MicrosPerGiBPass."); }
+        if (MicrosPerGiBPass < 1) { throw new InvalidOperationException("Storage credits need a MicrosPerGiBPass of at least 1 (every pass earns at least one micro)."); }
         if (MaxPassesPerPutterPerNodePerDay < 0) { throw new InvalidOperationException("Storage credits need a non-negative MaxPassesPerPutterPerNodePerDay."); }
     }
 }

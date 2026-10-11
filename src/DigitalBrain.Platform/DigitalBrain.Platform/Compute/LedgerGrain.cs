@@ -33,10 +33,10 @@ internal sealed class LedgerGrain(
     public async Task<bool> Credit(string entryId, long micros, string reason)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(entryId);
-        if (store.State.RecentKeys.Any(key => string.Equals(key, entryId, StringComparison.Ordinal))) { return false; }
+        if (store.State.CreditKeys.Any(key => string.Equals(key, entryId, StringComparison.Ordinal))) { return false; }
         Append(entryId, micros, reason ?? "", DateTimeOffset.UtcNow);
         store.State.Balance += micros;
-        store.State.RecentKeys = PushKey(store.State.RecentKeys, entryId);
+        store.State.CreditKeys = PushKey(store.State.CreditKeys, entryId);
         await store.WriteStateAsync();
         return true;
     }

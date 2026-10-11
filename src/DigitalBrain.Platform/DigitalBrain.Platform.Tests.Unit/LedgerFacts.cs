@@ -57,6 +57,19 @@ public sealed class LedgerFacts
         Assert.True(await ledger.Verify());
     }
 
+    // R141: credits keep their own applied-id window, so a busy account's charges cannot make a credit apply twice.
+    [Fact]
+    public async Task ChargeVolumeDoesNotEvictACreditId()
+    {
+        var ledger = new LedgerGrain(new ScriptedLedgerStore());
+        Assert.True(await ledger.Credit("audit/n/s/0", 5L, "storage audit"));
+
+        for (var i = 0; i < 10_001; i++) { await ledger.Charge(Cost("tr-1", $"c-{i}", 1L)); }
+
+        Assert.False(await ledger.Credit("audit/n/s/0", 5L, "storage audit"));
+        Assert.Equal(5L - 10_001L, await ledger.Balance());
+    }
+
     [Fact]
     public async Task ARewrittenEntryFailsVerification()
     {
