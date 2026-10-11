@@ -182,15 +182,16 @@ internal sealed class StorageNodeDirectoryGrain(
         foreach (var node in candidates) { if (chosen.Count < count && !chosen.Contains(node)) { chosen.Add(node); } }
 
         if (chosen.Count < count) { throw new ServiceUnavailableException($"Mesh needs {count} healthy storage nodes; {chosen.Count} are available."); }
-        if (askers.Count > 0)
+        var changed = false;
+        foreach (var node in askers.Count > 0 ? chosen : [])
         {
-            foreach (var node in chosen)
-            {
-                var placed = store.State.PlacedFor.GetValueOrDefault(node.NodeId) ?? [];
-                store.State.PlacedFor[node.NodeId] = [.. placed.Where(account => !askers.Contains(account)).Concat(askers).TakeLast(StorageNodes.MaxPlacedAccounts)];
-            }
-            await store.WriteStateAsync();
+            var placed = store.State.PlacedFor.GetValueOrDefault(node.NodeId) ?? [];
+            string[] next = [.. placed.Where(account => !askers.Contains(account)).Concat(askers).TakeLast(StorageNodes.MaxPlacedAccounts)];
+            if (next.SequenceEqual(placed, StringComparer.Ordinal)) { continue; }
+            store.State.PlacedFor[node.NodeId] = next;
+            changed = true;
         }
+        if (changed) { await store.WriteStateAsync(); }
         return [.. chosen.Select(node => node.NodeId)];
     }
 

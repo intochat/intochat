@@ -28,8 +28,8 @@ internal sealed class StorageNodeEndpoint(ShardStore store, INodeDirectoryClient
         var payload = request.Operation switch
         {
             NodeOperations.Put => serializer.SerializeToArray(await Put(link, Arg<ShardPut>(request))),
-            NodeOperations.Get => serializer.SerializeToArray(await store.Get(Arg<ShardGet>(request).Cid)),
-            NodeOperations.Prove => serializer.SerializeToArray(await Prove(Arg<ShardProve>(request))),
+            NodeOperations.Get => serializer.SerializeToArray(await Get(link, Arg<ShardGet>(request))),
+            NodeOperations.Prove => serializer.SerializeToArray(await Prove(link, Arg<ShardProve>(request))),
             NodeOperations.Drop => serializer.SerializeToArray(await Drop(link, Arg<ShardDrop>(request))),
             _ => throw new InvalidOperationException($"A storage node answers no '{request.Operation}'."),
         };
@@ -44,7 +44,17 @@ internal sealed class StorageNodeEndpoint(ShardStore store, INodeDirectoryClient
         return true;
     }
 
-    private Task<byte[]?> Prove(ShardProve prove) => store.Prove(prove.Cid, prove.Nonce);
+    private async Task<byte[]?> Get(QuicMachineLink link, ShardGet get)
+    {
+        await AccountsOf(link);
+        return await store.Get(get.Cid);
+    }
+
+    private async Task<byte[]?> Prove(QuicMachineLink link, ShardProve prove)
+    {
+        await AccountsOf(link);
+        return await store.Prove(prove.Cid, prove.Nonce);
+    }
 
     private async Task<bool> Drop(QuicMachineLink link, ShardDrop drop)
     {
