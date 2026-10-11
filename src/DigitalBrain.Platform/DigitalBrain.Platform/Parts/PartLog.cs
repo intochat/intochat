@@ -197,9 +197,16 @@ internal sealed class PartLog : IAsyncDisposable
     {
         await _stop.CancelAsync();
         await _renewing;
+        // One flush commits one bounded batch: keep flushing while each one makes progress.
+        while (true)
+        {
+            int queued;
+            lock (_queue) { queued = _closed is null ? _queue.Count : 0; }
+            if (queued == 0) { break; }
+            await Flush();
+            lock (_queue) { if (_queue.Count >= queued) { break; } }
+        }
         bool pending;
-        lock (_queue) { pending = _queue.Count > 0 && _closed is null; }
-        if (pending) { await Flush(); }
         lock (_queue)
         {
             _disposed = true;
@@ -333,8 +340,25 @@ internal sealed class PartLog : IAsyncDisposable
         var first = _queue.Count == 0;
         if (first) { _drained = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously); }
         _queue.Add(pending);
-        _queuedBytes += pending.Entry.Record.Length + 64L * (1 + pending.Entry.Signals.Length);
+        _queuedBytes += SizeOf(pending.Entry);
         return first;
+    }
+
+    private static long SizeOf(LogEntry entry) => entry.Record.Length + 64L * (1 + entry.Signals.Length);
+
+    // Caller holds the queue lock. At most BatchBytes of the queue (at least one change): a backlog an outage or a
+    // slow commit built up commits in bounded segments, so it cannot outgrow what one commit carries and keep the
+    // journal untrimmed forever.
+    private Pending[] NextBatch()
+    {
+        var count = 0;
+        long bytes = 0;
+        while (count < _queue.Count && (count == 0 || bytes + SizeOf(_queue[count].Entry) <= _options.BatchBytes))
+        {
+            bytes += SizeOf(_queue[count].Entry);
+            count++;
+        }
+        return [.. _queue.Take(count)];
     }
 
     private void ScheduleFlush(TimeSpan delay) => _ = FlushAfter(delay);
@@ -357,7 +381,7 @@ internal sealed class PartLog : IAsyncDisposable
         try
         {
             Pending[] batch;
-            lock (_queue) { batch = [.. _queue]; }
+            lock (_queue) { batch = NextBatch(); }
             if (batch.Length == 0) { return; }
             var payload = _lease.Payload;
             var segment = new LogSegment { FirstSeq = batch[0].Entry.Seq, Entries = [.. batch.Select(p => p.Entry)], Prev = payload.Head };
@@ -376,12 +400,12 @@ internal sealed class PartLog : IAsyncDisposable
                 lock (_queue)
                 {
                     _queue.RemoveRange(0, batch.Length);
-                    _queuedBytes = _queue.Sum(p => p.Entry.Record.Length + 64L * (1 + p.Entry.Signals.Length));
+                    _queuedBytes = _queue.Sum(p => SizeOf(p.Entry));
                     drained = _queue.Count == 0 ? _drained : null;
                     Committed(batch);
                 }
                 // Changes queued while this batch committed start the next batch; no later append schedules it.
-                if (drained is null) { ScheduleFlush(_options.BatchDelay); }
+                if (drained is null) { ScheduleFlush(_queuedBytes >= _options.BatchBytes ? TimeSpan.Zero : _options.BatchDelay); }
                 // Q26: the first commit after failed attempts is what an operator watches for once the trust side is back.
                 if (_backoff > TimeSpan.FromSeconds(1))
                 { _logger.LogInformation("Part {Part} committed its journaled changes through seq {Seq} at head version {Version}.", _part, batch[^1].Entry.Seq, _lease.Version); }

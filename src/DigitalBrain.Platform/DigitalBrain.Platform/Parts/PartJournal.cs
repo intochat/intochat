@@ -10,8 +10,17 @@ internal sealed class PartJournal(string path, byte[] key, Serializer serializer
 {
     private readonly Lock _gate = new();
 
+    // Where each entry starts in the file, in seq order, once the file was read or written by this instance: a trim
+    // then copies the kept tail as raw bytes instead of opening every entry again.
+    private List<(long Seq, long Offset)>? _index;
+    private long _end;
+
     // Test seam: runs between a record's length and its body, so a failure leaves a half-written record.
     internal Action? Interrupt { get; set; }
+
+    // The most bytes one read call asks for: a journal is read record by record and a record in chunks of this size,
+    // so the file's total size never meets a single-read limit (File.ReadAllBytes stops at 2 GB).
+    internal int SingleReadLimit { get; init; } = 1 << 20;
 
     // A failed append could not be cut back off the file: nothing appended after it would read back.
     public bool Broken { get; private set; }
@@ -23,6 +32,7 @@ internal sealed class PartJournal(string path, byte[] key, Serializer serializer
         lock (_gate)
         {
             EnsureDirectory();
+            if (_index is null && File.Exists(path)) { Scan(); }
             using var file = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read);
             var start = file.Length;
             try
@@ -41,27 +51,55 @@ internal sealed class PartJournal(string path, byte[] key, Serializer serializer
                 catch { Broken = true; }
                 throw;
             }
+            (_index ??= []).Add((entry.Seq, start));
+            _end = file.Length;
         }
     }
 
     public LogEntry[] Read()
     {
-        lock (_gate) { return ReadAll(); }
+        lock (_gate) { return Scan(); }
     }
 
+    // Drops every entry at or below seq from the file itself: the kept tail is copied as raw bytes, and a journal the
+    // head fully covers is truncated to nothing.
     public void TrimThrough(long seq)
     {
         lock (_gate)
         {
-            var keep = ReadAll().Where(e => e.Seq > seq).ToArray();
-            EnsureDirectory();
-            var temp = $"{path}.tmp";
-            using (var file = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
+            if (!File.Exists(path)) { return; }
+            if (_index is null) { Scan(); }
+            var index = _index!;
+            var first = index.FindIndex(e => e.Seq > seq);
+            if (first == 0) { return; }
+            if (first < 0)
             {
-                foreach (var entry in keep) { WriteRecord(file, entry); }
+                using var file = new FileStream(path, FileMode.Open, FileAccess.Write, FileShare.Read);
+                file.SetLength(0);
                 file.Flush(flushToDisk: true);
+                index.Clear();
+                _end = 0;
+                return;
+            }
+            var from = index[first].Offset;
+            var temp = $"{path}.tmp";
+            using (var source = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (var target = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                source.Position = from;
+                var buffer = new byte[SingleReadLimit];
+                for (var left = _end - from; left > 0;)
+                {
+                    var read = source.Read(buffer, 0, (int)Math.Min(buffer.Length, left));
+                    if (read == 0) { throw new EndOfStreamException($"The journal {path} ended before its indexed end."); }
+                    target.Write(buffer, 0, read);
+                    left -= read;
+                }
+                target.Flush(flushToDisk: true);
             }
             File.Move(temp, path, overwrite: true);
+            _index = [.. index.Skip(first).Select(e => (e.Seq, e.Offset - from))];
+            _end -= from;
         }
     }
 
@@ -70,6 +108,8 @@ internal sealed class PartJournal(string path, byte[] key, Serializer serializer
         lock (_gate)
         {
             if (File.Exists(path)) { File.Move(path, $"{path}.conflict-{DateTime.UtcNow:yyyyMMddHHmmss}"); }
+            _index = null;
+            _end = 0;
         }
     }
 
@@ -85,21 +125,54 @@ internal sealed class PartJournal(string path, byte[] key, Serializer serializer
         file.Write(sealedBytes);
     }
 
-    // A record cut short by a crash mid-append is the torn tail: everything before it was flushed whole.
-    private LogEntry[] ReadAll()
+    // Caller holds the gate. Reads entry by entry and rebuilds the index. A record cut short by a crash mid-append is
+    // the torn tail: everything before it was flushed whole, and the tail is cut off so later appends read back.
+    private LogEntry[] Scan()
     {
-        if (!File.Exists(path)) { return []; }
-        var bytes = File.ReadAllBytes(path);
         var entries = new List<LogEntry>();
-        var offset = 0;
-        while (offset + 4 <= bytes.Length)
+        var index = new List<(long Seq, long Offset)>();
+        long offset = 0;
+        if (File.Exists(path))
         {
-            var length = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(offset, 4));
-            if (length <= 0 || offset + 4 + length > bytes.Length) { break; }
-            var plain = SegmentSeal.Open(key, Context, bytes.AsSpan(offset + 4, length).ToArray());
-            entries.Add(serializer.Deserialize<LogEntry>(plain)!);
-            offset += 4 + length;
+            long fileLength;
+            using (var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 1))
+            {
+                fileLength = file.Length;
+                var header = new byte[4];
+                while (offset + 4 <= fileLength)
+                {
+                    file.Position = offset;
+                    if (!Fill(file, header, 4)) { break; }
+                    var length = BinaryPrimitives.ReadInt32LittleEndian(header);
+                    if (length <= 0 || offset + 4 + length > fileLength) { break; }
+                    var body = new byte[length];
+                    if (!Fill(file, body, length)) { break; }
+                    var entry = serializer.Deserialize<LogEntry>(SegmentSeal.Open(key, Context, body))!;
+                    entries.Add(entry);
+                    index.Add((entry.Seq, offset));
+                    offset += 4 + length;
+                }
+            }
+            if (offset < fileLength)
+            {
+                using var file = new FileStream(path, FileMode.Open, FileAccess.Write, FileShare.Read);
+                file.SetLength(offset);
+                file.Flush(flushToDisk: true);
+            }
         }
+        _index = index;
+        _end = offset;
         return [.. entries];
+    }
+
+    private bool Fill(FileStream file, byte[] buffer, int count)
+    {
+        for (var at = 0; at < count;)
+        {
+            var read = file.Read(buffer, at, Math.Min(SingleReadLimit, count - at));
+            if (read == 0) { return false; }
+            at += read;
+        }
+        return true;
     }
 }
