@@ -130,7 +130,8 @@ public sealed class VolunteerMeshFacts
             var store = p.Services.GetRequiredService<IMeshStore>();
             var reference = await store.Write(Key, "part/log/1", data, ct);
             var manifest = await Manifest(p, Key, reference, ct);
-            Assert.Contains(manifest.Shards, shard => shard.NodeId == NodeOf(x));
+            // Volunteers are placed first, so the lying node holds a data shard: the read must decode around it.
+            Assert.True(manifest.Shards.Single(shard => shard.NodeId == NodeOf(x)).Index < manifest.DataShards);
 
             Assert.Equal(data, await store.Read(Key, reference, ct));
 

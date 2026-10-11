@@ -63,7 +63,8 @@ internal class ShardStore
                     {
                         if (registered is not null && !await registered(existing.MachineId)) { unbound = existing; break; }
                     }
-                    if (unbound is null) { throw new InvalidOperationException($"Shard {cid} already has {MaxClaims} claims."); }
+                    // A placement miss for the putter (MeshStore places the shard elsewhere), never a lost claim for a holder.
+                    if (unbound is null) { throw new NodeFullException($"Shard {cid} already has {MaxClaims} claims."); }
                     claims = [.. claims.Where(existing => existing != unbound)];
                 }
                 Save(hex, cid, held.Bytes, [.. claims, claim]);

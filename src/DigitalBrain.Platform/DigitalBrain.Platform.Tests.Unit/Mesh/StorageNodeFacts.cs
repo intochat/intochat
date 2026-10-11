@@ -194,6 +194,24 @@ public sealed class StorageNodeFacts
         Assert.Null(await new ShardStore(options, 1 << 16).Get(cid));
     }
 
+    // R99: at most 16 claims; a 17th putter is a placement miss unless the oldest claimant is no longer registered.
+    [Fact]
+    public async Task AShardTakesAtMostSixteenClaims()
+    {
+        var store = new ShardStore(Options(1 << 20), 1 << 16);
+        var shard = RandomNumberGenerator.GetBytes(64);
+        var cid = StorageProof.ContentId(shard);
+        for (var n = 0; n < ShardStore.MaxClaims; n++) { await store.Put(cid, shard, $"machine-{n}", [$"account-{n}"], _ => Task.FromResult(true)); }
+
+        await Assert.ThrowsAsync<NodeFullException>(() => store.Put(cid, shard, "machine-late", ["late"], _ => Task.FromResult(true)));
+        await store.Put(cid, shard, "machine-late", ["late"], machine => Task.FromResult(machine != "machine-0"));
+
+        await store.Drop(cid, "machine-late", ["late"]);
+        Assert.Equal(shard, await store.Get(cid));
+        await store.Drop(cid, "machine-0", ["account-0"]);
+        Assert.Equal(shard, await store.Get(cid));
+    }
+
     [Fact]
     public void ANodeSeesOnlyCiphertextAndContentIds()
     {
