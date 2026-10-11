@@ -62,6 +62,8 @@
   </Folder>
   <Folder Name="/Modules/DigitalBrain/Flame/">
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Flame/DigitalBrain.Modules.Flame.Contracts/DigitalBrain.Modules.Flame.Contracts.csproj" />
+    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Flame/DigitalBrain.Modules.Flame/DigitalBrain.Modules.Flame.csproj" />
+    <Project Path="src/DigitalBrain.Modules/DigitalBrain/Flame/tests/DigitalBrain.Modules.Flame.Tests/DigitalBrain.Modules.Flame.Tests.csproj" />
   </Folder>
   <Folder Name="/Modules/DigitalBrain/Tools/">
     <Project Path="src/DigitalBrain.Modules/DigitalBrain/Tools/DigitalBrain.Modules.Tools.Contracts/DigitalBrain.Modules.Tools.Contracts.csproj" />

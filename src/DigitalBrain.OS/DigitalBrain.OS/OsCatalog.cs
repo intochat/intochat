@@ -39,6 +39,7 @@ public static partial class OsCatalog
         new DigitalBrain.Tools.ToolsModule(),
         new DigitalBrain.Mcp.McpModule(),
         new DigitalBrain.Circles.CirclesModule(),
+        new DigitalBrain.Flame.FlameModule(),
     ];
 
     // Modules the Workshop has added to this OS. Declared here, implemented in
