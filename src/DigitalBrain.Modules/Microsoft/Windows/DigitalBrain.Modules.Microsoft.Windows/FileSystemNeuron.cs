@@ -1,5 +1,7 @@
+using System.Text;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Connections;
+using DigitalBrain.Microsoft.Windows.Signals;
 
 namespace DigitalBrain.Microsoft.Windows;
 
@@ -14,6 +16,7 @@ internal sealed class FileSystemNeuron(IMachineIdentity identity) : Neuron, IFil
         var full = await Resolve(path);
         Directory.CreateDirectory(Path.GetDirectoryName(full)!);
         await File.WriteAllTextAsync(full, content, cancellationToken);
+        await PublishAsync(new FileWritten(full, Encoding.UTF8.GetByteCount(content)));
     }
 
     public async Task<string[]> List(string path, CancellationToken cancellationToken = default) =>

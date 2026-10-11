@@ -12,7 +12,7 @@ public interface IFileSystem : INeuron
     [ReadOnly, AlwaysInterleave]
     Task<string> Read(string path, CancellationToken cancellationToken = default);
 
-    [Description("Write text to a file on this Windows machine, creating folders as needed.")]
+    [Description("Write text to a file on this Windows machine, creating folders as needed; publishes FileWritten.")]
     [AlwaysInterleave]
     Task Write(string path, string content, CancellationToken cancellationToken = default);
 

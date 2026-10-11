@@ -1,4 +1,5 @@
 using DigitalBrain.Microsoft.Windows;
+using DigitalBrain.Microsoft.Windows.Signals;
 
 namespace DigitalBrain.Modules.Microsoft.Windows.Tests;
 
@@ -18,6 +19,24 @@ public sealed class FilesAndConsoleFacts
 
         Assert.Equal("hi there", await files.Read(Path.Combine(host.Root, "notes", "a.txt"), ct));
         Assert.Contains(await files.List("notes", ct), entry => entry.EndsWith("a.txt", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task AWriteInsideARootPublishesFileWritten()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only");
+        var ct = TestContext.Current.CancellationToken;
+        var host = await WindowsHost.StartAsync(connect: true, allowRoot: true, ct);
+        await using var brain = host.Brain;
+        using var caller = brain.Owner.AsCaller();
+        var files = brain.Get<IFileSystem>(WindowsKeys.Files(host.Key));
+        await using var written = await brain.Observe<FileWritten>(files, ct);
+
+        await files.Write(@"notes\b.txt", "héllo", ct);
+
+        var signal = await written.NextAsync(ct: ct);
+        Assert.Equal(Path.Combine(host.Root, "notes", "b.txt"), signal.Path, ignoreCase: true);
+        Assert.Equal(new FileInfo(signal.Path).Length, signal.Length);
     }
 
     [Theory]

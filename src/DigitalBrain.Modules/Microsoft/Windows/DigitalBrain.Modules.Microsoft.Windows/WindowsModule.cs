@@ -4,6 +4,7 @@ using System.Runtime.Versioning;
 using DigitalBrain.Framework.Modules;
 using DigitalBrain.Framework.Parts;
 using DigitalBrain.Framework.Platform.Integrations;
+using DigitalBrain.Microsoft.Windows.Signals;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans.Hosting;
@@ -16,6 +17,7 @@ public sealed class WindowsModule() : Module<WindowsOptions>(new ModuleId("windo
     public static ConnectorDefinition Connector { get; } = new("windows", "Windows", ["device"], [])
     {
         Neurons = [typeof(IWindows), typeof(IFileSystem), typeof(IConsole)],
+        Signals = [typeof(FileWritten)],
     };
 
     public override Assembly? Contracts => typeof(IWindows).Assembly;
