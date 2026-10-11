@@ -52,8 +52,8 @@ public sealed class ShellPersistenceFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().StartAsync(ct);
-        var state = brain.Get<IShellState>(ShellPersistenceEndpoints.Scope("account", "alice"));
-        var other = brain.Get<IShellState>(ShellPersistenceEndpoints.Scope("account", "bob"));
+        var state = brain.Get<IShellState>(ShellPersistenceEndpoints.Scope("brain", "account", "alice"));
+        var other = brain.Get<IShellState>(ShellPersistenceEndpoints.Scope("brain", "account", "bob"));
         Assert.Null((await state.Read()).Json);
         var operation = Guid.NewGuid().ToString();
         var first = await state.Save(0, operation, EmptySnapshot);

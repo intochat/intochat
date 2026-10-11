@@ -6,12 +6,12 @@ namespace DigitalBrain.Flutter.Workspace;
 [GrainType("intochat.shell-state")]
 internal sealed class ShellStateNeuron([PersistentState("head", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<ShellHeadState> state) : Neuron, IShellState
 {
-    // The shell is the person's, not a brain's: its key is the digest of account and principal,
-    // so the only stamped caller admitted is the one whose digest this is.
+    // The shell is the person's: its key is the digest of account and principal inside the brain
+    // their session is in, so the only stamped caller admitted is the one whose key this is.
     private void RequireOwner()
     {
         if (CallerContextStamper.TryGet(out var caller) && caller.Kind != CallerKind.Platform
-            && ShellPersistenceEndpoints.Scope(caller.AccountId, caller.PrincipalId) != this.GetPrimaryKeyString())
+            && ShellPersistenceEndpoints.Scope(caller.BrainId, caller.AccountId, caller.PrincipalId) != this.GetPrimaryKeyString())
         { throw new UnauthorizedAccessException("This workspace belongs to another person."); }
     }
 

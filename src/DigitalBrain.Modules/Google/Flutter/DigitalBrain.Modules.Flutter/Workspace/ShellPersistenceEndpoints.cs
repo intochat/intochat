@@ -9,13 +9,15 @@ namespace DigitalBrain.Flutter.Workspace;
 
 internal static class ShellPersistenceEndpoints
 {
-    internal static string Scope(string account, string principal) => "shell-" + ShellSnapshotParts.Digest(account + "\0" + principal);
+    // A person's shell lives in the brain their session is in: every neuron key carries its brain, and a machine
+    // holds only keys inside a brain.
+    internal static string Scope(string brain, string account, string principal) => brain + "/shell/" + ShellSnapshotParts.Digest(account + "\0" + principal);
     public static void MapShellPersistence(this IEndpointRouteBuilder routes)
     {
         static IShellState State(IGrainFactory grains)
         {
             var caller = CallerContextStamper.Require();
-            return grains.GetGrain<IShellState>(Scope(caller.AccountId, caller.PrincipalId));
+            return grains.GetGrain<IShellState>(Scope(BrainScope.CurrentId(), caller.AccountId, caller.PrincipalId));
         }
         static IResult View(ShellRead value) => Results.Ok(new { value.Revision, Snapshot = value.Json is null ? null : JsonNode.Parse(value.Json) });
         routes.MapGet("/shell/state", async (IGrainFactory grains) => View(await State(grains).Read()));
