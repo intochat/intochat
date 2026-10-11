@@ -1,4 +1,3 @@
-using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.Playwright;
 using DigitalBrain.Tools;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,19 +6,17 @@ namespace DigitalBrain.Modules.Microsoft.Playwright.Tests;
 
 public sealed class PageToolsFacts
 {
-    private const string Brain = "page-tools-facts";
-
     [Fact]
     public async Task ConfiguringOffersTheThreePageTools()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start(new Provider());
-        Stamp();
+        using var caller = brain.Owner.AsCaller();
 
-        var pages = brain.Get<IPageTools>(Brain + "/pages/filmcraft");
+        var pages = brain.Get<IPageTools>(brain.Owner.Key("pages/filmcraft"));
         Assert.Empty((await pages.Tools(ct)).Tools);
 
-        await pages.Configure(new("FilmCraft", Brain + "/driver", "filmcraft"), ct);
+        await pages.Configure(new("FilmCraft", brain.Owner.Key("driver"), "filmcraft"), ct);
 
         var offered = await pages.Tools(ct);
         Assert.Equal("FilmCraft", offered.Title);
@@ -32,10 +29,10 @@ public sealed class PageToolsFacts
         var ct = TestContext.Current.CancellationToken;
         var provider = new Provider { Result = "{\"ok\":true}" };
         await using var brain = await Start(provider);
-        Stamp();
-        await brain.Get<IPlaywright>(Brain + "/driver").Attach(new(1234, new string('a', 32)), ct);
-        var tools = brain.Get<IPageTools>(Brain + "/pages/filmcraft");
-        await tools.Configure(new("FilmCraft", Brain + "/driver", "filmcraft"), ct);
+        using var caller = brain.Owner.AsCaller();
+        await brain.Get<IPlaywright>(brain.Owner.Key("driver")).Attach(new(1234, new string('a', 32)), ct);
+        var tools = brain.Get<IPageTools>(brain.Owner.Key("pages/filmcraft"));
+        await tools.Configure(new("FilmCraft", brain.Owner.Key("driver"), "filmcraft"), ct);
 
         var result = await tools.Run("execute", """{"command":"timeline.place\"); alert(1); (\"","params":{"track":"V1"}}""", ct);
 
@@ -53,10 +50,10 @@ public sealed class PageToolsFacts
         var ct = TestContext.Current.CancellationToken;
         var provider = new Provider { Result = """[{"id":"timeline.place"},{"id":"color.lumetri"},{"id":"timeline.razor"}]""" };
         await using var brain = await Start(provider);
-        Stamp();
-        await brain.Get<IPlaywright>(Brain + "/driver").Attach(new(1234, new string('a', 32)), ct);
-        var tools = brain.Get<IPageTools>(Brain + "/pages/filmcraft");
-        await tools.Configure(new("FilmCraft", Brain + "/driver", "filmcraft"), ct);
+        using var caller = brain.Owner.AsCaller();
+        await brain.Get<IPlaywright>(brain.Owner.Key("driver")).Attach(new(1234, new string('a', 32)), ct);
+        var tools = brain.Get<IPageTools>(brain.Owner.Key("pages/filmcraft"));
+        await tools.Configure(new("FilmCraft", brain.Owner.Key("driver"), "filmcraft"), ct);
 
         var result = await tools.Run("commands", """{"filter":"timeline"}""", ct);
 
@@ -68,10 +65,10 @@ public sealed class PageToolsFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start(new Provider { Failure = "Error: page not rendering" });
-        Stamp();
-        await brain.Get<IPlaywright>(Brain + "/driver").Attach(new(1234, new string('a', 32)), ct);
-        var tools = brain.Get<IPageTools>(Brain + "/pages/filmcraft");
-        await tools.Configure(new("FilmCraft", Brain + "/driver", "filmcraft"), ct);
+        using var caller = brain.Owner.AsCaller();
+        await brain.Get<IPlaywright>(brain.Owner.Key("driver")).Attach(new(1234, new string('a', 32)), ct);
+        var tools = brain.Get<IPageTools>(brain.Owner.Key("pages/filmcraft"));
+        await tools.Configure(new("FilmCraft", brain.Owner.Key("driver"), "filmcraft"), ct);
 
         var result = await tools.Run("request", """{"method":"ui.inspect"}""", ct);
 
@@ -84,18 +81,16 @@ public sealed class PageToolsFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start(new Provider());
-        Stamp();
+        using var caller = brain.Owner.AsCaller();
 
-        await Assert.ThrowsAsync<ArgumentException>(() => brain.Get<IPageTools>(Brain + "/pages/x")
-            .Configure(new("X", Brain + "/driver", "filmcraft;alert(1)"), ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => brain.Get<IPageTools>(brain.Owner.Key("pages/x"))
+            .Configure(new("X", brain.Owner.Key("driver"), "filmcraft;alert(1)"), ct));
     }
 
-    private static Task<ModuleBrain> Start(Provider provider) => ModuleTest.Create().WithModule<PlaywrightModule>().WithModule<ToolsModule>()
-        .ConfigureSilo(silo => silo.Services.AddSingleton<IBrowserSessionProvider>(provider))
+    // The browser session host stands in for a CDP-attached page whose timing and failures the facts script.
+    private static Task<ITestBrain> Start(Provider provider) => TestBrain.Create().WithModule<PlaywrightModule>().WithModule<ToolsModule>()
+        .ConfigureServices(services => services.AddSingleton<IBrowserSessionProvider>(provider))
         .StartAsync(TestContext.Current.CancellationToken);
-
-    private static void Stamp() => CallerContextStamper.Stamp(new()
-    { PrincipalId = "owner", AccountId = "owner", BrainId = Brain, Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
 
     private sealed class Provider : IBrowserSessionProvider
     {

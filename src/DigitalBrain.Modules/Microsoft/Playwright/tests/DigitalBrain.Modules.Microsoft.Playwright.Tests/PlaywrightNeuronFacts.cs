@@ -1,8 +1,6 @@
 using DigitalBrain.Microsoft.Playwright;
 using DigitalBrain.Testing;
-using DigitalBrain.Testing.Module;
 using Microsoft.Extensions.DependencyInjection;
-using Orleans;
 
 namespace DigitalBrain.Modules.Microsoft.Playwright.Tests;
 
@@ -127,8 +125,9 @@ public sealed class PlaywrightNeuronFacts
         await Assert.ThrowsAsync<BrowserNotConnectedException>(() => browser.Snapshot(ct));
     }
 
-    private static Task<ModuleBrain> Start(Provider provider) => ModuleTest.Create().WithModule<PlaywrightModule>()
-        .ConfigureSilo(silo => silo.Services.AddSingleton<IBrowserSessionProvider>(provider))
+    // The browser session host stands in for a CDP-attached page whose attach and navigation timing the facts script.
+    private static Task<ITestBrain> Start(Provider provider) => TestBrain.Create().WithModule<PlaywrightModule>()
+        .ConfigureServices(services => services.AddSingleton<IBrowserSessionProvider>(provider))
         .StartAsync(TestContext.Current.CancellationToken);
 
     private sealed class Provider : IBrowserSessionProvider
