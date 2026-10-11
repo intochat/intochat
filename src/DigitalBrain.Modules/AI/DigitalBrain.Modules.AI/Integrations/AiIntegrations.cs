@@ -9,13 +9,16 @@ internal static class AiIntegrations
     internal const string EndpointField = "Endpoint";
     internal const string TavilyId = "tavily";
 
+    internal static IntegrationSchema OpenAI { get; } = Provider("openai", "OpenAI");
+    internal static IntegrationSchema OpenRouter { get; } = Provider("openrouter", "OpenRouter");
+
     internal static IntegrationSchema[] Definitions { get; } =
     [
-        Provider("openai", "OpenAI"),
+        OpenAI,
         Provider("anthropic", "Anthropic"),
         Provider("google", "Google"),
         Provider("xai", "xAI"),
-        Provider("openrouter", "OpenRouter"),
+        OpenRouter,
         IntegrationSchema.For(TavilyId, "Tavily").RequiresSecret(ApiKeyField),
     ];
 

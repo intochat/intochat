@@ -24,6 +24,9 @@ public sealed class AIModule() : Module<AIOptions>(new ModuleId("ai")), IHttpMod
     public override System.Reflection.Assembly? Contracts => typeof(DigitalBrain.AI.Agents.Context.IAgentContext).Assembly;
 
     public static IntegrationSchema[] Integrations => AiIntegrations.All;
+    public static IntegrationSchema OpenAIIntegration => AiIntegrations.OpenAI;
+    public static IntegrationSchema OpenRouterIntegration => AiIntegrations.OpenRouter;
+    public static IntegrationSchema TypeSafeIntegration => AiIntegrations.TypeSafe;
     public static ConnectorDefinition[] Connectors => ModelConnectors.All;
 
     public override void Configure(ISiloBuilder builder)
