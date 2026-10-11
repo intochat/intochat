@@ -9,31 +9,36 @@ using Microsoft.Extensions.Configuration;
 namespace DigitalBrain.Aspire.Hosting;
 
 // The trust cluster beside the OS machines (Task 18): its own host on the orleans integration's tables and blobs,
-// reached by each machine through a private gateway client.
+// reached by each machine over its QUIC link to the trust host's link endpoint, with the relay beside it (T20-7).
 public static class TrustClusterHosting
 {
-    public const string GatewayPortKey = "DigitalBrain:Platform:Trust:GatewayPort";
+    public const string LinkPortKey = "DigitalBrain:Platform:Trust:LinkPort";
+    public const string RelayPortKey = "DigitalBrain:Platform:Trust:RelayPort";
     public const string SiloPortKey = "DigitalBrain:Platform:Trust:SiloPort";
     public const string SeedNodesKey = "DigitalBrain:Platform:Mesh:SeedNodes";
     public const int DefaultSeedNodes = 24;
-    public const string GatewayEndpoint = "gateway";
+    public const string LinkEndpoint = "link";
+    public const string RelayEndpoint = "relay";
     public const string SiloEndpoint = "silo";
     public const string AdvertisedAddressKey = "DigitalBrain:Platform:Trust:AdvertisedAddress";
-    public const string GatewayKey = "DigitalBrain:Platform:Trust:Gateway";
+    public const string EndpointKey = "DigitalBrain:Platform:Trust:Endpoint";
     public const string Loopback = "127.0.0.1";
 
-    // R66: on one PC the trust silo advertises and listens on loopback, so a machine's localhost gateway reaches it.
-    // R71: its silo and gateway ports are Aspire endpoints, allocated per run unless the AppHost configuration fixes
-    // them (DigitalBrain:Platform:Trust:GatewayPort / SiloPort), so two AppHosts can run side by side.
+    // R66: on one PC the trust host advertises and listens on loopback, so a machine's localhost endpoint reaches it.
+    // R71: its silo port and its UDP link and relay ports are Aspire endpoints, allocated per run unless the AppHost
+    // configuration fixes them (DigitalBrain:Platform:Trust:LinkPort / RelayPort / SiloPort), so two AppHosts can run
+    // side by side. It opens no Orleans gateway (T20-7).
     public static IResourceBuilder<T> AsTrustCluster<T>(this IResourceBuilder<T> trust, DigitalBrainBuilder brain, IConfiguration configuration)
         where T : IResourceWithEnvironment, IResourceWithWaitSupport, IResourceWithEndpoints
     {
         ArgumentNullException.ThrowIfNull(trust);
         ArgumentNullException.ThrowIfNull(brain);
         ArgumentNullException.ThrowIfNull(configuration);
-        trust.WithEndpoint(name: GatewayEndpoint, port: configuration.GetValue<int?>(GatewayPortKey), scheme: "tcp", isProxied: false)
+        trust.WithEndpoint(name: LinkEndpoint, port: configuration.GetValue<int?>(LinkPortKey), scheme: "udp", isProxied: false, protocol: System.Net.Sockets.ProtocolType.Udp)
+            .WithEndpoint(name: RelayEndpoint, port: configuration.GetValue<int?>(RelayPortKey), scheme: "udp", isProxied: false, protocol: System.Net.Sockets.ProtocolType.Udp)
             .WithEndpoint(name: SiloEndpoint, port: configuration.GetValue<int?>(SiloPortKey), scheme: "tcp", isProxied: false);
-        trust.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(GatewayPortKey), trust.GetEndpoint(GatewayEndpoint).Property(EndpointProperty.Port))
+        trust.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(LinkPortKey), trust.GetEndpoint(LinkEndpoint).Property(EndpointProperty.Port))
+            .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(RelayPortKey), trust.GetEndpoint(RelayEndpoint).Property(EndpointProperty.Port))
             .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(SiloPortKey), trust.GetEndpoint(SiloEndpoint).Property(EndpointProperty.Port))
             .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(AdvertisedAddressKey), Loopback)
             // The seed nodes are registered by the trust host's SeedNodeRegistration (Q25); the machines only place on them.
@@ -48,9 +53,9 @@ public static class TrustClusterHosting
         return trust;
     }
 
-    // The address machines dial: localhost on the trust silo's allocated gateway port.
-    public static ReferenceExpression GatewayOf<TTrust>(IResourceBuilder<TTrust> trust) where TTrust : IResourceWithEndpoints
-        => ReferenceExpression.Create($"localhost:{trust.GetEndpoint(GatewayEndpoint).Property(EndpointProperty.Port)}");
+    // The address machines dial: localhost on the trust host's allocated link port.
+    public static ReferenceExpression EndpointOf<TTrust>(IResourceBuilder<TTrust> trust) where TTrust : IResourceWithEndpoints
+        => ReferenceExpression.Create($"localhost:{trust.GetEndpoint(LinkEndpoint).Property(EndpointProperty.Port)}");
 
     public const string PairingSecretKey = "DigitalBrain:Platform:Parts:PairingSecret";
     public const string RoleKey = "DigitalBrain:Platform:Parts:Role";
@@ -59,7 +64,7 @@ public static class TrustClusterHosting
     public const string ReleasePartCommand = "release-part";
     private static readonly string ModuleGrainStateContainerKey = DigitalBrainConfiguration.ModuleOptionsSection("orleans") + ":GrainStateContainer";
 
-    // An own machine of the trust cluster: the private gateway, the deployment's pairing secret (R52), its own
+    // An own machine of the trust cluster: the trust link endpoint, the deployment's pairing secret (R52), its own
     // directory and its own grain-state container (R61: machines keep local platform storage, never shared), and
     // the release-part command (R40, R64).
     public static IResourceBuilder<T> AsTrustMachine<T, TTrust>(this IResourceBuilder<T> machine, IResourceBuilder<TTrust> trust,
@@ -71,6 +76,7 @@ public static class TrustClusterHosting
         var container = ContainerOf(machine.Resource.Name);
         return machine
             .AsTrustClient(trust)
+            .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(EndpointKey), EndpointOf(trust))
             .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(PairingSecretKey), pairingSecret)
             .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(RoleKey), "Own")
             .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(MachineDirectoryKey), machineDirectory)
@@ -104,17 +110,15 @@ public static class TrustClusterHosting
             .WithEnvironment("Orleans__Endpoints__GatewayPort", machine.GetEndpoint(OrleansGatewayEndpoint).Property(EndpointProperty.Port));
     }
 
-    // An Orleans-client host of the deployment (the MCP): it reads trust state through the same private gateway the
-    // machines dial (R70), so it starts once the trust silo is up.
+    // A host of the deployment that starts once the trust host is up. An Orleans-client host (the MCP) is given no
+    // trust address: it has no machine identity to hold a link with (R86).
     public static IResourceBuilder<T> AsTrustClient<T, TTrust>(this IResourceBuilder<T> client, IResourceBuilder<TTrust> trust)
         where T : IResourceWithEnvironment, IResourceWithWaitSupport
         where TTrust : IResourceWithEndpoints
     {
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(trust);
-        return client
-            .WithEnvironment(DigitalBrainConfiguration.EnvironmentName(GatewayKey), GatewayOf(trust))
-            .WaitFor(client.ApplicationBuilder.CreateResourceBuilder<IResource>(trust.Resource));
+        return client.WaitFor(client.ApplicationBuilder.CreateResourceBuilder<IResource>(trust.Resource));
     }
 
     public static string ContainerOf(string machine) => "grainstate-" + machine.ToLowerInvariant();

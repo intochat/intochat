@@ -9,7 +9,7 @@ namespace DigitalBrain.Aspire.Hosting.Tests.Unit;
 
 public sealed class TrustClusterHostingFacts
 {
-    // R66: the dev trust silo advertises loopback, and the machines' gateway is localhost on the same port.
+    // R66: the dev trust host advertises loopback; machines dial its link endpoint on localhost (T20-7).
     [Fact]
     public async Task TheTrustSiloAdvertisesLoopbackAndMachinesReachItOnLocalhost()
     {
@@ -21,11 +21,17 @@ public sealed class TrustClusterHostingFacts
 
         Assert.Equal(TrustClusterHosting.Loopback, values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.AdvertisedAddressKey)]);
         Assert.Contains(DigitalBrainConfiguration.IntegrationEnvironmentName("orleans", "GrainState"), values.Keys);
-        // R71: the ports are the trust resource's own endpoints, not literals, and machines dial that gateway.
-        Assert.IsType<EndpointReferenceExpression>(values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.GatewayPortKey)]);
+        // R71: the ports are the trust resource's own endpoints, not literals; the link and relay are allocated UDP
+        // endpoints and there is no Orleans gateway (T20-7).
+        Assert.IsType<EndpointReferenceExpression>(values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.LinkPortKey)]);
+        Assert.IsType<EndpointReferenceExpression>(values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.RelayPortKey)]);
         Assert.IsType<EndpointReferenceExpression>(values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.SiloPortKey)]);
-        Assert.Contains(trust.Resource.Annotations.OfType<EndpointAnnotation>(), endpoint => endpoint.Name == TrustClusterHosting.GatewayEndpoint && endpoint.Port is null);
-        Assert.Equal("localhost:{trust.bindings.gateway.port}", TrustClusterHosting.GatewayOf(trust).ValueExpression);
+        var endpoints = trust.Resource.Annotations.OfType<EndpointAnnotation>().ToArray();
+        Assert.All([TrustClusterHosting.LinkEndpoint, TrustClusterHosting.RelayEndpoint], name => Assert.Contains(endpoints, endpoint =>
+            endpoint.Name == name && endpoint.Port is null && endpoint.Protocol == System.Net.Sockets.ProtocolType.Udp));
+        Assert.DoesNotContain(endpoints, endpoint => endpoint.Name == "gateway");
+        Assert.DoesNotContain(values.Keys, key => key.EndsWith("GatewayPort", StringComparison.Ordinal));
+        Assert.Equal("localhost:{trust.bindings.link.port}", TrustClusterHosting.EndpointOf(trust).ValueExpression);
     }
 
     [Fact]
@@ -69,7 +75,7 @@ public sealed class TrustClusterHostingFacts
         Assert.All([onA, onB], values =>
         {
             Assert.Contains(DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.PairingSecretKey), values.Keys);
-            Assert.Equal("localhost:{trust.bindings.gateway.port}", ((ReferenceExpression)values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.GatewayKey)]).ValueExpression);
+            Assert.Equal("localhost:{trust.bindings.link.port}", ((ReferenceExpression)values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.EndpointKey)]).ValueExpression);
         });
         Assert.All(new IResource[] { a.Resource, b.Resource }, machine =>
             Assert.Contains(machine.Annotations.OfType<ResourceCommandAnnotation>(), command => command.Name == TrustClusterHosting.ReleasePartCommand));
@@ -129,22 +135,6 @@ public sealed class TrustClusterHostingFacts
         Assert.DoesNotContain(seeds, (await Environment(builder, machine.Resource)).Keys);
     }
 
-    // R70: the MCP is an Orleans client of the deployment; it reaches the trust cluster through the allocated gateway.
-    [Fact]
-    public async Task TheMcpCarriesTheTrustGateway()
-    {
-        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        var brain = builder.AddDigitalBrain("memory", options: new()).WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite());
-        var trust = builder.AddExecutable("trust", "unused", ".").AsTrustCluster(brain, builder.Configuration);
-        var mcp = builder.AddExecutable("digitalbrain-mcp-a", "unused", ".").WithReference(brain.AsClient()).AsTrustClient(trust);
-
-        var values = await Environment(builder, mcp.Resource);
-
-        Assert.Equal("localhost:{trust.bindings.gateway.port}",
-            ((ReferenceExpression)values[DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.GatewayKey)]).ValueExpression);
-        Assert.Contains(mcp.Resource.Annotations.OfType<WaitAnnotation>(), wait => wait.Resource == trust.Resource);
-    }
-
     // R64: Secured sends the host's bootstrap Basic credential; Open sends none.
     [Fact]
     public void TheReleaseCommandCarriesTheBootstrapCredentialOnlyWhenSecured()
@@ -171,13 +161,29 @@ public sealed class TrustClusterHostingFacts
     public void ConfiguredTrustPortsAreUsedAsGiven()
     {
         var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
-        builder.Configuration[TrustClusterHosting.GatewayPortKey] = "30200";
+        builder.Configuration[TrustClusterHosting.LinkPortKey] = "30200";
+        builder.Configuration[TrustClusterHosting.RelayPortKey] = "30201";
         builder.Configuration[TrustClusterHosting.SiloPortKey] = "11300";
         var brain = builder.AddDigitalBrain("memory", options: new());
         var trust = builder.AddExecutable("trust", "unused", ".").AsTrustCluster(brain, builder.Configuration);
 
         var endpoints = trust.Resource.Annotations.OfType<EndpointAnnotation>().ToDictionary(endpoint => endpoint.Name, endpoint => endpoint.Port);
-        Assert.Equal((30200, 11300), (endpoints[TrustClusterHosting.GatewayEndpoint], endpoints[TrustClusterHosting.SiloEndpoint]));
+        Assert.Equal((30200, 30201, 11300), (endpoints[TrustClusterHosting.LinkEndpoint], endpoints[TrustClusterHosting.RelayEndpoint], endpoints[TrustClusterHosting.SiloEndpoint]));
+    }
+
+    // R86: an Orleans-client host of the deployment (the MCP) is given no trust address; it waits for the trust host.
+    [Fact]
+    public async Task TheMcpGetsNoTrustAddress()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        var brain = builder.AddDigitalBrain("memory", options: new());
+        var trust = builder.AddExecutable("trust", "unused", ".").AsTrustCluster(brain, builder.Configuration);
+        var mcp = builder.AddExecutable("mcp", "unused", ".").AsTrustClient(trust);
+
+        var values = await Environment(builder, mcp.Resource);
+
+        Assert.DoesNotContain(values.Keys, key => key.StartsWith("DigitalBrain__Platform__Trust__", StringComparison.Ordinal));
+        Assert.Contains(mcp.Resource.Annotations.OfType<WaitAnnotation>(), wait => wait.Resource == trust.Resource);
     }
 
     internal static async Task<Dictionary<string, object>> Environment(IDistributedApplicationBuilder builder, IResource resource)
