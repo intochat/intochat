@@ -42,7 +42,9 @@ a payment order in PEN; the result holds the payment id and the checkout URL.
 ## Scenario: Recording a payment writes a Loan Transaction
 
 Asking "record-payment" with a Monnet payment id reads the payment and writes a
-Loan_Transaction__c to Salesforce; the result holds the Salesforce record id.
+Loan_Transaction__c to Salesforce; the result holds the Salesforce record id. Only a payment Monnet
+reports as paid is written, and a payment already marked in {app}/recorded/{paymentId} (by this
+operation or by the webhook reaction) is refused instead of written twice.
 
 ## Scenario: A received payment reaches Salesforce once
 
@@ -72,7 +74,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "sv-loans";
-    public const string Version = "0.1.1";
+    public const string Version = "0.1.2";
 
     public static readonly AppManifest Manifest = new(
         Title: "SV Loans",

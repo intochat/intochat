@@ -9,6 +9,10 @@ static class SalesforceRecords
 {
     public const string LoanTransaction = "Loan_Transaction__c";
 
+    // The Monnet statuses that mean the money arrived (the same set the Monnet webhook publishes PaymentReceived for).
+    public static bool IsPaid(string? status) =>
+        status?.Trim().ToLowerInvariant() is "paid" or "succeeded" or "completed" or "approved";
+
     public static string LoanTransactionArguments(string paymentId, string reference, decimal amount, string currency, DateTimeOffset at) =>
         new JsonObject
         {
