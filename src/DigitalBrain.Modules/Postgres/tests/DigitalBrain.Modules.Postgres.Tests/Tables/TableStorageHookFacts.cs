@@ -1,6 +1,5 @@
 using DigitalBrain.Apps;
 using DigitalBrain.Framework;
-using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Postgres;
 using DigitalBrain.Postgres.Tables;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,57 +9,45 @@ namespace DigitalBrain.Modules.Postgres.Tests.Tables;
 public sealed class TableStorageHookFacts
 {
     private static readonly TableDefinition Definition = new([new("id", "text"), new("value", "text")], ["id"]);
-    private static string Brain => BrainScope.Create("alice", "brain").Id;
-    private static string App => IApp.Key(Brain, "a");
 
     [Fact]
-    public async Task FirstBindingTablesIsRefusedOnceTheAppOwnsSharedTables()
+    public async Task RebindingTablesIsRefusedOnceTheAppOwnsSharedTables()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await Start();
-        StampApp();
-        await brain.AuthorizeCallerAsync();
-        await brain.Get<ITable>("owned").Define(Definition);
+        var owner = brain.Owner;
+        var app = IApp.Key(owner.BrainId, "a");
+        using (owner.AsApp(app)) { await brain.Get<ITable>("owned").Define(Definition); }
 
-        StampUser();
+        using var caller = owner.AsCaller();
         var hook = Hook(brain);
-        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() => hook.RequireRebindable(Brain, App, "tables", ct));
+        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() => hook.RequireRebindable(owner.BrainId, app, "tables", ct));
         Assert.Equal("The tables slot cannot be rebound while this app owns tables.", refusal.Message);
-        await hook.RequireRebindable(Brain, App, "db", ct);
+        await hook.RequireRebindable(owner.BrainId, app, "db", ct);
     }
 
     [Fact]
     public async Task BindingTablesIsAllowedBeforeAnyTableExists()
     {
         await using var brain = await Start();
-        StampUser();
-        await Hook(brain).RequireRebindable(Brain, App, "tables", TestContext.Current.CancellationToken);
+        using var caller = brain.Owner.AsCaller();
+        await Hook(brain).RequireRebindable(brain.Owner.BrainId, IApp.Key(brain.Owner.BrainId, "a"), "tables", TestContext.Current.CancellationToken);
     }
 
-    private static IAppStorageHook Hook(ModuleBrain brain)
-        => brain.SiloServices.GetServices<IAppStorageHook>().OfType<TableStorageHook>().Single();
+    // The module's hook singleton the facts assert on.
+    private static IAppStorageHook Hook(ITestBrain brain)
+        => brain.Services.GetServices<IAppStorageHook>().OfType<TableStorageHook>().Single();
 
-    private static void StampUser()
-        => CallerContextStamper.Stamp(new() { PrincipalId = "alice", AccountId = "alice", BrainId = "brain", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
-
-    private static void StampApp()
-        => CallerContextStamper.Stamp(new()
-        {
-            PrincipalId = "alice",
-            AccountId = "alice",
-            BrainId = "brain",
-            Kind = CallerKind.App,
-            StampedBy = TrustedEdge.AppProxy,
-            AppId = App
-        });
-
-    private static Task<ModuleBrain> Start()
-        => ModuleTest.Create().WithModule<PostgresModule>().ConfigureSilo(silo =>
-        {
-            silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=platform;Username=reader";
-            silo.Services.AddSingleton<ITableStore>(new PostgresWriteTableFacts.MemoryTables());
-            silo.Services.AddSingleton<ITablesSlot>(new NoSlot());
-        }).StartAsync(TestContext.Current.CancellationToken);
+    private static Task<ITestBrain> Start()
+        => TestBrain.Create().WithModule<PostgresModule>()
+            .WithIntegration(PostgresModule.Integration, "ConnectionString", "Host=localhost;Database=platform;Username=reader")
+            // Rule 4: a wire-level fake would need a loopback Postgres; the store stands in for the database,
+            // and the slot for an app with no tables binding.
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton<ITableStore>(new PostgresWriteTableFacts.MemoryTables());
+                services.AddSingleton<ITablesSlot>(new NoSlot());
+            }).StartAsync(TestContext.Current.CancellationToken);
 
     private sealed class NoSlot : ITablesSlot
     {

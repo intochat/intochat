@@ -34,10 +34,7 @@ public sealed class Person : IDisposable
 
     // A fresh trace paid by this person's account, as the edge begins one per request; both are restored on dispose.
     public IDisposable AsCaller()
-    {
-        var previous = Orleans.Runtime.RequestContext.Get(CallerContextStamper.RequestContextKey);
-        var trace = TraceContext.Enter(TraceContext.Begin(AccountId, BrainId, new NeuronId($"{BrainId}/edge")));
-        CallerContextStamper.Stamp(new CallerContext
+        => Enter(new CallerContext
         {
             PrincipalId = PrincipalId,
             AccountId = AccountId,
@@ -45,6 +42,24 @@ public sealed class Person : IDisposable
             Kind = CallerKind.User,
             StampedBy = TrustedEdge.AuthenticatedHttp,
         });
+
+    // One of this person's installed apps, as the app proxy re-stamps a script's calls: the app key is its AppId.
+    public IDisposable AsApp(string appId)
+        => Enter(new CallerContext
+        {
+            PrincipalId = PrincipalId,
+            AccountId = AccountId,
+            BrainId = BrainId,
+            Kind = CallerKind.App,
+            AppId = appId,
+            StampedBy = TrustedEdge.AppProxy,
+        });
+
+    private CallerScope Enter(CallerContext caller)
+    {
+        var previous = Orleans.Runtime.RequestContext.Get(CallerContextStamper.RequestContextKey);
+        var trace = TraceContext.Enter(TraceContext.Begin(AccountId, BrainId, new NeuronId($"{BrainId}/edge")));
+        CallerContextStamper.Stamp(caller);
         return new CallerScope(previous, trace);
     }
 

@@ -1,5 +1,3 @@
-using DigitalBrain.Framework;
-using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Postgres;
 using DigitalBrain.Postgres.Tables;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,39 +7,23 @@ namespace DigitalBrain.Modules.Postgres.Tests.Tables;
 public sealed class TableLifecycleGuardFacts
 {
     [Fact]
-    public async Task AnIndexOfAnotherBrainRefusesEveryCallerAndAnAppCallerCannotReadItsOwnIndex()
+    public async Task AnIndexOfAnotherBrainRefusesEveryCallerAndAnAppCannotReadItsOwnIndex()
     {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await ModuleTest.Create().WithModule<PostgresModule>().ConfigureSilo(silo =>
+        await using var brain = await TestBrain.Create().WithModule<PostgresModule>()
+            .WithIntegration(PostgresModule.Integration, "ConnectionString", "Host=localhost;Database=platform;Username=reader")
+            // Rule 4: a wire-level fake would need a loopback Postgres; the store stands in for the database.
+            .ConfigureServices(services => services.AddSingleton<ITableStore>(new PostgresWriteTableFacts.MemoryTables()))
+            .StartAsync(TestContext.Current.CancellationToken);
+        // The index is a plain grain, not a neuron: only the grain factory addresses it.
+        var grains = brain.Services.GetRequiredService<IGrainFactory>();
+        using (brain.Owner.AsCaller())
         {
-            silo.Configuration[IntegrationSchema.Key("postgres", "ConnectionString")] = "Host=localhost;Database=platform;Username=reader";
-            silo.Services.AddSingleton<ITableStore>(new PostgresWriteTableFacts.MemoryTables());
-        }).StartAsync(ct);
-        CallerContextStamper.Stamp(new()
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(grains.GetGrain<ITableIndex>(new TableOwner("other-brain", "install").Key).ReadTables);
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(grains.GetGrain<ITableIndex>("not a key").ReadTables);
+        }
+        using (brain.Owner.AsApp("install"))
         {
-            PrincipalId = "alice",
-            AccountId = "alice",
-            BrainId = "brain",
-            Kind = CallerKind.Platform,
-            StampedBy = TrustedEdge.Platform,
-        });
-        await brain.AuthorizeCallerAsync();
-        var foreign = brain.Grains.GetGrain<ITableIndex>(new TableOwner("other-brain", "install").Key);
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(foreign.ReadTables);
-        var malformed = brain.Grains.GetGrain<ITableIndex>("not a key");
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(malformed.ReadTables);
-
-        CallerContextStamper.Stamp(new()
-        {
-            PrincipalId = "alice",
-            AccountId = "alice",
-            BrainId = "brain",
-            Kind = CallerKind.App,
-            AppId = "install",
-            StampedBy = TrustedEdge.AppProxy,
-        });
-        await brain.AuthorizeCallerAsync();
-        var own = brain.Grains.GetGrain<ITableIndex>(new TableOwner(BrainScope.CurrentId(), "install").Key);
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(own.ReadTables);
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(grains.GetGrain<ITableIndex>(new TableOwner(brain.Owner.BrainId, "install").Key).ReadTables);
+        }
     }
 }
