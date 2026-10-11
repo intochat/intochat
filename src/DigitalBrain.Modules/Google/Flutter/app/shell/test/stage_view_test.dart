@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:digitalbrain_flutter_shell/stage/stage_controller.dart';
 import 'package:digitalbrain_flutter_shell/stage/stage_view.dart';
@@ -146,6 +148,84 @@ void main() {
     await controller.refresh();
     expect(controller.stage.stack.map((e) => e.sceneKey), ['home']);
   });
+
+  test(
+    'a dropped StageChanged stream reads the stage again and follows it anew',
+    () async {
+      final client = _CountingClient();
+      final streams = <StreamController<LiveEnvelope>>[];
+      final controller = StageController(
+        client: client,
+        live: (_) {
+          final stream = StreamController<LiveEnvelope>();
+          streams.add(stream);
+          return stream.stream;
+        },
+      )..retryDelay = Duration.zero;
+      await controller.refresh();
+      expect(client.stages, 1);
+      expect(streams, hasLength(1));
+      streams.first.addError(StateError('connection dropped'));
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(client.stages, 2);
+      expect(streams, hasLength(2));
+      controller.dispose();
+    },
+  );
+
+  test('a failed first stage read is retried', () async {
+    final client = _CountingClient()..failFirst = true;
+    final controller = StageController(client: client)
+      ..retryDelay = Duration.zero;
+    await controller.refresh();
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(client.stages, 2);
+    expect(controller.stage.revision, 3);
+    controller.dispose();
+  });
+
+  test(
+    'overlapping refreshes finishing in reverse order keep the higher revision',
+    () async {
+      final client = _GatedClient();
+      final controller = StageController(client: client);
+      final older = controller.refresh();
+      final newer = controller.refresh();
+      client.gates[1].complete(
+        const StageState(name: 's', revision: 5, home: 'b'),
+      );
+      await newer;
+      client.gates[0].complete(
+        const StageState(name: 's', revision: 4, home: 'a'),
+      );
+      await older;
+      expect(controller.stage.revision, 5);
+      expect(controller.stage.home, 'b');
+    },
+  );
+}
+
+class _CountingClient extends FakeSceneClient {
+  int stages = 0;
+  bool failFirst = false;
+
+  @override
+  Future<StageState> stage() async {
+    stages++;
+    if (failFirst && stages == 1) throw StateError('unavailable');
+    return const StageState(name: 's', revision: 3, home: 'h');
+  }
+}
+
+class _GatedClient extends FakeSceneClient {
+  final gates = <Completer<StageState>>[];
+
+  @override
+  Future<StageState> stage() {
+    final gate = Completer<StageState>();
+    gates.add(gate);
+    return gate.future;
+  }
 }
 
 class _MissingSceneClient extends FakeSceneClient {

@@ -21,7 +21,12 @@ class StageController extends ChangeNotifier {
   StageState _stage = const StageState(name: '', revision: 0);
   StreamSubscription<LiveEnvelope>? _changes;
   String? _watched;
+  Timer? _retry;
   bool _disposed = false;
+
+  /// How long a failed read or a dropped `StageChanged` stream waits before reading again.
+  @visibleForTesting
+  Duration retryDelay = const Duration(seconds: 1);
 
   StageState get stage => _stage;
 
@@ -33,6 +38,7 @@ class StageController extends ChangeNotifier {
     try {
       state = await client.stage();
     } catch (_) {
+      _scheduleRetry();
       return;
     }
     final kept = <StageEntry>[];
@@ -46,7 +52,9 @@ class StageController extends ChangeNotifier {
         kept.add(entry);
       }
     }
-    if (_disposed) return;
+    // Overlapping refreshes can finish out of order; an older revision never replaces a newer one.
+    // An equal one is kept, since dropping a missing scene changes the stack without a revision.
+    if (_disposed || state.revision < _stage.revision) return;
     _stage = kept.length == state.stack.length
         ? state
         : StageState(
@@ -68,9 +76,34 @@ class StageController extends ChangeNotifier {
         .where(
           (envelope) =>
               !envelope.isReady &&
-              (envelope.payload['name'] ?? envelope.payload['Name']) == name,
+              (envelope.payload['name'] ?? envelope.payload['Name']) == name &&
+              _newer(
+                envelope.payload['revision'] ?? envelope.payload['Revision'],
+              ),
         )
-        .listen((_) => unawaited(refresh()), onError: (Object _) {});
+        .listen(
+          (_) => unawaited(refresh()),
+          onError: (Object _) => _dropped(),
+          onDone: _dropped,
+        );
+  }
+
+  bool _newer(Object? revision) =>
+      revision is! num || revision.toInt() > _stage.revision;
+
+  void _dropped() {
+    _watched = null;
+    unawaited(_changes?.cancel());
+    _changes = null;
+    _scheduleRetry();
+  }
+
+  void _scheduleRetry() {
+    if (_disposed || _retry != null) return;
+    _retry = Timer(retryDelay, () {
+      _retry = null;
+      if (!_disposed) unawaited(refresh());
+    });
   }
 
   Future<void> go(String sceneKey, {String? dockSurfaceKey}) =>
@@ -93,6 +126,7 @@ class StageController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _retry?.cancel();
     unawaited(_changes?.cancel());
     super.dispose();
   }
