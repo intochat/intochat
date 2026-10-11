@@ -5,6 +5,7 @@ using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Framework.Platform.Marketplace;
 using DigitalBrain.Platform.Identity;
 using DigitalBrain.Platform.Identity.Authority;
+using DigitalBrain.Platform.Keys;
 using DigitalBrain.Platform.Marketplace;
 using DigitalBrain.Platform.Mesh;
 using DigitalBrain.Platform.Sequencer;
@@ -88,6 +89,16 @@ internal sealed class LinkTrustClients(QuicMachineTransport transport, Serialize
     Task<byte[]?> IKeyringClient.Get(string brainId, string partId) => Call<(string, string), byte[]?>(TrustOperations.KeyGet, (brainId, partId));
 
     public Task<bool> TryAdd(string brainId, string partId, byte[] wrapped) => Call<(string, string, byte[]), bool>(TrustOperations.KeyAdd, (brainId, partId, wrapped));
+
+    public Task<CircleKeyWrap[]> WrapsOf(string brainId, string partId, string machineId)
+        => Call<(string, string, string), CircleKeyWrap[]>(TrustOperations.KeyWraps, (brainId, partId, machineId));
+
+    public Task<long> Generation(string brainId, string partId) => Call<(string, string), long>(TrustOperations.KeyGeneration, (brainId, partId));
+
+    public Task<string[]> CircleParts(string brainId) => Call<string, string[]>(TrustOperations.KeyCircleParts, brainId);
+
+    public Task<bool> AddWraps(string brainId, string partId, long generation, CircleKeyWrap[] wraps)
+        => Call<(string, string, long, CircleKeyWrap[]), bool>(TrustOperations.KeyAddWraps, (brainId, partId, generation, wraps));
 
     public Task<string?> OwnerOf(string brainId) => Call<string, string?>(TrustOperations.OwnerOf, brainId);
 

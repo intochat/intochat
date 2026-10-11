@@ -41,6 +41,10 @@ internal static class TrustOperations
     public const string KeyGet = "keyring.get";
     public const string KeyAdd = "keyring.try-add";
     public const string OwnerOf = "keyring.owner-of";
+    public const string KeyWraps = "keyring.wraps";
+    public const string KeyGeneration = "keyring.generation";
+    public const string KeyCircleParts = "keyring.circle-parts";
+    public const string KeyAddWraps = "keyring.add-wraps";
     public const string MarketList = "marketplace.list";
     public const string MarketRead = "marketplace.read";
     public const string MarketUpsert = "marketplace.upsert";
@@ -288,6 +292,31 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
             return await grains.GetGrain<IKeyringGrain>(brainId).TryAdd(partId, wrapped);
         }),
         [TrustOperations.OwnerOf] = Registered(async call => await grains.GetGrain<IBrainAuthority>(call.Arg<string>()).Account()),
+        // T26-5: a machine reads only its own wraps; only the circle's contributed machines read its parts and write wraps.
+        [TrustOperations.KeyWraps] = Registered(async call =>
+        {
+            var (brainId, partId, machineId) = call.Arg<(string, string, string)>();
+            if (machineId != call.Link.RemoteMachineId) { throw new UnauthorizedAccessException($"Machine {call.Link.RemoteMachineId} reads only its own wraps."); }
+            return await grains.GetGrain<IKeyringGrain>(brainId).WrapsOf(partId, machineId);
+        }),
+        [TrustOperations.KeyGeneration] = Registered(async call =>
+        {
+            var (brainId, partId) = call.Arg<(string, string)>();
+            await RequireContributed(call, brainId);
+            return await grains.GetGrain<IKeyringGrain>(brainId).Generation(partId);
+        }),
+        [TrustOperations.KeyCircleParts] = Registered(async call =>
+        {
+            var brainId = call.Arg<string>();
+            await RequireContributed(call, brainId);
+            return await grains.GetGrain<IKeyringGrain>(brainId).CircleParts();
+        }),
+        [TrustOperations.KeyAddWraps] = Registered(async call =>
+        {
+            var (brainId, partId, generation, wraps) = call.Arg<(string, string, long, CircleKeyWrap[])>();
+            await RequireContributed(call, brainId);
+            return await grains.GetGrain<IKeyringGrain>(brainId).AddWraps(partId, generation, wraps);
+        }),
         [TrustOperations.MarketList] = Registered(async _ => await Catalog.List()),
         [TrustOperations.MarketRead] = Registered(async call =>
         {
@@ -370,6 +399,13 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
             if (await authority.Membership(account) is not null) { return; }
         }
         throw new UnauthorizedAccessException($"Machine {call.Link.RemoteMachineId} serves no owner or member account of brain {brainScopeId}.");
+    }
+
+    // R128: only a machine contributed to the circle handles its part keys.
+    private async Task RequireContributed(Call call, string brainId)
+    {
+        if (!(await grains.GetGrain<IBrainAuthority>(brainId).Machines()).Contains(call.Link.RemoteMachineId, StringComparer.Ordinal))
+        { throw new UnauthorizedAccessException($"Machine {call.Link.RemoteMachineId} is not contributed to circle {brainId}."); }
     }
 
     // R99: one source address binds at most RegistrationsPerAddressPerMinute new accounts a minute.

@@ -86,6 +86,15 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
 
     public Task<bool> TryAdd(string brainId, string partId, byte[] wrapped) => Grains.GetGrain<IKeyringGrain>(brainId).TryAdd(partId, wrapped);
 
+    public Task<CircleKeyWrap[]> WrapsOf(string brainId, string partId, string machineId) => Grains.GetGrain<IKeyringGrain>(brainId).WrapsOf(partId, machineId);
+
+    public Task<long> Generation(string brainId, string partId) => Grains.GetGrain<IKeyringGrain>(brainId).Generation(partId);
+
+    public Task<string[]> CircleParts(string brainId) => Grains.GetGrain<IKeyringGrain>(brainId).CircleParts();
+
+    public Task<bool> AddWraps(string brainId, string partId, long generation, CircleKeyWrap[] wraps)
+        => Grains.GetGrain<IKeyringGrain>(brainId).AddWraps(partId, generation, wraps);
+
     public Task<string?> OwnerOf(string brainId) => Grains.GetGrain<IBrainAuthority>(brainId).Account();
 
     // Marketplace
