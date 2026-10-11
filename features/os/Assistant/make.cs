@@ -9,7 +9,7 @@ await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var key = Assistant.Key(brain);
 var app = brain.Get<IApp>(key);
 var scope = Assistant.Scope(brain);
-var own = IApp.NameOf(scope, key) ?? App.Name;
+var own = IApp.NameOf(scope, key) ?? "assistant";
 var ledger = await RequestLedger.LoadAsync(brain, "make");
 await foreach (var request in brain.On(app, "make", brain.Stopping))
 {
