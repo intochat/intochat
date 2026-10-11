@@ -43,7 +43,7 @@ public static class ServerHostingExtensions
         builder.UseOrleans(silo =>
         {
             // Development silos restart constantly (rolls, aspire restarts): rows of silos that are gone are swept
-            // within minutes, not the default week. Startup connectivity validation stays on.
+            // within minutes, not the default week. Startup connectivity validation stays on; machine silos beat often enough that their own stale rows are skipped (R105).
             if (builder.Environment.IsDevelopment())
             {
                 silo.Configure<ClusterMembershipOptions>(membership =>

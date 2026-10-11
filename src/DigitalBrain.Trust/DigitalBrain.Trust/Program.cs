@@ -19,6 +19,9 @@ public static class Program
     public static async Task Main(string[] args)
     {
         var builder = Host.CreateApplicationBuilder(args);
+        // R105: a stop (Ctrl+C/SIGTERM from `aspire stop`) runs the silo's graceful shutdown, which marks it dead in the
+        // membership table; RunAsync honours both signals.
+        builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(30));
         builder.UseOrleans(silo => Configure(silo, builder.Configuration));
         await builder.Build().RunAsync();
     }
@@ -62,6 +65,6 @@ public static class Program
                 options.SiloListeningEndpoint = new System.Net.IPEndPoint(address, trust.SiloPort);
             });
         }
-        return silo.AddTrustCluster().AddTrustBoundary().AddTrustLinks();
+        return silo.AsSingleSiloCluster().AddTrustCluster().AddTrustBoundary().AddTrustLinks();
     }
 }

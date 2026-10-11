@@ -26,6 +26,8 @@ public static class MachineHosting
     {
         ArgumentNullException.ThrowIfNull(silo);
         silo.AddDigitalBrainPlatform();
+        // R105: a machine is a single-silo cluster; a stale Active row of its own previous run must not block its start.
+        silo.AsSingleSiloCluster();
         var services = silo.Services;
         services.TryAddSingleton<PartLogs>();
         silo.AddMachineHandover();
