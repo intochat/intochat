@@ -326,10 +326,20 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
         }),
     };
 
-    // R95: a brain's wrapped keys, members and grants are read only by a machine bound to the brain's account.
+    // R95/R98: a brain's wrapped keys, members and grants are read only by a machine bound to the brain's owner
+    // account, or to an account that is a member of that brain.
     private async Task RequireBrain(Call call, string brainScopeId)
-        => call.RequireAccount(await grains.GetGrain<IBrainAuthority>(brainScopeId).Account()
-            ?? throw new UnauthorizedAccessException($"Brain {brainScopeId} has no owner on record."));
+    {
+        var authority = grains.GetGrain<IBrainAuthority>(brainScopeId);
+        var owner = await authority.Account() ?? throw new UnauthorizedAccessException($"Brain {brainScopeId} has no owner on record.");
+        var accounts = call.Machine?.Accounts ?? [];
+        if (accounts.Contains(owner, StringComparer.Ordinal)) { return; }
+        foreach (var account in accounts)
+        {
+            if (await authority.Membership(account) is not null) { return; }
+        }
+        throw new UnauthorizedAccessException($"Machine {call.Link.RemoteMachineId} serves no owner or member account of brain {brainScopeId}.");
+    }
 
     private async Task<string?> NodeOwner(string nodeId)
         => (await Directory.List()).FirstOrDefault(node => node.NodeId == nodeId)?.OwnerAccount;

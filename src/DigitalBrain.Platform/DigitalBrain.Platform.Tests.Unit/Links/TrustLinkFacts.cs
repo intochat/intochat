@@ -156,6 +156,41 @@ public sealed class TrustLinkFacts
         Assert.Equal([1], await machine.SiloServices.GetRequiredService<IKeyringClient>().Get(OwnerBrain, "kept"));
     }
 
+    // R98: a member account's machine reads its own membership of a brain and the keys wrapped for that brain.
+    [Fact(Timeout = 120_000)]
+    public async Task AMembersMachineReadsItsOwnMembershipAndKeys()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        await using var trust = await TrustHost.StartAsync(ct);
+        await using var owner = await ModuleTest.Create().WithTrust(trust).StartAsync(ct);
+        Assert.True(await owner.SiloServices.GetRequiredService<IKeyringClient>().TryAdd(OwnerBrain, "shared", [7]));
+        await owner.SiloServices.GetRequiredService<IIdentityClient>().EnsureMember(new Member
+        { PrincipalId = "bob", AccountId = ModuleTest.DefaultAccount, BrainId = ModuleTest.DefaultAccount, Role = MemberRole.Member, DisplayName = "Bob" });
+        await using var bob = await RawMachine.Dial(trust, ct);
+        await bob.Register("bob", ct);
+
+        Assert.Equal(MemberRole.Member, (await bob.Call<(string, string), Member?>(TrustOperations.Membership, (OwnerBrain, "bob"), ct))?.Role);
+        Assert.Equal([7], await bob.Call<(string, string), byte[]?>(TrustOperations.KeyGet, (OwnerBrain, "shared"), ct));
+    }
+
+    [Fact(Timeout = 120_000)]
+    public async Task AStrangersMachineStillCannotReadThem()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        await using var trust = await TrustHost.StartAsync(ct);
+        await using var owner = await ModuleTest.Create().WithTrust(trust).StartAsync(ct);
+        Assert.True(await owner.SiloServices.GetRequiredService<IKeyringClient>().TryAdd(OwnerBrain, "shared", [7]));
+        await owner.SiloServices.GetRequiredService<IIdentityClient>().EnsureMember(new Member
+        { PrincipalId = "bob", AccountId = ModuleTest.DefaultAccount, BrainId = ModuleTest.DefaultAccount, Role = MemberRole.Member, DisplayName = "Bob" });
+        await using var eve = await RawMachine.Dial(trust, ct);
+        await eve.Register("eve", ct);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => eve.Call<(string, string), Member?>(TrustOperations.Membership, (OwnerBrain, "bob"), ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => eve.Call<(string, string), byte[]?>(TrustOperations.KeyGet, (OwnerBrain, "shared"), ct));
+    }
+
     [Fact(Timeout = 120_000)]
     public async Task ANodeDirectoryWriteForAnotherAccountsNodeIsRefused()
     {
