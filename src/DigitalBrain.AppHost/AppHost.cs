@@ -96,19 +96,20 @@ var silos = AspireModuleHosting.InstanceNames("OperatingSystem").Take(1).Select(
     AspireModuleHosting.AddLiveBuild(builder, workdir, name, "os", "DigitalBrain.OS.dll") is { } live
         // A live build reads the features published with it (AddLiveBuild), not the working tree's.
         // R76: A is the core holder, the machine the fronts and MCPs route to; B never races it for the core.
-        ? Silo(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS").AsCoreHolder())
-        : Silo(AspireModuleHosting.OnDynamicPorts(builder.AddProject<Projects.DigitalBrain_OS>(name))
-            .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features).AsCoreHolder())).ToArray();
+        ? Primary(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS"))
+        : Primary(AspireModuleHosting.OnDynamicPorts(builder.AddProject<Projects.DigitalBrain_OS>(name))
+            .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features))).ToArray();
 var osFront = AspireModuleHosting.AddFront(builder, "OperatingSystem", uiPort, silos.Select(silo => silo.GetEndpoint("http")));
 
-// The second machine (R40): its own directory, identity and Orleans cluster, the owner's role, fixed silo and
-// gateway ports allocated per run (R71), and its own allocated HTTP port serving its own /mcp. It is not behind
-// the front: it is another machine of the same owner, reached directly.
+// The second machine (R40): its own directory, identity and Orleans cluster, fixed silo and gateway ports allocated
+// per run (R71), and its own allocated HTTP port serving its own /mcp. It is not behind the front: it is reached
+// directly. Task 22: it is the release's cloud machine (R82), refused the core, whose calls it forwards to A; Task 18's
+// own↔own handover stays covered by MachineHandoverFacts.
 var machineB = AspireModuleHosting.OnDynamicPorts(builder.AddProject<Projects.DigitalBrain_OS>("OperatingSystem-b"))
     .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features);
 Silo(machineB);
 // R77: after the brain reference, whose cluster id and ports would otherwise join B to A's cluster.
-machineB.AsSeparateCluster();
+machineB.AsSeparateCluster().AsCloudMachine();
 // The shell reaches the kernel through the front, so a roll restarting one silo never drops it.
 digitalBrain.WithShellFront(builder.CreateResourceBuilder<IResourceWithEndpoints>(osFront.Resource));
 
@@ -129,6 +130,15 @@ IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where
         .WaitFor(cookieProtection)
         .WithHttpHealthCheck("/health", endpointName: "http");
     return builder.CreateResourceBuilder<IResourceWithEndpoints>(silo.Resource);
+}
+
+// R76: A is the core holder, the machine the fronts and MCPs route to. Its Orleans ports are allocated after the
+// brain reference (Task 22), in the deployment's cluster the MCPs join.
+IResourceBuilder<IResourceWithEndpoints> Primary<T>(IResourceBuilder<T> silo) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
+{
+    var primary = Silo(silo.AsCoreHolder());
+    silo.WithAllocatedOrleansPorts();
+    return primary;
 }
 
 // The MCP server is an Orleans client: it starts once every silo instance is up.

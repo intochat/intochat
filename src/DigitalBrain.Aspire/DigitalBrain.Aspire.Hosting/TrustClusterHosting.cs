@@ -113,12 +113,28 @@ public static class TrustClusterHosting
         where T : IResourceWithEnvironment, IResourceWithEndpoints
     {
         ArgumentNullException.ThrowIfNull(machine);
+        return machine.WithAllocatedOrleansPorts().WithEnvironment("Orleans__ClusterId", ClusterOf(machine.Resource.Name));
+    }
+
+    // Task 22 / R71: the machine stays in the cluster its brain reference names, on silo and gateway ports allocated
+    // per run instead of Orleans' defaults. Call it after the brain reference, like AsSeparateCluster.
+    public static IResourceBuilder<T> WithAllocatedOrleansPorts<T>(this IResourceBuilder<T> machine)
+        where T : IResourceWithEnvironment, IResourceWithEndpoints
+    {
+        ArgumentNullException.ThrowIfNull(machine);
         machine.WithEndpoint(name: OrleansSiloEndpoint, scheme: "tcp", isProxied: false)
             .WithEndpoint(name: OrleansGatewayEndpoint, scheme: "tcp", isProxied: false);
         return machine
-            .WithEnvironment("Orleans__ClusterId", ClusterOf(machine.Resource.Name))
             .WithEnvironment("Orleans__Endpoints__SiloPort", machine.GetEndpoint(OrleansSiloEndpoint).Property(EndpointProperty.Port))
             .WithEnvironment("Orleans__Endpoints__GatewayPort", machine.GetEndpoint(OrleansGatewayEndpoint).Property(EndpointProperty.Port));
+    }
+
+    // Task 22 / R82: a cloud machine of the trust cluster: short leases, no journal, refused the core (the only private
+    // part in this release); calls for the core are forwarded to its holder.
+    public static IResourceBuilder<T> AsCloudMachine<T>(this IResourceBuilder<T> machine) where T : IResourceWithEnvironment
+    {
+        ArgumentNullException.ThrowIfNull(machine);
+        return machine.WithEnvironment(DigitalBrainConfiguration.EnvironmentName(RoleKey), "Cloud");
     }
 
     // A host of the deployment that starts once the trust host is up.

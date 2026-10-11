@@ -119,6 +119,42 @@ public sealed class TrustClusterHostingFacts
         Assert.DoesNotContain(key, (await Environment(builder, b.Resource)).Keys);
     }
 
+    // Task 22 / R82: the release's second machine is a cloud machine, which is refused the core.
+    [Fact]
+    public async Task TheSecondMachineIsACloudMachine()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        var brain = builder.AddDigitalBrain("memory", options: new()).WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite());
+        var trust = builder.AddExecutable("trust", "unused", ".").AsTrustCluster(brain, builder.Configuration);
+        var pairing = builder.AddParameter("machine-pairing-secret", "s3cret", secret: true);
+        var a = builder.AddExecutable("os-a", "unused", ".").WithHttpEndpoint(name: "http")
+            .AsTrustMachine(trust, pairing, "/machines/os-a", builder.Configuration).AsCoreHolder();
+        var b = builder.AddExecutable("os-b", "unused", ".").WithHttpEndpoint(name: "http")
+            .AsTrustMachine(trust, pairing, "/machines/os-b", builder.Configuration).AsSeparateCluster().AsCloudMachine();
+
+        var role = DigitalBrainConfiguration.EnvironmentName(TrustClusterHosting.RoleKey);
+        Assert.Equal("Own", (await Environment(builder, a.Resource))[role]);
+        Assert.Equal("Cloud", (await Environment(builder, b.Resource))[role]);
+    }
+
+    // Task 22 / R71: machine A's Orleans ports are allocated too, in the deployment's own cluster, so two AppHosts run side by side.
+    [Fact]
+    public async Task TheCoreHoldersOrleansPortsAreAllocatedInTheDeploymentsCluster()
+    {
+        var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions { Args = [], DisableDashboard = true });
+        var brain = builder.AddDigitalBrain("memory", options: new()).WithHosting<OrleansModuleHosting, OrleansOptions>(orleans => orleans.WithAzurite());
+        var trust = builder.AddExecutable("trust", "unused", ".").AsTrustCluster(brain, builder.Configuration);
+        var pairing = builder.AddParameter("machine-pairing-secret", "s3cret", secret: true);
+        var a = builder.AddExecutable("os-a", "unused", ".").WithHttpEndpoint(name: "http").WithReference(brain)
+            .AsTrustMachine(trust, pairing, "/machines/os-a", builder.Configuration).AsCoreHolder().WithAllocatedOrleansPorts();
+
+        var onA = await Environment(builder, a.Resource);
+
+        Assert.IsType<EndpointReferenceExpression>(onA["Orleans__Endpoints__SiloPort"]);
+        Assert.IsType<EndpointReferenceExpression>(onA["Orleans__Endpoints__GatewayPort"]);
+        Assert.NotEqual("digitalbrain-os-a", onA["Orleans__ClusterId"]);
+    }
+
     // Round 3 (d): the seed nodes live with the trust host that registers them, never on a machine.
     [Fact]
     public async Task TheTrustResourceRegistersTheSeedNodes()
