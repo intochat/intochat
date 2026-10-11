@@ -51,6 +51,9 @@ public interface IIdentityClient
 
     Task<string[]> MachinesOf(string circleBrainId);
 
+    // The accounts a registered machine serves (R55); empty for a machine nobody registered.
+    Task<string[]> AccountsOf(string machineId);
+
     // The machine this client signs as; null on a host that is not a machine.
     string? MachineId { get; }
 

@@ -67,10 +67,14 @@ internal sealed class ForwardedCallEndpoint(PartRoutes routes, PartLogs logs, IS
         var caller = call.Caller;
         // R146: an app of another brain reaches this brain's connection only through the binding recorded at Share; it
         // stands as a member would for that call, and the holder's call filter checks the binding again.
-        var bound = caller is not null && CallerContextStamper.IsTrusted(caller) && caller.BrainId != part.BrainId && await Bound(caller, call.Target, part);
+        var accounts = await _accounts.GetValue(link, peer => Accounts(peer.RemoteMachineId));
+        // R146: the forwarding machine must serve the caller's account, and the binding requires that account to be a
+        // member of the caller's brain (the circle) and the connection's owner to be one too (T26-8, R155): a machine
+        // stamping a circle it is not in, or a removed member's machine, is refused.
+        var bound = caller is not null && CallerContextStamper.IsTrusted(caller) && caller.BrainId != part.BrainId
+            && accounts.Contains(caller.AccountId, StringComparer.Ordinal) && await Bound(caller, call.Target, part);
         if (caller is not null && !(CallerContextStamper.IsTrusted(caller) && (caller.BrainId == part.BrainId || bound)))
         { throw new UnauthorizedAccessException($"A call forwarded by machine {link.RemoteMachineId} carries no trusted caller stamp for brain {part.BrainId}."); }
-        var accounts = await _accounts.GetValue(link, peer => Accounts(peer.RemoteMachineId));
         if (caller is not null && !accounts.Contains(caller.AccountId, StringComparer.Ordinal))
         { throw new UnauthorizedAccessException($"A call forwarded by machine {link.RemoteMachineId} for account {caller.AccountId} is refused: the machine does not serve that account."); }
         var standing = bound ? Standing.Member : await StandingOf(link, accounts, part.BrainId);
@@ -117,11 +121,11 @@ internal sealed class ForwardedCallEndpoint(PartRoutes routes, PartLogs logs, IS
     private async Task<bool> Bound(CallerContext caller, GrainId target, PartId part)
     {
         var key = target.Key.ToString() ?? "";
-        if (caller.Kind != CallerKind.App || caller.AppId is not { Length: > 0 } app || !ConnectionKeys.Is(key)) { return false; }
+        if (caller.Kind != CallerKind.App || caller.AppId is not { Length: > 0 } || !ConnectionKeys.Is(key)) { return false; }
         try { if (ConnectionKeys.Parse(key).BrainId != part.BrainId) { return false; } }
         catch (ArgumentException) { return false; }
         await RequireHolder(part);
-        return await bindings.IsBound(BrainScope.Create(caller.AccountId, caller.BrainId).Id, app, key);
+        return await bindings.IsBound(caller, key);
     }
 
     private bool IsNeuronContract(ForwardedCall call)

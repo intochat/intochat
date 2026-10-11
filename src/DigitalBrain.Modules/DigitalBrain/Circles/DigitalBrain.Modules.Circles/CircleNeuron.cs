@@ -4,6 +4,7 @@ using DigitalBrain.Framework.Compute;
 using DigitalBrain.Framework.Parts;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Identity;
+using Microsoft.Extensions.Logging;
 
 namespace DigitalBrain.Circles;
 
@@ -21,12 +22,24 @@ internal sealed class CircleRecord
     // The circle core's contributed machines, each with the member account that contributed it.
     [Id(8)] public CircleMachine[] Machines { get; set; } = [];
     [Id(9)] public CircleSchedule[] Schedules { get; set; } = [];
+    // R155: each slot of a shared app bound at Share, so a sharer's removal can withdraw it.
+    [Id(10)] public CircleBinding[] Bindings { get; set; } = [];
 
     public CircleRecord Clone() => (CircleRecord)MemberwiseClone();
 }
 
 [GenerateSerializer, Alias("circles.circle-machine")]
 internal sealed record CircleMachine([property: Id(0)] string MachineId, [property: Id(1)] string AccountId);
+
+// One slot of a shared app: the sharer's account, the slot, and the connection it names: the circle's own copy
+// (Copy) or the sharer's connection left behind.
+[GenerateSerializer, Alias("circles.circle-binding")]
+internal sealed record CircleBinding(
+    [property: Id(0)] string AccountId,
+    [property: Id(1)] string AppName,
+    [property: Id(2)] string Slot,
+    [property: Id(3)] string ConnectionKey,
+    [property: Id(4)] bool Copy);
 
 // The circle core `{circle}/circle` (T26-1): the circle brain's own state. Members are accounts the trust side records
 // as memberships (R129), its machines are contributed (R128), and every part key of the circle brain is wrapped to
@@ -36,6 +49,7 @@ internal sealed class CircleNeuron(
     [PersistentState("circles.circle", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<CircleRecord> store,
     IIdentityClient identity,
     ICirclePartKeys keys,
+    ILogger<CircleNeuron> logger,
     DigitalBrain.Apps.FeatureLoader? loader = null)
     : Neuron<CircleRecord>(store), ICircle
 {
@@ -95,6 +109,10 @@ internal sealed class CircleNeuron(
         ArgumentException.ThrowIfNullOrWhiteSpace(machineId);
         var caller = Caller();
         var next = MemberChange();
+        // The caller's account is bound to the machine its call came from (the forward gate checks the account): a
+        // member contributes only that machine, never another member's.
+        if (machineId != (caller.ForwardedBy ?? identity.MachineId))
+        { throw new UnauthorizedAccessException($"{caller.AccountId} contributes only the machine it calls from, not {machineId}."); }
         if (next.Machines.Any(known => known.MachineId == machineId)) { return; }
         await identity.ContributeMachine(CircleBrain, machineId);
         await keys.ShareWith(CircleBrain, machineId);
@@ -126,14 +144,41 @@ internal sealed class CircleNeuron(
     private async Task Drop(CircleRecord next, string accountId)
     {
         if (next.Members.Contains(accountId)) { await identity.RemoveMember(CircleBrain, accountId); }
-        foreach (var machine in next.Machines.Where(known => known.AccountId == accountId))
-        {
-            await identity.WithdrawMachine(CircleBrain, machine.MachineId);
-            await keys.RevokeLeases(CircleBrain, machine.MachineId);
-        }
         next.Members = [.. next.Members.Where(member => member != accountId)];
         next.Invited = [.. next.Invited.Where(invited => invited != accountId)];
-        next.Machines = [.. next.Machines.Where(known => known.AccountId != accountId)];
+        // A machine goes by the accounts it is registered to, not by who contributed it: one that serves the removed
+        // account and no remaining member is withdrawn, wherever it was recorded.
+        var withdrawn = new List<string>();
+        foreach (var machine in next.Machines.Select(known => known.MachineId).Union(await identity.MachinesOf(CircleBrain), StringComparer.Ordinal).ToArray())
+        {
+            var accounts = await identity.AccountsOf(machine);
+            if (!accounts.Contains(accountId, StringComparer.Ordinal) || accounts.Intersect(next.Members, StringComparer.Ordinal).Any()) { continue; }
+            await identity.WithdrawMachine(CircleBrain, machine);
+            await keys.RevokeLeases(CircleBrain, machine);
+            withdrawn.Add(machine);
+        }
+        next.Machines = [.. next.Machines.Where(known => !withdrawn.Contains(known.MachineId, StringComparer.Ordinal))];
+        await Unbind(next, accountId);
+    }
+
+    // R155: every binding of the removed account's connections into the circle goes: the sharing record on its own
+    // connection, the circle's copy disconnected, and the shared app's slot unbound.
+    private async Task Unbind(CircleRecord next, string accountId)
+    {
+        foreach (var binding in next.Bindings.Where(binding => binding.AccountId == accountId))
+        {
+            var app = DigitalBrain.Apps.IApp.Key(CircleBrain, binding.AppName);
+            try
+            {
+                if (binding.Copy) { await GrainFactory.GetConnection(binding.ConnectionKey).Disconnect(); }
+                else { await GrainFactory.GetConnection(binding.ConnectionKey).UnshareFrom(CircleBrain, app); }
+                await GrainFactory.GetGrain<DigitalBrain.Apps.IApp>(app).Configure([], new() { [binding.Slot] = "" });
+            }
+            // The gate also requires the sharer to be a member (R155), so a binding not cleared here admits nothing.
+            catch (Exception error) when (error is not OperationCanceledException)
+            { logger.LogWarning(error, "Circle {Circle} could not clear the binding of {Connection} on {App}.{Slot}.", CircleBrain, binding.ConnectionKey, app, binding.Slot); }
+        }
+        next.Bindings = [.. next.Bindings.Where(binding => binding.AccountId != accountId)];
     }
 
     // The creator's leave: every other member and every machine goes, and the circle's state with them.
@@ -141,7 +186,8 @@ internal sealed class CircleNeuron(
     {
         foreach (var member in next.Members.Concat(next.Invited).Where(member => member != next.Owner).Distinct().ToArray()) { await Drop(next, member); }
         await keys.Rotate(CircleBrain);
-        foreach (var machine in next.Machines) { await identity.WithdrawMachine(CircleBrain, machine.MachineId); }
+        foreach (var machine in next.Machines.Select(known => known.MachineId).Union(await identity.MachinesOf(CircleBrain), StringComparer.Ordinal).ToArray())
+        { await identity.WithdrawMachine(CircleBrain, machine); }
         await GrainFactory.GetGrain<ICircleShares>(this.GetPrimaryKeyString()).Configure(0, []);
         await Clear(new CircleChanged(next.Name, [], [], 0, []));
     }
@@ -194,6 +240,7 @@ internal sealed class CircleNeuron(
             new DigitalBrain.Apps.AppOrigin(caller.AccountId, new DigitalBrain.Apps.AppSource.Brain(caller.AccountId, source), appName, bundle.Version), CancellationToken.None);
         var circleApp = DigitalBrain.Apps.IApp.Key(CircleBrain, appName);
         var slots = new Dictionary<string, string>(StringComparer.Ordinal);
+        List<CircleBinding> bindings = [];
         foreach (var slot in shared.Manifest.Slots)
         {
             if (!shared.Connections.TryGetValue(slot.Name, out var id) || id.Length == 0) { continue; }
@@ -205,15 +252,18 @@ internal sealed class CircleNeuron(
                 var copy = ConnectionKeys.For(CircleBrain, slot.Connector, id);
                 await GrainFactory.GetConnection(copy).Adopt(view.AuthMethodId, view.Account);
                 slots[slot.Name] = copy;
+                bindings.Add(new(caller.AccountId, appName, slot.Name, copy, Copy: true));
             }
             else
             {
                 await AsSharer(caller, source, async () => { await GrainFactory.GetConnection(owned).ShareInto(CircleBrain, circleApp); return true; });
                 slots[slot.Name] = owned;
+                bindings.Add(new(caller.AccountId, appName, slot.Name, owned, Copy: false));
             }
         }
         if (slots.Count > 0) { await GrainFactory.GetGrain<DigitalBrain.Apps.IApp>(circleApp).Configure([], slots); }
         if (!next.SharedApps.Contains(appName)) { next.SharedApps = [.. next.SharedApps, appName]; }
+        next.Bindings = [.. next.Bindings.Where(known => known.AppName != appName), .. bindings];
         await CommitCore(next);
     }
 

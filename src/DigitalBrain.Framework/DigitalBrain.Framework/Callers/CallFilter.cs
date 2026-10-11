@@ -52,13 +52,13 @@ public sealed class CallFilter(IEnumerable<ICallFilterStage> stages, IConnection
     // An app behavior calling a connection key of another brain; the connection's own rules still refuse management.
     private async ValueTask<bool> BoundConnection(CallRequest request, string callerScope, CancellationToken cancellationToken)
     {
-        if (bindings is null || request.Caller.Kind != CallerKind.App || request.Caller.AppId is not { Length: > 0 } app) { return false; }
+        if (bindings is null || request.Caller.Kind != CallerKind.App || request.Caller.AppId is not { Length: > 0 }) { return false; }
         var slash = request.TargetNeuron.IndexOf('/', StringComparison.Ordinal);
         var key = slash < 0 ? "" : request.TargetNeuron[(slash + 1)..];
         if (!Platform.Connections.ConnectionKeys.Is(key)) { return false; }
         string brain;
         try { brain = Platform.Connections.ConnectionKeys.Parse(key).BrainId; }
         catch (ArgumentException) { return false; }
-        return brain != callerScope && await bindings.IsBound(callerScope, app, key, cancellationToken).ConfigureAwait(false);
+        return brain != callerScope && await bindings.IsBound(request.Caller, key, cancellationToken).ConfigureAwait(false);
     }
 }

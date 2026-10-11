@@ -32,6 +32,9 @@ public interface IConnection : INeuron
     [Internal] Task ShareInto(string brainId, string app);
 
     [Internal, AlwaysInterleave] Task<bool> IsSharedInto(string brainId, string app);
+
+    // R155: the sharing is withdrawn (its sharer left the brain it was shared into).
+    [Internal] Task UnshareFrom(string brainId, string app);
 }
 
 // Not a neuron: reached only by the Platform OAuth callback, which stamps the owner recorded at login start.

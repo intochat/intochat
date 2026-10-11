@@ -173,6 +173,8 @@ internal sealed class GrainTrustClients(Func<IGrainFactory> factory, MachineIden
 
     public Task<string[]> MachinesOf(string circleBrainId) => Authority(circleBrainId).Machines();
 
+    public async Task<string[]> AccountsOf(string machineId) => (await Machine(machineId))?.Accounts ?? [];
+
     public string? MachineId => machine?.MachineId;
 
     public Task<Member?> Membership(string brainScopeId, string principalId) => Authority(brainScopeId).Membership(principalId);

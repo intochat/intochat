@@ -138,6 +138,14 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
         await SaveQuietly(Snapshot);
     }
 
+    public async Task UnshareFrom(string brainId, string app)
+    {
+        var entry = $"{brainId}/{app}";
+        if (!Snapshot.SharedInto.Contains(entry, StringComparer.Ordinal)) { return; }
+        Snapshot.SharedInto = [.. Snapshot.SharedInto.Where(shared => shared != entry)];
+        await SaveQuietly(Snapshot);
+    }
+
     public Task<bool> IsSharedInto(string brainId, string app) => Task.FromResult(Snapshot.SharedInto.Contains($"{brainId}/{app}", StringComparer.Ordinal));
 
     // Opens the credential for one call; refreshes first when the access token is about to expire.

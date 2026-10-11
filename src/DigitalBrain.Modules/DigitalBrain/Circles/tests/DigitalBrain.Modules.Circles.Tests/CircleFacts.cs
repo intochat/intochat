@@ -108,6 +108,28 @@ public sealed class CircleFacts
         Assert.Equal([alice.AccountId, bob.AccountId], (await bob.In(circle, () => Circle(brain, circle).Accept())).Members);
     }
 
+    // A birth that failed after the trust side recorded the circle is completed by the next Create under the same request.
+    [Fact(Timeout = 120_000)]
+    public async Task ASecondCreateAfterAFailedBirthYieldsABornCircle()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await Start(ct);
+        var alice = await brain.PersonAsync("alice", ct);
+        var recorded = (await brain.Services.GetRequiredService<IIdentityClient>()
+            .CreateBrain(alice.AccountId, alice.PrincipalId, "circle|r-1", "friends", BrainKind.Circle)).Member.BrainId;
+        // The brain neuron is created but its creation handler fails: no creator is stamped, so CircleBirth refuses.
+        await brain.Get<IBrain>(recorded).Create(new Owner(alice.AccountId));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => alice.In(recorded, () => Circle(brain, recorded).State()));
+
+        var circle = await CreateIn(brain, alice, "friends", "r-1");
+
+        Assert.Equal(recorded, circle);
+        var state = await alice.In(circle, () => Circle(brain, circle).State());
+        Assert.Equal("friends", state.Name);
+        Assert.Equal([alice.AccountId], state.Members);
+        Assert.Equal("Circle room", (await alice.In(circle, () => brain.Get<DigitalBrain.Apps.IApp>(DigitalBrain.Apps.IApp.Key(circle, "circleroom")).Read())).Manifest.Title);
+    }
+
     [Fact]
     public void TheCircleContractsAliasEqualsTheSharedGrainTypeName()
         => Assert.Equal(DigitalBrain.Framework.CircleGrainType.Name, ((Orleans.AliasAttribute)Attribute.GetCustomAttribute(typeof(ICircle), typeof(Orleans.AliasAttribute))!).Alias);

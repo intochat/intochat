@@ -173,6 +173,8 @@ internal sealed class LinkTrustClients(QuicMachineTransport transport, Serialize
 
     public Task<string[]> MachinesOf(string circleBrainId) => Call<string, string[]>(TrustOperations.MachinesOf, circleBrainId);
 
+    public async Task<string[]> AccountsOf(string machineId) => (await Machine(machineId))?.Accounts ?? [];
+
     public string? MachineId => signer.Machine.MachineId;
 
     public Task<Member?> Membership(string brainScopeId, string principalId) => Call<(string, string), Member?>(TrustOperations.Membership, (brainScopeId, principalId));

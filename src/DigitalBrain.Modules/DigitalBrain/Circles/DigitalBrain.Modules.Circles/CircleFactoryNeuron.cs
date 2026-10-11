@@ -15,7 +15,8 @@ internal sealed class CircleFactoryRecord
 [GrainType("circles.factory")]
 internal sealed class CircleFactoryNeuron(
     [PersistentState("circles.factory", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<CircleFactoryRecord> store,
-    IIdentityClient identity)
+    IIdentityClient identity,
+    CircleBirth birth)
     : Neuron<CircleFactoryRecord>(store), ICircleFactory
 {
     private string Brain => this.GetPrimaryKeyString()[..^"/circles".Length];
@@ -27,11 +28,17 @@ internal sealed class CircleFactoryNeuron(
         var operation = string.IsNullOrWhiteSpace(requestId) ? Guid.NewGuid().ToString("N") : $"circle|{requestId}";
         var provision = await identity.CreateBrain(caller.AccountId, caller.PrincipalId, operation, name, BrainKind.Circle);
         var circle = provision.Member.BrainId;
-        if (!provision.NewBrain) { return circle; }
         CallerContextStamper.Stamp(caller with { BrainId = circle });
-        try { await GrainFactory.GetGrain<IBrain>(circle).Create(new Owner(caller.AccountId)); }
+        try
+        {
+            // A retried Create completes a birth that failed before or inside the brain's creation: IBrain.Create is a
+            // no-op once the brain exists, and a creation handler's failure is only logged there, so the birth runs again.
+            await GrainFactory.GetGrain<IBrain>(circle).Create(new Owner(caller.AccountId));
+            if (!provision.NewBrain) { await birth.Born(circle, CancellationToken.None); }
+        }
         finally { CallerContextStamper.Stamp(caller); }
-        await SaveQuietly(new CircleFactoryRecord { Created = [.. Snapshot.Created, new(circle, name)] });
+        if (!Snapshot.Created.Any(created => created.BrainId == circle))
+        { await SaveQuietly(new CircleFactoryRecord { Created = [.. Snapshot.Created, new(circle, name)] }); }
         return circle;
     }
 

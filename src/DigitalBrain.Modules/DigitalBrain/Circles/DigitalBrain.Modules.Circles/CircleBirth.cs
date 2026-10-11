@@ -14,10 +14,16 @@ internal sealed class CircleBirth(IIdentityClient identity, IGrainFactory grains
     public const string RoomOwner = "os";
     public const string RoomName = "circleroom";
 
-    public async Task Created(IBrain kernel, Created created, CancellationToken cancellationToken)
+    public Task Created(IBrain kernel, Created created, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(kernel);
-        var brainId = kernel.GetPrimaryKeyString();
+        return Born(kernel.GetPrimaryKeyString(), cancellationToken);
+    }
+
+    // Idempotent: the core is founded once and the room loaded again in place, so a birth that failed part-way is
+    // completed by running it again (the factory does, on a retried Create).
+    public async Task Born(string brainId, CancellationToken cancellationToken)
+    {
         if (await identity.KindOf(brainId) != BrainKind.Circle) { return; }
         if (catalog is null || loader is null) { throw new InvalidOperationException($"Circle {brainId} needs the Apps module to load its room."); }
         if (!CallerContextStamper.TryGet(out var creator)) { throw new InvalidOperationException($"Circle {brainId} is born only for its creator."); }

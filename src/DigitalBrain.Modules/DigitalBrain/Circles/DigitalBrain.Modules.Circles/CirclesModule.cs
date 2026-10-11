@@ -1,7 +1,6 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Modules;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DigitalBrain.Circles;
 
@@ -14,6 +13,9 @@ public sealed class CirclesModule() : Module(new ModuleId("circles"))
     public override void Configure(ISiloBuilder silo)
     {
         ArgumentNullException.ThrowIfNull(silo);
-        silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<ICreationHandler, CircleBirth>());
+        // One birth, reached as a creation handler and by the factory (which completes a birth that failed).
+        if (silo.Services.Any(descriptor => descriptor.ServiceType == typeof(CircleBirth))) { return; }
+        silo.Services.AddSingleton<CircleBirth>();
+        silo.Services.AddSingleton<ICreationHandler>(provider => provider.GetRequiredService<CircleBirth>());
     }
 }
