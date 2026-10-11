@@ -74,7 +74,9 @@ internal static class TrustOperations
 internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<TrustOptions> trust, IOptions<LinkOptions> links, Serializer serializer,
     TimeProvider time, ILogger<TrustLinkEndpoint> logger) : ILifecycleParticipant<ISiloLifecycle>, IAsyncDisposable
 {
-    public static readonly ActivitySource Source = new("DigitalBrain.Trust.Link");
+    public const string SourceName = "DigitalBrain.Trust.Link";
+
+    public static readonly ActivitySource Source = new(SourceName);
 
     private readonly ConcurrentDictionary<string, QuicMachineLink> _links = new(StringComparer.Ordinal);
     private QuicLinkListener? _listener;
