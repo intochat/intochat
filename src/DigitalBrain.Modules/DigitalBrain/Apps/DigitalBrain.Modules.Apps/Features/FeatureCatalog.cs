@@ -69,6 +69,29 @@ public sealed class FeatureCatalog
             ?? throw new InvalidOperationException($"{owner}/{bundle.Name} was written but did not load back.");
     }
 
+    // Reads one feature from the folder again, so an edit on disk reaches Install and Update without a
+    // restart. The edited bundle passes the same gate as at boot: one that does not compile throws with
+    // its errors and leaves the previous snapshot in place. A feature the folder no longer holds is left as it was.
+    public async Task<AppBundle?> Reload(string owner, string name)
+    {
+        if (_directory is not { } directory) { return null; }
+        var copies = directory.Load().Where(feature => feature.Owner == owner && feature.Bundle.Name == name).ToArray();
+        if (copies.Length == 0) { return await Find(owner, name); }
+        if (copies.Length > 1)
+        { throw new InvalidOperationException($"{owner}/{name} ships twice: {string.Join(", ", copies.Select(copy => copy.Folder))}."); }
+        var bundle = copies[0].Bundle;
+        await RequireCompiles(owner, bundle, _sandbox);
+        lock (_gate) { _loaded = Replace(_loaded ?? Load(directory, _sandbox), owner, bundle); }
+        return bundle;
+    }
+
+    private static async Task<Loaded> Replace(Task<Loaded> previous, string owner, AppBundle bundle)
+    {
+        var latest = await previous;
+        var bundles = new SortedDictionary<(string Owner, string Name), AppBundle>(latest.Bundles.ToDictionary()) { [(owner, bundle.Name)] = bundle };
+        return new(bundles, [.. latest.Failures.Where(failure => failure.Owner != owner || failure.Name != bundle.Name)]);
+    }
+
     internal async Task<IReadOnlyDictionary<(string Owner, string Name), AppBundle>> Bundles() => (await Snapshot()).Bundles;
 
     private Task<Loaded> Snapshot()

@@ -92,6 +92,38 @@ public sealed class FeatureCatalogFacts : IDisposable
     }
 
     [Fact]
+    public async Task AnEditOnDiskReachesTheCatalogWhenThatFeatureReloads()
+    {
+        WriteEcho();
+        WriteGreeter("os");
+        var catalog = Catalog(new Sandbox(success: _ => true));
+        Assert.Equal("// echo\n", (await catalog.Find("intochat", "echo"))!.Files["echo.cs"]);
+
+        WriteEcho("// echo louder\n");
+        Write("intochat/Echo/app.cs", Declarations.Of("echo", "2.0.1", "Echo", "Echoes."));
+        var reloaded = await catalog.Reload("intochat", "echo");
+
+        Assert.Equal("2.0.1", reloaded!.Version);
+        Assert.Equal("// echo louder\n", (await catalog.Find("intochat", "echo"))!.Files["echo.cs"]);
+        Assert.Contains(await catalog.Listings(), listing => listing.Name == "echo" && listing.Version == "2.0.1");
+        Assert.Equal("// greet\n", (await catalog.Find("os", "greeter"))!.Files["greet.cs"]);
+    }
+
+    [Fact]
+    public async Task AReloadThatDoesNotCompileThrowsAndKeepsThePreviousBundle()
+    {
+        WriteEcho();
+        var catalog = Catalog(new Sandbox(success: files => !files.Values.Any(source => source.Contains("not C#", StringComparison.Ordinal))));
+        Assert.NotNull(await catalog.Find("intochat", "echo"));
+
+        WriteEcho("this is not C#");
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => catalog.Reload("intochat", "echo"));
+
+        Assert.Contains("intochat/echo 2.0.0 does not compile", refused.Message, StringComparison.Ordinal);
+        Assert.Equal("// echo\n", (await catalog.Find("intochat", "echo"))!.Files["echo.cs"]);
+    }
+
+    [Fact]
     public async Task AHostWithNoFeaturesFolderHasNoFeatures()
         => Assert.Empty(await new FeatureCatalog(null).Listings());
 

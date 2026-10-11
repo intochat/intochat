@@ -10,6 +10,7 @@ public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketpla
     public async Task<AppSnapshot> Install(string publisher, string name, CancellationToken ct)
     {
         var scope = BrainScope.CurrentId();
+        await catalog.Reload(publisher, name).WaitAsync(ct);
         var listing = await marketplace.Read(publisher, name, ct)
             ?? throw new KeyNotFoundException($"{publisher}/{name} is not in the Marketplace.");
         if (listing.Source.Scope() == scope) { throw new InvalidOperationException($"{name} is already yours: you published it."); }
@@ -29,6 +30,7 @@ public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketpla
         { throw new InvalidOperationException($"{name} was not installed from the Marketplace."); }
         if (current.Edited)
         { throw new InvalidOperationException($"{name} has your own edits; it no longer takes updates from {origin.Publisher}."); }
+        if (origin.Source is AppSource.Shipped) { await catalog.Reload(origin.Publisher, origin.Name).WaitAsync(ct); }
         var listing = await marketplace.Read(origin.Publisher, origin.Name, ct) ?? throw Gone(origin.Source, origin.Publisher, origin.Name);
         if (AppVersions.Compare(listing.Version, origin.Version) <= 0) { return current; }
         var bundle = await Bundle(origin.Source, origin.Publisher, origin.Name, ct);
