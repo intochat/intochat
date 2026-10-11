@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Google.Gmail;
 
@@ -15,7 +16,7 @@ public sealed class GmailWatchWebhookFacts(GmailHost host)
         var person = await brain.PersonAsync("push", ct);
         await person.ConnectAsync("push", ct);
         await using var mail = await brain.Observe<MailReceived>(brain.Get<IGmail>(ConnectionKeys.For(person.BrainId, "gmail", "push")), ct);
-        using var response = await brain.PushAsync("user@gmail.com", "123", ct);
+        using var response = await brain.PushAsync(person.BrainId, "user@gmail.com", "123", ct);
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
         var received = await mail.NextAsync(ct: ct);
         Assert.Equal("user@gmail.com", received.EmailAddress);
@@ -40,27 +41,37 @@ public sealed class GmailWatchWebhookFacts(GmailHost host)
     }
 
     [Fact]
-    public async Task OneMailboxFansOutToConnectionsInTwoBrainsAndOtherMailboxesStaySeparate()
+    public async Task APushFansOutToEveryGmailConnectionOfTheAddressedBrainAndNoOther()
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
         var firstPerson = await brain.PersonAsync("first", ct);
         var secondPerson = await brain.PersonAsync("second", ct);
         var first = ConnectionKeys.For(firstPerson.BrainId, "gmail", "shared");
+        var again = ConnectionKeys.For(firstPerson.BrainId, "gmail", "again");
         var second = ConnectionKeys.For(secondPerson.BrainId, "gmail", "shared");
         await firstPerson.ConnectAsync("shared", ct);
+        await firstPerson.ConnectAsync("again", ct);
         await secondPerson.ConnectAsync("shared", ct);
-        var index = brain.Grains().GetGrain<IGmailMailboxIndex>("user@gmail.com");
-        await index.Add(first);
-        Assert.Equal(1, (await index.Read()).Count(x => x == first));
-        Assert.Contains(second, await index.Read());
-        Assert.Empty(await brain.Grains().GetGrain<IGmailMailboxIndex>("other@gmail.com").Read());
         await using var firstMail = await brain.Observe<MailReceived>(brain.Get<IGmail>(first), ct);
+        await using var againMail = await brain.Observe<MailReceived>(brain.Get<IGmail>(again), ct);
         await using var secondMail = await brain.Observe<MailReceived>(brain.Get<IGmail>(second), ct);
-        using var response = await brain.PushAsync("user@gmail.com", "fanout", ct);
+        using var response = await brain.PushAsync(firstPerson.BrainId, "user@gmail.com", "fanout", ct);
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
         Assert.Equal("fanout", (await firstMail.NextAsync(ct: ct)).HistoryId);
-        Assert.Equal("fanout", (await secondMail.NextAsync(ct: ct)).HistoryId);
+        Assert.Equal("fanout", (await againMail.NextAsync(ct: ct)).HistoryId);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => secondMail.NextAsync(ct: deadline.Token));
+    }
+
+    [Fact]
+    public async Task AWatchUrlNamingNoBrainIsNotFound()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var request = new HttpRequestMessage(HttpMethod.Post, GmailModule.WatchPath) { Content = JsonContent.Create(new { message = new { data = "e30=" } }) };
+        request.Headers.Authorization = new("Bearer", GmailBrain.PushToken);
+        using var response = await host.Brain.HttpClient.SendAsync(request, ct);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
@@ -68,21 +79,20 @@ public sealed class GmailWatchWebhookFacts(GmailHost host)
     {
         var ct = TestContext.Current.CancellationToken;
         var brain = host.Brain;
-        var lapsed = await brain.PersonAsync("lapsed", ct);
-        var live = await brain.PersonAsync("live", ct);
-        var revoked = ConnectionKeys.For(lapsed.BrainId, "gmail", "lapsed");
-        var healthy = ConnectionKeys.For(live.BrainId, "gmail", "live");
-        // The revoked connection is indexed first, so the loop meets its failure before the healthy one.
-        using (lapsed.AsCaller())
+        var person = await brain.PersonAsync("lapsing", ct);
+        var revoked = ConnectionKeys.For(person.BrainId, "gmail", "lapsed");
+        var healthy = ConnectionKeys.For(person.BrainId, "gmail", "live");
+        // The revoked connection is tracked first, so the loop meets its failure before the healthy one.
+        using (person.AsCaller())
         { await brain.Grains().GetConnectionInbound(revoked).AcceptGrant(new("google-oauth", "stale-token", TokenEndpointStub.RevokedRefreshToken, DateTimeOffset.UtcNow.AddSeconds(-1), GmailScopes.Read, null, "{}")); }
-        await live.ConnectAsync("live", ct);
-        var index = await brain.Grains().GetGrain<IGmailMailboxIndex>("user@gmail.com").Read();
-        Assert.True(Array.IndexOf(index, revoked) < Array.IndexOf(index, healthy));
+        await person.ConnectAsync("live", ct);
+        var tracked = await brain.Grains().GetGrain<IConnectionIndex>(person.BrainId).List();
+        Assert.True(Array.IndexOf(tracked, revoked) < Array.IndexOf(tracked, healthy));
         await using var healthyMail = await brain.Observe<MailReceived>(brain.Get<IGmail>(healthy), ct);
-        using var response = await brain.PushAsync("user@gmail.com", "after-revoke", ct);
+        using var response = await brain.PushAsync(person.BrainId, "user@gmail.com", "after-revoke", ct);
         Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
         Assert.Equal("after-revoke", (await healthyMail.NextAsync(ct: ct)).HistoryId);
-        using (lapsed.AsCaller())
+        using (person.AsCaller())
         {
             var view = await brain.Get<IConnection>(revoked).Read();
             Assert.Equal(ConnectionStatus.Expired, view.Status);

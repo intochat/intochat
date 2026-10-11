@@ -9,7 +9,7 @@ namespace DigitalBrain.Modules.Google.Gmail.Tests;
 public sealed class GmailConnectedFacts
 {
     [Fact]
-    public async Task AGrantConnectsTheMailboxAndIndexesItsEmail()
+    public async Task AGrantConnectsTheMailboxAndTracksTheConnectionInItsBrain()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var stub = await TokenEndpointStub.StartAsync(ct);
@@ -22,7 +22,7 @@ public sealed class GmailConnectedFacts
             Assert.Equal("user@gmail.com", view.Account);
         }
         Assert.Equal("user@gmail.com", (await connected.NextAsync(ct: ct)).Account);
-        Assert.Equal([key], await brain.Grains().GetGrain<IGmailMailboxIndex>("user@gmail.com").Read());
+        Assert.Equal([key], await brain.Grains().GetGrain<IConnectionIndex>(brain.Owner.BrainId).List());
     }
 
     [Fact]

@@ -21,9 +21,9 @@ public sealed class GmailPushAuthenticationFacts
         var ct = TestContext.Current.CancellationToken;
         await using var stub = await TokenEndpointStub.StartAsync(ct);
         await using var brain = await GmailBrain.StartAsync(stub, ct, posture: "Secured");
-        using var rejected = await brain.PushAsync("unconnected@gmail.com", "1", ct, bearer: "unverified");
+        using var rejected = await brain.PushAsync("unregistered", "unconnected@gmail.com", "1", ct, bearer: "unverified");
         Assert.Equal(HttpStatusCode.Unauthorized, rejected.StatusCode);
-        using var accepted = await brain.PushAsync("unconnected@gmail.com", "1", ct);
+        using var accepted = await brain.PushAsync("unregistered", "unconnected@gmail.com", "1", ct);
         Assert.Equal(HttpStatusCode.Accepted, accepted.StatusCode);
     }
 }

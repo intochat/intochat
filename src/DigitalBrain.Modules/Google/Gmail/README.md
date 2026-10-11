@@ -11,7 +11,7 @@ at `/brains/{id}/connections`. Provision deployment credentials with
 
 Integrations are what the deployment provisions; Connections are what users authorize.
 
-Pub/Sub delivery uses the connection grain key.
+Pub/Sub delivery is addressed to a brain; its Gmail connections decide by mailbox.
 
 Integration `google-oauth` requires `ClientId` and `ClientSecret`. The connector declares the
 `google-oauth` OAuth method; the Platform owns the browser login, the callback and the token
@@ -26,7 +26,10 @@ endpoint whether the stored token still works.
 
 Optional Integration `google-pubsub` contains non-secret `Audience` and `ServiceAccountEmail`.
 Without it, OAuth connections remain offered and push authentication refuses delivery.
-`POST /google/gmail/watch` requires a Google-signed, unexpired bearer token with the configured
-audience and verified service-account email. A durable mailbox index routes to connected named
-connections; disconnected entries are skipped, and the same mailbox can fan out to authorized
-connections in multiple brains. Push delivery does not prune stale index entries.
+`POST /google/gmail/watch/{brainId}` requires a Google-signed, unexpired bearer token with the
+configured audience and verified service-account email. The Pub/Sub push subscription's endpoint
+URL carries the brain id, so one subscription serves one brain; create a subscription per brain
+that watches mailboxes. The endpoint offers the push to every Gmail connection of that brain (the
+brain's connection index), and each connection accepts it only when the payload's `emailAddress`
+is its own verified mailbox; disconnected connections publish nothing. There is no cross-brain
+mailbox index: a mailbox connected in two brains needs a push subscription for each.

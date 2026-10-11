@@ -28,7 +28,7 @@ internal static class GmailBrain
         return builder.StartAsync(ct);
     }
 
-    // Gmail's grains behind the edge (inbound, mailbox index) are not neurons; the brain's grain factory reaches them.
+    // Gmail's inbound grain behind the edge is not a neuron; the brain's grain factory reaches it.
     public static IGrainFactory Grains(this ITestBrain brain) => brain.Services.GetRequiredService<IGrainFactory>();
 
     // The Platform's browser login: start it, then return through its callback with a code.
@@ -42,10 +42,11 @@ internal static class GmailBrain
         callback.EnsureSuccessStatusCode();
     }
 
-    public static async Task<HttpResponseMessage> PushAsync(this ITestBrain brain, string emailAddress, string historyId, CancellationToken ct, string bearer = PushToken)
+    // The Pub/Sub push subscription URL names the brain it delivers to.
+    public static async Task<HttpResponseMessage> PushAsync(this ITestBrain brain, string brainId, string emailAddress, string historyId, CancellationToken ct, string bearer = PushToken)
     {
         var data = Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { emailAddress, historyId })));
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/google/gmail/watch")
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{GmailModule.WatchPath}/{brainId}")
         {
             Content = JsonContent.Create(new { message = new { data, messageId = historyId }, subscription = "projects/x/subscriptions/gmail" }),
         };
