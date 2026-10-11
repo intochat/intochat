@@ -3,6 +3,7 @@ using DigitalBrain.AI.Inference;
 using DigitalBrain.AI.Models;
 using DigitalBrain.AI.Models.Signals;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Modules.AI.Tests;
 
@@ -32,22 +33,63 @@ public sealed class InterleavingFacts
         var gate = new Gate(calls);
         await using var brain = await TestBrain.Create().WithModule<AIModule>().WithChatModel(gate.Client).StartAsync(ct);
         var llm = brain.Get<ILLM>(Model);
-        await using var started = await brain.Observe<InferenceStarted>(llm, ct);
-        await using var completed = await brain.Observe<InferenceCompleted>(llm, ct);
+        var watcher = new Recorder();
+        var reference = Factory(brain).CreateObjectReference<INeuronObserver>(watcher);
+        await llm.Watch(reference);
 
         await Task.WhenAll(Enumerable.Range(0, calls).Select(i => llm.Generate(Ask("call " + i), ct)));
 
-        var starts = new List<string>();
-        var ends = new List<string>();
-        for (var i = 0; i < calls; i++)
-        {
-            starts.Add((await started.NextAsync(ct: ct)).OperationId);
-            ends.Add((await completed.NextAsync(ct: ct)).OperationId);
-        }
+        // A publish awaits every observer, so all of a call's signals are delivered before it returns.
+        var starts = watcher.Of<InferenceStarted>().Select(s => s.OperationId).ToArray();
+        var ends = watcher.Of<InferenceCompleted>().Select(s => s.OperationId).ToArray();
         Assert.Equal(calls, gate.Overlap);
         Assert.Equal(calls, gate.Served);
+        Assert.Equal(calls, starts.Length);
+        Assert.Equal(calls, ends.Length);
         Assert.Equal(calls, starts.Distinct().Count());
         Assert.Equal(starts.Order(), ends.Order());
+    }
+
+    [Fact]
+    public async Task AWatchArrivingMidGenerationLeavesEveryObserverSubscribed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var held = 0;
+        var model = new StubChatClient(async (_, _, token) =>
+        {
+            if (Interlocked.Increment(ref held) == 1) { entered.TrySetResult(); await release.Task.WaitAsync(token); }
+            return new ChatResponse(new ChatMessage(ChatRole.Assistant, "ok"));
+        });
+        await using var brain = await TestBrain.Create().WithModule<AIModule>().WithChatModel(model).StartAsync(ct);
+        var llm = brain.Get<ILLM>(Model);
+        var early = new Recorder();
+        var late = new Recorder();
+        await llm.Watch(Factory(brain).CreateObjectReference<INeuronObserver>(early));
+
+        var first = llm.Generate(Ask("held"), ct);
+        await entered.Task.WaitAsync(ct);
+        var watch = llm.Watch(Factory(brain).CreateObjectReference<INeuronObserver>(late));
+        release.SetResult();
+        await first;
+        await watch;
+        await llm.Generate(Ask("after"), ct);
+
+        Assert.Equal(2, early.Of<InferenceStarted>().Length);
+        Assert.Equal(2, early.Of<InferenceCompleted>().Length);
+        var after = early.Of<InferenceCompleted>()[^1].OperationId;
+        Assert.Contains(late.Of<InferenceStarted>(), signal => signal.OperationId == after);
+        Assert.Equal(after, late.Of<InferenceCompleted>()[^1].OperationId);
+    }
+
+    private static IGrainFactory Factory(ITestBrain brain) => brain.Services.GetRequiredService<IGrainFactory>();
+
+    private sealed class Recorder : INeuronObserver
+    {
+        private readonly System.Collections.Concurrent.ConcurrentQueue<Signal> _signals = new();
+        public T[] Of<T>() where T : Signal => _signals.OfType<T>().ToArray();
+        public Task OnSignalAsync(Signal signal) { _signals.Enqueue(signal); return Task.CompletedTask; }
     }
 
     private static InferenceRequest Ask(string text) => new([new("user", [new AiText(text)])]);

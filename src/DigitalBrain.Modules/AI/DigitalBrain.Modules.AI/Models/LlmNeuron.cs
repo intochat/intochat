@@ -8,8 +8,8 @@ using Orleans.Serialization.Invocation;
 namespace DigitalBrain.AI.Models;
 
 // A brain's model calls run concurrently: only Describe and Generate interleave, with each other.
-// Watch/Unwatch stay exclusive so the observer set never changes under a running publish, and
-// publishes are serialized because ObserverManager.Notify enumerates (and prunes) across awaits.
+// ObserverManager.Notify enumerates (and prunes) the observer set across awaits, so publishes and
+// Watch/Unwatch take one gate: the set never changes under a running notify.
 [MayInterleave(nameof(Interleaves))]
 public abstract class LlmNeuronBase(InferenceService inference, Type? marker = null) : Neuron, ILLM
 {
@@ -62,8 +62,20 @@ public abstract class LlmNeuronBase(InferenceService inference, Type? marker = n
         }
     }
 
+    public override Task<Guid> Watch(INeuronObserver observer) => Gated(() => base.Watch(observer));
+    public override Task<Guid> Watch(INeuronObserver observer, string[] signals) => Gated(() => base.Watch(observer, signals));
+    public override Task Unwatch(INeuronObserver observer) => Gated(async () => { await base.Unwatch(observer); return true; });
+
+    private async Task<T> Gated<T>(Func<Task<T>> change)
+    {
+        await _publishing.WaitAsync();
+        try { return await change(); }
+        finally { _publishing.Release(); }
+    }
+
     private async Task Publish(Signal signal)
     {
+        // Held across observer notification: an observer calling back into Generate self-deadlocks, as before interleaving.
         await _publishing.WaitAsync();
         try { await PublishAsync(signal); }
         finally { _publishing.Release(); }
