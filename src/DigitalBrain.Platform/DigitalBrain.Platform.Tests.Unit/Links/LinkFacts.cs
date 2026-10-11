@@ -76,6 +76,33 @@ public sealed class LinkFacts
         Assert.Null(LinkCertificates.Validate(copied, "d1", time));
     }
 
+    // Fix round 1: a link certificate lives a day; both ends renew it before NotAfter, and the listener hands out the
+    // current one per handshake, so links still form after the lifetime has passed.
+    [Fact(Timeout = 60_000)]
+    public async Task ALinkStillFormsAfterTheCertificateLifetime()
+    {
+        SkipWithoutQuic();
+        var ct = TestContext.Current.CancellationToken;
+        await using var trust = await TrustHost.StartAsync(ct);
+        using var a = Key();
+        using var b = Key();
+        await Register(trust, a);
+        await Register(trust, b);
+        var deployment = await Deployment(trust);
+        var admits = await Registered(trust, a, b);
+        var time = new global::Microsoft.Extensions.Time.Testing.FakeTimeProvider(DateTimeOffset.UtcNow);
+        using var certificateA = new LinkCertificate(a, deployment, time);
+        using var certificateB = new LinkCertificate(b, deployment, time);
+        await using var listener = await QuicLinkListener.Start(Loopback, End(certificateA, deployment, admits, time), _ => { }, ct);
+
+        await using (var first = await QuicMachineLink.Dial(listener.LocalEndPoint, null, MachineKeys.IdOf(a.PublicKey), End(certificateB, deployment, admits, time), LinkPath.Direct, ct))
+        { await first.Send(Request([1]), ct); }
+        time.Advance(LinkCertificates.Lifetime * 2);
+        await using var later = await QuicMachineLink.Dial(listener.LocalEndPoint, null, MachineKeys.IdOf(a.PublicKey), End(certificateB, deployment, admits, time), LinkPath.Direct, ct);
+
+        Assert.Equal([2], (await later.Send(Request([2]), ct)).Payload);
+    }
+
     [Fact(Timeout = 60_000)]
     public async Task AnEndorsementFromAnotherDeploymentIsRefused()
     {

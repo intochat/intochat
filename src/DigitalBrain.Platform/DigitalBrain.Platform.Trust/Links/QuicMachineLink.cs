@@ -11,11 +11,11 @@ namespace DigitalBrain.Platform.Links;
 // What a link end answers on a request its peer sent.
 internal delegate Task<LinkReply> LinkHandler(QuicMachineLink link, LinkRequest request, CancellationToken cancellationToken);
 
-// One side of a link: its endorsed certificate, the deployment it accepts endorsements for (null: any — only the
+// One side of a link: its endorsed certificate (read per handshake, so a renewed one is used), the deployment it accepts endorsements for (null: any — only the
 // trust link, whose host is pinned), which proved peers it admits, and what it answers.
 [System.Runtime.Versioning.SupportedOSPlatform("windows"), System.Runtime.Versioning.SupportedOSPlatform("linux"), System.Runtime.Versioning.SupportedOSPlatform("macos")]
 internal sealed record LinkEnd(
-    X509Certificate2 Certificate,
+    Func<X509Certificate2> Certificate,
     string? DeploymentId,
     Func<LinkPeer, bool> Admits,
     LinkOptions Options,
@@ -86,7 +86,7 @@ internal sealed class QuicMachineLink : IMachineLink
             {
                 ApplicationProtocols = LinkEnd.Alpn,
                 TargetHost = "digitalbrain-link",
-                ClientCertificates = [end.Certificate],
+                ClientCertificates = [end.Certificate()],
                 RemoteCertificateValidationCallback = (_, certificate, _, _) =>
                     (proved = end.Check(certificate)) is { } peer && (expectedMachineId is null || peer.MachineId == expectedMachineId),
             },

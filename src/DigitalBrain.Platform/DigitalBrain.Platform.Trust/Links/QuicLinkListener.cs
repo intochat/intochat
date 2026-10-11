@@ -32,7 +32,8 @@ internal sealed class QuicLinkListener : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(at);
         ArgumentNullException.ThrowIfNull(end);
-        var options = new QuicServerConnectionOptions
+        // Built per connection, so every handshake presents the end's current (renewed) certificate.
+        QuicServerConnectionOptions Options() => new()
         {
             DefaultStreamErrorCode = QuicMachineLink.StreamCode,
             DefaultCloseErrorCode = QuicMachineLink.CloseCode,
@@ -42,7 +43,7 @@ internal sealed class QuicLinkListener : IAsyncDisposable
             ServerAuthenticationOptions = new SslServerAuthenticationOptions
             {
                 ApplicationProtocols = LinkEnd.Alpn,
-                ServerCertificate = end.Certificate,
+                ServerCertificate = end.Certificate(),
                 ClientCertificateRequired = true,
                 RemoteCertificateValidationCallback = (_, certificate, _, _) => end.Check(certificate) is not null,
             },
@@ -51,7 +52,7 @@ internal sealed class QuicLinkListener : IAsyncDisposable
         {
             ListenEndPoint = at,
             ApplicationProtocols = LinkEnd.Alpn,
-            ConnectionOptionsCallback = (_, _, _) => ValueTask.FromResult(options),
+            ConnectionOptionsCallback = (_, _, _) => ValueTask.FromResult(Options()),
         }, cancellationToken).ConfigureAwait(false);
         return new QuicLinkListener(listener, end, accepted, path);
     }

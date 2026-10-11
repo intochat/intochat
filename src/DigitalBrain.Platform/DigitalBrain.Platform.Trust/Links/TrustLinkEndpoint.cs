@@ -83,6 +83,7 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
     private Relay? _relay;
     private Rendezvous? _rendezvous;
     private FileMachineSigningKey? _key;
+    private LinkCertificate? _certificate;
     private Dictionary<string, Operation>? _operations;
 
     public IPEndPoint LinkEndPoint => _listener?.LocalEndPoint ?? throw new InvalidOperationException("The trust link endpoint has not started.");
@@ -107,7 +108,8 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
         _operations = Operations();
         // The trust link admits any machine whose endorsement holds, for any deployment it was made for (R90):
         // registration is checked per call, and a machine learns the deployment id over this very link.
-        var end = new LinkEnd(LinkCertificates.Create(_key, deployment, time), null, _ => true, links.Value, serializer, Dispatch, time);
+        _certificate = new LinkCertificate(_key, deployment, time);
+        var end = new LinkEnd(() => _certificate.Current, null, _ => true, links.Value, serializer, Dispatch, time);
         _listener = await QuicLinkListener.Start(new IPEndPoint(address, options.LinkPort), end, Accepted, cancellationToken).ConfigureAwait(false);
         Log.Listening(logger, _listener.LocalEndPoint, _relay.LocalEndPoint, TrustId, deployment);
     }
@@ -340,6 +342,7 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
     public async ValueTask DisposeAsync()
     {
         await Stop(CancellationToken.None).ConfigureAwait(false);
+        _certificate?.Dispose();
         _key?.Dispose();
     }
 

@@ -239,7 +239,8 @@ public sealed class TrustLinkFacts
         {
             var key = Key();
             TrustOptions.TryParse(trust.Endpoint, out var host, out var port);
-            var end = new LinkEnd(LinkCertificates.Create(key, "", TimeProvider.System), null, _ => true, Options, Serializer, Echo, TimeProvider.System);
+            var certificate = LinkCertificates.Create(key, "", TimeProvider.System);
+            var end = new LinkEnd(() => certificate, null, _ => true, Options, Serializer, Echo, TimeProvider.System);
             var link = await QuicMachineLink.Dial(new System.Net.IPEndPoint(System.Net.IPAddress.Parse(host), port), null, trust.TrustId, end, LinkPath.Direct, cancellationToken);
             return new RawMachine(key, link, trust);
         }

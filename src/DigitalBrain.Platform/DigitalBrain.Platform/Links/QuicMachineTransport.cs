@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
-using System.Security.Cryptography.X509Certificates;
 using DigitalBrain.Framework.Links;
 using DigitalBrain.Framework.Parts;
 using DigitalBrain.Platform.Mesh;
@@ -31,8 +30,8 @@ internal sealed partial class QuicMachineTransport(IOptions<TrustOptions> trust,
     private readonly CancellationTokenSource _stopping = new();
     private QuicMachineLink? _trust;
     private IPEndPoint? _trustEndPoint;
-    private X509Certificate2? _trustCertificate;
-    private X509Certificate2? _certificate;
+    private LinkCertificate? _trustCertificate;
+    private LinkCertificate? _certificate;
     private string? _deployment;
     private int? _relayPort;
 
@@ -83,8 +82,9 @@ internal sealed partial class QuicMachineTransport(IOptions<TrustOptions> trust,
         var registered = await Call<string, RegisteredMachine?>(TrustOperations.Machine, peer, cancellationToken).ConfigureAwait(false)
             ?? throw new UnauthorizedAccessException($"Machine {peer} is not registered with the trust deployment; no link is made to it.");
         _deployment ??= await Call<bool, string>(TrustOperations.Deployment, true, cancellationToken).ConfigureAwait(false);
-        _certificate ??= LinkCertificates.Create(key, _deployment, time);
-        return new LinkEnd(_certificate, _deployment,
+        _certificate ??= new LinkCertificate(key, _deployment, time);
+        var certificate = _certificate;
+        return new LinkEnd(() => certificate.Current, _deployment,
             proved => proved.MachineId == peer && proved.PublicKey.AsSpan().SequenceEqual(registered.PublicKey),
             links.Value, serializer, Answer, time);
     }
@@ -183,8 +183,9 @@ internal sealed partial class QuicMachineTransport(IOptions<TrustOptions> trust,
             if (_trust is { IsOpen: true } raced) { return raced; }
             _trustEndPoint ??= await Resolve(trust.Value.Endpoint ?? throw new InvalidOperationException($"{TrustOptions.Key}:Endpoint is not set."), cancellationToken).ConfigureAwait(false);
             // The trust link's certificate is made before the deployment is known; the trust host accepts any (R90).
-            _trustCertificate ??= LinkCertificates.Create(key, "", time);
-            var end = new LinkEnd(_trustCertificate, null, _ => true, links.Value, serializer, Answer, time);
+            _trustCertificate ??= new LinkCertificate(key, "", time);
+            var trustCertificate = _trustCertificate;
+            var end = new LinkEnd(() => trustCertificate.Current, null, _ => true, links.Value, serializer, Answer, time);
             var local = links.Value.Port is > 0 and var port ? new IPEndPoint(IPAddress.Any, port) : null;
             var link = await QuicMachineLink.Dial(_trustEndPoint, local, null, end, LinkPath.Direct, cancellationToken).ConfigureAwait(false);
             try { pin.Check(link.RemoteMachineId); }

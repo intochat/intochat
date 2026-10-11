@@ -50,7 +50,10 @@ internal static class LinkTestbed
     }
 
     public static LinkEnd End(X509Certificate2 certificate, string deployment, Func<LinkPeer, bool> admits, LinkOptions? options = null)
-        => new(certificate, deployment, admits, options ?? Options, Serializer, Echo, TimeProvider.System);
+        => new(() => certificate, deployment, admits, options ?? Options, Serializer, Echo, TimeProvider.System);
+
+    public static LinkEnd End(LinkCertificate certificate, string deployment, Func<LinkPeer, bool> admits, TimeProvider time)
+        => new(() => certificate.Current, deployment, admits, Options, Serializer, Echo, time);
 
     public static Task<LinkReply> Echo(QuicMachineLink link, LinkRequest request, CancellationToken cancellationToken)
         => Task.FromResult(new LinkReply(request.Payload, null, null));

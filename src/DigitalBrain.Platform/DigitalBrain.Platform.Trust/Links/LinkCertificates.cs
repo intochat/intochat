@@ -7,6 +7,37 @@ using DigitalBrain.Platform.Sequencer;
 
 namespace DigitalBrain.Platform.Links;
 
+// One end's link certificate, renewed before it expires: at half its lifetime the next handshake gets a fresh one
+// (fix round 1), so a long-running machine or trust host keeps forming links after a day.
+internal sealed class LinkCertificate(IMachineSigningKey key, string deploymentId, TimeProvider time) : IDisposable
+{
+    private readonly Lock _gate = new();
+    private X509Certificate2? _current;
+    private DateTimeOffset _renewAt;
+
+    public X509Certificate2 Current
+    {
+        get
+        {
+            lock (_gate)
+            {
+                if (_current is null || time.GetUtcNow() >= _renewAt)
+                {
+                    // The replaced certificate may still back a live connection; it is left to the finalizer.
+                    _current = LinkCertificates.Create(key, deploymentId, time);
+                    _renewAt = time.GetUtcNow() + LinkCertificates.Lifetime / 2;
+                }
+                return _current;
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        lock (_gate) { _current?.Dispose(); }
+    }
+}
+
 // The peer a handshake proved: the id derived from the key that endorsed its certificate.
 internal sealed record LinkPeer(string MachineId, byte[] PublicKey);
 
