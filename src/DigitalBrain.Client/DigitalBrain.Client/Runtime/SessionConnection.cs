@@ -98,10 +98,10 @@ public sealed class SessionConnection : IAsyncDisposable
         return body.GetProperty("subscription").GetString() ?? throw new InvalidOperationException("The brain answered a subscribe without a subscription id.");
     }
 
-    public async Task AcknowledgeAsync(string subscription, long watermark, CancellationToken cancellationToken, long cpuMicroseconds = 0, long wallMicroseconds = 0, int batches = 1)
+    public async Task AcknowledgeAsync(string subscription, long watermark, CancellationToken cancellationToken, long cpuMicroseconds = 0, long wallMicroseconds = 0, int batches = 1, bool skipped = false)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var pending = new PendingAcknowledgement(new(subscription, watermark, cpuMicroseconds, wallMicroseconds, batches), System.Diagnostics.Activity.Current?.Id);
+        var pending = new PendingAcknowledgement(new(subscription, watermark, cpuMicroseconds, wallMicroseconds, batches, skipped), System.Diagnostics.Activity.Current?.Id);
         if (!_acknowledgements.Writer.TryWrite(pending)) { throw new ObjectDisposedException(nameof(SessionConnection)); }
         // Cancelling a caller's wait must not cancel a report shared with other subscriptions.
         await pending.Completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -130,7 +130,7 @@ public sealed class SessionConnection : IAsyncDisposable
                         var reports = group.GroupBy(item => item.Report.Subscription, StringComparer.Ordinal)
                             .Select(items => new AcknowledgeReport(items.Key, items.Max(item => item.Report.Watermark),
                                 items.Sum(item => item.Report.CpuMicroseconds), items.Sum(item => item.Report.WallMicroseconds),
-                                items.Sum(item => item.Report.Batches))).ToArray();
+                                items.Sum(item => item.Report.Batches), items.All(item => item.Report.Skipped))).ToArray();
                         await ReportAsync(new RuntimeReport(Acknowledgements: reports), "acknowledge", reportLifetime.Token).ConfigureAwait(false);
                         foreach (var item in group) { item.Completion.TrySetResult(); }
                     }

@@ -19,6 +19,7 @@ public static class AppSubscriptions
         await foreach (var request in brain.On<AppRequested>(app, onSubscribed, cancellationToken).WithCancellation(cancellationToken).ConfigureAwait(false))
         {
             if (string.Equals(request.Operation, operation, StringComparison.Ordinal)) { yield return request; }
+            else { SignalDeliveries.Skip(request); }
         }
     }
 }

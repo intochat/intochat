@@ -45,6 +45,31 @@ public sealed class SharedSubscriptionFacts
         Assert.Equal(2, brain.Subscribed.Count(key => key == "source"));
     }
 
+    // A filter that passes over every signal of a batch (an app operation's synapse seeing another operation)
+    // acknowledges it as skipped; a batch it hands on is a run.
+    [Fact]
+    public async Task ABatchEverySignalOfWhichWasPassedOverIsAcknowledgedAsSkipped()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var brain = new SharedBrain(Batch("sub-source", 1, 1));
+        await using var session = await brain.OpenAsync(ct);
+        await using var connection = await Connect(session, ct);
+        await using var reader = connection.On<Changed>(connection.Get<ISource>("source"), ct).GetAsyncEnumerator(ct);
+
+        Assert.True(await reader.MoveNextAsync());
+        SignalDeliveries.Skip(reader.Current);
+        var hasTwo = reader.MoveNextAsync().AsTask();
+        var skipped = await brain.Acknowledged.Reader.ReadAsync(ct);
+        await brain.PushAsync(Batch("sub-source", 2, 1, 2), ct);
+        Assert.True(await hasTwo);
+        var hasThree = reader.MoveNextAsync().AsTask();
+        var handled = await brain.Acknowledged.Reader.ReadAsync(ct);
+
+        Assert.Equal((1L, true), (skipped["watermark"]!.GetValue<long>(), skipped["skipped"]!.GetValue<bool>()));
+        Assert.Equal((2L, false), (handled["watermark"]!.GetValue<long>(), handled["skipped"]!.GetValue<bool>()));
+        GC.KeepAlive(hasThree);
+    }
+
     [Fact]
     public async Task TheWatermarkAdvancesOnlyOnceEveryReaderHasAcknowledged()
     {

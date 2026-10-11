@@ -38,11 +38,17 @@ internal sealed class SessionSignalSubscription<T> : IAsyncDisposable where T : 
             // synapse run against the batch's trace.
             var cpuStart = Process.GetCurrentProcess().TotalProcessorTime;
             var wallStart = Stopwatch.GetTimestamp();
-            foreach (var json in batch.Signals) { yield return JsonSerializer.Deserialize<T>(json, RuntimeProtocol.Json)!; }
+            var skipped = batch.Signals.Length > 0;
+            foreach (var json in batch.Signals)
+            {
+                var signal = JsonSerializer.Deserialize<T>(json, RuntimeProtocol.Json)!;
+                yield return signal;
+                skipped &= SignalDeliveries.WasSkipped(signal);
+            }
             // Resuming here means the consumer asked for more: every signal of the batch was handled.
             var cpuMicros = (long)Math.Max(0, (Process.GetCurrentProcess().TotalProcessorTime - cpuStart).TotalMicroseconds);
             var wallMicros = (long)Stopwatch.GetElapsedTime(wallStart).TotalMicroseconds;
-            await _reader.AcknowledgeAsync(batch.Watermark, cpuMicros, wallMicros, cancellationToken).ConfigureAwait(false);
+            await _reader.AcknowledgeAsync(batch.Watermark, cpuMicros, wallMicros, skipped, cancellationToken).ConfigureAwait(false);
         }
     }
 

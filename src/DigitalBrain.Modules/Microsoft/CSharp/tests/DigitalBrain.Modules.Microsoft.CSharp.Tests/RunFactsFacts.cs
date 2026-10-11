@@ -50,6 +50,48 @@ public sealed class RunFactsFacts
         Assert.Equal((1L, 0L, 1_500L), (view.Runs, view.Failures, view.LastDurationMicroseconds));
     }
 
+    // An operation's synapse reads every AppRequested of its app and passes over the others: those batches are
+    // delivered and acknowledged, but nothing ran.
+    [Fact]
+    public async Task ARequestForAnotherOperationOfTheSameAppIsNotCountedAsARun()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var rig = await StartAsync(ct, "synapses/a.cs");
+        var pinger = rig.Brain.Get<IPinger>("one");
+        var subscription = await rig.Edge.Subscribed(rig.Session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+
+        await PingAsync(pinger, 1, First);
+        await rig.Started.NextAsync(ct: ct);
+        await rig.Edge.AcknowledgeMany(rig.Session, [new AcknowledgeReport(subscription, 1, CpuMicroseconds: 30, WallMicroseconds: 40, Skipped: true)]);
+        var ran = await rig.Ran.NextAsync(ct: ct);
+
+        var view = Assert.Single((await rig.Runtime.Inspect(ct)).Behaviors);
+        Assert.Equal((RunOutcome.Skipped, 1L), (ran.Outcome, ran.Watermark));
+        Assert.Equal((0L, 0L, 0L), (view.Runs, view.Failures, view.LastDurationMicroseconds));
+        Assert.Equal(1L, Assert.Single(view.Subscriptions).Delivered);
+    }
+
+    [Fact]
+    public async Task AHandledRequestIsCountedOnce()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var rig = await StartAsync(ct, "synapses/a.cs");
+        var pinger = rig.Brain.Get<IPinger>("one");
+        var subscription = await rig.Edge.Subscribed(rig.Session, Behavior, pinger.GetGrainId().ToString(), nameof(Pinged));
+
+        await PingAsync(pinger, 1, First);
+        await rig.Started.NextAsync(ct: ct);
+        // A handled and a skipped report for the same subscription in one call: the subscription ran.
+        await rig.Edge.AcknowledgeMany(rig.Session, [new AcknowledgeReport(subscription, 1, WallMicroseconds: 70), new AcknowledgeReport(subscription, 1, Skipped: true)]);
+        var ran = await rig.Ran.NextAsync(ct: ct);
+        await rig.Edge.AcknowledgeMany(rig.Session, [new AcknowledgeReport(subscription, 1, WallMicroseconds: 70)]);
+
+        var view = Assert.Single((await rig.Runtime.Inspect(ct)).Behaviors);
+        Assert.Equal(RunOutcome.Succeeded, ran.Outcome);
+        Assert.Equal(1L, view.Runs);
+        Assert.Single(rig.Journal.Facts<BehaviorRan>(rig.Runs.GetGrainId()));
+    }
+
     // The run's span sits under the span the pushed batch carried, in the batch's own trace, so a trace viewer
     // finds its parent.
     [Fact]

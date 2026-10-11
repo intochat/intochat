@@ -329,7 +329,7 @@ internal sealed class BrainRuntimeNeuron(
         { throw new ArgumentException("An acknowledgement batch needs 1 to 256 valid subscription watermarks.", nameof(acknowledgements)); }
         return AcknowledgeAsync([.. acknowledgements.GroupBy(ack => ack.Subscription, StringComparer.Ordinal)
             .Select(group => new AcknowledgeReport(group.Key, group.Max(ack => ack.Watermark), group.Sum(ack => ack.CpuMicroseconds),
-                group.Sum(ack => ack.WallMicroseconds), group.Sum(ack => ack.Batches)))]);
+                group.Sum(ack => ack.WallMicroseconds), group.Sum(ack => ack.Batches), group.All(ack => ack.Skipped)))]);
     }
 
     // One write trims every acknowledged subscription. A report that moved Delivered is a finished run; a
@@ -352,7 +352,7 @@ internal sealed class BrainRuntimeNeuron(
         {
             if (IsRunFacts(before.Neuron) || Synapse(before.Behavior) is not { } synapse) { continue; }
             Ran(new BehaviorRan(RuntimeId, synapse.Owner, before.Behavior, synapse.Hash, before.Neuron, before.Signal, after.Delivered,
-                RunOutcome.Succeeded, report.Batches, report.WallMicroseconds, report.CpuMicroseconds, null), traces[report.Subscription]);
+                report.Skipped ? RunOutcome.Skipped : RunOutcome.Succeeded, report.Batches, report.WallMicroseconds, report.CpuMicroseconds, null), traces[report.Subscription]);
         }
         Flush();
         // A replayed ack prices nothing again. Metering observes the run: it is priced after this turn, so a slow
