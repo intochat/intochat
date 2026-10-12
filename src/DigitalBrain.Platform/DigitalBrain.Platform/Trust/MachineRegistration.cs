@@ -24,8 +24,12 @@ internal sealed class MachineRegistration(TrustDeployment deployment, MachineReg
         if (options.Posture == IdentityPosture.Open)
         {
             var owner = AccountSession.DefaultLogin;
-            // Binding first: the signed provisioning is honoured only from a machine bound to the account (R63).
+            // Binding first: the signed writes are honoured only from a machine bound to the account (R63).
             await registrar.Bind(owner);
+            // R59: the account record and the brain authority are both provisioned at boot. ProvisionOwner sets up only
+            // the authority, so without this an account-less trust store refuses every later CreateBrain/EnsureBrain
+            // (the first circle, or a second personal brain) with "Only the account owner can create a brain."
+            await identity.EnsureAccount(new Account { AccountId = owner, OwnerPrincipalId = owner, Name = owner, CreatedAt = clock.GetUtcNow() });
             birth.Await(await identity.ProvisionOwner(new Member { PrincipalId = owner, AccountId = owner, BrainId = owner, Role = MemberRole.Owner, DisplayName = owner }));
             return;
         }
