@@ -34,6 +34,8 @@ internal sealed class LeasePreference(MachineIdentity machine, PartsOptions opti
             {
                 if ((await identity.AccountsOf(candidate)).Contains(operatorAccount, StringComparer.Ordinal)) { return candidate; }
             }
+            // No contributed machine of that account: stay where the part is rather than move it to an arbitrary one.
+            return null;
         }
         return machines.FirstOrDefault();
     }
@@ -45,8 +47,13 @@ internal sealed class LeasePreference(MachineIdentity machine, PartsOptions opti
     {
         ArgumentNullException.ThrowIfNull(lease);
         cancellationToken.ThrowIfCancellationRequested();
-        var preferred = await Preferred(lease.Part, lease.Part.BrainId, operatorAccount);
+        // The operator is whoever the brain answers to when the holder does not name one: its owner.
+        var account = operatorAccount is { Length: > 0 } ? operatorAccount : await keyring.OwnerOf(lease.Part.BrainId);
+        if (account is not { Length: > 0 }) { return false; }
+        var preferred = await Preferred(lease.Part, lease.Part.BrainId, account);
         if (preferred is null || preferred == machine.MachineId) { return false; }
+        // R128/T26-4: the trust side's online machines of a circle are its contributed ones; the part returns only to one.
+        if (!(await identity.MachinesOf(lease.Part.BrainId)).Contains(preferred, StringComparer.Ordinal)) { return false; }
         return time.GetUtcNow() - lease.LastActivity >= options.QuietFor;
     }
 }

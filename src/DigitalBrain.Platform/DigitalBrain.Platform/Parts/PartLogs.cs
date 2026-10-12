@@ -5,6 +5,7 @@ using DigitalBrain.Framework.Platform.Identity;
 using DigitalBrain.Platform.Keys;
 using DigitalBrain.Platform.Sequencer;
 using DigitalBrain.Platform.Trust;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Orleans.Serialization;
@@ -17,7 +18,7 @@ namespace DigitalBrain.Platform.Parts;
 // A circle brain's parts open under its circle part keys instead (T26-5), and only on an own machine.
 internal sealed class PartLogs(TrustDeployment deployment, ISequencerClient sequencer, IKeyringClient keyring, IMeshStore mesh, IPartKeys keys, MachineIdentity machine, SeenVersions seen,
     Serializer serializer, IOptions<PartsOptions> options, TimeProvider time, ILoggerFactory logging, IIdentityClient identity, CirclePartKeys circleKeys,
-    LeasePreference? preference = null) : IAsyncDisposable
+    LeasePreference? preference = null, IServiceProvider? services = null) : IAsyncDisposable
 {
     private readonly ConcurrentDictionary<string, Lazy<Task<PartLog>>> _logs = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, string> _owners = new(StringComparer.Ordinal);
@@ -91,15 +92,20 @@ internal sealed class PartLogs(TrustDeployment deployment, ISequencerClient sequ
     {
         // The deployment folder first: the lease reads and writes SeenVersions inside it.
         var directory = await deployment.Resolve();
-        if (await Kind(part.BrainId) == BrainKind.Circle) { return await OpenCircle(part, directory); }
+        // Q17/R107/R144: a quiet-return deactivates this machine's activations of the part, exactly as a release does.
+        var deactivate = services?.GetService<PartActivations>() is { } activations
+            ? (Func<string[], Task>)(recorded => activations.Deactivate(part, recorded))
+            : null;
+        var operatorAccount = preference is null ? null : await keyring.OwnerOf(part.BrainId);
+        if (await Kind(part.BrainId) == BrainKind.Circle) { return await OpenCircle(part, directory, operatorAccount, deactivate); }
         var key = await keys.Key(part, await Owner(part.BrainId));
         var lease = await PartLease.Acquire(part, key, sequencer, machine, seen, options.Value, time, serializer, preference);
-        return await PartLog.Open(part, key, lease, mesh, serializer, options.Value, time, logging.CreateLogger<PartLog>(), CancellationToken.None, directory, preference);
+        return await PartLog.Open(part, key, lease, mesh, serializer, options.Value, time, logging.CreateLogger<PartLog>(), CancellationToken.None, directory, preference, operatorAccount, deactivate);
     }
 
     // The current key first, then the older ones this machine holds: a head another holder left sealed before a
     // rotation opens under the key it was sealed with and is re-sealed under the current one at once.
-    private async Task<PartLog> OpenCircle(PartId part, string directory)
+    private async Task<PartLog> OpenCircle(PartId part, string directory, string? operatorAccount, Func<string[], Task>? deactivate)
     {
         if (options.Value.Role != MachineRole.Own)
         { throw new UnauthorizedAccessException($"Part {part} belongs to circle {part.BrainId}; only the circle's contributed own machines hold it."); }
@@ -110,7 +116,7 @@ internal sealed class PartLogs(TrustDeployment deployment, ISequencerClient sequ
             PartLease lease;
             try { lease = await PartLease.Acquire(part, candidates[i], sequencer, machine, seen, options.Value, time, serializer, preference); }
             catch (System.Security.Cryptography.CryptographicException) when (i < candidates.Length - 1) { continue; }
-            var log = await PartLog.Open(part, candidates[i], lease, mesh, serializer, options.Value, time, logging.CreateLogger<PartLog>(), CancellationToken.None, directory, preference);
+            var log = await PartLog.Open(part, candidates[i], lease, mesh, serializer, options.Value, time, logging.CreateLogger<PartLog>(), CancellationToken.None, directory, preference, operatorAccount, deactivate);
             if (i > 0) { await log.Reseal(current); }
             return log;
         }

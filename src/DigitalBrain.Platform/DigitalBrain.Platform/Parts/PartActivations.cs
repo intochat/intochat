@@ -14,7 +14,7 @@ internal sealed class PartActivations(IGrainFactory grains, PartLogs logs, Activ
 {
     public Task Release(PartId part) => logs.Release(part, recorded => Deactivate(part, recorded));
 
-    private async Task Deactivate(PartId part, string[] recorded)
+    internal async Task Deactivate(PartId part, string[] recorded)
     {
         HashSet<GrainId> ids = [.. neurons.Of(part)];
         foreach (var grainId in recorded)

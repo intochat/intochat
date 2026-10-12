@@ -32,6 +32,8 @@ internal sealed class PartLog : IAsyncDisposable
     private readonly TimeProvider _time;
     private readonly ILogger<PartLog> _logger;
     private readonly LeasePreference? _preference;
+    private readonly string? _operatorAccount;
+    private readonly Func<string[], Task>? _deactivate;
     private PartJournal? _journal;
     private readonly Dictionary<(string GrainId, string StateName), StoredRecord> _records = [];
     private readonly List<LogEntry> _since = [];
@@ -58,8 +60,8 @@ internal sealed class PartLog : IAsyncDisposable
     private bool _disposed;
 
     private PartLog(PartId part, byte[] key, PartLease lease, IMeshStore mesh, Serializer serializer, PartsOptions options, TimeProvider time,
-        ILogger<PartLog> logger, PartJournal? journal, LeasePreference? preference = null) =>
-        (_part, _key, _lease, _mesh, _serializer, _options, _time, _logger, _journal, _preference) = (part, key, lease, mesh, serializer, options, time, logger, journal, preference);
+        ILogger<PartLog> logger, PartJournal? journal, LeasePreference? preference = null, string? operatorAccount = null, Func<string[], Task>? deactivate = null) =>
+        (_part, _key, _lease, _mesh, _serializer, _options, _time, _logger, _journal, _preference, _operatorAccount, _deactivate) = (part, key, lease, mesh, serializer, options, time, logger, journal, preference, operatorAccount, deactivate);
 
     private sealed record Pending(LogEntry Entry, TaskCompletionSource<long> Committed);
 
@@ -82,12 +84,13 @@ internal sealed class PartLog : IAsyncDisposable
     internal HeadPayload Head => _lease.Payload;
 
     public static async Task<PartLog> Open(PartId part, byte[] key, PartLease lease, IMeshStore mesh, Serializer serializer, PartsOptions options,
-        TimeProvider time, ILogger<PartLog> logger, CancellationToken ct, string? deploymentDirectory = null, LeasePreference? preference = null)
+        TimeProvider time, ILogger<PartLog> logger, CancellationToken ct, string? deploymentDirectory = null, LeasePreference? preference = null,
+        string? operatorAccount = null, Func<string[], Task>? deactivate = null)
     {
         var journal = options.Role == MachineRole.Own
             ? new PartJournal(Path.Combine(deploymentDirectory ?? options.MachineDirectory, "journal", $"{HeadRecord.HashOf(part.Value)}.log"), key, serializer)
             : null;
-        var log = new PartLog(part, key, lease, mesh, serializer, options, time, logger, journal, preference);
+        var log = new PartLog(part, key, lease, mesh, serializer, options, time, logger, journal, preference, operatorAccount, deactivate);
         try
         {
             await log.Replay(ct);
@@ -684,7 +687,10 @@ internal sealed class PartLog : IAsyncDisposable
 
     private async Task RenewLoop()
     {
-        var period = _options.Role == MachineRole.Own ? _options.OwnLease / 8 : _options.RenewBefore / 2;
+        // Q17: with a preference the tick also carries the quiet-return, so it fires within QuietFor rather than at
+        // the lease renewal cadence (an own lease is days long).
+        var renew = _options.Role == MachineRole.Own ? _options.OwnLease / 8 : _options.RenewBefore / 2;
+        var period = _preference is not null && _options.QuietFor / 2 < renew ? _options.QuietFor / 2 : renew;
         using var timer = new PeriodicTimer(period, _time);
         try
         {
@@ -693,19 +699,22 @@ internal sealed class PartLog : IAsyncDisposable
                 bool busy;
                 lock (_queue) { busy = _queue.Count > 0 || _closed is not null; }
                 // A pending flush renews through its own commit; an expired lease is settled by the next CAS, not revived.
-                if (busy || _lease.Expired || !_lease.NeedsRenewal) { continue; }
-                try
+                if (busy || _lease.Expired) { continue; }
+                // Q17: a quiet circle part returns to its preferred machine; the check is its own, not gated on renewal.
+                if (_preference is not null && await _preference.ShouldReturn(_lease, _operatorAccount, _stop.Token))
                 {
-                    // Q17: a quiet circle part returns to its preferred machine instead of renewing here.
-                    if (_preference is not null && await _preference.ShouldReturn(_lease, null, _stop.Token))
+                    _logger.LogInformation("Part {Part} has been quiet; it returns to its preferred machine.", _part);
+                    if (_deactivate is not null)
                     {
-                        _logger.LogInformation("Part {Part} has been quiet; it returns to its preferred machine.", _part);
-                        await ReleaseQuietly();
-                        lock (_queue) { _closed = new LeaseLostException($"Part {_part} returned to its preferred machine."); }
-                        return;
+                        try { await _deactivate(GrainIds); }
+                        catch (Exception error) { _logger.LogWarning(error, "Part {Part} could not deactivate its activations before returning.", _part); }
                     }
-                    await _lease.Renew();
+                    await ReleaseQuietly();
+                    lock (_queue) { _closed = new LeaseLostException($"Part {_part} returned to its preferred machine."); }
+                    return;
                 }
+                if (!_lease.NeedsRenewal) { continue; }
+                try { await _lease.Renew(); }
                 catch (LeaseLostException lost)
                 {
                     lock (_queue) { _closed = lost; }
