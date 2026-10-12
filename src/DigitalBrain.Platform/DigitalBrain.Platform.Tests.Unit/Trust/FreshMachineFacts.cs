@@ -23,5 +23,14 @@ public sealed class FreshMachineFacts
         Assert.Equal(AccountSession.DefaultLogin, await machine.Services.GetRequiredService<IKeyringClient>().OwnerOf(scope));
         var core = await machine.Services.GetRequiredService<PartLogs>().For(PartId.Core(scope));
         Assert.False(core.Closed);
+
+        // R158: boot records the account too — an account-less store refuses every CreateBrain through the account,
+        // which is the first circle or a second personal brain.
+        var identity = machine.Services.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>();
+        var account = await identity.ReadAccount(AccountSession.DefaultLogin);
+        Assert.NotNull(account);
+        Assert.Equal(AccountSession.DefaultLogin, account.OwnerPrincipalId);
+        var second = await identity.CreateBrain(AccountSession.DefaultLogin, AccountSession.DefaultLogin, "fresh-machine-second-brain", "second", DigitalBrain.Framework.Platform.Identity.BrainKind.Personal);
+        Assert.False(string.IsNullOrWhiteSpace(second.Member.BrainId));
     }
 }
