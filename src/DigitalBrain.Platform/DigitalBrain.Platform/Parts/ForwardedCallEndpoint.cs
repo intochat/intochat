@@ -73,11 +73,16 @@ internal sealed class ForwardedCallEndpoint(PartRoutes routes, PartLogs logs, IS
         // stamping a circle it is not in, or a removed member's machine, is refused.
         var bound = caller is not null && CallerContextStamper.IsTrusted(caller) && caller.BrainId != part.BrainId
             && accounts.Contains(caller.AccountId, StringComparer.Ordinal) && await Bound(caller, call.Target, part);
-        if (caller is not null && !(CallerContextStamper.IsTrusted(caller) && (caller.BrainId == part.BrainId || bound)))
+        // R128/R130: a machine contributed to a circle relays a member's request into that member's own brain, so a
+        // chosen connection's credential can be opened and re-sealed under the circle's key. Only a contributed
+        // machine, for a member of that same circle, is admitted; the caller still stands as a member.
+        var relayed = caller is not null && CallerContextStamper.IsTrusted(caller) && !accounts.Contains(caller.AccountId, StringComparer.Ordinal)
+            && await Relayed(link, caller);
+        if (caller is not null && !(CallerContextStamper.IsTrusted(caller) && (caller.BrainId == part.BrainId || bound || relayed)))
         { throw new UnauthorizedAccessException($"A call forwarded by machine {link.RemoteMachineId} carries no trusted caller stamp for brain {part.BrainId}."); }
-        if (caller is not null && !accounts.Contains(caller.AccountId, StringComparer.Ordinal))
+        if (caller is not null && !accounts.Contains(caller.AccountId, StringComparer.Ordinal) && !relayed)
         { throw new UnauthorizedAccessException($"A call forwarded by machine {link.RemoteMachineId} for account {caller.AccountId} is refused: the machine does not serve that account."); }
-        var standing = bound ? Standing.Member : await StandingOf(link, accounts, part.BrainId);
+        var standing = bound || relayed ? Standing.Member : await StandingOf(link, accounts, part.BrainId);
         if (standing == Standing.None)
         { throw new UnauthorizedAccessException($"A call forwarded by machine {link.RemoteMachineId} into brain {part.BrainId} is refused: the machine serves neither its owner nor a member."); }
         // R107: a non-owner machine speaks only for its users and apps, and only for a principal that belongs to the
@@ -108,6 +113,8 @@ internal sealed class ForwardedCallEndpoint(PartRoutes routes, PartLogs logs, IS
 
         RequestContext.Clear();
         if (caller is not null) { RequestContext.Set(CallerContextStamper.RequestContextKey, caller with { ForwardedBy = link.RemoteMachineId }); }
+        // A relayed call is the circle core acting inside the member's own brain: its Internal calls are module plumbing.
+        if (relayed) { RequestContext.Set(CallerContextStamper.ModuleCallKey, true); }
         if (call.Trace is { } trace) { RequestContext.Set(TraceContext.RequestContextKey, trace); }
         try
         {
@@ -126,6 +133,23 @@ internal sealed class ForwardedCallEndpoint(PartRoutes routes, PartLogs logs, IS
         catch (ArgumentException) { return false; }
         await RequireHolder(part);
         return await bindings.IsBound(caller, key);
+    }
+
+    // R128/R130: the relay a circle's holder makes for one of its members: the forwarding machine is contributed to a
+    // circle brain the caller is a member of. The holder then serves the member's own brain on the member's behalf.
+    private async Task<bool> Relayed(QuicMachineLink link, CallerContext caller)
+    {
+        if (caller.Kind is not (CallerKind.User or CallerKind.App)) { return false; }
+        BrainEntry[] brains;
+        try { brains = await identity.BrainsOf(caller.PrincipalId); }
+        catch (Exception error) when (error is not OperationCanceledException) { return false; }
+        foreach (var brain in brains.Where(entry => entry.Kind == BrainKind.Circle))
+        {
+            if ((await identity.MachinesOf(brain.Id)).Contains(link.RemoteMachineId, StringComparer.Ordinal)
+                && await identity.Membership(brain.Id, caller.PrincipalId) is not null)
+            { return true; }
+        }
+        return false;
     }
 
     private bool IsNeuronContract(ForwardedCall call)

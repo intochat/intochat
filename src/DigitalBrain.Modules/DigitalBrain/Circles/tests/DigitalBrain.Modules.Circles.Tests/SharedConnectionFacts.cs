@@ -228,6 +228,30 @@ public sealed class SharedConnectionFacts
         await Assert.ThrowsAnyAsync<Exception>(() => bobSealer.Open(circle, after, ct));
     }
 
+    // R124/R130: any member may share, not only the creator. The circle holder (alice's machine A) re-seals a
+    // non-creator member's connection on the member's own machine B, which must admit A's forwarded read.
+    [Fact(Timeout = 240_000)]
+    public async Task ANonCreatorMemberSharesAConnectionSuccessfully()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var machines = await CircleMachines.Start(ct);
+        var a = await machines.Machine(ct);
+        var b = await machines.Machine(ct);
+        var (alice, bob) = (await a.PersonAsync("alice", ct), await b.PersonAsync("bob", ct));
+        await Own(b, bob, "notes", "c1");
+        var circle = await Create(a, alice);
+        await Join(a, circle, alice, bob);
+        await b.Services.GetRequiredService<IIdentityClient>().EnsureMember(new Member
+        { PrincipalId = bob.AccountId, AccountId = bob.AccountId, BrainId = circle, Role = MemberRole.Member, DisplayName = bob.AccountId });
+        await bob.In(circle, () => Circle(b, circle).Contribute(b.Services.GetRequiredService<IIdentityClient>().MachineId!));
+
+        await bob.In(circle, () => Circle(b, circle).Share("notes", ["c1"]));
+
+        var copy = ConnectionKeys.For(circle, Connector, "c1");
+        using (bob.AsAppIn(circle, IApp.Key(circle, "notes")))
+        { Assert.Equal($"{circle}:secret-c1", await Grains(b).GetConnectionGrain<IShared>(copy).Use()); }
+    }
+
     private static TestBrain Recorded(TestBrain brain)
         => brain.ConfigureServices(services => services.AddSingleton<IIncomingGrainCallFilter>(provider =>
             new RecordedCalls(provider.GetRequiredService<Serializer>())));

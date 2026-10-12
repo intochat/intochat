@@ -8,7 +8,7 @@ namespace DigitalBrain.Framework;
 
 internal sealed class NeuronCallFilter(ICallFilter filter, ILogger<NeuronCallFilter> logger) : IIncomingGrainCallFilter
 {
-    private const string ModuleCall = "digitalbrain.trusted-module-call";
+    private const string ModuleCall = CallerContextStamper.ModuleCallKey;
     public async Task Invoke(IIncomingGrainCallContext context)
     {
         // Policy covers INeuron contracts only, and is skipped for: non-neuron grains, unstamped calls

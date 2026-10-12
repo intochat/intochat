@@ -354,10 +354,19 @@ internal sealed partial class TrustLinkEndpoint(IGrainFactory grains, IOptions<T
         {
             var principalId = call.Arg<string>();
             var principal = grains.GetGrain<IPrincipal>(principalId);
+            var brains = await principal.Brains();
             // A principal's brains are read by its own account's machines or the machine that registered it (R67).
-            if (!call.Machine!.Accounts.Contains(principalId, StringComparer.Ordinal) && await principal.RegisteredBy() != call.Link.RemoteMachineId)
-            { throw new UnauthorizedAccessException($"Machine {call.Link.RemoteMachineId} is not bound to principal {principalId}."); }
-            return await principal.Brains();
+            if (call.Machine!.Accounts.Contains(principalId, StringComparer.Ordinal) || await principal.RegisteredBy() == call.Link.RemoteMachineId)
+            { return brains; }
+            // R128: a machine contributed to a circle may read a member's brains, to re-seal a shared connection (R130).
+            foreach (var brain in brains.Where(entry => entry.Kind == BrainKind.Circle))
+            {
+                var authority = grains.GetGrain<IBrainAuthority>(brain.Id);
+                if ((await authority.Machines()).Contains(call.Link.RemoteMachineId, StringComparer.Ordinal)
+                    && await authority.Membership(principalId) is not null)
+                { return brains; }
+            }
+            throw new UnauthorizedAccessException($"Machine {call.Link.RemoteMachineId} is not bound to principal {principalId}.");
         }),
         [TrustOperations.Membership] = Registered(async call =>
         {
