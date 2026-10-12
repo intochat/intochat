@@ -22,7 +22,7 @@ public static class BrainView
     public static string SurfaceKey(DigitalBrainConnection brain) => Key(brain) + "/surface";
 
     public static IScene Scene(DigitalBrainConnection brain) => brain.Get<IScene>(SceneKey(brain));
-    public static IStage Stage(DigitalBrainConnection brain) => brain.Get<IStage>(brain.Setting("Stage") ?? Scope(brain) + "/stage/owner");
+    public static IStage Stage(DigitalBrainConnection brain) => brain.Get<IStage>(brain.Setting("Stage") ?? StageKey.ForOwner(Scope(brain)));
     public static ICard Selected(DigitalBrainConnection brain) => brain.Get<ICard>(Key(brain) + "/cards/selected");
     public static IText Runs(DigitalBrainConnection brain) => brain.Get<IText>(Key(brain) + "/runs");
     public static IText Recent(DigitalBrainConnection brain) => brain.Get<IText>(Key(brain) + "/runs/recent");

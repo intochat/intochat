@@ -64,7 +64,6 @@ internal static class FlameEndpoints
     private static async Task<IStage> Stage(IGrainFactory grains)
     {
         var caller = CallerContextStamper.Require();
-        var key = await StageNeuron.OwnsBrain(grains, caller) ? StageNeuron.OwnerKeyOf(caller.BrainId) : StageNeuron.ScopeOf(caller);
-        return grains.GetGrain<IStage>(key);
+        return grains.GetGrain<IStage>(await StageNeuron.KeyFor(grains, caller));
     }
 }

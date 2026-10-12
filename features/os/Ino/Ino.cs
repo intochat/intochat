@@ -15,7 +15,7 @@ public static class Ino
     public static string AssistantKey(DigitalBrainConnection brain) => Scope(brain) + "/apps/assistant";
 
     public static IScene Home(DigitalBrainConnection brain) => brain.Get<IScene>(HomeKey(brain));
-    public static IStage Stage(DigitalBrainConnection brain) => brain.Get<IStage>(brain.Setting("Stage") ?? Scope(brain) + "/stage/owner");
+    public static IStage Stage(DigitalBrainConnection brain) => brain.Get<IStage>(brain.Setting("Stage") ?? StageKey.ForOwner(Scope(brain)));
 
     // The assistant's selected conversation, following its pointer text as the assistant's own projections do.
     public static Sources Conversation(DigitalBrainConnection brain)

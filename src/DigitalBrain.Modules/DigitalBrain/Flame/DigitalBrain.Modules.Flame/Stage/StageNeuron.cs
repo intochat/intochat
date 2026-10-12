@@ -14,9 +14,11 @@ namespace DigitalBrain.Flame;
 internal sealed class StageNeuron([PersistentState("state", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<StageState> store)
     : Neuron<StageState>(store), IStage
 {
-    private const string OwnerAlias = "/stage/owner";
+    internal static string OwnerKeyOf(string brainId) => StageKey.ForOwner(brainId);
 
-    internal static string OwnerKeyOf(string brainId) => brainId + OwnerAlias;
+    // The stage's one resolver: the owner's shell uses the alias, everyone else the scope digest.
+    internal static async Task<string> KeyFor(IGrainFactory grains, CallerContext caller)
+        => await OwnsBrain(grains, caller) ? OwnerKeyOf(caller.BrainId) : ScopeOf(caller);
 
     // A synapse cannot compute a person's digest, so the brain owner's stage is also addressable as
     // {brain}/stage/owner. The owner account is the one IBrain.Create recorded for that brain.
