@@ -16,7 +16,8 @@ namespace DigitalBrain.Platform.Parts;
 // brain's authority, never from the brain neuron: the brain's own record lives in the part it would unlock.
 // A circle brain's parts open under its circle part keys instead (T26-5), and only on an own machine.
 internal sealed class PartLogs(TrustDeployment deployment, ISequencerClient sequencer, IKeyringClient keyring, IMeshStore mesh, IPartKeys keys, MachineIdentity machine, SeenVersions seen,
-    Serializer serializer, IOptions<PartsOptions> options, TimeProvider time, ILoggerFactory logging, IIdentityClient identity, CirclePartKeys circleKeys) : IAsyncDisposable
+    Serializer serializer, IOptions<PartsOptions> options, TimeProvider time, ILoggerFactory logging, IIdentityClient identity, CirclePartKeys circleKeys,
+    LeasePreference? preference = null) : IAsyncDisposable
 {
     private readonly ConcurrentDictionary<string, Lazy<Task<PartLog>>> _logs = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, string> _owners = new(StringComparer.Ordinal);
@@ -92,8 +93,8 @@ internal sealed class PartLogs(TrustDeployment deployment, ISequencerClient sequ
         var directory = await deployment.Resolve();
         if (await Kind(part.BrainId) == BrainKind.Circle) { return await OpenCircle(part, directory); }
         var key = await keys.Key(part, await Owner(part.BrainId));
-        var lease = await PartLease.Acquire(part, key, sequencer, machine, seen, options.Value, time, serializer);
-        return await PartLog.Open(part, key, lease, mesh, serializer, options.Value, time, logging.CreateLogger<PartLog>(), CancellationToken.None, directory);
+        var lease = await PartLease.Acquire(part, key, sequencer, machine, seen, options.Value, time, serializer, preference);
+        return await PartLog.Open(part, key, lease, mesh, serializer, options.Value, time, logging.CreateLogger<PartLog>(), CancellationToken.None, directory, preference);
     }
 
     // The current key first, then the older ones this machine holds: a head another holder left sealed before a
@@ -107,9 +108,9 @@ internal sealed class PartLogs(TrustDeployment deployment, ISequencerClient sequ
         for (var i = 0; ; i++)
         {
             PartLease lease;
-            try { lease = await PartLease.Acquire(part, candidates[i], sequencer, machine, seen, options.Value, time, serializer); }
+            try { lease = await PartLease.Acquire(part, candidates[i], sequencer, machine, seen, options.Value, time, serializer, preference); }
             catch (System.Security.Cryptography.CryptographicException) when (i < candidates.Length - 1) { continue; }
-            var log = await PartLog.Open(part, candidates[i], lease, mesh, serializer, options.Value, time, logging.CreateLogger<PartLog>(), CancellationToken.None, directory);
+            var log = await PartLog.Open(part, candidates[i], lease, mesh, serializer, options.Value, time, logging.CreateLogger<PartLog>(), CancellationToken.None, directory, preference);
             if (i > 0) { await log.Reseal(current); }
             return log;
         }

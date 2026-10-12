@@ -31,6 +31,7 @@ internal sealed class PartLog : IAsyncDisposable
     private readonly PartsOptions _options;
     private readonly TimeProvider _time;
     private readonly ILogger<PartLog> _logger;
+    private readonly LeasePreference? _preference;
     private PartJournal? _journal;
     private readonly Dictionary<(string GrainId, string StateName), StoredRecord> _records = [];
     private readonly List<LogEntry> _since = [];
@@ -57,8 +58,8 @@ internal sealed class PartLog : IAsyncDisposable
     private bool _disposed;
 
     private PartLog(PartId part, byte[] key, PartLease lease, IMeshStore mesh, Serializer serializer, PartsOptions options, TimeProvider time,
-        ILogger<PartLog> logger, PartJournal? journal) =>
-        (_part, _key, _lease, _mesh, _serializer, _options, _time, _logger, _journal) = (part, key, lease, mesh, serializer, options, time, logger, journal);
+        ILogger<PartLog> logger, PartJournal? journal, LeasePreference? preference = null) =>
+        (_part, _key, _lease, _mesh, _serializer, _options, _time, _logger, _journal, _preference) = (part, key, lease, mesh, serializer, options, time, logger, journal, preference);
 
     private sealed record Pending(LogEntry Entry, TaskCompletionSource<long> Committed);
 
@@ -81,12 +82,12 @@ internal sealed class PartLog : IAsyncDisposable
     internal HeadPayload Head => _lease.Payload;
 
     public static async Task<PartLog> Open(PartId part, byte[] key, PartLease lease, IMeshStore mesh, Serializer serializer, PartsOptions options,
-        TimeProvider time, ILogger<PartLog> logger, CancellationToken ct, string? deploymentDirectory = null)
+        TimeProvider time, ILogger<PartLog> logger, CancellationToken ct, string? deploymentDirectory = null, LeasePreference? preference = null)
     {
         var journal = options.Role == MachineRole.Own
             ? new PartJournal(Path.Combine(deploymentDirectory ?? options.MachineDirectory, "journal", $"{HeadRecord.HashOf(part.Value)}.log"), key, serializer)
             : null;
-        var log = new PartLog(part, key, lease, mesh, serializer, options, time, logger, journal);
+        var log = new PartLog(part, key, lease, mesh, serializer, options, time, logger, journal, preference);
         try
         {
             await log.Replay(ct);
@@ -693,7 +694,18 @@ internal sealed class PartLog : IAsyncDisposable
                 lock (_queue) { busy = _queue.Count > 0 || _closed is not null; }
                 // A pending flush renews through its own commit; an expired lease is settled by the next CAS, not revived.
                 if (busy || _lease.Expired || !_lease.NeedsRenewal) { continue; }
-                try { await _lease.Renew(); }
+                try
+                {
+                    // Q17: a quiet circle part returns to its preferred machine instead of renewing here.
+                    if (_preference is not null && await _preference.ShouldReturn(_lease, null, _stop.Token))
+                    {
+                        _logger.LogInformation("Part {Part} has been quiet; it returns to its preferred machine.", _part);
+                        await ReleaseQuietly();
+                        lock (_queue) { _closed = new LeaseLostException($"Part {_part} returned to its preferred machine."); }
+                        return;
+                    }
+                    await _lease.Renew();
+                }
                 catch (LeaseLostException lost)
                 {
                     lock (_queue) { _closed = lost; }

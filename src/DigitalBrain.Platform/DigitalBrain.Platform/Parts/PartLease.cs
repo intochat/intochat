@@ -19,6 +19,7 @@ internal sealed class PartLease
     private readonly TimeProvider _time;
     private readonly Serializer _serializer;
     private DateTimeOffset _expiry;
+    private DateTimeOffset _lastActivity;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private bool _lost;
 
@@ -26,11 +27,17 @@ internal sealed class PartLease
         PartsOptions options, TimeProvider time, Serializer serializer) =>
         (_part, _key, _sequencer, _machine, _seen, _options, _time, _serializer) = (part, key, sequencer, machine, seen, options, time, serializer);
 
+    public PartId Part => _part;
+
     public HeadPayload Payload { get; private set; } = new();
 
     public long Version { get; private set; }
 
     public string MachineId => _machine.MachineId;
+
+    // Q17: when this machine last committed or renewed the part; a circle part returns to its preferred machine after
+    // this is QuietFor old.
+    public DateTimeOffset LastActivity => _lastActivity;
 
     public bool NeedsRenewal => _expiry - _time.GetUtcNow() < (_options.Role == MachineRole.Own ? _options.OwnLease / 2 : _options.RenewBefore);
 
@@ -42,10 +49,13 @@ internal sealed class PartLease
     private string Context => $"part-head|{_part.Value}";
 
     public static async Task<PartLease> Acquire(PartId part, byte[] key, ISequencerClient sequencer, MachineIdentity machine, SeenVersions seen,
-        PartsOptions options, TimeProvider time, Serializer serializer)
+        PartsOptions options, TimeProvider time, Serializer serializer, LeasePreference? preference = null)
     {
         if (part.IsCore && options.Role != MachineRole.Own) { throw new UnauthorizedAccessException($"The core of {part.BrainId} is held only by its owner's machines."); }
-        var lease = new PartLease(part, key, sequencer, machine, seen, options, time, serializer);
+        // Q11/R128: an owner's core is held only by a machine serving its owner; a circle part only by a contributed machine.
+        if (preference is not null && !await preference.MayHold(part, part.BrainId))
+        { throw new UnauthorizedAccessException($"Machine {machine.MachineId} may not hold part {part} of brain {part.BrainId}."); }
+        var lease = new PartLease(part, key, sequencer, machine, seen, options, time, serializer) { _lastActivity = time.GetUtcNow() };
         if (await lease._sequencer.Get(lease.Hash) is { } current)
         {
             seen.Check(lease.Hash, current.Version);
@@ -93,7 +103,7 @@ internal sealed class PartLease
                 _lost = true;
                 throw new LeaseLostException($"The sequencer refused version {Version + 1} of part {_part}.");
             }
-            (Version, Payload, _expiry, _key) = (record.Version, next, expiry, key ?? _key);
+            (Version, Payload, _expiry, _key, _lastActivity) = (record.Version, next, expiry, key ?? _key, _time.GetUtcNow());
             _seen.Saw(Hash, Version);
         }
         finally { _gate.Release(); }

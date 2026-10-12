@@ -33,6 +33,9 @@ public sealed class PartsOptions
 
     public TimeSpan BatchDelay { get; set; } = TimeSpan.FromMilliseconds(25);
 
+    // Q17/T26-4: a holder that is not a circle part's preferred machine returns it after this long with no writes.
+    public TimeSpan QuietFor { get; set; } = TimeSpan.FromSeconds(30);
+
     public int SnapshotEvery { get; set; } = 64;
 
     // Shared by every machine of one deployment (R52): a second machine joins an account only with it.
@@ -63,6 +66,7 @@ public sealed class PartsOptions
         if (string.IsNullOrWhiteSpace(MachineDirectory)) { throw new InvalidOperationException("Parts needs a MachineDirectory."); }
         if (OwnLease <= TimeSpan.Zero || ShortLease <= TimeSpan.Zero || RenewBefore <= TimeSpan.Zero || BatchDelay <= TimeSpan.Zero)
         { throw new InvalidOperationException("Parts needs positive leases, renewal margin and batch delay."); }
+        if (QuietFor <= TimeSpan.Zero) { throw new InvalidOperationException("Parts needs a positive QuietFor."); }
         if (BatchBytes < 1 || SnapshotEvery < 1 || MaxChangeBytes < 1) { throw new InvalidOperationException("Parts needs positive BatchBytes, MaxChangeBytes and SnapshotEvery."); }
         if (RenewBefore >= ShortLease) { throw new InvalidOperationException("Parts needs RenewBefore shorter than ShortLease."); }
     }

@@ -30,6 +30,12 @@ public static class MachineHosting
         silo.AsSingleSiloCluster();
         var services = silo.Services;
         services.TryAddSingleton<PartLogs>();
+        services.TryAddSingleton<LeasePreference>(provider => new LeasePreference(
+            provider.GetRequiredService<Sequencer.MachineIdentity>(),
+            provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<PartsOptions>>().Value,
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<DigitalBrain.Framework.Platform.Identity.IIdentityClient>(),
+            provider.GetRequiredService<Trust.IKeyringClient>()));
         silo.AddMachineHandover();
         foreach (var journal in services.Where(d => d.ServiceType == typeof(ISignalJournal)).ToArray()) { services.Remove(journal); }
         services.AddSingleton<ISignalJournal, PartSignalJournal>();
