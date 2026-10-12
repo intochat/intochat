@@ -84,4 +84,18 @@ public sealed class SceneSchemaFacts
         var state = await scene.Read();
         Assert.Equal("thinking", state.Definition.Nodes[0].Parameters["mood"]);
     }
+
+    [Fact]
+    public async Task TheInoAndBrainViewSceneShapesAreAccepted()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
+        var scene = brain.Get<IScene>(Key);
+        var ring = new SceneNode("ring", "activity_ring", new Transform(), null,
+            new() { ["items"] = "[{\"id\":\"r1\",\"label\":\"Routing\",\"kind\":\"route\",\"progress\":0.4}]", ["radius"] = "220" }, [], [], []);
+        var graph = new SceneNode("graph", "brain_graph", new Transform(), null,
+            new() { ["source"] = "events", ["filter"] = "apps", ["layout"] = "sphere", ["title"] = "Behavior runs" }, [], [], []);
+        await scene.Set(new([ring, graph], [], new SceneCamera()), (await scene.Read()).Revision);
+        Assert.Equal(2, (await scene.Read()).Definition.Nodes.Length);
+    }
 }
