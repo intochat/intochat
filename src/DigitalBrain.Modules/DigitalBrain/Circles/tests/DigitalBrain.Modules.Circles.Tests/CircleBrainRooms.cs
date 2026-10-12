@@ -121,7 +121,9 @@ internal static class CircleBrainRooms
 // A connector whose use operation echoes which brain's connection answered.
 public sealed class SharedConnectorModule() : Module(new ModuleId(CircleBrainRooms.Connector))
 {
-    public static ConnectorDefinition Connector => new(CircleBrainRooms.Connector, "Shared", ["api-key"], []) { Neurons = [typeof(IShared)] };
+    public static ConnectorDefinition Connector => new(CircleBrainRooms.Connector, "Shared", ["api-key", "oauth"], ["shared-oauth"])
+    { Neurons = [typeof(IShared)], OAuthMethods = [new("oauth", "https://shared.test/authorize", "https://shared.test/token", [], "shared-oauth")] };
+    public static IntegrationSchema Integration => IntegrationSchema.For("shared-oauth", "Shared OAuth");
     public override void Configure(ISiloBuilder silo) { }
 }
 
@@ -140,6 +142,10 @@ internal sealed class SharedConnectionNeuron(
     : ConnectionNeuron<SharedState>(store), IShared
 {
     protected override Task<ConnectionProbeResult> ProbeAsync(Credential credential, CancellationToken ct) => Task.FromResult(ConnectionProbeResult.Connected());
+
+    // The refresh a shared connection's token needs; deterministic so a fact can assert the re-sealed value.
+    protected override Task<OAuthGrant> RefreshAsync(Credential credential, CancellationToken ct)
+        => Task.FromResult(new OAuthGrant(Snapshot.AuthMethodId, "refreshed-access", "refresh-2", DateTimeOffset.UtcNow.AddHours(1), "read", null, "{}"));
 
     public Task<string> Use() => UseCredentialAsync((credential, _) => Task.FromResult(Key.Brain + ":" + credential.Value), CancellationToken.None);
 }

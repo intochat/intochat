@@ -1,10 +1,12 @@
 using System.Collections.Concurrent;
 using DigitalBrain.Apps;
+using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans;
 using Orleans.Serialization;
+using Orleans.Storage;
 using static DigitalBrain.Circles.Tests.CircleBrainRooms;
 
 namespace DigitalBrain.Circles.Tests;
@@ -191,6 +193,33 @@ public sealed class SharedConnectionFacts
         { Assert.Equal($"{circle}:secret-c1", await Grains(b).GetConnectionGrain<IShared>(copy).Use()); }
     }
 
+    // R130: a refresh of a shared copy's credential keeps it under the circle's key, so every contributed machine
+    // opens it (the current write path would re-seal under the refreshing machine's master key).
+    [Fact(Timeout = 240_000)]
+    public async Task ARefreshedSharedCredentialStaysOpenableOnAnotherMemberMachine()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var machines = await CircleMachines.Start(ct);
+        var (a, b, alice, _, circle, copy) = await Chosen(machines, ct);
+        var before = await CopySecrets(a, copy);
+        Assert.True(PartSeal.IsPartSealed(Assert.Single(before, secret => secret.Name == "value")), $"imported as {string.Join(",", before.Select(s => s.KeyId))}");
+        using (alice.AsCallerIn(circle))
+        {
+            await Grains(a).GetConnectionInbound(copy).AcceptGrant(new("oauth", "access-0", "refresh-1", DateTimeOffset.UtcNow.AddSeconds(-1), "read", null, "{}"));
+        }
+        var granted = await CopySecrets(a, copy);
+        Assert.True(PartSeal.IsPartSealed(Assert.Single(granted, secret => secret.Name == "access")), $"granted as {string.Join(",", granted.Select(s => s.KeyId))}");
+        using (alice.AsAppIn(circle, IApp.Key(circle, "notes")))
+        {
+            Assert.Equal($"{circle}:refreshed-access", await Grains(a).GetConnectionGrain<IShared>(copy).Use());
+        }
+
+        var secrets = await CopySecrets(a, copy);
+        var access = Assert.Single(secrets, secret => secret.Name == "access");
+        Assert.True(PartSeal.IsPartSealed(access), $"sealed as {access.KeyId}");
+        Assert.Equal("refreshed-access", await b.Services.GetRequiredService<IPartSecretSealer>().Open(circle, access, ct));
+    }
+
     [Fact(Timeout = 240_000)]
     public async Task ReSealingSendsNoPlaintextOverAnyCall()
     {
@@ -207,6 +236,7 @@ public sealed class SharedConnectionFacts
         await alice.In(circle, () => Circle(a, circle).Share("notes", ["c1"]));
 
         var plaintext = System.Text.Encoding.UTF8.GetBytes("secret-c1");
+        Assert.NotEmpty(RecordedCalls.Requests);
         Assert.DoesNotContain(RecordedCalls.Requests, request => Contains(request, plaintext));
     }
 
@@ -250,6 +280,14 @@ public sealed class SharedConnectionFacts
         var copy = ConnectionKeys.For(circle, Connector, "c1");
         using (bob.AsAppIn(circle, IApp.Key(circle, "notes")))
         { Assert.Equal($"{circle}:secret-c1", await Grains(b).GetConnectionGrain<IShared>(copy).Use()); }
+    }
+
+    private static async Task<SealedSecret[]> CopySecrets(ITestBrain machine, string copy)
+    {
+        var storage = machine.Services.GetRequiredKeyedService<IGrainStorage>(DigitalBrainNames.ClusterGrainStorage);
+        var state = new GrainState<SharedState>();
+        await storage.ReadStateAsync("shared", Grains(machine).GetConnection(copy).GetGrainId(), state);
+        return state.State!.Secrets;
     }
 
     private static TestBrain Recorded(TestBrain brain)

@@ -59,7 +59,7 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
         if (Connector.OAuthMethods.Any(method => method.Id == authMethodId))
         { throw new ArgumentException($"Authentication method '{authMethodId}' of connector '{Key.Connector}' is a browser login; start it from the login route.", nameof(authMethodId)); }
         Snapshot.AuthMethodId = authMethodId;
-        Snapshot.Secrets = [Sealer.Seal(ValueSecret, value)];
+        Snapshot.Secrets = [await SealAsync(ValueSecret, value)];
         Snapshot.ExpiresAt = null;
         Snapshot.Scopes = "";
         await Transition(ConnectionStatus.Connected, null, notifyCatalog: false);
@@ -76,7 +76,7 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
         RequireAuthMethod(grant.AuthMethodId);
         // The module's override sets Snapshot.Account (mailbox, instance url, owner/repo) and may throw.
         var accepted = await AcceptGrantAsync(grant);
-        Seal(accepted, keepRefresh: false);
+        await SealAsync(accepted, keepRefresh: false);
         Snapshot.AuthMethodId = accepted.AuthMethodId;
         await Transition(ConnectionStatus.Connected, null, notifyCatalog: false);
         await Track();
@@ -185,7 +185,7 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
         if (Snapshot.ExpiresAt is { } expiry && expiry <= Clock.GetUtcNow() + RefreshLead && credential.Refresh is not null)
         {
             var refreshed = await RefreshAsync(credential, ct);
-            Seal(refreshed, keepRefresh: true);
+            await SealAsync(refreshed, keepRefresh: true);
             await Transition(ConnectionStatus.Connected, null);
             credential = await OpenAsync();
         }
@@ -213,16 +213,25 @@ public abstract class ConnectionNeuron<TState>(IPersistentState<TState> store) :
             ? await part.Open(Key.Brain, secret)
             : Sealer.Open(secret);
 
+    // R130: a shared copy's secrets are sealed under its brain's core part key; the owner's own under the master
+    // key. Every write that replaces them stays under the same key the copy already carries.
+    private bool PartSealed => PartSealer is not null && Snapshot.Secrets.Any(PartSeal.IsPartSealed);
+
+    private async Task<SealedSecret> SealAsync(string name, string plaintext)
+    {
+        if (PartSealed && PartSealer is { } part) { return await part.Seal(Key.Brain, name, plaintext); }
+        return Sealer.Seal(name, plaintext);
+    }
+
     // A refresh response usually omits the refresh token (Google does), so a refresh keeps the sealed
     // one unless the provider rotates it. A new grant replaces both, and without one clears it.
-    private void Seal(OAuthGrant grant, bool keepRefresh)
+    private async Task SealAsync(OAuthGrant grant, bool keepRefresh)
     {
-        var refresh = grant.RefreshToken is { } rotated ? Sealer.Seal(RefreshSecret, rotated)
+        var refresh = grant.RefreshToken is { } rotated ? await SealAsync(RefreshSecret, rotated)
             : keepRefresh ? Snapshot.Secrets.FirstOrDefault(secret => secret.Name == RefreshSecret)
             : null;
-        Snapshot.Secrets = refresh is null
-            ? [Sealer.Seal(AccessSecret, grant.AccessToken)]
-            : [Sealer.Seal(AccessSecret, grant.AccessToken), refresh];
+        var access = await SealAsync(AccessSecret, grant.AccessToken);
+        Snapshot.Secrets = refresh is null ? [access] : [access, refresh];
         Snapshot.ExpiresAt = grant.ExpiresAt;
         Snapshot.Scopes = grant.Scopes;
     }
