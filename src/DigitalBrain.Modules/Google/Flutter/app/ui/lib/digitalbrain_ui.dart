@@ -32,6 +32,7 @@ export 'src/components/image_canvas/ui_image_canvas.dart';
 export 'src/composition/neuron_view.dart';
 export 'src/composition/renderer_registry.dart';
 export 'src/flame/node_components.dart';
+export 'src/flame/node_schema.dart';
 export 'src/flame/placeholder_node.dart';
 export 'src/flame/prefabs/activity_ring.dart';
 export 'src/flame/prefabs/brain_graph.dart';

@@ -1,0 +1,44 @@
+{
+  "gestures": ["tap", "drag", "hover"],
+  "tweenProperties": ["x", "y", "scale", "rotation", "opacity"],
+  "tweenCurves": ["linear", "easeIn", "easeOut", "easeInOut"],
+  "nodes": [
+    { "type": "circle", "parameters": [
+      { "key": "radius", "kind": "number", "required": false, "choices": [] },
+      { "key": "color", "kind": "color", "required": false, "choices": [] } ] },
+    { "type": "rect", "parameters": [
+      { "key": "width", "kind": "number", "required": false, "choices": [] },
+      { "key": "height", "kind": "number", "required": false, "choices": [] },
+      { "key": "color", "kind": "color", "required": false, "choices": [] },
+      { "key": "corner", "kind": "number", "required": false, "choices": [] } ] },
+    { "type": "text", "parameters": [
+      { "key": "text", "kind": "text", "required": true, "choices": [] },
+      { "key": "size", "kind": "number", "required": false, "choices": [] },
+      { "key": "color", "kind": "color", "required": false, "choices": [] },
+      { "key": "align", "kind": "choice", "required": false, "choices": ["left", "center", "right"] } ] },
+    { "type": "sprite", "parameters": [
+      { "key": "src", "kind": "text", "required": true, "choices": [] },
+      { "key": "width", "kind": "number", "required": false, "choices": [] },
+      { "key": "height", "kind": "number", "required": false, "choices": [] } ] },
+    { "type": "path", "parameters": [
+      { "key": "d", "kind": "text", "required": true, "choices": [] } ] },
+    { "type": "particles", "parameters": [
+      { "key": "count", "kind": "number", "required": false, "choices": [] },
+      { "key": "speed", "kind": "number", "required": false, "choices": [] },
+      { "key": "color", "kind": "color", "required": false, "choices": [] } ] },
+    { "type": "group", "parameters": [] },
+    { "type": "ino_sphere", "parameters": [
+      { "key": "mood", "kind": "choice", "required": false, "choices": ["idle", "listening", "thinking", "acting", "speaking", "error", "disconnected"] },
+      { "key": "radius", "kind": "number", "required": false, "choices": [] },
+      { "key": "hue", "kind": "number", "required": false, "choices": [] } ] },
+    { "type": "brain_graph", "parameters": [
+      { "key": "source", "kind": "choice", "required": false, "choices": ["events", "static"] },
+      { "key": "filter", "kind": "choice", "required": false, "choices": ["apps", "all"] },
+      { "key": "selected", "kind": "text", "required": false, "choices": [] },
+      { "key": "layout", "kind": "choice", "required": false, "choices": ["sphere"] },
+      { "key": "title", "kind": "text", "required": false, "choices": [] } ] },
+    { "type": "activity_ring", "parameters": [
+      { "key": "items", "kind": "json", "required": false, "choices": [] },
+      { "key": "radius", "kind": "number", "required": false, "choices": [] } ] }
+  ]
+}
