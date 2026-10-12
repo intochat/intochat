@@ -52,9 +52,9 @@ internal sealed class CircleMachines : IAsyncDisposable
     }
 
     // An own machine with its own custody root.
-    public async Task<ITestBrain> Machine(CancellationToken ct)
+    public async Task<ITestBrain> Machine(CancellationToken ct, Func<TestBrain, TestBrain>? configure = null)
     {
-        var machine = await CircleBrainRooms.Start(ct, brain => brain
+        var machine = await CircleBrainRooms.Start(ct, brain => (configure?.Invoke(brain) ?? brain)
             .WithConfiguration($"{PartsOptions.Key}:{nameof(PartsOptions.Role)}", nameof(MachineRole.Own))
             .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.SeedNodes)}", "8")
             .WithConfiguration($"{MeshOptions.Key}:{nameof(MeshOptions.DataShards)}", "4")

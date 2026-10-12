@@ -247,10 +247,15 @@ internal sealed class CircleNeuron(
             var owned = ConnectionKeys.For(source, slot.Connector, id);
             if (connectionIds.Contains(id, StringComparer.Ordinal))
             {
-                // R147: the circle's own copy holds the definition; Task 28 seals its credential under the circle key.
+                // R147: the circle's own copy holds the definition; R130 seals its credential under the circle key.
                 var view = await AsSharer(caller, source, () => GrainFactory.GetConnection(owned).Read());
                 var copy = ConnectionKeys.For(CircleBrain, slot.Connector, id);
                 await GrainFactory.GetConnection(copy).Adopt(view.AuthMethodId, view.Account);
+                // R130: the owner's machine opens the credential and re-seals it under the circle's core part key, so
+                // only ciphertext crosses the forwarded write into the circle brain.
+                var reSealed = await AsSharer(caller, source, () => GrainFactory.GetConnection(owned).ExportFor(CircleBrain));
+                if (reSealed.Length > 0)
+                { await GrainFactory.GetConnection(copy).Import(view.AuthMethodId, view.Account, reSealed, ConnectionStatus.Connected, null); }
                 slots[slot.Name] = copy;
                 bindings.Add(new(caller.AccountId, appName, slot.Name, copy, Copy: true));
             }

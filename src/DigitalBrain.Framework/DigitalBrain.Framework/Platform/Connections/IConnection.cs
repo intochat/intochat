@@ -27,6 +27,13 @@ public interface IConnection : INeuron
     // R147: a circle brain's copy of a shared connection: its definition, no credential, not connected (Task 28 seals one).
     [Internal] Task<ConnectionView> Adopt(string authMethodId, string? account);
 
+    // R130: re-seals this connection's credential under the target brain's core part key, so a machine holding that
+    // part opens it. No plaintext crosses this call: the returned secrets are ciphertext only.
+    [Internal] Task<SealedSecret[]> ExportFor(string brainId);
+
+    // R130/R147: fills a shared copy's credential from secrets already sealed under this brain's core part key.
+    [Internal] Task<ConnectionView> Import(string authMethodId, string? account, SealedSecret[] secrets, ConnectionStatus status, string? detail);
+
     // R146: the owner's connection records an app of another brain it is shared into; that record is what the call
     // gate admits the app's use operations by (IConnectionBindings).
     [Internal] Task ShareInto(string brainId, string app);

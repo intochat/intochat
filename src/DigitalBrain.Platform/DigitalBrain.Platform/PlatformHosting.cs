@@ -62,6 +62,8 @@ public static class PlatformHosting
         services.TryAddSingleton<Keys.CirclePartKeys>();
         services.AddSingleton<DigitalBrain.Framework.IConnectionBindings, Connections.ConnectionBindings>();
         services.TryAddSingleton<DigitalBrain.Framework.Parts.ICirclePartKeys, Keys.CircleKeySharing>();
+        // R130: the connection neuron re-seals a shared credential under the target brain's core part key.
+        services.TryAddSingleton<DigitalBrain.Framework.Platform.Connections.IPartSecretSealer, Secrets.PartKeySecretSealer>();
         // The machine reaches the trust grains only through these clients; Stage A hosts them in this silo.
         services.TryAddSingleton(provider => new Trust.MachineCounter(() => Path.Combine(
             provider.GetRequiredService<Trust.TrustDeployment>().Directory, "counter")));

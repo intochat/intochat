@@ -1,6 +1,10 @@
+using System.Collections.Concurrent;
 using DigitalBrain.Apps;
 using DigitalBrain.Framework.Platform.Connections;
+using DigitalBrain.Framework.Platform.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Orleans;
+using Orleans.Serialization;
 using static DigitalBrain.Circles.Tests.CircleBrainRooms;
 
 namespace DigitalBrain.Circles.Tests;
@@ -22,7 +26,7 @@ public sealed class SharedConnectionFacts
 
         var copy = ConnectionKeys.For(circle, Connector, "c1");
         var view = await alice.In(circle, () => Grains(brain).GetConnection(copy).Read());
-        Assert.Equal((Connector, "c1", ConnectionStatus.Disconnected), (view.ConnectorId, view.ConnectionId, view.Status));
+        Assert.Equal((Connector, "c1", ConnectionStatus.Connected), (view.ConnectorId, view.ConnectionId, view.Status));
         Assert.Contains(copy, await Grains(brain).GetGrain<IConnectionIndex>(circle).List());
         var app = await alice.In(circle, () => brain.Get<IApp>(IApp.Key(circle, "notes")).Read());
         Assert.Equal(copy, app.Connections["db"]);
@@ -172,6 +176,85 @@ public sealed class SharedConnectionFacts
         { await Assert.ThrowsAsync<ServiceUnavailableException>(() => Grains(b).GetConnectionGrain<IShared>(left).Use()); }
     }
 
+    // R130: the owner's machine re-seals the chosen credential under the circle's core part key, so a member machine
+    // opens it and no plaintext crosses a call.
+    [Fact(Timeout = 240_000)]
+    public async Task AChosenConnectionIsSealedUnderTheCircleKeyAndOpensOnAMemberMachine()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var machines = await CircleMachines.Start(ct);
+        var (a, b, alice, bob, circle, copy) = await Chosen(machines, ct);
+
+        var view = await alice.In(circle, () => Grains(a).GetConnection(copy).Read());
+        Assert.Equal(ConnectionStatus.Connected, view.Status);
+        using (bob.AsAppIn(circle, IApp.Key(circle, "notes")))
+        { Assert.Equal($"{circle}:secret-c1", await Grains(b).GetConnectionGrain<IShared>(copy).Use()); }
+    }
+
+    [Fact(Timeout = 240_000)]
+    public async Task ReSealingSendsNoPlaintextOverAnyCall()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var machines = await CircleMachines.Start(ct);
+        var a = await machines.Machine(ct, Recorded);
+        var b = await machines.Machine(ct, Recorded);
+        var (alice, bob) = (await a.PersonAsync("alice", ct), await b.PersonAsync("bob", ct));
+        await Own(a, alice, "notes", "c1");
+        var circle = await Create(a, alice);
+        await Join(a, circle, alice, bob);
+        RecordedCalls.Requests.Clear();
+
+        await alice.In(circle, () => Circle(a, circle).Share("notes", ["c1"]));
+
+        var plaintext = System.Text.Encoding.UTF8.GetBytes("secret-c1");
+        Assert.DoesNotContain(RecordedCalls.Requests, request => Contains(request, plaintext));
+    }
+
+    [Fact(Timeout = 240_000)]
+    public async Task ARemovedMemberCannotOpenACredentialSealedAfterTheRotation()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var machines = await CircleMachines.Start(ct);
+        var (a, b, alice, bob, circle, _) = await Chosen(machines, ct);
+        var aliceSealer = a.Services.GetRequiredService<IPartSecretSealer>();
+        var bobSealer = b.Services.GetRequiredService<IPartSecretSealer>();
+        var before = await aliceSealer.Seal(circle, "value", "before", ct);
+        Assert.Equal("before", await bobSealer.Open(circle, before, ct));
+
+        await alice.In(circle, () => Circle(a, circle).Remove(bob.AccountId));
+        var after = await aliceSealer.Seal(circle, "value", "after", ct);
+
+        Assert.Equal("after", await aliceSealer.Open(circle, after, ct));
+        await Assert.ThrowsAnyAsync<Exception>(() => bobSealer.Open(circle, after, ct));
+    }
+
+    private static TestBrain Recorded(TestBrain brain)
+        => brain.ConfigureServices(services => services.AddSingleton<IIncomingGrainCallFilter>(provider =>
+            new RecordedCalls(provider.GetRequiredService<Serializer>())));
+
+    private static bool Contains(byte[] haystack, byte[] needle)
+        => haystack.AsSpan().IndexOf(needle) >= 0;
+
+    // Alice's machine A holds her brain and the circle; bob's machine B holds his. Alice shares "notes" with the
+    // chosen connection c1, whose circle copy is the one sealed under the circle's core part key.
+    private static async Task<(ITestBrain A, ITestBrain B, Person Alice, Person Bob, string Circle, string Copy)> Chosen(CircleMachines machines, CancellationToken ct)
+    {
+        var a = await machines.Machine(ct);
+        var b = await machines.Machine(ct);
+        var (alice, bob) = (await a.PersonAsync("alice", ct), await b.PersonAsync("bob", ct));
+        await Own(a, alice, "notes", "c1");
+        var circle = await Create(a, alice);
+        await Join(a, circle, alice, bob);
+        // A forwarded call's member standing matches a machine's served accounts against memberships (R128); a Person's
+        // account differs from its principal, so bob's account is recorded as a member too, then B contributes.
+        await b.Services.GetRequiredService<IIdentityClient>().EnsureMember(new Member
+        { PrincipalId = bob.AccountId, AccountId = bob.AccountId, BrainId = circle, Role = MemberRole.Member, DisplayName = bob.AccountId });
+        var bMachine = b.Services.GetRequiredService<IIdentityClient>().MachineId!;
+        await bob.In(circle, () => Circle(b, circle).Contribute(bMachine));
+        await alice.In(circle, () => Circle(a, circle).Share("notes", ["c1"]));
+        return (a, b, alice, bob, circle, ConnectionKeys.For(circle, Connector, "c1"));
+    }
+
     // Alice's machine A holds her brain and the circle; bob's machine B holds his. Alice shares "notes", whose slot
     // stays bound to her connection c1.
     private static async Task<(ITestBrain A, ITestBrain B, Person Alice, Person Bob, string Circle, string Left)> LeftBehind(CircleMachines machines, CancellationToken ct)
@@ -184,5 +267,17 @@ public sealed class SharedConnectionFacts
         await Join(a, circle, alice, bob);
         await alice.In(circle, () => Circle(a, circle).Share("notes", []));
         return (a, b, alice, bob, circle, ConnectionKeys.For(alice.BrainId, Connector, "c1"));
+    }
+}
+
+// Every grain call a machine sees, as serialized bytes: what a re-seal must not carry as plaintext.
+internal sealed class RecordedCalls(Serializer serializer) : IIncomingGrainCallFilter
+{
+    public static readonly ConcurrentBag<byte[]> Requests = [];
+
+    public Task Invoke(IIncomingGrainCallContext context)
+    {
+        if (context.Grain is IGrainBase) { Requests.Add(serializer.SerializeToArray(context.Request)); }
+        return context.Invoke();
     }
 }
