@@ -103,15 +103,17 @@ public sealed class StageFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
-        var mine = new CallerContext { PrincipalId = "owner", AccountId = "owner", BrainId = "owner", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp };
-        var stage = brain.Get<IStage>(StageNeuron.ScopeOf(mine));
-        using (As(mine)) { await stage.SetHome("owner/apps/ino/scenes/home"); }
-        using (As(new CallerContext { PrincipalId = "carol", AccountId = "carol", BrainId = "owner", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp }))
+        var owner = brain.Owner;
+        var scope = StageNeuron.ScopeOf(new CallerContext { PrincipalId = owner.PrincipalId, AccountId = owner.AccountId, BrainId = owner.BrainId, Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp });
+        var stage = brain.Get<IStage>(scope);
+        using (owner.AsCaller()) { await stage.SetHome("owner/apps/ino/scenes/home"); }
+        var carol = await brain.PersonAsync("carol", ct);
+        using (carol.AsCallerIn(owner.BrainId))
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(stage.Read);
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => stage.Go("owner/apps/x/scenes/1"));
         }
-        using (As(mine)) { Assert.Single((await stage.Read()).Stack); }
+        using (owner.AsCaller()) { Assert.Single((await stage.Read()).Stack); }
     }
 
     [Fact]
@@ -138,29 +140,15 @@ public sealed class StageFacts
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
+        var owner = brain.Owner;
         var stage = brain.Get<IStage>("owner/stage/owner");
-        using (brain.Owner.AsCaller()) { await stage.SetHome("owner/apps/ino/scenes/home"); }
-        using (As(new CallerContext { PrincipalId = "carol", AccountId = "carol", BrainId = "owner", Kind = CallerKind.User, StampedBy = TrustedEdge.AuthenticatedHttp }))
+        using (owner.AsCaller()) { await stage.SetHome("owner/apps/ino/scenes/home"); }
+        var carol = await brain.PersonAsync("carol", ct);
+        using (carol.AsCallerIn(owner.BrainId))
         {
             await Assert.ThrowsAsync<UnauthorizedAccessException>(stage.Read);
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => stage.Go("owner/apps/x/scenes/1"));
         }
-        using (brain.Owner.AsCaller()) { Assert.Single((await stage.Read()).Stack); }
-    }
-
-    private static Restore As(CallerContext caller)
-    {
-        var previous = Orleans.Runtime.RequestContext.Get(CallerContextStamper.RequestContextKey);
-        CallerContextStamper.Stamp(caller);
-        return new Restore(previous);
-    }
-
-    private sealed class Restore(object? previous) : IDisposable
-    {
-        public void Dispose()
-        {
-            if (previous is null) { Orleans.Runtime.RequestContext.Remove(CallerContextStamper.RequestContextKey); }
-            else { Orleans.Runtime.RequestContext.Set(CallerContextStamper.RequestContextKey, previous); }
-        }
+        using (owner.AsCaller()) { Assert.Single((await stage.Read()).Stack); }
     }
 }

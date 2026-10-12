@@ -63,6 +63,27 @@ public sealed class Person : IDisposable
             StampedBy = TrustedEdge.AppProxy,
         });
 
+    // The kernel's scheduler edge: a reminder fires a call into this person's brain with no HTTP session,
+    // as the reminder grain stamps it. A Person cannot reach it through the edge; authorization facts present it.
+    public IDisposable AsScheduler() => Enter(new CallerContext
+    {
+        PrincipalId = PrincipalId,
+        AccountId = AccountId,
+        BrainId = BrainId,
+        Kind = CallerKind.Scheduler,
+        StampedBy = TrustedEdge.Scheduler,
+    });
+
+    // A conversation the person's assistant is running on their behalf, as the assistant tool surface stamps it.
+    public IDisposable AsAssistant() => Enter(new CallerContext
+    {
+        PrincipalId = PrincipalId,
+        AccountId = AccountId,
+        BrainId = BrainId,
+        Kind = CallerKind.Assistant,
+        StampedBy = TrustedEdge.AuthenticatedHttp,
+    });
+
     private CallerScope Enter(CallerContext caller)
     {
         var previous = Orleans.Runtime.RequestContext.Get(CallerContextStamper.RequestContextKey);
