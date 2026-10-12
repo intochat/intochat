@@ -1,6 +1,6 @@
 # Ledger 38: a part larger than one mesh segment (owner/core snapshot)
 
-> **Status: Fix B built (unit-verified); Fix A blocked on a re-rule.**
+> **Status: Fix B and Fix A (A4) built, unit-verified; live verification pending.**
 >
 > **Ruled 2026-10-12:** Task 0 run (result below); **D3 = accept a wipe**; **D4 = 8 MiB + signals**
 > (built); **D5 = no sweep exists** (documented, not built); **D2 = recommended yes**.
@@ -10,12 +10,15 @@
 > `MeshAuditorFacts`. Platform targeted 117/117; full suite 469/472 (2 pre-existing load flakes,
 > `ScopedAuthorityFacts`/`PartLeaseFacts`). **Live verification pending.** Not committed.
 >
-> **Fix A — A1 built, then REVERTED.** A1 (register on activation, retire on deactivation) broke the
-> directory's durable-catalog contract: `CSharpFileListingFacts.AFileKeepsItsName…TheKernelListsItUntilDeleted`
+> **Fix A — A1 refuted, replaced by A4 (built).** A1 (register on activation, retire on deactivation)
+> broke the directory's durable-catalog contract: `CSharpFileListingFacts.AFileKeepsItsName…TheKernelListsItUntilDeleted`
 > requires a deactivated `ICSharpFile` to stay listed until deleted (and `apps` the same for
-> `/apps`/Memory). The kernel instance directory is a **durable catalog**, not a live set, so retiring on
-> deactivation changes enumeration for every catalogued type. A1's files were reverted; **D1 is open
-> again** — see the options below.
+> `/apps`/Memory). The kernel instance directory is a **durable catalog**, not a live set. A1 was
+> reverted. **A4 (ruled):** `InstanceDirectoryOptions.Limit` (default 4096); when a `{brain}/{type}`
+> directory exceeds it, `Register` drops the oldest entries that are not currently active, so ephemeral
+> neurons cannot accumulate while active instances and small catalogued types are untouched. Files:
+> `InstanceDirectoryOptions.cs`, `KernelGrains.cs`, `BrainHosting.cs`, `KernelFacts.cs`. Framework
+> 144/144, CSharp 189/189. **Live verification pending.** Not committed.
 
 Ledger 38, verbatim (`docs/superpowers/loop/ledger.md`):
 
@@ -225,7 +228,7 @@ occurrence names the culprit. Keep the summary route as the on-demand tool.
 
 | Id | Decision | Recommendation |
 |----|----------|----------------|
-| D1 | Instance-directory fix: A1 activation lifecycle, A2 per-key records, A3 ephemeral types, A4 compaction sweep | **Open again: A4 (recommended), or A1′ with a catalogued-neuron marker; A1 refuted** |
+| D1 | Instance-directory fix: A1 activation lifecycle, A2 per-key records, A3 ephemeral types, A4 compaction sweep | **Ruled: A4 built; A1 refuted** |
 | D2 | May `neurons_list` stop listing dormant/never-active ephemeral neurons? | Yes (they are addressable, not enumerated) |
 | D3 | May the `HeadPayload` shape change force a wipe, or must legacy single-blob snapshots still replay? | **Ruled: accept a wipe** |
 | D4 | `SnapshotChunkBytes` default and whether signals chunk too | 8 MiB; signals chunk yes |

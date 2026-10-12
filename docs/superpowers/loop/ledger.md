@@ -197,10 +197,14 @@ above `PartsOptions.SnapshotChunkBytes` (default 8 MiB); the head still names on
 `PartSnapshotFacts.cs`, `MeshAuditorFacts.cs` (+ the Task 0 `MachinePartEndpoints.cs`/`MachinePartEndpointFacts.cs`).
 Platform targeted 117/117; full Platform 469/472 (2 pre-existing load flakes).
 
-**Fix A (A1) built, then reverted:** register-on-activation/retire-on-deactivation broke the directory's
+**Fix A — A1 refuted, A4 built:** A1 (register on activation, retire on deactivation) broke the directory's
 durable-catalog contract — `CSharpFileListingFacts.AFileKeepsItsName…TheKernelListsItUntilDeleted` requires a
-deactivated `ICSharpFile` to stay listed until deleted (apps likewise for `/apps`/Memory). The kernel
-instance directory is a durable catalog, not a live set, so retiring on deactivation changes enumeration for
-every catalogued type. A1's files (`NeuronActivations.cs`, `InstanceRegistration.cs`, `BrainHosting.cs`,
-`KernelFacts.cs`) were reverted. **`D1` is open again** (A4 compaction — recommended; or A1′ with a
-Framework catalogued-neuron marker).
+deactivated `ICSharpFile` to stay listed until deleted (apps likewise for `/apps`/Memory), so A1 was reverted.
+**A4 (ruled):** `InstanceDirectoryOptions.Limit` (default 4096); when a `{brain}/{type}` directory exceeds it,
+`Register` drops the oldest entries that are not currently active — ephemeral neurons cannot accumulate while
+active instances and small catalogued types are untouched. Framework 144/144, CSharp 189/189; Platform's
+full-suite failures remain the known Identity/Connections/PartLease load flakes (each passes alone).
+
+**Commits:** `3cd098fa1` (summary route), Fix B (in peer commit `8a182754f` — a shared-index race swept the
+staged files into that session's commit before mine ran), `1a5f1a700` (A4), and `4a1d9fe77` (plan/ledger).
+Fix B and A4 are **unit-verified, not seen live**.
