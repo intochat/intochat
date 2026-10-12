@@ -108,7 +108,7 @@ var silos = AspireModuleHosting.InstanceNames("OperatingSystem").Take(1).Select(
         ? Primary(AspireModuleHosting.OnDynamicPorts(live, "ASPNETCORE_HTTP_PORTS"))
         : Primary(AspireModuleHosting.OnDynamicPorts(builder.AddProject<Projects.DigitalBrain_OS>(name))
             .WithEnvironment(DigitalBrain.Framework.Configuration.DigitalBrainConfiguration.EnvironmentName(featuresKey), features))).ToArray();
-var osFront = AspireModuleHosting.AddFront(builder, "OperatingSystem", uiPort, silos.Select(silo => silo.GetEndpoint("http")));
+var osFront = AspireModuleHosting.AddFront(builder, "OperatingSystem", uiPort, silos.Select(silo => silo.GetEndpoint("https")));
 
 // The second machine (R40): its own directory, identity and Orleans cluster, fixed silo and gateway ports allocated
 // per run (R71), and its own allocated HTTP port serving its own /mcp. It is not behind the front: it is reached
@@ -146,8 +146,14 @@ IResourceBuilder<IResourceWithEndpoints> Silo<T>(IResourceBuilder<T> silo) where
 
 // R76: A is the core holder, the machine the fronts and MCPs route to. Its Orleans ports are allocated after the
 // brain reference (Task 22), in the deployment's cluster the MCPs join.
-IResourceBuilder<IResourceWithEndpoints> Primary<T>(IResourceBuilder<T> silo) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport
+IResourceBuilder<IResourceWithEndpoints> Primary<T>(IResourceBuilder<T> silo) where T : IResourceWithEnvironment, IResourceWithEndpoints, IResourceWithWaitSupport, IResourceWithArgs
 {
+    // TLS negotiates HTTP/2 for the native shell through YARP, while HTTP remains for health and sandbox callbacks.
+    // Projects compose ASPNETCORE_URLS from endpoints; an explicit port variable would be overridden by it.
+    silo.WithHttpsEndpoint(name: "https", env: silo.Resource is ProjectResource ? null : "ASPNETCORE_HTTPS_PORTS", isProxied: false);
+#pragma warning disable ASPIRECERTIFICATES001
+    silo.WithHttpsDeveloperCertificate();
+#pragma warning restore ASPIRECERTIFICATES001
     var primary = Silo(silo.AsCoreHolder());
     silo.WithAllocatedOrleansPorts();
     return primary;

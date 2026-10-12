@@ -3,11 +3,8 @@ using DigitalBrain.Client.Runtime;
 using DigitalBrain.Client.Runtime.V1;
 using DigitalBrain.Framework;
 using DigitalBrain.Microsoft.CSharp;
-using DigitalBrain.Microsoft.CSharp.Edge;
-using DigitalBrain.Microsoft.CSharp.Files;
 using DigitalBrain.Microsoft.CSharp.Runtime;
 using DigitalBrain.Microsoft.CSharp.Runtime.Signals;
-using DigitalBrain.Testing;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http.Features;
@@ -89,7 +86,7 @@ public sealed class BrainRuntimeNeuronFacts
         Assert.Equal(SessionStatus.Starting, (await Runtime(brain).Inspect(ct)).Session);
         Assert.Equal("Starting", (await Programs(brain).Describe(Owner))!.Behaviors[0].Status);
         host.Absent = false;
-        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default);
+        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default, ct);
         await host.NextAsync(FakeSessionHost.IsStart, ct);
     }
 
@@ -114,7 +111,7 @@ public sealed class BrainRuntimeNeuronFacts
         Assert.Contains(logs.Of<BrainRuntimeNeuron>(), entry => entry.Level == LogLevel.Information && entry.Message.Contains("waits until this silo listens", StringComparison.Ordinal));
         Assert.DoesNotContain(logs.Of<BrainRuntimeNeuron>(), entry => entry.Level >= LogLevel.Warning);
         server.Addresses.Add("http://127.0.0.1:5099");
-        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default);
+        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default, ct);
         var started = await host.NextAsync(FakeSessionHost.IsStart, ct);
         Assert.Equal("http://host.docker.internal:5099/brains/acc-brain/", started.Body!["edgeUrl"]!.GetValue<string>());
         Assert.Single(host.Requests, FakeSessionHost.IsStart);
@@ -336,7 +333,7 @@ public sealed class BrainRuntimeNeuronFacts
         var first = await host.NextAsync(FakeSessionHost.IsStart, ct);
         host.Sessions.Clear();
 
-        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default);
+        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default, ct);
 
         var again = await host.NextAsync(FakeSessionHost.IsStart, ct);
         Assert.Equal(first.Body!["session"]!.GetValue<string>(), again.Body!["session"]!.GetValue<string>());
@@ -379,7 +376,7 @@ public sealed class BrainRuntimeNeuronFacts
         var silent = (await Runtime(brain).Inspect(ct)).SessionId!;
 
         time.Now += TimeSpan.FromMinutes(3);
-        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default);
+        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default, ct);
 
         var relaunched = await host.NextAsync(FakeSessionHost.IsStart, ct);
         Assert.NotEqual(silent, relaunched.Body!["session"]!.GetValue<string>());
@@ -421,10 +418,10 @@ public sealed class BrainRuntimeNeuronFacts
         var session = (await Runtime(brain).Inspect(ct)).SessionId!;
         time.Now += TimeSpan.FromMinutes(41);
         await Edge(brain).Heartbeat(session);
-        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default);
+        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default, ct);
 
         var stream = brain.Services.GetRequiredService<DigitalBrain.Microsoft.CSharp.Sessions.SessionStreams>().Open(session);
-        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default);
+        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default, ct);
 
         Assert.True(stream.Reader.TryRead(out var pushed));
         Assert.Equal(DigitalBrain.Client.Runtime.V1.TokenEvent.Kind, pushed.Kind);
@@ -439,7 +436,7 @@ public sealed class BrainRuntimeNeuronFacts
         await using var brain = await RuntimeBrain.StartAsync(host, ct);
 
         await Programs(brain).Assign(Owner, Synapse(), []);
-        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default);
+        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default, ct);
 
         Assert.Equal(SessionStatus.Starting, (await Runtime(brain).Inspect(ct)).Session);
     }

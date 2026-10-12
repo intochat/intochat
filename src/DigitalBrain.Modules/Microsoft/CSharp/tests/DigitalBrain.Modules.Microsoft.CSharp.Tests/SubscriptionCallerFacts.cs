@@ -122,6 +122,8 @@ public sealed class SubscriptionCallerFacts
         await edge.Subscribed(session, app, theirs.GetGrainId().ToString(), nameof(AppRequested));
         await edge.Subscribed(session, app, mine.GetGrainId().ToString(), nameof(Pinged));
         using (bob.AsCaller()) { await RuntimeBrain.Programs(brain, bob.BrainId).Assign(app, RuntimeBrain.One(RuntimeBrain.Idle), []); }
+        // Reassignment renews watches off-turn. The accepted sentinel must be ready under its new caller.
+        await edge.Subscribed(session, app, mine.GetGrainId().ToString(), nameof(Pinged));
 
         // Each arrival is the runtime's next turn after its signal, in order: bob's own ping is the sentinel.
         await using (var changes = await brain.Observe<BrainRuntimeChanged>(runtime, ct))
@@ -133,6 +135,8 @@ public sealed class SubscriptionCallerFacts
         var live = await edge.PendingBatches(session);
         await brain.DeactivateAsync(runtime, ct);
         await using var resumed = await brain.Observe<BrainRuntimeChanged>(runtime, ct);
+        // Observing the runtime readies only this probe; a relaunched behavior subscribes before publishing.
+        await edge.Subscribed((await runtime.Inspect(ct)).SessionId!, app, mine.GetGrainId().ToString(), nameof(Pinged));
         await theirs.Request("open", "while the runtime slept");
         await mine.Ping(2);
         IReadOnlyList<SignalBatchEvent> pending;

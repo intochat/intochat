@@ -7,12 +7,12 @@ using DigitalBrain.Framework.Platform.Integrations;
 using DigitalBrain.Microsoft.Windows.Signals;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Orleans.Hosting;
+using Microsoft.AspNetCore.Routing;
 
 namespace DigitalBrain.Microsoft.Windows;
 
 // A Windows PC as an edge: the machine, its files and its console, served only by a silo on that PC.
-public sealed class WindowsModule() : Module<WindowsOptions>(new ModuleId("windows"))
+public sealed class WindowsModule() : Module<WindowsOptions>(new ModuleId("windows")), IHttpModule
 {
     public static ConnectorDefinition Connector { get; } = new("windows", "Windows", ["device"], [])
     {
@@ -21,6 +21,8 @@ public sealed class WindowsModule() : Module<WindowsOptions>(new ModuleId("windo
     };
 
     public override Assembly? Contracts => typeof(IWindows).Assembly;
+
+    public void Configure(IEndpointRouteBuilder endpoints) => WindowsEndpoints.Map(endpoints);
 
     public override void Configure(ISiloBuilder silo)
     {

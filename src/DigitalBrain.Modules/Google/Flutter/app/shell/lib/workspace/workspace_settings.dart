@@ -18,15 +18,20 @@ class WorkspaceSettings extends StatefulWidget {
     this.onOpen,
     this.connectionsRequest,
     this.connectorRequest,
+    this.windowsRequest,
     this.loadModels,
+    this.sectionBuilder,
   });
   final WorkspaceStore store;
   final String initialSection;
   final VoidCallback onClose;
   final Uri? kernelBaseUri;
   final OpenUrl? onOpen;
-  final ConnectionsRequest? connectionsRequest, connectorRequest;
+  final ConnectionsRequest? connectionsRequest,
+      connectorRequest,
+      windowsRequest;
   final ModelCatalogLoader? loadModels;
+  final Widget Function(String section)? sectionBuilder;
   @override
   State<WorkspaceSettings> createState() => _WorkspaceSettingsState();
 }
@@ -83,16 +88,19 @@ class _WorkspaceSettingsState extends State<WorkspaceSettings> {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
         settings: RouteSettings(name: '/settings/$section'),
-        builder: (_) => WorkspaceSettings(
-          store: widget.store,
-          initialSection: section,
-          onClose: widget.onClose,
-          kernelBaseUri: widget.kernelBaseUri,
-          onOpen: widget.onOpen,
-          connectionsRequest: widget.connectionsRequest,
-          connectorRequest: widget.connectorRequest,
-          loadModels: widget.loadModels,
-        ),
+        builder: (_) =>
+            widget.sectionBuilder?.call(section) ??
+            WorkspaceSettings(
+              store: widget.store,
+              initialSection: section,
+              onClose: widget.onClose,
+              kernelBaseUri: widget.kernelBaseUri,
+              onOpen: widget.onOpen,
+              connectionsRequest: widget.connectionsRequest,
+              connectorRequest: widget.connectorRequest,
+              windowsRequest: widget.windowsRequest,
+              loadModels: widget.loadModels,
+            ),
       ),
     );
   }
@@ -200,6 +208,7 @@ class _WorkspaceSettingsState extends State<WorkspaceSettings> {
         return ConnectionsSettings(
           request: widget.connectionsRequest,
           connectorRequest: widget.connectorRequest,
+          windowsRequest: widget.windowsRequest,
           onOpen: widget.onOpen,
         );
       case 'models':

@@ -115,10 +115,9 @@ class UiBreadcrumbs extends StatelessWidget {
     if (entries.isEmpty) return const SizedBox.shrink();
     final theme = Theme.of(context);
     final collapsed = entries.length > maxVisible;
-    final hiddenEnd = (entries.length - maxVisible + 2).clamp(
-      1,
-      entries.length - 1,
-    );
+    final hiddenEnd = collapsed
+        ? (entries.length - maxVisible + 2).clamp(1, entries.length - 1)
+        : 1;
     final children = <Widget>[];
     void add(Widget child) {
       if (children.isNotEmpty) {

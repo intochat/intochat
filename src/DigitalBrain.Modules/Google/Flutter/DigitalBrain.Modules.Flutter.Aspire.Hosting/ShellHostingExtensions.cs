@@ -75,7 +75,8 @@ public static class ShellHostingExtensions
         private IResourceBuilder<IResourceWithEndpoints>? _front;
         private EndpointReference? _firstKernel;
 
-        private EndpointReference Kernel => _front?.GetEndpoint(ShellNames.HttpEndpointName) ?? _firstKernel!;
+        // Native gRPC needs TLS/ALPN through the front; the web shell uses gRPC-Web over HTTP.
+        private EndpointReference Kernel => _front?.GetEndpoint(_flutterKind == FlutterHostKind.Window ? "https" : ShellNames.HttpEndpointName) ?? _firstKernel!;
 
         internal void BindFront(IResourceBuilder<IResourceWithEndpoints> front)
         {

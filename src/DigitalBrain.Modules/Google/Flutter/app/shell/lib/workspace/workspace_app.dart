@@ -1112,17 +1112,20 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
             store.remoteSnapshots[project.id]?.companion != null) {
           return const SizedBox.shrink();
         }
-        return Dock(
-          app: app,
-          manifest: manifest,
-          loadIcon: client.readBytes,
-          iconRoute:
-              '/brains/${Uri.encodeComponent(project.id)}/apps/${Uri.encodeComponent(app)}/icon',
-          watchActivity: () => client.watchActivity(project.id),
-          brainId: project.id,
-          floating: focused == null,
-          onRequest: (operation, input) =>
-              client.requestApp(project.id, app, operation, input),
+        return WorkspaceIslands.island(
+          context,
+          Dock(
+            app: app,
+            manifest: manifest,
+            loadIcon: client.readBytes,
+            iconRoute:
+                '/brains/${Uri.encodeComponent(project.id)}/apps/${Uri.encodeComponent(app)}/icon',
+            watchActivity: () => client.watchActivity(project.id),
+            brainId: project.id,
+            floating: focused == null,
+            onRequest: (operation, input) =>
+                client.requestApp(project.id, app, operation, input),
+          ),
         );
       },
     );
@@ -1320,6 +1323,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
           child: ConnectWindow(
             request: request,
             connectorRequest: _connectorRequest,
+            windowsRequest: _windowsRequest,
             initialConnectorId: connectorId,
             onOpen: widget.onOpenUrl,
           ),
@@ -1373,31 +1377,63 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   }
 
   Widget _settingsApp(VoidCallback onClose, {String section = 'general'}) =>
-      WorkspaceSettings(
-        store: store,
-        initialSection: section,
-        onClose: onClose,
-        kernelBaseUri: widget.kernelBaseUri,
-        onOpen: widget.onOpenUrl,
-        connectionsRequest: _connectionsRequest,
-        connectorRequest: _connectorRequest,
-        loadModels: widget.programmingClient?.readModelCatalog,
+      ListenableBuilder(
+        listenable: store,
+        builder: (context, child) => WorkspaceSettings(
+          store: store,
+          initialSection: section,
+          onClose: onClose,
+          kernelBaseUri: widget.kernelBaseUri,
+          onOpen: widget.onOpenUrl,
+          connectionsRequest: _connectionsRequest,
+          connectorRequest: _connectorRequest,
+          windowsRequest: _windowsRequest,
+          loadModels: widget.programmingClient?.readModelCatalog,
+          sectionBuilder: (section) => _settingsApp(onClose, section: section),
+        ),
       );
 
-  ConnectionsRequest? get _connectorRequest {
+  DigitalBrainUiClient? _connectionRequestClient;
+  String? _connectionRequestBrain;
+  ConnectionsRequest? _cachedConnectorRequest;
+  ConnectionsRequest? _cachedConnectionsRequest;
+  ConnectionsRequest? _cachedWindowsRequest;
+
+  void _cacheConnectionRequests() {
     final client = widget.programmingClient;
-    if (client == null) return null;
-    final workspaceId = store.currentProject.id;
-    return (path, {body}) =>
-        client.connectorRequest(workspaceId, path, body: body);
+    final brain = store.currentProject.id;
+    if (identical(client, _connectionRequestClient) &&
+        brain == _connectionRequestBrain) {
+      return;
+    }
+    _connectionRequestClient = client;
+    _connectionRequestBrain = brain;
+    _cachedConnectorRequest = client == null
+        ? null
+        : (path, {body}) => client.connectorRequest(brain, path, body: body);
+    _cachedConnectionsRequest = client == null
+        ? null
+        : (path, {body}) =>
+              client.workspaceConnectionsRequest(brain, path, body: body);
+    _cachedWindowsRequest = client == null
+        ? null
+        : (path, {body}) =>
+              client.workspaceWindowsRequest(brain, path, body: body);
+  }
+
+  ConnectionsRequest? get _connectorRequest {
+    _cacheConnectionRequests();
+    return _cachedConnectorRequest;
   }
 
   ConnectionsRequest? get _connectionsRequest {
-    final client = widget.programmingClient;
-    if (client == null) return null;
-    final workspaceId = store.currentProject.id;
-    return (path, {body}) =>
-        client.workspaceConnectionsRequest(workspaceId, path, body: body);
+    _cacheConnectionRequests();
+    return _cachedConnectionsRequest;
+  }
+
+  ConnectionsRequest? get _windowsRequest {
+    _cacheConnectionRequests();
+    return _cachedWindowsRequest;
   }
 
   Future<void> _openApplication(

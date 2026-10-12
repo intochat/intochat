@@ -130,7 +130,7 @@ public sealed class PartLogReplayFacts
         await pinger.Ping(1);
         await failed.WaitAsync(ct);
         Assert.Empty(await PendingNumbers(brain, session));
-        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default);
+        await Runtime(brain).AsReference<IRemindable>().ReceiveReminder(BrainRuntimeNeuron.ReconcileReminder, default, ct);
 
         var pending = await PendingNumbers(brain, session);
         Assert.Equal([1], pending);

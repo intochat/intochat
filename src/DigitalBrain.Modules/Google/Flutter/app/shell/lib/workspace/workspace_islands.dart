@@ -30,7 +30,7 @@ class WorkspaceIslands extends StatelessWidget {
   final Future<void> Function()? onSwitchAccount;
   final bool home;
 
-  Widget island(BuildContext context, Widget child) => ClipRRect(
+  static Widget island(BuildContext context, Widget child) => ClipRRect(
     borderRadius: BorderRadius.circular(UiTokens.of(context).surfaceRadius),
     child: BackdropFilter(
       filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
@@ -198,7 +198,7 @@ class WorkspaceIslands extends StatelessWidget {
                 ),
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
-                  child: island(context, dock),
+                  child: dock,
                 ),
               ),
             ),

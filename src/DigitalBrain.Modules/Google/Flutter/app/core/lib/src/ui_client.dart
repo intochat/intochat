@@ -906,6 +906,16 @@ final class DigitalBrainUiClient {
     body,
   );
 
+  Future<Object?> workspaceWindowsRequest(
+    String workspaceId,
+    String path, {
+    Map<String, Object?>? body,
+  }) => jsonRequest(
+    body == null ? 'GET' : 'POST',
+    '/brains/${Uri.encodeComponent(workspaceId)}/windows/$path',
+    body,
+  );
+
   /// The live grants an owner has given to apps in this workspace.
   Future<List<GrantSummary>> listGrants(String workspace) async {
     final response = await _request(

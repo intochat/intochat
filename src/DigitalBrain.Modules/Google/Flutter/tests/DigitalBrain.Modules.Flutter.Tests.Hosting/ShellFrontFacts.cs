@@ -13,6 +13,26 @@ public sealed class ShellFrontFacts
     private const string AllowedOrigin = "DigitalBrain__Cors__AllowedOrigin";
 
     [Fact]
+    public async Task TheDesktopShellUsesTheFrontsHttpsEndpointForNativeHttp2()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var builder = AspireCompositionTest.CreateBuilder();
+        var brain = builder.AddDigitalBrain("modules", new DigitalBrainHostingOptions { PersistentStorage = false })
+            .WithHosting<FlutterModuleHosting, FlutterModuleOptions>(flutter => flutter.RunDesktopApp());
+        builder.AddExecutable("OperatingSystem-a", "unused", ".")
+            .WithHttpEndpoint(name: "http").WithHttpsEndpoint(name: "https").WithReference(brain);
+        var front = builder.AddExecutable("OperatingSystem-front", "unused", ".")
+            .WithHttpEndpoint(port: 5080, name: "http").WithHttpsEndpoint(name: "https");
+        brain.WithShellFront(builder.CreateResourceBuilder<IResourceWithEndpoints>(front.Resource));
+
+        var shell = Assert.Single(builder.Resources.OfType<ExecutableResource>(), resource => resource.Name.Contains("FlutterShell", StringComparison.Ordinal));
+        var environment = await AspireCompositionTest.EnvironmentOf(builder, shell, ct);
+        var kernel = Assert.IsType<EndpointReference>(environment[ShellNames.UIBaseEnvironmentVariable]);
+        Assert.Same(front.Resource, kernel.Resource);
+        Assert.Equal("https", kernel.EndpointName);
+    }
+
+    [Fact]
     public async Task TheShellReachesTheKernelThroughTheFrontAndEveryInstanceAllowsItsOrigin()
     {
         var ct = TestContext.Current.CancellationToken;

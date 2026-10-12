@@ -15,6 +15,34 @@ Widget host(Widget child, {bool reduced = false, ThemeData? theme}) =>
     );
 
 void main() {
+  testWidgets('single root breadcrumb is visible and cannot navigate', (
+    tester,
+  ) async {
+    final selected = <String>[];
+    await tester.pumpWidget(
+      host(
+        UiBreadcrumbs(
+          entries: const [UiBreadcrumbEntry(id: 'root', label: 'Storages')],
+          onSelected: selected.add,
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    expect(find.text('Storages'), findsOneWidget);
+    expect(find.byType(PopupMenuButton<String>), findsNothing);
+    expect(find.byIcon(Icons.chevron_right), findsNothing);
+    expect(tester.widget<TextButton>(find.byType(TextButton)).onPressed, isNull);
+    await tester.tap(find.text('Storages'));
+    expect(selected, isEmpty);
+  });
+  testWidgets('empty breadcrumbs render no navigation controls', (tester) async {
+    await tester.pumpWidget(host(const UiBreadcrumbs(entries: [])));
+    expect(tester.takeException(), isNull);
+    expect(find.byType(TextButton), findsNothing);
+    expect(find.byType(PopupMenuButton<String>), findsNothing);
+    expect(find.byIcon(Icons.chevron_right), findsNothing);
+    expect(tester.getSize(find.byType(UiBreadcrumbs)), Size.zero);
+  });
   testWidgets('control bridge inherits selected palette', (tester) async {
     final theme = UiTheme.workspaceDark('lumen');
     late Color primary;
