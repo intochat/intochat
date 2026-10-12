@@ -23,11 +23,20 @@ class OpeningClient extends SettingsAppClient {
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    if (request.url.path.contains('/apps/settings/')) {
+    if (request.url.path.endsWith('/windows/open')) {
       currentRevision++;
       windowOpen = true;
-      // The app commits before returning, but its invalidation has not arrived.
-      return super.send(request);
+      final response = await super.send(request);
+      await response.stream.drain<void>();
+      return http.StreamedResponse(
+        Stream.value(
+          utf8.encode(
+            jsonEncode({...settingsSnapshot, 'revision': currentRevision}),
+          ),
+        ),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
     }
     if (request.url.path.endsWith('/reopen')) {
       reopens++;
@@ -43,6 +52,7 @@ class OpeningClient extends SettingsAppClient {
           utf8.encode(
             jsonEncode({
               'revision': currentRevision,
+              'focusedWindow': windowOpen ? windowId : null,
               'windows': [
                 {
                   'id': windowId,

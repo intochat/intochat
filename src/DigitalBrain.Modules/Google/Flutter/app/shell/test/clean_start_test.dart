@@ -11,7 +11,7 @@ import 'workspace_remote_controller_test.dart' show MemoryPersistence;
 
 void main() {
   test(
-    'server windows stay closed on a device without saved preferences',
+    'server windows restore on a device without saved preferences',
     () async {
       final store = WorkspaceStore(persistence: MemoryPersistence());
       await store.load();
@@ -30,7 +30,7 @@ void main() {
           ],
         ),
       );
-      expect(store.currentProject.presentation.openArtifactIds, isEmpty);
+      expect(store.currentProject.presentation.openArtifactIds, ['old-table']);
       expect(store.currentProject.artifacts, hasLength(1));
       store.dispose();
     },
@@ -84,7 +84,7 @@ void main() {
   });
 
   test(
-    'startup snapshot stays quiet until saved work is explicitly reopened',
+    'startup snapshot restores server membership and explicit Home',
     () async {
       final persistence = MemoryPersistence();
       final original = WorkspaceStore(persistence: persistence);
@@ -106,7 +106,8 @@ void main() {
       );
       store.reconcileWorkspace(store.currentProject, snapshot(1, true));
       store.reconcileWorkspace(store.currentProject, snapshot(2, true));
-      expect(store.currentProject.presentation.openArtifactIds, isEmpty);
+      expect(store.currentProject.presentation.openArtifactIds, ['table']);
+      expect(store.focusedWindow, isNull);
       expect(store.currentProject.artifacts.single.title, 'Saved table');
       store.onRemoteWindowAction = (_, id, open) =>
           store.reconcileWorkspace(store.currentProject, snapshot(3, open));

@@ -283,28 +283,33 @@ final class DigitalBrainUiClient {
     return (body as Map)['requestId'] as String;
   }
 
-  Future<Map<String, dynamic>> openApp(
+  Future<WorkspaceSnapshot> openApp(
     String brainId,
     String appId, [
     Map<String, dynamic> arguments = const {},
   ]) async {
-    await requestApp(brainId, appId, 'open', jsonEncode(arguments));
+    final manifest = await readAppManifest(brainId, appId);
+    final entry = manifest.entry;
+    if (entry == null) {
+      throw StateError('This app does not declare a UI entry.');
+    }
     final key = appKey(brainId, appId);
-    return {
-      'id': '$key/window',
-      'title': appId,
-      'surface': {'kind': 'surface', 'name': '$key/surface'},
-      'kind': 'surface',
-    };
-  }
-
-  /// Asks an app to open in the side panel; answers the surface it declared.
-  Future<Map<String, dynamic>> openDockedApp(
-    String brainId,
-    String appId,
-  ) async {
-    await requestApp(brainId, appId, 'open', 'docked');
-    return {'kind': 'surface', 'name': '${appKey(brainId, appId)}/surface'};
+    final state = await readWorkspace(brainId);
+    return WorkspaceSnapshot.fromJson(
+      Map<String, dynamic>.from(
+        await _tableRequest(
+          'POST',
+          '/brains/${Uri.encodeComponent(brainId)}/windows/open',
+          body: {
+            'operationId': _uuid.v4(),
+            'windowId': '$key/window',
+            'title': manifest.title,
+            'reference': {'kind': entry.kind, 'neuronId': '$key/${entry.name}'},
+            'expectedRevision': state.revision,
+          },
+        ) as Map,
+      ),
+    );
   }
 
   /// Raw bytes of a served file such as an app icon; null when the server has none.
@@ -386,7 +391,11 @@ final class DigitalBrainUiClient {
       await _tableRequest(
         'POST',
         '/brains/${Uri.encodeComponent(workspaceId)}/windows/${Uri.encodeComponent(windowId)}/close',
-        body: {'windowId': windowId, 'expectedRevision': revision},
+        body: {
+          'windowId': windowId,
+          'operationId': _uuid.v4(),
+          'expectedRevision': revision,
+        },
       ) as Map,
     ),
   );
@@ -404,6 +413,43 @@ final class DigitalBrainUiClient {
           'windowId': windowId,
           'operationId': _uuid.v4(),
           'expectedRevision': revision,
+        },
+      ) as Map,
+    ),
+  );
+
+  Future<WorkspaceSnapshot> focusWorkspaceWindow(
+    String workspaceId,
+    String? windowId,
+    int revision,
+  ) async => WorkspaceSnapshot.fromJson(
+    Map<String, dynamic>.from(
+      await _tableRequest(
+        'POST',
+        '/brains/${Uri.encodeComponent(workspaceId)}/focus',
+        body: {
+          'windowId': windowId,
+          'operationId': _uuid.v4(),
+          'expectedRevision': revision,
+        },
+      ) as Map,
+    ),
+  );
+
+  Future<WorkspaceSnapshot> configureWorkspacePresentation(
+    String workspaceId, {
+    required Map<String, dynamic>? home,
+    required Map<String, dynamic>? companion,
+    required int expectedRevision,
+  }) async => WorkspaceSnapshot.fromJson(
+    Map<String, dynamic>.from(
+      await _tableRequest(
+        'POST',
+        '/brains/${Uri.encodeComponent(workspaceId)}/presentation',
+        body: {
+          'home': home,
+          'companion': companion,
+          'expectedRevision': expectedRevision,
         },
       ) as Map,
     ),

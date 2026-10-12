@@ -4,14 +4,15 @@ public static class WorkspaceWindows
 {
     private const int MaxAttempts = 8;
 
-    // Opens a surface window unless it is already open on the same reference.
+    // Opens a typed window unless it is already open on the same reference.
     public static async Task EnsureOpenAsync(this IWorkspace workspace, string windowId, string title, WindowReference reference, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(workspace);
         var state = await workspace.Read().WaitAsync(ct);
         if (state.Windows.Any(window => window.Id == windowId && window.IsOpen && window.Reference == reference)) { return; }
+        var operationId = Guid.NewGuid().ToString();
         await RetryOnConflictAsync(state.Revision, revision =>
-            workspace.OpenSurface(new(Guid.NewGuid().ToString(), windowId, title, reference, revision)), ct);
+            workspace.Open(new(operationId, windowId, title, reference, revision)), ct);
     }
 
     // A conflict carries the current revision, so the next attempt needs no extra read.

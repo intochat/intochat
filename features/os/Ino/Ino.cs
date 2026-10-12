@@ -1,7 +1,6 @@
 using DigitalBrain.AI.Agents;
 using DigitalBrain.Client;
 using DigitalBrain.Flame.Scene;
-using DigitalBrain.Flame.Stage;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.Text.Signals;
 
@@ -15,7 +14,6 @@ public static class Ino
     public static string AssistantKey(DigitalBrainConnection brain) => Scope(brain) + "/apps/assistant";
 
     public static IScene Home(DigitalBrainConnection brain) => brain.Get<IScene>(HomeKey(brain));
-    public static IStage Stage(DigitalBrainConnection brain) => brain.Get<IStage>(brain.Setting("Stage") ?? StageKey.ForOwner(Scope(brain)));
 
     // The assistant's selected conversation, following its pointer text as the assistant's own projections do.
     public static Sources Conversation(DigitalBrainConnection brain)
@@ -54,17 +52,23 @@ public static class Ino
         ],
         [Presence()], new SceneCamera(), "#0B0F14");
 
-    public static async Task Compose(DigitalBrainConnection brain, string itemsJson = "[]")
+    public static async Task Compose(DigitalBrainConnection brain)
     {
         var welcome = brain.Get<IScene>(WelcomeKey(brain));
-        await welcome.Set(WelcomeScene(), (await welcome.Read()).Revision);
-        await ComposeHome(brain, itemsJson);
+        var initial = await welcome.Read();
+        if (initial.Revision == 0) { await welcome.Set(WelcomeScene(), initial.Revision); }
+        var home = await Home(brain).Read();
+        if (home.Revision == 0) { await ComposeHome(brain, "[]"); }
     }
 
     public static async Task ComposeHome(DigitalBrainConnection brain, string itemsJson)
     {
         var home = Home(brain);
-        await home.Set(HomeScene(itemsJson), (await home.Read()).Revision);
+        var state = await home.Read();
+        var definition = HomeScene(itemsJson);
+        if (state.Current.TryGetValue("presence", out var presence))
+        { definition = definition with { Machines = [Presence() with { Initial = presence }] }; }
+        await home.Set(definition, state.Revision);
     }
 
     // Rests only while the presence is still in the state the caller left it in, so a newer event is not undone.
@@ -73,15 +77,6 @@ public static class Ino
         try { if ((await Home(brain).Read()).Current.GetValueOrDefault("presence") != state) { return; } }
         catch (Exception) when (!brain.Stopping.IsCancellationRequested) { return; }
         await Fire(brain, "rest");
-    }
-
-    // The assistant's own rule for a message naming an app (Names in features/os/Assistant/routed.cs), copied:
-    // Ino docks only what the assistant would open.
-    public static bool Names(string message, string name, string title)
-    {
-        static string Plain(string text) => text.Replace('-', ' ').Replace('_', ' ').Trim();
-        return message.Contains(Plain(name), StringComparison.OrdinalIgnoreCase) || message.Contains(name, StringComparison.OrdinalIgnoreCase)
-            || (Plain(title).Length > 0 && message.Contains(Plain(title), StringComparison.OrdinalIgnoreCase));
     }
 
     // Fire never throws into a synapse loop: a presence event that finds no transition is a no-op by contract,

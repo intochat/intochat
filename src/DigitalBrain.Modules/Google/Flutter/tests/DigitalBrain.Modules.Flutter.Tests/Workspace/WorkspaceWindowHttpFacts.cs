@@ -19,7 +19,7 @@ public sealed class WorkspaceWindowHttpFacts(FlutterHostFixture host)
         foreach (var id in ids)
         {
             var before = await workspace.Read();
-            await workspace.OpenSurface(new(Guid.NewGuid().ToString(), id, id,
+            await workspace.Open(new(Guid.NewGuid().ToString(), id, id,
                 new("surface", ws + "/apps/chart/surface"), before.Revision));
         }
 
@@ -28,7 +28,7 @@ public sealed class WorkspaceWindowHttpFacts(FlutterHostFixture host)
             var before = await workspace.Read();
             var path = $"/brains/{ws}/windows/{Uri.EscapeDataString(id)}";
             using var close = await person.Http.PostAsJsonAsync(path + "/close",
-                new { windowId = id, expectedRevision = before.Revision }, ct);
+                new { windowId = id, operationId = Guid.NewGuid().ToString(), expectedRevision = before.Revision }, ct);
             Assert.Equal(HttpStatusCode.OK, close.StatusCode);
             var closed = await workspace.Read();
             Assert.False(closed.Windows.Single(w => w.Id == id).IsOpen);

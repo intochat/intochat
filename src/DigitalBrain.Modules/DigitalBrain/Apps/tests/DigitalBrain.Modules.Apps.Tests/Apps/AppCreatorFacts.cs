@@ -30,6 +30,25 @@ public sealed class AppCreatorFacts
         """;
 
     [Fact]
+    public async Task AuthorAndBuilderPreserveTheDeclaredEntry()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await StartAsync(model, ct);
+        model.Script(Author, Authored(Spec).Insert(1, "\"entry\":{\"kind\":\"text\",\"name\":\"answer\"},"));
+        model.Script(Builder, Built("// built", "prompt").Insert(1, "\"operations\":[{\"name\":\"ask\",\"description\":\"Answer\"}],"));
+        var creator = brain.Services.GetRequiredService<Creator>();
+        var digitalBrain = brain.Services.GetRequiredService<IDigitalBrain>();
+        var authored = await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
+        Assert.Equal(new DigitalBrain.Flutter.UiChildRef("text", "answer"), authored.Manifest.Entry);
+        var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
+        await using var changes = await brain.Observe<AppChanged>(app, ct);
+        await creator.Implement(digitalBrain, IApp.Key(Brain, "shouter"), null);
+        await changes.NextAsync(change => change.Status is AppStatus.Live or AppStatus.Failed, ct);
+        Assert.Equal(authored.Manifest.Entry, (await app.Read()).Manifest.Entry);
+    }
+
+    [Fact]
     public async Task AuthorCreatesADraftedAppFromARequest()
     {
         var ct = TestContext.Current.CancellationToken;

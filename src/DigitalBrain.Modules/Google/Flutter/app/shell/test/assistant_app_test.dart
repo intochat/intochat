@@ -36,27 +36,31 @@ void main() {
     },
   );
 
-  testWidgets('opening an app posts a request and renders its surface neuron', (
-    tester,
-  ) async {
-    final fixture = await ApplicationFixture.start(tester);
+  testWidgets(
+    'opening an app reveals its declared entry without executing an operation',
+    (tester) async {
+      final fixture = await ApplicationFixture.start(tester);
 
-    await fixture.openApp('assistant');
+      await fixture.openApp('assistant');
 
-    final request = fixture.server.requests.singleWhere(
-      (request) => request.path.endsWith('/apps/assistant/request'),
-    );
-    expect(request.body['operation'], 'open');
-    expect(
-      fixture.renderedSurface,
-      '${fixture.brainId}/apps/assistant/surface',
-    );
-    expect(find.byType(NeuronView), findsWidgets);
-    expect(find.byType(DockTextField), findsOneWidget);
-    await fixture.dispose();
-  });
+      final request = fixture.server.requests.singleWhere(
+        (request) => request.path.endsWith('/windows/open'),
+      );
+      expect(request.body['reference'], {
+        'kind': 'surface',
+        'neuronId': '${fixture.brainId}/apps/assistant/surface',
+      });
+      expect(
+        fixture.renderedSurface,
+        '${fixture.brainId}/apps/assistant/surface',
+      );
+      expect(find.byType(NeuronView), findsWidgets);
+      expect(find.byType(DockTextField), findsOneWidget);
+      await fixture.dispose();
+    },
+  );
 
-  testWidgets('each Assistant launch posts a request and reveals its window', (
+  testWidgets('each Assistant launch focuses the same declared entry', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1600, 1000);
@@ -69,15 +73,16 @@ void main() {
     await fixture.openApp('assistant');
 
     final posted = fixture.server.requests
-        .where((request) => request.path.endsWith('/apps/assistant/request'))
+        .where((request) => request.path.endsWith('/windows/open'))
         .length;
     expect(posted, 2);
     expect(fixture.store.currentProject.artifacts.map((a) => a.id), [
       '${fixture.brainId}/apps/assistant/window',
     ]);
-    expect(fixture.store.currentProject.presentation.windowModes, {
-      '${fixture.brainId}/apps/assistant/window': 'floating',
-    });
+    expect(
+      fixture.store.focusedWindow,
+      '${fixture.brainId}/apps/assistant/window',
+    );
     expect(find.byType(DockTextField), findsOneWidget);
     expect(
       fixture.renderedSurface,
@@ -87,26 +92,20 @@ void main() {
   });
 
   testWidgets(
-    'pressing Home with nothing open shows the assistant, the default focused app',
+    'pressing Home preserves the catalog without starting Assistant',
     (tester) async {
       final fixture = await ApplicationFixture.start(tester);
       await tester.tap(find.byTooltip('Home'));
       await tester.pumpAndSettle();
-
-      expect(find.byType(HomeScreen), findsNothing);
-      expect(find.byType(ApplicationSurface), findsOneWidget);
-      final opened = fixture.server
-          .requestsTo('/brains/${fixture.brainId}/apps/assistant/request')
-          .single;
+      expect(find.byType(HomeScreen), findsOneWidget);
+      expect(find.byType(ApplicationSurface), findsNothing);
       expect(
-        (opened.body['operation'], opened.body['input']),
-        ('open', 'docked'),
+        fixture.server.requestsTo(
+          '/brains/${fixture.brainId}/apps/assistant/request',
+        ),
+        isEmpty,
       );
-      expect(
-        fixture.renderedSurface,
-        '${fixture.brainId}/apps/assistant/surface',
-      );
-      expect(find.byTooltip('Side panel'), findsNothing);
+      expect(fixture.store.focusedWindow, isNull);
       await fixture.dispose();
     },
   );

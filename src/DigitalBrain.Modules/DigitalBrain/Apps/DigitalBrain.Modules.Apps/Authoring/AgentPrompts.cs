@@ -21,12 +21,16 @@ internal static class AgentPrompts
           publisher's updates.
         - The app has one operation, "ask", unless the spec clearly needs more.
         - Model settings take this brain's model names, such as "IGpt56Luna" or "IGemma4".
+        - A visual app declares an entry: a typed neuron root with an installation-relative name.
+          For a text result use {"kind":"text","name":"answer"}. This is discovery, not readiness.
+          Specify cheap idempotent startup composition; opening reads state and never runs domain work.
 
         Reply with JSON only, no prose and no code fences:
         {"name": "lowercase-words-with-hyphens", "title": "Short title", "description": "One sentence for people.",
          "operations": [{"name": "ask", "description": "What it answers."}],
          "settings": [{"name": "Model", "description": "Who answers.", "default": "IGemma4"}],
          "slots": [{"name": "gmail", "connector": "gmail"}],
+         "entry": {"kind": "text", "name": "answer"},
          "spec": "...full Markdown spec..."}
         Slots are the external accounts the app needs (empty for most apps); the person binds their
         own connection to each slot after install — never put account details in settings.
@@ -75,11 +79,17 @@ internal static class AgentPrompts
         the model name from a setting; never hard-code one.
 
         Every setting a behavior reads must be declared. Setting names are letters and digits.
+        Every visual result must be reachable from the declared entry. Return "entry" with "kind" and
+        installation-relative "name" when adding a UI. Resolve its neuron as brain.Setting("App") + "/" + name.
+        Initialize or rebuild derived UI cheaply and idempotently before the one reaction; retain existing
+        result state on restart. Never focus or reopen a workspace entry when composition or work completes.
+        Mounting and reconnecting read current state. An entry declaration does not certify readiness.
         If an earlier attempt failed, its errors are listed: fix the implementation.
 
         Your final reply is JSON only, no prose and no code fences. Return operations as
         [{"name":"operation","description":"What it does"}] when the app has operations beyond ask.
         {"settings": [{"name": "Model", "description": "...", "default": "IGemma4"}],
+         "entry": {"kind": "text", "name": "answer"},
          "files": {"notify.cs": "..."}}
         """;
 

@@ -258,9 +258,23 @@ class WorkspaceProject {
     'id': id,
     'title': title,
     'conversations': conversations.map((v) => v.toJson()).toList(),
-    'artifacts': artifacts.map((v) => v.toJson()).toList(),
+    'artifacts': artifacts
+        .where((a) => !a.remoteManaged)
+        .map((a) => a.toJson())
+        .toList(),
     'selectedConversationId': selectedConversationId,
-    'presentation': presentation.toJson(),
+    'presentation': {
+      ...presentation.toJson(),
+      'openArtifactIds': presentation.openArtifactIds
+          .where((id) => artifacts.any((a) => a.id == id && !a.remoteManaged))
+          .toList(),
+      'activeArtifactId':
+          artifacts.any(
+            (a) => a.id == presentation.activeArtifactId && !a.remoteManaged,
+          )
+          ? presentation.activeArtifactId
+          : null,
+    },
   };
   factory WorkspaceProject.fromJson(Map<String, dynamic> json) =>
       WorkspaceProject(
@@ -337,10 +351,8 @@ class WorkspaceStore extends ChangeNotifier {
   void Function(String workspaceId, String windowId, bool open)?
   onRemoteWindowAction;
   final Map<String, int> remoteRevisions = {};
-  final Map<String, Set<String>> _startupWindows = {};
-  // Projects restored from the saved shell state. Only their windows count as "stale" on the
-  // first reconcile; a workspace created in this session shows remotely opened windows live.
-  final Set<String> _projectsAtLoad = {};
+  final Map<String, WorkspaceSnapshot> remoteSnapshots = {};
+  void Function(String workspaceId, String? windowId)? onRemoteFocus;
 
   void reconcileWorkspace(
     WorkspaceProject project,
@@ -348,34 +360,18 @@ class WorkspaceStore extends ChangeNotifier {
     String? openedWindowId,
   }) {
     if (snapshot.revision < (remoteRevisions[project.id] ?? -1)) return;
-    final startupSnapshot =
-        loaded &&
-        !remoteRevisions.containsKey(project.id) &&
-        _projectsAtLoad.contains(project.id);
     remoteRevisions[project.id] = snapshot.revision;
+    remoteSnapshots[project.id] = snapshot;
     _firstRun[project.id] = snapshot.firstRun == null
         ? null
         : FirstRunState.fromMetadata(snapshot.firstRun);
     final layout = project.presentation;
-    if (startupSnapshot) {
-      _startupWindows[project.id] = snapshot.windows
-          .where((window) => window.isOpen)
-          .map((window) => window.id)
-          .toSet();
-    }
-    final suppressed = _startupWindows[project.id];
-    suppressed?.remove(openedWindowId);
-    suppressed?.retainAll(
-      snapshot.windows.where((w) => w.isOpen).map((w) => w.id),
-    );
+    final localOpen = layout.openArtifactIds
+        .where(
+          (id) => project.artifacts.any((a) => a.id == id && !a.remoteManaged),
+        )
+        .toList();
     for (final window in snapshot.windows) {
-      // Retired server windows stay readable as placeholders without calling removed routes.
-      final builtIn = window.id == 'app-files' || window.id == 'app-images';
-      final kind = window.kind == 'table'
-          ? 'table'
-          : builtIn
-          ? 'app'
-          : 'surface';
       var artifact = project.artifacts
           .where((a) => a.id == window.id)
           .firstOrNull;
@@ -383,53 +379,29 @@ class WorkspaceStore extends ChangeNotifier {
         artifact = WorkspaceArtifact(
           id: window.id,
           title: window.title,
-          kind: kind,
-          remoteManaged: true,
-          data: window.kind == 'table'
-              ? {'tableId': window.neuronId}
-              : builtIn
-              ? {'app': window.id == 'app-files' ? 'files' : 'images'}
-              : {
-                  'surface': {'kind': window.kind, 'name': window.neuronId},
-                },
+          kind: window.kind == 'table' ? 'table' : 'surface',
         );
         project.artifacts.add(artifact);
       }
       artifact.remoteManaged = true;
-      artifact.kind = kind;
-      if (kind == 'surface') {
-        artifact.data = {
-          ...artifact.data,
-          'surface': {'kind': window.kind, 'name': window.neuronId},
-        };
-      }
       artifact.title = window.title;
-      if (window.isOpen && !(suppressed?.contains(window.id) ?? false)) {
-        if (!layout.openArtifactIds.contains(window.id)) {
-          layout.openArtifactIds.add(window.id);
-          layout.windowModes.putIfAbsent(window.id, () => 'floating');
-          if (project.id == selectedProjectId) {
-            layout.activeArtifactId = window.id;
-          }
-        }
-      } else {
-        layout.openArtifactIds.remove(window.id);
-        layout.minimizedArtifactIds.remove(window.id);
-        if (layout.activeArtifactId == window.id) {
-          layout.activeArtifactId = layout.openArtifactIds.lastOrNull;
-        }
-      }
+      artifact.kind = window.kind == 'table' ? 'table' : 'surface';
+      artifact.data = {
+        ...artifact.data,
+        if (window.kind == 'table')
+          'tableId': window.neuronId
+        else
+          'surface': {'kind': window.kind, 'name': window.neuronId},
+      };
     }
-    final ids = snapshot.windows.map((w) => w.id).toSet();
-    layout.openArtifactIds.removeWhere(
-      (id) =>
-          project.artifacts.any((a) => a.id == id && a.remoteManaged) &&
-          !ids.contains(id),
-    );
-    if (layout.activeArtifactId == null && layout.openArtifactIds.isNotEmpty) {
-      layout.activeArtifactId = layout.openArtifactIds.last;
-    }
-    save();
+    layout.openArtifactIds = [
+      ...localOpen,
+      ...snapshot.windows.where((w) => w.isOpen).map((w) => w.id),
+    ];
+    layout.activeArtifactId = snapshot.focusedWindow;
+    layout.minimizedArtifactIds.retainAll(localOpen);
+    // A remote snapshot is a projection, never another persistence write.
+    _notify();
   }
 
   bool _disposed = false;
@@ -450,6 +422,9 @@ class WorkspaceStore extends ChangeNotifier {
   /// The one window the desktop shows: the active window when it is open and not minimized,
   /// otherwise the most recently opened one that is. Null means the assistant is the focused app.
   String? get focusedWindow {
+    if (remoteSnapshots[selectedProjectId] case final snapshot?) {
+      return snapshot.focusedWindow;
+    }
     final p = currentProject.presentation;
     final visible = p.openArtifactIds
         .where((id) => !p.minimizedArtifactIds.contains(id))
@@ -528,9 +503,6 @@ class WorkspaceStore extends ChangeNotifier {
       loadFailed = true;
       persistenceError = 'Saved workspace could not be loaded. Existing saved data has not been replaced. Retry loading before saving.';
     }
-    _projectsAtLoad
-      ..clear()
-      ..addAll(projects.map((project) => project.id));
     loaded = true;
     _notify();
   }
@@ -591,8 +563,7 @@ class WorkspaceStore extends ChangeNotifier {
     await flush();
     loaded = false;
     remoteRevisions.clear();
-    _startupWindows.clear();
-    _projectsAtLoad.clear();
+    remoteSnapshots.clear();
     _firstRun.clear();
     await load();
   }
@@ -729,11 +700,12 @@ class WorkspaceStore extends ChangeNotifier {
 
   void openArtifact(String id, {String? placement}) {
     if (currentProject.artifacts.any((a) => a.id == id && a.remoteManaged)) {
-      _startupWindows[currentProject.id]?.remove(id);
-      if (!currentProject.presentation.openArtifactIds.contains(id)) {
+      if (currentProject.presentation.openArtifactIds.contains(id)) {
+        onRemoteFocus?.call(currentProject.id, id);
+      } else {
         onRemoteWindowAction?.call(currentProject.id, id, true);
-        return;
       }
+      return;
     }
     if (!currentProject.artifacts.any((a) => a.id == id)) return;
     final p = currentProject.presentation;
@@ -763,6 +735,10 @@ class WorkspaceStore extends ChangeNotifier {
   }
 
   void focusWindow(String id) {
+    if (currentProject.artifacts.any((a) => a.id == id && a.remoteManaged)) {
+      onRemoteFocus?.call(currentProject.id, id);
+      return;
+    }
     final p = currentProject.presentation;
     p.materializeWindowModes();
     if (!p.openArtifactIds.contains(id) ||
@@ -830,6 +806,10 @@ class WorkspaceStore extends ChangeNotifier {
   }
 
   void minimizeArtifact(String id) {
+    if (currentProject.artifacts.any((a) => a.id == id && a.remoteManaged)) {
+      onRemoteFocus?.call(currentProject.id, null);
+      return;
+    }
     final p = currentProject.presentation;
     p.materializeWindowModes();
     if (p.openArtifactIds.contains(id)) p.minimizedArtifactIds.add(id);

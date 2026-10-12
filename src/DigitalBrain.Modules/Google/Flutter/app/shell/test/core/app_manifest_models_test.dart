@@ -6,6 +6,15 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('a manifest declares an optional typed relative entry', () {
+    final manifest = AppManifest.fromJson({
+      'entry': {'kind': 'text', 'name': 'documents/answer'},
+    });
+    expect(manifest.entry?.kind, 'text');
+    expect(manifest.entry?.name, 'documents/answer');
+    expect(AppManifest.fromJson({}).entry, isNull);
+  });
+
   test('a manifest carries its toolbar with kinds and slider bounds', () {
     final manifest = AppManifest.fromJson({
       'title': 'Player',

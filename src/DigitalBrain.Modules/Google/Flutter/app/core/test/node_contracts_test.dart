@@ -9,6 +9,8 @@ void main() {
     );
     expect(NodeContracts.of('button').changed, 'ButtonChanged');
     expect(NodeContracts.of('surface').changed, 'SurfaceChanged');
+    expect(NodeContracts.of('scene').contract, 'DigitalBrain.Flame.Scene.IScene');
+    expect(NodeContracts.of('scene').changed, 'SceneChanged');
     expect(
       NodeContracts.of('collection').contract,
       'DigitalBrain.Flutter.Collection.ICollectionView',

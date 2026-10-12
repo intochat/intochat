@@ -9,18 +9,14 @@ using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Workspace;
 
-// "open" composes the display and keypad and shows the window.
+// Compose the declared root at startup; workspace navigation owns visibility and focus.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
+await Compose();
 await foreach (var request in brain.On(app, "open", brain.Stopping))
 {
     await Compose();
-    if (request.Input != "docked")
-    {
-        await brain.Get<IWorkspace>(brain.Setting("Brain")!).EnsureOpenAsync(appKey + "/window", "Calculator",
-            WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, appKey + "/surface")), brain.Stopping);
-    }
 }
 
 string Name(string part) => appKey + "/" + part;

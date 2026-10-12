@@ -147,6 +147,9 @@ assistant never writes into itself. With no such key (or plain text, a sentence 
 synapse goes into the brain's "scratch" app, created the first time it is needed. Focus is whatever the
 caller passes: the shell passes the keys of the windows it shows. A malformed input says so on the
 status line and writes nothing.
+Workspace hosting: startup composes the declared entry using stable neuron identities. Opening the
+workspace reads that state; composition and completion never change focus or reopen a closed entry.
+
 */
 
 using DigitalBrain.Apps;
@@ -154,7 +157,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "assistant";
-    public const string Version = "1.9.2";
+    public const string Version = "1.9.3";
 
     public static readonly AppManifest Manifest = new(
         Title: "Assistant",
@@ -173,6 +176,7 @@ static class App
             new("RouteGate", "Confidence (0-1) above which Jev answers a request directly, without the language model.", "0.8"),
         ],
         Slots: [],
+        Entry: new("surface", "surface"),
         Icon: "icon.svg",
         Toolbar:
         [

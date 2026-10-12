@@ -45,6 +45,21 @@ public sealed class AppPublishFacts
     private static IMarketplace Marketplace(ITestBrain brain) => brain.Get<IMarketplace>(IMarketplace.Key);
 
     [Fact]
+    public async Task SavingAnEntryCannotBypassTheProgramCompileGate()
+    {
+        await using var brain = await Start(new RefusingSandbox(("app.cs", 1, "entry declaration refused")));
+        var person = await brain.PersonAsync("entry-owner", Ct);
+        var app = await LiveApp(brain, person);
+        using var caller = person.AsCaller();
+        var before = await app.Read();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => app.SaveManifest(
+            before.Manifest with { Entry = new("text", "answer") }, Guid.NewGuid()));
+        var after = await app.Read();
+        Assert.Null(after.Manifest.Entry);
+        Assert.Equal(before.Version, after.Version);
+    }
+
+    [Fact]
     public async Task PublishingListsTheVersionAndItsIcon()
     {
         await using var brain = await Start();

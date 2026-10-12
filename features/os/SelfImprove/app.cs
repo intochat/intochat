@@ -38,6 +38,9 @@ files or plan, or a plan whose budget is not a time span) proposes nothing: the 
 ## Scenario: Opening shows the list
 
 Invoking "open" composes a surface with the candidates list and the report, and opens a "Self-improve" window.
+Workspace hosting: startup composes the declared entry using stable neuron identities. Opening the
+workspace reads that state; composition and completion never change focus or reopen a closed entry.
+
 */
 
 using DigitalBrain.Apps;
@@ -45,7 +48,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "selfimprove";
-    public const string Version = "2.0.5";
+    public const string Version = "2.0.6";
 
     public static readonly AppManifest Manifest = new(
         Title: "Self-improve",
@@ -57,5 +60,6 @@ static class App
         ],
         Settings: [],
         Slots: [],
+        Entry: new("surface", "surface"),
         Icon: "icon.svg");
 }

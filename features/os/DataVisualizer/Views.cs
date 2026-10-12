@@ -89,26 +89,25 @@ public static class Views
     }
 
     public static Task OpenWindowAsync(DigitalBrainConnection brain, string appKey, CancellationToken ct)
-        => EnsureWindowAsync(brain, appKey + "/window", "Data Visualizer", appKey + "/surface", ct);
+        => EnsureWindowAsync(brain, appKey + "/window", "Data Visualizer", appKey + "/surface", Guid.NewGuid().ToString(), ct);
 
     // Each view has its own window over its surface; opening is idempotent, so a replayed show opens it once.
-    public static Task OpenViewWindowAsync(DigitalBrainConnection brain, string appKey, View view, CancellationToken ct)
-        => EnsureWindowAsync(brain, $"{appKey}/views/{view.Id}/window", view.Title, $"{appKey}/views/{view.Id}/surface", ct);
+    public static Task OpenViewWindowAsync(DigitalBrainConnection brain, string appKey, View view, string operation, CancellationToken ct)
+        => EnsureWindowAsync(brain, $"{appKey}/views/{view.Id}/window", view.Title, $"{appKey}/views/{view.Id}/surface", operation, ct);
 
-    public static Task CloseViewWindowAsync(DigitalBrainConnection brain, string appKey, string id, CancellationToken ct)
+    public static Task CloseViewWindowAsync(DigitalBrainConnection brain, string appKey, string id, string operation, CancellationToken ct)
     {
         var window = $"{appKey}/views/{id}/window";
-        return ChangeWorkspaceAsync(brain, state => state.Windows.Any(item => item.IsOpen && item.Id == window)
-            ? workspace => workspace.Close(window, state.Revision) : null, ct);
+        return ChangeWorkspaceAsync(brain, state => async workspace =>
+            { await workspace.Close(window, state.Revision, operation); }, ct);
     }
 
-    private static Task EnsureWindowAsync(DigitalBrainConnection brain, string window, string title, string surface, CancellationToken ct)
+    private static Task EnsureWindowAsync(DigitalBrainConnection brain, string window, string title, string surface, string operation, CancellationToken ct)
     {
         var reference = WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, surface));
         // One operation id for every attempt: a refused attempt is never logged, and an applied one answers its retry from the log.
-        var operation = Guid.NewGuid().ToString();
-        return ChangeWorkspaceAsync(brain, state => state.Windows.Any(item => item.Id == window && item.IsOpen && item.Reference == reference)
-            ? null : workspace => workspace.OpenSurface(new(operation, window, title, reference, state.Revision)), ct);
+        return ChangeWorkspaceAsync(brain, state => async workspace =>
+            { await workspace.Open(new(operation, window, title, reference, state.Revision)); }, ct);
     }
 
     // The workspace is shared and revisioned, so a window change can lose a race with any other caller. Through

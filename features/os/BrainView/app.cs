@@ -8,12 +8,11 @@ the scene and keeps the panel in step with the selection. Until the kernel activ
 picture is built from behavior runs and says so in its title.
 
 Inputs are plain text.
-- open: composes the brain scene and the panel, and puts the scene on the stage with the panel docked.
+- open: composes the brain scene and the panel, and keeps both in its declared surface.
 
 ## Scenario: Opening the brain view shows the picture
 
-Invoking "open" composes the "brain" scene with a brain_graph node and the stage's top is that scene with
-the panel surface docked.
+Invoking "open" composes the "brain" scene with a brain_graph node beside its detail panel in the declared surface.
 
 ## Scenario: Tapping a neuron fills the panel
 
@@ -25,10 +24,11 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "brainview";
-    public const string Version = "1.0.0";
+    public const string Version = "1.0.1";
     public static readonly AppManifest Manifest = new(
         Title: "Brain",
         Description: "See your brain think: neurons, subscriptions and live signals, down to one synapse's runs.",
-        Operations: [new("open", "Compose the brain scene and put it on the stage.")],
-        Settings: [], Slots: [], Icon: "icon.svg");
+        Operations: [new("open", "Compose the brain scene and its detail panel.")],
+        Settings: [], Slots: [], Entry: new("surface", "surface"),
+        Icon: "icon.svg");
 }

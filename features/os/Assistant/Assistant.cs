@@ -201,7 +201,7 @@ public static class Assistant
             if (state.Windows.Any(item => item.Id == window && item.IsOpen && item.Reference == reference)) { return; }
             try
             {
-                await workspace.OpenSurface(new(operation, window, "Assistant", reference, state.Revision));
+                await workspace.Open(new(operation, window, "Assistant", reference, state.Revision));
                 return;
             }
             catch (InvalidOperationException) when (attempt < WorkspaceAttempts)

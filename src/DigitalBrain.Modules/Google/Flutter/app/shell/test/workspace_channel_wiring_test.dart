@@ -51,6 +51,8 @@ void main() {
         WorkspaceApp(store: store, programmingClient: client),
       );
       await tester.pumpAndSettle();
+      await tester.tap(find.text('Apps and brain'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Customer Researcher'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);

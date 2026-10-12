@@ -215,7 +215,7 @@ class NeuronGalleryPreview extends StatefulWidget {
 class _NeuronGalleryPreviewState extends State<NeuronGalleryPreview> {
   String? selectedTab;
   String lastAction = 'Actions stay in this preview.';
-  int revision = 0;
+  int revision = 1;
 
   @override
   Widget build(BuildContext context) => Column(

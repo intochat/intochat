@@ -25,8 +25,13 @@ final class WorkspaceSnapshot {
     required this.revision,
     required List<WorkspaceWindow> windows,
     this.firstRun,
+    this.focusedWindow,
+    this.home,
+    this.companion,
   }) : windows = List.unmodifiable(windows);
   final int revision;
+  final String? focusedWindow;
+  final Map<String, dynamic>? home, companion;
   final List<WorkspaceWindow> windows;
 
   /// The assistant starter state of a workspace that has never opened a window; null afterwards.
@@ -34,6 +39,13 @@ final class WorkspaceSnapshot {
   factory WorkspaceSnapshot.fromJson(Map<String, dynamic> json) =>
       WorkspaceSnapshot(
         revision: json['revision'] as int,
+        focusedWindow: json['focusedWindow'] as String?,
+        home: json['home'] is Map
+            ? Map<String, dynamic>.from(json['home'] as Map)
+            : null,
+        companion: json['companion'] is Map
+            ? Map<String, dynamic>.from(json['companion'] as Map)
+            : null,
         windows: (json['windows'] as List)
             .map(
               (w) =>

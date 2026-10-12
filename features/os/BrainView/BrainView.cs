@@ -1,7 +1,6 @@
 using System.Text.Json;
 using DigitalBrain.Client;
 using DigitalBrain.Flame.Scene;
-using DigitalBrain.Flame.Stage;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Card;
 using DigitalBrain.Flutter.Layout;
@@ -22,7 +21,6 @@ public static class BrainView
     public static string SurfaceKey(DigitalBrainConnection brain) => Key(brain) + "/surface";
 
     public static IScene Scene(DigitalBrainConnection brain) => brain.Get<IScene>(SceneKey(brain));
-    public static IStage Stage(DigitalBrainConnection brain) => brain.Get<IStage>(brain.Setting("Stage") ?? StageKey.ForOwner(Scope(brain)));
     public static ICard Selected(DigitalBrainConnection brain) => brain.Get<ICard>(Key(brain) + "/cards/selected");
     public static IText Runs(DigitalBrainConnection brain) => brain.Get<IText>(Key(brain) + "/runs");
     public static IText Recent(DigitalBrainConnection brain) => brain.Get<IText>(Key(brain) + "/runs/recent");
@@ -52,7 +50,9 @@ public static class BrainView
         var column = brain.Get<ILayout>(app + "/panel");
         await column.Set(new("column", [new(UIVocabulary.CardType, app + "/cards/selected"), new(UIVocabulary.TextType, app + "/runs")]), (await column.Read()).Revision);
         var surface = brain.Get<ISurface>(SurfaceKey(brain));
-        await surface.Set(new("Brain", [new("layout", app + "/panel")]), (await surface.Read()).Revision);
+        var main = brain.Get<ILayout>(app + "/main");
+        await main.Set(new("row", [new("scene", SceneKey(brain)), new("layout", app + "/panel")], Extents: [0, 320]), (await main.Read()).Revision);
+        await surface.Set(new("Brain", [new("layout", app + "/main")]), (await surface.Read()).Revision);
     }
 
     public const string NoSelection = "No neuron selected";

@@ -36,17 +36,20 @@ public static class PhotoCraft
     // The window: the status line above the PhotoCraft web app.
     public static async Task Show(DigitalBrainConnection brain, ArtCraftSession session, CancellationToken ct)
     {
-        UiChildRef Ref(string kind, string part) => new(kind, Name(brain, part));
         var browser = brain.Get<IWebBrowser>(Name(brain, "browser"));
         await browser.Configure(Name(brain, "browser"));
         if (session.WebUrl is { } url && (await browser.Read()).Uri != url) { await browser.Navigate(url, "PhotoCraft"); }
+        await Compose(brain);
+    }
+
+    public static async Task Compose(DigitalBrainConnection brain)
+    {
+        UiChildRef Ref(string kind, string part) => new(kind, Name(brain, part));
         var main = brain.Get<ILayout>(Name(brain, "main"));
         await main.Set(new LayoutDefinition("column", [Ref(UIVocabulary.TextType, "status"), Ref(UIVocabulary.WebBrowserType, "browser")],
             Extents: [40, 0]), (await main.Read()).Revision);
         var surface = brain.Get<ISurface>(Name(brain, "surface"));
         await surface.Set(new SurfaceDefinition("PhotoCraft", [Ref(UIVocabulary.LayoutType, "main")]), (await surface.Read()).Revision);
-        await brain.Get<IWorkspace>(brain.Setting("Brain")!)
-            .EnsureOpenAsync(Name(brain, "window"), "PhotoCraft", WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, Name(brain, "surface"))), ct);
     }
 
     // The editor's last turn when it has ended and the app has not settled it yet.

@@ -70,20 +70,47 @@ void main() {
   });
 
   test(
-    'a docked open posts a request and reads the app surface neuron',
+    'opening a declared scene uses workspace state without app preparation',
     () async {
-      Object? sent;
+      final requests = <String>[];
+      Map<String, dynamic>? opened;
       final client = DigitalBrainUiClient(
         baseUri: Uri.parse('http://test'),
         httpClient: MockClient((request) async {
-          sent = jsonDecode(request.body);
-          expect(request.url.path, '/brains/b1/apps/assistant/request');
-          return http.Response(jsonEncode({'requestId': 'request-1'}), 200);
+          requests.add('${request.method} ${request.url.path}');
+          if (request.url.path.endsWith('/apps/ino')) {
+            return http.Response(
+              jsonEncode({
+                'manifest': {
+                  'title': 'Ino',
+                  'entry': {'kind': 'scene', 'name': 'scenes/home'},
+                },
+              }),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/windows/open')) {
+            opened = jsonDecode(request.body) as Map<String, dynamic>;
+            return http.Response(
+              jsonEncode({
+                'revision': 4,
+                'windows': [],
+                'focusedWindow': 'b1/apps/ino/window',
+              }),
+              200,
+            );
+          }
+          return http.Response(jsonEncode({'revision': 3, 'windows': []}), 200);
         }),
       );
-      final surface = await client.openDockedApp('b1', 'assistant');
-      expect(sent, {'operation': 'open', 'input': 'docked'});
-      expect(surface, {'kind': 'surface', 'name': 'b1/apps/assistant/surface'});
+      final state = await client.openApp('b1', 'ino');
+      expect(opened!['reference'], {
+        'kind': 'scene',
+        'neuronId': 'b1/apps/ino/scenes/home',
+      });
+      expect(opened!['expectedRevision'], 3);
+      expect(state.focusedWindow, 'b1/apps/ino/window');
+      expect(requests.where((r) => r.endsWith('/request')), isEmpty);
       client.close();
     },
   );

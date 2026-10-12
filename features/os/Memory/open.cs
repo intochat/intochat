@@ -7,17 +7,14 @@ using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Postgres.Tables;
 
-// "open" composes the surface and shows the window, renders the apps tree (each synapse with its status,
-// the runs and failures the brain runtime counted, its last run time and the p50 runs.cs keeps) and the
-// installed types, then asks for a reindex so recall answers from what is installed now. A request already
-// answered (it is in the {app}/requests ledger) is skipped, so a redelivered open never reopens a window
-// the person closed.
+// Compose the declared root at startup; workspace navigation owns visibility and focus.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 var scope = Memory.Scope(brain);
 var runs = brain.Get<ITable>(Memory.RunsKey(appKey));
 var requests = brain.Get<ITable>(Memory.RequestsKey(appKey));
+await Compose();
 
 await foreach (var request in brain.On(app, "open", brain.Stopping))
 {
@@ -25,11 +22,6 @@ await foreach (var request in brain.On(app, "open", brain.Stopping))
     try
     {
         await Compose();
-        if (request.Input != "docked")
-        {
-            await brain.Get<IWorkspace>(scope).EnsureOpenAsync(appKey + "/window", "Memory",
-                WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, appKey + "/surface")), brain.Stopping);
-        }
         await brain.Get<IText>(appKey + "/apps").Set(Memory.RenderApps(scope, await Memory.Apps(brain), await Memory.Behaviors(brain), await Medians()));
         await brain.Get<IText>(appKey + "/types").Set(Memory.RenderTypes(await brain.Kernel.Types(brain.Stopping)));
     }

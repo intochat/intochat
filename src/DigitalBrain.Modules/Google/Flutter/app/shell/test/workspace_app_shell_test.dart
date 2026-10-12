@@ -24,9 +24,14 @@ void main() {
 
       await tester.tap(find.byTooltip('Home'));
       await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('running-assistant')), findsOneWidget);
+      expect(
+        find.byKey(
+          ValueKey('workspace-entry-${fixture.brainId}/apps/assistant/window'),
+        ),
+        findsOneWidget,
+      );
 
-      await tester.tap(find.byKey(const ValueKey('stop-assistant')));
+      await tester.tap(find.byTooltip('Delete'));
       await tester.pumpAndSettle();
       expect(
         fixture.server.requestsTo(

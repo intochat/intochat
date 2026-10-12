@@ -7,8 +7,6 @@ import 'package:flutter/material.dart';
 
 import '../connections/connect_window.dart';
 import '../connections/connectors_menu.dart';
-import '../stage/stage_controller.dart';
-import '../stage/stage_view.dart';
 import 'workspace_store.dart';
 import 'neuron_workspace_persistence.dart';
 import 'workspace_remote_controller.dart';
@@ -75,11 +73,17 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   final _sourcesSynced = <String>{};
   final _circleFeeds = <String, CircleActivityFeed>{};
   final _computeRefresh = ValueNotifier<int>(0);
-  final _stages = <String, StageController>{};
+  final _presentationConfigured = <String>{};
+  final _scenes = <String, SceneClient>{};
+  final _brainWatches = <String, WatchBrain>{};
+  bool _companionExpanded = true;
+  bool _animateFocus = false;
 
   void _connectWorkspaces() {
     final client = widget.programmingClient;
     if (client == null || !_ready) return;
+    store.onRemoteFocus = (workspace, window) =>
+        unawaited(_remoteFocus(workspace, window));
     store.onRemoteWindowAction = (workspace, window, open) =>
         unawaited(_remoteAction(workspace, window, open));
     for (final project in store.projects) {
@@ -101,7 +105,11 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
             ? client.watchWorkspaceChannel
             : client.watchWorkspace,
         apply: (state) {
-          if (mounted) store.reconcileWorkspace(project, state);
+          if (mounted) {
+            _animateFocus = false;
+            store.reconcileWorkspace(project, state);
+            unawaited(_configurePresentation(project, state));
+          }
         },
         onError: (error) {
           if (mounted) {
@@ -135,9 +143,6 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
         state,
         openedWindowId: open ? window : null,
       );
-      if (open && workspace == store.selectedProjectId) {
-        store.focusWindow(window);
-      }
     } catch (error) {
       await _remote[workspace]?.refresh();
       if (mounted) {
@@ -159,8 +164,10 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   // Null follows the desktop: Home when nothing is open, the desktop when windows are.
   // Opening something or the Home island makes it an explicit choice.
   bool? _homeChoice;
-  bool get _home =>
-      _homeChoice ?? store.currentProject.presentation.openArtifactIds.isEmpty;
+  bool get _home => widget.programmingClient != null
+      ? store.focusedWindow == null
+      : _homeChoice ??
+            store.currentProject.presentation.openArtifactIds.isEmpty;
   String _query = '';
   @override
   void initState() {
@@ -348,9 +355,6 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   @override
   void dispose() {
     _computeRefresh.dispose();
-    for (final stage in _stages.values) {
-      stage.dispose();
-    }
     for (final feed in _circleFeeds.values) {
       feed.dispose();
     }
@@ -359,6 +363,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       controller.dispose();
     }
     store.onRemoteWindowAction = null;
+    store.onRemoteFocus = null;
     _routes.dispose();
     store.removeListener(_changed);
     for (final t in _tables.values) {
@@ -368,7 +373,11 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     super.dispose();
   }
 
-  void _accept(Map<String, dynamic> result, {WorkspaceProject? project}) {
+  void _accept(
+    Map<String, dynamic> result, {
+    WorkspaceProject? project,
+    bool reveal = true,
+  }) {
     final destination = project ?? store.currentProject;
     if (result['remoteManaged'] == true) {
       final window = result['windowId'] as String?;
@@ -465,7 +474,9 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       }
       store.save();
     }
-    if (destination.id == store.currentProject.id) store.openArtifact(id);
+    if (reveal && destination.id == store.currentProject.id) {
+      store.openArtifact(id);
+    }
   }
 
   Future<void> _open(WorkspaceArtifact a) async {
@@ -476,12 +487,25 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       await _launchApp(a.data['app'] as String);
       return;
     }
+    if (widget.programmingClient != null && !a.remoteManaged) {
+      _navigator.currentState?.push(
+        MaterialPageRoute<void>(
+          builder: (_) => Scaffold(
+            appBar: AppBar(title: Text(a.title)),
+            body: _editor(a),
+          ),
+        ),
+      );
+      return;
+    }
     store.openArtifact(a.id);
     if (a.kind == 'table' && !_tables.containsKey(a.id)) {
       if (widget.onReadTable != null) {
         try {
           final snapshot = await widget.onReadTable!(destination.id, a.id);
-          if (mounted) _accept(snapshot.toJson(), project: destination);
+          if (mounted) {
+            _accept(snapshot.toJson(), project: destination, reveal: false);
+          }
         } catch (e) {
           _messenger.currentState?.showSnackBar(
             SnackBar(content: Text('Could not open table: $e')),
@@ -511,7 +535,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       final snapshot = widget.onReadTable == null
           ? TableSnapshot.fromJson(artifact.data)
           : await widget.onReadTable!(project.id, artifact.id);
-      if (mounted) _accept(snapshot.toJson(), project: project);
+      if (mounted) _accept(snapshot.toJson(), project: project, reveal: false);
     } catch (e) {
       _tableErrors[artifact.id] = 'Could not load table: $e';
     } finally {
@@ -533,6 +557,10 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
         NeuronView(
           kind: surface['kind'] as String? ?? 'surface',
           name: surface['name'] as String,
+          scenes: _scenes.putIfAbsent(
+            workspace,
+            () => client.scenes(workspace),
+          ),
           load: (kind, name) => client.appRequest(
             workspace,
             'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}',
@@ -717,51 +745,254 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     await _open(project.artifacts.firstWhere((a) => a.id == choice.$1));
   }
 
-  // Home stands in for the desktop until something opens; the Home island brings it back.
-  Widget _main(BuildContext context) {
-    final desktop = _home ? _homeScreen(context) : _work(context);
+  Future<void> _remoteFocus(String workspace, String? window) async {
     final client = widget.programmingClient;
-    if (client == null) return desktop;
-    final brain = store.currentProject.id;
-    final stage = _stages.putIfAbsent(brain, () {
-      final controller = StageController(
-        client: client.scenes(brain),
-        live: (types) => client.watchLive(brain, types),
+    if (client == null) return;
+    try {
+      final snapshot = await client.focusWorkspaceWindow(
+        workspace,
+        window,
+        store.remoteRevisions[workspace] ?? 0,
       );
-      unawaited(controller.refresh());
-      return controller;
-    });
-    // The stage has no home until one is set, so the desktop stays the root without the Ino app.
-    return StageHost(
-      key: ValueKey('stage-$brain'),
-      controller: stage,
-      desktop: desktop,
-      client: stage.client!,
-      ui: client,
-      workspace: brain,
-      watchScene: _sceneWatches.putIfAbsent(
-        brain,
-        () =>
-            (sceneKey) => client
-                .watchLive(brain, const ['SceneChanged', 'SceneEntered'])
-                .where(
-                  (envelope) =>
-                      !envelope.isReady &&
-                      (envelope.payload['name'] ?? envelope.payload['Name']) ==
-                          sceneKey,
-                )
-                .map((_) {}),
-      ),
-      watchBrain: _brainWatches.putIfAbsent(
-        brain,
-        () =>
-            () => client.watchBrain(brainId: brain),
+      if (!mounted) return;
+      _animateFocus = true;
+      store.reconcileWorkspace(
+        store.projects.firstWhere((p) => p.id == workspace),
+        snapshot,
+      );
+    } catch (_) {
+      await _remote[workspace]?.refresh();
+    }
+  }
+
+  Future<void> _configurePresentation(
+    WorkspaceProject project,
+    WorkspaceSnapshot snapshot,
+  ) async {
+    if (snapshot.home != null ||
+        snapshot.companion != null ||
+        !_presentationConfigured.add(project.id)) {
+      return;
+    }
+    final client = widget.programmingClient!;
+    try {
+      final manifests = await Future.wait([
+        _manifest(client, project.id, 'ino'),
+        _manifest(client, project.id, 'assistant'),
+      ]);
+      if (!mounted) return;
+      Map<String, dynamic>? entry(String app, AppManifest manifest) =>
+          manifest.entry == null
+          ? null
+          : {
+              'kind': manifest.entry!.kind,
+              'name': '${project.id}/apps/$app/${manifest.entry!.name}',
+            };
+      final home = entry('ino', manifests[0]);
+      final companion = entry('assistant', manifests[1]);
+      if (home == null && companion == null) return;
+      var latest = snapshot;
+      for (var attempt = 0; attempt < 2; attempt++) {
+        try {
+          final configured = await client.configureWorkspacePresentation(
+            project.id,
+            home: latest.home ?? home,
+            companion: latest.companion ?? companion,
+            expectedRevision: latest.revision,
+          );
+          if (mounted) store.reconcileWorkspace(project, configured);
+          return;
+        } on TableRequestException catch (error) {
+          if (error.statusCode != 409 || attempt == 1) rethrow;
+          latest = await client.readWorkspace(project.id);
+          if (latest.home != null && latest.companion != null) {
+            if (mounted) store.reconcileWorkspace(project, latest);
+            return;
+          }
+        }
+      }
+    } catch (_) {
+      _presentationConfigured.remove(project.id);
+    }
+  }
+
+  Widget _rootView(Map<String, dynamic> root, String label) {
+    final client = widget.programmingClient!;
+    final workspace = store.currentProject.id;
+    return _region(
+      label,
+      NeuronView(
+        key: ValueKey('$workspace/${root['kind']}/${root['name']}'),
+        kind: root['kind'] as String,
+        name: root['name'] as String,
+        scenes: _scenes.putIfAbsent(workspace, () => client.scenes(workspace)),
+        watchBrain: _brainWatches.putIfAbsent(
+          workspace,
+          () =>
+              () => client.watchBrain(brainId: workspace),
+        ),
+        load: (kind, name) => client.appRequest(
+          workspace,
+          'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}',
+        ),
+        watch: client.grpcLive
+            ? (kind, name) =>
+                  client.watchNode(workspace, kind, name).map((_) {})
+            : null,
+        onActivate: _accept,
+        onAction: (event) async {
+          await client.appRequest(workspace, 'event', body: event);
+        },
       ),
     );
   }
 
-  final _brainWatches = <String, WatchBrain>{};
-  final _sceneWatches = <String, Stream<void> Function(String)>{};
+  void _showCatalog(BuildContext context) => showDialog<void>(
+    context: context,
+    builder: (_) => Dialog.fullscreen(
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Apps and brain'),
+          leading: IconButton(
+            tooltip: 'Close apps',
+            icon: const Icon(Icons.close),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ),
+        body: _homeScreen(context),
+      ),
+    ),
+  );
+
+  Widget _main(BuildContext context) {
+    if (widget.programmingClient == null) {
+      return _home ? _homeScreen(context) : _work(context);
+    }
+    final project = store.currentProject;
+    final snapshot = store.remoteSnapshots[project.id];
+    final home = snapshot?.home;
+    final companion = snapshot?.companion;
+    final tokens = UiTokens.of(context);
+    final main = Column(
+      children: [
+        Row(
+          children: [
+            TextButton.icon(
+              onPressed: () => _showCatalog(context),
+              icon: const Icon(Icons.apps_rounded),
+              label: const Text('Apps and brain'),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (final id in project.presentation.openArtifactIds)
+                      Padding(
+                        padding: EdgeInsets.only(right: tokens.spaceSmall),
+                        child: InputChip(
+                          key: ValueKey('workspace-entry-$id'),
+                          label: Text(
+                            project.artifacts
+                                    .where((a) => a.id == id)
+                                    .firstOrNull
+                                    ?.title ??
+                                'Untitled',
+                          ),
+                          selected: store.focusedWindow == id,
+                          onPressed: () => store.focusWindow(id),
+                          onDeleted: () => store.closeArtifact(id),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        Expanded(
+          child: UiMotion(
+            contentKey: '${project.id}/${store.focusedWindow ?? 'home'}',
+            animate: _animateFocus,
+            child: _home
+                ? (home == null
+                      ? _homeScreen(context)
+                      : _rootView(home, 'Home'))
+                : _work(context),
+          ),
+        ),
+      ],
+    );
+    final focusedRoot = project.artifacts
+        .where((a) => a.id == store.focusedWindow)
+        .firstOrNull
+        ?.data['surface'];
+    if (companion == null ||
+        (focusedRoot is Map &&
+            focusedRoot['kind'] == companion['kind'] &&
+            focusedRoot['name'] == companion['name'])) {
+      return main;
+    }
+    Widget assistant(bool wide) => UiSurface(
+      padding: EdgeInsets.all(tokens.spaceSmall),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.auto_awesome_outlined,
+                size: 18,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Text('Assistant', style: Theme.of(context).textTheme.titleSmall),
+              const Spacer(),
+              IconButton(
+                tooltip: _companionExpanded
+                    ? 'Collapse Assistant'
+                    : 'Expand Assistant',
+                onPressed: () =>
+                    setState(() => _companionExpanded = !_companionExpanded),
+                icon: Icon(
+                  _companionExpanded ? Icons.expand_more : Icons.expand_less,
+                ),
+              ),
+            ],
+          ),
+          if (_companionExpanded)
+            Expanded(child: _rootView(companion, 'Assistant')),
+        ],
+      ),
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= 1000) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: main),
+              SizedBox(width: tokens.spaceMedium),
+              SizedBox(
+                width: _companionExpanded ? 360 : 180,
+                child: assistant(true),
+              ),
+            ],
+          );
+        }
+        return Column(
+          children: [
+            Expanded(child: main),
+            SizedBox(height: tokens.spaceSmall),
+            SizedBox(
+              height: _companionExpanded ? constraints.maxHeight * .36 : 64,
+              child: assistant(false),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   Widget _homeScreen(BuildContext context) {
     final client = widget.programmingClient;
@@ -777,35 +1008,6 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       ],
       onLaunchLocal: _launchApp,
       onOpen: _openApplication,
-      running: [
-        for (final id in project.presentation.openArtifactIds)
-          if (appOfWindow(id) case final app?)
-            RunningApp(
-              windowId: id,
-              app: app,
-              title:
-                  project.artifacts
-                      .where((a) => a.id == id)
-                      .firstOrNull
-                      ?.title ??
-                  app,
-            ),
-      ],
-      surfaceBuilder: client == null
-          ? null
-          : (app) => NeuronView(
-              kind: 'surface',
-              name: app.windowId.replaceFirst(RegExp(r'/window$'), '/surface'),
-              load: (kind, name) => client.appRequest(
-                project.id,
-                'node?${Uri(queryParameters: {'kind': kind, 'name': name}).query}',
-              ),
-              watch: client.grpcLive
-                  ? (kind, name) =>
-                        client.watchNode(project.id, kind, name).map((_) {})
-                  : null,
-              enabled: false,
-            ),
       watchBrain: client == null
           ? null
           : () => client.watchBrain(brainId: project.id),
@@ -855,14 +1057,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       if (client == null) {
         return const Center(child: Text('Open something from Home.'));
       }
-      return ApplicationSurface(
-        key: ValueKey('${project.id}/assistant'),
-        client: client,
-        workspace: project.id,
-        application: 'assistant',
-        start: () => client.openDockedApp(project.id, 'assistant'),
-        onActivate: (result) => _accept(result),
-      );
+      return const Center(child: Text('Open something from Home.'));
     }
     return WorkspaceDesktop(
       key: ValueKey('desktop-${project.id}'),
@@ -912,6 +1107,11 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
         final shown = snapshot.data;
         if (shown == null) return const SizedBox(width: 40, height: 40);
         final (app, manifest) = shown;
+        if (app == 'assistant' &&
+            (_companionExpanded || appOfWindow(focused ?? '') == 'assistant') &&
+            store.remoteSnapshots[project.id]?.companion != null) {
+          return const SizedBox.shrink();
+        }
         return Dock(
           app: app,
           manifest: manifest,
@@ -1034,7 +1234,16 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   Widget _islands(BuildContext context) => WorkspaceIslands(
     store: store,
     dock: _dock(context),
-    onHome: () => setState(() => _homeChoice = !_home),
+    onHome: () {
+      if (widget.programmingClient != null) {
+        unawaited(_remoteFocus(store.currentProject.id, null));
+      } else {
+        setState(() => _homeChoice = !_home);
+      }
+    },
+    onConnections: widget.programmingClient == null
+        ? null
+        : () => _openConnections(context),
     home: _home,
     onNewWorkspace: () async {
       final input = TextEditingController();
@@ -1201,24 +1410,10 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     try {
       final result = await client.openApp(project.id, application, arguments);
       if (!mounted) return;
-      // The app may have committed its window before the watch invalidation
-      // reaches us. Reconcile that state before revealing a remote artifact.
-      final workspace = await client.readWorkspace(
-        project.id,
-        cancelled: _remoteCancelled.future,
-      );
-      if (!mounted) return;
-      store.reconcileWorkspace(
-        project,
-        workspace,
-        openedWindowId: result['id'] as String?,
-      );
-      _accept(Map<String, dynamic>.from(result as Map), project: project);
+      _animateFocus = true;
+      store.reconcileWorkspace(project, result);
       _manifests.remove('${project.id}/$application');
-      setState(() => _homeChoice = false);
-      if (store.currentProject.id == project.id) {
-        store.openArtifact(result['id'] as String, placement: 'floating');
-      }
+      _navigator.currentState?.popUntil((route) => route.isFirst);
     } catch (error) {
       if (mounted) {
         _messenger.currentState?.showSnackBar(
@@ -1232,8 +1427,25 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     switch (appId) {
       case 'csharp':
         if (store.developerMode) {
-          store.launchLocalApp(appId);
-          setState(() => _homeChoice = false);
+          if (widget.programmingClient != null) {
+            final artifact = WorkspaceArtifact(
+              id: 'local-csharp',
+              title: 'C# files',
+              kind: 'app',
+              data: {'app': 'csharp'},
+            );
+            _navigator.currentState?.push(
+              MaterialPageRoute<void>(
+                builder: (_) => Scaffold(
+                  appBar: AppBar(title: const Text('C# files')),
+                  body: _editor(artifact),
+                ),
+              ),
+            );
+          } else {
+            store.launchLocalApp(appId);
+            setState(() => _homeChoice = false);
+          }
         }
       default:
         await _openApplication(appId);

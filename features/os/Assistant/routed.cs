@@ -1,6 +1,8 @@
 using DigitalBrain.AI.Routing;
 using DigitalBrain.AI.Routing.Signals;
 using DigitalBrain.Apps;
+using DigitalBrain.Flutter;
+using DigitalBrain.Flutter.Workspace;
 
 // Jev's answer to a request send.cs asked. A confident, direct route is carried out: opening the app
 // the message names (the route Jev decided, never decided again), or a pure read through the router.
@@ -61,7 +63,8 @@ async Task Carry(Routed routed)
         {
             var chosen = $"{route.App}.{route.Operation}";
             var target = brain.Get<IApp>(IApp.Key(scope, route.App));
-            var title = (await target.Read()).Manifest.Title;
+            var manifest = (await target.Read()).Manifest;
+            var title = manifest.Title;
             if (!Names(asked.State, route.App, title))
             {
                 // Jev guessed an app the person never named: the model answers the message itself, and the
@@ -77,7 +80,15 @@ async Task Carry(Routed routed)
             }
             else
             {
-                await target.Request("open", "");
+                if (manifest.Entry is not { } entry)
+                {
+                    await Assistant.Status(brain, title + " has no workspace entry.");
+                    return;
+                }
+                var workspace = brain.Get<IWorkspace>(scope);
+                var state = await workspace.Read();
+                await workspace.Open(new(routed.Id.ToString(), IApp.Key(scope, route.App) + "/window", title,
+                    WindowReference.For(new UiChildRef(entry.Kind, IApp.Key(scope, route.App) + "/" + entry.Name)), state.Revision));
                 await Assistant.Status(brain, $"Jev: {chosen} ({route.Confidence:0.00}) -> opened {title}");
                 return;
             }

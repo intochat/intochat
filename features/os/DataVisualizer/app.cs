@@ -94,6 +94,9 @@ rather than failing the show.
 
 Invoking "close" with a view id removes it from the registry and the list card, stops its
 refresh reminder and closes its window.
+Workspace hosting: startup composes the declared entry using stable neuron identities. Opening the
+workspace reads that state; composition and completion never change focus or reopen a closed entry.
+
 */
 
 using DigitalBrain.Apps;
@@ -101,7 +104,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "datavisualizer";
-    public const string Version = "1.1.11";
+    public const string Version = "1.1.12";
 
     public static readonly AppManifest Manifest = new(
         Title: "Data Visualizer",
@@ -120,5 +123,6 @@ static class App
         [
             new("db", "postgres"),
         ],
+        Entry: new("surface", "surface"),
         Icon: "icon.svg");
 }

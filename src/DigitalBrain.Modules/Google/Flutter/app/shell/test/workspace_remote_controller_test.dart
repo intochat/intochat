@@ -114,7 +114,7 @@ void main() {
       final restored = WorkspaceStore(persistence: persistence);
       await restored.load();
       final layout = restored.currentProject.presentation;
-      expect(restored.currentProject.artifacts.single.remoteManaged, isTrue);
+      expect(restored.currentProject.artifacts, isEmpty);
       restored.reconcileWorkspace(restored.currentProject, snapshot(2, false));
       expect(layout.openArtifactIds, isEmpty);
       restored.reconcileWorkspace(restored.currentProject, snapshot(1, true));

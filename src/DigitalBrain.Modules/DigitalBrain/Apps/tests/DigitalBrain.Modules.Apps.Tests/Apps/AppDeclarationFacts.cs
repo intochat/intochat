@@ -4,6 +4,43 @@ namespace DigitalBrain.Modules.Apps.Tests;
 
 public sealed class AppDeclarationFacts
 {
+    [Fact]
+    public void ADeclaredEntrySurvivesSyntaxAndJsonRoundTrips()
+    {
+        var declaration = AppDeclaration.Read("""
+            static class App
+            {
+                public const string Name = "report";
+                public const string Version = "1.0.0";
+                public static readonly AppManifest Manifest = new("Report", "", [], [], [], Entry: new("text", "documents/answer"));
+            }
+            """);
+        var json = System.Text.Json.JsonSerializer.Serialize(declaration.Manifest);
+        Assert.Contains("documents/answer", json, StringComparison.Ordinal);
+        Assert.Equal(json, System.Text.Json.JsonSerializer.Serialize(AppDeclaration.Read(AppDeclaration.Write(declaration)).Manifest));
+    }
+
+    [Theory]
+    [InlineData("text", "../answer")]
+    [InlineData("text", "/answer")]
+    [InlineData("text", "documents//answer")]
+    [InlineData("text", "documents/./answer")]
+    [InlineData("text", "https://example.com")]
+    [InlineData("text", "answer%2Fother")]
+    [InlineData("invented", "answer")]
+    public void ADeclaredEntryRejectsUnsafeNamesAndUnsupportedKinds(string kind, string name)
+    {
+        var source = $$"""
+            static class App
+            {
+                public const string Name = "report";
+                public const string Version = "1.0.0";
+                public static readonly AppManifest Manifest = new("Report", "", [], [], [], Entry: new("{{kind}}", "{{name}}"));
+            }
+            """;
+        Assert.Throws<InvalidDataException>(() => AppDeclaration.Read(source));
+    }
+
     private static readonly AppManifest Player = new("Player", "Plays \"music\".",
         [new("play", "Play"), new("volume", "Set the volume")],
         [new("Model", "Who answers", "IGemma4")],

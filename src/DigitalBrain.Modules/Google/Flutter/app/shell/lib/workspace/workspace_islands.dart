@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:digitalbrain_ui/digitalbrain_ui.dart';
 
 import 'workspace_store.dart';
 
@@ -17,6 +18,7 @@ class WorkspaceIslands extends StatelessWidget {
     required this.onSettings,
     required this.onHome,
     this.onConfiguration,
+    this.onConnections,
     this.onCompute,
     this.onSwitchAccount,
     this.home = false,
@@ -24,12 +26,12 @@ class WorkspaceIslands extends StatelessWidget {
   final WorkspaceStore store;
   final Widget dock;
   final VoidCallback onNewWorkspace, onSavedWork, onSearch, onSettings, onHome;
-  final VoidCallback? onCompute, onConfiguration;
+  final VoidCallback? onCompute, onConfiguration, onConnections;
   final Future<void> Function()? onSwitchAccount;
   final bool home;
 
   Widget island(BuildContext context, Widget child) => ClipRRect(
-    borderRadius: BorderRadius.circular(19),
+    borderRadius: BorderRadius.circular(UiTokens.of(context).surfaceRadius),
     child: BackdropFilter(
       filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
       child: DecoratedBox(
@@ -39,7 +41,9 @@ class WorkspaceIslands extends StatelessWidget {
             color: Theme.of(context).colorScheme.outlineVariant
                 .withValues(alpha: .45),
           ),
-          borderRadius: BorderRadius.circular(19),
+          borderRadius: BorderRadius.circular(
+            UiTokens.of(context).surfaceRadius,
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: .14),
@@ -49,7 +53,10 @@ class WorkspaceIslands extends StatelessWidget {
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          padding: EdgeInsets.symmetric(
+            horizontal: UiTokens.of(context).spaceSmall,
+            vertical: UiTokens.of(context).spaceSmall / 2,
+          ),
           child: child,
         ),
       ),
@@ -165,14 +172,30 @@ class WorkspaceIslands extends StatelessWidget {
         ),
       );
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: EdgeInsets.symmetric(
+          horizontal: UiTokens.of(context).spaceMedium,
+          vertical: UiTokens.of(context).spaceSmall,
+        ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            homeIsland,
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                homeIsland,
+                if (onConnections != null)
+                  IconButton(
+                    tooltip: 'Connections',
+                    onPressed: onConnections,
+                    icon: const Icon(Icons.cable_outlined),
+                  ),
+              ],
+            ),
             Flexible(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+                padding: EdgeInsets.symmetric(
+                  horizontal: UiTokens.of(context).spaceSmall,
+                ),
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: island(context, dock),

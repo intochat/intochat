@@ -10,8 +10,7 @@ using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.TextField;
 using DigitalBrain.Flutter.Workspace;
 
-// The surface composer: it opens the window and publishes the current preferences as a neuron.
-// Connection discovery belongs to connections.cs, which reacts to its own request.
+// Compose the declared root at startup; workspace navigation owns visibility and focus.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
@@ -20,6 +19,7 @@ var app = brain.Get<IApp>(appKey);
 var prefsRoot = brain.Setting("Brain") is { Length: > 0 } brainScope ? brainScope + "/settings" : appKey;
 var displayName = brain.Get<ITextField>(prefsRoot + "/display-name");
 var theme = brain.Get<ITextField>(prefsRoot + "/theme");
+await Compose();
 
 await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
 {
@@ -31,11 +31,6 @@ await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
             await Compose();
             // Refresh is owned by the connection projection behavior, not this surface composer.
             await app.Request("refresh-connections", "");
-            if (request.Input != "docked")
-            {
-                await brain.Get<IWorkspace>(brain.Setting("Brain")!).EnsureOpenAsync(appKey + "/window", "Settings",
-                    WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, appKey + "/surface")), brain.Stopping);
-            }
         }
         // Preferences are neuron state: whoever asked reads {appKey}/preferences.
         var name = (await displayName.Read()).Value;

@@ -56,6 +56,9 @@ failures the brain runtime reports for it, its last run time and, once it has ru
 runs, its p50. After the calculator's "add" runs three more times, `calculator/add.cs` shows three more
 runs. Shared files such as `memory/Memory.cs` show as shared. `{app}/types` lists the installed types by
 provider. Opening "docked" skips the window.
+Workspace hosting: startup composes the declared entry using stable neuron identities. Opening the
+workspace reads that state; composition and completion never change focus or reopen a closed entry.
+
 */
 
 using DigitalBrain.Apps;
@@ -63,7 +66,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "memory";
-    public const string Version = "1.0.5";
+    public const string Version = "1.0.6";
 
     public static readonly AppManifest Manifest = new(
         Title: "Memory",
@@ -79,6 +82,7 @@ static class App
         [
             new("tables", "postgres"),
         ],
+        Entry: new("surface", "surface"),
         Icon: "icon.svg",
         Toolbar:
         [

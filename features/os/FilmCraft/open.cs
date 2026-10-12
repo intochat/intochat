@@ -17,6 +17,10 @@ var app = brain.Get<IApp>(appKey);
 string Name(string part) => appKey + "/" + part;
 UiChildRef Ref(string kind, string part) => new(kind, Name(part));
 
+await Compose();
+if ((await brain.Get<IText>(Name("status")).Read()).Version == 0)
+{ await brain.Get<IText>(Name("status")).Set("FilmCraft is not connected. Request open to connect its tools."); }
+
 await foreach (var request in brain.On(app, "open", brain.Stopping))
 {
     var status = brain.Get<IText>(Name("status"));
@@ -29,14 +33,18 @@ await foreach (var request in brain.On(app, "open", brain.Stopping))
         if (session.WebUrl is { } url) { await browser.Navigate(url, "FilmCraft"); }
         // The page is the engine: its window.filmcraft API becomes tools on the same timeline the person sees.
         await brain.Get<IPageTools>(brain.Setting("Brain")! + "/pages/filmcraft").Configure(new PageToolsSpec("FilmCraft page", Name("browser"), "filmcraft"), brain.Stopping);
+        await Compose();
+    }
+    catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
+    { await status.Set(error.Message); }
+}
+
+async Task Compose()
+{
         var main = brain.Get<ILayout>(Name("main"));
         await main.Set(new LayoutDefinition("column", [Ref(UIVocabulary.TextType, "status"), Ref(UIVocabulary.WebBrowserType, "browser")],
             Extents: [40, 0]), (await main.Read()).Revision);
         var surface = brain.Get<ISurface>(Name("surface"));
         await surface.Set(new SurfaceDefinition("FilmCraft", [Ref(UIVocabulary.LayoutType, "main")]), (await surface.Read()).Revision);
-        await brain.Get<IWorkspace>(brain.Setting("Brain")!)
-            .EnsureOpenAsync(Name("window"), "FilmCraft", WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, Name("surface"))), brain.Stopping);
-    }
-    catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-    { await status.Set(error.Message); }
+
 }

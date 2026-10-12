@@ -46,19 +46,20 @@ void main() {
       expect(switches, 1);
       expect(find.text('Switch account'), findsNothing);
 
-      // Home is the start view and the Home island toggles it.
+      // The catalog remains reachable beside a declared Home root.
+      await tester.tap(find.text('Apps and brain'));
+      await tester.pumpAndSettle();
       expect(find.byType(HomeScreen), findsOneWidget);
       expect(
         tester.widget<HomeScreen>(find.byType(HomeScreen)).workspaceId,
         store.currentProject.id,
       );
-      expect(find.byTooltip('Applications'), findsNothing);
+      await tester.tap(find.byTooltip('Close apps'));
+      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Home'));
       await tester.pumpAndSettle();
-      expect(find.byType(HomeScreen), findsNothing);
-      await tester.tap(find.byTooltip('Home'));
-      await tester.pumpAndSettle();
-      expect(find.byType(HomeScreen), findsOneWidget);
+      expect(store.focusedWindow, isNull);
+      expect(find.text('Apps and brain'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       await api.events.close();

@@ -53,10 +53,7 @@ class _AppDetailScreenState extends State<AppDetailScreen> {
   Map<String, dynamic> get _manifest => _map(_app?['manifest']);
   bool get _openable =>
       _app?['status'] == 'Live' &&
-      (_manifest['operations'] is List) &&
-      (_manifest['operations'] as List)
-          .map(_map)
-          .any((o) => o['name'] == 'open');
+      AppManifest.fromJson(_manifest).entry != null;
 
   @override
   void initState() {

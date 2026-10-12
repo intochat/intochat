@@ -47,6 +47,42 @@ void main() {
   final flameTester = FlameTester(SceneGame.new);
 
   flameTester.testGameWidget(
+    'new nodes appear once while initial and identical snapshots stay still',
+    setUp: (game, _) async {
+      game.appearanceDuration = const Duration(milliseconds: 400);
+      game.apply(scene([node('a', 'circle')]));
+      await game.ready();
+      expect(game.componentFor('a')!.opacity, 1);
+      game.apply(scene([node('a', 'circle'), node('b', 'circle')]));
+      await game.ready();
+      expect(game.componentFor('b')!.opacity, 0);
+      game.update(.2);
+      expect(game.componentFor('b')!.opacity, greaterThan(0));
+      expect(game.componentFor('b')!.opacity, lessThan(1));
+      game.apply(scene([node('a', 'circle'), node('b', 'circle')]));
+      game.update(.4);
+      expect(game.componentFor('b')!.opacity, 1);
+      expect(game.componentFor('b')!.position.y, 10);
+    },
+    verify: (game, _) async {},
+  );
+
+  flameTester.testGameWidget(
+    'reduced motion snaps an appearing node to its final state',
+    setUp: (game, _) async {
+      game.apply(scene([node('a', 'circle')]));
+      await game.ready();
+      game.apply(scene([node('a', 'circle'), node('b', 'circle')]));
+      await game.ready();
+      game.animations = false;
+      game.host();
+      expect(game.componentFor('b')!.opacity, 1);
+      expect(game.componentFor('b')!.position.y, 10);
+    },
+    verify: (game, _) async {},
+  );
+
+  flameTester.testGameWidget(
     'primitive nodes become components keyed by id',
     setUp: (game, _) async {
       game.apply(

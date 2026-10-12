@@ -18,6 +18,7 @@ class ResearchWindowClient extends FirstRunClient {
       '${store.currentProject.id}/applications/customer-researcher/window/surface';
   WorkspaceSnapshot get snapshot => WorkspaceSnapshot(
     revision: 1,
+    focusedWindow: 'research-window',
     windows: [
       WorkspaceWindow(
         id: 'research-window',
@@ -47,20 +48,28 @@ class ResearchWindowClient extends FirstRunClient {
         },
       ]);
     }
-    if (request.url.path ==
-        Uri.parse(
-          DigitalBrainUiClient.appOpenPath(
-            store.currentProject.id,
-            'customer-researcher',
-          ),
-        ).path) {
-      // Server publishes workspace membership before its open response arrives.
+    if (request.url.path.endsWith('/apps/customer-researcher')) {
+      return json({
+        'manifest': {
+          'title': 'Customer Researcher',
+          'entry': {'kind': 'surface', 'name': 'window/surface'},
+        },
+      });
+    }
+    if (request.url.path.endsWith('/windows/open')) {
       opened = true;
       store.reconcileWorkspace(store.currentProject, snapshot);
       return json({
-        'id': 'research-window',
-        'title': 'Customer Researcher',
-        'surface': surface,
+        'revision': 1,
+        'focusedWindow': 'research-window',
+        'windows': [
+          {
+            'id': 'research-window',
+            'title': 'Customer Researcher',
+            'reference': {'kind': 'surface', 'neuronId': surface},
+            'isOpen': true,
+          },
+        ],
       });
     }
     if (request.url.path.endsWith('/apps/node') &&
@@ -139,6 +148,8 @@ void main() {
       await tester.pumpWidget(
         WorkspaceApp(store: store, programmingClient: client),
       );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Apps and brain'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Customer Researcher'));
       await tester.pumpAndSettle();

@@ -6,14 +6,13 @@ using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.TextField;
 
-// "open" composes the Jev console (the answer, a prompt and a Send button) and opens its window;
-// input "docked" composes it without the window. The parts are edge neurons, so composing is idempotent.
+// Compose the declared root at startup; workspace navigation owns visibility and focus.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var app = brain.Get<IApp>(Jev.Key(brain));
+await Compose();
 await foreach (var request in brain.On(app, "open", brain.Stopping))
 {
     await Compose();
-    if (request.Input != "docked") { await Jev.OpenWindow(brain, "window", "Jev", "surface"); }
 }
 
 string Name(string part) => Jev.Name(brain, part);

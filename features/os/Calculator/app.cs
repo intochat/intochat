@@ -1,8 +1,7 @@
 /*
 # Calculator
 
-A keypad that evaluates arithmetic. Opening it composes a display and a grid of buttons and opens
-the window. Each button click updates the expression; "=" evaluates it. The buttons are edge neurons
+A keypad that evaluates arithmetic. Startup composes a display and a grid of buttons in its declared surface. Each button click updates the expression; "=" evaluates it. The buttons are edge neurons
 whose clicks reach this app's behavior, so the keypad is part of the brain like any other surface.
 The keypad neuron holds the expression and the clicks already applied, so a click delivered twice is
 pressed once; the display mirrors the expression. The dock's Clear presses the "C" key, so every
@@ -11,7 +10,7 @@ malformed expression) shows "Error", and the next digit starts a new expression.
 
 ## Scenario: Opening the calculator shows the keypad
 
-Invoking "open" composes a display and sixteen buttons and opens a "Calculator" window.
+Invoking "open" composes a display and sixteen buttons in its declared surface.
 
 ## Scenario: A digit grows the expression
 
@@ -40,6 +39,9 @@ Invoking "add" with "2+3" sets the sum neuron to "5".
 ## Scenario: Add answers Error for what is not a sum
 
 Invoking "add" with "two+three" sets the sum neuron to "Error"; invoking "add" with "4+4" next sets it to "8".
+Workspace hosting: startup composes the declared entry using stable neuron identities. Opening the
+workspace reads that state; composition and completion never change focus or reopen a closed entry.
+
 */
 
 using DigitalBrain.Apps;
@@ -47,7 +49,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "calculator";
-    public const string Version = "1.2.2";
+    public const string Version = "1.2.3";
 
     public static readonly AppManifest Manifest = new(
         Title: "Calculator",
@@ -60,6 +62,7 @@ static class App
         ],
         Settings: [],
         Slots: [],
+        Entry: new("surface", "surface"),
         Icon: "icon.svg",
         Toolbar:
         [

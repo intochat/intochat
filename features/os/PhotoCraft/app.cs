@@ -5,9 +5,9 @@ PhotoCraft is an open-source, Photoshop-compatible image editor (layers, masks, 
 
 ## Open
 
-Opening connects the brain to PhotoCraft's MCP server, so its tools (documents, `command_list`,
-`command_run`, `render_preview`, ...) appear in the assistant's search, and shows the PhotoCraft web app
-in a window: a status line above the app's page.
+The Connect editor toolbar action connects the brain to PhotoCraft's MCP server, so its tools (documents, `command_list`,
+`command_run`, `render_preview`, ...) appear in the assistant's search, and prepares the PhotoCraft web app
+in the declared surface: a status line above the app's page.
 
 ## Edit
 
@@ -30,16 +30,16 @@ edit (the assistant ran them itself), the document is rendered into the preview 
 with PhotoCraft's tools.". Tools that only read or render change nothing, an image that did not change is not
 written again, and during an edit the preview waits for the editor's turn to end.
 
-## Scenario: Opening connects the tools and shows the window
+## Scenario: Connecting prepares the tools and editor
 
 Invoking "open" connects the brain's PhotoCraft MCP server (its tools, such as `command_run`, appear in
 the brain's search), sets the status to "PhotoCraft tools connected.", points the browser at the
-PhotoCraft web app and opens a "PhotoCraft" window whose surface holds the status and the browser.
+PhotoCraft web app in the declared surface with the status and browser.
 
-## Scenario: Opening again keeps one connection and one window
+## Scenario: Connecting again keeps one connection and stable surface
 
 Invoking "open" a second time leaves the MCP server connected with the same tools and the workspace
-with a single PhotoCraft window.
+with the same PhotoCraft entry.
 
 ## Scenario: Edit by asking
 
@@ -73,6 +73,9 @@ assistant's turn requests "edit" (Jev suggests it, or PhotoCraft's description p
 PhotoCraft's tools itself. Either way the preview becomes a rendered PNG of the gradient, captioned with the
 request or "Changed with PhotoCraft's tools.", and the assistant's turn completes rather than running out its
 timeout.
+Workspace hosting: startup composes the declared entry using stable neuron identities. Opening the
+workspace reads that state; composition and completion never change focus or reopen a closed entry.
+
 */
 
 using DigitalBrain.Apps;
@@ -80,7 +83,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "photocraft";
-    public const string Version = "1.0.7";
+    public const string Version = "1.0.9";
 
     public static readonly AppManifest Manifest = new(
         Title: "PhotoCraft",
@@ -88,7 +91,7 @@ static class App
             + "its editor drives PhotoCraft's tools, so do not call those tools (doc_new, command_run, ...) yourself.",
         Operations:
         [
-            new("open", "Open PhotoCraft's window with the live image editor and connect its tools to the brain; it makes no image."),
+            new("open", "Connect PhotoCraft's tools to the brain and prepare the live image editor; it makes no image."),
             new("edit", "Make or change an image from the person's words: a new picture of a size, a gradient, a fill, shapes, text, a filter, a resize. "
                 + "Input: the person's request as they said it. "
                 + "The request returns at once and PhotoCraft's editor works for up to a minute; then the text {brain}/apps/photocraft/status "
@@ -98,5 +101,7 @@ static class App
         ],
         Settings: [],
         Slots: [],
-        Icon: "icon.svg");
+        Entry: new("surface", "surface"),
+        Icon: "icon.svg",
+        Toolbar: [new("open", Icon: "link", Label: "Connect editor")]);
 }

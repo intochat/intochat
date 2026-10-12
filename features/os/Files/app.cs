@@ -1,37 +1,21 @@
 /*
 # Files
 
-Browse the connected Windows PC. Opening Files shows the machine's allowed roots; choosing a folder
-lists what is inside it, choosing a file shows its text. A C# file is shown as the neuron it is:
-its source in a code block, and when its folder is named like one of this brain's installed apps, that app's
-state (name, version, status, recent activity) above it.
+Browse supported storage connections. The stable surface is composed at startup without changing
+workspace visibility or focus. Opening the app mounts its declared entry; the `open` operation
+returns the listing to Storages. Each connected Windows PC is listed explicitly, then its allowed
+roots, then the selected folder's contents. Other connectors do not imply file support.
 
-The PC is the brain's `windows` connection, keyed `{brain}/connection/windows/{machineId}`; its file
-neuron is `{connection}/files`, confined to the machine's allowed roots. Without a connection the
-surface says so and offers nothing to browse. "Open my files" is routed to `open`.
+The file neuron at `{connection}/files` enforces that machine's allowed roots. Breadcrumbs navigate
+only through the chosen storage and allowed-root hierarchy. A name filter beside the listing
+narrows results before the 40-entry display limit; the surface reports when matching entries are
+omitted. Selection exposes an Open action. Opening an entry browses it when it can be listed,
+otherwise attempts a text preview. No rename, delete or cloud-drive capability is fabricated.
 
-## Scenario: Opening Files lists the roots
-
-Invoking "open" composes the surface, opens a "Files" window and lists the PC's allowed roots.
-
-## Scenario: Browsing a folder lists its entries
-
-Invoking "browse" with a folder path sets the location to that path and lists its entries with a ".." entry
-first; beyond 40 entries it says "Showing 40 of N". Activating an entry browses it when it lists, else reads it.
-
-## Scenario: Reading a file shows its text
-
-Invoking "read" with a file path shows the file's text; a `.cs` file is shown in a code block.
-
-## Scenario: A C# file in an installed app's folder shows the app
-
-Reading `...\settings\open.cs` shows the installed `settings` app's version, status and recent activity above the source;
-in any other folder only the source is shown.
-
-## Scenario: Without a PC the surface says so
-
-With no `windows` connection, "open" still composes the surface and opens the window; "browse" lists nothing (no ".."
-entry) and "read" shows no text, and both say "No Windows PC is connected. Connect one and allow a folder."
+Reading a `.cs` file renders C# source; if its parent folder matches an installed app, that app's
+name, version, status and recent activity appear above it. Unavailable storage, empty folders,
+nonmatching filters and failed text previews are observable states. With no supported connections,
+the surface explains how to connect a Windows PC and allow a folder.
 */
 
 using DigitalBrain.Apps;
@@ -39,22 +23,23 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "files";
-    public const string Version = "1.0.2";
+    public const string Version = "1.0.4";
 
     public static readonly AppManifest Manifest = new(
         Title: "Files",
-        Description: "Browse the folders and files of the connected Windows PC.",
+        Description: "Browse connected Windows PCs, allowed folders and text files.",
         Operations:
         [
-            new("open", "Open Files on the PC's allowed roots; input \"docked\" skips the window."),
-            new("browse", "List the folder at the input path (empty input lists the allowed roots)."),
+            new("open", "Show supported storage connections in Files."),
+            new("browse", "List the folder at the input path or location ID (empty input lists storages)."),
             new("read", "Show the text of the file at the input path; a .cs file is shown as C# source."),
         ],
         Settings: [],
         Slots: [],
+        Entry: new("surface", "surface"),
         Icon: "icon.svg",
         Toolbar:
         [
-            new("open", Icon: "folder", Label: "Roots"),
+            new("open", Icon: "folder", Label: "Storages"),
         ]);
 }

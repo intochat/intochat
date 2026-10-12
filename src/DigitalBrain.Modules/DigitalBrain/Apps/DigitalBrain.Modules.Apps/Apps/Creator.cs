@@ -5,6 +5,7 @@ using DigitalBrain.AI.Inference;
 using DigitalBrain.AI.Models.OpenAI;
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Contracts;
+using DigitalBrain.Flutter;
 using Microsoft.Extensions.Options;
 
 namespace DigitalBrain.Apps;
@@ -47,7 +48,9 @@ internal sealed class Creator(
                 : $"Write the specification for this app.\n\nWhat the person wants:\n{request.Trim()}";
             var authored = await Authored(brainId, prompt, cancellationToken);
             var manifest = new AppManifest(authored.Title, authored.Description,
-                authored.Operations ?? [], authored.Settings ?? [], authored.Slots ?? []);
+                authored.Operations ?? [], authored.Settings ?? [], authored.Slots ?? [],
+                Icon: existing?.Manifest.Icon, Toolbar: existing?.Manifest.Toolbar,
+                Entry: authored.Entry ?? existing?.Manifest.Entry);
             var app = brain.Get<IApp>(IApp.Key(brainId, name ?? authored.Name));
             if (name is null)
             {
@@ -94,6 +97,7 @@ internal sealed class Creator(
             var task = new StringBuilder()
                 .AppendLine($"App: {snapshot.Manifest.Title}")
                 .AppendLine().AppendLine("Specification:").AppendLine(snapshot.Spec);
+            task.AppendLine().AppendLine("Manifest:").AppendLine(JsonSerializer.Serialize(snapshot.Manifest, Json));
             if (!string.IsNullOrWhiteSpace(instruction)) { task.AppendLine().AppendLine("The person asked:").AppendLine(instruction.Trim()); }
             if (snapshot.Files.Count > 0)
             {
@@ -111,14 +115,14 @@ internal sealed class Creator(
             }
             // Manifest changes land with the files, inside the attempt check: a stale
             // worker's manifest is discarded with its files.
-            var manifest = built.Operations is { Length: > 0 } || built.Settings is { Count: > 0 }
-                ? new AppManifest(snapshot.Manifest.Title, snapshot.Manifest.Description,
-                    built.Operations is { Length: > 0 } ? built.Operations : snapshot.Manifest.Operations,
-                    built.Settings is { Count: > 0 }
+            var manifest = snapshot.Manifest with
+            {
+                Operations = built.Operations is { Length: > 0 } ? built.Operations : snapshot.Manifest.Operations,
+                Settings = built.Settings is { Count: > 0 }
                         ? [.. built.Settings.Select(setting => new AppSetting(setting.Name, setting.Description ?? "", setting.Default ?? ""))]
                         : snapshot.Manifest.Settings,
-                    snapshot.Manifest.Slots)
-                : null;
+                Entry = built.Entry ?? snapshot.Manifest.Entry,
+            };
             var completed = await app.CompleteBuild(attempt, files, null, manifest);
             if (completed.Status == AppStatus.Live) { await ReportIfCurrent(app, attempt, "completed", $"Built {snapshot.Manifest.Title}"); }
             else { await ReportIfCurrent(app, attempt, "attention", completed.Activity.LastOrDefault() ?? "The build did not complete"); }
@@ -235,8 +239,8 @@ internal sealed class Creator(
     }
 
     private sealed record AuthoredApp(string Name, string Title, string Description, string Spec,
-        AppOperation[]? Operations = null, AppSetting[]? Settings = null, AppSlot[]? Slots = null);
+        AppOperation[]? Operations = null, AppSetting[]? Settings = null, AppSlot[]? Slots = null, UiChildRef? Entry = null);
     private sealed record BuiltApp(IReadOnlyDictionary<string, string>? Files,
-        IReadOnlyList<BuiltSetting>? Settings = null, AppOperation[]? Operations = null);
+        IReadOnlyList<BuiltSetting>? Settings = null, AppOperation[]? Operations = null, UiChildRef? Entry = null);
     private sealed record BuiltSetting(string Name, string? Description, string? Default);
 }

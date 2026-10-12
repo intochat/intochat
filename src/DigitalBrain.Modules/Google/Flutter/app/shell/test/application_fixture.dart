@@ -23,6 +23,7 @@ const assistantView = {
   'name': 'assistant',
   'manifest': {
     'title': 'Assistant',
+    'entry': {'kind': 'surface', 'name': 'surface'},
     'description': 'Chat with your brain',
     'icon': null,
     'operations': [
@@ -119,6 +120,8 @@ class ApplicationServer extends http.BaseClient {
   /// The assistant committed its window: an "open" request was posted, so the kernel's
   /// workspace view reports it open, exactly as the real app answers through its neurons.
   bool assistantOpened = false;
+  String? focused;
+  int revision = 0;
 
   /// The surface neuron the shell last rendered.
   String? renderedSurface;
@@ -138,9 +141,19 @@ class ApplicationServer extends http.BaseClient {
       return http.StreamedResponse(events.stream, 200);
     }
     requests.add(RecordedAppRequest(request.url.path, _body(request)));
-    if (request.url.path.endsWith('/apps/assistant/request') &&
-        requests.last.body['operation'] == 'open') {
+    if (request.url.path.endsWith('/windows/open')) {
       assistantOpened = true;
+      focused = requests.last.body['windowId'] as String;
+      revision++;
+    }
+    if (request.url.path.endsWith('/focus')) {
+      focused = requests.last.body['windowId'] as String?;
+      revision++;
+    }
+    if (request.url.path.endsWith('/close')) {
+      assistantOpened = false;
+      focused = null;
+      revision++;
     }
     if (request.url.queryParameters['kind'] == 'surface') {
       renderedSurface = request.url.queryParameters['name'];
@@ -160,7 +173,8 @@ class ApplicationServer extends http.BaseClient {
         ? request.url.pathSegments[1]
         : brainId;
     return _json({
-      'revision': assistantOpened ? 1 : 0,
+      'revision': revision,
+      'focusedWindow': focused,
       'windows': assistantOpened
           ? [
               {

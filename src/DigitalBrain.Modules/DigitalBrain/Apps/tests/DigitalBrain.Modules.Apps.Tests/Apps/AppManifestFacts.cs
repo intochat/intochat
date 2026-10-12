@@ -1,4 +1,5 @@
 using DigitalBrain.Testing;
+using DigitalBrain.Modules.Apps.Tests.Runtimes;
 
 namespace DigitalBrain.Apps.Tests.Apps;
 
@@ -7,6 +8,20 @@ public sealed class AppManifestFacts
 {
     private static AppManifest Manifest(params AppToolbarEntry[] toolbar)
         => new AppManifest("Player", "plays", [new AppOperation("play", "Play"), new AppOperation("volume", "Set the volume")], [], [], Toolbar: toolbar);
+
+    [Fact]
+    public async Task AnEntrySurvivesGrainStorageExportAndInstallInAnotherBrain()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>().WithFakeAppRuntime(new()).StartAsync(ct);
+        var source = brain.Get<IApp>(IApp.Key("entry-source", "report"));
+        await source.Create(new("Report", "", [], [], [], Entry: new("text", "documents/answer")), "spec");
+        var bundle = await source.Export();
+        var installed = brain.Get<IApp>(IApp.Key("entry-target", "report"));
+        await installed.Import(bundle);
+        Assert.Equal(new DigitalBrain.Flutter.UiChildRef("text", "documents/answer"), (await installed.Read()).Manifest.Entry);
+        Assert.Equal(bundle.Manifest.Entry, AppDeclaration.Read(FeatureFolder.ToFiles(await installed.Export())["app.cs"]).Manifest.Entry);
+    }
 
     [Fact]
     public void AToolbarEntryMustNameADeclaredOperation()

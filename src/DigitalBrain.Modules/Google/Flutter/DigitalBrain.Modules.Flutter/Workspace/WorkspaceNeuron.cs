@@ -1,8 +1,6 @@
-using DigitalBrain;
 using DigitalBrain.Flutter.Workspace.Signals;
 using DigitalBrain.Framework;
 using Microsoft.Extensions.Options;
-using Orleans.Runtime;
 
 namespace DigitalBrain.Flutter.Workspace;
 
@@ -18,120 +16,102 @@ internal sealed class WorkspaceNeuron(
         Validate(request.WindowId, 256, nameof(request.WindowId));
         Validate(request.Title, 200, nameof(request.Title));
         ArgumentNullException.ThrowIfNull(request.Reference);
-        Validate(request.Reference.Kind, 64, nameof(request.Reference));
-        Validate(request.Reference.NeuronId, 256, nameof(request.Reference));
-        var current = store.State;
-        if (current.OperationLog.TryGetValue(request.OperationId, out var previous))
-        {
-            if (previous.WindowId != request.WindowId || previous.Title != request.Title || previous.Reference != request.Reference)
-            { throw new InvalidOperationException("This operation ID already belongs to a different window request."); }
-            // An operation log entry recorded before the applied revision was persisted falls back
-            // to the revision the request itself proved it advanced from.
-            var applied = current.OperationRevisionLog.TryGetValue(request.OperationId, out var recorded)
-                ? recorded
-                : previous.ExpectedRevision + 1;
-            return new WorkspaceOpenResult(Snapshot(), applied);
-        }
-        if (current.SurfaceOperationLog.ContainsKey(request.OperationId)) { throw new InvalidOperationException("This operation ID belongs to a surface request."); }
+        ValidateReference(request.Reference.Kind, request.Reference.NeuronId, allowTable: true);
+        var receipt = new WorkspaceReceipt("open", request.WindowId, request.Title, request.Reference, 0);
+        if (Replay(request.OperationId, receipt) is { } previous) { return new(Snapshot(), previous.AppliedRevision); }
         RequireRevision(request.ExpectedRevision);
-        var windows = new Dictionary<string, WorkspaceWindow>(current.Windows, StringComparer.Ordinal);
-        if (windows.TryGetValue(request.WindowId, out var existing) && existing.Reference != request.Reference)
+        if (store.State.Windows.TryGetValue(request.WindowId, out var existing) && existing.Reference != request.Reference)
         { throw new InvalidOperationException("A window ID cannot be reassigned to another neuron."); }
-        windows[request.WindowId] = new(request.WindowId, request.Title, request.Reference, true);
-        var revision = checked(current.Revision + 1);
-        var operationLog = new Dictionary<string, OpenWindow>(current.OperationLog, StringComparer.Ordinal) { [request.OperationId] = request };
-        var operationRevisionLog = new Dictionary<string, long>(current.OperationRevisionLog, StringComparer.Ordinal) { [request.OperationId] = revision };
-        await Save(new()
-        {
-            Revision = revision,
-            Windows = windows,
-            OperationLog = operationLog,
-            SurfaceOperationLog = current.SurfaceOperationLog,
-            OperationRevisionLog = operationRevisionLog,
-            ConnectedSources = current.ConnectedSources,
-        });
-        return new WorkspaceOpenResult(Snapshot(), revision);
+        var windows = new Dictionary<string, WorkspaceWindow>(store.State.Windows, StringComparer.Ordinal)
+        { [request.WindowId] = new(request.WindowId, request.Title, request.Reference, true) };
+        var next = Record(request.OperationId, receipt) with { Windows = windows, FocusedWindow = request.WindowId };
+        await Save(next);
+        return new(Snapshot(), next.Revision);
     }
 
-    public async Task<WorkspaceState> OpenSurface(OpenSurfaceWindow request)
+    public async Task<WorkspaceState> Focus(string? windowId, string operationId, long expectedRevision)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        Validate(request.OperationId, 256, nameof(request.OperationId));
-        Validate(request.WindowId, 256, nameof(request.WindowId));
-        Validate(request.Title, 200, nameof(request.Title));
-        ArgumentNullException.ThrowIfNull(request.Reference);
-        if (request.Reference.Kind != UIVocabulary.SurfaceType
-            || !request.Reference.NeuronId.StartsWith(this.GetPrimaryKeyString() + "/", StringComparison.Ordinal))
-        { throw new ArgumentException("A workspace window must reference a surface in this workspace."); }
-        var current = store.State;
-        if (current.SurfaceOperationLog.TryGetValue(request.OperationId, out var previous))
+        Validate(operationId, 256, nameof(operationId));
+        if (windowId is not null) { Validate(windowId, 256, nameof(windowId)); }
+        var receipt = new WorkspaceReceipt("focus", windowId, null, null, 0);
+        if (Replay(operationId, receipt) is not null) { return Snapshot(); }
+        RequireRevision(expectedRevision);
+        if (windowId is not null && (!store.State.Windows.TryGetValue(windowId, out var window) || !window.IsOpen))
+        { throw new KeyNotFoundException("The workspace has no such open window."); }
+        await Save(Record(operationId, receipt) with { FocusedWindow = windowId });
+        return Snapshot();
+    }
+
+    public async Task<WorkspaceState> Close(string windowId, long expectedRevision, string operationId)
+    {
+        Validate(windowId, 256, nameof(windowId));
+        Validate(operationId, 256, nameof(operationId));
+        var receipt = new WorkspaceReceipt("close", windowId, null, null, 0);
+        if (Replay(operationId, receipt) is not null) { return Snapshot(); }
+        RequireRevision(expectedRevision);
+        if (!store.State.Windows.TryGetValue(windowId, out var window))
+        { throw new KeyNotFoundException("The workspace has no such window."); }
+        var windows = new Dictionary<string, WorkspaceWindow>(store.State.Windows, StringComparer.Ordinal)
+        { [windowId] = window with { IsOpen = false } };
+        await Save(Record(operationId, receipt) with
         {
-            if (previous.WindowId != request.WindowId || previous.Title != request.Title || previous.Reference != request.Reference)
-            { throw new InvalidOperationException("This operation ID already belongs to another surface request."); }
-            return Snapshot();
-        }
-        if (current.OperationLog.ContainsKey(request.OperationId)) { throw new InvalidOperationException("This operation ID belongs to a table request."); }
-        RequireRevision(request.ExpectedRevision);
-        if (current.Windows.TryGetValue(request.WindowId, out var existing) && existing.Reference.Kind == WindowReference.TableKind)
-        { throw new InvalidOperationException("A table window cannot be changed into an app window."); }
-        var windows = new Dictionary<string, WorkspaceWindow>(current.Windows, StringComparer.Ordinal)
-        { [request.WindowId] = new(request.WindowId, request.Title, request.Reference, true) };
-        await Save(new()
-        {
-            Revision = checked(current.Revision + 1),
             Windows = windows,
-            OperationLog = current.OperationLog,
-            SurfaceOperationLog = new(current.SurfaceOperationLog) { [request.OperationId] = request },
-            OperationRevisionLog = current.OperationRevisionLog,
-            ConnectedSources = current.ConnectedSources,
+            FocusedWindow = store.State.FocusedWindow == windowId ? null : store.State.FocusedWindow,
         });
+        return Snapshot();
+    }
+
+    public async Task<WorkspaceState> Configure(UiChildRef? home, UiChildRef? companion, long expectedRevision)
+    {
+        if (home is not null) { ValidateReference(home.Kind, home.Name); }
+        if (companion is not null) { ValidateReference(companion.Kind, companion.Name); }
+        RequireRevision(expectedRevision);
+        if (store.State.Home == home && store.State.Companion == companion) { return Snapshot(); }
+        await Save(store.State with { Revision = checked(store.State.Revision + 1), Home = home, Companion = companion });
         return Snapshot();
     }
 
     public async Task<WorkspaceState> SetConnectedSources(IReadOnlyList<string> sources)
     {
         ArgumentNullException.ThrowIfNull(sources);
-        var connected = sources
-            .Where(source => !string.IsNullOrWhiteSpace(source))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Order(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+        var connected = sources.Where(source => !string.IsNullOrWhiteSpace(source))
+            .Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.OrdinalIgnoreCase).ToArray();
         if (connected.SequenceEqual(store.State.ConnectedSources, StringComparer.OrdinalIgnoreCase)) { return Snapshot(); }
-        await Save(new()
-        {
-            Revision = store.State.Revision,
-            Windows = store.State.Windows,
-            OperationLog = store.State.OperationLog,
-            SurfaceOperationLog = store.State.SurfaceOperationLog,
-            OperationRevisionLog = store.State.OperationRevisionLog,
-            ConnectedSources = connected,
-        });
-        return Snapshot();
-    }
-
-    public async Task<WorkspaceState> Close(string windowId, long expectedRevision)
-    {
-        Validate(windowId, 256, nameof(windowId));
-        RequireRevision(expectedRevision);
-        if (!store.State.Windows.TryGetValue(windowId, out var window))
-        { throw new KeyNotFoundException("The workspace has no such window."); }
-        if (!window.IsOpen) { return Snapshot(); }
-        var windows = new Dictionary<string, WorkspaceWindow>(store.State.Windows, StringComparer.Ordinal)
-        {
-            [windowId] = window with { IsOpen = false },
-        };
-        await Save(new() { Revision = checked(store.State.Revision + 1), Windows = windows, OperationLog = store.State.OperationLog, SurfaceOperationLog = store.State.SurfaceOperationLog, OperationRevisionLog = store.State.OperationRevisionLog, ConnectedSources = store.State.ConnectedSources });
+        await Save(store.State with { Revision = checked(store.State.Revision + 1), ConnectedSources = connected });
         return Snapshot();
     }
 
     public Task<WorkspaceState> Read() => Task.FromResult(Snapshot());
 
-    private WorkspaceState Snapshot() => new(store.State.Revision, store.State.Windows.Values.ToArray(), FirstRun());
+    private WorkspaceState Snapshot() => new(store.State.Revision, store.State.Windows.Values.ToArray(),
+        store.State.Windows.Count == 0 ? WorkspaceStarterCatalog.Build(store.State.ConnectedSources) with { AssistantTitle = options.Value.AssistantTitle } : null,
+        store.State.FocusedWindow, store.State.Home, store.State.Companion);
 
-    private FirstRunState? FirstRun() =>
-        store.State.OperationLog.Count == 0 && store.State.SurfaceOperationLog.Count == 0 && store.State.Windows.Count == 0
-            ? WorkspaceStarterCatalog.Build(store.State.ConnectedSources) with { AssistantTitle = options.Value.AssistantTitle }
-            : null;
+    private WorkspaceReceipt? Replay(string operationId, WorkspaceReceipt receipt)
+    {
+        if (!store.State.Receipts.TryGetValue(operationId, out var previous)) { return null; }
+        if (previous with { AppliedRevision = 0 } != receipt)
+        { throw new InvalidOperationException("This operation ID already belongs to another workspace command."); }
+        return previous;
+    }
+
+    private WorkspaceStorage Record(string operationId, WorkspaceReceipt receipt)
+    {
+        var revision = checked(store.State.Revision + 1);
+        return store.State with
+        {
+            Revision = revision,
+            Receipts = new(store.State.Receipts, StringComparer.Ordinal) { [operationId] = receipt with { AppliedRevision = revision } },
+        };
+    }
+
+    private void ValidateReference(string kind, string name, bool allowTable = false)
+    {
+        Validate(kind, 64, nameof(kind));
+        Validate(name, 256, nameof(name));
+        if (!(allowTable && kind == WindowReference.TableKind) && !name.StartsWith(this.GetPrimaryKeyString() + "/", StringComparison.Ordinal))
+        { throw new ArgumentException("A workspace entry must reference a neuron in this workspace."); }
+    }
 
     private async Task Save(WorkspaceStorage next)
     {
@@ -149,17 +129,26 @@ internal sealed class WorkspaceNeuron(
     private static void Validate(string value, int limit, string name)
     {
         if (string.IsNullOrWhiteSpace(value) || value.Length > limit)
-        { throw new ArgumentException($"Provide {name} with 1–{limit} characters.", name); }
+        { throw new ArgumentException($"Provide {name} with 1-{limit} characters.", name); }
     }
 }
 
 [GenerateSerializer]
-internal sealed class WorkspaceStorage
+internal sealed record WorkspaceStorage
 {
-    [Id(0)] public long Revision { get; set; }
-    [Id(1)] public Dictionary<string, WorkspaceWindow> Windows { get; set; } = new(StringComparer.Ordinal);
-    [Id(3)] public Dictionary<string, OpenSurfaceWindow> SurfaceOperationLog { get; set; } = new(StringComparer.Ordinal);
-    [Id(2)] public Dictionary<string, OpenWindow> OperationLog { get; set; } = new(StringComparer.Ordinal);
-    [Id(4)] public Dictionary<string, long> OperationRevisionLog { get; set; } = new(StringComparer.Ordinal);
-    [Id(5)] public string[] ConnectedSources { get; set; } = [];
+    [Id(0)] public long Revision { get; init; }
+    [Id(1)] public Dictionary<string, WorkspaceWindow> Windows { get; init; } = new(StringComparer.Ordinal);
+    [Id(2)] public Dictionary<string, WorkspaceReceipt> Receipts { get; init; } = new(StringComparer.Ordinal);
+    [Id(3)] public string[] ConnectedSources { get; init; } = [];
+    [Id(4)] public string? FocusedWindow { get; init; }
+    [Id(5)] public UiChildRef? Home { get; init; }
+    [Id(6)] public UiChildRef? Companion { get; init; }
 }
+
+[GenerateSerializer]
+internal sealed record WorkspaceReceipt(
+    [property: Id(0)] string Command,
+    [property: Id(1)] string? WindowId,
+    [property: Id(2)] string? Title,
+    [property: Id(3)] WindowReference? Reference,
+    [property: Id(4)] long AppliedRevision);

@@ -25,8 +25,7 @@ operation used by the button. Repeated delivery rebuilds stable card keys withou
 ## Scenario: Opening Settings shows the connections surface
 
 Invoking "open" labels the Refresh connections button, composes the main column with that button
-above the connections list, opens a "Settings" window and publishes the preferences neuron.
-Invoking "open" with "docked" composes the surface without opening the window.
+above the connections list and publishes the preferences neuron in the declared surface.
 
 ## Scenario: Read publishes the stored preferences
 
@@ -58,6 +57,9 @@ Invoking "save-preferences" with a Baseline older than the stored values reports
 changed elsewhere. Reload preferences before saving your changes." and a theme other than system,
 light or dark reports the validation message; the stored preferences stay unchanged. Invoking
 "reconcile-preferences" while the draft holds unsaved edits keeps the draft.
+Workspace hosting: startup composes the declared entry using stable neuron identities. Opening the
+workspace reads that state; composition and completion never change focus or reopen a closed entry.
+
 */
 
 using DigitalBrain.Apps;
@@ -65,7 +67,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "settings";
-    public const string Version = "1.1.7";
+    public const string Version = "1.1.8";
 
     public static readonly AppManifest Manifest = new(
         Title: "Settings",

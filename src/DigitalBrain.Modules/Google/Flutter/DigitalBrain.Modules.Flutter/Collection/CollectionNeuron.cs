@@ -29,7 +29,8 @@ internal sealed class CollectionNeuron(
     public async Task Activate(string itemId, long expectedRevision)
     {
         if (store.State.Revision != expectedRevision) { throw new InvalidOperationException("The collection changed. Refresh it first."); }
-        if (!store.State.Definition.Items.Any(x => x.Id == itemId && x.CanActivate)) { throw new ArgumentException("This item cannot be opened."); }
+        if (!store.State.Definition.Items.Any(x => x.Id == itemId && x.CanActivate) &&
+            !(store.State.Definition.Breadcrumbs?.Any(x => x.Id == itemId) ?? false)) { throw new ArgumentException("This item cannot be opened."); }
         await PublishAsync(new CollectionActivated(this.GetPrimaryKeyString(), itemId, expectedRevision));
     }
     public Task<CollectionState> Read() => Task.FromResult(store.State);

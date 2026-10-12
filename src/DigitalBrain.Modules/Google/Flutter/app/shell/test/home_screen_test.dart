@@ -7,6 +7,13 @@ class _FakeHome {
   final calls = <String>[];
   Future<dynamic> request(String method, String path, [Object? body]) async {
     calls.add('$method $path');
+    if (path == '/brains/b1/apps/assistant') {
+      return {
+        'manifest': {
+          'entry': {'kind': 'surface', 'name': 'surface'},
+        },
+      };
+    }
     if (path == '/brains/b1/apps') {
       return [
         {
@@ -111,7 +118,7 @@ void main() {
     expect(find.text('Update'), findsOneWidget);
     expect(find.text('Installed'), findsOneWidget);
 
-    // A live app with an open operation opens on tap.
+    // A live app with a declared entry opens on tap.
     await tester.tap(find.byKey(const ValueKey('app-assistant')));
     await tester.pumpAndSettle();
     expect(opened, ['assistant']);

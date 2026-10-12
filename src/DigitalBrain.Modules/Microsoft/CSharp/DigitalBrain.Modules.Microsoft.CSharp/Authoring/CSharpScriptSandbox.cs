@@ -30,11 +30,16 @@ public sealed class CSharpScriptSandbox(CSharpToolService tools, IBehaviorAssemb
 
                     await using var brain = await DigitalBrainClient.ConnectAsync(args);
                     var app = brain.Get<IApp>(brain.Setting("App")!);
+                    var answer = brain.Get<IText>(app.GetPrimaryKeyString() + "/answer");
+                    if ((await answer.Read()).Version == 0) { await answer.Set("Ready. Ask a question."); }
                     await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
-                    { await brain.Get<IText>(app.GetPrimaryKeyString() + "/answer").Set(Answer(request.Input)); }
+                    { await answer.Set(Answer(request.Input)); }
 
                     static string Answer(string input) => /* the answer */ input;
                   Never answer a request: a result is neuron state the caller reads.
+                  Return entry {"kind":"text","name":"answer"} with these files so the workspace discovers
+                  the result. Startup initializes only an unwritten root; it preserves answers on restart.
+                  Composition never opens or focuses a workspace entry and discovery is not a readiness claim.
                   Settings are read with brain.Setting("Name").
         """;
 

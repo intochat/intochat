@@ -32,6 +32,17 @@ final class SceneGame extends FlameGame {
 
   /// False under reduced motion: prefabs snap to their targets and stay still.
   bool animations = true;
+  Duration appearanceDuration = const Duration(milliseconds: 200);
+  final _appearances =
+      <
+        String,
+        ({
+          NodeComponent node,
+          Vector2 target,
+          double opacity,
+          List<Effect> effects,
+        })
+      >{};
   SceneState? _state;
   Color _background = const Color(0xFF0B0F14);
 
@@ -45,6 +56,7 @@ final class SceneGame extends FlameGame {
   /// Diffs [state] against what is drawn: adds new nodes, removes those that left, resets the
   /// rest to their definition, then applies every machine's current state in machine order.
   void apply(SceneState state) {
+    final initial = _state == null;
     _state = state;
     wake();
     final patches = <String, List<NodePatch>>{};
@@ -72,7 +84,41 @@ final class SceneGame extends FlameGame {
         component = NodeComponents.build(node) ?? PlaceholderNode(node);
         _byId[node.id] = component;
         parent.add(component);
+        if (!initial &&
+            animations &&
+            node.tweens.isEmpty &&
+            appearanceDuration > Duration.zero) {
+          final target = component.position.clone();
+          final opacity = component.opacity;
+          final seconds =
+              appearanceDuration.inMicroseconds /
+              Duration.microsecondsPerSecond;
+          final effects = <Effect>[
+            MoveEffect.to(target, EffectController(duration: seconds)),
+            OpacityEffect.to(opacity, EffectController(duration: seconds)),
+          ];
+          component.position.y += 12;
+          component.opacity = 0;
+          component.addAll(effects);
+          _appearances[node.id] = (
+            node: component,
+            target: target,
+            opacity: opacity,
+            effects: effects,
+          );
+        }
       } else {
+        final appearance = _appearances[node.id];
+        if (appearance != null &&
+            (node.transform.x != appearance.target.x ||
+                node.transform.y != appearance.target.y ||
+                node.transform.opacity != appearance.opacity ||
+                node.tweens.isNotEmpty)) {
+          for (final effect in appearance.effects) {
+            effect.removeFromParent();
+          }
+          _appearances.remove(node.id);
+        }
         component.configure(node);
         // A parent rebuilt for a new type, or a node moved in the definition, takes it along.
         if (component.parent != parent) component.parent = parent;
@@ -87,6 +133,7 @@ final class SceneGame extends FlameGame {
     }
     for (final id in _byId.keys.where((k) => !seen.contains(k)).toList()) {
       _byId.remove(id)!.removeFromParent();
+      _appearances.remove(id);
     }
     final camera = state.definition.camera;
     this.camera.viewfinder
@@ -98,6 +145,19 @@ final class SceneGame extends FlameGame {
 
   /// Hands [watchBrain] and [animations] to the prefabs that need them.
   void host() {
+    _appearances.removeWhere(
+      (_, appearance) => appearance.effects.every((effect) => effect.isRemoved),
+    );
+    if (!animations) {
+      for (final appearance in _appearances.values) {
+        for (final effect in appearance.effects) {
+          effect.removeFromParent();
+        }
+        appearance.node.position.setFrom(appearance.target);
+        appearance.node.opacity = appearance.opacity;
+      }
+      _appearances.clear();
+    }
     for (final component in _byId.values) {
       switch (component) {
         case BrainGraph graph:

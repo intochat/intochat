@@ -150,11 +150,31 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _dressed(InstalledAppSummary app, Widget icon) =>
       widget.decorateIcon?.call(app, icon) ?? icon;
 
-  void _tapInstalled(InstalledAppSummary app) {
-    if (app.status == 'Live' && app.operations.contains('open')) {
-      unawaited(widget.onOpen(app.id));
-    } else {
-      unawaited(_details(installed: app.id));
+  Future<void> _tapInstalled(InstalledAppSummary app) async {
+    if (app.status != 'Live') {
+      await _details(installed: app.id);
+      return;
+    }
+    try {
+      final view = await widget.request!(
+        'GET',
+        '/brains/$_brain/apps/${Uri.encodeComponent(app.id)}',
+      );
+      if (!mounted) return;
+      final manifest = AppManifest.fromJson(
+        Map<String, dynamic>.from(view['manifest'] as Map),
+      );
+      if (manifest.entry != null) {
+        await widget.onOpen(app.id);
+      } else {
+        await _details(installed: app.id);
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open ${app.title}: $error')),
+        );
+      }
     }
   }
 

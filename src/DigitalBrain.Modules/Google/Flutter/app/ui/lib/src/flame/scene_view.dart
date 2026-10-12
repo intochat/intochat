@@ -5,6 +5,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 import 'scene_game.dart';
+import '../theme/ui_tokens.dart';
 
 /// Hosts one scene neuron in a [GameWidget].
 ///
@@ -19,6 +20,7 @@ class SceneView extends StatefulWidget {
     this.state,
     this.refresh,
     this.watchBrain,
+    this.animateChanges = true,
   });
 
   final String sceneKey;
@@ -28,6 +30,7 @@ class SceneView extends StatefulWidget {
 
   /// The brain-events stream for `brain_graph` nodes with `source=events`.
   final WatchBrain? watchBrain;
+  final bool animateChanges;
 
   @override
   State<SceneView> createState() => _SceneViewState();
@@ -47,13 +50,14 @@ class _SceneViewState extends State<SceneView> {
     final state = widget.state;
     if (state != null) _show(state);
     _listen();
-    unawaited(_read());
+    if (state == null) unawaited(_read());
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final animations = !MediaQuery.disableAnimationsOf(context);
+    _game.appearanceDuration = UiTokens.of(context).standard;
     if (_game.animations != animations) {
       _game
         ..animations = animations
@@ -74,7 +78,7 @@ class _SceneViewState extends State<SceneView> {
     if (old.refresh != widget.refresh) _listen();
     if (old.sceneKey != widget.sceneKey || old.client != widget.client) {
       _revision = null;
-      unawaited(_read());
+      if (state == null) unawaited(_read());
     }
   }
 
@@ -85,7 +89,11 @@ class _SceneViewState extends State<SceneView> {
 
   void _show(SceneState state) {
     _revision = state.revision;
+    final animations = _game.animations;
+    if (!widget.animateChanges) _game.animations = false;
     _game.apply(state);
+    _game.animations = animations;
+    _game.host();
   }
 
   Future<void> _read() async {

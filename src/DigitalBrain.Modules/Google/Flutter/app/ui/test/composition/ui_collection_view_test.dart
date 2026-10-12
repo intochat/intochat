@@ -6,6 +6,24 @@ void main() {
   Future<void> show(WidgetTester tester, UiCollectionView view) =>
       tester.pumpWidget(MaterialApp(home: Scaffold(body: view)));
 
+  testWidgets('selected supported files expose a contextual open action', (
+    tester,
+  ) async {
+    Map<String, dynamic>? opened;
+    await show(
+      tester,
+      UiCollectionView(
+        items: const [
+          {'id': 'a', 'label': 'Notes', 'kind': 'entry', 'canActivate': true},
+        ],
+        selectedId: 'a',
+        onActivate: (item) => opened = item,
+      ),
+    );
+    await tester.tap(find.widgetWithText(TextButton, 'Open selected'));
+    expect(opened?['id'], 'a');
+  });
+
   testWidgets('files retain size, selection, and unsupported semantics', (
     tester,
   ) async {

@@ -1,3 +1,5 @@
+import '../components/workspace/ui_workspace_components.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -71,6 +73,7 @@ class NeuronView extends StatefulWidget {
     this.refreshEvery = const Duration(seconds: 2),
     this.watch,
     this.scenes,
+    this.watchBrain,
   });
   final String kind, name;
   final NeuronLoader load;
@@ -91,12 +94,15 @@ class NeuronView extends StatefulWidget {
 
   /// Reads `scene` children over the brain's Flame routes; without it a scene draws from [load].
   final SceneClient? scenes;
+  final WatchBrain? watchBrain;
   @override
   State<NeuronView> createState() => _NeuronViewState();
 }
 
 class _NeuronViewState extends State<NeuronView> {
   Map<String, dynamic>? _data;
+  SceneState? _sceneState;
+  bool _sceneRecovery = true, _animateSceneChanges = false;
   Object? _error;
   String? selection;
   Timer? _timer;
@@ -132,6 +138,7 @@ class _NeuronViewState extends State<NeuronView> {
   // the pause reads the node once so nothing published meanwhile is missed.
   void _reopen(Stream<void> Function(String, String) watch) {
     if (!mounted || _resubscribe != null) return;
+    _sceneRecovery = true;
     _resubscribe = Timer(widget.refreshEvery, () {
       _resubscribe = null;
       if (!mounted) return;
@@ -150,6 +157,8 @@ class _NeuronViewState extends State<NeuronView> {
     if (old.name != widget.name || old.kind != widget.kind) {
       _generation++;
       _data = null;
+      _sceneState = null;
+      _sceneRecovery = true;
       _error = null;
     }
     if (old.name != widget.name ||
@@ -163,14 +172,10 @@ class _NeuronViewState extends State<NeuronView> {
     }
   }
 
-  // One watch stream per view, so a rebuild does not resubscribe the scene.
-  Stream<void>? _sceneWatch;
-
   bool get _scenesReadThemselves =>
       widget.kind == 'scene' && widget.scenes != null;
 
   Future<void> _reload() async {
-    if (_scenesReadThemselves) return;
     if (_events.pending > 0) return;
     if (_loading) {
       _reloadAgain = true;
@@ -181,10 +186,18 @@ class _NeuronViewState extends State<NeuronView> {
     final generation = _generation;
     final version = _events.version;
     try {
-      final data = await widget.load(widget.kind, widget.name);
+      final scene = _scenesReadThemselves
+          ? await widget.scenes!.read(widget.name)
+          : null;
+      final data = scene == null
+          ? await widget.load(widget.kind, widget.name)
+          : null;
       if (mounted && generation == _generation && version == _events.version) {
         setState(() {
           _data = data;
+          _sceneState = scene;
+          _animateSceneChanges = !_sceneRecovery;
+          _sceneRecovery = false;
           _error = null;
         });
       }
@@ -279,6 +292,7 @@ class _NeuronViewState extends State<NeuronView> {
     refreshEvery: widget.refreshEvery,
     watch: widget.watch,
     scenes: widget.scenes,
+    watchBrain: widget.watchBrain,
     ancestors: {...widget.ancestors, '${widget.kind}:${widget.name}'},
     revision: widget.revision,
     enabled: widget.enabled,
@@ -301,10 +315,27 @@ class _NeuronViewState extends State<NeuronView> {
       return const Center(child: Text('This component cannot be displayed.'));
     }
     if (_scenesReadThemselves) {
+      final state = _sceneState;
+      if (state == null) {
+        return WindowStateView(
+          state: WindowState(
+            _error == null ? WindowStatus.loading : WindowStatus.failed,
+          ),
+          onRetry: _error == null ? null : _reload,
+        );
+      }
+      if (widget.ancestors.isEmpty && state.revision == 0) {
+        return Semantics(
+          liveRegion: true,
+          child: const Center(child: Text('Preparing this view')),
+        );
+      }
       return SceneView(
         sceneKey: widget.name,
         client: widget.scenes,
-        refresh: _sceneWatch ??= widget.watch?.call(widget.kind, widget.name),
+        state: state,
+        animateChanges: _animateSceneChanges,
+        watchBrain: widget.watchBrain,
       );
     }
     if (_data == null) {
@@ -319,6 +350,15 @@ class _NeuronViewState extends State<NeuronView> {
     final declared = WindowState.fromMetadata(data);
     if (declared != null) {
       return WindowStateView(state: declared, onRetry: _reload);
+    }
+    if (widget.ancestors.isEmpty &&
+        (data['version'] ?? data['revision']) == 0) {
+      return Center(
+        child: Semantics(
+          liveRegion: true,
+          child: const Text('Preparing this view'),
+        ),
+      );
     }
     final definition = Map<String, dynamic>.from(
       data['definition'] as Map? ?? data,
@@ -688,8 +728,31 @@ class _NeuronViewState extends State<NeuronView> {
             .whereType<Map>()
             .map((item) => Map<String, dynamic>.from(item))
             .toList();
+        Future<void> activate(String id) async {
+          try {
+            await _dispatch({
+              'kind': 'collection',
+              'name': widget.name,
+              'action': 'activate',
+              'value': id,
+              'revision': data['revision'],
+            });
+          } catch (_) {
+            /* Dispatch presents the failure. */
+          }
+        }
         return UiCollectionView(
           items: items,
+          breadcrumbs: (definition['breadcrumbs'] as List? ?? [])
+              .whereType<Map>()
+              .map(
+                (item) => UiBreadcrumbEntry(
+                  id: item['id'] as String,
+                  label: item['label'] as String,
+                ),
+              )
+              .toList(),
+          onBreadcrumb: !enabled ? null : activate,
           fileMode: definition['fileMode'] != false,
           selectionEnabled: definition['selectionEnabled'] != false,
           selectedId: selection ?? definition['selection'] as String?,
@@ -712,11 +775,7 @@ class _NeuronViewState extends State<NeuronView> {
                 },
           onActivate: !enabled
               ? null
-              : (item) => widget.onActivate?.call({
-                  ...item,
-                  'collection': widget.name,
-                  'revision': data['revision'],
-                }),
+              : (item) => activate(item['id'] as String),
         );
       case 'imagecanvas':
         return widget.imageBuilder?.call(definition) ??

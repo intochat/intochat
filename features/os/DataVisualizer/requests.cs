@@ -16,6 +16,7 @@ using AppTable = DigitalBrain.Postgres.Tables.ITable;
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
+await Views.ComposeHome(brain, appKey, await Views.All(brain, appKey));
 
 await foreach (var request in brain.On<AppRequested>(app, brain.Stopping))
 {
@@ -38,7 +39,6 @@ async Task Answer(Guid requestId, string operation, string input)
                 await Views.Schedule(brain, appKey, view);
             }
             await Views.ComposeHome(brain, appKey, views);
-            if (input != "docked") { await Views.OpenWindowAsync(brain, appKey, brain.Stopping); }
             return;
         }
         case "show":
@@ -60,7 +60,7 @@ async Task Answer(Guid requestId, string operation, string input)
             // The window opens before the view is registered: a show that fails leaves no listed view without
             // a window, and a redelivered show composes and opens the same view again.
             await Views.Compose(brain, appKey, view);
-            await Views.OpenViewWindowAsync(brain, appKey, view, brain.Stopping);
+            await Views.OpenViewWindowAsync(brain, appKey, view, requestId.ToString(), brain.Stopping);
             var views = existing.Any(item => item.Id == view.Id) ? existing : existing.Append(view).ToArray();
             await Views.Save(brain, appKey, views);
             await Views.Schedule(brain, appKey, view);
@@ -151,7 +151,7 @@ async Task Answer(Guid requestId, string operation, string input)
             await brain.Get<IReminder>($"{appKey}/views/{id}/refresh").Stop();
             // The window closes before the view leaves the registry, so a close that fails still lists the
             // view and closing it again finishes the job.
-            await Views.CloseViewWindowAsync(brain, appKey, id, brain.Stopping);
+            await Views.CloseViewWindowAsync(brain, appKey, id, requestId.ToString(), brain.Stopping);
             var remaining = views.Where(v => v.Id != id).ToArray();
             await Views.Save(brain, appKey, remaining);
             await Views.ComposeHome(brain, appKey, remaining);

@@ -26,7 +26,16 @@ class FirstRunClient extends http.BaseClient {
     }
     final Object value;
     final application = applicationResponse(request);
-    if (application != null) {
+    if (request.url.path.endsWith('/apps/assistant')) {
+      value = assistantView;
+    } else if (request.url.path.endsWith('/apps/ino')) {
+      value = {
+        'manifest': {
+          'title': 'Ino',
+          'entry': {'kind': 'text', 'name': 'welcome'},
+        },
+      };
+    } else if (application != null) {
       value = application;
     } else if (request.url.path.endsWith('/marketplace')) {
       value = const <Object>[];
@@ -38,6 +47,14 @@ class FirstRunClient extends http.BaseClient {
       value = {
         'revision': 0,
         'windows': <Object>[],
+        'home': {
+          'kind': 'text',
+          'name': '${request.url.pathSegments[1]}/apps/ino/welcome',
+        },
+        'companion': {
+          'kind': 'surface',
+          'name': '${request.url.pathSegments[1]}/apps/assistant/surface',
+        },
         'firstRun': {
           'assistantId': 'intocaht',
           'assistantTitle': 'IntoChat',
@@ -70,6 +87,10 @@ void main() {
   testWidgets('a new workspace shows the assistant starter prompts', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final store = WorkspaceStore(persistence: MemoryPersistence());
     final api = FirstRunClient();
     final client = DigitalBrainUiClient(
@@ -85,12 +106,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // The assistant is the default focused app: the Home island shows its docked
-    // surface, where the starter prompts wait for the first turn.
-    await tester.tap(find.byTooltip('Home'));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(TextField), findsOneWidget);
+    // The companion remains available while Home is the workspace focus.
+    expect(find.widgetWithText(TextField, 'Message'), findsOneWidget);
     expect(find.text('Work with Salesforce'), findsOneWidget);
     expect(find.text('Ask the assistant'), findsOneWidget);
 

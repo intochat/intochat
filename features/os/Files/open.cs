@@ -1,28 +1,27 @@
 using DigitalBrain.Apps;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter;
+using DigitalBrain.Flutter.Collection;
 using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Surface;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.Workspace;
+using DigitalBrain.Flutter.TextField;
 
-// "open" composes the surface and shows the window; the roots are listed by browse.cs on its own request.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
 
+// Startup composes a stable root independently of workspace navigation.
+var main = brain.Get<ILayout>(appKey + "/main");
+var filter = brain.Get<ITextField>(appKey + "/filter");
+if ((await filter.Read()).Label != "Filter names") { await filter.Configure("Filter names", "text"); }
+await main.Set(new("column", [new(UIVocabulary.TextFieldType, appKey + "/filter"),
+    new(UIVocabulary.CollectionType, appKey + "/listing"), new(UIVocabulary.TextType, appKey + "/content")],
+    Extents: [64, 0, 0]), (await main.Read()).Revision);
+var surface = brain.Get<ISurface>(appKey + "/surface");
+await surface.Set(new("Files", [new(UIVocabulary.LayoutType, appKey + "/main")]), (await surface.Read()).Revision);
+if ((await brain.Get<ICollectionView>(appKey + "/listing").Read()).Revision == 0) { await app.Request("browse", ""); }
+
 await foreach (var request in brain.On(app, "open", brain.Stopping))
 {
-    var main = brain.Get<ILayout>(appKey + "/main");
-    await main.Set(new("column", [new(UIVocabulary.TextType, appKey + "/location"),
-        new(UIVocabulary.CollectionType, appKey + "/listing"), new(UIVocabulary.TextType, appKey + "/content")],
-        Extents: [32, 0, 0]), (await main.Read()).Revision);
-    var surface = brain.Get<ISurface>(appKey + "/surface");
-    await surface.Set(new("Files", [new(UIVocabulary.LayoutType, appKey + "/main")]), (await surface.Read()).Revision);
     await app.Request("browse", "");
-    if (request.Input != "docked")
-    {
-        await brain.Get<IWorkspace>(brain.Setting("Brain")!).EnsureOpenAsync(appKey + "/window", "Files",
-            WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, appKey + "/surface")), brain.Stopping);
-    }
 }

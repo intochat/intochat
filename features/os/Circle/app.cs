@@ -16,6 +16,9 @@ Inputs are plain text. Circle names are 1 to 40 of a-z, 0-9 and "-".
 ## Scenario: Creating a circle lists it
 
 Invoking "create" with "friends" creates a circle brain and lists "friends" with its brain id.
+Workspace hosting: startup composes the declared entry using stable neuron identities. Opening the
+workspace reads that state; composition and completion never change focus or reopen a closed entry.
+
 */
 
 using DigitalBrain.Apps;
@@ -23,7 +26,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "circle";
-    public const string Version = "2.0.0";
+    public const string Version = "2.0.1";
 
     public static readonly AppManifest Manifest = new(
         Title: "Circle",
@@ -35,5 +38,6 @@ static class App
         ],
         Settings: [],
         Slots: [],
+        Entry: new("surface", "surface"),
         Icon: "icon.svg");
 }

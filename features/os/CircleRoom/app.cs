@@ -22,7 +22,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "circleroom";
-    public const string Version = "1.1.0";
+    public const string Version = "1.1.1";
 
     public static readonly AppManifest Manifest = new(
         Title: "Circle room",
@@ -34,5 +34,6 @@ static class App
         ],
         Settings: [],
         Slots: [],
+        Entry: new("text", "transcript"),
         Icon: "icon.svg");
 }

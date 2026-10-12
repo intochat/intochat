@@ -29,6 +29,7 @@ class _FakeMarket {
   Map<String, dynamic> get _app => {
     'name': 'customer-researcher',
     'manifest': {
+      'entry': {'kind': 'surface', 'name': 'surface'},
       'title': 'Customer Researcher',
       'description': 'Research a company and keep verified evidence.',
       'operations': [

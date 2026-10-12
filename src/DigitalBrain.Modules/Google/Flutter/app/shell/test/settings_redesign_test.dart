@@ -28,14 +28,44 @@ const catalog = ChatModelCatalog(
 
 class SettingsAppClient extends WorkspaceClient {
   int openedSettings = 0;
+  String? settingsWindow;
+  Map<String, dynamic> get settingsSnapshot => {
+    'revision': openedSettings,
+    'focusedWindow': settingsWindow,
+    'windows': settingsWindow == null
+        ? []
+        : [
+            {
+              'id': settingsWindow,
+              'title': 'Settings',
+              'reference': {
+                'kind': 'surface',
+                'neuronId': settingsWindow!.replaceFirst(
+                  RegExp(r'/window$'),
+                  '/surface',
+                ),
+              },
+              'isOpen': true,
+            },
+          ],
+  };
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     Map<String, dynamic>? response;
-    if (request.url.path.contains('/apps/settings/')) {
+    if (request.url.path.endsWith('/apps/settings')) {
+      response = {
+        'manifest': {
+          'title': 'Settings',
+          'entry': {'kind': 'surface', 'name': 'surface'},
+        },
+      };
+    } else if (request.url.path.endsWith('/windows/open')) {
       openedSettings++;
-      // The kernel accepts the request and the app answers through its neurons.
-      response = {'requestId': 'settings-request'};
+      settingsWindow =
+          (jsonDecode((request as http.Request).body) as Map)['windowId']
+              as String;
+      response = settingsSnapshot;
     } else if ((request.url.queryParameters['name'] ?? '').endsWith(
       'apps/settings/surface',
     )) {

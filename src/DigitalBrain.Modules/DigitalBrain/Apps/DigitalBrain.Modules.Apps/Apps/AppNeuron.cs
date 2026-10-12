@@ -74,6 +74,7 @@ internal sealed class AppNeuron(
         foreach (var setting in manifest.Settings)
         { if (!next.Settings.ContainsKey(setting.Name)) { next.Settings[setting.Name] = setting.Default; } }
         next.Version = Bump(next.Version, minor: false);
+        await RequireCompiles(next);
         Record(next);
         Receipt(next, operationId);
         await Persist(next);
@@ -666,16 +667,18 @@ internal sealed class AppNeuron(
 
     // The publish gate: every script in the bundle compiles against the installed contracts. A host
     // without a script compiler cannot run apps either, so it has nothing to refuse.
-    private async Task RequireCompiles()
+    private Task RequireCompiles() => RequireCompiles(Snapshot);
+
+    private async Task RequireCompiles(AppState state)
     {
-        var scripts = Snapshot.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal))
+        var scripts = state.Files.Where(file => file.Key.EndsWith(".cs", StringComparison.Ordinal))
             .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
         if (scripts.Count == 0) { return; }
         // The shape is syntax, so it is checked even where no compiler is.
         if (SynapseShape.Check(scripts) is { Length: > 0 } shape)
         { throw new InvalidOperationException($"Version {Snapshot.Version} is not shaped as synapses: " + SynapseShape.Describe(shape)); }
         // The declaration compiles with the program it describes.
-        scripts[AppFiles.DeclarationPath] = AppDeclaration.Write(new(Name(), Snapshot.Version, Snapshot.Manifest!, Snapshot.Spec));
+        scripts[AppFiles.DeclarationPath] = AppDeclaration.Write(new(Name(), state.Version, state.Manifest!, state.Spec));
         var sandbox = ServiceProvider.GetService<IScriptSandbox>();
         if (sandbox is null) { return; }
         ScriptCompilationCheck check;

@@ -42,6 +42,9 @@ routed answer.
 
 When Jev's confidence is below its gate, "ask" answers without dispatching and the result neuron
 says the request was not clear enough to route.
+Workspace hosting: startup composes the declared entry using stable neuron identities. Opening the
+workspace reads that state; composition and completion never change focus or reopen a closed entry.
+
 */
 
 using DigitalBrain.Apps;
@@ -49,7 +52,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "router";
-    public const string Version = "1.1.7";
+    public const string Version = "1.1.8";
 
     public static readonly AppManifest Manifest = new(
         Title: "Router",
@@ -61,5 +64,6 @@ static class App
         ],
         Settings: [],
         Slots: [],
+        Entry: new("surface", "surface"),
         Icon: "icon.svg");
 }

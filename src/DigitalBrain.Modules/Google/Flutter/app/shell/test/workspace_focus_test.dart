@@ -1,7 +1,67 @@
 import 'package:digitalbrain_flutter_shell/workspace/workspace_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 
 void main() {
+  test('remote focus and Home survive rebuilds and reconnect without local guesses', () async {
+    final store = WorkspaceStore();
+    await store.load();
+    final project = store.currentProject;
+    const windows = [
+      WorkspaceWindow(
+        id: 'first',
+        title: 'First',
+        kind: 'scene',
+        neuronId: 'brain/scenes/first',
+        isOpen: true,
+      ),
+      WorkspaceWindow(
+        id: 'second',
+        title: 'Second',
+        kind: 'text',
+        neuronId: 'brain/text/second',
+        isOpen: true,
+      ),
+    ];
+    store.reconcileWorkspace(
+      project,
+      WorkspaceSnapshot(revision: 4, windows: windows, focusedWindow: 'first'),
+    );
+    expect(store.focusedWindow, 'first');
+    expect(project.presentation.openArtifactIds, ['first', 'second']);
+    final saved = project.toJson();
+    expect(
+      saved['artifacts'],
+      isEmpty,
+      reason: 'Remote roots belong to the workspace neuron',
+    );
+    expect((saved['presentation'] as Map)['activeArtifactId'], isNull);
+    expect((saved['presentation'] as Map)['openArtifactIds'], isEmpty);
+    String? requested;
+    store.onRemoteFocus = (_, id) => requested = id;
+    store.focusWindow('second');
+    expect(requested, 'second');
+    expect(
+      store.focusedWindow,
+      'first',
+      reason: 'Only the accepted server state changes focus',
+    );
+    store.reconcileWorkspace(
+      project,
+      WorkspaceSnapshot(revision: 5, windows: windows),
+    );
+    expect(
+      store.focusedWindow,
+      isNull,
+      reason: 'Home is explicit even with running windows',
+    );
+    store.reconcileWorkspace(
+      project,
+      WorkspaceSnapshot(revision: 4, windows: windows, focusedWindow: 'second'),
+    );
+    expect(store.focusedWindow, isNull);
+    store.dispose();
+  });
   test(
     'the focused window is the active open window, else the last visible one',
     () {
