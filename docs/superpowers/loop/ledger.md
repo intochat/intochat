@@ -158,3 +158,49 @@ After the journal was moved aside: the honest refusal was seen live ('Refused, n
 **Fixed and seen live:** 27 (delete then reinstall; root cause `PartGrainStorage.ClearStateAsync` kept in-memory state), 17a/b/c, 29 (skipped requests are not runs; counts sane live), 30 (LedgerGrain bounded window), 33 (a brain's model calls interleave), 34 (compile cache + blob Exists), 36, 37 (needs the final build), fast-path concurrency (deploy staged by the writer outside the app turn, idempotent ticketed Assign, Unsettled outcome): 3 overlapping calculator sentences → all Written in 4.9–5.3 s, settled in 10 s, synapses ran (sum 25 → roots 5.00). Task 5 (Assistant `make`) built and seen live (scratch synapse Written in 18 s). Journal (35): streaming read past 2 GB, physical trim, oversized-change refusal, snapshot backoff; live growth 43→207 MB in 35 min on the previous build — re-measure on the final build.
 **Scenario table:** router ×2 and assistant ×2 refuted → passed live; Memory recall ran from shipped code (word-ranked; reindex blocked by 37 until the final build). Totals: 67 passed, 25 blocked (gates), 0 refuted.
 **Open for the user:** 38 (core snapshot size), the gates P1/G13–G16/NG-1…5, SignalDeliveries + InternalsVisibleTo from the vocabulary ring (pinned by an Architecture fact; belongs to the "cross-app subscription scopes" front), toolchain 23.
+
+### Run 3 (2026-10-12, report-only)
+
+**Premise check.** A briefing re-issued the run-2 work list assuming HEAD was `4958cadea`; the branch is
+**102 commits past it** (HEAD `60556d927`), all Flame/brain-view/Ino work. The forking loop's own work
+(entries 27–39, the run-2 SDD ledger) was already committed and its final review was clean at 18:00:14.
+By the user's ruling this run is **report + ledger only**: no code edits, no AppHost start/stop, no bench.
+A **peer session is live on the OS** (5080/5081; listener PID changed 172076→70784; `/health` and
+`/brains/owner/apps` time out), so nothing was driven or restarted. The Aspire MCP sees the AppHost
+(`DigitalBrain.AppHost.csproj`, pid 101380) but reports no healthy resources.
+
+**Verified from the tree (not re-driven live):** the owner journal is 89,465 bytes (the 3.0 GB file is the
+kept `.log.oversized-20261011150237` evidence) — ledger 35 closed. Final regression on `fc81d8eba`:
+Platform 464/464, Apps 229/229, Client 31/31, CSharp 188/189 (`SubscriptionCallerFacts` flake, on base too),
+Architecture 50/56 (6 pre-existing). Scenario table: **68/93 passed live, 25 blocked on gates, 0 refuted**
+(file states 67/25/0). Re-attach-to-origin exists as `IApp.SaveToSource` (`AppNeuron.cs:411`).
+
+**Not recorded anywhere:** the fast-path p50/p95 and first-try compile rate (plan Task 4 Step 5). Observed
+live in run 2: 3 overlapping writes 4853 / 4931 / 5289 ms, each 1 attempt (settled ≤10 s); single quiet
+writes 18.3 s (Assistant `make`) and 27.9 s; one pre-B3 rejection at 35 s. Measuring this needs an idle OS
+and it mutates shipped apps (marks them Edited) — deferred.
+
+**Still open for the user (unchanged):** ledger 38 (core snapshot too large for the 16 MiB shard cap — needs
+a split/chunked `HeadPayload` or a smaller core), the gates P1 / G13–G16 / NG-1…NG-5 / K1b / SUB / G5b /
+G6b / UI1 / G10b, toolchain 23, and the cross-app-subscription-scopes front (SignalDeliveries + IVT).
+
+### Run 3 continued (2026-10-12) — ledger 38 build
+
+Plan `docs/superpowers/plans/2026-10-12-ledger-38-core-snapshot.md`. Ruled: D3 accept a wipe, D4 8 MiB +
+signals, D5 no sweep exists, D2 recommended. Root cause confirmed by Task 0 (the live owner core was reset,
+so the 97 MB is not reproducible; the only unbounded core structure is `kernel.instances`).
+
+**Fix B built (unit-verified, not seen live, not committed):** snapshots are inline while small and chunked
+above `PartsOptions.SnapshotChunkBytes` (default 8 MiB); the head still names one `MeshRef` to a
+`PartSnapshotIndex` whose `RecordChunks`/`SignalChunks` carry the rest; `Replay`/`Discard`/`Reached`/
+`WhileReached` and the auditor are chunk-aware. Files: `PartLogModel.cs`, `PartLog.cs`, `PartsOptions.cs`,
+`PartSnapshotFacts.cs`, `MeshAuditorFacts.cs` (+ the Task 0 `MachinePartEndpoints.cs`/`MachinePartEndpointFacts.cs`).
+Platform targeted 117/117; full Platform 469/472 (2 pre-existing load flakes).
+
+**Fix A (A1) built, then reverted:** register-on-activation/retire-on-deactivation broke the directory's
+durable-catalog contract — `CSharpFileListingFacts.AFileKeepsItsName…TheKernelListsItUntilDeleted` requires a
+deactivated `ICSharpFile` to stay listed until deleted (apps likewise for `/apps`/Memory). The kernel
+instance directory is a durable catalog, not a live set, so retiring on deactivation changes enumeration for
+every catalogued type. A1's files (`NeuronActivations.cs`, `InstanceRegistration.cs`, `BrainHosting.cs`,
+`KernelFacts.cs`) were reverted. **`D1` is open again** (A4 compaction — recommended; or A1′ with a
+Framework catalogued-neuron marker).
