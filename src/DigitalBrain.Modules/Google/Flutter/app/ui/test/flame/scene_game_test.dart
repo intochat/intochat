@@ -47,6 +47,33 @@ void main() {
   final flameTester = FlameTester(SceneGame.new);
 
   flameTester.testGameWidget(
+    'content updates preserve an entrance in progress',
+    setUp: (game, _) async {
+      game.appearanceDuration = const Duration(milliseconds: 400);
+      game.apply(scene([]));
+      await game.ready();
+      game.apply(scene([node('a', 'circle')]));
+      await game.ready();
+      game.update(.1);
+      final component = game.componentFor('a')!;
+      final opacity = component.opacity;
+      final y = component.position.y;
+      expect(opacity, inExclusiveRange(0, 1));
+      game.apply(
+        scene([
+          node('a', 'circle', params: {'radius': '40'}),
+        ]),
+      );
+      expect(component.opacity, opacity);
+      expect(component.position.y, y);
+      game.update(.3);
+      expect(component.opacity, closeTo(1, .001));
+      expect(component.position.y, closeTo(10, .001));
+    },
+    verify: (game, _) async {},
+  );
+
+  flameTester.testGameWidget(
     'new nodes appear once while initial and identical snapshots stay still',
     setUp: (game, _) async {
       game.appearanceDuration = const Duration(milliseconds: 400);

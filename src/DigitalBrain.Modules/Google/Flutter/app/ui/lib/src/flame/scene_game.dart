@@ -108,7 +108,7 @@ final class SceneGame extends FlameGame {
           );
         }
       } else {
-        final appearance = _appearances[node.id];
+        var appearance = _appearances[node.id];
         if (appearance != null &&
             (node.transform.x != appearance.target.x ||
                 node.transform.y != appearance.target.y ||
@@ -118,8 +118,16 @@ final class SceneGame extends FlameGame {
             effect.removeFromParent();
           }
           _appearances.remove(node.id);
+          appearance = null;
         }
+        final position = appearance == null ? null : component.position.clone();
+        final opacity = component.opacity;
         component.configure(node);
+        if (position != null) {
+          // Content can change while its entrance continues toward the same target.
+          component.position.setFrom(position);
+          component.opacity = opacity;
+        }
         // A parent rebuilt for a new type, or a node moved in the definition, takes it along.
         if (component.parent != parent) component.parent = parent;
       }

@@ -105,7 +105,7 @@ internal sealed class Creator(
                 foreach (var (path, source) in snapshot.Files) { task.AppendLine($"--- {path} ---").AppendLine(source); }
             }
             await app.Progress("working", $"Building {snapshot.Manifest.Title}");
-            var built = Parse<BuiltApp>(await BuilderConversation(BrainKey.BrainOf(appKey), app, task.ToString(), cancellationToken));
+            var built = Parse<BuiltApp>(await BuilderConversation(BrainKey.BrainOf(appKey), app, task.ToString(), snapshot.Files, cancellationToken));
             var files = new Dictionary<string, string>(built.Files ?? new Dictionary<string, string>(), StringComparer.Ordinal);
             if (files.Count == 0)
             {
@@ -159,7 +159,7 @@ internal sealed class Creator(
 
     // The Builder works with tools: it searches the contract catalog, reads details and
     // compile-checks its C# before answering. Each round lands on the app's activity feed.
-    private async Task<string> BuilderConversation(string brainId, IApp app, string task, CancellationToken cancellationToken)
+    private async Task<string> BuilderConversation(string brainId, IApp app, string task, IReadOnlyDictionary<string, string> existingFiles, CancellationToken cancellationToken)
     {
         var messages = new List<AiMessage>
         {
@@ -174,14 +174,29 @@ internal sealed class Creator(
             var calls = result.Messages.SelectMany(message => message.Content).OfType<AiToolCall>().ToArray();
             if (calls.Length == 0)
             {
-                return string.Concat(result.Messages.SelectMany(message => message.Content).OfType<AiText>().Select(content => content.Text)).Trim();
+                var reply = string.Concat(result.Messages.SelectMany(message => message.Content).OfType<AiText>().Select(content => content.Text)).Trim();
+                var built = Parse<BuiltApp>(reply);
+                // CompleteBuild merges the files. Check that exact program, including retained shared
+                // classes; a previous tool check may have checked different or incomplete source.
+                if (built.Files is not { Count: > 0 } || built.Files.ContainsKey(AppFiles.DeclarationPath)) { return reply; }
+                var files = new Dictionary<string, string>(existingFiles, StringComparer.Ordinal);
+                foreach (var (path, source) in built.Files) { files[path] = source; }
+                var program = files.Where(file => AppFiles.IsProgram(file.Key))
+                    .ToDictionary(file => file.Key, file => file.Value, StringComparer.Ordinal);
+                if (program.Count == 0) { return reply; }
+                var check = await Checked(program, cancellationToken);
+                if (check.Success) { return reply; }
+                await app.Progress("working", $"round {round + 1}: correcting final compile errors");
+                messages.Add(new AiMessage("user", [new AiText("The exact final program does not compile. Fix these diagnostics and return the corrected implementation JSON:\n"
+                    + JsonSerializer.Serialize(check, Json))]));
+                continue;
             }
             await app.Progress(BuilderState(calls), $"round {round + 1}: {string.Join(", ", calls.Select(call => call.Name))}");
             var results = new List<AiContent>();
             foreach (var call in calls) { results.Add(new AiToolResult(call.CallId, await ExecuteBuilderTool(call, cancellationToken))); }
             messages.Add(new AiMessage("tool", results.ToArray()));
         }
-        throw new InvalidDataException($"The Builder used tools for {MaxBuilderRounds} rounds without producing the implementation.");
+        throw new InvalidDataException($"The Builder used {MaxBuilderRounds} rounds without producing a valid implementation.");
     }
 
     private static string BuilderState(AiToolCall[] calls)

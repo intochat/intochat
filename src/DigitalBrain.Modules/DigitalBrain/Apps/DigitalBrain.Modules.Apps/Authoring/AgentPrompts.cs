@@ -20,9 +20,15 @@ internal static class AgentPrompts
           are not edits: an installed copy changed only through its settings keeps receiving the
           publisher's updates.
         - The app has one operation, "ask", unless the spec clearly needs more.
+        - For each user-facing operation, specify its observable outcome and where the person sees it.
+          A visual app stores its result in neurons reachable from its declared entry; console output
+          is diagnostics, never the person's answer. A headless operation may instead have an external
+          effect required by the spec; do not invent a screen for it.
         - Model settings take this brain's model names, such as "IGpt56Luna" or "IGemma4".
         - A visual app declares an entry: a typed neuron root with an installation-relative name.
           For a text result use {"kind":"text","name":"answer"}. This is discovery, not readiness.
+          For a surface containing several notes use {"kind":"surface","name":"notes"}; choose
+          the root that actually contains the results, rather than copying the text example.
           Specify cheap idempotent startup composition; opening reads state and never runs domain work.
 
         Reply with JSON only, no prose and no code fences:
@@ -68,6 +74,8 @@ internal static class AgentPrompts
         operations arrive as `AppRequested` signals; a synapse for one operation watches only it:
             await foreach (var request in brain.On(app, "open", brain.Stopping))
             { /* compose the UI through neurons */ }
+        The operation-filtered overload is non-generic: brain.On(app, "ask", brain.Stopping).
+        Never add <AppRequested> when passing the operation string.
         A set of neurons is one source: `Sources.Of(a, b)` for a fixed set, or
         `Sources.Named<IText, TextChanged>(registry, async (r, ct) => …)` when a neuron's state names
         the members; `signal.Publisher` says which member spoke. Never write a while loop, a
@@ -81,6 +89,18 @@ internal static class AgentPrompts
         Every setting a behavior reads must be declared. Setting names are letters and digits.
         Every visual result must be reachable from the declared entry. Return "entry" with "kind" and
         installation-relative "name" when adding a UI. Resolve its neuron as brain.Setting("App") + "/" + name.
+        Return the entry that matches the root you actually compose: an ISurface at app + "/notes"
+        requires {"kind":"surface","name":"notes"}, not a text entry at "answer". The examples in
+        this prompt are illustrative; every returned entry must match your implementation.
+        For each user-facing operation, write its result to the neuron the person reads from that entry.
+        Console.WriteLine is diagnostics, never the person's answer; logging an answer does not display it.
+        Headless operations may perform the external effect specified by the app without creating a UI.
+        Read the UI contracts before composing children. UiChildRef.Kind selects the supported renderer
+        kind (for example "text"); UiChildRef.Name identifies the neuron. Put arbitrary names such as
+        "alpha" and "beta" in Name, never Kind. Different text children all use kind "text".
+        Use UIVocabulary constants from DigitalBrain.Flutter when writing C#: for example
+        new UiChildRef(UIVocabulary.TextType, brain.Setting("App") + "/alpha") for a text child,
+        and UIVocabulary.SurfaceType for a surface. Do not invent renderer kinds.
         Initialize or rebuild derived UI cheaply and idempotently before the one reaction; retain existing
         result state on restart. Never focus or reopen a workspace entry when composition or work completes.
         Mounting and reconnecting read current state. An entry declaration does not certify readiness.
@@ -114,6 +134,9 @@ internal static class AgentPrompts
         setup before the reaction cheap and idempotent, keep state in neurons (never only in variables), dedupe
         through neuron state (for example the last handled id kept in a neuron), and rebuild derived state from
         scratch instead of patching it. Never answer a request: a result is neuron state the person reads.
+        For a user-facing operation, persist the result where the person can see it; in a visual app it
+        must be reachable from its declared entry. Console.WriteLine is diagnostics, never the person's
+        answer. Headless operations may instead perform their specified external effect.
 
         The app is brain.Setting("App") and the brain is brain.Setting("Brain"). Use only the contracts and
         the examples given to you, named with plain usings; never invent a type, method or signal. When a base

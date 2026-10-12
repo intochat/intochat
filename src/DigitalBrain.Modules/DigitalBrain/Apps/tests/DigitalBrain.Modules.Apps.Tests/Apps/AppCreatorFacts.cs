@@ -7,6 +7,7 @@ using DigitalBrain.Apps.Signals;
 using DigitalBrain.Testing.Model;
 using DigitalBrain.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DigitalBrain.Apps.Tests.Apps;
 
@@ -267,6 +268,63 @@ public sealed class AppCreatorFacts
     }
 
     [Fact]
+    public async Task TheFinalBundleIsCheckedAgainAndItsErrorsReturnToTheBuilder()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var sandbox = new FinalBundleSandbox();
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await StartAsync(model, ct, sandbox);
+        model.Script(Author, Authored(Spec));
+        model.Script(Builder,
+            FakeReply.Tool("check_csharp", """{"files":{"shout.cs":"// valid"}}"""),
+            Built("// invalid final", "data"),
+            Built("// corrected final", "data"));
+        var creator = brain.Services.GetRequiredService<Creator>();
+        var digitalBrain = brain.Services.GetRequiredService<IDigitalBrain>();
+        await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
+        var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
+        await app.BeginBuild(null);
+        await app.CompleteBuild(await app.CurrentBuildAttempt(), new() { ["shared.cs"] = "public static class Shared { }" }, null);
+        await app.WriteFile("notes.md", "not C#", Guid.NewGuid());
+        await using var changes = await brain.Observe<AppChanged>(app, ct);
+
+        await creator.Implement(digitalBrain, IApp.Key(Brain, "shouter"), null);
+
+        await changes.NextAsync(change => change.Status is AppStatus.Live or AppStatus.Failed, ct);
+        var result = await app.Read();
+        Assert.Equal(AppStatus.Live, result.Status);
+        Assert.Equal("// corrected final", result.Files["synapses/shout.cs"]);
+        Assert.Contains("CS1503", model.Requests(Builder)[2].ToString(), StringComparison.Ordinal);
+        Assert.Contains(sandbox.Bundles, files => files.ContainsKey("shared.cs")
+            && files.GetValueOrDefault("synapses/shout.cs") == "// invalid final"
+            && !files.ContainsKey("notes.md") && !files.ContainsKey("prompts/system.md"));
+    }
+
+    [Fact]
+    public async Task InvalidFinalRepliesExhaustTheExistingBudgetWithoutAssigningTheFiles()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await StartAsync(model, ct, new FinalBundleSandbox());
+        model.Script(Author, Authored(Spec));
+        model.Script(Builder, Enumerable.Repeat((FakeReply)Built("// invalid final", "data"), 13).ToArray());
+        var creator = brain.Services.GetRequiredService<Creator>();
+        var digitalBrain = brain.Services.GetRequiredService<IDigitalBrain>();
+        await creator.Author(digitalBrain, Brain, null, "Shout back.", ct);
+        var app = brain.Get<IApp>(IApp.Key(Brain, "shouter"));
+        await using var changes = await brain.Observe<AppChanged>(app, ct);
+
+        await creator.Implement(digitalBrain, IApp.Key(Brain, "shouter"), null);
+
+        await changes.NextAsync(change => change.Status is AppStatus.Live or AppStatus.Failed, ct);
+        var result = await app.Read();
+        Assert.Equal(AppStatus.Failed, result.Status);
+        Assert.Empty(result.Files);
+        Assert.Null(result.PublishedVersion);
+        Assert.Equal(12, model.Requests(Builder).Count);
+    }
+
+    [Fact]
     public async Task AStaleWorkersOutcomePublishesNoActivity()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -293,6 +351,31 @@ public sealed class AppCreatorFacts
         window.CancelAfter(TimeSpan.FromSeconds(3));
         try { await activity.NextAsync(signal => signal.State is "completed" or "attention", window.Token); Assert.Fail("A stale worker reported its outcome."); }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested) { }
+    }
+
+    [Fact]
+    public void AuthoringPromptsRequireObservableResultsWithoutBanningHeadlessOperations()
+    {
+        Assert.Contains("observable outcome", AgentPrompts.Author, StringComparison.Ordinal);
+        foreach (var prompt in new[] { AgentPrompts.Author, AgentPrompts.Builder, AgentPrompts.Synapse })
+        {
+            Assert.Contains("declared entry", prompt, StringComparison.Ordinal);
+            Assert.Contains("diagnostics, never the person's", prompt, StringComparison.Ordinal);
+            Assert.Contains("external", prompt, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void TheBuilderDistinguishesRendererKindsFromChildNames()
+    {
+        Assert.Contains("Read the UI contracts", AgentPrompts.Builder, StringComparison.Ordinal);
+        Assert.Contains("UiChildRef.Kind", AgentPrompts.Builder, StringComparison.Ordinal);
+        Assert.Contains("in Name, never Kind", AgentPrompts.Builder, StringComparison.Ordinal);
+        Assert.Contains("Different text children all use kind \"text\"", AgentPrompts.Builder, StringComparison.Ordinal);
+        Assert.Contains("UIVocabulary.TextType", AgentPrompts.Builder, StringComparison.Ordinal);
+        Assert.Contains("UIVocabulary.SurfaceType", AgentPrompts.Builder, StringComparison.Ordinal);
+        Assert.Contains("entry that matches the root you actually compose", AgentPrompts.Builder, StringComparison.Ordinal);
+        Assert.Contains("Never add <AppRequested>", AgentPrompts.Builder, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -346,8 +429,40 @@ public sealed class AppCreatorFacts
             })
             .WithFakeModel(model)
             // The Builder's check_csharp tool compiles through the sandbox; the fake answers for the compiler.
-            .ConfigureServices(services => services.AddSingleton(sandbox ?? new CreatorSandbox()))
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton(sandbox ?? new CreatorSandbox());
+                if (sandbox is IAppRuntime runtime)
+                {
+                    services.RemoveAll<IAppRuntime>();
+                    services.AddSingleton(runtime);
+                }
+            })
             .StartAsync(ct);
+
+    private sealed class FinalBundleSandbox : IScriptSandbox, IAppRuntime
+    {
+        public List<Dictionary<string, string>> Bundles { get; } = [];
+        public bool CanRun => true;
+        public string AuthoringDescription => "csharp uses sandbox contracts.";
+        public Task<Verdict[]> Judge(string brain, IReadOnlyDictionary<string, string> bundle, Signal signal, CancellationToken cancellationToken)
+            => Task.FromResult<Verdict[]>([]);
+        public Task<ScriptContractCatalog> ReadContracts(IReadOnlyList<string> modules, CancellationToken cancellationToken)
+            => Task.FromResult(new ScriptContractCatalog([], [], ""));
+        public Task<ScriptCompilationCheck> Compile(IReadOnlyDictionary<string, string> files, CancellationToken cancellationToken)
+        {
+            Bundles.Add(new(files));
+            return Task.FromResult(files.Values.Any(source => source == "// invalid final")
+                ? new ScriptCompilationCheck(false, [new("synapses/shout.cs", "CS1503", 1, "Invalid operation overload")])
+                : new ScriptCompilationCheck(true, []));
+        }
+        public async Task<IReadOnlyDictionary<string, string>> Deploy(string appKey, Dictionary<string, string> sources, Dictionary<string, string> configuration, CancellationToken cancellationToken)
+        {
+            if (!(await Compile(sources, cancellationToken)).Success) { throw new InvalidOperationException("Invalid final bundle"); }
+            return new Dictionary<string, string>();
+        }
+        public Task Retire(string appKey, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
 
     private sealed class GatedSandbox : IScriptSandbox
     {

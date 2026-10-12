@@ -15,6 +15,42 @@ Widget host(Widget child, {bool reduced = false, ThemeData? theme}) =>
     );
 
 void main() {
+  testWidgets(
+    'rapid navigation keeps only latest content and reduced motion settles it',
+    (tester) async {
+      Widget content(String id, {bool reduced = false}) => host(
+        UiMotion(contentKey: id, child: Text(id)),
+        reduced: reduced,
+      );
+      Animation<double> opacity() => tester
+          .widget<FadeTransition>(
+            find
+                .descendant(
+                  of: find.byType(UiMotion),
+                  matching: find.byType(FadeTransition),
+                )
+                .first,
+          )
+          .opacity;
+      await tester.pumpWidget(content('Home'));
+      expect(opacity().value, 1);
+      await tester.pumpWidget(content('Files'));
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(opacity().value, inExclusiveRange(0, 1));
+      await tester.pumpWidget(content('Assistant'));
+      expect(find.text('Files'), findsNothing);
+      expect(find.text('Home'), findsNothing);
+      expect(find.text('Assistant'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(opacity().value, inExclusiveRange(0, 1));
+      await tester.pumpWidget(content('Assistant', reduced: true));
+      expect(opacity().value, 1);
+      expect(opacity().status, AnimationStatus.completed);
+      await tester.pumpWidget(content('Assistant'));
+      expect(opacity().value, 1);
+      expect(opacity().status, AnimationStatus.completed);
+    },
+  );
   testWidgets('single root breadcrumb is visible and cannot navigate', (
     tester,
   ) async {
@@ -31,11 +67,16 @@ void main() {
     expect(find.text('Storages'), findsOneWidget);
     expect(find.byType(PopupMenuButton<String>), findsNothing);
     expect(find.byIcon(Icons.chevron_right), findsNothing);
-    expect(tester.widget<TextButton>(find.byType(TextButton)).onPressed, isNull);
+    expect(
+      tester.widget<TextButton>(find.byType(TextButton)).onPressed,
+      isNull,
+    );
     await tester.tap(find.text('Storages'));
     expect(selected, isEmpty);
   });
-  testWidgets('empty breadcrumbs render no navigation controls', (tester) async {
+  testWidgets('empty breadcrumbs render no navigation controls', (
+    tester,
+  ) async {
     await tester.pumpWidget(host(const UiBreadcrumbs(entries: [])));
     expect(tester.takeException(), isNull);
     expect(find.byType(TextButton), findsNothing);

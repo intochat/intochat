@@ -3,6 +3,7 @@ using DigitalBrain.Client;
 using DigitalBrain.Flame.Scene;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.Text.Signals;
+using System.Text.Json;
 
 // Shared by every Ino synapse: keys, the two scenes (always rebuilt whole, never patched) and the presence events.
 public static class Ino
@@ -58,7 +59,15 @@ public static class Ino
         var initial = await welcome.Read();
         if (initial.Revision == 0) { await welcome.Set(WelcomeScene(), initial.Revision); }
         var home = await Home(brain).Read();
-        if (home.Revision == 0) { await ComposeHome(brain, "[]"); }
+        await ComposeHome(brain, JsonSerializer.Serialize(RecentApps(home.Definition)));
+    }
+
+    public static JsonElement[] RecentApps(SceneDefinition definition)
+    {
+        var items = definition.Nodes.FirstOrDefault(node => node.Id == "ring")?.Parameters.GetValueOrDefault("items");
+        return string.IsNullOrWhiteSpace(items) ? [] : (JsonSerializer.Deserialize<JsonElement[]>(items) ?? [])
+            .Where(item => item.TryGetProperty("kind", out var kind) && kind.GetString() == "app")
+            .TakeLast(6).ToArray();
     }
 
     public static async Task ComposeHome(DigitalBrainConnection brain, string itemsJson)
