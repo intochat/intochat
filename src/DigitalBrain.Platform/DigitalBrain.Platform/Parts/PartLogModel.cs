@@ -39,18 +39,37 @@ public sealed class LogSegment
     [Id(2)] public MeshRef? Prev { get; set; }
 }
 
-[GenerateSerializer, Alias("platform.parts.snapshot")]
-public sealed class PartSnapshot
+// Ledger 38: a part snapshot is one object the head names (PartSegments.SnapshotId). It carries its records and
+// recent signals inline while it fits SnapshotChunkBytes; larger snapshots keep only the chunk refs, because one
+// sealed mesh segment is capped at DataShards x MaxShardBytes (128 MiB by default). RecordChunks/SignalChunks are
+// empty exactly when the inline arrays are authoritative.
+[GenerateSerializer, Alias("platform.parts.snapshot-index")]
+public sealed class PartSnapshotIndex
 {
     [Id(0)] public long Seq { get; set; }
 
-    [Id(1)] public SnapshotRecord[] Records { get; set; } = [];
+    // The signal entries hold every signal after this seq; older ones went with the snapshot before.
+    [Id(1)] public long SignalsFrom { get; set; }
 
-    // The signal entries of the segments this snapshot replaced, so a reopened log still serves them.
-    [Id(2)] public LogEntry[] RecentSignals { get; set; } = [];
+    [Id(2)] public SnapshotRecord[] Records { get; set; } = [];
 
-    // RecentSignals holds every signal entry after this seq; older ones went with the snapshot before.
-    [Id(3)] public long SignalsFrom { get; set; }
+    [Id(3)] public LogEntry[] RecentSignals { get; set; } = [];
+
+    [Id(4)] public MeshRef[] RecordChunks { get; set; } = [];
+
+    [Id(5)] public MeshRef[] SignalChunks { get; set; } = [];
+}
+
+[GenerateSerializer, Alias("platform.parts.snapshot-records")]
+public sealed class PartRecordChunk
+{
+    [Id(0)] public SnapshotRecord[] Records { get; set; } = [];
+}
+
+[GenerateSerializer, Alias("platform.parts.snapshot-signals")]
+public sealed class PartSignalChunk
+{
+    [Id(0)] public LogEntry[] Entries { get; set; } = [];
 }
 
 [GenerateSerializer, Alias("platform.parts.snapshot-record")]
@@ -120,4 +139,8 @@ public static class PartSegments
     public static string SegmentId(PartId part, long firstSeq) => $"{part.Value}/log/{firstSeq}";
 
     public static string SnapshotId(PartId part, long seq) => $"{part.Value}/snapshot/{seq}";
+
+    public static string RecordChunkId(PartId part, long seq, int index) => $"{part.Value}/snapshot/{seq}/records/{index}";
+
+    public static string SignalChunkId(PartId part, long seq, int index) => $"{part.Value}/snapshot/{seq}/signals/{index}";
 }

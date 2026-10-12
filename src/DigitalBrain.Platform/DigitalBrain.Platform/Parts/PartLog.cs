@@ -39,6 +39,8 @@ internal sealed class PartLog : IAsyncDisposable
     private readonly List<LogEntry> _since = [];
     // The segments this log wrote or replayed since the snapshot: what the next snapshot replaces and discards.
     private readonly List<MeshRef> _chain = [];
+    // The chunk refs of the snapshot the head currently names (records then signals), which the next snapshot discards.
+    private readonly List<MeshRef> _chunks = [];
     // Only while opening: the accepted entries a journal is checked against.
     private readonly Dictionary<long, LogEntry> _replayed = [];
     private readonly List<Pending> _queue = [];
@@ -242,12 +244,30 @@ internal sealed class PartLog : IAsyncDisposable
     private async Task Replay(CancellationToken ct)
     {
         var payload = _lease.Payload;
-        if (payload.Snapshot is { } snapshotRef)
+        if (payload.Snapshot is { } indexRef)
         {
-            var snapshot = _serializer.Deserialize<PartSnapshot>(await _mesh.Read(_key, snapshotRef, ct))!;
-            foreach (var record in snapshot.Records) { _records[(record.GrainId, record.StateName)] = new StoredRecord(record.Record, record.ETagSeq); }
-            _since.AddRange(Readable(snapshot.RecentSignals, $"snapshot {snapshotRef} at seq {snapshot.Seq}"));
-            _signalsFloor = snapshot.SignalsFrom;
+            var index = _serializer.Deserialize<PartSnapshotIndex>(await _mesh.Read(_key, indexRef, ct))!;
+            if (index.RecordChunks.Length == 0)
+            {
+                foreach (var record in index.Records) { _records[(record.GrainId, record.StateName)] = new StoredRecord(record.Record, record.ETagSeq); }
+                _since.AddRange(Readable(index.RecentSignals, $"snapshot {indexRef} at seq {index.Seq}"));
+            }
+            else
+            {
+                foreach (var chunkRef in index.RecordChunks)
+                {
+                    var chunk = _serializer.Deserialize<PartRecordChunk>(await _mesh.Read(_key, chunkRef, ct))!;
+                    foreach (var record in chunk.Records) { _records[(record.GrainId, record.StateName)] = new StoredRecord(record.Record, record.ETagSeq); }
+                }
+                foreach (var chunkRef in index.SignalChunks)
+                {
+                    var chunk = _serializer.Deserialize<PartSignalChunk>(await _mesh.Read(_key, chunkRef, ct))!;
+                    _since.AddRange(Readable(chunk.Entries, $"signal chunk {chunkRef} of snapshot {indexRef}"));
+                }
+                _chunks.AddRange(index.RecordChunks);
+                _chunks.AddRange(index.SignalChunks);
+            }
+            _signalsFloor = index.SignalsFrom;
         }
         var segments = new List<(MeshRef Ref, LogSegment Segment)>();
         for (var reference = payload.Head; reference is not null;)
@@ -536,12 +556,31 @@ internal sealed class PartLog : IAsyncDisposable
                 recent = [.. _since.Where(e => e.Seq > payload.SnapshotSeq && e.Seq <= payload.LastSeq)];
             }
         }
-        var snapshot = new PartSnapshot { Seq = payload.LastSeq, Records = records, RecentSignals = recent, SignalsFrom = payload.SnapshotSeq };
+        // The snapshot is chunked so no single segment approaches the mesh's per-segment cap (ledger 38).
         var replacedKey = _key;
+        var writeKey = rekey ?? _key;
+        var previousChunks = _chunks.ToArray();
+        // Inline while it fits one chunk; chunk only a snapshot larger than SnapshotChunkBytes so small parts keep
+        // the single-object shape (and its repair path) and no part can exceed the segment cap.
+        var chunked = records.Sum(record => (long)record.Record.Length + 64) + recent.Sum(SizeOf) > _options.SnapshotChunkBytes;
+        MeshRef[] recordChunks = [];
+        MeshRef[] signalChunks = [];
         MeshRef reference;
-        var plaintext = _serializer.SerializeToArray(snapshot);
-        try { reference = await _mesh.Write(rekey ?? _key, PartSegments.SnapshotId(_part, payload.LastSeq), plaintext); }
-        catch (Exception error) when (error is not OperationCanceledException) { throw new SnapshotNotWrittenException(_part, plaintext.Length, error); }
+        try
+        {
+            var index = new PartSnapshotIndex { Seq = payload.LastSeq, SignalsFrom = payload.SnapshotSeq, Records = records, RecentSignals = recent };
+            if (chunked)
+            {
+                recordChunks = await WriteRecordChunks(writeKey, payload.LastSeq, records);
+                signalChunks = await WriteSignalChunks(writeKey, payload.LastSeq, recent);
+                index = new PartSnapshotIndex { Seq = payload.LastSeq, SignalsFrom = payload.SnapshotSeq, RecordChunks = recordChunks, SignalChunks = signalChunks };
+            }
+            reference = await _mesh.Write(writeKey, PartSegments.SnapshotId(_part, payload.LastSeq), _serializer.SerializeToArray(index));
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            throw new SnapshotNotWrittenException(_part, (int)Math.Min(int.MaxValue, records.Sum(r => (long)r.Record.Length) + recent.Sum(SizeOf)), error);
+        }
         var head = new HeadPayload
         {
             Head = null, Snapshot = reference, SnapshotSeq = payload.LastSeq, LastSeq = payload.LastSeq, SegmentsSinceSnapshot = 0, Writers = payload.Writers,
@@ -554,6 +593,11 @@ internal sealed class PartLog : IAsyncDisposable
             // Changes journaled meanwhile are sealed again with the rest; they commit under the new key.
             lock (_queue) { (_key, _journal) = (rekey, _journal?.Rekeyed(rekey)); }
         }
+        // The head now names the new index: its chunks are what a later snapshot discards. Chunks written by a
+        // snapshot whose commit failed above are unreferenced (no reachability sweep exists today, ledger 38 D5).
+        _chunks.Clear();
+        _chunks.AddRange(recordChunks);
+        _chunks.AddRange(signalChunks);
         // Only refs of this log's own replaced chain are discarded, never one a read repaired (ruling R7): MeshStore
         // shares shards between a repaired ref and its original. Open has no repair path today.
         // Serve exactly what a reopen from this snapshot would: signals after the previous snapshot's seq.
@@ -562,7 +606,7 @@ internal sealed class PartLog : IAsyncDisposable
             _since.RemoveAll(e => e.Seq <= payload.SnapshotSeq);
             _signalsFloor = Math.Max(_signalsFloor, payload.SnapshotSeq);
         }
-        MeshRef[] replaced = [.. payload.Snapshot is { } previous ? [previous] : Array.Empty<MeshRef>(), .. _chain];
+        MeshRef[] replaced = [.. payload.Snapshot is { } previous ? [previous] : Array.Empty<MeshRef>(), .. previousChunks, .. _chain];
         _chain.Clear();
         foreach (var old in replaced)
         {
@@ -570,6 +614,56 @@ internal sealed class PartLog : IAsyncDisposable
             catch (Exception error) { _logger.LogWarning(error, "Part {Part} could not discard {Segment} after its snapshot at seq {Seq}.", _part, old.SegmentId, payload.LastSeq); }
         }
     }
+
+    // Ledger 38: records are grouped into chunks of at most SnapshotChunkBytes so the segment each becomes stays
+    // far below DataShards x MaxShardBytes. A single record always forms its own chunk (MaxChangeBytes bounds one).
+    private async Task<MeshRef[]> WriteRecordChunks(byte[] key, long seq, SnapshotRecord[] records)
+    {
+        var chunks = new List<MeshRef>();
+        var batch = new List<SnapshotRecord>();
+        long bytes = 0;
+        foreach (var record in records)
+        {
+            var size = (long)record.Record.Length + 64;
+            if (batch.Count > 0 && bytes + size > _options.SnapshotChunkBytes)
+            {
+                chunks.Add(await WriteRecordChunk(key, seq, chunks.Count, batch));
+                batch.Clear();
+                bytes = 0;
+            }
+            batch.Add(record);
+            bytes += size;
+        }
+        if (batch.Count > 0) { chunks.Add(await WriteRecordChunk(key, seq, chunks.Count, batch)); }
+        return [.. chunks];
+    }
+
+    private Task<MeshRef> WriteRecordChunk(byte[] key, long seq, int index, List<SnapshotRecord> records) =>
+        _mesh.Write(key, PartSegments.RecordChunkId(_part, seq, index), _serializer.SerializeToArray(new PartRecordChunk { Records = [.. records] }));
+
+    private async Task<MeshRef[]> WriteSignalChunks(byte[] key, long seq, LogEntry[] entries)
+    {
+        var chunks = new List<MeshRef>();
+        var batch = new List<LogEntry>();
+        long bytes = 0;
+        foreach (var entry in entries)
+        {
+            var size = SizeOf(entry);
+            if (batch.Count > 0 && bytes + size > _options.SnapshotChunkBytes)
+            {
+                chunks.Add(await WriteSignalChunk(key, seq, chunks.Count, batch));
+                batch.Clear();
+                bytes = 0;
+            }
+            batch.Add(entry);
+            bytes += size;
+        }
+        if (batch.Count > 0) { chunks.Add(await WriteSignalChunk(key, seq, chunks.Count, batch)); }
+        return [.. chunks];
+    }
+
+    private Task<MeshRef> WriteSignalChunk(byte[] key, long seq, int index, List<LogEntry> entries) =>
+        _mesh.Write(key, PartSegments.SignalChunkId(_part, seq, index), _serializer.SerializeToArray(new PartSignalChunk { Entries = [.. entries] }));
 
     // T26-5: a rotated circle part key re-seals the part: its committed state as one snapshot and the head under the new
     // key, and the journal with them. Nothing written after this opens under the old key; what the old key sealed stays
@@ -596,7 +690,7 @@ internal sealed class PartLog : IAsyncDisposable
     internal async Task<(MeshRef? Snapshot, MeshRef[] Chain)> Reached()
     {
         await _flushing.WaitAsync();
-        try { return (_lease.Payload.Snapshot, [.. _chain]); }
+        try { return (_lease.Payload.Snapshot, [.. _chunks, .. _chain]); }
         finally { _flushing.Release(); }
     }
 
@@ -608,7 +702,9 @@ internal sealed class PartLog : IAsyncDisposable
         await _flushing.WaitAsync();
         try
         {
-            var reached = _lease.Payload.Snapshot?.ManifestCid == reference.ManifestCid || _chain.Any(chained => chained.ManifestCid == reference.ManifestCid);
+            var reached = _lease.Payload.Snapshot?.ManifestCid == reference.ManifestCid
+                || _chunks.Any(chunk => chunk.ManifestCid == reference.ManifestCid)
+                || _chain.Any(chained => chained.ManifestCid == reference.ManifestCid);
             return reached ? (true, await act()) : (false, default);
         }
         finally { _flushing.Release(); }

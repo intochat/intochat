@@ -178,8 +178,12 @@ public sealed class MeshAuditorFacts
                 Assert.NotNull(await shards.Get(shard.NodeId, shard.Cid, ct));
             }
             foreach (var node in old.ManifestNodes.Except(repaired.ManifestNodes)) { Assert.Null(await shards.Get(node, old.ManifestCid, ct)); }
-            Assert.Equal([1], p.Services.GetRequiredService<Orleans.Serialization.Serializer>()
-                .Deserialize<PartSnapshot>(await p.Services.GetRequiredService<IMeshStore>().Read(log.Key, repaired, ct))!.Records.Single().Record);
+            var mesh = p.Services.GetRequiredService<IMeshStore>();
+            var serializer = p.Services.GetRequiredService<Orleans.Serialization.Serializer>();
+            var index = serializer.Deserialize<PartSnapshotIndex>(await mesh.Read(log.Key, repaired, ct))!;
+            var records = new List<SnapshotRecord>(index.Records);
+            foreach (var chunk in index.RecordChunks) { records.AddRange(serializer.Deserialize<PartRecordChunk>(await mesh.Read(log.Key, chunk, ct))!.Records); }
+            Assert.Equal([1], records.Single().Record);
             Assert.Equal(1, log.Head.AuditRound);
         }
         finally { await Stop(p, v, z, y, x, trust); }

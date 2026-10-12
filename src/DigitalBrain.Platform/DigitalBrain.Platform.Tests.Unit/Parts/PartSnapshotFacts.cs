@@ -80,8 +80,8 @@ public sealed class PartSnapshotFacts
         Assert.NotNull(lease.Payload.Snapshot);
         await Assert.ThrowsAsync<ServiceUnavailableException>(() => mesh.Read(key, first, ct));
         await Assert.ThrowsAsync<ServiceUnavailableException>(() => mesh.Read(key, second, ct));
-        var snapshot = serializer.Deserialize<PartSnapshot>(await mesh.Read(key, lease.Payload.Snapshot!, ct))!;
-        Assert.Equal(3, snapshot.Seq);
+        var index = serializer.Deserialize<PartSnapshotIndex>(await mesh.Read(key, lease.Payload.Snapshot!, ct))!;
+        Assert.Equal(3, index.Seq);
     }
 
     [Fact(Timeout = 60_000)]
@@ -175,11 +175,103 @@ public sealed class PartSnapshotFacts
         await mesh.Entered(PartSegments.SegmentId(part, 2)).WaitAsync(ct);
 
         Assert.Equal(1, lease.Payload.SnapshotSeq);
-        var snapshot = serializer.Deserialize<PartSnapshot>(await mesh.Read(key, lease.Payload.Snapshot!, ct))!;
-        Assert.Equal(["g1"], snapshot.Records.Select(r => r.GrainId));
+        var records = await ReadRecordsAsync(mesh, serializer, key, lease.Payload.Snapshot!, ct);
+        Assert.Equal(["g1"], records.Select(r => r.GrainId));
         Assert.Equal([2], log.Read("g2", "s")!.Record);
         mesh.Release(PartSegments.SegmentId(part, 2));
         await log.Flushed();
+    }
+
+    [Fact(Timeout = 60_000)]
+    public async Task ASnapshotLargerThanOneChunkIsSplitAndReopens()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await PartLogFacts.StartAsync(ct);
+        var part = PartId.ForApp("home", "notes");
+        var key = RandomNumberGenerator.GetBytes(32);
+        using var machine = SequencerFacts.Machine();
+        var serializer = brain.Services.GetRequiredService<Serializer>();
+        var mesh = brain.Services.GetRequiredService<IMeshStore>();
+        var options = Options(snapshotEvery: 1);
+        options.SnapshotChunkBytes = 256;
+        var (log, lease) = await OpenAsync(brain, part, key, machine, options, ct);
+        await using var _ = log;
+
+        for (var i = 0; i < 16; i++) { await log.Append($"g{i}", "s", RecordChange.Write, new byte[64], []); }
+        await log.Flushed();
+
+        var index = await ReadIndexAsync(mesh, serializer, key, lease.Payload.Snapshot!, ct);
+        Assert.True(index.RecordChunks.Length > 1, $"expected several record chunks, got {index.RecordChunks.Length}");
+        Assert.Equal(16, index.Seq);
+
+        var (reopened, _) = await OpenAsync(brain, part, key, machine, options, ct);
+        await using var __ = reopened;
+        for (var i = 0; i < 16; i++) { Assert.Equal(64, reopened.Read($"g{i}", "s")!.Record.Length); }
+    }
+
+    [Fact(Timeout = 60_000)]
+    public async Task EverySnapshotChunkIsReached()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await PartLogFacts.StartAsync(ct);
+        var part = PartId.ForApp("home", "notes");
+        var key = RandomNumberGenerator.GetBytes(32);
+        using var machine = SequencerFacts.Machine();
+        var serializer = brain.Services.GetRequiredService<Serializer>();
+        var mesh = brain.Services.GetRequiredService<IMeshStore>();
+        var options = Options(snapshotEvery: 1);
+        options.SnapshotChunkBytes = 256;
+        var (log, lease) = await OpenAsync(brain, part, key, machine, options, ct);
+        await using var _ = log;
+
+        for (var i = 0; i < 16; i++) { await log.Append($"g{i}", "s", RecordChange.Write, new byte[64], []); }
+        await log.Flushed();
+
+        var index = await ReadIndexAsync(mesh, serializer, key, lease.Payload.Snapshot!, ct);
+        Assert.NotEmpty(index.RecordChunks);
+        var (_, chain) = await log.Reached();
+        foreach (var chunk in index.RecordChunks) { Assert.Contains(chain, reference => reference.ManifestCid == chunk.ManifestCid); }
+    }
+
+    [Fact(Timeout = 60_000)]
+    public async Task ChunksOfAReplacedSnapshotAreDiscarded()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await PartLogFacts.StartAsync(ct);
+        var part = PartId.ForApp("home", "notes");
+        var key = RandomNumberGenerator.GetBytes(32);
+        using var machine = SequencerFacts.Machine();
+        var serializer = brain.Services.GetRequiredService<Serializer>();
+        var mesh = brain.Services.GetRequiredService<IMeshStore>();
+        var options = Options(snapshotEvery: 1);
+        options.SnapshotChunkBytes = 256;
+        var (log, lease) = await OpenAsync(brain, part, key, machine, options, ct);
+        await using var _ = log;
+
+        for (var i = 0; i < 16; i++) { await log.Append($"g{i}", "s", RecordChange.Write, new byte[64], []); }
+        await log.Flushed();
+        var first = lease.Payload.Snapshot!;
+        var firstChunks = (await ReadIndexAsync(mesh, serializer, key, first, ct)).RecordChunks;
+        Assert.NotEmpty(firstChunks);
+
+        for (var i = 16; i < 32; i++) { await log.Append($"g{i}", "s", RecordChange.Write, new byte[64], []); }
+        await log.Flushed();
+        Assert.NotEqual(first, lease.Payload.Snapshot);
+
+        foreach (var chunk in firstChunks) { await Assert.ThrowsAsync<ServiceUnavailableException>(() => mesh.Read(key, chunk, ct)); }
+    }
+
+    private static async Task<PartSnapshotIndex> ReadIndexAsync(IMeshStore mesh, Serializer serializer, byte[] key, MeshRef indexRef, CancellationToken ct) =>
+        serializer.Deserialize<PartSnapshotIndex>(await mesh.Read(key, indexRef, ct))!;
+
+    private static async Task<SnapshotRecord[]> ReadRecordsAsync(IMeshStore mesh, Serializer serializer, byte[] key, MeshRef indexRef, CancellationToken ct)
+    {
+        var index = await ReadIndexAsync(mesh, serializer, key, indexRef, ct);
+        if (index.RecordChunks.Length == 0) { return index.Records; }
+        var records = new List<SnapshotRecord>();
+        foreach (var chunkRef in index.RecordChunks)
+        { records.AddRange(serializer.Deserialize<PartRecordChunk>(await mesh.Read(key, chunkRef, ct))!.Records); }
+        return [.. records];
     }
 
     // Holds each segment write until released, and tells when a write arrived.

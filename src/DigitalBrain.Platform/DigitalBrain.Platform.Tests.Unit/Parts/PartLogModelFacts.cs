@@ -33,13 +33,17 @@ public sealed class PartLogModelFacts
         await using var brain = await TestBrain.Create().StartAsync(ct);
         var serializer = brain.Services.GetRequiredService<Serializer>();
         var head = new HeadPayload { Snapshot = new MeshRef("p/snapshot/9", "sha256:bb", ["n1"]), SnapshotSeq = 9, LastSeq = 12, SegmentsSinceSnapshot = 2 };
-        var snapshot = new PartSnapshot { Seq = 9, Records = [new SnapshotRecord { GrainId = "g", StateName = "s", Record = [2], ETagSeq = 7 }] };
+        var index = new PartSnapshotIndex { Seq = 9, SignalsFrom = 8, RecordChunks = [new MeshRef("p/snapshot/9/records/0", "sha256:cc", ["n2"])] };
+        var chunk = new PartRecordChunk { Records = [new SnapshotRecord { GrainId = "g", StateName = "s", Record = [2], ETagSeq = 7 }] };
 
         var headBack = serializer.Deserialize<HeadPayload>(serializer.SerializeToArray(head))!;
-        var snapshotBack = serializer.Deserialize<PartSnapshot>(serializer.SerializeToArray(snapshot))!;
+        var indexBack = serializer.Deserialize<PartSnapshotIndex>(serializer.SerializeToArray(index))!;
+        var chunkBack = serializer.Deserialize<PartRecordChunk>(serializer.SerializeToArray(chunk))!;
 
         Assert.Equal((9L, 12L, 2), (headBack.SnapshotSeq, headBack.LastSeq, headBack.SegmentsSinceSnapshot));
-        Assert.Equal(7L, Assert.Single(snapshotBack.Records).ETagSeq);
+        Assert.Equal(8L, indexBack.SignalsFrom);
+        Assert.Equal("p/snapshot/9/records/0", Assert.Single(indexBack.RecordChunks).SegmentId);
+        Assert.Equal(7L, Assert.Single(chunkBack.Records).ETagSeq);
     }
 }
 

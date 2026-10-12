@@ -38,6 +38,10 @@ public sealed class PartsOptions
 
     public int SnapshotEvery { get; set; } = 64;
 
+    // Ledger 38: a snapshot is split into chunks no larger than this (serialized records/signals), so no single
+    // mesh segment approaches DataShards x MaxShardBytes. 8 MiB here becomes ~1 MiB shards by default.
+    public int SnapshotChunkBytes { get; set; } = 8 * 1024 * 1024;
+
     // Shared by every machine of one deployment (R52): a second machine joins an account only with it.
     public string? PairingSecret { get; set; }
 
@@ -68,6 +72,7 @@ public sealed class PartsOptions
         { throw new InvalidOperationException("Parts needs positive leases, renewal margin and batch delay."); }
         if (QuietFor <= TimeSpan.Zero) { throw new InvalidOperationException("Parts needs a positive QuietFor."); }
         if (BatchBytes < 1 || SnapshotEvery < 1 || MaxChangeBytes < 1) { throw new InvalidOperationException("Parts needs positive BatchBytes, MaxChangeBytes and SnapshotEvery."); }
+        if (SnapshotChunkBytes < 1) { throw new InvalidOperationException("Parts needs a positive SnapshotChunkBytes."); }
         if (RenewBefore >= ShortLease) { throw new InvalidOperationException("Parts needs RenewBefore shorter than ShortLease."); }
     }
 }
