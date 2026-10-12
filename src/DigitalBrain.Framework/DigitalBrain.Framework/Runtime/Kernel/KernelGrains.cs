@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Options;
+
 namespace DigitalBrain.Framework;
 
 // One partition of the instance directory: every instance of one grain type in one brain, keyed
@@ -30,6 +32,7 @@ internal static class InstanceDirectoryKey
 [GrainType("kernel.instances")]
 internal sealed class InstanceDirectoryGrain(
     [PersistentState("instances", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<InstanceDirectoryGrain.State> store,
+    IOptions<InstanceDirectoryOptions> options,
     TimeProvider time) : Grain, IInstanceDirectory
 {
     [GenerateSerializer, Alias("kernel.instances.state")]
@@ -46,10 +49,32 @@ internal sealed class InstanceDirectoryGrain(
         if (!BrainKey.BelongsTo(key, Brain)) { throw new ArgumentException($"'{key}' is not in brain '{Brain}'.", nameof(key)); }
         if (store.State.Entries.Any(entry => entry.Key == key)) { return; }
         var first = store.State.Entries.Length == 0;
-        store.State.Entries = [.. store.State.Entries, new Instance(Type, key, time.GetUtcNow(), creator)];
+        var entries = new List<Instance>(store.State.Entries) { new(Type, key, time.GetUtcNow(), creator) };
+        // Ledger 38: keep the directory bounded — drop the oldest entries that are not currently active once a
+        // type exceeds the limit, so ephemeral neurons do not accumulate in the brain's core without bound.
+        if (entries.Count > options.Value.Limit)
+        {
+            var active = await ActiveKeys();
+            var over = entries.Count - options.Value.Limit;
+            var kept = new List<Instance>(entries.Count);
+            foreach (var entry in entries.OrderBy(entry => entry.Created))
+            {
+                if (over > 0 && !active.Contains(entry.Key)) { over--; continue; }
+                kept.Add(entry);
+            }
+            entries = kept;
+        }
+        store.State.Entries = [.. entries];
         await store.WriteStateAsync();
         if (first) { await GrainFactory.GetGrain<IInstanceTypes>(Brain).Add(Type); }
         Announce(new InstanceCreated(Type, key));
+    }
+
+    // The live instances of this directory's type in its brain: compaction never drops these.
+    private async Task<HashSet<string>> ActiveKeys()
+    {
+        var active = await GrainFactory.GetGrain<IManagementGrain>(0).GetActiveGrains(GrainType.Create(Type));
+        return [.. active.Select(id => id.Key.ToString()!).Where(key => BrainKey.BelongsTo(key, Brain))];
     }
 
     public async Task Retire(string key)

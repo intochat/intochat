@@ -36,6 +36,9 @@ public static class BrainHosting
         silo.Services.TryAddSingleton<IKernelView>(sp => sp.GetRequiredService<Kernel>());
         silo.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IActivationHandler<BrainNeuron>, BrainActivation>());
         silo.Services.AddOptions<ObserverOptions>().Validate(options => options.Lease > TimeSpan.Zero, "Observer lease must be positive.").ValidateOnStart();
+        // Ledger 38: bound each "{brain}/{type}" instance directory so a brain's core does not grow without bound.
+        silo.Services.AddOptions<InstanceDirectoryOptions>().BindConfiguration(InstanceDirectoryOptions.Key)
+            .Validate(options => options.Limit > 0, "The instance directory limit must be positive.").ValidateOnStart();
         silo.Configure<GrainVersioningOptions>(options =>
         {
             options.DefaultCompatibilityStrategy = nameof(BackwardCompatible);

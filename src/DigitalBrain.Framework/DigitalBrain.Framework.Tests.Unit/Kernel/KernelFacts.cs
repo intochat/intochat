@@ -93,6 +93,30 @@ public sealed class KernelFacts
     }
 
     [Fact]
+    public async Task TheDirectoryCompactsTheOldestInactiveEntriesWhenATypeExceedsItsLimit()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create()
+            .ConfigureServices(services => services.Configure<InstanceDirectoryOptions>(options => options.Limit = 4))
+            .StartAsync(ct);
+        var alice = await brain.PersonAsync("alice", ct);
+        using var caller = alice.AsCaller();
+        var first = brain.Get<ILedger>(alice.Key("ledger/1"));
+        await first.Set(1);
+        await brain.DeactivateAsync(first, ct);
+        var second = brain.Get<ILedger>(alice.Key("ledger/2"));
+        await second.Set(2);
+        await brain.DeactivateAsync(second, ct);
+
+        for (var i = 3; i <= 6; i++) { await brain.Get<ILedger>(alice.Key($"ledger/{i}")).Set(i); }
+
+        var listed = await Instances(brain, "test-ledger", ct);
+        Assert.Equal(4, listed.Count);
+        Assert.DoesNotContain(listed, instance => instance.Key is var key && (key == alice.Key("ledger/1") || key == alice.Key("ledger/2")));
+        Assert.Contains(listed, instance => instance.Key == alice.Key("ledger/6"));
+    }
+
+    [Fact]
     public async Task RetireDropsTheEntryOnlyInTheCallersBrain()
     {
         var ct = TestContext.Current.CancellationToken;
