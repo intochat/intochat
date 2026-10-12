@@ -1,7 +1,7 @@
 # One workspace, app-owned presentations
 
 Date: 2026-10-12
-Status: conversational design approved; written spec awaiting review.
+Status: written spec approved on 2026-10-12; implementation planning in progress.
 Scope: presentation discovery and hosting for Ino, Assistant, ordinary apps, and Creator-generated apps. No implementation is included.
 
 This supersedes the top-level Stage ownership and scene-only navigation portions of `2026-10-11-flame-stage-design.md`. Its typed scene boundary and connector rendering remain valid.
