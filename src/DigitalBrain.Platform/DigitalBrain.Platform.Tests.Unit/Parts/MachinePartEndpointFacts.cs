@@ -40,4 +40,29 @@ public sealed class MachinePartEndpointFacts
         var theirs = Uri.EscapeDataString(PartId.ForApp(alice.BrainId, "counter").Value);
         Assert.Equal(HttpStatusCode.Forbidden, (await http.PostAsync($"/machine/parts/{theirs}/release", null, ct)).StatusCode);
     }
+
+    [Fact]
+    public async Task TheOwnerReadsAPartsSummaryGroupedByGrainTypeAndState()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<PulseModule>().AsMachine().StartAsync(ct);
+        var owner = brain.Owner;
+        var first = owner.Key("apps/counter/c1");
+        var second = owner.Key("apps/counter/c2");
+        var part = PartId.Of(first);
+        using (owner.AsCaller())
+        {
+            await brain.Get<IPulse>(first).Pulse(1);
+            await brain.Get<IPulse>(second).Pulse(2);
+        }
+
+        var read = await owner.Http.GetAsync($"/machine/parts/{Uri.EscapeDataString(part.Value)}/summary", ct);
+        Assert.Equal(HttpStatusCode.OK, read.StatusCode);
+        var summary = JsonDocument.Parse(await read.Content.ReadAsStringAsync(ct)).RootElement;
+        Assert.Equal(2, summary.GetProperty("records").GetInt32());
+        Assert.True(summary.GetProperty("bytes").GetInt64() > 0);
+        var group = Assert.Single(summary.GetProperty("groups").EnumerateArray());
+        Assert.Equal(2, group.GetProperty("count").GetInt32());
+        Assert.True(group.GetProperty("bytes").GetInt64() > 0);
+    }
 }

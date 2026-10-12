@@ -16,6 +16,35 @@ internal static class MachinePartEndpoints
     {
         routes.MapPost("/machine/parts/{part}/release", ReleaseAsync);
         routes.MapGet("/machine/parts/{part}/records/{key}", RecordsAsync);
+        routes.MapGet("/machine/parts/{part}/summary", SummaryAsync);
+    }
+
+    // Ledger 38 diagnosis: what one part holds, grouped by grain type and state, so a part too large to
+    // snapshot can be attributed to the records that dominate it.
+    private static async Task<IResult> SummaryAsync(string part, HttpContext http, CancellationToken ct)
+    {
+        if (http.RequestServices.GetService<PartLogs>() is not { } logs) { return Results.NotFound(); }
+        if (await Refusal(http, part) is { } refused) { return refused; }
+        var id = Parse(part);
+        if (!logs.Opened.Contains(id)) { return Results.Conflict(new { error = $"This machine does not hold part {id}." }); }
+        var log = await logs.For(id).WaitAsync(ct);
+        var all = log.Records();
+        var groups = all
+            .GroupBy(record =>
+            {
+                var type = GrainId.TryParse(record.GrainId, out var grain) ? grain.Type.ToString() : "?";
+                return (Type: type, record.StateName);
+            })
+            .Select(group => new
+            {
+                type = group.Key.Type,
+                state = group.Key.StateName,
+                count = group.Count(),
+                bytes = group.Sum(record => (long)record.Record.Record.Length),
+            })
+            .OrderByDescending(entry => entry.bytes)
+            .ToArray();
+        return Results.Ok(new { part = id.Value, records = all.Length, bytes = groups.Sum(entry => entry.bytes), groups });
     }
 
     private static async Task<IResult> ReleaseAsync(string part, HttpContext http, CancellationToken ct)
