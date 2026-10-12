@@ -77,7 +77,7 @@ internal sealed class ForwardedCallEndpoint(PartRoutes routes, PartLogs logs, IS
         // chosen connection's credential can be opened and re-sealed under the circle's key. Only a contributed
         // machine, for a member of that same circle, is admitted; the caller still stands as a member.
         var relayed = caller is not null && CallerContextStamper.IsTrusted(caller) && !accounts.Contains(caller.AccountId, StringComparer.Ordinal)
-            && await Relayed(link, caller);
+            && await Relayed(link, caller, part);
         if (caller is not null && !(CallerContextStamper.IsTrusted(caller) && (caller.BrainId == part.BrainId || bound || relayed)))
         { throw new UnauthorizedAccessException($"A call forwarded by machine {link.RemoteMachineId} carries no trusted caller stamp for brain {part.BrainId}."); }
         if (caller is not null && !accounts.Contains(caller.AccountId, StringComparer.Ordinal) && !relayed)
@@ -137,12 +137,15 @@ internal sealed class ForwardedCallEndpoint(PartRoutes routes, PartLogs logs, IS
 
     // R128/R130: the relay a circle's holder makes for one of its members: the forwarding machine is contributed to a
     // circle brain the caller is a member of. The holder then serves the member's own brain on the member's behalf.
-    private async Task<bool> Relayed(QuicMachineLink link, CallerContext caller)
+    private async Task<bool> Relayed(QuicMachineLink link, CallerContext caller, PartId part)
     {
         if (caller.Kind is not (CallerKind.User or CallerKind.App)) { return false; }
         BrainEntry[] brains;
         try { brains = await identity.BrainsOf(caller.PrincipalId); }
         catch (Exception error) when (error is not OperationCanceledException) { return false; }
+        // The member's own brain is the target: a relay never reaches a brain the caller is not in, so a contributed
+        // machine cannot use it to open Internal state of another account's brain.
+        if (!brains.Any(entry => entry.Id == part.BrainId)) { return false; }
         foreach (var brain in brains.Where(entry => entry.Kind == BrainKind.Circle))
         {
             if ((await identity.MachinesOf(brain.Id)).Contains(link.RemoteMachineId, StringComparer.Ordinal)
