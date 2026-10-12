@@ -387,6 +387,9 @@ class _NeuronViewState extends State<NeuronView> {
         );
       case 'chat':
         final projection = data['projection'] as Map? ?? const {};
+        final unreadIds = (data['unreadMessageIds'] as List? ?? const [])
+            .whereType<String>()
+            .toList();
         final transcript = UiChatTranscript(
           key: ValueKey('${projection['source']}:${projection['generation']}'),
           messages: [
@@ -402,6 +405,34 @@ class _NeuronViewState extends State<NeuronView> {
             .toList();
         return Column(
           children: [
+            if (unreadIds.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Wrap(
+                  spacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text('${unreadIds.length} unread'),
+                    TextButton(
+                      onPressed: enabled && widget.onAction != null
+                          ? () => unawaited(
+                              _dispatch({
+                                'kind': 'chat',
+                                'name': widget.name,
+                                'context': projection['source'],
+                                'revision': projection['generation'],
+                                'read': {
+                                  'version': projection['version'],
+                                  'messageIds': unreadIds,
+                                },
+                              }).catchError((Object _) {}),
+                            )
+                          : null,
+                      child: const Text('Mark read'),
+                    ),
+                  ],
+                ),
+              ),
             Expanded(child: transcript),
             if (actions.isNotEmpty)
               Padding(

@@ -8,5 +8,6 @@ await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 await foreach (var change in brain.On<TextFieldChanged>(brain.Get<ITextField>(appKey + "/filter"), brain.Stopping))
 {
-    await brain.Get<IApp>(appKey).Request("browse", (await brain.Get<IText>(appKey + "/navigation").Read()).Markdown);
+    var location = (await brain.Get<IText>(appKey + "/navigation").Read()).Markdown;
+    await brain.Get<IApp>(appKey).Request(await Machine.IsFolder(brain, location) ? "browse" : "read", location);
 }

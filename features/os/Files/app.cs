@@ -10,7 +10,9 @@ The file neuron at `{connection}/files` enforces that machine's allowed roots. B
 only through the chosen storage and allowed-root hierarchy. A name filter beside the listing
 narrows results before the 40-entry display limit; the surface reports when matching entries are
 omitted. Selection exposes an Open action. Opening an entry browses it when it can be listed,
-otherwise attempts a text preview. No rename, delete or cloud-drive capability is fabricated.
+otherwise attempts a text preview. Changing folders clears the previous location's name filter.
+The preview identifies the document in its heading and breadcrumbs; selecting a parent breadcrumb
+returns to browsing. No rename, delete or cloud-drive capability is fabricated.
 
 Reading a `.cs` file renders C# source; if its parent folder matches an installed app, that app's
 name, version, status and recent activity appear above it. Unavailable storage, empty folders,
@@ -23,7 +25,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "files";
-    public const string Version = "1.0.4";
+    public const string Version = "1.0.8";
 
     public static readonly AppManifest Manifest = new(
         Title: "Files",

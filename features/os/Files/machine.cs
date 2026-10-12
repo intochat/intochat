@@ -35,7 +35,7 @@ static class Machine
     }
 
     public static string Id(string connection, string path) =>
-        "location:" + Uri.EscapeDataString(connection) + "|" + Uri.EscapeDataString(path);
+        "location:" + Uri.EscapeDataString(connection) + "|" + Uri.EscapeDataString(path.Replace('/', '\\'));
 
     public static (string Connection, string Path)? Parse(string value)
     {
@@ -67,13 +67,26 @@ static class Machine
         catch (Exception) when (!brain.Stopping.IsCancellationRequested) { return false; }
     }
 
-    public static async Task Browse(DigitalBrainConnection brain, string input)
+    public static async Task Browse(DigitalBrainConnection brain, string input, string? document = null)
     {
         var appKey = brain.Setting("App")!;
         var listing = brain.Get<ICollectionView>(appKey + "/listing");
         var connections = await Connections(brain);
         var location = await Resolve(brain, input);
-        var filter = (await brain.Get<ITextField>(appKey + "/filter").Read()).Value;
+        var navigation = brain.Get<IText>(appKey + "/navigation");
+        var folder = location is { } selected ? Id(selected.Connection, selected.Path) : Storages;
+        var destination = document ?? folder;
+        var filterField = brain.Get<ITextField>(appKey + "/filter");
+        var filterState = await filterField.Read();
+        var previousLocation = (await navigation.Read()).Markdown;
+        if (previousLocation != destination && previousLocation != folder && filterState.Value.Length > 0)
+        {
+            // Filter changes are signals too; their refresh must target the new location.
+            await navigation.Set(destination);
+            await filterField.TrySetValue("", filterState.Version);
+            filterState = await filterField.Read();
+        }
+        var filter = filterState.Value;
         CollectionItem[] all;
         CollectionBreadcrumb[] breadcrumbs;
         if (location is not { } current)
@@ -110,14 +123,33 @@ static class Machine
             }
             breadcrumbs = crumbs.ToArray();
         }
-        var matching = all.Where(item => item.Label.Contains(filter, StringComparison.OrdinalIgnoreCase)).ToArray();
+        var matching = all.Where(item => item.Label.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(item => item.Label, StringComparer.OrdinalIgnoreCase).ToArray();
         var shown = matching.Take(MaxEntries).ToArray();
+        var content = matching.Length > shown.Length ? "Showing " + shown.Length + " of " + matching.Length + ". Narrow the name filter to find other entries." : "";
+        if (document is not null && Parse(document) is { } file)
+        {
+            breadcrumbs = [.. breadcrumbs, new(document, Label(file.Path))];
+            var heading = "## " + Label(file.Path).Replace("\r", "").Replace("\n", " ") + "\n\n";
+            try { content = heading + await Text(brain, document); }
+            catch (Exception) when (!brain.Stopping.IsCancellationRequested)
+            { content = heading + "This file could not be read as text. Choose a folder breadcrumb to continue browsing."; }
+        }
         var previous = await listing.Read();
-        await listing.Set(new(shown, Selection: shown.Any(item => item.Id == previous.Definition.Selection) ? previous.Definition.Selection : null,
+        var selection = document ?? previous.Definition.Selection;
+        await listing.Set(new(shown, Selection: shown.Any(item => item.Id == selection) ? selection : null,
             EmptyLabel: connections.Length == 0 ? NotConnected : filter.Length > 0 ? "No names match this filter." : "No files or allowed folders here.",
             Breadcrumbs: breadcrumbs), previous.Revision);
-        await brain.Get<IText>(appKey + "/navigation").Set(location is { } selected ? Id(selected.Connection, selected.Path) : Storages);
-        await brain.Get<IText>(appKey + "/content").Set(matching.Length > shown.Length ? "Showing " + shown.Length + " of " + matching.Length + ". Narrow the name filter to find other entries." : "");
+        await navigation.Set(destination);
+        await brain.Get<IText>(appKey + "/content").Set(content);
+    }
+
+    public static async Task Preview(DigitalBrainConnection brain, string input)
+    {
+        if (await Resolve(brain, input) is not { } file) { await Browse(brain, Storages); return; }
+        var separator = file.Path.LastIndexOfAny(['\\', '/']);
+        var parent = separator < 0 ? "" : file.Path[..(separator == 2 && file.Path[1] == ':' ? separator + 1 : separator)];
+        await Browse(brain, Id(file.Connection, parent), Id(file.Connection, file.Path));
     }
 
     static string Label(string path) => path.TrimEnd('\\', '/').Split('\\', '/').LastOrDefault() is { Length: > 0 } label ? label : path;

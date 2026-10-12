@@ -64,7 +64,13 @@ internal static class AppUiEndpoints
             switch (input.Kind)
             {
                 case UIVocabulary.ChatType:
-                    await brain.Get<IChat>(input.Name).Activate(input.Context ?? "", input.Revision, input.Action ?? "").WaitAsync(ct);
+                    var chat = brain.Get<IChat>(input.Name);
+                    if (input.Read is { } read)
+                    {
+                        if (input.Action is not null) { throw new ArgumentException("Choose a chat action or a read acknowledgement."); }
+                        await chat.MarkRead(input.Context ?? "", input.Revision, read.Version, read.MessageIds).WaitAsync(ct);
+                    }
+                    else { await chat.Activate(input.Context ?? "", input.Revision, input.Action ?? "").WaitAsync(ct); }
                     break;
                 case UIVocabulary.ComposerType:
                     var composer = brain.Get<IComposer>(input.Name);
@@ -141,6 +147,7 @@ internal static class AppUiEndpoints
     }
 
     internal sealed record UiEvent(string Kind, string Name, string? Action = null, string? Value = null, long Revision = 0, string? Field = null, string? MimeType = null,
-        string? Context = null, Guid? OperationId = null);
+        string? Context = null, Guid? OperationId = null, ChatReadInput? Read = null);
+    internal sealed record ChatReadInput(long Version, string[] MessageIds);
     private sealed record BrowserConnect(int Port, string SessionId);
 }

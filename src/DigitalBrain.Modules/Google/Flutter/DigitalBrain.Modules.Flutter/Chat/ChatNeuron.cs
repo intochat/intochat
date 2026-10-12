@@ -1,5 +1,7 @@
 using DigitalBrain.Framework;
 using Orleans.Runtime;
+using System.Security.Cryptography;
+using System.Text.Json;
 
 namespace DigitalBrain.Flutter.Chat;
 
@@ -40,7 +42,7 @@ internal sealed class ChatNeuron(
             }
         }
         var previous = store.State;
-        store.State = new()
+        store.State = previous with
         {
             Name = this.GetPrimaryKeyString(),
             Revision = checked(previous.Revision + 1),
@@ -68,7 +70,43 @@ internal sealed class ChatNeuron(
         await GrainFactory.GetGrain<IUiBinding>(this.GetPrimaryKeyString()).Dispatch(activated);
     }
 
-    public Task<ChatState> Read() => Task.FromResult(store.State.Projection is { Actions: null } legacy
-        ? store.State with { Projection = legacy with { Actions = [] } }
-        : store.State);
+    public async Task MarkRead(string source, long generation, long version, string[] messageIds)
+    {
+        var caller = CallerContextStamper.Require();
+        if (caller.Kind != CallerKind.User || CallerContextStamper.IsModelOriginated(caller))
+        { throw new UnauthorizedAccessException("Only a person can acknowledge an answer."); }
+        var projection = store.State.Projection;
+        if (projection is null || projection.Source != source || projection.Generation != generation || projection.Version != version)
+        { throw new InvalidOperationException("The transcript changed. Read it again before acknowledging answers."); }
+        ArgumentNullException.ThrowIfNull(messageIds);
+        if (messageIds.Length > 512 || messageIds.Any(id => !projection.Messages.Any(message =>
+            message.Id == id && message.Role == ChatRole.Assistant && message.Status == "completed")))
+        { throw new ArgumentException("Only completed answers in this transcript can be acknowledged."); }
+        var receipts = messageIds.Distinct(StringComparer.Ordinal).Select(id => new ChatReadReceipt(
+            caller.PrincipalId, source, id, ContentHash(projection.Messages.Single(message => message.Id == id)))).ToArray();
+        if (receipts.All(receipt => store.State.ReadReceipts.Contains(receipt))) { return; }
+        var previous = store.State;
+        store.State = previous with
+        {
+            Revision = checked(previous.Revision + 1),
+            ReadReceipts = [.. previous.ReadReceipts.Where(receipt => !receipts.Any(next =>
+                next.PrincipalId == receipt.PrincipalId && next.Source == receipt.Source && next.MessageId == receipt.MessageId)), .. receipts],
+        };
+        try { await store.WriteStateAsync(); }
+        catch { store.State = previous; throw; }
+        await PublishAsync(new ChatChanged(this.GetPrimaryKeyString(), store.State.Revision));
+    }
+
+    public Task<ChatState> Read()
+    {
+        var principal = CallerContextStamper.TryGet(out var caller) ? caller.PrincipalId : null;
+        var projection = store.State.Projection;
+        var unread = projection is null || principal is null ? [] : projection.Messages
+            .Where(message => message.Role == ChatRole.Assistant && message.Status == "completed"
+                && !store.State.ReadReceipts.Contains(new(principal, projection.Source, message.Id, ContentHash(message))))
+            .Select(message => message.Id).ToArray();
+        return Task.FromResult(store.State with { ReadReceipts = [], UnreadMessageIds = unread });
+    }
+
+    private static string ContentHash(ChatEntry message) => Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(message)));
 }

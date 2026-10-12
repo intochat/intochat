@@ -11,8 +11,7 @@ await foreach (var request in brain.On(app, "read", brain.Stopping))
 {
     try
     {
-
-        await brain.Get<IText>(appKey + "/content").Set(await Machine.Text(brain, request.Input));
+        await Machine.Preview(brain, request.Input);
     }
     catch (Exception) when (!brain.Stopping.IsCancellationRequested)
     { await brain.Get<IText>(appKey + "/content").Set("This file could not be read."); }

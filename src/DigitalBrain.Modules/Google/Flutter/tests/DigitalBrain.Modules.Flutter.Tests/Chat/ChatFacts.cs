@@ -1,10 +1,92 @@
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Chat;
+using DigitalBrain.Framework;
+using DigitalBrain.Framework.Platform.Identity;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Modules.Flutter.Tests.Chat;
 
 public sealed class ChatFacts
 {
+    [Fact]
+    public async Task ReadReceiptsBelongToTheStampedPersonAndModelCallsCannotAcknowledgeThem()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        using var scope = brain.Owner.AsCaller();
+        var original = CallerContextStamper.Require();
+        var chat = brain.Get<IChat>("owner/apps/chat/people");
+        await chat.Project(new("conversation", 1, 1, [new("a1", ChatRole.Assistant, "answer")]));
+        await chat.MarkRead("conversation", 1, 1, ["a1"]);
+        var identity = brain.Services.GetRequiredService<IIdentityClient>();
+        var member = (await identity.Membership("owner", "owner"))!;
+        await identity.EnsureMember(member with { PrincipalId = "second-person" });
+        CallerContextStamper.Stamp(original with { PrincipalId = "second-person" });
+        Assert.Equal(["a1"], (await chat.Read()).UnreadMessageIds);
+        Assert.Empty((await chat.Read()).ReadReceipts);
+        await chat.MarkRead("conversation", 1, 1, ["a1"]);
+        Assert.Empty((await chat.Read()).UnreadMessageIds);
+        CallerContextStamper.Stamp(original with { ConversationId = "model-conversation" });
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => chat.MarkRead("conversation", 1, 1, ["a1"]));
+        CallerContextStamper.Stamp(original);
+        await brain.DeactivateAsync(chat, ct);
+        Assert.Empty((await chat.Read()).UnreadMessageIds);
+    }
+
+    [Fact]
+    public async Task ExplicitReadAcknowledgementsSurviveReactivationAndDoNotHideNewOrChangedAnswers()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        using var caller = brain.Owner.AsCaller();
+        var chat = brain.Get<IChat>("owner/apps/chat/read-receipts");
+        var projection = new ChatProjection("conversation", 1, 1,
+            [new("u1", ChatRole.User, "hello"), new("a1", ChatRole.Assistant, "answer")]);
+        await chat.Project(projection);
+        Assert.Equal(["a1"], Unread(await chat.Read()));
+        await MarkRead(chat, "conversation", 1, 1, ["a1"]);
+        var revision = (await chat.Read()).Revision;
+        await MarkRead(chat, "conversation", 1, 1, ["a1"]);
+        Assert.Equal(revision, (await chat.Read()).Revision);
+        await brain.DeactivateAsync(chat, ct);
+        Assert.Empty(Unread(await chat.Read()));
+        await chat.Project(projection with { Version = 2, Messages = [.. projection.Messages, new("a2", ChatRole.Assistant, "next")] });
+        Assert.Equal(["a2"], Unread(await chat.Read()));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => MarkRead(chat, "conversation", 1, 1, ["a2"]));
+        await chat.Project(projection with { Version = 3, Messages = [new("a1", ChatRole.Assistant, "corrected")] });
+        Assert.Equal(["a1"], Unread(await chat.Read()));
+        await MarkRead(chat, "conversation", 1, 3, ["a1"]);
+        await chat.Project(new("other", 2, 1, [new("a1", ChatRole.Assistant, "corrected")]));
+        Assert.Equal(["a1"], Unread(await chat.Read()));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => MarkRead(chat, "conversation", 1, 3, ["a1"]));
+        await chat.Project(new("conversation", 3, 4, [new("a1", ChatRole.Assistant, "corrected")]));
+        Assert.Empty(Unread(await chat.Read()));
+    }
+
+    [Fact]
+    public async Task ReadAcknowledgementsCannotBeMadeByBehaviorsOrForUnfinishedAnswers()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        var chat = brain.Get<IChat>("owner/apps/chat/read-validation");
+        await chat.Project(new("conversation", 1, 1,
+            [new("a1", ChatRole.Assistant, "partial") { Status = "running" }, new("u1", ChatRole.User, "hello")]));
+        using (brain.Owner.AsCaller())
+        {
+            Assert.Empty(Unread(await chat.Read()));
+            await Assert.ThrowsAsync<ArgumentException>(() => MarkRead(chat, "conversation", 1, 1, ["a1"]));
+            await Assert.ThrowsAsync<ArgumentException>(() => MarkRead(chat, "conversation", 1, 1, ["unknown"]));
+            await Assert.ThrowsAsync<ArgumentException>(() => MarkRead(chat, "conversation", 1, 1, ["u1"]));
+        }
+        using (brain.Owner.AsApp("owner/apps/chat"))
+        { await Assert.ThrowsAsync<UnauthorizedAccessException>(() => MarkRead(chat, "conversation", 1, 1, [])); }
+    }
+
+    private static string[] Unread(ChatState state) => state.UnreadMessageIds;
+
+    private static Task MarkRead(IChat chat, string source, long generation, long version, string[] ids)
+        => chat.MarkRead(source, generation, version, ids);
+
     [Fact]
     public async Task ActionsSurviveReactivationAndStreamingAndDispatchCanonicalPayloads()
     {
