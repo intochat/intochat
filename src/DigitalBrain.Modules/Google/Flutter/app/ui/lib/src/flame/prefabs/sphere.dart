@@ -103,16 +103,25 @@ final class SphereVisual extends PositionComponent
 
   @override
   void render(ui.Canvas canvas) {
+    // HasPaint stores effect opacity in paint.color; render must leave it intact.
+    canvas.saveLayer(
+      null,
+      ui.Paint()..color = Color.fromRGBO(255, 255, 255, opacity),
+    );
     final center = (size / 2).toOffset();
     final radius = size.x / 2;
-    canvas.drawCircle(center, radius, paint..color = const Color(0xFF1B2A22));
+    canvas.drawCircle(
+      center,
+      radius,
+      ui.Paint()..color = const Color(0xFF1B2A22),
+    );
     canvas.drawCircle(
       center,
       radius,
       ui.Paint()
         ..style = ui.PaintingStyle.stroke
         ..strokeWidth = 2
-        ..color = const Color(0xFF7FB069).withValues(alpha: opacity),
+        ..color = const Color(0xFF7FB069),
     );
     if (icon.isNotEmpty) {
       final data = shellIcon(icon);
@@ -145,6 +154,7 @@ final class SphereVisual extends PositionComponent
         ui.Paint()..color = const Color(0xFFE5484D),
       );
     }
+    canvas.restore();
   }
 }
 

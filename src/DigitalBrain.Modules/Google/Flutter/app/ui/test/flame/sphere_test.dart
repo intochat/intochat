@@ -42,6 +42,71 @@ Map<String, Object?> sphereNode({
 void main() {
   final flameTester = FlameTester(SceneGame.new);
 
+  flameTester.testGameWidget(
+    'fade reduces every rendered sphere element and preserves its opacity',
+    setUp: (game, _) async {
+      game.apply(scene(sphereNode()));
+      await game.ready();
+    },
+    verify: (game, tester) async {
+      final body = (game.componentFor('ino') as SphereComponent).body
+        ..icon = 'play'
+        ..badge = true
+        ..setLabels('Title', 'Description');
+      Future<List<int>> pixels() async => (await tester.runAsync(() async {
+        final recorder = ui.PictureRecorder();
+        final canvas = ui.Canvas(recorder)..translate(52, 60);
+        body.render(canvas);
+        final picture = recorder.endRecording();
+        final image = await picture.toImage(200, 180);
+        final bytes = await image.toByteData(
+          format: ui.ImageByteFormat.rawRgba,
+        );
+        final result = bytes!.buffer.asUint8List().toList();
+        image.dispose();
+        picture.dispose();
+        return result;
+      }))!;
+      final opaque = await pixels();
+      // The two labels above the disc, centre icon, disc edge, and attention badge
+      // must all contribute pixels before the same fade is applied to them.
+      for (final (left, top, right, bottom) in [
+        (20, 10, 180, 54),
+        (85, 90, 115, 125),
+        (55, 95, 75, 125),
+        (130, 65, 142, 80),
+      ]) {
+        var visible = 0;
+        for (var y = top; y < bottom; y++) {
+          for (var x = left; x < right; x++) {
+            if (opaque[(y * 200 + x) * 4 + 3] > 0) visible++;
+          }
+        }
+        expect(visible, greaterThan(0));
+      }
+      body.begin('fade', const TreeNode(kind: 'fade', alpha: 0, seconds: 1));
+      await tester.pump();
+      game.update(0.5);
+      final halfwayOpacity = body.opacity;
+      expect(halfwayOpacity, closeTo(0.5, 0.02));
+      final halfway = await pixels();
+      expect(
+        body.opacity,
+        halfwayOpacity,
+        reason: 'render must not overwrite effect state',
+      );
+      for (var i = 3; i < opaque.length; i += 4) {
+        expect(halfway[i], closeTo(opaque[i] * halfwayOpacity, 2));
+      }
+      game.update(0.5);
+      expect(body.opacity, closeTo(0, 0.01));
+      final transparent = await pixels();
+      expect([
+        for (var i = 3; i < transparent.length; i += 4) transparent[i],
+      ], everyElement(0));
+      expect(body.opacity, closeTo(0, 0.01));
+    },
+  );
   test(
     'named shell icons draw their distinct glyphs instead of initials',
     () async {
