@@ -31,6 +31,8 @@ public sealed class AppState
     [Id(26)] public long ActivitySequence { get; set; }
     // The fast path's requests and their outcomes, newest last.
     [Id(27)] public AppSynapse[] Synapses { get; set; } = [];
+    [Id(28)] public AppReleaseRecord[] Releases { get; set; } = [];
+    [Id(29)] public AppInstallReceipt? Installation { get; set; }
 
     public AppState Clone() => new()
     {
@@ -58,6 +60,8 @@ public sealed class AppState
         ActivityRetention = [.. ActivityRetention],
         ActivitySequence = ActivitySequence,
         Synapses = [.. Synapses],
+        Releases = [.. Releases],
+        Installation = Installation,
     };
 }
 
@@ -68,3 +72,8 @@ public sealed record AppVersionRecord(
     [property: Id(2)] AppManifest Manifest,
     [property: Id(3)] string Spec,
     [property: Id(4)] Dictionary<string, string> Files);
+
+[GenerateSerializer, Alias("apps.release-record")]
+public sealed record AppReleaseRecord(
+    [property: Id(0)] AppPublication Publication,
+    [property: Id(1)] AppBundle Bundle);

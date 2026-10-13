@@ -8,6 +8,10 @@ import 'credential_store_io.dart'
     if (dart.library.html) 'credential_store_web.dart'
     as store;
 import 'login_screen.dart';
+import 'local_account.dart';
+import 'local_account_io.dart'
+    if (dart.library.html) 'local_account_web.dart'
+    as local;
 
 /// Builds the signed-in shell once a client is available.
 typedef ShellBuilder = Widget Function(
@@ -36,16 +40,18 @@ final class BrainSessionGate extends StatefulWidget {
     super.key,
     required this.builder,
     this.createClient = _fromEnvironment,
+    this.readLocalAccount = local.readLocalAccount,
   });
 
   final ShellBuilder builder;
   final ClientFactory createClient;
+  final Future<LocalAccount?> Function(Uri) readLocalAccount;
 
   @override
   State<BrainSessionGate> createState() => _BrainSessionGateState();
 }
 
-enum _Phase { probing, login, ready, logoutFailed }
+enum _Phase { probing, login, ready, logoutFailed, localFailed }
 
 final class _BrainSessionGateState extends State<BrainSessionGate> {
   _Phase _phase = _Phase.probing;
@@ -75,6 +81,24 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
       debugPrint('DigitalBrain session failed: $error');
       _enterShell(null, error.toString());
       return null;
+    }
+
+    if (fromStartup && credentials == null) {
+      try {
+        final account = await widget.readLocalAccount(client.baseUri);
+        if (account != null) {
+          await client.signInLocalAccount(
+            account.principalId,
+            account.password,
+          );
+          _enterShell(client, null);
+          return null;
+        }
+      } on Object {
+        client.close();
+        if (mounted) setState(() => _phase = _Phase.localFailed);
+        return 'Could not open your local account.';
+      }
     }
 
     bool accepted;
@@ -223,7 +247,25 @@ final class _BrainSessionGateState extends State<BrainSessionGate> {
       title: 'IntoChat',
       debugShowCheckedModeBanner: false,
       theme: UiTheme.dark(),
-      home: _phase == _Phase.logoutFailed
+      home: _phase == _Phase.localFailed
+          ? Scaffold(
+              body: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Could not open your local account.'),
+                    TextButton(
+                      onPressed: () {
+                        setState(() => _phase = _Phase.probing);
+                        unawaited(_attempt(null, fromStartup: true));
+                      },
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : _phase == _Phase.logoutFailed
           ? Scaffold(
               body: Center(
                 child: Column(

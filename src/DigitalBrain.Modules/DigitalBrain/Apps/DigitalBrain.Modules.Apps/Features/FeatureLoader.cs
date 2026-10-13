@@ -6,6 +6,9 @@ namespace DigitalBrain.Apps;
 // copy remembers where it came from. Whether a load is allowed is the caller's policy.
 public sealed class FeatureLoader(IGrainFactory grains)
 {
+    public Task<AppSnapshot> Create(string brain, string name, AppBundle bundle, AppOrigin origin, AppInstallReceipt installation, CancellationToken ct)
+        => grains.GetGrain<IApp>(IApp.Key(brain, name)).Import(bundle with { Name = name }, origin, installation).WaitAsync(ct);
+
     public async Task<AppSnapshot> Load(string brain, string name, AppBundle bundle, AppOrigin origin, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(bundle);

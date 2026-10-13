@@ -1,0 +1,84 @@
+import 'dart:convert';
+
+import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
+import 'package:digitalbrain_flutter/src/generated/neurons.pbgrpc.dart' as rpc;
+import 'package:grpc/grpc.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:test/test.dart';
+
+final class SessionService extends rpc.NeuronsServiceBase {
+  final received = <Map<String, String>>[];
+
+  @override
+  Future<rpc.CallReply> call(ServiceCall call, rpc.CallRequest request) async {
+    received.add(Map.of(call.clientMetadata ?? {}));
+    return rpc.CallReply(result: utf8.encode('{}'));
+  }
+
+  @override
+  Stream<rpc.SignalEnvelope> watch(
+    ServiceCall call,
+    rpc.WatchRequest request,
+  ) async* {
+    received.add(Map.of(call.clientMetadata ?? {}));
+    yield rpc.SignalEnvelope();
+  }
+}
+
+void main() {
+  test('signedInNativeCallsAndWatchesCarryTheCurrentSessionCookie', () async {
+    final service = SessionService();
+    final server = Server.create(services: [service]);
+    await server.serve(address: '127.0.0.1', port: 0);
+    addTearDown(server.shutdown);
+    var cookie = 'session=vlad-session';
+    final client = DigitalBrainUiClient(
+      baseUri: Uri.parse('http://127.0.0.1:${server.port}'),
+      httpClient: MockClient(
+        (request) async => http.Response(
+          '{"principalId":"vlad","accountId":"account-id","brainId":"personal-brain"}',
+          200,
+          headers: {'set-cookie': '$cookie; HttpOnly; Path=/'},
+        ),
+      ),
+    );
+    addTearDown(client.close);
+    // Constructing a channel before sign-in must not freeze anonymous metadata.
+    final channel = client.channel;
+    await client.signIn('vlad', 'test-password');
+    await channel.call('personal-brain', 'Contract', 'key', 'Read', []);
+    await channel.watch('personal-brain', []).toList();
+    expect(service.received.map((m) => m['cookie']), [
+      'session=vlad-session',
+      'session=vlad-session',
+    ]);
+    cookie = 'session=renewed-session';
+    await client.readSession();
+    await channel.call('personal-brain', 'Contract', 'key', 'Read', []);
+    expect(service.received.last['cookie'], 'session=renewed-session');
+  });
+
+  test('anonymousAndBasicClientsKeepTheirExistingBehavior', () async {
+    final service = SessionService();
+    final server = Server.create(services: [service]);
+    await server.serve(address: '127.0.0.1', port: 0);
+    addTearDown(server.shutdown);
+    for (final credentials in [
+      null,
+      const BasicCredentials(username: 'ops', password: 'test'),
+    ]) {
+      final client = DigitalBrainUiClient(
+        baseUri: Uri.parse('http://127.0.0.1:${server.port}'),
+        credentials: credentials,
+      );
+      addTearDown(client.close);
+      await client.channel.call('owner', 'Contract', 'key', 'Read', []);
+      expect(service.received.last['cookie'], isNull);
+      expect(
+        service.received.last['authorization'],
+        credentials?.authorizationHeader,
+      );
+    }
+  });
+}

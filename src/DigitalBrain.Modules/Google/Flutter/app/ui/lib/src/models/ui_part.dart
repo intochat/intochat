@@ -51,11 +51,36 @@ final class UiFormField {
   final bool secretSet;
   final bool supported;
 
+  // FormFieldKind ordinals on the native neuron channel; HTTP metadata uses names.
+  static const _fieldKinds = [
+    'PlainText',
+    'LongText',
+    'Number',
+    'Date',
+    'DateTime',
+    'Boolean',
+    'Choice',
+    'MultiChoice',
+    'Email',
+    'Url',
+    'Secret',
+    'Reference',
+  ];
+
+  static String _readKind(Object? value) {
+    if (value == null) return 'PlainText';
+    if (value is String) return value;
+    if (value is int && value >= 0 && value < _fieldKinds.length) {
+      return _fieldKinds[value];
+    }
+    throw FormatException('Unknown form field kind: $value');
+  }
+
   factory UiFormField.fromJson(Map<String, dynamic> json) {
     return UiFormField(
       name: json['name'] as String? ?? '',
       label: json['label'] as String? ?? '',
-      kind: json['kind'] as String? ?? 'PlainText',
+      kind: _readKind(json['kind']),
       required: json['required'] as bool? ?? false,
       choices: (json['choices'] as List? ?? const [])
           .map((choice) => choice.toString())

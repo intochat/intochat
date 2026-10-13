@@ -1,5 +1,7 @@
 using DigitalBrain.Framework;
 using DigitalBrain.Framework.Platform.Identity;
+using DigitalBrain.Apps;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Circles;
 
@@ -20,6 +22,19 @@ internal sealed class CircleFactoryNeuron(
     : Neuron<CircleFactoryRecord>(store), ICircleFactory
 {
     private string Brain => this.GetPrimaryKeyString()[..^"/circles".Length];
+
+    public Task BindPublicationButton()
+    {
+        Own();
+        return GrainFactory.GetGrain<DigitalBrain.Flutter.IUiBinding>(IApp.Key(Brain, "circle") + "/fork-button")
+            .Bind(this.AsReference<ICircleFactory>());
+    }
+
+    public Task HandleUiEvent(Signal signal)
+    {
+        Own();
+        return PublicationButton.Handle(GrainFactory, Brain, "circle", "fork-button", signal, Fork);
+    }
 
     public async Task<string> Create(string name, string? requestId = null)
     {
@@ -47,6 +62,37 @@ internal sealed class CircleFactoryNeuron(
         var caller = Own();
         return [.. (await identity.BrainsOf(caller.PrincipalId)).Where(entry => entry.Kind == BrainKind.Circle)
             .Select(entry => Snapshot.Created.FirstOrDefault(created => created.BrainId == entry.Id) ?? new CircleEntry(entry.Id, entry.Id))];
+    }
+
+    public async Task<CirclePublicationFeed> Publications(string? publisher = null)
+    {
+        var caller = Own();
+        List<AppPublication> items = [];
+        HashSet<string> unavailable = new(StringComparer.Ordinal);
+        foreach (var listing in await GrainFactory.GetGrain<IMarketplace>(IMarketplace.Key).List())
+        {
+            if (listing.Source is not AppSource.Brain source || publisher is { Length: > 0 } && listing.Publisher != publisher) { continue; }
+            try
+            {
+                var releases = await GrainFactory.GetGrain<IApp>(IApp.Key(BrainScope.Create(source.AccountId, source.BrainId).Id, listing.Name)).PublishedReleases();
+                items.AddRange(releases.Where(release => release.Reference.Publisher == listing.Publisher
+                    && release.Reference.Source == source && release.Reference.Name == listing.Name));
+            }
+            catch (Exception) { unavailable.Add(listing.Publisher); }
+        }
+        return new([.. items.OrderByDescending(item => item.PublishedAt)
+            .ThenBy(item => item.Reference.Publisher, StringComparer.Ordinal)
+            .ThenBy(item => item.Reference.Name, StringComparer.Ordinal)
+            .ThenBy(item => item.Reference.Version, StringComparer.Ordinal)
+            .ThenBy(item => item.Reference.Digest, StringComparer.Ordinal)], [.. unavailable.Order(StringComparer.Ordinal)], caller.PrincipalId);
+    }
+
+    public async Task<AppSnapshot> Fork(AppPublicationRef publication, string targetName, Guid operationId)
+    {
+        Own();
+        if (await identity.KindOf(Brain) != BrainKind.Personal)
+        { throw new UnauthorizedAccessException("Fork to my brain needs a personal brain. Use Bring into a circle for shared copies."); }
+        return await ServiceProvider.GetRequiredService<AppInstaller>().InstallPublication(publication, targetName, operationId, CancellationToken.None);
     }
 
     // The member acts in its own brain.

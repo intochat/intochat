@@ -5,6 +5,8 @@ using DigitalBrain.Framework.Parts;
 using DigitalBrain.Framework.Platform.Connections;
 using DigitalBrain.Framework.Platform.Identity;
 using Microsoft.Extensions.Logging;
+using DigitalBrain.Apps;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace DigitalBrain.Circles;
 
@@ -58,6 +60,19 @@ internal sealed class CircleNeuron(
     private string CircleBrain => this.GetPrimaryKeyString()[..^CoreSuffix.Length];
 
     public Task<CircleState> State() => Task.FromResult(Describe(Core()));
+
+    public Task BindPublicationButton()
+    {
+        MemberChange();
+        return GrainFactory.GetGrain<DigitalBrain.Flutter.IUiBinding>(IApp.Key(CircleBrain, "circleroom") + "/bring-button")
+            .Bind(this.AsReference<ICircle>());
+    }
+
+    public Task HandleUiEvent(Signal signal)
+    {
+        MemberChange();
+        return PublicationButton.Handle(GrainFactory, CircleBrain, "circleroom", "bring-button", signal, BringPublication);
+    }
 
     public async Task Found(string name, string machineId)
     {
@@ -224,6 +239,34 @@ internal sealed class CircleNeuron(
         => CallerContextStamper.TryGet(out var caller) ? caller : throw new UnauthorizedAccessException("A circle acts only on a stamped caller.");
 
     public async Task Share(string appName, string[] connectionIds) => await ShareIntoCircle(appName, connectionIds ?? []);
+
+    public async Task<AppSnapshot> BringPublication(AppPublicationRef publication, string targetName, Guid operationId)
+    {
+        var next = MemberChange();
+        var caller = Caller();
+        try
+        {
+            var installed = await ServiceProvider.GetRequiredService<AppInstaller>()
+                .InstallPublication(publication, targetName, operationId, CancellationToken.None);
+            await IndexInstallation(installed);
+            return installed;
+        }
+        catch
+        {
+            // Import persists its receipt before deployment; a failed deploy is still an installed copy.
+            if (!string.IsNullOrWhiteSpace(targetName) && targetName.All(c => char.IsAsciiLetterLower(c) || char.IsAsciiDigit(c) || c == '-'))
+            { await IndexInstallation(await GrainFactory.GetGrain<IApp>(IApp.Key(CircleBrain, targetName)).Read()); }
+            throw;
+        }
+
+        async Task IndexInstallation(AppSnapshot app)
+        {
+            if (app.Installation != new AppInstallReceipt(operationId, publication, targetName, caller.AccountId)
+                || next.SharedApps.Contains(targetName, StringComparer.Ordinal)) { return; }
+            next.SharedApps = [.. next.SharedApps, targetName];
+            await CommitCore(next);
+        }
+    }
 
     private async Task ShareIntoCircle(string appName, string[] connectionIds)
     {

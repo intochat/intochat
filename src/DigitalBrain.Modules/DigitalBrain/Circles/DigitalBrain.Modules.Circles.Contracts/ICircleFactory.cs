@@ -10,7 +10,7 @@ public sealed record CircleEntry([property: Id(0)] string BrainId, [property: Id
 // R126: in the member's own brain, `{brain}/circles`; the only script-reachable way to create a circle. Accepting and
 // inviting happen inside the circle brain, on the member's human route.
 [Alias("circles.factory"), DefaultGrainType("circles.factory")]
-public interface ICircleFactory : INeuron
+public interface ICircleFactory : INeuron, DigitalBrain.Flutter.IUiEventHandler
 {
     // CreateBrain(Kind = Circle) for the caller's account, then the circle brain's birth; returns the circle brain id.
     // A requestId makes it idempotent: creating twice under one id is one circle.
@@ -18,6 +18,9 @@ public interface ICircleFactory : INeuron
 
     // The caller's circle brains, from the trust side's BrainsOf.
     Task<CircleEntry[]> Circles();
+    Task BindPublicationButton();
+    Task<CirclePublicationFeed> Publications(string? publisher = null);
+    [ResponseTimeout("00:10:00")] Task<DigitalBrain.Apps.AppSnapshot> Fork(DigitalBrain.Apps.AppPublicationRef publication, string targetName, Guid operationId);
 
     static string Key(string brainId) => $"{brainId}/circles";
 }

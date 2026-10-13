@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Channels;
+using DigitalBrain.Framework;
 using DigitalBrain.Framework.Surface;
 using DigitalBrain.Platform.Neurons.Proto;
 using Google.Protobuf;
@@ -25,7 +26,7 @@ internal sealed class NeuronsService(NeuronSurface surface, IDigitalBrain brain,
 
     public override async Task<CallReply> Call(CallRequest request, ServerCallContext context)
     {
-        await BrainCall.Enter(context, request.BrainId);
+        CallerContextStamper.Stamp(await BrainCall.Enter(context, request.BrainId));
         try
         {
             var arguments = request.Arguments.IsEmpty ? "[]" : request.Arguments.ToStringUtf8();
@@ -38,7 +39,7 @@ internal sealed class NeuronsService(NeuronSurface surface, IDigitalBrain brain,
     // Retained last signal per source and type first, then live ones, until the client goes away.
     public override async Task Watch(WatchRequest request, IServerStreamWriter<SignalEnvelope> responseStream, ServerCallContext context)
     {
-        await BrainCall.Enter(context, request.BrainId);
+        CallerContextStamper.Stamp(await BrainCall.Enter(context, request.BrainId));
         if (request.Sources.Count == 0) { throw new RpcException(new Status(StatusCode.InvalidArgument, "Name at least one source.")); }
         if (request.Sources.Sum(source => Math.Max(1, source.SignalTypes.Count)) > MaximumWatches)
         { throw new RpcException(new Status(StatusCode.InvalidArgument, $"At most {MaximumWatches} source signals per watch.")); }

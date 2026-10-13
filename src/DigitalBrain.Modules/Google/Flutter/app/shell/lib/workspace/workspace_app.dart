@@ -18,6 +18,7 @@ import 'compute_usage_panel.dart';
 import 'workspace_islands.dart';
 import 'csharp/csharp_manager.dart';
 import 'home/home_screen.dart';
+import 'home/app_detail_screen.dart';
 import 'home/circle_activity_badge.dart';
 import 'dock/dock.dart';
 import 'home/infrastructure_strip.dart';
@@ -378,6 +379,10 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     WorkspaceProject? project,
     bool reveal = true,
   }) {
+    if (result['kind'] == 'workspace') {
+      unawaited(_activateWorkspace(result));
+      return;
+    }
     final destination = project ?? store.currentProject;
     if (result['remoteManaged'] == true) {
       final window = result['windowId'] as String?;
@@ -1434,6 +1439,54 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
   ConnectionsRequest? get _windowsRequest {
     _cacheConnectionRequests();
     return _cachedWindowsRequest;
+  }
+
+  Future<void> _activateWorkspace(Map<String, dynamic> action) async {
+    final client = widget.programmingClient;
+    if (client == null) return;
+    try {
+      final brainId = action['brainId'] as String;
+      final application = action['application'] as String;
+      final operation = action['operation'] as String?;
+      final input = action['input'] as String? ?? '';
+      final brains = await client.jsonRequest('GET', '/identity/brains');
+      if (brains is! List || !brains.any((b) => b is Map && b['id'] == brainId)) {
+        throw StateError('This account is not a member of that brain.');
+      }
+      if (action['view'] == 'configuration') {
+        await client.readAppManifest(brainId, application);
+        if (!mounted) return;
+        _navigator.currentState?.push(MaterialPageRoute<void>(
+          builder: (_) => AppDetailScreen(
+            workspaceId: brainId,
+            installedName: application,
+            request: (method, path, [body]) => client.jsonRequest(method, path, body),
+            onOpen: (name) => _activateWorkspace({
+              'brainId': brainId,
+              'application': name,
+            }),
+          ),
+        ));
+        return;
+      }
+      final snapshot = await client.openApp(brainId, application);
+      if (operation != null && operation.isNotEmpty) {
+        await client.requestApp(brainId, application, operation, input);
+      }
+      if (!mounted) return;
+      final project = store.projects.where((p) => p.id == brainId).firstOrNull ??
+          store.createProject(brainId, id: brainId);
+      store.reconcileWorkspace(project, snapshot);
+      store.selectProject(brainId);
+      _manifests.remove('$brainId/$application');
+      _navigator.currentState?.popUntil((route) => route.isFirst);
+    } catch (error) {
+      if (mounted) {
+        _messenger.currentState?.showSnackBar(
+          SnackBar(content: Text('Could not navigate: $error')),
+        );
+      }
+    }
   }
 
   Future<void> _openApplication(

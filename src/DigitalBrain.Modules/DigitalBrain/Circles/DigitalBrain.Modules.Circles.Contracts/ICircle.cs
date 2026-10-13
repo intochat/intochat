@@ -29,7 +29,7 @@ public sealed record CircleState(
 // and Accept are a person's, on the /brains/{circle} route; a script is refused them (R126).
 // The alias and grain type literals must equal DigitalBrain.Framework.CircleGrainType.Name (a Circles fact asserts it).
 [Alias("circles.circle"), DefaultGrainType("circles.circle")]
-public interface ICircle : INeuron
+public interface ICircle : INeuron, DigitalBrain.Flutter.IUiEventHandler
 {
     const int MaxComputeSharePercent = 25;
 
@@ -45,9 +45,11 @@ public interface ICircle : INeuron
     // connections named in `connectionIds` are bound as the circle's own copies; every other bound slot stays the
     // sharer's connection, reached only through the binding recorded on it (R134).
     Task Share(string appName, string[] connectionIds);
+    [ResponseTimeout("00:10:00")] Task<DigitalBrain.Apps.AppSnapshot> BringPublication(DigitalBrain.Apps.AppPublicationRef publication, string targetName, Guid operationId);
     // 0 to MaxComputeSharePercent of the creator's budget; the platform's own 25% fee is fixed and not a setting.
     Task SetComputeShare(int percent);
     Task<CircleState> State();
+    Task BindPublicationButton();
 
     // The circle brain's birth (Created) names the circle and its first machine.
     [Internal] Task Found(string name, string machineId);

@@ -26,15 +26,16 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "circle";
-    public const string Version = "2.0.1";
+    public const string Version = "2.0.5";
 
     public static readonly AppManifest Manifest = new(
         Title: "Circle",
-        Description: "The circles you are in: each one a brain of its own with a chat and shared apps.",
+        Description: "A feed of published apps, maker profiles and circles to build together. Preview an exact release, then fork it or bring it into a circle.",
         Operations:
         [
             new("open", "Compose the circle index and open its window; input \"docked\" skips the window."),
             new("create", "Create a circle brain named by the input."),
+            new("navigate", "Browse feed, profile, circles, or an exact published release using navigation JSON."),
         ],
         Settings: [],
         Slots: [],

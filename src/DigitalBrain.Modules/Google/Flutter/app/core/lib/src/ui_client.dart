@@ -141,6 +141,45 @@ final class DigitalBrainUiClient {
     );
   }
 
+  Future<void> signInLocalAccount(String username, String password) async {
+    if (!['localhost', '127.0.0.1', '::1', '[::1]'].contains(baseUri.host) ||
+        !['http', 'https'].contains(baseUri.scheme)) {
+      throw StateError('Local accounts require a loopback server.');
+    }
+    http.Response response;
+    try {
+      response = await _request(
+        'POST',
+        '/identity/login',
+        body: {'principalId': username, 'password': password},
+        timeout: const Duration(seconds: 15),
+      );
+    } on UiRequestException catch (error) {
+      if (error.statusCode != 401) rethrow;
+      response = await _request(
+        'POST',
+        '/identity/register',
+        body: {'principalId': username, 'password': password},
+        timeout: const Duration(seconds: 15),
+      );
+    }
+    final Object? session;
+    try {
+      session = jsonDecode(response.body);
+    } on FormatException {
+      throw StateError('Local sign-in did not return a valid session.');
+    }
+    if (session is! Map<String, dynamic> ||
+        session['principalId'] != username ||
+        session['accountId'] is! String ||
+        (session['accountId'] as String).isEmpty ||
+        session['brainId'] is! String ||
+        (session['brainId'] as String).isEmpty) {
+      throw StateError('Local sign-in did not return the requested account.');
+    }
+    _useSession(session);
+  }
+
   final CookieHttpClient _http;
   final bool _ownsClient;
   final BasicCredentials? _credentials;
@@ -173,6 +212,12 @@ final class DigitalBrainUiClient {
   NeuronLink get channel => _link ??= NeuronChannel(
     baseUri,
     authorization: _credentials?.authorizationHeader,
+    sessionHeaders: () => {
+      if (_http.cookies.isNotEmpty)
+        'cookie': _http.cookies.entries
+            .map((entry) => '${entry.key}=${entry.value}')
+            .join('; '),
+    },
   );
 
   /// The node's own change signal; the view reads the node once per event.

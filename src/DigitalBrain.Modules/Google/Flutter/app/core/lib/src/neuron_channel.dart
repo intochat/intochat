@@ -58,13 +58,20 @@ abstract interface class NeuronLink {
 
 /// The two operations over one gRPC(-Web) connection.
 final class NeuronChannel implements NeuronLink {
-  NeuronChannel(Uri baseUri, {String? authorization})
-    : _channel = transport.createNeuronChannel(baseUri),
-      _options = CallOptions(
-        metadata: authorization == null
-            ? const {}
-            : {'authorization': authorization},
-      ) {
+  NeuronChannel(
+    Uri baseUri, {
+    String? authorization,
+    Map<String, String> Function()? sessionHeaders,
+  }) : _channel = transport.createNeuronChannel(baseUri),
+       _options = CallOptions(
+         metadata: authorization == null
+             ? const {}
+             : {'authorization': authorization},
+         providers: [
+           if (sessionHeaders != null)
+             (metadata, uri) => metadata.addAll(sessionHeaders()),
+         ],
+       ) {
     _client = rpc.NeuronsClient(_channel, options: _options);
   }
   final ClientChannelBase _channel;

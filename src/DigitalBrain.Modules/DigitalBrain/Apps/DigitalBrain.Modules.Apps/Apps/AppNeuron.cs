@@ -10,7 +10,7 @@ namespace DigitalBrain.Apps;
 // semver history, status and activity all live here; the Builder is a cache that writes
 // its results back in.
 [GrainType(DigitalBrain.Framework.AppGrainType.Name)]
-internal sealed class AppNeuron(
+internal sealed partial class AppNeuron(
     [PersistentState("app2", DigitalBrainNames.ClusterGrainStorage)] IPersistentState<AppState> store,
     TimeProvider clock, IOptions<AppsOptions> options,
     IEnumerable<IAppRuntime> runtimes, IEnumerable<IAppStorageHook> storageHooks)
@@ -284,6 +284,14 @@ internal sealed class AppNeuron(
         next.PublishedVersion = next.Version;
         next.Published = new AppVersionRecord(next.Version, clock.GetUtcNow(), manifest, next.Spec, new(next.Files, StringComparer.Ordinal));
         next.Publisher = caller.PrincipalId;
+        var releases = Releases();
+        var release = Release(next.Published, caller.PrincipalId, new AppSource.Brain(caller.AccountId, caller.BrainId));
+        var existing = releases.FirstOrDefault(item => item.Bundle.Version == next.Version);
+        if (existing is not null && existing.Publication.Reference != release.Publication.Reference)
+        { throw new InvalidOperationException("This version has already been published with different content. Create a new version."); }
+        next.Releases = existing is null ? [.. releases, release] : releases;
+        if (existing is not null)
+        { next.Published = next.Published with { SavedAt = existing.Publication.PublishedAt }; }
         var name = Name();
         await Save(next, new AppChanged(name, next.Version, next.Status), new AppPublished(name, next.Version));
         // State first: a failed listing write is repaired by publishing again, never the reverse
@@ -309,10 +317,22 @@ internal sealed class AppNeuron(
             new(published.Files, StringComparer.Ordinal)));
     }
 
-    public async Task<AppSnapshot> Import(AppBundle bundle, AppOrigin? origin = null)
+    public async Task<AppSnapshot> Import(AppBundle bundle, AppOrigin? origin = null, AppInstallReceipt? installation = null)
     {
         ArgumentNullException.ThrowIfNull(bundle);
         RequireBundleFor(bundle);
+        if (installation is not null)
+        {
+            ValidateInstallation(bundle, origin, installation);
+            if (Snapshot.Manifest is not null && Snapshot.Installation == installation)
+            {
+                if (Snapshot.Edited || Snapshot.Status == AppStatus.Live) { return Describe(Snapshot); }
+                var held = new AppBundle(Name(), Snapshot.Version, Snapshot.Manifest, Snapshot.Spec, Snapshot.Files);
+                if (held.Version != installation.Publication.Version || AppPublicationDigest.Of(held) != installation.Publication.Digest)
+                { throw new InvalidOperationException("This installed copy has changed; it cannot resume the original install."); }
+                return await Land(Snapshot.Clone());
+            }
+        }
         if (Snapshot.Manifest is not null)
         { throw new InvalidOperationException($"You already have an app named {Name()}."); }
         var next = Snapshot.Clone();
@@ -324,6 +344,7 @@ internal sealed class AppNeuron(
         next.Settings = bundle.Manifest.Settings.ToDictionary(setting => setting.Name, setting => setting.Default, StringComparer.Ordinal);
         next.Connections = [];
         next.Version = bundle.Version;
+        next.Installation = installation;
         Adopt(next, origin);
         await Reopen();
         return await Land(next);
@@ -728,7 +749,8 @@ internal sealed class AppNeuron(
         state.PublishedVersion,
         state.Origin,
         state.Edited,
-        [.. state.Synapses]);
+        [.. state.Synapses],
+        state.Installation);
 }
 
 internal sealed class AppActivation : IActivationHandler<AppNeuron>

@@ -9,16 +9,19 @@ namespace DigitalBrain.Platform.Neurons;
 // the same membership decision, then the brain stamped into the caller for BrainScope.CurrentId().
 internal static class BrainCall
 {
-    public static async Task Enter(ServerCallContext context, string brainId)
+    public static async Task<CallerContext> Enter(ServerCallContext context, string brainId)
     {
         if (!BrainScope.IsValidId(brainId)) { throw new RpcException(new Status(StatusCode.InvalidArgument, "brain_id is not a valid brain id.")); }
+        var caller = CallerContextStamper.Require() with { BrainId = brainId };
+        CallerContextStamper.Stamp(caller);
         var http = context.GetHttpContext();
         if (await BrainAccessFilter.Decide(http, brainId) is { } denied)
         {
             var code = denied is IStatusCodeHttpResult { StatusCode: StatusCodes.Status401Unauthorized } ? StatusCode.Unauthenticated : StatusCode.PermissionDenied;
             throw new RpcException(new Status(code, "This brain is not yours."));
         }
-        CallerContextStamper.Stamp(CallerContextStamper.Require() with { BrainId = brainId });
+        // RequestContext changes in an async helper do not flow back to its caller.
+        return caller;
     }
 
     // A caller's own mistakes come back with their reason; the host's failures stay in its logs.

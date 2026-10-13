@@ -27,12 +27,14 @@ public interface IApp : INeuron
     Task<AppSnapshot> Publish();
     // The published version's bundle: a published app is public by definition, anyone may copy it.
     [Public] Task<AppBundle> ExportPublished();
+    [Public, Orleans.Concurrency.ReadOnly] Task<AppPublication[]> PublishedReleases();
+    [Public, Orleans.Concurrency.ReadOnly] Task<AppBundle> ExportRelease(string version, string digest);
     // A version this app still holds in its history, for development sync to prove a folder is
     // unchanged since that version; null once the version has aged out.
     [Orleans.Concurrency.ReadOnly] Task<AppBundle?> ExportVersion(string version);
     // The bundle and its origin land in one write before the runtime is asked, so a deploy that
     // fails or outlasts the caller leaves the copy Deploying or Failed, never without its origin.
-    [ResponseTimeout("00:10:00")] Task<AppSnapshot> Import(AppBundle bundle, AppOrigin? origin = null);
+    [ResponseTimeout("00:10:00")] Task<AppSnapshot> Import(AppBundle bundle, AppOrigin? origin = null, AppInstallReceipt? installation = null);
     // An update: the bundle's program replaces this one in place. Settings, connections and the
     // app's stored data stay; behaviors the bundle lacks stop. A
     // copy not yet Live is deployed again even at the same version.

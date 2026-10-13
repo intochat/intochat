@@ -7,6 +7,25 @@ namespace DigitalBrain.Apps;
 // comes from the features folder. Install needs no authority beyond the caller's own brain.
 public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketplace, FeatureCatalog catalog, FeatureLoader loader)
 {
+    public async Task<AppSnapshot> InstallPublication(AppPublicationRef publication, string targetName, Guid operationId, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(publication);
+        if (operationId == Guid.Empty || string.IsNullOrWhiteSpace(targetName)
+            || targetName.Any(c => !char.IsAsciiLetterLower(c) && !char.IsAsciiDigit(c) && c != '-'))
+        { throw new ArgumentException("Choose an app name using lowercase letters, digits and dashes, and a nonempty operation ID."); }
+        if (!CallerContextStamper.TryGet(out var caller)) { throw new UnauthorizedAccessException("Sign in to fork an app."); }
+        var listing = await marketplace.Read(publication.Publisher, publication.Name, ct);
+        if (listing is null || listing.Source != publication.Source)
+        { throw new KeyNotFoundException("This publication's source is unavailable."); }
+        var source = grains.GetGrain<IApp>(IApp.Key(publication.Source.Scope()!, publication.Name));
+        var bundle = await source.ExportRelease(publication.Version, publication.Digest).WaitAsync(ct);
+        if (bundle.Version != publication.Version || AppPublicationDigest.Of(bundle) != publication.Digest)
+        { throw new InvalidDataException("The published content does not match the selected release."); }
+        var receipt = new AppInstallReceipt(operationId, publication, targetName, caller.AccountId);
+        return await loader.Create(BrainScope.CurrentId(), targetName, bundle,
+            new(publication.Publisher, publication.Source, publication.Name, publication.Version, publication.Digest, caller.AccountId), receipt, ct);
+    }
+
     public async Task<AppSnapshot> Install(string publisher, string name, CancellationToken ct)
     {
         var scope = BrainScope.CurrentId();
@@ -34,7 +53,7 @@ public sealed class AppInstaller(IGrainFactory grains, MarketplaceView marketpla
         var listing = await marketplace.Read(origin.Publisher, origin.Name, ct) ?? throw Gone(origin.Source, origin.Publisher, origin.Name);
         if (AppVersions.Compare(listing.Version, origin.Version) <= 0 && !Unconfirmed(current.Status)) { return current; }
         var bundle = await Bundle(origin.Source, origin.Publisher, origin.Name, ct);
-        return await loader.Load(scope, name, bundle, origin, ct);
+        return await loader.Load(scope, name, bundle, origin with { PublicationDigest = null }, ct);
     }
 
     public async Task<MarketplaceEntry> Entry(MarketplaceListing listing, CancellationToken ct)
