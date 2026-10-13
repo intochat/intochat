@@ -12,6 +12,8 @@ The mood blackboard key is listening for listening or accepted activity, thinkin
 acting for reading or searching, speaking for completed, error for attention, and idle otherwise.
 Startup and open publish the same presentation under the executing program revision. A failure records
 the presentation error under that revision. The workspace owns focus and navigation.
+Each forwarding synapse remembers its handled request ids in its own ledger, so retained requests
+do not start another conversation or voice capture when the program restarts.
 */
 
 using DigitalBrain.Apps;
@@ -19,7 +21,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "ino";
-    public const string Version = "2.0.0";
+    public const string Version = "2.0.2";
 
     public static readonly AppManifest Manifest = new(
         Title: "Ino",
