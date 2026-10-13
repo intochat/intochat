@@ -7,12 +7,55 @@ using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Space;
 using DigitalBrain.Flutter.Workspace;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orleans;
 
 namespace DigitalBrain.Modules.Flutter.Tests.Space;
 
 public sealed class SpaceFacts
 {
+    [Fact]
+    public async Task IdleAppLifecycleRefreshesTheSceneWithoutNavigation()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().WithModule<AppsModule>().WithModule<FlameModule>()
+            .ConfigureServices(s => s.RemoveAll<IAppRuntime>()).StartAsync(ct);
+        var workspace = brain.Get<IWorkspace>(brain.Owner.BrainId);
+        var scene = brain.Get<IScene>(brain.Owner.Key("space"));
+        await using (var home = await brain.Observe<SceneChanged>(scene, ct))
+        {
+            await workspace.Home("home", 0);
+            await home.NextAsync(ct: ct);
+        }
+        var key = IApp.Key(brain.Owner.BrainId, "idle");
+        await using (var changes = await brain.Observe<SceneChanged>(scene, ct))
+        {
+            await App(brain, "idle");
+            do { await changes.NextAsync(ct: ct); }
+            while (!(await scene.Read()).Definition.Nodes.Any(n => n.Id == key));
+        }
+        var app = brain.Get<IApp>(key);
+        var original = await app.Read();
+        await using (var changes = await brain.Observe<SceneChanged>(scene, ct))
+        {
+            await app.SaveManifest(new("Renamed", "New description", [new("refresh", "Refresh")], [], [],
+                Toolbar: [new("refresh", Label: "Reload")]), Guid.NewGuid());
+            do { await changes.NextAsync(ct: ct); }
+            while (!(await scene.Read()).Definition.Nodes.Any(n => n.Id == key && n.Parameters["title"] == "Renamed"));
+            var node = Assert.Single((await scene.Read()).Definition.Nodes, n => n.Id == key);
+            Assert.Equal("New description", node.Parameters["description"]);
+            Assert.Contains("Reload", node.Parameters["toolbar"], StringComparison.Ordinal);
+            Assert.Equal(original.ProgramRevision, (await app.Read()).ProgramRevision);
+        }
+        await using (var changes = await brain.Observe<SceneChanged>(scene, ct))
+        {
+            await app.Delete();
+            do { await changes.NextAsync(ct: ct); }
+            while ((await scene.Read()).Definition.Nodes.Any(n => n.Id == key));
+        }
+        Assert.Equal(1, (await workspace.Read()).Revision);
+    }
+
     [Fact]
     public async Task AModuleRebuildNeverReadsAnUnscopedTypeTable()
     {

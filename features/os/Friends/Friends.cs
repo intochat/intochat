@@ -1,3 +1,4 @@
+using DigitalBrain;
 using System.Globalization;
 using DigitalBrain.Apps;
 using DigitalBrain.Circles;
@@ -27,22 +28,41 @@ public static class Friends
             new(new Sphere("icon.svg", ["unread"]), Side: new("collection", key + "/circles"), Main: new("text", key + "/about")));
     }
 
-    public static async Task Post(DigitalBrainConnection brain, Guid requestId, string text)
+    public static Task Post(DigitalBrainConnection brain, Guid requestId, string text)
+        => Post(brain, Scope(brain), requestId, text);
+
+    public static async Task Post(IDigitalBrain brain, string scope, Guid requestId, string text)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
-        var scope = Scope(brain);
         var key = scope + "/posts/" + requestId.ToString("N");
         var title = text[..Math.Min(60, text.Length)];
         var card = brain.Get<ICard>(key);
-        if ((await card.Read()).Version == 0) { await card.Set(title, text); }
+        var existing = await card.Read();
         var index = brain.Get<ICollectionView>(scope + "/posts");
         var previous = await index.Read();
+        var audience = brain.Get<ICollectionView>(IApp.Key(scope, "friends") + "/audiences/" + requestId.ToString("N"));
+        var destinations = await audience.Read();
+        if (destinations.Revision == 0)
+        {
+            // Freeze the audience before any post state or publication. Old posts without a snapshot
+            // fail closed: today's circles cannot tell us whom the original author meant to address.
+            var circles = existing.Version != 0 || previous.Definition.Items.Any(item => item.Id == key)
+                ? [] : await brain.Get<ICircleFactory>(ICircleFactory.Key(scope)).Circles();
+            try
+            {
+                await audience.Set(new(circles.Select(circle => new CollectionItem(circle.BrainId, circle.Name, "circle")).ToArray(),
+                    FileMode: false, SelectionEnabled: false), 0);
+            }
+            catch (RevisionConflictException) { } // Another handling attempt already fixed this request's audience.
+            destinations = await audience.Read();
+        }
+        if (existing.Version == 0) { await card.Set(title, text); }
         if (!previous.Definition.Items.Any(item => item.Id == key))
         {
             await index.Set(new([new(key, title, "post"), .. previous.Definition.Items],
                 FileMode: false, SelectionEnabled: false, EmptyLabel: "No posts yet"), previous.Revision);
         }
-        foreach (var circle in await brain.Get<ICircleFactory>(ICircleFactory.Key(scope)).Circles())
-        { await brain.Get<ICircleChat>(ICircleChat.Key(circle.BrainId)).PublishPost(key, requestId.ToString()); }
+        foreach (var circle in destinations.Definition.Items)
+        { await brain.Get<ICircleChat>(ICircleChat.Key(circle.Id)).PublishPost(key, requestId.ToString()); }
     }
 }

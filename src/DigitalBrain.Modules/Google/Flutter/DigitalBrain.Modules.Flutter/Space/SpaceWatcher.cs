@@ -16,6 +16,7 @@ internal sealed class SpaceWatcher(LocalSignalHub hub, IGrainFactory grains, ILo
     private readonly LocalSignalHub.Subscription<WorkspaceChanged> _workspace = hub.Subscribe<WorkspaceChanged>();
     private readonly LocalSignalHub.Subscription<PresentationChanged> _presentation = hub.Subscribe<PresentationChanged>();
     private readonly LocalSignalHub.Subscription<AppActivity> _activity = hub.Subscribe<AppActivity>();
+    private readonly LocalSignalHub.Subscription<AppChanged> _apps = hub.Subscribe<AppChanged>();
 
     private readonly LocalSignalHub.Subscription<CircleChanged> _circles = hub.Subscribe<CircleChanged>();
     private readonly LocalSignalHub.Subscription<CircleMembershipRevoked> _revoked = hub.Subscribe<CircleMembershipRevoked>();
@@ -25,6 +26,7 @@ internal sealed class SpaceWatcher(LocalSignalHub hub, IGrainFactory grains, ILo
     private readonly LocalSignalHub.Subscription<CardChanged> _cards = hub.Subscribe<CardChanged>();
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.WhenAll(
+        Consume(_apps, change => Rebuild(BrainOf(change.Publisher.Name[(change.Publisher.Name.IndexOf('/') + 1)..])), stoppingToken),
         Consume(_profiles, change => RebuildAuthorAndFriends(change.Name.EndsWith("/profile", StringComparison.Ordinal) ? change.Name[..^8] : null), stoppingToken),
         Consume(_cards, change => RebuildAuthorAndFriends(CircleMembers.PostBrain(change.Name)), stoppingToken),
         Consume(_revoked, change => RebuildMembers(change.PreviousMembers), stoppingToken),
