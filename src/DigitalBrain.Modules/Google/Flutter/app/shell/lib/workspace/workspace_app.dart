@@ -91,7 +91,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     }
   }
 
-  Future<void> _selectBrain(String brain) async {
+  Future<void> _selectBrain(String brain, {String? show}) async {
     if (_brain == brain) return;
     final client = widget.programmingClient!;
     final old = _space;
@@ -100,11 +100,31 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
       scenes: client.scenes(brain),
       brain: brain,
     );
-    _brain = brain;
-    _space = controller;
-    old?.dispose();
-    if (mounted) setState(() {});
-    await controller.start();
+    // Initial connection exposes its read error and retry on the space screen.
+    if (old == null) {
+      _brain = brain;
+      _space = controller;
+      if (mounted) setState(() {});
+      await controller.start();
+      return;
+    }
+    try {
+      await controller.start();
+      if (controller.error.value case final Object problem) throw problem;
+      if (show != null) await controller.show(show);
+      if (!mounted) {
+        controller.dispose();
+        return;
+      }
+      setState(() {
+        _brain = brain;
+        _space = controller;
+      });
+      old.dispose();
+    } catch (_) {
+      controller.dispose();
+      rethrow;
+    }
   }
 
   Future<Uint8List?> _icon(String neuron, String icon) async {
@@ -127,13 +147,24 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
     try {
       final brain = action['brainId'] as String? ?? _brain!;
       final app = action['application'] as String?;
-      if (brain != _brain) {
+      final neuron =
+          action['neuron'] as String? ??
+          (app == null ? null : '$brain/apps/$app');
+      final changingBrain = brain != _brain;
+      if (changingBrain) {
         final brains = await client.listBrains();
         if (!brains.any((entry) => entry.id == brain)) {
           throw StateError('This account is not a member of that brain.');
         }
         if (!mounted) return;
-        await _selectBrain(brain);
+        await _selectBrain(
+          brain,
+          show:
+              action['view'] == 'configuration' ||
+                  action['kind'] == 'connections'
+              ? null
+              : neuron,
+        );
       }
       if (action['view'] == 'configuration' && app != null) {
         if (!mounted) return;
@@ -143,7 +174,8 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
               workspaceId: brain,
               installedName: app,
               request: client.jsonRequest,
-              onOpen: (name) => _activate({'application': name}),
+              onOpen: (name) =>
+                  _activate({'brainId': brain, 'application': name}),
               loadIcon: client.readBytes,
             ),
           ),
@@ -172,10 +204,7 @@ class _WorkspaceAppState extends State<WorkspaceApp> {
         );
         return;
       }
-      final neuron =
-          action['neuron'] as String? ??
-          (app == null ? null : '$brain/apps/$app');
-      if (neuron != null) await _space!.show(neuron);
+      if (neuron != null && !changingBrain) await _space!.show(neuron);
       if (action['operation'] case final String operation) {
         if (app != null) {
           await client.requestApp(

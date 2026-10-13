@@ -5,6 +5,29 @@ import 'application_fixture.dart';
 import 'package:digitalbrain_flutter_shell/space/neuron_space.dart';
 
 void main() {
+  testWidgets(
+    'failed destination Show preserves the source controller and path',
+    (tester) async {
+      final f = await ApplicationFixture.start(tester);
+      final source = f.space;
+      final original = source.workspace!.path.toList();
+      f.server.failOpen = true;
+      tester.widget<NeuronSpace>(find.byType(NeuronSpace)).onActivate!({
+        'brainId': 'circle-test',
+        'application': 'notes',
+      });
+      await tester.pumpAndSettle();
+      expect(f.space, same(source));
+      expect(f.space.workspace!.path, original);
+      expect(f.space.view.value.focused, '${f.brainId}/apps/ino');
+      expect(find.textContaining('Could not navigate'), findsOneWidget);
+      f.server.failOpen = false;
+      await source.home();
+      await tester.pumpAndSettle();
+      expect(source.view.value.focused, f.brainId);
+      await f.dispose();
+    },
+  );
   for (final allowed in [false, true]) {
     testWidgets(
       'publication navigation checks destination membership $allowed',

@@ -26,17 +26,20 @@ class SpaceView {
     this.state = 'unready',
     this.error,
     this.animate = false,
+    this.cut = false,
+    this.icon,
   });
   final SceneState scene;
   final String focused, title, description, state;
   final UiChildRef? side, main;
   final List<AppToolbarEntry> toolbar;
-  final String? error;
-  final bool animate;
+  final String? error, icon;
+  final bool animate, cut;
   factory SpaceView.fromScene(
     SceneState scene, {
     required String brain,
     bool animate = false,
+    bool cut = false,
   }) {
     SceneNode? focused;
     for (final node in scene.definition.nodes) {
@@ -69,6 +72,8 @@ class SpaceView {
       state: p['state'] ?? 'unready',
       error: p['error'],
       animate: animate,
+      cut: cut,
+      icon: p['icon'],
     );
   }
 }
@@ -101,6 +106,9 @@ class SpaceController {
   Timer? _reconnect;
   bool _disposed = false, _reading = false, _again = false, _recovering = false;
   Future<void> _commands = Future.value();
+  Future<void> Function()? _retry;
+
+  Future<void> retry() => _retry?.call() ?? refresh();
 
   Future<void> start() async {
     _listen();
@@ -148,7 +156,7 @@ class SpaceController {
         final scene = await scenes.read('$brain/space');
         if (_disposed) return;
         workspace = snapshot;
-        _apply(scene, animate: animate && !_recovering);
+        _apply(scene, animate: animate && !_recovering, cut: _recovering);
         error.value = null;
         _recovering = false;
       } while (_again && !_disposed);
@@ -159,12 +167,13 @@ class SpaceController {
     }
   }
 
-  void _apply(SceneState scene, {required bool animate}) {
+  void _apply(SceneState scene, {required bool animate, bool cut = false}) {
     if (scene.revision <= _view.value.scene.revision) return;
     final next = SpaceView.fromScene(scene, brain: brain);
     _view.value = SpaceView.fromScene(
       scene,
       brain: brain,
+      cut: cut,
       animate:
           animate &&
           next.focused != _view.value.focused &&
@@ -173,9 +182,10 @@ class SpaceController {
   }
 
   Future<void> _navigate(
-    Future<WorkspaceSnapshot> Function(String, int) command,
-  ) {
-    final id = const Uuid().v4();
+    Future<WorkspaceSnapshot> Function(String, int) command, {
+    String? operationId,
+  }) {
+    final id = operationId ?? const Uuid().v4();
     final operation = _commands.then((_) async {
       if (_disposed) return;
       workspace ??= await client.readWorkspace(brain);
@@ -187,10 +197,17 @@ class SpaceController {
         workspace = await command(id, workspace!.revision);
       }
       final scene = await scenes.read('$brain/space');
-      if (!_disposed) _apply(scene, animate: true);
+      if (!_disposed) {
+        _apply(scene, animate: true);
+        _retry = null;
+        error.value = null;
+      }
     });
     _commands = operation.catchError((Object problem) {
-      if (!_disposed) error.value = problem;
+      if (!_disposed) {
+        _retry = () => _navigate(command, operationId: id);
+        error.value = problem;
+      }
     });
     return operation;
   }

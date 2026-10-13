@@ -13,6 +13,8 @@ class SpaceToolbar extends StatelessWidget {
     this.onBack,
     this.onSettings,
     this.loadIcon,
+    this.icon,
+    this.iconRoute,
     this.menu,
   });
   final List<AppToolbarEntry> entries;
@@ -20,6 +22,7 @@ class SpaceToolbar extends StatelessWidget {
   final VoidCallback? onBack, onSettings;
   final DockRequest onRequest;
   final IconLoader? loadIcon;
+  final String? icon, iconRoute;
   final Widget? menu;
   @override
   Widget build(BuildContext context) => Material(
@@ -46,12 +49,14 @@ class SpaceToolbar extends StatelessWidget {
                 app: '',
                 manifest: AppManifest(
                   title: '',
+                  icon: icon,
                   description: '',
                   operations: const [],
                   toolbar: entries,
                 ),
                 onRequest: onRequest,
                 loadIcon: loadIcon,
+                iconRoute: iconRoute,
               ),
             ),
           ),

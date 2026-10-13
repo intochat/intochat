@@ -17,7 +17,8 @@ class SpaceClient extends http.BaseClient {
   final changes = StreamController<void>.broadcast();
   final calls = <({String command, String id, int revision, String? key})>[];
   int reads = 0;
-  bool conflict = false;
+  bool conflict = false, failCommands = false, loseNextResponse = false;
+  final applied = <String, WorkspaceSnapshot>{};
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     final command = request.url.pathSegments.last;
@@ -30,6 +31,13 @@ class SpaceClient extends http.BaseClient {
         revision = body['expectedRevision'] as int;
     final key = body['app'] as String?;
     calls.add((command: command, id: id, revision: revision, key: key));
+    if (applied.containsKey(id)) {
+      workspace = applied[id]!;
+      return response();
+    }
+    if (failCommands) {
+      return http.StreamedResponse(Stream.value(utf8.encode('{}')), 503);
+    }
     if (conflict) {
       conflict = false;
       workspace = WorkspaceSnapshot(
@@ -57,6 +65,11 @@ class SpaceClient extends http.BaseClient {
       path: path,
       open: workspace.open,
     );
+    applied[id] = workspace;
+    if (loseNextResponse) {
+      loseNextResponse = false;
+      return http.StreamedResponse(Stream.value(utf8.encode('{}')), 503);
+    }
     return response();
   }
 
@@ -80,10 +93,16 @@ class SpaceScenes extends SceneClient {
   final SpaceClient ui;
   int revision = 1;
   String? error;
-  bool side = false;
+  bool side = false, failRead = false;
+  String icon = 'folder';
+  List<Map<String, dynamic>> toolbar = [];
   final reports = <String>[];
   @override
-  Future<SceneState> read(String sceneKey) async => scene();
+  Future<SceneState> read(String sceneKey) async {
+    if (failRead) throw StateError('scene unavailable');
+    return scene();
+  }
+
   SceneState scene() {
     final focused = ui.workspace.path.last;
     return SceneState(
@@ -102,7 +121,8 @@ class SpaceScenes extends SceneClient {
               ),
               inputs: ['tap'],
               parameters: {
-                'icon': 'folder',
+                'icon': icon,
+                if (key == focused) 'toolbar': jsonEncode(toolbar),
                 'neuron': key,
                 'focused': '${key == focused}',
                 'title': key.split('/').last,

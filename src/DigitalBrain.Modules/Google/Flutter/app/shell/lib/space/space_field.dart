@@ -34,6 +34,12 @@ class _SpaceFieldState extends State<SpaceField>
   void didUpdateWidget(SpaceField old) {
     super.didUpdateWidget(old);
     if (widget.view.scene.revision == old.view.scene.revision) return;
+    if (_flight.isAnimating &&
+        widget.view.focused == old.view.focused &&
+        !widget.view.cut &&
+        !MediaQuery.disableAnimationsOf(context)) {
+      return;
+    }
     _from = _drawn ?? old.view.scene;
     _fromOffset = _drawnOffset;
     if (widget.view.animate && !MediaQuery.disableAnimationsOf(context)) {

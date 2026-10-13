@@ -56,6 +56,7 @@ class _NeuronSpaceState extends State<NeuronSpace>
         !MediaQuery.disableAnimationsOf(context)) {
       _slots.forward(from: 0);
     }
+    if (view.cut || MediaQuery.disableAnimationsOf(context)) _slots.value = 1;
     _focused = view.focused;
   }
 
@@ -85,101 +86,144 @@ class _NeuronSpaceState extends State<NeuronSpace>
   void _run(Future<void> operation) =>
       unawaited(operation.catchError((Object _) {}));
   @override
-  Widget build(BuildContext context) => ValueListenableBuilder<SpaceView>(
-    valueListenable: widget.controller.view,
-    builder: (context, view, _) => LayoutBuilder(
-      builder: (context, size) {
-        final hasMain = view.main != null || view.error != null;
-        final x = size.maxWidth * (hasMain ? .28 : .5);
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            SpaceField(
-              view: view,
-              loadIcon: widget.loadIcon,
-              onInput: (id, kind, x, y, payload) =>
-                  _run(widget.controller.input(id, kind, x, y, payload)),
-            ),
-            if (view.side != null)
-              Positioned(
-                left: 0,
-                top: 12,
-                bottom: 76,
-                child: _arrival(
-                  SideSlot(
-                    key: ValueKey('side:${view.side!.kind}:${view.side!.name}'),
-                    reference: view.side!,
-                    load: widget.load,
-                    watch: widget.watch,
-                    onAction: widget.onAction,
-                    onActivate: widget.onActivate,
-                    scenes: widget.controller.scenes,
-                  ),
-                ),
+  Widget build(BuildContext context) => ValueListenableBuilder<Object?>(
+    valueListenable: widget.controller.error,
+    builder: (context, problem, _) => ValueListenableBuilder<SpaceView>(
+      valueListenable: widget.controller.view,
+      builder: (context, view, _) => LayoutBuilder(
+        builder: (context, size) {
+          final hasMain = view.main != null || view.error != null;
+          final x = size.maxWidth * (hasMain ? .28 : .5);
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              SpaceField(
+                view: view,
+                loadIcon: widget.loadIcon,
+                onInput: (id, kind, x, y, payload) =>
+                    _run(widget.controller.input(id, kind, x, y, payload)),
               ),
-            if (hasMain)
-              Positioned(
-                left: math.max(
-                  size.maxWidth * .44,
-                  view.side == null ? 0 : 332,
-                ),
-                right: 12,
-                top: 12,
-                bottom: 76,
-                child: _arrival(
-                  MainSlot(
-                    key: ValueKey(
-                      'main:${view.main?.kind}:${view.main?.name}:${view.error}',
-                    ),
-                    reference: view.main,
-                    load: widget.load,
-                    error: view.error,
-                    watch: widget.watch,
-                    onAction: widget.onAction,
-                    onActivate: widget.onActivate,
-                    scenes: widget.controller.scenes,
-                  ),
-                ),
-              ),
-            Positioned(
-              left: math.max(0, x - 120),
-              top: math.max(12, (size.maxHeight - 64) / 2 - 160),
-              width: 240,
-              child: IgnorePointer(
-                child: Column(
-                  children: [
-                    Text(
-                      view.title,
-                      style: Theme.of(context).textTheme.titleLarge,
-                      textAlign: TextAlign.center,
-                    ),
-                    if (view.description.isNotEmpty)
-                      Text(view.description, textAlign: TextAlign.center),
-                    if (view.state == 'error')
-                      Semantics(
-                        label: 'Needs attention',
-                        child: Icon(Icons.error, color: Colors.red),
+              if (view.side != null)
+                Positioned(
+                  left: 0,
+                  top: 12,
+                  bottom: 76,
+                  child: _arrival(
+                    SideSlot(
+                      key: ValueKey(
+                        'side:${view.side!.kind}:${view.side!.name}',
                       ),
-                  ],
+                      reference: view.side!,
+                      load: widget.load,
+                      watch: widget.watch,
+                      onAction: widget.onAction,
+                      onActivate: widget.onActivate,
+                      scenes: widget.controller.scenes,
+                    ),
+                  ),
+                ),
+              if (hasMain)
+                Positioned(
+                  left: math.max(
+                    size.maxWidth * .44,
+                    view.side == null ? 0 : 332,
+                  ),
+                  right: 12,
+                  top: 12,
+                  bottom: 76,
+                  child: _arrival(
+                    MainSlot(
+                      key: ValueKey(
+                        'main:${view.main?.kind}:${view.main?.name}:${view.error}',
+                      ),
+                      reference: view.main,
+                      load: widget.load,
+                      error: view.error,
+                      watch: widget.watch,
+                      onAction: widget.onAction,
+                      onActivate: widget.onActivate,
+                      scenes: widget.controller.scenes,
+                    ),
+                  ),
+                ),
+              Positioned(
+                left: math.max(0, x - 120),
+                top: math.max(12, (size.maxHeight - 64) / 2 - 160),
+                width: 240,
+                child: IgnorePointer(
+                  child: Column(
+                    children: [
+                      Text(
+                        view.title,
+                        style: Theme.of(context).textTheme.titleLarge,
+                        textAlign: TextAlign.center,
+                      ),
+                      if (view.description.isNotEmpty)
+                        Text(view.description, textAlign: TextAlign.center),
+                      if (view.state == 'error')
+                        Semantics(
+                          label: 'Needs attention',
+                          child: Icon(Icons.error, color: Colors.red),
+                        ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: SpaceToolbar(
-                entries: view.toolbar,
-                onHome: () => _run(widget.controller.home()),
-                onBack: widget.controller.workspace?.path.length == 1
-                    ? null
-                    : () => _run(widget.controller.back()),
-                onSettings: widget.onSettings,
-                onRequest: widget.onRequest ?? (_, _) async {},
-                menu: widget.menu,
+              if (problem != null)
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  right: 12,
+                  child: Center(
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('Could not update your space.'),
+                            TextButton(
+                              onPressed: () => _run(widget.controller.retry()),
+                              child: const Text('Retry'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: SpaceToolbar(
+                  entries: view.toolbar,
+                  icon: view.icon,
+                  iconRoute: _iconRoute(view.focused),
+                  loadIcon: widget.loadIcon == null || view.icon == null
+                      ? null
+                      : (_) => widget.loadIcon!(view.focused, view.icon!),
+                  onHome: () => _run(widget.controller.home()),
+                  onBack: widget.controller.workspace?.path.length == 1
+                      ? null
+                      : () => _run(widget.controller.back()),
+                  onSettings: widget.onSettings,
+                  onRequest: widget.onRequest ?? (_, _) async {},
+                  menu: widget.menu,
+                ),
               ),
-            ),
-          ],
-        );
-      },
+            ],
+          );
+        },
+      ),
     ),
   );
+
+  String? _iconRoute(String neuron) {
+    final marker = neuron.indexOf('/apps/');
+    if (marker <= 0) return null;
+    final brain = Uri.encodeComponent(neuron.substring(0, marker));
+    final app = Uri.encodeComponent(
+      neuron.substring(marker + 6).split('/').first,
+    );
+    return '/brains/$brain/apps/$app/icon';
+  }
 }

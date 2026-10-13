@@ -1,3 +1,8 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:digitalbrain_flutter_shell/space/space_toolbar.dart';
+import 'package:digitalbrain_flutter_shell/workspace/home/app_icon.dart';
 import 'package:digitalbrain_flutter_shell/space/neuron_space.dart';
 import 'package:digitalbrain_flutter_shell/space/space_controller.dart';
 import 'package:digitalbrain_flutter_shell/space/space_slots.dart';
@@ -14,11 +19,14 @@ void main() {
     bool reduced = false,
     bool side = false,
     String? error,
+    void Function(SpaceClient, SpaceScenes)? configure,
+    SphereIconLoader? loadIcon,
   }) async {
     final ui = SpaceClient();
     final scenes = SpaceScenes(ui)
       ..side = side
       ..error = error;
+    configure?.call(ui, scenes);
     final controller = SpaceController(
       client: ui.client,
       scenes: scenes,
@@ -33,6 +41,7 @@ void main() {
           child: Scaffold(
             body: NeuronSpace(
               controller: controller,
+              loadIcon: loadIcon,
               load: (kind, name) async => kind == 'text'
                   ? {
                       'markdown': name.endsWith('/side')
@@ -128,6 +137,123 @@ void main() {
     )) {
       expect(transition.opacity.value, 1);
     }
+  });
+  testWidgets('initial read failure offers retry and loads the scene', (
+    tester,
+  ) async {
+    final (_, scenes, controller) = await mount(
+      tester,
+      configure: (_, scenes) => scenes.failRead = true,
+    );
+    expect(controller.view.value.scene.revision, -1);
+    expect(find.text('Could not update your space.'), findsOneWidget);
+    scenes.failRead = false;
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not update your space.'), findsNothing);
+    expect(find.text('Main content'), findsOneWidget);
+  });
+  testWidgets('failed navigation keeps the scene and retries the intent', (
+    tester,
+  ) async {
+    final (ui, scenes, controller) = await mount(tester);
+    ui.failCommands = true;
+    await expectLater(controller.show('brain/apps/files'), throwsA(anything));
+    await tester.pumpAndSettle();
+    expect(controller.view.value.focused, 'brain/apps/ino');
+    expect(find.text('Main content'), findsOneWidget);
+    expect(find.text('Could not update your space.'), findsOneWidget);
+    ui.failCommands = false;
+    scenes.revision++;
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(controller.view.value.focused, 'brain/apps/files');
+    expect(find.text('Could not update your space.'), findsNothing);
+    expect(ui.calls[0].id, ui.calls[1].id);
+  });
+  testWidgets('retry after a lost Back response does not pop twice', (
+    tester,
+  ) async {
+    final (ui, scenes, controller) = await mount(tester);
+    scenes.revision++;
+    await controller.show('brain/apps/files');
+    await tester.pumpAndSettle();
+    ui.loseNextResponse = true;
+    await expectLater(controller.back(), throwsA(anything));
+    await tester.pumpAndSettle();
+    expect(ui.workspace.path, ['brain', 'brain/apps/ino']);
+    expect(controller.view.value.focused, 'brain/apps/files');
+    scenes.revision++;
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(ui.calls[1].id, ui.calls[2].id);
+    expect(ui.workspace.path, ['brain', 'brain/apps/ino']);
+    expect(controller.view.value.focused, 'brain/apps/ino');
+    expect(find.text('Could not update your space.'), findsNothing);
+  });
+  testWidgets('same-focus scene updates preserve the active flight clock', (
+    tester,
+  ) async {
+    final (_, scenes, controller) = await mount(tester);
+    final game = tester
+        .widget<GameWidget<SceneGame>>(find.byType(GameWidget<SceneGame>))
+        .game!;
+    scenes.revision++;
+    await controller.show('brain/apps/files');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 210));
+    final halfway = game.state!.definition.camera.x;
+    expect(
+      halfway,
+      closeTo(176 + 320 * Curves.easeInOutCubic.transform(.5), .1),
+    );
+    scenes.revision++;
+    await controller.refresh(animate: true);
+    await tester.pump();
+    expect(game.state!.definition.camera.x, closeTo(halfway, .1));
+    await tester.pump(const Duration(milliseconds: 105));
+    expect(
+      game.state!.definition.camera.x,
+      closeTo(176 + 320 * Curves.easeInOutCubic.transform(.75), .1),
+    );
+    await tester.pump(const Duration(milliseconds: 105));
+    expect(game.state!.definition.camera.x, 496);
+  });
+  testWidgets('toolbar manifest icons use the focused authenticated loader', (
+    tester,
+  ) async {
+    final loads = <(String, String)>[];
+    await mount(
+      tester,
+      configure: (_, scenes) {
+        scenes.icon = 'mark.svg';
+        scenes.toolbar = [
+          {'operation': 'open', 'icon': 'mark.svg', 'label': 'Open'},
+        ];
+      },
+      loadIcon: (neuron, icon) async {
+        loads.add((neuron, icon));
+        return Uint8List.fromList(
+          utf8.encode(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="red"/></svg>',
+          ),
+        );
+      },
+    );
+    final icon = find.descendant(
+      of: find.byType(SpaceToolbar),
+      matching: find.byType(AppIcon),
+    );
+    expect(icon, findsOneWidget);
+    expect(tester.widget<AppIcon>(icon).path, '/brains/brain/apps/ino/icon');
+    expect(loads, contains(('brain/apps/ino', 'mark.svg')));
+    expect(
+      find.descendant(
+        of: icon,
+        matching: find.byKey(const ValueKey('app-icon-fallback')),
+      ),
+      findsNothing,
+    );
   });
   testWidgets('each slot kind renders in its region', (tester) async {
     await mount(tester, side: true);
