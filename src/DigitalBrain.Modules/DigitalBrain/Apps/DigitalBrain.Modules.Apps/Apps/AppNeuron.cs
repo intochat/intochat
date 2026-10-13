@@ -556,6 +556,7 @@ internal sealed partial class AppNeuron(
     // A deleted app has no files, so a writer that outlived it deploys an empty program, which retires the runtime.
     public async Task<StagedProgram> Program()
     {
+        if (!Exists) { return new([], Configuration(Snapshot), Snapshot.Principal); }
         var next = Snapshot.Clone();
         AdvanceProgram(next);
         await Persist(next);
@@ -668,14 +669,11 @@ internal sealed partial class AppNeuron(
     // setting and brain.Setting("Account__" + slot) for each connected account.
     private Dictionary<string, string> Configuration(AppState state)
     {
-        var values = new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["App"] = this.GetPrimaryKeyString(),
-            ["Brain"] = state.BrainScopeId ?? "",
-            ["ProgramRevision"] = state.ProgramRevision.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        };
-        foreach (var (name, value) in state.Settings) { values[name] = value; }
+        var values = new Dictionary<string, string>(state.Settings, StringComparer.Ordinal);
         foreach (var (slot, id) in state.Connections) { values["Account__" + slot] = id; }
+        values["App"] = this.GetPrimaryKeyString();
+        values["Brain"] = state.BrainScopeId ?? "";
+        values["ProgramRevision"] = state.ProgramRevision.ToString(System.Globalization.CultureInfo.InvariantCulture);
         return values;
     }
 

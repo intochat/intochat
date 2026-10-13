@@ -110,12 +110,82 @@ public sealed class FastPathFacts : IDisposable
     private sealed class PublishingRuntime : IAppRuntime
     {
         public Func<Dictionary<string, string>, Dictionary<string, string>, Task>? Startup { get; set; }
+        public Action? Retiring { get; set; }
         public async Task<IReadOnlyDictionary<string, string>> Deploy(string appKey, Dictionary<string, string> sources, Dictionary<string, string> configuration, CancellationToken cancellationToken)
         {
             if (Startup is { } startup) { await startup(sources, configuration); }
             return sources.Keys.ToDictionary(path => path, path => "hash:" + path);
         }
-        public Task Retire(string appKey, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task Retire(string appKey, CancellationToken cancellationToken) { Retiring?.Invoke(); return Task.CompletedTask; }
+    }
+
+    [Fact]
+    public async Task SettingsCannotReplaceTheAssignmentsProgramRevision()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runtime = new PublishingRuntime();
+        await using var brain = await TestBrain.Create().WithModule<AppsModule>()
+            .ConfigureServices(services =>
+            {
+                services.RemoveAll<IAppRuntime>();
+                services.AddSingleton<IAppRuntime>(runtime);
+            }).StartAsync(ct);
+        var app = await Created(brain, "configured");
+        await app.WriteBehavior("old.cs", "public static class Old { }", Guid.NewGuid());
+        Dictionary<string, string>? assigned = null;
+        long heldRevision = -1;
+        runtime.Startup = async (_, configuration) =>
+        {
+            assigned = configuration;
+            heldRevision = (await app.Read()).ProgramRevision;
+        };
+        var state = await app.Configure(new() { ["ProgramRevision"] = "spoofed", ["App"] = "other", ["Brain"] = "other", ["theme"] = "dark" }, []);
+        Assert.NotNull(assigned);
+        Assert.Equal(state.ProgramRevision, heldRevision);
+        Assert.Equal(state.ProgramRevision.ToString(System.Globalization.CultureInfo.InvariantCulture), assigned["ProgramRevision"]);
+        Assert.Equal(IApp.Key(Brain, "configured"), assigned["App"]);
+        Assert.Equal(Brain, assigned["Brain"]);
+        Assert.Equal("dark", assigned["theme"]);
+    }
+
+    [Fact]
+    public async Task AWriterReconcilingAfterDeletionCannotRegisterAPhantomApp()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var runtime = new PublishingRuntime();
+        await using var model = await FakeModelServer.StartAsync(ct);
+        await using var brain = await TestBrain.Create().WithModule<AIModule>()
+            .WithModule<AppsModule, AppsOptions>(apps => apps.FastPathModel = nameof(IGpt56Luna))
+            .WithFakeModel(model).ConfigureServices(services =>
+            {
+                services.RemoveAll<IAppRuntime>();
+                services.AddSingleton<IAppRuntime>(runtime);
+                services.AddSingleton<IScriptSandbox>(new FastPathSandbox());
+            }).StartAsync(ct);
+        var app = await Created(brain, "deleted");
+        var key = IApp.Key(Brain, "deleted");
+        var staged = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var deleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var retired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var retireCalls = 0;
+        runtime.Retiring = () => { if (Interlocked.Increment(ref retireCalls) == 2) { retired.TrySetResult(); } };
+        runtime.Startup = async (sources, _) =>
+        {
+            staged.TrySetResult();
+            await deleted.Task.WaitAsync(ct);
+            throw new InvalidOperationException("assignment refused after deletion");
+        };
+        model.Script(Writer, Reply("lemons.cs", Lemons));
+        await app.WriteSynapse("when asked, answer lemons", [], Guid.NewGuid());
+        await staged.Task.WaitAsync(ct);
+        await app.Delete();
+        deleted.TrySetResult();
+        await retired.Task.WaitAsync(ct);
+        Assert.Equal(0, (await app.Read()).ProgramRevision);
+        var kernel = brain.Services.GetRequiredService<IKernel>();
+        await foreach (var instance in kernel.InstancesIn(Brain, kernel.TypeOf(typeof(IApp)), ct))
+        { Assert.NotEqual(key, instance.Key); }
+        await Assert.ThrowsAsync<InvalidOperationException>(() => app.Request("ask", ""));
     }
 
     [Fact]
