@@ -1,3 +1,7 @@
+import 'package:flutter/services.dart';
+
+import 'dart:ui' as ui;
+
 import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:digitalbrain_ui/digitalbrain_ui.dart';
 import 'package:flame_test/flame_test.dart';
@@ -37,6 +41,29 @@ Map<String, Object?> sphereNode({
 
 void main() {
   final flameTester = FlameTester(SceneGame.new);
+
+  test(
+    'named shell icons draw their distinct glyphs instead of initials',
+    () async {
+      final font = FontLoader('MaterialIcons')
+        ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
+      await font.load();
+      Future<List<int>> pixels(String icon) async {
+        final body = SphereVisual()
+          ..size.setValues(96, 96)
+          ..icon = icon;
+        final recorder = ui.PictureRecorder();
+        body.render(ui.Canvas(recorder));
+        final image = await recorder.endRecording().toImage(96, 96);
+        final bytes = await image.toByteData();
+        final result = bytes!.buffer.asUint8List().toList();
+        image.dispose();
+        return result;
+      }
+
+      expect(await pixels('play'), isNot(await pixels('pause')));
+    },
+  );
 
   flameTester.testGameWidget(
     'a sphere without a tree runs the default idle tree',
@@ -79,6 +106,8 @@ void main() {
     verify: (game, _) async {
       final sphere = game.componentFor('ino') as SphereComponent;
       expect(sphere.attentionBadge, isTrue);
+      expect(sphere.blackboard['attention'], 'true');
+
       game.apply(scene(sphereNode(blackboard: '{"attention":"false"}')));
       expect(sphere.attentionBadge, isFalse);
     },

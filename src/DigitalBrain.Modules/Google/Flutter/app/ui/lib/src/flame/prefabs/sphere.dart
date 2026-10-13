@@ -8,6 +8,7 @@ import 'package:flame/effects.dart';
 import 'package:flame_behavior_tree/flame_behavior_tree.dart';
 import 'package:flutter/painting.dart';
 
+import '../../shell_icon.dart';
 import '../behavior/default_idle_tree.dart';
 import '../behavior/tree_runtime.dart';
 import '../node_components.dart';
@@ -114,11 +115,21 @@ final class SphereVisual extends PositionComponent
         ..color = const Color(0xFF7FB069).withValues(alpha: opacity),
     );
     if (icon.isNotEmpty) {
-      final glyph = _label(
-        icon[0].toUpperCase(),
-        radius * 0.9,
-        const Color(0xFFE9F4DF),
-      );
+      final data = shellIcon(icon);
+      final glyph = TextPainter(
+        text: TextSpan(
+          text: data == null
+              ? icon[0].toUpperCase()
+              : String.fromCharCode(data.codePoint),
+          style: TextStyle(
+            fontSize: radius * 0.9,
+            color: const Color(0xFFE9F4DF),
+            fontFamily: data?.fontFamily,
+            package: data?.fontPackage,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
       glyph.paint(canvas, center - Offset(glyph.width / 2, glyph.height / 2));
     }
     var top = -6.0;
@@ -138,17 +149,20 @@ final class SphereVisual extends PositionComponent
 }
 
 /// A neuron's sphere: the icon disc with its labels, driven by the behavior tree its node carries
-/// (or [defaultIdleTree]). The game rewrites [board] from the node's `blackboard` on every apply.
+/// (or [defaultIdleTree]). The game rewrites [blackboard] from the node's `blackboard` on every apply.
 final class SphereComponent extends NodeComponent
     with HasBehaviorTree<BaseNode> {
   SphereComponent(super.node);
 
-  final board = <String, String>{};
+  final _board = SphereBlackboard();
+
+  @override
+  SphereBlackboard get blackboard => _board;
   final body = SphereVisual();
   String _treeKey = 'unset';
 
   bool get usesDefaultTree => treeDef == null;
-  bool get attentionBadge => board['attention'] == 'true';
+  bool get attentionBadge => blackboard['attention'] == 'true';
 
   bool get animations => body.animations;
   set animations(bool value) => body.animations = value;
@@ -158,7 +172,7 @@ final class SphereComponent extends NodeComponent
   bool get needsFrames =>
       animations &&
       (treeDef != null ||
-          board['running'] == 'true' ||
+          blackboard['running'] == 'true' ||
           attentionBadge ||
           body.hasEffects);
 
@@ -182,20 +196,20 @@ final class SphereComponent extends NodeComponent
     final key = treeDef == null ? '' : jsonEncode(treeDef!.toJson());
     if (key != _treeKey) {
       _treeKey = key;
-      treeRoot = buildTree(treeDef ?? defaultIdleTree(), board, body);
+      treeRoot = buildTree(treeDef ?? defaultIdleTree(), blackboard, body);
     }
     if (isMounted) game.wake();
   }
 
   void _readBoard() {
-    board.clear();
+    blackboard.clear();
     final raw = params['blackboard'];
     if (raw == null) return;
     try {
       final decoded = jsonDecode(raw);
       if (decoded is Map) {
         for (final entry in decoded.entries) {
-          board['${entry.key}'] = '${entry.value}';
+          blackboard['${entry.key}'] = '${entry.value}';
         }
       }
     } on FormatException {

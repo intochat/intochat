@@ -1,8 +1,19 @@
+import 'dart:collection';
+
 import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
 import 'package:flame_behavior_tree/flame_behavior_tree.dart';
 
 /// The facts a tree's conditions read; the game rewrites them from the node's `blackboard` on each apply.
-typedef SphereBlackboard = Map<String, String>;
+final class SphereBlackboard extends Blackboard with MapMixin<String, String> {
+  @override
+  String? operator [](Object? key) =>
+      key is String && has(key) ? get<String>(key) : null;
+  @override
+  void operator []=(String key, String value) => set(key, value);
+  @override
+  String? remove(Object? key) =>
+      key is String ? super.remove(key) as String? : null;
+}
 
 /// What a tree acts on. [now] and [frame] advance once per tick, so a task can tell that it ran last frame.
 abstract interface class SphereBody {
@@ -16,11 +27,11 @@ abstract interface class SphereBody {
 /// Maps a tree definition onto `behavior_tree` nodes bound to [blackboard] and [body].
 BaseNode buildTree(
   BehaviorTreeDef tree,
-  SphereBlackboard blackboard,
+  Map<String, String> blackboard,
   SphereBody body,
 ) => _build(tree.root, blackboard, body);
 
-BaseNode _build(TreeNode node, SphereBlackboard board, SphereBody body) {
+BaseNode _build(TreeNode node, Map<String, String> board, SphereBody body) {
   List<BaseNode> children() => [
     for (final child in node.children) _build(child, board, body),
   ];

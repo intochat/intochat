@@ -50,3 +50,4 @@ export 'src/composition/application_surface.dart';
 export 'src/voice_input/ui_voice_input.dart';
 export 'src/theme/ui_tokens.dart';
 export 'src/components/workspace/ui_workspace_components.dart';
+export 'src/shell_icon.dart';
