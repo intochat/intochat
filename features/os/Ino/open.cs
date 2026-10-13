@@ -1,16 +1,17 @@
 using DigitalBrain.Apps;
 using DigitalBrain.Client;
 
-// Compose the declared root at startup; workspace navigation owns visibility and focus.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var app = brain.Get<IApp>(Ino.Key(brain));
-await Ino.Compose(brain);
+await Present();
 await foreach (var request in brain.On(app, "open", brain.Stopping))
 {
-    try
-    {
-        await Ino.Compose(brain);
-    }
+    await Present();
+}
+
+async Task Present()
+{
+    try { await Ino.Present(brain); }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-    { await app.Progress("attention", "Ino could not compose its scenes; open Ino again. " + error.Message); }
+    { await app.FailPresentation(Ino.ProgramRevision(brain), "Ino could not publish its presentation. " + error.Message); }
 }

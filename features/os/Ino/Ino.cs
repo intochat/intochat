@@ -1,66 +1,32 @@
-using DigitalBrain.AI.Agents;
+using DigitalBrain.Apps;
 using DigitalBrain.Client;
 using DigitalBrain.Flame.Scene;
-using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.Text.Signals;
-using System.Text.Json;
+using DigitalBrain.Flutter;
+using System.Globalization;
 
-// Shared by every Ino synapse: keys, the two scenes (always rebuilt whole, never patched) and the presence events.
 public static class Ino
 {
     public static string Key(DigitalBrainConnection brain) => brain.Setting("App")!;
     public static string Scope(DigitalBrainConnection brain) => brain.Setting("Brain") ?? Key(brain)[..Key(brain).IndexOf("/apps/", StringComparison.Ordinal)];
-    public static string HomeKey(DigitalBrainConnection brain) => Key(brain) + "/scenes/home";
-    public static string WelcomeKey(DigitalBrainConnection brain) => Key(brain) + "/scenes/welcome";
     public static string AssistantKey(DigitalBrainConnection brain) => Scope(brain) + "/apps/assistant";
+    public static long ProgramRevision(DigitalBrainConnection brain) => long.Parse(brain.Setting("ProgramRevision")!, CultureInfo.InvariantCulture);
 
-    public static IScene Home(DigitalBrainConnection brain) => brain.Get<IScene>(HomeKey(brain));
+    public static BehaviorTree Presence() => new(TreeNode.Selector(
+        TreeNode.Sequence(false, TreeNode.Condition("mood", "listening"), TreeNode.Scale(1.08, 0.4), TreeNode.Scale(1.0, 0.4)),
+        TreeNode.Sequence(false, TreeNode.Condition("mood", "thinking"), TreeNode.Pulse(0.12, 1.0)),
+        TreeNode.Sequence(false, TreeNode.Condition("mood", "acting"), TreeNode.Pulse(0.2, 0.5)),
+        TreeNode.Sequence(false, TreeNode.Condition("mood", "speaking"), TreeNode.Fade(0.8, 0.3), TreeNode.Fade(1.0, 0.3)),
+        TreeNode.Sequence(false, TreeNode.Condition("mood", "error"), TreeNode.Scale(0.9, 0.2), TreeNode.Wait(0.6), TreeNode.Scale(1.0, 0.2)),
+        TreeNode.Repeat(TreeNode.Wait(1))));
 
-    // The assistant's selected conversation, following its pointer text as the assistant's own projections do.
-    public static Sources Conversation(DigitalBrainConnection brain)
-        => Sources.Named<IText, TextChanged>(brain.Get<IText>(AssistantKey(brain) + "/conversation"), async (pointer, _) =>
-        {
-            var selected = (await pointer.Read()).Markdown;
-            return [brain.Get<IAgent>(AssistantKey(brain) + "/conversations/" + (selected.Length == 0 ? "main" : selected))];
-        });
+    public static Presentation Presentation(DigitalBrainConnection brain)
+        => new(new Sphere("icon.svg", ["mood"], Presence()), Side: null, Main: new UiChildRef(UIVocabulary.SurfaceType, AssistantKey(brain) + "/surface"));
 
-    static SceneNode Sphere(double scale) => new("ino", "ino_sphere", new Transform(Scale: scale), null,
-        new() { ["mood"] = "idle", ["radius"] = "120" }, [], [], ["tap"]);
+    public static Task Present(DigitalBrainConnection brain) => brain.Get<IApp>(Key(brain)).Present(ProgramRevision(brain), Presentation(brain));
 
-    public static SceneDefinition WelcomeScene() => new([Sphere(1.4)], new SceneCamera(), "#070A0F");
-
-    public static SceneDefinition HomeScene(string itemsJson) => new(
-        [
-            Sphere(1.0),
-            new("ring", "activity_ring", new Transform(), null, new() { ["items"] = itemsJson, ["radius"] = "220" }, [], [], []),
-        ],
-        new SceneCamera(), "#0B0F14");
-
-    public static async Task Compose(DigitalBrainConnection brain)
+    public static string MoodOf(string activityState) => activityState switch
     {
-        var welcome = brain.Get<IScene>(WelcomeKey(brain));
-        var initial = await welcome.Read();
-        if (initial.Revision == 0) { await welcome.Set(WelcomeScene(), initial.Revision); }
-        var home = await Home(brain).Read();
-        await ComposeHome(brain, JsonSerializer.Serialize(RecentApps(home.Definition)));
-    }
-
-    public static JsonElement[] RecentApps(SceneDefinition definition)
-    {
-        var items = definition.Nodes.FirstOrDefault(node => node.Id == "ring")?.Parameters.GetValueOrDefault("items");
-        return string.IsNullOrWhiteSpace(items) ? [] : (JsonSerializer.Deserialize<JsonElement[]>(items) ?? [])
-            .Where(item => item.TryGetProperty("kind", out var kind) && kind.GetString() == "app")
-            .TakeLast(6).ToArray();
-    }
-
-    public static async Task ComposeHome(DigitalBrainConnection brain, string itemsJson)
-    {
-        var home = Home(brain);
-        await home.Set(HomeScene(itemsJson), (await home.Read()).Revision);
-    }
-
-    // Presence is rewritten as a behavior tree in a later step; until then the presence synapses keep their shape and do nothing.
-    public static Task RestFrom(DigitalBrainConnection brain, string state) => Task.CompletedTask;
-
-    public static Task Fire(DigitalBrainConnection brain, string eventName) => Task.CompletedTask;
+        "listening" or "accepted" => "listening", "working" or "waiting" => "thinking",
+        "reading" or "searching" => "acting", "completed" => "speaking", "attention" => "error", _ => "idle",
+    };
 }

@@ -150,6 +150,9 @@ status line and writes nothing.
 Workspace hosting: startup composes the declared entry using stable neuron identities. Opening the
 workspace reads that state; composition and completion never change focus or reopen a closed entry.
 
+Progress states are Ino's mood source: listening when input arrives, working while answering,
+completed after an answer, and attention on failure. Ino follows AppActivity and writes its mood key.
+
 */
 
 using DigitalBrain.Apps;
