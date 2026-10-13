@@ -4,7 +4,7 @@ using DigitalBrain.Microsoft.CSharp.Runtime;
 using DigitalBrain.Microsoft.CSharp.Runtime.Signals;
 
 // A behavior ran: the last 200 runs are kept in {app}/runs/recent (the runs neuron has no read method), and
-// the panel's list is refreshed when the run belongs to the selected neuron. The ring is a cache seeded from
+// the brain-wide panel's list is refreshed after every run. The ring is a cache seeded from
 // that log when the process starts; a redelivered run is already in it and changes nothing.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var own = BrainView.Key(brain);
@@ -20,8 +20,7 @@ await foreach (var ran in brain.On<BehaviorRan>(brain.Get<IBrainRuns>(BrainRunsK
     try
     {
         await BrainView.Recent(brain).Set(JsonSerializer.Serialize(recent));
-        var selected = (await BrainView.Selected(brain).Read()).Title;
-        if (selected.Length > 0 && BrainView.Under(ran.Behavior, selected)) { await BrainView.ShowRuns(brain, selected, recent); }
+        await BrainView.ShowRuns(brain, recent);
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
     { Console.Error.WriteLine($"The run of {ran.Behavior} was not logged: {error.Message}"); }
