@@ -1,3 +1,4 @@
+using DigitalBrain.Client;
 using System.Net;
 using System.Text.Json;
 using DigitalBrain.Client.Runtime;
@@ -39,6 +40,22 @@ public sealed class RevisionConflictEdgeFacts
         Assert.Equal(7, conflict.CurrentRevision);
     }
 
+    [Theory]
+    [InlineData("the proxy fell over")]
+    [InlineData("{\"message\":\"stale\"}")]
+    [InlineData("{\"message\":\"stale\",\"currentRevision\":\"seven\"}")]
+    public async Task AConflictBodyOfAnotherShapeIsStillARefusal(string body)
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var connection = await SessionConnection.OpenAsync(new Uri("http://brain.test/brains/acc-brain"), "token", "fingerprint", new Refusing(body), ct);
+
+        var refusal = await Assert.ThrowsAsync<ScriptRefusalException>(() => connection.InvokeAsync(
+            new("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(IPinger.RefuseStale), []), ct));
+
+        Assert.Equal(body, refusal.Message);
+        Assert.Equal(RevisionConflictException.Code, refusal.Code);
+    }
+
     private static HttpRequestMessage Invocation(string token)
     {
         var invoke = new RuntimeInvocation("acc-brain/csharp/a", typeof(IPinger).FullName!, "pinger", nameof(IPinger.RefuseStale), []);
@@ -62,6 +79,21 @@ public sealed class RevisionConflictEdgeFacts
             var forwarded = new HttpRequestMessage(request.Method, request.RequestUri!.PathAndQuery) { Content = request.Content };
             foreach (var header in request.Headers) { forwarded.Headers.TryAddWithoutValidation(header.Key, header.Value); }
             return await brain.SendAsync(forwarded, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        }
+    }
+
+    // Accepts the connect report and the stream; refuses every invocation as a conflict with the given body.
+    private sealed class Refusing(string body) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith(RuntimeProtocol.Invoke, StringComparison.Ordinal))
+            {
+                var refused = new HttpResponseMessage(HttpStatusCode.Conflict) { Content = new StringContent(body) };
+                refused.Headers.Add(RuntimeProtocol.RefusalHeader, RevisionConflictException.Code);
+                return Task.FromResult(refused);
+            }
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("") });
         }
     }
 }

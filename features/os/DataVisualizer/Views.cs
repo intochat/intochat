@@ -105,7 +105,7 @@ public static class Views
     private static Task EnsureWindowAsync(DigitalBrainConnection brain, string window, string title, string surface, string operation, CancellationToken ct)
     {
         var reference = WindowReference.For(new UiChildRef(UIVocabulary.SurfaceType, surface));
-        // One operation id for every attempt: a refused attempt is never logged, and an applied one answers its retry from the log.
+        // The operation id makes a replayed show or close idempotent.
         return ChangeWorkspaceAsync(brain, state => async workspace =>
             { await workspace.Open(new(operation, window, title, reference, state.Revision)); }, ct);
     }

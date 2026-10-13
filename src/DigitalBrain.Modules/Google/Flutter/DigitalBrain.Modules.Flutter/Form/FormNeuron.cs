@@ -70,7 +70,7 @@ internal sealed class FormNeuron([PersistentState("state", DigitalBrainNames.Clu
     {
         ArgumentNullException.ThrowIfNull(submission);
         if (submission.ExpectedRevision != 0 && submission.ExpectedRevision != Snapshot.Revision)
-        { throw new InvalidOperationException($"Expected form revision {submission.ExpectedRevision}; current revision is {Snapshot.Revision}."); }
+        { throw new RevisionConflictException($"Expected form revision {submission.ExpectedRevision}; current revision is {Snapshot.Revision}.", Snapshot.Revision); }
         var provided = new Dictionary<string, FormFieldValue>(StringComparer.Ordinal);
         foreach (var value in submission.Values)
         {

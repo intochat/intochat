@@ -244,6 +244,21 @@ public sealed class SessionConnection : IAsyncDisposable
         return _http.SendAsync(request, completion, cancellationToken);
     }
 
+    // A body that is not the edge's conflict shape is still a refusal, not a parse failure.
+    private static RevisionConflictException? TryReadConflict(string detail)
+    {
+        try
+        {
+            using var body = JsonDocument.Parse(detail);
+            return body.RootElement is { ValueKind: JsonValueKind.Object } root
+                && root.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String
+                && root.TryGetProperty("currentRevision", out var revision) && revision.ValueKind == JsonValueKind.Number && revision.TryGetInt64(out var current)
+                ? new RevisionConflictException(message.GetString()!, current)
+                : null;
+        }
+        catch (JsonException) { return null; }
+    }
+
     private static async Task EnsureSuccessAsync(HttpResponseMessage response, string operation, CancellationToken cancellationToken)
     {
         if (response.IsSuccessStatusCode) { return; }
@@ -251,11 +266,7 @@ public sealed class SessionConnection : IAsyncDisposable
         if (response.Headers.TryGetValues(RuntimeProtocol.RefusalHeader, out var codes))
         {
             var code = codes.Single();
-            if (code == RevisionConflictException.Code)
-            {
-                using var body = JsonDocument.Parse(detail);
-                throw new RevisionConflictException(body.RootElement.GetProperty("message").GetString() ?? detail, body.RootElement.GetProperty("currentRevision").GetInt64());
-            }
+            if (code == RevisionConflictException.Code && TryReadConflict(detail) is { } conflict) { throw conflict; }
             throw new ScriptRefusalException(detail, code);
         }
         throw new InvalidOperationException($"The brain refused {operation} ({(int)response.StatusCode}): {detail}");

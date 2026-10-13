@@ -14,6 +14,19 @@ public sealed class FormFacts
     ]);
 
     [Fact]
+    public async Task ASubmitAgainstAStaleFormRevisionIsRefusedWithTheCurrentOne()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<FlutterModule>().StartAsync(ct);
+        var form = brain.Get<IForm>("owner/a/apps/forms/stale");
+        var defined = await form.Define(Intake);
+
+        var conflict = await Assert.ThrowsAsync<RevisionConflictException>(() => form.Submit(new([new("name", "Ada")], defined.Revision + 5)));
+
+        Assert.Equal(defined.Revision, conflict.CurrentRevision);
+    }
+
+    [Fact]
     public async Task DefineAndMultiFieldSubmitLandInOneWriteEach()
     {
         var ct = TestContext.Current.CancellationToken;
