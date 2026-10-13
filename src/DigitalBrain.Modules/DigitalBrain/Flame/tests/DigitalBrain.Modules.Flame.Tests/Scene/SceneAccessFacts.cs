@@ -21,7 +21,7 @@ public sealed class SceneAccessFacts
     }
 
     [Fact]
-    public async Task TheOwningAppCanSetAndTheShellCanReportAndFire()
+    public async Task TheOwningAppCanSetAndTheShellCanReport()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
@@ -30,9 +30,8 @@ public sealed class SceneAccessFacts
         using (brain.Owner.AsCaller())
         {
             await scene.Report("sphere", "tap", 0.5, 0.5, null);
-            await scene.Fire("think");
         }
-        Assert.Equal("thinking", (await scene.Read()).Current["presence"]);
+        Assert.Equal(1, (await scene.Read()).Revision);
     }
 
     [Fact]
@@ -57,19 +56,8 @@ public sealed class SceneAccessFacts
         await scene.Set(Scenes.Ino(), 0);
         using (brain.Owner.AsScheduler())
         {
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => scene.Fire("think"));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => scene.Report("sphere", "tap", 0.5, 0.5, null));
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => scene.Set(Scenes.Ino(), 1));
         }
-    }
-
-    [Fact]
-    public async Task AnAssistantOfTheSameBrainMayFire()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
-        var scene = brain.Get<IScene>(Key);
-        await scene.Set(Scenes.Ino(), 0);
-        using (brain.Owner.AsAssistant()) { await scene.Fire("think"); }
-        Assert.Equal("thinking", (await scene.Read()).Current["presence"]);
     }
 }

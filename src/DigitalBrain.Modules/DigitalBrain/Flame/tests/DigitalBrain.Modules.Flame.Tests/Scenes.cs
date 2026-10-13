@@ -7,12 +7,12 @@ internal static class Scenes
     public static SceneNode Node(string id, string type = "circle", params SceneNode[] children)
         => new(id, type, new Transform(), null, [], children, [], []);
 
-    public static StateMachine Machine(string id, string initial, string[] states, params Transition[] transitions)
-        => new(id, initial, [.. states.Select(s => new StateDef(s, []))], transitions);
-
     public static SceneDefinition Ino() => new(
-        [Node("sphere", "ino_sphere")],
-        [Machine("presence", "idle", ["idle", "thinking", "speaking"],
-            new Transition("idle", "think", "thinking"), new Transition("thinking", "speak", "speaking"), new Transition("speaking", "rest", "idle"), new Transition("thinking", "rest", "idle"))],
+        [new("sphere", "sphere", new Transform(), null, new() { ["icon"] = "ino", ["blackboard"] = """{"mood":"idle"}""" }, [], [], ["tap"])
+        {
+            Tree = new BehaviorTree(TreeNode.Selector(
+                TreeNode.Sequence(false, TreeNode.Condition("mood", "thinking"), TreeNode.Pulse(0.2, 1)),
+                TreeNode.Repeat(TreeNode.Wait(1)))),
+        }],
         new SceneCamera());
 }

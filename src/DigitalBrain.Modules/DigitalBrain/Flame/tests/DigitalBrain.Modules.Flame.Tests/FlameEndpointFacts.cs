@@ -13,7 +13,7 @@ public sealed class FlameEndpointFacts
     private const string Scene = "/brains/owner/ui/scenes/owner%2Fapps%2Fino%2Fscenes%2Fhome";
 
     [Fact]
-    public async Task TheShellReadsASceneFiresAnEventAndReportsAGestureOverHttp()
+    public async Task TheShellReadsASceneAndReportsAGestureOverHttpAndThereIsNoFireRoute()
     {
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
@@ -24,11 +24,10 @@ public sealed class FlameEndpointFacts
         using var read = await http.GetAsync(Scene, ct);
         Assert.Equal(HttpStatusCode.OK, read.StatusCode);
         var state = await read.Content.ReadFromJsonAsync<JsonElement>(ct);
-        Assert.Equal("idle", state.GetProperty("current").GetProperty("presence").GetString());
+        Assert.Equal("selector", state.GetProperty("definition").GetProperty("nodes")[0].GetProperty("tree").GetProperty("root").GetProperty("kind").GetString());
 
         using var fired = await http.PostAsJsonAsync($"{Scene}/fire", new { @event = "think", nodeId = (string?)null }, ct);
-        Assert.Equal(HttpStatusCode.OK, fired.StatusCode);
-        Assert.Equal("thinking", (await scene.Read()).Current["presence"]);
+        Assert.True(fired.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed);
 
         using var reported = await http.PostAsJsonAsync($"{Scene}/report", new { nodeId = "sphere", kind = "tap", x = 0.5, y = 0.5, payload = (string?)null }, ct);
         Assert.Equal(HttpStatusCode.OK, reported.StatusCode);

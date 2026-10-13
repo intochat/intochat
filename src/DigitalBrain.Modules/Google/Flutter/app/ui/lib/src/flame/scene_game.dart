@@ -9,6 +9,7 @@ import 'node_components.dart';
 import 'placeholder_node.dart';
 import 'prefabs/brain_graph.dart';
 import 'prefabs/ino_sphere.dart';
+import 'prefabs/sphere.dart';
 import 'primitive_nodes.dart';
 
 typedef SceneInputHandler = void Function(
@@ -19,8 +20,8 @@ typedef SceneInputHandler = void Function(
   String? payload,
 );
 
-/// Draws a scene neuron: nodes become components keyed by id, the machines' current states
-/// patch them, and declared gestures come back through [onInput].
+/// Draws a scene neuron: nodes become components keyed by id, a sphere runs the behavior tree its node
+/// carries, and declared gestures come back through [onInput].
 final class SceneGame extends FlameGame {
   SceneGame();
 
@@ -54,30 +55,15 @@ final class SceneGame extends FlameGame {
   Color backgroundColor() => _background;
 
   /// Diffs [state] against what is drawn: adds new nodes, removes those that left, resets the
-  /// rest to their definition, then applies every machine's current state in machine order.
+  /// rest to their definition.
   void apply(SceneState state) {
     final initial = _state == null;
     _state = state;
     wake();
-    final patches = <String, List<NodePatch>>{};
-    for (final machine in state.definition.machines) {
-      if (machine.states.isEmpty) continue;
-      final current = state.current[machine.id] ?? machine.initial;
-      final def = machine.states.firstWhere(
-        (s) => s.name == current,
-        orElse: () => machine.states.first,
-      );
-      for (final patch in def.apply) {
-        (patches[patch.nodeId] ??= []).add(patch);
-      }
-    }
     final seen = <String>{};
     void walk(SceneNode definition, Component parent) {
       seen.add(definition.id);
-      final node = (patches[definition.id] ?? const <NodePatch>[]).fold(
-        definition,
-        NodeComponent.withPatch,
-      );
+      final node = definition;
       var component = _byId[node.id];
       if (component == null || component.typeName != node.type) {
         component?.removeFromParent();
@@ -173,6 +159,8 @@ final class SceneGame extends FlameGame {
           if (graph.watch != watchBrain) graph.watch = watchBrain;
         case InoSphere sphere:
           sphere.animations = animations;
+        case SphereComponent sphere:
+          sphere.animations = animations;
         default:
       }
     }
@@ -193,7 +181,10 @@ final class SceneGame extends FlameGame {
   void update(double dt) {
     super.update(dt);
     final animating = world.descendants().any(
-      (c) => c is Effect || c is ParticlesNode,
+      (c) =>
+          c is Effect ||
+          c is ParticlesNode ||
+          (c is SphereComponent && c.needsFrames),
     );
     _idleFrames = animating ? 0 : _idleFrames + 1;
     if (_idleFrames > 2) pauseEngine();

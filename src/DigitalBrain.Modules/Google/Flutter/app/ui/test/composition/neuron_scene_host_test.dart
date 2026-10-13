@@ -16,7 +16,7 @@ class _Scenes extends SceneClient {
     return SceneState.fromJson({
       'name': sceneKey,
       'revision': revision,
-      'definition': {'nodes': [], 'machines': [], 'camera': {}},
+      'definition': {'nodes': [], 'camera': {}},
     });
   }
 }

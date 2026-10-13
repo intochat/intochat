@@ -21,27 +21,13 @@ internal static class SceneValidation
             foreach (var (k, v) in node.Parameters) { bytes += Encoding.UTF8.GetByteCount(k) + Encoding.UTF8.GetByteCount(v); }
             if (bytes > FlameVocabulary.MaxParameterBytes) { throw new ArgumentException($"Scene parameters exceed {FlameVocabulary.MaxParameterBytes} bytes."); }
             CheckAgainstSchema(node);
+            if (node.Tree is not null) { CheckTree(node.Tree, KeysOf(node)); }
             foreach (var child in node.Children) { Walk(child); }
         }
         foreach (var node in definition.Nodes) { Walk(node); }
-        var machines = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var machine in definition.Machines)
-        {
-            if (!machines.Add(machine.Id)) { throw new ArgumentException($"Machine id '{machine.Id}' appears twice."); }
-            var states = machine.States.Select(s => s.Name).ToHashSet(StringComparer.Ordinal);
-            if (!states.Contains(machine.Initial)) { throw new ArgumentException($"Machine '{machine.Id}' starts in unknown state '{machine.Initial}'."); }
-            foreach (var t in machine.Transitions)
-            {
-                if (!states.Contains(t.From)) { throw new ArgumentException($"Machine '{machine.Id}' transitions from unknown state '{t.From}'."); }
-                if (!states.Contains(t.To)) { throw new ArgumentException($"Machine '{machine.Id}' transitions to unknown state '{t.To}'."); }
-                if (string.IsNullOrWhiteSpace(t.Event)) { throw new ArgumentException($"Machine '{machine.Id}' has a transition without an event."); }
-            }
-            foreach (var patch in machine.States.SelectMany(s => s.Apply))
-            {
-                if (!ids.Contains(patch.NodeId)) { throw new ArgumentException($"Machine '{machine.Id}' patches unknown node '{patch.NodeId}'."); }
-            }
-        }
     }
+
+    public static void CheckTree(BehaviorTree tree, string[] declaredKeys) => FlameSchema.CheckTree(tree, declaredKeys);
 
     // The schema is the grammar: a known node type is checked against its parameter spec, so a scene the renderer
     // cannot draw is refused at Set. An unknown node type is left alone — an older shell renders it as a placeholder.
@@ -68,6 +54,14 @@ internal static class SceneValidation
             if (!FlameSchema.TweenProperties.Contains(tween.Property, StringComparer.Ordinal)) { throw new ArgumentException($"Node '{node.Id}' tweens unknown property '{tween.Property}'."); }
             if (!FlameSchema.TweenCurves.Contains(tween.Curve, StringComparer.Ordinal)) { throw new ArgumentException($"Node '{node.Id}' tweens with unknown curve '{tween.Curve}'."); }
         }
+    }
+
+    // The keys a sphere's tree may test besides the reserved ones: the property names of its blackboard object.
+    private static string[] KeysOf(SceneNode node)
+    {
+        if (!node.Parameters.TryGetValue("blackboard", out var json)) { return []; }
+        using var document = JsonDocument.Parse(json);
+        return document.RootElement.ValueKind == JsonValueKind.Object ? [.. document.RootElement.EnumerateObject().Select(property => property.Name)] : [];
     }
 
     private static bool Parses(FlameParam param, string value) => param.Kind switch

@@ -1,4 +1,5 @@
 using DigitalBrain.Flame;
+using DigitalBrain.Flame.Scene;
 using Xunit;
 
 namespace DigitalBrain.Modules.Flame.Tests.Schema;
@@ -29,5 +30,12 @@ public sealed class FlameSchemaFacts
         {
             Assert.Equal(node.Parameters.Length, node.Parameters.Select(param => param.Key).Distinct(StringComparer.Ordinal).Count());
         }
+    }
+
+    [Fact]
+    public void EveryTreeTaskIsATreeKindAndTheSphereDeclaresTheBlackboard()
+    {
+        Assert.All(FlameSchema.Tasks, task => Assert.Contains(task.Kind, TreeKinds.All));
+        Assert.Contains(FlameSchema.For("sphere")!.Parameters, param => param.Key == "blackboard" && param.Kind == FlameParamKind.Json);
     }
 }

@@ -41,9 +41,13 @@ void main() {
       final idle = sphere.glow;
       final definition = game.state!.definition.nodes.single;
       sphere.configure(
-        NodeComponent.withPatch(
-          definition,
-          const NodePatch(nodeId: 'ino', parameters: {'mood': 'thinking'}),
+        SceneNode(
+          id: definition.id,
+          type: definition.type,
+          transform: definition.transform,
+          style: definition.style,
+          parameters: {...definition.parameters, 'mood': 'thinking'},
+          inputs: definition.inputs,
         ),
       );
       game.update(0.5);

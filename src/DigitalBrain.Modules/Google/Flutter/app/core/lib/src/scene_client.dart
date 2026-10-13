@@ -22,9 +22,6 @@ class SceneClient {
   Future<SceneState> read(String sceneKey) async =>
       SceneState.fromJson(await _getJson(_scene(sceneKey)));
 
-  Future<void> fire(String sceneKey, String event, {String? nodeId}) =>
-      _post(_scene(sceneKey, '/fire'), {'event': event, 'nodeId': nodeId});
-
   Future<void> report(
     String sceneKey,
     String nodeId,

@@ -13,7 +13,7 @@ public sealed class SceneSchemaFacts
 
     private static async Task Set(IScene scene, SceneNode node, string[]? inputs = null)
     {
-        var definition = new SceneDefinition([node with { Inputs = inputs ?? [] }], [], new SceneCamera());
+        var definition = new SceneDefinition([node with { Inputs = inputs ?? [] }], new SceneCamera());
         await scene.Set(definition, (await scene.Read()).Revision);
     }
 
@@ -23,7 +23,7 @@ public sealed class SceneSchemaFacts
         var ct = TestContext.Current.CancellationToken;
         await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
         var scene = brain.Get<IScene>(Key);
-        await scene.Set(new([Scenes.Node("x", "hologram")], [], new SceneCamera()), 0);
+        await scene.Set(new([Scenes.Node("x", "hologram")], new SceneCamera()), 0);
         Assert.Equal("hologram", (await scene.Read()).Definition.Nodes[0].Type);
     }
 
@@ -95,7 +95,21 @@ public sealed class SceneSchemaFacts
             new() { ["items"] = "[{\"id\":\"r1\",\"label\":\"Routing\",\"kind\":\"route\",\"progress\":0.4}]", ["radius"] = "220" }, [], [], []);
         var graph = new SceneNode("graph", "brain_graph", new Transform(), null,
             new() { ["source"] = "events", ["filter"] = "apps", ["layout"] = "sphere", ["title"] = "Behavior runs" }, [], [], []);
-        await scene.Set(new([ring, graph], [], new SceneCamera()), (await scene.Read()).Revision);
+        await scene.Set(new([ring, graph], new SceneCamera()), (await scene.Read()).Revision);
         Assert.Equal(2, (await scene.Read()).Definition.Nodes.Length);
+    }
+
+    [Fact]
+    public async Task ATreeWhoseConditionNamesAnUndeclaredKeyIsRefusedAndThePreviousSceneStands()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using var brain = await TestBrain.Create().WithModule<FlameModule>().StartAsync(ct);
+        var scene = brain.Get<IScene>(Key);
+        await scene.Set(Scenes.Ino(), 0);
+        var sphere = new SceneNode("sphere", "sphere", new Transform(), null, new() { ["icon"] = "ino", ["blackboard"] = """{"mood":"idle"}""" }, [], [], [])
+        { Tree = new BehaviorTree(TreeNode.Condition("unread", "1")) };
+        var error = await Assert.ThrowsAsync<ArgumentException>(() => scene.Set(new([sphere], new SceneCamera()), 1));
+        Assert.Contains("unread", error.Message);
+        Assert.Equal(1, (await scene.Read()).Revision);
     }
 }

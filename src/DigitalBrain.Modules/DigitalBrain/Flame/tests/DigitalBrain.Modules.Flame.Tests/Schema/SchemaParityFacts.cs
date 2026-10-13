@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DigitalBrain.Flame;
+using DigitalBrain.Flame.Scene;
 using Xunit;
 
 namespace DigitalBrain.Modules.Flame.Tests.Schema;
@@ -15,6 +16,21 @@ public sealed class SchemaParityFacts
         Assert.Equal(FlameSchema.Gestures, Strings(root.GetProperty("gestures")));
         Assert.Equal(FlameSchema.TweenProperties, Strings(root.GetProperty("tweenProperties")));
         Assert.Equal(FlameSchema.TweenCurves, Strings(root.GetProperty("tweenCurves")));
+
+        Assert.Equal(TreeKinds.All, Strings(root.GetProperty("treeKinds")));
+        Assert.Equal(FlameSchema.ReservedBlackboardKeys, Strings(root.GetProperty("reservedBlackboardKeys")));
+        Assert.Equal(FlameVocabulary.MaxTreeNodes, root.GetProperty("maxTreeNodes").GetInt32());
+        Assert.Equal(FlameVocabulary.MaxTreeDepth, root.GetProperty("maxTreeDepth").GetInt32());
+        var tasks = root.GetProperty("treeTasks").EnumerateArray().ToArray();
+        Assert.Equal(FlameSchema.Tasks.Select(task => task.Kind).ToArray(), tasks.Select(task => task.GetProperty("kind").GetString()!).ToArray());
+        for (var index = 0; index < FlameSchema.Tasks.Length; index++)
+        {
+            var task = FlameSchema.Tasks[index];
+            Assert.Equal(task.MinSeconds, tasks[index].GetProperty("minSeconds").GetDouble());
+            Assert.Equal(task.MaxSeconds, tasks[index].GetProperty("maxSeconds").GetDouble());
+            Assert.Equal(task.MinValue, tasks[index].GetProperty("minValue").GetDouble());
+            Assert.Equal(task.MaxValue, tasks[index].GetProperty("maxValue").GetDouble());
+        }
 
         var nodes = root.GetProperty("nodes").EnumerateArray().ToArray();
         Assert.Equal(FlameSchema.Nodes.Select(node => node.Type).ToArray(), nodes.Select(node => node.GetProperty("type").GetString()!).ToArray());

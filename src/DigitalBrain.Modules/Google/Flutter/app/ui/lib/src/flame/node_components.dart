@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:digitalbrain_flutter/digitalbrain_flutter.dart';
@@ -10,6 +11,7 @@ import 'package:flutter/foundation.dart';
 import 'prefabs/activity_ring.dart';
 import 'prefabs/brain_graph.dart';
 import 'prefabs/ino_sphere.dart';
+import 'prefabs/sphere.dart';
 import 'primitive_nodes.dart';
 
 import 'scene_game.dart';
@@ -27,7 +29,7 @@ Color? sceneColor(String? style) {
   };
 }
 
-/// One scene node drawn in Flame. The definition sets it; state patches layer on top.
+/// One scene node drawn in Flame, set from its definition.
 abstract class NodeComponent extends PositionComponent
     with HasPaint, HasGameReference<SceneGame>, TapCallbacks, DragCallbacks {
   NodeComponent(SceneNode node)
@@ -43,6 +45,7 @@ abstract class NodeComponent extends PositionComponent
   Map<String, String> params = const {};
   List<String> inputs = const [];
   List<SceneTween> _tweens = const [];
+  BehaviorTreeDef? treeDef;
   String _tweenKey = '';
 
   Color get color => sceneColor(style) ?? const Color(0xFFFFFFFF);
@@ -55,8 +58,8 @@ abstract class NodeComponent extends PositionComponent
   int restarts = 0;
   String _signature = '';
 
-  /// Sets the component to its effective node (definition plus current-state patches). An
-  /// unchanged effective node is a no-op, so running tweens keep going across refreshes.
+  /// Sets the component to [node]. An unchanged node is a no-op, so running tweens and trees keep going
+  /// across refreshes.
   void configure(SceneNode node) {
     final signature = _signatureOf(node);
     if (signature == _signature) return;
@@ -64,6 +67,7 @@ abstract class NodeComponent extends PositionComponent
     style = node.style;
     params = Map.of(node.parameters);
     inputs = node.inputs;
+    treeDef = node.tree;
     _transform(node.transform);
     _tweens = node.tweens;
     changed();
@@ -79,6 +83,7 @@ abstract class NodeComponent extends PositionComponent
       node.inputs.join(','),
       '${t.x},${t.y},${t.z},${t.scale},${t.rotation},${t.opacity}',
       _tweenKeyOf(node.tweens),
+      node.tree == null ? '' : jsonEncode(node.tree!.toJson()),
     ].join('|');
   }
 
@@ -88,20 +93,6 @@ abstract class NodeComponent extends PositionComponent
             '${t.property}|${t.from}|${t.to}|${t.milliseconds}|${t.curve}|${t.repeat}',
       )
       .join(';');
-
-  /// [node] with [patch] layered on top.
-  static SceneNode withPatch(SceneNode node, NodePatch patch) => SceneNode(
-    id: node.id,
-    type: node.type,
-    transform: patch.transform ?? node.transform,
-    style: patch.style ?? node.style,
-    parameters: patch.parameters == null
-        ? node.parameters
-        : {...node.parameters, ...patch.parameters!},
-    children: node.children,
-    tweens: patch.tweens ?? node.tweens,
-    inputs: node.inputs,
-  );
 
   void _transform(SceneTransform t) {
     position.setValues(t.x, t.y);
@@ -233,6 +224,7 @@ abstract final class NodeComponents {
     'ino_sphere' => InoSphere(node),
     'activity_ring' => ActivityRing(node),
     'brain_graph' => BrainGraph(node),
+    'sphere' => SphereComponent(node),
     _ => null,
   };
 }

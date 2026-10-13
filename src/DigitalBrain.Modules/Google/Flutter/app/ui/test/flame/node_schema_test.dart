@@ -12,6 +12,20 @@ void main() {
     expect(FlameSchema.tweenProperties, (json['tweenProperties'] as List).cast<String>());
     expect(FlameSchema.tweenCurves, (json['tweenCurves'] as List).cast<String>());
 
+    expect(FlameSchema.treeKinds, (json['treeKinds'] as List).cast<String>());
+    expect(FlameSchema.reservedBlackboardKeys, (json['reservedBlackboardKeys'] as List).cast<String>());
+    expect(FlameSchema.maxTreeNodes, json['maxTreeNodes']);
+    expect(FlameSchema.maxTreeDepth, json['maxTreeDepth']);
+    final tasks = (json['treeTasks'] as List).cast<Map<String, dynamic>>();
+    expect(FlameSchema.treeTasks.map((task) => task.kind).toList(), tasks.map((task) => task['kind']).toList());
+    for (var index = 0; index < tasks.length; index++) {
+      final task = FlameSchema.treeTasks[index];
+      expect(task.minSeconds, tasks[index]['minSeconds']);
+      expect(task.maxSeconds, tasks[index]['maxSeconds']);
+      expect(task.minValue, tasks[index]['minValue']);
+      expect(task.maxValue, tasks[index]['maxValue']);
+    }
+
     final nodes = (json['nodes'] as List).cast<Map<String, dynamic>>();
     expect(FlameSchema.nodes.map((node) => node.type).toList(), nodes.map((node) => node['type']).toList());
     for (final node in FlameSchema.nodes) {

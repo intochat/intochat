@@ -8,7 +8,6 @@ public interface IScene : INeuron
 {
     static string Key(string brainScope, string app, string name) => brainScope + "/apps/" + app + "/scenes/" + name;
     Task Set(SceneDefinition definition, long expectedRevision);
-    Task Fire(string eventName, string? nodeId = null);
     // The shell reports a person's gesture on a node; the neuron publishes it as SceneInput.
     Task Report(string nodeId, string kind, double x, double y, string? payload);
     [ReadOnly] Task<SceneState> Read();

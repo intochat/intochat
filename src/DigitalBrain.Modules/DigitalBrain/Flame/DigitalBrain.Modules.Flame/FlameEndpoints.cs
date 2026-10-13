@@ -10,7 +10,6 @@ namespace DigitalBrain.Flame;
 // The neurons decide access.
 internal static class FlameEndpoints
 {
-    internal sealed record FireBody(string Event, string? NodeId);
     internal sealed record ReportBody(string NodeId, string Kind, double X, double Y, string? Payload);
 
     public static void Map(IEndpointRouteBuilder endpoints)
@@ -18,11 +17,6 @@ internal static class FlameEndpoints
         var ui = BrainRoutes.Group(endpoints, "/ui");
         ui.MapGet("/scenes/{name}", async (string name, IGrainFactory grains, CancellationToken ct) =>
             Results.Ok(await Scene(grains, name).Read().WaitAsync(ct)));
-        ui.MapPost("/scenes/{name}/fire", async (string name, FireBody body, IGrainFactory grains, CancellationToken ct) =>
-        {
-            await Scene(grains, name).Fire(body.Event, body.NodeId).WaitAsync(ct);
-            return Results.Ok();
-        });
         ui.MapPost("/scenes/{name}/report", async (string name, ReportBody body, IGrainFactory grains, CancellationToken ct) =>
         {
             await Scene(grains, name).Report(body.NodeId, body.Kind, body.X, body.Y, body.Payload).WaitAsync(ct);
@@ -30,7 +24,7 @@ internal static class FlameEndpoints
         });
     }
 
-    // ASP.NET keeps %2F encoded in a route value (decoding it would change the path's segments), and a
-    // catch-all cannot precede /fire, so the scene key is unescaped here.
+    // ASP.NET keeps %2F encoded in a route value (decoding it would change the path's segments), so the
+    // scene key is unescaped here.
     private static IScene Scene(IGrainFactory grains, string name) => grains.GetGrain<IScene>(Uri.UnescapeDataString(name));
 }

@@ -41,6 +41,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.13.1"
+  behavior_tree:
+    dependency: transitive
+    description:
+      name: behavior_tree
+      sha256: a536ad98553540bf558ede28c604a0cb38360cf6077e3272dc1cb1502b51175f
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.1.5+1"
   boolean_selector:
     dependency: transitive
     description:
@@ -249,6 +257,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.38.2"
+  flame_behavior_tree:
+    dependency: transitive
+    description:
+      name: flame_behavior_tree
+      sha256: "1aa4d40e29581444533e0f34355d8e80b9166536080dde4863e5e47a42a858bc"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.1.5+5"
   flame_test:
     dependency: transitive
     description:

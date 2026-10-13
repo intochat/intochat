@@ -29,7 +29,7 @@ public static class BrainView
     {
         var parameters = new Dictionary<string, string> { ["source"] = "events", ["filter"] = "apps", ["layout"] = "sphere", ["title"] = Title };
         if (selected is { Length: > 0 }) { parameters["selected"] = selected; }
-        return new([new("graph", "brain_graph", new Transform(), null, parameters, [], [], ["tap"])], [], new SceneCamera(), "#05080C");
+        return new([new("graph", "brain_graph", new Transform(), null, parameters, [], [], ["tap"])], new SceneCamera(), "#05080C");
     }
 
     public static async Task ComposeScene(DigitalBrainConnection brain, string? selected)

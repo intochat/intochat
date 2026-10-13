@@ -4,17 +4,11 @@ import 'package:flame_test/flame_test.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-SceneState scene(
-  List<Map<String, Object?>> nodes, {
-  Map<String, String> current = const {},
-  List<Map<String, Object?>> machines = const [],
-}) => SceneState.fromJson({
+SceneState scene(List<Map<String, Object?>> nodes) => SceneState.fromJson({
   'name': 's',
   'revision': 1,
-  'current': current,
   'definition': {
     'nodes': nodes,
-    'machines': machines,
     'camera': {'x': 0, 'y': 0, 'zoom': 1},
     'background': '#000000',
   },
@@ -141,45 +135,20 @@ void main() {
   );
 
   flameTester.testGameWidget(
-    'a later apply removes nodes that left and patches the current state',
+    'a later apply removes nodes that left and updates the rest',
     setUp: (game, _) async {
       game.apply(scene([node('a', 'circle'), node('b', 'rect')]));
       await game.ready();
       game.apply(
-        scene(
-          [
-            node('a', 'circle', params: {'radius': '40'}),
-          ],
-          machines: [
-            {
-              'id': 'm',
-              'initial': 's1',
-              'states': [
-                {'name': 's1', 'apply': []},
-                {
-                  'name': 's2',
-                  'apply': [
-                    {
-                      'nodeId': 'a',
-                      'style': '#ff0000',
-                      'parameters': null,
-                      'transform': null,
-                      'tweens': null,
-                    },
-                  ],
-                },
-              ],
-              'transitions': [],
-            },
-          ],
-          current: {'m': 's2'},
-        ),
+        scene([
+          node('a', 'circle', params: {'radius': '40'}),
+        ]),
       );
       await game.ready();
     },
     verify: (game, _) async {
       expect(game.componentFor('b'), isNull);
-      expect(game.componentFor('a')!.style, '#ff0000');
+      expect(game.componentFor('a')!.params['radius'], '40');
     },
   );
 
@@ -203,41 +172,23 @@ void main() {
   );
 
   flameTester.testGameWidget(
-    'applying the same state again keeps a patched tween running',
+    'applying the same state again keeps a node tween running',
     setUp: (game, _) async {
-      SceneState pulsing() => scene(
-        [node('a', 'circle')],
-        machines: [
-          {
-            'id': 'm',
-            'initial': 's1',
-            'states': [
-              {
-                'name': 's1',
-                'apply': [
-                  {
-                    'nodeId': 'a',
-                    'style': null,
-                    'parameters': null,
-                    'transform': null,
-                    'tweens': [
-                      {
-                        'property': 'scale',
-                        'from': 1,
-                        'to': 2,
-                        'milliseconds': 500,
-                        'curve': 'linear',
-                        'repeat': true,
-                      },
-                    ],
-                  },
-                ],
-              },
-            ],
-            'transitions': [],
-          },
-        ],
-      );
+      SceneState pulsing() => scene([
+        {
+          ...node('a', 'circle'),
+          'tweens': [
+            {
+              'property': 'scale',
+              'from': 1,
+              'to': 2,
+              'milliseconds': 500,
+              'curve': 'linear',
+              'repeat': true,
+            },
+          ],
+        },
+      ]);
       game.apply(pulsing());
       await game.ready();
       game.apply(pulsing());

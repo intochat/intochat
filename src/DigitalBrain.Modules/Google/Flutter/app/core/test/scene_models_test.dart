@@ -24,51 +24,48 @@ void main() {
             'children': [],
             'tweens': [],
             'inputs': ['tap'],
-          },
-        ],
-        'machines': [
-          {
-            'id': 'presence',
-            'initial': 'idle',
-            'states': [
-              {'name': 'idle', 'apply': []},
-              {
-                'name': 'thinking',
-                'apply': [
+            'tree': {
+              'root': {
+                'kind': 'selector',
+                'children': [
                   {
-                    'nodeId': 'sphere',
-                    'style': null,
-                    'parameters': {'mood': 'busy'},
-                    'transform': null,
-                    'tweens': null,
+                    'kind': 'sequence',
+                    'children': [
+                      {'kind': 'condition', 'children': [], 'key': 'mood', 'value': 'busy'},
+                      {'kind': 'pulse', 'children': [], 'seconds': 1.5, 'amplitude': 0.2},
+                    ],
+                    'memory': true,
+                  },
+                  {
+                    'kind': 'repeat',
+                    'children': [
+                      {'kind': 'moveTo', 'children': [], 'seconds': 2, 'x': 10, 'y': -5},
+                    ],
                   },
                 ],
               },
-            ],
-            'transitions': [
-              {'from': 'idle', 'event': 'think', 'to': 'thinking'},
-            ],
+            },
           },
         ],
         'camera': {'x': 0, 'y': 0, 'zoom': 1},
         'background': '#0B0F14',
       },
-      'current': {'presence': 'thinking'},
     };
     final state = SceneState.fromJson(json);
     expect(state.revision, 3);
     expect(state.definition.nodes.single.type, 'ino_sphere');
-    expect(state.current['presence'], 'thinking');
-    expect(
-      state
-          .definition
-          .machines
-          .single
-          .states[1]
-          .apply
-          .single
-          .parameters?['mood'],
-      'busy',
-    );
+    final root = state.definition.nodes.single.tree!.root;
+    expect(root.kind, 'selector');
+    expect(root.children[0].memory, isTrue);
+    expect(root.children[0].children[0].key, 'mood');
+    expect(root.children[0].children[1].amplitude, 0.2);
+    expect(root.children[1].children.single.x, 10);
+    expect(root.children[1].children.single.y, -5);
+    expect(root.children[1].children.single.factor, 1);
+  });
+
+  test('a node without a tree has none', () {
+    final node = SceneNode.fromJson({'id': 'a', 'type': 'circle', 'tree': null});
+    expect(node.tree, isNull);
   });
 }

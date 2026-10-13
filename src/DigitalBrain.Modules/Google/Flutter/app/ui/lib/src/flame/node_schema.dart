@@ -28,11 +28,30 @@ final class FlameNodeType {
   }
 }
 
+final class TreeTask {
+  const TreeTask(this.kind, this.minSeconds, this.maxSeconds, this.minValue, this.maxValue);
+
+  final String kind;
+  final double minSeconds, maxSeconds, minValue, maxValue;
+}
+
 abstract final class FlameSchema {
   static const List<String> gestures = ['tap', 'drag', 'hover'];
   static const List<String> tweenProperties = ['x', 'y', 'scale', 'rotation', 'opacity'];
   static const List<String> tweenCurves = ['linear', 'easeIn', 'easeOut', 'easeInOut'];
   static const List<String> moods = ['idle', 'listening', 'thinking', 'acting', 'speaking', 'error', 'disconnected'];
+
+  static const List<String> treeKinds = ['selector', 'sequence', 'repeat', 'condition', 'wait', 'moveTo', 'scale', 'fade', 'pulse'];
+  static const List<String> reservedBlackboardKeys = ['running', 'attention'];
+  static const int maxTreeNodes = 256;
+  static const int maxTreeDepth = 16;
+  static const List<TreeTask> treeTasks = [
+    TreeTask('wait', 0, 60, 0, 0),
+    TreeTask('moveTo', 0, 10, -4096, 4096),
+    TreeTask('scale', 0, 10, 0.1, 4),
+    TreeTask('fade', 0, 10, 0, 1),
+    TreeTask('pulse', 0, 10, 0, 1),
+  ];
 
   static const List<FlameNodeType> nodes = [
     FlameNodeType('circle', [
@@ -80,6 +99,19 @@ abstract final class FlameSchema {
     FlameNodeType('activity_ring', [
       FlameParam('items', FlameParamKind.json),
       FlameParam('radius', FlameParamKind.number),
+    ]),
+    FlameNodeType('sphere', [
+      FlameParam('icon', FlameParamKind.text, required: true),
+      FlameParam('title', FlameParamKind.text),
+      FlameParam('description', FlameParamKind.text),
+      FlameParam('blackboard', FlameParamKind.json),
+      FlameParam('side', FlameParamKind.json),
+      FlameParam('main', FlameParamKind.json),
+      FlameParam('toolbar', FlameParamKind.json),
+      FlameParam('state', FlameParamKind.choice, choices: ['ready', 'unready', 'error']),
+      FlameParam('error', FlameParamKind.text),
+      FlameParam('neuron', FlameParamKind.text),
+      FlameParam('focused', FlameParamKind.boolean),
     ]),
   ];
 
