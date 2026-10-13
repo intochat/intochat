@@ -4,7 +4,7 @@
 The loop a developer runs by hand, as an app: a change set becomes a candidate, the candidate runs as a
 sibling cluster, the current brain verifies it over MCP, and a verified candidate is promoted. The
 candidates list shows every candidate, newest first, with its stage; it follows every stage change and is
-the surface the shell shows.
+the main content beside its sphere.
 
 ## Scenario: A request proposes and starts a candidate
 
@@ -37,9 +37,9 @@ files or plan, or a plan whose budget is not a time span) proposes nothing: the 
 
 ## Scenario: Opening shows the list
 
-Invoking "open" composes a surface with the candidates list and the report, and opens a "Self-improve" window.
-Workspace hosting: startup composes the declared entry using stable neuron identities. Opening the
-workspace reads that state; composition and completion never change focus or reopen a closed entry.
+Startup and "open" compose and publish the main layout with the candidates list and report.
+Presentation: startup publishes one sphere and its main content using stable neuron identities.
+Workspace navigation owns focus; composition never changes it.
 
 */
 
@@ -48,7 +48,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "selfimprove";
-    public const string Version = "2.0.6";
+    public const string Version = "2.0.7";
 
     public static readonly AppManifest Manifest = new(
         Title: "Self-improve",

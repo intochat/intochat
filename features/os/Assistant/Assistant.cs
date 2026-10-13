@@ -9,9 +9,9 @@ using DigitalBrain.Flutter.Button;
 using DigitalBrain.Flutter.Chat;
 using DigitalBrain.Flutter.Layout;
 using DigitalBrain.Flutter.Surface;
+using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.Text.Signals;
-using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Flutter.Form;
 using DigitalBrain.Integrations;
 using DigitalBrain.Microsoft.Windows;
@@ -136,6 +136,8 @@ public static class Assistant
         if (surfaceState.Definition.Title != surfaceDefinition.Title || !surfaceState.Definition.Children.SequenceEqual(surfaceDefinition.Children))
         { writes.Add(surface.Set(surfaceDefinition, surfaceState.Revision)); }
         await Task.WhenAll(writes);
+        await brain.Get<IApp>(appKey).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
+            new(new Sphere("icon.svg", []), Main: new("surface", appKey + "/surface")));
     }
 
     private static bool Same(LayoutDefinition left, LayoutDefinition right)
@@ -181,10 +183,4 @@ public static class Assistant
     public static AgentRunStatus? Settled(AgentState state)
         => state.ActiveRun is null ? state.Runs.LastOrDefault()?.Status : null;
 
-    public static async Task OpenWindowAsync(DigitalBrainConnection brain, CancellationToken ct)
-    {
-        var workspace = brain.Get<IWorkspace>(Scope(brain));
-        ct.ThrowIfCancellationRequested();
-        await workspace.Show(Key(brain), Guid.NewGuid().ToString(), (await workspace.Read()).Revision);
-    }
 }

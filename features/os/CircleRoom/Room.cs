@@ -3,7 +3,6 @@ using DigitalBrain.Client;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Apps;
 using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Surface;
 
 // Shared by every synapse of the circle room: the keys of the circle brain's own neurons and the transcript,
 // always rebuilt from the chat.
@@ -21,8 +20,8 @@ public static class Room
         var app = Key(brain);
         await brain.Get<ICircle>(ICircle.Key(Circle(brain))).BindPublicationButton();
         await PublicationUi.Layout(brain, "main", [new("text", app + "/status"), new("layout", app + "/publication-pane"), new("layout", app + "/result"), new("text", app + "/transcript")]);
-        var surface = brain.Get<ISurface>(app + "/surface");
-        await surface.Set(new("Circle room", [new("layout", app + "/main")]), (await surface.Read()).Revision);
+        await brain.Get<IApp>(app).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
+            new(new Sphere("icon.svg", []), Main: new("layout", app + "/main")));
     }
 
     public static async Task ShowPublication(DigitalBrainConnection brain, AppPublicationRef reference)

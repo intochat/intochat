@@ -15,6 +15,8 @@ the same transcript.
 
 Invoking "say" with "hello" adds "hello" to the circle's chat, spoken by the member's account, and the
 transcript shows it.
+
+Startup publishes one sphere and a main layout hosting the existing room content.
 */
 
 using DigitalBrain.Apps;
@@ -22,7 +24,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "circleroom";
-    public const string Version = "1.1.5";
+    public const string Version = "1.1.6";
 
     public static readonly AppManifest Manifest = new(
         Title: "Circle room",

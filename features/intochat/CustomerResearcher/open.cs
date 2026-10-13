@@ -3,13 +3,11 @@ using DigitalBrain.Client;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Button;
 using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.TextField;
 using DigitalBrain.Flutter.WebBrowser;
-using DigitalBrain.Flutter.Workspace;
 
-// The researcher's window: edge neurons composed by plain grain calls, safe to re-run. The browser
+// The researcher's main content: edge neurons composed by plain grain calls, safe to re-run. The browser
 // part declares its own driver, so no behavior manages the browser session.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
@@ -18,17 +16,13 @@ var status = brain.Get<IText>(appKey + "/status");
 // The last failure an open showed in the status, so a later successful open can take it back.
 var failure = brain.Get<IText>(appKey + "/open-failure");
 
+await ComposeAsync();
+
 await foreach (var request in brain.On(app, "open", brain.Stopping))
 {
     try
     {
         await ComposeAsync();
-        // Docked: the shell renders the surface in its side panel, so no workspace window opens.
-        if (request.Input != "docked")
-        {
-            var workspace = brain.Get<IWorkspace>(brain.Setting("Brain")!);
-            await workspace.Show(appKey, request.RequestId.ToString(), (await workspace.Read()).Revision);
-        }
         if ((await failure.Read()).Markdown is { Length: > 0 } shown)
         {
             if ((await status.Read()).Markdown == shown) { await status.Set(""); }
@@ -61,6 +55,6 @@ async Task ComposeAsync()
     var main = brain.Get<ILayout>(Name("main"));
     await main.Set(new LayoutDefinition("column", children, Extents: [60, 40, 64, 0, 0]), (await main.Read()).Revision);
 
-    var surface = brain.Get<ISurface>(Name("surface"));
-    await surface.Set(new SurfaceDefinition("Customer Researcher", [Ref(UIVocabulary.LayoutType, "main")]), (await surface.Read()).Revision);
+    await brain.Get<IApp>(appKey).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
+            new(new Sphere("icon.svg", []), Main: new("layout", appKey + "/main")));
 }

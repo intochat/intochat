@@ -3,10 +3,8 @@ using DigitalBrain.ArtCraft;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.WebBrowser;
-using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Microsoft.Playwright;
 
 // Open: connect the app's MCP server (its tools join the brain's search), then show the app's own web
@@ -44,7 +42,7 @@ async Task Compose()
         var main = brain.Get<ILayout>(Name("main"));
         await main.Set(new LayoutDefinition("column", [Ref(UIVocabulary.TextType, "status"), Ref(UIVocabulary.WebBrowserType, "browser")],
             Extents: [40, 0]), (await main.Read()).Revision);
-        var surface = brain.Get<ISurface>(Name("surface"));
-        await surface.Set(new SurfaceDefinition("FilmCraft", [Ref(UIVocabulary.LayoutType, "main")]), (await surface.Read()).Revision);
+        await brain.Get<IApp>(appKey).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
+            new(new Sphere("icon.svg", []), Main: new("layout", appKey + "/main")));
 
 }

@@ -12,5 +12,5 @@ await foreach (var request in brain.On(app, "open", brain.Stopping))
         await BrainView.Compose(brain);
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-    { await app.Progress("attention", "The brain view could not compose its scene; open it again. " + error.Message); }
+    { await app.Progress("attention", "The brain view could not compose its panel; open it again. " + error.Message); }
 }

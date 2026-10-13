@@ -50,14 +50,14 @@ built.
 
 ## Scenario: The apps view shows real run counts
 
-Invoking "open" opens a "Memory" window. `{app}/apps` lists every installed app with its title, version,
+Invoking "open" composes and publishes Memory's main layout. `{app}/apps` lists every installed app with its title, version,
 origin and files; each synapse shows its status (Starting, Running, Exited or Stopped), the runs and
 failures the brain runtime reports for it, its last run time and, once it has run while Memory follows
 runs, its p50. After the calculator's "add" runs three more times, `calculator/add.cs` shows three more
 runs. Shared files such as `memory/Memory.cs` show as shared. `{app}/types` lists the installed types by
-provider. Opening "docked" skips the window.
-Workspace hosting: startup composes the declared entry using stable neuron identities. Opening the
-workspace reads that state; composition and completion never change focus or reopen a closed entry.
+provider.
+Presentation: startup publishes one sphere and its main content using stable neuron identities.
+Workspace navigation owns focus; composition never changes it.
 
 */
 
@@ -66,14 +66,14 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "memory";
-    public const string Version = "1.0.6";
+    public const string Version = "1.0.7";
 
     public static readonly AppManifest Manifest = new(
         Title: "Memory",
         Description: "Find the synapse that already does what you need: an index of this brain's apps and programs, recalled by meaning and words.",
         Operations:
         [
-            new("open", "Show this brain's apps, each synapse's status, runs, failures and p50 run time, and the installed types, then reindex; input \"docked\" skips the window."),
+            new("open", "Show this brain's apps, each synapse's status, runs, failures and p50 run time, and the installed types, then reindex."),
             new("recall", "Rank this brain's synapses and apps against the input by meaning and words, best first; the answer is the text neuron {app}/recalls/{requestId}, and {app}/recall holds the latest."),
             new("reindex", "Rebuild the index of this brain's apps and C# files, with their meaning vectors, from scratch as a new generation; {app}/status reports what was indexed."),
         ],

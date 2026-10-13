@@ -6,8 +6,6 @@ using DigitalBrain.Client;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Button;
 using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.Surface;
-using DigitalBrain.Flutter.Workspace;
 
 // Compose the declared root at startup; workspace navigation owns visibility and focus.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
@@ -38,6 +36,6 @@ async Task Compose()
     }
     var main = brain.Get<ILayout>(Name("main"));
     await main.Set(new LayoutDefinition("column", [.. children], Extents: [.. extents]), (await main.Read()).Revision);
-    var surface = brain.Get<ISurface>(Name("surface"));
-    await surface.Set(new SurfaceDefinition("Calculator", [new UiChildRef(UIVocabulary.LayoutType, Name("main"))]), (await surface.Read()).Revision);
+    await brain.Get<IApp>(appKey).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
+            new(new Sphere("icon.svg", []), Main: new("layout", appKey + "/main")));
 }

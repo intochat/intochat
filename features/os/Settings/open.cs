@@ -5,10 +5,8 @@ using DigitalBrain.Client;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Button;
 using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.TextField;
-using DigitalBrain.Flutter.Workspace;
 
 // Compose the declared root at startup; workspace navigation owns visibility and focus.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
@@ -53,6 +51,6 @@ async Task Compose()
     var main = brain.Get<ILayout>(appKey + "/main");
     await main.Set(new("column", [new("button", appKey + "/refresh-connections"),
         new("layout", appKey + "/connections")], Extents: [40, 0]), (await main.Read()).Revision);
-    var surface = brain.Get<ISurface>(appKey + "/surface");
-    await surface.Set(new("Settings", [new("layout", appKey + "/main")]), (await surface.Read()).Revision);
+    await brain.Get<IApp>(appKey).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
+            new(new Sphere("icon.svg", []), Main: new("layout", appKey + "/main")));
 }

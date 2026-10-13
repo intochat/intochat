@@ -67,6 +67,8 @@ webhook reaction writes that detail for monnet to {app}/status once and waits.
 
 Asking "status" writes {app}/status: one line per operation with its last outcome and detail, or
 "no result yet".
+
+Startup publishes one sphere and a main layout hosting the existing status content.
 */
 
 using DigitalBrain.Apps;
@@ -74,7 +76,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "sv-loans";
-    public const string Version = "0.1.2";
+    public const string Version = "0.1.3";
 
     public static readonly AppManifest Manifest = new(
         Title: "SV Loans",

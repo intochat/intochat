@@ -1,10 +1,9 @@
+using DigitalBrain.Apps;
 using System.Text.Json;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Microsoft.Aspire;
 
 // Shared by every synapse: the app's key, its brain, the change-set shape and the list rendering.
@@ -81,14 +80,8 @@ public static class SelfImprove
         string Name(string part) => appKey + "/" + part;
         var main = brain.Get<ILayout>(Name("main"));
         await main.Set(new LayoutDefinition("column", [new UiChildRef(UIVocabulary.TextType, Name("revisions")), new UiChildRef(UIVocabulary.TextType, Name("report"))], Extents: [0, 160]), (await main.Read()).Revision);
-        var surface = brain.Get<ISurface>(Name("surface"));
-        await surface.Set(new SurfaceDefinition("Self-improve", [new UiChildRef(UIVocabulary.LayoutType, Name("main"))]), (await surface.Read()).Revision);
+        await brain.Get<IApp>(appKey).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
+            new(new Sphere("icon.svg", []), Main: new("layout", appKey + "/main")));
     }
 
-    public static async Task OpenWindowAsync(DigitalBrainConnection brain, CancellationToken ct)
-    {
-        ct.ThrowIfCancellationRequested();
-        var workspace = brain.Get<IWorkspace>(Scope(brain));
-        await workspace.Show(Key(brain), Guid.NewGuid().ToString(), (await workspace.Read()).Revision);
-    }
 }

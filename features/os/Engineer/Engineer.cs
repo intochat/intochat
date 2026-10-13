@@ -8,9 +8,7 @@ using DigitalBrain.Apps;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.Workspace;
 
 // Shared by every synapse: the app's keys, the request record and its neurons, the input rules, the
 // classifier call and the list rendering.
@@ -301,13 +299,8 @@ public static class Engineer
         var appKey = Key(brain);
         var main = brain.Get<ILayout>(appKey + "/main");
         await main.Set(new("list", [new(UIVocabulary.TextType, appKey + "/status"), new(UIVocabulary.TextType, appKey + "/list")]), (await main.Read()).Revision);
-        var surface = brain.Get<ISurface>(appKey + "/surface");
-        await surface.Set(new("Engineer", [new(UIVocabulary.LayoutType, appKey + "/main")]), (await surface.Read()).Revision);
+        await brain.Get<IApp>(appKey).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
+            new(new Sphere("icon.svg", []), Main: new("layout", appKey + "/main")));
     }
 
-    public static async Task OpenWindowAsync(DigitalBrainConnection brain)
-    {
-        var workspace = brain.Get<IWorkspace>(Scope(brain));
-        await workspace.Show(Key(brain), Guid.NewGuid().ToString(), (await workspace.Read()).Revision);
-    }
 }

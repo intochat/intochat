@@ -2,7 +2,6 @@ using DigitalBrain.Apps;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Button;
 using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.TextField;
 
@@ -27,8 +26,8 @@ async Task Compose()
         Extents: [0, 90]), (await input.Read()).Revision);
     var main = brain.Get<ILayout>(Name("main"));
     await main.Set(new LayoutDefinition("column",
-        [new UiChildRef(UIVocabulary.TextType, Name("result")), new UiChildRef(UIVocabulary.LayoutType, Name("input"))],
-        Extents: [0, 96]), (await main.Read()).Revision);
-    var surface = brain.Get<ISurface>(Name("surface"));
-    await surface.Set(new SurfaceDefinition("Jev", [new UiChildRef(UIVocabulary.LayoutType, Name("main"))]), (await surface.Read()).Revision);
+        [new UiChildRef(UIVocabulary.TextType, Name("result")), new UiChildRef(UIVocabulary.TextType, Name("timer")), new UiChildRef(UIVocabulary.LayoutType, Name("input"))],
+        Extents: [0, 120, 96]), (await main.Read()).Revision);
+    await brain.Get<IApp>(Jev.Key(brain)).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
+            new(new Sphere("icon.svg", []), Main: new("layout", Jev.Key(brain) + "/main")));
 }

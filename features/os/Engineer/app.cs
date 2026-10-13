@@ -27,9 +27,8 @@ too). The setting Model picks the classifier's model; empty uses DeepSeek V4.1 F
 
 ## Scenario: Opening shows the requests
 
-Invoking "open" opens an "Engineer" window whose surface holds `{app}/status` (how many requests, by
-status) and `{app}/list`, every request newest first with its status, kind, target and outcome. Opening
-"docked" composes the same surface without the window.
+Invoking "open" composes and publishes the main layout holding `{app}/status` (how many requests, by
+status) and `{app}/list`, every request newest first with its status, kind, target and outcome.
 
 ## Scenario: A synapse request becomes a live synapse in the scratch app
 
@@ -49,8 +48,8 @@ request shows Blocked with the reason (module builds are gated by NG-1..NG-5) an
 Asking with an empty input, JSON that does not parse, or a JSON object without a `request` text records
 the request as Refused with the reason ("Request refused: …"); no model is called and nothing is built,
 and the next request is handled as usual.
-Workspace hosting: startup composes the declared entry using stable neuron identities. Opening the
-workspace reads that state; composition and completion never change focus or reopen a closed entry.
+Presentation: startup publishes one sphere and its main content using stable neuron identities.
+Workspace navigation owns focus; composition never changes it.
 
 */
 
@@ -59,7 +58,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "engineer";
-    public const string Version = "1.0.5";
+    public const string Version = "1.0.6";
 
     public static readonly AppManifest Manifest = new(
         Title: "Engineer",

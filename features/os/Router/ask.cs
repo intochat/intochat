@@ -1,14 +1,13 @@
 using DigitalBrain.AI.Routing;
 using DigitalBrain.Apps;
 using DigitalBrain.Flutter;
-using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Text;
 using ITimer = DigitalBrain.Time.Timers.ITimer;
 
 // "ask": the brain's router has Jev pick a capability and method, a language model fills the key and
 // arguments, and the call runs until Jev says the request is done. The result neuron names each method
 // that ran, or says the request was not clear enough to route when Jev chose nothing above its gate.
-// A started timer joins the router's timer list and is shown in a "Timer" window; showing it never
+// A started timer joins the router's timer list and is shown in the router's main layout; showing it never
 // replaces the routed answer. Handled request ids are neuron state, so a redelivered request is not
 // carried out twice.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
@@ -65,10 +64,10 @@ async Task Ask(string input, string id)
             await Record(new Timers.Started(id + "-" + index, step.Key!, requested, answered, due, period));
         }
         await Timers.Show(brain);
-        await ShowTimers();
+        await Jev.Show(brain);
     }
     catch (Exception error) when (!brain.Stopping.IsCancellationRequested)
-    { await result.Set(answer + "\n\nThe Timer window could not be shown: " + Jev.Clip(error.Message, 300)); }
+    { await result.Set(answer + "\n\nThe router could not be shown: " + Jev.Clip(error.Message, 300)); }
 }
 
 // The timers neuron lists the timers this router started; a redelivered request adds no second line.
@@ -78,12 +77,4 @@ async Task Record(Timers.Started timer)
     var lines = Timers.Lines((await ledger.Read()).Markdown);
     if (lines.Any(line => line.StartsWith(timer.Id + "\t", StringComparison.Ordinal))) { return; }
     await ledger.Set(string.Join('\n', lines.TakeLast(Timers.Kept - 1).Append(Timers.Line(timer))));
-}
-
-// The "Timer" window: a surface around the timer text part.
-async Task ShowTimers()
-{
-    var surface = brain.Get<ISurface>(Jev.Name(brain, "timer-surface"));
-    await surface.Set(new SurfaceDefinition("Timer", [new UiChildRef(UIVocabulary.TextType, Jev.Name(brain, "timer"))]), (await surface.Read()).Revision);
-    await Jev.OpenWindow(brain, "timer-window", "Timer", "timer-surface");
 }

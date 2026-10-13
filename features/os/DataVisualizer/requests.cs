@@ -6,13 +6,12 @@ using DigitalBrain.Client;
 using DigitalBrain.Flutter.Card;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.TextField;
-using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Postgres;
 using DigitalBrain.Time.Reminders;
 using AppTable = DigitalBrain.Postgres.Tables.ITable;
 
 // The app's operations arrive as requests; each one only writes neurons, never an answer. The
-// registry, the composed surfaces and the table/chart neurons are what a caller reads.
+// registry, the composed layouts and the table/chart neurons are what a caller reads.
 await using var brain = await DigitalBrainClient.ConnectAsync(args);
 var appKey = brain.Setting("App")!;
 var app = brain.Get<IApp>(appKey);
@@ -57,10 +56,7 @@ async Task Answer(Guid requestId, string operation, string input)
             var view = new View("v-" + requestId.ToString("N"), request.GetProperty("title").GetString() ?? "View", kind, source, sql, filters, refresh);
             var existing = await Views.All(brain, appKey);
             view = existing.FirstOrDefault(item => item.Id == view.Id) ?? view;
-            // The window opens before the view is registered: a show that fails leaves no listed view without
-            // a window, and a redelivered show composes and opens the same view again.
             await Views.Compose(brain, appKey, view);
-            await Views.OpenViewWindowAsync(brain, appKey, view, requestId.ToString(), brain.Stopping);
             var views = existing.Any(item => item.Id == view.Id) ? existing : existing.Append(view).ToArray();
             await Views.Save(brain, appKey, views);
             await Views.Schedule(brain, appKey, view);
@@ -149,9 +145,6 @@ async Task Answer(Guid requestId, string operation, string input)
             var id = input.Trim();
             var views = await Views.All(brain, appKey);
             await brain.Get<IReminder>($"{appKey}/views/{id}/refresh").Stop();
-            // The window closes before the view leaves the registry, so a close that fails still lists the
-            // view and closing it again finishes the job.
-            await Views.CloseViewWindowAsync(brain, appKey, id, requestId.ToString(), brain.Stopping);
             var remaining = views.Where(v => v.Id != id).ToArray();
             await Views.Save(brain, appKey, remaining);
             await Views.ComposeHome(brain, appKey, remaining);

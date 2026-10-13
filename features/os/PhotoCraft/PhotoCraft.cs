@@ -1,16 +1,15 @@
+using DigitalBrain.Apps;
 using DigitalBrain.AI.Agents;
 using DigitalBrain.ArtCraft;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Image;
 using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.WebBrowser;
-using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Mcp;
 
-// Shared by every PhotoCraft synapse: the app's neurons, connecting the tools, and showing the window.
+// Shared by every PhotoCraft synapse: the app's neurons, connecting the tools, and composing main content.
 // Every call here is a plain grain call that is safe to repeat.
 public static class PhotoCraft
 {
@@ -33,7 +32,7 @@ public static class PhotoCraft
     public static Task<ArtCraftSession> Connect(DigitalBrainConnection brain, CancellationToken ct)
         => brain.Get<IArtCraftStudio>(brain.Setting("Brain")! + "/artcraft").Open("photocraft", ct);
 
-    // The window: the status line above the PhotoCraft web app.
+    // The main content: the status line above the PhotoCraft web app.
     public static async Task Show(DigitalBrainConnection brain, ArtCraftSession session, CancellationToken ct)
     {
         var browser = brain.Get<IWebBrowser>(Name(brain, "browser"));
@@ -48,8 +47,8 @@ public static class PhotoCraft
         var main = brain.Get<ILayout>(Name(brain, "main"));
         await main.Set(new LayoutDefinition("column", [Ref(UIVocabulary.TextType, "status"), Ref(UIVocabulary.WebBrowserType, "browser")],
             Extents: [40, 0]), (await main.Read()).Revision);
-        var surface = brain.Get<ISurface>(Name(brain, "surface"));
-        await surface.Set(new SurfaceDefinition("PhotoCraft", [Ref(UIVocabulary.LayoutType, "main")]), (await surface.Read()).Revision);
+        await brain.Get<IApp>(Key(brain)).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
+            new(new Sphere("icon.svg", []), Main: new("layout", Key(brain) + "/main")));
     }
 
     // The editor's last turn when it has ended and the app has not settled it yet.

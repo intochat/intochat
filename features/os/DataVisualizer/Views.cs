@@ -1,3 +1,4 @@
+using DigitalBrain.Apps;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -8,15 +9,13 @@ using DigitalBrain.Client;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Card;
 using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Text;
 using DigitalBrain.Flutter.Text.Signals;
 using DigitalBrain.Flutter.TextField;
-using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Time.Reminders;
 
 // A view is a durable definition the synapses share: what to query, which columns are filters and
-// how often to run. Every window is derived from the registry, so composing is idempotent.
+// how often to run. Every layout is derived from the registry, so composing is idempotent.
 public sealed record View(string Id, string Title, string Kind, string Source, string Sql, string[] Filters, int RefreshSeconds, string? FilterGroup = null);
 
 public static class Views
@@ -65,9 +64,7 @@ public static class Views
         var current = await layout.Read();
         var definition = new LayoutDefinition("list", children.ToArray());
         if (current.Definition.Mode != definition.Mode || !Same(current.Definition.Children, definition.Children)) { await layout.Set(definition, current.Revision); }
-        var surface = brain.Get<ISurface>($"{root}/surface");
-        var state = await surface.Read();
-        if (state.Definition.Title != view.Title || state.Definition.Children.Length != 1) { await surface.Set(new(view.Title, [new("layout", $"{root}/layout")]), state.Revision); }
+
     }
 
     // A registered view with an interval owns a durable reminder; run-on-tick turns its ticks into refreshes.
@@ -82,30 +79,13 @@ public static class Views
         await list.Set("Views", views.Length == 0 ? "No views yet. Ask the assistant to show a table or a chart." : string.Join("\n", views.Select(view => $"- {view.Title} ({view.Kind}, {view.Id})")));
         var main = brain.Get<ILayout>(appKey + "/main");
         var current = await main.Read();
-        if (current.Definition.Children.Length == 0) { await main.Set(new("column", [new("card", appKey + "/list")]), current.Revision); }
-        var surface = brain.Get<ISurface>(appKey + "/surface");
-        var state = await surface.Read();
-        if (state.Definition.Title != "Data Visualizer") { await surface.Set(new("Data Visualizer", [new("layout", appKey + "/main")]), state.Revision); }
-    }
-
-    public static Task OpenWindowAsync(DigitalBrainConnection brain, string appKey, CancellationToken ct)
-        => ShowAsync(brain, appKey, Guid.NewGuid().ToString(), ct);
-
-    public static Task OpenViewWindowAsync(DigitalBrainConnection brain, string appKey, View view, string operation, CancellationToken ct)
-        => ShowAsync(brain, appKey, operation, ct);
-
-    public static async Task CloseViewWindowAsync(DigitalBrainConnection brain, string appKey, string id, string operation, CancellationToken ct)
-    {
-        ct.ThrowIfCancellationRequested();
-        var workspace = brain.Get<IWorkspace>(brain.Setting("Brain")!);
-        await workspace.Close(appKey, operation, (await workspace.Read()).Revision);
-    }
-
-    private static async Task ShowAsync(DigitalBrainConnection brain, string appKey, string operation, CancellationToken ct)
-    {
-        ct.ThrowIfCancellationRequested();
-        var workspace = brain.Get<IWorkspace>(brain.Setting("Brain")!);
-        await workspace.Show(appKey, operation, (await workspace.Read()).Revision);
+        foreach (var view in views) { await Compose(brain, appKey, view); }
+        UiChildRef[] children = [new("card", appKey + "/list"), new("card", appKey + "/status"),
+            .. views.Select(view => new UiChildRef("layout", $"{appKey}/views/{view.Id}/layout"))];
+        if (current.Definition.Mode != "list" || !Same(current.Definition.Children, children))
+        { await main.Set(new("list", children), current.Revision); }
+        await brain.Get<IApp>(appKey).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
+            new(new Sphere("icon.svg", []), Main: new("layout", appKey + "/main")));
     }
 
     private static bool Same(UiChildRef[] left, UiChildRef[] right) => left.Length == right.Length && left.Zip(right).All(pair => pair.First == pair.Second);

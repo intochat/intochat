@@ -6,9 +6,8 @@ The Research and Stop buttons post the same operations the assistant's tools do.
 
 ### Show the researcher
 
-When "open" arrives, compose the researcher surface (the company field, Research and Stop, the status
-text, the research activity list and the browser paired to its driver) and open its window; with the
-input "docked", compose it without a window.
+Startup and "open" compose and publish the researcher main layout: the company field,
+Research and Stop buttons, status, activity list and browser paired to its driver.
 
 ### Queue research
 
@@ -38,14 +37,7 @@ slot or, with none bound, in the deployment's default database. Researching need
 
 ## Scenario: Opening the researcher composes its surface
 
-Invoking "open" composes the "Customer Researcher" surface with the company field, the Research and Stop
-buttons, the status text, the research activity list and the browser paired to its driver, and opens a
-"Customer Researcher" window in the workspace.
-
-## Scenario: Opening docked answers the surface without a window
-
-Invoking "open" with the input "docked" composes the same "Customer Researcher" surface but opens no window
-in the workspace: the shell shows it in its side panel instead.
+Invoking "open" rebuilds the published main layout with stable neuron identities.
 
 ## Scenario: Stopping an idle researcher is safe
 
@@ -115,14 +107,14 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "customer-researcher";
-    public const string Version = "1.1.46";
+    public const string Version = "1.1.47";
 
     public static readonly AppManifest Manifest = new(
         Title: "Customer Researcher",
         Description: "Research companies live in a driven browser and save verified findings to a Postgres table.",
         Operations:
         [
-            new("open", "Compose the researcher surface and open its window; with input \"docked\", compose it without a window."),
+            new("open", "Compose and publish the researcher main layout."),
             new("research", "Queue a company by name, location or website; the queue and status neurons show the outcome."),
             new("stop", "Stop active and queued research without removing saved records."),
             new("result", "Read the stored research row for a company query into {app}/result/{requestId}, or null."),

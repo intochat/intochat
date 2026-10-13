@@ -28,8 +28,8 @@ public static class Jev
         return direct;
     }
 
-    // Opens a window on one of the router's surfaces unless it is already open.
-    public static async Task OpenWindow(DigitalBrainConnection brain, string window, string title, string surface)
+    // Focuses the router, whose main layout includes its timer status.
+    public static async Task Show(DigitalBrainConnection brain)
     {
         var workspace = brain.Get<IWorkspace>(Scope(brain));
         await workspace.Show(Key(brain), Guid.NewGuid().ToString(), (await workspace.Read()).Revision);

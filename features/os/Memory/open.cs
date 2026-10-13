@@ -2,9 +2,7 @@ using DigitalBrain.Apps;
 using DigitalBrain.Apps.Signals;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Layout;
-using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Text;
-using DigitalBrain.Flutter.Workspace;
 using DigitalBrain.Postgres.Tables;
 
 // Compose the declared root at startup; workspace navigation owns visibility and focus.
@@ -65,6 +63,6 @@ async Task Compose()
         new(UIVocabulary.TextType, appKey + "/status"), new(UIVocabulary.TextType, appKey + "/recall"),
         new(UIVocabulary.TextType, appKey + "/apps"), new(UIVocabulary.TextType, appKey + "/types"),
     ]), (await main.Read()).Revision);
-    var surface = brain.Get<ISurface>(appKey + "/surface");
-    await surface.Set(new("Memory", [new(UIVocabulary.LayoutType, appKey + "/main")]), (await surface.Read()).Revision);
+    await brain.Get<IApp>(appKey).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
+            new(new Sphere("icon.svg", []), Main: new("layout", appKey + "/main")));
 }

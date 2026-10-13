@@ -3,7 +3,6 @@ using DigitalBrain.Circles;
 using DigitalBrain.Client;
 using DigitalBrain.Flutter;
 using DigitalBrain.Flutter.Collection;
-using DigitalBrain.Flutter.Surface;
 using DigitalBrain.Flutter.Text;
 
 public static class CircleView
@@ -19,8 +18,8 @@ public static class CircleView
         var app = Key(brain);
         await Factory(brain).BindPublicationButton();
         await PublicationUi.Layout(brain, "main", [new("layout", app + "/navigation-bar"), new("text", app + "/status"), new("layout", app + "/content"), new("layout", app + "/result")]);
-        var surface = brain.Get<ISurface>(app + "/surface");
-        await surface.Set(new("Circle", [new("layout", app + "/main")]), (await surface.Read()).Revision);
+        await brain.Get<IApp>(app).Present(long.Parse(brain.Setting("ProgramRevision")!, System.Globalization.CultureInfo.InvariantCulture),
+            new(new Sphere("icon.svg", []), Main: new("layout", app + "/main")));
     }
 
     public static async Task Navigate(DigitalBrainConnection brain, PublicationUi.Navigation navigation)

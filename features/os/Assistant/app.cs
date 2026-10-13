@@ -4,8 +4,7 @@
 The brain's conversational assistant. A message runs one agent turn through the brain's agent
 runner with the assistant's system prompt and tools (capability discovery, neuron inventory,
 forms and views). The transcript shows each message, the tools the turn used and the answer.
-Conversations are durable; "new" starts another one. Opening docked composes the same surface for
-the shell's working area without opening a window.
+Conversations are durable; "new" starts another one. Startup publishes the shared chat surface as main content.
 
 Before a message reaches the language model, Jev (the router) reads it against the contract catalog.
 Sending asks the router and ends; the router answers with a `Routed` signal carrying the request id,
@@ -24,7 +23,7 @@ the whole message, so "add 17+25 with the calculator" would reach "add" as that 
 model answers with the route as a hint: it posts the request with the input the operation expects and
 reads the app's answer neuron. A route that names the assistant's own
 operations is never carried out: a message sent to the assistant is the model's to answer, so it
-never loops back into "send" or reopens the window. Any other route runs the agent turn as usual, with
+never loops back into "send" or changes focus. Any other route runs the agent turn as usual, with
 the likely capabilities appended to the system prompt. Either way the `Routed` signal shows which path answered. A turn that
 cannot start (a response is already running, the Model setting names an unavailable model) says so
 on the status line and later messages still work; a message that arrives while a response is
@@ -32,20 +31,14 @@ running is put into the composer's draft when the draft is empty, so sending it 
 
 ## Scenario: Opening the assistant composes its surface
 
-Invoking "open" opens the workspace window "{brain}/apps/assistant/window", titled "Assistant", on
-the surface "{brain}/apps/assistant/surface": a header row (the status text and the "New conversation"
-button), the transcript chat and the composer, which is the draft field and its send.
-
-## Scenario: Opening docked composes the surface without a window
-
-Invoking "open" with "docked" composes the same surface for the shell's working area and leaves the
-assistant window as it was: a closed window stays closed.
+Invoking "open" composes and publishes the Assistant surface in main: a header row
+(status and New conversation), transcript chat and composer. Ino uses the same surface.
 
 ## Scenario: The dock is the assistant's toolbar
 
 The manifest's toolbar is a text field for "send" and a mic button for "voice". Submitting the
 field posts "send" with the text; the transcript shows the answer. The shell renders this toolbar
-as its assistant island; nothing in the shell is assistant-specific beyond the cat it draws beside it.
+below the focused sphere.
 
 ## Scenario: The dock's mic begins a voice message
 
@@ -147,8 +140,8 @@ assistant never writes into itself. With no such key (or plain text, a sentence 
 synapse goes into the brain's "scratch" app, created the first time it is needed. Focus is whatever the
 caller passes: the shell passes the keys of the windows it shows. A malformed input says so on the
 status line and writes nothing.
-Workspace hosting: startup composes the declared entry using stable neuron identities. Opening the
-workspace reads that state; composition and completion never change focus or reopen a closed entry.
+Presentation: startup publishes one sphere and its main content using stable neuron identities.
+Workspace navigation owns focus; composition never changes it.
 
 Progress states are Ino's mood source: listening when input arrives, working while answering,
 completed after an answer, and attention on failure. Ino follows AppActivity and writes its mood key.
@@ -160,14 +153,14 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "assistant";
-    public const string Version = "1.9.6";
+    public const string Version = "1.9.7";
 
     public static readonly AppManifest Manifest = new(
         Title: "Assistant",
         Description: "Talk to your brain: ask questions, find capabilities and open what you need.",
         Operations:
         [
-            new("open", "Compose the assistant surface; input \"docked\" composes it for the working area without opening a window."),
+            new("open", "Compose and publish the shared assistant surface in main."),
             new("send", "Start a turn in the current conversation with this message; the transcript neuron shows the answer."),
             new("new", "Start a new conversation; the conversation neuron holds its id."),
             new("voice", "Begin a voice message from the dock; the composer neuron captures and transcribes it."),

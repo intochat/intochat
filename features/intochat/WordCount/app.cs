@@ -15,6 +15,8 @@ Asking "  hello    world  " answers "2 words".
 ## Scenario: One word is singular
 
 Asking "hello" answers "1 word".
+
+Startup publishes one sphere and a main layout hosting the existing answer content.
 */
 
 using DigitalBrain.Apps;
@@ -22,7 +24,7 @@ using DigitalBrain.Apps;
 static class App
 {
     public const string Name = "word-count";
-    public const string Version = "1.0.4";
+    public const string Version = "1.0.5";
 
     public static readonly AppManifest Manifest = new(
         Title: "Word count",
